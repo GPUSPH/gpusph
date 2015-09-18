@@ -473,8 +473,6 @@ bool GPUSPH::runSimulation() {
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
 
-	buildNeibList();
-
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
@@ -482,6 +480,12 @@ bool GPUSPH::runSimulation() {
 		printStatus(m_info_stream);
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
+
+		// build neighbors list
+		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
+			gdata->particlesCreated) {
+			buildNeibList();
+		}
 
 		// run enabled filters
 		if (gdata->iterations > 0) {
@@ -851,12 +855,6 @@ bool GPUSPH::runSimulation() {
 				printStatus();
 				m_intervalPerformanceCounter->restart();
 			}
-		}
-
-		// build neighbors list
-		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
-			gdata->particlesCreated) {
-			buildNeibList();
 		}
 
 		if (finished || gdata->quit_request)
