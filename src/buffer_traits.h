@@ -54,7 +54,7 @@ template<> struct BufferTraits<code> \
 { \
 	typedef _type element_type; \
 	enum { num_buffers = _nbufs} ; \
-	static char name[]; \
+	static const char name[]; \
 }
 
 #endif
