@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <cuda_gl_interop.h>
 
 #include "cudautil.cuh"
 #include "compute_select.opt"
@@ -106,22 +105,3 @@ cudaDeviceProp checkCUDA(const Options &options)
 
 	return deviceProp;
 }
-
-
-void allocateArray(void **devPtr, size_t size)
-{
-	CUDA_SAFE_CALL(cudaMalloc(devPtr, size));
-}
-
-
-void freeArray(void *devPtr)
-{
-	CUDA_SAFE_CALL(cudaFree(devPtr));
-}
-
-
-void threadSync()
-{
-	CUDA_SAFE_CALL(cudaThreadSynchronize());
-}
-

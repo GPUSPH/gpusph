@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <pthread.h>
 
+#include <cuda_runtime.h>
+
 #define CUDA_SAFE_CALL_NOSYNC(err)	__cudaSafeCallNoSync(err, __FILE__, __LINE__)
 #define CUDA_SAFE_CALL(err)			__cudaSafeCall(err, __FILE__, __LINE__)
 #define CUT_CHECK_ERROR(err)		__cutilGetSyncError(err, __FILE__, __LINE__)
