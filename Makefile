@@ -103,29 +103,33 @@ ifeq ($(USE_HDF5),2)
 	MPICXXFILES += $(SRCDIR)/HDF5SphReader.cc
 endif
 
+PROBLEM_DIR=$(SRCDIR)/problems
+USER_PROBLEM_DIR=$(SRCDIR)/problems/user
+
 SRCSUBS=$(sort $(filter %/,$(wildcard $(SRCDIR)/*/)))
 SRCSUBS:=$(SRCSUBS:/=)
-OBJSUBS=$(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS))
-
-PROBLEM_DIR=$(SRCDIR)/problems
+OBJSUBS=$(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS) $(USER_PROBLEM_DIR))
 
 # list of problems
-PROBLEM_LIST = $(notdir $(basename $(wildcard $(PROBLEM_DIR)/*.h)))
+PROBLEM_LIST = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
+	$(notdir $(basename $(wildcard $(adir)/*.h))))
+
 # only one problem is active at a time, this is the list of all other problems
 INACTIVE_PROBLEMS = $(filter-out $(PROBLEM),$(PROBLEM_LIST))
 # we don't want to build inactive problems, so we will filter them out
 # from the sources list
-PROBLEM_FILTER = \
-	$(patsubst %,$(PROBLEM_DIR)/%.cc,$(INACTIVE_PROBLEMS)) \
-	$(patsubst %,$(PROBLEM_DIR)/%.cu,$(INACTIVE_PROBLEMS)) \
-	$(patsubst %,$(PROBLEM_DIR)/%_BC.cu,$(INACTIVE_PROBLEMS))
+PROBLEM_FILTER = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
+	$(patsubst %,$(adir)/%.cc,$(INACTIVE_PROBLEMS)) \
+	$(patsubst %,$(adir)/%.cu,$(INACTIVE_PROBLEMS)) \
+	$(patsubst %,$(adir)/%_BC.cu,$(INACTIVE_PROBLEMS)))
 
 # list of problem source files
-PROBLEM_SRCS = $(filter \
-	$(PROBLEM_DIR)/$(PROBLEM).cc \
-	$(PROBLEM_DIR)/$(PROBLEM).cu \
-	$(PROBLEM_DIR)/$(PROBLEM)_BC.cu,\
-	$(wildcard $(PROBLEM_DIR)/*))
+PROBLEM_SRCS = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
+	$(filter \
+		$(adir)/$(PROBLEM).cc \
+		$(adir)/$(PROBLEM).cu \
+		$(adir)/$(PROBLEM)_BC.cu,\
+		$(wildcard $(adir)/*)))
 
 # list of .cc files, exclusing MPI sources and disabled problems
 CCFILES = $(filter-out $(PROBLEM_FILTER),\
@@ -278,7 +282,7 @@ ifdef problem
 		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(PROBLEM)/$(problem)/' $(PROBLEM_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's:$(PROBLEM):$(problem):' $(PROBLEM_SELECT_OPTFILE) )
 		# user choice
 		PROBLEM=$(problem)
 	endif
@@ -495,7 +499,7 @@ LDLIBS ?=
 
 # INCPATH
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
-INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(OPTSDIR)
+INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(USER_PROBLEM_DIR) -I$(OPTSDIR)
 
 # access the CUDA include files from the C++ compiler too, but mark their path as a system include path
 # so that they can be skipped when generating dependencies. This must only be done for the host compiler,
