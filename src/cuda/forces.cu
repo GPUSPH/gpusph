@@ -250,6 +250,9 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 
 		cuforces::densityGrenierDevice<kerneltype, boundarytype>
 			<<<numBlocks, numThreads>>>(sigma, pos, vel, info, pHash, vol, cellStart, neibsList, numParticles, slength, influenceradius);
+
+		// check if kernel invocation generated an error
+		CUT_CHECK_ERROR("Grenier density kernel execution failed");
 	}
 };
 
