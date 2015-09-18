@@ -125,7 +125,7 @@ PROBLEM_SRCS = $(filter \
 	$(PROBLEM_DIR)/$(PROBLEM).cc \
 	$(PROBLEM_DIR)/$(PROBLEM).cu \
 	$(PROBLEM_DIR)/$(PROBLEM)_BC.cu,\
-	$(wildcard $(SRCDIR)/problems/*))
+	$(wildcard $(PROBLEM_DIR)/*))
 
 # list of .cc files, exclusing MPI sources and disabled problems
 CCFILES = $(filter-out $(PROBLEM_FILTER),\
