@@ -26,6 +26,10 @@
 #ifndef _CUDA_BUFFER_H
 #define _CUDA_BUFFER_H
 
+#if _DEBUG_
+#include <iostream>
+#endif
+
 #include "buffer.h"
 
 /* Specializations of the buffer class that reside on
@@ -54,7 +58,16 @@ public:
 			//printf("\tfreeing buffer %d\n", i);
 #endif
 			if (bufs[i]) {
-				CUDA_SAFE_CALL(cudaFree(bufs[i]));
+				try {
+					CUDA_SAFE_CALL(cudaFree(bufs[i]));
+				} catch (std::exception &e) {
+#if _DEBUG_
+					std::cerr << e.what() <<
+						" [while freeing buffer " << Key << ":" << i << " ("
+						<< BufferTraits<Key>::name << ") @ 0x" << std::hex << bufs[i]
+						<< "]" << std::endl;
+#endif
+				}
 				bufs[i] = NULL;
 			}
 		}
