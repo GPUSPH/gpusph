@@ -48,7 +48,20 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	integrationEngine(gdata->simframework->getIntegrationEngine()),
 	bcEngine(gdata->simframework->getBCEngine()),
 	filterEngines(gdata->simframework->getFilterEngines()),
-	postProcEngines(gdata->simframework->getPostProcEngines())
+	postProcEngines(gdata->simframework->getPostProcEngines()),
+	m_dCellStart(NULL),
+	m_dCellEnd(NULL),
+	m_dRbForces(NULL),
+	m_dRbNum(NULL),
+	m_hCompactDeviceMap(NULL),
+	m_dCompactDeviceMap(NULL),
+	m_dSegmentStart(NULL),
+	m_dIOwaterdepth(NULL),
+	m_dNewNumParticles(NULL),
+	m_asyncH2DCopiesStream(0),
+	m_asyncD2HCopiesStream(0),
+	m_asyncPeerCopiesStream(0),
+	m_halfForcesEvent(0)
 {
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
@@ -1537,41 +1550,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	instance->setDeviceProperties( checkCUDA(gdata, deviceIndex) );
 
-	// allow peers to access the device memory (for cudaMemcpyPeer[Async])
-	instance->enablePeerAccess();
-
-	// compute #parts to allocate according to the free memory on the device
-	// must be done before uploading constants since some constants
-	// (e.g. those for neibslist traversal) depend on the number of particles
-	// allocated
-	instance->computeAndSetAllocableParticles();
-
-	// upload constants (PhysParames, some SimParams)
-	instance->uploadConstants();
-
-	// upload planes, if any
-	instance->uploadPlanes();
-
-	// allocate CPU and GPU arrays
-	instance->allocateHostBuffers();
-	instance->allocateDeviceBuffers();
-	instance->printAllocatedMemory();
-
-	// upload centers of gravity of the bodies
-	instance->uploadEulerBodiesCentersOfGravity();
-	instance->uploadForcesBodiesCentersOfGravity();
-
-	// create and upload the compact device map (2 bits per cell)
-	if (MULTI_DEVICE) {
-		instance->createCompactDeviceMap();
-		instance->computeCellBursts();
-		instance->uploadCompactDeviceMap();
-	}
-
-	// TODO: here set_reduction_params() will be called (to be implemented in this class). These parameters can be device-specific.
-
-	// init streams for async memcpys (only useful for multigpu?)
-	instance->createEventsAndStreams();
+	instance->initialize();
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
@@ -1765,17 +1744,61 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
-	// destroy streams
-	instance->destroyEventsAndStreams();
-
-	// deallocate buffers
-	instance->deallocateHostBuffers();
-	instance->deallocateDeviceBuffers();
-	// ...what else?
+	instance->finalize();
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
 
 	pthread_exit(NULL);
+}
+
+void GPUWorker::initialize()
+{
+	// allow peers to access the device memory (for cudaMemcpyPeer[Async])
+	enablePeerAccess();
+
+	// compute #parts to allocate according to the free memory on the device
+	// must be done before uploading constants since some constants
+	// (e.g. those for neibslist traversal) depend on the number of particles
+	// allocated
+	computeAndSetAllocableParticles();
+
+	// upload constants (PhysParames, some SimParams)
+	uploadConstants();
+
+	// upload planes, if any
+	uploadPlanes();
+
+	// allocate CPU and GPU arrays
+	allocateHostBuffers();
+	allocateDeviceBuffers();
+	printAllocatedMemory();
+
+	// upload centers of gravity of the bodies
+	uploadEulerBodiesCentersOfGravity();
+	uploadForcesBodiesCentersOfGravity();
+
+	// create and upload the compact device map (2 bits per cell)
+	if (MULTI_DEVICE) {
+		createCompactDeviceMap();
+		computeCellBursts();
+		uploadCompactDeviceMap();
+
+		// init streams for async memcpys
+		createEventsAndStreams();
+	}
+
+	// TODO: here set_reduction_params() will be called (to be implemented in this class). These parameters can be device-specific.
+}
+
+void GPUWorker::finalize()
+{
+	// destroy streams
+	destroyEventsAndStreams();
+
+	// deallocate buffers
+	deallocateHostBuffers();
+	deallocateDeviceBuffers();
+	// ...what else?
 }
 
 void GPUWorker::kernel_calcHash()

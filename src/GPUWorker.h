@@ -199,6 +199,9 @@ private:
 
 	void printAllocatedMemory();
 
+	void initialize();
+	void finalize();
+
 	// select a BufferList based on the DBLBUFFER_* specification
 	// in the command flags
 	MultiBufferList::iterator getBufferListByCommandFlags(flag_t flags);
