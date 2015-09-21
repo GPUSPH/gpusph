@@ -62,14 +62,15 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>,
-		boundary<LJ_BOUNDARY>
+		boundary<LJ_BOUNDARY>,
+		flags<ENABLE_NONE>
 	);
 
 	addFilter(MLS_FILTER, 10);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
-	m_simparams->dt = 0.0003f;
+	m_simparams->dt = 2.5e-4f;
 	m_simparams->dtadaptfactor = 0.3;
 	m_simparams->buildneibsfreq = 10;
 	m_simparams->tend = 1.5f;
