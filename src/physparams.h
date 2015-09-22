@@ -184,7 +184,7 @@ protected:
 	  */
 	void set_equation_of_state(size_t fluid_idx, float gamma, float c0) {
 		if (fluid_idx >= numFluids())
-			throw std::runtime_error("trying to set viscosity of non-existing fluid");
+			throw std::out_of_range("trying to set equation of state for a non-existing fluid");
 		gammacoeff[fluid_idx] = gamma;
 		bcoeff[fluid_idx] = rho0[fluid_idx]*c0*c0/gamma;
 		sscoeff[fluid_idx] = c0;
@@ -196,9 +196,7 @@ protected:
 	  @param nu	kinematic viscosity
 	  */
 	void set_kinematic_visc(size_t fluid_idx, float nu) {
-		if (fluid_idx >= numFluids())
-			throw std::runtime_error("trying to set viscosity of non-existing fluid");
-		kinematicvisc[fluid_idx] = nu;
+		kinematicvisc.at(fluid_idx) = nu;
 	}
 
 	/*! Set the dynamic viscosity of the given fluid
