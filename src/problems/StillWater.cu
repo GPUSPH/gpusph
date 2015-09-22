@@ -30,7 +30,7 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-#define CENTER_DOMAIN 1
+#define CENTER_DOMAIN 0
 // set to coords (x,y,z) if more accuracy is needed in such point
 // (waiting for relative coordinates)
 #if CENTER_DOMAIN
@@ -45,30 +45,38 @@
 
 StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 {
-	H = 1;
-
-	l = sqrt(2)*H; w = l; h = 1.1*H;
-	m_usePlanes = false;
 
 	SETUP_FRAMEWORK(
-		//viscosity<KINEMATICVISC>,
-		viscosity<DYNAMICVISC>,
+		viscosity<KINEMATICVISC>,
+		//viscosity<SPSVISC>,
 		//viscosity<ARTVISC>,
 		boundary<DYN_BOUNDARY>,
 		//boundary<SA_BOUNDARY>,
 		//boundary<LJ_BOUNDARY>,
 		flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+		//flags<ENABLE_DTADAPT>
 	);
 
+	addFilter(SHEPARD_FILTER, 43);
+
 	set_deltap(0.0625f);
+
+	H = 1;
+	l = sqrt(2)*H; h = 1.1*H;
+	m_usePlanes = false;
+	set_deltap(0.0625f);
+	H = m_deltap*ceil(H/m_deltap);
+	l = m_deltap*ceil(l/m_deltap);
+	w = l;
+	h = m_deltap*ceil(h/m_deltap);
 
 	// SPH parameters
 	m_simparams->dt = 0.00004f;
 	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 20;
+	m_simparams->buildneibsfreq = 10;
 	// Ferrari correction parameter should be (L/deltap)/1000, with L charactersitic
 	// length of the problem
-	m_simparams->ferrari = H/(m_deltap*1000);
+	m_simparams->ferrari = 1.0;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
@@ -86,7 +94,7 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		m_size += 2*extra_offset;
 	}
 
-	m_simparams->tend = 1.0;
+	m_simparams->tend = 40.0;
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
 		m_simparams->maxneibsnum = 256; // needed during gamma initialization phase
 	};
@@ -99,17 +107,17 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	// integer
 	const float c0 = ceil(10*maxvel);
 	add_fluid(1000.0);
-	set_equation_of_state(0,  7.0f, c0);
+	set_equation_of_state(0, 7.0f, c0);
 
 	m_physparams->dcoeff = 5.0f*g*H;
 
 	m_physparams->r0 = m_deltap;
 	//m_physparams->visccoeff = 0.05f;
-	set_kinematic_visc(0, 3.0e-2f);
-	//set_kinematic_visc(0, 1.0e-6f);
-	m_physparams->artvisccoeff = 0.3f;
+	//set_kinematic_visc(0, 3.0e-2f);
+	set_kinematic_visc(0, 1e-3f);
+	m_physparams->artvisccoeff = 0.003f;
 	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
-	m_physparams->epsxsph = 0.5f;
+	m_physparams->epsxsph = 0.2f;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
