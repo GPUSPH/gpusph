@@ -1032,8 +1032,10 @@ void XProblem::setPositioning(PositioningPolicy positioning)
 
 // Create 6 planes delimiting the box defined by the two points and update (overwrite) the world origin and size.
 // Write their GeometryIDs in planesIds, if given, so that it is possible to delete one or more of them afterwards.
-void XProblem::makeUniverseBox(const double3 corner1, const double3 corner2, GeometryID *planesIds)
+vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double3 corner2)
 {
+	vector<GeometryID> planes;
+
 	// compute min and max
 	double3 min, max;
 	min.x = std::min(corner1.x, corner2.x);
@@ -1044,26 +1046,18 @@ void XProblem::makeUniverseBox(const double3 corner1, const double3 corner2, Geo
 	max.z = std::max(corner1.z, corner2.z);
 
 	// create planes
-	GeometryID plane_min_x = addPlane(  1,  0,  0, -min.x);
-	GeometryID plane_max_x = addPlane( -1,  0,  0,  max.x);
-	GeometryID plane_min_y = addPlane(  0,  1,  0, -min.y);
-	GeometryID plane_max_y = addPlane(  0, -1,  0,  max.y);
-	GeometryID plane_min_z = addPlane(  0,  0,  1, -min.z);
-	GeometryID plane_max_z = addPlane(  0,  0, -1,  max.z);
+	planes.push_back(addPlane(  1,  0,  0, -min.x));
+	planes.push_back(addPlane( -1,  0,  0,  max.x));
+	planes.push_back(addPlane(  0,  1,  0, -min.y));
+	planes.push_back(addPlane(  0, -1,  0,  max.y));
+	planes.push_back(addPlane(  0,  0,  1, -min.z));
+	planes.push_back(addPlane(  0,  0, -1,  max.z));
 
 	// set world origin and size
 	m_origin = min;
 	m_size = max - min;
 
-	// write in output
-	if (planesIds) {
-		planesIds[0] = plane_min_x;
-		planesIds[1] = plane_max_x;
-		planesIds[2] = plane_min_y;
-		planesIds[3] = plane_max_y;
-		planesIds[4] = plane_min_z;
-		planesIds[5] = plane_max_z;
-	}
+	return planes;
 }
 
 void XProblem::addExtraWorldMargin(const double margin)
