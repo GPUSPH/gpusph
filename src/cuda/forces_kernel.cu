@@ -2101,10 +2101,10 @@ MlsDevice(	const float4*	posArray,
 	//	* with LJ or DYN boundary only on fluid particles
 	//TODO 	* with SA boundary ???
 	// in any other case we have to copy the vel vector in the new velocity array
-	if (NOT_FLUID(info)) {
-		newVel[index] = vel;
-		return;
-	}
+	//if (NOT_FLUID(info)) {
+	//	newVel[index] = vel;
+	//	return;
+	//}
 
 	// MLS matrix elements
 	symtensor4 mls;
