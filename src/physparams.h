@@ -209,6 +209,13 @@ protected:
 		set_kinematic_visc(fluid_idx, mu/rho0[fluid_idx]);
 	}
 
+	/*! Get the kinematic viscosity for the given fluid
+	 * @param fluid_idx	fluid index
+	 */
+	float get_kinematic_visc(size_t fluid_idx) const {
+		return kinematicvisc.at(fluid_idx);
+	}
+
 	/*! Set density parameters
 	  @param i	index in the array of materials
 	  @param rho	base density

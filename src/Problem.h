@@ -268,6 +268,8 @@ RESTORE_WARNINGS
 		{ return m_physparams->set_kinematic_visc(fluid_idx, nu); }
 		void set_dynamic_visc(size_t fluid_idx, float mu)
 		{ return m_physparams->set_dynamic_visc(fluid_idx, mu); }
+		float get_kinematic_visc(size_t fluid_idx) const
+		{ return m_physparams->get_kinematic_visc(fluid_idx); }
 
 		// simple functions to add gages. the third component
 		// is actually ignored
