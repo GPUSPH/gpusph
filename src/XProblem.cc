@@ -1045,13 +1045,23 @@ vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double
 	max.y = std::max(corner1.y, corner2.y);
 	max.z = std::max(corner1.z, corner2.z);
 
+	// we need the periodicity to see which planes are needed. If m_simparams is NULL,
+	// it means SETUP_FRAMEWORK was not invoked, in which case we assume no periodicity.
+	const Periodicity periodicbound = m_simparams ? m_simparams->periodicbound : PERIODIC_NONE;
+
 	// create planes
-	planes.push_back(addPlane(  1,  0,  0, -min.x));
-	planes.push_back(addPlane( -1,  0,  0,  max.x));
-	planes.push_back(addPlane(  0,  1,  0, -min.y));
-	planes.push_back(addPlane(  0, -1,  0,  max.y));
-	planes.push_back(addPlane(  0,  0,  1, -min.z));
-	planes.push_back(addPlane(  0,  0, -1,  max.z));
+	if (!(periodicbound & PERIODIC_X)) {
+		planes.push_back(addPlane(  1,  0,  0, -min.x));
+		planes.push_back(addPlane( -1,  0,  0,  max.x));
+	}
+	if (!(periodicbound & PERIODIC_Y)) {
+		planes.push_back(addPlane(  0,  1,  0, -min.y));
+		planes.push_back(addPlane(  0, -1,  0,  max.y));
+	}
+	if (!(periodicbound & PERIODIC_Z)) {
+		planes.push_back(addPlane(  0,  0,  1, -min.z));
+		planes.push_back(addPlane(  0,  0, -1,  max.z));
+	}
 
 	// set world origin and size
 	m_origin = min;

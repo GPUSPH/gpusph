@@ -268,7 +268,9 @@ class XProblem: public Problem {
 		void setPositioning(PositioningPolicy positioning);
 
 		/*! Sets the domain origin and size to match the box defined by the given corners,
-		 * and adds planes for each of the sides of the box, returning their GeometryIDs
+		 * and adds planes for each of the sides of the box, returning their GeometryIDs.
+		 * Planes are not added in the periodic direction(s), if any were selected
+		 * in the simulation framework.
 		 */
 		std::vector<GeometryID> makeUniverseBox(const double3 corner1, const double3 corner2);
 
