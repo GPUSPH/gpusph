@@ -1200,12 +1200,13 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 			//delete[] gdata->s_dCellStarts[d];
 			//delete[] gdata->s_dCellEnds[d];
 			// same on non-pinned memory
-			delete[] gdata->s_dSegmentsStart[d];
+			free(gdata->s_dSegmentsStart[d]);
 		}
-		delete[] gdata->s_dCellEnds;
-		delete[] gdata->s_dCellStarts;
-		delete[] gdata->s_dSegmentsStart;
+		free(gdata->s_dCellEnds);
+		free(gdata->s_dCellStarts);
+		free(gdata->s_dSegmentsStart);
 	}
+
 }
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
