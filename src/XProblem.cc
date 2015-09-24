@@ -208,19 +208,38 @@ bool XProblem::initialize()
 	// store number of objects (floating + moving + I/O)
 	m_simparams->numOpenBoundaries = open_boundaries_counter;
 
-	//----------------rearrangingig global min and max for periodicity---------
+	// Increase the world dimensions of a m_deltap quantity. This is necessary
+	// to guarantee a distance of m_deltap between particles of either sides of
+	// periodic boundaries; moreover, for boundaries without any periodicity
+	// it ensures that all particles are within the domain even in case of
+	// numerical rounding errors.
 	globalMin(0) -= (m_deltap/2);
 	globalMax(0) += (m_deltap/2);
 	globalMin(1) -= (m_deltap/2);
 	globalMax(1) += (m_deltap/2);
 	globalMin(2) -= (m_deltap/2);
 	globalMax(2) += (m_deltap/2);
-	//-------------------------------------------------------------------------
 
 	// compute the number of layers for dynamic boundaries, if not set
 	if (m_simparams->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
 		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
 		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+	}
+
+	// Increase the world dimensions for dinamic boundaries in directions without periodicity
+	if (m_simparams->boundarytype == DYN_BOUNDARY){
+		if (!(m_simparams->periodicbound & PERIODIC_X)){
+			globalMin(0) -= (m_numDynBoundLayers-1)*m_deltap;
+			globalMax(0) += (m_numDynBoundLayers-1)*m_deltap;
+		}
+		if (!(m_simparams->periodicbound & PERIODIC_Y)){
+			globalMin(1) -= (m_numDynBoundLayers-1)*m_deltap;
+			globalMax(1) += (m_numDynBoundLayers-1)*m_deltap;
+		}
+		if (!(m_simparams->periodicbound & PERIODIC_Z)){
+			globalMin(2) -= (m_numDynBoundLayers-1)*m_deltap;
+			globalMax(2) += (m_numDynBoundLayers-1)*m_deltap;
+		}
 	}
 
 	// set computed world origin and size without overriding possible user choices
