@@ -217,6 +217,12 @@ bool XProblem::initialize()
 	globalMax(2) += (m_deltap/2);
 	//-------------------------------------------------------------------------
 
+	// compute the number of layers for dynamic boundaries, if not set
+	if (m_simparams->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
+		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
+		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+	}
+
 	// set computed world origin and size without overriding possible user choices
 	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
 	if (!isfinite(m_origin.y)) m_origin.y = globalMin(1);
@@ -298,12 +304,6 @@ bool XProblem::initialize()
 				fluid, default_kinematic_visc);
 			m_physparams->set_kinematic_visc(fluid, default_kinematic_visc);
 		}
-	}
-
-	// compute the number of layers for dynamic boundaries, if not set
-	if (m_simparams->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
-		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
-		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
 	}
 
 	// only init ODE if m_numRigidBodies
