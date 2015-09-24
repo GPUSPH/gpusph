@@ -208,6 +208,15 @@ bool XProblem::initialize()
 	// store number of objects (floating + moving + I/O)
 	m_simparams->numOpenBoundaries = open_boundaries_counter;
 
+	//----------------rearrangingig global min and max for periodicity---------
+	globalMin(0) -= (m_deltap/2);
+	globalMax(0) += (m_deltap/2);
+	globalMin(1) -= (m_deltap/2);
+	globalMax(1) += (m_deltap/2);
+	globalMin(2) -= (m_deltap/2);
+	globalMax(2) += (m_deltap/2);
+	//-------------------------------------------------------------------------
+
 	// set computed world origin and size without overriding possible user choices
 	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
 	if (!isfinite(m_origin.y)) m_origin.y = globalMin(1);
