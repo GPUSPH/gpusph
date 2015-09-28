@@ -40,7 +40,6 @@
 #include "Torus.h"
 #include "Plane.h"
 #include "STLMesh.h"
-
 #include "XProblem.h"
 #include "GlobalData.h"
 
@@ -1273,7 +1272,7 @@ int XProblem::fill_parts()
 #endif
 
 		// ODE-related operations - only for floating bodies
-		if (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions) {
+		if (m_numFloatingBodies > 0 && (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions)) {
 
 			// We should not call both ODEBodyCreate() and ODEGeomCreate(), since the former
 			// calls the latter in a dummy way if no ODE space is passed and this messes
