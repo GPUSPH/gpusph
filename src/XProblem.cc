@@ -915,9 +915,30 @@ void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot
 
 	// compute single-axes rotations
 	// NOTE: ODE uses clockwise angles for Euler, thus we invert them
-	dQFromAxisAndAngle(qX, 1.0, 0.0, 0.0, -Xrot);
-	dQFromAxisAndAngle(qY, 0.0, 1.0, 0.0, -Yrot);
-	dQFromAxisAndAngle(qZ, 0.0, 0.0, 1.0, -Zrot);
+	// NOTE: ODE has abysmal precision, so we compute the quaternions ourselves:
+	// for each rotation, the real part of the quaternion is cos(angle/2),
+	// and the imaginary part (which for rotations around principal axis
+	// is only 1, 2 or 3) is sin(angle/2); the rest of the components are 0.
+	qX[0] = cos(-Xrot/2); qX[1] = sin(-Xrot/2); qX[2] = qX[3] = 0;
+	qY[0] = cos(-Yrot/2); qY[2] = sin(-Yrot/2); qY[1] = qY[3] = 0;
+	qZ[0] = cos(-Zrot/2); qZ[3] = sin(-Zrot/2); qZ[1] = qZ[2] = 0;
+	// Problem: even with a “nice” angle such as M_PI we might end up
+	// with not-exactly-zero components, so we kill anything which is less
+	// than half the double-precision machine epsilon. If you REALLY care
+	// about angles that differ from quadrant angles by less than 2^-53,
+	// sorry, we don't have enough accuracy for you.
+	if (fabs(qX[0]) < DBL_EPSILON/2)
+		qX[0] = 0;
+	if (fabs(qX[1]) < DBL_EPSILON/2)
+		qX[1] = 0;
+	if (fabs(qY[0]) < DBL_EPSILON/2)
+		qY[0] = 0;
+	if (fabs(qY[2]) < DBL_EPSILON/2)
+		qY[2] = 0;
+	if (fabs(qZ[0]) < DBL_EPSILON/2)
+		qZ[0] = 0;
+	if (fabs(qZ[3]) < DBL_EPSILON/2)
+		qZ[3] = 0;
 
 	// concatenate rotations in order (X, Y, Z)
 	dQMultiply0(qXY, qY, qX);
