@@ -292,6 +292,19 @@ Point &Point::operator+=(const Vector &vect)
 }
 
 
+/// Define the Point+=double operator
+/*!	\param vect : dbl
+	\return this = this + dbl
+*/
+Point &Point::operator+=(const double &dbl)
+{
+	x[0] += dbl;
+	x[1] += dbl;
+	x[2] += dbl;
+	return *this;
+}
+
+
 /// Define the Point-=Point operator
 /*!	\param pnt : point
 	\return this = this - pnt
@@ -314,6 +327,19 @@ Point &Point::operator-=(const Vector &vect)
 	x[0] -= vect(0);
 	x[1] -= vect(1);
 	x[2] -= vect(2);
+	return *this;
+}
+
+
+/// Define the Point-=double operator
+/*!	\param vect : dbl
+	\return this = this - dbl
+*/
+Point &Point::operator-=(const double &dbl)
+{
+	x[0] -= dbl;
+	x[1] -= dbl;
+	x[2] -= dbl;
 	return *this;
 }
 
