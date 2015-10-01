@@ -241,7 +241,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->addSeparators(gdata->totParticles).c_str() );
 
 	// copy planes from the problem to the shared array, if there are any,
-	// and convert them into the form requird for homogeneous accuracy
+	// and convert them into the form required for homogeneous accuracy
 	if (gdata->numPlanes) {
 		problem->copy_planes(gdata->s_hPlanes);
 
