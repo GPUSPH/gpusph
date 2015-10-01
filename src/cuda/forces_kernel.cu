@@ -2394,7 +2394,7 @@ MlsDevice(	const float4*	posArray,
 
 		// Add neib contribution only if it's a fluid one
 		// TODO: check with SA
-		if (r < influenceradius && FLUID(neib_info)) {
+		if (r < influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
 			neibs_num ++;
 			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
 			MlsMatrixContrib(mls, relPos, w);
@@ -2447,12 +2447,10 @@ MlsDevice(	const float4*	posArray,
 
 			const float r = length(as_float3(relPos));
 
-			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// Interaction between two particles
-			if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
-					&& r < influenceradius ) {
+			if (r < influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
 				const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 				vel.w += MlsCorrContrib(B, relPos, w);
 			}
