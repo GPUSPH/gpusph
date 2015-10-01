@@ -91,8 +91,10 @@ class Point {
 		Point   &operator=(double *);
 		Point   &operator+=(const Point &);
 		Point   &operator+=(const Vector &);
+		Point   &operator+=(const double &);
 		Point   &operator-=(const Point &);
 		Point	&operator-=(const Vector &);
+		Point   &operator-=(const double &);
 		Point	&operator*=(double);
 		Point	&operator/=(double);
 		double  &operator()(int);
