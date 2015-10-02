@@ -45,6 +45,10 @@
 
 StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 {
+	m_usePlanes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
+	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations
+	const int ppH = get_option("ppH", 16); // --ppH N to change deltap to H/N
+
 	SETUP_FRAMEWORK(
 		//viscosity<KINEMATICVISC>,
 		viscosity<DYNAMICVISC>,
@@ -55,13 +59,14 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		flags<ENABLE_DTADAPT | ENABLE_FERRARI>
 	);
 
+	if (mlsIters > 0)
+		addFilter(MLS_FILTER, mlsIters);
+
 	H = 1;
 
-	set_deltap(H/16);
+	set_deltap(H/ppH);
 
 	l = w = sqrt(2)*H; h = 1.1*H;
-
-	m_usePlanes = get_option("use-planes", false);
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
