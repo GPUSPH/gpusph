@@ -27,24 +27,14 @@ timestep = vtp.TimestepValues
 
 # threshold on particle type 0 (fluid)
 fluid = Threshold(vtp)
-fluid.Scalars = 'Part type'
+fluid.Scalars = 'Part type+flags'
 fluid.ThresholdRange = [0, 0]
-
-# if the data file stores Part flag,
-# threshold on particle flag 0 to avoid FIXED particles
-# (and potentially other future flags such as inlet/outlet particles
-if fluid.PointData.GetArray('Part flag'):
-    noflags = Threshold(fluid)
-    noflags.Scalars = 'Part flag'
-    noflags.ThresholdRange = [0, 1]
-else:
-    noflags = fluid
 
 print "#time,xmin,xmax,ymin,ymax,zmin,zmax"
 
 # iterate over available timestep, gather bounds, print time and bounds
 for time in timestep:
-    noflags.UpdatePipeline(time)
-    bounds = noflags.GetDataInformation().GetBounds()[:]
+    fluid.UpdatePipeline(time)
+    bounds = fluid.GetDataInformation().GetBounds()[:]
     print "%f,%f,%f,%f,%f,%f,%f" % ((time,) + bounds )
 
