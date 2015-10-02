@@ -30,7 +30,7 @@ fluid = Threshold(vtp)
 fluid.Scalars = 'Part type+flags'
 fluid.ThresholdRange = [0, 0]
 
-print "#time,xmin,xmax,ymin,ymax,zmin,zmax"
+print "#time,xmin,xmax,ymin,ymax,zmin,zmax,rhomin,rhomax"
 
 first = None
 last = None
@@ -38,10 +38,11 @@ last = None
 # iterate over available timestep, gather bounds, print time and bounds
 for time in timestep:
     fluid.UpdatePipeline(time)
-    bounds = fluid.GetDataInformation().GetBounds()[:]
+    bounds =    fluid.GetDataInformation().GetBounds()[:] + \
+                fluid.PointData.GetArray('Density').GetRange()
     if not first:
         first = bounds
     last = bounds
-    print "%f,%f,%f,%f,%f,%f,%f" % ((time,) + bounds )
+    print "%f,%f,%f,%f,%f,%f,%f,%f,%f" % ((time,) + bounds)
 
-print "**,%f,%f,%f,%f,%f,%f" % tuple(pair[1] - pair[0] for pair in zip(first, last))
+print "**,%f,%f,%f,%f,%f,%f,%f,%f" % tuple(pair[1] - pair[0] for pair in zip(first, last))
