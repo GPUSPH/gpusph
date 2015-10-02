@@ -85,7 +85,7 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		m_size += 2*extra_offset;
 	}
 
-	m_simparams->tend = 1.0;
+	m_simparams->tend = 100.0;
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
 		m_simparams->maxneibsnum = 256; // needed during gamma initialization phase
 	};
@@ -111,7 +111,7 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	m_physparams->epsxsph = 0.5f;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1);
+	add_writer(VTKWRITER, 1.0);
 
 	// Name of problem used for directory creation
 	m_name = "StillWater";
