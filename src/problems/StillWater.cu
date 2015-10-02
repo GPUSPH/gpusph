@@ -156,11 +156,11 @@ int StillWater::fill_parts()
 		}
 	}
 
-	double3 fluid_origin = m_origin;
+	m_fluidOrigin = m_origin;
 	if (m_simparams->boundarytype == DYN_BOUNDARY) // shift by the extra offset of the experiment box
-		fluid_origin += make_double3((dyn_layers-1)*m_deltap);
-	fluid_origin += make_double3(wd); // one wd space from the boundary
-	Cube fluid = Cube(fluid_origin, l-2*wd, w-2*wd, H-2*wd);
+		m_fluidOrigin += make_double3((dyn_layers-1)*m_deltap);
+	m_fluidOrigin += make_double3(wd); // one wd space from the boundary
+	Cube fluid = Cube(m_fluidOrigin, l-2*wd, w-2*wd, H-2*wd);
 	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	fluid.Fill(parts, m_deltap);
 
@@ -205,7 +205,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 #if 1
-		double water_column = H - boundary_parts[i](2);
+		double water_column = m_fluidOrigin.z + H - boundary_parts[i](2);
 		if (water_column < 0)
 			water_column = 0;
 		float rho = density(water_column, 0);
@@ -221,7 +221,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		double water_column = H - parts[i - j](2);
+		double water_column = m_fluidOrigin.z + H - parts[i - j](2);
 		if (water_column < 0)
 			water_column = 0;
 		float rho = density(water_column, 0);
