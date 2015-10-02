@@ -387,6 +387,9 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ferrari, &simparams->ferrari, sizeof(float)));
 
+	const float rhodiffcoeff = simparams->rhodiffcoeff*2*simparams->slength;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rhodiffcoeff, &rhodiffcoeff, sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
 }
 

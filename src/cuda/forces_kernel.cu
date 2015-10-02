@@ -81,6 +81,7 @@ __constant__ int	d_numfluids;			///< number of different fluids
 __constant__ float	d_sqC0[MAX_FLUID_TYPES];	///< square of sound speed for at-rest density for each fluid
 
 __constant__ float	d_ferrari;				///< coefficient for Ferrari correction
+__constant__ float	d_rhodiffcoeff;			///< coefficient for density diffusion
 
 __constant__ float	d_epsinterface;			///< interface epsilon for simplified surface tension in Grenier
 

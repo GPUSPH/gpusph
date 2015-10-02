@@ -877,6 +877,31 @@ compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata
 	nout.DrDt += ndata.relPos.w*dot3(ndata.relEulerVel, ndata.relPos)*ndata.f;
 }
 
+/// A functor that computes the ratio of the volumes of two particles
+/// either as rho_N/rho_P (if the volume is not available) or as vol_P/vol_N
+/// (if the volume is available, e.g. with SPH_GRENIER)
+template<SPHFormulation sph_formulation>
+struct volume_ratio {
+	template<typename P, typename N>
+	__device__ __forceinline__
+	static float
+	with(P const& pdata, N const& ndata) {
+		return ndata.relVel.w/pdata.vel.w;
+	}
+};
+
+#if 0
+/* TODO with Grenier with should use the volume directly. This is currently
+   not retrieved by the particle data though */
+template<>
+template<typename P, typename N>
+__device__ __forceinline__
+static float
+volume_ratio<SPH_GRENIER>::with(P const& pdata, N const& ndata) {
+	return NAN;
+}
+#endif
+
 /// A functor that computes the time derivative of rho
 template<BoundaryType boundarytype>
 struct compute_density_derivative {
@@ -910,6 +935,38 @@ struct compute_density_derivative {
 		ferrari_updates(nout) += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
 	}
 
+	// density diffusion term following Molteni & Colagrossi 2009
+	template<typename FP, typename P_t, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	density_diffusion(FP const& params, P_t const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		const int fType = fluid_num(pdata.info);
+		/* only applies to same-fluid particles */
+		if (fType != fluid_num(ndata.info))
+			return;
+
+		// only apply diffusion for large density ratios, specifically
+		// when ∆P < ρgh
+		if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
+			fabs(dot3(d_gravity, ndata.relPos)*pdata.vel.w))
+			return;
+
+		// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
+		// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
+		// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
+		// 2(vol_i/vol_j - 1) F_ij
+		// Also rhodiffcoeff = \xi*h*2
+
+		const float diff_term = d_rhodiffcoeff*d_sscoeff[fType]*
+			(volume_ratio<FP::sph_formulation>::with(pdata, ndata) - 1)*
+			ndata.f*ndata.relPos.w; // TODO check for Grenier
+
+		// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
+
+		nout.DrDt -= diff_term;
+	}
+
 	// auxiliary function
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -941,13 +998,16 @@ struct compute_density_derivative {
 			// for Grenier's formulation, DrDt is actually DJ/Dt, which needs to be divided
 			// by the particle sigma, which will be done at the end of the cycle
 			nout.DrDt -= ndata.vel_dot_pos*ndata.f;
-			// TODO Ferrari correction
+			// TODO Ferrari correction, density diffusion
 		} else {
 			// SPH_F1 or SPH_F2
 			common_with(params, pdata, ndata, pout, nout);
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
 			if (FP::simflags & ENABLE_FERRARI && FLUID(ndata.info))
 				ferrari_correction(params, pdata, ndata, pout, nout);
+			// Density diffusion term according to Colagrossi & Molteni 2009, CPC
+			if (FP::simflags & ENABLE_DENSITY_DIFFUSION && FLUID(ndata.info))
+				density_diffusion(params, pdata, ndata, pout, nout);
 		}
 		/* The second formulation takes into consideration the density ratio */
 		if (FP::sph_formulation == SPH_F2)
