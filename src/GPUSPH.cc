@@ -97,6 +97,7 @@ void GPUSPH::openInfoStream() {
 		cerr << "WARNING: unable to fdopen info stream " << m_info_stream_name << endl;
 		close(ret);
 		shm_unlink(m_info_stream_name.c_str());
+		return;
 	}
 	cout << "Info stream: " << m_info_stream_name << endl;
 	fputs("Initializing ...\n", m_info_stream);
