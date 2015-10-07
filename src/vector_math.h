@@ -271,6 +271,21 @@ static __forceinline__ __host__ __device__ float2 fabs(const float2 &v)
 	return make_float2(fabsf(v.x), fabsf(v.y));
 }
 
+// length of the vector, computed more robustly when the components of v
+// are significantly larger than unity
+static __forceinline__ __host__ __device__ float hypot(const float2 &v)
+{
+	float p, r;
+	if (fabs(v.x) > fabs(v.y)) {
+		p = fabs(v.x);
+		r = v.y/v.x;
+	} else {
+		p = fabs(v.y);
+		r = p > 0 ? v.x/v.y : 0; // avoid a division by 0
+	}
+	return p*sqrt(1+r*r);
+}
+
 // double2 functions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,6 +334,21 @@ static __forceinline__ __host__ __device__ double2 normalize(const double2 &v)
 {
 	double invLen = rsqrt(sqlength(v));
 	return v * invLen;
+}
+
+// length of the vector, computed more robustly when the components of v
+// are significantly larger than unity
+static __forceinline__ __host__ __device__ double hypot(const double2 &v)
+{
+	double p, r;
+	if (fabs(v.x) > fabs(v.y)) {
+		p = fabs(v.x);
+		r = v.y/v.x;
+	} else {
+		p = fabs(v.y);
+		r = p > 0 ? v.x/v.y : 0; // avoid a division by 0
+	}
+	return p*sqrt(1+r*r);
 }
 
 // float3 functions
@@ -586,6 +616,19 @@ static __forceinline__ __host__ __device__ float3 rotate(const float3 &v, const 
 			a31*v.x+a32*v.y+a33*v.z);
 }
 
+// length of the vector, computed more robustly when the components of v
+// are significantly larger than unity
+static __forceinline__ __host__ __device__ float hypot(const float3 &v)
+{
+	float p;
+	p = fmax(fmax(fabs(v.x), fabs(v.y)), fabs(v.z));
+	if (!p)
+		return 0;
+
+	float3 w=v/p;
+	return p*length(w);
+}
+
 // double3 functions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -779,6 +822,19 @@ static __forceinline__ __host__ __device__ double3 copysign(const double3 &v, co
 		copysign(v.z, ref.z));
 }
 
+// length of the vector, computed more robustly when the components of v
+// are significantly larger than unity
+static __forceinline__ __host__ __device__ double hypot(const double3 &v)
+{
+	double p;
+	p = fmax(fmax(fabs(v.x), fabs(v.y)), fabs(v.z));
+	if (!p)
+		return 0;
+
+	double3 w=v/p;
+	return p*length(w);
+}
+
 
 // double4 functions
 ////////////////////////////////////////////////////////////////////////////////
@@ -873,6 +929,19 @@ static __forceinline__ __host__ __device__ double length(const double4 &v)
 static __forceinline__ __host__ __device__ float length3(const double4 &v)
 {
 	return sqrtf(sqlength3(v));
+}
+
+// length of the vector, computed more robustly when the components of v
+// are significantly larger than unity
+static __forceinline__ __host__ __device__ double hypot(const double4 &v)
+{
+	double p;
+	p = fmax(fmax(fabs(v.x), fabs(v.y)), fmax(fabs(v.z), fabs(v.w)));
+	if (!p)
+		return 0;
+
+	double4 w=v/p;
+	return p*length(w);
 }
 
 
@@ -1091,6 +1160,19 @@ static __forceinline__ __host__ __device__ float4 floor(const float4 &v)
 static __forceinline__ __host__ __device__ float4 fabs(const float4 &v)
 {
 	return make_float4(fabsf(v.x), fabsf(v.y), fabsf(v.z), fabsf(v.w));
+}
+
+// length of the vector, computed more robustly when the components of v
+// are significantly larger than unity
+static __forceinline__ __host__ __device__ float hypot(const float4 &v)
+{
+	float p;
+	p = fmax(fmax(fabs(v.x), fabs(v.y)), fmax(fabs(v.z), fabs(v.w)));
+	if (!p)
+		return 0;
+
+	float4 w=v/p;
+	return p*length(w);
 }
 
 // char3 functions
