@@ -62,8 +62,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>,
-		boundary<LJ_BOUNDARY>,
-		flags<ENABLE_NONE>
+		boundary<LJ_BOUNDARY>
 	);
 
 	addFilter(MLS_FILTER, 10);
