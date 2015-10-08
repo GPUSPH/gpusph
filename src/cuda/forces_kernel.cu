@@ -2397,7 +2397,9 @@ MlsDevice(	const float4*	posArray,
 		if (r < influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
 			neibs_num ++;
 			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
-			MlsMatrixContrib(mls, relPos, w);
+
+			/* Scale relPos by slength for stability and resolution independence */
+			MlsMatrixContrib(mls, relPos/slength, w);
 		}
 	} // end of first loop trough neighbors
 
@@ -2405,102 +2407,119 @@ MlsDevice(	const float4*	posArray,
 	neib_cellnum = 0;
 	neib_cell_base_index = 0;
 
-	// Safe inverse of MLS matrix :
-	// the matrix is inverted only if |det|/max|aij|^4 > EPSDET
-	// and if the number of fluids neighbors if above a minimum
-	// value, otherwise no correction is applied
-	float maxa = norm_inf(mls);
-	maxa *= maxa;
-	maxa *= maxa;
-	float D = det(mls);
-	if (fabs(D) > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {
-		D = 1/D;
-		const float4 B = make_float4(
-			mls.yy*mls.zz*mls.ww + mls.yz*mls.zw*mls.yw + mls.yw*mls.yz*mls.zw - mls.yy*mls.zw*mls.zw - mls.yz*mls.yz*mls.ww - mls.yw*mls.zz*mls.yw,
-			mls.xy*mls.zw*mls.zw + mls.yz*mls.xz*mls.ww + mls.yw*mls.zz*mls.xw - mls.xy*mls.zz*mls.ww - mls.yz*mls.zw*mls.xw - mls.yw*mls.xz*mls.zw,
-			mls.xy*mls.yz*mls.ww + mls.yy*mls.zw*mls.xw + mls.yw*mls.xz*mls.yw - mls.xy*mls.zw*mls.yw - mls.yy*mls.xz*mls.ww - mls.yw*mls.yz*mls.xw,
-			mls.xy*mls.zz*mls.yw + mls.yy*mls.xz*mls.zw + mls.yz*mls.yz*mls.xw - mls.xy*mls.yz*mls.zw - mls.yy*mls.zz*mls.xw - mls.yz*mls.xz*mls.yw)*D;
+	// We want to compute B solution of M B = E where E =(1, 0, 0, 0) and
+	// M is our MLS matrix. M is symmetric, positive (semi)definite. Since we
+	// cannot guarantee that the matrix is invertible (it won't be in cases
+	// such as thin sheets of particles or structures of even lower topological
+	// dimension), we rely on the iterative conjugate residual method to
+	// find a solution, with E itself as initial guess.
 
-		// Taking into account self contribution in density summation
-		vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
+	// known term
+	const float4 E = make_float4(1, 0, 0, 0);
 
-		// Loop over all the neighbors (Second loop)
-		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-			neibdata neib_data = neibsList[i + index];
+	const float D = det(mls);
 
-			if (neib_data == 0xffff) break;
-
-			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-						neib_cellnum, neib_cell_base_index);
-
-			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
-			#if( __COMPUTE__ >= 20)
-			const float4 relPos = pos_corr - posArray[neib_index];
-			#else
-			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-			#endif
-
-			// Skip inactive particles
-			if (INACTIVE(relPos))
-				continue;
-
-			const float r = length(as_float3(relPos));
-
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-			// Interaction between two particles
-			if (r < influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
-				const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
-				vel.w += MlsCorrContrib(B, relPos, w);
-			}
-		}  // end of second loop trough neighbors
+	// solution
+	float4 B;
+	if (fabs(D) < FLT_EPSILON) {
+		symtensor4 mls_eps = mls;
+		const float eps = fabs(D) + FLT_EPSILON;
+		mls_eps.xx += eps;
+		mls_eps.yy += eps;
+		mls_eps.zz += eps;
+		mls_eps.ww += eps;
+		const float D_eps = det(mls_eps);
+		B = adjugate_row1(mls_eps)/D_eps;
 	} else {
-		// Resort to Sheppard filter in absence of invertible matrix
-		// see also shepardDevice. TODO: share the code
-		float temp1 = pos.w*W<kerneltype>(0, slength);
-		float temp2 = temp1/vel.w;
-
-		// loop over all the neighbors (Second loop)
-		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-			neibdata neib_data = neibsList[i + index];
-
-			if (neib_data == 0xffff) break;
-
-			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-						neib_cellnum, neib_cell_base_index);
-
-			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
-			#if( __COMPUTE__ >= 20)
-			const float4 relPos = pos_corr - posArray[neib_index];
-			#else
-			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-			#endif
-
-			// Skip inactive particles
-			if (INACTIVE(relPos))
-				continue;
-
-			const float r = length(as_float3(relPos));
-
-			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-			// Add neib contribution only if it's a fluid one
-			// TODO: check with SA
-			if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
-					&& r < influenceradius ) {
-					// ρj*Wij*Vj = mj*Wij
-					const float w = W<kerneltype>(r, slength)*relPos.w;
-					// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
-					temp1 += w;
-					temp2 += w/neib_rho;
-			}
-		}  // end of second loop through neighbors
-
-		vel.w = temp1/temp2;
+		B = adjugate_row1(mls)/D;
 	}
+
+#define MAX_CR_STEPS 32
+	uint steps = 0;
+	for (; steps < MAX_CR_STEPS; ++steps) {
+		float lenB = hypot(B);
+
+		float4 MdotB = dot(mls, B);
+		float4 residual = E - MdotB;
+
+		// r.M.r
+		float num = ddot(mls, residual);
+
+		// (M.r).(M.r)
+		float4 Mp = dot(mls, residual);
+		float den = dot(Mp, Mp);
+
+		float4 corr = (num/den)*residual;
+		float lencorr = hypot(corr);
+
+		if (hypot(residual) < lenB*FLT_EPSILON)
+			break;
+
+		if (lencorr < 2*lenB*FLT_EPSILON)
+			break;
+
+		B += corr;
+	}
+
+	/* Scale for resolution independence, again */
+	B.y /= slength;
+	B.z /= slength;
+	B.w /= slength;
+
+	// Taking into account self contribution in density summation
+	vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
+
+	// Loop over all the neighbors (Second loop)
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+			neib_cellnum, neib_cell_base_index);
+
+		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+#if( __COMPUTE__ >= 20)
+		const float4 relPos = pos_corr - posArray[neib_index];
+#else
+		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+#endif
+
+		// Skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
+		const float r = length(as_float3(relPos));
+
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		// Interaction between two particles
+		if (r < influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
+			const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
+			vel.w += MlsCorrContrib(B, relPos, w);
+		}
+	}  // end of second loop trough neighbors
+
+	// If MLS starts misbehaving, define DEBUG_PARTICLE: this will
+	// print the MLS-corrected density for the particles statisfying
+	// the DEBUG_PARTICLE condition. Some examples:
+
+//#define DEBUG_PARTICLE (index == numParticles - 1)
+//#define DEBUG_PARTICLE (id(info) == numParticles - 1)
+//#define DEBUG_PARTICLE (fabs(err) > 64*FLT_EPSILON)
+
+#ifdef DEBUG_PARTICLE
+	{
+		const float old = tex1Dfetch(velTex, index).w;
+		const float err = 1 - vel.w/old;
+		if (DEBUG_PARTICLE) {
+			printf("MLS %d %d %22.16g => %22.16g (%6.2e)\n",
+				index, id(info),
+				old, vel.w, err*100);
+		}
+	}
+#endif
 
 	newVel[index] = vel;
 }
