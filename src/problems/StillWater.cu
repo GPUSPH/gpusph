@@ -48,16 +48,28 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	m_usePlanes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
 	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations
 	const int ppH = get_option("ppH", 16); // --ppH N to change deltap to H/N
+	const bool use_ferrari = get_option("use-ferrari", true); // --use-ferrari true to enable use of Ferrari correction
 
-	SETUP_FRAMEWORK(
-		//viscosity<KINEMATICVISC>,
-		viscosity<DYNAMICVISC>,
-		//viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
-		//boundary<SA_BOUNDARY>,
-		//boundary<LJ_BOUNDARY>,
-		flags<ENABLE_DTADAPT | ENABLE_FERRARI>
-	);
+	if (use_ferrari)
+		SETUP_FRAMEWORK(
+			//viscosity<KINEMATICVISC>,
+			viscosity<DYNAMICVISC>,
+			//viscosity<ARTVISC>,
+			boundary<DYN_BOUNDARY>,
+			//boundary<SA_BOUNDARY>,
+			//boundary<LJ_BOUNDARY>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+		);
+	else
+		SETUP_FRAMEWORK(
+			//viscosity<KINEMATICVISC>,
+			viscosity<DYNAMICVISC>,
+			//viscosity<ARTVISC>,
+			boundary<DYN_BOUNDARY>,
+			//boundary<SA_BOUNDARY>,
+			//boundary<LJ_BOUNDARY>,
+			flags<ENABLE_DTADAPT>
+		);
 
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
