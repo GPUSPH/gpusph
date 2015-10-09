@@ -190,4 +190,37 @@ dot(symtensor3 const& T, float4 const& v)
 
 }
 
+// T.v
+__spec
+float4
+dot(symtensor4 const& T, float4 const& v)
+{
+	return make_float4(
+			T.xx*v.x + T.xy*v.y + T.xz*v.z + T.xw*v.w,
+			T.xy*v.x + T.yy*v.y + T.yz*v.z + T.yw*v.w,
+			T.xz*v.x + T.yz*v.y + T.zz*v.z + T.zw*v.w,
+			T.xw*v.x + T.yw*v.y + T.zw*v.z + T.ww*v.w);
+
+}
+
+// v.T.w
+__spec
+float
+dot(float4 const& v, symtensor4 const& T, float4 const& w)
+{
+	return dot(v, dot(T,w));
+}
+
+// v.T.v
+__spec
+float
+ddot(symtensor4 const& T, float4 const& v)
+{
+	return T.xx*v.x*v.x + T.yy*v.y*v.y + T.zz*v.z*v.z + T.ww*v.w*v.w +
+		2*(
+			(T.xy*v.y + T.xw*v.w)*v.x +
+			(T.yz*v.z + T.yw*v.w)*v.y +
+			(T.xz*v.x + T.zw*v.w)*v.z);
+}
+
 #undef __spec
