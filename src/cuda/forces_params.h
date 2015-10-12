@@ -137,6 +137,14 @@ struct grenier_forces_params
 	{}
 };
 
+/// Used by formulations that have volume
+struct volume_forces_params
+{
+	const float4	*volArray;
+	volume_forces_params(const float4 *_volArray) : volArray(_volArray)
+	{}
+};
+
 /// Additional parameters passed only to kernels with SA_BOUNDARY
 struct sa_boundary_forces_params
 {
@@ -197,6 +205,8 @@ struct forces_params :
 	common_forces_params,
 	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_forces_params),
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_forces_params),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+		_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
@@ -239,6 +249,7 @@ struct forces_params :
 				float4	*_xsph,
 
 		// SPH_GRENIER
+		const	float4	*_volArray,
 		const	float	*_sigmaArray,
 
 		// SA_BOUNDARY
@@ -261,6 +272,8 @@ struct forces_params :
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
 			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
+		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+			_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params)(_volArray),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
 			(_newGGam, _contupd, _vertPos, _epsilon),

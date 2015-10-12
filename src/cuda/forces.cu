@@ -666,6 +666,7 @@ basicstep(
 			deltap, slength, influenceradius, step,
 			cfl, cfl_Ds, cflTVisc, cflOffset,
 			xsph,
+			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, contupd, vertPos, epsilon,
 			IOwaterdepth,

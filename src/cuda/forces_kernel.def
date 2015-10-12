@@ -208,6 +208,17 @@ struct eulerVel_particle_data
 	{}
 };
 
+struct volume_particle_data
+{
+	const	float	volume;
+
+	__device__ __forceinline__
+	volume_particle_data(const uint index,
+		volume_forces_params const& params) :
+		volume(params.volArray[index].w)
+	{}
+};
+
 // data used for SPH_GRENIER
 struct grenier_particle_data
 {
@@ -368,8 +379,10 @@ struct forces_particle_data :
 	// PT_VERTEX only use them for KEPSVISC, and
 	// PT_OBJECT don't use them
 	vel_particle_data,
-	// eulerian velocity only used in case of keps or with open boundaries
+	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+		(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
+	// eulerian velocity only used in case of keps or with open boundaries
 	COND_STRUCT(_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
@@ -409,6 +422,9 @@ struct forces_particle_data :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
 		vel_particle_data(_index, _info),
+		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+			(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
+			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
 			eulerVel_particle_data)(_index),
@@ -625,6 +641,8 @@ template<KernelType kerneltype,
 	flag_t simflags>
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
+	COND_STRUCT(sph_formulation == SPH_GRENIER &&
+		(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
 	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
 // can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
 	conditional<boundarytype == SA_BOUNDARY,
@@ -673,6 +691,9 @@ struct forces_neib_data :
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
+		COND_STRUCT(sph_formulation == SPH_GRENIER &&
+			(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
+			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
@@ -880,7 +901,7 @@ compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata
 /// A functor that computes the ratio of the volumes of two particles
 /// either as rho_N/rho_P (if the volume is not available) or as vol_P/vol_N
 /// (if the volume is available, e.g. with SPH_GRENIER)
-template<SPHFormulation sph_formulation>
+template<bool has_volume>
 struct volume_ratio {
 	template<typename P, typename N>
 	__device__ __forceinline__
@@ -890,17 +911,14 @@ struct volume_ratio {
 	}
 };
 
-#if 0
-/* TODO with Grenier with should use the volume directly. This is currently
-   not retrieved by the particle data though */
+/* With Grenier we  use the volume directly */
 template<>
 template<typename P, typename N>
 __device__ __forceinline__
-static float
-volume_ratio<SPH_GRENIER>::with(P const& pdata, N const& ndata) {
-	return NAN;
+float
+volume_ratio<true>::with(P const& pdata, N const& ndata) {
+	return pdata.volume/ndata.volume;
 }
-#endif
 
 /// A functor that computes the time derivative of rho
 template<BoundaryType boundarytype>
@@ -956,11 +974,15 @@ struct compute_density_derivative {
 		// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
 		// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
 		// 2(vol_i/vol_j - 1) F_ij
-		// Also rhodiffcoeff = \xi*h*2
+		// For us rhodiffcoeff = \xi*h*2
+		// Additionally, when the density evolution formulation is NOT based on
+		// volumes, we need to multiply by the neighbor mass
 
+		const bool has_volume = (FP::sph_formulation == SPH_GRENIER &&
+			FP::simflags & ENABLE_DENSITY_DIFFUSION);
 		const float diff_term = d_rhodiffcoeff*d_sscoeff[fType]*
-			(volume_ratio<FP::sph_formulation>::with(pdata, ndata) - 1)*
-			ndata.f*ndata.relPos.w; // TODO check for Grenier
+			(volume_ratio<has_volume>::with(pdata, ndata) - 1)*
+			ndata.f*(has_volume ? -1 : ndata.relPos.w);
 
 		// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
 
@@ -998,17 +1020,17 @@ struct compute_density_derivative {
 			// for Grenier's formulation, DrDt is actually DJ/Dt, which needs to be divided
 			// by the particle sigma, which will be done at the end of the cycle
 			nout.DrDt -= ndata.vel_dot_pos*ndata.f;
-			// TODO Ferrari correction, density diffusion
+			// TODO Ferrari correction
 		} else {
 			// SPH_F1 or SPH_F2
 			common_with(params, pdata, ndata, pout, nout);
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
 			if (FP::simflags & ENABLE_FERRARI && FLUID(ndata.info))
 				ferrari_correction(params, pdata, ndata, pout, nout);
-			// Density diffusion term according to Colagrossi & Molteni 2009, CPC
-			if (FP::simflags & ENABLE_DENSITY_DIFFUSION && FLUID(ndata.info))
-				density_diffusion(params, pdata, ndata, pout, nout);
 		}
+		// Density diffusion term according to Colagrossi & Molteni 2009, CPC
+		if (FP::simflags & ENABLE_DENSITY_DIFFUSION && FLUID(ndata.info))
+			density_diffusion(params, pdata, ndata, pout, nout);
 		/* The second formulation takes into consideration the density ratio */
 		if (FP::sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
