@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -164,6 +164,12 @@ typedef struct SimParams {
 
 		return influenceRadius;
 	}
+
+	/// return the number of layers of particles necessary
+	/// to cover the influence radius
+	inline int
+	get_influence_layers() const
+	{ return (int)ceil(sfactor*kernelradius); }
 
 } SimParams;
 

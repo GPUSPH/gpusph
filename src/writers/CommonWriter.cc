@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -72,8 +72,9 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 		string rbdata_fn = open_data_file(m_objectfile, "rbdata");
 		if (m_objectfile) {
 			m_objectfile << "time";
-			m_objectfile << "\tindex";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
+				// object index
+				m_objectfile << "\tindex";
 				// center of mass
 				m_objectfile << "\tCM" << obj << "_X";
 				m_objectfile << "\tCM" << obj << "_Y";
@@ -95,8 +96,9 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 		string objforce_fn = open_data_file(m_objectforcesfile, "objectforces");
 		if (m_objectforcesfile) {
 			m_objectforcesfile << "time";
-			m_objectforcesfile << "\tindex";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
+				// object index
+				m_objectforcesfile << "\tindex";
 				// computed forces
 				m_objectforcesfile << "\tComputed_F" << obj << "_X";
 				m_objectforcesfile << "\tComputed_F" << obj << "_Y";

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -50,8 +50,9 @@ public:
 	std::string	dir; // directory where data will be saved
 	double	deltap; // deltap
 	float	tend; // simulation end
+	int		maxiter; // maximum number of iterations to run
 	float	checkpoint_freq; // frequency of hotstart checkpoints (in simulated seconds)
-	int	checkpoints; // number of hotstart checkpoints to keep
+	int		checkpoints; // number of hotstart checkpoints to keep
 	bool	nosave; // disable saving
 	bool	gpudirect; // enable GPUDirect
 	bool	striping; // enable striping (i.e. compute/transfer overlap)
@@ -70,6 +71,7 @@ public:
 		checkpoint_freq(NAN),
 		checkpoints(-1),
 		tend(NAN),
+		maxiter(0),
 		nosave(false),
 		gpudirect(false),
 		striping(false),
@@ -93,7 +95,7 @@ public:
 		T ret(_default);
 		OptionMap::const_iterator found(m_options.find(key));
 		if (found != m_options.end()) {
-			std::ostringstream extractor(found->second);
+			std::istringstream extractor(found->second);
 			extractor >> ret;
 		}
 		return ret;

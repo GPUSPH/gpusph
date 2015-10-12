@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <float.h> // FLT_EPSILON
+#include <cfloat> // FLT_EPSILON
 
 #include <unistd.h> // getpid()
 #include <sys/mman.h> // shm_open()/shm_unlink()
@@ -97,6 +97,7 @@ void GPUSPH::openInfoStream() {
 		cerr << "WARNING: unable to fdopen info stream " << m_info_stream_name << endl;
 		close(ret);
 		shm_unlink(m_info_stream_name.c_str());
+		return;
 	}
 	cout << "Info stream: " << m_info_stream_name << endl;
 	fputs("Initializing ...\n", m_info_stream);
@@ -120,20 +121,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
-	// needed for the new problem interface (compute worldorigin, init ODE, etc.)
+	// For the new problem interface (compute worldorigin, init ODE, etc.)
+	// In all cases, also runs the checks for dt, maxneibsnum, etc
+	// and creates the problem dir
 	if (!problem->initialize()) {
 		printf("Problem initialization failed. Aborting...\n");
 		return false;
 	}
-
-	// run post-construction functions
-	problem->check_dt();
-	problem->check_maxneibsnum();
-	problem->create_problem_dir();
-	problem->calculateFerrariCoefficient();
-
-	printf("Problem calling set grid params\n");
-	problem->set_grid_params();
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
@@ -393,6 +387,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
+	if (!gdata->keep_going)
+		return false;
+
 	// peer accessibility is checked and set in the initialization phase
 	if (MULTI_GPU)
 		printDeviceAccessibilityTable();
@@ -480,15 +477,25 @@ bool GPUSPH::runSimulation() {
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
 
-	buildNeibList();
-
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
-	while (gdata->keep_going) {
+	// Run the actual simulation loop, by issuing the appropriate doCommand()s
+	// in sequence. keep_going will be set to false either by the loop itself
+	// if the simulation is finished, or by a Worker that fails in executing a
+	// command; in the latter case, doCommand itself will throw, to prevent
+	// the loop from issuing subsequent commands; hence, the body consists of a
+	// try/catch block --------v-----
+	while (gdata->keep_going) try {
 		printStatus(m_info_stream);
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
+
+		// build neighbors list
+		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
+			gdata->particlesCreated) {
+			buildNeibList();
+		}
 
 		// run enabled filters
 		if (gdata->iterations > 0) {
@@ -522,10 +529,16 @@ bool GPUSPH::runSimulation() {
 
 		// for Grenier formulation, compute sigma and smoothed density
 		if (problem->get_simparams()->sph_formulation == SPH_GRENIER) {
+			// put READ vel in WRITE buffer
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 			gdata->only_internal = true;
+
+			// compute density and sigma, updating WRITE vel in-place
 			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
+				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
+			// restore vel buffer into READ position
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
@@ -561,9 +574,22 @@ bool GPUSPH::runSimulation() {
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(1);
-		// integrate also the externals
-		gdata->only_internal = false;
+
+		// in the case of the summation density there is a neighbour loop in euler and so we can run on internal only
+		if (!(problem->get_simparams()->simflags & ENABLE_DENSITY_SUM))
+			// integrate also the externals
+			gdata->only_internal = false;
+
 		doCommand(EULER, INTEGRATOR_STEP_1);
+
+		// summation density requires an update from the other GPUs.
+		if (problem->get_simparams()->simflags & ENABLE_DENSITY_SUM) {
+			if (MULTI_DEVICE) {
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+				// the following only need update after the first step, vel due to rhie and chow and gradgamma to save gam^n
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_READ);
+			}
+		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
@@ -590,10 +616,16 @@ bool GPUSPH::runSimulation() {
 
 		// for Grenier formulation, compute sigma and smoothed density
 		if (problem->get_simparams()->sph_formulation == SPH_GRENIER) {
+			// put READ vel in WRITE buffer
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 			gdata->only_internal = true;
+
+			// compute density and sigma, updating WRITE vel in-place
 			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
+				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
+			// restore vel buffer into READ position
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
@@ -625,9 +657,21 @@ bool GPUSPH::runSimulation() {
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(2);
-		// integrate also the externals
-		gdata->only_internal = false;
+
+		// in the case of the summation density there is a neighbour loop in euler and so we can run on internal only
+		if (!(problem->get_simparams()->simflags & ENABLE_DENSITY_SUM))
+			// integrate also the externals
+			gdata->only_internal = false;
+
 		doCommand(EULER, INTEGRATOR_STEP_2);
+
+		// summation density requires an update from the other GPUs.
+		if (problem->get_simparams()->simflags & ENABLE_DENSITY_SUM) {
+			if (MULTI_DEVICE) {
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			}
+		}
+
 		// Euler needs always cg(n)
 		if (problem->get_simparams()->numbodies > 0)
 			doCommand(EULER_UPLOAD_OBJECTS_CG);
@@ -651,8 +695,18 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
 
 			// update the it counter if new particles are created
-			if (gdata->particlesCreated)
+			if (gdata->particlesCreated) {
 				gdata->createdParticlesIterations++;
+				// we also update the array indices, so that e.g. when saving
+				// the newly created particles are visible
+				// TODO this doesn't seem to impact performance noticeably
+				// in single-GPU. If it is found to be too expensive on
+				// multi-GPU (or especially multi-node) it might be necessary
+				// to only do it when saving. It does not affect the simulation
+				// anyway, since it will be done during the next buildNeibList()
+				// call
+				updateArrayIndices();
+			}
 		}
 
 		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
@@ -699,6 +753,8 @@ bool GPUSPH::runSimulation() {
 
 		// are we done?
 		bool finished = gdata->problem->finished(gdata->t);
+		finished = finished || (gdata->clOptions->maxiter &&
+			gdata->iterations >= gdata->clOptions->maxiter);
 		// list of writers that need to write
 		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
 		// do we need to write?
@@ -733,7 +789,7 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES;
 
 			if (gdata->problem->get_simparams()->sph_formulation == SPH_GRENIER)
-				which_buffers |= BUFFER_VOLUME;
+				which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
 
 			// get k and epsilon
 			if (gdata->problem->get_simparams()->visctype == KEPSVISC)
@@ -811,15 +867,16 @@ bool GPUSPH::runSimulation() {
 			}
 		}
 
-		// build neighbors list
-		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
-			gdata->particlesCreated) {
-			buildNeibList();
-		}
-
 		if (finished || gdata->quit_request)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
+	} catch (std::exception &e) {
+		cerr << e.what() << endl;
+		gdata->keep_going = false;
+		// the loop is being ended by some exception, so we cannot guarantee that
+		// all threads are alive. Force unlocks on all subsequent barriers to exit
+		// as cleanly as possible without stalling
+		gdata->threadSynchronizer->forceUnlock();
 	}
 
 	// elapsed time, excluding the initialization
@@ -959,7 +1016,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->m_simparams->sph_formulation == SPH_GRENIER) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
 		// Only for debugging:
-		//gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SIGMA>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SIGMA>();
 	}
 
 	if (gdata->simframework->hasPostProcessEngine(CALC_PRIVATE))
@@ -1144,12 +1201,13 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 			//delete[] gdata->s_dCellStarts[d];
 			//delete[] gdata->s_dCellEnds[d];
 			// same on non-pinned memory
-			delete[] gdata->s_dSegmentsStart[d];
+			free(gdata->s_dSegmentsStart[d]);
 		}
-		delete[] gdata->s_dCellEnds;
-		delete[] gdata->s_dCellStarts;
-		delete[] gdata->s_dSegmentsStart;
+		free(gdata->s_dCellEnds);
+		free(gdata->s_dCellStarts);
+		free(gdata->s_dSegmentsStart);
 	}
+
 }
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
@@ -1345,6 +1403,9 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 	gdata->extraCommandArg = arg;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
+
+	if (!gdata->keep_going)
+		throw std::runtime_error("GPUSPH aborted by worker thread");
 }
 
 void GPUSPH::setViscosityCoefficient()
@@ -1704,39 +1765,40 @@ void GPUSPH::printDeviceAccessibilityTable()
 
 // Do a roll call of particle IDs; useful after dumps if the filling was uniform.
 // Notifies anomalies only once in the simulation for each particle ID
-// NOTE: only meaningful in singlenode (otherwise, there is no correspondence between indices and ids)
+// NOTE: only meaningful in single-node (otherwise, there is no correspondence between indices and ids),
+// with compact particle filling (i.e. no holes in the ID space) and in simulations without open boundaries
 void GPUSPH::rollCallParticles()
 {
 	bool all_normal = true;
 
 	// reset bitmap and addrs
-	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++) {
-		m_rcBitmap[idx] = false;
-		m_rcAddrs[idx] = UINT_MAX;
+	for (uint part_id = 0; part_id < gdata->processParticles[gdata->mpi_rank]; part_id++) {
+		m_rcBitmap[part_id] = false;
+		m_rcAddrs[part_id] = UINT_MAX;
 	}
 
 	// fill out the bitmap and check for duplicates
-	for (uint pos = 0; pos < gdata->processParticles[gdata->mpi_rank]; pos++) {
-		uint idx = id(gdata->s_hBuffers.getData<BUFFER_INFO>()[pos]);
-		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
-			printf("WARNING: at iteration %lu, time %g particle idx %u is in pos %u and %u!\n",
-					gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos);
+	for (uint part_index = 0; part_index < gdata->processParticles[gdata->mpi_rank]; part_index++) {
+		uint part_id = id(gdata->s_hBuffers.getData<BUFFER_INFO>()[part_index]);
+		if (m_rcBitmap[part_id] && !m_rcNotified[part_id]) {
+			printf("WARNING: at iteration %lu, time %g particle ID %u is at indices %u and %u!\n",
+					gdata->iterations, gdata->t, part_id, m_rcAddrs[part_id], part_index);
 			// getchar(); // useful for debugging
 			// printf("Press ENTER to continue...\n");
 			all_normal = false;
-			m_rcNotified[idx] = true;
+			m_rcNotified[part_id] = true;
 		}
-		m_rcBitmap[idx] = true;
-		m_rcAddrs[idx] = pos;
+		m_rcBitmap[part_id] = true;
+		m_rcAddrs[part_id] = part_index;
 	}
 	// now check if someone is missing
-	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++)
-		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
-			printf("WARNING: at iteration %lu, time %g particle idx %u was not found!\n",
-					gdata->iterations, gdata->t, idx);
+	for (uint part_id = 0; part_id < gdata->processParticles[gdata->mpi_rank]; part_id++)
+		if (!m_rcBitmap[part_id] && !m_rcNotified[part_id]) {
+			printf("WARNING: at iteration %lu, time %g particle ID %u was not found!\n",
+					gdata->iterations, gdata->t, part_id);
 			// printf("Press ENTER to continue...\n");
 			// getchar(); // useful for debugging
-			m_rcNotified[idx] = true;
+			m_rcNotified[part_id] = true;
 			all_normal = false;
 		}
 	// if there was any warning...
@@ -1911,34 +1973,13 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
-	// check if new particles were created and check for ID overflow
-	if (cFlag & INTEGRATOR_STEP_2) {
-		// compute the offset for id cloning and check for possible overflows
-		// NOTE: the formula is
-		//    new_id = vertex_id + initial_parts - initial_fluid_parts +
-		//             (num_iterations_with_part_creations * numVertexParticles)
-		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
-		if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET) {
-
-			//gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
-			//	(gdata->numVertices * gdata->createdParticlesIterations);
-
-			for (uint d = 0; d < gdata->devices; d++) {
-				if (UINT_MAX - gdata->numVertices < gdata->highestDevId[d]) {
-					fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n", gdata->iterations, d);
-					gdata->quit_request = true;
-				}
-			}
-		}
-	}
-
 	// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 	// check if we need to delete some particles which passed through open boundaries
-	if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET && !(cFlag & INITIALIZATION_STEP)) {
+	if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET && (cFlag & INTEGRATOR_STEP_2)) {
 		doCommand(DISABLE_OUTGOING_PARTS);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -63,9 +63,10 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	set_deltap(0.128*R/1.3);
 
 	if (m_simparams->boundarytype == DYN_BOUNDARY) {
-		dyn_layers = ceil(m_simparams->kerneltype*m_simparams->sfactor);
+		dyn_layers = m_simparams->get_influence_layers() + 1;
 		extra_offset = make_double3(dyn_layers*m_deltap);
 	} else {
+		dyn_layers = 0;
 		extra_offset = make_double3(0.0);
 	}
 	m_size = make_double3(lx, ly, lz) + 2*extra_offset;

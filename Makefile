@@ -94,35 +94,42 @@ LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc
 GPUDEPS = $(MAKEFILE).gpu
 CPUDEPS = $(MAKEFILE).cpu
 
+# all files under $(SRCDIR), needed by tags files
+ALLSRCFILES = $(shell find $(SRCDIR) -type f)
+
 # .cc source files (CPU)
 MPICXXFILES = $(SRCDIR)/NetworkManager.cc
 ifeq ($(USE_HDF5),2)
 	MPICXXFILES += $(SRCDIR)/HDF5SphReader.cc
 endif
 
+PROBLEM_DIR=$(SRCDIR)/problems
+USER_PROBLEM_DIR=$(SRCDIR)/problems/user
+
 SRCSUBS=$(sort $(filter %/,$(wildcard $(SRCDIR)/*/)))
 SRCSUBS:=$(SRCSUBS:/=)
-OBJSUBS=$(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS))
-
-PROBLEM_DIR=$(SRCDIR)/problems
+OBJSUBS=$(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS) $(USER_PROBLEM_DIR))
 
 # list of problems
-PROBLEM_LIST = $(notdir $(basename $(wildcard $(PROBLEM_DIR)/*.h)))
+PROBLEM_LIST = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
+	$(notdir $(basename $(wildcard $(adir)/*.h))))
+
 # only one problem is active at a time, this is the list of all other problems
 INACTIVE_PROBLEMS = $(filter-out $(PROBLEM),$(PROBLEM_LIST))
 # we don't want to build inactive problems, so we will filter them out
 # from the sources list
-PROBLEM_FILTER = \
-	$(patsubst %,$(PROBLEM_DIR)/%.cc,$(INACTIVE_PROBLEMS)) \
-	$(patsubst %,$(PROBLEM_DIR)/%.cu,$(INACTIVE_PROBLEMS)) \
-	$(patsubst %,$(PROBLEM_DIR)/%_BC.cu,$(INACTIVE_PROBLEMS))
+PROBLEM_FILTER = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
+	$(patsubst %,$(adir)/%.cc,$(INACTIVE_PROBLEMS)) \
+	$(patsubst %,$(adir)/%.cu,$(INACTIVE_PROBLEMS)) \
+	$(patsubst %,$(adir)/%_BC.cu,$(INACTIVE_PROBLEMS)))
 
 # list of problem source files
-PROBLEM_SRCS = $(filter \
-	$(PROBLEM_DIR)/$(PROBLEM).cc \
-	$(PROBLEM_DIR)/$(PROBLEM).cu \
-	$(PROBLEM_DIR)/$(PROBLEM)_BC.cu,\
-	$(wildcard $(SRCDIR)/problems/*))
+PROBLEM_SRCS = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
+	$(filter \
+		$(adir)/$(PROBLEM).cc \
+		$(adir)/$(PROBLEM).cu \
+		$(adir)/$(PROBLEM)_BC.cu,\
+		$(wildcard $(adir)/*)))
 
 # list of .cc files, exclusing MPI sources and disabled problems
 CCFILES = $(filter-out $(PROBLEM_FILTER),\
@@ -275,7 +282,7 @@ ifdef problem
 		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(PROBLEM)/$(problem)/' $(PROBLEM_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's:$(PROBLEM):$(problem):' $(PROBLEM_SELECT_OPTFILE) )
 		# user choice
 		PROBLEM=$(problem)
 	endif
@@ -492,7 +499,7 @@ LDLIBS ?=
 
 # INCPATH
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
-INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(OPTSDIR)
+INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(USER_PROBLEM_DIR) -I$(OPTSDIR)
 
 # access the CUDA include files from the C++ compiler too, but mark their path as a system include path
 # so that they can be skipped when generating dependencies. This must only be done for the host compiler,
@@ -881,7 +888,7 @@ snapshot: $(SNAPSHOT_FILE)
 
 # One possibility to add the source files: $(SRCDIR)/*.{cc,h} $(SRCDIR)/*.{cc,h,cu,cuh,def}
 # However, Makefile does not support this bash-like expansion, so we take a shortcut.
-$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/
+$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/ $(SCRIPTSDIR)/
 	$(CMDECHO)tar czf $@ $^
 
 # target: expand - Expand euler* and forces* GPU code in $(EXPDIR)
@@ -993,9 +1000,11 @@ docsclean:
 	$(CMDECHO)rm -rf $(DOCSDIR)
 
 # target: tags - Create TAGS file
-tags: TAGS
-TAGS: $(wildcard $(SRCDIR)/*)
-	$(CMDECHO)etags -R -h=.h.cuh.inc --exclude=docs --langmap=c++:.cc.cuh.cu.def
+tags: TAGS cscope.out
+TAGS: $(ALLSRCFILES)
+	$(CMDECHO)etags -R -h=.h.cuh.inc --exclude=docs --langmap=c++:.cc.cuh.cu.def.h.inc
+cscope.out: $(ALLSRCFILES)
+	$(CMDECHO)which cscope > /dev/null && cscope -b $(ALLSRCFILES) || touch cscope.out
 
 
 # target: test - Run GPUSPH with WaveTank. Compile it if needed
@@ -1005,10 +1014,14 @@ test: all
 
 # target: compile-problems - Test that all problems compile
 compile-problems:
-	$(CMDECHO)for prob in $(PROBLEM_LIST) ; do \
-		echo [TEST-BUILD] $${prob} ; \
-		$(MAKE) problem=$${prob} || exit 1 ; \
+	$(CMDECHO)pn=1 ; for prob in $(PROBLEM_LIST) ; do \
+		echo [TEST-BUILD $${pn}/$(words $(PROBLEM_LIST))] $${prob} ; \
+		$(MAKE) problem=$${prob} || exit 1 ; pn=$$(($$pn+1)) ; \
 		done
+
+# target: <problem_name> - Compile the given problem
+$(PROBLEM_LIST):
+	$(CMDECHO)$(MAKE) problem=$@
 
 # target: list-problems - List available problems
 list-problems:

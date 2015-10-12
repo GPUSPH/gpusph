@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -156,10 +156,11 @@ Rect::Rect(const Point &origin, const double lx, const double ly, const EulerPar
 	m_lx = lx;
 	m_ly = ly;
 
+	m_vx = Vector(lx,0,0);
+	m_vy = Vector(0,ly,0);
+	m_vz = m_vx.cross(m_vy);
+	m_vz.normalize();
 	setEulerParameters(ep);
-
-	m_origin.print();
-	m_center.print();
 }
 
 
@@ -622,7 +623,8 @@ void Rect::setEulerParameters(const EulerParameters &ep)
 
 	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
-	m_vz = m_vx.cross(m_vz);
+	m_vz = m_vx.cross(m_vy);
+	m_vz.normalize();
 
 	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
 }

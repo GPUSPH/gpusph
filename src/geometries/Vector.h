@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -55,7 +55,9 @@ class Vector {
 		Vector(const Vector &);
 		Vector(double xx = 0, double yy = 0, double zz = 0);
 		Vector(const float3 &);
+		Vector(const double3 &);
 		Vector(const float4 &);
+		Vector(const double4 &);
 		Vector(const float *);
 		Vector(const double *);
 		~Vector(void) {};
@@ -105,9 +107,10 @@ class Vector {
 		void print(void);
 };
 
-float4 make_float4(const Vector &);
-
 float3 make_float3(const Vector &);
+double3 make_double3(const Vector &);
+float4 make_float4(const Vector &);
+double4 make_double4(const Vector &);
 
 void make_dvector3(const Vector &, dVector3);
 

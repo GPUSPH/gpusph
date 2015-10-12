@@ -61,6 +61,20 @@ Problem::Problem(GlobalData *_gdata) :
 {
 }
 
+bool
+Problem::initialize()
+{
+	// run post-construction functions
+	check_dt();
+	check_maxneibsnum();
+	calculateFerrariCoefficient();
+	create_problem_dir();
+
+	printf("Problem calling set grid params\n");
+	set_grid_params();
+
+	return true;
+}
 
 Problem::~Problem(void)
 {
@@ -237,7 +251,7 @@ Problem::restore_ODE_body(const uint i, const float *gravity_center, const float
 
 
 void
-Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos)
+Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const
 {
 	int3 _gridPos = calc_grid_pos(globalPos);
 	*gridPos = _gridPos;
@@ -1069,6 +1083,8 @@ Problem::calculateFerrariCoefficient()
 		if (isnan(m_simparams->ferrariLengthScale)) {
 			m_simparams->ferrari = 0.0f;
 			printf("Ferrari coefficient: %e (default value, disabled)\n", m_simparams->ferrari);
+			if (m_simparams->simflags & ENABLE_FERRARI)
+				fprintf(stderr, "WARNING: Ferrari correction enabled, but no coefficient or length scale given!\n");
 			return;
 		}
 		else {
@@ -1137,7 +1153,7 @@ Problem::set_grid_params(void)
 
 // Compute position in uniform grid (clamping to edges)
 int3
-Problem::calc_grid_pos(const Point&	pos)
+Problem::calc_grid_pos(const Point& pos) const
 {
 	int3 gridPos;
 	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
@@ -1150,17 +1166,35 @@ Problem::calc_grid_pos(const Point&	pos)
 	return gridPos;
 }
 
+/// Compute the uniform grid components of a vector
+int3
+Problem::calc_grid_offset(double3 const& vec) const
+{
+	int3 gridOff;
+	gridOff = make_int3(floor(vec/m_cellsize));
+
+	return gridOff;
+}
+
+/// Compute the local (fractional grid cell) components of a vector,
+/// given the vector and its grid offset
+double3
+Problem::calc_local_offset(double3 const& vec, int3 const& gridOff) const
+{
+	return vec - (make_double3(gridOff) + 0.5)*m_cellsize;
+}
+
 
 // Compute address in grid from position
 uint
-Problem::calc_grid_hash(int3 gridPos)
+Problem::calc_grid_hash(int3 gridPos) const
 {
 	return gridPos.COORD3 * m_gridsize.COORD2 * m_gridsize.COORD1 + gridPos.COORD2 * m_gridsize.COORD1 + gridPos.COORD1;
 }
 
 
 void
-Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash)
+Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash) const
 {
 	int3 gridPos = calc_grid_pos(pos);
 
@@ -1210,20 +1244,15 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 
 void
 Problem::imposeBoundaryConditionHost(
-			float4*			newVel,
-			float4*			newEulerVel,
-			float*			newTke,
-			float*			newEpsilon,
-	const	particleinfo*	info,
-	const	float4*			oldPos,
-			uint*			IOwaterdepth,
-	const	float			t,
-	const	uint			numParticles,
-	const	uint			numOpenBoundaries,
-	const	uint			particleRangeEnd,
-	const	hashKey*		particleHash)
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
+					uint*			IOwaterdepth,
+			const	float			t,
+			const	uint			numParticles,
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd)
 {
-	// not implemented
+	fprintf(stderr, "WARNING: open boundaries are present, but imposeBoundaryCondtionHost was not implemented\n");
 	return;
 }
 

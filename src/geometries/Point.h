@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -63,10 +63,11 @@ class Point {
 		Point(const double *);
 		~Point(void) {};
 
-		double4 toDouble4();
+		double4 toDouble4() const;
 
 		void SetCoord(double *);
 		void SetCoord(double, double, double);
+		void SetMass(const double _newVal);
 
 		Point Rot(const dMatrix3);
 		Point TransposeRot(const dMatrix3);
@@ -125,8 +126,10 @@ class Point {
 };
 
 float4 make_float4(const Point &);
+double4 make_double4(const Point &);
 
 float3 make_float3(const Point &);
+double3 make_double3(const Point &);
 
 void make_dvector3(const Point &, dVector3);
 
