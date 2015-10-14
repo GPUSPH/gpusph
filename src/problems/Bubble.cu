@@ -54,7 +54,8 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	SETUP_FRAMEWORK(
 		formulation<SPH_GRENIER>,
 		viscosity<DYNAMICVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		flags<ENABLE_DTADAPT | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
 	);
 
 	// SPH parameters

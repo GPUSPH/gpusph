@@ -37,7 +37,8 @@
 Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
-		viscosity<SPSVISC>
+		viscosity<SPSVISC>,
+		flags<ENABLE_DTADAPT | ENABLE_PLANES>
 	);
 
 	addFilter(MLS_FILTER, 20);

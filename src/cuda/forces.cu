@@ -1051,7 +1051,7 @@ struct CUDAPostProcessEngineHelperDefaults
 	{ return NO_FLAGS; }
 };
 
-template<PostProcessType filtertype, KernelType kerneltype>
+template<PostProcessType filtertype, KernelType kerneltype, flag_t simflags>
 struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 {
 	static void process(
@@ -1065,8 +1065,8 @@ struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 				float	influenceradius);
 };
 
-template<KernelType kerneltype>
-struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype>
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	static flag_t get_written_buffers(flag_t)
@@ -1114,8 +1114,8 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype>
 	}
 };
 
-template<KernelType kerneltype>
-struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype>
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// buffers updated in-place
@@ -1175,8 +1175,8 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype>
 	}
 };
 
-template<KernelType kerneltype>
-struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype>
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// pass BUFFER_NORMALS option to the SURFACE_DETECTION filter
@@ -1215,10 +1215,10 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype>
 
 		// execute the kernel
 		if (options & BUFFER_NORMALS) {
-			cuforces::calcSurfaceparticleDevice<kerneltype, true><<< numBlocks, numThreads >>>
+			cuforces::calcSurfaceparticleDevice<kerneltype, simflags, true><<< numBlocks, numThreads >>>
 				(pos, normals, newInfo, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 		} else {
-			cuforces::calcSurfaceparticleDevice<kerneltype, false><<< numBlocks, numThreads >>>
+			cuforces::calcSurfaceparticleDevice<kerneltype, simflags, false><<< numBlocks, numThreads >>>
 				(pos, normals, newInfo, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 		}
 
@@ -1233,8 +1233,8 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype>
 	}
 };
 
-template<KernelType kerneltype>
-struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype>
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// buffers updated in-place
@@ -1292,10 +1292,10 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype>
 };
 
 /// The actual CUDAPostProcessEngine class delegates to the helpers
-template<PostProcessType pptype, KernelType kerneltype>
+template<PostProcessType pptype, KernelType kerneltype, flag_t simflags>
 class CUDAPostProcessEngine : public AbstractPostProcessEngine
 {
-	typedef CUDAPostProcessEngineHelper<pptype, kerneltype> Helper;
+	typedef CUDAPostProcessEngineHelper<pptype, kerneltype, simflags> Helper;
 
 public:
 	CUDAPostProcessEngine(flag_t options=NO_FLAGS) :

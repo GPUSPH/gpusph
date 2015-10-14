@@ -2330,7 +2330,7 @@ forcesDevice(
 			}
 
 			// Adding repulsive force computed from geometric boundaries
-			if (d_numplanes) {
+			if (simflags & ENABLE_PLANES && d_numplanes) {
 				geom_coeff = max(geom_coeff,
 					GeometryForce(pdata.gridPos, as_float3(pdata.pos),
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));

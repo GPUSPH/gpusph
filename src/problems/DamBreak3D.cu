@@ -67,7 +67,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<ARTVISC>,
 		boundary<DYN_BOUNDARY>
 	).select_options(
-		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>()
+		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
+		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density

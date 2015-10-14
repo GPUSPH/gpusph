@@ -223,6 +223,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
 
+	if (gdata->numPlanes > 0 &&
+		!(problem->simparams()->simflags & ENABLE_PLANES))
+		throw invalid_argument("planes present but ENABLE_PLANES not specified in framework flags");
+
 	// Create the Writers according to the WriterType
 	// Should be done after the last fill operation
 	createWriter();

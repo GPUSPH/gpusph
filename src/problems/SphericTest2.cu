@@ -54,7 +54,7 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 	lz = 1.0;
 	H = 0.55;
 	wet = false;
-	m_usePlanes = true;
+	m_usePlanes = get_option("use-planes", true);
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
@@ -66,6 +66,8 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 		//viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>,
 		add_flags<ENABLE_FERRARI>
+	).select_options(
+		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	// SPH parameters

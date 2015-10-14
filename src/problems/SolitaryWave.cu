@@ -54,8 +54,9 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
 		//viscosity<SPSVISC>,
-		boundary<LJ_BOUNDARY>
-		//boundary<MK_BOUNDARY>
+		boundary<LJ_BOUNDARY>,
+		//boundary<MK_BOUNDARY>,
+		flags<ENABLE_DTADAPT | ENABLE_PLANES>
 	);
 
 	//addFilter(SHEPARD_FILTER, 20);

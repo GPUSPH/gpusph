@@ -60,7 +60,8 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		//boundary<SA_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
 	).select_options(
-		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>()
+		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
+		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	if (mlsIters > 0)

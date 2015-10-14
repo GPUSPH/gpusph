@@ -3022,7 +3022,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 
 //! Identifies particles which form the free-surface
-template<KernelType kerneltype, bool savenormals>
+template<KernelType kerneltype, flag_t simflags, bool savenormals>
 __global__ void
 calcSurfaceparticleDevice(	const	float4*			posArray,
 									float4*			normals,
@@ -3103,16 +3103,17 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 	float normal_length = length(as_float3(normal));
 
-	//Checking the planes
-	for (uint i = 0; i < d_numplanes; ++i) {
-		const float3 planeNormal = d_planeNormal[i];
-		const float r = PlaneDistance(gridPos, as_float3(pos), planeNormal,
-			d_planePointGridPos[i], d_planePointLocalPos[i]);
-		if (r < influenceradius) {
-			as_float3(normal) += planeNormal*normal_length;
-			normal_length = length(as_float3(normal));
+	// Checking the planes
+	if (simflags & ENABLE_PLANES)
+		for (uint i = 0; i < d_numplanes; ++i) {
+			const float3 planeNormal = d_planeNormal[i];
+			const float r = PlaneDistance(gridPos, as_float3(pos), planeNormal,
+				d_planePointGridPos[i], d_planePointLocalPos[i]);
+			if (r < influenceradius) {
+				as_float3(normal) += planeNormal*normal_length;
+				normal_length = length(as_float3(normal));
+			}
 		}
-	}
 
 	// Second loop over all neighbors
 
