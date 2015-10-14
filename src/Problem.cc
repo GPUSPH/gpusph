@@ -608,6 +608,7 @@ Problem::density(float h, int i) const
 	if (h > 0) {
 		//float g = length(m_physparams->gravity);
 		float g = abs(m_physparams->gravity.z);
+		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
 		density = m_physparams->rho0[i]*pow(g*m_physparams->rho0[i]*h/m_physparams->bcoeff[i] + 1,
 				1/m_physparams->gammacoeff[i]);
 		}
