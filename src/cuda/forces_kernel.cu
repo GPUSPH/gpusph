@@ -2942,7 +2942,7 @@ __global__ void
 calcSurfaceparticleDevice(	const	float4*			posArray,
 									float4*			normals,
 									particleinfo*	newInfo,
-							const	hashKey*			particleHash,
+							const	hashKey*		particleHash,
 							const	uint*			cellStart,
 							const	neibdata*		neibsList,
 							const	uint			numParticles,

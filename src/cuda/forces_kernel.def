@@ -1551,7 +1551,6 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 /// A functor that does viscosity-related post-processing, and returns a
 /// viscous coefficient to be used with DEMs and planes
-
 template<ViscosityType>
 struct viscous_fixup
 {
@@ -1564,7 +1563,7 @@ struct viscous_fixup
 /// Specializations
 
 template<>
-template<typename FP, typename P, typename OP >
+template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
 viscous_fixup<DYNAMICVISC>::with(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w; }
