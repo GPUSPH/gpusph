@@ -2024,6 +2024,134 @@ struct forces_shared_data :
 		nut::reduce(params);
 	}
 };
+/************************************************************************************************************/
+/*		   Particle-particle interaction											*/
+/************************************************************************************************************/
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	flag_t simflags>
+__device__
+void
+particleParticleInteraction(
+	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> const& params,
+	forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> const& pdata,
+	forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> const& ndata,
+	forces_particle_output<boundarytype, visctype, simflags> &pout,
+	forces_neib_output<boundarytype> &nout
+	)
+{
+	// Compute gamma_as and |grad gamma_as| and add it to the respective values
+	// of the focal particle
+	compute_gamma<boundarytype>::with(params, pdata, ndata, pout, nout);
+
+	// With DYN_BOUNDARY formulation, all particles interaction follow the fluid-fluid one
+	if (boundarytype == DYN_BOUNDARY || FLUID(pdata.info)) {
+		// The Navier-Stokes equations are applied in the following cases:
+		// 		* for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
+		// 		* for LJ boundary, by a fluid particle interacting with a fluid particle;
+		// 		* for DYN bondary :
+		// 			- a fluid particle will compute both density derivative and acceleration interacting
+		// 			  with any other particle;
+		// 			- a non-fluid particle will compute density derivative interacting with any other particle,
+		// 			  but acceleration will only be computed by object particles interacting with fluid particles
+		//
+		// If the summation density is used, then in the second step no contribution to the continuity equation
+		// needs to be computed as the values from time n will be reused.
+
+		// NOTE1 : the compiler has some difficulties to deal with situations as
+		// if (boundarytype == SA_BOUNDARY) {
+		//	...
+		// } else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX
+		//			&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info)) {
+		//  ...
+		// } else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX &&
+		//			has_waterdepth_computation<boundarytype>::with(params) && IO_BOUNDARY(info) && !VEL_IO(info)) {
+		//  ...
+		// } else if (OBJECT(pdata.info)) {
+		// 	...
+		// }
+		// they should be replaced by:
+		// if (boundarytype == SA_BOUNDARY) {
+		//	...
+		// }
+		// if (boundarytype == SA_BOUNDARY) {
+		//		if (...) ....
+		//		else if () ....
+		// }
+		// if (boundarytype == LJ_BOUNDARY) {
+		//	...
+		// }
+		// NOTE 2: in tests mixing templates parameters and variables the tests on templates should be placed
+		// in first position
+		// if ( pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) =>
+		// if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID)
+		const bool computes_NS_drhodt = !(simflags & ENABLE_DENSITY_SUM && params.step==2) &&
+			(boundarytype == DYN_BOUNDARY ||
+			 (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)))
+			 || FLUID(ndata.info) );
+
+		if (computes_NS_drhodt) {
+			// Computes d\rho/dt, including ferrari correction
+			compute_density_derivative<boundarytype>::with(params, pdata, ndata, pout, nout);
+		}
+
+		// For DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
+		// that interact with fluid; however, it's actually slightly faster to make the boolean on
+		// "either us or the neighbor is fluid": this does not change the behavior of the simulation
+		// because the xyz components of the forces are ignored anyway by non-OBJECT, non-FLUID
+		// particles.
+		// For other boundary types, accelerations is computed with the NS equations whenever the density
+		// is also computed (using NS), otherwise we just apply the repulsive force
+		// As the density is not computed in the densitySum case for step==2 we need to make sure that the
+		// accelleration is computed in this case
+		// TODO : check the test and eventually simplify or reorganize
+		const bool computes_NS_accel = boundarytype == DYN_BOUNDARY ?
+			(FLUID(pdata.info) || FLUID(ndata.info)) :
+			computes_NS_drhodt || (simflags & ENABLE_DENSITY_SUM && params.step==2 && (ndata.ntype == PT_FLUID ||
+					( boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX ) ) ) );
+
+		if (computes_NS_accel) {
+			// Compute pressure part of acceleration
+			compute_pressure_contrib<boundarytype>::with(params, pdata, ndata, pout, nout);
+
+			// Compute viscous forces
+			compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
+
+			// Compute diffusion terms for k-epsilon and the strain rate tensor
+			compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
+
+			// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
+			compute_mean_vel<simflags & ENABLE_XSPH>::with(params, pdata, ndata, pout, nout);
+		} else {
+			// Repulsive force (no-op except for LJ_BOUNDARY and MK_BOUNDARY)
+			compute_repulsive_force(params, pdata, ndata, pout, nout);
+		}
+
+	}
+
+	if (boundarytype == SA_BOUNDARY) {
+		if (visctype == KEPSVISC && VERTEX(pdata.info)
+			&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
+			// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
+			compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
+		}
+		else if ((simflags & ENABLE_WATER_DEPTH) && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) {
+			// Compute the maximum depth at pressure boundaries
+			compute_water_depth_at_outflow<boundarytype, (simflags & ENABLE_WATER_DEPTH)>::with(params, pdata, ndata, pout, nout);
+		}
+	}
+
+	// Force acting on moving/force-feedback object in LJ and MK boundary cases
+	if (boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) {
+		if (COMPUTE_FORCE(pdata.info))
+			compute_repulsive_force(params, pdata, ndata, pout, nout);
+	}
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+}
 
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
@@ -2181,116 +2309,7 @@ forcesDevice(
 			forces_neib_output<boundarytype> nout;
 
 			// Now compute the interactions based on pdata.info and ndata.info
-
-			// Compute gamma_as and |grad gamma_as| and add it to the respective values
-			// of the focal particle
-			compute_gamma<boundarytype>::with(params, pdata, ndata, pout, nout);
-
-			// With DYN_BOUNDARY formulation, all particles interaction follow the fluid-fluid one
-			if (boundarytype == DYN_BOUNDARY || FLUID(info)) {
-				// The Navier-Stokes equations are applied in the following cases:
-				// 		* for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
-				// 		* for LJ boundary, by a fluid particle interacting with a fluid particle;
-				// 		* for DYN bondary :
-				// 			- a fluid particle will compute both density derivative and acceleration interacting
-				// 			  with any other particle;
-				// 			- a non-fluid particle will compute density derivative interacting with any other particle,
-				// 			  but acceleration will only be computed by object particles interacting with fluid particles
-				//
-				// If the summation density is used, then in the second step no contribution to the continuity equation
-				// needs to be computed as the values from time n will be reused.
-
-				// NOTE1 : the compiler has some difficulties to deal with situations as
-				// if (boundarytype == SA_BOUNDARY) {
-				//	...
-				// } else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX
-				//			&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info)) {
-				//  ...
-				// } else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX &&
-				//			has_waterdepth_computation<boundarytype>::with(params) && IO_BOUNDARY(info) && !VEL_IO(info)) {
-				//  ...
-				// } else if (OBJECT(pdata.info)) {
-				// 	...
-				// }
-				// they should be replaced by:
-				// if (boundarytype == SA_BOUNDARY) {
-				//	...
-				// }
-				// if (boundarytype == SA_BOUNDARY) {
-				//		if (...) ....
-				//		else if () ....
-				// }
-				// if (boundarytype == LJ_BOUNDARY) {
-				//	...
-				// }
-				// NOTE 2: in tests mixing templates parameters and variables the tests on templates should be placed
-				// in first position
-				// if ( pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) =>
-				// if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID)
-				const bool computes_NS_drhodt = !(simflags & ENABLE_DENSITY_SUM && params.step==2) &&
-						(boundarytype == DYN_BOUNDARY ||
-						 (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)))
-						 || FLUID(ndata.info) );
-
-				if (computes_NS_drhodt) {
-					// Computes d\rho/dt, including ferrari correction
-					compute_density_derivative<boundarytype>::with(params, pdata, ndata, pout, nout);
-				}
-
-				// For DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
-				// that interact with fluid; however, it's actually slightly faster to make the boolean on
-				// "either us or the neighbor is fluid": this does not change the behavior of the simulation
-				// because the xyz components of the forces are ignored anyway by non-OBJECT, non-FLUID
-				// particles.
-				// For other boundary types, accelerations is computed with the NS equations whenever the density
-				// is also computed (using NS), otherwise we just apply the repulsive force
-				// As the density is not computed in the densitySum case for step==2 we need to make sure that the
-				// accelleration is computed in this case
-				// TODO : check the test and eventually simplify or reorganize
-				const bool computes_NS_accel = boundarytype == DYN_BOUNDARY ?
-					(FLUID(pdata.info) || FLUID(ndata.info)) :
-					computes_NS_drhodt || (simflags & ENABLE_DENSITY_SUM && params.step==2 && (ndata.ntype == PT_FLUID ||
-					 ( boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX ) ) ) );
-
-				if (computes_NS_accel) {
-					// Compute pressure part of acceleration
-					compute_pressure_contrib<boundarytype>::with(params, pdata, ndata, pout, nout);
-
-					// Compute viscous forces
-					compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
-
-					// Compute diffusion terms for k-epsilon and the strain rate tensor
-					compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
-
-					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
-					compute_mean_vel<simflags & ENABLE_XSPH>::with(params, pdata, ndata, pout, nout);
-				} else {
-					// Repulsive force (no-op except for LJ_BOUNDARY and MK_BOUNDARY)
-					compute_repulsive_force(params, pdata, ndata, pout, nout);
-				}
-
-			}
-
-			if (boundarytype == SA_BOUNDARY) {
-				if (visctype == KEPSVISC && VERTEX(pdata.info)
-					&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
-					// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
-					compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
-				}
-				else if ((simflags & ENABLE_WATER_DEPTH) && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) {
-					// Compute the maximum depth at pressure boundaries
-					compute_water_depth_at_outflow<boundarytype, (simflags & ENABLE_WATER_DEPTH)>::with(params, pdata, ndata, pout, nout);
-				}
-			}
-
-			// Force acting on moving/force-feedback object in LJ and MK boundary cases
-			if (boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) {
-				if (COMPUTE_FORCE(pdata.info))
-					compute_repulsive_force(params, pdata, ndata, pout, nout);
-			}
-
-			// Sum all contributions from the neighbors in the force array
-			as_float3(pout.force) += nout.DvDt;
+			particleParticleInteraction(params, pdata, ndata, pout, nout);
 
 		} // End of loop over neighbors
 
