@@ -433,12 +433,11 @@ getconstants(PhysParams *physparams)
 }
 
 void
-setplanes(int numPlanes, const float3 *planeNormal, const int3 *gridPos, const float3 *localPos)
+setplanes(std::vector<plane_t> const& planes)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_planeNormal, planeNormal, numPlanes*sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_planePointGridPos, gridPos, numPlanes*sizeof(int3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_planePointLocalPos, localPos, numPlanes*sizeof(float3)));
+	uint numPlanes = planes.size();
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_numplanes, &numPlanes, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_plane, &planes[0], numPlanes*sizeof(plane_t)));
 }
 
 void

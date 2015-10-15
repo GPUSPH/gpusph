@@ -33,6 +33,7 @@
  * signatures, but the design probably needs to be improved. */
 
 #include "particledefine.h"
+#include "planes.h"
 #include "physparams.h"
 #include "simparams.h"
 #include "buffer.h"
@@ -51,8 +52,7 @@ public:
 	getconstants(PhysParams *physparams) = 0;
 
 	virtual void
-	setplanes(int numPlanes, const float3 *planeNormal,
-		const int3 *gridPos, const float3 *localPos) = 0;
+	setplanes(std::vector<plane_t> const& planes) = 0;
 
 	virtual void
 	setgravity(float3 const& gravity) = 0;

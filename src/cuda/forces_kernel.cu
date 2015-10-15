@@ -316,19 +316,17 @@ __device__ __forceinline__ float
 PlaneForce(	const int3&		gridPos,
 			const float3&	pos,
 			const float		mass,
-			const float3&	planeNormal,
-			const int3&		planePointGridPos,
-			const float3&	planePointLocalPos,
+			const plane_t&	plane,
 			const float3&	vel,
 			const float		dynvisc,
 			float4&			force)
 {
 	// relative position of our particle from the reference point of the plane
-	const float r = PlaneDistance(gridPos, pos, planeNormal, planePointGridPos, planePointLocalPos);
+	const float r = PlaneDistance(gridPos, pos, plane);
 	if (r < d_r0) {
 		const float DvDt = LJForce(r);
 		// Unitary normal vector of the surface
-		const float3 relPos = planeNormal*r;
+		const float3 relPos = plane.normal*r;
 
 		as_float3(force) += DvDt*relPos;
 
@@ -371,9 +369,7 @@ GeometryForce(	const int3&		gridPos,
 {
 	float coeff_max = 0.0f;
 	for (uint i = 0; i < d_numplanes; ++i) {
-		float coeff = PlaneForce(gridPos, pos, mass,
-			d_planeNormal[i], d_planePointGridPos[i], d_planePointLocalPos[i],
-			vel, dynvisc, force);
+		float coeff = PlaneForce(gridPos, pos, mass, d_plane[i], vel, dynvisc, force);
 		if (coeff > coeff_max)
 			coeff_max = coeff;
 	}
@@ -410,19 +406,17 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 		const float c = d_demdxdy;
 		const float l = sqrt(a*a+b*b+c*c);
 
-		const float3 planeNormal = make_float3(a, b, c)/l;
-
 		// our plane point is the one at globalZ0: this has the same (x, y) grid and local
 		// position as our particle, and the z grid and local position to be computed
 		// from globalZ0
-		const int3 planePointGridPos = make_int3(gridPos.x, gridPos.y,
-			(int)floor((globalZ0 - d_worldOrigin.z)/d_cellSize.z));
-		const float3 planePointLocalPos = make_float3(pos.x, pos.y,
-			globalZ0 - d_worldOrigin.z - (planePointGridPos.z + 0.5f)*d_cellSize.z);
+		const int3 demPointGridPos = make_int3(gridPos.x, gridPos.y,
+				(int)floor((globalZ0 - d_worldOrigin.z)/d_cellSize.z));
+		const float3 demPointLocalPos = make_float3(pos.x, pos.y,
+				globalZ0 - d_worldOrigin.z - (demPointGridPos.z + 0.5f)*d_cellSize.z);
+		const plane_t demPlane(make_plane(
+				make_float3(a, b, c)/l, demPointGridPos, demPointLocalPos));
 
-		return PlaneForce(gridPos, pos, mass,
-			planeNormal, planePointGridPos, planePointLocalPos,
-			vel, dynvisc, force);
+		return PlaneForce(gridPos, pos, mass, demPlane, vel, dynvisc, force);
 	}
 	return 0;
 }
@@ -3015,11 +3009,9 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// Checking the planes
 	if (simflags & ENABLE_PLANES)
 		for (uint i = 0; i < d_numplanes; ++i) {
-			const float3 planeNormal = d_planeNormal[i];
-			const float r = PlaneDistance(gridPos, as_float3(pos), planeNormal,
-				d_planePointGridPos[i], d_planePointLocalPos[i]);
+			const float r = PlaneDistance(gridPos, as_float3(pos), d_plane[i]);
 			if (r < influenceradius) {
-				as_float3(normal) += planeNormal*normal_length;
+				as_float3(normal) += d_plane[i].normal;
 				normal_length = length(as_float3(normal));
 			}
 		}

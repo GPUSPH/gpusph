@@ -1367,8 +1367,7 @@ void GPUWorker::uploadPlanes()
 {
 	// check if planes > 0 (already checked before calling?)
 	if (gdata->numPlanes > 0)
-		forcesEngine->setplanes(gdata->numPlanes, gdata->s_hPlaneNormal,
-			gdata->s_hPlanePointGridPos, gdata->s_hPlanePointLocalPos);
+		forcesEngine->setplanes(gdata->s_hPlanes);
 }
 
 

@@ -42,6 +42,8 @@
 #include "vector_types.h"
 // common host types
 #include "common_types.h"
+// planes
+#include "planes.h"
 // Problem
 #include "Problem.h"
 // Options
@@ -285,10 +287,8 @@ struct GlobalData {
 	// it directly, or something like that. And there should be an ENABLE_PLANES
 	// simflag.
 	uint numPlanes;
-	double4	*s_hPlanes;
-	float3 *s_hPlaneNormal;
-	int3 *s_hPlanePointGridPos;
-	float3 *s_hPlanePointLocalPos;
+	double4	*s_PlanesCoefficients;
+	std::vector<plane_t> s_hPlanes;
 
 	// variable gravity
 	float3 s_varGravity;
@@ -379,10 +379,8 @@ struct GlobalData {
 		particlesCreated(false),
 		createdParticlesIterations(0),
 		numPlanes(0),
-		s_hPlanes(NULL),
-		s_hPlaneNormal(NULL),
-		s_hPlanePointGridPos(NULL),
-		s_hPlanePointLocalPos(NULL),
+		s_PlanesCoefficients(NULL),
+		s_hPlanes(),
 		keep_going(true),
 		quit_request(false),
 		save_request(false),

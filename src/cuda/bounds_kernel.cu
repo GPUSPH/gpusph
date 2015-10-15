@@ -42,6 +42,7 @@ namespace cubounds {
 
 // Grid data
 #include "cellgrid.cuh"
+#include "planes.h"
 
 /// \name Device constants
 /// @{
@@ -59,9 +60,7 @@ __constant__ float	d_demzmin;		///< minimum distance from DEM for normal computa
 
 /* Constants for geometrical planar boundaries */
 __constant__ uint	d_numplanes;
-__constant__ float3	d_planeNormal[MAX_PLANES];
-__constant__ int3	d_planePointGridPos[MAX_PLANES];
-__constant__ float3	d_planePointLocalPos[MAX_PLANES];
+__constant__ plane_t d_plane[MAX_PLANES];
 
 /// Number of open boundaries (both inlets and outlets)
 __constant__ uint d_numOpenBoundaries;
@@ -77,46 +76,28 @@ __constant__ uint	d_newIDsOffset;
 //! Given a point in grid + pos coordinates, and a plane defined by
 //! a normal and a point (in grid + pos coordinates) on the plane,
 //! returns the (signed) distance of the point to the plane.
-//! NOTE: 2*signedDistance*planeNormal gives the distance vector
+//! NOTE: 2*signedDistance*plane.normal gives the distance vector
 //! to the reflection of the point across the plane
 __device__ __forceinline__ float
 signedPlaneDistance(
 	const int3&		gridPos,
 	const float3&	pos,
-	const float3&	planeNormal,
-	const int3&		planePointGridPos,
-	const float3&	planePointLocalPos)
+	const plane_t&	plane)
 {
 	// Relative position of the point to the reference point of the plane
 	const float3 relPos = globalDistance(gridPos, pos,
-		planePointGridPos, planePointLocalPos);
+		plane.gridPos, plane.pos);
 
-	return dot(relPos, planeNormal);
-}
-
-//! \see signedPlaneDistance for one of the boundary planes
-__device__ __forceinline__ float
-signedPlaneDistance(
-	const int3&		gridPos,
-	const float3&	pos,
-	uint plane)
-{
-	return signedPlaneDistance(gridPos, pos,
-		d_planeNormal[plane],
-		d_planePointGridPos[plane],
-		d_planePointLocalPos[plane]);
+	return dot(relPos, plane.normal);
 }
 
 //! \see signedPlaneDistance, but returns the (unsigned) distance
 __device__ __forceinline__ float
 PlaneDistance(	const int3&		gridPos,
 				const float3&	pos,
-				const float3&	planeNormal,
-				const int3&		planePointGridPos,
-				const float3&	planePointLocalPos)
+				const plane_t&	plane)
 {
-	return abs(signedPlaneDistance(gridPos, pos,
-			planeNormal, planePointGridPos, planePointLocalPos));
+	return abs(signedPlaneDistance(gridPos, pos, plane));
 }
 
 /**! Convert an xy grid + local position into a DEM cell position
