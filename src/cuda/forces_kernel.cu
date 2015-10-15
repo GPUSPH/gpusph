@@ -52,8 +52,6 @@
 
 #define MAXKASINDEX 10
 
-texture<float, 2, cudaReadModeElementType> demTex;	// DEM
-
 /** \namespace cuforces
  *  \brief Contains all device functions/kernels/variables used force computations, filters and boundary conditions
  *
@@ -99,22 +97,7 @@ __constant__ float	d_MK_beta;	///< This is typically the ration between h and th
 __constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient
 __constant__ float	d_epsartvisc;					///< epsilon of artificial viscosity
 
-// Constants used for DEM
-// TODO switch to float2s
-__constant__ float	d_ewres;		///< east-west resolution (x)
-__constant__ float	d_nsres;		///< north-south resolution (y)
-__constant__ float	d_demdx;		///< ∆x increment of particle position for normal computation
-__constant__ float	d_demdy;		///< ∆y increment of particle position for normal computation
-__constant__ float	d_demdxdy;		///< ∆x*∆y
-__constant__ float	d_demzmin;		///< minimum distance from DEM for normal computation
-
 __constant__ float	d_partsurf;		///< particle surface (typically particle spacing suared)
-
-// Definition of planes for geometrical boundaries
-__constant__ uint	d_numplanes;
-__constant__ float3	d_planeNormal[MAX_PLANES];
-__constant__ int3	d_planePointGridPos[MAX_PLANES];
-__constant__ float3	d_planePointLocalPos[MAX_PLANES];
 
 // Sub-Particle Scale (SPS) Turbulence parameters
 __constant__ float	d_smagfactor;
@@ -236,39 +219,6 @@ MKForce(const float r, const float slength,
 }
 /************************************************************************************************************/
 
-/************************************************************************************************************/
-/*					   Reflect position or velocity with respect to a plane									*/
-/************************************************************************************************************/
-
-#if 0
-// TODO FIXME update for homogeneous precision
-
-// opposite of a point wrt to a plane specified as p.x * x + p.y * y + p.z * z + p.w, with
-// normal vector norm div
-__device__ __forceinline__ float4
-reflectPoint(const float4 &pos, const float4 &plane, float pdiv)
-{
-	// we only care about the 4th component of pos in the dot product to get
-	// a*x_0 + b*y_0 + c*z_0 + d*1, so:
-	float4 ret = make_float4(pos.x, pos.y, pos.z, 1);
-	ret = ret - 2*plane*dot(ret,plane)/(pdiv*pdiv);
-	// the fourth component will be whatever, we don't care
-	return ret;
-}
-
-// opposite of a point wrt to the nplane-th plane; the content of the 4th component is
-// undefined
-__device__ __forceinline__ float4
-reflectPoint(const float4 &pos, uint nplane)
-{
-	float4 plane = d_planes[nplane];
-	float pdiv = d_plane_div[nplane];
-
-	return reflectPoint(pos, plane, pdiv);
-}
-#endif
-
-
 /***************************************** Viscosities *******************************************************/
 //! Artificial viscosity
 __device__ __forceinline__ float
@@ -359,19 +309,6 @@ dtadaptBlockReduce(	float*	sm_max,
 
 /******************** Functions for computing repulsive force directly from DEM *****************************/
 
-//! Computes distance from a particle to a point on the plane
-__device__ __forceinline__ float
-PlaneDistance(	const int3&		gridPos,
-				const float3&	pos,
-				const float3&	planeNormal,
-				const int3&		planePointGridPos,
-				const float3&	planePointLocalPos)
-{
-	// relative position of our particle from the reference point of the plane
-	const float3 refRelPos = globalDistance(gridPos, pos, planePointGridPos, planePointLocalPos);
-	return abs(dot(planeNormal, refRelPos));
-}
-
 // TODO: check for the maximum timestep
 
 //! Computes normal and viscous force wrt to solid planar boundary
@@ -444,34 +381,6 @@ GeometryForce(	const int3&		gridPos,
 	return coeff_max;
 }
 
-/**! Convert a grid + local position into a DEM cell position
- * This is done assuming that the worldOrigin is at DEM coordinates (0, 0).
- */
-__device__ __forceinline__ float2
-DemPos(const int2& gridPos, const float2 &pos)
-{
-	// note that we separate the grid conversion part from the pos conversion part,
-	// for improved accuracy. The final 0.5f is because texture values are assumed to be
-	// at the center of the DEM cell.
-	return make_float2(
-		(gridPos.x + 0.5f)*(d_cellSize.x/d_ewres) + pos.x/d_ewres + 0.5f,
-		(gridPos.y + 0.5f)*(d_cellSize.y/d_nsres) + pos.y/d_nsres + 0.5f);
-}
-
-/**! Interpolate DEM texref for a point at DEM cell pos demPos,
-  plus an optional multiple of (∆x, ∆y).
-  NOTE: the returned z coordinate is GLOBAL, not LOCAL!
-  TODO for improved homogeneous accuracy, maybe have a texture for grid cells and a
-  texture for local z coordinates?
- */
-__device__ __forceinline__ float
-DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
-	const float2& demPos, int dx=0, int dy=0)
-{
-	return tex2D(texref, demPos.x + dx*d_demdx/d_ewres, demPos.y + dy*d_demdy/d_nsres);
-}
-
-
 //! DOC-TODO describe function
 __device__ __forceinline__ float
 DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
@@ -482,7 +391,7 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 			const float		dynvisc,
 			float4&			force)
 {
-	const float2 demPos = DemPos(as_int2(gridPos), as_float2(pos));
+	const float2 demPos = DemPos(gridPos, pos);
 
 	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
 	const float globalZ0 = DemInterpol(texref, demPos);

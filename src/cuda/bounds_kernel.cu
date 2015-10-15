@@ -46,11 +46,110 @@ namespace cubounds {
 /// \name Device constants
 /// @{
 
+texture<float, 2, cudaReadModeElementType> demTex;	// DEM
+
+/* DEM constants */
+// TODO switch to float2s
+__constant__ float	d_ewres;		///< east-west resolution (x)
+__constant__ float	d_nsres;		///< north-south resolution (y)
+__constant__ float	d_demdx;		///< ∆x increment of particle position for normal computation
+__constant__ float	d_demdy;		///< ∆y increment of particle position for normal computation
+__constant__ float	d_demdxdy;		///< ∆x*∆y
+__constant__ float	d_demzmin;		///< minimum distance from DEM for normal computation
+
+/* Constants for geometrical planar boundaries */
+__constant__ uint	d_numplanes;
+__constant__ float3	d_planeNormal[MAX_PLANES];
+__constant__ int3	d_planePointGridPos[MAX_PLANES];
+__constant__ float3	d_planePointLocalPos[MAX_PLANES];
+
 /// Number of open boundaries (both inlets and outlets)
 __constant__ uint d_numOpenBoundaries;
 
 // host-computed id offset used for id generation
 __constant__ uint	d_newIDsOffset;
+
+/// @}
+
+/** \name Device functions
+ *  @{ */
+
+//! Given a point in grid + pos coordinates, and a plane defined by
+//! a normal and a point (in grid + pos coordinates) on the plane,
+//! returns the (signed) distance of the point to the plane.
+//! NOTE: 2*signedDistance*planeNormal gives the distance vector
+//! to the reflection of the point across the plane
+__device__ __forceinline__ float
+signedPlaneDistance(
+	const int3&		gridPos,
+	const float3&	pos,
+	const float3&	planeNormal,
+	const int3&		planePointGridPos,
+	const float3&	planePointLocalPos)
+{
+	// Relative position of the point to the reference point of the plane
+	const float3 relPos = globalDistance(gridPos, pos,
+		planePointGridPos, planePointLocalPos);
+
+	return dot(relPos, planeNormal);
+}
+
+//! \see signedPlaneDistance for one of the boundary planes
+__device__ __forceinline__ float
+signedPlaneDistance(
+	const int3&		gridPos,
+	const float3&	pos,
+	uint plane)
+{
+	return signedPlaneDistance(gridPos, pos,
+		d_planeNormal[plane],
+		d_planePointGridPos[plane],
+		d_planePointLocalPos[plane]);
+}
+
+//! \see signedPlaneDistance, but returns the (unsigned) distance
+__device__ __forceinline__ float
+PlaneDistance(	const int3&		gridPos,
+				const float3&	pos,
+				const float3&	planeNormal,
+				const int3&		planePointGridPos,
+				const float3&	planePointLocalPos)
+{
+	return abs(signedPlaneDistance(gridPos, pos,
+			planeNormal, planePointGridPos, planePointLocalPos));
+}
+
+/**! Convert an xy grid + local position into a DEM cell position
+ * This is done assuming that the worldOrigin is at DEM coordinates (0, 0).
+ * NOTE: the function accepts anything as grid and local pos,
+ * but GridPosType should be an int2 or int3 and LocalPosType should be
+ * a float2 or float3.
+ * TODO use type traits to enforce this.
+ */
+template<typename GridPosType, typename LocalPosType>
+__device__ __forceinline__ float2
+DemPos(GridPosType const& gridPos, LocalPosType const& pos)
+{
+	// note that we separate the grid conversion part from the pos conversion part,
+	// for improved accuracy. The final 0.5f is because texture values are assumed to be
+	// at the center of the DEM cell.
+	return make_float2(
+		(gridPos.x + 0.5f)*(d_cellSize.x/d_ewres) + pos.x/d_ewres + 0.5f,
+		(gridPos.y + 0.5f)*(d_cellSize.y/d_nsres) + pos.y/d_nsres + 0.5f);
+}
+
+/**! Interpolate DEM texref for a point at DEM cell pos demPos,
+  plus an optional multiple of (∆x, ∆y).
+  NOTE: the returned z coordinate is GLOBAL, not LOCAL!
+  TODO for improved homogeneous accuracy, maybe have a texture for grid cells and a
+  texture for local z coordinates?
+ */
+__device__ __forceinline__ float
+DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
+	const float2& demPos, int dx=0, int dy=0)
+{
+	return tex2D(texref, demPos.x + dx*d_demdx/d_ewres, demPos.y + dy*d_demdy/d_nsres);
+}
 
 /*!
  * Create a new particle, cloning an existing particle
@@ -90,6 +189,8 @@ createNewFluidParticle(
 		new_id);
 	return new_index;
 }
+
+/** @} */
 
 } // namespace cubounds
 
