@@ -393,28 +393,7 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 	const float globalZ0 = DemInterpol(texref, demPos);
 
 	if (globalZ - globalZ0 < d_demzmin) {
-		// TODO this method to generate the interpolating plane is suboptimal, as it
-		// breaks any possible symmetry in the original DEM. A better (but more expensive)
-		// approach would be to sample four points, one on each side of our point (in both
-		// directions)
-		const float globalZ1 = DemInterpol(texref, demPos, 1, 0);
-		const float globalZ2 = DemInterpol(texref, demPos, 0, 1);
-
-		// TODO find a more accurate way to compute the normal
-		const float a = d_demdy*(globalZ0 - globalZ1);
-		const float b = d_demdx*(globalZ0 - globalZ2);
-		const float c = d_demdxdy;
-		const float l = sqrt(a*a+b*b+c*c);
-
-		// our plane point is the one at globalZ0: this has the same (x, y) grid and local
-		// position as our particle, and the z grid and local position to be computed
-		// from globalZ0
-		const int3 demPointGridPos = make_int3(gridPos.x, gridPos.y,
-				(int)floor((globalZ0 - d_worldOrigin.z)/d_cellSize.z));
-		const float3 demPointLocalPos = make_float3(pos.x, pos.y,
-				globalZ0 - d_worldOrigin.z - (demPointGridPos.z + 0.5f)*d_cellSize.z);
-		const plane_t demPlane(make_plane(
-				make_float3(a, b, c)/l, demPointGridPos, demPointLocalPos));
+		const plane_t demPlane(DemTangentPlane(texref, gridPos, pos, demPos, globalZ0));
 
 		return PlaneForce(gridPos, pos, mass, demPlane, vel, dynvisc, force);
 	}
