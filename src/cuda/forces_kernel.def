@@ -387,9 +387,8 @@ struct forces_particle_data :
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
-	conditional<_boundarytype == SA_BOUNDARY,
-		sa_boundary_particle_data<_visctype, _simflags>,
-		empty< sa_boundary_particle_data<_visctype, _simflags> > >::type,
+	COND_STRUCT(_boundarytype == SA_BOUNDARY,
+		sa_boundary_particle_data<_visctype, _simflags>),
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
 	COND_STRUCT(_visctype == KEPSVISC,
 		keps_particle_data),
@@ -428,10 +427,8 @@ struct forces_particle_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
 			eulerVel_particle_data)(_index),
-		conditional<boundarytype == SA_BOUNDARY,
-			sa_boundary_particle_data<visctype, simflags>,
-			empty< sa_boundary_particle_data<visctype, simflags>
-		> >::type(_index, _info, params),
+		COND_STRUCT(boundarytype == SA_BOUNDARY,
+			sa_boundary_particle_data<visctype, simflags>)(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
 			keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC,
@@ -644,18 +641,11 @@ struct forces_neib_data :
 	COND_STRUCT(sph_formulation == SPH_GRENIER &&
 		(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
 	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
-// can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
-	conditional<boundarytype == SA_BOUNDARY,
-		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-		empty<
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-		> >::type,
+	COND_STRUCT(boundarytype == SA_BOUNDARY,
+		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>),
 	// relative eulerian velocity
-	conditional<visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
-		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-		empty<
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-		> >::type,
+	COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>),
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	// precalculated pressure
@@ -668,18 +658,12 @@ struct forces_neib_data :
 	// shortcut typedefs
 	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> _common_neib_data;
 	typedef
-		typename conditional<boundarytype == SA_BOUNDARY,
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-			empty<
-				sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-			> >::type
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY,
+			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>)
 		_sa_boundary_neib_data;
 	typedef
-		typename conditional<visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-			empty<
-				eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-			> >::type
+		typename COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>)
 		_eulerVel_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
