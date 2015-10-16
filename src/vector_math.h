@@ -1175,6 +1175,20 @@ static __forceinline__ __host__ __device__ float hypot(const float4 &v)
 	return p*length(w);
 }
 
+// length of the vector, computed more robustly when the components of v
+// are significantly larger than unity
+static __forceinline__ __host__ __device__ float hypot3(const float4 &v)
+{
+	float p;
+	p = fmax(fmax(fabs(v.x), fabs(v.y)), fabs(v.z));
+	if (!p)
+		return 0;
+
+	float3 w = make_float3(v.x/p, v.y/p, v.z/p);
+	return p*length(w);
+}
+
+
 // char3 functions
 ////////////////////////////////////////////////////////////////////////////////
 // multiply
