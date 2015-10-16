@@ -100,6 +100,22 @@ PlaneDistance(	const int3&		gridPos,
 	return abs(signedPlaneDistance(gridPos, pos, plane));
 }
 
+//! reflect a vector through a plane.
+__device__ __forceinline__ float3
+reflectVector(const float3& vec, const plane_t& plane)
+{
+	return vec - 2*dot(vec, plane.normal)*plane.normal;
+}
+
+//! reflect the spatial components of a vector through a plane.
+__device__ __forceinline__ float4
+reflectVector(const float4& vec, const plane_t& plane)
+{
+	return make_float4(
+		reflectVector(as_float3(vec), plane),
+		vec.w);
+}
+
 /**! Convert an xy grid + local position into a DEM cell position
  * This is done assuming that the worldOrigin is at DEM coordinates (0, 0).
  * NOTE: the function accepts anything as grid and local pos,
