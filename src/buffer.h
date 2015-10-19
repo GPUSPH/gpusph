@@ -58,23 +58,16 @@ public:
 
 	// element size of the arrays
 	// overloaded in subclasses
-	virtual size_t get_element_size() const
-	{ return 0; }
+	virtual size_t get_element_size() const = 0;
 
 	// number of arrays
 	// overloaded in subclasses
-	virtual uint get_array_count() const
-	{ return 0; }
+	virtual uint get_array_count() const = 0;
 
-	virtual const char* get_buffer_name() const
-	{
-		throw runtime_error("AbstractBuffer name queried");
-	}
+	virtual const char* get_buffer_name() const = 0;
 
 	// allocate buffer and return total amount of memory allocated
-	virtual size_t alloc(size_t elems) {
-		throw runtime_error("cannot allocate generic buffer");
-	}
+	virtual size_t alloc(size_t elems) = 0;
 
 	// base method to return a specific buffer of the array
 	// WARNING: this doesn't check for validity of idx.
@@ -87,17 +80,11 @@ public:
 	}
 
 	// as above, plus offset
-	virtual void *get_offset_buffer(uint idx, size_t offset) {
-		throw std::runtime_error("can't determine buffer offset in AbstractBuffer");
-	}
-	virtual const void *get_offset_buffer(uint idx, size_t offset) const {
-		throw std::runtime_error("can't determine buffer offset in AbstractBuffer");
-	}
+	virtual void *get_offset_buffer(uint idx, size_t offset) = 0;
+	virtual const void *get_offset_buffer(uint idx, size_t offset) const = 0;
 
 	// swap elements at positions idx1, idx2 of buffer _buf
-	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) {
-		throw std::runtime_error("can't swap elements in AbstractBuffer");
-	};
+	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) = 0;
 };
 
 /* This class encapsulates type-specific arrays of buffers.
