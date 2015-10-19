@@ -48,16 +48,16 @@
 using namespace std;
 
 Problem::Problem(GlobalData *_gdata) :
+	m_problem_dir(_gdata->clOptions->dir),
+	m_size(make_double3(NAN, NAN, NAN)),
+	m_origin(make_double3(NAN, NAN, NAN)),
+	m_deltap(NAN),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
 	m_simparams(NULL),
 	m_physparams(NULL),
 	m_simframework(NULL),
-	m_problem_dir(_gdata->clOptions->dir),
-	m_bodies_storage(NULL),
-	m_size(make_double3(NAN, NAN, NAN)),
-	m_origin(make_double3(NAN, NAN, NAN)),
-	m_deltap(NAN)
+	m_bodies_storage(NULL)
 {
 }
 

@@ -372,8 +372,10 @@ Writer::Destroy()
  *  Default Constructor; makes sure the file output format starts at PART_00000
  */
 Writer::Writer(const GlobalData *_gdata) :
-	m_FileCounter(0), gdata(_gdata),
-	m_writefreq(0), m_last_write_time(-1)
+	m_last_write_time(-1),
+	m_writefreq(0),
+	m_FileCounter(0),
+	gdata(_gdata)
 {
 	m_problem = _gdata->problem;
 

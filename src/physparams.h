@@ -126,8 +126,8 @@ IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
 		artvisccoeff(0.3f),
 		partsurf(0),
-		epsinterface(NAN),
 		gravity(make_float3(0, 0, -9.81)),
+		epsinterface(NAN),
 		r0(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
