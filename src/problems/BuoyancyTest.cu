@@ -93,7 +93,6 @@ void BuoyancyTest::release_memory(void)
 
 int BuoyancyTest::fill_parts()
 {
-	double r0 = m_physparams->r0;
 	const double dp = m_deltap;
 	const int layers = 4;
 
