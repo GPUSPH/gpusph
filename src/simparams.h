@@ -30,7 +30,7 @@
 
 #include <vector>
 #include <stdexcept>
-#include "Point.h"
+#include "particledefine.h"
 #include "simflags.h"
 #include "deprecation.h"
 
