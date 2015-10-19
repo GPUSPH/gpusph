@@ -388,7 +388,7 @@ public:
 		if (exists != m_map.end()) {
 			throw runtime_error("trying to add a buffer for an already-available key!");
 		} else {
-			m_map[Key] = new BufferClass<Key>;
+			m_map[Key] = new BufferClass<Key>(_init);
 		}
 		return *this;
 	}
