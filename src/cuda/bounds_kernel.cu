@@ -26,7 +26,7 @@
 /* Device functions and constants pertaining open boundaries */
 
 #ifndef _BOUNDS_KERNEL_
-#define _BOUNDS_KERNEL
+#define _BOUNDS_KERNEL_
 
 #include "particledefine.h"
 
