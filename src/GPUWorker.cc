@@ -694,10 +694,11 @@ void GPUWorker::transferBurstsSizes()
 					receivedOneNonEmptyCellInBurst = true;
 				}
 				m_bursts[i].numParticles += numPartsInCell;
-				// DBG
-				//	printf(" BURST %u, incr. parts from %u to %u (+%u) because of cell %u\n", i, \
-						   m_bursts[i].numParticles - numPartsInCell, m_bursts[i].numParticles, \
+#if 0 // DBG
+				printf(" BURST %u, incr. parts from %u to %u (+%u) because of cell %u\n", i,
+						   m_bursts[i].numParticles - numPartsInCell, m_bursts[i].numParticles,
 							numPartsInCell, lin_cell );
+#endif
 			}
 
 		} // iterate on cells of the current burst

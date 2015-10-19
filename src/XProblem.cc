@@ -1852,9 +1852,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 		incremental_bodies_part_counter += body_particle_counters[obj_id];
 		// memo: s_hRbLastIndex, as used in the reduction, is inclusive (thus -1)
 		gdata->s_hRbLastIndex[obj_id] = incremental_bodies_part_counter - 1;
-		// DBG info
-		// printf(" DBG: s_hRbFirstIndex[%u] = %d, s_hRbLastIndex[%u] = %u\n", \
+#if 0 // DBG info
+		printf(" DBG: s_hRbFirstIndex[%u] = %d, s_hRbLastIndex[%u] = %u\n",
 			obj_id, gdata->s_hRbFirstIndex[obj_id], obj_id, gdata->s_hRbLastIndex[obj_id]);
+#endif
 	}
 	delete [] body_particle_counters;
 
