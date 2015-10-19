@@ -394,13 +394,13 @@ void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpac
 /* TODO */
 
 int STLMesh::Fill(PointVect&, double, bool)
-{}
+{ throw runtime_error("STLMesh::Fill not implemented yet"); }
 
 void STLMesh::Fill(PointVect&, const double)
-{}
+{ throw runtime_error("STLMesh::Fill not implemented yet"); }
 
 void STLMesh::FillIn(PointVect&, const double, const int)
-{ }
+{ throw runtime_error("STLMesh::Fill not implemented yet"); }
 
 // NOTE: checking the bounding box (incl. orientation), not the actual mesh space
 bool STLMesh::IsInside(const Point& p, double dx) const
