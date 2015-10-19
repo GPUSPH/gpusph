@@ -494,7 +494,7 @@ Cube::InnerFill(PointVect& points, const double dx)
  *	\param fill_top: fill the top
  */
 void
-Cube::OuterFill(PointVect& points, const double dx, const int layers, const bool fill_top)
+Cube::FillOut(PointVect& points, const double dx, const int layers, const bool fill_top)
 {
 	m_origin(3) = m_center(3);
 	const int nx = (int) (m_lx/dx);
@@ -535,7 +535,17 @@ Cube::OuterFill(PointVect& points, const double dx, const int layers, const bool
 				points.push_back(p);
 			}
 	}
-	return;
+
+	// Top face
+	if (!fill_top)
+		return;
+
+	for (int i = -layers; i < nx + layers; i++)
+		for (int j = -layers; j < ny + layers; j++)
+			for (int k = nz; k < nz + layers; k++) {
+				Point p = m_origin + (i + 0.5)*m_vx/nx + (j + 0.5)*m_vy/ny + (k + 0.5)*m_vz/nz;
+				points.push_back(p);
+			}
 }
 
 
