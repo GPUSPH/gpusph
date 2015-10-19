@@ -117,28 +117,6 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 
 } // end of cuXCompleteSaExample namespace
 
-extern "C"
-{
-
-void
-XCompleteSaExample::setboundconstants(
-	const	PhysParams	*physparams,
-	float3	const&		worldOrigin,
-	uint3	const&		gridSize,
-	float3	const&		cellSize)
-{
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_cellSize, &cellSize, sizeof(float3)));
-	// are the following used?
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_rho0, &physparams->rho0[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_bcoeff, &physparams->bcoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_gammacoeff, &physparams->gammacoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_sscoeff, &physparams->sscoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-}
-
-} // extern "C"
-
 void
 XCompleteSaExample::imposeBoundaryConditionHost(
 			MultiBufferList::iterator		bufwrite,

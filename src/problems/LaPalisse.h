@@ -32,13 +32,6 @@ class LaPalisse: public Problem {
 		uint max_parts(uint);
 
 		void
-		setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize);
-
-		void
 		imposeBoundaryConditionHost(
 			MultiBufferList::iterator		bufwrite,
 			MultiBufferList::const_iterator	bufread,

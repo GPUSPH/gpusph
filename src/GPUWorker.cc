@@ -2588,8 +2588,6 @@ void GPUWorker::uploadConstants()
 		m_numAllocatedParticles, m_simparams->maxneibsnum, m_simparams->slength);
 	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
-	if (m_simparams->simflags & ENABLE_INLET_OUTLET)
-		gdata->problem->setboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 
 // Auxiliary method for debugging purposes: downloads on the host one or multiple field values of

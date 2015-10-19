@@ -109,28 +109,6 @@ LaPalisse_imposeBoundaryConditionDevice(
 
 } // end of cuLaPalisse namespace
 
-extern "C"
-{
-
-void
-LaPalisse::setboundconstants(
-	const	PhysParams	*physparams,
-	float3	const&		worldOrigin,
-	uint3	const&		gridSize,
-	float3	const&		cellSize)
-{
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_cellSize, &cellSize, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_rho0, &physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_bcoeff, &physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
-
-}
-
-}
-
 void
 LaPalisse::imposeBoundaryConditionHost(
 			MultiBufferList::iterator		bufwrite,

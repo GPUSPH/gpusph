@@ -390,13 +390,6 @@ RESTORE_WARNINGS
 		/* Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);
 
-		virtual void
-		setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize) {};
-
 		virtual void imposeBoundaryConditionHost(
 			MultiBufferList::iterator		bufwrite,
 			MultiBufferList::const_iterator	bufread,
