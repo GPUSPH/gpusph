@@ -85,6 +85,19 @@ public:
 		return bufmem*N;
 	}
 
+	// swap elements at position idx1, idx2 of buffer _buf
+	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) {
+		element_type tmp;
+		CUDA_SAFE_CALL(cudaMemcpy(&tmp, this->get_offset_buffer(_buf, idx1), sizeof(element_type),
+				cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(
+				this->get_offset_buffer(_buf, idx1),
+				this->get_offset_buffer(_buf, idx2),
+				sizeof(element_type), cudaMemcpyDeviceToDevice));
+		CUDA_SAFE_CALL(cudaMemcpy(this->get_offset_buffer(_buf, idx2), &tmp , sizeof(element_type),
+				cudaMemcpyHostToDevice));
+	}
+
 };
 
 #endif
