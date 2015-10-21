@@ -116,6 +116,8 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		double3 extra_offset = make_double3((dyn_layers-1)*m_deltap);
 		m_origin -= extra_offset;
 		m_size += 2*extra_offset;
+	} else {
+		dyn_layers = 1;
 	}
 
 	m_simparams->tend = 100.0;
@@ -190,7 +192,7 @@ int StillWater::fill_parts()
 	}
 
 	m_fluidOrigin = m_origin;
-	if (m_simparams->boundarytype == DYN_BOUNDARY) // shift by the extra offset of the experiment box
+	if (dyn_layers > 1) // shift by the extra offset of the experiment box
 		m_fluidOrigin += make_double3((dyn_layers-1)*m_deltap);
 	m_fluidOrigin += make_double3(wd); // one wd space from the boundary
 	Cube fluid = Cube(m_fluidOrigin, l-2*wd, w-2*wd, H-2*wd);
