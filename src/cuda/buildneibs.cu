@@ -398,7 +398,7 @@ const	float		boundNlSqInflRad)
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 	}
 
-	buildneibs_params<boundarytype == SA_BOUNDARY> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+	buildneibs_params<boundarytype> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
 			vertPos, vertIDToIndex, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
