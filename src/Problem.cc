@@ -49,6 +49,7 @@ using namespace std;
 
 Problem::Problem(GlobalData *_gdata) :
 	m_problem_dir(_gdata->clOptions->dir),
+	m_dem(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_deltap(NAN),
