@@ -260,32 +260,19 @@ int SolitaryWave::fill_parts()
     return parts.size() + boundary_parts.size() + get_bodies_numparts();
 }
 
-
-uint SolitaryWave::fill_planes()
-{
-
-    if (i_use_bottom_plane == 0) {
-		return 5;
-		}
-	else {
-		return 6;
-		} //corresponds to number of planes
-}
-
-
-void SolitaryWave::copy_planes(double4 *planes)
+void SolitaryWave::copy_planes(PlaneList &planes)
 {
 	const double w = m_size.y;
 	const double l = h_length + slope_length;
 
 	//  plane is defined as a x + by +c z + d= 0
-	planes[0] = make_double4(0, 0, 1.0, 0);   //bottom, where the first three numbers are the normal, and the last is d.
-	planes[1] = make_double4(0, 1.0, 0, 0);   //wall
-	planes[2] = make_double4(0, -1.0, 0, w); //far wall
-	planes[3] = make_double4(1.0, 0, 0, 0);  //end
-	planes[4] = make_double4(-1.0, 0, 0, l);  //one end
+	planes.push_back( implicit_plane(0, 0, 1.0, 0) );   //bottom, where the first three numbers are the normal, and the last is d.
+	planes.push_back( implicit_plane(0, 1.0, 0, 0) );   //wall
+	planes.push_back( implicit_plane(0, -1.0, 0, w) ); //far wall
+	planes.push_back( implicit_plane(1.0, 0, 0, 0) );  //end
+	planes.push_back( implicit_plane(-1.0, 0, 0, l) );  //one end
 	if (i_use_bottom_plane == 1)  {
-		planes[5] = make_double4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
+		planes.push_back( implicit_plane(-sin(beta),0,cos(beta), h_length*sin(beta)) );  //sloping bottom starting at x=h_length
 	}
 }
 

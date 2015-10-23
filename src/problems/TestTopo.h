@@ -51,10 +51,9 @@ class TestTopo: public Problem {
 		virtual ~TestTopo(void);
 
 		int fill_parts(void);
-		uint fill_planes(void);
 
 		void copy_to_array(BufferList &);
-		void copy_planes(double4 *planes);
+		void copy_planes(PlaneList& planes);
 
 		// override standard split
 		void fillDeviceMap();

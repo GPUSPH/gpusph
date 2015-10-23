@@ -286,9 +286,7 @@ struct GlobalData {
 	// TODO planes should be vector<double4> and fill_planes should push back to
 	// it directly, or something like that. And there should be an ENABLE_PLANES
 	// simflag.
-	uint numPlanes;
-	double4	*s_PlanesCoefficients;
-	std::vector<plane_t> s_hPlanes;
+	PlaneList s_hPlanes;
 
 	// variable gravity
 	float3 s_varGravity;
@@ -378,8 +376,6 @@ struct GlobalData {
 		s_dSegmentsStart(NULL),
 		particlesCreated(false),
 		createdParticlesIterations(0),
-		numPlanes(0),
-		s_PlanesCoefficients(NULL),
 		s_hPlanes(),
 		keep_going(true),
 		quit_request(false),

@@ -28,6 +28,8 @@
 #ifndef _PLANES_H
 #define _PLANES_H
 
+#include <vector>
+
 #include "common_types.h"
 #include "vector_math.h"
 
@@ -41,7 +43,8 @@ struct plane_t {
 };
 
 __host__ __device__
-static plane_t make_plane(float3 const& normal, int3 const& gridPos, float3 const& pos)
+static inline
+plane_t make_plane(float3 const& normal, int3 const& gridPos, float3 const& pos)
 {
 	plane_t plane;
 	plane.normal = normal;
@@ -50,5 +53,7 @@ static plane_t make_plane(float3 const& normal, int3 const& gridPos, float3 cons
 
 	return plane;
 }
+
+typedef std::vector<plane_t> PlaneList;
 
 #endif

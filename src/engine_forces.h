@@ -52,7 +52,7 @@ public:
 	getconstants(PhysParams *physparams) = 0;
 
 	virtual void
-	setplanes(std::vector<plane_t> const& planes) = 0;
+	setplanes(PlaneList const& planes) = 0;
 
 	virtual void
 	setgravity(float3 const& gravity) = 0;

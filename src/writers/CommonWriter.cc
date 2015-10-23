@@ -294,7 +294,7 @@ CommonWriter::write_simparams(ostream &out)
 
 	out << "   planes: " << ED[has_planes];
 	if (has_planes)
-		out << ", " << gdata->numPlanes << " defined";
+		out << ", " << gdata->s_hPlanes.size() << " defined";
 	out << endl;
 
 	/* Iterate over enabled postprocessing engines, showing their name and options */

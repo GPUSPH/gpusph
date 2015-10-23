@@ -220,14 +220,21 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// WARNING: particle creation in inlets also relies on this, do not disable if using inlets
 	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
 
-	// generate planes, will be allocated in allocateGlobalHostBuffers()
-	// TODO fill_planes + copy_planes should be replaced by something that
-	// pushes back planes into an array
-	gdata->numPlanes = problem->fill_planes();
+	// generate planes
+	problem->copy_planes(gdata->s_hPlanes);
 
-	if (gdata->numPlanes > 0 &&
-		!(problem->simparams()->simflags & ENABLE_PLANES))
-		throw invalid_argument("planes present but ENABLE_PLANES not specified in framework flags");
+	{
+		size_t numPlanes = gdata->s_hPlanes.size();
+		if (numPlanes > 0) {
+			if (!(problem->simparams()->simflags & ENABLE_PLANES))
+				throw invalid_argument("planes present but ENABLE_PLANES not specified in framework flags");
+			if (numPlanes > MAX_PLANES) {
+				stringstream err; err << "FATAL: too many planes (" <<
+					numPlanes << " > " << MAX_PLANES;
+				throw runtime_error(err.str().c_str());
+			}
+		}
+	}
 
 	// Create the Writers according to the WriterType
 	// Should be done after the last fill operation
@@ -263,34 +270,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->memString(totCPUbytes).c_str(),
 		gdata->addSeparators(gdata->allocatedParticles).c_str(),
 		gdata->addSeparators(gdata->totParticles).c_str() );
-
-	// copy planes from the problem to the shared array, if there are any,
-	// and convert them into the form requird for homogeneous accuracy
-	if (gdata->numPlanes) {
-		problem->copy_planes(gdata->s_PlanesCoefficients);
-
-		/* domain centerpoint, used to find the plane point below */
-		const double3 midPoint = problem->get_worldorigin() + problem->get_worldsize()/2;
-		for (uint i = 0; i < gdata->numPlanes; ++i) {
-			plane_t plane;
-
-			const double4 &p = gdata->s_PlanesCoefficients[i];
-			double norm = length3(p);
-			const double3 normal = as_double3(p)/norm;
-			plane.normal = make_float3(normal);
-
-			/* For the plane point, we pick the one closest to the center of the domain
-			 * TODO find a better logic ? */
-
-			/* note that to compute the distance we dot with the normal, and then
-			 * add p.w/norm, since p.w is still not normalized */
-			const double midDist = dot(midPoint, normal) + p.w/norm;
-			double3 planePoint = midPoint - midDist*normal;
-
-			problem->calc_grid_and_local_pos(planePoint, &plane.gridPos, &plane.pos);
-			gdata->s_hPlanes.push_back(plane);
-		}
-	}
 
 	/* Now we either copy particle data from the Problem to the GPUSPH buffers,
 	 * or, if it was requested, we load buffers from a HotStart file
@@ -1053,19 +1032,6 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		++iter;
 	}
 
-
-	if (gdata->numPlanes > 0) {
-		if (gdata->numPlanes > MAX_PLANES) {
-			printf("FATAL: unsupported number of planes (%u > %u)\n", gdata->numPlanes, MAX_PLANES);
-			exit(1);
-		}
-		const size_t planeSize4 = sizeof(double4) * gdata->numPlanes;
-
-		gdata->s_PlanesCoefficients = new double4[gdata->numPlanes];
-		memset(gdata->s_PlanesCoefficients, 0, planeSize4);
-		totCPUbytes += planeSize4; // we're not counting the s_hPlanes vector size her
-	}
-
 	const size_t numbodies = gdata->problem->simparams()->numbodies;
 	std::cout << "Numbodies : " << numbodies << "\n";
 	if (numbodies > 0) {
@@ -1185,10 +1151,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	}
 
 	// planes
-	if (gdata->numPlanes > 0) {
-		delete[] gdata->s_PlanesCoefficients;
-		gdata->s_hPlanes.clear();
-	}
+	gdata->s_hPlanes.clear();
 
 	// multi-GPU specific arrays
 	if (MULTI_DEVICE) {

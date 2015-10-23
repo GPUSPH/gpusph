@@ -1366,7 +1366,7 @@ void GPUWorker::uploadGravity()
 void GPUWorker::uploadPlanes()
 {
 	// check if planes > 0 (already checked before calling?)
-	if (gdata->numPlanes > 0)
+	if (gdata->s_hPlanes.size() > 0)
 		forcesEngine->setplanes(gdata->s_hPlanes);
 }
 
