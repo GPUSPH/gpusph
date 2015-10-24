@@ -91,7 +91,7 @@ void XProblem::release_memory()
 
 uint XProblem::suggestedDynamicBoundaryLayers()
 {
-	return (uint)m_simparams->get_influence_layers() + 1;
+	return (uint)simparams()->get_influence_layers() + 1;
 }
 
 XProblem::~XProblem()
@@ -114,8 +114,8 @@ bool XProblem::initialize()
 	// *** Initialization of minimal physical parameters
 	if (isnan(m_deltap))
 		set_deltap(0.02f);
-	if (isnan(m_physparams->r0))
-		m_physparams->r0 = m_deltap;
+	if (isnan(physparams()->r0))
+		physparams()->r0 = m_deltap;
 
 	// aux vars to compute bounding box
 	Point globalMin = Point(DBL_MAX, DBL_MAX, DBL_MAX);
@@ -202,10 +202,10 @@ bool XProblem::initialize()
 
 	// do not store the number of floating objects (aka ODE bodies) in simparams:
 	// add_moving_body() will increment it and use it for the insertion in the vector
-	//m_simparams->numODEbodies = bodies_counter; // == m_numFloatingBodies;
+	//simparams()->numODEbodies = bodies_counter; // == m_numFloatingBodies;
 
 	// store number of objects (floating + moving + I/O)
-	m_simparams->numOpenBoundaries = open_boundaries_counter;
+	simparams()->numOpenBoundaries = open_boundaries_counter;
 
 	// Increase the world dimensions of a m_deltap quantity. This is necessary
 	// to guarantee a distance of m_deltap between particles of either sides of
@@ -220,22 +220,22 @@ bool XProblem::initialize()
 	globalMax(2) += (m_deltap/2);
 
 	// compute the number of layers for dynamic boundaries, if not set
-	if (m_simparams->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
+	if (simparams()->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
 		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
 		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
 	}
 
 	// Increase the world dimensions for dinamic boundaries in directions without periodicity
-	if (m_simparams->boundarytype == DYN_BOUNDARY){
-		if (!(m_simparams->periodicbound & PERIODIC_X)){
+	if (simparams()->boundarytype == DYN_BOUNDARY){
+		if (!(simparams()->periodicbound & PERIODIC_X)){
 			globalMin(0) -= (m_numDynBoundLayers-1)*m_deltap;
 			globalMax(0) += (m_numDynBoundLayers-1)*m_deltap;
 		}
-		if (!(m_simparams->periodicbound & PERIODIC_Y)){
+		if (!(simparams()->periodicbound & PERIODIC_Y)){
 			globalMin(1) -= (m_numDynBoundLayers-1)*m_deltap;
 			globalMax(1) += (m_numDynBoundLayers-1)*m_deltap;
 		}
-		if (!(m_simparams->periodicbound & PERIODIC_Z)){
+		if (!(simparams()->periodicbound & PERIODIC_Z)){
 			globalMin(2) -= (m_numDynBoundLayers-1)*m_deltap;
 			globalMax(2) += (m_numDynBoundLayers-1)*m_deltap;
 		}
@@ -271,8 +271,8 @@ bool XProblem::initialize()
 	}
 
 	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed (through set_density())
-	const float g = length(m_physparams->gravity);
-	m_physparams->dcoeff = 5.0f * g * m_maxFall;
+	const float g = length(physparams()->gravity);
+	physparams()->dcoeff = 5.0f * g * m_maxFall;
 
 	if (!isfinite(m_maxParticleSpeed)) {
 		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
@@ -285,15 +285,15 @@ bool XProblem::initialize()
 	// numerical speed of sound TODO multifluid
 	const float default_c0 = 10.0 * m_maxParticleSpeed;
 
-	if (m_physparams->numFluids() == 0) {
-		m_physparams->add_fluid(default_rho);
+	if (physparams()->numFluids() == 0) {
+		physparams()->add_fluid(default_rho);
 		printf("No fluids specified, assuming water (rho: %g\n",
 			default_rho);
 	}
 
-	for (size_t fluid = 0 ; fluid < m_physparams->numFluids(); ++fluid) {
-		const bool must_set_gamma = isnan(m_physparams->gammacoeff[fluid]);
-		const bool must_set_c0 = isnan(m_physparams->sscoeff[fluid]);
+	for (size_t fluid = 0 ; fluid < physparams()->numFluids(); ++fluid) {
+		const bool must_set_gamma = isnan(physparams()->gammacoeff[fluid]);
+		const bool must_set_c0 = isnan(physparams()->sscoeff[fluid]);
 
 		// tell the user what we're going to do
 		if (must_set_gamma && must_set_c0) {
@@ -311,16 +311,16 @@ bool XProblem::initialize()
 
 		// set the EOS if needed
 		if (must_set_gamma || must_set_c0)
-			m_physparams->set_equation_of_state(
+			physparams()->set_equation_of_state(
 				fluid,
-				must_set_gamma ? default_gamma : m_physparams->gammacoeff[fluid],
-				must_set_c0 ? default_c0 : m_physparams->sscoeff[fluid]);
+				must_set_gamma ? default_gamma : physparams()->gammacoeff[fluid],
+				must_set_c0 ? default_c0 : physparams()->sscoeff[fluid]);
 
 		// set the viscosity if needed
-		if (isnan(m_physparams->kinematicvisc[fluid])) {
+		if (isnan(physparams()->kinematicvisc[fluid])) {
 			printf("Viscosity for fluid %zu not specified, assuming water (nu = %g)\n",
 				fluid, default_kinematic_visc);
-			m_physparams->set_kinematic_visc(fluid, default_kinematic_visc);
+			physparams()->set_kinematic_visc(fluid, default_kinematic_visc);
 		}
 	}
 
@@ -332,14 +332,14 @@ bool XProblem::initialize()
 	// TODO ideally we should enable/disable them depending on whether
 	// they are present, but this isn't trivial to do with the static framework
 	// options
-	if (m_numOpenBoundaries > 0 && !(m_simparams->simflags & ENABLE_INLET_OUTLET))
+	if (m_numOpenBoundaries > 0 && !(simparams()->simflags & ENABLE_INLET_OUTLET))
 		throw std::invalid_argument("open boundaries present, but ENABLE_INLET_OUTLET not specified in framework flag");
-	if (m_numOpenBoundaries == 0 && (m_simparams->simflags & ENABLE_INLET_OUTLET))
+	if (m_numOpenBoundaries == 0 && (simparams()->simflags & ENABLE_INLET_OUTLET))
 		throw std::invalid_argument("no open boundaries present, but ENABLE_INLET_OUTLET specified in framework flag");
 
 	// TODO FIXME m_numMovingObjects does not exist yet
 	//if (m_numMovingObjects > 0)
-	//	m_simparams->movingBoundaries = true;
+	//	simparams()->movingBoundaries = true;
 
 	// Call Problem's initialization that takes care of the common
 	// initialization functions (checking dt, preparing the grid,
@@ -358,7 +358,7 @@ void XProblem::initializeODE()
 	m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
 	// Set gravity (x, y, z)
 	dWorldSetGravity(m_ODEWorld,
-		m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);
+		physparams()->gravity.x, physparams()->gravity.y, physparams()->gravity.z);
 }
 
 void XProblem::cleanupODE()
@@ -1014,7 +1014,7 @@ double XProblem::setMassByDensity(const GeometryID gid, const double density)
 	if (m_geometries[gid]->type != GT_FLOATING_BODY)
 		printf("WARNING: setting mass of a non-floating body\n");
 
-	const double mass = m_geometries[gid]->ptr->SetMass(m_physparams->r0, density);
+	const double mass = m_geometries[gid]->ptr->SetMass(physparams()->r0, density);
 	m_geometries[gid]->mass_was_set = true;
 
 	return mass;
@@ -1036,7 +1036,7 @@ double XProblem::setParticleMassByDensity(const GeometryID gid, const double den
 		 !m_geometries[gid]->has_stl_file)
 		printf("WARNING: setting the mass by density can't work with a point-based geometry without a mesh!\n");
 
-	const double dx = (m_geometries[gid]->type == GT_FLUID ? m_deltap : m_physparams->r0);
+	const double dx = (m_geometries[gid]->type == GT_FLUID ? m_deltap : physparams()->r0);
 	const double particle_mass = m_geometries[gid]->ptr->SetPartMass(dx, density);
 	m_geometries[gid]->particle_mass_was_set = true;
 
@@ -1093,9 +1093,9 @@ vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double
 	max.y = std::max(corner1.y, corner2.y);
 	max.z = std::max(corner1.z, corner2.z);
 
-	// we need the periodicity to see which planes are needed. If m_simparams is NULL,
+	// we need the periodicity to see which planes are needed. If simparams() is NULL,
 	// it means SETUP_FRAMEWORK was not invoked, in which case we assume no periodicity.
-	const Periodicity periodicbound = m_simparams ? m_simparams->periodicbound : PERIODIC_NONE;
+	const Periodicity periodicbound = simparams() ? simparams()->periodicbound : PERIODIC_NONE;
 
 	// create planes
 	if (!(periodicbound & PERIODIC_X)) {
@@ -1129,7 +1129,7 @@ void XProblem::addExtraWorldMargin(const double margin)
 // set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 void XProblem::setDynamicBoundariesLayers(const uint numLayers)
 {
-	if (m_simparams->boundarytype != DYN_BOUNDARY)
+	if (simparams()->boundarytype != DYN_BOUNDARY)
 		printf("WARNIG: setting number of layers for dynamic boundaries but not using DYN_BOUNDARY!\n");
 
 	// TODO: use autocomputed instead of 3
@@ -1171,17 +1171,17 @@ int XProblem::fill_parts()
 		if (m_geometries[g]->type == GT_FLOATING_BODY ||
 			m_geometries[g]->type == GT_MOVING_BODY) {
 			parts_vector = &(m_geometries[g]->ptr->GetParts());
-			dx = m_physparams->r0;
+			dx = physparams()->r0;
 		} else {
 			parts_vector = &m_boundaryParts;
-			dx = m_physparams->r0;
+			dx = physparams()->r0;
 		}
 
 		// Now will set the particle and object mass if still unset
-		const double DEFAULT_DENSITY = m_physparams->rho0[0];
+		const double DEFAULT_DENSITY = physparams()->rho0[0];
 		// Setting particle mass by means of dx and default density only. This leads to same mass
 		// everywhere but possibly slightly different densities.
-		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * m_physparams->rho0[0];
+		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * physparams()->rho0[0];
 
 		// Set part mass, if not set already.
 		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set)
@@ -1215,7 +1215,7 @@ int XProblem::fill_parts()
 		// after making some space, fill
 		switch (m_geometries[g]->fill_type) {
 			case FT_BORDER:
-				if (m_simparams->boundarytype == DYN_BOUNDARY)
+				if (simparams()->boundarytype == DYN_BOUNDARY)
 					m_geometries[g]->ptr->FillIn(*parts_vector, m_deltap, - m_numDynBoundLayers);
 				else
 					m_geometries[g]->ptr->FillBorder(*parts_vector, m_deltap);
@@ -1253,10 +1253,10 @@ int XProblem::fill_parts()
 				continue;
 			// fill will print a warning
 			// NOTE: since parts are added to m_boundaryParts, setting part mass is probably pointless
-			plane->SetPartMass(dx, m_physparams->rho0[0]);
+			plane->SetPartMass(dx, physparams()->rho0[0]);
 			// will round r0 to fit each dimension
-			const uint xpn = (uint) trunc(m_size.x / m_physparams->r0 + 0.5);
-			const uint ypn = (uint) trunc(m_size.y / m_physparams->r0 + 0.5);
+			const uint xpn = (uint) trunc(m_size.x / physparams()->r0 + 0.5);
+			const uint ypn = (uint) trunc(m_size.y / physparams()->r0 + 0.5);
 			// compute Z
 			const double z_coord = - plane->getD() / plane->getC();
 			// aux vectors
@@ -1441,8 +1441,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_boundaryParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		const float rho = (m_simparams->boundarytype == DYN_BOUNDARY ?
-			density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0]);
+		const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
+			density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0]);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1588,13 +1588,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 
 				Point tmppoint = Point(hdf5Buffer[bi].Coords_0, hdf5Buffer[bi].Coords_1, hdf5Buffer[bi].Coords_2,
-					m_physparams->rho0[0]*hdf5Buffer[bi].Volume);
+					physparams()->rho0[0]*hdf5Buffer[bi].Volume);
 				calc_localpos_and_hash(tmppoint, info[i], pos[i], hash[i]);
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (ptype == PT_FLUID || m_simparams->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0] );
+				const float rho = (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY ?
+					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
@@ -1724,8 +1724,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (ptype == PT_FLUID || m_simparams->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0] );
+				const float rho = (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY ?
+					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
@@ -1772,8 +1772,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				globalPos[i] = rbparts[i - tot_parts].toDouble4();
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (m_simparams->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0] );
+				const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
+					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
 				vel[i] = make_float4(0, 0, 0, rho);
 				if (eulerVel)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
@@ -1862,7 +1862,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
 	// TODO: instead of iterating on all the particles, we could create a list of boundary particles while
 	// loading them from file, and here iterate only on that vector
-	if (m_simparams->boundarytype == SA_BOUNDARY && hdf5_loaded_parts > 0) {
+	if (simparams()->boundarytype == SA_BOUNDARY && hdf5_loaded_parts > 0) {
 		std::cout << "Fixing connectivity..." << std::flush;
 		for (uint i=0; i< tot_parts; i++)
 			if (BOUNDARY(info[i])) {
@@ -1887,7 +1887,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid: " << fluid_parts << " parts, mass " << fluid_part_mass << "\n";
 	std::cout << "Boundary: " << boundary_parts << " parts, mass " << boundary_part_mass << "\n";
-	if (m_simparams->boundarytype == SA_BOUNDARY)
+	if (simparams()->boundarytype == SA_BOUNDARY)
 		std::cout << "Vertices: " << vertex_parts << " parts, mass " << vertex_part_mass << "\n";
 	std::cout << "Tot: " << tot_parts << " particles\n";
 	std::flush(std::cout);

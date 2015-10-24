@@ -101,16 +101,16 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	// SPH parameters
-	m_simparams->dt = 0.00004f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 20;
-	m_simparams->ferrariLengthScale = H;
+	simparams()->dt = 0.00004f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 20;
+	simparams()->ferrariLengthScale = H;
 
 	// enlarge the domain to take into account the extra layers of particles
 	// of the boundary
-	if (m_simparams->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
+	if (simparams()->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
 		// number of layers
-		dyn_layers = ceil(m_simparams->kernelradius*m_simparams->sfactor);
+		dyn_layers = ceil(simparams()->kernelradius*simparams()->sfactor);
 		// extra layers are one less (since other boundary types still have
 		// one layer)
 		double3 extra_offset = make_double3((dyn_layers-1)*m_deltap);
@@ -120,14 +120,14 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		dyn_layers = 1;
 	}
 
-	m_simparams->tend = 100.0;
-	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_simparams->maxneibsnum = 256; // needed during gamma initialization phase
+	simparams()->tend = 100.0;
+	if (simparams()->boundarytype == SA_BOUNDARY) {
+		simparams()->maxneibsnum = 256; // needed during gamma initialization phase
 	};
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
-	const float g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	const float g = length(physparams()->gravity);
 	const float maxvel = sqrt(2*g*H);
 	// purely for cosmetic reason, let's round the soundspeed to the next
 	// integer
@@ -135,15 +135,15 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, c0);
 
-	m_physparams->dcoeff = 5.0f*g*H;
+	physparams()->dcoeff = 5.0f*g*H;
 
-	m_physparams->r0 = m_deltap;
-	//m_physparams->visccoeff = 0.05f;
+	physparams()->r0 = m_deltap;
+	//physparams()->visccoeff = 0.05f;
 	set_kinematic_visc(0, 3.0e-2f);
 	//set_kinematic_visc(0, 1.0e-6f);
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
-	m_physparams->epsxsph = 0.5f;
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->epsxsph = 0.5f;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1.0);
@@ -169,16 +169,16 @@ void StillWater::release_memory(void)
 int StillWater::fill_parts()
 {
 	// distance between fluid box and wall
-	float wd = m_physparams->r0;
+	float wd = physparams()->r0;
 
 	parts.reserve(14000);
 
 	experiment_box = Cube(Point(m_origin), m_size.x, m_size.y, m_size.z);
 
-	experiment_box.SetPartMass(wd, m_physparams->rho0[0]);
+	experiment_box.SetPartMass(wd, physparams()->rho0[0]);
 
 	if (!m_usePlanes) {
-		switch (m_simparams->boundarytype) {
+		switch (simparams()->boundarytype) {
 		case SA_BOUNDARY:
 			experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
 			break;
@@ -196,7 +196,7 @@ int StillWater::fill_parts()
 		m_fluidOrigin += make_double3((dyn_layers-1)*m_deltap);
 	m_fluidOrigin += make_double3(wd); // one wd space from the boundary
 	Cube fluid = Cube(m_fluidOrigin, l-2*wd, w-2*wd, H-2*wd);
-	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 	fluid.Fill(parts, m_deltap);
 
 	//DEBUG: set only one fluid particle
@@ -245,7 +245,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 			water_column = 0;
 		float rho = density(water_column, 0);
 #else
-		float rho = m_physparams->rho0[0];
+		float rho = physparams()->rho0[0];
 #endif
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
@@ -267,7 +267,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
-	if (m_simparams->boundarytype == SA_BOUNDARY) {
+	if (simparams()->boundarytype == SA_BOUNDARY) {
 			uint j = parts.size() + boundary_parts.size();
 
 			std::cout << "Vertex parts: " << vertex_parts.size() << "\n";

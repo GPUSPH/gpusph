@@ -32,19 +32,19 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		set_deltap(0.01833f);
 
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
+		physparams()->kinematicvisc = 1.0e-2f;
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 
-		m_simparams->tend = 5.0;
-		m_simparams->testpoints = true;
-		m_simparams->csvtestpoints = true;
-		m_simparams->surfaceparticle = true;
+		simparams()->tend = 5.0;
+		simparams()->testpoints = true;
+		simparams()->csvtestpoints = true;
+		simparams()->surfaceparticle = true;
 		H = 0.55;
 		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 		m_origin = make_double3(-0.01, -0.01, -0.01);
-		m_simparams->ferrariLengthScale = 0.161f;
-		m_physparams->set_density(0, 1000.0, 7.0f, 130.0f);
-		m_simparams->maxneibsnum = 240;
+		simparams()->ferrariLengthScale = 0.161f;
+		physparams()->set_density(0, 1000.0, 7.0f, 130.0f);
+		simparams()->maxneibsnum = 240;
 	//*************************************************************************************
 
 	//Box (Dambreak)
@@ -66,17 +66,17 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		set_deltap(0.125f);
 
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 
-		m_simparams->tend = 5.0;
+		simparams()->tend = 5.0;
 		addPostProcess(SURFACE_DETECTION);
 		addPostProcess(TESTPOINTS);
-		m_simparams->csvtestpoints = true;
+		simparams()->csvtestpoints = true;
 		H = 1.0;
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
-		//m_simparams->ferrariLengthScale = 1.0f;
-		m_simparams->ferrari = 1.0f;
+		//simparams()->ferrariLengthScale = 1.0f;
+		simparams()->ferrari = 1.0f;
 		size_t water = add_fluid(1000.0);
 		set_equation_of_state(water,  7.0f, 60.f);
 		set_kinematic_visc(water, 1.0e-2f);
@@ -97,8 +97,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.0625f);
-		m_simparams->tend = 100.0;
-		m_simparams->ferrari = 1.0f;
+		simparams()->tend = 100.0;
+		simparams()->ferrari = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -107,7 +107,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 1.0;
 		l = 1.0; w = 1.0; h = 1.02;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
-		m_physparams->gravity = make_float3(8.0*m_physparams->kinematicvisc[water], 0.0, 0.0);
+		physparams()->gravity = make_float3(8.0*physparams()->kinematicvisc[water], 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowKEPS (a small channel flow for debugging the k-epsilon model)
@@ -123,10 +123,10 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
 		);
 
-		m_simparams->sfactor=2.0f;
+		simparams()->sfactor=2.0f;
 		set_deltap(0.05f);
-		m_simparams->tend = 100.0;
-		m_simparams->ferrariLengthScale = 1.0f;
+		simparams()->tend = 100.0;
+		simparams()->ferrariLengthScale = 1.0f;
 
 		// turbulent (as in agnes' paper)
 		size_t water = add_fluid(1000.0f);
@@ -139,7 +139,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 0.8; w = 0.8; h = 2.02;
 		m_origin = make_double3(-0.4, -0.4, -1.01);
-		m_physparams->gravity = make_float3(1.0, 0.0, 0.0);
+		physparams()->gravity = make_float3(1.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowIO (a small channel flow for debugging in/outflow)
@@ -156,9 +156,9 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.2f);
-		m_simparams->maxneibsnum = 220;
-		m_simparams->tend = 100.0;
-		m_simparams->ferrariLengthScale = 1.0f;
+		simparams()->maxneibsnum = 220;
+		simparams()->tend = 100.0;
+		simparams()->ferrariLengthScale = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -167,7 +167,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 2.1; w = 2.1; h = 2.1;
 		m_origin = make_double3(-1.05, -1.05, -1.05);
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
+		physparams()->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowIOPer (a small channel flow for debugging in/outflow with periodicity)
@@ -188,10 +188,10 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #endif
 		);
 
-		m_simparams->sfactor=1.3f;
+		simparams()->sfactor=1.3f;
 		set_deltap(0.05f);
-		m_simparams->tend = 10.0;
-		m_simparams->ferrariLengthScale = 1.0f;
+		simparams()->tend = 10.0;
+		simparams()->ferrariLengthScale = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -203,9 +203,9 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0f);
+		physparams()->gravity = make_float3(0.0, 0.0, 0.0f);
 #if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
-		m_physparams->gravity = make_float3(1.0, 0.0, -9.759f);
+		physparams()->gravity = make_float3(1.0, 0.0, -9.759f);
 #endif
 	//*************************************************************************************
 
@@ -222,10 +222,10 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
-		m_simparams->sfactor=1.3f;
+		simparams()->sfactor=1.3f;
 		set_deltap(0.05f);
-		m_simparams->tend = 10.0;
-		m_simparams->ferrariLengthScale = 1.0f;
+		simparams()->tend = 10.0;
+		simparams()->ferrariLengthScale = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 200.0f);
@@ -234,7 +234,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
+		physparams()->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//IOWithoutWalls (i/o between two plates without walls)
@@ -251,8 +251,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.2f);
-		m_simparams->tend = 100.0;
-		m_simparams->ferrariLengthScale = 1.0f;
+		simparams()->tend = 100.0;
+		simparams()->ferrariLengthScale = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -278,10 +278,10 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.1f);
-		m_simparams->maxneibsnum = 240;
-		m_simparams->tend = 40.0;
-		m_simparams->ferrari= 1.0f;
-		//m_simparams->ferrariLengthScale = 0.2f;
+		simparams()->maxneibsnum = 240;
+		simparams()->tend = 40.0;
+		simparams()->ferrari= 1.0f;
+		//simparams()->ferrariLengthScale = 0.2f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 110.0f);
@@ -291,7 +291,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 4.0;
 		l = 10.8; w = 2.2; h = 4.2;
 		m_origin = make_double3(-5.4, -1.1, -2.1);
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 	// Solitary Wave with IO
@@ -310,9 +310,9 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		set_deltap(0.026460);
 		//set_deltap(0.0195f);
-		m_simparams->maxneibsnum = 512;
-		m_simparams->tend = 7.0;
-		m_simparams->ferrari = 1.0f;
+		simparams()->maxneibsnum = 512;
+		simparams()->tend = 7.0;
+		simparams()->ferrari = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 20.0f);
@@ -323,7 +323,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 0.6;
 		l = 3.2; w=1.7; h=1.4;
 		m_origin = make_double3(-3.85, -0.1, -0.1);
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 	//Periodic wave with IO
@@ -339,11 +339,11 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
-		m_simparams->sfactor=2.0f;
+		simparams()->sfactor=2.0f;
 		set_deltap(0.02f);
-		m_simparams->maxneibsnum = 240;
-		m_simparams->tend = 10.0;
-		m_simparams->ferrari = 0.1f;
+		simparams()->maxneibsnum = 240;
+		simparams()->tend = 10.0;
+		simparams()->ferrari = 0.1f;
 
 		addPostProcess(SURFACE_DETECTION);
 		addPostProcess(CALC_PRIVATE);
@@ -355,31 +355,31 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 0.5;
 		l = 2.7; w = 0.5; h = 1.2;
 		m_origin = make_double3(-1.35, -0.25, -0.1);
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 #endif
 
 	// SPH parameters
-	m_simparams->dt = 0.00004f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 1;
-	m_simparams->nlexpansionfactor = 1.1;
-	//m_simparams->densitySum = true;
+	simparams()->dt = 0.00004f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 1;
+	simparams()->nlexpansionfactor = 1.1;
+	//simparams()->densitySum = true;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
 
 	// Physical parameters
-	float g = length(m_physparams->gravity);
+	float g = length(physparams()->gravity);
 
-	m_physparams->dcoeff = 5.0f*g*H;
+	physparams()->dcoeff = 5.0f*g*H;
 
-	m_physparams->r0 = m_deltap;
+	physparams()->r0 = m_deltap;
 
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
-	m_physparams->epsxsph = 0.5f;
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->epsxsph = 0.5f;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1e-2f);
@@ -482,14 +482,14 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - h5File.buf[i].Coords_2, 0);
-		float rho = m_physparams->rho0[0];
+		float rho = physparams()->rho0[0];
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-			vel[i] = make_float4(lvel, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(lvel, 0, 0, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 			const float lvel = 1.0f-h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
-			vel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams->rho0[0]);
+			vel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIO
 			const float y2 = h5File.buf[i].Coords_1*h5File.buf[i].Coords_1;
 			const float z2 = h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
@@ -500,9 +500,9 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float y8 = y4*y4;
 			const float z8 = z4*z4;
 			const float lvel = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
-			vel[i] = make_float4(lvel, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(lvel, 0, 0, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-			vel[i] = make_float4(1.0f, 0.0f, 0.0f, (m_physparams->rho0[0]+2.0f));//+1.0f-1.0f*h5File.buf[i].Coords_0));
+			vel[i] = make_float4(1.0f, 0.0f, 0.0f, (physparams()->rho0[0]+2.0f));//+1.0f-1.0f*h5File.buf[i].Coords_0));
 #elif SPECIFIC_PROBLEM == PeriodicWave
 			const float x = h5File.buf[i].Coords_0;
 			const float z = h5File.buf[i].Coords_2;
@@ -515,7 +515,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float w = A*omega*sinh(k*z)/sinh(k*D)*sin(k*x+phi);
 			vel[i] = make_float4(u, 0, w, _rho);
 #else
-			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 #endif
 		// Fluid particles don't have a eulerian velocity
 		if (eulerVel)
@@ -534,12 +534,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
 	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams->rho0[0]);
-				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams->rho0[0]);
+				vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
+				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]+2.0f);
+				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]+2.0f);
 #else
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif
@@ -548,7 +548,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
 			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			m_simparams->numOpenBoundaries = max(openBoundType, m_simparams->numOpenBoundaries);
+			simparams()->numOpenBoundaries = max(openBoundType, simparams()->numOpenBoundaries);
 			info[i] = make_particleinfo_by_ids(PT_VERTEX, 0, max(openBoundType-1,0), i);
 			// Define the type of open boundaries
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
@@ -598,12 +598,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
 	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams->rho0[0]);
-				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams->rho0[0]);
+				vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
+				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]+2.0f);
+				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]+2.0f);
 #else
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif

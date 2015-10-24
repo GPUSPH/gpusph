@@ -70,13 +70,13 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	// ratio h / deltap (needs to be defined before calling set_deltap)
-	m_simparams->sfactor = 1.3;
+	simparams()->sfactor = 1.3;
 	// set deltap (automatically computes h based on sfactor * deltap)
 	set_deltap(0.02); //0.008
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 10;
-	m_simparams->ferrari = 0.1;
-	m_simparams->tend = 1.0f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 10;
+	simparams()->ferrari = 0.1;
+	simparams()->tend = 1.0f;
 
 	// Free surface detection
 	addPostProcess(SURFACE_DETECTION);
@@ -85,26 +85,26 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 	addPostProcess(TESTPOINTS);
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	float g = length(physparams()->gravity);
 
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);
 
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams->dcoeff = 5.0f*g*H;
-	m_physparams->r0 = m_deltap;
+	physparams()->dcoeff = 5.0f*g*H;
+	physparams()->r0 = m_deltap;
 
 	// BC when using MK boundary condition: Coupled with m_simsparams->boundarytype=MK_BOUNDARY
 	#define MK_par 2
-	m_physparams->MK_K = g*H;
-	m_physparams->MK_d = 1.1*m_deltap/MK_par;
-	m_physparams->MK_beta = MK_par;
+	physparams()->MK_K = g*H;
+	physparams()->MK_d = 1.1*m_deltap/MK_par;
+	physparams()->MK_beta = MK_par;
 	#undef MK_par
 
 	set_kinematic_visc(0, 1.0e-2f);
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.05);
@@ -130,7 +130,7 @@ void SphericTest2::release_memory(void)
 
 int SphericTest2::fill_parts()
 {
-	float r0 = m_physparams->r0;
+	float r0 = physparams()->r0;
 
 	Cube fluid, fluid1;
 
@@ -150,17 +150,17 @@ int SphericTest2::fill_parts()
 	parts.reserve(14000);
 
 	if (!m_usePlanes) {
-		experiment_box.SetPartMass(r0, m_physparams->rho0[0]);
+		experiment_box.SetPartMass(r0, physparams()->rho0[0]);
 		experiment_box.FillBorder(boundary_parts, r0, false);
 	}
 
-	obstacle.SetPartMass(r0, m_physparams->rho0[0]);
+	obstacle.SetPartMass(r0, physparams()->rho0[0]);
 	obstacle.FillBorder(obstacle_parts, r0, true);
 
-	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 	if (wet) {
-		fluid1.SetPartMass(m_deltap, m_physparams->rho0[0]);
+		fluid1.SetPartMass(m_deltap, physparams()->rho0[0]);
 		fluid1.Fill(parts, m_deltap, true);
 		obstacle.Unfill(parts, r0);
 	}
@@ -224,7 +224,7 @@ void SphericTest2::copy_to_array(BufferList &buffers)
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY,0,i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
@@ -238,7 +238,7 @@ void SphericTest2::copy_to_array(BufferList &buffers)
 	if (test_points.size()) {
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
@@ -250,7 +250,7 @@ void SphericTest2::copy_to_array(BufferList &buffers)
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY,1,i);
 		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
@@ -262,7 +262,7 @@ void SphericTest2::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_FLUID,0,i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}

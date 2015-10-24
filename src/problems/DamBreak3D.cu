@@ -88,7 +88,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
 	// diffusion is enabled or Ferrari correction is enabled, 10 otherwise
 	const int mlsIters = get_option("mls",
-		(m_simparams->simflags & (ENABLE_DENSITY_DIFFUSION | ENABLE_FERRARI)) ? 0 : 10);
+		(simparams()->simflags & (ENABLE_DENSITY_DIFFUSION | ENABLE_FERRARI)) ? 0 : 10);
 
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
@@ -101,9 +101,9 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 
 	// enlarge the domain to take into account the extra layers of particles
 	// of the boundary
-	if (m_simparams->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
+	if (simparams()->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
 		// number of layers
-		dyn_layers = ceil(m_simparams->kernelradius*m_simparams->sfactor);
+		dyn_layers = ceil(simparams()->kernelradius*simparams()->sfactor);
 		// extra layers are one less (since other boundary types still have
 		// one layer)
 		double3 extra_offset = make_double3((dyn_layers-1)*m_deltap);
@@ -112,35 +112,35 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	}
 
 
-	m_simparams->dt = 2.5e-4f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 10;
-	m_simparams->tend = 1.5f;
+	simparams()->dt = 2.5e-4f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 10;
+	simparams()->tend = 1.5f;
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	float g = length(physparams()->gravity);
 	float max_hydro_vel = sqrt(2*g*H);
 	float c0 = 10*ceil(max_hydro_vel);
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, c0);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams->dcoeff = 5.0f*g*H;
-	m_physparams->r0 = m_deltap;
+	physparams()->dcoeff = 5.0f*g*H;
+	physparams()->r0 = m_deltap;
 
 	// BC when using MK boundary condition: Coupled with m_simsparams->boundarytype=MK_BOUNDARY
 	#define MK_par 2
-	m_physparams->MK_K = g*H;
-	m_physparams->MK_d = 1.1*m_deltap/MK_par;
-	m_physparams->MK_beta = MK_par;
+	physparams()->MK_K = g*H;
+	physparams()->MK_d = 1.1*m_deltap/MK_par;
+	physparams()->MK_beta = MK_par;
 	#undef MK_par
 
 	set_kinematic_visc(0, 1.0e-6f);
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
-	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
@@ -166,15 +166,15 @@ void DamBreak3D::release_memory(void)
 
 int DamBreak3D::fill_parts()
 {
-	float r0 = m_physparams->r0;
+	float r0 = physparams()->r0;
 
 	Cube fluid, fluid1;
 
 	experiment_box = Cube(Point(m_origin), m_size.x, m_size.y, m_size.z);
 
 	if (!m_usePlanes) {
-		experiment_box.SetPartMass(r0, m_physparams->rho0[0]);
-		if (m_simparams->boundarytype == DYN_BOUNDARY)
+		experiment_box.SetPartMass(r0, physparams()->rho0[0]);
+		if (simparams()->boundarytype == DYN_BOUNDARY)
 			experiment_box.FillIn(boundary_parts, m_deltap, dyn_layers, false);
 		else
 			experiment_box.FillBorder(boundary_parts, r0, false);
@@ -184,7 +184,7 @@ int DamBreak3D::fill_parts()
 		0.12, 0.12, lz - r0);
 
 	m_fluidOrigin = m_origin;
-	if (m_simparams->boundarytype == DYN_BOUNDARY) // shift by the extra offset of the experiment box
+	if (simparams()->boundarytype == DYN_BOUNDARY) // shift by the extra offset of the experiment box
 		m_fluidOrigin += make_double3((dyn_layers-1)*m_deltap);
 	m_fluidOrigin += make_double3(r0); // one wd space from the boundary
 	fluid = Cube(Point(m_fluidOrigin), 0.4, ly - 2*r0, H - r0);
@@ -197,13 +197,13 @@ int DamBreak3D::fill_parts()
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
 
-	obstacle.SetPartMass(r0, m_physparams->rho0[0]);
+	obstacle.SetPartMass(r0, physparams()->rho0[0]);
 	obstacle.FillBorder(obstacle_parts, r0, true);
 
-	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 	if (wet) {
-		fluid1.SetPartMass(m_deltap, m_physparams->rho0[0]);
+		fluid1.SetPartMass(m_deltap, physparams()->rho0[0]);
 		fluid1.Fill(parts, m_deltap, true);
 		obstacle.Unfill(parts, r0);
 	}
@@ -251,7 +251,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 				water_column = 0;
 			float rho = density(water_column, 0);
 #else
-			float rho = m_physparams->rho0[0];
+			float rho = physparams()->rho0[0];
 #endif
 			vel[i] = make_float4(0, 0, 0, rho);
 			info[i]= make_particleinfo(PT_BOUNDARY, 0, i);
@@ -265,7 +265,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 	if (test_points.size()) {
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
@@ -281,7 +281,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 			water_column = 0;
 		float rho = density(water_column, 0);
 #else
-		float rho = m_physparams->rho0[0];
+		float rho = physparams()->rho0[0];
 #endif
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);
@@ -298,7 +298,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 			water_column = 0;
 		float rho = density(water_column, 0);
 #else
-		float rho = m_physparams->rho0[0];
+		float rho = physparams()->rho0[0];
 #endif
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i]= make_particleinfo(PT_FLUID, 0, i);

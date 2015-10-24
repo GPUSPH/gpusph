@@ -23,24 +23,24 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 			ENABLE_DENSITY_SUM>
 	);
 
-	m_simparams->sfactor=1.3f;
+	simparams()->sfactor=1.3f;
 	set_deltap(0.015f);
 
 	add_fluid(1000.0f);
 	set_equation_of_state(0,  7.0f, 50.0f);
 	set_kinematic_visc(0, 1.0e-6f);
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 
-	m_simparams->maxneibsnum = 240;
+	simparams()->maxneibsnum = 240;
 
-	m_simparams->tend = 10.0;
+	simparams()->tend = 10.0;
 
 	// SPH parameters
-	m_simparams->dt = 0.00001f;
-	m_simparams->dtadaptfactor = 0.1;
-	m_simparams->buildneibsfreq = 1;
-	m_simparams->ferrari= 1.0f;
-	m_simparams->nlexpansionfactor = 1.1;
+	simparams()->dt = 0.00001f;
+	simparams()->dtadaptfactor = 0.1;
+	simparams()->buildneibsfreq = 1;
+	simparams()->ferrari= 1.0f;
+	simparams()->nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(5.8f, 7.6f, 2.4f);
@@ -95,13 +95,13 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
 		float rho = density(INLET_WATER_LEVEL - h5File.buf[i].Coords_2, 0);
-		//float rho = m_physparams->rho0[0];
+		//float rho = physparams()->rho0[0];
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
 		info[i] = make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
-			m_physparams->rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
+			physparams()->rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
 	uint j = n_parts;
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
@@ -110,7 +110,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(INLET_WATER_LEVEL - h5File.buf[i].Coords_2, 0);
-			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = vel[i];
 			int specialBoundType = h5File.buf[i].KENT;
@@ -118,7 +118,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
 			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			m_simparams->numOpenBoundaries = max(specialBoundType, m_simparams->numOpenBoundaries);
+			simparams()->numOpenBoundaries = max(specialBoundType, simparams()->numOpenBoundaries);
 			// TODO FIXME MERGE the object id should be sequential from 0, no shifting
 			info[i] = make_particleinfo(PT_VERTEX, specialBoundType, i);
 			// Define the type of boundaries
@@ -128,7 +128,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 				SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
-				m_physparams->rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
+				physparams()->rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
 		j += n_vparts;
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
@@ -137,7 +137,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 	if(n_bparts) {
 		std::cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = vel[i];
 			int specialBoundType = h5File.buf[i].KENT;

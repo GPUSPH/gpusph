@@ -114,9 +114,12 @@ public:
 	// PostProcessEngine, if the engine was added, NO_FLAGS otherwise
 	flag_t hasPostProcessOption(PostProcessType pptype, flag_t option) const;
 
-	SimParams const* get_simparams() const
+	inline
+	SimParams const* simparams() const
 	{ return m_simparams; }
-	SimParams* get_simparams()
+
+	inline
+	SimParams* simparams()
 	{ return m_simparams; }
 };
 #endif

@@ -100,7 +100,7 @@ void HotFile::load() {
 	// NOTE: simulation with ODE bodies cannot be resumed identically due to
 	// the way ODE handles its internal state.
 	// TODO FIXME/ should be num ODE bodies
-	check_counts_match("body", _header.body_count, _gdata->problem->get_simparams()->numbodies);
+	check_counts_match("body", _header.body_count, _gdata->problem->simparams()->numbodies);
 
 	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
@@ -137,7 +137,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 		_header.buffer_count = _gdata->s_hBuffers.size();
 		_header.particle_count = _particle_count;
 		//TODO FIXME
-		_header.body_count = _gdata->problem->get_simparams()->numbodies;
+		_header.body_count = _gdata->problem->simparams()->numbodies;
 		_header.iterations = _gdata->iterations;
 		_header.dt = _gdata->dt;
 		_header.t = _gdata->t;
