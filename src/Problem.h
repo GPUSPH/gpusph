@@ -130,7 +130,7 @@ class Problem {
 			);
 		*/
 
-#define	SETUP_FRAMEWORK(...) m_simframework = (new CUDASimFramework< __VA_ARGS__ >())
+#define	SETUP_FRAMEWORK(...) m_simframework =  CUDASimFramework< __VA_ARGS__ >()
 
 		// add a filter (MLS, SHEPARD), with given frequency
 #define	addFilter(fltr, freq) m_simframework->addFilterEngine(fltr, freq)

@@ -315,7 +315,8 @@ template<flag_t simflags>
 struct flags : virtual public TypeDefaults
 { typedef TypeValue<flag_t, simflags> Flags; };
 
-// And that's all!
+/// Our CUDASimFramework is actualy a factory for CUDASimFrameworkImpl*,
+/// generating one when assigned to a SimFramework*
 template<
 	typename Arg1 = DefaultArg,
 	typename Arg2 = DefaultArg,
@@ -323,17 +324,32 @@ template<
 	typename Arg4 = DefaultArg,
 	typename Arg5 = DefaultArg,
 	typename Arg6 = DefaultArg>
-class CUDASimFramework : public
-	CUDASimFrameworkImpl<
-#define ARGS ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6>
-		ARGS::Kernel::value,
-		ARGS::Formulation::value,
-		ARGS::Viscosity::value,
-		ARGS::Boundary::value,
-		ARGS::Periodic::value,
-		ARGS::Flags::value>
-#undef ARGS
-{};
+class CUDASimFramework {
+	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6> Args;
+
+	static const KernelType kerneltype = Args::Kernel::value;
+	static const SPHFormulation sph_formulation = Args::Formulation::value;
+	static const ViscosityType visctype = Args::Viscosity::value;
+	static const BoundaryType boundarytype = Args::Boundary::value;
+	static const Periodicity periodicbound = Args::Periodic::value;
+	static const flag_t simflags = Args::Flags::value;
+
+	typedef CUDASimFrameworkImpl<
+			kerneltype,
+			sph_formulation,
+			visctype,
+			boundarytype,
+			periodicbound,
+			simflags> CUDASimFrameworkType;
+
+public:
+	operator SimFramework *()
+	{
+		// return the intended framework
+		return new CUDASimFrameworkType();
+	}
+
+};
 
 #endif
 
