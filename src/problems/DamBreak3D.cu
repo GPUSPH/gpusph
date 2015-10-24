@@ -63,27 +63,12 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
 	const int rhodiff = get_option("density-diffusion", 1);
 
-	switch (rhodiff) {
-	case 0:
-		SETUP_FRAMEWORK(
-			viscosity<ARTVISC>,
-			boundary<DYN_BOUNDARY>
-		);
-		break;
-	case 1:
-		SETUP_FRAMEWORK(
-			viscosity<ARTVISC>,
-			boundary<DYN_BOUNDARY>,
-			flags<ENABLE_DTADAPT | ENABLE_DENSITY_DIFFUSION>
-		);
-		break;
-	case 2:
-		SETUP_FRAMEWORK(
-			viscosity<ARTVISC>,
-			boundary<DYN_BOUNDARY>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
-		);
-	}
+	SETUP_FRAMEWORK(
+		viscosity<ARTVISC>,
+		boundary<DYN_BOUNDARY>
+	).select_flags(
+		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>()
+	);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
 	// diffusion is enabled or Ferrari correction is enabled, 10 otherwise
