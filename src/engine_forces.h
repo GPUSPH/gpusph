@@ -40,6 +40,8 @@
 class AbstractForcesEngine
 {
 public:
+	virtual ~AbstractForcesEngine() {};
+
 	virtual void
 	setconstants(const SimParams *simparams, const PhysParams *physparams,
 		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
@@ -85,6 +87,8 @@ public:
 	virtual void
 	unbind_textures() = 0;
 
+	// TODO set/unsetDEM should be moved to the BC engine,
+	// and the latter should be called by the destructor
 	virtual void
 	setDEM(const float *hDem, int width, int height) = 0;
 
@@ -151,6 +155,7 @@ public:
 class AbstractBoundaryConditionsEngine
 {
 public:
+	virtual ~AbstractBoundaryConditionsEngine() {}
 
 /// Update the ID offset for new particle generation
 virtual void

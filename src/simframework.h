@@ -68,6 +68,7 @@ protected:
 	PostProcessEngineSet m_postProcessEngines;
 
 	SimParams *m_simparams;
+
 protected:
 	// SimFrameworks should override this to convert a FilterType key into
 	// an actual FilterEngine instance
@@ -78,6 +79,9 @@ protected:
 		flag_t options=NO_FLAGS) = 0;
 
 public:
+	SimFramework();
+	virtual ~SimFramework();
+
 	AbstractNeibsEngine *getNeibsEngine()
 	{ return m_neibsEngine; }
 	AbstractIntegrationEngine *getIntegrationEngine()
