@@ -345,15 +345,35 @@ struct flags : virtual public ParentArgs
 		virtual public flags<simflags, NewParent> {};
 };
 
-/// We want to give users the possibility to enable flags conditionally
-/// at runtime. For this, we need a way to pack collection of flags to be selected
-/// by a switch statement (currently limited to three flags)
-template<flag_t flag0, flag_t flag1, flag_t flag2 = ENABLE_NONE>
-struct FlagSwitch {
-	static const flag_t value0 = flag0;
-	static const flag_t value1 = flag1;
-	static const flag_t value2 = flag2;
+// Add flags
+template<flag_t simflags, typename ParentArgs=TypeDefaults>
+struct add_flags : virtual public ParentArgs
+{
+	typedef TypeValue<flag_t, ParentArgs::Flags::value | simflags> Flags;
+
+	template<typename NewParent> struct reparent :
+		virtual public add_flags<simflags, NewParent> {};
 };
+
+/// We want to give users the possibility to change options (e.g. enable flags)
+/// conditionally at runtime. For this, we need a way to pack collection of
+/// overrides to be selected by a switch statement (currently limited to three
+/// options)
+template<typename _A, typename _B, typename _C>
+struct TypeSwitch {
+	typedef _A A;
+	typedef _B B;
+	typedef _C C;
+};
+
+template<flag_t F1, flag_t F2, flag_t F3>
+struct FlagSwitch :
+	TypeSwitch<
+		add_flags<F1>,
+		add_flags<F2>,
+		add_flags<F3>
+	>
+{};
 
 /// Our CUDASimFramework is actualy a factory for CUDASimFrameworkImpl*,
 /// generating one when assigned to a SimFramework*
@@ -382,21 +402,14 @@ class CUDASimFramework {
 			periodicbound,
 			simflags> CUDASimFrameworkType;
 
-	template<flag_t extra_flags> struct ExtraFlag :
-	virtual public Args
-	{
-		typedef TypeValue<flag_t, simflags | extra_flags> Flags;
-	};
+	template<typename Extra> struct Override :
+		virtual public Args,
+		virtual public Extra::template reparent<Args>
+	{};
 
-	template<flag_t extra_flags>
-	CUDASimFramework<Args, ExtraFlag<extra_flags> > extend() {
-		return CUDASimFramework<Args, ExtraFlag<extra_flags> >();
-	}
-
-
-	template<typename Override>
-	CUDASimFramework<Args, Override> extend() {
-		return CUDASimFramework<Args, Override>();
+	template<typename Extra>
+	CUDASimFramework< Override<Extra> > extend() {
+		return CUDASimFramework< Override<Extra> >();
 	}
 
 public:
@@ -409,40 +422,46 @@ public:
 	/// Runtime selector: note that we must return the SimFramework* here
 	/// because otherwise the type returned would depend on the runtime selection,
 	/// which is not possible
-	template<typename Flags>
-	SimFramework * select_flags(int selector, Flags)
+	template<typename Switch>
+	SimFramework * select_flags(int selector, Switch)
 	{
 		switch (selector) {
 		case 0:
-			return extend<Flags::value0>();
+			return extend< typename Switch::A >();
 		case 1:
-			return extend<Flags::value1>();
+			return extend< typename Switch::B >();
 		case 2:
-			return extend<Flags::value2>();
+			return extend< typename Switch::C >();
 		}
 		throw std::runtime_error("invalid selector value");
 	}
 
-	template<typename Override>
-	SimFramework * select_flags(bool selector, Override)
+	template<typename Extra>
+	SimFramework * select_flags(bool selector, Extra)
 	{
 		if (selector)
-			return extend< typename Override::template reparent<Args> >();
+			return extend<Extra>();
 		return *this;
 	}
 
-	template<typename Flags1, typename Flags2>
-	SimFramework * select_flags(
-		int s1, Flags1 f1,
-		int s2, Flags2 f2)
+	template<typename Extra, typename Sel2, typename Other>
+	SimFramework * select_flags(bool selector, Extra, Sel2 selector2, Other)
 	{
-		switch (s1) {
+		if (selector)
+			return extend<Extra>().select_flag(selector2, Other());
+		return this->select_flag(selector2, Other());
+	}
+
+	template<typename Switch, typename Sel2, typename Other>
+	SimFramework * select_flags(int selector, Switch, Sel2 selector2, Other())
+	{
+		switch (selector) {
 		case 0:
-			return extend<Flags1::value0>().select_flags(s2, f2);
+			return extend< typename Switch::A >().select_flag(selector2, Other());
 		case 1:
-			return extend<Flags1::value1>().select_flags(s2, f2);
+			return extend< typename Switch::B >().select_flag(selector2, Other());
 		case 2:
-			return extend<Flags1::value2>().select_flags(s2, f2);
+			return extend< typename Switch::C >().select_flag(selector2, Other());
 		}
 		throw std::runtime_error("invalid selector value");
 	}
