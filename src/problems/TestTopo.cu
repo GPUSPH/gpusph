@@ -45,7 +45,7 @@ TestTopo::TestTopo(GlobalData *_gdata) : Problem(_gdata)
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
-		flags<ENABLE_DTADAPT | ENABLE_DEM>
+		add_flags<ENABLE_DEM>
 	);
 
 	const char* dem_file;

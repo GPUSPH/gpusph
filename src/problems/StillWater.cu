@@ -56,10 +56,9 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		//viscosity<KINEMATICVISC>,
 		viscosity<DYNAMICVISC>,
 		//viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
-		//boundary<SA_BOUNDARY>,
-		//boundary<LJ_BOUNDARY>,
-		flags<ENABLE_DTADAPT>
+		boundary<DYN_BOUNDARY>
+		//boundary<SA_BOUNDARY>
+		//boundary<LJ_BOUNDARY>
 	).select_flags(
 		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>()
 	);

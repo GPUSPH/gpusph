@@ -65,7 +65,7 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 		//viscosity<SPSVISC>,
 		//viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>,
-		flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+		add_flags<ENABLE_FERRARI>
 	);
 
 	// SPH parameters

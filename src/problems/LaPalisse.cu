@@ -16,7 +16,7 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<KEPSVISC>,
 		boundary<SA_BOUNDARY>,
 		formulation<SPH_F2>,
-		flags<ENABLE_DTADAPT |
+		add_flags<
 			ENABLE_INLET_OUTLET |
 			ENABLE_FERRARI |
 			ENABLE_WATER_DEPTH |

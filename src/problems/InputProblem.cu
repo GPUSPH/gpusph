@@ -27,7 +27,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+			add_flags<ENABLE_FERRARI>
 		);
 
 		set_deltap(0.01833f);
@@ -61,7 +61,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_DENSITY_SUM>
+			add_flags<ENABLE_FERRARI | ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.125f);
@@ -93,7 +93,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_XY>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+			add_flags<ENABLE_FERRARI>
 		);
 
 		set_deltap(0.0625f);
@@ -120,7 +120,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_XY>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+			add_flags<ENABLE_FERRARI>
 		);
 
 		simparams()->sfactor=2.0f;
@@ -152,7 +152,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.2f);
@@ -182,9 +182,9 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
 #if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 #else
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 #endif
 		);
 
@@ -219,7 +219,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
 		simparams()->sfactor=1.3f;
@@ -247,7 +247,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_YZ>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.2f);
@@ -274,7 +274,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
 
 		set_deltap(0.1f);
@@ -305,7 +305,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM> // | ENABLE_WATER_DEPTH>
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM> // | ENABLE_WATER_DEPTH>
 		);
 
 		set_deltap(0.026460);
@@ -336,7 +336,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
 		simparams()->sfactor=2.0f;
