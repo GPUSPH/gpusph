@@ -77,9 +77,9 @@ Problem::initialize()
 
 Problem::~Problem(void)
 {
-	if (simparams()->numbodies) {
-		delete [] m_bodies_storage;
-	}
+	delete [] m_bodies_storage;
+	delete m_simframework;
+	delete m_physparams;
 
 }
 
