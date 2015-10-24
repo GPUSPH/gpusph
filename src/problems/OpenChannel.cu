@@ -34,19 +34,14 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 {
 	use_side_walls = get_option("sidewalls", true);
 
-	if (use_side_walls) {
-		SETUP_FRAMEWORK(
-			//viscosity<ARTVISC>,
-			viscosity<KINEMATICVISC>,
-			boundary<DYN_BOUNDARY>,
-			periodicity<PERIODIC_X>);
-	} else {
-		SETUP_FRAMEWORK(
-			//viscosity<ARTVISC>,
-			viscosity<KINEMATICVISC>,
-			boundary<DYN_BOUNDARY>,
-			periodicity<PERIODIC_XY>);
-	}
+	SETUP_FRAMEWORK(
+		//viscosity<ARTVISC>,
+		viscosity<KINEMATICVISC>,
+		boundary<DYN_BOUNDARY>,
+		periodicity<PERIODIC_X>
+	).select_flags(
+		use_side_walls, periodicity<PERIODIC_XY>()
+	);
 
 	// SPH parameters
 	set_deltap(0.02f);
