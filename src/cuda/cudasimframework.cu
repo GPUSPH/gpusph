@@ -236,7 +236,7 @@ template<typename T, T _val>
 struct TypeValue
 {
 		typedef T type;
-		enum { value = _val };
+		static const T value = _val;
 		operator T() { return _val; }; // allow automatic conversion to the type
 };
 
@@ -326,12 +326,12 @@ template<
 class CUDASimFramework : public
 	CUDASimFrameworkImpl<
 #define ARGS ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6>
-		KernelType(ARGS::Kernel::value),
-		SPHFormulation(ARGS::Formulation::value),
-		ViscosityType(ARGS::Viscosity::value),
-		BoundaryType(ARGS::Boundary::value),
-		Periodicity(ARGS::Periodic::value),
-		flag_t(ARGS::Flags::value)>
+		ARGS::Kernel::value,
+		ARGS::Formulation::value,
+		ARGS::Viscosity::value,
+		ARGS::Boundary::value,
+		ARGS::Periodic::value,
+		ARGS::Flags::value>
 #undef ARGS
 {};
 
