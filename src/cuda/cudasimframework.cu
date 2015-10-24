@@ -109,33 +109,33 @@ class InvalidOptionCombination : IncompleteType<invalid>
 // template parameters
 
 template<
-	KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	ViscosityType visctype,
-	BoundaryType boundarytype,
-	Periodicity periodicbound,
-	flag_t simflags,
+	KernelType _kerneltype,
+	SPHFormulation _sph_formulation,
+	ViscosityType _visctype,
+	BoundaryType _boundarytype,
+	Periodicity _periodicbound,
+	flag_t _simflags,
 	bool invalid_combination = (
 		// Currently, we consider invalid only the case
 		// of SA_BOUNDARY
 
 		// TODO extend to include all unsupported/untested combinations for other boundary conditions
 
-		boundarytype == SA_BOUNDARY && (
+		_boundarytype == SA_BOUNDARY && (
 			// viscosity
-			visctype == KINEMATICVISC		||	// untested
-			visctype == SPSVISC			||	// untested
-			visctype == ARTVISC			||	// untested (use is discouraged, use Ferrari correction)
+			_visctype == KINEMATICVISC		||	// untested
+			_visctype == SPSVISC			||	// untested
+			_visctype == ARTVISC			||	// untested (use is discouraged, use Ferrari correction)
 			// kernel
-			! (kerneltype == WENDLAND)		||	// only the Wendland kernel is allowed in SA_BOUNDARY
+			! (_kerneltype == WENDLAND)		||	// only the Wendland kernel is allowed in SA_BOUNDARY
 												// all other kernels would require their respective
 												// gamma and grad gamma formulation
 			// formulation
-			sph_formulation == SPH_GRENIER	||	// multi-fluid is currently not implemented
+			_sph_formulation == SPH_GRENIER	||	// multi-fluid is currently not implemented
 			// flags
-			simflags & ENABLE_XSPH			||	// untested
-			simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
-			(simflags & ENABLE_INLET_OUTLET && !(simflags & ENABLE_DENSITY_SUM))
+			_simflags & ENABLE_XSPH			||	// untested
+			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
+			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM))
 												// inlet outlet works only with the summation density
 		)
 	)
@@ -143,6 +143,13 @@ template<
 class CUDASimFrameworkImpl : public SimFramework,
 	private InvalidOptionCombination<invalid_combination>
 {
+	static const KernelType kerneltype = _kerneltype;
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const ViscosityType visctype = _visctype;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const Periodicity periodicbound = _periodicbound;
+	static const flag_t simflags = _simflags;
+
 public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
