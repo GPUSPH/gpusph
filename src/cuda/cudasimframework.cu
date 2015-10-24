@@ -286,34 +286,64 @@ struct DefaultArg : virtual public TypeDefaults
 {};
 
 // Kernel override
-template<KernelType kerneltype>
-struct kernel : virtual public TypeDefaults
-{ typedef TypeValue<KernelType, kerneltype> Kernel; };
+template<KernelType kerneltype, typename ParentArgs=TypeDefaults>
+struct kernel : virtual public ParentArgs
+{
+	typedef TypeValue<KernelType, kerneltype> Kernel;
+
+	template<typename NewParent> struct reparent :
+		virtual public kernel<kerneltype, NewParent> {};
+};
 
 // Formulation override
-template<SPHFormulation sph_formulation>
-struct formulation : virtual public TypeDefaults
-{ typedef TypeValue<SPHFormulation, sph_formulation> Formulation; };
+template<SPHFormulation sph_formulation, typename ParentArgs=TypeDefaults>
+struct formulation : virtual public ParentArgs
+{
+	typedef TypeValue<SPHFormulation, sph_formulation> Formulation;
+
+	template<typename NewParent> struct reparent :
+		virtual public formulation<sph_formulation, NewParent> {};
+};
 
 // Viscosity override
-template<ViscosityType visctype>
-struct viscosity : virtual public TypeDefaults
-{ typedef TypeValue<ViscosityType, visctype> Viscosity; };
+template<ViscosityType visctype, typename ParentArgs=TypeDefaults>
+struct viscosity : virtual public ParentArgs
+{
+	typedef TypeValue<ViscosityType, visctype> Viscosity;
+
+	template<typename NewParent> struct reparent :
+		virtual public viscosity<visctype, NewParent> {};
+};
 
 // Boundary override
-template<BoundaryType boundarytype>
-struct boundary : virtual public TypeDefaults
-{ typedef TypeValue<BoundaryType, boundarytype> Boundary; };
+template<BoundaryType boundarytype, typename ParentArgs=TypeDefaults>
+struct boundary : virtual public ParentArgs
+{
+	typedef TypeValue<BoundaryType, boundarytype> Boundary;
+
+	template<typename NewParent> struct reparent :
+		virtual public boundary<boundarytype, NewParent> {};
+};
 
 // Periodic override
-template<Periodicity periodicbound>
-struct periodicity : virtual public TypeDefaults
-{ typedef TypeValue<Periodicity, periodicbound> Periodic; };
+template<Periodicity periodicbound, typename ParentArgs=TypeDefaults>
+struct periodicity : virtual public ParentArgs
+{
+	typedef TypeValue<Periodicity, periodicbound> Periodic;
+
+	template<typename NewParent> struct reparent :
+		virtual public periodicity<periodicbound, NewParent> {};
+};
 
 // Flags override
-template<flag_t simflags>
-struct flags : virtual public TypeDefaults
-{ typedef TypeValue<flag_t, simflags> Flags; };
+template<flag_t simflags, typename ParentArgs=TypeDefaults>
+struct flags : virtual public ParentArgs
+{
+	typedef TypeValue<flag_t, simflags> Flags;
+
+	template<typename NewParent> struct reparent :
+		virtual public flags<simflags, NewParent> {};
+};
 
 /// We want to give users the possibility to enable flags conditionally
 /// at runtime. For this, we need a way to pack collection of flags to be selected
@@ -363,6 +393,12 @@ class CUDASimFramework {
 		return CUDASimFramework<Args, ExtraFlag<extra_flags> >();
 	}
 
+
+	template<typename Override>
+	CUDASimFramework<Args, Override> extend() {
+		return CUDASimFramework<Args, Override>();
+	}
+
 public:
 	operator SimFramework *()
 	{
@@ -385,6 +421,14 @@ public:
 			return extend<Flags::value2>();
 		}
 		throw std::runtime_error("invalid selector value");
+	}
+
+	template<typename Override>
+	SimFramework * select_flags(bool selector, Override)
+	{
+		if (selector)
+			return extend< typename Override::template reparent<Args> >();
+		return *this;
 	}
 
 	template<typename Flags1, typename Flags2>
