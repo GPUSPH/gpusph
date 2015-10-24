@@ -245,7 +245,7 @@ struct TypeValue
 // so we will wrap the type in a "multiplexer":
 
 template<typename T, int idx>
-struct MultiplexSubclass : public T
+struct MultiplexSubclass : virtual public T
 {};
 
 // Template arguments are collected into this class: it will subclass
@@ -257,12 +257,12 @@ struct MultiplexSubclass : public T
 template<typename Arg1, typename Arg2, typename Arg3,
 	typename Arg4, typename Arg5, typename Arg6>
 struct ArgSelector :
-	public MultiplexSubclass<Arg1,1>,
-	public MultiplexSubclass<Arg2,2>,
-	public MultiplexSubclass<Arg3,3>,
-	public MultiplexSubclass<Arg4,4>,
-	public MultiplexSubclass<Arg5,5>,
-	public MultiplexSubclass<Arg6,6>
+	virtual public MultiplexSubclass<Arg1,1>,
+	virtual public MultiplexSubclass<Arg2,2>,
+	virtual public MultiplexSubclass<Arg3,3>,
+	virtual public MultiplexSubclass<Arg4,4>,
+	virtual public MultiplexSubclass<Arg5,5>,
+	virtual public MultiplexSubclass<Arg6,6>
 {};
 
 // Now we set the defaults for each argument
@@ -315,6 +315,16 @@ template<flag_t simflags>
 struct flags : virtual public TypeDefaults
 { typedef TypeValue<flag_t, simflags> Flags; };
 
+/// We want to give users the possibility to enable flags conditionally
+/// at runtime. For this, we need a way to pack collection of flags to be selected
+/// by a switch statement (currently limited to three flags)
+template<flag_t flag0, flag_t flag1, flag_t flag2 = ENABLE_NONE>
+struct FlagSwitch {
+	static const flag_t value0 = flag0;
+	static const flag_t value1 = flag1;
+	static const flag_t value2 = flag2;
+};
+
 /// Our CUDASimFramework is actualy a factory for CUDASimFrameworkImpl*,
 /// generating one when assigned to a SimFramework*
 template<
@@ -342,11 +352,55 @@ class CUDASimFramework {
 			periodicbound,
 			simflags> CUDASimFrameworkType;
 
+	template<flag_t extra_flags> struct ExtraFlag :
+	virtual public Args
+	{
+		typedef TypeValue<flag_t, simflags | extra_flags> Flags;
+	};
+
+	template<flag_t extra_flags>
+	CUDASimFramework<Args, ExtraFlag<extra_flags> > extend() {
+		return CUDASimFramework<Args, ExtraFlag<extra_flags> >();
+	}
+
 public:
 	operator SimFramework *()
 	{
 		// return the intended framework
 		return new CUDASimFrameworkType();
+	}
+
+	/// Runtime selector: note that we must return the SimFramework* here
+	/// because otherwise the type returned would depend on the runtime selection,
+	/// which is not possible
+	template<typename Flags>
+	SimFramework * select_flags(int selector, Flags)
+	{
+		switch (selector) {
+		case 0:
+			return extend<Flags::value0>();
+		case 1:
+			return extend<Flags::value1>();
+		case 2:
+			return extend<Flags::value2>();
+		}
+		throw std::runtime_error("invalid selector value");
+	}
+
+	template<typename Flags1, typename Flags2>
+	SimFramework * select_flags(
+		int s1, Flags1 f1,
+		int s2, Flags2 f2)
+	{
+		switch (s1) {
+		case 0:
+			return extend<Flags1::value0>().select_flags(s2, f2);
+		case 1:
+			return extend<Flags1::value1>().select_flags(s2, f2);
+		case 2:
+			return extend<Flags1::value2>().select_flags(s2, f2);
+		}
+		throw std::runtime_error("invalid selector value");
 	}
 
 };
