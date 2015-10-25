@@ -214,8 +214,7 @@ protected:
 //
 // NOTE: the withFlags<> will override the default flags, not add to them,
 // so in case of flag override, the default ones should be included manually.
-// (TODO is there a way to avoid this? In this case we would need to provide two
-// 'withFlags' for the user, one to override the default flags and one to add to them.)
+// As an alternative, a class that adds to the defaults is provided too.
 
 // TODO we may want to put the implementation of the named template options into its own
 // header file.
@@ -224,13 +223,13 @@ protected:
 // classes. The main mechanism is essentially inspired by the named template arguments
 // mechanism shown in http://www.informit.com/articles/article.aspx?p=31473 with some
 // additions to take into account that our template arguments are not typenames, but
-// values of different types.
+// values of different types, and to allow inheritance from previous arguments selectors.
 
-// The first auxiliary class is TypeValue: a class template to carry a value and its type
-// (note that the value should be convertible to enum): this will be used to specify the
-// default values for the parameters, as well as to allow their overriding by the user.
-// It is needed because we want to allow parameters to be specified in any order,
-// and this means that we need a common 'carrier' for our specific types.
+// The first auxiliary class is TypeValue: a class template to carry a value and its type:
+// this will be used to specify the default values for the parameters, as well
+// as to allow their overriding by the user. It is needed because we want to
+// allow parameters to be specified in any order, and this means that we need a
+// common 'carrier' for our specific types.
 
 template<typename T, T _val>
 struct TypeValue
@@ -280,6 +279,10 @@ struct TypeDefaults
 // and override specific typedefs
 // NOTE: inheritance must be virtual so that there will be no resolution
 // ambiguity.
+// NOTE: in order to allow the combination of a named parameter struct with
+// an existing (specific) ArgSelector, we allow them to be assigned a different
+// parent, in order to avoid resolution ambiguity in constructs such as:
+// ArgSelector<OldArgSelector, formulation<OTHER_FORMULATION> >
 
 // No override: these are the default themselves
 struct DefaultArg : virtual public TypeDefaults
@@ -345,7 +348,8 @@ struct flags : virtual public ParentArgs
 		virtual public flags<simflags, NewParent> {};
 };
 
-// Add flags
+// Add flags: this is an override that adds the new simflags
+// to the ones of the parent.
 template<flag_t simflags, typename ParentArgs=TypeDefaults>
 struct add_flags : virtual public ParentArgs
 {
@@ -366,17 +370,22 @@ struct TypeSwitch {
 	typedef _C C;
 };
 
-template<flag_t F1, flag_t F2, flag_t F3>
+/// Comfort method to allow the user to select one of three flags at runtime
+template<flag_t F0, flag_t F1, flag_t F2>
 struct FlagSwitch :
 	TypeSwitch<
+		add_flags<F0>,
 		add_flags<F1>,
-		add_flags<F2>,
-		add_flags<F3>
+		add_flags<F2>
 	>
 {};
 
 /// Our CUDASimFramework is actualy a factory for CUDASimFrameworkImpl*,
-/// generating one when assigned to a SimFramework*
+/// generating one when assigned to a SimFramework*. This is to allow us
+/// to change the set of options at runtime without setting up/tearing down
+/// the whole simframework every time an option is changed (setting up/tearing
+/// down the factory itself is much cheaper as there is no associated storage, so
+/// it's mostly just compile-time juggling).
 template<
 	typename Arg1 = DefaultArg,
 	typename Arg2 = DefaultArg,
@@ -385,8 +394,10 @@ template<
 	typename Arg5 = DefaultArg,
 	typename Arg6 = DefaultArg>
 class CUDASimFramework {
+	/// The collection of arguments for our current setup
 	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6> Args;
 
+	/// Comfort static defines
 	static const KernelType kerneltype = Args::Kernel::value;
 	static const SPHFormulation sph_formulation = Args::Formulation::value;
 	static const ViscosityType visctype = Args::Viscosity::value;
@@ -394,6 +405,7 @@ class CUDASimFramework {
 	static const Periodicity periodicbound = Args::Periodic::value;
 	static const flag_t simflags = Args::Flags::value;
 
+	/// The CUDASimFramework implementation of the current setup
 	typedef CUDASimFrameworkImpl<
 			kerneltype,
 			sph_formulation,
@@ -402,26 +414,46 @@ class CUDASimFramework {
 			periodicbound,
 			simflags> CUDASimFrameworkType;
 
+	/// A comfort auxiliary class that overrides Args (the current setup)
+	/// with the Extra named option
 	template<typename Extra> struct Override :
 		virtual public Args,
 		virtual public Extra::template reparent<Args>
 	{};
 
+	/// A method to produce a new factory with an overridden parameter
 	template<typename Extra>
 	CUDASimFramework< Override<Extra> > extend() {
 		return CUDASimFramework< Override<Extra> >();
 	}
 
 public:
+	/// Conversion operator: this produces the actual implementation of the
+	/// simframework
 	operator SimFramework *()
 	{
 		// return the intended framework
 		return new CUDASimFrameworkType();
 	}
 
-	/// Runtime selector: note that we must return the SimFramework* here
-	/// because otherwise the type returned would depend on the runtime selection,
-	/// which is not possible
+	/// Runtime selectors.
+
+	/// Note that they must return a SimFramework* because otherwise the type
+	/// returned would depend on the runtime selection, which is not possible.
+	/// As a result we cannot chain runtime selectors, and must instead provide
+	/// further runtime selectors with multiple (pairs of) overrides
+
+	/// Select an override only if a boolean option is ture
+	template<typename Extra>
+	SimFramework * select_flags(bool selector, Extra)
+	{
+		if (selector)
+			return extend<Extra>();
+		return *this;
+	}
+
+	/// Select one of three overrides in a Switch, based on the value of
+	/// selector. TODO refine
 	template<typename Switch>
 	SimFramework * select_flags(int selector, Switch)
 	{
@@ -436,14 +468,7 @@ public:
 		throw std::runtime_error("invalid selector value");
 	}
 
-	template<typename Extra>
-	SimFramework * select_flags(bool selector, Extra)
-	{
-		if (selector)
-			return extend<Extra>();
-		return *this;
-	}
-
+	/// Chained selectors (for multiple overrides)
 	template<typename Extra, typename Sel2, typename Other>
 	SimFramework * select_flags(bool selector, Extra, Sel2 selector2, Other)
 	{
@@ -452,6 +477,7 @@ public:
 		return this->select_flag(selector2, Other());
 	}
 
+	/// Chained selectors (for multiple overrides)
 	template<typename Switch, typename Sel2, typename Other>
 	SimFramework * select_flags(int selector, Switch, Sel2 selector2, Other())
 	{
