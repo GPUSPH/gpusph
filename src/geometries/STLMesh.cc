@@ -80,8 +80,7 @@ STLMesh::update_resolution(const float3 v[3])
 }
 
 STLMesh::STLMesh(uint meshsize) :
-	Object(),
-	m_ODETriMeshData(0)
+	Object()
 {
 	reset_bounds();
 	// we assume there will be about half as many vertices as triangles
@@ -92,6 +91,7 @@ STLMesh::STLMesh(uint meshsize) :
 	m_origin = Point(0,0,0);
 	m_center = Point(0,0,0);
 	m_ep.ComputeRot();
+	// TODO : default initialization of  chrono triangle mesh is needed. the function used to have m_ODETriMeshData = 0;
 }
 
 STLMesh::~STLMesh(void)

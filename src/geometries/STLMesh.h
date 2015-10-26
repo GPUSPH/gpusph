@@ -114,8 +114,9 @@ private:
 	// minimum coordinates
 	double3	m_minbounds, m_maxbounds;
 
-	// ODE-related stuff
-	dTriMeshDataID m_ODETriMeshData;
+//	// ODE-related stuff
+//	dTriMeshDataID m_ODETriMeshData;
+	// TODO: Chrono triangle mesh need to be added here
 
 	// minimum and maximum distance between vertices
 	double m_minres, m_maxres;
