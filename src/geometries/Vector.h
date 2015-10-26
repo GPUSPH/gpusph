@@ -35,7 +35,6 @@
 #define _GEOMVECTOR_H
 
 #include "Point.h"
-#include "ode/ode.h"
 
 class Point;
 

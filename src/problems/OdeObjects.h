@@ -40,8 +40,6 @@
 #include "Torus.h"
 #include "Cylinder.h"
 
-#include "ode/ode.h"
-
 class OdeObjects: public Problem {
 	private:
 		Cube		experiment_box;

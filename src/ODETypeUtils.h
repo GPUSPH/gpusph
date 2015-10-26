@@ -9,8 +9,6 @@
 #define _ODETYPEUTILS_H
 
 
-#include "ode/ode.h"
-
 float3 make_float3(const dVector3 v)
 {
 	return make_float3(v[0], v[1], v[2]);

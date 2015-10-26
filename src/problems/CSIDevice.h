@@ -3,11 +3,11 @@
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
 
-    Universitˆ di Catania, Catania, Italy
+    Universitï¿½ di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-  Ê This file is part of GPUSPH.
+  ï¿½ This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -42,7 +42,6 @@
 #include "Sphere.h"
 #include "Torus.h"
 #include "Cylinder.h"
-#include "ode/ode.h"
 #include "DataFileParser.h"
 
 
