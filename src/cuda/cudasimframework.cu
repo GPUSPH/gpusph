@@ -445,7 +445,7 @@ public:
 
 	/// Select an override only if a boolean option is ture
 	template<typename Extra>
-	SimFramework * select_flags(bool selector, Extra)
+	SimFramework * select_options(bool selector, Extra)
 	{
 		if (selector)
 			return extend<Extra>();
@@ -455,7 +455,7 @@ public:
 	/// Select one of three overrides in a Switch, based on the value of
 	/// selector. TODO refine
 	template<typename Switch>
-	SimFramework * select_flags(int selector, Switch)
+	SimFramework * select_options(int selector, Switch)
 	{
 		switch (selector) {
 		case 0:
@@ -470,7 +470,7 @@ public:
 
 	/// Chained selectors (for multiple overrides)
 	template<typename Extra, typename Sel2, typename Other>
-	SimFramework * select_flags(bool selector, Extra, Sel2 selector2, Other)
+	SimFramework * select_options(bool selector, Extra, Sel2 selector2, Other)
 	{
 		if (selector)
 			return extend<Extra>().select_flag(selector2, Other());
@@ -479,7 +479,7 @@ public:
 
 	/// Chained selectors (for multiple overrides)
 	template<typename Switch, typename Sel2, typename Other>
-	SimFramework * select_flags(int selector, Switch, Sel2 selector2, Other())
+	SimFramework * select_options(int selector, Switch, Sel2 selector2, Other())
 	{
 		switch (selector) {
 		case 0:

@@ -59,7 +59,7 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		boundary<DYN_BOUNDARY>
 		//boundary<SA_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
-	).select_flags(
+	).select_options(
 		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>()
 	);
 

@@ -39,7 +39,7 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>,
 		periodicity<PERIODIC_X>
-	).select_flags(
+	).select_options(
 		use_side_walls, periodicity<PERIODIC_XY>()
 	);
 
