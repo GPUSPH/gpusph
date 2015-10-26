@@ -147,7 +147,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 	}
 }
 
-uint HotFile::readHeader(uint &part_count) {
+void HotFile::readHeader(uint &part_count) {
 	memset(&_header, 0, sizeof(_header));
 
 	// read and check version
