@@ -294,6 +294,36 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
+	//Small test case with similar features to La Palisse
+	//*************************************************************************************
+#elif SPECIFIC_PROBLEM == LaPalisseSmallerTest
+		h5File.setFilename("meshes/0.lp_smaller_test.h5sph");
+
+		SETUP_FRAMEWORK(
+			//viscosity<KEPSVISC>,
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+		);
+
+		set_deltap(0.1f);
+		m_simparams->maxneibsnum = 240;
+		m_simparams->tend = 10.0;
+		m_simparams->ferrari= 1.0f;
+		//m_simparams->ferrariLengthScale = 0.2f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 50.0f);
+		//set_kinematic_visc(water, 1.0e-6f);
+		set_kinematic_visc(water, 1.0e-2f);
+
+		H = 2.0;
+		l = 2.2; w = 2.2; h = 2.2;
+		m_origin = make_double3(-1.1, -1.1, -1.1);
+		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+	//*************************************************************************************
+
 	// Solitary Wave with IO
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SolitaryWave
@@ -575,10 +605,15 @@ void InputProblem::copy_to_array(BufferList &buffers)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 				}
-#elif SPECIFIC_PROBLEM == LaPalisseSmallTest
+#elif SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+      SPECIFIC_PROBLEM == LaPalisseSmallerTest
 				// two pressure boundaries
 				if (openBoundType != 0)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+#if SPECIFIC_PROBLEM == LaPalisseSmallerTest
+				if (openBoundType == 1)
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
+#endif
 #elif SPECIFIC_PROBLEM == SolitaryWave
 				if (openBoundType != 0)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
@@ -634,10 +669,15 @@ void InputProblem::copy_to_array(BufferList &buffers)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 				}
-#elif SPECIFIC_PROBLEM == LaPalisseSmallTest
+#elif SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+      SPECIFIC_PROBLEM == LaPalisseSmallerTest
 				// two pressure boundaries
 				if (openBoundType != 0)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+#if SPECIFIC_PROBLEM == LaPalisseSmallerTest
+				if (openBoundType == 1)
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
+#endif
 #elif SPECIFIC_PROBLEM == SolitaryWave
 				if (openBoundType != 0)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
@@ -702,6 +742,7 @@ InputProblem::max_parts(uint numpart)
     SPECIFIC_PROBLEM == PeriodicWave
 		return (uint)((float)numpart*1.2f);
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+      SPECIFIC_PROBLEM == LaPalisseSmallerTest || \
       SPECIFIC_PROBLEM == SolitaryWave
 		return (uint)((float)numpart*2.0f);
 #else
@@ -754,6 +795,11 @@ InputProblem_imposeBoundaryCondition(
 			eulerVel.x = 1.0f;
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 			eulerVel.x = 1.0f-absPos.z*absPos.z;
+#elif SPECIFIC_PROBLEM == LaPalisseSmallerTest
+			if(absPos.z < sin(t*3.14f/2.0f)*0.2f) {
+				eulerVel.x = 1.0f;
+				eulerVel.y = 1.0f;
+			}
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			// the 0.025 is deltap*0.5 = 0.05*0.5
 			eulerVel.x = log(fmax(1.0f-fabs(absPos.z), 0.025f)/0.0015625f)/0.41f+5.2f;
@@ -809,10 +855,12 @@ InputProblem_imposeBoundaryCondition(
 #endif
 		}
 		else {
-#if SPECIFIC_PROBLEM == LaPalisseSmallTest
+#if SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+    SPECIFIC_PROBLEM == LaPalisseSmallerTest
 			if (object(info)==0)
-				waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
-				//waterdepth = -0.1 + 0.355*t/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				//waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				//waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));
@@ -840,7 +888,8 @@ InputProblem_imposeBoundaryCondition(
 
 		// impose tangential velocity
 		if (VEL_IO(info)) {
-#if SPECIFIC_PROBLEM != SolitaryWave
+#if SPECIFIC_PROBLEM != SolitaryWave && \
+	SPECIFIC_PROBLEM != LaPalisseSmallerTest
 			eulerVel.y = 0.0f;
 #endif
 #if SPECIFIC_PROBLEM != PeriodicWave && \
