@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -69,7 +69,7 @@ Cylinder::Cylinder(const Point& origin, const double radius, const double height
 
 Cylinder::Cylinder(const Point& origin, const Vector& radius, const Vector& height)
 {
-	if (abs(radius*height) > 1e-8*radius.norm()*height.norm()) {
+	if (fabs(radius*height) > 1e-8*radius.norm()*height.norm()) {
 		std::cout << "Trying to construct a cylinder with non perpendicular radius and axis\n";
 		exit(1);
 	}

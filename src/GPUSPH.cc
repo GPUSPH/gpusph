@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <float.h> // FLT_EPSILON
+#include <cfloat> // FLT_EPSILON
 
 #include <unistd.h> // getpid()
 #include <sys/mman.h> // shm_open()/shm_unlink()
@@ -97,6 +97,7 @@ void GPUSPH::openInfoStream() {
 		cerr << "WARNING: unable to fdopen info stream " << m_info_stream_name << endl;
 		close(ret);
 		shm_unlink(m_info_stream_name.c_str());
+		return;
 	}
 	cout << "Info stream: " << m_info_stream_name << endl;
 	fputs("Initializing ...\n", m_info_stream);
@@ -120,20 +121,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
-	// needed for the new problem interface (compute worldorigin, init ODE, etc.)
+	// For the new problem interface (compute worldorigin, init ODE, etc.)
+	// In all cases, also runs the checks for dt, maxneibsnum, etc
+	// and creates the problem dir
 	if (!problem->initialize()) {
 		printf("Problem initialization failed. Aborting...\n");
 		return false;
 	}
-
-	// run post-construction functions
-	problem->check_dt();
-	problem->check_maxneibsnum();
-	problem->create_problem_dir();
-	problem->calculateFerrariCoefficient();
-
-	printf("Problem calling set grid params\n");
-	problem->set_grid_params();
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
@@ -402,6 +396,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
+	if (!gdata->keep_going)
+		return false;
+
 	// peer accessibility is checked and set in the initialization phase
 	if (MULTI_GPU)
 		printDeviceAccessibilityTable();
@@ -489,15 +486,25 @@ bool GPUSPH::runSimulation() {
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
 
-	buildNeibList();
-
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
-	while (gdata->keep_going) {
+	// Run the actual simulation loop, by issuing the appropriate doCommand()s
+	// in sequence. keep_going will be set to false either by the loop itself
+	// if the simulation is finished, or by a Worker that fails in executing a
+	// command; in the latter case, doCommand itself will throw, to prevent
+	// the loop from issuing subsequent commands; hence, the body consists of a
+	// try/catch block --------v-----
+	while (gdata->keep_going) try {
 		printStatus(m_info_stream);
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
+
+		// build neighbors list
+		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
+			gdata->particlesCreated) {
+			buildNeibList();
+		}
 
 		// run enabled filters
 		if (gdata->iterations > 0) {
@@ -697,8 +704,18 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
 
 			// update the it counter if new particles are created
-			if (gdata->particlesCreated)
+			if (gdata->particlesCreated) {
 				gdata->createdParticlesIterations++;
+				// we also update the array indices, so that e.g. when saving
+				// the newly created particles are visible
+				// TODO this doesn't seem to impact performance noticeably
+				// in single-GPU. If it is found to be too expensive on
+				// multi-GPU (or especially multi-node) it might be necessary
+				// to only do it when saving. It does not affect the simulation
+				// anyway, since it will be done during the next buildNeibList()
+				// call
+				updateArrayIndices();
+			}
 		}
 
 		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
@@ -745,6 +762,8 @@ bool GPUSPH::runSimulation() {
 
 		// are we done?
 		bool finished = gdata->problem->finished(gdata->t);
+		finished = finished || (gdata->clOptions->maxiter &&
+			gdata->iterations >= gdata->clOptions->maxiter);
 		// list of writers that need to write
 		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
 		// do we need to write?
@@ -857,15 +876,16 @@ bool GPUSPH::runSimulation() {
 			}
 		}
 
-		// build neighbors list
-		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
-			gdata->particlesCreated) {
-			buildNeibList();
-		}
-
 		if (finished || gdata->quit_request)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
+	} catch (std::exception &e) {
+		cerr << e.what() << endl;
+		gdata->keep_going = false;
+		// the loop is being ended by some exception, so we cannot guarantee that
+		// all threads are alive. Force unlocks on all subsequent barriers to exit
+		// as cleanly as possible without stalling
+		gdata->threadSynchronizer->forceUnlock();
 	}
 
 	// elapsed time, excluding the initialization
@@ -1190,12 +1210,13 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 			//delete[] gdata->s_dCellStarts[d];
 			//delete[] gdata->s_dCellEnds[d];
 			// same on non-pinned memory
-			delete[] gdata->s_dSegmentsStart[d];
+			free(gdata->s_dSegmentsStart[d]);
 		}
-		delete[] gdata->s_dCellEnds;
-		delete[] gdata->s_dCellStarts;
-		delete[] gdata->s_dSegmentsStart;
+		free(gdata->s_dCellEnds);
+		free(gdata->s_dCellStarts);
+		free(gdata->s_dSegmentsStart);
 	}
+
 }
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
@@ -1391,6 +1412,9 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 	gdata->extraCommandArg = arg;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
+
+	if (!gdata->keep_going)
+		throw std::runtime_error("GPUSPH aborted by worker thread");
 }
 
 void GPUSPH::setViscosityCoefficient()
@@ -1941,27 +1965,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-	// check if new particles were created and check for ID overflow
-	if (cFlag & INTEGRATOR_STEP_2) {
-		// compute the offset for id cloning and check for possible overflows
-		// NOTE: the formula is
-		//    new_id = vertex_id + initial_parts - initial_fluid_parts +
-		//             (num_iterations_with_part_creations * numVertexParticles)
-		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
-		if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET) {
-
-			//gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
-			//	(gdata->numVertices * gdata->createdParticlesIterations);
-
-			for (uint d = 0; d < gdata->devices; d++) {
-				if (UINT_MAX - gdata->numVertices < gdata->highestDevId[d]) {
-					fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n", gdata->iterations, d);
-					gdata->quit_request = true;
-				}
-			}
-		}
-	}
 
 	// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);

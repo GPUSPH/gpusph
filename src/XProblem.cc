@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 #include <iostream>
 
 // limits
-#include <float.h>
+#include <cfloat>
 #include <limits>
 
 #include "Rect.h"
@@ -40,7 +40,6 @@
 #include "Torus.h"
 #include "Plane.h"
 #include "STLMesh.h"
-
 #include "XProblem.h"
 #include "GlobalData.h"
 
@@ -92,7 +91,7 @@ void XProblem::release_memory()
 
 uint XProblem::suggestedDynamicBoundaryLayers()
 {
-	return (uint) ceil(m_simparams->sfactor * m_simparams->kernelradius) + 1;
+	return (uint)m_simparams->get_influence_layers() + 1;
 }
 
 XProblem::~XProblem()
@@ -208,6 +207,40 @@ bool XProblem::initialize()
 	// store number of objects (floating + moving + I/O)
 	m_simparams->numOpenBoundaries = open_boundaries_counter;
 
+	// Increase the world dimensions of a m_deltap quantity. This is necessary
+	// to guarantee a distance of m_deltap between particles of either sides of
+	// periodic boundaries; moreover, for boundaries without any periodicity
+	// it ensures that all particles are within the domain even in case of
+	// numerical rounding errors.
+	globalMin(0) -= (m_deltap/2);
+	globalMax(0) += (m_deltap/2);
+	globalMin(1) -= (m_deltap/2);
+	globalMax(1) += (m_deltap/2);
+	globalMin(2) -= (m_deltap/2);
+	globalMax(2) += (m_deltap/2);
+
+	// compute the number of layers for dynamic boundaries, if not set
+	if (m_simparams->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
+		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
+		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+	}
+
+	// Increase the world dimensions for dinamic boundaries in directions without periodicity
+	if (m_simparams->boundarytype == DYN_BOUNDARY){
+		if (!(m_simparams->periodicbound & PERIODIC_X)){
+			globalMin(0) -= (m_numDynBoundLayers-1)*m_deltap;
+			globalMax(0) += (m_numDynBoundLayers-1)*m_deltap;
+		}
+		if (!(m_simparams->periodicbound & PERIODIC_Y)){
+			globalMin(1) -= (m_numDynBoundLayers-1)*m_deltap;
+			globalMax(1) += (m_numDynBoundLayers-1)*m_deltap;
+		}
+		if (!(m_simparams->periodicbound & PERIODIC_Z)){
+			globalMin(2) -= (m_numDynBoundLayers-1)*m_deltap;
+			globalMax(2) += (m_numDynBoundLayers-1)*m_deltap;
+		}
+	}
+
 	// set computed world origin and size without overriding possible user choices
 	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
 	if (!isfinite(m_origin.y)) m_origin.y = globalMin(1);
@@ -291,12 +324,6 @@ bool XProblem::initialize()
 		}
 	}
 
-	// compute the number of layers for dynamic boundaries, if not set
-	if (m_simparams->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
-		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
-		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
-	}
-
 	// only init ODE if m_numRigidBodies
 	if (m_numFloatingBodies)
 		initializeODE();
@@ -314,7 +341,10 @@ bool XProblem::initialize()
 	//if (m_numMovingObjects > 0)
 	//	m_simparams->movingBoundaries = true;
 
-	return true;
+	// Call Problem's initialization that takes care of the common
+	// initialization functions (checking dt, preparing the grid,
+	// creating the problem dir, etc)
+	return Problem::initialize();
 }
 
 void XProblem::initializeODE()
@@ -326,7 +356,7 @@ void XProblem::initializeODE()
 	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
 	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
 	m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
-	// Set gravity（x, y, z)
+	// Set gravity (x, y, z)
 	dWorldSetGravity(m_ODEWorld,
 		m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);
 }
@@ -912,9 +942,30 @@ void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot
 
 	// compute single-axes rotations
 	// NOTE: ODE uses clockwise angles for Euler, thus we invert them
-	dQFromAxisAndAngle(qX, 1.0, 0.0, 0.0, -Xrot);
-	dQFromAxisAndAngle(qY, 0.0, 1.0, 0.0, -Yrot);
-	dQFromAxisAndAngle(qZ, 0.0, 0.0, 1.0, -Zrot);
+	// NOTE: ODE has abysmal precision, so we compute the quaternions ourselves:
+	// for each rotation, the real part of the quaternion is cos(angle/2),
+	// and the imaginary part (which for rotations around principal axis
+	// is only 1, 2 or 3) is sin(angle/2); the rest of the components are 0.
+	qX[0] = cos(-Xrot/2); qX[1] = sin(-Xrot/2); qX[2] = qX[3] = 0;
+	qY[0] = cos(-Yrot/2); qY[2] = sin(-Yrot/2); qY[1] = qY[3] = 0;
+	qZ[0] = cos(-Zrot/2); qZ[3] = sin(-Zrot/2); qZ[1] = qZ[2] = 0;
+	// Problem: even with a “nice” angle such as M_PI we might end up
+	// with not-exactly-zero components, so we kill anything which is less
+	// than half the double-precision machine epsilon. If you REALLY care
+	// about angles that differ from quadrant angles by less than 2^-53,
+	// sorry, we don't have enough accuracy for you.
+	if (fabs(qX[0]) < DBL_EPSILON/2)
+		qX[0] = 0;
+	if (fabs(qX[1]) < DBL_EPSILON/2)
+		qX[1] = 0;
+	if (fabs(qY[0]) < DBL_EPSILON/2)
+		qY[0] = 0;
+	if (fabs(qY[2]) < DBL_EPSILON/2)
+		qY[2] = 0;
+	if (fabs(qZ[0]) < DBL_EPSILON/2)
+		qZ[0] = 0;
+	if (fabs(qZ[3]) < DBL_EPSILON/2)
+		qZ[3] = 0;
 
 	// concatenate rotations in order (X, Y, Z)
 	dQMultiply0(qXY, qY, qX);
@@ -1029,8 +1080,10 @@ void XProblem::setPositioning(PositioningPolicy positioning)
 
 // Create 6 planes delimiting the box defined by the two points and update (overwrite) the world origin and size.
 // Write their GeometryIDs in planesIds, if given, so that it is possible to delete one or more of them afterwards.
-void XProblem::makeUniverseBox(const double3 corner1, const double3 corner2, GeometryID *planesIds)
+vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double3 corner2)
 {
+	vector<GeometryID> planes;
+
 	// compute min and max
 	double3 min, max;
 	min.x = std::min(corner1.x, corner2.x);
@@ -1040,27 +1093,29 @@ void XProblem::makeUniverseBox(const double3 corner1, const double3 corner2, Geo
 	max.y = std::max(corner1.y, corner2.y);
 	max.z = std::max(corner1.z, corner2.z);
 
+	// we need the periodicity to see which planes are needed. If m_simparams is NULL,
+	// it means SETUP_FRAMEWORK was not invoked, in which case we assume no periodicity.
+	const Periodicity periodicbound = m_simparams ? m_simparams->periodicbound : PERIODIC_NONE;
+
 	// create planes
-	GeometryID plane_min_x = addPlane(  1,  0,  0, -min.x);
-	GeometryID plane_max_x = addPlane( -1,  0,  0,  max.x);
-	GeometryID plane_min_y = addPlane(  0,  1,  0, -min.y);
-	GeometryID plane_max_y = addPlane(  0, -1,  0,  max.y);
-	GeometryID plane_min_z = addPlane(  0,  0,  1, -min.z);
-	GeometryID plane_max_z = addPlane(  0,  0, -1,  max.z);
+	if (!(periodicbound & PERIODIC_X)) {
+		planes.push_back(addPlane(  1,  0,  0, -min.x));
+		planes.push_back(addPlane( -1,  0,  0,  max.x));
+	}
+	if (!(periodicbound & PERIODIC_Y)) {
+		planes.push_back(addPlane(  0,  1,  0, -min.y));
+		planes.push_back(addPlane(  0, -1,  0,  max.y));
+	}
+	if (!(periodicbound & PERIODIC_Z)) {
+		planes.push_back(addPlane(  0,  0,  1, -min.z));
+		planes.push_back(addPlane(  0,  0, -1,  max.z));
+	}
 
 	// set world origin and size
 	m_origin = min;
 	m_size = max - min;
 
-	// write in output
-	if (planesIds) {
-		planesIds[0] = plane_min_x;
-		planesIds[1] = plane_max_x;
-		planesIds[2] = plane_min_y;
-		planesIds[3] = plane_max_y;
-		planesIds[4] = plane_min_z;
-		planesIds[5] = plane_max_z;
-	}
+	return planes;
 }
 
 void XProblem::addExtraWorldMargin(const double margin)
@@ -1217,7 +1272,7 @@ int XProblem::fill_parts()
 #endif
 
 		// ODE-related operations - only for floating bodies
-		if (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions) {
+		if (m_numFloatingBodies > 0 && (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions)) {
 
 			// We should not call both ODEBodyCreate() and ODEGeomCreate(), since the former
 			// calls the latter in a dummy way if no ODE space is passed and this messes
@@ -1797,9 +1852,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 		incremental_bodies_part_counter += body_particle_counters[obj_id];
 		// memo: s_hRbLastIndex, as used in the reduction, is inclusive (thus -1)
 		gdata->s_hRbLastIndex[obj_id] = incremental_bodies_part_counter - 1;
-		// DBG info
-		// printf(" DBG: s_hRbFirstIndex[%u] = %d, s_hRbLastIndex[%u] = %u\n", \
+#if 0 // DBG info
+		printf(" DBG: s_hRbFirstIndex[%u] = %d, s_hRbLastIndex[%u] = %u\n",
 			obj_id, gdata->s_hRbFirstIndex[obj_id], obj_id, gdata->s_hRbLastIndex[obj_id]);
+#endif
 	}
 	delete [] body_particle_counters;
 

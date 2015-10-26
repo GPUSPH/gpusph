@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -48,21 +48,6 @@ setconstants(const PhysParams *physparams,
 	idx_t const& allocatedParticles, int const& maxneibsnum, float const& slength)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
-
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_cellSize, &cellSize, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
-	// Neibs cell to offset table
-	char3 cell_to_offset[27];
-	for(char z=-1; z<=1; z++) {
-		for(char y=-1; y<=1; y++) {
-			for(char x=-1; x<=1; x++) {
-				int i = (x + 1) + (y + 1)*3 + (z + 1)*9;
-				cell_to_offset[i] =  make_char3(x, y, z);
-			}
-		}
-	}
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_cell_to_offset, cell_to_offset, 27*sizeof(char3)));
 
 	idx_t neiblist_end = maxneibsnum*allocatedParticles;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
@@ -186,7 +171,7 @@ basicstep(
 #undef ARGS
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Euler kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 };

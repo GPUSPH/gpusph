@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -50,9 +50,8 @@ __constant__ float	d_rbsteprot[9*MAX_BODIES];
 __constant__ idx_t	d_neiblist_end; // maxneibsnum * number of allocated particles
 __constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
 
-#include "cellgrid.cuh"
-
 #include "sph_core_utils.cuh"
+using namespace cubounds;
 
 /// Apply rotation to a given vector
 /*! Apply the rotation given by the matrix rot to the vector relPos.

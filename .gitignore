@@ -17,6 +17,7 @@ nbproject
 GPUSPH*
 tests
 TAGS
+cscope.out
 *.kdev4
 .kdev*
 TODO*
@@ -49,3 +50,4 @@ inifile/
 sa/
 log*
 
+src/problems/user

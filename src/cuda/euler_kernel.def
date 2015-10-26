@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -283,8 +283,8 @@ eulerDevice(
 				// the same as pos and we always have pos = pos(n).
 				// relPos = x - x_cg
 				const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
-				const float3 relPos = (gridPos - d_rbcgGridPos[obj])*d_cellSize +
-					(as_float3(pos) - d_rbcgPos[obj]);
+				const float3 relPos = globalDistance(gridPos, as_float3(pos),
+						d_rbcgGridPos[obj], d_rbcgPos[obj]);
 				applyrot(&d_rbsteprot[9*obj], relPos, pos);
 
 				// Applying center of gravity translation

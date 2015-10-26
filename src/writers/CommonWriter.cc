@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -263,6 +263,11 @@ CommonWriter::write_simparams(ostream &out)
 	if (SP->simflags & ENABLE_DTADAPT)
 		out << "    safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
 	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
+	out << " Density diffusion " << ED[!!(SP->simflags & ENABLE_DENSITY_DIFFUSION)] << endl;
+	if (SP->simflags & ENABLE_DENSITY_DIFFUSION) {
+		out << "    ξ = " << SP->rhodiffcoeff << endl;
+	}
+
 	out << " Ferrari correction " << ED[!!(SP->simflags & ENABLE_FERRARI)] << endl;
 	if (SP->simflags & ENABLE_FERRARI) {
 		out << "    Ferrari length scale = " ;

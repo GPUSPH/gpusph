@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -60,8 +60,11 @@
 // Ferrari correction
 #define ENABLE_FERRARI			(ENABLE_WATER_DEPTH << 1)
 
+// Density diffusion (Molteni & Colagrossi 2009)
+#define ENABLE_DENSITY_DIFFUSION (ENABLE_FERRARI << 1)
+
 // Summation density
-#define ENABLE_DENSITY_SUM		(ENABLE_FERRARI << 1)
+#define ENABLE_DENSITY_SUM		(ENABLE_DENSITY_DIFFUSION << 1)
 
 #define LAST_SIMFLAG		ENABLE_DENSITY_SUM
 

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,7 +34,9 @@
 #include <cmath>
 
 // we use CUDA types and host/device specifications here
-#include "cuda_runtime.h"
+#include <cuda_runtime.h>
+
+#include "common_types.h" // ushort
 
 // vertex info
 typedef uint4 vertexinfo;
@@ -231,7 +233,7 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
  *	the fluid number *and* the object number. It does not check nor set any particle flag,
  *  so setting them after creating the particleinfo is allowed.
  */
-inline __host__ particleinfo make_particleinfo_by_ids(const ushort &type, const ushort &fluid_number,
+inline __host__ __device__ particleinfo make_particleinfo_by_ids(const ushort &type, const ushort &fluid_number,
 	const ushort &object_number, const uint &id)
 {
 	particleinfo v;

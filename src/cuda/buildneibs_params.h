@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #define _BUILDNEIBS_PARAMS_H
 
 #include "cond_params.h"
+#include "particledefine.h"
 
 /// Parameters common to all buildneibs kernel specializations
 struct common_buildneibs_params
@@ -77,13 +78,10 @@ struct sa_boundary_buildneibs_params
 };
 
 /// The actual forces_params struct, which concatenates the above, as appropriate
-/// TODO FIXME we don't need a lot of specializations for now. When template switching
-/// will be made easier, we will make the template struct depend on the boundarytype,
-/// for the time being we only have a simple boolean (with/without SA_BOUNDARY)
-template<bool use_sa_boundary>
+template<BoundaryType boundarytype>
 struct buildneibs_params :
 	common_buildneibs_params,
-	COND_STRUCT(use_sa_boundary, sa_boundary_buildneibs_params)
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)
 {
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the forces kernel.
@@ -103,7 +101,7 @@ struct buildneibs_params :
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(_neibsList, _pos, _particleHash,
 			_numParticles, _sqinfluenceradius),
-		COND_STRUCT(use_sa_boundary, sa_boundary_buildneibs_params)(
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
 			_vertPos, _vertIDToIndex, _boundNlSqInflRad)
 	{}
 };

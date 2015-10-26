@@ -190,4 +190,49 @@ dot(symtensor3 const& T, float4 const& v)
 
 }
 
+// T.v
+__spec
+float4
+dot(symtensor4 const& T, float4 const& v)
+{
+	return make_float4(
+			T.xx*v.x + T.xy*v.y + T.xz*v.z + T.xw*v.w,
+			T.xy*v.x + T.yy*v.y + T.yz*v.z + T.yw*v.w,
+			T.xz*v.x + T.yz*v.y + T.zz*v.z + T.zw*v.w,
+			T.xw*v.x + T.yw*v.y + T.zw*v.z + T.ww*v.w);
+
+}
+
+// v.T.w
+__spec
+float
+dot(float4 const& v, symtensor4 const& T, float4 const& w)
+{
+	return dot(v, dot(T,w));
+}
+
+// v.T.v
+__spec
+float
+ddot(symtensor4 const& T, float4 const& v)
+{
+	return T.xx*v.x*v.x + T.yy*v.y*v.y + T.zz*v.z*v.z + T.ww*v.w*v.w +
+		2*(
+			(T.xy*v.y + T.xw*v.w)*v.x +
+			(T.yz*v.z + T.yw*v.w)*v.y +
+			(T.xz*v.x + T.zw*v.w)*v.z);
+}
+
+// First row of the adjugate of a given matrix
+__spec
+float4
+adjugate_row1(symtensor4 const& T)
+{
+	return make_float4(
+		T.yy*T.zz*T.ww + T.yz*T.zw*T.yw + T.yw*T.yz*T.zw - T.yy*T.zw*T.zw - T.yz*T.yz*T.ww - T.yw*T.zz*T.yw,
+		T.xy*T.zw*T.zw + T.yz*T.xz*T.ww + T.yw*T.zz*T.xw - T.xy*T.zz*T.ww - T.yz*T.zw*T.xw - T.yw*T.xz*T.zw,
+		T.xy*T.yz*T.ww + T.yy*T.zw*T.xw + T.yw*T.xz*T.yw - T.xy*T.zw*T.yw - T.yy*T.xz*T.ww - T.yw*T.yz*T.xw,
+		T.xy*T.zz*T.yw + T.yy*T.xz*T.zw + T.yz*T.yz*T.xw - T.xy*T.yz*T.zw - T.yy*T.zz*T.xw - T.yz*T.xz*T.yw);
+}
+
 #undef __spec

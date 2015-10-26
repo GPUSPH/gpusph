@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -33,6 +33,9 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
+// Set to 0 for uniform initial density
+#define HYDROSTATIC_INIT 1
+
 #define CENTER_DOMAIN 1
 // set to coords (x,y,z) if more accuracy is needed in such point
 // (waiting for relative coordinates)
@@ -53,32 +56,74 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	ly = 0.67;
 	lz = 0.6;
 	H = 0.4;
-	wet = true;
+	wet = get_option("wet", false);
 
-	m_usePlanes = false;
-	m_size = make_double3(lx, ly, lz);
-	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
+	m_usePlanes = get_option("use-planes", false);
 
-	SETUP_FRAMEWORK(
-		viscosity<SPSVISC>,
-		boundary<LJ_BOUNDARY>
-	);
+	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
+	const int rhodiff = get_option("density-diffusion", 1);
 
-	addFilter(MLS_FILTER, 10);
+	switch (rhodiff) {
+	case 0:
+		SETUP_FRAMEWORK(
+			viscosity<ARTVISC>,
+			boundary<DYN_BOUNDARY>
+		);
+		break;
+	case 1:
+		SETUP_FRAMEWORK(
+			viscosity<ARTVISC>,
+			boundary<DYN_BOUNDARY>,
+			flags<ENABLE_DTADAPT | ENABLE_DENSITY_DIFFUSION>
+		);
+		break;
+	case 2:
+		SETUP_FRAMEWORK(
+			viscosity<ARTVISC>,
+			boundary<DYN_BOUNDARY>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+		);
+	}
+
+	// Allow user to set the MLS frequency at runtime. Default to 0 if density
+	// diffusion is enabled or Ferrari correction is enabled, 10 otherwise
+	const int mlsIters = get_option("mls",
+		(m_simparams->simflags & (ENABLE_DENSITY_DIFFUSION | ENABLE_FERRARI)) ? 0 : 10);
+
+	if (mlsIters > 0)
+		addFilter(MLS_FILTER, mlsIters);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
-	m_simparams->dt = 0.0003f;
+
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
+
+	// enlarge the domain to take into account the extra layers of particles
+	// of the boundary
+	if (m_simparams->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
+		// number of layers
+		dyn_layers = ceil(m_simparams->kernelradius*m_simparams->sfactor);
+		// extra layers are one less (since other boundary types still have
+		// one layer)
+		double3 extra_offset = make_double3((dyn_layers-1)*m_deltap);
+		m_origin -= extra_offset;
+		m_size += 2*extra_offset;
+	}
+
+
+	m_simparams->dt = 2.5e-4f;
 	m_simparams->dtadaptfactor = 0.3;
 	m_simparams->buildneibsfreq = 10;
 	m_simparams->tend = 1.5f;
 
 	// Physical parameters
-	H = 0.4f;
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams->gravity);
+	float max_hydro_vel = sqrt(2*g*H);
+	float c0 = 10*ceil(max_hydro_vel);
 	add_fluid(1000.0);
-	set_equation_of_state(0,  7.0f, 20.f);
+	set_equation_of_state(0,  7.0f, c0);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams->dcoeff = 5.0f*g*H;
@@ -125,25 +170,32 @@ int DamBreak3D::fill_parts()
 
 	Cube fluid, fluid1;
 
-	experiment_box = Cube(Point(m_origin), lx, ly, lz);
+	experiment_box = Cube(Point(m_origin), m_size.x, m_size.y, m_size.z);
+
+	if (!m_usePlanes) {
+		experiment_box.SetPartMass(r0, m_physparams->rho0[0]);
+		if (m_simparams->boundarytype == DYN_BOUNDARY)
+			experiment_box.FillIn(boundary_parts, m_deltap, dyn_layers, false);
+		else
+			experiment_box.FillBorder(boundary_parts, r0, false);
+	}
 
 	obstacle = Cube(Point(m_origin + make_double3(0.9, 0.24, r0)),
 		0.12, 0.12, lz - r0);
 
-	fluid = Cube(Point(m_origin + r0), 0.4, ly - 2*r0, H - r0);
+	m_fluidOrigin = m_origin;
+	if (m_simparams->boundarytype == DYN_BOUNDARY) // shift by the extra offset of the experiment box
+		m_fluidOrigin += make_double3((dyn_layers-1)*m_deltap);
+	m_fluidOrigin += make_double3(r0); // one wd space from the boundary
+	fluid = Cube(Point(m_fluidOrigin), 0.4, ly - 2*r0, H - r0);
 
 	if (wet) {
-		fluid1 = Cube(Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)),
+		fluid1 = Cube(Point(m_fluidOrigin + make_double3(H + m_deltap, 0, 0)),
 			lx - H - m_deltap - 2*r0, 0.67 - 2*r0, 0.1);
 	}
 
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
-
-	if (!m_usePlanes) {
-		experiment_box.SetPartMass(r0, m_physparams->rho0[0]);
-		experiment_box.FillBorder(boundary_parts, r0, false);
-	}
 
 	obstacle.SetPartMass(r0, m_physparams->rho0[0]);
 	obstacle.FillBorder(obstacle_parts, r0, true);
@@ -193,7 +245,15 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 	if(boundary_parts.size()){
 		std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 		for (uint i = 0; i < boundary_parts.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+#if HYDROSTATIC_INIT
+			double water_column = m_fluidOrigin.z + H - boundary_parts[i](2);
+			if (water_column < 0)
+				water_column = 0;
+			float rho = density(water_column, 0);
+#else
+			float rho = m_physparams->rho0[0];
+#endif
+			vel[i] = make_float4(0, 0, 0, rho);
 			info[i]= make_particleinfo(PT_BOUNDARY, 0, i);
 			calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 		}
@@ -215,8 +275,16 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
-		info[i]= make_particleinfo(PT_BOUNDARY, 1, i);
+#if HYDROSTATIC_INIT
+		double water_column = m_fluidOrigin.z + H - obstacle_parts[i-j](2);
+		if (water_column < 0)
+			water_column = 0;
+		float rho = density(water_column, 0);
+#else
+		float rho = m_physparams->rho0[0];
+#endif
+		vel[i] = make_float4(0, 0, 0, rho);
+		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
@@ -224,7 +292,15 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+#if HYDROSTATIC_INIT
+		double water_column = m_fluidOrigin.z + H - parts[i-j](2);
+		if (water_column < 0)
+			water_column = 0;
+		float rho = density(water_column, 0);
+#else
+		float rho = m_physparams->rho0[0];
+#endif
+		vel[i] = make_float4(0, 0, 0, rho);
 		info[i]= make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}

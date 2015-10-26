@@ -760,9 +760,8 @@ void InputProblem::fillDeviceMap()
 
 namespace cuInputProblem
 {
-#include "cuda/cellgrid.cuh"
-// Core SPH functions
-#include "cuda/sph_core_utils.cuh"
+using namespace cubounds;
+using namespace cuforces;
 
 __device__
 void
@@ -983,45 +982,27 @@ InputProblem_imposeBoundaryConditionDevice(
 
 } // end of cuInputProblem namespace
 
-extern "C"
-{
-
-void
-InputProblem::setboundconstants(
-	const	PhysParams	*physparams,
-	float3	const&		worldOrigin,
-	uint3	const&		gridSize,
-	float3	const&		cellSize)
-{
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_cellSize, &cellSize, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_rho0, &physparams->rho0[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_bcoeff, &physparams->bcoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_gammacoeff, &physparams->gammacoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_sscoeff, &physparams->sscoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-
-}
-
-}
-
 void
 InputProblem::imposeBoundaryConditionHost(
-			float4*			newVel,
-			float4*			newEulerVel,
-			float*			newTke,
-			float*			newEpsilon,
-	const	particleinfo*	info,
-	const	float4*			oldPos,
-			uint			*IOwaterdepth,
-	const	float			t,
-	const	uint			numParticles,
-	const	uint			numOpenBoundaries,
-	const	uint			particleRangeEnd,
-	const	hashKey*		particleHash)
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
+					uint*			IOwaterdepth,
+			const	float			t,
+			const	uint			numParticles,
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd)
 {
-	uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
+	float4	*newVel = bufwrite->getData<BUFFER_VEL>();
+	float4	*newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
+	float	*newTke = bufwrite->getData<BUFFER_TKE>();
+	float	*newEpsilon = bufwrite->getData<BUFFER_EPSILON>();
+
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const float4 *oldPos = bufread->getData<BUFFER_POS>();
+	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
+
+	const uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
+	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	int dummy_shared = 0;
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
@@ -1045,5 +1026,5 @@ InputProblem::imposeBoundaryConditionHost(
 	}
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("imposeBoundaryCondition kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }

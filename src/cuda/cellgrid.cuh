@@ -41,19 +41,33 @@
 __constant__ float3 d_worldOrigin;			///< Origin of the simulation domain
 __constant__ float3 d_cellSize;				///< Size of cells used for the neighbor search
 __constant__ uint3 d_gridSize;				///< Size of the simulation domain expressed in terms of cell number
-__constant__ char3	d_cell_to_offset[27];	///< Neibdata cell number to offset
+__constant__ char3	d_cell_to_offset[27];	///< Map neibdata cell number to offset
 /** @} */
 
 /** \name Device functions
  *  @{ */
+
+/// Compute offset to neighbor cell
+/*! Return the relative position offset to the center of the neighbor cell
+ *
+ * \param[in] neib_cellnum : number of neighbor cell (0..26)
+ *
+ * \return displacement offset
+ */
+__device__ __forceinline__ float3
+cellOffset(char neib_cellnum)
+{
+	return d_cell_to_offset[neib_cellnum]*d_cellSize;
+}
+
 /// Compute hash value from grid position
 /*! Compute the hash value from grid position according to the chosen
  * 	linearization (starting from x, y or z direction). The link
  * 	between COORD1,2,3 and .x, .y and .z is defined in linearization.h
  *
- *	\param[in] gridPos : grid position
+ * \param[in] gridPos : grid position
  *
- *	\return hash value
+ * \return hash value
  */
 __device__ __forceinline__ uint
 calcGridHash(int3 const& gridPos)
@@ -65,13 +79,13 @@ calcGridHash(int3 const& gridPos)
 
 /// Compute grid position from cell hash value
 /*! Compute the grid position corresponding to the given cell hash. The position
- * 	should be in the range [0, d_gridSize.x - 1]x[0, d_gridSize.y - 1]x[0, d_gridSize.z - 1].
+ *  should be in the range [0, d_gridSize.x - 1]x[0, d_gridSize.y - 1]x[0, d_gridSize.z - 1].
  *
- *	\param[in] cellHash : cell hash value
+ * \param[in] cellHash : cell hash value
  *
- *	\return grid position
+ * \return grid position
  *
- *	/note no test is done by this function to ensure that hash value is valid.
+ * \note no test is done by this function to ensure that hash value is valid.
  */
 __device__ __forceinline__ int3
 calcGridPosFromCellHash(const uint cellHash)
@@ -89,15 +103,15 @@ calcGridPosFromCellHash(const uint cellHash)
 
 /// Compute grid position from particle hash value
 /*! Compute the grid position corresponding to the given particle hash. The position
- * 	should be in the range [0, d_gridSize.x - 1]x[0, d_gridSize.y - 1]x[0, d_gridSize.z - 1].
+ *  should be in the range [0, d_gridSize.x - 1]x[0, d_gridSize.y - 1]x[0, d_gridSize.z - 1].
  *
- *	\param[in] particleHash : particle hash value
+ * \param[in] particleHash : particle hash value
  *
- *	\return grid position
+ * \return grid position
  *
- *	\note
- *		- no test is done by this function to ensure that hash value is valid.
- *		- when hashKey is 32bit long, this is equivalent to calcGridPosFromCellHash()
+ * \note
+ * 	- no test is done by this function to ensure that hash value is valid.
+ * 	- when hashKey is 32bit long, this is equivalent to calcGridPosFromCellHash()
  */
 __device__ __forceinline__ int3
 calcGridPosFromParticleHash(const hashKey particleHash)
@@ -106,6 +120,24 @@ calcGridPosFromParticleHash(const hashKey particleHash)
 	const uint cellHash = cellHashFromParticleHash(particleHash);
 	return calcGridPosFromCellHash(cellHash);
 }
+
+/// Compute global distance vector between points
+/*! Compute the distance vector between two points in different cells
+ *
+ * \param[in] gridPos1 : grid cell of point 1
+ * \param[in] pos1 : in-cell position of point 1
+ * \param[in] gridPos2 : grid cell of point 2
+ * \param[in] pos2 : in-cell position of point 2
+ *
+ * \return vector distance
+ */
+__device__ __forceinline__ float3
+globalDistance(int3 const& gridPos1, float3 const& pos1,
+	int3 const& gridPos2, float3 const& pos2)
+{
+	return (gridPos1 - gridPos2)*d_cellSize + (pos1 - pos2);
+}
+
 /** @} */
 
 
@@ -124,13 +156,13 @@ calcGridPosFromParticleHash(const hashKey particleHash)
 
 /// Compute hash value from grid position
 /*! Compute the hash value corresponding to the given position. If the position
- * 	is not in the range [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1]
- * 	we have periodic boundary and the grid position is updated according to the
- * 	chosen periodicity.
+ *  is not in the range [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1]
+ *  we have periodic boundary and the grid position is updated according to the
+ *  chosen periodicity.
  *
- *	\param[in] gridPos : grid position
+ * \param[in] gridPos : grid position
  *
- *	\return hash value
+ * \return hash value
  *
  *	Note : no test is done by this function to ensure that grid position is within the
  *	range and no clamping is done
@@ -154,16 +186,16 @@ calcGridHashPeriodic(int3 gridPos)
  *  current particle position. This last operation is done only
  *  when the neighbor cell change and result is stored in pos_corr.
  *
- *	\param[in] pos : current particle's positions
- *	\param[out] pos_corr : pos - current neighbor cell offset
- *	\param[in] cellStart : cells first particle index
- *	\param[in] neibdata : neighbor data
- *	\param[in,out] neib_cellnum : current neighbor cell number (0...27)
- *	\param[in,out] neib_cell_base_index : index of first particle of the current cell
+ * \param[in] pos : current particle's positions
+ * \param[out] pos_corr : pos - current neighbor cell offset
+ * \param[in] cellStart : cells first particle index
+ * \param[in] neibdata : neighbor data
+ * \param[in,out] neib_cellnum : current neighbor cell number (0...27)
+ * \param[in,out] neib_cell_base_index : index of first particle of the current cell
  *
- * 	\return neighbor index
+ * \return neighbor index
  *
- * Note: neib_cell_num and neib_cell_base_index must be persistent along
+ * \note neib_cell_num and neib_cell_base_index must be persistent along
  * getNeibIndex calls.
  */
 __device__ __forceinline__ uint

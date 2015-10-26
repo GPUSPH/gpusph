@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 
 #include <vector>
 #include <stdexcept>
-#include "Point.h"
+#include "particledefine.h"
 #include "simflags.h"
 #include "deprecation.h"
 
@@ -56,6 +56,8 @@ typedef struct SimParams {
 	double			tend;					// simulation end time (0 means run forever)
 	float			dtadaptfactor;			// safety factor in the adaptive time step formula
 	uint			buildneibsfreq;			// frequency (in iterations) of neib list rebuilding
+
+	float			rhodiffcoeff;			//< coefficient for Colagrossi & Molteni 2009 CPC density diffusion
 
 	float			ferrari;				// coefficient for Ferrari correction
 	float			ferrariLengthScale;		// length scale for Ferrari correction
@@ -105,6 +107,8 @@ typedef struct SimParams {
 		tend(0),
 		dtadaptfactor(0.3f),
 		buildneibsfreq(10),
+
+		rhodiffcoeff(0.1),
 
 		ferrari(NAN),
 		ferrariLengthScale(NAN),
@@ -168,7 +172,7 @@ typedef struct SimParams {
 	/// return the number of layers of particles necessary
 	/// to cover the influence radius
 	inline int
-	get_influence_layers()
+	get_influence_layers() const
 	{ return (int)ceil(sfactor*kernelradius); }
 
 } SimParams;

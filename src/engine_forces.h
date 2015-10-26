@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -152,6 +152,10 @@ class AbstractBoundaryConditionsEngine
 {
 public:
 
+/// Update the ID offset for new particle generation
+virtual void
+updateNewIDsOffset(const uint &newIDsOffset) = 0;
+
 // Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 virtual void
 saSegmentBoundaryConditions(
@@ -206,7 +210,6 @@ saVertexBoundaryConditions(
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	uint&			newIDsOffset,
 	const	bool			initStep,
 	const	bool			resume,
 	const	uint			deviceId,

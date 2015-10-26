@@ -32,26 +32,14 @@ class LaPalisse: public Problem {
 		uint max_parts(uint);
 
 		void
-		setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize);
-
-		void
 		imposeBoundaryConditionHost(
-					float4*			newVel,
-					float4*			newEulerVel,
-					float*			newTke,
-					float*			newEpsilon,
-			const	particleinfo*	info,
-			const	float4*			oldPos,
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
 					uint*			IOwaterdepth,
 			const	float			t,
 			const	uint			numParticles,
 			const	uint			numOpenBoundaries,
-			const	uint			particleRangeEnd,
-			const	hashKey*		particleHash);
+			const	uint			particleRangeEnd);
 
 		void imposeForcedMovingObjects(
 					float3	&gravityCenters,

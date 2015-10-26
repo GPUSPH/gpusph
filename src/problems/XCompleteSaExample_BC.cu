@@ -13,7 +13,10 @@
 
 namespace cuXCompleteSaExample
 {
-#include "cuda/cellgrid.cuh"
+// TODO when this  _BC.cu is merged into the main file, the cellgrid.cuh
+// inclusion should be replaced with a `using namespace cubounds`
+#include "cellgrid.cuh"
+
 // Core SPH functions
 #include "cuda/sph_core_utils.cuh"
 
@@ -114,45 +117,27 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 
 } // end of cuXCompleteSaExample namespace
 
-extern "C"
-{
-
-void
-XCompleteSaExample::setboundconstants(
-	const	PhysParams	*physparams,
-	float3	const&		worldOrigin,
-	uint3	const&		gridSize,
-	float3	const&		cellSize)
-{
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_cellSize, &cellSize, sizeof(float3)));
-	// are the following used?
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_rho0, &physparams->rho0[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_bcoeff, &physparams->bcoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_gammacoeff, &physparams->gammacoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuXCompleteSaExample::d_sscoeff, &physparams->sscoeff[0], MAX_FLUID_TYPES*sizeof(float)));
-}
-
-} // extern "C"
-
 void
 XCompleteSaExample::imposeBoundaryConditionHost(
-			float4*			newVel,
-			float4*			newEulerVel,
-			float*			newTke,
-			float*			newEpsilon,
-	const	particleinfo*	info,
-	const	float4*			oldPos,
-			uint			*IOwaterdepth,
-	const	float			t,
-	const	uint			numParticles,
-	const	uint			numObjects,
-	const	uint			particleRangeEnd,
-	const	hashKey*		particleHash)
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
+					uint*			IOwaterdepth,
+			const	float			t,
+			const	uint			numParticles,
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd)
 {
-	uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
+	float4	*newVel = bufwrite->getData<BUFFER_VEL>();
+	float4	*newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
+	float	*newTke = bufwrite->getData<BUFFER_TKE>();
+	float	*newEpsilon = bufwrite->getData<BUFFER_EPSILON>();
+
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const float4 *oldPos = bufread->getData<BUFFER_POS>();
+	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
+
+	const uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
+	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	int dummy_shared = 0;
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
@@ -169,14 +154,14 @@ XCompleteSaExample::imposeBoundaryConditionHost(
 
 	// reset waterdepth calculation
 	if (IOwaterdepth) {
-		uint h_IOwaterdepth[numObjects];
-		for (uint i=0; i<numObjects; i++)
+		uint h_IOwaterdepth[numOpenBoundaries];
+		for (uint i=0; i<numOpenBoundaries; i++)
 			h_IOwaterdepth[i] = 0;
-		CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
+		CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyHostToDevice));
 	}
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("imposeBoundaryCondition kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 #endif

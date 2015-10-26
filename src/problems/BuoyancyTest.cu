@@ -67,7 +67,7 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 	m_ODEWorld = dWorldCreate();
 	m_ODESpace = dHashSpaceCreate(0);
 	m_ODEJointGroup = dJointGroupCreate(0);
-	dWorldSetGravity(m_ODEWorld, m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);	// Set gravity(x, y, z)
+	dWorldSetGravity(m_ODEWorld, m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);	// Set gravity (x, y, z)
 
 	//add_writer(VTKWRITER, 0.005);
 	add_writer(VTKWRITER, 0.1);
@@ -93,7 +93,6 @@ void BuoyancyTest::release_memory(void)
 
 int BuoyancyTest::fill_parts()
 {
-	double r0 = m_physparams->r0;
 	const double dp = m_deltap;
 	const int layers = 4;
 

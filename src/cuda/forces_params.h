@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -59,7 +59,6 @@
 struct common_forces_params
 {
 			float4	*forces;
-			float2	*contupd;
 			float4	*rbforces;
 			float4	*rbtorques;
 	const	float4	*posArray;
@@ -80,7 +79,6 @@ struct common_forces_params
 	// Constructor / initializer
 	common_forces_params(
 				float4	*_forces,
-				float2	*_contupd,
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_posArray,
@@ -94,7 +92,6 @@ struct common_forces_params
 		const	float	_influenceradius,
 		const	uint	_step) :
 		forces(_forces),
-		contupd(_contupd),
 		rbforces(_rbforces),
 		rbtorques(_rbtorques),
 		posArray(_posArray),
@@ -140,10 +137,19 @@ struct grenier_forces_params
 	{}
 };
 
+/// Used by formulations that have volume
+struct volume_forces_params
+{
+	const float4	*volArray;
+	volume_forces_params(const float4 *_volArray) : volArray(_volArray)
+	{}
+};
+
 /// Additional parameters passed only to kernels with SA_BOUNDARY
 struct sa_boundary_forces_params
 {
 			float4	*newGGam;
+			float2	*contupd;
 	const	float2	*vertPos0;
 	const	float2	*vertPos1;
 	const	float2	*vertPos2;
@@ -152,9 +158,12 @@ struct sa_boundary_forces_params
 	// Constructor / initializer
 	sa_boundary_forces_params(
 				float4	*_newGGam,
+				float2	*_contupd,
 		const	float2	* const _vertPos[],
 		const	float	_epsilon) :
-		newGGam(_newGGam), epsilon(_epsilon)
+		newGGam(_newGGam),
+		contupd(_contupd),
+		epsilon(_epsilon)
 	{
 		if (_vertPos) {
 			vertPos0 = _vertPos[0];
@@ -187,20 +196,28 @@ struct kepsvisc_forces_params
 };
 
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
+template<KernelType _kerneltype,
+	SPHFormulation _sph_formulation,
+	BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
 struct forces_params :
 	common_forces_params,
-	COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params),
-	COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params),
-	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params),
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
-	COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
-	COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)
+	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_forces_params),
+	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_forces_params),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+		_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
+	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
+	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params)
 {
+	static const KernelType kerneltype = _kerneltype;
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the forces kernel.
 	// It then delegates the appropriate subset of arguments to the appropriate
@@ -208,7 +225,6 @@ struct forces_params :
 	forces_params(
 		// common
 				float4	*_forces,
-				float2	*_contupd,
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_pos,
@@ -233,10 +249,12 @@ struct forces_params :
 				float4	*_xsph,
 
 		// SPH_GRENIER
+		const	float4	*_volArray,
 		const	float	*_sigmaArray,
 
 		// SA_BOUNDARY
 				float4	*_newGGam,
+				float2	*_contupd,
 		const	float2	* const _vertPos[],
 		const	float	_epsilon,
 
@@ -247,16 +265,18 @@ struct forces_params :
 				float3	*_keps_dkde,
 				float	*_turbvisc
 		) :
-		common_forces_params(_forces, _contupd, _rbforces, _rbtorques,
+		common_forces_params(_forces, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius, _step),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
 			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
+		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+			_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params)(_volArray),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
-			(_newGGam, _vertPos, _epsilon),
+			(_newGGam, _contupd, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}
