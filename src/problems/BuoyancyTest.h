@@ -23,8 +23,6 @@ class BuoyancyTest: public Problem {
 		Torus 		torus;
 		float		H;  // still water level
 		double		lx, ly, lz;		// dimension of experiment box
-		dGeomID		planes[5];
-		dJointID	joint;
 
 	public:
 		BuoyancyTest(GlobalData *);
@@ -32,7 +30,6 @@ class BuoyancyTest: public Problem {
 
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
-		void ODE_near_callback(void *, dGeomID, dGeomID);
 
 		void release_memory(void);
 };
