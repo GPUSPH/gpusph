@@ -308,9 +308,9 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.1f);
-		m_simparams->maxneibsnum = 240;
-		m_simparams->tend = 10.0;
-		m_simparams->ferrari= 1.0f;
+		simparams()->maxneibsnum = 240;
+		simparams()->tend = 10.0;
+		simparams()->ferrari= 1.0f;
 		//m_simparams->ferrariLengthScale = 0.2f;
 
 		size_t water = add_fluid(1000.0f);
@@ -321,7 +321,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 	// Solitary Wave with IO
