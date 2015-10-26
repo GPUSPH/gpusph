@@ -273,7 +273,6 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			viscosity<KEPSVISC>,
 			//viscosity<DYNAMICVISC>,
 			boundary<SA_BOUNDARY>,
-			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
 			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
