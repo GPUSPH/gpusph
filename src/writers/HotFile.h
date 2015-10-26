@@ -46,7 +46,7 @@ public:
 	double get_t() { return _header.t; }
 	void save();
 	void load();
-	uint readHeader(uint &part_count);
+	void readHeader(uint &part_count);
 private:
 	union {
 		ifstream		*in;
