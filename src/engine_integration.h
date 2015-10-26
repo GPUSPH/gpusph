@@ -40,6 +40,8 @@
 class AbstractIntegrationEngine
 {
 public:
+	virtual ~AbstractIntegrationEngine() {}
+
 	virtual void
 	setconstants(const PhysParams *physparams, float3 const& worldOrigin,
 		uint3 const& gridSize, float3 const& cellSize, idx_t const& allocatedParticles,

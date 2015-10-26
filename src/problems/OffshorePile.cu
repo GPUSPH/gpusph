@@ -73,10 +73,10 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	addPostProcess(SURFACE_DETECTION);
 
 	// SPH parameters
-	m_simparams->dt = 0.00013;
-	m_simparams->dtadaptfactor = 0.2;
-	m_simparams->buildneibsfreq = 10;
-	m_simparams->tend = 160; //seconds
+	simparams()->dt = 0.00013;
+	simparams()->dtadaptfactor = 0.2;
+	simparams()->buildneibsfreq = 10;
+	simparams()->tend = 160; //seconds
 
 	// Physical parameters
 	m_physparams->gravity = make_float3(0.0f, 0.0f, -9.81f);
@@ -89,14 +89,14 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	m_physparams->artvisccoeff =  0.3;
 	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	m_physparams->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 
 	//Wave piston definition:  location, start & stop times, stroke and frequency (2 \pi/period)
 	piston_height = 2*H;
 	piston_width = ly;
 	piston_tstart = 0.2;
-	piston_tend = m_simparams->tend;
+	piston_tend = simparams()->tend;
 	float stroke = 0.399; // EOL37: 0.145; // EOL95: 0.344; // EOL96: 0.404;
 	//float period = 2.4;
 	piston_amplitude = stroke/2.;
@@ -110,7 +110,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	cyl_rho = 607.99;
 
 	//WaveGage
-	const float slength = m_simparams->slength;
+	const float slength = simparams()->slength;
 	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, slength);
 	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, 0.5*slength);
 	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, 0.25*slength);
@@ -286,7 +286,7 @@ void OffshorePile::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams->numforcesbodies) {
+		if (k < simparams()->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();

@@ -895,6 +895,29 @@ p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\ri
 \nonumber
 \end{eqnarray}
 
+\subsubsection{Alternative continuity equation}
+The density can alternatively be computed by
+\begin{equation}
+[\rho]_a = \sumF V_b \rho_b w_{ab},
+\end{equation}
+which simplifies to
+\begin{equation}
+[\rho]_a = \sumF m_b w_{ab}.
+\label{e:sph:sumrho}
+\end{equation}
+To be consisten with the time-stepping and to preserve initial density
+values the following time dependent version is used
+\begin{equation}
+\rho_a^{n+1} = \rho_a^n - \left(\sumF m_b w_{ab}\right)^n + \left(\sumF
+m_b w_{ab}\right)^{n+1},
+\label{e:sph:sumrho-time}
+\end{equation}
+where the sums inside the brackets are with respect to the positions of
+the particles at the respective time step indicated by the superscript.
+It can be shown \todo{cite vila} that this is equivalent to the
+continuity equation based on the divergence. However, as the formulation
+depends only on the particle position it is numerically more stable.
+
 \section{Boundary conditions}
 
 Several different boundary conditions are available for the SPH method
@@ -978,26 +1001,536 @@ where the laminar shear stress was used in the boundary term \cite{ferrand_unifi
 with
 \begin{equation}
 \alpha_a = \sumF V_b w_{ab},
+\label{e:sa:alpha}
 \end{equation}
 for all vertex particles and boundary elements (for details see \cite{mayrhofer_investigation_2013}).
 
+The alternative continuity equation can also be extended in order to
+take boundaries into account via
+\begin{equation}
+\rho_a^{n+1} = \frac{1}{\gamma_a^{n+1}}\left[\gamma_a^n \rho_a^n - \left(\sumF m_b
+w_{ab}\right)^n + \left(\sumF\right]
+m_b w_{ab}\right)^{n+1}.
+\label{e:sa:sumrho-time}
+\end{equation}
+
 \todo{Add other boundary conditions}
+
+\section{Stabilizing methods}
+
+Due to the collocated nature of the SPH method it is unavoidable that
+spurious pressure modes are created. In order to prevent the numerical
+solution from becoming unstable several stabilizing methods can be
+employed.
+
+\subsection{Ferrari}
+
+The Ferrari correction is based on the work by \todo{cite ferrari}
+and modifies the continuity equation with an additional term given by
+\begin{equation}
+\tdv{\rho_a}{t} = -\rho_a \Div_a(\uvec{v}) + \eta_F \sumF V_b c_{a,b}\frac{\uvec{r}_{ab}}{r_{ab}}\rho_{ab}\cdot\nabla_a w_{ab},
+\label{e:ferrari:cont}
+\end{equation}
+where
+\begin{equation}
+c_{a,b} = \max(c_a,c_b),
+\label{e:ferrari:upw}
+\end{equation}
+and
+\begin{equation}
+c_a = c_0\sqrt{\left(\frac{\rho_a}{\rho_0}\right)^{\xi-1}}.
+\label{e:ferrari:ca}
+\end{equation}
+Note that in the case of the semi-analytical boundaries the formulation
+is the same and not boundary term needs to be added.
+
+In certain flows (\eg direct numerical simulation of turbulent flow
+\todo{cite my turb paper}) the induced diffusivity can be too high.
+A more appropriate damping can be introduced by using a damping
+coefficient $\eta_F$ different from one.
+\cite{mayrhofer_investigation_2013} have shown that it should be chosen
+according to
+\begin{equation}
+\eta_F = \frac{L}{10^3 \Delta r},
+\label{e:ferrari:eta}
+\end{equation}
+where $L$ is a typical length-scale of the flow. In GPUSPH $L$ can be
+set directly using the \cmd{ferrariLengthScale} variable.
+
+\subsection{Rhie and Chow}
+
+Similar to the Ferrari correction is the correction in the spirit of
+Rhie and Chow \todo{cite them}. Again an additional term is added to the
+continuity equation. However, the density at time $n+1$ is computed
+first, denoted by $\widetilde{\rho}^{n+1}$, by solving the continuity
+equation and then a correction is applied to obatin $\rho^{n+1}$. This
+correction is given by
+\begin{equation}
+\rho_a^{n+1} = \eta_{RC} \widetilde{\rho}^{n+1} \left[ \Lap_a\left(
+\frac{\Delta t}{\widetilde{\rho}}, \widetilde{\rho}
+\right) - \Lap_a (\Delta t, \uvec{g}\cdot\uvec{r})\right],
+\label{e:rc}
+\end{equation}
+where $\eta_{RC}$ governs the strength of this correction, but is
+usually equal to one.
+
+\todo{Add other diffusion stuff, artificial viscosity, sheppard etc.}
 
 \section{Turbulence modelling}
 
 \subsection{The $k-\epsilon$ model}
 
+The $k-\epsilon$ model is a Reynolds-Averaged Navier Stokes (RANS) model that
+uses two additional differential equations to close the equations
+\cite{pope_turbulent_2001}. The RANS equations modify the momentum
+equations as follows:
+\begin{equation}
+\tdv{\uvec{v}}{t} = - \frac{1}{\rho}\nabla p + \nabla \cdot ( (\nu +
+\nu_T) \nabla \otimes \uvec{v}) + \uvec{g},
+\label{e:turb:ns}
+\end{equation}
+where $\nu_T$ is the turbulent viscosity. This in turn is given by
+\begin{equation}
+\nu_T = C_\mu \frac{k^2}{\epsilon},
+\label{e:turb:nut}
+\end{equation}
+where $k$ is the turbulent kinetic energy and $\epsilon$ the turbulent
+dissipation. The constants, such as $C_\mu$ are summarized in Table
+\ref{tab:turb:consts}. Both $k$ and $\epsilon$ are given by two
+differential equations:
+\begin{equation}
+\tdv{k}{t} = P - \epsilon + \nabla \cdot \left[  \left(\nu +
+\frac{\nu_T}{\sigma_k}\right) \nabla k\right],
+\label{e:turb:k}
+\end{equation}
+and
+\begin{equation}
+\tdv{\epsilon}{t} =\frac{\epsilon}{k}\left[ C_{\epsilon_1} P -
+C_{\epsilon_2} \epsilon \right]+ \nabla \cdot \left[  \left(\nu +
+\frac{\nu_T}{\sigma_\epsilon}\right) \nabla k\right],
+\label{e:turb:eps}
+\end{equation}
+where $P$ is the production, given by
+\begin{equation}
+P = \min(\sqrt{C_\mu} k S, \nu_T S^2),
+\label{e:turb:strain}
+\end{equation}
+with $S$ is the scalar mean rate-of-strain $S = \sqrt{2 \uvec{\uvec{S}}
+: \uvec{\uvec{S}}}$.
+\begin{table}
+\centering
+\begin{tabular}{| c | c | c | c | c | c |}
+\hline
+$C_\mu$ & $\sigma_k$ & $\sigma_\epsilon$ & $C_{\epsilon_1}$ &
+$C_{\epsilon_2}$ & $\kappa$
+\\
+\hline
+0.09 & 1.0 & 1.3 & 1.44 & 1.92 & 0.41
+\\
+\hline
+\end{tabular}
+\caption{Constants of the $k-\epsilon$ model}
+\label{tab:turb:consts}
+\end{table}
+Finally, the boundary conditions for $k$ and $\epsilon$ at solid walls
+need to be prescribed. For $k$ a von Neumann boundary condition is
+imposed
+\begin{equation}
+\pdv{k}{n} = 0.
+\label{e:turb:k-bound}
+\end{equation}
+$\epsilon$ close to the wall can be approximated via the theoretical
+relation
+\begin{equation}
+\epsilon = \frac{u_k^3}{\kappa z},
+\label{e:turb:eps-nearwall}
+\end{equation}
+where $u_k = C_\mu^{1/4} \sqrt{k}$ and $z$ is the normal distance to the
+wall. Clearly, this formula is singular at the wall and $\epsilon$
+varies strongly when close to the wall. The flow is rather sensitive to
+this value and thus proper boundary conditions are essential. In the
+following section about the implementation of the $k-\epsilon$ model
+with the semi-analytical boundary model this can be taken into account.
+
 \subsubsection{Semi-analytical boundaries}
+The discretization presented in the present section is based on the work
+by \cite{leroy_unified_2014} and for the exact derivation the interested
+reader is referred to this paper.
+
+To discretize the equations for $k$ and $\epsilon$ the production term
+requires the computations of the strain rate, which can be achieved by
+using the gradient operator. However, not the one of Eq.
+\eqref{e:sa:grad} is used, but instead the zero-order accurate version
+given by
+\begin{equation}
+\Grad^-_a(\uvec{v}) = - \frac{1}{\gamma_a}\sumP V_b \uvec{v}_{ab} \otimes \nabla_a w_{ab}
+ +\frac{1}{\gamma_a}\sumS \uvec{v}_{ab} \otimes \nabla \gamma_{as},
+\label{e:turb:grad-}
+\end{equation}
+One important change compared to the laminar simulation is that the
+vertex particles now also carry a velocity which is evolved according to
+the viscous term, \ie
+\begin{equation}
+\tdv{\uvec{v}_v}{t} = \Lap(\nu + \nu_T, \uvec{v})
+\label{e:turb:vert-vel}
+\end{equation}
+The normal component of this velocity is set to zero to avoid particles
+penetrating the wall. The laplacian of the viscous term presented in Eq.
+\eqref{e:sa:lap} assumes a laminar flow profile and thus needs to be
+modified for turbulent flows in order to properly take the log law into
+account. This is achieved by setting the Laplacian to
+\begin{equation}
+\Lap_a(\nu, \uvec{v}) = \frac{1}{\gamma_a}\sumP m_b \left(\frac{\nu_a}{\rho_b} + \frac{\nu_b}{\rho_a}\right) \frac{\uvec{v}_{ab}}{\|\uvec{r}_{ab}\|^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab}
+ - \frac{2}{\gamma_a} \sumS u_{*,as}^2 \uvec{t}_{as} \|\nabla \gamma_{as}\|,
+\label{e:turb:lap}
+\end{equation}
+where $u_{*,as}$ is the friction velocity at the wall seen by particle
+$a$ computed iteratively from the implicit equation
+\begin{equation}
+\frac{\uvec{v}_{as}\cdot\uvec{t}_{as}}{u_{*,as}} =
+\frac{1}{\kappa}\ln\left( \frac{\delta r_{as} u_{*,as}}{\nu} \right) +
+5.2,
+\label{e:turb:fric-vel}
+\end{equation}
+where
+\begin{equation}
+\uvec{t}_{as} = \frac{\uvec{v}_{as} -
+(\uvec{v}_{as}\cdot\uvec{n}_s)\uvec{n}_s}{\|\uvec{v}_{as} -
+(\uvec{v}_{as}\cdot\uvec{n}_s)\uvec{n}_s\|}.
+\label{e:turb:tas}
+\end{equation}
+The other term in the governing equations for $k$ and $\epsilon$ is the
+Laplacian which are discretized as follows:
+\begin{equation}
+\Lap_a(\nu + \frac{\nu_T}{\sigma_k}, k) = \frac{1}{\gamma_a}\sumP V_b
+\left( 2\nu + \frac{\nu_{T,a} + \nu_{T,b}}{\sigma_k} \right)
+\frac{k_{ab}}{r_{ab}^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab},
+\label{e:turb:k-lap-sa}
+\end{equation}
+and
+\begin{equation}
+\Lap_a(\nu + \frac{\nu_T}{\sigma_\epsilon}, \epsilon) = \frac{1}{\gamma_a}\sumP V_b
+\left( 2\nu + \frac{\nu_{T,a} + \nu_{T,b}}{\sigma_\epsilon} \right)
+\frac{\epsilon_{ab}}{r_{ab}^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab} +
+\frac{4 C_\mu}{\sigma_\epsilon \gamma_a}\sumS\frac{k_a^2}{\delta
+r_{as}}\|\nabla \gamma_{as}\|.
+\label{e:turb:eps-lap-sa}
+\end{equation}
+The compatible values on the boundary are given by
+\begin{equation}
+k_v = \frac{1}{\alpha_v}\sumF V_b k_b w_{vb},
+\label{e:turb:k-bound-sa}
+\end{equation}
+and
+\begin{equation}
+\epsilon_v = \frac{1}{\alpha_v}\sumF V_b \left( \epsilon_b +
+\frac{4 C_\mu^{3/4} k_b^{3/2}}{\kappa \delta r_{bv}} \right) w_{vb},
+\label{e:turb:eps-bound-sa}
+\end{equation}
+where $\alpha_v$ is given according to Eq. \eqref{e:sa:alpha}.
 
 \todo{Add SPS}
 
 \section{Open boundaries}
+GPUSPH currently implements two different types of open boundaries. One
+of them is for the dynamic boundary conditions and uses a buffer zone
+approach. The other can only be used in conjunction with the
+semi-analytical boundary conditions and uses flat open boundaries, which
+allows for in- and outflow to be at the same wall (\eg waves).
 
-\subsection{Semi-analytical boundaries}
+\subsection{Semi-analytical open boundaries}
+
+The open boundaries are based around the idea of vertex particles with
+varying mass. The mass of these vertex particles can change due to three
+different reasons:
+\begin{itemize}
+\item Flux through the boundary
+\item Fluid particle crossing boundary
+\item Creation of new fluid particle
+\end{itemize}
+An open boundary has either a prescribed velocity or a prescribed
+pressure and in the following these two options will be denoted with
+velocity and pressure boundary, respectively. The quantity that is not
+prescribed needs to be computed using Riemann invariants which is
+detailed in the following.
+
+\subsubsection{Riemann invariants for velocity boundaries}
+\label{h:open:vel}
+The imposed normal velocity at the open boundary is denoted with
+$u_{ext}$. The normal velocity inside the flow is extrapolated to the wall
+by
+\begin{equation}
+u_{int,a} = \frac{1}{\alpha_a}\sumF V_b \uvec{v}_b \cdot \uvec{n}_a
+w_{ab}.
+\label{e:open:uint}
+\end{equation}
+Similary, the pressure is extrapolated according to
+\begin{equation}
+p_{int,a} = \frac{1}{\alpha_a}\sumF V_b p_b w_{ab}.
+\label{e:open:pint}
+\end{equation}
+$\rho_{int}$ can easily be computed using the inverse Equation of State
+($EOS^{-1}$). The aim of this section will be to compute $p_{ext,a}$
+from the extrapolated and imposed quantities.
+
+The main idea is that there is an internal and an external state with
+the interface at the open boundary. Due to the discontinuity of the
+internal and external fields and the assumption of a 1-D problem the
+Riemann problem is recovered and a solution is known that can be divided
+into three different states.
+
+Let
+\begin{equation}
+\psi(\rho) = \frac{2 c_0}{\xi - 1}\left( \frac{\rho}{\rho_0}
+\right)^{\frac{\xi-1}{2}}\mbox{ if } \xi > 1 \quad \mbox{ or } \quad
+\psi(\rho) = c_0 \ln\left( \frac{\rho}{\rho_0} \right) \mbox{ if } \xi =
+1.
+\label{e:open:psi}
+\end{equation}
+and $\psi^{-1}$ the respective inverse function. The three states yield
+the following densities
+\begin{itemize}
+  \item Expansion wave:
+  \begin{equation}
+  \rho_{ext,e} = \psi^{-1}(\psi(\rho_{int}) +
+  u_{ext} - u_{int})
+  \label{e:open:vexp}
+  \end{equation}
+  \item Shock wave:
+  \begin{equation}
+  \rho_{ext,s} = EOS^{-1}(p_{int} + \rho_{int}
+  u_{int} (u_{int} - u_{ext}))
+  \label{e:open:vshock}
+  \end{equation}
+  \item Contact discontinuity
+  \begin{equation}
+  \rho_{ext,c} = \rho_{int}
+  \label{e:open:vcontact}
+  \end{equation}
+\end{itemize}
+To decide which state needs to be considered the speed of sound as
+function of density needs to be defined as
+\begin{equation}
+c(\rho) = c_0 \left( \frac{\rho}{\rho_0} \right)^{\frac{\xi - 1}{2}}
+\label{e:open:speedofsound}
+\end{equation}
+to be able to compute the celerities $\lambda$. They are given as
+\begin{eqnarray}
+\lambda &=& u_{int} + c(\rho_{int}),
+\label{e:open:lambda}
+\\
+\lambda_e &=& u_{ext} + c(\rho_{ext,e}),
+\label{e:open:vlambda_e}
+\\
+\lambda_s &=& u_{ext} + c(\rho_{ext,s}),
+\label{e:open:vlambda_s}
+\end{eqnarray}
+Based on these celerities the states occur according to
+\begin{itemize}
+  \item $\lambda_e \le \lambda \Rightarrow$ expansion wave
+  \item $\lambda_s > \lambda \Rightarrow$ shock wave
+  \item $\lambda_e > \lambda \ge \lambda_s \Rightarrow$ contact
+  discontinuity
+\end{itemize}
+Depending on the computed state the pressure $p_{ext}$ is set according
+to the corresponding density in Eqs. \eqref{e:open:vexp},
+\eqref{e:open:vshock} or \eqref{e:open:vcontact}.
+
+\subsubsection{Riemann invariants for pressure boundaries}
+\label{h:open:pres}
+Compared to the velocity boundary, this time $u_{ext}$ needs to be
+computed and $p_{ext}$ is imposed. Similar to the previous section three
+different fluxes, $u_{ext}$, can be computed according to the different
+states
+\begin{itemize}
+\item Expansion wave:
+\begin{equation}
+u_{ext,e} = u_{int} + \psi(\rho_{ext}) - \psi(\rho_{int})
+\label{e:open:pexp}
+\end{equation}
+\item Shock wave:
+\begin{equation}
+u_{ext,s} = u_{int} + \frac{p_{int} - p_{ext}}{\rho_{int}\max(u_{int},
+10^{-5}c_0)}
+\label{e:open:pshock}
+\end{equation}
+\item Contact discontinuity:
+\begin{equation}
+u_{ext,c} = u_{int}
+\label{e:open:pcontact}
+\end{equation}
+\end{itemize}
+The celerities $\lambda_{\{e,s\}} = u_{ext,\{e,s\}} + c(\rho_{ext})$ can
+then be used equivalently as above to determine the appropriate state
+and thus to set $u_{ext}$.
+
+\subsubsection{Mass update}
+Assuming that both velocity $u_{ext}$ and pressure $p_{ext}$ are known
+at both segments and vertices of an open boundary the mass update of a
+vertex particle can be performed. Each segment has three vertices
+associated with it and similarly, each vertex has a defined set of
+segments that it is associated with it. The latter set will be denoted
+with $\mathcal{S}_v$ for a specific vertex $v$. The principal mass
+change comes from the flux through segments and reads
+\begin{equation}
+\widetilde{m}_v = m^n_v + \dot{m}_v,
+\label{e:open:mtilde}
+\end{equation}
+where
+\begin{equation}
+\dot{m}_v = \Delta t \underset{s \in \mathcal{S}_v}{\sum}
+\rho_{ext,s} u_{ext,s} A_s \beta_v(\uvec{r}_s),
+\label{e:open:mdot}
+\end{equation}
+where $A_s$ represents the area of the segment $s$ and
+$\beta_v(\uvec{r}_s)$ is the mass repartition factor that will be
+described below.
+
+Next some mass clippings occur in the sequence listed below
+\begin{itemize}
+\item If no fluid particle is in the support of $v$ and $\dot{m}_v < 0$
+then $\widetilde{m}_v = 0$.
+\item Ensure that $|\widetilde{m}_v| < 2 m_{ref}$, where $m_{ref} =
+\rho_0 \Delta r^3$ is the reference mass.
+\item If $\dot{m}_v < 0$ ensure that $|\widetilde{m}_v| < m^0_v$,
+where $m^0_v$ is the initial mass of the vertex $v$.
+\end{itemize}
+After these clippings have been made, a new fluid particle is created if
+$\widetilde{m}_v > \frac{1}{2}m_{ref}$. This new fluid particle has
+exactly the same properties as the vertex particle and a mass equal to
+the reference mass. Note that this can only happen in the corrector step
+of the time-stepping scheme. Further conditions are that $u_{ext,v}$ and
+$p_{ext,v}$ are both greater than zero. If a fluid particle is created
+than $\widetilde{m}_v$ has $m_{ref}$ subtracted.
+
+If a fluid particle $a$ has crossed a segment $s \in \mathcal{S}_v$ then
+the mass of the fluid particle is redistributed to the vertex particles
+associated to that segment. If $v$ is one such segment then
+\begin{equation}
+\widetilde{m}_v = \widetilde{m}_v + \beta_v(\uvec{r}_a) m_{ref}.
+\label{e:open:splitfluid}
+\end{equation}
+Finally the new mass of the vertex particle $m^{n+1}_v =
+\widetilde{m}_v$.
+
+\subsubsection{The corners}
+Vertex particles that are part of the open boundary but have associated
+segments that are not part of a boundary are labeled as corner vertices.
+These vertices have several special properties that are detailed below.
+
+First, they do not change their mass and due to that also never create
+new fluid particles. If a corner vertex is part of a velocity boundary,
+then both its velocity and pressure is set to that of the solid wall.
+If instead the corner vertex is part of a pressure boundary, then the
+velocity is set to that of the solid wall and the imposed pressure of
+the open boundary is used.
+
+\subsubsection{Modified continuity equation}
+The open boundaries are restricted to use with the alternative
+continuity equation given by Eq. \eqref{e:sa:sumrho-time}. In the
+following $\mathcal{S}^o$ and $\mathcal{V}^o$ denote the segments and
+vertices respectively that are associated with open boundaries.
+\begin{eqnarray}
+\rho_a^{n+1} &=& \frac{1}{\gamma_a^{n+1}}\left\{ \gamma_a^n \rho_a^n +
+\sumP m_b^n (w_{ab}^{n+1} - w_{ab}^n) + \right.
+\label{e:open:sumrho-time}
+\\
+&&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
+w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t) \right) \right]\right.
+\nonumber
+\\
+&&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
+\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t)\right) +
+\nabla\gamma_{as}(\uvec{r}_{as}^n)
+\right]\cdot\uvec{\delta r}_s^o(\Delta t)\right\},
+\nonumber
+\end{eqnarray}
+where
+\begin{equation}
+\uvec{\delta r}_a^o(\Delta t) = \Delta t (\uvec{u}_a^n + \uvec{v}_a^n),
+\label{e:open:deltar}
+\end{equation}
+where $\uvec{u}$ and $\uvec{v}$ are the Eulerian and Lagrangian
+velocity, respectively.
+
+\subsubsection{Time integration}
+The full time-stepping scheme including for open boundaries reads
+\begin{eqnarray}
+\uvec{v}_a^{n+1/2} &=& \uvec{v}_a^n + \frac{\Delta t}{2} \left(
+-\frac{1}{\rho^n_a}\Grad_a(p^n) + \Lap_a(\nu^n,\uvec{v}^n) + \uvec{g}
+\right),
+\label{e:open:pred-corr-ns}
+\\
+\uvec{r}_a^{n+1/2} &=& \uvec{r}_a^{n} + \frac{\Delta t}{2}
+\uvec{v}_a^{n},
+\nonumber
+\\
+\gamma_a^{n+1/2} &=& \gamma_a^{n} + \frac{1}{2}
+(\uvec{r}_a^{n+1/2} - \uvec{r}_a^{n}) \cdot (\nabla \gamma_a^n + \nabla \gamma_a^{n+1/2}),
+\nonumber
+\\
+\rho_a^{n+1/2} &=& \frac{1}{\gamma_a^{n+1/2}}\left\{ \gamma_a^n \rho_a^n +
+\sumP m_b^n (w_{ab}^{n+1/2} - w_{ab}^n) + \right.
+\nonumber
+\\
+&&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
+w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t/2) \right) \right]\right.
+\nonumber
+\\
+&&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
+\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t/2)\right) +
+\nabla\gamma_{as}(\uvec{r}_{as}^n)
+\right]\cdot\uvec{\delta r}_s^o(\Delta t/2)\right\},
+\nonumber
+\\
+p_a^{n+1/2} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1/2}}{\rho_0}\right)^\xi
+-1 \right],
+\nonumber
+\\
+&&\mbox{Boundary conditions \& mass update}
+\nonumber
+\\
+\uvec{v}_a^{n+1} &=& \uvec{v}_a^n + \Delta t \left(
+-\frac{1}{\rho^{n+1/2}_a}\Grad_a(p^{n+1/2}) +
+\Lap_a(\nu^{n+1/2},\uvec{v}^{n+1/2}) + \uvec{g}
+\right),
+\nonumber
+\\
+\uvec{r}_a^{n+1} &=& \uvec{r}_a^{n} + \Delta t\,
+\uvec{v}_a^{n+1/2},
+\nonumber
+\\
+\gamma_a^{n+1} &=& \gamma_a^{n} +\frac{1}{2}
+(\uvec{r}^{n+1} - \uvec{r}_a^{n}) \cdot (\nabla \gamma_a^n + \nabla \gamma_a^{n+1}),
+\nonumber
+\\
+\rho_a^{n+1} &=& \frac{1}{\gamma_a^{n+1}}\left\{ \gamma_a^n \rho_a^n +
+\sumP m_b^n (w_{ab}^{n+1} - w_{ab}^n) + \right.
+\nonumber
+\\
+&&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
+w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t) \right) \right]\right.
+\nonumber
+\\
+&&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
+\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t)\right) +
+\nabla\gamma_{as}(\uvec{r}_{as}^n)
+\right]\cdot\uvec{\delta r}_s^o(\Delta t)\right\},
+\nonumber
+\\
+p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\right)^\xi
+-1 \right].
+\nonumber
+\\
+&&\mbox{Boundary conditions \& mass update}
+\nonumber
+\\
+&&\mbox{Create and delete particles if required}
+\nonumber
+\end{eqnarray}
+
 
 \todo{Add dynamic buffer zone boundaries}
-
-
 
 \chapter{GPUSPH}
 

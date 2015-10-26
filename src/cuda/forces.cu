@@ -387,6 +387,9 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ferrari, &simparams->ferrari, sizeof(float)));
 
+	const float rhodiffcoeff = simparams->rhodiffcoeff*2*simparams->slength;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rhodiffcoeff, &rhodiffcoeff, sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
 }
 
@@ -663,6 +666,7 @@ basicstep(
 			deltap, slength, influenceradius, step,
 			cfl, cfl_Ds, cflTVisc, cflOffset,
 			xsph,
+			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, contupd, vertPos, epsilon,
 			IOwaterdepth,
@@ -1485,6 +1489,7 @@ saVertexBoundaryConditions(
 			float2*			contupd,
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
+	const	float2			* const vertPos[],
 	const	uint*			vertIDToIndex,
 			particleinfo*	info,
 			hashKey*		particleHash,
@@ -1499,6 +1504,7 @@ saVertexBoundaryConditions(
 	const	float			slength,
 	const	float			influenceradius,
 	const	bool			initStep,
+	const	bool			resume,
 	const	uint			deviceId,
 	const	uint			numDevices)
 {
@@ -1516,8 +1522,8 @@ saVertexBoundaryConditions(
 
 	// execute the kernel
 	cuforces::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, contupd, vertices, vertIDToIndex, info, particleHash, cellStart, neibsList,
-		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, deviceId, numDevices);
+		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, contupd, vertices, vertPos[0], vertPos[1], vertPos[2], vertIDToIndex, info, particleHash, cellStart, neibsList,
+		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

@@ -208,6 +208,17 @@ struct eulerVel_particle_data
 	{}
 };
 
+struct volume_particle_data
+{
+	const	float	volume;
+
+	__device__ __forceinline__
+	volume_particle_data(const uint index,
+		volume_forces_params const& params) :
+		volume(params.volArray[index].w)
+	{}
+};
+
 // data used for SPH_GRENIER
 struct grenier_particle_data
 {
@@ -368,15 +379,16 @@ struct forces_particle_data :
 	// PT_VERTEX only use them for KEPSVISC, and
 	// PT_OBJECT don't use them
 	vel_particle_data,
-	// eulerian velocity only used in case of keps or with open boundaries
+	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+		(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
+	// eulerian velocity only used in case of keps or with open boundaries
 	COND_STRUCT(_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
-	conditional<_boundarytype == SA_BOUNDARY,
-		sa_boundary_particle_data<_visctype, _simflags>,
-		empty< sa_boundary_particle_data<_visctype, _simflags> > >::type,
+	COND_STRUCT(_boundarytype == SA_BOUNDARY,
+		sa_boundary_particle_data<_visctype, _simflags>),
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
 	COND_STRUCT(_visctype == KEPSVISC,
 		keps_particle_data),
@@ -409,13 +421,14 @@ struct forces_particle_data :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
 		vel_particle_data(_index, _info),
+		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+			(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
+			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
 			eulerVel_particle_data)(_index),
-		conditional<boundarytype == SA_BOUNDARY,
-			sa_boundary_particle_data<visctype, simflags>,
-			empty< sa_boundary_particle_data<visctype, simflags>
-		> >::type(_index, _info, params),
+		COND_STRUCT(boundarytype == SA_BOUNDARY,
+			sa_boundary_particle_data<visctype, simflags>)(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
 			keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC,
@@ -455,6 +468,8 @@ struct sa_boundary_particle_output
 	float alpha;
 	// avg gam
 	float gamavg;
+	// max value of \nabla \gamma_{as} \cdot {v_{as}, v_a - u_s, u_s + v_s} for cfl condition
+	float gammaCfl;
 
 	__device__ __forceinline__
 	sa_boundary_particle_output() :
@@ -462,7 +477,8 @@ struct sa_boundary_particle_output
 		contupd(make_float2(0.0f)),
 		minlRas(1e10f),
 		alpha(0.0f),
-		gamavg(0.0f)
+		gamavg(0.0f),
+		gammaCfl(0.0f)
 	{}
 };
 
@@ -625,19 +641,14 @@ template<KernelType kerneltype,
 	flag_t simflags>
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
+	COND_STRUCT(sph_formulation == SPH_GRENIER &&
+		(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
 	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
-// can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
-	conditional<boundarytype == SA_BOUNDARY,
-		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-		empty<
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-		> >::type,
+	COND_STRUCT(boundarytype == SA_BOUNDARY,
+		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>),
 	// relative eulerian velocity
-	conditional<visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
-		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-		empty<
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-		> >::type,
+	COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>),
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	// precalculated pressure
@@ -650,18 +661,12 @@ struct forces_neib_data :
 	// shortcut typedefs
 	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> _common_neib_data;
 	typedef
-		typename conditional<boundarytype == SA_BOUNDARY,
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-			empty<
-				sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-			> >::type
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY,
+			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>)
 		_sa_boundary_neib_data;
 	typedef
-		typename conditional<visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-			empty<
-				eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-			> >::type
+		typename COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>)
 		_eulerVel_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
@@ -673,6 +678,9 @@ struct forces_neib_data :
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
+		COND_STRUCT(sph_formulation == SPH_GRENIER &&
+			(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
+			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
@@ -763,11 +771,23 @@ struct skip_neiblist<SA_BOUNDARY>
 	__device__ __forceinline__
 	bool check(FP const& params, P const& pdata)
 	{
-		// vertex particles will skip neighbors unless they need to compute gamma,
-		// when using KEPSVISC, or when outflow boundaries are present
-		return !((FP::simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(pdata.info)
-			&& !VEL_IO(pdata.info)) && FP::visctype != KEPSVISC
-			&& VERTEX(pdata.info) && !pdata.computeGamma;
+		// vertex particles need to loop over neighbors when certain conditions are met
+		if (VERTEX(pdata.info)) {
+			// if the vertex needs to compute gamma, then we can't skip
+			if (pdata.computeGamma)
+				return false;
+			// in case of k-epsilon we need to compute the viscous force acting on the vertex
+			else if (FP::visctype == KEPSVISC)
+				return false;
+			// in case of IO and pressure outlet we need to compute the water level
+			else if (FP::simflags & ENABLE_INLET_OUTLET && IO_BOUNDARY(pdata.info) && PRES_IO(pdata.info))
+				return false;
+			// if none of the above matches, then we can skip the neighbour loop
+			else
+				return true;
+		} else {
+			return false;
+		}
 	}
 
 	template<typename P, typename OP>
@@ -838,7 +858,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	}
 }
 
-// A functor that helps to compute the influence of eulerian velocities onto the governing equations
+/// A functor that helps to compute the influence of eulerian velocities onto the governing equations
 template<bool inoutBoundaries>
 struct compute_euler_contributions {
 	// boundary term
@@ -877,6 +897,28 @@ compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata
 	nout.DrDt += ndata.relPos.w*dot3(ndata.relEulerVel, ndata.relPos)*ndata.f;
 }
 
+/// A functor that computes the ratio of the volumes of two particles
+/// either as rho_N/rho_P (if the volume is not available) or as vol_P/vol_N
+/// (if the volume is available, e.g. with SPH_GRENIER)
+template<bool has_volume>
+struct volume_ratio {
+	template<typename P, typename N>
+	__device__ __forceinline__
+	static float
+	with(P const& pdata, N const& ndata) {
+		return ndata.relVel.w/pdata.vel.w;
+	}
+};
+
+/* With Grenier we  use the volume directly */
+template<>
+template<typename P, typename N>
+__device__ __forceinline__
+float
+volume_ratio<true>::with(P const& pdata, N const& ndata) {
+	return pdata.volume/ndata.volume;
+}
+
 /// A functor that computes the time derivative of rho
 template<BoundaryType boundarytype>
 struct compute_density_derivative {
@@ -908,6 +950,42 @@ struct compute_density_derivative {
 			make_float3(0.0f);
 		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
 		ferrari_updates(nout) += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+	}
+
+	// density diffusion term following Molteni & Colagrossi 2009
+	template<typename FP, typename P_t, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	density_diffusion(FP const& params, P_t const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		const int fType = fluid_num(pdata.info);
+		/* only applies to same-fluid particles */
+		if (fType != fluid_num(ndata.info))
+			return;
+
+		// only apply diffusion for large density ratios, specifically
+		// when ∆P < ρgh
+		if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
+			fabs(dot3(d_gravity, ndata.relPos)*pdata.vel.w))
+			return;
+
+		// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
+		// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
+		// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
+		// 2(vol_i/vol_j - 1) F_ij
+		// For us rhodiffcoeff = \xi*h*2
+		// Additionally, when the density evolution formulation is NOT based on
+		// volumes, we need to multiply by the neighbor mass
+
+		const bool has_volume = (FP::sph_formulation == SPH_GRENIER &&
+			FP::simflags & ENABLE_DENSITY_DIFFUSION);
+		const float diff_term = d_rhodiffcoeff*d_sscoeff[fType]*
+			(volume_ratio<has_volume>::with(pdata, ndata) - 1)*
+			ndata.f*(has_volume ? -1 : ndata.relPos.w);
+
+		// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
+
+		nout.DrDt -= diff_term;
 	}
 
 	// auxiliary function
@@ -949,6 +1027,9 @@ struct compute_density_derivative {
 			if (FP::simflags & ENABLE_FERRARI && FLUID(ndata.info))
 				ferrari_correction(params, pdata, ndata, pout, nout);
 		}
+		// Density diffusion term according to Colagrossi & Molteni 2009, CPC
+		if (FP::simflags & ENABLE_DENSITY_DIFFUSION && FLUID(ndata.info))
+			density_diffusion(params, pdata, ndata, pout, nout);
 		/* The second formulation takes into consideration the density ratio */
 		if (FP::sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
@@ -990,7 +1071,16 @@ struct compute_relEulerVel_continuity_contribution {
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
+	{
+		// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
+		pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
+			// n . (v_a - v_s)
+			fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+			// n . (v_a - u_s)
+			fabs(dot3(ndata.belem, pdata.vel)),
+			// n . (v_s + u_s)
+			fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel)) )));
+	}
 };
 
 template<>
@@ -999,6 +1089,14 @@ __device__ __forceinline__ void
 compute_relEulerVel_continuity_contribution<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	nout.DgamDt = -nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
+	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
+	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
+		// n . (v_a - v_s)
+		fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+		// n . (v_a - u_s)
+		fabs(dot3(ndata.belem, pdata.vel+ndata.relEulerVel)),
+		// n . (v_s + u_s)
+		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) )));
 }
 
 
@@ -1026,6 +1124,7 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, PD const& pdata,
 		}
 		else if (ndata.ntype == PT_BOUNDARY && IO_BOUNDARY(ndata.info)) {
 			// compute sum_{S^{io}} gradGamma_{as} \cdot u_s^{n}
+			// plus gamma CFL condition
 			compute_relEulerVel_continuity_contribution<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
 			// compute sum_{S^{io}} gradGamma_{as} \cdot (-v_s^{n})
 			nout.DgamDt += nout.ggamAS*dot3(ndata.belem, ndata.relVel-pdata.vel);
@@ -1043,6 +1142,8 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, PD const& pdata,
 		if (ndata.ntype == PT_BOUNDARY) {
 			// boundary term of div(v)
 			nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+			// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
+			pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fabs(dot3(ndata.belem, ndata.relVel)) );
 			if (IO_BOUNDARY(ndata.info))
 				compute_euler_contributions<FP::simflags & ENABLE_INLET_OUTLET>::boundary_term(params, pdata, ndata, pout, nout);
 			// D\rho/Dn is not zero near a boundary where pressure is imposed so the volume diffusion formula gains a term
@@ -1469,7 +1570,6 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 /// A functor that does viscosity-related post-processing, and returns a
 /// viscous coefficient to be used with DEMs and planes
-
 template<ViscosityType>
 struct viscous_fixup
 {
@@ -1482,7 +1582,7 @@ struct viscous_fixup
 /// Specializations
 
 template<>
-template<typename FP, typename P, typename OP >
+template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
 viscous_fixup<DYNAMICVISC>::with(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w; }
@@ -1607,6 +1707,11 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	}
 	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
+	// in case of density sum we compute gamma in euler so it's
+	// already available here
+	// TODO avoid computation before
+	if(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f)
+		pout.gGam = pdata.oldGGam;
 	pout.force.x /= pout.gGam.w;
 	pout.force.y /= pout.gGam.w;
 	pout.force.z /= pout.gGam.w;
@@ -1787,6 +1892,23 @@ struct dyndt_shared_none
 	{ /* do nothing */ }
 };
 
+template<bool densitySum, BoundaryType boundarytype>
+struct store_sm_max_dS
+{
+	template<typename OP>
+	__device__ __forceinline__
+	static float
+	with(OP const& pout)
+	{ return 0.0f; }
+};
+
+template<>
+template<typename OP>
+__device__ __forceinline__
+float
+store_sm_max_dS<true, SA_BOUNDARY>::with(OP const& pout)
+{ return pout.gammaCfl; }
+
 #define COND_SHARED(some_cond, some_struct) \
 	conditional<some_cond, some_struct, dyndt_shared_none<some_struct> >::type
 
@@ -1823,7 +1945,7 @@ struct dyndt_densitySum_shared_data
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
-		sm_max_dS[threadIdx.x] = fabs(pout.contupd.y);
+		sm_max_dS[threadIdx.x] = store_sm_max_dS<FP::simflags & ENABLE_DENSITY_SUM, FP::boundarytype>::with(pout);
 	}
 
 	template<typename FP>
@@ -2027,7 +2149,10 @@ forcesDevice(
 
 			// We now check if the current particle interacts with the neighbor.
 			// We recycle the computes_stuff as boolean
-			computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
+			if(BOUNDARY(neib_info))
+				computes_stuff = (r < params.influenceradius+params.deltap);
+			else
+				computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
 
 			// When not using SA_BOUNDARY, particles in rigid bodies that need
 			// to compute forces only interact with fluid particles, since

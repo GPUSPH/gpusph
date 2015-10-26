@@ -45,6 +45,8 @@
 class AbstractNeibsEngine
 {
 public:
+	virtual ~AbstractNeibsEngine() {}
+
 	virtual void
 	setconstants(const SimParams *simparams, const PhysParams *physparams,
 		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,

@@ -107,8 +107,7 @@ class Problem {
 		GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
 
-		SimParams			*m_simparams;				//< Simulation parameters. They only exist after SETUP_FRAMEWORK
-		PhysParams			*m_physparams;				//< Physical parameters. They only exist after SETUP_FRAMEWORK
+		PhysParams			*m_physparams;				//< Physical parameters
 
 		SimFramework		*m_simframework;			// simulation framework
 
@@ -131,11 +130,7 @@ class Problem {
 			);
 		*/
 
-#define	SETUP_FRAMEWORK(...) do { \
-	m_simframework = new CUDASimFramework< __VA_ARGS__ >(); \
-	m_simparams = m_simframework->get_simparams(); \
-	m_physparams = new PhysParams(); \
-} while (0)
+#define	SETUP_FRAMEWORK(...) m_simframework =  CUDASimFramework< __VA_ARGS__ >()
 
 		// add a filter (MLS, SHEPARD), with given frequency
 #define	addFilter(fltr, freq) m_simframework->addFilterEngine(fltr, freq)
@@ -205,7 +200,7 @@ class Problem {
 			else
 				m_deltap = dflt;
 			// also udate the smoothing length
-			set_smoothing(m_simparams->sfactor);
+			set_smoothing(simparams()->sfactor);
 
 			return m_deltap;
 		}
@@ -218,17 +213,17 @@ class Problem {
 
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
-		{ return m_simparams->set_smoothing(smooth, m_deltap); }
+		{ return simparams()->set_smoothing(smooth, m_deltap); }
 
 IGNORE_WARNINGS(deprecated-declarations)
 		/* set kernel type and radius */
 		// DEPRECATED, use set_kernel_radius instead
 		double set_kernel(KernelType kernel, double radius=0) DEPRECATED
-		{ return m_simparams->set_kernel(kernel, radius); }
+		{ return simparams()->set_kernel(kernel, radius); }
 RESTORE_WARNINGS
 
 		void set_kernel_radius(double radius)
-		{ m_simparams->set_kernel_radius(radius); }
+		{ simparams()->set_kernel_radius(radius); }
 
 		void set_grid_params(void);
 
@@ -247,16 +242,19 @@ RESTORE_WARNINGS
 		// convert a double3 point into a grid + local position
 		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const;
 
-		const SimParams *get_simparams(void) const
-		{ return m_simparams; }
+		inline
+		const SimParams *simparams(void) const
+		{ return m_simframework->simparams(); }
 
-		SimParams *get_simparams(void)
-		{ return m_simparams; }
+		inline
+		SimParams *simparams(void)
+		{ return m_simframework->simparams(); }
 
-		const PhysParams *get_physparams(void) const
+		inline
+		const PhysParams *physparams(void) const
 		{ return m_physparams; }
 
-		PhysParams *get_physparams(void)
+		PhysParams *physparams(void)
 		{ return m_physparams; }
 
 		// wrappers for physparams functions
@@ -389,13 +387,6 @@ RESTORE_WARNINGS
 
 		/* Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);
-
-		virtual void
-		setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize) {};
 
 		virtual void imposeBoundaryConditionHost(
 			MultiBufferList::iterator		bufwrite,

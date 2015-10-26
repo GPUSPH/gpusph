@@ -67,13 +67,13 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(-x0 - layers*m_deltap, - ly/2. - layers*m_deltap, -H);
 
 	// SPH parameters
-	m_simparams->maxneibsnum = 128;
-	m_simparams->dt = 0.00013;
-	m_simparams->dtadaptfactor = 0.2;
-	m_simparams->buildneibsfreq = 10;
+	simparams()->maxneibsnum = 128;
+	simparams()->dt = 0.00013;
+	simparams()->dtadaptfactor = 0.2;
+	simparams()->buildneibsfreq = 10;
 	t0 = 0.4;
-	m_simparams->tend = 4.0 + t0; //seconds
-	m_simparams->ferrari = 1.0;
+	simparams()->tend = 4.0 + t0; //seconds
+	simparams()->ferrari = 1.0;
 
 	// Physical parameters
 	m_physparams->gravity = make_float3(0.0f, 0.0f, -9.81f);
@@ -86,12 +86,12 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 	m_physparams->artvisccoeff =  0.3;
 	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	m_physparams->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	//WaveGage
 	const double wg1x = 1.83, wg1y = 0;
 	const double wg2x = 1.2446, wg2y = 0.635;
-	const float slength = m_simparams->slength;
+	const float slength = simparams()->slength;
 	add_gage(wg1x, wg1y, slength);
 	add_gage(wg1x, wg1y, 0.5*slength);
 	add_gage(wg1x, wg1y, 0.25*slength);
@@ -232,7 +232,7 @@ void SlidingWedge::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams->numforcesbodies) {
+		if (k < simparams()->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();

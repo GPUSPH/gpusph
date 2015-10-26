@@ -22,7 +22,8 @@
 #define LaPalisseSmallTest			11	// Small testcase for La Palisse (pressure in/out with free-surface)
 #define PeriodicWave				12	// Periodic wave with IO
 #define	SmallChannelFlowIOPerOpen	13	// Small channel flow for debugging i/o with periodicty and gravity
-#define SolitaryWave			14	// Solitary wave with IO
+#define SolitaryWave				14	// Solitary wave with IO
+#define LaPalisseSmallerTest		15	// Smaller testcase for La Palisse (pressure in/out with free-surface)
 //*******************************************************************************************************
 // Choose one of the problems above
 #define SPECIFIC_PROBLEM BoxCorner
@@ -44,13 +45,6 @@ class InputProblem: public Problem {
 		void copy_to_array(BufferList &);
 		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 		uint max_parts(uint);
-
-		void
-		setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize);
 
 		void
 		imposeBoundaryConditionHost(

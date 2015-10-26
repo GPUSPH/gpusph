@@ -75,12 +75,12 @@ CSIDevice::CSIDevice(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	set_deltap(parser.getF("deltap"));
-	m_simparams->tend = parser.getD("duration");
-	m_simparams->dt = 0.00003;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 10;
+	simparams()->tend = parser.getD("duration");
+	simparams()->dt = 0.00003;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 10;
 
-	m_simparams->maxneibsnum = 192;
+	simparams()->maxneibsnum = 192;
 
 	// Physical parameters
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
@@ -95,7 +95,7 @@ CSIDevice::CSIDevice(GlobalData *_gdata) : Problem(_gdata)
 	m_physparams->artvisccoeff = 0.1f;
     m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	m_physparams->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 	// BC when using LJ
 	m_physparams->dcoeff = 5.0*g*H;
 
@@ -105,7 +105,7 @@ CSIDevice::CSIDevice(GlobalData *_gdata) : Problem(_gdata)
 	paddle_width = m_size.y - 2*r0;
 	paddle_origin = make_double3(parser.getD("paddle_origin_x") * lx, 0.0, parser.getD("paddle_origin_z") * lz);
 	paddle_tstart = parser.getF("paddle_time_start");
-	paddle_tend = m_simparams->tend;
+	paddle_tend = simparams()->tend;
 	// The stroke value is given at free surface level H
 	float stroke = parser.getF("paddle_stroke");
 	// m_mbamplitude is the maximal angular value par paddle angle
@@ -572,7 +572,7 @@ void CSIDevice::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams->numforcesbodies) {
+		if (k < simparams()->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();

@@ -41,7 +41,6 @@
 
 GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	gdata(_gdata),
-	m_simframework(gdata->simframework),
 	neibsEngine(gdata->simframework->getNeibsEngine()),
 	viscEngine(gdata->simframework->getViscEngine()),
 	forcesEngine(gdata->simframework->getForcesEngine()),
@@ -49,6 +48,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	bcEngine(gdata->simframework->getBCEngine()),
 	filterEngines(gdata->simframework->getFilterEngines()),
 	postProcEngines(gdata->simframework->getPostProcEngines()),
+	m_simframework(gdata->simframework),
 	m_dCellStart(NULL),
 	m_dCellEnd(NULL),
 	m_dRbForces(NULL),
@@ -71,8 +71,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	printf("Thread 0x%zx global device id: %d (%d)\n", pthread_self(), m_globalDeviceIdx, gdata->totDevices);
 
 	// we know that GPUWorker is initialized when Problem was already
-	m_simparams = gdata->problem->get_simparams();
-	m_physparams = gdata->problem->get_physparams();
+	m_simparams = gdata->problem->simparams();
+	m_physparams = gdata->problem->physparams();
 
 	// we also know Problem::fillparts() has already been called
 	m_numInternalParticles = m_numParticles = gdata->s_hPartsPerDevice[m_deviceIndex];
@@ -694,10 +694,11 @@ void GPUWorker::transferBurstsSizes()
 					receivedOneNonEmptyCellInBurst = true;
 				}
 				m_bursts[i].numParticles += numPartsInCell;
-				// DBG
-				//	printf(" BURST %u, incr. parts from %u to %u (+%u) because of cell %u\n", i, \
-						   m_bursts[i].numParticles - numPartsInCell, m_bursts[i].numParticles, \
+#if 0 // DBG
+				printf(" BURST %u, incr. parts from %u to %u (+%u) because of cell %u\n", i,
+						   m_bursts[i].numParticles - numPartsInCell, m_bursts[i].numParticles,
 							numPartsInCell, lin_cell );
+#endif
 			}
 
 		} // iterate on cells of the current burst
@@ -2491,6 +2492,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				bufwrite.getData<BUFFER_CONTUPD>(),
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufwrite.getData<BUFFER_VERTICES>(),
+				bufread.getRawPtr<BUFFER_VERTPOS>(),
 				bufread.getData<BUFFER_VERTIDINDEX>(),
 
 				// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position
@@ -2509,6 +2511,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				m_simparams->slength,
 				m_simparams->influenceRadius,
 				initStep,
+				!gdata->clOptions->resume_fname.empty(),
 				m_globalDeviceIdx,
 				gdata->totDevices);
 }
@@ -2588,8 +2591,6 @@ void GPUWorker::uploadConstants()
 		m_numAllocatedParticles, m_simparams->maxneibsnum, m_simparams->slength);
 	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
-	if (m_simparams->simflags & ENABLE_INLET_OUTLET)
-		gdata->problem->setboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 
 // Auxiliary method for debugging purposes: downloads on the host one or multiple field values of

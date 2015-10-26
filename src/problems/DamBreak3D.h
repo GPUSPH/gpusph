@@ -47,7 +47,9 @@ class DamBreak3D: public Problem {
 		float		H;				// still water level
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
+		uint		dyn_layers;		// layers of dynamic boundaries particles
 		bool		m_usePlanes;	// use planes or boundaries
+		double3		m_fluidOrigin;	// bottom level
 
 	public:
 		DamBreak3D(GlobalData *);

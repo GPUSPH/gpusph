@@ -239,6 +239,8 @@ eulerDevice(
 						step);
 				} else {
 					vel.w += dt*force.w;
+					if (simflags & ENABLE_FERRARI)
+						vel.w += dt*contupd[index].x;
 				}
 
 				as_float3(vel) += dt*as_float3(force);
@@ -316,6 +318,8 @@ eulerDevice(
 					// this is for k-eps only. Normally forces are going to be zero
 					eulerVel += dt*force;
 				}
+				if(BOUNDARY(pinfo))
+					newgGam[index] = oldgGam[index];
 			}
 			break;
 

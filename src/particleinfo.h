@@ -34,7 +34,9 @@
 #include <cmath>
 
 // we use CUDA types and host/device specifications here
-#include "cuda_runtime.h"
+#include <cuda_runtime.h>
+
+#include "common_types.h" // ushort
 
 // vertex info
 typedef uint4 vertexinfo;
