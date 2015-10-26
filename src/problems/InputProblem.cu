@@ -327,8 +327,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	// Solitary Wave with IO
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SolitaryWave
-		h5File.setFilename("meshes/0.solitaryWave_small.h5sph");
-		//h5File.setFilename("meshes/0.solitary_wave.h5sph");
+		//h5File.setFilename("meshes/0.solitaryWave_small.h5sph");
+		h5File.setFilename("meshes/0.solitaryWave.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -338,21 +338,24 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
 
-		set_deltap(0.026460);
-		//set_deltap(0.0195f);
+		//set_deltap(0.026460);
+		set_deltap(0.017637f);
 		m_simparams->maxneibsnum = 512;
 		m_simparams->tend = 7.0;
 		m_simparams->ferrari = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 20.0f);
+		//set_equation_of_state(water, 7.0f, 45.0f);
 		set_kinematic_visc(water, 1.0e-6f);
 
 		addPostProcess(SURFACE_DETECTION);
 
 		H = 0.6;
-		l = 3.2; w=1.7; h=1.4;
-		m_origin = make_double3(-3.85, -0.1, -0.1);
+		//l = 3.2; w=1.7; h=1.4;
+		//m_origin = make_double3(-3.85, -0.1, -0.1);
+		l = 7.7; w=3.4; h=1.4;
+		m_origin = make_double3(-3.85, -1.7, -0.1);
 		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
@@ -832,7 +835,8 @@ InputProblem_imposeBoundaryCondition(
 			const float xMin = -2.5*1.5;
 			const float x0 = xMin - 4./k;
 
-			const float kxct = k*(dot(normalWave, absPos)-c*(t-2.0f)-x0);
+			//const float kxct = k*(dot(normalWave, absPos)-c*(t-2.0f)-x0);
+			const float kxct = k*(dot(normalWave, absPos)-c*t-x0);
 			const float eta = a/(cosh(kxct)*cosh(kxct));
 			const float detadt = 2*a*k*c*tanh(kxct)/(cosh(kxct)*cosh(kxct));
 
@@ -845,11 +849,13 @@ InputProblem_imposeBoundaryCondition(
 				eulerVel.y = v;
 				eulerVel.z = w;
 			}
+			/*
 			if (t < 2.0f) {
 				eulerVel.x = 0.0f;
 				eulerVel.y = 0.0f;
 				eulerVel.z = 0.0f;
 			}
+			*/
 #else
 			eulerVel.x = 0.0f;
 #endif
