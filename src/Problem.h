@@ -129,8 +129,6 @@ typedef std::vector<MovingBodyData *> MovingBodiesVect;
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
 
-using namespace std;
-
 class Problem {
 	private:
 		string			m_problem_dir;

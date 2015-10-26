@@ -45,8 +45,6 @@
 // COORD1, COORD2, COORD3
 #include "linearization.h"
 
-using namespace std;
-
 Problem::Problem(GlobalData *_gdata) :
 	gdata(_gdata),
 	m_options(_gdata->clOptions),

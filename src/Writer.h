@@ -53,8 +53,6 @@
 struct GlobalData;
 class Problem;
 
-using namespace std;
-
 // Writer types. Define new ones here and remember to include the corresponding
 // header in Writer.cc and the switch case in the implementation of Writer::Create
 
@@ -160,7 +158,7 @@ protected:
 	// does this writer need special treatment?
 	// (This is only used for the COMMONWRITER presently.)
 	bool is_special() const
-	{ return isnan(m_writefreq); }
+	{ return std::isnan(m_writefreq); }
 
 	inline void
 	mark_written(double t)
