@@ -227,7 +227,7 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 	}
 }
 
-void HotFile::writeBody(ofstream *fp, uint index, const float3 *cg, const dQuaternion quaternion,
+void HotFile::writeBody(ofstream *fp, uint index, const float3 *cg, const EulerParameters & quaternion,
 	const float3 *linvel, const float3 *angvel, version_t version)
 {
 	switch (version) {
@@ -241,10 +241,10 @@ void HotFile::writeBody(ofstream *fp, uint index, const float3 *cg, const dQuate
 		eb.gravity_center[1] = cg->y;
 		eb.gravity_center[2] = cg->z;
 
-		eb.quaternion[0] = quaternion[0];
-		eb.quaternion[1] = quaternion[1];
-		eb.quaternion[2] = quaternion[2];
-		eb.quaternion[3] = quaternion[3];
+		eb.quaternion[0] = quaternion(0);
+		eb.quaternion[1] = quaternion(1);
+		eb.quaternion[2] = quaternion(2);
+		eb.quaternion[3] = quaternion(3);
 
 		eb.linvel[0] = linvel->x;
 		eb.linvel[1] = linvel->y;

@@ -102,17 +102,6 @@ EulerParameters::EulerParameters(const EulerParameters &source)
 }
 
 
-/// Constructor from ODE quaternion
-/*!
- *	\param[in] quat : ODE quaternion
- */
-EulerParameters::EulerParameters(const dQuaternion &quat)
-{
-	for (int i = 0; i < 4; i++)
-		m_ep[i] = quat[i];
-}
-
-
 /// Constructor from a vector
 /*! All rotations can be done using only normalized quaternions:
  *  let be \f$ q \f$ a normalized quaternion and \f$ v \f$ the quaternion

@@ -109,7 +109,6 @@ class EulerParameters {
 		EulerParameters(const float3);
 		EulerParameters(const Vector &, const double);
 		EulerParameters(const EulerParameters &);
-		EulerParameters(const dQuaternion &);
 		~EulerParameters(void) {};
 		//@}
 

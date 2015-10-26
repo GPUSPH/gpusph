@@ -73,26 +73,6 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 	setEulerParameters(ep);
 }
 
-
-/// Constructor from edges length and orientation (ODE quaternion)
-/*! Construct a cube of given dimension with an orientation given by
- *  a quaternion in ODE format.
- *	lx, ly, lz parameters are the dimension of the cube along the X', Y'
- *	and Z' axis.
- *	\param origin : cube origin (bottom left corner)
- *	\param lx : length along X' axis
- *	\param ly : length along Y' axis
- *	\param lz : length along Z' axis
- *	\param quat : quaternion defining the orientation
- *
- *  Beware, particle mass should be set before any filling operation
- */
-Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const dQuaternion quat)
-{
-	Cube(origin, lx, ly, lz, EulerParameters(quat));
-}
-
-
 /// DEPRECATED Constructor from edge vectors
 /*! Construct a cube according to 3 vectors defining the edges along
  *  X', Y' and Z' axis.

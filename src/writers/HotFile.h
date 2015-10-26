@@ -59,7 +59,7 @@ private:
 	header_t			_header;
 
 	void writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t version);
-	void writeBody(ofstream *fp, uint index, const float3 *cg, const dQuaternion quaternion,
+	void writeBody(ofstream *fp, uint index, const float3 *cg, const EulerParameters & quaternion,
 		const float3 *linvel, const float3 *angvel, version_t version);
 	void writeHeader(ofstream *fp, version_t version);
 	void readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version);

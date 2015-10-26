@@ -59,9 +59,6 @@ class Vector {
 		Vector(const double *);
 		~Vector(void) {};
 
-		Vector Rot(const dMatrix3);
-		Vector TransposeRot(const dMatrix3);
-
 		/*! Return the norm of vector */
 		double norm(void) const;
 		void normalize(void);

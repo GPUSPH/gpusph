@@ -76,7 +76,6 @@ class Cube: public Object {
 		//@{
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters& = EulerParameters());
-		Cube(const Point&, const double, const double, const double, const dQuaternion);
 		Cube(const Point&, const Vector&, const Vector&, const Vector&) DEPRECATED;
 		virtual ~Cube(void) {};
 		//@}
