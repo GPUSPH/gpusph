@@ -63,6 +63,10 @@ Problem::Problem(GlobalData *_gdata) :
 bool
 Problem::initialize()
 {
+	if (simparams()->gage.size() > 0 && !m_simframework->hasPostProcessEngine(SURFACE_DETECTION)) {
+		printf("Wave gages present: force-enabling surface detection\n");
+		m_simframework->addPostProcessEngine(SURFACE_DETECTION);
+	}
 	// run post-construction functions
 	check_dt();
 	check_maxneibsnum();
