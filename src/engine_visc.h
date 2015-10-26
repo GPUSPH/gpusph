@@ -38,6 +38,8 @@
 class AbstractViscEngine
 {
 public:
+	virtual ~AbstractViscEngine() {}
+
 	virtual void setconstants() = 0 ; // TODO
 	virtual void getconstants() = 0 ; // TODO
 

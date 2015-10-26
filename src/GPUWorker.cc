@@ -71,8 +71,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	printf("Thread 0x%zx global device id: %d (%d)\n", pthread_self(), m_globalDeviceIdx, gdata->totDevices);
 
 	// we know that GPUWorker is initialized when Problem was already
-	m_simparams = gdata->problem->get_simparams();
-	m_physparams = gdata->problem->get_physparams();
+	m_simparams = gdata->problem->simparams();
+	m_physparams = gdata->problem->physparams();
 
 	// we also know Problem::fillparts() has already been called
 	m_numInternalParticles = m_numParticles = gdata->s_hPartsPerDevice[m_deviceIndex];
