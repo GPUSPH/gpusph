@@ -4,8 +4,6 @@
 #include "Writer.h"
 #include "HotFile.h"
 
-using namespace std;
-
 /**
 A Writer class used for hot-starting a simulation.
 Hot-starting means restarting a stopped simulation from a known point.  The
@@ -57,7 +55,7 @@ public:
 
 private:
 	int					_num_files_to_save;
-	std::vector<string>	_current_filenames;
+	std::vector<std::string>	_current_filenames;
 	uint				_particle_count;
 };
 

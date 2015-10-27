@@ -195,8 +195,8 @@ size_t GPUWorker::computeMemoryPerParticle()
 {
 	size_t tot = 0;
 
-	set<flag_t>::const_iterator it = m_dBuffers.get_keys().begin();
-	const set<flag_t>::const_iterator stop = m_dBuffers.get_keys().end();
+	std::set<flag_t>::const_iterator it = m_dBuffers.get_keys().begin();
+	const std::set<flag_t>::const_iterator stop = m_dBuffers.get_keys().end();
 	while (it != stop) {
 		flag_t key = *it;
 		size_t contrib = m_dBuffers.get_memory_occupation(key, 1);
@@ -788,7 +788,7 @@ void GPUWorker::transferBursts()
 					std::stringstream err_msg;
 					err_msg << "Import request for double-buffered " << buf->get_buffer_name()
 						<< " array without a specification of which buffer to use.";
-						throw runtime_error(err_msg.str());
+						throw std::runtime_error(err_msg.str());
 				}
 
 				const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
@@ -891,8 +891,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	const uint fmaxElements = forcesEngine->getFmaxElements(m_numAllocatedParticles);
 	const uint tempCflEls = forcesEngine->getFmaxTempElements(fmaxElements);
-	set<flag_t>::const_iterator iter = m_dBuffers.get_keys().begin();
-	set<flag_t>::const_iterator stop = m_dBuffers.get_keys().end();
+	std::set<flag_t>::const_iterator iter = m_dBuffers.get_keys().begin();
+	std::set<flag_t>::const_iterator stop = m_dBuffers.get_keys().end();
 	while (iter != stop) {
 		const flag_t key = *iter;
 		// number of elements to allocate
@@ -2295,7 +2295,7 @@ void GPUWorker::kernel_filter()
 	FilterEngineSet::const_iterator filterpair(filterEngines.find(filtertype));
 	// make sure we're going to call an instantiated filter
 	if (filterpair == filterEngines.end()) {
-		throw invalid_argument("non-existing filter invoked");
+		throw std::invalid_argument("non-existing filter invoked");
 	}
 
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
@@ -2326,7 +2326,7 @@ void GPUWorker::kernel_postprocess()
 	PostProcessEngineSet::const_iterator procpair(postProcEngines.find(proctype));
 	// make sure we're going to call an instantiated filter
 	if (procpair == postProcEngines.end()) {
-		throw invalid_argument("non-existing postprocess filter invoked");
+		throw std::invalid_argument("non-existing postprocess filter invoked");
 	}
 
 

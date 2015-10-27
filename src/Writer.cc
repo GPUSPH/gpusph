@@ -39,6 +39,8 @@
 #include "Writer.h"
 #include "HotWriter.h"
 
+using namespace std;
+
 WriterMap Writer::m_writers = WriterMap();
 bool Writer::m_forced = false;
 
@@ -119,7 +121,7 @@ Writer::Create(GlobalData *_gdata)
 			cout << WriterName[wt] << " will write every iteration" << endl;
 		else if (freq < 0)
 			cout << WriterName[wt] << " has been disabled" << endl;
-		else if (isnan(freq))
+		else if (std::isnan(freq))
 			cout << WriterName[wt] << " has special treatment" << endl;
 		else
 			cerr << WriterName[wt] << " has unknown writing frequency " << freq << endl;

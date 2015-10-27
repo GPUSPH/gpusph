@@ -22,6 +22,8 @@
 static MPI_Request* m_requestsList;
 #endif
 
+using namespace std;
+
 // Uncomment the following to define DBG_PRINTF and enable printing the details of every call (uint and buffer).
 // Useful to check the correspondence among messages without compiling in debug mode
 //#define DBG_PRINTF

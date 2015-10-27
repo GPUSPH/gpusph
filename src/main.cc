@@ -66,31 +66,31 @@ void show_version()
 // TODO: cleanup, no exit
 void print_usage() {
 	show_version();
-	cout << "Syntax: " << endl;
-	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
-	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
-	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
-	cout << "\tGPUSPH --help\n\n";
-	cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
-	cout << " --checkpoint-every : HotStart checkpoints will be created every VAL seconds\n";
-	cout << "                      of simulated time (float VAL, 0 disables)\n";
-	cout << " --checkpoints : number of HotStart checkpoints to keep (integer VAL)\n";
-	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
-	cout << " --dem : Use given DEM (if problem supports it)\n";
-	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
-	cout << " --tend : Break at given time (VAL is cast to float)\n";
-	cout << " --maxiter : Break after this many iterations (integer VAL)\n";
-	cout << " --dir : Use given directory for dumps instead of date-based one\n";
-	cout << " --nosave : Disable all file dumps but the last\n";
-	cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
-	cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
-	cout << " --asyncmpi : Enable asynchronous network transfers (requires GPUDirect and 1 process per device)\n";
-	cout << " --num-hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
-	cout << " --byslot-scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
+	std::cout << "Syntax: " << endl;
+	std::cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
+	std::cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
+	std::cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
+	std::cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
+	std::cout << "\tGPUSPH --help\n\n";
+	std::cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
+	std::cout << " --checkpoint-every : HotStart checkpoints will be created every VAL seconds\n";
+	std::cout << "                      of simulated time (float VAL, 0 disables)\n";
+	std::cout << " --checkpoints : number of HotStart checkpoints to keep (integer VAL)\n";
+	std::cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
+	std::cout << " --dem : Use given DEM (if problem supports it)\n";
+	std::cout << " --deltap : Use given deltap (VAL is cast to float)\n";
+	std::cout << " --tend : Break at given time (VAL is cast to float)\n";
+	std::cout << " --maxiter : Break after this many iterations (integer VAL)\n";
+	std::cout << " --dir : Use given directory for dumps instead of date-based one\n";
+	std::cout << " --nosave : Disable all file dumps but the last\n";
+	std::cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
+	std::cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
+	std::cout << " --asyncmpi : Enable asynchronous network transfers (requires GPUDirect and 1 process per device)\n";
+	std::cout << " --num-hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
+	std::cout << " --byslot-scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
-	cout << " --help: Show this help and exit\n";
+	std::cout << " --help: Show this help and exit\n";
 }
 
 // if some option needs to be passed to GlobalData, remember to set it in GPUSPH::initialize()
@@ -208,7 +208,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else {
-			cerr << "Fatal: Unknown option: " << arg << endl;
+			std::cerr << "Fatal: Unknown option: " << arg << std::endl;
 			return -1;
 
 			// Left for future dynamic loading:
@@ -307,7 +307,7 @@ int main(int argc, char** argv) {
 
 	int nm_worldsize = gdata.networkManager->getWorldSize();
 	if (nm_worldsize > MAX_NODES_PER_CLUSTER) {
-		cerr << "Too many nodes in cluster: " << nm_worldsize << " > " << MAX_NODES_PER_CLUSTER << endl;
+		std::cerr << "Too many nodes in cluster: " << nm_worldsize << " > " << MAX_NODES_PER_CLUSTER << std::endl;
 		exit(1);
 	}
 
@@ -367,7 +367,7 @@ int main(int argc, char** argv) {
 	if (gdata.problem->m_simframework)
 		gdata.simframework = gdata.problem->m_simframework;
 	else
-		throw invalid_argument("no simulation framework defined in the problem!");
+		throw std::invalid_argument("no simulation framework defined in the problem!");
 	gdata.allocPolicy = gdata.simframework->getAllocPolicy();
 
 

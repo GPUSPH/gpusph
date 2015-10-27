@@ -29,9 +29,9 @@
 #define _COMMON_TYPES_H
 
 // uint64_t et similia
-#include <stdint.h>
+#include <cstdint>
 // size_t
-#include <stddef.h>
+#include <cstddef>
 
 // define uint, uchar, ulong
 typedef unsigned long ulong; // only used in timing
