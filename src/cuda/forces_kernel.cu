@@ -1591,7 +1591,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				if (IO_BOUNDARY(info)) {
 					sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 					// for open boundaries compute pressure interior state
-					sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+					//sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+					sump += w*fmax(0.0f, neib_pres);
 					// and de/dn = 0
 					sumeps += w*neib_eps;
 				}
@@ -1985,7 +1986,8 @@ saVertexBoundaryConditions(
 			if (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info))) {
 			//if (FLUID(neib_info) || (!IO_BOUNDARY(info) && VERTEX(neib_info) && IO_BOUNDARY(neib_info) && !CORNER(neib_info))) {
 				const float4 relPos = pos_corr - oldPos[neib_index];
-				if (INACTIVE(relPos) || dot(normal, as_float3(relPos)) > 0.0f)
+				//if (INACTIVE(relPos) || dot(normal, as_float3(relPos)) > 0.0f)
+				if (INACTIVE(relPos))
 					continue;
 				const float r = length(as_float3(relPos));
 
@@ -2007,7 +2009,8 @@ saVertexBoundaryConditions(
 						// for open boundaries compute dv/dn = 0
 						sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 						// for open boundaries compute pressure interior state
-						sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+						//sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+						sump += w*fmax(0.0f, neib_pres);
 						// and de/dn = 0
 						sumeps += w*neib_eps;
 					}
