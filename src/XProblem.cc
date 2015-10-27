@@ -854,7 +854,7 @@ void XProblem::enableFeedback(const GeometryID gid)
 	// ensure collisions are consistent with geometry type
 	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
 		m_geometries[gid]->type != GT_MOVING_BODY) {
-		printf("WARNING: collisions only available for floating or moving bodies! Ignoring\n");
+		printf("WARNING: feedback only available for floating or moving bodies! Ignoring\n");
 		return;
 	}
 
@@ -869,7 +869,7 @@ void XProblem::disableFeedback(const GeometryID gid)
 
 	// ensure no-dynamics is consistent with geometry type
 	if (m_geometries[gid]->type == GT_FLOATING_BODY) {
-		printf("WARNING: measuring forces is mandatory for floating bodies! Ignoring\n");
+		printf("WARNING: feedback is mandatory for floating bodies! Ignoring\n");
 		return;
 	}
 
