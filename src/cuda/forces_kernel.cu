@@ -1841,10 +1841,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 							vertexWeights.y = 0.0f;
 							vertexWeights.z = 1.0f;
 						}
-+						*/
+						*/
 					}
-					// normalize to make sure that all the weight is split up
-					vertexWeights = normalize3(vertexWeights);
 					// transfer mass to .w index as it is overwritten with the disable below
 					vertexWeights.w = pos.w;
 					oldGGam[index] = vertexWeights;
