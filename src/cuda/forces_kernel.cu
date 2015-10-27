@@ -1794,7 +1794,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					// in the 3-D case are the barycentric coordinates which we have already
 					// computed.
 					float4 vertexWeights = make_float4(0.0f);
-					if (CORNER(neib_info)) {
+					if (CORNER(neib_info)) { // AM-TODO remove this if as segments can't be corners anymore
 						vertexWeights.x = 1.0f;
 						verts.x = verts.w;
 					}
