@@ -745,11 +745,13 @@ GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
 	);
 }
 
-// Add a single testpoint.
+// Add a single testpoint; returns the position of the testpoint in the vector of
+// testpoints, which will correspond to its particle id.
 // NOTE: testpoints should be assigned with consecutive particle ids starting from 0
-GeometryID XProblem::addTestPoint(const Point &coordinates)
+size_t XProblem::addTestPoint(const Point &coordinates)
 {
 	m_testpointParts.push_back(coordinates);
+	return (m_testpointParts.size() - 1);
 }
 
 // request to invert normals while loading - only for HDF5 files
