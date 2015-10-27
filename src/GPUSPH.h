@@ -55,7 +55,7 @@ private:
 
 	// Information stream where the current status
 	// is output
-	string m_info_stream_name; // name of the stream
+	std::string m_info_stream_name; // name of the stream
 	FILE *m_info_stream; // file handle
 
 	// aux arrays for rollCallParticles()

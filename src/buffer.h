@@ -68,12 +68,12 @@ public:
 
 	virtual const char* get_buffer_name() const
 	{
-		throw runtime_error("AbstractBuffer name queried");
+		throw std::runtime_error("AbstractBuffer name queried");
 	}
 
 	// allocate buffer and return total amount of memory allocated
 	virtual size_t alloc(size_t elems) {
-		throw runtime_error("cannot allocate generic buffer");
+		throw std::runtime_error("cannot allocate generic buffer");
 	}
 
 	// base method to return a specific buffer of the array
@@ -251,7 +251,7 @@ class MultiBufferList;
  */
 class BufferList
 {
-	typedef map<flag_t, AbstractBuffer*> map_type;
+	typedef std::map<flag_t, AbstractBuffer*> map_type;
 
 	map_type m_map;
 
@@ -386,7 +386,7 @@ public:
 	{
 		map_type::iterator exists = m_map.find(Key);
 		if (exists != m_map.end()) {
-			throw runtime_error("trying to add a buffer for an already-available key!");
+			throw std::runtime_error("trying to add a buffer for an already-available key!");
 		} else {
 			m_map[Key] = new BufferClass<Key>;
 		}

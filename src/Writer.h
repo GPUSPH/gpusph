@@ -29,7 +29,7 @@
 #include <fstream>
 #include <string>
 #include <map>
-#include <stdlib.h>
+#include <cstdlib>
 // TODO on Windows it's direct.h
 #include <sys/stat.h>
 
@@ -69,15 +69,15 @@ enum WriterType
 };
 
 // list of writer type, write freq pairs
-typedef vector<pair<WriterType, double> > WriterList;
+typedef std::vector<std::pair<WriterType, double> > WriterList;
 
 class Writer;
 
 // hash of WriterType, pointer to actual writer
-typedef map<WriterType, Writer*> WriterMap;
+typedef std::map<WriterType, Writer*> WriterMap;
 
 // ditto, const
-typedef map<WriterType, const Writer*> ConstWriterMap;
+typedef std::map<WriterType, const Writer*> ConstWriterMap;
 
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
@@ -146,7 +146,7 @@ public:
 	{ return m_writefreq; }
 
 	/* return the last file number as string */
-	string last_filenum() const;
+	std::string last_filenum() const;
 
 protected:
 
@@ -187,7 +187,7 @@ protected:
 	uint getLastFilenum() const;
 
 	// default suffix (extension) for data files)
-	string			m_fname_sfx;
+	std::string			m_fname_sfx;
 
 	/* open a data file on stream `out` assembling the file name from the provided
 	 * base, the current node (in case of multi-node simulaions), the provided sequence
@@ -195,16 +195,16 @@ protected:
 	 *
 	 * Returns the file name (without the directory part)
 	 */
-	string
-	open_data_file(ofstream &out, const char* base, string const& num, string const& sfx);
+	std::string
+	open_data_file(std::ofstream &out, const char* base, std::string const& num, std::string const& sfx);
 
-	inline string
-	open_data_file(ofstream &out, const char* base, string const& num)
+	inline std::string
+	open_data_file(std::ofstream &out, const char* base, std::string const& num)
 	{ return open_data_file(out, base, num, m_fname_sfx); }
 
-	inline string
-	open_data_file(ofstream &out, const char* base)
-	{ return open_data_file(out, base, string(), m_fname_sfx); }
+	inline std::string
+	open_data_file(std::ofstream &out, const char* base)
+	{ return open_data_file(out, base, std::string(), m_fname_sfx); }
 
 
 	// time of last write
@@ -214,13 +214,13 @@ protected:
 	// negative values means don't write (writer disabled)
 	double			m_writefreq;
 
-	string			m_dirname;
+	std::string			m_dirname;
 	uint			m_FileCounter;
-	ofstream		m_timefile;
+	std::ofstream		m_timefile;
 
 	const Problem	*m_problem;
-	string			next_filenum();
-	string			current_filenum() const;
+	std::string			next_filenum();
+	std::string			current_filenum() const;
 	const GlobalData*		gdata;
 };
 

@@ -304,7 +304,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	// constant: pi^(3/2)
 #define M_PI_TO_3_2 5.5683279968317078452848179821188357020136243902832439
 	// -2/3 exp(-R^2) h^3 Pi R (3 + 2 R^2) + h^3 Pi^(3/2) Erf(R) <- CHECK this
-	kernelcoeff = -2*exp_R2/3 * h3 * M_PI * R*(3+2*R2) + h3 * M_PI_TO_3_2 * erf(R);
+	kernelcoeff = -2*exp_R2/3 * h3 * M_PI * R*(3+2*R2) + h3 * M_PI_TO_3_2 * std::erf(R);
 #undef M_PI_TO_3_2
 	kernelcoeff = 1/kernelcoeff;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_wcoeff_gaussian, &kernelcoeff, sizeof(float)));
@@ -470,7 +470,7 @@ bind_textures(
 		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, eulerVel, numParticles*sizeof(float4)));
 	} else {
 		if (eulerVel)
-			cerr << "eulerVel set but not used" << endl;
+			std::cerr << "eulerVel set but not used" << std::endl;
 	}
 
 	if (boundarytype == SA_BOUNDARY) {

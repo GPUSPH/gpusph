@@ -81,7 +81,7 @@ Problem::InitChrono() {
 	m_bodies_physical_system->SetIterLCPmaxItersSpeed(100);
 	m_bodies_physical_system->SetLcpSolverType(chrono::ChSystem::LCP_ITERATIVE_SOR);
 #else
-	throw runtime_error ("Problem::InitChrono Trying to use Chrono without USE_CHRONO defined !\n");
+	throw std::runtime_error ("Problem::InitChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
 }
 
@@ -110,7 +110,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	// force computing must have consecutive ids.
 	const uint index = m_bodies.size();
 	if (index >= MAX_BODIES)
-		throw runtime_error ("Problem::add_moving_body Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
+		throw std::runtime_error ("Problem::add_moving_body Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
 
 	MovingBodyData *mbdata = new MovingBodyData;
 	mbdata->index = index;
@@ -135,7 +135,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			m_simparams->numODEbodies++;
 			m_simparams->numforcesbodies++;
 #else
-			throw runtime_error ("Problem::add_moving_body Cannot add a floating body without CHRONO\n");
+			throw std::runtime_error ("Problem::add_moving_body Cannot add a floating body without CHRONO\n");
 #endif
 			break;
 		}
@@ -160,11 +160,11 @@ MovingBodyData *
 Problem::get_mbdata(const uint index)
 {
 	if (index >= m_bodies.size()) {
-		stringstream ss;
+		std::stringstream ss;
 		ss << "get_body: body number " << index << " >= numbodies";
-		throw runtime_error(ss.str());
+		throw std::runtime_error(ss.str());
 	}
-	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+	for (std::vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		if ((*it)->index == index)
 			return *it;
 	}
@@ -175,11 +175,11 @@ Problem::get_mbdata(const uint index)
 MovingBodyData *
 Problem::get_mbdata(const Object* object)
 {
-	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+	for (std::vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		if ((*it)->object == object)
 			return *it;
 	}
-	throw runtime_error("get_body: invalid object\n");
+	throw std::runtime_error("get_body: invalid object\n");
 	return NULL;
 }
 
@@ -187,7 +187,7 @@ size_t
 Problem::get_bodies_numparts(void)
 {
 	size_t total_parts = 0;
-	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+	for (std::vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		total_parts += (*it)->object->GetNumParts();
 	}
 
@@ -199,7 +199,7 @@ size_t
 Problem::get_forces_bodies_numparts(void)
 {
 	size_t total_parts = 0;
-	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+	for (std::vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		if ((*it)->type == MB_ODE || (*it)->type == MB_FORCES_MOVING)
 			total_parts += (*it)->object->GetNumParts();
 	}
@@ -358,7 +358,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 
 			if (false) {
-				cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+				std::cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
 				//mbdata->object->ODEPrintInformation(false);
 				printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
 				printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
@@ -429,7 +429,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 		if (false) {
 			if (i == 1 && trans[i].x != 0.0) {
-			cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+				std::cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
 			mbdata->object->BodyPrintInformation(false);
 			printf("   lvel: %e\t%e\t%e\n", linearvel[i].x, linearvel[i].y, linearvel[i].z);
 			printf("   avel: %e\t%e\t%e\n", angularvel[i].x, angularvel[i].y, angularvel[i].z);
@@ -662,7 +662,7 @@ Problem::add_writer(WriterType wt, int freq)
 void
 Problem::add_writer(WriterType wt, double freq)
 {
-	m_writers.push_back(make_pair(wt, freq));
+	m_writers.push_back(std::make_pair(wt, freq));
 }
 
 
@@ -768,7 +768,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 	// Check that we have enough cells along the split axis. This check should
 	// be performed in all split algorithms
 	if (cells_per_split_axis / (double) gdata->totDevices < 3.0)
-		throw runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
+		throw std::runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
 
 	uint cells_per_device_per_split_axis = (uint)round(cells_per_split_axis / (double)gdata->totDevices);
 
@@ -851,7 +851,7 @@ void Problem::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
 	// Check that we have enough cells along the split axis. This check should
 	// be performed in all split algorithms
 	if (cells_per_axis1 / (double) gdata->totDevices < 3.0)
-		throw runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
+		throw std::runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
 
 	// Compute ideal split values
 	const uint particles_per_device = gdata->totParticles / gdata->totDevices;
@@ -1094,10 +1094,10 @@ Problem::set_grid_params(void)
 	// of the gridsize components are zero) and throw.
 
 	if (!m_gridsize.x || !m_gridsize.y || !m_gridsize.z) {
-		stringstream ss;
+		std::stringstream ss;
 		ss << "resolution " << m_simparams->slength << " is too low! Resulting grid size would be "
 			<< m_gridsize;
-		throw runtime_error(ss.str());
+		throw std::runtime_error(ss.str());
 	}
 
 	m_cellsize.x = m_size.x / m_gridsize.x;

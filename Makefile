@@ -814,7 +814,7 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SE
 # compile program to list compute capabilities of installed devices.
 # Filter out -arch=sm_$(COMPUTE) from LDFLAGS becaus we already have it in CUFLAGS
 # and it being present twice causes complains from nvcc
-$(LIST_CUDA_CC): $(LIST_CUDA_CC).cu
+$(LIST_CUDA_CC): $(LIST_CUDA_CC).cc
 	$(call show_stage,SCRIPTS,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
 

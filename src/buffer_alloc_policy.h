@@ -36,8 +36,6 @@
 
 #include "common_types.h"
 
-using namespace std;
-
 struct BufferAllocPolicy {
 	/* maximum number of copies needed for the given set of buffers
 	 * (default: all buffers) */

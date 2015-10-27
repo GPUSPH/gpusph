@@ -28,8 +28,6 @@
 
 #include "Writer.h"
 
-using namespace std;
-
 class VTKWriter : public Writer
 {
 public:
