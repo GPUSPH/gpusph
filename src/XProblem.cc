@@ -78,6 +78,7 @@ void XProblem::release_memory()
 {
 	m_fluidParts.clear();
 	m_boundaryParts.clear();
+	m_testpointParts.clear();
 	// also cleanup object parts
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		if (m_geometries[g]->enabled)
@@ -476,24 +477,41 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
 			break;
+		case GT_TESTPOINTS:
+			geomInfo->handle_collisions = false;
+			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
+			break;
 	}
 
 	// --- Default intersection type
 	// It is IT_SUBTRACT by default, except for planes: they are usually used
 	// to delimit the boundaries of the domain, so we likely want to intersect
-	if (geomInfo->type == GT_PLANE)
-		geomInfo->intersection_type = IT_INTERSECT;
-	else
-		geomInfo->intersection_type = IT_SUBTRACT;
+	switch (geomInfo->type) {
+		case GT_PLANE:
+			geomInfo->intersection_type = IT_INTERSECT;
+			break;
+		case GT_TESTPOINTS:
+			geomInfo->intersection_type = IT_NONE;
+			break;
+		default:
+			geomInfo->intersection_type = IT_SUBTRACT;
+	}
 
 	// --- Default erase operation
 	// Upon intersection or subtraction we can choose to interact with fluid
 	// or boundaries. By default, water erases only other water, while boundaries
-	// erase water and other boundaries.
-	if (geomInfo->type == GT_FLUID)
-		geomInfo->erase_operation = ET_ERASE_FLUID;
-	else
-		geomInfo->erase_operation = ET_ERASE_ALL;
+	// erase water and other boundaries. Testpoints eras nothing.
+	switch (geomInfo->type) {
+		case GT_FLUID:
+			geomInfo->erase_operation = ET_ERASE_FLUID;
+			break;
+		case GT_TESTPOINTS:
+			geomInfo->erase_operation = ET_ERASE_NOTHING;
+			break;
+		default:
+			geomInfo->erase_operation = ET_ERASE_ALL;
+	}
 
 	// NOTE: we don't need to check handle_collisions at all, since if there are no bodies
 	// we don't need collisions nor ODE at all
@@ -1165,17 +1183,23 @@ int XProblem::fill_parts()
 		if (!m_geometries[g]->enabled) continue;
 
 		// set dx and recipient vector according to geometry type
-		if (m_geometries[g]->type == GT_FLUID) {
-			parts_vector = &m_fluidParts;
-			dx = m_deltap;
-		} else
-		if (m_geometries[g]->type == GT_FLOATING_BODY ||
-			m_geometries[g]->type == GT_MOVING_BODY) {
-			parts_vector = &(m_geometries[g]->ptr->GetParts());
-			dx = physparams()->r0;
-		} else {
-			parts_vector = &m_boundaryParts;
-			dx = physparams()->r0;
+		switch (m_geometries[g]->type) {
+			case GT_FLUID:
+				parts_vector = &m_fluidParts;
+				dx = m_deltap;
+				break;
+			case GT_TESTPOINTS:
+				parts_vector = &m_testpointParts;
+				dx = physparams()->r0;
+				break;
+			case GT_FLOATING_BODY:
+			case GT_MOVING_BODY:
+				parts_vector = &(m_geometries[g]->ptr->GetParts());
+				dx = physparams()->r0;
+				break;
+			default:
+				parts_vector = &m_boundaryParts;
+				dx = physparams()->r0;
 		}
 
 		// Now will set the particle and object mass if still unset
@@ -1343,8 +1367,8 @@ int XProblem::fill_parts()
 
 	} // iterate on geometries
 
-	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter
-		+ hdf5file_parts_counter + xyzfile_parts_counter;
+	return m_fluidParts.size() + m_boundaryParts.size() + m_testpointParts.size() +
+		bodies_parts_counter + hdf5file_parts_counter + xyzfile_parts_counter;
 }
 
 void XProblem::copy_planes(PlaneList &planes)
@@ -1388,6 +1412,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	uint fluid_parts = 0;
 	uint boundary_parts = 0;
 	uint vertex_parts = 0;
+	uint testpoint_parts = 0;
 	// count #particles loaded from HDF5 files. Needed also to adjust connectivity afterward
 	uint hdf5_loaded_parts = 0;
 	// count #particles loaded from XYZ files. Only for information
@@ -1395,7 +1420,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// Total number of filled parts, i.e. in GPUSPH array and ready to be uploaded.
 	uint tot_parts = 0;
 	// The following hold:
-	//   total = fluid_parts + boundary_parts + vertex_parts
+	//   total = fluid_parts + boundary_parts + vertex_parts + testpoint_parts
 	//   total >= hdf5_loaded_parts + xyz_loaded_parts
 	//   total >= object_parts
 	// NOTE: particles loaded from HDF5 or XYZ files are counted both in the respective
@@ -1417,6 +1442,25 @@ void XProblem::copy_to_array(BufferList &buffers)
 		if (m_geometries[g]->has_xyz_file)
 			xyz_loaded_parts += m_geometries[g]->xyz_reader->getNParts();
 	}
+
+	// copy filled testpoint parts
+	// NOTE: filling testpoint parts first so that if they are a fixed number they will have
+	// the same particle id, independently from the deltap used
+	for (uint i = tot_parts; i < tot_parts + m_testpointParts.size(); i++) {
+		info[i] = make_particleinfo(PT_TESTPOINT, 0, i);
+		calc_localpos_and_hash(m_testpointParts[i - tot_parts], info[i], pos[i], hash[i]);
+		globalPos[i] = m_testpointParts[i - tot_parts].toDouble4();
+		// Compute density for hydrostatic filling. FIXME for multifluid
+		const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
+			density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, rho);
+		if (eulerVel)
+			eulerVel[i] = make_float4(0);
+		if (i == tot_parts)
+			boundary_part_mass = pos[i].w;
+	}
+	tot_parts += m_testpointParts.size();
+	testpoint_parts += m_testpointParts.size();
 
 	// copy filled fluid parts
 	for (uint i = tot_parts; i < tot_parts + m_fluidParts.size(); i++) {
@@ -1672,6 +1716,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 					ptype = PT_BOUNDARY;
 					boundary_parts += current_geometry_particles;
 					break;
+				case GT_TESTPOINTS:
+					ptype = PT_TESTPOINT;
+					testpoint_parts += current_geometry_particles;
+					break;
 				case GT_MOVING_BODY:
 					pflags = FG_MOVING_BOUNDARY;
 					if (m_geometries[g]->measure_forces)
@@ -1885,6 +1933,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	std::cout << "Boundary: " << boundary_parts << " parts, mass " << boundary_part_mass << "\n";
 	if (simparams()->boundarytype == SA_BOUNDARY)
 		std::cout << "Vertices: " << vertex_parts << " parts, mass " << vertex_part_mass << "\n";
+	std::cout << "Testpoint: " << testpoint_parts << " parts\n";
 	std::cout << "Tot: " << tot_parts << " particles\n";
 	std::flush(std::cout);
 

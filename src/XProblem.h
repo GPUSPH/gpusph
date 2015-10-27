@@ -43,7 +43,8 @@ enum GeometryType {	GT_FLUID,
 					GT_OPENBOUNDARY,
 					GT_FLOATING_BODY,
 					GT_MOVING_BODY,
-					GT_PLANE
+					GT_PLANE,
+					GT_TESTPOINTS
 };
 
 enum FillType {	FT_NOFILL,
@@ -157,6 +158,7 @@ class XProblem: public Problem {
 		GeometryVector m_geometries;
 		PointVect m_fluidParts;
 		PointVect m_boundaryParts;
+		PointVect m_testpointParts;
 		//PointVect m_vertexParts;
 
 		size_t m_numActiveGeometries;	// do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
