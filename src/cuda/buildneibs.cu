@@ -349,8 +349,11 @@ struct ptype_hash_compare :
 		particleinfo pa(thrust::get<1>(a)),
 					 pb(thrust::get<1>(b));
 
-		if (ha == hb)
+		if (ha == hb) {
+			if (PART_TYPE(pa) == PART_TYPE(pb))
+				return id(pa) < id(pb);
 			return (PART_TYPE(pa) < PART_TYPE(pb));
+		}
 		return (ha < hb);
 	}
 };
@@ -369,8 +372,9 @@ sort(	MultiBufferList::const_iterator bufread,
 
 	ptype_hash_compare comp;
 
-	// Stable sort of the particle indices by hash and fluid number
-	thrust::stable_sort_by_key(
+	// Sort of the particle indices by cell, fluid number and id
+	// There is no need for a stable sort due to the id sort
+	thrust::sort_by_key(
 		thrust::make_zip_iterator(thrust::make_tuple(particleHash, particleInfo)),
 		thrust::make_zip_iterator(thrust::make_tuple(
 			particleHash + numParticles,
