@@ -280,7 +280,7 @@ fixHashDevice(hashKey*			particleHash,		// particle's hashes (in, out)
 		// Mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
 		if (compactDeviceMap)
-			particleHash[index] = particleHash[index] | ((hashKey)compactDeviceMap[gridHash] << 32);
+			particleHash[index] = particleHash[index] | ((hashKey)compactDeviceMap[gridHash] << GRIDHASH_BITSHIFT);
 	}
 
 	// Preparing particle index array for the sort phase
