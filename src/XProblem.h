@@ -221,6 +221,10 @@ class XProblem: public Problem {
 		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
 			const char *fname_xyz, const char *fname_stl = NULL);
 
+		// method to add a single testpoint
+		// NOTE: does not create a geometry since Point does not derive from Object
+		GeometryID addTestPoint(const Point &coordinates);
+
 		// request to invert normals while loading - only for HDF5 files
 		void flipNormals(const GeometryID gid, bool flip = true);
 

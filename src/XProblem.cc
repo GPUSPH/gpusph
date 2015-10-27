@@ -775,6 +775,13 @@ GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
 	);
 }
 
+// Add a single testpoint.
+// NOTE: testpoints should be assigned with consecutive particle ids starting from 0
+GeometryID XProblem::addTestPoint(const Point &coordinates)
+{
+	m_testpointParts.push_back(coordinates);
+}
+
 // request to invert normals while loading - only for HDF5 files
 void XProblem::flipNormals(const GeometryID gid, bool flip)
 {
