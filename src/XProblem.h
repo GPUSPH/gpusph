@@ -52,7 +52,8 @@ enum FillType {	FT_NOFILL,
 				FT_BORDER
 };
 
-enum IntersectionType {	IT_INTERSECT,
+enum IntersectionType {	IT_NONE,
+						IT_INTERSECT,
 						IT_SUBTRACT
 };
 
