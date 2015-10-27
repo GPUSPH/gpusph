@@ -1598,7 +1598,9 @@ void GPUSPH::buildNeibList()
 	// run most of the following commands on all particles
 	gdata->only_internal = false;
 
+	doCommand(SWAP_BUFFERS, BUFFER_POS);
 	doCommand(CALCHASH);
+	doCommand(SWAP_BUFFERS, BUFFER_POS);
 	doCommand(SORT);
 	doCommand(REORDER);
 
