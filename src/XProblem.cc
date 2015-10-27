@@ -1428,8 +1428,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// copy filled fluid parts
 	for (uint i = tot_parts; i < tot_parts + m_fluidParts.size(); i++) {
 		info[i]= make_particleinfo(PT_FLUID,0,i);
-		calc_localpos_and_hash(m_fluidParts[i], info[i], pos[i], hash[i]);
-		globalPos[i] = m_fluidParts[i].toDouble4();
+		calc_localpos_and_hash(m_fluidParts[i - tot_parts], info[i], pos[i], hash[i]);
+		globalPos[i] = m_fluidParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
 		const float rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
