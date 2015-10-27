@@ -2218,8 +2218,8 @@ saVertexBoundaryConditions(
 		if (step == 2 &&
 			// create new particle if the mass of the vertex is large enough
 			pos.w > refMass*0.5f &&
-			// check that the flow vector points into the domain
-			dot(as_float3(eulerVel),avgNorm) > 1e-4f*d_sscoeff[fluid_num(info)] &&
+			// if mass flux > 0
+			sumMdot > 0 &&
 			// pressure inlets need p > 0 to create particles
 			(VEL_IO(info) || eulerVel.w-rho0 > rho0*1e-5f) &&
 			// corner vertices are not allowed to create new particles
