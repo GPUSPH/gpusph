@@ -1568,12 +1568,11 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			const float r = length(as_float3(relPos));
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			//if (dot3(normal, relPos) < 0.0f &&
-			//	r < influenceradius &&
-			if (r < influenceradius &&
-				FLUID(neib_info)
+			if (dot3(normal, relPos) < 0.0f &&
+				r < influenceradius &&
+				//FLUID(neib_info)
 				//(FLUID(neib_info) || (!IO_BOUNDARY(info) && VERTEX(neib_info) && IO_BOUNDARY(neib_info) && !CORNER(neib_info)))
-				//(FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info)))
+				(FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info)))
 			   ){
 				const float neib_rho = oldVel[neib_index].w;
 
@@ -1592,8 +1591,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				if (IO_BOUNDARY(info)) {
 					sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 					// for open boundaries compute pressure interior state
-					//sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-					sump += w*fmax(0.0f, neib_pres);
+					sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
 					// and de/dn = 0
 					sumeps += w*neib_eps;
 				}
@@ -1983,14 +1981,11 @@ saVertexBoundaryConditions(
 			const uint neibVertYidx = vertIDToIndex[neibVerts.y];
 			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
 
-			if (FLUID(neib_info)) {
-			//if (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info))) {
+			//if (FLUID(neib_info)) {
+			if (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info))) {
 			//if (FLUID(neib_info) || (!IO_BOUNDARY(info) && VERTEX(neib_info) && IO_BOUNDARY(neib_info) && !CORNER(neib_info))) {
 				const float4 relPos = pos_corr - oldPos[neib_index];
-				// check for inactive particles and exclude those that have already crossed the wall on open boundaries
-				//if (INACTIVE(relPos) || (IO_BOUNDARY(info) && dot(normal, as_float3(relPos)) > 0.0f))
-				//if (INACTIVE(relPos) || dot(normal, as_float3(relPos)) > 0.0f)
-				if (INACTIVE(relPos))
+				if (INACTIVE(relPos) || dot(normal, as_float3(relPos)) > 0.0f)
 					continue;
 				const float r = length(as_float3(relPos));
 
@@ -2012,8 +2007,7 @@ saVertexBoundaryConditions(
 						// for open boundaries compute dv/dn = 0
 						sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 						// for open boundaries compute pressure interior state
-						//sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-						sump += w*fmax(0.0f, neib_pres);
+						sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
 						// and de/dn = 0
 						sumeps += w*neib_eps;
 					}
