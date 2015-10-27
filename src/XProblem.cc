@@ -760,6 +760,7 @@ void XProblem::flipNormals(const GeometryID gid, bool flip)
 	if (!validGeometry(gid)) return;
 
 	// this makes sense only for geometries loading a HDF5 file
+	// TODO: also enable for planes?
 	if (!m_geometries[gid]->has_hdf5_file) {
 		printf("WARNING: trying to invert normals on a geometry without HDF5-files associated! Ignoring\n");
 		return;
@@ -1391,11 +1392,14 @@ void XProblem::copy_to_array(BufferList &buffers)
 	uint hdf5_loaded_parts = 0;
 	// count #particles loaded from XYZ files. Only for information
 	uint xyz_loaded_parts = 0;
-	// Total number of filled parts, i.e. in GPUSPH array and ready to be uploaded. The following hold:
+	// Total number of filled parts, i.e. in GPUSPH array and ready to be uploaded.
+	uint tot_parts = 0;
+	// The following hold:
 	//   total = fluid_parts + boundary_parts + vertex_parts
 	//   total >= hdf5_loaded_parts + xyz_loaded_parts
 	//   total >= object_parts
-	uint tot_parts = 0;
+	// NOTE: particles loaded from HDF5 or XYZ files are counted both in the respective
+	// *_loaded_parts counter and in the type counter (e.g. fluid_parts).
 
 	// store mass for each particle type
 	double fluid_part_mass = NAN;
@@ -1531,9 +1535,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// "i" is the particle index in GPUSPH host arrays, "bi" the one in current HDF5 file)
 				const uint bi = i - tot_parts;
-
-				// TODO: warning as follows? But should be printed only once
-				// if (hdf5Buffer[bi].ParticleType != 0) ... warning, filling with different particle type
 
 				// TODO: define an invalid/unknown particle type?
 				// NOTE: update particle counters here, since current_geometry_particles does not distinguish vertex/bound;
