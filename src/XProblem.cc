@@ -419,6 +419,8 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
 	const char *hdf5_fname, const char *xyz_fname, const char *stl_fname)
 {
+	// TODO: before even creating the new GeometryInfo we should check the compatibility of
+	// the combination of paramenters (e.g. no moving planes; no HDF5 testpoints)
 	GeometryInfo* geomInfo = new GeometryInfo();
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
@@ -733,6 +735,7 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 	// NOTES about HDF5 files
 	// - fill type is FT_NOFILL since particles are read from file
 	// - may add a null STLMesh if the hdf5 file is given but not the mesh
+	// - should adding an HDF5 file of type GT_TESTPOINTS be forbidden?
 
 	// create an empty STLMesh if the STL filename is not given
 	STLMesh *stlmesh = ( fname_stl == NULL ? new STLMesh(0) : STLMesh::load_stl(fname_stl) );
