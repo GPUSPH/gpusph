@@ -1600,8 +1600,14 @@ void GPUSPH::buildNeibList()
 
 	doCommand(SWAP_BUFFERS, BUFFER_POS);
 	doCommand(CALCHASH);
-	doCommand(SWAP_BUFFERS, BUFFER_POS);
+	// restore POS back in the READ position,
+	// and put INFO into the WRITE position as it will be
+	// reoreded by the SORT
+	doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_INFO);
+	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
+	// in-place in WRITE
 	doCommand(SORT);
+	// reorder everything else
 	doCommand(REORDER);
 
 	// get the new number of particles: with inlet/outlets, they
