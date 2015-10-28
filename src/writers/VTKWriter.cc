@@ -651,11 +651,19 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
 
+	bool multiblock = m_multiblock.is_open();
+	if (multiblock) {
+		m_multiblock << "  <DataSet index='1' name='Particles' file='" << filename << "'/>\n";
+		m_multiblock << " </vtkMultiBlockDataSet>\n";
+		m_multiblock << "</VTKFile>" << endl;
+		m_multiblock.close();
+	}
+
 	// Writing time to VTUinp.pvd file
 	if (m_timefile) {
-		// TODO should node info for multinode be stored in group or part?
+		// node info for multinode should be stored in part
 		m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
-			<< "file='" << filename << "'/>" << endl;
+			<< "file='" << (multiblock ? m_multiblock_fname : filename) << "'/>" << endl;
 		mark_timefile();
 	}
 
@@ -668,7 +676,7 @@ void
 VTKWriter::write_WaveGage(double t, GageList const& gage)
 {
 	ofstream fp;
-	open_data_file(fp, "WaveGage", current_filenum());
+	string filename = open_data_file(fp, "WaveGage", current_filenum());
 	size_t num = gage.size();
 
 	// For gages without points, z will be NaN, and we'll set
@@ -721,6 +729,16 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 	fp << "</VTKFile>" <<endl;
 
 	fp.close();
+
+	// Open the multiblock
+	m_multiblock_fname = open_data_file(m_multiblock, "data", current_filenum(), ".vtm");
+	if (m_multiblock) {
+		m_multiblock << "<?xml version='1.0'?>\n";
+		m_multiblock << "<VTKFile type='vtkMultiBlockDataSet'  version='1.0'>\n";
+		m_multiblock << " <vtkMultiBlockDataSet>\n";
+		m_multiblock << "  <DataSet index='0' name='WaveGages' file='" << filename << "'/>" << endl;
+	}
+
 }
 
 void
