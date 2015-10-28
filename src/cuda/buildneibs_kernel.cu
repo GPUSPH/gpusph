@@ -888,8 +888,8 @@ neibsInCell(
 				params.neibsList[offset*d_neiblist_stride + index] =
 						neib_index - var.bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
 				encode_cell = false;
-				neibs_num[neib_type]++;
 			}
+			neibs_num[neib_type]++;
 		}
 		if (segment) {
 			process_niC_segment(index, neib_index, relPos, params, var);
@@ -996,44 +996,36 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 	// particles for which the neighbor list is not built actually
 	// have an empty neighbor list. Otherwise, particles which are
 	// marked inactive will keep their old neighbor list.
-	if (index < params.numParticles) {
+	/*if (index < params.numParticles) {
 		params.neibsList[neibs_num[PT_FLUID]*d_neiblist_stride + index] = 0xffff;
 		params.neibsList[(d_neibboundpos - neibs_num[PT_BOUNDARY])*d_neiblist_stride + index] = 0xffff;
-	}
+	}*/
 
 	if (neibcount) {
 		// Shared memory reduction of per block maximum number of neighbors
-		__shared__ volatile uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
-		__shared__ volatile uint sm_neibs_max[2][BLOCK_SIZE_BUILDNEIBS];
+		__shared__ volatile uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
+		__shared__ volatile uint sm_fluidbound_neibs_max[BLOCK_SIZE_BUILDNEIBS];
 
-		#pragma unroll
-		for (uint j = 0; j < 2; j++) {
-			sm_neibs_max[j][threadIdx.x] = neibs_num[j];
-		}
-		sm_neibs_num[threadIdx.x] = neibs_num[0] +  neibs_num[1];
+		sm_fluidbound_neibs_max[threadIdx.x] =  neibs_num[0] +  neibs_num[1];
+		sm_total_neibs_num[threadIdx.x] = neibs_num[0] +  neibs_num[1];
 		__syncthreads();
 
 		uint i = blockDim.x/2;
 		while (i != 0) {
 			if (threadIdx.x < i) {
-				sm_neibs_num[threadIdx.x] += sm_neibs_num[threadIdx.x + i];
-				#pragma unroll
-				for (uint j = 0; j < 2; j++) {
-					const uint n1 = sm_neibs_max[j][threadIdx.x];
-					const uint n2 = sm_neibs_max[j][threadIdx.x + i];
-					if (n2 > n1)
-						sm_neibs_max[j][threadIdx.x] = n2;
-				}
+				sm_total_neibs_num[threadIdx.x] += sm_total_neibs_num[threadIdx.x + i];
+				const uint n1 = sm_fluidbound_neibs_max[threadIdx.x];
+				const uint n2 = sm_fluidbound_neibs_max[threadIdx.x + i];
+				if (n2 > n1)
+					sm_fluidbound_neibs_max[threadIdx.x] = n2;
 			}
 			__syncthreads();
 			i /= 2;
 		}
 
 		if (!threadIdx.x) {
-			for (uint j = 0; j < 2; j++) {
-				atomicMax(&d_maxNeibs[j], sm_neibs_max[j][0]);
-			}
-			atomicAdd(&d_numInteractions, sm_neibs_num[0]);
+			atomicMax(&d_maxNeibs[0], sm_fluidbound_neibs_max[0]);
+			atomicAdd(&d_numInteractions, sm_total_neibs_num[0]);
 		}
 	}
 	return;

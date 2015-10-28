@@ -96,6 +96,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 		m_size += 2*extra_offset;
 	}
 
+	simparams()->neiblistsize = 128;
+	simparams()->neibboundpos = simparams()->neiblistsize - 1;
 
 	simparams()->dt = 2.5e-4f;
 	simparams()->dtadaptfactor = 0.3;
