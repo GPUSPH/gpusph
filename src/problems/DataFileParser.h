@@ -93,14 +93,14 @@ class DataFileParser {
 		    	return res;
 			}
 			else
-		    	throw runtime_error("Unknown key\n");
+		    	throw std::runtime_error("Unknown key\n");
 		};
 
 		float3 getF3(const std::string& key) {
 			return make_float3(getD3(key));
 		};
 
-		string getS(const std::string& key) {
+		std::string getS(const std::string& key) {
 			if (has(key))
 				return sVar[key];
 			else
@@ -108,12 +108,12 @@ class DataFileParser {
 		};
 
 	private:
-		static void Tokenize(const string& str, vector<string>& tokens, const string& delimiters = " ") {
+		static void Tokenize(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters = " ") {
 			// Skip delimiters at beginning.
-			string::size_type lastPos = str.find_first_not_of(delimiters, 0);
+			std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
 			// Find first "non-delimiter".
-			string::size_type pos = str.find_first_of(delimiters, lastPos);
-			while (string::npos != pos || string::npos != lastPos) {
+			std::string::size_type pos = str.find_first_of(delimiters, lastPos);
+			while (std::string::npos != pos || std::string::npos != lastPos) {
 				// Found a token, add it to the vector.
 				tokens.push_back(str.substr(lastPos, pos - lastPos));
 				// Skip delimiters.  Note the "not_of"
@@ -124,12 +124,12 @@ class DataFileParser {
 		};
 
 		void outputVariables(std::ostream & file) {
-		    map<string, string>::iterator iter;
+			std::map<std::string, std::string>::iterator iter;
 		    for(iter = sVar.begin(); iter != sVar.end(); iter++ )
 		        file << iter->first << " " << iter->second << "\n";
 		};
 
-		map<string, string> sVar;
+		std::map<std::string, std::string> sVar;
 };
 
 #endif
