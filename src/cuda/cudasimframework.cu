@@ -479,7 +479,7 @@ public:
 
 	/// Chained selectors (for multiple overrides)
 	template<typename Switch, typename Sel2, typename Other>
-	SimFramework * select_options(int selector, Switch, Sel2 selector2, Other())
+	SimFramework * select_options(int selector, Switch, Sel2 selector2, Other)
 	{
 		switch (selector) {
 		case 0:
