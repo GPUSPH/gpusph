@@ -837,6 +837,10 @@ neibsInCell(
 	// Iterate over all particles in the cell
 	bool encode_cell = true;
 
+#if 1
+	ParticleType previous_type = PT_FLUID;
+#endif
+
 	for (uint neib_index = var.bucketStart; neib_index < var.bucketEnd; neib_index++) {
 
 		// Prevent self-interaction
@@ -844,6 +848,20 @@ neibsInCell(
 			continue;
 
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+#if 1
+		//if (index == 6082) {
+			if (PART_TYPE(neib_info) < previous_type) {
+				printf("Error  index %d\n", index);
+			}
+		//}
+		previous_type = ParticleType(PART_TYPE(neib_info));
+#endif
+
+#if 1
+		if (index == 6082)
+			printf("index %d neib_id %d cell %d type %d\n", index, id(neib_info), cell, PART_TYPE(neib_info));
+#endif
 
 		// Testpoints have a neighbor list, but are not considered in the neighbor list
 		// of other points
