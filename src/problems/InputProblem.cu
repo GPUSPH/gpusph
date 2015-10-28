@@ -800,7 +800,7 @@ InputProblem_imposeBoundaryCondition(
 #elif SPECIFIC_PROBLEM == LaPalisseSmallerTest
 			if(absPos.z < sin(t*3.14f/2.0f)*0.2f) {
 				eulerVel.x = 1.0f;
-				eulerVel.y = 1.0f;
+				eulerVel.y = 0.5f;
 			}
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			// the 0.025 is deltap*0.5 = 0.05*0.5
@@ -864,8 +864,8 @@ InputProblem_imposeBoundaryCondition(
     SPECIFIC_PROBLEM == LaPalisseSmallerTest
 			if (object(info)==0)
 				//waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
-				waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
-				//waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				//waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));
