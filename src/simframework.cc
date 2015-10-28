@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,6 +24,35 @@
 */
 
 #include "simframework.h"
+
+SimFramework::SimFramework() :
+	m_neibsEngine(NULL),
+	m_integrationEngine(NULL),
+	m_viscEngine(NULL),
+	m_forcesEngine(NULL),
+	m_bcEngine(NULL),
+	m_allocPolicy(NULL),
+	m_filterEngines(),
+	m_filterFreqList(),
+	m_postProcessEngines(),
+	m_simparams(NULL)
+{}
+
+SimFramework::~SimFramework()
+{
+	delete m_simparams;
+
+	m_postProcessEngines.clear();
+	m_filterFreqList.clear();
+	m_filterEngines.clear();
+
+	delete m_allocPolicy;
+	delete m_bcEngine;
+	delete m_forcesEngine;
+	delete m_viscEngine;
+	delete m_integrationEngine;
+	delete m_neibsEngine;
+}
 
 // Filters are run at the beginning of each iteration whose number is an exact
 // multiple of the filter frequency. We also want to ensure that filters are run

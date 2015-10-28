@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 
 #include "simflags.h"
 
+#include "bounds.cu"
 #include "buildneibs.cu"
 #include "euler.cu"
 #include "forces.cu"
@@ -76,6 +77,31 @@ struct CUDABoundaryConditionsSelector<kerneltype, visctype, SA_BOUNDARY, simflag
 	{ return new BCEtype(); } // TODO FIXME when we have proper BCEs
 };
 
+/// Some combinations of frameworks for kernels are invalid/
+/// unsupported/untested and we want to prevent the user from
+/// using them, by (1) catching the error as soon as possible
+/// during compilation and (2) give an error message that is
+/// as descriptive as possible (non-trivial with C++).
+/// Point (2) is particularly hard to realize with nvcc because
+/// it doesn't print out the actual line with the error, so we
+/// need some indirection; we achieve this by making the
+/// CUDASimFramework subclass a template class InvalidOptionCombination
+/// whose instantiation will fail in case of invalid option combinations;
+/// this failure is due to trying to subclass an IncompleteType class
+/// which is not defined except in the not invalid case.
+/// nvcc will then show the error for InvalidOptionCombination, which
+/// is hopefully descriptive enough for users.
+template<bool invalid>
+class IncompleteType;
+
+template<>
+class IncompleteType<false>
+{};
+
+template<bool invalid>
+class InvalidOptionCombination : IncompleteType<invalid>
+{};
+
 /* CUDASimFrameworkImpl */
 
 // Here we define the implementation for the CUDASimFramework. The use of *Impl is
@@ -83,19 +109,52 @@ struct CUDABoundaryConditionsSelector<kerneltype, visctype, SA_BOUNDARY, simflag
 // template parameters
 
 template<
-	KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	ViscosityType visctype,
-	BoundaryType boundarytype,
-	Periodicity periodicbound,
-	flag_t simflags>
-class CUDASimFrameworkImpl : public SimFramework
+	KernelType _kerneltype,
+	SPHFormulation _sph_formulation,
+	ViscosityType _visctype,
+	BoundaryType _boundarytype,
+	Periodicity _periodicbound,
+	flag_t _simflags,
+	bool invalid_combination = (
+		// Currently, we consider invalid only the case
+		// of SA_BOUNDARY
+
+		// TODO extend to include all unsupported/untested combinations for other boundary conditions
+
+		_boundarytype == SA_BOUNDARY && (
+			// viscosity
+			_visctype == KINEMATICVISC		||	// untested
+			_visctype == SPSVISC			||	// untested
+			_visctype == ARTVISC			||	// untested (use is discouraged, use Ferrari correction)
+			// kernel
+			! (_kerneltype == WENDLAND)		||	// only the Wendland kernel is allowed in SA_BOUNDARY
+												// all other kernels would require their respective
+												// gamma and grad gamma formulation
+			// formulation
+			_sph_formulation == SPH_GRENIER	||	// multi-fluid is currently not implemented
+			// flags
+			_simflags & ENABLE_XSPH			||	// untested
+			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
+			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM))
+												// inlet outlet works only with the summation density
+		)
+	)
+>
+class CUDASimFrameworkImpl : public SimFramework,
+	private InvalidOptionCombination<invalid_combination>
 {
+	static const KernelType kerneltype = _kerneltype;
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const ViscosityType visctype = _visctype;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const Periodicity periodicbound = _periodicbound;
+	static const flag_t simflags = _simflags;
+
 public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
 		m_neibsEngine = new CUDANeibsEngine<sph_formulation, boundarytype, periodicbound, true>();
-		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, simflags & ENABLE_XSPH>();
+		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, simflags>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
 		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, visctype, boundarytype, simflags>::select();
@@ -155,8 +214,7 @@ protected:
 //
 // NOTE: the withFlags<> will override the default flags, not add to them,
 // so in case of flag override, the default ones should be included manually.
-// (TODO is there a way to avoid this? In this case we would need to provide two
-// 'withFlags' for the user, one to override the default flags and one to add to them.)
+// As an alternative, a class that adds to the defaults is provided too.
 
 // TODO we may want to put the implementation of the named template options into its own
 // header file.
@@ -165,19 +223,19 @@ protected:
 // classes. The main mechanism is essentially inspired by the named template arguments
 // mechanism shown in http://www.informit.com/articles/article.aspx?p=31473 with some
 // additions to take into account that our template arguments are not typenames, but
-// values of different types.
+// values of different types, and to allow inheritance from previous arguments selectors.
 
-// The first auxiliary class is TypeValue: a class template to carry a value and its type
-// (note that the value should be convertible to enum): this will be used to specify the
-// default values for the parameters, as well as to allow their overriding by the user.
-// It is needed because we want to allow parameters to be specified in any order,
-// and this means that we need a common 'carrier' for our specific types.
+// The first auxiliary class is TypeValue: a class template to carry a value and its type:
+// this will be used to specify the default values for the parameters, as well
+// as to allow their overriding by the user. It is needed because we want to
+// allow parameters to be specified in any order, and this means that we need a
+// common 'carrier' for our specific types.
 
 template<typename T, T _val>
 struct TypeValue
 {
 		typedef T type;
-		enum { value = _val };
+		static const T value = _val;
 		operator T() { return _val; }; // allow automatic conversion to the type
 };
 
@@ -186,7 +244,7 @@ struct TypeValue
 // so we will wrap the type in a "multiplexer":
 
 template<typename T, int idx>
-struct MultiplexSubclass : public T
+struct MultiplexSubclass : virtual public T
 {};
 
 // Template arguments are collected into this class: it will subclass
@@ -198,12 +256,12 @@ struct MultiplexSubclass : public T
 template<typename Arg1, typename Arg2, typename Arg3,
 	typename Arg4, typename Arg5, typename Arg6>
 struct ArgSelector :
-	public MultiplexSubclass<Arg1,1>,
-	public MultiplexSubclass<Arg2,2>,
-	public MultiplexSubclass<Arg3,3>,
-	public MultiplexSubclass<Arg4,4>,
-	public MultiplexSubclass<Arg5,5>,
-	public MultiplexSubclass<Arg6,6>
+	virtual public MultiplexSubclass<Arg1,1>,
+	virtual public MultiplexSubclass<Arg2,2>,
+	virtual public MultiplexSubclass<Arg3,3>,
+	virtual public MultiplexSubclass<Arg4,4>,
+	virtual public MultiplexSubclass<Arg5,5>,
+	virtual public MultiplexSubclass<Arg6,6>
 {};
 
 // Now we set the defaults for each argument
@@ -221,42 +279,113 @@ struct TypeDefaults
 // and override specific typedefs
 // NOTE: inheritance must be virtual so that there will be no resolution
 // ambiguity.
+// NOTE: in order to allow the combination of a named parameter struct with
+// an existing (specific) ArgSelector, we allow them to be assigned a different
+// parent, in order to avoid resolution ambiguity in constructs such as:
+// ArgSelector<OldArgSelector, formulation<OTHER_FORMULATION> >
 
 // No override: these are the default themselves
 struct DefaultArg : virtual public TypeDefaults
 {};
 
 // Kernel override
-template<KernelType kerneltype>
-struct kernel : virtual public TypeDefaults
-{ typedef TypeValue<KernelType, kerneltype> Kernel; };
+template<KernelType kerneltype, typename ParentArgs=TypeDefaults>
+struct kernel : virtual public ParentArgs
+{
+	typedef TypeValue<KernelType, kerneltype> Kernel;
+
+	template<typename NewParent> struct reparent :
+		virtual public kernel<kerneltype, NewParent> {};
+};
 
 // Formulation override
-template<SPHFormulation sph_formulation>
-struct formulation : virtual public TypeDefaults
-{ typedef TypeValue<SPHFormulation, sph_formulation> Formulation; };
+template<SPHFormulation sph_formulation, typename ParentArgs=TypeDefaults>
+struct formulation : virtual public ParentArgs
+{
+	typedef TypeValue<SPHFormulation, sph_formulation> Formulation;
+
+	template<typename NewParent> struct reparent :
+		virtual public formulation<sph_formulation, NewParent> {};
+};
 
 // Viscosity override
-template<ViscosityType visctype>
-struct viscosity : virtual public TypeDefaults
-{ typedef TypeValue<ViscosityType, visctype> Viscosity; };
+template<ViscosityType visctype, typename ParentArgs=TypeDefaults>
+struct viscosity : virtual public ParentArgs
+{
+	typedef TypeValue<ViscosityType, visctype> Viscosity;
+
+	template<typename NewParent> struct reparent :
+		virtual public viscosity<visctype, NewParent> {};
+};
 
 // Boundary override
-template<BoundaryType boundarytype>
-struct boundary : virtual public TypeDefaults
-{ typedef TypeValue<BoundaryType, boundarytype> Boundary; };
+template<BoundaryType boundarytype, typename ParentArgs=TypeDefaults>
+struct boundary : virtual public ParentArgs
+{
+	typedef TypeValue<BoundaryType, boundarytype> Boundary;
+
+	template<typename NewParent> struct reparent :
+		virtual public boundary<boundarytype, NewParent> {};
+};
 
 // Periodic override
-template<Periodicity periodicbound>
-struct periodicity : virtual public TypeDefaults
-{ typedef TypeValue<Periodicity, periodicbound> Periodic; };
+template<Periodicity periodicbound, typename ParentArgs=TypeDefaults>
+struct periodicity : virtual public ParentArgs
+{
+	typedef TypeValue<Periodicity, periodicbound> Periodic;
+
+	template<typename NewParent> struct reparent :
+		virtual public periodicity<periodicbound, NewParent> {};
+};
 
 // Flags override
-template<flag_t simflags>
-struct flags : virtual public TypeDefaults
-{ typedef TypeValue<flag_t, simflags> Flags; };
+template<flag_t simflags, typename ParentArgs=TypeDefaults>
+struct flags : virtual public ParentArgs
+{
+	typedef TypeValue<flag_t, simflags> Flags;
 
-// And that's all!
+	template<typename NewParent> struct reparent :
+		virtual public flags<simflags, NewParent> {};
+};
+
+// Add flags: this is an override that adds the new simflags
+// to the ones of the parent.
+template<flag_t simflags, typename ParentArgs=TypeDefaults>
+struct add_flags : virtual public ParentArgs
+{
+	typedef TypeValue<flag_t, ParentArgs::Flags::value | simflags> Flags;
+
+	template<typename NewParent> struct reparent :
+		virtual public add_flags<simflags, NewParent> {};
+};
+
+/// We want to give users the possibility to change options (e.g. enable flags)
+/// conditionally at runtime. For this, we need a way to pack collection of
+/// overrides to be selected by a switch statement (currently limited to three
+/// options)
+template<typename _A, typename _B, typename _C>
+struct TypeSwitch {
+	typedef _A A;
+	typedef _B B;
+	typedef _C C;
+};
+
+/// Comfort method to allow the user to select one of three flags at runtime
+template<flag_t F0, flag_t F1, flag_t F2>
+struct FlagSwitch :
+	TypeSwitch<
+		add_flags<F0>,
+		add_flags<F1>,
+		add_flags<F2>
+	>
+{};
+
+/// Our CUDASimFramework is actualy a factory for CUDASimFrameworkImpl*,
+/// generating one when assigned to a SimFramework*. This is to allow us
+/// to change the set of options at runtime without setting up/tearing down
+/// the whole simframework every time an option is changed (setting up/tearing
+/// down the factory itself is much cheaper as there is no associated storage, so
+/// it's mostly just compile-time juggling).
 template<
 	typename Arg1 = DefaultArg,
 	typename Arg2 = DefaultArg,
@@ -264,17 +393,106 @@ template<
 	typename Arg4 = DefaultArg,
 	typename Arg5 = DefaultArg,
 	typename Arg6 = DefaultArg>
-class CUDASimFramework : public
-	CUDASimFrameworkImpl<
-#define ARGS ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6>
-		KernelType(ARGS::Kernel::value),
-		SPHFormulation(ARGS::Formulation::value),
-		ViscosityType(ARGS::Viscosity::value),
-		BoundaryType(ARGS::Boundary::value),
-		Periodicity(ARGS::Periodic::value),
-		flag_t(ARGS::Flags::value)>
-#undef ARGS
-{};
+class CUDASimFramework {
+	/// The collection of arguments for our current setup
+	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6> Args;
+
+	/// Comfort static defines
+	static const KernelType kerneltype = Args::Kernel::value;
+	static const SPHFormulation sph_formulation = Args::Formulation::value;
+	static const ViscosityType visctype = Args::Viscosity::value;
+	static const BoundaryType boundarytype = Args::Boundary::value;
+	static const Periodicity periodicbound = Args::Periodic::value;
+	static const flag_t simflags = Args::Flags::value;
+
+	/// The CUDASimFramework implementation of the current setup
+	typedef CUDASimFrameworkImpl<
+			kerneltype,
+			sph_formulation,
+			visctype,
+			boundarytype,
+			periodicbound,
+			simflags> CUDASimFrameworkType;
+
+	/// A comfort auxiliary class that overrides Args (the current setup)
+	/// with the Extra named option
+	template<typename Extra> struct Override :
+		virtual public Args,
+		virtual public Extra::template reparent<Args>
+	{};
+
+	/// A method to produce a new factory with an overridden parameter
+	template<typename Extra>
+	CUDASimFramework< Override<Extra> > extend() {
+		return CUDASimFramework< Override<Extra> >();
+	}
+
+public:
+	/// Conversion operator: this produces the actual implementation of the
+	/// simframework
+	operator SimFramework *()
+	{
+		// return the intended framework
+		return new CUDASimFrameworkType();
+	}
+
+	/// Runtime selectors.
+
+	/// Note that they must return a SimFramework* because otherwise the type
+	/// returned would depend on the runtime selection, which is not possible.
+	/// As a result we cannot chain runtime selectors, and must instead provide
+	/// further runtime selectors with multiple (pairs of) overrides
+
+	/// Select an override only if a boolean option is ture
+	template<typename Extra>
+	SimFramework * select_options(bool selector, Extra)
+	{
+		if (selector)
+			return extend<Extra>();
+		return *this;
+	}
+
+	/// Select one of three overrides in a Switch, based on the value of
+	/// selector. TODO refine
+	template<typename Switch>
+	SimFramework * select_options(int selector, Switch)
+	{
+		switch (selector) {
+		case 0:
+			return extend< typename Switch::A >();
+		case 1:
+			return extend< typename Switch::B >();
+		case 2:
+			return extend< typename Switch::C >();
+		}
+		throw std::runtime_error("invalid selector value");
+	}
+
+	/// Chained selectors (for multiple overrides)
+	template<typename Extra, typename Sel2, typename Other>
+	SimFramework * select_options(bool selector, Extra, Sel2 selector2, Other)
+	{
+		if (selector)
+			return extend<Extra>().select_options(selector2, Other());
+		return this->select_options(selector2, Other());
+	}
+
+	/// Chained selectors (for multiple overrides)
+	template<typename Switch, typename Sel2, typename Other>
+	SimFramework * select_options(int selector, Switch, Sel2 selector2, Other())
+	{
+		switch (selector) {
+		case 0:
+			return extend< typename Switch::A >().select_options(selector2, Other());
+		case 1:
+			return extend< typename Switch::B >().select_options(selector2, Other());
+		case 2:
+			return extend< typename Switch::C >().select_options(selector2, Other());
+		}
+		throw std::runtime_error("invalid selector value");
+	}
+
+};
 
 #endif
 

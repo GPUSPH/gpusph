@@ -27,24 +27,22 @@ timestep = vtp.TimestepValues
 
 # threshold on particle type 0 (fluid)
 fluid = Threshold(vtp)
-fluid.Scalars = 'Part type'
+fluid.Scalars = 'Part type+flags'
 fluid.ThresholdRange = [0, 0]
 
-# if the data file stores Part flag,
-# threshold on particle flag 0 to avoid FIXED particles
-# (and potentially other future flags such as inlet/outlet particles
-if fluid.PointData.GetArray('Part flag'):
-    noflags = Threshold(fluid)
-    noflags.Scalars = 'Part flag'
-    noflags.ThresholdRange = [0, 1]
-else:
-    noflags = fluid
+print "#time,xmin,xmax,ymin,ymax,zmin,zmax,rhomin,rhomax"
 
-print "#time,xmin,xmax,ymin,ymax,zmin,zmax"
+first = None
+last = None
 
 # iterate over available timestep, gather bounds, print time and bounds
 for time in timestep:
-    noflags.UpdatePipeline(time)
-    bounds = noflags.GetDataInformation().GetBounds()[:]
-    print "%f,%f,%f,%f,%f,%f,%f" % ((time,) + bounds )
+    fluid.UpdatePipeline(time)
+    bounds =    fluid.GetDataInformation().GetBounds()[:] + \
+                fluid.PointData.GetArray('Density').GetRange()
+    if not first:
+        first = bounds
+    last = bounds
+    print "%f,%f,%f,%f,%f,%f,%f,%f,%f" % ((time,) + bounds)
 
+print "**,%f,%f,%f,%f,%f,%f,%f,%f" % tuple(pair[1] - pair[0] for pair in zip(first, last))

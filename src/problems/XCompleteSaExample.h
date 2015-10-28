@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -48,26 +48,14 @@ class XCompleteSaExample: public XProblem {
 		uint max_parts(uint);
 
 		void
-		setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize);
-
-		void
 		imposeBoundaryConditionHost(
-					float4*			newVel,
-					float4*			newEulerVel,
-					float*			newTke,
-					float*			newEpsilon,
-			const	particleinfo*	info,
-			const	float4*			oldPos,
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
 					uint*			IOwaterdepth,
 			const	float			t,
 			const	uint			numParticles,
-			const	uint			numObjects,
-			const	uint			particleRangeEnd,
-			const	hashKey*		particleHash);
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd);
 
 		// override standard split
 		void fillDeviceMap();

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -40,6 +40,8 @@
 class AbstractForcesEngine
 {
 public:
+	virtual ~AbstractForcesEngine() {};
+
 	virtual void
 	setconstants(const SimParams *simparams, const PhysParams *physparams,
 		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
@@ -85,6 +87,8 @@ public:
 	virtual void
 	unbind_textures() = 0;
 
+	// TODO set/unsetDEM should be moved to the BC engine,
+	// and the latter should be called by the destructor
 	virtual void
 	setDEM(const float *hDem, int width, int height) = 0;
 
@@ -123,7 +127,8 @@ public:
 				float	influenceradius,
 		const	float	epsilon,
 				uint	*IOwaterdepth,
-				uint	cflOffset) = 0;
+				uint	cflOffset,
+		const	uint	step) = 0;
 
 	// Reduction methods
 
@@ -138,6 +143,7 @@ public:
 				float	dtadaptfactor,
 				float	max_kinematic,
 				float	*cfl,
+				float	*cflDs,
 				float	*cflTVisc,
 				float	*tempCfl,
 				uint	numBlocks) = 0;
@@ -149,6 +155,11 @@ public:
 class AbstractBoundaryConditionsEngine
 {
 public:
+	virtual ~AbstractBoundaryConditionsEngine() {}
+
+/// Update the ID offset for new particle generation
+virtual void
+updateNewIDsOffset(const uint &newIDsOffset) = 0;
 
 // Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 virtual void
@@ -172,7 +183,8 @@ saSegmentBoundaryConditions(
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	bool			initStep) = 0;
+	const	bool			initStep,
+	const	uint			step) = 0;
 
 // There is no need to use two velocity arrays (read and write) and swap them after.
 // Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
@@ -189,6 +201,7 @@ saVertexBoundaryConditions(
 			float2*			contupd,
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
+	const	float2			* const vertPos[],
 	const	uint*			vertIDToIndex,
 			particleinfo*	info,
 			hashKey*		particleHash,
@@ -202,8 +215,8 @@ saVertexBoundaryConditions(
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	uint&			newIDsOffset,
 	const	bool			initStep,
+	const	bool			resume,
 	const	uint			deviceId,
 	const	uint			numDevices) = 0;
 
@@ -236,6 +249,7 @@ saIdentifyCornerVertices(
 	const	float4*			boundelement,
 			particleinfo*	info,
 	const	hashKey*		particleHash,
+	const	vertexinfo*		vertices,
 	const	uint*			cellStart,
 	const	neibdata*		neibsList,
 	const	uint			numParticles,
