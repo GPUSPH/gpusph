@@ -22,8 +22,10 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #if SPECIFIC_PROBLEM == BoxCorner || SPECIFIC_PROBLEM == Box
 #if SPECIFIC_PROBLEM == BoxCorner
 			h5File.setFilename("meshes/0.box_corner.h5sph");
+			vtuFile.setFilename("meshes/box_corner.vtu");
 #else
 			h5File.setFilename("meshes/0.box_blend_16.h5sph");
+			vtuFile.setFilename("meshes/box_blend_16.vtu");
 #endif
 
 		SETUP_FRAMEWORK(
@@ -419,6 +421,7 @@ int InputProblem::fill_parts()
 	//*******************************************************************
 #endif
 
+	vtuFile.getNParts();
 	return h5File.getNParts() + test_points.size();
 }
 

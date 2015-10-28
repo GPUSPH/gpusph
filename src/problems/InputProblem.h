@@ -5,6 +5,7 @@
 
 #include "Problem.h"
 #include "HDF5SphReader.h"
+#include "VTUReader.h"
 
 // Implemented problems:
 //
@@ -34,6 +35,7 @@ class InputProblem: public Problem {
 		double			w, l, h;
 		double			H;				// water level (used to set D constant)
 		HDF5SphReader	h5File;
+		VTUReader		vtuFile;
 
 
 	public:
