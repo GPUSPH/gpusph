@@ -51,6 +51,7 @@ __constant__ idx_t	d_neiblist_end; // maxneibsnum * number of allocated particle
 __constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
 
 #include "sph_core_utils.cuh"
+#include "gamma.cuh"
 using namespace cubounds;
 
 /// Apply rotation to a given vector
