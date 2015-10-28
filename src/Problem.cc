@@ -62,6 +62,10 @@ Problem::Problem(GlobalData *_gdata) :
 bool
 Problem::initialize()
 {
+	if (simparams()->gage.size() > 0 && !m_simframework->hasPostProcessEngine(SURFACE_DETECTION)) {
+		printf("Wave gages present: force-enabling surface detection\n");
+		m_simframework->addPostProcessEngine(SURFACE_DETECTION);
+	}
 	// run post-construction functions
 	check_dt();
 	check_maxneibsnum();
@@ -1185,7 +1189,7 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 	int3 gridPos = calc_grid_pos(pos);
 
 	// automatically choose between long hash (cellHash + particleId) and short hash (cellHash)
-	hash = makeParticleHash( calc_grid_hash(gridPos), info );
+	hash = calc_grid_hash(gridPos);
 
 	localpos.x = float(pos(0) - m_origin.x - (gridPos.x + 0.5)*m_cellsize.x);
 	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);

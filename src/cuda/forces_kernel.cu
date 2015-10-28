@@ -2245,7 +2245,7 @@ saVertexBoundaryConditions(
 			// assign new values to array
 			oldPos[clone_idx] = clone_pos;
 			pinfo[clone_idx] = clone_info;
-			particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
+			particleHash[clone_idx] = calcGridHash(clone_gridPos);
 			// the new velocity of the fluid particle is the eulerian velocity of the vertex
 			oldVel[clone_idx] = oldEulerVel[index];
 			forces[clone_idx] = make_float4(0.0f);

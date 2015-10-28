@@ -74,9 +74,9 @@ typedef ushort4 particleinfo;
 
 enum ParticleType {
 	PT_FLUID = 0,
-	PT_TESTPOINT,
 	PT_BOUNDARY,
-	PT_VERTEX
+	PT_VERTEX,
+	PT_TESTPOINT
 };
 
 /* particle flags */

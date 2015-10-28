@@ -29,9 +29,6 @@
 #ifndef _MULTIGPU_DEFINES_
 #define _MULTIGPU_DEFINES_
 
-// For HASH_KEY_SIZE
-#include "hash_key_size_select.opt"
-
 // We use a byte (uchar) to address a device in the cluster
 #define MAX_DEVICES_PER_CLUSTER 256
 
