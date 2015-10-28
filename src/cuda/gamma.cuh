@@ -193,7 +193,7 @@ template<KernelType kerneltype>
 __device__ __forceinline__ float
 gradGamma(	const	float		&slength,
 		const	float3		&relPos,
-		const	float3		*vertexRelPos,
+		const	float4		*vertexRelPos,
 		const	float3		&ns)
 { return -1.0f; } // TODO throw not implemented error
 
@@ -202,7 +202,7 @@ __device__ __forceinline__ float
 gradGamma<WENDLAND>(
 		const	float		&slength,
 		const	float3		&relPos,
-		const	float3		*vertexRelPos,
+		const	float4		*vertexRelPos,
 		const	float3		&ns)
 {
 	// Sigma is the point a projected onto the plane spanned by the edge
@@ -231,7 +231,7 @@ gradGamma<WENDLAND>(
 		sIdx[0] = e%3;
 		sIdx[1] = (e+1)%3;
 		
-		float3 v01 = normalize(vertexRelPos[sIdx[0]] - vertexRelPos[sIdx[1]]);
+		float3 v01 = normalize(as_float3(vertexRelPos[sIdx[0]] - vertexRelPos[sIdx[1]]));
 		// ne is the vector pointing outward from segment, normal to segment and normal and v_{10}
 		// this is only possible because initConnectivity makes sure that the segments are ordered correctly
  		// i.e. anticlokewise sens when in the plane of the boundary segment with the normal pointing
@@ -241,7 +241,7 @@ gradGamma<WENDLAND>(
 		
 		// algebraic distance of projection in the plane s to the edge
  		// (negative if the projection is inside the triangle).
-		float pae = dot(ne, relPos - vertexRelPos[sIdx[0]])/slength;
+		float pae = dot(ne, relPos - as_float3(vertexRelPos[sIdx[0]]))/slength;
 
 		// NB: in the reference frame (ns, v01, ne) it reads:
  		//     r_av0/h = pas * ns + pae * ne + pav0 * v01
@@ -252,8 +252,8 @@ gradGamma<WENDLAND>(
 		// distance from the particle a to the edge
 		float qae = length(pas * ns + pae * ne);
 
-		float pav0 = -dot(relPos - vertexRelPos[sIdx[0]], v01)/slength;
-		float pav1 = -dot(relPos - vertexRelPos[sIdx[1]], v01)/slength;
+		float pav0 = -dot(relPos - as_float3(vertexRelPos[sIdx[0]]), v01)/slength;
+		float pav1 = -dot(relPos - as_float3(vertexRelPos[sIdx[1]]), v01)/slength;
 
 		// This is -2*pi if inside the segment, 0 otherwise
 		totalSumAngles += copysign(atan2(pav1, fabs(pae))-atan2(pav0, fabs(pae)), pae);
@@ -326,7 +326,7 @@ __device__ __forceinline__
 float
 Gamma(	const	float		&slength,
 				float3		relPos,
-				float3		*vertexRelPos,
+				float4		*vertexRelPos,
 		const	float3		&ns,
 		const	float3		&oldGGam,
 		const	float		&epsilon,
@@ -335,10 +335,12 @@ Gamma(	const	float		&slength,
 		const	uint		&nIndex,
 				float		&minlRas)
 {
-	// normalize the distance r_{as} with h
-	relPos.x /= slength;
-	relPos.y /= slength;
-	relPos.z /= slength;
+	// normalize the distances r_{as} and r_{av} with h
+	relPos /= slength;
+	vertexRelPos[0] /= slength;
+	vertexRelPos[1] /= slength;
+	vertexRelPos[2] /= slength;
+	
 	// Sigma is the point a projected onto the plane spanned by the edge
 	// r_aSigma is the non-dimensionalized vector between this plane and the particle
 	// q_aSigma is the clipped non-dimensionalized distance between this plane and the particle
@@ -346,9 +348,9 @@ Gamma(	const	float		&slength,
 	float q_aSigma = fmin(length(r_aSigma),2.0f);
 	
 	// calculate if the projection of a (with respect to n) is inside the segment
-	const float3 ba = vertexRelPos[1] - vertexRelPos[0]; // vector from v0 to v1
-	const float3 ca = vertexRelPos[2] - vertexRelPos[0]; // vector from v0 to v2
-	const float3 pa = relPos - vertexRelPos[0]; // vector from v0 to the particle
+	const float3 ba = as_float3(vertexRelPos[1] - vertexRelPos[0]); // vector from v0 to v1
+	const float3 ca = as_float3(vertexRelPos[2] - vertexRelPos[0]); // vector from v0 to v2
+	const float3 pa = relPos - as_float3(vertexRelPos[0]); // vector from v0 to the particle
 	const float uu = sqlength(ba);
 	const float uv = dot(ba,ca);
 	const float vv = sqlength(ca);
@@ -371,13 +373,13 @@ Gamma(	const	float		&slength,
 			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma < epsilon) {
 		// set touching vertex to v0
 		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
-			const float3 tmp = vertexRelPos[1];
+			const float4 tmp = vertexRelPos[1];
 			vertexRelPos[1] = vertexRelPos[2];
 			vertexRelPos[2] = vertexRelPos[0];
 			vertexRelPos[0] = tmp;
 		}
 		else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
-			const float3 tmp = vertexRelPos[2];
+			const float4 tmp = vertexRelPos[2];
 			vertexRelPos[2] = vertexRelPos[1];
 			vertexRelPos[1] = vertexRelPos[0];
 			vertexRelPos[0] = tmp;
@@ -385,12 +387,12 @@ Gamma(	const	float		&slength,
 		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
 		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
 		const float3 unitOldGGam = -oldGGam/fmax(length(oldGGam),slength*1e-3f);
-		float l1 = length(vertexRelPos[1]-vertexRelPos[0]);
-		float l2 = length(vertexRelPos[2]-vertexRelPos[0]);
-		float abc = dot((vertexRelPos[1]-vertexRelPos[0]),unitOldGGam)/l1 
-					+ dot((vertexRelPos[2]-vertexRelPos[0]),unitOldGGam)/l2 
-					+ dot((vertexRelPos[1]-vertexRelPos[0]),(vertexRelPos[2]-vertexRelPos[0]))/l1/l2;
-		float d = dot(unitOldGGam,cross((vertexRelPos[1]-vertexRelPos[0]),(vertexRelPos[2]-vertexRelPos[0])))/l1/l2;
+		float l1 = length3(vertexRelPos[1]-vertexRelPos[0]);
+		float l2 = length3(vertexRelPos[2]-vertexRelPos[0]);
+		float abc = dot(as_float3(vertexRelPos[1]-vertexRelPos[0]),unitOldGGam)/l1 
+					+ dot(as_float3(vertexRelPos[2]-vertexRelPos[0]),unitOldGGam)/l2 
+					+ dot3(vertexRelPos[1]-vertexRelPos[0],vertexRelPos[2]-vertexRelPos[0])/l1/l2;
+		float d = dot(unitOldGGam,as_float3(cross3((vertexRelPos[1]-vertexRelPos[0]),(vertexRelPos[2]-vertexRelPos[0]))))/l1/l2;
 
 		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
 		float SolidAngle = fabs(2.0f*atan2(d,(1.0f+abc)));
@@ -420,7 +422,7 @@ Gamma(	const	float		&slength,
 		// call gaussQuadratureO14
 		// To use Gaussian quadrature of 5th order
 		// call gaussQuadratureO5
-		const float2 intVal = gaussQuadratureO5(-vertexRelPos[0], -vertexRelPos[1], -vertexRelPos[2], relPos);
+		const float2 intVal = gaussQuadratureO5(-as_float3(vertexRelPos[0]), -as_float3(vertexRelPos[1]), -as_float3(vertexRelPos[2]), relPos);
 		gamma_as += intVal.y*dot(ns,r_aSigma);
 	}
 	gamma_as = gamma_vs + gamma_as;

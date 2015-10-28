@@ -863,7 +863,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 		float4 v0 = -(params.vertPos0[ndata.index].x*coord1 + params.vertPos0[ndata.index].y*coord2); // e.g. v0 = r_{v0} - r_s
 		float4 v1 = -(params.vertPos1[ndata.index].x*coord1 + params.vertPos1[ndata.index].y*coord2);
 		float4 v2 = -(params.vertPos2[ndata.index].x*coord1 + params.vertPos2[ndata.index].y*coord2);
-		float3 vertexRelPos[3] = {as_float3(v0), as_float3(v1), as_float3(v2)};
+		float4 vertexRelPos[3] = {v0, v1, v2};
 
 		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength, 
 				as_float3(ndata.relPos), vertexRelPos, as_float3(ndata.belem));
