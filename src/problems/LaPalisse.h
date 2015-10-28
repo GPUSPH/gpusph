@@ -16,7 +16,7 @@
 
 class LaPalisse: public Problem {
 	private:
-		string			inputfile;
+		std::string			inputfile;
 		PointVect		test_points;
 		double			world_w, world_l, world_h;			// world size (i.e. incl. margins and inlet box)
 		double			box_w, box_l, box_h;	// size of the main box (excl. margins, no inlet box)
