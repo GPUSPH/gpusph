@@ -238,8 +238,8 @@ calcHashDevice(float4*			posArray,			// particle's positions (in, out)
 	if (compactDeviceMap && gridHash != CELL_HASH_MAX)
 		gridHash |= compactDeviceMap[gridHash];
 
-	// Store grid hash, particle index and position relative to cell
-	particleHash[index] = makeParticleHash(gridHash, info);
+	// Store grid hash
+	particleHash[index] = gridHash;
 
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
@@ -280,7 +280,7 @@ fixHashDevice(hashKey*			particleHash,		// particle's hashes (in, out)
 		// Mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
 		if (compactDeviceMap)
-			particleHash[index] = particleHash[index] | ((hashKey)compactDeviceMap[gridHash] << GRIDHASH_BITSHIFT);
+			particleHash[index] = particleHash[index] | compactDeviceMap[gridHash];
 	}
 
 	// Preparing particle index array for the sort phase

@@ -1203,7 +1203,7 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 	int3 gridPos = calc_grid_pos(pos);
 
 	// automatically choose between long hash (cellHash + particleId) and short hash (cellHash)
-	hash = makeParticleHash( calc_grid_hash(gridPos), info );
+	hash = calc_grid_hash(gridPos);
 
 	localpos.x = float(pos(0) - m_origin.x - (gridPos.x + 0.5)*m_cellsize.x);
 	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);
