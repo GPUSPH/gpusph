@@ -208,6 +208,17 @@ struct eulerVel_particle_data
 	{}
 };
 
+struct volume_particle_data
+{
+	const	float	volume;
+
+	__device__ __forceinline__
+	volume_particle_data(const uint index,
+		volume_forces_params const& params) :
+		volume(params.volArray[index].w)
+	{}
+};
+
 // data used for SPH_GRENIER
 struct grenier_particle_data
 {
@@ -279,7 +290,7 @@ struct keps_particle_data
 	__device__ __forceinline__
 	keps_particle_data(const uint index, particleinfo const& info) :
 		keps_k(tex1Dfetch(keps_kTex, index)),
-		keps_e( tex1Dfetch(keps_eTex, index)),
+		keps_e(tex1Dfetch(keps_eTex, index)),
 		turbVisc(0.09f*keps_k*keps_k/keps_e),
 		turbViscForViscTerm(FLUID(info) ? turbVisc : 0)
 	{}
@@ -354,11 +365,11 @@ struct keps_precalc_particle_data
 // but for the time being we don't optimize this far and just limit ourselves
 // to conditional inclusions based on kernel specialization only, not particle type
 
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
+template<KernelType _kerneltype,
+	SPHFormulation _sph_formulation,
+	BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -368,29 +379,36 @@ struct forces_particle_data :
 	// PT_VERTEX only use them for KEPSVISC, and
 	// PT_OBJECT don't use them
 	vel_particle_data,
+	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+		(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	// eulerian velocity only used in case of keps or with open boundaries
-	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
-	COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
+	COND_STRUCT(_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
-	conditional<boundarytype == SA_BOUNDARY,
-		sa_boundary_particle_data<visctype, simflags>,
-		empty< sa_boundary_particle_data<visctype, simflags> > >::type,
+	COND_STRUCT(_boundarytype == SA_BOUNDARY,
+		sa_boundary_particle_data<_visctype, _simflags>),
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
-	COND_STRUCT(visctype == KEPSVISC,
+	COND_STRUCT(_visctype == KEPSVISC,
 		keps_particle_data),
 	// everything else is just for PT_FLUID
-	COND_STRUCT(visctype == SPSVISC,
+	COND_STRUCT(_visctype == SPSVISC,
 		sps_particle_data),
 	// to see why this is so messy, see definition of p_precalc_particle_data
-	p_precalc_particle_data<sph_formulation,
-		typename conditional<sph_formulation == SPH_GRENIER,
-		grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
+	p_precalc_particle_data<_sph_formulation,
+		typename conditional<_sph_formulation == SPH_GRENIER,
+		grenier_particle_data, typename COND_STRUCT(_visctype == KEPSVISC, keps_particle_data)
 	>::type >,
-	COND_STRUCT(visctype == KEPSVISC,
+	COND_STRUCT(_visctype == KEPSVISC,
 		keps_precalc_particle_data)
 {
+	static const KernelType kerneltype = _kerneltype;
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
 	// shorthand for the type of the forces params
 	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
 
@@ -403,13 +421,14 @@ struct forces_particle_data :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
 		vel_particle_data(_index, _info),
+		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
+			(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
+			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
 			eulerVel_particle_data)(_index),
-		conditional<boundarytype == SA_BOUNDARY,
-			sa_boundary_particle_data<visctype, simflags>,
-			empty< sa_boundary_particle_data<visctype, simflags>
-		> >::type(_index, _info, params),
+		COND_STRUCT(boundarytype == SA_BOUNDARY,
+			sa_boundary_particle_data<visctype, simflags>)(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
 			keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC,
@@ -429,12 +448,10 @@ struct forces_particle_data :
 struct common_particle_output
 {
 	float4	force;
-	float2	contupd;
 
 	__device__ __forceinline__
 	common_particle_output() :
-		force(make_float4(0.0f)),
-		contupd(make_float2(0.0f))
+		force(make_float4(0.0f))
 	{}
 };
 
@@ -443,6 +460,7 @@ struct sa_boundary_particle_output
 {
 	// x,y,z contains the gradient of gamma, w gamma itself
 	float4	gGam;
+	float2	contupd;
 	// this is used to identify cases in which the normal gamma computation becomes singular
 	// minimum distance between wall segments and the particle
 	float minlRas;
@@ -450,13 +468,17 @@ struct sa_boundary_particle_output
 	float alpha;
 	// avg gam
 	float gamavg;
+	// max value of \nabla \gamma_{as} \cdot {v_{as}, v_a - u_s, u_s + v_s} for cfl condition
+	float gammaCfl;
 
 	__device__ __forceinline__
 	sa_boundary_particle_output() :
 		gGam(make_float4(0, 0, 0, 1)),
+		contupd(make_float2(0.0f)),
 		minlRas(1e10f),
 		alpha(0.0f),
-		gamavg(0.0f)
+		gamavg(0.0f),
+		gammaCfl(0.0f)
 	{}
 };
 
@@ -490,18 +512,22 @@ struct xsph_particle_output
 	{}
 };
 
-template<BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
+template<BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
 struct forces_particle_output :
 	common_particle_output,
 	// TODO FIXME KEPSVISC currently depends on SA_BOUNDARY (see .e.g viscous_fixup<KEPSVISC>),
 	// but there is no way to prevent it from being selected with other boundary conditions.
 	// When this is implemented, the || visctype == KEPSVISC should be removed
-	COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output),
-	COND_STRUCT(visctype == KEPSVISC, keps_particle_output),
-	COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)
+	COND_STRUCT(_boundarytype == SA_BOUNDARY || _visctype == KEPSVISC, sa_boundary_particle_output),
+	COND_STRUCT(_visctype == KEPSVISC, keps_particle_output),
+	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_output)
 {
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
 	__device__ __forceinline__
 	forces_particle_output() :
 		common_particle_output(),
@@ -541,6 +567,8 @@ struct common_neib_data
 	const	float	vel_dot_pos;
 	// norm of the gradient of the kernel
 	const	float	f;
+	// kernel value
+	const	float	w;
 	// local speed of sound
 	const	float sspeed;
 
@@ -552,6 +580,7 @@ struct common_neib_data
 		relVel(as_float3(pdata.vel) - tex1Dfetch(velTex, _index)),
 		vel_dot_pos(dot3(relVel, relPos)),
 		f(F<kerneltype>(r, params.slength)),
+		w(W<kerneltype>(r, params.slength)),
 		sspeed(soundSpeed(relVel.w, fluid_num(_info)))
 	{}
 };
@@ -612,19 +641,14 @@ template<KernelType kerneltype,
 	flag_t simflags>
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
+	COND_STRUCT(sph_formulation == SPH_GRENIER &&
+		(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
 	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
-// can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
-	conditional<boundarytype == SA_BOUNDARY,
-		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-		empty<
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-		> >::type,
+	COND_STRUCT(boundarytype == SA_BOUNDARY,
+		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>),
 	// relative eulerian velocity
-	conditional<visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
-		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-		empty<
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-		> >::type,
+	COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>),
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	// precalculated pressure
@@ -637,18 +661,12 @@ struct forces_neib_data :
 	// shortcut typedefs
 	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> _common_neib_data;
 	typedef
-		typename conditional<boundarytype == SA_BOUNDARY,
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-			empty<
-				sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-			> >::type
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY,
+			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>)
 		_sa_boundary_neib_data;
 	typedef
-		typename conditional<visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
-			empty<
-				eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
-			> >::type
+		typename COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>)
 		_eulerVel_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
@@ -660,6 +678,9 @@ struct forces_neib_data :
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
+		COND_STRUCT(sph_formulation == SPH_GRENIER &&
+			(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
+			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
@@ -680,25 +701,26 @@ struct common_neib_output
 	float3	DvDt;
 	// density derivative
 	float	DrDt;
-	float	contDiff;
-	float	DgamDt;
 
 	__device__ __forceinline__
 	common_neib_output() :
 		DvDt(make_float3(0.0f)),
-		DrDt(0.0f),
-		contDiff(0.0f),
-		DgamDt(0.0f)
+		DrDt(0.0f)
 	{}
 };
 
 struct sa_boundary_neib_output
 {
-	// gamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
-	float2	gamAS;
+	// ggamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
+	float	ggamAS;
+	float	DgamDt;
+	float	contDiff;
 
 	__device__ __forceinline__
-	sa_boundary_neib_output() : gamAS(make_float2(0))
+	sa_boundary_neib_output() :
+		ggamAS(0.0f),
+		DgamDt(0.0f),
+		contDiff(0.0f)
 	{ }
 };
 
@@ -723,17 +745,9 @@ struct forces_neib_output :
 /// The next set of functions check  if the given particle (pdata) should skip
 /// traversing the neib list, and define the actions to be taken when skipping.
 /// Since we need partial specialization, they cannot be actual functions.
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
+template<BoundaryType boundarytype>
 struct skip_neiblist
 {
-	// typedefs to shorten argument types
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
-	typedef forces_particle_output<boundarytype, visctype, simflags> pout_t;
-
 	/// check if the given particle must skip the neiblist traversal
 	template<typename FP, typename P>
 	__device__ __forceinline__
@@ -743,33 +757,42 @@ struct skip_neiblist
 	}
 
 	/// do anything that is needed to actually skip the neiblist traversal
+	template<typename P, typename OP>
 	__device__ __forceinline__
-	void prepare(pdata_t const& pdata, pout_t &pout)
+	void prepare(P const& pdata, OP &pout)
 	{ /* do nothing by default */ }
 
 };
 
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	ViscosityType visctype,
-	flag_t simflags>
-struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags>
+template<>
+struct skip_neiblist<SA_BOUNDARY>
 {
-	// typedefs to shorten argument types
-	typedef forces_particle_data<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags> pdata_t;
-	typedef forces_particle_output<SA_BOUNDARY, visctype, simflags> pout_t;
-
 	template<typename FP, typename P>
 	__device__ __forceinline__
 	bool check(FP const& params, P const& pdata)
 	{
-		// vertex particles will skip neighbors unless they need to compute gamma,
-		// when using KEPSVISC, or when outflow boundaries are present
-		return !((simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && VERTEX(pdata.info) && !pdata.computeGamma;
+		// vertex particles need to loop over neighbors when certain conditions are met
+		if (VERTEX(pdata.info)) {
+			// if the vertex needs to compute gamma, then we can't skip
+			if (pdata.computeGamma)
+				return false;
+			// in case of k-epsilon we need to compute the viscous force acting on the vertex
+			else if (FP::visctype == KEPSVISC)
+				return false;
+			// in case of IO and pressure outlet we need to compute the water level
+			else if (FP::simflags & ENABLE_INLET_OUTLET && IO_BOUNDARY(pdata.info) && PRES_IO(pdata.info))
+				return false;
+			// if none of the above matches, then we can skip the neighbour loop
+			else
+				return true;
+		} else {
+			return false;
+		}
 	}
 
+	template<typename P, typename OP>
 	__device__ __forceinline__
-	void prepare(pdata_t const& pdata, pout_t &pout)
+	void prepare(P const& pdata, OP &pout)
 	{
 		// FIXME currently we can expect it to be a vertex particle, and this is what
 		// we need to do, but in the future there might be other cases too
@@ -793,7 +816,7 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflag
 /// only in the case of SA_BOUNDARY
 template<BoundaryType>
 struct compute_gamma {
-	template<KernelType kerneltype, typename FP, typename P, typename N, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -801,7 +824,7 @@ struct compute_gamma {
 };
 
 template<>
-template<KernelType kerneltype, typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -822,21 +845,20 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 		const float sx = fmax(x*8.0f - 1.0f,0.0f);
 		// smootherstep function
 		const float smooth = VERTEX(pdata.info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
-		nout.gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
+		const float2 gamAS = Gamma<FP::kerneltype>(params.slength, ndata.relPos,
 				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
 				ndata.belem, pdata.oldGGam,
 				params.epsilon, params.deltap, pdata.computeGamma, ndata.index,
 				pout.minlRas);
-		if (smooth < params.epsilon)
-			nout.gamAS.y = 0.0f;
-		pout.gGam.x += nout.gamAS.x*ndata.belem.x;
-		pout.gGam.y += nout.gamAS.x*ndata.belem.y;
-		pout.gGam.z += nout.gamAS.x*ndata.belem.z;
-		pout.gGam.w -= nout.gamAS.y*smooth;
+		pout.gGam.x += gamAS.x*ndata.belem.x;
+		pout.gGam.y += gamAS.x*ndata.belem.y;
+		pout.gGam.z += gamAS.x*ndata.belem.z;
+		pout.gGam.w -= (smooth > params.epsilon ? gamAS.y : 0.0f)*smooth;
+		nout.ggamAS = gamAS.x;
 	}
 }
 
-// A functor that helps to compute the influence of eulerian velocities onto the governing equations
+/// A functor that helps to compute the influence of eulerian velocities onto the governing equations
 template<bool inoutBoundaries>
 struct compute_euler_contributions {
 	// boundary term
@@ -859,7 +881,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_euler_contributions<true>::boundary_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DrDt -= dot3(ndata.relEulerVel, ndata.belem)*nout.gamAS.x;
+	nout.DrDt -= dot3(ndata.relEulerVel, ndata.belem)*nout.ggamAS;
 }
 
 template<>
@@ -875,9 +897,39 @@ compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata
 	nout.DrDt += ndata.relPos.w*dot3(ndata.relEulerVel, ndata.relPos)*ndata.f;
 }
 
+/// A functor that computes the ratio of the volumes of two particles
+/// either as rho_N/rho_P (if the volume is not available) or as vol_P/vol_N
+/// (if the volume is available, e.g. with SPH_GRENIER)
+template<bool has_volume>
+struct volume_ratio {
+	template<typename P, typename N>
+	__device__ __forceinline__
+	static float
+	with(P const& pdata, N const& ndata) {
+		return ndata.relVel.w/pdata.vel.w;
+	}
+};
+
+/* With Grenier we  use the volume directly */
+template<>
+template<typename P, typename N>
+__device__ __forceinline__
+float
+volume_ratio<true>::with(P const& pdata, N const& ndata) {
+	return pdata.volume/ndata.volume;
+}
+
 /// A functor that computes the time derivative of rho
 template<BoundaryType boundarytype>
 struct compute_density_derivative {
+
+	// Ferrari updates nout.contDiff in the SA case, and nout.DrDt otherwise,
+	// so we need a boundary-type templatized selector
+	template<typename ON>
+	__device__ __forceinline__
+	static float&
+	ferrari_updates(ON &nout)
+	{ return nout.DrDt; }
 
 	// common volumic Ferrari diffusion term
 	// TODO the Ferrari correction should be handled based on its own template
@@ -897,7 +949,43 @@ struct compute_density_derivative {
 			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
 			make_float3(0.0f);
 		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-		nout.contDiff += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+		ferrari_updates(nout) += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+	}
+
+	// density diffusion term following Molteni & Colagrossi 2009
+	template<typename FP, typename P_t, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	density_diffusion(FP const& params, P_t const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		const int fType = fluid_num(pdata.info);
+		/* only applies to same-fluid particles */
+		if (fType != fluid_num(ndata.info))
+			return;
+
+		// only apply diffusion for large density ratios, specifically
+		// when ∆P < ρgh
+		if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
+			fabs(dot3(d_gravity, ndata.relPos)*pdata.vel.w))
+			return;
+
+		// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
+		// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
+		// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
+		// 2(vol_i/vol_j - 1) F_ij
+		// For us rhodiffcoeff = \xi*h*2
+		// Additionally, when the density evolution formulation is NOT based on
+		// volumes, we need to multiply by the neighbor mass
+
+		const bool has_volume = (FP::sph_formulation == SPH_GRENIER &&
+			FP::simflags & ENABLE_DENSITY_DIFFUSION);
+		const float diff_term = d_rhodiffcoeff*d_sscoeff[fType]*
+			(volume_ratio<has_volume>::with(pdata, ndata) - 1)*
+			ndata.f*(has_volume ? -1 : ndata.relPos.w);
+
+		// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
+
+		nout.DrDt -= diff_term;
 	}
 
 	// auxiliary function
@@ -914,14 +1002,20 @@ struct compute_density_derivative {
 		nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
 	}
 
-	// actual method
-	template<SPHFormulation sph_formulation, flag_t simflags,
-		typename FP, typename P, typename N, typename OP, typename ON>
+	// update force.w
+	template<typename OP, typename ON>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	update_drho_dt(OP &pout, ON const& nout)
+	{ pout.force.w += nout.DrDt; }
+
+	// actual method
+	template<typename FP, typename PD, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		if (sph_formulation == SPH_GRENIER) {
+		if (FP::sph_formulation == SPH_GRENIER) {
 			// for Grenier's formulation, DrDt is actually DJ/Dt, which needs to be divided
 			// by the particle sigma, which will be done at the end of the cycle
 			nout.DrDt -= ndata.vel_dot_pos*ndata.f;
@@ -930,55 +1024,160 @@ struct compute_density_derivative {
 			// SPH_F1 or SPH_F2
 			common_with(params, pdata, ndata, pout, nout);
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
-			if (simflags & ENABLE_FERRARI)
+			if (FP::simflags & ENABLE_FERRARI && FLUID(ndata.info))
 				ferrari_correction(params, pdata, ndata, pout, nout);
 		}
+		// Density diffusion term according to Colagrossi & Molteni 2009, CPC
+		if (FP::simflags & ENABLE_DENSITY_DIFFUSION && FLUID(ndata.info))
+			density_diffusion(params, pdata, ndata, pout, nout);
 		/* The second formulation takes into consideration the density ratio */
-		if (sph_formulation == SPH_F2)
+		if (FP::sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+
+		/* Add contribution to density derivative */
+		update_drho_dt(pout, nout);
 	}
 };
+
+template<>
+template<typename ON>
+__device__ __forceinline__
+float&
+compute_density_derivative<SA_BOUNDARY>::ferrari_updates(ON &nout)
+{
+	return nout.contDiff;
+}
+
+template<>
+template<typename OP, typename ON>
+__device__ __forceinline__
+void
+compute_density_derivative<SA_BOUNDARY>::update_drho_dt(OP &pout, ON const& nout)
+{
+	if (OP::simflags & ENABLE_DENSITY_SUM) {
+		pout.force.w += d_ferrari*nout.contDiff;
+		pout.contupd.x += nout.DrDt;
+	} else {
+		pout.force.w += nout.DrDt;
+		pout.contupd.x += nout.contDiff;
+	}
+	pout.contupd.y += nout.DgamDt;
+}
+
+// A functor that helps to compute the influence of eulerian velocities onto the governing equations
+template<bool inoutBoundaries>
+struct compute_relEulerVel_continuity_contribution {
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
+		pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
+			// n . (v_a - v_s)
+			fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+			// n . (v_a - u_s)
+			fabs(dot3(ndata.belem, pdata.vel)),
+			// n . (v_s + u_s)
+			fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel)) )));
+	}
+};
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_relEulerVel_continuity_contribution<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	nout.DgamDt = -nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
+	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
+	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
+		// n . (v_a - v_s)
+		fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+		// n . (v_a - u_s)
+		fabs(dot3(ndata.belem, pdata.vel+ndata.relEulerVel)),
+		// n . (v_s + u_s)
+		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) )));
+}
+
 
 /// Specialization in the SA_BOUNDARY case
 
 template<>
-template<SPHFormulation sph_formulation, flag_t simflags, typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename PD, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_density_derivative<SA_BOUNDARY>::with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	/// TODO FIXME SPH_GRENIER support
-	if (ndata.ntype == PT_BOUNDARY) {
-		// boundary term of div(v)
-		nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
-		if (IO_BOUNDARY(ndata.info))
-			compute_euler_contributions<simflags & ENABLE_INLET_OUTLET>::boundary_term(params, pdata, ndata, pout, nout);
-		// D\rho/Dn is not zero near a boundary where pressure is imposed so the volume diffusion formula gains a term
-		if ((simflags & (ENABLE_FERRARI | ENABLE_INLET_OUTLET)) && IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info)) {
-			const int fType =  fluid_num(pdata.info);
-			// gravity correction for free-surface flows
-			const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
-			// actual diffusion term
-			const float ferraricor = (ndata.r > 1e-4f*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r : 0.0f;
-			// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-			//nout.contDiff -= 2.0f*d_ferrari*ferraricor*nout.gamAS.x;
-			nout.contDiff -= d_ferrari*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.gamAS.x;
+	if (FP::simflags & ENABLE_DENSITY_SUM) {
+		// TODO corners?
+		if ((ndata.ntype == PT_VERTEX && !IO_BOUNDARY(ndata.info)) || ndata.ntype == PT_FLUID) {
+			// compute sum_{P\V^{io}} m_b (-w_{ab})
+			nout.DrDt = -ndata.relPos.w*ndata.w;
+			// Rhie & Chow type volume diffusion
+			if (ndata.ntype == PT_FLUID) {
+				// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
+				nout.contDiff = ((2.0/(pdata.vel.w + ndata.relVel.w))*
+								  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+								 - dot(d_gravity, as_float3(ndata.relPos))
+								)*ndata.relPos.w/ndata.relVel.w*ndata.f;
+			}
 		}
-		if (sph_formulation == SPH_F1) {
-			nout.DrDt *= ndata.relVel.w;
+		else if (ndata.ntype == PT_BOUNDARY && IO_BOUNDARY(ndata.info)) {
+			// compute sum_{S^{io}} gradGamma_{as} \cdot u_s^{n}
+			// plus gamma CFL condition
+			compute_relEulerVel_continuity_contribution<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
+			// compute sum_{S^{io}} gradGamma_{as} \cdot (-v_s^{n})
+			nout.DgamDt += nout.ggamAS*dot3(ndata.belem, ndata.relVel-pdata.vel);
+			// for pressure inlets we need to compute a boundary term for the Rhie & Chow filter
+			// the term is essentially the same as the one for the fluid particle except that V_b w' -> |ggam|/r_{as}
+			if (PRES_IO(ndata.info)) {
+				nout.contDiff = -((2.0/(pdata.vel.w + ndata.relVel.w))*
+								  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+								 - dot(d_gravity, as_float3(ndata.relPos))
+								)*nout.ggamAS/ndata.r_as;
+			}
 		}
-	} else {
-		// volumic term of div(v)
-		common_with(params, pdata, ndata, pout, nout);
-		if ((simflags & ENABLE_INLET_OUTLET) && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info) && !CORNER(ndata.info))
-			compute_euler_contributions<simflags & ENABLE_INLET_OUTLET>::volumic_term(params, pdata, ndata, pout, nout);
-		if ((simflags & ENABLE_FERRARI) && !(ndata.ntype==PT_VERTEX && IO_BOUNDARY(ndata.info))) {
-			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
-			ferrari_correction(params, pdata, ndata, pout, nout);
-		}
-		/* The second formulation takes into consideration the density ratio */
-		if (sph_formulation == SPH_F2)
-			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
 	}
+	else {
+		if (ndata.ntype == PT_BOUNDARY) {
+			// boundary term of div(v)
+			nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+			// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
+			pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fabs(dot3(ndata.belem, ndata.relVel)) );
+			if (IO_BOUNDARY(ndata.info))
+				compute_euler_contributions<FP::simflags & ENABLE_INLET_OUTLET>::boundary_term(params, pdata, ndata, pout, nout);
+			// D\rho/Dn is not zero near a boundary where pressure is imposed so the volume diffusion formula gains a term
+			if ((FP::simflags & ENABLE_FERRARI) && (FP::simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info)) {
+				const int fType =  fluid_num(pdata.info);
+				// gravity correction for free-surface flows
+				const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
+				// actual diffusion term
+				const float ferraricor = (ndata.r > 1e-4f*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r : 0.0f;
+				// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
+				//nout.contDiff -= 2.0f*d_ferrari*ferraricor*nout.ggamAS;
+				//nout.contDiff -= d_ferrari*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
+			}
+			if (FP::sph_formulation == SPH_F1) {
+				nout.DrDt *= ndata.relVel.w;
+			}
+		} else {
+			// volumic term of div(v)
+			common_with(params, pdata, ndata, pout, nout);
+			if (FP::simflags & ENABLE_INLET_OUTLET && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info) && !CORNER(ndata.info))
+				compute_euler_contributions<FP::simflags & ENABLE_INLET_OUTLET>::volumic_term(params, pdata, ndata, pout, nout);
+			//if (simflags & ENABLE_FERRARI && !(ndata.ntype==PT_VERTEX && IO_BOUNDARY(ndata.info))) {
+			if (FP::simflags & ENABLE_FERRARI && ndata.ntype==PT_FLUID) {
+				// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
+				ferrari_correction(params, pdata, ndata, pout, nout);
+			}
+			/* The second formulation takes into consideration the density ratio */
+			if (FP::sph_formulation == SPH_F2)
+				nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+		}
+	}
+
+	/* Add contribution to density derivative */
+	update_drho_dt(pout, nout);
 }
 
 /// Functor to compute the pressure contribution to the particle acceleration.
@@ -988,13 +1187,13 @@ struct compute_pressure_contrib
 {
 	// auxiliary function, which is used as fallback also in the SA_BOUNDARY case
 	// responsible for the volumic term, note that p_precalc can contain 2/3 \rho k if KEPSVISC is chosen
-	template<SPHFormulation sph_formulation, typename FP, typename P_t, typename N, typename OP, typename ON>
+	template<typename FP, typename P_t, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static float
 	common_with(FP const& params, P_t const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
 		float pGradTerm = 0.0f;
-		switch (sph_formulation) {
+		switch (FP::sph_formulation) {
 		case SPH_F1:
 			pGradTerm = pdata.p_precalc + ndata.p_precalc;
 			break;
@@ -1014,14 +1213,13 @@ struct compute_pressure_contrib
 	}
 
 	// actual method to compute the full pressure gradient in the non SA_BOUNDARY case
-	template<SPHFormulation sph_formulation,
-		typename FP, typename P, typename N, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		const float pGradTerm(common_with<sph_formulation>(params, pdata, ndata, pout, nout));
-		if (sph_formulation == SPH_GRENIER) {
+		const float pGradTerm(common_with(params, pdata, ndata, pout, nout));
+		if (FP::sph_formulation == SPH_GRENIER) {
 			nout.DvDt -= pGradTerm*ndata.f*as_float3(ndata.relPos);
 		} else {
 			nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*as_float3(ndata.relPos);
@@ -1031,16 +1229,15 @@ struct compute_pressure_contrib
 
 /// Specialization in the SA_BOUNDARY case to add boundary terms
 template<>
-template<SPHFormulation sph_formulation,
-	typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_pressure_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// general pressure term
-	const float pGradTerm(common_with<sph_formulation>(params, pdata, ndata, pout, nout));
+	const float pGradTerm(common_with(params, pdata, ndata, pout, nout));
 	if (ndata.ntype == PT_BOUNDARY) {
 		// full boundary term
-		nout.DvDt += pGradTerm*ndata.relVel.w*nout.gamAS.x*ndata.normal_s;
+		nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
 	}
 	else {
 		// full volumic term
@@ -1052,25 +1249,6 @@ compute_pressure_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N 
 template<bool usexsph>
 struct compute_mean_vel
 {
-	template<KernelType kerneltype, typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
-
-template<>
-template<KernelType kerneltype, typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_mean_vel<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	pout.mean_vel -= ndata.relPos.w*W<kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
-}
-
-
-/// A functor that computes simple fluid/boundary forces (LJ, MK)
-template<BoundaryType>
-struct compute_repulsive_force {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
@@ -1081,34 +1259,29 @@ struct compute_repulsive_force {
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_repulsive_force<LJ_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_mean_vel<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
+	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
 }
 
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_repulsive_force<MK_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w)*as_float3(ndata.relPos);
-}
 
-/// TODO FIXME currently this code path only computes the force between fluid particles and
-/// non-BOUNDARY, non-VERTEX particles in the SA_BOUNDARY case: specifically, this computes
-/// the interaction between FLUID and OBJECT particles when SA_BOUNDARY is active. Since
-/// OBJECT particles currently assume LJ-style behavior, we use here LJ-style behavior.
-/// This should
-/// be fixed by:
-/// (1) never mixing SA and non-SA boundary-type particles, and
-/// (2) removing this special case
-template<>
+/// A function that computes simple fluid/boundary forces (LJ, MK)
 template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_repulsive_force<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+__device__ __forceinline__
+void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
+	OP &pout, ON &nout)
 {
-	// TODO FIXME see above
-	nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
+	switch (FP::boundarytype) {
+	case LJ_BOUNDARY:
+		nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
+		break;
+	case MK_BOUNDARY:
+		nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w)*as_float3(ndata.relPos);
+		break;
+	default:
+		/* do nothing */
+		break;
+	}
 }
 
 // Functor that returns the relative Eulerian velocity for viscous computations
@@ -1151,7 +1324,7 @@ visc_boundary_part<DYNAMICVISC>::with
 	// velocity of fluid particle along the wall
 	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
 
-	nout.DvDt -= nout.gamAS.x*
+	nout.DvDt -= nout.ggamAS*
 		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
 		vel_tau/pdata.vel.w;
 }
@@ -1189,40 +1362,40 @@ visc_boundary_part<KEPSVISC>::with
 		u_star = abs_u_t / (log(y_plus)/0.41f + 5.2f);
 	}
 
-	nout.DvDt -= 2.0f*nout.gamAS.x*u_star*u_star*u_t/fmax(abs_u_t,1e-6f);
+	nout.DvDt -= 2.0f*nout.ggamAS*u_star*u_star*u_t/fmax(abs_u_t,1e-6f);
 }
 
 // auxiliary functor computing volumic contribution to the viscous term
 template<ViscosityType visctype>
 struct visc_volumic_part {
-	template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
 };
 
 template<>
-template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<DYNAMICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 		d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w, d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w));
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<inoutBoundaries>::with(ndata));
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata));
 }
 
 template<>
-template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<KINEMATICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f));
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<inoutBoundaries>::with(ndata));
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata));
 }
 
 // SPS viscosity is just kinematic + a contribution based on the strain rate
 template<>
-template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<SPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1244,7 +1417,7 @@ visc_volumic_part<SPSVISC>::with(FP const& params, P const& pdata, N const& ndat
 
 // k-e viscosity: dynamic + turbulent
 template<>
-template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1257,7 +1430,7 @@ visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& nda
 
 // artificial viscosity
 template<>
-template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<ARTVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1274,13 +1447,12 @@ visc_volumic_part<ARTVISC>::with(FP const& params, P const& pdata, N const& ndat
 /// See above about the double template<> in the specializations
 template<BoundaryType boundarytype, SPHFormulation sph_formulation>
 struct compute_viscous_contrib {
-	template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout){
 		// in the generic case only the volumic term is of interest
-		// TODO inoutBoundaries support --- v --- for non-SA
-		visc_volumic_part<visctype>::with<false>(params, pdata, ndata, pout, nout);
+		visc_volumic_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
 	}
 
 };
@@ -1288,7 +1460,7 @@ struct compute_viscous_contrib {
 /// Specialization for SA_BOUNDARY
 template<SPHFormulation sph_formulation>
 struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
-	template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -1296,11 +1468,11 @@ struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
 		if (BOUNDARY(ndata.info)) {
 			// boundary term of the viscous part based on a boundary segment
 			if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
-				visc_boundary_part<visctype>::with(params, pdata, ndata, pout, nout);
+				visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
 		}
 		else {
 			// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
-			visc_volumic_part<visctype>::with<inoutBoundaries>(params, pdata, ndata, pout, nout);
+			visc_volumic_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
 		}
 	}
 };
@@ -1308,7 +1480,7 @@ struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
 /// Specialization for SPH_GRENIER
 template<BoundaryType boundarytype>
 struct compute_viscous_contrib<boundarytype, SPH_GRENIER> {
-	template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -1327,7 +1499,7 @@ struct compute_viscous_contrib<boundarytype, SPH_GRENIER> {
 template<BoundaryType boundarytype, ViscosityType visctype>
 struct compute_keps_term
 {
-	template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -1335,7 +1507,7 @@ struct compute_keps_term
 };
 
 template<>
-template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -1353,10 +1525,10 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 		// boundary contribution to epsilon diffusion term
 		// the constant factor is 4.0f*0.09/1.3 where 0.09 = C_\mu and 1.3 = \sigma_\epsilon
-		pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.gamAS.x;
+		pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.ggamAS;
 
 		// multiplication for velocity gradient terms (gradGam_as*rho_s)
-		dvmul = nout.gamAS.x*ndata.normal_s*ndata.relVel.w;
+		dvmul = nout.ggamAS*ndata.normal_s*ndata.relVel.w;
 
 	} else if (ndata.ntype == PT_VERTEX || ndata.ntype == PT_FLUID) {
 
@@ -1374,9 +1546,9 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 	// velocity gradient
 	// From boundary:
-	//	dvx = ∑ρs vxas ∇ɣas
-	//	dvy = ∑ρs vyas ∇ɣas
-	//	dvz = ∑ρs vzas ∇ɣas
+	//	dvx = ∑ρs vxas ∇γas
+	//	dvy = ∑ρs vyas ∇γas
+	//	dvz = ∑ρs vzas ∇γas
 	// From fluid/vertex:
 	//	dvx = -∑mb vxab ∇(ra - rb)/r ∂Wab/∂r
 	//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
@@ -1398,7 +1570,6 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 /// A functor that does viscosity-related post-processing, and returns a
 /// viscous coefficient to be used with DEMs and planes
-
 template<ViscosityType>
 struct viscous_fixup
 {
@@ -1411,7 +1582,7 @@ struct viscous_fixup
 /// Specializations
 
 template<>
-template<typename FP, typename P, typename OP >
+template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
 viscous_fixup<DYNAMICVISC>::with(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w; }
@@ -1445,9 +1616,9 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 	pout.diff_term_k /= rhoGam;
 	pout.diff_term_e /= rhoGam;
 	// finalize velocity gradients
-	pout.dvx /= rhoGam;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
-	pout.dvy /= rhoGam;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
-	pout.dvz /= rhoGam;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+	pout.dvx /= rhoGam;	// dvx = -1/γa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+	pout.dvy /= rhoGam;	// dvy = -1/γa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+	pout.dvz /= rhoGam;	// dvz = -1/γa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
 	// Calculate norm of the mean strain rate tensor
 	float SijSij_bytwo = 2.0f*(pout.dvx.x*pout.dvx.x +
 		pout.dvy.y*pout.dvy.y +
@@ -1512,7 +1683,7 @@ struct forces_fixup<SPH_GRENIER>
 template<BoundaryType>
 struct gamma_fixup
 {
-	template<SPHFormulation sph_formulation, typename FP, typename P, typename OP>
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, OP &pout)
@@ -1520,7 +1691,7 @@ struct gamma_fixup
 };
 
 template<>
-template<SPHFormulation sph_formulation, typename FP, typename P, typename OP>
+template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
 gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
@@ -1536,8 +1707,17 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	}
 	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
-	pout.force /= pout.gGam.w;
-	if (sph_formulation == SPH_F2)
+	// in case of density sum we compute gamma in euler so it's
+	// already available here
+	// TODO avoid computation before
+	if(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f)
+		pout.gGam = pdata.oldGGam;
+	pout.force.x /= pout.gGam.w;
+	pout.force.y /= pout.gGam.w;
+	pout.force.z /= pout.gGam.w;
+	if (!(FP::simflags & ENABLE_DENSITY_SUM && params.step==2))
+		pout.force.w /= pout.gGam.w;
+	if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
 		pout.force.w *= pdata.vel.w;
 }
 
@@ -1563,7 +1743,7 @@ compute_boundary_force<SA_BOUNDARY>::with(FP const& params, PD const& pdata, OP 
 	pout.force.w = 0.0f;
 }
 
-/// A functor that computes the mean velocity (XSPH)
+/// A functor that computes the water depth at an outflow
 template<BoundaryType, bool use_water_depth>
 struct compute_water_depth_at_outflow
 {
@@ -1599,18 +1779,19 @@ struct write_gamma
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, OP const& pout, const bool inoutBoundaries)
+	with(FP const& params, P const& pdata, OP const& pout)
 	{ /* do nothing */ }
 };
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-write_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout, const bool inoutBoundaries)
+write_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout)
 {
-	if (inoutBoundaries && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
+	if ((FP::simflags & ENABLE_INLET_OUTLET && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) ||
+		(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f && (params.step==1 || pdata.ptype != PT_FLUID)))
 		params.newGGam[pdata.index] = pdata.oldGGam;
-	else
+	else if (!((FP::simflags & ENABLE_DENSITY_SUM) && params.step==2))
 		params.newGGam[pdata.index] = pout.gGam;
 }
 
@@ -1652,7 +1833,7 @@ write_turbvisc<KEPSVISC>::with(FP const& params, P const& pdata, OP const& pout)
 
 
 /// A functor that writes out forces
-/// (no templatization, not needed)
+template<BoundaryType boundarytype>
 struct write_forces
 {
 	template<typename FP, typename P, typename OP>
@@ -1661,105 +1842,188 @@ struct write_forces
 	with(FP const& params, P const& pdata, OP const& pout)
 	{
 		params.forces[pdata.index] = pout.force;
-		params.contupd[pdata.index] = pout.contupd;
 	}
 };
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+void
+write_forces<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout)
+{
+	params.forces[pdata.index].x = pout.force.x;
+	params.forces[pdata.index].y = pout.force.y;
+	params.forces[pdata.index].z = pout.force.z;
+	// if we use the density summation then in the second step do not update the values that are computed
+	// for timestep n
+	if(!((FP::simflags & ENABLE_DENSITY_SUM) && params.step==2)) {
+		params.forces[pdata.index].w = pout.force.w;
+		params.contupd[pdata.index] = pout.contupd;
+	}
+}
 
 /*
  * Global variables
  */
 
 /// Some forces kernel specializations have global variables which are not individual particle data
-/// and are therefore collected here
+/// and are therefore collected here. Since we can have a wide combination of these
+/// blocks, we define a common infrastructure for them, and we call the method
+/// for each of the parent structures. Therefore, the alternative in case of a missing
+/// structure cannot be the empty struct, as it must provide the needed interface
+
+template<typename T>
+struct dyndt_shared_none
+{
+	// init shared data
+	__device__ __forceinline__ void
+	init() { /* do nothing */ }
+
+	// store shared data
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{ /* do nothing */ }
+
+	// reduce shared data
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{ /* do nothing */ }
+};
+
+template<bool densitySum, BoundaryType boundarytype>
+struct store_sm_max_dS
+{
+	template<typename OP>
+	__device__ __forceinline__
+	static float
+	with(OP const& pout)
+	{ return 0.0f; }
+};
+
+template<>
+template<typename OP>
+__device__ __forceinline__
+float
+store_sm_max_dS<true, SA_BOUNDARY>::with(OP const& pout)
+{ return pout.gammaCfl; }
+
+#define COND_SHARED(some_cond, some_struct) \
+	conditional<some_cond, some_struct, dyndt_shared_none<some_struct> >::type
 
 struct dyndt_shared_data
 {
 	float sm_max[BLOCK_SIZE_FORCES];
+
+	__device__ __forceinline__ void
+	init() { sm_max[threadIdx.x] = 0; }
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(this->sm_max, params.cfl, params.cflOffset);
+	}
+};
+
+struct dyndt_densitySum_shared_data
+{
+	float sm_max_dS[BLOCK_SIZE_FORCES];
+
+	__device__ __forceinline__ void
+	init() { sm_max_dS[threadIdx.x] = 0; }
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_max_dS[threadIdx.x] = store_sm_max_dS<FP::simflags & ENABLE_DENSITY_SUM, FP::boundarytype>::with(pout);
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(sm_max_dS, params.cfl_dS, params.cflOffset);
+	}
 };
 
 struct dyndt_keps_shared_data
 {
 	float sm_max_nut[BLOCK_SIZE_FORCES];
-};
 
-template<bool dyndt, ViscosityType visctype>
-struct forces_shared_data // by default, depend on nothing
-{
-	// init shared data
-	__device__ __forceinline__ void init() { /* do nothing */ }
+	__device__ __forceinline__ void
+	init() { sm_max_nut[threadIdx.x] = 0; }
 
-	// store shared data
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
-	{ /* do nothing */ }
-
-	// reduce shared data
-	template<typename FP>
-	__device__ __forceinline__ void reduce(FP const& params)
-	{ /* do nothing */ }
-};
-
-template<ViscosityType visctype>
-struct forces_shared_data<true, visctype> :
-	dyndt_shared_data,
-	COND_STRUCT(visctype == KEPSVISC, dyndt_keps_shared_data)
-{
-	// init shared data
-	__device__ __forceinline__ void init()
-	{ this->sm_max[threadIdx.x] = 0; }
-
-	// auxiliary: store common dyndt shared data
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__ void
-	store_sm_max(FP const& params, P const& pdata, OP const& pout)
 	{
-		this->sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
+		sm_max_nut[threadIdx.x] = fabs(pout.contupd.y);
 	}
 
-	// auxiliary: reduce common dyndt shared data
 	template<typename FP>
-	__device__ __forceinline__ void reduce_sm_max(FP const& params)
-	{ dtadaptBlockReduce(this->sm_max, params.cfl, params.cflOffset); }
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(sm_max_nut, params.cfltvisc, params.cflOffset);
+	}
+};
 
-	// store shared data
+template<BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
+struct forces_shared_data :
+	COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_shared_data),
+	COND_SHARED(simflags & (ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
+		boundarytype == SA_BOUNDARY, dyndt_densitySum_shared_data),
+	COND_SHARED(simflags & ENABLE_DTADAPT &&
+		visctype == KEPSVISC, dyndt_keps_shared_data)
+{
+	typedef
+		typename COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_shared_data)
+		common;
+	typedef
+		typename COND_SHARED(simflags & (ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
+			boundarytype == SA_BOUNDARY, dyndt_densitySum_shared_data)
+		density_sum;
+	typedef
+		typename COND_SHARED(simflags & ENABLE_DTADAPT &&
+			visctype == KEPSVISC, dyndt_keps_shared_data)
+		nut;
+
+	__device__ __forceinline__ void
+	init()
+	{
+		common::init();
+		density_sum::init();
+		nut::init();
+	}
+
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
-	{ store_sm_max(params, pdata, pout); }
+	{
+		common::store(params, pdata, pout);
+		density_sum::store(params, pdata, pout);
+		nut::store(params, pdata, pout);
+	}
 
-	// reduce shared data
 	template<typename FP>
-	__device__ __forceinline__ void reduce(FP const& params)
-	{ reduce_sm_max(params); }
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		common::reduce(params);
+		density_sum::reduce(params);
+		nut::reduce(params);
+	}
 };
-
-template<>
-__device__ __forceinline__ void
-forces_shared_data<true, KEPSVISC>::init()
-{
-	this->sm_max[threadIdx.x] = 0;
-	this->sm_max_nut[threadIdx.x] = 0;
-}
-
-template<>
-template<typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-forces_shared_data<true, KEPSVISC>::store(FP const& params, P const& pdata, OP const& pout)
-{
-	store_sm_max(params, pdata, pout);
-	this->sm_max_nut[threadIdx.x] = pdata.turbVisc;
-}
-
-template<>
-template<typename FP>
-__device__ __forceinline__ void
-forces_shared_data<true, KEPSVISC>::reduce(FP const& params)
-{
-	reduce_sm_max(params);
-	dtadaptBlockReduce(this->sm_max_nut, params.cfltvisc, params.cflOffset);
-}
-
 
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
@@ -1776,7 +2040,7 @@ forcesDevice(
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
-	__shared__ forces_shared_data<simflags & ENABLE_DTADAPT, visctype> shared;
+	__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
 	shared.init();
 
 	// The body of this kernel easily gets a lot of indentation. to prevent that,
@@ -1850,7 +2114,7 @@ forcesDevice(
 		// actually skip the neib list traversal is done in here rather than
 		// in the prepare() function.
 
-		skip_neiblist<kerneltype, sph_formulation, boundarytype, visctype, simflags> skip;
+		skip_neiblist<boundarytype> skip;
 		idx_t i = 0;
 
 		if (skip.check(params, pdata)) {
@@ -1885,7 +2149,10 @@ forcesDevice(
 
 			// We now check if the current particle interacts with the neighbor.
 			// We recycle the computes_stuff as boolean
-			computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
+			if(BOUNDARY(neib_info))
+				computes_stuff = (r < params.influenceradius+params.deltap);
+			else
+				computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
 
 			// When not using SA_BOUNDARY, particles in rigid bodies that need
 			// to compute forces only interact with fluid particles, since
@@ -1917,7 +2184,7 @@ forcesDevice(
 
 			// Compute gamma_as and |grad gamma_as| and add it to the respective values
 			// of the focal particle
-			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
+			compute_gamma<boundarytype>::with(params, pdata, ndata, pout, nout);
 
 			// With DYN_BOUNDARY formulation, all particles interaction follow the fluid-fluid one
 			if (boundarytype == DYN_BOUNDARY || FLUID(info)) {
@@ -1929,6 +2196,10 @@ forcesDevice(
 				// 			  with any other particle;
 				// 			- a non-fluid particle will compute density derivative interacting with any other particle,
 				// 			  but acceleration will only be computed by object particles interacting with fluid particles
+				//
+				// If the summation density is used, then in the second step no contribution to the continuity equation
+				// needs to be computed as the values from time n will be reused.
+
 				// NOTE1 : the compiler has some difficulties to deal with situations as
 				// if (boundarytype == SA_BOUNDARY) {
 				//	...
@@ -1956,18 +2227,14 @@ forcesDevice(
 				// in first position
 				// if ( pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) =>
 				// if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID)
-				const bool computes_NS_drhodt = boundarytype == DYN_BOUNDARY ||
-						(boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)))
-						|| FLUID(ndata.info);
+				const bool computes_NS_drhodt = !(simflags & ENABLE_DENSITY_SUM && params.step==2) &&
+						(boundarytype == DYN_BOUNDARY ||
+						 (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)))
+						 || FLUID(ndata.info) );
 
 				if (computes_NS_drhodt) {
 					// Computes d\rho/dt, including ferrari correction
-					compute_density_derivative<boundarytype>::with<sph_formulation, simflags>(params, pdata, ndata, pout, nout);
-					pout.force.w += nout.DrDt;
-					if (boundarytype == SA_BOUNDARY) {
-						pout.contupd.x += nout.contDiff;
-						pout.contupd.y += nout.DgamDt;
-					}
+					compute_density_derivative<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
 
 				// For DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
@@ -1977,25 +2244,29 @@ forcesDevice(
 				// particles.
 				// For other boundary types, accelerations is computed with the NS equations whenever the density
 				// is also computed (using NS), otherwise we just apply the repulsive force
+				// As the density is not computed in the densitySum case for step==2 we need to make sure that the
+				// accelleration is computed in this case
 				// TODO : check the test and eventually simplify or reorganize
 				const bool computes_NS_accel = boundarytype == DYN_BOUNDARY ?
-					(FLUID(pdata.info) || FLUID(ndata.info)) : computes_NS_drhodt;
+					(FLUID(pdata.info) || FLUID(ndata.info)) :
+					computes_NS_drhodt || (simflags & ENABLE_DENSITY_SUM && params.step==2 && (ndata.ntype == PT_FLUID ||
+					 ( boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX ) ) ) );
 
 				if (computes_NS_accel) {
 					// Compute pressure part of acceleration
-					compute_pressure_contrib<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
+					compute_pressure_contrib<boundarytype>::with(params, pdata, ndata, pout, nout);
 
 					// Compute viscous forces
-					compute_viscous_contrib<boundarytype, sph_formulation>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
+					compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
 
 					// Compute diffusion terms for k-epsilon and the strain rate tensor
-					compute_keps_term<boundarytype, visctype>::with<simflags & ENABLE_INLET_OUTLET>(params, pdata, ndata, pout, nout);
+					compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
 
 					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
-					compute_mean_vel<simflags & ENABLE_XSPH>::with<kerneltype>(params, pdata, ndata, pout, nout);
+					compute_mean_vel<simflags & ENABLE_XSPH>::with(params, pdata, ndata, pout, nout);
 				} else {
-					if (boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY)
-						compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+					// Repulsive force (no-op except for LJ_BOUNDARY and MK_BOUNDARY)
+					compute_repulsive_force(params, pdata, ndata, pout, nout);
 				}
 
 			}
@@ -2004,7 +2275,7 @@ forcesDevice(
 				if (visctype == KEPSVISC && VERTEX(pdata.info)
 					&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
 					// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
-					compute_viscous_contrib<boundarytype, sph_formulation>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
+					compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
 				}
 				else if ((simflags & ENABLE_WATER_DEPTH) && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) {
 					// Compute the maximum depth at pressure boundaries
@@ -2012,9 +2283,10 @@ forcesDevice(
 				}
 			}
 
+			// Force acting on moving/force-feedback object in LJ and MK boundary cases
 			if (boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) {
 				if (COMPUTE_FORCE(pdata.info))
-					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+					compute_repulsive_force(params, pdata, ndata, pout, nout);
 			}
 
 			// Sum all contributions from the neighbors in the force array
@@ -2024,7 +2296,7 @@ forcesDevice(
 
 		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 		if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
-			gamma_fixup<boundarytype>::with<sph_formulation>(params, pdata, pout);
+			gamma_fixup<boundarytype>::with(params, pdata, pout);
 		}
 
 		// common division or multiplifaction
@@ -2087,16 +2359,15 @@ forcesDevice(
 				as_float3(pout.force) *= pdata.pos.w;
 			params.rbforces[pdata.rbindex] = pout.force;
 
-			const float3 arm =
-				(pdata.gridPos - d_rbcgGridPos[object(info)])*d_cellSize +
-				(as_float3(pdata.pos) - d_rbcgPos[object(info)]);
+			const float3 arm = globalDistance(pdata.gridPos, as_float3(pdata.pos),
+					d_rbcgGridPos[object(info)], d_rbcgPos[object(info)]);
 
 			params.rbtorques[pdata.rbindex] = make_float4(cross(arm, as_float3(pout.force)));
 
 		} else {
-			write_gamma<boundarytype>::with(params, pdata, pout, simflags & ENABLE_INLET_OUTLET);
+			write_gamma<boundarytype>::with(params, pdata, pout);
 		}
-		write_forces::with(params, pdata, pout);
+		write_forces<boundarytype>::with(params, pdata, pout);
 
 		if (FLUID(pdata.info)) {
 			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);

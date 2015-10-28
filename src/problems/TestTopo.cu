@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ TestTopo::TestTopo(GlobalData *_gdata) : Problem(_gdata)
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
-		flags<ENABLE_DTADAPT | ENABLE_DEM>
+		add_flags<ENABLE_DEM>
 	);
 
 	const char* dem_file;
@@ -68,9 +68,9 @@ TestTopo::TestTopo(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.05);
-	m_simparams->dt = 0.00001f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 10;
+	simparams()->dt = 0.00001f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 10;
 
 	// Physical parameters
 	H = 2.0;
@@ -85,25 +85,25 @@ TestTopo::TestTopo(GlobalData *_gdata) : Problem(_gdata)
 	cout << "m_size: " << m_size.x << " " << m_size.y << " " << m_size.z << "\n";
 
 	m_origin = make_double3(0.0, 0.0, 0.0);
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 
 	add_fluid(1000.0f);
 	set_equation_of_state(0,  7.0f, 20.f);
 
-	m_physparams->dcoeff = 50.47;
+	physparams()->dcoeff = 50.47;
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams->r0 = m_deltap;
-	m_physparams->artvisccoeff = 0.05f;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
-	m_physparams->epsxsph = 0.5f;
+	physparams()->r0 = m_deltap;
+	physparams()->artvisccoeff = 0.05f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->epsxsph = 0.5f;
 
-	m_physparams->ewres = EB->get_ewres();
-	m_physparams->nsres = EB->get_nsres();
-	m_physparams->demdx = EB->get_ewres()/5.0;
-	m_physparams->demdy = EB->get_nsres()/5.0;
-	m_physparams->demdx = EB->get_ewres()/5.0;
-	m_physparams->demdxdy = m_physparams->demdx*m_physparams->demdy;
-	m_physparams->demzmin = 5.0*m_deltap;
+	physparams()->ewres = EB->get_ewres();
+	physparams()->nsres = EB->get_nsres();
+	physparams()->demdx = EB->get_ewres()/5.0;
+	physparams()->demdy = EB->get_nsres()/5.0;
+	physparams()->demdx = EB->get_ewres()/5.0;
+	physparams()->demdxdy = physparams()->demdx*physparams()->demdy;
+	physparams()->demzmin = 5.0*m_deltap;
 
 #undef EB
 
@@ -134,13 +134,13 @@ int TestTopo::fill_parts()
 	parts.reserve(1000);
 	boundary_parts.reserve(1000);
 
-	experiment_box->SetPartMass(m_deltap, m_physparams->rho0[0]);
-	//experiment_box->FillDem(boundary_parts, m_physparams->r0);
+	experiment_box->SetPartMass(m_deltap, physparams()->rho0[0]);
+	//experiment_box->FillDem(boundary_parts, physparams()->r0);
 #if !USE_PLANES
-	experiment_box->FillBorder(boundary_parts, m_physparams->r0, 0, false);
-	experiment_box->FillBorder(boundary_parts, m_physparams->r0, 1, true);
-	experiment_box->FillBorder(boundary_parts, m_physparams->r0, 2, false);
-	experiment_box->FillBorder(boundary_parts, m_physparams->r0, 3, true);
+	experiment_box->FillBorder(boundary_parts, physparams()->r0, 0, false);
+	experiment_box->FillBorder(boundary_parts, physparams()->r0, 1, true);
+	experiment_box->FillBorder(boundary_parts, physparams()->r0, 2, false);
+	experiment_box->FillBorder(boundary_parts, physparams()->r0, 3, true);
 #endif
 	experiment_box->Fill(parts, 0.8, m_deltap, true);
 
@@ -170,7 +170,7 @@ void TestTopo::copy_to_array(BufferList &buffers)
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY,0,i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
@@ -179,7 +179,7 @@ void TestTopo::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_FLUID,0,i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}

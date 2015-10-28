@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -39,6 +39,8 @@
 using namespace std;
 
 struct BufferAllocPolicy {
+	virtual ~BufferAllocPolicy() {};
+
 	/* maximum number of copies needed for the given set of buffers
 	 * (default: all buffers) */
 	virtual size_t get_max_buffer_count(flag_t Keys = FLAG_MAX) const = 0;

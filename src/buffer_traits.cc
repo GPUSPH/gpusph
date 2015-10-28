@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@
 #undef DEFINED_BUFFERS
 #undef SET_BUFFER_TRAITS
 #define SET_BUFFER_TRAITS(code, _type, _nbufs, _name) \
-char BufferTraits<code>::name[] = _name
+const char BufferTraits<code>::name[] = _name
 #include "define_buffers.h"
 #undef SET_BUFFER_TRAITS
 

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -150,13 +150,13 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 
 	// Info
 	/* Fluid number is only included if there are more than 1 */
-	bool write_fluid_num = (gdata->problem->get_physparams()->numFluids() > 1);
+	bool write_fluid_num = (gdata->problem->physparams()->numFluids() > 1);
 
 	/* Object number is only included if there are any */
 	// TODO a better way would be for GPUSPH to expose the highest
 	// object number ever associated with any particle, so that we
 	// could check that
-	bool write_part_obj = (gdata->problem->get_simparams()->numbodies > 0);
+	bool write_part_obj = (gdata->problem->simparams()->numbodies > 0);
 	if (info) {
 		fid << "SCALARS Type+flags int" << endl;
 		print_lookup(fid);

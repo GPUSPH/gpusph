@@ -10,6 +10,7 @@
 
 
 #include "ode/ode.h"
+#include "common_types.h"
 
 float3 make_float3(const dVector3 v)
 {

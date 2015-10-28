@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -117,6 +117,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const hashKey *particleHash = buffers.getData<BUFFER_HASH>();
 	const float4 *vel = buffers.getData<BUFFER_VEL>();
 	const float4 *vol = buffers.getData<BUFFER_VOLUME>();
+	const float *sigma = buffers.getData<BUFFER_SIGMA>();
 	const particleinfo *info = buffers.getData<BUFFER_INFO>();
 	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
 	const float4 *normals = buffers.getData<BUFFER_NORMALS>();
@@ -132,7 +133,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// CSV file for tespoints
 	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
 	ofstream testpoints_file;
-	if (gdata->problem->get_simparams()->csvtestpoints) {
+	if (gdata->problem->simparams()->csvtestpoints) {
 		testpoints_file.open(testpoints_fname.c_str());
 		if (!testpoints_file) {
 			stringstream ss;
@@ -202,13 +203,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	}
 
 	/* Fluid number is only included if there are more than 1 */
-	const bool write_fluid_num = (gdata->problem->get_physparams()->numFluids() > 1);
+	const bool write_fluid_num = (gdata->problem->physparams()->numFluids() > 1);
 
 	/* Object number is only included if there are any */
 	// TODO a better way would be for GPUSPH to expose the highest
 	// object number ever associated with any particle, so that we
 	// could check that
-	const bool write_part_obj = (gdata->problem->get_simparams()->numbodies > 0);
+	const bool write_part_obj = (gdata->problem->simparams()->numbodies > 0);
 
 	// particle info
 	if (info) {
@@ -254,8 +255,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		vector_array(fid, "Float32", "Eulerian velocity", 3, offset);
 		offset += sizeof(float)*3*numParts+sizeof(int);
 
-		// Eulerian pressure
-		scalar_array(fid, "Float32", "Eulerian pressure", offset);
+		// Eulerian density
+		scalar_array(fid, "Float32", "Eulerian density", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
@@ -290,6 +291,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	if (vol) {
 		vector_array(fid, "Float32", "Volume", 4, offset);
 		offset += sizeof(float)*4*numParts+sizeof(int);
+	}
+
+	// sigma
+	if (sigma) {
+		scalar_array(fid, "Float32", "Sigma", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	fid << "   </PointData>" << endl;
@@ -401,7 +408,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = type(info[i]);
-			if (gdata->problem->get_simparams()->csvtestpoints && TESTPOINT(info[i])) {
+			if (gdata->problem->simparams()->csvtestpoints && TESTPOINT(info[i])) {
 				float tkeVal = 0.0f;
 				float epsVal = 0.0f;
 				if(tke)
@@ -596,6 +603,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = (float*)(vol + i);
 			write_arr(fid, value, 4);
+		}
+	}
+
+	numbytes=sizeof(float)*numParts;
+
+	// sigma
+	if (sigma) {
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float value = sigma[i];
+			write_var(fid, value);
 		}
 	}
 

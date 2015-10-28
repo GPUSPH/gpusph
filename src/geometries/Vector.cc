@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -78,10 +78,33 @@ Vector::Vector(const float3 &v)
 	x[3] = 0;
 }
 
+/// Constructor from double3
+/*!	\param pt : double3
+  the fourth component (mass) is initialized to 0
+*/
+Vector::Vector(const double3 &v)
+{
+	x[0] = v.x;
+	x[1] = v.y;
+	x[2] = v.z;
+	x[3] = 0;
+}
+
 /// Constructor from float4
 /*!	\param pt : float4
 */
 Vector::Vector(const float4 &v)
+{
+	x[0] = v.x;
+	x[1] = v.y;
+	x[2] = v.z;
+	x[3] = v.w;
+}
+
+/// Constructor from double4
+/*!	\param pt : double4
+*/
+Vector::Vector(const double4 &v)
 {
 	x[0] = v.x;
 	x[1] = v.y;
@@ -410,15 +433,24 @@ Vector operator/(const Vector &vect, double k)
 }
 
 
+float3 make_float3(const Vector &v)
+{
+	return make_float3(float(v(0)), float(v(1)), float(v(2)));
+}
+
+double3 make_double3(const Vector &v)
+{
+	return make_double3(double(v(0)), double(v(1)), double(v(2)));
+}
+
 float4 make_float4(const Vector &v)
 {
 	return make_float4(float(v(0)), float(v(1)), float(v(2)), float(v(3)));
 }
 
-
-float3 make_float3(const Vector &v)
+double4 make_double4(const Vector &v)
 {
-	return make_float3(float(v(0)), float(v(1)), float(v(2)));
+	return make_double4(double(v(0)), double(v(1)), double(v(2)), double(v(3)));
 }
 
 

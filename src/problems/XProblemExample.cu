@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -43,17 +43,17 @@ XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
-	m_physparams->r0 = m_deltap;
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
-	float g = length(m_physparams->gravity);
+	physparams()->r0 = m_deltap;
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
+	float g = length(physparams()->gravity);
 	double H = 3;
-	m_physparams->dcoeff = 5.0f*g*H;
+	physparams()->dcoeff = 5.0f*g*H;
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.0f);
 	//set_kinematic_visc(0, 1.0e-2f);
 
 	// *** Initialization of minimal simulation parameters
-	m_simparams->maxneibsnum = 256 + 32;
+	simparams()->maxneibsnum = 256 + 32;
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-1f);
@@ -109,6 +109,6 @@ XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 				Point( cornerXY + i*grid_size/(spheres_grid_size-1),
 				cornerXY + j*grid_size/(spheres_grid_size-1), sphere_Z), sphere_radius);
 
-	// setMassByDensity(floating_obj, m_physparams->rho0[0] / 2);
+	// setMassByDensity(floating_obj, physparams()->rho0[0] / 2);
 }
 
