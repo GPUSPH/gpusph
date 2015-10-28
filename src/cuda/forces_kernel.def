@@ -2117,16 +2117,27 @@ forcesDevice(
 		skip_neiblist<boundarytype> skip;
 		idx_t i = 0;
 
+		bool cont = true;
 		if (skip.check(params, pdata)) {
 			skip.prepare(pdata, pout);
-			i = d_neiblist_end; // Skip neighbors loop
+			cont = false; // Skip neighbors loop
 		}
 
 		// Loop over all neighbors
-		for (; i < d_neiblist_end; i += d_neiblist_stride) {
+		uint current_neib_type = PT_FLUID;
+		while (cont) {
 			neibdata neib_data = params.neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == 0xffff) {
+				if (current_neib_type == PT_FLUID) {
+					current_neib_type = PT_BOUNDARY;
+					i = cuneibs::d_neibboundpos*d_neiblist_stride;
+					continue;
+				}
+				else
+					break;
+			}
+			i += (current_neib_type == PT_FLUID) ? d_neiblist_stride : -d_neiblist_stride;
 
 			const uint neib_index = getNeibIndex(pdata.pos, pos_corr, params.cellStart,
 				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
