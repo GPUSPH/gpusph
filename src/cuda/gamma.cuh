@@ -78,10 +78,9 @@ fetchOldGamma(const uint index, const float epsilon, bool &computeGamma)
 
 //! This function returns the function value of the wendland kernel and of the integrated wendland kernel
 __device__ __forceinline__
-float2
+float
 wendlandOnSegment(const float q)
 {
-	float kernel = 0.0f;
 	float intKernel = 0.0f;
 
 	if (q < 2.0f) {
@@ -89,20 +88,15 @@ wendlandOnSegment(const float q)
 		float tmp4 = tmp*tmp;
 		tmp4 *= tmp4;
 
-// Wendland coefficient: 21/(16 π)
-#define WENDLAND_K_COEFF 0.417781725616225256393319878852850200340456570068698177962626f
 // Integrated Wendland coefficient: 1/(32 π)
 #define WENDLAND_I_COEFF 0.009947183943243458485555235210782147627153727858778528046729f
-
-		// Wendland kernel
-		kernel = WENDLAND_K_COEFF*tmp4*(1.0f+2.0f*q);
 
 		// integrated Wendland kernel
 		const float uq = 1.0f/q;
 		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8.0f*uq + 20.0f)*uq + 30.0f)*uq) + 21.0f);
 	}
 
-	return make_float2(kernel, intKernel);
+	return intKernel;
 }
 
 /*
@@ -111,50 +105,46 @@ wendlandOnSegment(const float q)
 
 //! Function that computes the surface integral of a function on a triangle using a 1st order Gaussian quadrature rule
 __device__ __forceinline__
-float2
-gaussQuadratureO1(	const	float3	vPos0,
-					const	float3	vPos1,
-					const	float3	vPos2,
+float
+gaussQuadratureO1(	const	float3	*vertexRelPos,
 					const	float3	relPos)
 {
-	float2 val = make_float2(0.0f);
+	float val = 0.0f;
 	// perform the summation
-	float3 pa =	vPos0/3.0f +
-				vPos1/3.0f +
-				vPos2/3.0f  ;
-	pa -= relPos;
+	float3 pa =	vertexRelPos[0]/3.0f +
+				vertexRelPos[1]/3.0f +
+				vertexRelPos[2]/3.0f  ;
+	pa += relPos;
 	val += 1.0f*wendlandOnSegment(length(pa));
 	// compute the triangle volume
-	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
+	const float vol = length(cross(vertexRelPos[1]-vertexRelPos[0],vertexRelPos[2]-vertexRelPos[0]))/2.0f;
 	// return the summed values times the volume
 	return val*vol;
 }
 
 //! Function that computes the surface integral of a function on a triangle using a 5th order Gaussian quadrature rule
 __device__ __forceinline__
-float2
-gaussQuadratureO5(	const	float3	vPos0,
-					const	float3	vPos1,
-					const	float3	vPos2,
+float
+gaussQuadratureO5(	const	float3	*vertexRelPos,
 					const	float3	relPos)
 {
-	float2 val = make_float2(0.0f);
+	float val = 0.0f;
 	// perform the summation
 #pragma unroll
 	for (int i=0; i<3; i++) {
 #pragma unroll
 		for (int j=0; j<3; j++) {
-			float3 pa =	vPos0*GQ_O5_points[i][j]       +
-						vPos1*GQ_O5_points[i][(j+1)%3] +
-						vPos2*GQ_O5_points[i][(j+2)%3]  ;
-			pa -= relPos;
+			float3 pa =	vertexRelPos[0]*GQ_O5_points[i][j]       +
+						vertexRelPos[1]*GQ_O5_points[i][(j+1)%3] +
+						vertexRelPos[2]*GQ_O5_points[i][(j+2)%3]  ;
+			pa += relPos;
 			val += GQ_O5_weights[i]*wendlandOnSegment(length(pa));
 			if (j >= GQ_O5_mult[i])
 				break;
 		}
 	}
 	// compute the triangle volume
-	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
+	const float vol = length(cross(vertexRelPos[1]-vertexRelPos[0],vertexRelPos[2]-vertexRelPos[0]))/2.0f;
 	// return the summed values times the volume
 	return val*vol;
 }
@@ -162,29 +152,27 @@ gaussQuadratureO5(	const	float3	vPos0,
 
 //! Function that computes the surface integral of a function on a triangle using a 14th order Gaussian quadrature rule
 __device__ __forceinline__
-float2
-gaussQuadratureO14(	const	float3	vPos0,
-					const	float3	vPos1,
-					const	float3	vPos2,
+float
+gaussQuadratureO14(	const	float3	*vertexRelPos,
 					const	float3	relPos)
 {
-	float2 val = make_float2(0.0f);
+	float val = 0.0f;
 	// perform the summation
 #pragma unroll
 	for (int i=0; i<10; i++) {
 #pragma unroll
 		for (int j=0; j<6; j++) {
-			float3 pa =	vPos0*GQ_O14_points[i][j%3]       +
-						vPos1*GQ_O14_points[i][(j+1+j/3)%3] +
-						vPos2*GQ_O14_points[i][(j+2-j/3)%3]  ;
-			pa -= relPos;
+			float3 pa =	vertexRelPos[0]*GQ_O14_points[i][j%3]       +
+						vertexRelPos[1]*GQ_O14_points[i][(j+1+j/3)%3] +
+						vertexRelPos[2]*GQ_O14_points[i][(j+2-j/3)%3]  ;
+			pa += relPos;
 			val += GQ_O14_weights[i]*wendlandOnSegment(length(pa));
 			if (j >= GQ_O14_mult[i])
 				break;
 		}
 	}
 	// compute the triangle volume
-	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
+	const float vol = length(cross(vertexRelPos[1]-vertexRelPos[0],vertexRelPos[2]-vertexRelPos[0]))/2.0f;
 	// return the summed values times the volume
 	return val*vol;
 }
@@ -326,14 +314,12 @@ gradGamma<WENDLAND>(
 */
 template<KernelType kerneltype>
 __device__ __forceinline__
-float2
+float
 Gamma(	const	float		&slength,
-				float4		relPos,
-		const	float2		&vPos0,
-		const	float2		&vPos1,
-		const	float2		&vPos2,
-		const	float4		&boundElement,
-				float4		oldGGam,
+				float3		relPos,
+				float3		*vertexRelPos,
+		const	float3		&boundElement,
+				float3		oldGGam,
 		const	float		&epsilon,
 		const	float		&deltap,
 		const	bool		&computeGamma,
@@ -341,84 +327,60 @@ Gamma(	const	float		&slength,
 				float		&minlRas)
 {
 	// normalize the distance r_{as} with h
-	relPos.x /= slength;
-	relPos.y /= slength;
-	relPos.z /= slength;
+	relPos /= slength;
+	vertexRelPos[0] /= slength;
+	vertexRelPos[1] /= slength;
+	vertexRelPos[2] /= slength;
 	// Sigma is the point a projected onto the plane spanned by the edge
 	// q_aSigma is the non-dimensionalized distance between this plane and the particle
-	float4 q_aSigma = boundElement*dot3(boundElement,relPos);
-	q_aSigma.w = fmin(length3(q_aSigma),2.0f);
-	// local coordinate system for relative positions to vertices
-	uint j = 0;
-	// Get index j for which n_s is minimal
-	if (fabs(boundElement.x) > fabs(boundElement.y))
-		j = 1;
-	if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
-		j = 2;
+	const float3 q_aSigma = boundElement*dot(boundElement,relPos);
+	const float q_aSigma_l = fmin(length(q_aSigma),2.0f);
 
-	// compute the first coordinate which is a 2-D rotated version of the normal
-	const float4 coord1 = normalize(make_float4(
-		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
-		  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
-		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
-		0));
-	// the second coordinate is the cross product between the normal and the first coordinate
-	const float4 coord2 = cross3(boundElement, coord1);
-
-	// relative positions of vertices with respect to the segment, normalized by h
-	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
-	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
-	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
 	// calculate if the projection of a (with respect to n) is inside the segment
-	const float4 ba = v1 - v0; // vector from v0 to v1
-	const float4 ca = v2 - v0; // vector from v0 to v2
-	const float4 pa = relPos - v0; // vector from v0 to the particle
-	const float uu = sqlength3(ba);
-	const float uv = dot3(ba,ca);
-	const float vv = sqlength3(ca);
-	const float wu = dot3(ba,pa);
-	const float wv = dot3(ca,pa);
+	const float3 ba = vertexRelPos[1] - vertexRelPos[0]; // vector from vertexRelPos[0] to vertexRelPos[1]
+	const float3 ca = vertexRelPos[2] - vertexRelPos[0]; // vector from vertexRelPos[0] to vertexRelPos[2]
+	const float3 pa = relPos - vertexRelPos[0]; // vector from vertexRelPos[0] to the particle
+	const float uu = sqlength(ba);
+	const float uv = dot(ba,ca);
+	const float vv = sqlength(ca);
+	const float wu = dot(ba,pa);
+	const float wv = dot(ca,pa);
 	const float invdet = 1.0f/(uv*uv-uu*vv);
 	const float u = (uv*wv-vv*wu)*invdet;
 	const float v = (uv*wu-uu*wv)*invdet;
 	//const float w = 1.0f - u - v;
 	// set minlRas only if the projection is close enough to the triangle and if the normal
 	// distance is close
-	if (q_aSigma.w < 0.5f && (u > -0.5f && v > -0.5f && 1.0f - u - v > -0.5f && u < 1.5f && v < 1.5f && 1.0f - u - v < 1.5f)) {
-		minlRas = min(minlRas, q_aSigma.w);
+	if (q_aSigma_l < 0.5f && (u > -0.5f && v > -0.5f && 1.0f - u - v > -0.5f && u < 1.5f && v < 1.5f && 1.0f - u - v < 1.5f)) {
+		minlRas = min(minlRas, q_aSigma_l);
 	}
-	float gradGamma_as = 0.0f;
 	float gamma_as = 0.0f;
 	float gamma_vs = 0.0f;
 	// check if the particle is on a vertex
 	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
 			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
-			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
-		// set touching vertex to v0
+			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma_l < epsilon) {
+		// set touching vertex to vertexRelPos[0]
 		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
-			const float4 tmp = v1;
-			v1 = v2;
-			v2 = v0;
-			v0 = tmp;
+			const float3 tmp = vertexRelPos[1];
+			vertexRelPos[1] = vertexRelPos[2];
+			vertexRelPos[2] = vertexRelPos[0];
+			vertexRelPos[0] = tmp;
 		}
 		else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
-			const float4 tmp = v2;
-			v2 = v1;
-			v1 = v0;
-			v0 = tmp;
+			const float3 tmp = vertexRelPos[2];
+			vertexRelPos[2] = vertexRelPos[1];
+			vertexRelPos[1] = vertexRelPos[0];
+			vertexRelPos[0] = tmp;
 		}
-		// additional value of grad gamma
-		const float openingAngle = acos(dot3((v1-v0),(v2-v0))/sqrt(sqlength3(v1-v0)*sqlength3(v2-v0)));
-		gradGamma_as = openingAngle*0.1193662073189215018266628225293857715258447343053423f; // 3/(8π)
 
-		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
+		// compute the sum of all solid angles of the tetrahedron spanned by vertexRelPos[1]-vertexRelPos[0], vertexRelPos[2]-vertexRelPos[0] and -gradgamma
 		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
-		oldGGam /= -fmax(length3(oldGGam),slength*1e-3f);
-		float l1 = length3(v1-v0);
-		float l2 = length3(v2-v0);
-		float abc = dot3((v1-v0),oldGGam)/l1 + dot3((v2-v0),oldGGam)/l2 + dot3((v1-v0),(v2-v0))/l1/l2;
-		float d = dot3(oldGGam,cross3((v1-v0),(v2-v0)))/l1/l2;
+		oldGGam /= -fmax(length(oldGGam),slength*1e-3f);
+		float l1 = length(vertexRelPos[1]-vertexRelPos[0]);
+		float l2 = length(vertexRelPos[2]-vertexRelPos[0]);
+		float abc = dot((vertexRelPos[1]-vertexRelPos[0]),oldGGam)/l1 + dot((vertexRelPos[2]-vertexRelPos[0]),oldGGam)/l2 + dot((vertexRelPos[1]-vertexRelPos[0]),(vertexRelPos[2]-vertexRelPos[0]))/l1/l2;
+		float d = dot(oldGGam,cross((vertexRelPos[1]-vertexRelPos[0]),(vertexRelPos[2]-vertexRelPos[0])))/l1/l2;
 
 		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
 		float SolidAngle = fabs(2.0f*atan2(d,(1.0f+abc)));
@@ -428,34 +390,28 @@ Gamma(	const	float		&slength,
 	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
 				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
 				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
-			 ) && q_aSigma.w < epsilon) {
-		oldGGam /= -length3(oldGGam);
-		// grad gamma for a half-plane
-		gradGamma_as = 0.375f; // 3.0f/4.0f/2.0f;
+			 ) && q_aSigma_l < epsilon) {
+		oldGGam /= -length(oldGGam);
 
 		// compute the angle between a segment and -gradgamma
-		const float theta0 = acos(dot3(boundElement,oldGGam)); // angle of the norms between 0 and pi
-		const float4 refDir = cross3(boundElement, relPos); // this defines a reference direction
-		const float4 normDir = cross3(boundElement, oldGGam); // this is the sin between the two norms
-		const float theta = M_PIf + copysign(theta0, dot3(refDir, normDir)); // determine the actual angle based on the orientation of the sin
+		const float theta0 = acos(dot(boundElement,oldGGam)); // angle of the norms between 0 and pi
+		const float3 refDir = cross(boundElement, relPos); // this defines a reference direction
+		const float3 normDir = cross(boundElement, oldGGam); // this is the sin between the two norms
+		const float theta = M_PIf + copysign(theta0, dot(refDir, normDir)); // determine the actual angle based on the orientation of the sin
 
 		// this is actually two times gamma_as:
 		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)
 	}
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
-	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
+	if (q_aSigma_l < 2.0f && q_aSigma_l > epsilon) {
+		// Gaussian quadrature of 1st order
+		//float intVal = gaussQuadratureO1(vertexRelPos, relPos);
 		// Gaussian quadrature of 14th order
-		//float2 intVal = gaussQuadratureO1(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
-		// Gaussian quadrature of 14th order
-		//float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		//float intVal = gaussQuadratureO14(vertexRelPos, relPos);
 		// Gaussian quadrature of 5th order
-		const float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
-		gradGamma_as += intVal.x;
-		gamma_as += intVal.y*dot3(boundElement,q_aSigma);
+		const float intVal = gaussQuadratureO5(vertexRelPos, relPos);
+		gamma_as += intVal*dot(boundElement,q_aSigma);
 	}
 	gamma_as = gamma_vs + gamma_as;
-	const float3 vertexRelPos[3] = {as_float3(v0), as_float3(v1), as_float3(v2)};
-	// TODO FIXME don't calculate gradGamma twice!
-	gradGamma_as = gradGamma<kerneltype>(as_float3(relPos),   vertexRelPos, as_float3(boundElement), 1.0f);
-	return make_float2(gradGamma_as/slength, gamma_as);
+	return gamma_as;
 }
