@@ -192,27 +192,23 @@ gaussQuadratureO14(	const	float3	vPos0,
 template<KernelType kerneltype>
 __device__ __forceinline__ float
 gradGamma(	const	float		&slength,
-				float4		relPos,
-		const	float2		&vPos0,
-		const	float2		&vPos1,
-		const	float2		&vPos2,
-		const	float4		&boundElement)
+		const	float3		&relPos,
+		const	float3		*vertexRelPos,
+		const	float3		&ns)
 { return -1.0f; } // TODO throw not implemented error
 
 template<>
 __device__ __forceinline__ float
 gradGamma<WENDLAND>(
 		const	float		&slength,
-				float4		relPos,
-		const	float2		&vPos0,
-		const	float2		&vPos1,
-		const	float2		&vPos2,
-		const	float4		&boundElement)
+		const	float3		&relPos,
+		const	float3		*vertexRelPos,
+		const	float3		&ns)
 {
 	// Sigma is the point a projected onto the plane spanned by the edge
 	// pas: is the algebraic distance of the particle a to the plane
 	// qas: is the distance of the particle a to the plane
-	float pas = dot(as_float3(boundElement), as_float3(relPos))/slength;
+	float pas = dot(ns, relPos)/slength;
 	float qas = fabs(pas);
 
 	if (qas >= 2.f)
@@ -230,76 +226,34 @@ gradGamma<WENDLAND>(
 	float totalSumAngles = 0.f;
 	float sumAngles = 0.f;
 
-	// local coordinate system for relative positions to vertices
-	uint j = 0;
-	// Get index j for which n_s is minimal
-	if (fabs(boundElement.x) > fabs(boundElement.y))
-		j = 1;
-	if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
-		j = 2;
-
-	// compute the first coordinate which is a 2-D rotated version of the normal
-	const float4 coord1 = normalize(make_float4(
-		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
-		  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
-		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
-		0));
-	// the second coordinate is the cross product between the normal and the first coordinate
-	const float4 coord2 = cross3(boundElement, coord1);
-
-	// relative positions of vertices with respect to the segment, normalized by h
-	float3 v0 = as_float3(-(vPos0.x*coord1 + vPos0.y*coord2)); // e.g. v0 = r_{v0} - r_s
-	float3 v1 = as_float3(-(vPos1.x*coord1 + vPos1.y*coord2));
-	float3 v2 = as_float3(-(vPos2.x*coord1 + vPos2.y*coord2));
-	// general formula (also used if particle is on vertex / edge to compute remaining edges)
-
 	// loop over all three edges
 	for (uint e = 0; e < 3; e++) {
 		sIdx[0] = e%3;
 		sIdx[1] = (e+1)%3;
 		
-		float3 v01;
+		float3 v01 = normalize(vertexRelPos[sIdx[0]] - vertexRelPos[sIdx[1]]);
 		// ne is the vector pointing outward from segment, normal to segment and normal and v_{10}
 		// this is only possible because initConnectivity makes sure that the segments are ordered correctly
-		// i.e. anticlokewise sens when in the plane of the boundary segment with the normal pointing
+ 		// i.e. anticlokewise sens when in the plane of the boundary segment with the normal pointing
 		// in our direction.
-		// NB: (ns, v01, ne) is an orthotropic reference fram
-		float3 ne;
+ 		// NB: (ns, v01, ne) is an orthotropic reference fram
+		float3 ne = normalize(cross(ns, v01));
+		
 		// algebraic distance of projection in the plane s to the edge
-		// (negative if the projection is inside the triangle).
-		float pae;
-		float pav0;
-		float pav1;
-
-		if (sIdx[0] == 0) {
-			v01 = normalize(v0 - v1);
-			ne = normalize(cross(as_float3(boundElement), v01));
-			pae = dot(ne, as_float3(relPos) - v0)/slength;
-			pav0 = -dot(as_float3(relPos) - v0, v01)/slength;
-			pav1 = -dot(as_float3(relPos) - v1, v01)/slength;
-		} else if (sIdx[0] == 1) {
-			v01 = normalize(v1 - v2);
-			ne = normalize(cross(as_float3(boundElement), v01));
-			pae = dot(ne, as_float3(relPos) - v1)/slength;
-			pav0 = -dot(as_float3(relPos) - v1, v01)/slength;
-			pav1 = -dot(as_float3(relPos) - v2, v01)/slength;
-		} else if (sIdx[0] == 2) {
-			v01 = normalize(v2 - v0);
-			ne = normalize(cross(as_float3(boundElement), v01));
-			pae = dot(ne, as_float3(relPos) - v2)/slength;
-			pav0 = -dot(as_float3(relPos) - v2, v01)/slength;
-			pav1 = -dot(as_float3(relPos) - v0, v01)/slength;
-		}
+ 		// (negative if the projection is inside the triangle).
+		float pae = dot(ne, relPos - vertexRelPos[sIdx[0]])/slength;
 
 		// NB: in the reference frame (ns, v01, ne) it reads:
-		//     r_av0/h = pas * ns + pae * ne + pav0 * v01
-		//     r_av1/h = pas * ns + pae * ne + pav1 * v01
-		//     qae^2 = pas^2 + pae^2
-		//     qav0^2 = qae^2 + pav0^2
+ 		//     r_av0/h = pas * ns + pae * ne + pav0 * v01
+ 		//     r_av1/h = pas * ns + pae * ne + pav1 * v01
+ 		//     qae^2 = pas^2 + pae^2
+ 		//     qav0^2 = qae^2 + pav0^2
 
 		// distance from the particle a to the edge
-		float qae = length(pas * as_float3(boundElement) + pae * ne);
+		float qae = length(pas * ns + pae * ne);
+
+		float pav0 = -dot(relPos - vertexRelPos[sIdx[0]], v01)/slength;
+		float pav1 = -dot(relPos - vertexRelPos[sIdx[1]], v01)/slength;
 
 		// This is -2*pi if inside the segment, 0 otherwise
 		totalSumAngles += copysign(atan2(pav1, fabs(pae))-atan2(pav0, fabs(pae)), pae);

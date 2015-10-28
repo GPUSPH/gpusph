@@ -250,17 +250,17 @@ struct sa_integrate_continuity_equation
 												 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2) };
 
 				// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
-				const float3 gGamN = gradGamma<kerneltype>(slength, relPosN, vPos0[neib_index], vPos1[neib_index], vPos2[neib_index],boundElement[neib_index])*ns;
-				const float3 gGamNp1 = gradGamma<kerneltype>(slength, relPosNp1, vPos0[neib_index], vPos1[neib_index], vPos2[neib_index],boundElement[neib_index])*ns;
+				const float3 gGamN = gradGamma<kerneltype>(slength, as_float3(relPosN), vertexRelPos,ns)*ns;
+				const float3 gGamNp1 = gradGamma<kerneltype>(slength, as_float3(relPosNp1), vertexRelPos, ns)*ns;
 				gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(relPosNp1 - relPosN));
 				gGam += gGamNp1;
 
 				if (IO_BOUNDARY(neib_info)) {
 					// sum_{S^{io}} (gradGam(r + delta r)).delta r
-					const float4 deltaR = dt*(eulerVel[neib_index] - oldVel[neib_index]);
-					const float4 relPosDelta = relPosN + deltaR;
-					const float3 gGamDelta = gradGamma<kerneltype>(slength, relPosDelta, vPos0[neib_index], vPos1[neib_index], vPos2[neib_index],boundElement[neib_index])*ns;
-					sumSgamDelta += dot(as_float3(deltaR), gGamDelta);
+					const float3 deltaR = dt*as_float3(eulerVel[neib_index] - oldVel[neib_index]);
+					const float3 relPosDelta = as_float3(relPosN) + deltaR;
+					const float3 gGamDelta = gradGamma<kerneltype>(slength, relPosDelta, vertexRelPos, ns)*ns;
+					sumSgamDelta += dot(deltaR, gGamDelta);
 				}
 			}
 		}
