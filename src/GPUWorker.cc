@@ -280,7 +280,7 @@ void GPUWorker::computeAndSetAllocableParticles()
 			m_deviceIndex, numAllocableParticles, gdata->allocatedParticles);
 
 	// allocate at most the number of particles required for the whole simulation
-	m_numAllocatedParticles = min( numAllocableParticles, gdata->allocatedParticles );
+	m_numAllocatedParticles = std::min( numAllocableParticles, gdata->allocatedParticles );
 
 	if (m_numAllocatedParticles < m_numParticles) {
 		fprintf(stderr, "FATAL: thread %u needs %u particles, but we can only store %u in %s available of %s total with %s safety margin\n",
@@ -2102,7 +2102,7 @@ void GPUWorker::kernel_forces_async_enqueue()
 	const uint halfParts = numPartsToElaborate / 2;
 
 	// stripe size
-	uint edgingStripeSize = max( internalEdgeParts, min( saturatingParticles, halfParts) );
+	uint edgingStripeSize = std::max( internalEdgeParts, std::min( saturatingParticles, halfParts) );
 
 	// round
 	uint nonEdgingStripeSize = numPartsToElaborate - edgingStripeSize;

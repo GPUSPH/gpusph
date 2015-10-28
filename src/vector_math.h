@@ -19,18 +19,18 @@
 typedef unsigned int uint;
 typedef unsigned short ushort;
 
-#ifndef __CUDACC__
-#include <cmath>
-
-inline int max(int a, int b)
+inline __host__ __device__ int int_max(int a, int b)
 {
 	return a > b ? a : b;
 }
 
-inline int min(int a, int b)
+inline __host__ __device__ int int_min(int a, int b)
 {
 	return a < b ? a : b;
 }
+
+#ifndef __CUDACC__
+#include <cmath>
 
 inline float rsqrtf(float x)
 {
@@ -1216,13 +1216,13 @@ static __forceinline__ __host__ __device__ int3 operator-(const int3 &a)
 // min
 static __forceinline__ __host__ __device__ int3 min(const int3 &a, const int3 &b)
 {
-	return make_int3(min(a.x,b.x), min(a.y,b.y), min(a.z,b.z));
+	return make_int3(int_min(a.x,b.x), int_min(a.y,b.y), int_min(a.z,b.z));
 }
 
 // max
 static __forceinline__ __host__ __device__ int3 max(const int3 &a, const int3 &b)
 {
-	return make_int3(max(a.x,b.x), max(a.y,b.y), max(a.z,b.z));
+	return make_int3(int_max(a.x,b.x), int_max(a.y,b.y), int_max(a.z,b.z));
 }
 
 // addition
@@ -1296,7 +1296,7 @@ static __forceinline__ __host__ __device__ void operator/=(int3 &a, const int &s
 // clamp
 static __device__ __forceinline__ __host__ int clamp(const int &f, const int &a, const int &b)
 {
-	return max(a, min(f, b));
+	return int_max(a, int_min(f, b));
 }
 
 static __device__ __forceinline__ __host__ int3 clamp(const int3 &v, const int &a, const int &b)
@@ -1326,13 +1326,13 @@ static __forceinline__ __host__ __device__ uint3 make_uint3(const float3 &a)
 // min
 static __forceinline__ __host__ __device__ uint3 min(const uint3 &a, const uint3 &b)
 {
-	return make_uint3(min(a.x,b.x), min(a.y,b.y), min(a.z,b.z));
+	return make_uint3(int_min(a.x,b.x), int_min(a.y,b.y), int_min(a.z,b.z));
 }
 
 // max
 static __forceinline__ __host__ __device__ uint3 max(const uint3 &a, const uint3 &b)
 {
-	return make_uint3(max(a.x,b.x), max(a.y,b.y), max(a.z,b.z));
+	return make_uint3(int_max(a.x,b.x), int_max(a.y,b.y), int_max(a.z,b.z));
 }
 
 // addition
@@ -1411,7 +1411,7 @@ static __forceinline__ __host__ __device__ void operator/=(uint3 &a, const uint 
 // clamp
 static __device__ __forceinline__ __host__ uint clamp(const uint &f, const uint &a, const uint &b)
 {
-	return max(a, min(f, b));
+	return int_max(a, int_min(f, b));
 }
 
 static __device__ __forceinline__ __host__ uint3 clamp(const uint3 &v, const uint &a, const uint &b)
