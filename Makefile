@@ -743,7 +743,7 @@ $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(OBJSUBS)
+$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
