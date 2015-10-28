@@ -1455,7 +1455,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 	// For boundary segments this kernel computes the boundary conditions
 	if (BOUNDARY(info)) {
 
-		// if we are on an in/outflow boundary get the imposed velocity / pressure and average
 		float4 eulerVel = make_float4(0.0f);
 		float tke = 0.0f;
 		float eps = 0.0f;
@@ -1466,7 +1465,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		const uint vertYidx = vertIDToIndex[verts.y];
 		const uint vertZidx = vertIDToIndex[verts.z];
 
-		// get the imposed quantities from the vertices
+		// get the imposed quantities from the arrays which were set in the problem specific routines
 		if (IO_BOUNDARY(info)) {
 			// for imposed velocity the velocity, tke and eps are required and only rho will be calculated
 			if (VEL_IO(info)) {
@@ -1476,35 +1475,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					tke = oldTKE[index];
 				if (oldEps)
 					eps = oldEps[index];
-				/*
-				eulerVel.x =   (oldEulerVel[vertXidx].x +
-								oldEulerVel[vertYidx].x +
-								oldEulerVel[vertZidx].x )/3.0f;
-				eulerVel.y =   (oldEulerVel[vertXidx].y +
-								oldEulerVel[vertYidx].y +
-								oldEulerVel[vertZidx].y )/3.0f;
-				eulerVel.z =   (oldEulerVel[vertXidx].z +
-								oldEulerVel[vertYidx].z +
-								oldEulerVel[vertZidx].z )/3.0f;
-				if (oldTKE)
-					tke =  (oldTKE[vertXidx] +
-							oldTKE[vertYidx] +
-							oldTKE[vertZidx] )/3.0f;
-				if (oldEps)
-					eps =  (oldEps[vertXidx] +
-							oldEps[vertYidx] +
-							oldEps[vertZidx] )/3.0f;
-				*/
 			}
 			// for imposed density only eulerVel.w will be required, the rest will be computed
-			else {
+			else
 				eulerVel.w = oldEulerVel[index].w;
-				/*
-				eulerVel.w =   (oldEulerVel[vertXidx].w +
-								oldEulerVel[vertYidx].w +
-								oldEulerVel[vertZidx].w )/3.0f;
-				*/
-			}
 		}
 
 		// velocity for moving objects transferred from vertices
@@ -1642,6 +1616,19 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				if (oldEps)
 					oldEps[index] = 1e-5f;
 			}
+
+			// compute Riemann invariants for open boundaries
+			const float unInt = dot(sumvel, as_float3(normal));
+			const float unExt = dot3(eulerVel, normal);
+			const float rhoInt = oldVel[index].w;
+			const float rhoExt = eulerVel.w;
+
+			calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, as_float3(normal));
+
+			oldEulerVel[index] = eulerVel;
+			// the density of the particle is equal to the "eulerian density"
+			oldVel[index].w = eulerVel.w;
+
 		}
 		// non-open boundaries
 		else {
@@ -1668,26 +1655,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				// for solid boundaries we have de/dn = 4 0.09^0.075 k^1.5/(0.41 r)
 				oldEps[index] = fmax(sumeps/alpha,1e-5f); // eps should never be 0
 		}
-
-		// Compute the Riemann Invariants for I/O conditions
-		if (IO_BOUNDARY(info) && !CORNER(info)) {
-			const float unInt = dot(sumvel, as_float3(normal));
-			const float unExt = dot3(eulerVel, normal);
-			const float rhoInt = oldVel[index].w;
-			const float rhoExt = eulerVel.w;
-
-			calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, as_float3(normal));
-
-			oldEulerVel[index] = eulerVel;
-			// the density of the particle is equal to the "eulerian density"
-			oldVel[index].w = eulerVel.w;
-
-		}
-		// corners in pressure boundaries have imposed pressures
-		//else if (IO_BOUNDARY(info) && CORNER(info) && PRES_IO(info)) {
-		//	oldVel[index].w = eulerVel.w;
-		//	oldEulerVel[index].w = eulerVel.w;
-		//}
 
 	}
 	// for fluid particles this kernel checks whether they have crossed the boundary at open boundaries
@@ -1780,6 +1747,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					// error measure
 					const float eps = 1e-3f*deltap;
 					// u, v are the barycentric coordinates
+					// check if fluid is inside the triangle, if not search next boundary element
 					if ( u < -eps || v < -eps || u+v > 1.0f+eps)
 						continue;
 
@@ -1791,58 +1759,11 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					// furthermore we need to save the weights beta_{a,v} to avoid using
 					// neighbours of neighbours. As the particle will be deleted anyways we
 					// just use the velocity array which we don't need anymore. The beta_{a,v}
-					// in the 3-D case are the barycentric coordinates which we have already
-					// computed.
+					// in the 3-D case are based on surface areas based on the triangle partition
+					// governed by the position of the fluid particle
 					float4 vertexWeights = make_float4(0.0f);
-					if (CORNER(neib_info)) { // AM-TODO remove this if as segments can't be corners anymore
-						vertexWeights.x = 1.0f;
-						verts.x = verts.w;
-					}
-					else {
-						const float3 vx[3] = {as_float3(relPos - v0), as_float3(relPos - v1), as_float3(relPos - v2)};
-						getMassRepartitionFactor(vx, as_float3(normal), as_float3(vertexWeights));
-						/*
-						// Check if all vertices are associated to an open boundary
-						// in this case we can use the barycentric coordinates
-						if (verts.w == ALLVERTICES) {
-							vertexWeights.x = 1.0f - (u+v);
-							vertexWeights.y = u;
-							vertexWeights.z = v;
-						}
-						// If there are two vertices then use the remaining two and split accordingly
-						else if (verts.w & (VERTEX1 | VERTEX2)) {
-							vertexWeights.x = 1.0f - (u+v);
-							vertexWeights.y = u;
-							vertexWeights.z = 0.0f;
-						}
-						else if (verts.w & (VERTEX2 | VERTEX3)) {
-							vertexWeights.x = 1.0f - (u+v);
-							vertexWeights.y = 0.0f;
-							vertexWeights.z = v;
-						}
-						else if (verts.w & (VERTEX3 | VERTEX1)) {
-							vertexWeights.x = 0.0f;
-							vertexWeights.y = u;
-							vertexWeights.z = v;
-						}
-						// if only one vertex is associated to the open boundary use only that one
-						else if (verts.w & VERTEX1) {
-							vertexWeights.x = 1.0f;
-							vertexWeights.y = 0.0f;
-							vertexWeights.z = 0.0f;
-						}
-						else if (verts.w & VERTEX2) {
-							vertexWeights.x = 0.0f;
-							vertexWeights.y = 1.0f;
-							vertexWeights.z = 0.0f;
-						}
-						else if (verts.w & VERTEX3) {
-							vertexWeights.x = 0.0f;
-							vertexWeights.y = 0.0f;
-							vertexWeights.z = 1.0f;
-						}
-						*/
-					}
+					const float3 vx[3] = {as_float3(relPos - v0), as_float3(relPos - v1), as_float3(relPos - v2)};
+					getMassRepartitionFactor(vx, as_float3(normal), as_float3(vertexWeights));
 					// transfer mass to .w index as it is overwritten with the disable below
 					vertexWeights.w = pos.w;
 					oldGGam[index] = vertexWeights;
@@ -2128,18 +2049,6 @@ saVertexBoundaryConditions(
 					}
 				}
 
-				// boundary conditions for vertices on IO boundaries
-				//if (r < influenceradius) {
-				//	const float4 neib_vel = oldVel[neib_index];
-				//	// kernel times volume
-				//	const float w = W<kerneltype>(r, slength)*relPos.w/neib_vel.w;
-				//	// pressure extrapolation
-				//	sump += w*fmax(0.0f, P(neib_vel.w, fluid_num(neib_info))+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-				//	// velocity extrapolation
-				//	sumvel += w*as_float3(neib_vel + oldEulerVel[neib_index]);
-				//	// normalization factor
-				//	alpha += w;
-				//}
 			}
 		} // BOUNDARY(neib_info) || FLUID(neib_info)
 	}
