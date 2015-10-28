@@ -112,6 +112,8 @@ public:
 	static ConstWriterMap
 	NeedWrite(double t);
 
+	static const char* Name(WriterType key);
+
 	// tell writers that we're starting to send write requests
 	// returns the list of writers that will be involved
 	static WriterMap

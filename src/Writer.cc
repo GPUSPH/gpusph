@@ -53,6 +53,11 @@ static const char* WriterName[] = {
 	"HotWriter"
 };
 
+const char* Writer::Name(WriterType key)
+{
+	return WriterName[key];
+}
+
 void
 Writer::Create(GlobalData *_gdata)
 {
