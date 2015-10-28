@@ -473,8 +473,8 @@ public:
 	SimFramework * select_options(bool selector, Extra, Sel2 selector2, Other)
 	{
 		if (selector)
-			return extend<Extra>().select_flag(selector2, Other());
-		return this->select_flag(selector2, Other());
+			return extend<Extra>().select_options(selector2, Other());
+		return this->select_options(selector2, Other());
 	}
 
 	/// Chained selectors (for multiple overrides)
@@ -483,11 +483,11 @@ public:
 	{
 		switch (selector) {
 		case 0:
-			return extend< typename Switch::A >().select_flag(selector2, Other());
+			return extend< typename Switch::A >().select_options(selector2, Other());
 		case 1:
-			return extend< typename Switch::B >().select_flag(selector2, Other());
+			return extend< typename Switch::B >().select_options(selector2, Other());
 		case 2:
-			return extend< typename Switch::C >().select_flag(selector2, Other());
+			return extend< typename Switch::C >().select_options(selector2, Other());
 		}
 		throw std::runtime_error("invalid selector value");
 	}

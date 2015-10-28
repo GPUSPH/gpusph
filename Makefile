@@ -332,9 +332,9 @@ else
 	FASTMATH ?= 0
 endif
 
-# option: hash_key_size - Size in bits of the hash used to sort particles, currently 32 or 64. Must
-# option:                 be 64 to enable multi-device simulations. For single-device simulations,
-# option:                 can be set to 32 to reduce memory usage. Default: 64
+# option: hash_key_size - Size in bits of the hash used to sort particles, currently 32 or 64. When
+# option:                 64, the lower bits encode the particle ID, which used to be necessary for
+# option:                 multi-device simulations. Default: 32
 ifdef hash_key_size
 	# does it differ from last?
 	ifneq ($(HASH_KEY_SIZE),$(hash_key_size))
@@ -344,7 +344,7 @@ ifdef hash_key_size
 	# user choice
 	HASH_KEY_SIZE=$(hash_key_size)
 else
-	HASH_KEY_SIZE ?= 64
+	HASH_KEY_SIZE ?= 32
 endif
 
 

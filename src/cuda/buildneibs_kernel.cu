@@ -280,7 +280,7 @@ fixHashDevice(hashKey*			particleHash,		// particle's hashes (in, out)
 		// Mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
 		if (compactDeviceMap)
-			particleHash[index] = particleHash[index] | ((hashKey)compactDeviceMap[gridHash] << 32);
+			particleHash[index] = particleHash[index] | ((hashKey)compactDeviceMap[gridHash] << GRIDHASH_BITSHIFT);
 	}
 
 	// Preparing particle index array for the sort phase
@@ -332,7 +332,6 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 										float4*			sortedPos,			// new sorted particle's positions (out)
 										float4*			sortedVel,			// new sorted particle's velocities (out)
 										float4*			sortedVol,			// new sorted particle's volumes (out)
-										particleinfo*	sortedInfo,			// new sorted particle's informations (out)
 										float4*			sortedBoundElements,// new sorted boundary elements (out)
 										float4*			sortedGradGamma,	// new sorted gradient gamma (out)
 										vertexinfo*		sortedVertices,		// new sorted vertices (out)
@@ -340,6 +339,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 										float*			sortedEps,			// new sorted e for k-e model (out)
 										float*			sortedTurbVisc,		// new sorted eddy viscosity (out)
 										float4*			sortedEulerVel,		// new sorted eulerian velocity (out)
+										const particleinfo*	particleInfo,	// previously sorted particle's informations (in)
 										const hashKey*	particleHash,		// previously sorted particle's hashes (in)
 										const uint*		particleIndex,		// previously sorted particle's hashes (in)
 										const uint		numParticles,		// total number of particles (in)
@@ -420,11 +420,9 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 		const uint sortedIndex = particleIndex[index];
 		const float4 pos = tex1Dfetch(posTex, sortedIndex);
 		const float4 vel = tex1Dfetch(velTex, sortedIndex);
-		const particleinfo info = tex1Dfetch(infoTex, sortedIndex);
 
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
-		sortedInfo[index] = info;
 
 		if (sortedVol) {
 			sortedVol[index] = tex1Dfetch(volTex, sortedIndex);
@@ -439,7 +437,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 		}
 
 		if (sortedVertices) {
-			if (BOUNDARY(info)) {
+			if (BOUNDARY(particleInfo[index])) {
 				const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
 				sortedVertices[index] = vertices;
 			}

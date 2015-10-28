@@ -1842,8 +1842,7 @@ void GPUWorker::kernel_calcHash()
 					m_numParticles);
 	else
 		neibsEngine->calcHash(
-			// TODO FIXME POS is in/out, but it's taken on the READ position
-					(float4*)bufread.getData<BUFFER_POS>(),
+					bufwrite.getData<BUFFER_POS>(),
 					bufwrite.getData<BUFFER_HASH>(),
 					bufwrite.getData<BUFFER_PARTINDEX>(),
 					bufread.getData<BUFFER_INFO>(),
@@ -1858,11 +1857,9 @@ void GPUWorker::kernel_sort()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
 	neibsEngine->sort(
-			bufwrite.getData<BUFFER_HASH>(),
-			bufwrite.getData<BUFFER_PARTINDEX>(),
+			m_dBuffers.getReadBufferList(),
+			m_dBuffers.getWriteBufferList(),
 			numPartsToElaborate);
 }
 
