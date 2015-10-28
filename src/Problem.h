@@ -158,7 +158,7 @@ class Problem {
 		 * per particle based on the kernel and boundary choice,
 		 * and compare against the user-set value (if any), or
 		 * just set it by default */
-		virtual void check_maxneibsnum();
+		virtual void check_neiblistsize();
 
 		string const& create_problem_dir();
 

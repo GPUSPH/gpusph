@@ -45,11 +45,11 @@ class CUDAPredCorrEngine : public AbstractIntegrationEngine
 void
 setconstants(const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
-	idx_t const& allocatedParticles, int const& maxneibsnum, float const& slength)
+	idx_t const& allocatedParticles, int const& neiblistsize, float const& slength)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
 
-	idx_t neiblist_end = maxneibsnum*allocatedParticles;
+	idx_t neiblist_end = neiblistsize*allocatedParticles;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_neiblist_end, &neiblist_end, sizeof(idx_t)));
 

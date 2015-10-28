@@ -63,13 +63,13 @@
 namespace cuneibs {
 /** \name Device constants
  *  @{ */
-__constant__ uint d_maxneibsnum;		///< Maximum allowed number of neighbors per particle
+__constant__ uint d_neibboundpos;		///< Starting pos of boundary particle in neib list
 __constant__ idx_t d_neiblist_stride;	///< Stride dimension
 /** @} */
 /** \name Device variables
  *  @{ */
-__device__ int d_numInteractions;		///< Total number of interactions
-__device__ int d_maxNeibs;				///< Computed maximum number of neighbors per particle
+__device__ int d_numInteractions;			///< Total number of interactions per type
+__device__ int d_maxNeibs[PT_TESTPOINT];	///< Computed maximum number of neighbors per particle per type
 /** @} */
 
 using namespace cubounds;
@@ -813,7 +813,7 @@ neibsInCell(
 			const uchar		cell,		// cell number (0 ... 26)
 			const uint		index,		// current particle index
 			float3			pos,		// current particle position
-			uint&			neibs_num,	// number of neighbors for the current particle
+			uint*			neibs_num,	// number of neighbors for the current particle
 			const bool		segment,	// true if the current particle belongs to a segment
 			const bool		boundary)	// true if the current particle is a boundary particle
 {
@@ -837,6 +837,7 @@ neibsInCell(
 	// Iterate over all particles in the cell
 	bool encode_cell = true;
 
+	uint neib_type = PT_FLUID;
 	for (uint neib_index = var.bucketStart; neib_index < var.bucketEnd; neib_index++) {
 
 		// Prevent self-interaction
@@ -849,6 +850,10 @@ neibsInCell(
 		// of other points
 		if (TESTPOINT(neib_info))
 			continue;
+
+		if (!encode_cell && neib_type != PART_TYPE(neib_info))
+			encode_cell = true;
+		neib_type = PART_TYPE(neib_info);
 
 		// With dynamic boundaries, boundary parts don't interact with other boundary parts
 		// except for Grenier's formulation, where the sigma computation needs all neighbors
@@ -877,12 +882,14 @@ neibsInCell(
 		bool close_enough = isCloseEnough(relPos, neib_info, params);
 
 		if (close_enough) {
-			if (neibs_num < d_maxneibsnum) {
-				params.neibsList[neibs_num*d_neiblist_stride + index] =
+			if (neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] < d_neibboundpos) {
+				const uint offset = (neib_type == PT_FLUID) ? neibs_num[PT_FLUID] :
+						d_neibboundpos - neibs_num[PT_BOUNDARY];
+				params.neibsList[offset*d_neiblist_stride + index] =
 						neib_index - var.bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
 				encode_cell = false;
+				neibs_num[neib_type]++;
 			}
-			neibs_num++;
 		}
 		if (segment) {
 			process_niC_segment(index, neib_index, relPos, params, var);
@@ -920,7 +927,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	// Number of neighbors for the current particle
-	uint neibs_num = 0;
+	uint neibs_num[PT_TESTPOINT] = {0};
 
 	// Rather than nesting if's, use a do { } while (0) loop with breaks
 	// for early bail outs
@@ -989,35 +996,44 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 	// particles for which the neighbor list is not built actually
 	// have an empty neighbor list. Otherwise, particles which are
 	// marked inactive will keep their old neighbor list.
-	if (index < params.numParticles && neibs_num < d_maxneibsnum) {
-		params.neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
+	if (index < params.numParticles) {
+		params.neibsList[neibs_num[PT_FLUID]*d_neiblist_stride + index] = 0xffff;
+		params.neibsList[(d_neibboundpos - neibs_num[PT_BOUNDARY])*d_neiblist_stride + index] = 0xffff;
 	}
 
 	if (neibcount) {
 		// Shared memory reduction of per block maximum number of neighbors
 		__shared__ volatile uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
-		__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS];
+		__shared__ volatile uint sm_neibs_max[2][BLOCK_SIZE_BUILDNEIBS];
 
-		sm_neibs_num[threadIdx.x] = neibs_num;
-		sm_neibs_max[threadIdx.x] = neibs_num;
+		#pragma unroll
+		for (uint j = 0; j < 2; j++) {
+			sm_neibs_max[j][threadIdx.x] = neibs_num[j];
+		}
+		sm_neibs_num[threadIdx.x] = neibs_num[0] +  neibs_num[1];
 		__syncthreads();
 
 		uint i = blockDim.x/2;
 		while (i != 0) {
 			if (threadIdx.x < i) {
 				sm_neibs_num[threadIdx.x] += sm_neibs_num[threadIdx.x + i];
-				const float n1 = sm_neibs_max[threadIdx.x];
-				const float n2 = sm_neibs_max[threadIdx.x + i];
-				if (n2 > n1)
-					sm_neibs_max[threadIdx.x] = n2;
+				#pragma unroll
+				for (uint j = 0; j < 2; j++) {
+					const uint n1 = sm_neibs_max[j][threadIdx.x];
+					const uint n2 = sm_neibs_max[j][threadIdx.x + i];
+					if (n2 > n1)
+						sm_neibs_max[j][threadIdx.x] = n2;
+				}
 			}
 			__syncthreads();
 			i /= 2;
 		}
 
 		if (!threadIdx.x) {
+			for (uint j = 0; j < 2; j++) {
+				atomicMax(&d_maxNeibs[j], sm_neibs_max[j][0]);
+			}
 			atomicAdd(&d_numInteractions, sm_neibs_num[0]);
-			atomicMax(&d_maxNeibs, sm_neibs_max[0]);
 		}
 	}
 	return;

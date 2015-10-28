@@ -44,7 +44,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-0.01, -0.01, -0.01);
 		simparams()->ferrariLengthScale = 0.161f;
 		physparams()->set_density(0, 1000.0, 7.0f, 130.0f);
-		simparams()->maxneibsnum = 240;
+		simparams()->neiblistsize = 240;
 	//*************************************************************************************
 
 	//Box (Dambreak)
@@ -156,7 +156,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.2f);
-		simparams()->maxneibsnum = 220;
+		simparams()->neiblistsize = 220;
 		simparams()->tend = 100.0;
 		simparams()->ferrariLengthScale = 1.0f;
 
@@ -278,7 +278,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.1f);
-		simparams()->maxneibsnum = 240;
+		simparams()->neiblistsize = 240;
 		simparams()->tend = 40.0;
 		simparams()->ferrari= 1.0f;
 		//simparams()->ferrariLengthScale = 0.2f;
@@ -308,7 +308,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.1f);
-		m_simparams->maxneibsnum = 240;
+		m_simparams->neiblistsize = 240;
 		m_simparams->tend = 10.0;
 		m_simparams->ferrari= 1.0f;
 		//m_simparams->ferrariLengthScale = 0.2f;
@@ -340,7 +340,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		//set_deltap(0.026460);
 		set_deltap(0.017637f);
-		simparams()->maxneibsnum = 512;
+		simparams()->neiblistsize = 512;
 		simparams()->tend = 7.0;
 		simparams()->ferrari = 1.0f;
 
@@ -374,7 +374,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		simparams()->sfactor=2.0f;
 		set_deltap(0.02f);
-		simparams()->maxneibsnum = 440;
+		simparams()->neiblistsize = 440;
 		simparams()->tend = 10.0;
 		simparams()->ferrari = 0.1f;
 

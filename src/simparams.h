@@ -70,9 +70,10 @@ typedef struct SimParams {
 	uint			numODEbodies;			// number of bodies which movmement is computed by ODE
 	uint			numforcesbodies;		// number of moving bodies on which we need to compute the forces (includes ODE bodies)
 	uint			numbodies;				// total number of bodies (ODE + forces + moving)
-	uint			maxneibsnum;			// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
+	uint			neiblistsize;			// total size of the neighbor list
+	uint			neibboundpos;			// marker for boundary parts section of the neighbor list
 	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical
-	uint			numOpenBoundaries;				// number of open boundaries
+	uint			numOpenBoundaries;		// number of open boundaries
 
 	SimParams(
 		KernelType _kernel = WENDLAND,
@@ -119,7 +120,8 @@ typedef struct SimParams {
 		calc_energy(true),
 		numforcesbodies(0),
 		numbodies(0),
-		maxneibsnum(0),
+		neiblistsize(0),
+		neibboundpos(0),
 		epsilon(5e-5f),
 		numOpenBoundaries(0)
 	{};

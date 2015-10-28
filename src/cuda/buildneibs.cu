@@ -104,7 +104,7 @@ setconstants(	const SimParams *simparams,		// pointer to simulation parameters s
 				float3 const& cellSize,				// size of each cell (in)
 				idx_t const& allocatedParticles)	// number of allocated particles (in)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum, &simparams->maxneibsnum, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neibboundpos, &simparams->neibboundpos, sizeof(uint)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
 }
 
@@ -118,7 +118,7 @@ void
 getconstants(	SimParams *simparams,	// pointer to simulation parameters structure (in)
 				PhysParams *physparams)	// pointer to physical parameters structure (in)
 {
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&simparams->maxneibsnum, cuneibs::d_maxneibsnum, sizeof(uint), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&simparams->neibboundpos, cuneibs::d_neibboundpos, sizeof(uint), 0));
 }
 
 
@@ -129,9 +129,11 @@ getconstants(	SimParams *simparams,	// pointer to simulation parameters structur
 void
 resetinfo(void)
 {
-	uint temp = 0;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxNeibs, &temp, sizeof(int)));
+	uint temp1 = 0;
+	uint temp2[PT_TESTPOINT] = {0};
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp1, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxNeibs, &temp2, sizeof(int)*PT_TESTPOINT));
 }
 
 
@@ -146,7 +148,10 @@ void
 getinfo(TimingInfo & timingInfo)	// timing info (in, out)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxNeibs, cuneibs::d_maxNeibs, sizeof(int), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxNeibsPerType, cuneibs::d_maxNeibs, sizeof(int)*PT_TESTPOINT, 0));
+	timingInfo.maxNeibs = 0;
+	for (int i = 0; i < PT_TESTPOINT; i++)
+		timingInfo.maxNeibs += timingInfo.maxNeibsPerType[i];
 }
 
 /** @} */

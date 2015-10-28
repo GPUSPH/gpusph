@@ -33,7 +33,7 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	set_kinematic_visc(0, 1.0e-6f);
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 
-	simparams()->maxneibsnum = 240;
+	simparams()->neiblistsize = 240;
 
 	simparams()->tend = 10.0;
 

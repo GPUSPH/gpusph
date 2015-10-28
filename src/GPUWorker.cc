@@ -201,7 +201,7 @@ size_t GPUWorker::computeMemoryPerParticle()
 		flag_t key = *it;
 		size_t contrib = m_dBuffers.get_memory_occupation(key, 1);
 		if (key == BUFFER_NEIBSLIST)
-			contrib *= m_simparams->maxneibsnum;
+			contrib *= m_simparams->neiblistsize;
 		// TODO compute a sensible estimate for the CFL contribution,
 		// which is currently heavily overestimated
 		else if (key == BUFFERS_CFL)
@@ -900,7 +900,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		size_t nels = m_numAllocatedParticles;
 
 		if (key == BUFFER_NEIBSLIST)
-			nels *= m_simparams->maxneibsnum; // number of particles times max neibs num
+			nels *= m_simparams->neiblistsize; // number of particles times neib list size
 		else if (key == BUFFER_CFL_TEMP)
 			nels = tempCflEls;
 		else if (key == BUFFERS_CFL) // other CFL buffers
@@ -1907,7 +1907,7 @@ void GPUWorker::kernel_buildNeibsList()
 
 	// reset the neighbor list
 	CUDA_SAFE_CALL(cudaMemset(bufwrite.getData<BUFFER_NEIBSLIST>(),
-		0xff, numPartsToElaborate * sizeof(neibdata) * m_simparams->maxneibsnum));
+		0xff, numPartsToElaborate * sizeof(neibdata) * m_simparams->neiblistsize));
 
 	// this is the square the distance used for neighboursearching of boundaries
 	// it is delta p / 2 bigger than the standard radius
@@ -2585,7 +2585,7 @@ void GPUWorker::uploadConstants()
 	forcesEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	integrationEngine->setconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
-		m_numAllocatedParticles, m_simparams->maxneibsnum, m_simparams->slength);
+		m_numAllocatedParticles, m_simparams->neiblistsize, m_simparams->slength);
 	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 }

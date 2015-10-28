@@ -80,7 +80,7 @@ CSIDevice::CSIDevice(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
 
-	simparams()->maxneibsnum = 192;
+	simparams()->neiblistsize = 192;
 
 	// Physical parameters
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);

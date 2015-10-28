@@ -54,7 +54,7 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	//set_kinematic_visc(0, 1.0e-2f);
 
 	// *** Initialization of minimal simulation parameters
-	simparams()->maxneibsnum = 256 + 64;
+	simparams()->neiblistsize = 256 + 64;
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);

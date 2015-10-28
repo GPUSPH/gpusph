@@ -45,7 +45,7 @@ public:
 	virtual void
 	setconstants(const PhysParams *physparams, float3 const& worldOrigin,
 		uint3 const& gridSize, float3 const& cellSize, idx_t const& allocatedParticles,
-		int const& maxneibsnum, float const& slength) = 0;
+		int const& neiblistsize, float const& slength) = 0;
 
 	virtual void
 	getconstants(PhysParams *physparams) = 0;

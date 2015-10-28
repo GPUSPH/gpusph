@@ -31,6 +31,7 @@
 #include <time.h>
 #include <exception>
 #include <cmath> // NAN
+#include "particleinfo.h"
 
 // clock_gettime() is not implemented on OSX, so we declare it here and
 // implement it in timing.cc
@@ -52,8 +53,9 @@ typedef struct TimingInfo {
 	//float   dt;
 	// current number of particles
 	//uint	numParticles;
-	// current maximum number of neibs
-	uint	maxNeibs;
+
+	uint	maxNeibs; // total current maximum number of neibs
+	uint 	maxNeibsPerType[PT_TESTPOINT];
 	// iterations done so far
 	//ulong	iterations;
 	// number of particle-particle interactions with current neiblist
@@ -91,7 +93,10 @@ typedef struct TimingInfo {
 	{}
 	*/
 
-	TimingInfo(void) : maxNeibs(0), numInteractions(0) {}
+	TimingInfo(void) : maxNeibs(0), numInteractions(0) {
+		for (int i = 0; i < PT_TESTPOINT; i++)
+			maxNeibsPerType[i] = 0;
+	}
 
 } TimingInfo;
 

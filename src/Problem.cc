@@ -69,7 +69,7 @@ Problem::initialize()
 	}
 	// run post-construction functions
 	check_dt();
-	check_maxneibsnum();
+	check_neiblistsize();
 	calculateFerrariCoefficient();
 	create_problem_dir();
 
@@ -536,7 +536,7 @@ Problem::check_dt(void)
 }
 
 void
-Problem::check_maxneibsnum(void)
+Problem::check_neiblistsize(void)
 {
 	// kernel radius times smoothing factor, rounded to the next integer
 	double r = simparams()->sfactor*simparams()->kernelradius;
@@ -548,15 +548,9 @@ Problem::check_maxneibsnum(void)
 	// and rounded up
 	vol = ceil(vol);
 
-	// maxneibsnum is obtained rounding up the volume to the next
+	// neibsboundpos is obtained rounding up the volume to the next
 	// multiple of 32
-	uint maxneibsnum = round_up((uint)vol, 32U);
-
-	// with semi-analytical boundaries, boundary particles
-	// are doubled, so we expand by a factor of 1.5,
-	// again rounding up
-	if (simparams()->boundarytype == SA_BOUNDARY)
-		maxneibsnum = round_up(3*maxneibsnum/2, 32U);
+	uint neiblistsize = round_up((uint)vol, 32U);
 
 	// more in general, it's possible to have different particle densities for the
 	// boundaries even with other boundary conditions. we do not have a universal
@@ -582,23 +576,43 @@ Problem::check_maxneibsnum(void)
 	double qq = m_deltap/physparams()->r0; // 1/q
 	// double ratio = fmax((21*qq*qq)/(16*r), 1.0); // if we assume 7/8
 	double ratio = fmax((qq*qq)/r, 1.0); // only use this if it gives us _more_ particles
-	// increase maxneibsnum as appropriate
-	maxneibsnum = (uint)ceil(ratio*maxneibsnum);
+	// increase neib list size as appropriate
+	neiblistsize = (uint)ceil(ratio*neiblistsize);
 	// round up to multiple of 32
-	maxneibsnum = round_up(maxneibsnum, 32U);
+	neiblistsize = round_up(neiblistsize, 32U);
+	uint neibboundpos = neiblistsize = - 1;
 
-	// if the maxneibsnum was user-set, check against computed minimum
-	if (simparams()->maxneibsnum) {
-		if (simparams()->maxneibsnum < maxneibsnum) {
-			fprintf(stderr, "WARNING: problem-set max neibs num too low! %u < %u\n",
-				simparams()->maxneibsnum, maxneibsnum);
+	// with semi-analytical boundaries, boundary particles
+	// are doubled, so we expand by a factor of 1.5,
+	// again rounding up
+	if (simparams()->boundarytype == SA_BOUNDARY)
+		neiblistsize = round_up(3*neiblistsize/2, 32U);
+
+	// if the neib list was user-set, check against computed minimum
+	if (simparams()->neiblistsize) {
+		if (simparams()->neiblistsize < neiblistsize) {
+			fprintf(stderr, "WARNING: problem-set neib list size too low! %u < %u\n",
+				simparams()->neiblistsize, neiblistsize);
 		} else {
-			printf("Using problem-set max neibs num %u (safe computed value was %u)\n",
-				simparams()->maxneibsnum, maxneibsnum);
+			printf("Using problem-set neib list size %u (safe computed value was %u)\n",
+				simparams()->neiblistsize, neiblistsize);
 		}
 	} else {
-		printf("Using computed max neibs num %u\n", maxneibsnum);
-		simparams()->maxneibsnum = maxneibsnum;
+		printf("Using computed max neib list size %u\n", neiblistsize);
+		simparams()->neiblistsize = neiblistsize;
+	}
+	// if the neib bound pos was user-set, check against computed minimum
+	if (simparams()->neibboundpos) {
+		if (simparams()->neibboundpos < neibboundpos) {
+			fprintf(stderr, "WARNING: problem-set neib bound pos too low! %u < %u\n",
+				simparams()->neibboundpos, neibboundpos);
+		} else {
+			printf("Using problem-set neib bound pos %u (safe computed value was %u)\n",
+				simparams()->neibboundpos, neibboundpos);
+		}
+	} else {
+		printf("Using computed neib bound pos %u\n", neibboundpos);
+		simparams()->neibboundpos = neibboundpos;
 	}
 }
 

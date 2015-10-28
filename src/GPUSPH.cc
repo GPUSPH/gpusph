@@ -122,7 +122,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem = gdata->problem;
 
 	// For the new problem interface (compute worldorigin, init ODE, etc.)
-	// In all cases, also runs the checks for dt, maxneibsnum, etc
+	// In all cases, also runs the checks for dt, neib list size, etc
 	// and creates the problem dir
 	if (!problem->initialize()) {
 		printf("Problem initialization failed. Aborting...\n");
@@ -1672,13 +1672,14 @@ void GPUSPH::buildNeibList()
 		doCommand(UPDATE_EXTERNAL, BUFFER_VERTPOS);
 
 	// scan and check the peak number of neighbors and the estimated number of interactions
-	const uint maxPossibleNeibs = gdata->problem->simparams()->maxneibsnum;
+	const uint maxPossibleNeibs = gdata->problem->simparams()->neiblistsize - 1;
+	// TODO: it's minus 2 for SA
 	gdata->lastGlobalPeakNeibsNum = 0;
 	for (uint d = 0; d < gdata->devices; d++) {
 		const uint currDevMaxNeibs = gdata->timingInfo[d].maxNeibs;
 
 		if (currDevMaxNeibs > maxPossibleNeibs)
-			printf("WARNING: current max. neighbors numbers %u greather than MAXNEIBSNUM (%u) at iteration %lu\n",
+			printf("WARNING: current max. neighbors numbers %u greather than max possible neibs (%u) at iteration %lu\n",
 				currDevMaxNeibs, maxPossibleNeibs, gdata->iterations);
 
 		if (currDevMaxNeibs > gdata->lastGlobalPeakNeibsNum)

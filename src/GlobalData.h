@@ -229,12 +229,6 @@ struct GlobalData {
 	uint processParticles[MAX_NODES_PER_CLUSTER];
 	// number of allocated particles *in the process*
 	uint allocatedParticles;
-	// global number of planes (same as local ones)
-	//uint numPlanes;
-	// grid size, for particle hash computation
-	//uint3 gridSize;
-	// maximum neighbors number
-	//uint maxneibsnum;
 
 	float3 worldSize;
 	float3 worldOrigin;

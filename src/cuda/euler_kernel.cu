@@ -47,7 +47,7 @@ __constant__ float3	d_rblinearvel[MAX_BODIES];
 __constant__ float3	d_rbangularvel[MAX_BODIES];
 __constant__ float	d_rbsteprot[9*MAX_BODIES];
 
-__constant__ idx_t	d_neiblist_end; // maxneibsnum * number of allocated particles
+__constant__ idx_t	d_neiblist_end; // neiblistsize * number of allocated particles
 __constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
 
 #include "sph_core_utils.cuh"
