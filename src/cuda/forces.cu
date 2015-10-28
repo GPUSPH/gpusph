@@ -1532,6 +1532,45 @@ saVertexBoundaryConditions(
 
 }
 
+/// Computes the initial value of gamma using a Gauss quadrature formula
+void
+initGamma(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	float			slength,
+	const	float			deltap,
+	const	float			influenceradius,
+	const	float			epsilon,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd)
+{
+	uint numThreads = BLOCK_SIZE_FORCES;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	int dummy_shared = 0;
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+
+	const float4 *pos = bufread->getData<BUFFER_POS>();
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const float4 *boundelement = bufread->getData<BUFFER_BOUNDELEMENTS>();
+	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
+	const float4 *oldGGam = bufread->getData<BUFFER_GRADGAMMA>();
+	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+
+	// execute the kernel
+	cuforces::initGamma<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+		(newGGam, pos, oldGGam, boundelement, vertPos[0], vertPos[1], vertPos[2], pHash, info, cellStart, neibsList, particleRangeEnd, slength, deltap, influenceradius, epsilon);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
 // Downloads the per device waterdepth from the GPU
 void
 downloadIOwaterdepth(

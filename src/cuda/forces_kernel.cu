@@ -1468,6 +1468,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
  *	\param[in,out] contupd : pointer to contudp; used only for cloning
  *	\param[in,out] vertices : pointer to associated vertices; fluid particles have this information if they are passing through a boundary and are going to be deleted
  *	\param[in] vertIDToIndex : pointer that associated a vertex id with an array index
+ *	\param[in] vertPos[0] : relative position of the vertex 0 with respect to the segment center
+ *	\param[in] vertPos[1] : relative position of the vertex 1 with respect to the segment center
+ *	\param[in] vertPos[2] : relative position of the vertex 2 with respect to the segment center
  *	\param[in,out] pinfo : pointer to particle info; written only when cloning
  *	\param[in,out] particleHash : pointer to particle hash; written only when cloning
  *	\param[in] cellStart : pointer to indices of first particle in cells
@@ -1857,6 +1860,128 @@ saVertexBoundaryConditions(
 		oldGGam[index].z = avgNorm.z;
 		oldGGam[index].w = 0.0f;
 	}
+}
+
+/// Compute the initial value of gamma in the semi-analytical boundary case
+/*! This function computes the initial value of \f[\gamma\f] in the semi-analytical boundary case, using a Gauss quadrature formula.
+ *	\param[out] newGGam : pointer to the new value of (grad) gamma
+ *	\param[in] oldPos : pointer to positions and masses; masses of vertex particles are updated
+ *	\param[in] oldGGam : pointer to (grad) gamma; used as an approximate normal to the boundary in the computation of gamma
+ *	\param[in] vertPos[0] : relative position of the vertex 0 with respect to the segment center
+ *	\param[in] vertPos[1] : relative position of the vertex 1 with respect to the segment center
+ *	\param[in] vertPos[2] : relative position of the vertex 2 with respect to the segment center
+ *	\param[in,out] pinfo : pointer to particle info; written only when cloning
+ *	\param[in,out] particleHash : pointer to particle hash; written only when cloning
+ *	\param[in] cellStart : pointer to indices of first particle in cells
+ *	\param[in] neibsList : neighbour list
+ *	\param[in] numParticles : number of particles
+ *	\param[in] slength : the smoothing length
+ *	\param[in] influenceradius : the kernel radius
+ */
+template<KernelType kerneltype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+initGamma(
+						float4*			newGGam,
+				const	float4*			oldPos,
+				const	float4*			oldGGam,
+				const	float4*			boundelement,
+				const	float2*			vertPos0,
+				const	float2*			vertPos1,
+				const	float2*			vertPos2,
+				const	hashKey*		particleHash,
+				const	particleinfo*	pinfo,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+				const	uint			numParticles,
+				const	float			slength,
+				const	float			deltap,
+				const	float			influenceradius,
+				const	float			epsilon)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	const particleinfo info = pinfo[index];
+	if (BOUNDARY(info))
+		return;
+
+	float4 pos = oldPos[index];
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+	float gam = 1;
+	float4 gGam = make_float4(0.f);
+	const float3 normal = as_float3(oldGGam[index]);
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		if (BOUNDARY(neib_info)) {
+
+			const float4 ns = boundelement[neib_index];
+			const float4 relPos = pos_corr - oldPos[neib_index];
+			if (INACTIVE(relPos))
+				continue;
+			// local coordinate system for relative positions to vertices
+			uint j = 0;
+			// Get index j for which n_s is minimal
+			if (fabs(ns.x) > fabs(ns.y))
+				j = 1;
+			if ((1-j)*fabs(ns.x) + j*fabs(ns.y) > fabs(ns.z))
+				j = 2;
+
+			// compute the first coordinate which is a 2-D rotated version of the normal
+			const float4 coord1 = normalize(make_float4(
+						// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+						-((j==1)*ns.z) +  (j == 2)*ns.y , // -z if j == 1, y if j == 2
+						(j==0)*ns.z  - ((j == 2)*ns.x), // z if j == 0, -x if j == 2
+						-((j==0)*ns.y) +  (j == 1)*ns.x , // -y if j == 0, x if j == 1
+						0));
+			// the second coordinate is the cross product between the normal and the first coordinate
+			const float4 coord2 = cross3(ns, coord1);
+
+			// relative positions of vertices with respect to the segment
+			float4 v0 = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2); // e.g. v0 = r_{v0} - r_s
+			float4 v1 = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2);
+			float4 v2 = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2);
+			float4 vertexRelPos[3] = {v0, v1, v2};
+
+			float ggamAS = gradGamma<kerneltype>(slength, as_float3(relPos), vertexRelPos, as_float3(ns));
+			float minlRas = 0;
+			const float gamAS = Gamma<kerneltype>(slength, as_float3(relPos), vertexRelPos, as_float3(ns), 
+					normal, epsilon, deltap, true, neib_index, minlRas);
+			gGam.x += ggamAS*ns.x;
+			gGam.y += ggamAS*ns.y;
+			gGam.z += ggamAS*ns.z;
+
+			// general formula (also used if particle is on 
+			// vertex / edge to compute remaining edges)
+			const float x = fmin(dot3(ns, relPos)/slength, 0.25f);
+			const float sx = fmax(x*8.0f - 1.0f,0.0f);
+			// smootherstep function
+			const float smooth = VERTEX(info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
+			gam -= (smooth > epsilon ? gamAS : 0.0f)*smooth;
+		}
+	}
+	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 }
 
 /************************************************************************************************************/

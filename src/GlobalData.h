@@ -164,6 +164,8 @@ enum CommandType {
 	DOWNLOAD_IOWATERDEPTH,
 	/// Upload (total)computed water depth from host to device
 	UPLOAD_IOWATERDEPTH,
+	/// Initialize gamma using a Gaussian quadrature rule
+	INIT_GAMMA,
 	/// Quit the simulation cycle
 	QUIT
 };

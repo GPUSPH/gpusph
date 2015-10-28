@@ -471,6 +471,7 @@ bool GPUSPH::runSimulation() {
 		buildNeibList();
 
 		// set density and other values for segments and vertices
+		// and set initial value of gamma using the quadrature formula
 		saBoundaryConditions(INITIALIZATION_STEP);
 
 	}
@@ -1978,7 +1979,16 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 	}
 
-	// swap changed buffers back so that read contains the new data
-	if (cFlag & INITIALIZATION_STEP)
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_GRADGAMMA);
+	if (cFlag & INITIALIZATION_STEP) {
+		// swap changed buffers back so that read contains the new data
+		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
+		if (clOptions->resume_fname.empty()) {
+			// initialise gamma using a Gauss quadrature formula
+			doCommand(INIT_GAMMA);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			// swap GRADGAMMA buffer back so that read contains the new data
+			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
+		}
+	}
 }

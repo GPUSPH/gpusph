@@ -220,6 +220,20 @@ saVertexBoundaryConditions(
 	const	uint			deviceId,
 	const	uint			numDevices) = 0;
 
+// initialisation of gamma
+virtual
+void
+initGamma(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	float			slength,
+	const	float			deltap,
+	const	float			influenceradius,
+	const	float			epsilon,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd) = 0;
+
 // disables particles that went through boundaries when open boundaries are used
 virtual void
 disableOutgoingParts(		float4*			pos,

@@ -1726,6 +1726,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
 				instance->kernel_imposeBoundaryCondition();
 				break;
+			case INIT_GAMMA:
+				if (dbg_step_printf) printf(" T %d issuing INIT_GAMMA\n", deviceIndex);
+				instance->kernel_initGamma();
+				break;
 			case QUIT:
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -2280,6 +2284,29 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 		gdata->t,
 		m_numParticles,
 		m_simparams->numOpenBoundaries,
+		numPartsToElaborate);
+
+}
+
+void GPUWorker::kernel_initGamma()
+{
+	uint numPartsToElaborate = m_numParticles;
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = *m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+
+	bcEngine->initGamma(
+		m_dBuffers.getWriteBufferList(),
+		m_dBuffers.getReadBufferList(),
+		m_numParticles,
+		m_simparams->slength,
+		gdata->problem->m_deltap,
+		m_simparams->influenceRadius,
+		m_simparams->epsilon,
+		m_dCellStart,
 		numPartsToElaborate);
 
 }

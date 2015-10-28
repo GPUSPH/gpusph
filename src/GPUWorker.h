@@ -253,6 +253,7 @@ private:
 	void kernel_updatePositions();
 	void kernel_disableOutgoingParts();
 	void kernel_imposeBoundaryCondition();
+	void kernel_initGamma();
 	void kernel_download_iowaterdepth();
 	void kernel_upload_iowaterdepth();
 	/*void uploadMbData();
