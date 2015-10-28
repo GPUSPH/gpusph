@@ -867,11 +867,10 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 
 		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength, 
 				as_float3(ndata.relPos), vertexRelPos, as_float3(ndata.belem));
-		const float gamAS = Gamma<FP::kerneltype>(params.slength, ndata.relPos,
-				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
-				ndata.belem, pdata.oldGGam,
-				params.epsilon, params.deltap, pdata.computeGamma, ndata.index,
-				pout.minlRas);
+		const float gamAS = Gamma<FP::kerneltype>(params.slength, as_float3(ndata.relPos),
+				vertexRelPos, as_float3(ndata.belem), 
+				as_float3(pdata.oldGGam), params.epsilon, params.deltap,
+				pdata.computeGamma, ndata.index, pout.minlRas);
 		pout.gGam.x += nout.ggamAS*ndata.belem.x;
 		pout.gGam.y += nout.ggamAS*ndata.belem.y;
 		pout.gGam.z += nout.ggamAS*ndata.belem.z;
