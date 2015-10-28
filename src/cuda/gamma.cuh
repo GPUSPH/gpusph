@@ -224,7 +224,7 @@ gradGamma<WENDLAND>(
 	for (uint e = 0; e < 3; e++) {
 		sIdx[0] = e%3;
 		sIdx[1] = (e+1)%3;
-		
+
 		float3 v01 = normalize(as_float3(vertexRelPos[sIdx[0]] - vertexRelPos[sIdx[1]]));
 		// ne is the vector pointing outward from segment, normal to segment and normal and v_{10}
 		// this is only possible because initConnectivity makes sure that the segments are ordered correctly
@@ -232,7 +232,7 @@ gradGamma<WENDLAND>(
 		// in our direction.
  		// NB: (ns, v01, ne) is an orthotropic reference fram
 		float3 ne = normalize(cross(ns, v01));
-		
+
 		// algebraic distance of projection in the plane s to the edge
  		// (negative if the projection is inside the triangle).
 		float pae = dot(ne, relPos - as_float3(vertexRelPos[sIdx[0]]))/slength;
@@ -316,9 +316,22 @@ gradGamma<WENDLAND>(
  returns grad gamma_{as} as x coordinate, gamma_{as} as y coordinate.
 */
 template<KernelType kerneltype>
-__device__ __forceinline__
-float
+__device__ __forceinline__ float
 Gamma(	const	float		&slength,
+				float3		relPos,
+				float4		*vertexRelPos,
+		const	float3		&ns,
+		const	float3		&oldGGam,
+		const	float		&epsilon,
+		const	float		&deltap,
+		const	bool		&computeGamma,
+				float		&minlRas)
+{ return -1.0f; } // TODO throw not implemented error
+
+template<>
+__device__ __forceinline__ float
+Gamma<WENDLAND>(
+		const	float		&slength,
 				float3		relPos,
 				float4		*vertexRelPos,
 		const	float3		&ns,
@@ -333,13 +346,13 @@ Gamma(	const	float		&slength,
 	vertexRelPos[0] /= slength;
 	vertexRelPos[1] /= slength;
 	vertexRelPos[2] /= slength;
-	
+
 	// Sigma is the point a projected onto the plane spanned by the edge
 	// r_aSigma is the non-dimensionalized vector between this plane and the particle
 	// q_aSigma is the clipped non-dimensionalized distance between this plane and the particle
 	float3 r_aSigma = ns*dot(ns,relPos);
 	float q_aSigma = fmin(length(r_aSigma),2.0f);
-	
+
 	// calculate if the projection of a (with respect to n) is inside the segment
 	const float3 ba = as_float3(vertexRelPos[1] - vertexRelPos[0]); // vector from v0 to v1
 	const float3 ca = as_float3(vertexRelPos[2] - vertexRelPos[0]); // vector from v0 to v2
@@ -382,8 +395,8 @@ Gamma(	const	float		&slength,
 		const float3 unitOldGGam = -oldGGam/fmax(length(oldGGam),slength*1e-3f);
 		float l1 = length3(vertexRelPos[1]-vertexRelPos[0]);
 		float l2 = length3(vertexRelPos[2]-vertexRelPos[0]);
-		float abc = dot(as_float3(vertexRelPos[1]-vertexRelPos[0]),unitOldGGam)/l1 
-					+ dot(as_float3(vertexRelPos[2]-vertexRelPos[0]),unitOldGGam)/l2 
+		float abc = dot(as_float3(vertexRelPos[1]-vertexRelPos[0]),unitOldGGam)/l1
+					+ dot(as_float3(vertexRelPos[2]-vertexRelPos[0]),unitOldGGam)/l2
 					+ dot3(vertexRelPos[1]-vertexRelPos[0],vertexRelPos[2]-vertexRelPos[0])/l1/l2;
 		float d = dot(unitOldGGam,as_float3(cross3((vertexRelPos[1]-vertexRelPos[0]),(vertexRelPos[2]-vertexRelPos[0]))))/l1/l2;
 
