@@ -76,12 +76,11 @@ fetchOldGamma(const uint index, const float epsilon, bool &computeGamma)
 	return gam;
 }
 
-//! This function returns the function value of the wendland kernel and of the integrated wendland kernel
+//! This function returns the function value of the integrated wendland kernel
 __device__ __forceinline__
-float2
+float
 wendlandOnSegment(const float q)
 {
-	float kernel = 0.0f;
 	float intKernel = 0.0f;
 
 	if (q < 2.0f) {
@@ -89,20 +88,15 @@ wendlandOnSegment(const float q)
 		float tmp4 = tmp*tmp;
 		tmp4 *= tmp4;
 
-// Wendland coefficient: 21/(16 π)
-#define WENDLAND_K_COEFF 0.417781725616225256393319878852850200340456570068698177962626f
 // Integrated Wendland coefficient: 1/(32 π)
 #define WENDLAND_I_COEFF 0.009947183943243458485555235210782147627153727858778528046729f
-
-		// Wendland kernel
-		kernel = WENDLAND_K_COEFF*tmp4*(1.0f+2.0f*q);
 
 		// integrated Wendland kernel
 		const float uq = 1.0f/q;
 		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8.0f*uq + 20.0f)*uq + 30.0f)*uq) + 21.0f);
 	}
 
-	return make_float2(kernel, intKernel);
+	return intKernel;
 }
 
 /*
@@ -111,13 +105,13 @@ wendlandOnSegment(const float q)
 
 //! Function that computes the surface integral of a function on a triangle using a 1st order Gaussian quadrature rule
 __device__ __forceinline__
-float2
+float
 gaussQuadratureO1(	const	float3	vPos0,
 					const	float3	vPos1,
 					const	float3	vPos2,
 					const	float3	relPos)
 {
-	float2 val = make_float2(0.0f);
+	float val = 0.0f;
 	// perform the summation
 	float3 pa =	vPos0/3.0f +
 				vPos1/3.0f +
@@ -132,13 +126,13 @@ gaussQuadratureO1(	const	float3	vPos0,
 
 //! Function that computes the surface integral of a function on a triangle using a 5th order Gaussian quadrature rule
 __device__ __forceinline__
-float2
+float
 gaussQuadratureO5(	const	float3	vPos0,
 					const	float3	vPos1,
 					const	float3	vPos2,
 					const	float3	relPos)
 {
-	float2 val = make_float2(0.0f);
+	float val = 0.0f;
 	// perform the summation
 #pragma unroll
 	for (int i=0; i<3; i++) {
@@ -162,13 +156,13 @@ gaussQuadratureO5(	const	float3	vPos0,
 
 //! Function that computes the surface integral of a function on a triangle using a 14th order Gaussian quadrature rule
 __device__ __forceinline__
-float2
+float
 gaussQuadratureO14(	const	float3	vPos0,
 					const	float3	vPos1,
 					const	float3	vPos2,
 					const	float3	relPos)
 {
-	float2 val = make_float2(0.0f);
+	float val = 0.0f;
 	// perform the summation
 #pragma unroll
 	for (int i=0; i<10; i++) {
@@ -422,8 +416,8 @@ Gamma(	const	float		&slength,
 		// call gaussQuadratureO14
 		// To use Gaussian quadrature of 5th order
 		// call gaussQuadratureO5
-		const float2 intVal = gaussQuadratureO5(-as_float3(vertexRelPos[0]), -as_float3(vertexRelPos[1]), -as_float3(vertexRelPos[2]), relPos);
-		gamma_as += intVal.y*dot(ns,r_aSigma);
+		const float intVal = gaussQuadratureO5(-as_float3(vertexRelPos[0]), -as_float3(vertexRelPos[1]), -as_float3(vertexRelPos[2]), relPos);
+		gamma_as += intVal*dot(ns,r_aSigma);
 	}
 	gamma_as = gamma_vs + gamma_as;
 	return gamma_as;
