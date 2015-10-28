@@ -762,7 +762,7 @@ void Problem::fillDeviceMapByCellHash()
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
 		// guaranteed to fit in a devcount_t due to how it's computed
-		gdata->s_hDeviceMap[i] = devcount_t(min( i/cells_per_device, gdata->totDevices-1));
+		gdata->s_hDeviceMap[i] = devcount_t(std::min( int(i/cells_per_device), gdata->totDevices-1));
 }
 
 // partition by splitting along the specified axis
@@ -815,7 +815,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 				// everything is just a preparation for the following line
 				devcount_t dstDevice = devcount_t(axis_coordinate / cells_per_device_per_split_axis);
 				// handle the case when cells_per_split_axis multiplies cells_per_split_axis
-				dstDevice = (devcount_t)min(dstDevice, gdata->totDevices - 1);
+				dstDevice = (devcount_t)std::min(int(dstDevice), gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -934,7 +934,7 @@ void Problem::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
 void Problem::fillDeviceMapByEquation()
 {
 	// 1st equation: diagonal plane. (x+y+z)=coeff
-	//uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
+	//uint longest_grid_size = std::max ( std::max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
 	uint coeff = (gdata->gridSize.x + gdata->gridSize.y + gdata->gridSize.z) / gdata->totDevices;
 	// 2nd equation: sphere. Sqrt(cx²+cy²+cz²)=radius
 	uint diagonal = (uint) sqrt(	gdata->gridSize.x * gdata->gridSize.x +
@@ -954,7 +954,7 @@ void Problem::fillDeviceMapByEquation()
 				//dstDevice = distance_from_origin / radius_part;
 				// -- end of 2nd eq.
 				// handle special cases at the edge
-				dstDevice = min(dstDevice, gdata->totDevices - 1);
+				dstDevice = std::min(int(dstDevice), gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -1065,7 +1065,7 @@ Problem::max_parts(uint numParts)
 	// his own version of this function
 	double3 range = get_worldsize();
 	range /= m_deltap; // regular fill
-	uint wparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
+	uint wparts = std::max(range.x, double(1))*std::max(range.y, double(1))*std::max(range.z, double(1));
 	printf("  estimating %u particles to fill the world\n", wparts);
 
 	return wparts;
@@ -1157,9 +1157,9 @@ Problem::calc_grid_pos(const Point& pos) const
 	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
 	gridPos.y = (int)floor((pos(1) - m_origin.y) / m_cellsize.y);
 	gridPos.z = (int)floor((pos(2) - m_origin.z) / m_cellsize.z);
-	gridPos.x = min(max(0, gridPos.x), m_gridsize.x-1);
-	gridPos.y = min(max(0, gridPos.y), m_gridsize.y-1);
-	gridPos.z = min(max(0, gridPos.z), m_gridsize.z-1);
+	gridPos.x = std::min(std::max(0, gridPos.x), int(m_gridsize.x-1));
+	gridPos.y = std::min(std::max(0, gridPos.y), int(m_gridsize.y-1));
+	gridPos.z = std::min(std::max(0, gridPos.z), int(m_gridsize.z-1));
 
 	return gridPos;
 }

@@ -446,9 +446,9 @@ struct GlobalData {
 	// compute the linearized hash of the cell located at gridPos
 	uint calcGridHashHost(int cellX, int cellY, int cellZ) const {
 		int3 trimmed;
-		trimmed.x = min( max(0, cellX), gridSize.x-1);
-		trimmed.y = min( max(0, cellY), gridSize.y-1);
-		trimmed.z = min( max(0, cellZ), gridSize.z-1);
+		trimmed.x = std::min( std::max(0, cellX), int(gridSize.x)-1);
+		trimmed.y = std::min( std::max(0, cellY), int(gridSize.y)-1);
+		trimmed.z = std::min( std::max(0, cellZ), int(gridSize.z)-1);
 		return ( (trimmed.COORD3 * gridSize.COORD2) * gridSize.COORD1 ) + (trimmed.COORD2 * gridSize.COORD1) + trimmed.COORD1;
 	}
 	// overloaded
