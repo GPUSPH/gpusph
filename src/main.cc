@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -79,7 +79,8 @@ void print_usage() {
 	std::cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
 	std::cout << " --dem : Use given DEM (if problem supports it)\n";
 	std::cout << " --deltap : Use given deltap (VAL is cast to float)\n";
-	std::cout << " --tend: Break at given time (VAL is cast to float)\n";
+	std::cout << " --tend : Break at given time (VAL is cast to float)\n";
+	std::cout << " --maxiter : Break after this many iterations (integer VAL)\n";
 	std::cout << " --dir : Use given directory for dumps instead of date-based one\n";
 	std::cout << " --nosave : Disable all file dumps but the last\n";
 	std::cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
@@ -155,6 +156,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		} else if (!strcmp(arg, "--tend")) {
 			/* read the next arg as a float */
 			sscanf(*argv, "%f", &(_clOptions->tend));
+			argv++;
+			argc--;
+		} else if (!strcmp(arg, "--maxiter")) {
+			/* read the next arg as a int */
+			sscanf(*argv, "%d", &(_clOptions->maxiter));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--dem")) {

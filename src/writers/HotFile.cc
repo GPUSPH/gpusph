@@ -90,7 +90,6 @@ check_counts_match(const char* what, size_t hf_count, size_t sim_count)
 
 void HotFile::load() {
 	// read header
-	readHeader(_fp.in);
 
 	// TODO FIXME multinode should take into account per-rank particles
 	check_counts_match("particle", _particle_count, _gdata->totParticles);
@@ -102,7 +101,7 @@ void HotFile::load() {
 	// NOTE: simulation with ODE bodies cannot be resumed identically due to
 	// the way ODE handles its internal state.
 	// TODO FIXME/ should be num ODE bodies
-	check_counts_match("body", _header.body_count, _gdata->problem->get_simparams()->numbodies);
+	check_counts_match("body", _header.body_count, _gdata->problem->simparams()->numbodies);
 
 	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
@@ -139,7 +138,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 		_header.buffer_count = _gdata->s_hBuffers.size();
 		_header.particle_count = _particle_count;
 		//TODO FIXME
-		_header.body_count = _gdata->problem->get_simparams()->numbodies;
+		_header.body_count = _gdata->problem->simparams()->numbodies;
 		_header.iterations = _gdata->iterations;
 		_header.dt = _gdata->dt;
 		_header.t = _gdata->t;
@@ -150,18 +149,19 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 	}
 }
 
-void HotFile::readHeader(ifstream *fp) {
+void HotFile::readHeader(uint &part_count) {
 	memset(&_header, 0, sizeof(_header));
 
 	// read and check version
 	uint v;
-	fp->read((char*)&v, sizeof(v));
+	_fp.in->read((char*)&v, sizeof(v));
 	if (v != 1)
 		unsupported_version(v);
 
-	fp->seekg(0); // rewind
-	fp->read((char*)&_header, sizeof(_header));
+	_fp.in->seekg(0); // rewind
+	_fp.in->read((char*)&_header, sizeof(_header));
 	_particle_count = _header.particle_count;
+	part_count = _particle_count;
 }
 
 void HotFile::writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t version) {

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -45,74 +45,84 @@
 
 StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 {
-	H = 1;
+	m_usePlanes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
+	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations
+	const int ppH = get_option("ppH", 16); // --ppH N to change deltap to H/N
 
-	l = sqrt(2)*H; w = l; h = 1.1*H;
-	m_usePlanes = false;
+	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
+	const int rhodiff = get_option("density-diffusion", 1);
 
 	SETUP_FRAMEWORK(
 		//viscosity<KINEMATICVISC>,
 		viscosity<DYNAMICVISC>,
 		//viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
-		//boundary<SA_BOUNDARY>,
-		//boundary<LJ_BOUNDARY>,
-		flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+		boundary<DYN_BOUNDARY>
+		//boundary<SA_BOUNDARY>
+		//boundary<LJ_BOUNDARY>
+	).select_options(
+		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>()
 	);
 
-	set_deltap(0.0625f);
+	if (mlsIters > 0)
+		addFilter(MLS_FILTER, mlsIters);
 
-	// SPH parameters
-	m_simparams->dt = 0.00004f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 20;
-	// Ferrari correction parameter should be (L/deltap)/1000, with L charactersitic
-	// length of the problem
-	m_simparams->ferrari = H/(m_deltap*1000);
+	H = 1;
+
+	set_deltap(H/ppH);
+
+	l = w = sqrt(2)*H; h = 1.1*H;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
+	// SPH parameters
+	simparams()->dt = 0.00004f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 20;
+	simparams()->ferrariLengthScale = H;
+
 	// enlarge the domain to take into account the extra layers of particles
 	// of the boundary
-	if (m_simparams->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
+	if (simparams()->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
 		// number of layers
-		dyn_layers = ceil(m_simparams->kernelradius*m_simparams->sfactor);
+		dyn_layers = ceil(simparams()->kernelradius*simparams()->sfactor);
 		// extra layers are one less (since other boundary types still have
 		// one layer)
 		double3 extra_offset = make_double3((dyn_layers-1)*m_deltap);
 		m_origin -= extra_offset;
 		m_size += 2*extra_offset;
+	} else {
+		dyn_layers = 1;
 	}
 
-	m_simparams->tend = 1.0;
-	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_simparams->maxneibsnum = 256; // needed during gamma initialization phase
+	simparams()->tend = 100.0;
+	if (simparams()->boundarytype == SA_BOUNDARY) {
+		simparams()->maxneibsnum = 256; // needed during gamma initialization phase
 	};
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
-	const float g = length(m_physparams->gravity);
-	const float maxvel = sqrt(g*H);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	const float g = length(physparams()->gravity);
+	const float maxvel = sqrt(2*g*H);
 	// purely for cosmetic reason, let's round the soundspeed to the next
 	// integer
 	const float c0 = ceil(10*maxvel);
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, c0);
 
-	m_physparams->dcoeff = 5.0f*g*H;
+	physparams()->dcoeff = 5.0f*g*H;
 
-	m_physparams->r0 = m_deltap;
-	//m_physparams->visccoeff = 0.05f;
+	physparams()->r0 = m_deltap;
+	//physparams()->visccoeff = 0.05f;
 	set_kinematic_visc(0, 3.0e-2f);
 	//set_kinematic_visc(0, 1.0e-6f);
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
-	m_physparams->epsxsph = 0.5f;
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->epsxsph = 0.5f;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1);
+	add_writer(VTKWRITER, 1.0);
 
 	// Name of problem used for directory creation
 	m_name = "StillWater";
@@ -135,16 +145,16 @@ void StillWater::release_memory(void)
 int StillWater::fill_parts()
 {
 	// distance between fluid box and wall
-	float wd = m_physparams->r0;
+	float wd = physparams()->r0;
 
 	parts.reserve(14000);
 
 	experiment_box = Cube(Point(m_origin), m_size.x, m_size.y, m_size.z);
 
-	experiment_box.SetPartMass(wd, m_physparams->rho0[0]);
+	experiment_box.SetPartMass(wd, physparams()->rho0[0]);
 
 	if (!m_usePlanes) {
-		switch (m_simparams->boundarytype) {
+		switch (simparams()->boundarytype) {
 		case SA_BOUNDARY:
 			experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
 			break;
@@ -157,12 +167,12 @@ int StillWater::fill_parts()
 		}
 	}
 
-	double3 fluid_origin = m_origin;
-	if (m_simparams->boundarytype == DYN_BOUNDARY) // shift by the extra offset of the experiment box
-		fluid_origin += make_double3((dyn_layers-1)*m_deltap);
-	fluid_origin += make_double3(wd); // one wd space from the boundary
-	Cube fluid = Cube(fluid_origin, l-2*wd, w-2*wd, H-2*wd);
-	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	m_fluidOrigin = m_origin;
+	if (dyn_layers > 1) // shift by the extra offset of the experiment box
+		m_fluidOrigin += make_double3((dyn_layers-1)*m_deltap);
+	m_fluidOrigin += make_double3(wd); // one wd space from the boundary
+	Cube fluid = Cube(m_fluidOrigin, l-2*wd, w-2*wd, H-2*wd);
+	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 	fluid.Fill(parts, m_deltap);
 
 	//DEBUG: set only one fluid particle
@@ -206,12 +216,12 @@ void StillWater::copy_to_array(BufferList &buffers)
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 #if 1
-		double water_column = H - boundary_parts[i](2);
+		double water_column = m_fluidOrigin.z + H - boundary_parts[i](2);
 		if (water_column < 0)
 			water_column = 0;
 		float rho = density(water_column, 0);
 #else
-		float rho = m_physparams->rho0[0];
+		float rho = physparams()->rho0[0];
 #endif
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
@@ -222,7 +232,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		double water_column = H - parts[i - j](2);
+		double water_column = m_fluidOrigin.z + H - parts[i - j](2);
 		if (water_column < 0)
 			water_column = 0;
 		float rho = density(water_column, 0);
@@ -233,7 +243,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
-	if (m_simparams->boundarytype == SA_BOUNDARY) {
+	if (simparams()->boundarytype == SA_BOUNDARY) {
 			uint j = parts.size() + boundary_parts.size();
 
 			std::cout << "Vertex parts: " << vertex_parts.size() << "\n";

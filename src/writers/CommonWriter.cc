@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -48,14 +48,14 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 	if (m_energyfile) {
 		m_energyfile << "time";
 		uint fluid = 0;
-		for (; fluid < m_problem->get_physparams()->numFluids(); ++fluid)
+		for (; fluid < m_problem->physparams()->numFluids(); ++fluid)
 			m_energyfile	<< "\tkinetic" << fluid
 							<< "\tpotential" << fluid
 							<< "\telastic" << fluid;
 		m_energyfile << endl;
 	}
 
-	size_t ngages = m_problem->get_simparams()->gage.size();
+	size_t ngages = m_problem->simparams()->gage.size();
 	if (ngages > 0) {
 		string WaveGage_fn = open_data_file(m_WaveGagefile, "WaveGage");
 		if (m_WaveGagefile) {
@@ -67,13 +67,14 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 	}
 
 	// TODO only do this if object data writing is enabled
-	size_t nbodies = m_problem->get_simparams()->numbodies;
+	size_t nbodies = m_problem->simparams()->numbodies;
 	if (nbodies > 0) {
 		string rbdata_fn = open_data_file(m_objectfile, "rbdata");
 		if (m_objectfile) {
 			m_objectfile << "time";
-			m_objectfile << "\tindex";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
+				// object index
+				m_objectfile << "\tindex";
 				// center of mass
 				m_objectfile << "\tCM" << obj << "_X";
 				m_objectfile << "\tCM" << obj << "_Y";
@@ -90,13 +91,14 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 		}
 	}
 
-	nbodies = m_problem->get_simparams()->numforcesbodies;
+	nbodies = m_problem->simparams()->numforcesbodies;
 	if (nbodies) {
 		string objforce_fn = open_data_file(m_objectforcesfile, "objectforces");
 		if (m_objectforcesfile) {
 			m_objectforcesfile << "time";
-			m_objectforcesfile << "\tindex";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
+				// object index
+				m_objectforcesfile << "\tindex";
 				// computed forces
 				m_objectforcesfile << "\tComputed_F" << obj << "_X";
 				m_objectforcesfile << "\tComputed_F" << obj << "_Y";
@@ -141,7 +143,7 @@ CommonWriter::write_energy(double t, float4 *energy)
 	if (m_energyfile) {
 		m_energyfile << t;
 		uint fluid = 0;
-		for (; fluid < m_problem->get_physparams()->numFluids(); ++fluid)
+		for (; fluid < m_problem->physparams()->numFluids(); ++fluid)
 			m_energyfile	<< "\t" << energy[fluid].x
 							<< "\t" << energy[fluid].y
 							<< "\t" << energy[fluid].z;
@@ -229,7 +231,7 @@ static const char* ED[] = { "disabled", "enabled" };
 void
 CommonWriter::write_simparams(ostream &out)
 {
-	const SimParams *SP = m_problem->get_simparams();
+	const SimParams *SP = m_problem->simparams();
 
 	out << "Simulation parameters:" << endl;
 
@@ -261,6 +263,11 @@ CommonWriter::write_simparams(ostream &out)
 	if (SP->simflags & ENABLE_DTADAPT)
 		out << "    safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
 	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
+	out << " Density diffusion " << ED[!!(SP->simflags & ENABLE_DENSITY_DIFFUSION)] << endl;
+	if (SP->simflags & ENABLE_DENSITY_DIFFUSION) {
+		out << "    ξ = " << SP->rhodiffcoeff << endl;
+	}
+
 	out << " Ferrari correction " << ED[!!(SP->simflags & ENABLE_FERRARI)] << endl;
 	if (SP->simflags & ENABLE_FERRARI) {
 		out << "    Ferrari length scale = " ;
@@ -294,8 +301,8 @@ CommonWriter::write_simparams(ostream &out)
 void
 CommonWriter::write_physparams(ostream &out)
 {
-	const SimParams *SP = m_problem->get_simparams();
-	const PhysParams *PP = m_problem->get_physparams();
+	const SimParams *SP = m_problem->simparams();
+	const PhysParams *PP = m_problem->physparams();
 
 	out << "Physical parameters:" << endl;
 

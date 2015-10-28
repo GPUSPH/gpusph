@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -269,7 +269,7 @@ double STLMesh::SetPartMass(const double dp, const double rho)
 
 void STLMesh::SetPartMass(const double mass)
 {
-	m_barycenter(3) = mass;
+	m_center(3) = mass;
 	F4Vect::iterator f = m_vertices.begin();
 	F4Vect::iterator e = m_vertices.end();
 	for (; f != e; ++f)
@@ -292,13 +292,13 @@ void STLMesh::FillBorder(PointVect& parts, double)
 /* TODO */
 
 int STLMesh::Fill(PointVect&, double, bool)
-{}
+{ throw runtime_error("STLMesh::Fill not implemented yet"); }
 
 void STLMesh::Fill(PointVect&, const double)
-{}
+{ throw runtime_error("STLMesh::Fill not implemented yet"); }
 
 void STLMesh::FillIn(PointVect&, const double, const int)
-{ }
+{ throw runtime_error("STLMesh::Fill not implemented yet"); }
 
 // NOTE: checking the bounding box (incl. orientation), not the actual mesh space
 bool STLMesh::IsInside(const Point& p, double dx) const
@@ -347,7 +347,7 @@ void STLMesh::setEulerParameters(const EulerParameters &ep)
 void STLMesh::getBoundingBox(Point &output_min, Point &output_max)
 {
 	output_min = m_minbounds - make_double3(m_origin(0), m_origin(1), m_origin(2));
-	output_max = output_min + (m_maxbounds - m_minbounds);
+	output_max = output_min + Vector(m_maxbounds - m_minbounds);
 }
 
 void STLMesh::shift(const double3 &offset)

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -41,21 +41,21 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<DYNAMICVISC>,
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
-		flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET | ENABLE_MOVING_BODIES | ENABLE_FERRARI>
+		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES | ENABLE_FERRARI>
 	);
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
-	m_physparams->r0 = m_deltap;
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+	physparams()->r0 = m_deltap;
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 
 	// *** Initialization of minimal simulation parameters
-	m_simparams->maxneibsnum = 256 + 64 + 32; // 352
+	simparams()->maxneibsnum = 256 + 64 + 32; // 352
 	// ferrari correction
-	m_simparams->ferrariLengthScale = 0.25f;
+	simparams()->ferrariLengthScale = 0.25f;
 
 	// buildneibs at every iteration
-	m_simparams->buildneibsfreq = 1;
+	simparams()->buildneibsfreq = 1;
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
@@ -108,6 +108,9 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 
+	// set velocity or pressure driven (see define in header)
+	setVelocityDriven(inlet, VELOCITY_DRIVEN);
+
 	// Floating box, with STL mesh for collision detection
 	// GT_FLOATING_BODY for floating, GT_MOVING_BODY for force measurement only
 	GeometryID cube =
@@ -116,7 +119,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	enableFeedback(cube);
 
-	// NOTE: m_physparams->rho0[0] is not available yet if set_density() was not explicitly called,
+	// NOTE: physparams()->rho0[0] is not available yet if set_density() was not explicitly called,
 	// so we use an absolute value instead (half water density)
 	setMassByDensity(cube, 500);
 }

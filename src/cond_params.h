@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -105,8 +105,8 @@ struct empty
    struct_to_include) to do the job for us
 */
 
-#define COND_STRUCT(some_cond, some_struct) \
-	conditional<some_cond, some_struct, empty<some_struct> >::type
+#define COND_STRUCT(some_cond, ...) \
+	conditional<some_cond, __VA_ARGS__, empty< __VA_ARGS__ > >::type
 
 #endif // _COND_PARAMS_H
 

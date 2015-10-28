@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -69,37 +69,37 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.04f);  //0.005f;
-	m_simparams->dt = 0.00013f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 10;
-	m_simparams->tend = 10.0;
+	simparams()->dt = 0.00013f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 10;
+	simparams()->tend = 10.0;
 
 	addPostProcess(VORTICITY);
 
 	// Physical parameters
 	H = 0.45f;
-	m_physparams->gravity = make_float3(0.0f, 0.0f, -9.81f);
-	float g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);
+	float g = length(physparams()->gravity);
 
 	add_fluid(1000.0f);
 	set_equation_of_state(0,  7.0f, 20.f);
 	float r0 = m_deltap;
-	m_physparams->r0 = r0;
+	physparams()->r0 = r0;
 
-	m_physparams->artvisccoeff = 0.3f;
+	physparams()->artvisccoeff = 0.3f;
 	set_kinematic_visc(0, 1.0e-6f);
-	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// BC when using LJ
-	m_physparams->dcoeff = 5.0f*g*H;
+	physparams()->dcoeff = 5.0f*g*H;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// BC when using MK
-	m_physparams->MK_K = g*H;
-	m_physparams->MK_d = 1.1*m_deltap/MK_par;
-	m_physparams->MK_beta = MK_par;
+	physparams()->MK_K = g*H;
+	physparams()->MK_d = 1.1*m_deltap/MK_par;
+	physparams()->MK_beta = MK_par;
 
 	// Compute parameters for piston movement
 	// The velocity will be c/(cosh(a*t+b)^2), so keep it simple
@@ -187,10 +187,10 @@ SolitaryWave::moving_bodies_callback(const uint index, Object* object, const dou
 
 int SolitaryWave::fill_parts()
 {
-	const float r0 = m_physparams->r0;
+	const float r0 = physparams()->r0;
 	const float width = ly;
 
-	const float br = (m_simparams->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
+	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
 	experiment_box = Cube(Point(0, 0, 0), h_length + slope_length, width, height);
 
@@ -198,14 +198,14 @@ int SolitaryWave::fill_parts()
 	parts.reserve(34000);
 
 	piston = Rect(Point(piston_initial_crotx, 0, 0), Vector(0, width, 0), Vector(0, 0, height));
-	piston.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	piston.SetPartMass(m_deltap, physparams()->rho0[0]);
 	piston.Fill(piston.GetParts(), br, true);
 	add_moving_body(&piston, MB_MOVING);
 
 	if (i_use_bottom_plane == 0) {
 	   experiment_box1 = Rect(Point(h_length, 0, 0), Vector(0, width, 0),
 			Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
-	   experiment_box1.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	   experiment_box1.SetPartMass(m_deltap, physparams()->rho0[0]);
 	   experiment_box1.Fill(boundary_parts,br,true);
 	   std::cout << "bottom rectangle defined" <<"\n";
 	   }
@@ -229,7 +229,7 @@ int SolitaryWave::fill_parts()
 			if (i == 0)
 				radius = 0.05;
 			cyl[i] = Cylinder(p[i], radius, height);
-		    cyl[i].SetPartMass(m_deltap, m_physparams->rho0[0]);
+		    cyl[i].SetPartMass(m_deltap, physparams()->rho0[0]);
 		    cyl[i].FillBorder(cyl[i].GetParts(), br, false, false);
 			add_moving_body(&(cyl[i]), MB_MOVING);
 		}
@@ -237,7 +237,7 @@ int SolitaryWave::fill_parts()
 	if (icone == 1) {
 		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
 		cone = Cone(p1, width/4, width/10, height);
-		cone.SetPartMass(m_deltap, m_physparams->rho0[0]);
+		cone.SetPartMass(m_deltap, physparams()->rho0[0]);
 		cone.FillBorder(cone.GetParts(), br, false, true);
 		add_moving_body(&cone, MB_MOVING);
     }
@@ -251,7 +251,7 @@ int SolitaryWave::fill_parts()
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
 		fluid = Rect(Point(x,  r0, z),
 				Vector(0, width-2.0*r0, 0), Vector(l, 0, 0));
-		fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+		fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 		fluid.Fill(parts, m_deltap, true);
 		n++;
 	 }
@@ -299,7 +299,7 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);  // first is type, object, 3rd id
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
@@ -316,7 +316,7 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
-			rho = m_physparams->rho0[0];
+			rho = physparams()->rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
@@ -333,7 +333,7 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams->numforcesbodies) {
+		if (k < simparams()->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();
@@ -346,11 +346,11 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 	    info[i]= make_particleinfo(PT_FLUID,0,i);
 		calc_localpos_and_hash(parts[i - j], info[i], pos[i], hash[i]);
 		// initializing density
-		//       float rho = m_physparams->rho0*pow(1.+g*(H-pos[i].z)/m_physparams->bcoeff,1/m_physparams->gammacoeff);
+		//       float rho = physparams()->rho0*pow(1.+g*(H-pos[i].z)/physparams()->bcoeff,1/physparams()->gammacoeff);
 		//        vel[i] = make_float4(0, 0, 0, rho);
 	}
 	j += parts.size();

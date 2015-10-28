@@ -44,6 +44,7 @@ public:
 	double get_t() { return _header.t; }
 	void save();
 	void load();
+	void readHeader(uint &part_count);
 private:
 	union {
 		std::ifstream		*in;

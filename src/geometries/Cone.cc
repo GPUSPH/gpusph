@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -85,8 +85,8 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 
 Cone::Cone(const Point& center, const Vector& radiusbottom, const Vector& radiustop, const Vector& height)
 {
-	if (abs(radiusbottom*height) > 1e-8*radiusbottom.norm()*height.norm()
-		|| abs(radiustop*height) > 1e-8*radiustop.norm()*height.norm()) {
+	if (fabs(radiusbottom*height) > 1e-8*radiusbottom.norm()*height.norm()
+		|| fabs(radiustop*height) > 1e-8*radiustop.norm()*height.norm()) {
 		std::cout << "Trying to construct a cone with non perpendicular radius and axis\n";
 		std::exit(1);
 	}

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -58,23 +58,16 @@ public:
 
 	// element size of the arrays
 	// overloaded in subclasses
-	virtual size_t get_element_size() const
-	{ return 0; }
+	virtual size_t get_element_size() const = 0;
 
 	// number of arrays
 	// overloaded in subclasses
-	virtual uint get_array_count() const
-	{ return 0; }
+	virtual uint get_array_count() const = 0;
 
-	virtual const char* get_buffer_name() const
-	{
-		throw std::runtime_error("AbstractBuffer name queried");
-	}
+	virtual const char* get_buffer_name() const = 0;
 
 	// allocate buffer and return total amount of memory allocated
-	virtual size_t alloc(size_t elems) {
-		throw std::runtime_error("cannot allocate generic buffer");
-	}
+	virtual size_t alloc(size_t elems) = 0;
 
 	// base method to return a specific buffer of the array
 	// WARNING: this doesn't check for validity of idx.
@@ -87,17 +80,11 @@ public:
 	}
 
 	// as above, plus offset
-	virtual void *get_offset_buffer(uint idx, size_t offset) {
-		throw std::runtime_error("can't determine buffer offset in AbstractBuffer");
-	}
-	virtual const void *get_offset_buffer(uint idx, size_t offset) const {
-		throw std::runtime_error("can't determine buffer offset in AbstractBuffer");
-	}
+	virtual void *get_offset_buffer(uint idx, size_t offset) = 0;
+	virtual const void *get_offset_buffer(uint idx, size_t offset) const = 0;
 
 	// swap elements at positions idx1, idx2 of buffer _buf
-	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) {
-		throw std::runtime_error("can't swap elements in AbstractBuffer");
-	};
+	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) = 0;
 };
 
 /* This class encapsulates type-specific arrays of buffers.
@@ -388,7 +375,7 @@ public:
 		if (exists != m_map.end()) {
 			throw std::runtime_error("trying to add a buffer for an already-available key!");
 		} else {
-			m_map[Key] = new BufferClass<Key>;
+			m_map[Key] = new BufferClass<Key>(_init);
 		}
 		return *this;
 	}

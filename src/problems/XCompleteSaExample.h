@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,8 +28,16 @@
 
 #include "XProblem.h"
 
+// Set to 1 (or true) for velocity driven inlet, 0 (or false) for pressure driven
+#define	VELOCITY_DRIVEN			1
+
 // Water level simulated by the pressure inlet
 #define INLET_WATER_LEVEL	0.9
+
+// Velocity (m/s) and fading-in time (s) for velocity driven inlet
+// Set fading time to 0 to impose immediately INLET_VELOCITY
+#define INLET_VELOCITY			4.0
+#define INLET_VELOCITY_FADE		1.0
 
 class XCompleteSaExample: public XProblem {
 	private:
@@ -40,37 +48,14 @@ class XCompleteSaExample: public XProblem {
 		uint max_parts(uint);
 
 		void
-		setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize);
-
-		void
 		imposeBoundaryConditionHost(
-					float4*			newVel,
-					float4*			newEulerVel,
-					float*			newTke,
-					float*			newEpsilon,
-			const	particleinfo*	info,
-			const	float4*			oldPos,
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
 					uint*			IOwaterdepth,
 			const	float			t,
 			const	uint			numParticles,
-			const	uint			numObjects,
-			const	uint			particleRangeEnd,
-			const	hashKey*		particleHash);
-
-		/*
-		void
-		imposeForcedMovingObjects(
-			float3	&centerOfGravity,
-			float3	&translation,
-			float*	rotationMatrix,
-	const	uint	ob,
-	const	double	t,
-	const	float	dt);
-		// */
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd);
 
 		// override standard split
 		void fillDeviceMap();
