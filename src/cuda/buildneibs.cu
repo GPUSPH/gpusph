@@ -344,8 +344,8 @@ struct ptype_hash_compare :
 	__host__ __device__
 	bool operator()(const value_type& a, const value_type& b)
 	{
-		hashKey ha(thrust::get<0>(a)),
-				hb(thrust::get<0>(b));
+		uint ha(cellHashFromParticleHash(thrust::get<0>(a), true)),
+				hb(cellHashFromParticleHash(thrust::get<0>(b), true));
 		particleinfo pa(thrust::get<1>(a)),
 					 pb(thrust::get<1>(b));
 
