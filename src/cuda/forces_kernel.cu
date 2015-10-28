@@ -1967,7 +1967,7 @@ initGamma(
 			float ggamAS = gradGamma<kerneltype>(slength, as_float3(relPos), vertexRelPos, as_float3(ns));
 			float minlRas = 0;
 			const float gamAS = Gamma<kerneltype>(slength, as_float3(relPos), vertexRelPos, as_float3(ns), 
-					normal, epsilon, deltap, true, neib_index, minlRas);
+					normal, epsilon, deltap, true, minlRas);
 			gGam.x += ggamAS*ns.x;
 			gGam.y += ggamAS*ns.y;
 			gGam.z += ggamAS*ns.z;

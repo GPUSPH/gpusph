@@ -326,7 +326,6 @@ Gamma(	const	float		&slength,
 		const	float		&epsilon,
 		const	float		&deltap,
 		const	bool		&computeGamma,
-		const	uint		&nIndex,
 				float		&minlRas)
 {
 	// normalize the distances r_{as} and r_{av} with h
