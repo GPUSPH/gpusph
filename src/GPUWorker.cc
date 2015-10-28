@@ -2157,7 +2157,7 @@ void GPUWorker::kernel_forces_async_complete()
 	if (firstStep)
 		gdata->dts[m_deviceIndex] = returned_dt;
 	else
-		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
+		gdata->dts[m_deviceIndex] = std::min(gdata->dts[m_deviceIndex], returned_dt);
 }
 
 
@@ -2207,7 +2207,7 @@ void GPUWorker::kernel_forces()
 	if (firstStep)
 		gdata->dts[m_deviceIndex] = returned_dt;
 	else
-		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
+		gdata->dts[m_deviceIndex] = std::min(gdata->dts[m_deviceIndex], returned_dt);
 	//printf("set to %g\n",gdata->dts[m_deviceIndex]);
 }
 
