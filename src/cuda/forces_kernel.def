@@ -449,9 +449,10 @@ struct common_particle_output
 {
 	float4	force;
 
+	template<typename FP>
 	__device__ __forceinline__
-	common_particle_output() :
-		force(make_float4(0.0f))
+	common_particle_output(FP const& params, uint index) :
+		force(params.forces[index])
 	{}
 };
 
@@ -528,9 +529,10 @@ struct forces_particle_output :
 	static const ViscosityType visctype = _visctype;
 	static const flag_t simflags = _simflags;
 
+	template<typename FP>
 	__device__ __forceinline__
-	forces_particle_output() :
-		common_particle_output(),
+	forces_particle_output(FP const& params, uint index) :
+		common_particle_output(params, index),
 		// TODO FIXME see above
 		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output)(),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(),
@@ -2160,7 +2162,10 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	flag_t simflags>
+	flag_t simflags,
+	ParticleType ptype,
+	ParticleType ntype,
+	bool laststep>
 __global__ void
 forcesDevice(
 	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
@@ -2168,8 +2173,6 @@ forcesDevice(
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
-	__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
-	shared.init();
 
 	// The body of this kernel easily gets a lot of indentation. to prevent that,
 	// we wrap the main part into a do { } while(0); so that rather than
@@ -2188,6 +2191,9 @@ forcesDevice(
 		// Particle info struct, always stored in a texture
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
+		// Skip if the current particle is not of the type for which we are computing interactions
+		if (!laststep && PART_TYPE(info) != ptype) break;
+
 		// Determine how the current particle must act based on it's the particle type.
 		// The particles for which forces are computed are:
 		// 	* fluid particles
@@ -2205,7 +2211,7 @@ forcesDevice(
 			computes_stuff = !TESTPOINT(info);
 
 		// Nothing to do if the particle doesn't need to compute forces
-		if (!computes_stuff)
+		if (!laststep && !computes_stuff)
 			break;
 
 		// Cell-local position of the particle, stored in texture
@@ -2225,7 +2231,7 @@ forcesDevice(
 			pdata(index, pos, info, params);
 
 		// Preparing particle output variables
-		forces_particle_output<boundarytype, visctype, simflags> pout;
+		forces_particle_output<boundarytype, visctype, simflags> pout(params, index);
 
 		/* And finally the neighbors list traversal support */
 
@@ -2252,20 +2258,14 @@ forcesDevice(
 		}
 
 		// Loop over all neighbors
-		uint current_neib_type = PT_FLUID;
-		while (cont) {
+		if (ntype == PT_BOUNDARY)
+			i = cuneibs::d_neibboundpos*d_neiblist_stride;
+
+		while (!laststep && cont) {
 			neibdata neib_data = params.neibsList[i + index];
 
-			if (neib_data == 0xffff) {
-				if (current_neib_type == PT_FLUID) {
-					current_neib_type = PT_BOUNDARY;
-					i = cuneibs::d_neibboundpos*d_neiblist_stride;
-					continue;
-				}
-				else
-					break;
-			}
-			i += (current_neib_type == PT_FLUID) ? d_neiblist_stride : -d_neiblist_stride;
+			if (neib_data == 0xffff) break;
+			i += (ntype == PT_BOUNDARY) ? -d_neiblist_stride : d_neiblist_stride;
 
 			const uint neib_index = getNeibIndex(pdata.pos, pos_corr, params.cellStart,
 				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
@@ -2324,6 +2324,7 @@ forcesDevice(
 
 		} // End of loop over neighbors
 
+		if (laststep) {
 		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 		if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
 			gamma_fixup<boundarytype>::with(params, pdata, pout);
@@ -2366,11 +2367,11 @@ forcesDevice(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
-			shared.store(params, pdata, pout);
 		} else
 		if (boundarytype == SA_BOUNDARY && FLOATING(pdata.info) && BOUNDARY(pdata.info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
 			compute_boundary_force<boundarytype>::with(params, pdata, pout);
+		}
 		}
 
 		// Writing out the results
@@ -2405,9 +2406,8 @@ forcesDevice(
 		}
 
 	} while (0);
-
-	shared.reduce(params);
 }
+
 /************************************************************************************************************/
 
 #endif

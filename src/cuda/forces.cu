@@ -650,6 +650,8 @@ basicstep(
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
+	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
+
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(numParticlesInRange, numThreads);
@@ -673,9 +675,14 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
-	// FIXME forcesDevice should use simflags, not the neverending pile of booleans
-	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags>
+	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID, false>
 			<<< numBlocks, numThreads, dummy_shared >>>(params);
+	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY, false>
+				<<< numBlocks, numThreads, dummy_shared >>>(params);
+	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID, false>
+				<<< numBlocks, numThreads, dummy_shared >>>(params);
+	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY, true>
+				<<< numBlocks, numThreads, dummy_shared >>>(params);
 
 	return numBlocks;
 }
