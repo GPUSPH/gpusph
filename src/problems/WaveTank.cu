@@ -80,8 +80,10 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->tend = 10.0f; //seconds
 
 	//WaveGage
-//	add_gage(1, 0.3);
-//	add_gage(0.5, 0.3);
+	if (get_option("gages", false)) {
+		add_gage(1, 0.3);
+		add_gage(0.5, 0.3);
+	}
 
 	// Physical parameters
 	H = 0.45;
