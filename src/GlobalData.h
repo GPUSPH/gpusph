@@ -424,6 +424,17 @@ struct GlobalData {
 		}
 	};
 
+	// compute the global position from grid and local pos. note that the
+	// world origin needs to be added to this
+	template<typename T> // T should be uint3 or int3
+	double3 calcGlobalPosOffset(T const& gridPos, float3 const& pos) const {
+		double3 dpos;
+		dpos.x = ((double) this->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x;
+		dpos.y = ((double) this->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y;
+		dpos.z = ((double) this->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z;
+		return dpos;
+	}
+
 	// compute the coordinates of the cell which contains the particle located at pos
 	int3 calcGridPosHost(double px, double py, double pz) const {
 		int3 gridPos;
