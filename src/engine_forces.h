@@ -271,19 +271,5 @@ saIdentifyCornerVertices(
 	const	float			deltap,
 	const	float			eps) = 0;
 
-// finds the closest vertex particles for segments which have no vertices themselves that are of
-// the same object type and are no corner particles
-virtual void
-saFindClosestVertex(
-	const	float4*			oldPos,
-			particleinfo*	info,
-			vertexinfo*		vertices,
-	const	uint*			vertIDToIndex,
-	const	hashKey*		particleHash,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
-	const	uint			numParticles,
-	const	uint			particleRangeEnd) = 0;
-
 };
 #endif
