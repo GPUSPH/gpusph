@@ -41,7 +41,8 @@ typedef unsigned char dev_idx_t;
 static const char dev_idx_str[] = "UInt8";
 
 VTKWriter::VTKWriter(const GlobalData *_gdata)
-  : Writer(_gdata)
+  : Writer(_gdata),
+	m_blockidx(-1)
 {
 	m_fname_sfx = ".vtu";
 
@@ -60,6 +61,48 @@ VTKWriter::~VTKWriter()
 {
 	mark_timefile();
 	m_timefile.close();
+}
+
+void VTKWriter::open_multiblock()
+{
+	m_multiblock_fname = open_data_file(m_multiblock, "data", current_filenum(), ".vtm");
+	m_multiblock << "<?xml version='1.0'?>\n";
+	m_multiblock << "<VTKFile type='vtkMultiBlockDataSet'  version='1.0'>\n";
+	m_multiblock << " <vtkMultiBlockDataSet>\n";
+
+	m_blockidx = -1;
+}
+
+void VTKWriter::add_multiblock(std::string const& blockname, std::string const& fname)
+{
+	++m_blockidx;
+	m_multiblock << "  <DataSet index='" << m_blockidx << "' name='" << blockname <<
+		"' file='" << fname << "'/>" << endl;
+}
+
+void VTKWriter::close_multiblock()
+{
+	m_multiblock << " </vtkMultiBlockDataSet>\n";
+	m_multiblock << "</VTKFile>" << endl;
+	m_multiblock.close();
+}
+
+void VTKWriter::start_writing()
+{
+	if (gdata->problem->simparams()->gage.size() > 0)
+		open_multiblock();
+}
+
+void VTKWriter::mark_written(double t)
+{
+	if (multiblock_p())
+		close_multiblock();
+
+	m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
+		<< "file='" << (m_blockidx > 0 ? m_multiblock_fname : m_particle_fname) << "'/>" << endl;
+	mark_timefile();
+
+	Writer::mark_written(t);
 }
 
 /* Endianness check: (char*)&endian_int reads the first byte of the int,
@@ -651,21 +694,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
 
-	bool multiblock = m_multiblock.is_open();
-	if (multiblock) {
-		m_multiblock << "  <DataSet index='1' name='Particles' file='" << filename << "'/>\n";
-		m_multiblock << " </vtkMultiBlockDataSet>\n";
-		m_multiblock << "</VTKFile>" << endl;
-		m_multiblock.close();
-	}
+	m_particle_fname = filename;
 
-	// Writing time to VTUinp.pvd file
-	if (m_timefile) {
-		// node info for multinode should be stored in part
-		m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
-			<< "file='" << (multiblock ? m_multiblock_fname : filename) << "'/>" << endl;
-		mark_timefile();
-	}
+	if (multiblock_p())
+		add_multiblock("Particles", filename);
 
 	// close testpoints file
 	if (testpoints_file)
@@ -730,15 +762,7 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 
 	fp.close();
 
-	// Open the multiblock
-	m_multiblock_fname = open_data_file(m_multiblock, "data", current_filenum(), ".vtm");
-	if (m_multiblock) {
-		m_multiblock << "<?xml version='1.0'?>\n";
-		m_multiblock << "<VTKFile type='vtkMultiBlockDataSet'  version='1.0'>\n";
-		m_multiblock << " <vtkMultiBlockDataSet>\n";
-		m_multiblock << "  <DataSet index='0' name='WaveGages' file='" << filename << "'/>" << endl;
-	}
-
+	add_multiblock("WaveGages", filename);
 }
 
 void

@@ -30,23 +30,42 @@
 
 class VTKWriter : public Writer
 {
-	// When we write both gages and particles we will save a MultiBlock VTK file (.vtm)
-	// referencing both the current gage and particle savefile, and the PVD index will reference
+	// When we write gages or something else aside from particles we will save a
+	// MultiBlock VTK file (.vtm) referencing both the current gage and
+	// particle savefile, and the PVD index will reference
 	// this instead of the particle file
 	std::ofstream m_multiblock;
 	std::string m_multiblock_fname;
+	std::string m_particle_fname;
 
-public:
-	VTKWriter(const GlobalData *_gdata);
-	~VTKWriter();
+	// index of the last written block
+	int m_blockidx;
 
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
-	virtual void write_WaveGage(double t, GageList const& gage);
+	// check if this is a multiblock save session
+	inline bool multiblock_p()
+	{ return m_multiblock.is_open(); }
+
+	// Open a new multiblock file
+	void open_multiblock();
+	// Add a multiblock to the file
+	void add_multiblock(std::string const& blockname, std::string const& fname);
+	// Close the multiblock
+	void close_multiblock();
 
 	// this method is used to close the XML in the timefile,
 	// so that the timefile is always valid, and then seek back to the pre-close
 	// position so that the next entry is properly inserted
 	void mark_timefile();
+
+public:
+	VTKWriter(const GlobalData *_gdata);
+	~VTKWriter();
+
+	void start_writing();
+	void mark_written(double t);
+
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
+	virtual void write_WaveGage(double t, GageList const& gage);
 };
 
 #endif	/* _VTKWRITER_H */
