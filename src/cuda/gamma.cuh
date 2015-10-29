@@ -188,8 +188,7 @@ __device__ __forceinline__ float
 gradGamma(	const	float		&slength,
 		const	float3		&relPos,
 		const	float4		*vertexRelPos,
-		const	float3		&ns)
-{ return -1.0f; } // TODO throw not implemented error
+		const	float3		&ns);
 
 template<>
 __device__ __forceinline__ float
@@ -325,8 +324,7 @@ Gamma(	const	float		&slength,
 		const	float		&epsilon,
 		const	float		&deltap,
 		const	bool		&computeGamma,
-				float		&minlRas)
-{ return -1.0f; } // TODO throw not implemented error
+				float		&minlRas);
 
 template<>
 __device__ __forceinline__ float
