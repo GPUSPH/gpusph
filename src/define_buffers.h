@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 #define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
 SET_BUFFER_TRAITS(BUFFER_PARTINDEX, uint, 1, "Particle Index");
 #define BUFFER_VERTIDINDEX		(BUFFER_PARTINDEX << 1)
-SET_BUFFER_TRAITS(BUFFER_VERTIDINDEX, uint, 1, "Vertice ID to Particle Index");
+SET_BUFFER_TRAITS(BUFFER_VERTIDINDEX, uint, 1, "Vertex ID to Particle Index");
 
 // not used for the time being. evaluate if they should be migrated to the buffer mechanism
 // too or not
@@ -106,7 +106,9 @@ SET_BUFFER_TRAITS(BUFFER_EULERVEL, float4, 1, "Eulerian velocity");
 
 #define BUFFER_CFL			(BUFFER_EULERVEL << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL, float, 1, "CFL array");
-#define BUFFER_CFL_TEMP		(BUFFER_CFL << 1)
+#define BUFFER_CFL_DS		(BUFFER_CFL << 1)
+SET_BUFFER_TRAITS(BUFFER_CFL_DS, float, 1, "CFL gamma array");
+#define BUFFER_CFL_TEMP		(BUFFER_CFL_DS << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL_TEMP, float, 1, "CFL aux array");
 #define BUFFER_CFL_KEPS		(BUFFER_CFL_TEMP << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL_KEPS, float, 1, "Turbulent Viscosity CFL array");
@@ -119,7 +121,7 @@ SET_BUFFER_TRAITS(BUFFER_SPS_TURBVISC, float, 1, "SPS Turbulent viscosity");
 SET_BUFFER_TRAITS(BUFFER_VOLUME, float4, 1, "Volume");
 
 #define BUFFER_SIGMA		(BUFFER_VOLUME << 1)
-SET_BUFFER_TRAITS(BUFFER_SIGMA, float, 1, "Sigma (inverse discrete volume)");
+SET_BUFFER_TRAITS(BUFFER_SIGMA, float, 1, "Sigma (discrete specific volume)");
 
 #define BUFFER_PRIVATE		(BUFFER_SIGMA << 1)
 SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
@@ -131,7 +133,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 #define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
 
 // all CFL buffers
-#define BUFFERS_CFL			( BUFFER_CFL | BUFFER_CFL_TEMP | BUFFER_CFL_KEPS )
+#define BUFFERS_CFL			( BUFFER_CFL | BUFFER_CFL_TEMP | BUFFER_CFL_KEPS | BUFFER_CFL_DS)
 
 // all CELL buffers
 #define BUFFERS_CELL		( BUFFER_CELLSTART | BUFFER_CELLEND )

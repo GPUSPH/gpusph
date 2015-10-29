@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -372,8 +372,10 @@ Writer::Destroy()
  *  Default Constructor; makes sure the file output format starts at PART_00000
  */
 Writer::Writer(const GlobalData *_gdata) :
-	m_FileCounter(0), gdata(_gdata),
-	m_writefreq(0), m_last_write_time(-1)
+	m_last_write_time(-1),
+	m_writefreq(0),
+	m_FileCounter(0),
+	gdata(_gdata)
 {
 	m_problem = _gdata->problem;
 

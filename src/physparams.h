@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -126,8 +126,8 @@ IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
 		artvisccoeff(0.3f),
 		partsurf(0),
-		epsinterface(NAN),
 		gravity(make_float3(0, 0, -9.81)),
+		epsinterface(NAN),
 		r0(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
@@ -184,7 +184,7 @@ protected:
 	  */
 	void set_equation_of_state(size_t fluid_idx, float gamma, float c0) {
 		if (fluid_idx >= numFluids())
-			throw std::runtime_error("trying to set viscosity of non-existing fluid");
+			throw std::out_of_range("trying to set equation of state for a non-existing fluid");
 		gammacoeff[fluid_idx] = gamma;
 		bcoeff[fluid_idx] = rho0[fluid_idx]*c0*c0/gamma;
 		sscoeff[fluid_idx] = c0;
@@ -196,9 +196,7 @@ protected:
 	  @param nu	kinematic viscosity
 	  */
 	void set_kinematic_visc(size_t fluid_idx, float nu) {
-		if (fluid_idx >= numFluids())
-			throw std::runtime_error("trying to set viscosity of non-existing fluid");
-		kinematicvisc[fluid_idx] = nu;
+		kinematicvisc.at(fluid_idx) = nu;
 	}
 
 	/*! Set the dynamic viscosity of the given fluid
@@ -207,6 +205,13 @@ protected:
 	  */
 	void set_dynamic_visc(size_t fluid_idx, float mu) {
 		set_kinematic_visc(fluid_idx, mu/rho0[fluid_idx]);
+	}
+
+	/*! Get the kinematic viscosity for the given fluid
+	 * @param fluid_idx	fluid index
+	 */
+	float get_kinematic_visc(size_t fluid_idx) const {
+		return kinematicvisc.at(fluid_idx);
 	}
 
 	/*! Set density parameters

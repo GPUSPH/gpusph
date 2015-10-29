@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,19 +34,32 @@
 
 #define BLOCK_SIZE_INTEGRATE	256
 
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
+template<
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	KernelType kerneltype,
+	flag_t simflags>
 class CUDAPredCorrEngine : public AbstractIntegrationEngine
 {
 
 void
 setconstants(const PhysParams *physparams,
-	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize)
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+	idx_t const& allocatedParticles, int const& maxneibsnum, float const& slength)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_cellSize, &cellSize, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
+	idx_t neiblist_end = maxneibsnum*allocatedParticles;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_neiblist_end, &neiblist_end, sizeof(idx_t)));
+
+	const float h3 = slength*slength*slength;
+	float kernelcoeff = 1.0f/(M_PI*h3);
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_wcoeff_cubicspline, &kernelcoeff, sizeof(float)));
+	kernelcoeff = 15.0f/(16.0f*M_PI*h3);
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_wcoeff_quadratic, &kernelcoeff, sizeof(float)));
+	kernelcoeff = 21.0f/(16.0f*M_PI*h3);
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_wcoeff_wendland, &kernelcoeff, sizeof(float)));
 }
 
 void
@@ -89,13 +102,17 @@ setrbsteprot(const float* rot, int numbodies)
 void
 basicstep(
 		MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufreadUpdate,
 		MultiBufferList::iterator bufwrite,
+		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
 		const	float	dt2,
 		const	int		step,
-		const	float	t)
+		const	float	t,
+		const	float	slength,
+		const	float	influenceradius)
 {
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
@@ -103,18 +120,32 @@ basicstep(
 
 	const float4  *oldPos = bufread->getData<BUFFER_POS>();
 	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
-	const float4  *oldVel = bufread->getData<BUFFER_VEL>();
 	const float4  *oldVol = bufread->getData<BUFFER_VOLUME>();
 	const float4 *oldEulerVel = bufread->getData<BUFFER_EULERVEL>();
-	const float4 *oldgGam = bufread->getData<BUFFER_GRADGAMMA>();
 	const float *oldTKE = bufread->getData<BUFFER_TKE>();
 	const float *oldEps = bufread->getData<BUFFER_EPSILON>();
 	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
+	/* The kernel wants each array passed separately, but we should not dereference
+	   vertPos if it's NULL (i.e. in the non-SA case); to make the kernel invocation
+	   slightly cleaner, we check this now.
+	   TODO FIXME A _much_ cleaner solution would be to assemble a param struct,
+	   as we do for forces
+	 */
+	const float2 *vertPos0 = vertPos ? vertPos[0] : NULL;
+	const float2 *vertPos1 = vertPos ? vertPos[1] : NULL;
+	const float2 *vertPos2 = vertPos ? vertPos[2] : NULL;
 
 	const float4 *forces = bufread->getData<BUFFER_FORCES>();
 	const float2 *contupd = bufread->getData<BUFFER_CONTUPD>();
 	const float3 *keps_dkde = bufread->getData<BUFFER_DKDE>();
 	const float4 *xsph = bufread->getData<BUFFER_XSPH>();
+
+	// The following two arrays are update in case ENABLE_DENSITY_SUM is set
+	// so they are taken from the non-const bufreadUpdate
+	float4  *oldVel = bufreadUpdate->getData<BUFFER_VEL>();
+	float4 *oldgGam = bufreadUpdate->getData<BUFFER_GRADGAMMA>();
 
 	float4 *newPos = bufwrite->getData<BUFFER_POS>();
 	float4 *newVel = bufwrite->getData<BUFFER_VEL>();
@@ -126,13 +157,13 @@ basicstep(
 	// boundary elements are updated in-place; only used for rotation in the second step
 	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
-#define ARGS oldPos, particleHash, oldVel, oldVol, oldEulerVel, oldgGam, oldTKE, oldEps, \
-	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newVol, newEulerVel, newgGam, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t
+#define ARGS oldPos, particleHash, neibsList, cellStart, oldVel, oldVol, oldEulerVel, oldgGam, oldTKE, oldEps, vertPos0, vertPos1, vertPos2,\
+	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newVol, newEulerVel, newgGam, newTKE, newEps, newBoundElement, particleRangeEnd, step, dt, dt2, t, slength, influenceradius
 
 	if (step == 1) {
-		cueuler::eulerDevice<1, xsphcorr, sph_formulation, boundarytype><<< numBlocks, numThreads >>>(ARGS);
+		cueuler::eulerDevice<sph_formulation, boundarytype, kerneltype, simflags><<< numBlocks, numThreads >>>(ARGS);
 	} else if (step == 2) {
-		cueuler::eulerDevice<2, xsphcorr, sph_formulation, boundarytype><<< numBlocks, numThreads >>>(ARGS);
+		cueuler::eulerDevice<sph_formulation, boundarytype, kerneltype, simflags><<< numBlocks, numThreads >>>(ARGS);
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}
@@ -140,7 +171,7 @@ basicstep(
 #undef ARGS
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Euler kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 };

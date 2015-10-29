@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -104,10 +104,6 @@ setconstants(	const SimParams *simparams,		// pointer to simulation parameters s
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum, &simparams->maxneibsnum, sizeof(uint)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
-
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_cellSize, &cellSize, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
 /// Download maximum number of neighbors
@@ -181,7 +177,7 @@ calcHash(float4		*pos,					// particle's positions (in, out)
 		(pos, particleHash, particleIndex, particleInfo, compactDeviceMap, numParticles);
 
 	// Check if kernel invocation generated an error
-	CUT_CHECK_ERROR("CalcHash kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 
@@ -208,7 +204,7 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
 				particleInfo, compactDeviceMap, numParticles);
 
 	// Check if kernel invocation generated an error
-	CUT_CHECK_ERROR("FixHash kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 
@@ -216,7 +212,7 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
 /*!	CPU part responsible of launching the reorder kernel
  * 	(cuneibs::reorderDataAndFindCellStartDevice) on the device.
  * 	\param[out] cellStart : index of cells first particle
- * 	\param[out] cellStart : index of cells last particle
+ * 	\param[out] cellEnd : index of cells last particle
  * 	\param[out] segmentStart : TODO
  * 	\param[in] particleHash : sorted particle hashes
  * 	\param[in] particleIndex : sorted particle indices
@@ -297,7 +293,7 @@ reorderDataAndFindCellStart(
 		newEulerVel, particleHash, particleIndex, numParticles, newNumParticles);
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
+	KERNEL_CHECK_ERROR;
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -343,7 +339,7 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 
 	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
 
-	CUT_CHECK_ERROR("thrust sort failed");
+	KERNEL_CHECK_ERROR;
 }
 
 
@@ -402,13 +398,13 @@ const	float		boundNlSqInflRad)
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 	}
 
-	buildneibs_params<boundarytype == SA_BOUNDARY> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+	buildneibs_params<boundarytype> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
 			vertPos, vertIDToIndex, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");
+	KERNEL_CHECK_ERROR;
 
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));

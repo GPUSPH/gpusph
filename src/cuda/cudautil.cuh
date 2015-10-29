@@ -7,12 +7,4 @@
 
 cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devnum);
 
-cudaDeviceProp checkCUDA(const Options&);
-
-void allocateArray(void **devPtr, size_t size);
-
-void freeArray(void *devPtr);
-
-void threadSync();
-
 #endif

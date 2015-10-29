@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,7 +34,9 @@
 #include <cmath>
 
 // we use CUDA types and host/device specifications here
-#include "cuda_runtime.h"
+#include <cuda_runtime.h>
+
+#include "common_types.h" // ushort
 
 // vertex info
 typedef uint4 vertexinfo;
@@ -95,52 +97,56 @@ enum ParticleFlag {
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
 #define QUERY_FLAG(info, flag) ((info).x & (flag))
 
-/* Bitmasks to select only the particle type or flags */
+/// Bitmasks to select only the particle type or flags
 #define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-1)
 #define PART_FLAGS_MASK	(((1<<16)-1) - PART_TYPE_MASK)
 
 /* Extract a specific subfield from the particle type: */
-// Extract particle type
+/// Extract particle type
 #define PART_TYPE(f)		(type(f) & PART_TYPE_MASK)
-// Extract particle flags
+/// Extract particle flags
 #define PART_FLAGS(f)		(type(f) & PART_FLAGS_MASK)
 
 /* Tests for particle types */
 
-/* A particle is NOT fluid if its particle type is non-zero */
-#define NOT_FLUID(f)	((type(f) & PART_TYPE_MASK) > PT_FLUID)
-/* otherwise it's fluid */
-#define FLUID(f)		((type(f) & PART_TYPE_MASK) == PT_FLUID)
+/// A particle is NOT fluid if its particle type is non-zero
+#define NOT_FLUID(f)	(PART_TYPE(f) > PT_FLUID)
+/// otherwise it's fluid
+#define FLUID(f)		(PART_TYPE(f) == PT_FLUID)
 
-// Testpoints
+/// Check if particle is a testpoint
 #define TESTPOINT(f)	(PART_TYPE(f) == PT_TESTPOINT)
-// Boundary particle
+/// Check if particle is a boundary particle
 #define BOUNDARY(f)		(PART_TYPE(f) == PT_BOUNDARY)
-// Vertex particle
+/// Check if particle is a vertex particle
 #define VERTEX(f)		(PART_TYPE(f) == PT_VERTEX)
 
 /* Tests for particle flags */
 
-// Free surface detection
+/// Particle is on the free surface
 #define SURFACE(f)		(type(f) & FG_SURFACE)
 
-// If one of these flag is set the object is and open boundary
+/// A particle belongs to an open boundary if it has the FG_INLET or FG_OUTET
+/// flags set
 #define IO_BOUNDARY(f)	(type(f) & (FG_INLET | FG_OUTLET))
-// If this flag is set the normal velocity is imposed at an open boundary
-// if it is not set the pressure is imposed instead
+/// The FG_VELOCITY_DRIVEN flag is set for open boundaries that impose
+/// the normal velocity. Otherwise, pressure is imposed.
 #define VEL_IO(f)		(type(f) & FG_VELOCITY_DRIVEN)
-// If vel_io is not set then we have a pressure inlet
 #define PRES_IO(f)		(!VEL_IO(f))
-// If this flag is set then a particle at an open boundary will have a non-varying mass but still
-// be treated like an open boundary particle apart from that. This avoids having to span new particles
-// very close to the side wall which causes problems
+
+/// FG_CORNER flag is set for open boundary particles at corners, which behave like
+/// open boundary particles for all intents and purposes, except that their mass doesn't
+/// vary and they do not produce particles. This avoids having to spawn new particles
+/// very close to the side wall which causes problems
 #define CORNER(f)		(type(f) & FG_CORNER)
 
-// This flag is set for moving vertices / segments either forced or free (floating)
+/// Check if particle belongs to a moving object or boundary (either with imposed motion
+/// or free (floating)
 #define MOVING(f)		(type(f) & FG_MOVING_BOUNDARY)
-// This flag is set for particles belonging to a floating body
+/// Check if particle belongs to a floating body
 #define FLOATING(f)		(type(f) & (FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE))
-// This flag is set for particles belonging to a moving body on which we want to compute reaction force
+/// Check if this particle belongs to a moving body for which we want to compute the
+/// force feedback (force exherted by the fluid on the object)
 #define COMPUTE_FORCE(f)	(type(f) & FG_COMPUTE_FORCE)
 
 // fluid particles can be active or inactive. Particles are marked inactive under appropriate
@@ -151,11 +157,11 @@ enum ParticleFlag {
 // in the position/mass field. Specifically, a particle is marked inactive by setting its
 // mass to Not-a-Number.
 
-// a particle is active if its mass is finite
+/// a particle is active if its mass is finite
 #define ACTIVE(p)	(isfinite((p).w))
 #define INACTIVE(p)	(!ACTIVE(p))
 
-// disable a particle by zeroing its mass
+/// disable a particle by setting its mass to Not-A-Number
 inline __host__ __device__ void
 disable_particle(float4 &pos) {
 	pos.w = NAN;
@@ -212,8 +218,7 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
 	/* Automatic interpretation of obj_or_fnum */
 	if (obj_or_fnum > OBJECT_NUM_MASK)
 		v.y = obj_or_fnum;
-	else if ((type & PART_TYPE_MASK) > PT_FLUID /* not fluid */
-		&& (type & NEEDS_OBJECT_NUM)) /* needs an object number */
+	else if (type & NEEDS_OBJECT_NUM) /* needs an object number */
 		v.y = SET_OBJECT_NUM(obj_or_fnum);
 	else
 		v.y = SET_FLUID_NUM(obj_or_fnum);
@@ -228,7 +233,7 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
  *	the fluid number *and* the object number. It does not check nor set any particle flag,
  *  so setting them after creating the particleinfo is allowed.
  */
-inline __host__ particleinfo make_particleinfo_by_ids(const ushort &type, const ushort &fluid_number,
+inline __host__ __device__ particleinfo make_particleinfo_by_ids(const ushort &type, const ushort &fluid_number,
 	const ushort &object_number, const uint &id)
 {
 	particleinfo v;

@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -54,36 +54,36 @@ Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	// SPH parameters
-	m_simparams->dt = 0.00004f;
-	m_simparams->dtadaptfactor = 0.2;
-	m_simparams->buildneibsfreq = 10;
-	m_simparams->tend=10.0f;
-	m_simparams->gcallback=true;
+	simparams()->dt = 0.00004f;
+	simparams()->dtadaptfactor = 0.2;
+	simparams()->buildneibsfreq = 10;
+	simparams()->tend=10.0f;
+	simparams()->gcallback=true;
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f); //must be set first
-	float g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81f); //must be set first
+	float g = length(physparams()->gravity);
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);
 
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams->dcoeff = 5.0f*g*H;
-	m_physparams->r0 = m_deltap;
+	physparams()->dcoeff = 5.0f*g*H;
+	physparams()->r0 = m_deltap;
 
 	// BC when using MK boundary condition: Coupled with m_simsparams->boundarytype=MK_BOUNDARY
 	#define MK_par 2
-	m_physparams->MK_K = g*H;
-	m_physparams->MK_d = 1.1*m_deltap/MK_par;
-	m_physparams->MK_beta = MK_par;
+	physparams()->MK_K = g*H;
+	physparams()->MK_d = 1.1*m_deltap/MK_par;
+	physparams()->MK_beta = MK_par;
 	#undef MK_par
 
 	set_kinematic_visc(0, 5.0e-6f);
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
-	// Variable gravity terms:  starting with m_physparams->gravity as defined above
+	// Variable gravity terms:  starting with physparams()->gravity as defined above
 	m_gtstart=0.3;
 	m_gtend=3.0;
 
@@ -110,10 +110,10 @@ void Seiche::release_memory(void)
 float3 Seiche::g_callback(const double t)
 {
 	if(t > m_gtstart && t < m_gtend)
-		m_physparams->gravity=make_float3(2.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);
+		physparams()->gravity=make_float3(2.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);
 	else
-		m_physparams->gravity=make_float3(0.,0.,-9.81f);
-	return m_physparams->gravity;
+		physparams()->gravity=make_float3(0.,0.,-9.81f);
+	return physparams()->gravity;
 }
 
 
@@ -127,7 +127,7 @@ int Seiche::fill_parts()
 
 	experiment_box = Cube(Point(0, 0, 0), l, w, h);
 	Cube fluid = Cube(Point(wd, wd, wd), l-2*wd, w-2*wd, H-2*wd);
-	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 	// InnerFill puts particle in the center of boxes of step m_deltap, hence at
 	// m_deltap/2 from the sides, so the total distance between particles and walls
 	// is m_deltap = r0
@@ -162,7 +162,7 @@ void Seiche::copy_to_array(BufferList &buffers)
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
@@ -172,7 +172,7 @@ void Seiche::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 	//	vel[i] = make_float4(0, 0, 0, rho);
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i] = make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	//	float rho = density(H - pos[i].z,0);

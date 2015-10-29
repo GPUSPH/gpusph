@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,31 +34,26 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 {
 	use_side_walls = get_option("sidewalls", true);
 
-	if (use_side_walls) {
-		SETUP_FRAMEWORK(
-			//viscosity<ARTVISC>,
-			viscosity<KINEMATICVISC>,
-			boundary<DYN_BOUNDARY>,
-			periodicity<PERIODIC_X>);
-	} else {
-		SETUP_FRAMEWORK(
-			//viscosity<ARTVISC>,
-			viscosity<KINEMATICVISC>,
-			boundary<DYN_BOUNDARY>,
-			periodicity<PERIODIC_XY>);
-	}
+	SETUP_FRAMEWORK(
+		//viscosity<ARTVISC>,
+		viscosity<KINEMATICVISC>,
+		boundary<DYN_BOUNDARY>,
+		periodicity<PERIODIC_X>
+	).select_options(
+		use_side_walls, periodicity<PERIODIC_XY>()
+	);
 
 	// SPH parameters
 	set_deltap(0.02f);
-	m_simparams->dt = 0.00004f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 10;
-	m_simparams->tend = 20;
+	simparams()->dt = 0.00004f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 10;
+	simparams()->tend = 20;
 
 	H = 0.5; // water level
 
-	if (m_simparams->boundarytype == DYN_BOUNDARY) {
-		dyn_layers = ceil(m_simparams->influenceRadius/m_deltap) + 1;
+	if (simparams()->boundarytype == DYN_BOUNDARY) {
+		dyn_layers = ceil(simparams()->influenceRadius/m_deltap) + 1;
 		// no extra offset in the X direction, since we have periodicity there
 		// no extra offset in the Y direction either if we do NOT have side walls
 		dyn_offset = dyn_layers*make_double3(0,
@@ -72,7 +67,7 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 	// Size and origin of the simulation domain
 	a = 1.0;
 	h = H*1.4;
-	l = 15*m_simparams->influenceRadius;
+	l = 15*simparams()->influenceRadius;
 
 	m_size = make_double3(l, a, h) + 2*dyn_offset;
 	m_origin = make_double3(0.0, 0.0, 0.0) - dyn_offset;
@@ -80,17 +75,17 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 	// Physical parameters
 	const double angle = 4.5; // angle in degrees
 	const float g = 9.81f;
-	m_physparams->gravity = make_float3(g*sin(M_PI*angle/180), 0.0, -g*cos(M_PI*angle/180));
+	physparams()->gravity = make_float3(g*sin(M_PI*angle/180), 0.0, -g*cos(M_PI*angle/180));
 
 	add_fluid(2650.0f);
 	set_equation_of_state(0,  2.0f, 20.f);
 	set_dynamic_visc(0, 110.f);
 
-	m_physparams->dcoeff = 5.0f*g*H;
+	physparams()->dcoeff = 5.0f*g*H;
 
-	m_physparams->r0 = m_deltap;
+	physparams()->r0 = m_deltap;
 
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// Drawing and saving times
@@ -116,7 +111,7 @@ void OpenChannel::release_memory(void)
 
 int OpenChannel::fill_parts()
 {
-	const float r0 = m_physparams->r0;
+	const float r0 = physparams()->r0;
 	// gap due to periodicity
 	const double3 periodicity_gap = make_double3(m_deltap/2,
 		use_side_walls ? 0 : m_deltap/2, 0);
@@ -149,13 +144,13 @@ int OpenChannel::fill_parts()
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
 
-	rect1.SetPartMass(r0, m_physparams->rho0[0]);
+	rect1.SetPartMass(r0, physparams()->rho0[0]);
 	if (use_side_walls) {
-		rect2.SetPartMass(r0, m_physparams->rho0[0]);
-		rect3.SetPartMass(r0, m_physparams->rho0[0]);
+		rect2.SetPartMass(r0, physparams()->rho0[0]);
+		rect3.SetPartMass(r0, physparams()->rho0[0]);
 	}
 
-	if (m_simparams->boundarytype == DYN_BOUNDARY) {
+	if (simparams()->boundarytype == DYN_BOUNDARY) {
 		rect1.FillIn(boundary_parts, m_deltap, dyn_layers);
 		if (use_side_walls) {
 			rect2.FillIn(boundary_parts, m_deltap, dyn_layers);
@@ -169,7 +164,7 @@ int OpenChannel::fill_parts()
 		}
 	}
 
-	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 
 	return parts.size() + boundary_parts.size();
@@ -184,7 +179,7 @@ void OpenChannel::copy_to_array(BufferList &buffers)
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY,0,i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
@@ -192,7 +187,7 @@ void OpenChannel::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_FLUID,0,i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}

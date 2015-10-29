@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -485,10 +485,19 @@ float4 make_float4(const Point &pt)
 	return make_float4(float(pt(0)), float(pt(1)), float(pt(2)), float(pt(3)));
 }
 
+double4 make_double4(const Point &pt)
+{
+	return make_double4(pt(0), pt(1), pt(2), pt(3));
+}
 
 float3 make_float3(const Point &pt)
 {
 	return make_float3(float(pt(0)), float(pt(1)), float(pt(2)));
+}
+
+double3 make_double3(const Point &pt)
+{
+	return make_double3(pt(0), pt(1), pt(2));
 }
 
 
