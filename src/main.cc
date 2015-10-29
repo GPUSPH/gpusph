@@ -66,7 +66,7 @@ void show_version()
 // TODO: cleanup, no exit
 void print_usage() {
 	show_version();
-	std::cout << "Syntax: " << endl;
+	std::cout << "Syntax: " << std::endl;
 	std::cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
 	std::cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	std::cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";

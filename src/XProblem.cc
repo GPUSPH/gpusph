@@ -181,7 +181,7 @@ bool XProblem::initialize()
 
 		// store highest fluid part Z coordinate
 		if (m_geometries[g]->type == GT_FLUID) {
-			if (!isfinite(highest_water_part) || currMax(2) > highest_water_part)
+			if (!std::isfinite(highest_water_part) || currMax(2) > highest_water_part)
 				highest_water_part = currMax(2);
 		}
 
@@ -242,12 +242,12 @@ bool XProblem::initialize()
 	}
 
 	// set computed world origin and size without overriding possible user choices
-	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
-	if (!isfinite(m_origin.y)) m_origin.y = globalMin(1);
-	if (!isfinite(m_origin.z)) m_origin.z = globalMin(2);
-	if (!isfinite(m_size.x)) m_size.x = globalMax(0) - globalMin(0);
-	if (!isfinite(m_size.y)) m_size.y = globalMax(1) - globalMin(1);
-	if (!isfinite(m_size.z)) m_size.z = globalMax(2) - globalMin(2);
+	if (!std::isfinite(m_origin.x)) m_origin.x = globalMin(0);
+	if (!std::isfinite(m_origin.y)) m_origin.y = globalMin(1);
+	if (!std::isfinite(m_origin.z)) m_origin.z = globalMin(2);
+	if (!std::isfinite(m_size.x)) m_size.x = globalMax(0) - globalMin(0);
+	if (!std::isfinite(m_size.y)) m_size.y = globalMax(1) - globalMin(1);
+	if (!std::isfinite(m_size.z)) m_size.z = globalMax(2) - globalMin(2);
 
 	// add user-defined world margin, if any
 	if (m_extra_world_margin > 0.0) {
@@ -256,16 +256,16 @@ bool XProblem::initialize()
 	}
 
 	// compute water level automatically, if not set
-	if (!isfinite(m_waterLevel)) {
+	if (!std::isfinite(m_waterLevel)) {
 		// water level: highest fluid coordinate or (absolute) domain height
-		m_waterLevel = ( isfinite(highest_water_part) ? highest_water_part : m_size.z - m_origin.z );
+		m_waterLevel = ( std::isfinite(highest_water_part) ? highest_water_part : m_size.z - m_origin.z );
 		printf("Water level not set, autocomputed: %g\n", m_waterLevel);
 	}
 
 	// ditto for max fall; approximated as (waterLevel - lowest_domain_point)
 	// NOTE: if there is no fluid geometry and both water level and maxFall are autocomputed, then
 	// water level will be equal to highest domain point and max fall to domain height
-	if (!isfinite(m_maxFall)) {
+	if (!std::isfinite(m_maxFall)) {
 		m_maxFall = m_waterLevel - globalMin(2);
 		printf("Max fall height not set, autocomputed: %g\n", m_maxFall);
 	}
@@ -274,7 +274,7 @@ bool XProblem::initialize()
 	const float g = length(physparams()->gravity);
 	physparams()->dcoeff = 5.0f * g * m_maxFall;
 
-	if (!isfinite(m_maxParticleSpeed)) {
+	if (!std::isfinite(m_maxParticleSpeed)) {
 		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
 		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
 	}
@@ -1080,9 +1080,9 @@ void XProblem::setPositioning(PositioningPolicy positioning)
 
 // Create 6 planes delimiting the box defined by the two points and update (overwrite) the world origin and size.
 // Write their GeometryIDs in planesIds, if given, so that it is possible to delete one or more of them afterwards.
-vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double3 corner2)
+std::vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double3 corner2)
 {
-	vector<GeometryID> planes;
+	std::vector<GeometryID> planes;
 
 	// compute min and max
 	double3 min, max;
@@ -1293,9 +1293,9 @@ int XProblem::fill_parts()
 			if (m_geometries[g]->handle_dynamics) {
 
 				// use custom inertia only if entirely finite (no partial overwrite)
-				if (isfinite(m_geometries[g]->custom_inertia[0]) &&
-					isfinite(m_geometries[g]->custom_inertia[1]) &&
-					isfinite(m_geometries[g]->custom_inertia[2]) ) {
+				if (std::isfinite(m_geometries[g]->custom_inertia[0]) &&
+					std::isfinite(m_geometries[g]->custom_inertia[1]) &&
+					std::isfinite(m_geometries[g]->custom_inertia[2]) ) {
 
 					// setting the main diagonal only...
 					m_geometries[g]->ptr->m_ODEMass.I[0] =  m_geometries[g]->custom_inertia[0];
@@ -1609,19 +1609,19 @@ void XProblem::copy_to_array(BufferList &buffers)
 					eulerVel[i] = make_float4(0);
 
 				// store particle mass for current type, if it was not store already
-				if (ptype == PT_FLUID && !isfinite(fluid_part_mass))
+				if (ptype == PT_FLUID && !std::isfinite(fluid_part_mass))
 					fluid_part_mass = pos[i].w;
 				else
-				if (ptype == PT_BOUNDARY && !isfinite(boundary_part_mass))
+				if (ptype == PT_BOUNDARY && !std::isfinite(boundary_part_mass))
 					boundary_part_mass = pos[i].w;
 				else
-				if (ptype == PT_VERTEX && !isfinite(vertex_part_mass))
+				if (ptype == PT_VERTEX && !std::isfinite(vertex_part_mass))
 					vertex_part_mass = pos[i].w;
 				// also set rigid_body_part_mass, which is orthogonal the the previous values
 				// TODO: with SA bounds, this value has little meaning or should be split
 				if ((m_geometries[g]->type == GT_FLOATING_BODY ||
 					 m_geometries[g]->type == GT_MOVING_BODY) &&
-					 !isfinite(rigid_body_part_mass))
+					 !std::isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
 
 				// load boundary-specific data (SA bounds only)
@@ -1740,17 +1740,17 @@ void XProblem::copy_to_array(BufferList &buffers)
 					eulerVel[i] = make_float4(0);
 
 				// store particle mass for current type, if it was not store already
-				if (ptype == PT_FLUID && !isfinite(fluid_part_mass))
+				if (ptype == PT_FLUID && !std::isfinite(fluid_part_mass))
 					fluid_part_mass = pos[i].w;
 				else
-				if (ptype == PT_BOUNDARY && !isfinite(boundary_part_mass))
+				if (ptype == PT_BOUNDARY && !std::isfinite(boundary_part_mass))
 					boundary_part_mass = pos[i].w;
 				// no else supported yet
 
 				// also set rigid_body_part_mass, which is orthogonal the the previous values
 				if ((m_geometries[g]->type == GT_FLOATING_BODY ||
 					 m_geometries[g]->type == GT_MOVING_BODY) &&
-					 !isfinite(rigid_body_part_mass))
+					 !std::isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
 
 			} // for every particle in the XYZ buffer
@@ -1779,7 +1779,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
 					eulerVel[i] = make_float4(0);
 				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
-				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
+				if (m_geometries[g]->type == GT_FLOATING_BODY && !std::isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
 				// set appropriate particle flags
 				switch (m_geometries[g]->type) {

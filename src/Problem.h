@@ -324,7 +324,7 @@ RESTORE_WARNINGS
 		/* ODE callbacks */
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		{
-			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
+			std::cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
 		}
 
 		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)

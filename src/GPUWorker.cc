@@ -1749,7 +1749,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 			}
 		}
 	} catch (std::exception &e) {
-		cerr << e.what() << endl;
+		std::cerr << e.what() << std::endl;
 		const_cast<GlobalData*>(gdata)->keep_going = false;
 	}
 
@@ -1760,7 +1760,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	} catch (std::exception &e) {
 		// if anything goes wrong here, there isn't much we can do,
 		// so just show the error and carry on
-		cerr << e.what() << endl;
+		std::cerr << e.what() << std::endl;
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
