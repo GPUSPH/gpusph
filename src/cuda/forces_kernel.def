@@ -1351,7 +1351,11 @@ visc_boundary_part<DYNAMICVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// velocity of fluid particle along the wall
-	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
+	const float3 vel_tau = as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)) -
+		(IO_BOUNDARY(ndata.info) ?
+		 make_float3(0.0f) :
+		 dot(as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)), ndata.normal_s)*ndata.normal_s
+		);
 
 	nout.DvDt -= nout.ggamAS*
 		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
@@ -1364,6 +1368,16 @@ __device__ __forceinline__ void
 visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	if (IO_BOUNDARY(ndata.info)) {
+		// velocity of fluid particle along the wall
+		const float3 vel_tau = as_float3(ndata.relVel + ndata.relEulerVel);
+
+		nout.DvDt -= nout.ggamAS*
+			(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
+			vel_tau/pdata.vel.w;
+		return;
+	}
+
 	// for boundary particles without neighbouring fluid particle k is 0 so skip
 	if(pdata.keps_k < params.epsilon)
 		return;
@@ -1496,8 +1510,7 @@ struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
 	{
 		if (BOUNDARY(ndata.info)) {
 			// boundary term of the viscous part based on a boundary segment
-			if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
-				visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
+			visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
 		}
 		else {
 			// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
