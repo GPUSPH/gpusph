@@ -281,6 +281,15 @@ RESTORE_WARNINGS
 		void add_gage(double x, double y, double z=0)
 		{ add_gage(make_double3(x, y, z)); }
 
+		/// Define a plane with equation ax + by + cz + d
+		plane_t implicit_plane(double4 const& p);
+
+		inline
+		plane_t implicit_plane(double a, double b, double c, double d)
+		{ return implicit_plane(make_double4(a, b, c, d)); }
+
+		plane_t make_plane(Point const& pt, Vector const& normal);
+
 		// set the timer tick
 		// DEPRECATED: use add_writer() with the frequency in seconds
 		void set_timer_tick(double t) DEPRECATED;
@@ -316,8 +325,7 @@ RESTORE_WARNINGS
 		virtual void copy_to_array(BufferList & ) = 0;
 		virtual void release_memory(void) = 0;
 
-		virtual uint fill_planes(void);
-		virtual void copy_planes(double4* planes);
+		virtual void copy_planes(PlaneList& planes);
 
 		/* moving boundary and gravity callbacks */
 		virtual float3 g_callback(const float t) DEPRECATED;

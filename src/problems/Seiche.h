@@ -52,9 +52,8 @@ class Seiche: public Problem {
 		virtual ~Seiche(void);
 
 		int  fill_parts(void);
-		uint fill_planes(void);
 		void copy_to_array(BufferList &);
-		void copy_planes(double4*);
+		void copy_planes(PlaneList &);
 		float3 g_callback(const double);
 
 		void release_memory(void);

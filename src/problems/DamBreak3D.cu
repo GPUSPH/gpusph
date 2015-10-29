@@ -67,7 +67,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<ARTVISC>,
 		boundary<DYN_BOUNDARY>
 	).select_options(
-		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>()
+		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
+		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
@@ -198,25 +199,20 @@ int DamBreak3D::fill_parts()
 	return parts.size() + boundary_parts.size() + obstacle_parts.size();
 }
 
-uint DamBreak3D::fill_planes()
-{
-	return (m_usePlanes ? 5 : 0);
-}
-
-void DamBreak3D::copy_planes(double4 *planes)
+void DamBreak3D::copy_planes(PlaneList &planes)
 {
 	if (!m_usePlanes) return;
 
 	// bottom
-	planes[0] = make_double4(0, 0, 1.0, -m_origin.z);
+	planes.push_back( implicit_plane(0, 0, 1, -m_origin.z) );
 	// back
-	planes[1] = make_double4(1.0, 0, 0, -m_origin.x);
+	planes.push_back( implicit_plane(1.0, 0, 0, -m_origin.x) );
 	// front
-	planes[2] = make_double4(-1.0, 0, 0, m_origin.x + lx);
+	planes.push_back( implicit_plane(-1.0, 0, 0, m_origin.x + lx) );
 	// side with smaller Y ("left")
-	planes[3] = make_double4(0, 1.0, 0, -m_origin.y);
+	planes.push_back( implicit_plane(0, 1.0, 0, -m_origin.y) );
 	// side with greater Y ("right")
-	planes[4] = make_double4(0, -1.0, 0, m_origin.y + ly);
+	planes.push_back( implicit_plane(0, -1.0, 0, m_origin.y + ly) );
 }
 
 

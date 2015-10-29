@@ -848,6 +848,11 @@ static __forceinline__ __host__ __device__ double4 make_double4(const float4& v)
 	return make_double4(v.x, v.y, v.z, v.w);
 }
 
+static __forceinline__ __host__ __device__ double4 make_double4(const double3& v, double a)
+{
+	return make_double4(v.x, v.y, v.z, a);
+}
+
 // sum
 static __forceinline__ __host__ __device__ double4 operator+(const double4 &a, const double4 &b)
 {
@@ -1174,6 +1179,20 @@ static __forceinline__ __host__ __device__ float hypot(const float4 &v)
 	float4 w=v/p;
 	return p*length(w);
 }
+
+// length of the vector, computed more robustly when the components of v
+// are significantly larger than unity
+static __forceinline__ __host__ __device__ float hypot3(const float4 &v)
+{
+	float p;
+	p = fmax(fmax(fabs(v.x), fabs(v.y)), fabs(v.z));
+	if (!p)
+		return 0;
+
+	float3 w = make_float3(v.x/p, v.y/p, v.z/p);
+	return p*length(w);
+}
+
 
 // char3 functions
 ////////////////////////////////////////////////////////////////////////////////

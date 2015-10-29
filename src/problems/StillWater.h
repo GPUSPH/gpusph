@@ -26,9 +26,8 @@ class StillWater: public Problem {
 		~StillWater(void);
 
 		int fill_parts(void);
-		uint fill_planes(void);
 		void copy_to_array(BufferList &);
-		void copy_planes(double4*);
+		void copy_planes(PlaneList &);
 
 		void release_memory(void);
 };
