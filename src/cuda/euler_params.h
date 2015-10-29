@@ -117,7 +117,9 @@ struct sa_boundary_euler_params
 			float4	*oldVelRW;
 			float4	*newEulerVel;
 			float4	*newBoundElement;
-	const	float2	*const *vertPos;
+	const	float2	*vertPos0;
+	const	float2	*vertPos1;
+	const	float2	*vertPos2;
 	const	float4	*oldEulerVel;
 	const	float	slength;
 	const	float	influenceradius;
@@ -144,7 +146,9 @@ struct sa_boundary_euler_params
 		oldVelRW(const_cast<float4*>(_oldVel)),
 		newEulerVel(_newEulerVel),
 		newBoundElement(_newBoundElement),
-		vertPos(_vertPos),
+		vertPos0(_vertPos[0]),
+		vertPos1(_vertPos[1]),
+		vertPos2(_vertPos[2]),
 		oldEulerVel(_oldEulerVel),
 		slength(_slength),
 		influenceradius(_influenceradius),
