@@ -224,6 +224,7 @@ class XProblem: public Problem {
 		// Method to add a single testpoint.
 		// NOTE: does not create a geometry since Point does not derive from Object
 		size_t addTestPoint(const Point &coordinates);
+		size_t addTestPoint(const double posx, const double posy, const double posz);
 
 		// request to invert normals while loading - only for HDF5 files
 		void flipNormals(const GeometryID gid, bool flip = true);
