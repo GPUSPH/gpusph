@@ -754,6 +754,12 @@ size_t XProblem::addTestPoint(const Point &coordinates)
 	return (m_testpointParts.size() - 1);
 }
 
+// Simple overload
+size_t XProblem::addTestPoint(const double posx, const double posy, const double posz)
+{
+	return addTestPoint(Point(posx, posy, posz));
+}
+
 // request to invert normals while loading - only for HDF5 files
 void XProblem::flipNormals(const GeometryID gid, bool flip)
 {
