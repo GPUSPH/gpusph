@@ -1104,9 +1104,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 			if (dot3(normal, relPos) < 0.0f &&
 				r < influenceradius &&
-				//FLUID(neib_info)
+				FLUID(neib_info)
 				//(FLUID(neib_info) || (!IO_BOUNDARY(info) && VERTEX(neib_info) && IO_BOUNDARY(neib_info) && !CORNER(neib_info)))
-				(FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info)))
+				//(FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info)))
 			   ){
 				const float neib_rho = oldVel[neib_index].w;
 
@@ -1464,8 +1464,8 @@ saVertexBoundaryConditions(
 			const uint neibVertYidx = vertIDToIndex[neibVerts.y];
 			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
 
-			//if (FLUID(neib_info)) {
-			if (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info))) {
+			if (FLUID(neib_info)) {
+			//if (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info))) {
 			//if (FLUID(neib_info) || (!IO_BOUNDARY(info) && VERTEX(neib_info) && IO_BOUNDARY(neib_info) && !CORNER(neib_info))) {
 				const float4 relPos = pos_corr - oldPos[neib_index];
 				//if (INACTIVE(relPos) || dot(normal, as_float3(relPos)) > 0.0f)
