@@ -1939,12 +1939,13 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		// swap changed buffers back so that read contains the new data
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 		if (clOptions->resume_fname.empty()) {
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 			// initialise gamma using a Gauss quadrature formula
 			doCommand(INIT_GAMMA);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
 			// swap GRADGAMMA buffer back so that read contains the new data
-			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
+			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
 		}
 	}
 }

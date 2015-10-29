@@ -1559,14 +1559,16 @@ initGamma(
 	const particleinfo *info = bufread->getData<BUFFER_INFO>();
 	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
 	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
-	const float4 *boundelement = bufread->getData<BUFFER_BOUNDELEMENTS>();
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
 	const float4 *oldGGam = bufread->getData<BUFFER_GRADGAMMA>();
+	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
+	const uint *vertIDToIndex = bufread->getData<BUFFER_VERTIDINDEX>();
 	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+	float4 *boundelement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
 	// execute the kernel
 	cuforces::initGamma<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(newGGam, pos, oldGGam, boundelement, vertPos[0], vertPos[1], vertPos[2], pHash, info, cellStart, neibsList, particleRangeEnd, slength, deltap, influenceradius, epsilon);
+		(newGGam, boundelement, pos, oldGGam, vertices, vertIDToIndex, vertPos[0], vertPos[1], vertPos[2], pHash, info, cellStart, neibsList, particleRangeEnd, slength, deltap, influenceradius, epsilon);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

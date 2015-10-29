@@ -1418,11 +1418,6 @@ saVertexBoundaryConditions(
 	float3 sumvel = make_float3(0.0f); // summation for the velocity on IO boundaries
 	float alpha = 0.0f; // summation of normalization for IO boundaries
 	bool foundFluid = false; // check if a vertex particle has a fluid particle in its support
-	// Average norm used in the intial step to compute grad gamma for vertex particles
-	// During the simulation this is used for open boundaries to determine whether particles are created
-	// For all other boundaries in the keps case this is the average normal of all non-open boundaries used to ensure that the
-	// Eulerian velocity is only normal to the fixed wall
-	float3 avgNorm = make_float3(0.0f);
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -1432,7 +1427,15 @@ saVertexBoundaryConditions(
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 	const float gam = oldGGam[index].w;
-	const float3 normal = normalize(as_float3(oldGGam[index]));
+	// normal:
+	// for solid walls this normal only takes the associated normals of segments into account that are solid as well
+	// for io walls this normal only takes the associated normals of segments into account that themeselves are io
+	const float3 normal = as_float3(tex1Dfetch(boundTex, index));
+	// wall normal:
+	// for corner vertices the wall normal is equal to the normal of the associated segments that belong to a solid wall
+	// at the initialization step the wall normal is computed for all vertices in order to get an approximate normal
+	// which is then used to compute grad gamma and gamma
+	float3 wallNormal = make_float3(0.0f);
 	const float sqC0 = d_sqC0[fluid_num(info)];
 
 	// Loop over all the neighbors
@@ -1503,14 +1506,10 @@ saVertexBoundaryConditions(
 				if (neibVertXidx == index || neibVertYidx == index || neibVertZidx == index) {
 					// in the initial step we need to compute an approximate grad gamma direction
 					// for the computation of gamma, in general we need a sort of normal as well
-					// for open boundaries to decide whether or not particles are created at a
-					// vertex or not, finally for k-epsilon we need the normal to ensure that the
-					// velocity in the wall obeys v.n = 0
-					if (initStep ||
-						(IO_BOUNDARY(info) && !CORNER(info)) ||
-						(oldTKE && !IO_BOUNDARY(neib_info))
-						)
-						avgNorm += as_float3(boundElement)*boundElement.w;
+					// for corner vertices this wallNormal takes only solid walls into account so
+					// that the eulerian velocity in the k-eps case is only normal to the solid wall
+					if (initStep || (CORNER(info) && !IO_BOUNDARY(neib_info)))
+						wallNormal += as_float3(boundElement)*boundElement.w;
 					// corner vertices only take solid wall segments into account
 					if (CORNER(info) && IO_BOUNDARY(neib_info))
 						continue;
@@ -1607,9 +1606,9 @@ saVertexBoundaryConditions(
 		} // BOUNDARY(neib_info) || FLUID(neib_info)
 	}
 
-	// normalize average norm
-	if (IO_BOUNDARY(info) || initStep || oldTKE)
-		avgNorm = normalize(avgNorm);
+	// normalize wall normal
+	if (CORNER(info) || initStep)
+		wallNormal = normalize(wallNormal);
 
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
@@ -1618,8 +1617,14 @@ saVertexBoundaryConditions(
 	if (oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		oldTKE[index] = sumtke/numseg;
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
-		if ((!IO_BOUNDARY(info) || CORNER(info)) && !initStep)
-			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), avgNorm)*avgNorm;
+		if (!initStep) {
+			if (CORNER(info))
+				// normal for corners is normal to the IO it belongs, so we use wallNormal which is normal
+				// to the solid wall it is adjacent to
+				as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), wallNormal)*wallNormal;
+			else if (!IO_BOUNDARY(info))
+				as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), normal)*normal;
+		}
 	}
 	if (oldEps && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info)))
 		oldEps[index] = sumeps/numseg;
@@ -1629,12 +1634,12 @@ saVertexBoundaryConditions(
 		if (alpha > 0.1f*oldGGam[index].w) {
 			sumvel /= alpha;
 			sump /= alpha;
-			const float unInt = dot(sumvel, avgNorm);
-			const float unExt = dot(as_float3(eulerVel), avgNorm);
+			const float unInt = dot(sumvel, normal);
+			const float unExt = dot(as_float3(eulerVel), normal);
 			const float rhoInt = RHO(sump, fluid_num(info));
 			const float rhoExt = eulerVel.w;
 
-			calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, avgNorm);
+			calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, normal);
 		}
 		else {
 			if (VEL_IO(info))
@@ -1732,9 +1737,9 @@ saVertexBoundaryConditions(
 
 	// finalize computation of average norm for gamma calculation in the initial step
 	if (initStep && !resume) {
-		oldGGam[index].x = avgNorm.x;
-		oldGGam[index].y = avgNorm.y;
-		oldGGam[index].z = avgNorm.z;
+		oldGGam[index].x = wallNormal.x;
+		oldGGam[index].y = wallNormal.y;
+		oldGGam[index].z = wallNormal.z;
 		oldGGam[index].w = 0.0f;
 	}
 }
@@ -1742,13 +1747,14 @@ saVertexBoundaryConditions(
 /// Compute the initial value of gamma in the semi-analytical boundary case
 /*! This function computes the initial value of \f[\gamma\f] in the semi-analytical boundary case, using a Gauss quadrature formula.
  *	\param[out] newGGam : pointer to the new value of (grad) gamma
+ *	\param[in,out] boundelement : normal of segments and of vertices (the latter is computed in this routine)
  *	\param[in] oldPos : pointer to positions and masses; masses of vertex particles are updated
  *	\param[in] oldGGam : pointer to (grad) gamma; used as an approximate normal to the boundary in the computation of gamma
  *	\param[in] vertPos[0] : relative position of the vertex 0 with respect to the segment center
  *	\param[in] vertPos[1] : relative position of the vertex 1 with respect to the segment center
  *	\param[in] vertPos[2] : relative position of the vertex 2 with respect to the segment center
- *	\param[in,out] pinfo : pointer to particle info; written only when cloning
- *	\param[in,out] particleHash : pointer to particle hash; written only when cloning
+ *	\param[in] pinfo : pointer to particle info; written only when cloning
+ *	\param[in] particleHash : pointer to particle hash; written only when cloning
  *	\param[in] cellStart : pointer to indices of first particle in cells
  *	\param[in] neibsList : neighbour list
  *	\param[in] numParticles : number of particles
@@ -1760,9 +1766,11 @@ __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 initGamma(
 						float4*			newGGam,
+						float4*			boundelement,
 				const	float4*			oldPos,
 				const	float4*			oldGGam,
-				const	float4*			boundelement,
+				const	vertexinfo*		vertices,
+				const	uint*			vertIDToIndex,
 				const	float2*			vertPos0,
 				const	float2*			vertPos1,
 				const	float2*			vertPos2,
@@ -1799,6 +1807,7 @@ initGamma(
 	float gam = 1;
 	float4 gGam = make_float4(0.f);
 	const float3 normal = as_float3(oldGGam[index]);
+	float4 newNormal = make_float4(0.0f);
 
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1817,6 +1826,23 @@ initGamma(
 			const float4 relPos = pos_corr - oldPos[neib_index];
 			if (INACTIVE(relPos))
 				continue;
+
+			// compute new normal for vertices
+			if (VERTEX(info)) {
+				// prepare ids of neib vertices
+				const vertexinfo neibVerts = vertices[neib_index];
+
+				// load the indices of the vertices
+				const uint neibVertXidx = vertIDToIndex[neibVerts.x];
+				const uint neibVertYidx = vertIDToIndex[neibVerts.y];
+				const uint neibVertZidx = vertIDToIndex[neibVerts.z];
+				if (index == neibVertXidx || index == neibVertYidx || index == neibVertZidx) {
+					if ((IO_BOUNDARY(info) && IO_BOUNDARY(neib_info)) || (!IO_BOUNDARY(info) && !IO_BOUNDARY(neib_info)))
+						newNormal += ns;
+				}
+			}
+
+			// compute gamma for all particles
 			// local coordinate system for relative positions to vertices
 			uint j = 0;
 			// Get index j for which n_s is minimal
@@ -1859,6 +1885,8 @@ initGamma(
 		}
 	}
 	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
+	newNormal = normalize3(newNormal);
+	boundelement[index] = make_float4(newNormal.x, newNormal.y, newNormal.z, boundelement[index].w);
 }
 
 /************************************************************************************************************/
