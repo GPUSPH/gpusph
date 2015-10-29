@@ -252,6 +252,9 @@ class XProblem: public Problem {
 		void rotate(const GeometryID gid, const dQuaternion quat);
 		void rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
 
+		// method for shifting an existing object
+		void shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset);
+
 		// get and customize the unfilling policy
 		IntersectionType getIntersectionType(const GeometryID gid) { return m_geometries[gid]->intersection_type; }
 		EraseOperation getEraseOperation(const GeometryID gid) { return m_geometries[gid]->erase_operation; }
