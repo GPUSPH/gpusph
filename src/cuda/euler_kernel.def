@@ -23,6 +23,323 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
+struct common_euler_particle_data
+{
+	const	uint	index;
+	const	particleinfo	info;
+	const	ParticleType	ptype;
+	const	float4	force;
+	const	int3	gridPos;
+	float4	pos;
+	float4	vel;
+	float4	velc;
+
+	__device__ __forceinline__
+	common_euler_particle_data(const uint _index, common_euler_params params) :
+		index(_index),
+		info(params.info[index]),
+		ptype(static_cast<ParticleType>(PART_TYPE(info))),
+		force(params.forces[index]),
+		gridPos(calcGridPosFromParticleHash(params.particleHash[index])),
+		pos(params.oldPos[index]),
+		vel(params.oldVel[index])
+	{}
+};
+
+struct sa_boundary_particle_data
+{
+	float4	eulerVel;
+
+	__device__ __forceinline__
+	sa_boundary_particle_data(const uint index, sa_boundary_euler_params params) :
+		eulerVel(params.oldEulerVel[index])
+	{}
+};
+
+struct xsph_particle_data
+{
+	float4	xsph;
+
+	__device__ __forceinline__
+	xsph_particle_data(const uint index, xsph_euler_params params) :
+		xsph(params.xsph[index])
+	{}
+};
+
+struct kepsvisc_particle_data
+{
+	float	keps_k;
+	float	keps_e;
+
+	__device__ __forceinline__
+	kepsvisc_particle_data(const uint index, kepsvisc_euler_params params) :
+		keps_k(params.oldTKE[index]),
+		keps_e(params.oldEps[index])
+	{}
+};
+
+struct grenier_particle_data
+{
+	float4	vol;
+
+	__device__ __forceinline__
+	grenier_particle_data(const uint index, grenier_euler_params params) :
+		vol(params.oldVol[index])
+	{}
+};
+
+/// The actual euler_params struct, which concatenates all of the above, as appropriate.
+template<KernelType _kerneltype,
+	SPHFormulation _sph_formulation,
+	BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
+struct euler_particle_data :
+	common_euler_particle_data,
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_particle_data),
+	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_particle_data),
+	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_data),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data)
+{
+	static const KernelType kerneltype = _kerneltype;
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
+	// shorthand for the type of the euler params
+	typedef euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
+
+	// determine specialization automatically based on info and params
+	__device__ __forceinline__
+	euler_particle_data(const uint _index, params_t const& params) :
+		common_euler_particle_data(_index, params),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_particle_data)(_index, params),
+		COND_STRUCT(visctype == KEPSVISC, kepsvisc_particle_data)(_index, params),
+		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_data)(_index, params),
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params)
+	{}
+};
+
+
+
+// A functor that helps to compute the velocity of particles when xsph is enabled
+template<bool xsphEnabled>
+struct compute_corrected_velocity {
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata)
+	{
+		 pdata.velc = pdata.vel + (params.step - 1)*pdata.force*params.half_dt;
+	}
+};
+
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+compute_corrected_velocity<true>::with(EP const& params, P &pdata)
+{
+	pdata.velc = pdata.vel + (params.step - 1)*pdata.force*params.half_dt;
+	pdata.velc.x += d_epsxsph*pdata.xpsh.x;
+	pdata.velc.y += d_epsxsph*pdata.xpsh.y;
+	pdata.velc.z += d_epsxsph*pdata.xpsh.z;
+}
+
+// A functor that helps to integrate density, SA or volume
+enum continuity_integration_type {
+	INTEGRATE_VOLUME,
+	INTEGRATE_SA,
+	INTEGRATE_DENSITY
+};
+
+template<enum continuity_integration_type>
+struct continuity_integration {
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, int index, float dt)
+	{
+		pdata.vel.w += dt*pdata.force.w;
+	}
+};
+
+//specialization for GRENIER formulation
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+continuity_integration<INTEGRATE_VOLUME>::with(EP const& params, P &pdata, int index, float dt)
+{
+	pdata.vol.y += dt*pdata.force.w;
+}
+
+//specialization for SA Boundary
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+continuity_integration<INTEGRATE_SA>::with(EP const& params, P &pdata, int index, float dt)
+{
+	sa_integrate_continuity_equation<EP::simflags & ENABLE_DENSITY_SUM>::template with<EP::kerneltype>(
+			params.newVel[index].w,
+			pdata.vel.w,
+			index,
+			pdata.pos,
+			pdata.velc,
+			params.oldgGam[index],
+			params.newgGam[index],
+			params.oldPos,
+			params.oldVelRW,
+			params.oldEulerVel,
+			params.forces,
+			params.info,
+			params.newBoundElement,
+			params.vertPos[0],
+			params.vertPos[1],
+			params.vertPos[2],
+			params.particleHash,
+			params.cellStart,
+			params.neibsList,
+			params.numParticles,
+			params.contupd[index],
+			pdata.force.w,
+			dt,
+			params.full_dt,
+			params.half_dt,
+			params.slength,
+			params.influenceradius,
+			params.step);
+}
+
+// A functor that helps to integrate when k-e model is enabled
+template<bool k_e_Enabled>
+struct k_e_integration {
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, int index, float dt)
+	{ /* do nothing*/ }
+};
+
+
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+k_e_integration<true>::with(EP const& params, P &pdata, int index, float dt)
+{
+	const float3 dkde = params.keps_dkde[index];
+	const float oldK = pdata.keps_k;
+	// implicit formulations of k and e
+	pdata.keps_k = (oldK + dt*dkde.x)/(1.0f + dt*pdata.keps_e/oldK);
+	pdata.keps_e = (pdata.keps_e + dt*dkde.y)/(1.0f + dt*pdata.keps_e/oldK*dkde.z);
+}
+
+// A functor that helps to update normal of boundary element, if using SA_BOUNDARY
+template<BoundaryType boundarytype>
+struct update_normals_SA {
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, int index)
+	{ /* do nothing*/ }
+};
+
+
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+update_normals_SA<SA_BOUNDARY>::with(EP const& params, P &pdata, int index)
+{
+	if (!BOUNDARY(pdata.info))
+		return;
+	const float3 normal = as_float3(params.newBoundElement[index]);
+	applyrot(&d_rbsteprot[9*object(pdata.info)], normal, params.newBoundElement[index]);
+}
+
+// A functor that helps to integrate Eulerian velocity for k-eps, if using SA_BOUNDARY
+template<BoundaryType boundarytype>
+struct integrate_eulerian_velocity_ke {
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, float dt)
+	{ /* do nothing*/ }
+};
+
+
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+integrate_eulerian_velocity_ke<SA_BOUNDARY>::with(EP const& params, P &pdata, float dt)
+{
+	if (!IO_BOUNDARY(pdata.info) || (VERTEX(pdata.info) && CORNER(pdata.info))) {
+		// this is for k-eps only. Normally forces are going to be zero
+		pdata.eulerVel += dt*pdata.force;
+	}
+	if (BOUNDARY(pdata.info))
+		params.newgGam[pdata.index] = params.oldgGam[pdata.index];
+}
+
+// A functor that helps to writes volume output, if using GRENIER formulation
+template<SPHFormulation sph_formulation>
+struct write_volume{
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, int index)
+	{ /* do nothing*/ }
+};
+
+
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+write_volume<SPH_GRENIER>::with(EP const& params, P &pdata, int index)
+{
+	pdata.vol.w = expf(pdata.vol.y)*pdata.vol.x;
+	params.newVol[index] = pdata.vol;
+}
+
+
+// A functor that helps to writes velocity output, if using SA_BOUNDARY
+template<BoundaryType boundarytype>
+struct write_velocity{
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, int index)
+	{ /* do nothing*/ }
+};
+
+
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+write_velocity<SA_BOUNDARY>::with(EP const& params, P &pdata, int index)
+{
+	params.newEulerVel[index] = pdata.eulerVel;
+}
+
+// A functor that helps to writes viscosity coefficient, if using KEPSVISC
+template<ViscosityType visctype>
+struct write_viscosity_coeff{
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, int index)
+	{ /* do nothing*/ }
+};
+
+
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+write_viscosity_coeff<KEPSVISC>::with(EP const& params, P &pdata, int index)
+{
+	params.newTKE[index] = pdata.keps_k;
+	params.newEps[index] = pdata.keps_e;
+}
+
 /* Euler kernel definitions */
 // Predictor Corrector time integration
 // - for step 1:
@@ -66,7 +383,7 @@
  *	The velocities and positions of particles belonging to a floating or
  *	moving object are update according to a rigid body movement :
  *	- positions \f$x(t + \Delta t) = x(t) + t(t + \Delta t) + \Omega(t, t + \Delta t) \times (x(t) - x_C(t)\f$
- *	- velocity field  \f$u(x, t + \Delta t) = v_l(t + \Delta t) + \frac{d\omega}{dt}(t + \Delta t)\times(x(t) - x_C(t)) \f$
+ *	- velocity field  \f$u(x, t + \Delta  t) = v_l(t + \Delta t) + \frac{d\omega}{dt}(t + \Delta t)\times(x(t) - x_C(t)) \f$
  *	where :
  *	- \f$v_l\f$ is the linear velocity
  *	- \f$\frac{d\omega}{dt}\f$ the angular velocity
@@ -105,64 +422,20 @@
  *	\tparam simflags : simulation flags
  */
 //TODO templatize vars like other kernels
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, KernelType kerneltype, flag_t simflags>
+template<KernelType kerneltype, SPHFormulation sph_formulation, BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
 __global__ void
 eulerDevice(
-	const	float4	*oldPos,			///< previous particle's position (in)
-	const	hashKey	*particleHash,		///< particle's hash (in)
-	const	neibdata	*neibsList,		///< neighbour list (in)
-	const	uint	*cellStart,			///< index first particle in cell (in)
-			float4	*oldVel,			///< previous particle's velocity (in/out)
-	const	float4	*oldVol,			///< previous particle's volume (in)
-	const	float4	*oldEulerVel,		///< previous eulerian velocities for ??? <- TODO (in)
-			float4	*oldgGam,			///< previous values of gradient of gamma (in/out)
-	const	float	*oldTKE,			///< previous values of k, for k-e model (in)
-	const	float	*oldEps,			///< previous values of e, for k-e model
-	const	float2	* vertPos0,			///< relative position of vertex 0 of a segment (in)
-	const	float2	* vertPos1,			///< relative position of vertex 1 of a segment (in)
-	const	float2	* vertPos2,			///< relative position of vertex 2 of a segment (in)
-	const	particleinfo	*info,		///< particle's information
-	const	float4	*forces,			///< derivative of particle's velocity and density (in)
-	const	float2	*contupd,			///< ?? (in)
-	const	float3	*keps_dkde,			///< derivative of ??? (in)
-	const	float4	*xsph,				///< SPH mean of velocities used for xsph correction (in)
-			float4	*newPos,			///< updated particle's position (out)
-			float4	*newVel,			///< updated particle's velocity (out)
-			float4	*newVol,			///< updated particle's voume (out)
-			float4	*newEulerVel,		///<  updated eulerian velocities for ??? <- TODO (out)
-			float4	*newgGam,			///< updated values of gradient of gamma (out)
-			float	*newTKE,			///< updated values of k, for k-e model (out)
-			float	*newEps,			///< updated values of e, for k-e model (out)
-	// boundary elements are updated in-place, only used for rotation in the second step
-			float4	*newBoundElement,	///< ??? <- TODO (in, out)
-	const	uint	numParticles,		///< total number of particles
-	const	uint	step,				///< integrator step
-	const	float	full_dt,			///< time step (dt)
-	const	float	half_dt,			///< half of time step (dt/2)
-	const	float	t,					///< simulation time
-	const	float	slength,
-	const	float	influenceradius)					///< simulation time
+	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// We use dt/2 on the first step, the actual dt on the second step
-	const float dt = (step == 1) ? half_dt : full_dt;
+	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
 
-	// Read particles data from sorted arrays
-	float4 pos = oldPos[index];		// always pos(n)
-	float4 vel = oldVel[index];		// always vel(n)
-	// TODO templatize better
-	float4 vol = oldVol ? oldVol[index] :make_float4(NAN);		// always vol(n)
-	float keps_k = oldTKE ? oldTKE[index] : NAN;	// always k(n)
-	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
-
-	const particleinfo pinfo = info[index];
-	const ParticleType ptype = static_cast<ParticleType>(PART_TYPE(pinfo));
-
-	float4 eulerVel = (oldEulerVel && IO_BOUNDARY(pinfo)) ? oldEulerVel[index] : make_float4(0.0f); // always eulerVel(n)
+	euler_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata(index, params);
 
 	do {
 		// Euler does nothing to boundary particles apart copying pos and vel
@@ -176,84 +449,40 @@ eulerDevice(
 		// TODO: complete previous comment
 		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
 		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
-		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pinfo)) )
+		if (!ACTIVE(pdata.pos) || (pdata.ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pdata.info)) )
 			break;
-
-		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
-
-		// Mean XSPH velocity, only when XSPH is active.
-		// The compiler is smart enough to actually optimize this out
-		// in the xsphcorr == false case
-		const float4 mean_vel = (simflags & ENABLE_XSPH) ? xsph[index] : make_float4(0);
 
 		// velc = vel if step == 1, but
 		// velc = vel + forces[index]*dt/2.0f if step == 2
-		const float4 velc = vel + (step - 1)*force*half_dt;
+		// in the XSPH case we also add the mean velocity (pdata.xsph)
+		compute_corrected_velocity<simflags & ENABLE_XSPH>::with(params, pdata);
 
 		// Object index
-		const int obj = object(pinfo);
+		const int obj = object(pdata.info);
 
 		// Updating particle position
-		switch (ptype) {
+		switch (pdata.ptype) {
 			case PT_FLUID:
 				// Add weighted mean_vel only in xsphcorr case.
 				// The compiler is smart enough to optimize it out
 				// in the xsphcorr == false case
-				pos.x += (velc.x + (!!(simflags & ENABLE_XSPH))*d_epsxsph*mean_vel.x)*dt;
-				pos.y += (velc.y + (!!(simflags & ENABLE_XSPH))*d_epsxsph*mean_vel.y)*dt;
-				pos.z += (velc.z + (!!(simflags & ENABLE_XSPH))*d_epsxsph*mean_vel.z)*dt;
+				pdata.pos.x += pdata.velc.x*dt;
+				pdata.pos.y += pdata.velc.y*dt;
+				pdata.pos.z += pdata.velc.z*dt;
 
 				// Grenier evolves the volume, not the density,
-				// all other evolve the density directly
-				if (sph_formulation == SPH_GRENIER) {
-					vol.y += dt*force.w;
-				} else if (boundarytype == SA_BOUNDARY) {
-					sa_integrate_continuity_equation<simflags & ENABLE_DENSITY_SUM>::template with<kerneltype>(
-						newVel[index].w,
-						vel.w,
-						index,
-						pos,
-						velc,
-						oldgGam[index],
-						newgGam[index],
-						oldPos,
-						oldVel,
-						oldEulerVel,
-						forces,
-						info,
-						newBoundElement,
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						cellStart,
-						neibsList,
-						numParticles,
-						contupd[index],
-						force.w,
-						dt,
-						full_dt,
-						half_dt,
-						slength,
-						influenceradius,
-						step);
-				} else {
-					vel.w += dt*force.w;
-					if (simflags & ENABLE_FERRARI)
-						vel.w += dt*contupd[index].x;
-				}
+				// all other evolve the density directly.
+				continuity_integration<
+					boundarytype == SA_BOUNDARY ? INTEGRATE_SA :
+					(sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
+					INTEGRATE_DENSITY)
+				>::with(params, pdata, index, dt);
 
-				as_float3(vel) += dt*as_float3(force);
+				as_float3(pdata.vel) += dt*as_float3(pdata.force);
 
 				// Updating k and e for k-e model
-				// TODO: templatize
-				if (keps_dkde) {
-					const float3 dkde = keps_dkde[index];
-					const float oldK = keps_k;
-					// implicit formulations of k and e
-					keps_k = (oldK   + dt*dkde.x)/(1.0f + dt*keps_e/oldK);
-					keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*dkde.z);
-				}
+				k_e_integration<visctype == KEPSVISC>::with(params, pdata, index, dt);
+
 				break;
 
 		/* BOUNDARY and VERTEX particles behave essentially in the same way, so they are
@@ -264,7 +493,7 @@ eulerDevice(
 		case PT_VERTEX:
 
 			// integration pos and vel for moving objects
-			if (MOVING(pinfo)) {
+			if (MOVING(pdata.info)) {
 				#ifdef _DEBUG_OBJ_FORCES_
 				if (id(pinfo) == 0 && obj == 1 && d_rblinearvel[obj].x != 0.0) {
 					printf("Euler device, object %d\n", obj);
@@ -282,45 +511,35 @@ eulerDevice(
 				// Applying rotation around center of gravity. We always have cg = cg(n). Cg behaves
 				// the same as pos and we always have pos = pos(n).
 				// relPos = x - x_cg
-				const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
-				const float3 relPos = globalDistance(gridPos, as_float3(pos),
+				const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
+				const float3 relPos = globalDistance(gridPos, as_float3(pdata.pos),
 						d_rbcgGridPos[obj], d_rbcgPos[obj]);
-				applyrot(&d_rbsteprot[9*obj], relPos, pos);
+				applyrot(&d_rbsteprot[9*obj], relPos, pdata.pos);
 
 				// Applying center of gravity translation
-				pos.x += d_rbtrans[obj].x;
-				pos.y += d_rbtrans[obj].y;
-				pos.z += d_rbtrans[obj].z;
+				pdata.pos.x += d_rbtrans[obj].x;
+				pdata.pos.y += d_rbtrans[obj].y;
+				pdata.pos.z += d_rbtrans[obj].z;
 
 				// Computing particles velocity
 				// V(P) = V(Cg) + PCg^omega
-				as_float3(vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
+				as_float3(pdata.vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
 
 				// update normal of boundary element, if using SA_BOUNDARY
-				if (boundarytype == SA_BOUNDARY && BOUNDARY(pinfo)) {
-					const float3 normal = as_float3(newBoundElement[index]);
-					applyrot(&d_rbsteprot[9*obj], normal, newBoundElement[index]);
-				}
+				update_normals_SA<boundarytype>::with(params, pdata, index);
 			}
 
 			// DYN_BOUNDARY: integrate density
 			if (boundarytype == DYN_BOUNDARY) {
-				if (sph_formulation == SPH_GRENIER) {
-					vol.y += dt*force.w;
-				} else {
-					vel.w += dt*force.w;
-				}
+				continuity_integration<
+					sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
+					INTEGRATE_DENSITY
+				>::with(params, pdata, index, dt);
 			}
 
 			// SA_BOUNDARY: integrate Eulerian velocity for k-eps
-			if (boundarytype == SA_BOUNDARY) {
-				if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
-					// this is for k-eps only. Normally forces are going to be zero
-					eulerVel += dt*force;
-				}
-				if(BOUNDARY(pinfo))
-					newgGam[index] = oldgGam[index];
-			}
+			integrate_eulerian_velocity_ke<boundarytype>::with(params, pdata, dt);
+
 			break;
 
 		case PT_TESTPOINT:
@@ -329,18 +548,11 @@ eulerDevice(
 		}
 	} while (0);
 
-	newPos[index] = pos;
-	newVel[index] = vel;
-	if (sph_formulation == SPH_GRENIER) {
-		vol.w = expf(vol.y)*vol.x;
-		newVol[index] = vol;
-	}
-	if (newEulerVel)
-		newEulerVel[index] = eulerVel;
-	if (newTKE)
-		newTKE[index] = keps_k;
-	if (newEps)
-		newEps[index] = keps_e;
+	params.newPos[index] = pdata.pos;
+	params.newVel[index] = pdata.vel;
+	write_volume<sph_formulation>::with(params, pdata, index);
+	write_velocity<boundarytype>::with(params, pdata, index);
+	write_viscosity_coeff<visctype>::with(params, pdata, index);
 }
 
 /* vi:set ft=cuda: */
