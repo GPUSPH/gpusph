@@ -1236,6 +1236,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		const float4 vel = oldVel[index];
 
+		float rSqMin = influenceradius*influenceradius;
+		uint neib_indexMin = UINT_MAX;
+		float4 relPosMin = make_float4(0.0f);
+
 		// Loop over all the neighbors
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
@@ -1247,6 +1251,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// for open boundary segments check whether this fluid particle has crossed the boundary
+			// in order to do so we try to identify the closest segment which the particle has passed
 			if (BOUNDARY(neib_info) && IO_BOUNDARY(neib_info)) {
 
 				// Compute relative position vector and distance
@@ -1257,83 +1262,70 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 				const float3 relVel = as_float3(vel - oldVel[neib_index]);
 
-				// quick check if we are behind a segment and if the segment is reasonably close by
-				// (max distance vertex to segment is deltap/2)
+				const float rSq = sqlength3(relPos);
+
+				// check if we are behind a segment
+				// additionally check if the velocity vector is pointing outwards
 				if (dot3(normal, relPos) <= 0.0f &&
-					sqlength3(relPos) < deltap*deltap &&
+					rSq < rSqMin &&
 					dot(relVel, as_float3(normal)) < 0.0f) {
-					// now check whether the normal projection is inside the triangle
-					// first get the position of the vertices local coordinate system for relative positions to vertices
-					uint j = 0;
-					// Get index j for which n_s is minimal
-					if (fabs(normal.x) > fabs(normal.y))
-						j = 1;
-					if ((1-j)*fabs(normal.x) + j*fabs(normal.y) > fabs(normal.z))
-						j = 2;
-
-					// compute the first coordinate which is a 2-D rotated version of the normal
-					const float4 coord1 = normalize(make_float4(
-						// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-						-((j==1)*normal.z) +  (j == 2)*normal.y , // -z if j == 1, y if j == 2
-						  (j==0)*normal.z  - ((j == 2)*normal.x), // z if j == 0, -x if j == 2
-						-((j==0)*normal.y) +  (j == 1)*normal.x , // -y if j == 0, x if j == 1
-						0));
-					// the second coordinate is the cross product between the normal and the first coordinate
-					const float4 coord2 = cross3(normal, coord1);
-
-					const float2 vPos0 = vertPos0[neib_index];
-					const float2 vPos1 = vertPos1[neib_index];
-					const float2 vPos2 = vertPos2[neib_index];
-
-					// relative positions of vertices with respect to the segment, normalized by h
-					float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2); // e.g. v0 = r_{v0} - r_s
-					float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2);
-					float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2);
-
-					const float4 relPosV0 = relPos - v0;
-					const float4 relPosV10 = v1 - v0;
-					const float4 relPosV20 = v2 - v0;
-
-					const float dot00 = sqlength3(relPosV10);
-					const float dot01 = dot3(relPosV10, relPosV20);
-					const float dot02 = dot3(relPosV10, relPosV0);
-					const float dot11 = sqlength3(relPosV20);
-					const float dot12 = dot3(relPosV20, relPosV0);
-
-					const float invdet = 1.0/(dot00*dot11-dot01*dot01);
-					const float u = (dot11*dot02-dot01*dot12)*invdet;
-					const float v = (dot00*dot12-dot01*dot02)*invdet;
-
-					// error measure
-					const float eps = 1e-3f*deltap;
-					// u, v are the barycentric coordinates
-					// check if fluid is inside the triangle, if not search next boundary element
-					if ( u < -eps || v < -eps || u+v > 1.0f+eps)
-						continue;
-
-					// the fluid particle found a segment so let's save it
-					// note normally vertices is empty for fluid particles so this will indicate
-					// from now on that it has to be destroyed
-					vertexinfo verts = vertices[neib_index];
-
-					// furthermore we need to save the weights beta_{a,v} to avoid using
-					// neighbours of neighbours. As the particle will be deleted anyways we
-					// just use the velocity array which we don't need anymore. The beta_{a,v}
-					// in the 3-D case are based on surface areas based on the triangle partition
-					// governed by the position of the fluid particle
-					float4 vertexWeights = make_float4(0.0f);
-					const float3 vx[3] = {as_float3(relPos - v0), as_float3(relPos - v1), as_float3(relPos - v2)};
-					getMassRepartitionFactor(vx, as_float3(normal), as_float3(vertexWeights));
-					// transfer mass to .w index as it is overwritten with the disable below
-					vertexWeights.w = pos.w;
-					oldGGam[index] = vertexWeights;
-					vertices[index] = verts;
-
-					// one segment is enough so jump out of the neighbour loop
-					break;
+					// this can only be reached if the segment is closer than all those before, so we save its distance
+					rSqMin = rSq;
+					// its relative position
+					relPosMin = relPos;
+					// and also its index
+					neib_indexMin = neib_index;
 				}
-
 			}
+		} // end neighbour loop
+
+		// if we have found a segment that was crossed and that is close by
+		if (neib_indexMin != UINT_MAX) {
+			const float4 normal = tex1Dfetch(boundTex, neib_indexMin);
+			// first get the position of the vertices local coordinate system for relative positions to vertices
+			uint j = 0;
+			// Get index j for which n_s is minimal
+			if (fabs(normal.x) > fabs(normal.y))
+				j = 1;
+			if ((1-j)*fabs(normal.x) + j*fabs(normal.y) > fabs(normal.z))
+				j = 2;
+
+			// compute the first coordinate which is a 2-D rotated version of the normal
+			const float4 coord1 = normalize(make_float4(
+				// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+				-((j==1)*normal.z) +  (j == 2)*normal.y , // -z if j == 1, y if j == 2
+				  (j==0)*normal.z  - ((j == 2)*normal.x), // z if j == 0, -x if j == 2
+				-((j==0)*normal.y) +  (j == 1)*normal.x , // -y if j == 0, x if j == 1
+				0));
+			// the second coordinate is the cross product between the normal and the first coordinate
+			const float4 coord2 = cross3(normal, coord1);
+
+			const float2 vPos0 = vertPos0[neib_indexMin];
+			const float2 vPos1 = vertPos1[neib_indexMin];
+			const float2 vPos2 = vertPos2[neib_indexMin];
+
+			// relative positions of vertices with respect to the segment, normalized by h
+			float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2); // e.g. v0 = r_{v0} - r_s
+			float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2);
+			float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2);
+
+			// the fluid particle found a segment so let's save it
+			// note normally vertices is empty for fluid particles so this will indicate
+			// from now on that it has to be destroyed
+			vertexinfo verts = vertices[neib_indexMin];
+
+			// furthermore we need to save the weights beta_{a,v} to avoid using
+			// neighbours of neighbours. As the particle will be deleted anyways we
+			// just use the velocity array which we don't need anymore. The beta_{a,v}
+			// in the 3-D case are based on surface areas based on the triangle partition
+			// governed by the position of the fluid particle
+			float4 vertexWeights = make_float4(0.0f);
+			const float3 vx[3] = {as_float3(relPosMin - v0), as_float3(relPosMin - v1), as_float3(relPosMin - v2)};
+			getMassRepartitionFactor(vx, as_float3(normal), as_float3(vertexWeights));
+			// transfer mass to .w index as it is overwritten with the disable below
+			vertexWeights.w = pos.w;
+			oldGGam[index] = vertexWeights;
+			vertices[index] = verts;
 		}
 	}
 }
