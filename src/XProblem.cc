@@ -969,6 +969,18 @@ void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot
 	rotate( gid, qXYZ );
 }
 
+void XProblem::shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset)
+{
+	if (!validGeometry(gid)) return;
+
+	if (m_geometries[gid]->type == GT_PLANE) {
+		printf("WARNING: shift is not available for planes! Ignoring\n");
+		return;
+	}
+
+	m_geometries[gid]->ptr->shift(make_double3(Xoffset, Yoffset, Zoffset));
+}
+
 void XProblem::setIntersectionType(const GeometryID gid, IntersectionType i_type)
 {
 	if (!validGeometry(gid)) return;
