@@ -147,7 +147,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	string filename;
 
 	ofstream fid;
-	filename = open_data_file(fid, "PART", next_filenum());
+	filename = open_data_file(fid, "PART", current_filenum());
 
 	// Header
 	//====================================================================================

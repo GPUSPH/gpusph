@@ -783,7 +783,6 @@ bool GPUSPH::runSimulation() {
 		// Launch specific post processing kernels (vorticity, free surface detection , ...)
 		// before writing to disk
 		if (need_write || force_write) {
-
 			//if (final_save)
 			//	printf("Issuing final save...\n");
 
@@ -847,9 +846,10 @@ bool GPUSPH::runSimulation() {
 				doCommand(DUMP, which_buffers);
 				// triggers Writer->write()
 				doWrite(force_write);
-			} else
+			} else {
 				// --nosave enabled, not final: just pretend we actually saved
-				Writer::MarkWritten(gdata->t, true);
+				Writer::FakeMarkWritten(writers, gdata->t);
+			}
 
 			// we generally want to print the current status and reset the
 			// interval performance counter when writing. However, when writing
@@ -1565,7 +1565,7 @@ void GPUSPH::doWrite(bool force)
 		m_peakParticleSpeedTime = gdata->t;
 	}
 
-	Writer::SetForced(force);
+	WriterMap writers = Writer::StartWriting(gdata->t, force);
 
 	if (numgages) {
 		for (uint g = 0 ; g < numgages; ++g) {
@@ -1575,25 +1575,18 @@ void GPUSPH::doWrite(bool force)
 				gages[g].z /= gages_W[g];
 		}
 		//Write WaveGage information on one text file
-		Writer::WriteWaveGage(gdata->t, gages);
+		Writer::WriteWaveGage(writers, gdata->t, gages);
 	}
 
 	if (gdata->problem->simparams()->numforcesbodies > 0) {
-		Writer::WriteObjectForces(gdata->t, problem->simparams()->numforcesbodies,
+		Writer::WriteObjectForces(writers, gdata->t, problem->simparams()->numforcesbodies,
 			gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque,
 			gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
 	}
 
 	if (gdata->problem->simparams()->numbodies > 0) {
-		Writer::WriteObjects(gdata->t);
+		Writer::WriteObjects(writers, gdata->t);
 	}
-
-	Writer::Write(
-		gdata->processParticles[gdata->mpi_rank],
-		gdata->s_hBuffers,
-		node_offset,
-		gdata->t, gdata->simframework->hasPostProcessEngine(TESTPOINTS));
-	Writer::MarkWritten(gdata->t);
 
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
@@ -1604,9 +1597,13 @@ void GPUSPH::doWrite(bool force)
 		physparams()->numFluids());
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
 
-	// always reset force-saving
-	if (force)
-		Writer::SetForced(false);
+	Writer::Write(writers,
+		gdata->processParticles[gdata->mpi_rank],
+		gdata->s_hBuffers,
+		node_offset,
+		gdata->t, gdata->simframework->hasPostProcessEngine(TESTPOINTS));
+
+	Writer::MarkWritten(writers, gdata->t);
 }
 
 void GPUSPH::buildNeibList()

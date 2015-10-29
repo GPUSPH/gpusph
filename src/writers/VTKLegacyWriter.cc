@@ -66,7 +66,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
 
 	ofstream fid;
-	string filename = open_data_file(fid, "PART", next_filenum());
+	string filename = open_data_file(fid, "PART", current_filenum());
 
 	// Header
 	fid << "# vtk DataFile Version 2.0\n" << m_dirname << endl;

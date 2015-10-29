@@ -55,6 +55,11 @@ static const char* WriterName[] = {
 	"HotWriter"
 };
 
+const char* Writer::Name(WriterType key)
+{
+	return WriterName[key];
+}
+
 void
 Writer::Create(GlobalData *_gdata)
 {
@@ -205,12 +210,15 @@ Writer::NeedWrite(double t)
 	return need_write;
 }
 
-void
-Writer::MarkWritten(double t, bool force)
+WriterMap
+Writer::StartWriting(double t, bool force)
 {
+	WriterMap started;
+
+	m_forced = force;
+
 	// is the common writer special?
 	bool common_special = m_writers[COMMONWRITER]->is_special();
-	bool written = false; // set to true if any writer acted
 
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
@@ -221,13 +229,66 @@ Writer::MarkWritten(double t, bool force)
 
 		Writer *writer = it->second;
 		if (writer->need_write(t) || force || m_forced) {
-			writer->mark_written(t);
-			written = true;
+			writer->start_writing();
+			started[it->first] = it->second;
 		}
 	}
 
-	if (common_special && written)
+	if (common_special && !started.empty()) {
 		m_writers[COMMONWRITER]->mark_written(t);
+	}
+
+	return started;
+}
+
+void
+Writer::MarkWritten(WriterMap writers, double t)
+{
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		it->second->mark_written(t);
+	}
+
+	if (common_special && !writers.empty())
+		m_writers[COMMONWRITER]->mark_written(t);
+
+	// clear the forced flag
+	m_forced = false;
+}
+
+void
+Writer::FakeMarkWritten(ConstWriterMap writers, double t)
+{
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+
+	ConstWriterMap::iterator it(writers.begin());
+	ConstWriterMap::iterator end(writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		Writer *writer = const_cast<Writer*>(it->second);
+		// Only call the default mark_written (which simply resets the last write
+		// time), since we didn't actually do any of the writer-specific start_writing
+		// stuff
+		writer->Writer::mark_written(t);
+	}
+
+	if (common_special && !writers.empty())
+		m_writers[COMMONWRITER]->mark_written(t);
+
+	// clear the forced flag
+	m_forced = false;
 }
 
 /* TODO FIXME C++11
@@ -237,7 +298,7 @@ Writer::MarkWritten(double t, bool force)
  */
 
 void
-Writer::Write(uint numParts, BufferList const& buffers,
+Writer::Write(WriterMap writers, uint numParts, BufferList const& buffers,
 	uint node_offset, double t, const bool testpoints)
 {
 	// is the common writer special?
@@ -248,8 +309,8 @@ Writer::Write(uint numParts, BufferList const& buffers,
 
 	ConstWriterMap have_written;
 
-	WriterMap::iterator it(m_writers.begin());
-	WriterMap::iterator end(m_writers.end());
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
 	for ( ; it != end; ++it) {
 		// skip COMMONWRITER if special
 		if (common_special && it->first == COMMONWRITER)
@@ -261,14 +322,12 @@ Writer::Write(uint numParts, BufferList const& buffers,
 			continue;
 		}
 
-		Writer *writer = it->second;
-		if (writer->need_write(t) || m_forced) {
-			writer->write(numParts, buffers, node_offset, t, testpoints);
-			have_written[it->first] = writer;
-		}
+		it->second->write(numParts, buffers, node_offset, t, testpoints);
+
+		have_written[it->first] = it->second;
 	}
 
-	if (common_special && !have_written.empty())
+	if (common_special && !writers.empty())
 		m_writers[COMMONWRITER]->write(numParts, buffers, node_offset, t, testpoints);
 
 	if (cbwriter) {
@@ -278,81 +337,66 @@ Writer::Write(uint numParts, BufferList const& buffers,
 }
 
 void
-Writer::WriteWaveGage(double t, GageList const& gage)
+Writer::WriteWaveGage(WriterMap writers, double t, GageList const& gage)
 {
 	// is the common writer special?
 	bool common_special = m_writers[COMMONWRITER]->is_special();
-	bool written = false; // set to true if any writer acted
 
-	WriterMap::iterator it(m_writers.begin());
-	WriterMap::iterator end(m_writers.end());
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
 	for ( ; it != end; ++it) {
 		// skip COMMONWRITER if special
 		if (common_special && it->first == COMMONWRITER)
 			continue;
 
-		Writer *writer = it->second;
-		if (writer->need_write(t) || m_forced) {
-			writer->write_WaveGage(t, gage);
-			written = true;
-		}
+		it->second->write_WaveGage(t, gage);
 	}
 
-	if (common_special && written)
+	if (common_special && !writers.empty())
 		m_writers[COMMONWRITER]->write_WaveGage(t, gage);
 }
 
 void
-Writer::WriteObjects(double t)
+Writer::WriteObjects(WriterMap writers, double t)
 {
 	// is the common writer special?
 	bool common_special = m_writers[COMMONWRITER]->is_special();
-	bool written = false; // set to true if any writer acted
 
-	WriterMap::iterator it(m_writers.begin());
-	WriterMap::iterator end(m_writers.end());
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
 	for ( ; it != end; ++it) {
 		// skip COMMONWRITER if special
 		if (common_special && it->first == COMMONWRITER)
 			continue;
 
-		Writer *writer = it->second;
-		if (writer->need_write(t) || m_forced) {
-			writer->write_objects(t);
-			written = true;
-		}
+		it->second->write_objects(t);
 	}
 
-	if (common_special && written)
+	if (common_special && !writers.empty())
 		m_writers[COMMONWRITER]->write_objects(t);
 }
 
 void
-Writer::WriteObjectForces(double t, uint numobjects,
+Writer::WriteObjectForces(WriterMap writers, double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques)
 {
 	// is the common writer special?
 	bool common_special = m_writers[COMMONWRITER]->is_special();
-	bool written = false; // set to true if any writer acted
 
-	WriterMap::iterator it(m_writers.begin());
-	WriterMap::iterator end(m_writers.end());
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
 	for ( ; it != end; ++it) {
 		// skip COMMONWRITER if special
 		if (common_special && it->first == COMMONWRITER)
 			continue;
 
-		Writer *writer = it->second;
-		if (writer->need_write(t) || m_forced) {
-			writer->write_objectforces(t, numobjects,
-				computedforces, computedtorques,
-				appliedforces, appliedtorques);
-			written = true;
-		}
+		it->second->write_objectforces(t, numobjects,
+			computedforces, computedtorques,
+			appliedforces, appliedtorques);
 	}
 
-	if (common_special && written)
+	if (common_special && !writers.empty())
 		m_writers[COMMONWRITER]->write_objectforces(t, numobjects,
 				computedforces, computedtorques,
 				appliedforces, appliedtorques);
@@ -441,22 +485,7 @@ Writer::last_filenum() const {
 	return ss.str();
 }
 
-string
-Writer::next_filenum()
-{
-	string ret = current_filenum();
-
-	if (m_FileCounter >= MAX_FILES) {
-		stringstream ss;
-		ss << "too many files created (> " << MAX_FILES;
-		throw runtime_error(ss.str());
-	}
-
-	m_FileCounter++;
-	return ret;
-}
-
-uint Writer::getLastFilenum() const
+uint Writer::getFilenum() const
 {
 	return m_FileCounter;
 }
