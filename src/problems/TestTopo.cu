@@ -45,7 +45,7 @@ TestTopo::TestTopo(GlobalData *_gdata) : Problem(_gdata)
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
-		add_flags<ENABLE_DEM>
+		add_flags<ENABLE_DEM | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
 	);
 
 	const char* dem_file;
@@ -147,18 +147,13 @@ int TestTopo::fill_parts()
 	return boundary_parts.size() + parts.size();
 }
 
-uint TestTopo::fill_planes()
+void TestTopo::copy_planes(PlaneList& planes)
 {
 #if USE_PLANES
-	return 4;
-#else
-	return 0;
+	std::vector<double4> box_plane( experiment_box->get_planes() );
+	for (size_t i = 0; i < box_plane.size(); ++i)
+		planes.push_back(implicit_plane(box_plane[i]));
 #endif
-}
-
-void TestTopo::copy_planes(double4 *planes)
-{
-	experiment_box->get_planes(planes);
 }
 
 void TestTopo::copy_to_array(BufferList &buffers)

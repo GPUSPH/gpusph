@@ -282,7 +282,20 @@ CommonWriter::write_simparams(ostream &out)
 	out << " open boundaries " << ED[!!(SP->simflags & ENABLE_INLET_OUTLET)] << endl;
 	out << " water depth computation " << ED[!!(SP->simflags & ENABLE_WATER_DEPTH)] << endl;
 	out << " time-dependent gravity " << ED[!!(SP->gcallback)] << endl;
-	out << " DEM: " << TF[!!(SP->simflags & ENABLE_DEM)] << endl;
+
+	const bool has_dem = !!(SP->simflags & ENABLE_DEM);
+	const bool has_planes = !!(SP->simflags & ENABLE_PLANES);
+
+	out << " geometric boundaries: " << endl;
+	out << "   DEM: " << ED[has_dem];
+	if (has_dem)
+		out << " (" << (!m_problem->get_dem() ? "NOT" : "") << "present)";
+	out << endl;
+
+	out << "   planes: " << ED[has_planes];
+	if (has_planes)
+		out << ", " << gdata->s_hPlanes.size() << " defined";
+	out << endl;
 
 	/* Iterate over enabled postprocessing engines, showing their name and options */
 	PostProcessEngineSet const& postProcs(gdata->simframework->getPostProcEngines());

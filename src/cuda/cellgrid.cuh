@@ -38,10 +38,13 @@
 
 /** \name Device constants
  *  @{ */
-__constant__ float3 d_worldOrigin;			///< Origin of the simulation domain
-__constant__ float3 d_cellSize;				///< Size of cells used for the neighbor search
-__constant__ uint3 d_gridSize;				///< Size of the simulation domain expressed in terms of cell number
+
+/* World and cell size */
+__constant__ float3	d_worldOrigin;			///< Origin of the simulation domain
+__constant__ float3	d_cellSize;				///< Size of cells used for the neighbor search
+__constant__ uint3	d_gridSize;				///< Size of the simulation domain expressed in terms of cell number
 __constant__ char3	d_cell_to_offset[27];	///< Map neibdata cell number to offset
+
 /** @} */
 
 /** \name Device functions
@@ -99,7 +102,6 @@ calcGridPosFromCellHash(const uint cellHash)
 
 	return gridPos;
 }
-
 
 /// Compute grid position from particle hash value
 /*! Compute the grid position corresponding to the given particle hash. The position

@@ -56,7 +56,7 @@ CustomTextWriter::write(uint numParts, BufferList const& buffers, uint node_offs
 	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
 
 	ofstream fid;
-	string filename = open_data_file(fid, "PART", next_filenum());
+	string filename = open_data_file(fid, "PART", current_filenum());
 
 	// Modify this part to match your requirements
 	// Writing datas

@@ -156,7 +156,7 @@ public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
 		m_neibsEngine = new CUDANeibsEngine<sph_formulation, boundarytype, periodicbound, true>();
-		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, simflags>();
+		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, visctype, simflags>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
 		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, visctype, boundarytype, simflags>::select();
@@ -186,13 +186,13 @@ protected:
 	{
 		switch (pptype) {
 		case VORTICITY:
-			return new CUDAPostProcessEngine<VORTICITY, kerneltype>(options);
+			return new CUDAPostProcessEngine<VORTICITY, kerneltype, simflags>(options);
 		case TESTPOINTS:
-			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype>(options);
+			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, simflags>(options);
 		case SURFACE_DETECTION:
-			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype>(options);
+			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, simflags>(options);
 		case CALC_PRIVATE:
-			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype>(options);
+			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, simflags>(options);
 		case INVALID_POSTPROC:
 			throw runtime_error("Invalid filter type");
 		}
@@ -481,7 +481,7 @@ public:
 
 	/// Chained selectors (for multiple overrides)
 	template<typename Switch, typename Sel2, typename Other>
-	SimFramework * select_options(int selector, Switch, Sel2 selector2, Other())
+	SimFramework * select_options(int selector, Switch, Sel2 selector2, Other)
 	{
 		switch (selector) {
 		case 0:

@@ -37,7 +37,8 @@
 Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
-		viscosity<SPSVISC>
+		viscosity<SPSVISC>,
+		flags<ENABLE_DTADAPT | ENABLE_PLANES>
 	);
 
 	addFilter(MLS_FILTER, 20);
@@ -138,18 +139,13 @@ int Seiche::fill_parts()
 	return parts.size() + boundary_parts.size();
 }
 
-uint Seiche::fill_planes()
+void Seiche::copy_planes(PlaneList& planes)
 {
-	return 5;
-}
-
-void Seiche::copy_planes(double4 *planes)
-{
-	planes[0] = make_double4(0, 0, 1.0, 0);
-	planes[1] = make_double4(0, 1.0, 0, 0);
-	planes[2] = make_double4(0, -1.0, 0, w);
-	planes[3] = make_double4(1.0, 0, 0, 0);
-	planes[4] = make_double4(-1.0, 0, 0, l);
+	planes.push_back( implicit_plane(0, 0, 1, 0) );
+	planes.push_back( implicit_plane(0, 1, 0, 0) );
+	planes.push_back( implicit_plane(0, -1, 0, w) );
+	planes.push_back( implicit_plane(1, 0, 0, 0) );
+	planes.push_back( implicit_plane(-1, 0, 0, l) );
 }
 
 

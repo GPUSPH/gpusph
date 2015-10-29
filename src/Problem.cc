@@ -47,6 +47,7 @@
 
 Problem::Problem(GlobalData *_gdata) :
 	m_problem_dir(_gdata->clOptions->dir),
+	m_dem(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_deltap(NAN),
@@ -61,6 +62,10 @@ Problem::Problem(GlobalData *_gdata) :
 bool
 Problem::initialize()
 {
+	if (simparams()->gage.size() > 0 && !m_simframework->hasPostProcessEngine(SURFACE_DETECTION)) {
+		printf("Wave gages present: force-enabling surface detection\n");
+		m_simframework->addPostProcessEngine(SURFACE_DETECTION);
+	}
 	// run post-construction functions
 	check_dt();
 	check_maxneibsnum();
@@ -474,18 +479,9 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	}
 }
 
-
-// Number of planes
-uint
-Problem::fill_planes(void)
-{
-	return 0;
-}
-
-
 // Copy planes for upload
 void
-Problem::copy_planes(double4* planes)
+Problem::copy_planes(PlaneList& planes)
 {
 	return;
 }
@@ -638,6 +634,38 @@ void
 Problem::add_gage(double3 const& pt)
 {
 	simparams()->gage.push_back(pt);
+}
+
+plane_t
+Problem::implicit_plane(double4 const& p)
+{
+	const double4 midPoint = make_double4(m_origin + m_size/2, 1.0);
+
+	plane_t plane;
+	const double norm = length3(p);
+	const double3 normal = as_double3(p)/norm;
+	plane.normal = make_float3(normal);
+
+	/* For the plane point, we pick the one closest to the center of the domain
+	 * TODO find a better logic ? */
+
+	const double midDist = dot(midPoint, p)/norm;
+	double3 planePoint = as_double3(midPoint) - midDist*normal;
+
+	calc_grid_and_local_pos(planePoint, &plane.gridPos, &plane.pos);
+
+	return plane;
+}
+
+plane_t
+Problem::make_plane(Point const& pt, Vector const& normal)
+{
+	plane_t plane;
+
+	plane.normal = make_float3(normal);
+	calc_grid_and_local_pos(make_double3(pt), &plane.gridPos, &plane.pos);
+
+	return plane;
 }
 
 std::string const&
@@ -1197,7 +1225,7 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 	int3 gridPos = calc_grid_pos(pos);
 
 	// automatically choose between long hash (cellHash + particleId) and short hash (cellHash)
-	hash = makeParticleHash( calc_grid_hash(gridPos), info );
+	hash = calc_grid_hash(gridPos);
 
 	localpos.x = float(pos(0) - m_origin.x - (gridPos.x + 0.5)*m_cellsize.x);
 	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);

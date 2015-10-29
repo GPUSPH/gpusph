@@ -220,8 +220,21 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// WARNING: particle creation in inlets also relies on this, do not disable if using inlets
 	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
 
-	// generate planes, will be allocated in allocateGlobalHostBuffers()
-	gdata->numPlanes = problem->fill_planes();
+	// generate planes
+	problem->copy_planes(gdata->s_hPlanes);
+
+	{
+		size_t numPlanes = gdata->s_hPlanes.size();
+		if (numPlanes > 0) {
+			if (!(problem->simparams()->simflags & ENABLE_PLANES))
+				throw invalid_argument("planes present but ENABLE_PLANES not specified in framework flags");
+			if (numPlanes > MAX_PLANES) {
+				stringstream err; err << "FATAL: too many planes (" <<
+					numPlanes << " > " << MAX_PLANES;
+				throw runtime_error(err.str().c_str());
+			}
+		}
+	}
 
 	// Create the Writers according to the WriterType
 	// Should be done after the last fill operation
@@ -257,33 +270,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->memString(totCPUbytes).c_str(),
 		gdata->addSeparators(gdata->allocatedParticles).c_str(),
 		gdata->addSeparators(gdata->totParticles).c_str() );
-
-	// copy planes from the problem to the shared array, if there are any,
-	// and convert them into the form requird for homogeneous accuracy
-	if (gdata->numPlanes) {
-		problem->copy_planes(gdata->s_hPlanes);
-
-		/* domain centerpoint, used to find the plane point below */
-		const double3 midPoint = problem->get_worldorigin() + problem->get_worldsize()/2;
-		for (uint i = 0; i < gdata->numPlanes; ++i) {
-			const double4 &p = gdata->s_hPlanes[i];
-			double norm = length3(p);
-			const double3 normal = as_double3(p)/norm;
-			gdata->s_hPlaneNormal[i] = make_float3(normal);
-
-			/* For the plane point, we pick the one closest to the center of the domain
-			 * TODO find a better logic ? */
-
-			/* note that to compute the distance we dot with the normal, and then
-			 * add p.w/norm, since p.w is still not normalized */
-			const double midDist = dot(midPoint, normal) + p.w/norm;
-			double3 planePoint = midPoint - midDist*normal;
-
-			problem->calc_grid_and_local_pos(planePoint,
-				gdata->s_hPlanePointGridPos + i,
-				gdata->s_hPlanePointLocalPos + i);
-		}
-	}
 
 	/* Now we either copy particle data from the Problem to the GPUSPH buffers,
 	 * or, if it was requested, we load buffers from a HotStart file
@@ -783,7 +769,6 @@ bool GPUSPH::runSimulation() {
 		// Launch specific post processing kernels (vorticity, free surface detection , ...)
 		// before writing to disk
 		if (need_write || force_write) {
-
 			//if (final_save)
 			//	printf("Issuing final save...\n");
 
@@ -847,9 +832,10 @@ bool GPUSPH::runSimulation() {
 				doCommand(DUMP, which_buffers);
 				// triggers Writer->write()
 				doWrite(force_write);
-			} else
+			} else {
 				// --nosave enabled, not final: just pretend we actually saved
-				Writer::MarkWritten(gdata->t, true);
+				Writer::FakeMarkWritten(writers, gdata->t);
+			}
 
 			// we generally want to print the current status and reset the
 			// interval performance counter when writing. However, when writing
@@ -1046,31 +1032,6 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		++iter;
 	}
 
-
-	if (gdata->numPlanes > 0) {
-		if (gdata->numPlanes > MAX_PLANES) {
-			printf("FATAL: unsupported number of planes (%u > %u)\n", gdata->numPlanes, MAX_PLANES);
-			exit(1);
-		}
-		const size_t planeSize4 = sizeof(double4) * gdata->numPlanes;
-		const size_t planeSize3 = sizeof(float3) * gdata->numPlanes; // same as for int3
-
-		gdata->s_hPlanes = new double4[gdata->numPlanes];
-		memset(gdata->s_hPlanes, 0, planeSize4);
-		totCPUbytes += planeSize4;
-
-		gdata->s_hPlaneNormal = new float3[gdata->numPlanes];
-		memset(gdata->s_hPlaneNormal, 0, planeSize3);
-
-		gdata->s_hPlanePointGridPos = new int3[gdata->numPlanes];
-		memset(gdata->s_hPlanePointGridPos, 0, planeSize3);
-
-		gdata->s_hPlanePointLocalPos = new float3[gdata->numPlanes];
-		memset(gdata->s_hPlanePointLocalPos, 0, planeSize3);
-
-		totCPUbytes += planeSize4 + 3*planeSize3;
-	}
-
 	const size_t numbodies = gdata->problem->simparams()->numbodies;
 	std::cout << "Numbodies : " << numbodies << "\n";
 	if (numbodies > 0) {
@@ -1190,12 +1151,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	}
 
 	// planes
-	if (gdata->numPlanes > 0) {
-		delete[] gdata->s_hPlanes;
-		delete[] gdata->s_hPlaneNormal;
-		delete[] gdata->s_hPlanePointGridPos;
-		delete[] gdata->s_hPlanePointLocalPos;
-	}
+	gdata->s_hPlanes.clear();
 
 	// multi-GPU specific arrays
 	if (MULTI_DEVICE) {
@@ -1552,32 +1508,25 @@ void GPUSPH::doWrite(bool force)
 		m_peakParticleSpeedTime = gdata->t;
 	}
 
-	Writer::SetForced(force);
+	WriterMap writers = Writer::StartWriting(gdata->t, force);
 
 	if (numgages) {
 		for (uint g = 0 ; g < numgages; ++g) {
 			gages[g].z /= gage_parts[g];
 		}
 		//Write WaveGage information on one text file
-		Writer::WriteWaveGage(gdata->t, gages);
+		Writer::WriteWaveGage(writers, gdata->t, gages);
 	}
 
 	if (gdata->problem->simparams()->numforcesbodies > 0) {
-		Writer::WriteObjectForces(gdata->t, problem->simparams()->numforcesbodies,
+		Writer::WriteObjectForces(writers, gdata->t, problem->simparams()->numforcesbodies,
 			gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque,
 			gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
 	}
 
 	if (gdata->problem->simparams()->numbodies > 0) {
-		Writer::WriteObjects(gdata->t);
+		Writer::WriteObjects(writers, gdata->t);
 	}
-
-	Writer::Write(
-		gdata->processParticles[gdata->mpi_rank],
-		gdata->s_hBuffers,
-		node_offset,
-		gdata->t, gdata->simframework->hasPostProcessEngine(TESTPOINTS));
-	Writer::MarkWritten(gdata->t);
 
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
@@ -1588,9 +1537,13 @@ void GPUSPH::doWrite(bool force)
 		physparams()->numFluids());
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
 
-	// always reset force-saving
-	if (force)
-		Writer::SetForced(false);
+	Writer::Write(writers,
+		gdata->processParticles[gdata->mpi_rank],
+		gdata->s_hBuffers,
+		node_offset,
+		gdata->t, gdata->simframework->hasPostProcessEngine(TESTPOINTS));
+
+	Writer::MarkWritten(writers, gdata->t);
 }
 
 void GPUSPH::buildNeibList()
@@ -1598,8 +1551,16 @@ void GPUSPH::buildNeibList()
 	// run most of the following commands on all particles
 	gdata->only_internal = false;
 
+	doCommand(SWAP_BUFFERS, BUFFER_POS);
 	doCommand(CALCHASH);
+	// restore POS back in the READ position,
+	// and put INFO into the WRITE position as it will be
+	// reoreded by the SORT
+	doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_INFO);
+	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
+	// in-place in WRITE
 	doCommand(SORT);
+	// reorder everything else
 	doCommand(REORDER);
 
 	// get the new number of particles: with inlet/outlets, they
