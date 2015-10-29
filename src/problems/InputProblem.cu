@@ -27,24 +27,24 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+			add_flags<ENABLE_FERRARI>
 		);
 
 		set_deltap(0.01833f);
 
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
+		physparams()->kinematicvisc = 1.0e-2f;
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 
-		m_simparams->tend = 5.0;
-		m_simparams->testpoints = true;
-		m_simparams->csvtestpoints = true;
-		m_simparams->surfaceparticle = true;
+		simparams()->tend = 5.0;
+		simparams()->testpoints = true;
+		simparams()->csvtestpoints = true;
+		simparams()->surfaceparticle = true;
 		H = 0.55;
 		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 		m_origin = make_double3(-0.01, -0.01, -0.01);
-		m_simparams->ferrariLengthScale = 0.161f;
-		m_physparams->set_density(0, 1000.0, 7.0f, 130.0f);
-		m_simparams->maxneibsnum = 240;
+		simparams()->ferrariLengthScale = 0.161f;
+		physparams()->set_density(0, 1000.0, 7.0f, 130.0f);
+		simparams()->maxneibsnum = 240;
 	//*************************************************************************************
 
 	//Box (Dambreak)
@@ -61,24 +61,25 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+			add_flags<ENABLE_FERRARI | ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.125f);
 
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 
-		m_simparams->tend = 5.0;
+		simparams()->tend = 5.0;
 		addPostProcess(SURFACE_DETECTION);
 		addPostProcess(TESTPOINTS);
-		m_simparams->csvtestpoints = true;
+		simparams()->csvtestpoints = true;
 		H = 1.0;
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
-		m_simparams->ferrariLengthScale = 1.0f;
+		//simparams()->ferrariLengthScale = 1.0f;
+		simparams()->ferrari = 1.0f;
 		size_t water = add_fluid(1000.0);
 		set_equation_of_state(water,  7.0f, 60.f);
-		set_kinematic_visc(0, 1.0e-2f);
+		set_kinematic_visc(water, 1.0e-2f);
 		addPostProcess(CALC_PRIVATE);
 	//*************************************************************************************
 
@@ -87,23 +88,26 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlow
 		h5File.setFilename("meshes/0.small_channel.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_XY>,
+			kernel<WENDLAND>,
+			add_flags<ENABLE_FERRARI>
+		);
+
 		set_deltap(0.0625f);
+		simparams()->tend = 100.0;
+		simparams()->ferrari = 1.0f;
 
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(8.0*m_physparams->kinematicvisc, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 10.0f);
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 10.0f);
+		set_kinematic_visc(water, 1.0e-2f);
 
-		m_simparams->tend = 100.0;
-		m_simparams->periodicbound = PERIODIC_XY;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
 		H = 1.0;
 		l = 1.0; w = 1.0; h = 1.02;
-		m_simparams->ferrariLengthScale = 0.5f;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
-		m_simparams->calcPrivate = true;
+		physparams()->gravity = make_float3(8.0*physparams()->kinematicvisc[water], 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowKEPS (a small channel flow for debugging the k-epsilon model)
@@ -111,26 +115,31 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS
 		h5File.setFilename("meshes/0.small_channel_keps.h5sph");
 
-		m_simparams->sfactor=2.0f;
+		SETUP_FRAMEWORK(
+			viscosity<KEPSVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_XY>,
+			kernel<WENDLAND>,
+			add_flags<ENABLE_FERRARI>
+		);
+
+		simparams()->sfactor=2.0f;
 		set_deltap(0.05f);
+		simparams()->tend = 100.0;
+		simparams()->ferrariLengthScale = 1.0f;
 
 		// turbulent (as in agnes' paper)
-		m_physparams->kinematicvisc = 1.5625e-3f;
-		m_simparams->visctype = KEPSVISC;
-		m_physparams->gravity = make_float3(1.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 200.0f);
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 200.0f);
+		set_kinematic_visc(water, 1.5625e-3f);
 
-		m_simparams->tend = 100.0;
-		m_simparams->periodicbound = PERIODIC_XY;
-		m_simparams->testpoints = true;
-		m_simparams->csvtestpoints = true;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
+		addPostProcess(SURFACE_DETECTION);
+		addPostProcess(TESTPOINTS);
+
 		H = 2.0;
 		l = 0.8; w = 0.8; h = 2.02;
-		m_simparams->ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.4, -0.4, -1.01);
-		m_simparams->calcPrivate = false;
+		physparams()->gravity = make_float3(1.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowIO (a small channel flow for debugging in/outflow)
@@ -138,50 +147,66 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIO
 		h5File.setFilename("meshes/0.small_channel_io_walls.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
 		set_deltap(0.2f);
+		simparams()->maxneibsnum = 220;
+		simparams()->tend = 100.0;
+		simparams()->ferrariLengthScale = 1.0f;
 
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 10.0f);
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 10.0f);
+		set_kinematic_visc(water, 1.0e-2f);
 
-		m_simparams->tend = 100.0;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
 		H = 2.0;
 		l = 2.1; w = 2.1; h = 2.1;
 		m_origin = make_double3(-1.05, -1.05, -1.05);
-		m_simparams->ferrariLengthScale = 1.0f;
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
-		m_simparams->maxneibsnum = 220;
+		physparams()->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowIOPer (a small channel flow for debugging in/outflow with periodicity)
 	//*************************************************************************************
-#elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+      SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
 		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
 
-		m_simparams->sfactor=1.3f;
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+#else
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+#endif
+		);
+
+		simparams()->sfactor=1.3f;
 		set_deltap(0.05f);
+		simparams()->tend = 10.0;
+		simparams()->ferrari = 1.0f;
 
-		m_physparams->kinematicvisc = 1.0e-1f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 10.0f);
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 10.0f);
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+		set_equation_of_state(water, 7.0f, 50.0f);
+#endif
+		set_kinematic_visc(water, 1.0e-1f);
 
-		m_simparams->tend = 10.0;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
-		m_simparams->periodicbound = PERIODIC_Y;
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
-		m_simparams->ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
+		physparams()->gravity = make_float3(0.0, 0.0, 0.0f);
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+		physparams()->gravity = make_float3(1.0, 0.0, -9.759f);
+#endif
 	//*************************************************************************************
 
 	//SmallChannelFlowIOKeps (a small channel flow for debugging in/outflow with keps)
@@ -189,25 +214,27 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
 
-		m_simparams->sfactor=1.3f;
+		SETUP_FRAMEWORK(
+			viscosity<KEPSVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
+		simparams()->sfactor=1.3f;
 		set_deltap(0.05f);
+		simparams()->tend = 10.0;
+		simparams()->ferrariLengthScale = 1.0f;
 
-		m_physparams->kinematicvisc = 1.5625e-3f;
-		m_simparams->visctype = KEPSVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 200.0f);
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 200.0f);
+		set_kinematic_visc(water, 1.5625e-3f);
 
-		m_simparams->tend = 10.0;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
-		m_simparams->periodicbound = PERIODIC_Y;
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
-		m_simparams->ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
+		physparams()->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//IOWithoutWalls (i/o between two plates without walls)
@@ -215,24 +242,26 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
 		h5File.setFilename("meshes/0.io_without_walls.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_YZ>,
+			kernel<WENDLAND>,
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
 		set_deltap(0.2f);
+		simparams()->tend = 100.0;
+		simparams()->ferrari = 1.0f;
 
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 10.0f);
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 10.0f);
+		set_kinematic_visc(water, 1.0e-2f);
 
-		m_simparams->tend = 100.0;
-		m_simparams->periodicbound = PERIODIC_YZ;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
 		H = 2.0;
 		l = 2.2; w = 2.0; h = 2.0;
 		m_origin = make_double3(-1.1, -1.0, -1.0);
-		m_simparams->ferrariLengthScale = 1.0f;
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
+		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//Small test case with similar features to La Palisse
@@ -240,26 +269,94 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 		h5File.setFilename("meshes/0.la_palisse_small_test.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<KEPSVISC>,
+			//viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			kernel<WENDLAND>,
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+		);
+
 		set_deltap(0.1f);
+		simparams()->maxneibsnum = 240;
+		simparams()->tend = 40.0;
+		simparams()->ferrari= 1.0f;
+		//simparams()->ferrariLengthScale = 0.2f;
 
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
-		m_physparams->set_density(0, 1000.0, 7.0f, 110.0f);
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 110.0f);
+		set_kinematic_visc(water, 1.0e-6f);
+		//set_kinematic_visc(water, 1.0e-2f);
 
-		m_simparams->tend = 40.0;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
 		H = 4.0;
 		l = 10.8; w = 2.2; h = 4.2;
 		m_origin = make_double3(-5.4, -1.1, -2.1);
-		//m_simparams->ferrariLengthScale = 0.2f;
-		m_simparams->ferrari= 1.0f;
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
-		m_simparams->ioWaterdepthComputation = true;
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
+	//*************************************************************************************
+
+	//Small test case with similar features to La Palisse
+	//*************************************************************************************
+#elif SPECIFIC_PROBLEM == LaPalisseSmallerTest
+		h5File.setFilename("meshes/0.lp_smaller_test.h5sph");
+
+		SETUP_FRAMEWORK(
+			//viscosity<KEPSVISC>,
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+		);
+
+		set_deltap(0.1f);
 		m_simparams->maxneibsnum = 240;
+		m_simparams->tend = 10.0;
+		m_simparams->ferrari= 1.0f;
+		//m_simparams->ferrariLengthScale = 0.2f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 50.0f);
+		//set_kinematic_visc(water, 1.0e-6f);
+		set_kinematic_visc(water, 1.0e-2f);
+
+		H = 2.0;
+		l = 2.2; w = 2.2; h = 2.2;
+		m_origin = make_double3(-1.1, -1.1, -1.1);
+		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+	//*************************************************************************************
+
+	// Solitary Wave with IO
+	//*************************************************************************************
+#elif SPECIFIC_PROBLEM == SolitaryWave
+		//h5File.setFilename("meshes/0.solitaryWave_small.h5sph");
+		h5File.setFilename("meshes/0.solitaryWave.h5sph");
+
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_NONE>,
+			kernel<WENDLAND>,
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+		);
+
+		//set_deltap(0.026460);
+		set_deltap(0.017637f);
+		simparams()->maxneibsnum = 512;
+		simparams()->tend = 7.0;
+		simparams()->ferrari = 1.0f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 20.0f);
+		//set_equation_of_state(water, 7.0f, 45.0f);
+		set_kinematic_visc(water, 1.0e-6f);
+
+		addPostProcess(SURFACE_DETECTION);
+
+		H = 0.6;
+		//l = 3.2; w=1.7; h=1.4;
+		//m_origin = make_double3(-3.85, -0.1, -0.1);
+		l = 7.7; w=3.4; h=1.4;
+		m_origin = make_double3(-3.85, -1.7, -0.1);
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 	//Periodic wave with IO
@@ -267,53 +364,54 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == PeriodicWave
 		h5File.setFilename("meshes/0.periodic_wave_0.02.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
+		simparams()->sfactor=2.0f;
 		set_deltap(0.02f);
+		simparams()->maxneibsnum = 440;
+		simparams()->tend = 10.0;
+		simparams()->ferrari = 0.1f;
 
-		m_physparams->kinematicvisc = 1.0e-6f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
-		m_physparams->set_density(0, 1000.0, 7.0f, 25.0f);
+		addPostProcess(SURFACE_DETECTION);
+		addPostProcess(CALC_PRIVATE);
 
-		m_simparams->tend = 10.0;
-		//m_simparams->tend = 0.2;
-		m_simparams->testpoints = true;
-		m_simparams->periodicbound = PERIODIC_Y;
-		m_simparams->surfaceparticle = true;
-		m_simparams->savenormals = true;
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 25.0f);
+		set_kinematic_visc(water, 1.0e-6f);
+
 		H = 0.5;
 		l = 2.7; w = 0.5; h = 1.2;
-		//m_simparams->sfactor=1.3f;
-		m_simparams->sfactor=2.0f;
 		m_origin = make_double3(-1.35, -0.25, -0.1);
-		m_simparams->ferrari = 0.1f;
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
-		m_simparams->ioWaterdepthComputation = false;
-		m_simparams->maxneibsnum = 240;
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 #endif
 
 	// SPH parameters
-	m_simparams->dt = 0.00004f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 1;
-	m_simparams->nlexpansionfactor = 1.1;
-	//m_simparams->densitySum = true;
+	simparams()->dt = 0.00004f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 1;
+	simparams()->nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
 
 	// Physical parameters
-	float g = length(m_physparams->gravity);
+	float g = length(physparams()->gravity);
 
-	m_physparams->dcoeff = 5.0f*g*H;
+	physparams()->dcoeff = 5.0f*g*H;
 
-	m_physparams->r0 = m_deltap;
+	physparams()->r0 = m_deltap;
 
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
-	m_physparams->epsxsph = 0.5f;
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->epsxsph = 0.5f;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1e-2f);
@@ -353,7 +451,7 @@ int InputProblem::fill_parts()
 		test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 	}
 	//*******************************************************************
-	// Setting probes for KEPS test case
+	// Setting probes for channel flow keps test cases (with and without io)
 	//*******************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS || SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
@@ -362,7 +460,7 @@ int InputProblem::fill_parts()
 			test_points.push_back(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
 	}
 	//*******************************************************************
-	// Setting probes for KEPS test case
+	// Setting probes for PeriodicWave test case
 	//*******************************************************************
 #elif SPECIFIC_PROBLEM == PeriodicWave
 	add_gage(make_double3(0.0, 0.0, 0.2));
@@ -416,14 +514,14 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - h5File.buf[i].Coords_2, 0);
-		float rho = m_physparams->rho0[0];
+		float rho = physparams()->rho0[0];
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-			vel[i] = make_float4(lvel, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(lvel, 0, 0, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 			const float lvel = 1.0f-h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
-			vel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams->rho0[0]);
+			vel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIO
 			const float y2 = h5File.buf[i].Coords_1*h5File.buf[i].Coords_1;
 			const float z2 = h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
@@ -434,9 +532,9 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float y8 = y4*y4;
 			const float z8 = z4*z4;
 			const float lvel = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
-			vel[i] = make_float4(lvel, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(lvel, 0, 0, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-			vel[i] = make_float4(1.0f, 0.0f, 0.0f, (m_physparams->rho0[0]+2.0f));//+1.0f-1.0f*h5File.buf[i].Coords_0));
+			vel[i] = make_float4(1.0f, 0.0f, 0.0f, (physparams()->rho0[0]+2.0f));//+1.0f-1.0f*h5File.buf[i].Coords_0));
 #elif SPECIFIC_PROBLEM == PeriodicWave
 			const float x = h5File.buf[i].Coords_0;
 			const float z = h5File.buf[i].Coords_2;
@@ -448,8 +546,10 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float u = A*omega*cosh(k*z)/sinh(k*D)*cos(k*x+phi);
 			const float w = A*omega*sinh(k*z)/sinh(k*D)*sin(k*x+phi);
 			vel[i] = make_float4(u, 0, w, _rho);
+#elif SPECIFIC_PROBLEM == SolitaryWave
+			vel[i] = make_float4(0, 0, 0, powf(((0.58212-h5File.buf[i].Coords_2)*9.807f*m_physparams->rho0[0])*7.0f/m_physparams->sscoeff[0]/m_physparams->sscoeff[0]/m_physparams->rho0[0] + 1.0f,1.0f/7.0f)*m_physparams->rho0[0]);
 #else
-			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 #endif
 		// Fluid particles don't have a eulerian velocity
 		if (eulerVel)
@@ -462,56 +562,70 @@ void InputProblem::copy_to_array(BufferList &buffers)
 
 	if(n_vparts) {
 		std::cout << "Vertex parts: " << n_vparts << "\n";
+		const float referenceVolume = m_deltap*m_deltap*m_deltap;
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(H - h5File.buf[i].Coords_2, 0);
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
 	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams->rho0[0]);
-				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams->rho0[0]);
+				vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
+				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]+2.0f);
+				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]+2.0f);
 #else
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif
-			// CAM-TODO use different indices here
 			int openBoundType = h5File.buf[i].KENT;
 			// count the number of different objects
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
 			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			info[i] = make_particleinfo(PT_VERTEX, openBoundType, i);
+			simparams()->numOpenBoundaries = max(openBoundType, simparams()->numOpenBoundaries);
+			info[i] = make_particleinfo_by_ids(PT_VERTEX, 0, max(openBoundType-1,0), i);
 			// Define the type of open boundaries
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				if (openBoundType == 1) {
 					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 					// open boundary imposes velocity
-#if SPECIFIC_PROBLEM != IOWithoutWalls
-					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+#if SPECIFIC_PROBLEM != IOWithoutWalls && SPECIFIC_PROBLEM != SmallChannelFlowIOPerOpen
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 				} else if (openBoundType == 2) {
 					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+					// open boundary imposes pressure => FG_VELOCITY_DRIVEN not set
 				}
 #elif SPECIFIC_PROBLEM == PeriodicWave
 				// two pressure boundaries
 				if (openBoundType != 0) {
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 				}
-#elif SPECIFIC_PROBLEM == LaPalisseSmallTest
+#elif SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+      SPECIFIC_PROBLEM == LaPalisseSmallerTest
 				// two pressure boundaries
 				if (openBoundType != 0)
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+#if SPECIFIC_PROBLEM == LaPalisseSmallerTest
+				if (openBoundType == 1)
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
+#endif
+#elif SPECIFIC_PROBLEM == SolitaryWave
+				if (openBoundType != 0)
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+				if (openBoundType == 2)
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
+			// boundelm.w contains the reference mass of a vertex particle, actually only needed for IO_BOUNDARY
+			boundelm[i].w = h5File.buf[i].Volume/referenceVolume;
 		}
 		j += n_vparts;
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
@@ -523,44 +637,55 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
 	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams->rho0[0]);
-				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams->rho0[0]);
+				vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
+				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]+2.0f);
+				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]+2.0f);
 #else
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif
 			int openBoundType = h5File.buf[i].KENT;
-			info[i] = make_particleinfo(PT_BOUNDARY, openBoundType, i);
+			info[i] = make_particleinfo_by_ids(PT_BOUNDARY, 0, max(openBoundType-1, 0), i);
 			// Define the type of open boundaries
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				if (openBoundType == 1) {
 					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 					// open boundary imposes velocity
-#if SPECIFIC_PROBLEM != IOWithoutWalls
-					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+#if SPECIFIC_PROBLEM != IOWithoutWalls && SPECIFIC_PROBLEM != SmallChannelFlowIOPerOpen
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 				} else if (openBoundType == 2) {
 					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+					// open boundary imposes pressure => FG_VELOCITY_DRIVEN not set
 				}
 #elif SPECIFIC_PROBLEM == PeriodicWave
 				// two pressure boundaries
 				if (openBoundType != 0) {
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 				}
-#elif SPECIFIC_PROBLEM == LaPalisseSmallTest
+#elif SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+      SPECIFIC_PROBLEM == LaPalisseSmallerTest
 				// two pressure boundaries
 				if (openBoundType != 0)
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+#if SPECIFIC_PROBLEM == LaPalisseSmallerTest
+				if (openBoundType == 1)
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
+#endif
+#elif SPECIFIC_PROBLEM == SolitaryWave
+				if (openBoundType != 0)
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+				if (openBoundType == 2)
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
@@ -615,10 +740,13 @@ InputProblem::max_parts(uint numpart)
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps || \
     SPECIFIC_PROBLEM == PeriodicWave
 		return (uint)((float)numpart*1.2f);
-#elif SPECIFIC_PROBLEM == LaPalisseSmallTest
+#elif SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+      SPECIFIC_PROBLEM == LaPalisseSmallerTest || \
+      SPECIFIC_PROBLEM == SolitaryWave
 		return (uint)((float)numpart*2.0f);
 #else
 		return numpart;
@@ -632,9 +760,8 @@ void InputProblem::fillDeviceMap()
 
 namespace cuInputProblem
 {
-#include "cuda/cellgrid.h"
-// Core SPH functions
-#include "sph_core_utils.cuh"
+using namespace cubounds;
+using namespace cuforces;
 
 __device__
 void
@@ -670,6 +797,11 @@ InputProblem_imposeBoundaryCondition(
 			eulerVel.x = 1.0f;
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 			eulerVel.x = 1.0f-absPos.z*absPos.z;
+#elif SPECIFIC_PROBLEM == LaPalisseSmallerTest
+			if(absPos.z < sin(t*3.14f/2.0f)*0.2f) {
+				eulerVel.x = 1.0f;
+				eulerVel.y = 1.0f;
+			}
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			// the 0.025 is deltap*0.5 = 0.05*0.5
 			eulerVel.x = log(fmax(1.0f-fabs(absPos.z), 0.025f)/0.0015625f)/0.41f+5.2f;
@@ -691,24 +823,69 @@ InputProblem_imposeBoundaryCondition(
 				eulerVel.x = u;
 				eulerVel.z = w;
 			}
+#elif SPECIFIC_PROBLEM == SolitaryWave
+			const float d = 0.6;
+			const float a = 0.5*d;
+			const float g = 9.81;
+			const float theta = atan(1.);
+			const float3 normalWave = make_float3(cos(theta), sin(theta), 0);
+			const float c = sqrt(g*(d + a));
+			const float k = sqrt(0.75*a/d)/d;
+			const float xMin = -2.5*1.5;
+			const float x0 = xMin - 4./k;
+
+			//const float kxct = k*(dot(normalWave, absPos)-c*(t-2.0f)-x0);
+			const float kxct = k*(dot(normalWave, absPos)-c*t-x0);
+			const float eta = a/(cosh(kxct)*cosh(kxct));
+			const float detadt = 2*a*k*c*tanh(kxct)/(cosh(kxct)*cosh(kxct));
+
+			const float h = d + eta;
+			if (absPos.z < h) {
+				const float u = (c*eta/h)*normalWave.x;
+				const float v = (c*eta/h)*normalWave.y;
+				const float w = absPos.z*detadt/h;
+				eulerVel.x = u;
+				eulerVel.y = v;
+				eulerVel.z = w;
+			}
+			/*
+			if (t < 2.0f) {
+				eulerVel.x = 0.0f;
+				eulerVel.y = 0.0f;
+				eulerVel.z = 0.0f;
+			}
+			*/
 #else
 			eulerVel.x = 0.0f;
 #endif
 		}
 		else {
-#if SPECIFIC_PROBLEM == LaPalisseSmallTest
-			if (object(info)==1)
-				waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
-				//waterdepth = -0.1 + 0.355*t/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+#if SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+    SPECIFIC_PROBLEM == LaPalisseSmallerTest
+			if (object(info)==0)
+				//waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				//waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
-			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
+			eulerVel.w = RHO(pressure, fluid_num(info));
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-			if (object(info)==1)
+			if (object(info)==0)
 				eulerVel.w = 1002.0f;
 			else
 				eulerVel.w = 1002.0f;
 				//eulerVel.w = 1000.0f;
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+			if (object(info)==0)
+				waterdepth = 0.0f;
+			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			const float pressure = 9.81e3f*localdepth;
+			eulerVel.w = RHO(pressure, fluid_num(info));
+#elif SPECIFIC_PROBLEM == SolitaryWave
+			waterdepth = 0.6 - 0.5*0.0195;
+			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			const float pressure = 9.81e3f*localdepth;
+			eulerVel.w = RHO(pressure, fluid_num(info));
 #else
 			eulerVel.w = 1000.0f;
 #endif
@@ -716,8 +893,12 @@ InputProblem_imposeBoundaryCondition(
 
 		// impose tangential velocity
 		if (VEL_IO(info)) {
+#if SPECIFIC_PROBLEM != SolitaryWave && \
+	SPECIFIC_PROBLEM != LaPalisseSmallerTest
 			eulerVel.y = 0.0f;
-#if SPECIFIC_PROBLEM != PeriodicWave
+#endif
+#if SPECIFIC_PROBLEM != PeriodicWave && \
+    SPECIFIC_PROBLEM != SolitaryWave
 			eulerVel.z = 0.0f;
 #endif
 #if SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
@@ -771,7 +952,7 @@ InputProblem_imposeBoundaryConditionDevice(
 		//   from the viscosity
 		// - for a pressure inlet the pressure is imposed on the corners. If we are in the k-epsilon case then
 		//   we need to get the viscosity info from newEulerVel (x,y,z) and add the imposed density in .w
-		if (VERTEX(info) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
+		if ((VERTEX(info) || BOUNDARY(info)) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
 			// For corners we need to get eulerVel in case of k-eps and pressure outlet
 			if (CORNER(info) && newTke && !VEL_IO(info))
 				eulerVel = newEulerVel[index];
@@ -781,7 +962,7 @@ InputProblem_imposeBoundaryConditionDevice(
 			// when pressure outlets require the water depth compute it from the IOwaterdepth integer
 			float waterdepth = 0.0f;
 			if (!VEL_IO(info) && IOwaterdepth) {
-				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
+				waterdepth = ((float)IOwaterdepth[object(info)])/((float)UINT_MAX); // now between 0 and 1
 				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
 				waterdepth += d_worldOrigin.z; // now absolute z position
 			}
@@ -801,45 +982,27 @@ InputProblem_imposeBoundaryConditionDevice(
 
 } // end of cuInputProblem namespace
 
-extern "C"
-{
-
-void
-InputProblem::setboundconstants(
-	const	PhysParams	*physparams,
-	float3	const&		worldOrigin,
-	uint3	const&		gridSize,
-	float3	const&		cellSize)
-{
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_cellSize, &cellSize, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_rho0, &physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_bcoeff, &physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
-
-}
-
-}
-
 void
 InputProblem::imposeBoundaryConditionHost(
-			float4*			newVel,
-			float4*			newEulerVel,
-			float*			newTke,
-			float*			newEpsilon,
-	const	particleinfo*	info,
-	const	float4*			oldPos,
-			uint			*IOwaterdepth,
-	const	float			t,
-	const	uint			numParticles,
-	const	uint			numOpenBoundaries,
-	const	uint			particleRangeEnd,
-	const	hashKey*		particleHash)
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
+					uint*			IOwaterdepth,
+			const	float			t,
+			const	uint			numParticles,
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd)
 {
-	uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
+	float4	*newVel = bufwrite->getData<BUFFER_VEL>();
+	float4	*newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
+	float	*newTke = bufwrite->getData<BUFFER_TKE>();
+	float	*newEpsilon = bufwrite->getData<BUFFER_EPSILON>();
+
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const float4 *oldPos = bufread->getData<BUFFER_POS>();
+	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
+
+	const uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
+	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	int dummy_shared = 0;
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
@@ -863,5 +1026,5 @@ InputProblem::imposeBoundaryConditionHost(
 	}
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("imposeBoundaryCondition kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }

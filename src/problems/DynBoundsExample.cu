@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -57,14 +57,14 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(W, W, H + 2*w);
 	m_origin = -m_size/2;
 
-	m_simparams->tend = 2;
+	simparams()->tend = 2;
 
 	/* slope */
 	float degs = 60; /* degrees */
 	alpha = M_PI*degs/180; /* radians */
 
 	float g = 9.81f;
-	m_physparams->gravity = make_float3(g*sin(alpha), 0, -g*cos(alpha));
+	physparams()->gravity = make_float3(g*sin(alpha), 0, -g*cos(alpha));
 
 	float maxvel = sqrt(g*H);
 
@@ -72,7 +72,7 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 	set_equation_of_state(0,  7, 10*maxvel);
 	set_kinematic_visc(0, 120);
 
-	m_physparams->r0 = m_deltap/2;
+	physparams()->r0 = m_deltap/2;
 
 	add_writer(VTKWRITER, 0.01);
 
@@ -143,7 +143,7 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid part mass: " << pos[j-1].w << std::endl;
 
-	float flowvel = H*H*fabs(m_physparams->gravity.x)/(8*m_physparams->kinematicvisc[0]);
+	float flowvel = H*H*fabs(physparams()->gravity.x)/(8*physparams()->kinematicvisc[0]);
 	cout << "Expected maximum flow velocity: " << flowvel << endl;
 
 	std::flush(std::cout);

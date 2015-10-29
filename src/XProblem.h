@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #define	_XPROBLEM_H
 
 #include <string>
+#include <vector>
 
 // SIZE_MAX
 #include <limits.h>
@@ -277,8 +278,12 @@ class XProblem: public Problem {
 		// set the positioning policy for geometries added after the call
 		void setPositioning(PositioningPolicy positioning);
 
-		// define 6 planes delimiting the box with given corners; update word size and origin; write their IDs in planesIds
-		void makeUniverseBox(const double3 corner1, const double3 corner2, GeometryID *planesIds = NULL);
+		/*! Sets the domain origin and size to match the box defined by the given corners,
+		 * and adds planes for each of the sides of the box, returning their GeometryIDs.
+		 * Planes are not added in the periodic direction(s), if any were selected
+		 * in the simulation framework.
+		 */
+		std::vector<GeometryID> makeUniverseBox(const double3 corner1, const double3 corner2);
 
 		// world size will be increased by the given margin in each dimension and direction
 		void addExtraWorldMargin(const double margin);

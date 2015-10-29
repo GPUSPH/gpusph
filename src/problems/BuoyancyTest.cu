@@ -40,34 +40,34 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
-	m_simparams->dt = 0.0003f;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 10;
-	m_simparams->tend = 5.0f; //0.00036f
+	simparams()->dt = 0.0003f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 10;
+	simparams()->tend = 5.0f; //0.00036f
 
 	// Physical parameters
 	H = 0.6f;
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
-	double g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	double g = length(physparams()->gravity);
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);
 
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams->dcoeff = 5.0f*g*H;
-	m_physparams->r0 = m_deltap;
+	physparams()->dcoeff = 5.0f*g*H;
+	physparams()->r0 = m_deltap;
 
 	set_kinematic_visc(0, 1.0e-6f);
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
-	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
 	// Initialize ODE
 	dInitODE();
 	m_ODEWorld = dWorldCreate();
 	m_ODESpace = dHashSpaceCreate(0);
 	m_ODEJointGroup = dJointGroupCreate(0);
-	dWorldSetGravity(m_ODEWorld, m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);	// Set gravity(x, y, z)
+	dWorldSetGravity(m_ODEWorld, physparams()->gravity.x, physparams()->gravity.y, physparams()->gravity.z);	// Set gravity (x, y, z)
 
 	//add_writer(VTKWRITER, 0.005);
 	add_writer(VTKWRITER, 0.1);
@@ -93,7 +93,6 @@ void BuoyancyTest::release_memory(void)
 
 int BuoyancyTest::fill_parts()
 {
-	double r0 = m_physparams->r0;
 	const double dp = m_deltap;
 	const int layers = 4;
 
@@ -110,9 +109,9 @@ int BuoyancyTest::fill_parts()
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
 
-	experiment_box.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	experiment_box.SetPartMass(m_deltap, physparams()->rho0[0]);
 	experiment_box.FillIn(boundary_parts, m_deltap, layers, false);
-	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 
 	const int object_type = 0;
@@ -143,8 +142,8 @@ int BuoyancyTest::fill_parts()
 			break;
 	}
 
-	floating->SetMass(m_deltap, m_physparams->rho0[0]*0.5);
-	floating->SetPartMass(m_deltap, m_physparams->rho0[0]);
+	floating->SetMass(m_deltap, physparams()->rho0[0]*0.5);
+	floating->SetPartMass(m_deltap, physparams()->rho0[0]);
 	floating->FillIn(floating->GetParts(), m_deltap, layers);
 	floating->Unfill(parts, m_deltap*0.85);
 
@@ -211,7 +210,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
-			rho = m_physparams->rho0[0];
+			rho = physparams()->rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
@@ -228,7 +227,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams->numforcesbodies) {
+		if (k < simparams()->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();
