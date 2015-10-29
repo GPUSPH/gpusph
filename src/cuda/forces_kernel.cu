@@ -1062,7 +1062,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		const float4 pos = oldPos[index];
 
 		// note that all sums below run only over fluid particles (including the Shepard filter)
-		float sumrho = 0.0f; // summation for computing the density
+		float sumpWall = 0.0f; // summation for computing the density
 		float sump = 0.0f; // summation for computing the pressure
 		float3 sumvel = make_float3(0.0f); // summation to compute the internal velocity for open boundaries
 		float sumtke = 0.0f; // summation for computing tke (k-epsilon model)
@@ -1119,7 +1119,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
 				// normal distance based on grad Gamma which approximates the normal of the domain
 				const float normDist = fmax(fabs(dot3(normal,relPos)), deltap);
-				sumrho += (1.0f + dot(d_gravity,as_float3(relPos))/sqC0)*w*neib_rho;
+				sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 				// for all boundaries we have dk/dn = 0
 				sumtke += w*neib_k;
 				if (IO_BOUNDARY(info)) {
@@ -1194,7 +1194,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		else {
 			alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
 			// density condition
-			oldVel[index].w = fmax(sumrho/alpha,d_rho0[fluid_num(info)]);
+			oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 			// k-epsilon boundary conditions
 			if (oldTKE) {
 				// k condition
@@ -1416,7 +1416,7 @@ saVertexBoundaryConditions(
 	const float vel = length(make_float3(oldVel[index]));
 
 	// these are taken as the sum over all adjacent segments
-	float sumrho = 0.0f; // summation for computing the density
+	float sumpWall = 0.0f; // summation for computing the density
 	float sumtke = 0.0f; // summation for computing tke (k-epsilon model)
 	float sumeps = 0.0f; // summation for computing epsilon (k-epsilon model)
 	float sumMdot = 0.0f; // summation for computing the mass variance based on in/outflow
@@ -1484,7 +1484,7 @@ saVertexBoundaryConditions(
 					const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
 					// normal distance based on grad Gamma which approximates the normal of the domain
 					const float normDist = fmax(fabs(dot(normal,as_float3(relPos))), deltap);
-					sumrho += (1.0f + dot(d_gravity,as_float3(relPos))/sqC0)*w*neib_rho;
+					sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 					// for all boundaries we have dk/dn = 0
 					sumtke += w*neib_k;
 					if (IO_BOUNDARY(info)) {
@@ -1524,7 +1524,6 @@ saVertexBoundaryConditions(
 						continue;
 					// boundary conditions on rho, k, eps
 					const float neibRho = oldVel[neib_index].w;
-					//sumrho += neibRho;
 					if (!CORNER(info) && IO_BOUNDARY(neib_info)){
 						/* The following would increase the output of particles close to an edge
 						 * But it is not used for the following reason: If only 1/3 of each segment is taken into account
@@ -1623,7 +1622,7 @@ saVertexBoundaryConditions(
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
 	alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
-	oldVel[index].w = fmax(sumrho/alpha,d_rho0[fluid_num(info)]);
+	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 	if (oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		oldTKE[index] = sumtke/numseg;
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
