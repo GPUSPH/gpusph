@@ -1,4 +1,4 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2015 Giuseppe Bilotta, Alexis Herault, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,42 +23,37 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/*
- * File:   testtopo.h
- * Author: alexis
- *
- * Created on 20 mars 2009, 20:33
+/* Data structures for geometric planes */
+
+#ifndef _PLANES_H
+#define _PLANES_H
+
+#include <vector>
+
+#include "common_types.h"
+#include "vector_math.h"
+
+/*! A plane is defined by its normal and a point it passes through. The
+ *  reference point is defined in grid+local coordinates
  */
-
-#ifndef _TESTTOPO_H
-#define	_TESTTOPO_H
-
-#include "Problem.h"
-#include "Point.h"
-#include "TopoCube.h"
-
-class TestTopo: public Problem {
-	private:
-		TopoCube	*experiment_box;
-		PointVect	boundary_parts;
-		PointVect	piston_parts;
-		PointVect	parts;
-		double		H;				// still water level
-
-	public:
-		TestTopo(GlobalData *);
-
-		virtual ~TestTopo(void);
-
-		int fill_parts(void);
-
-		void copy_to_array(BufferList &);
-		void copy_planes(PlaneList& planes);
-
-		// override standard split
-		void fillDeviceMap();
-
-		void release_memory(void);
+struct plane_t {
+	float3 normal; /// normal to the plane
+	int3 gridPos; /// grid position of the reference point
+	float3 pos; /// local position of the reference point
 };
-#endif	/* _TESTTOPO_H */
 
+__host__ __device__
+static inline
+plane_t make_plane(float3 const& normal, int3 const& gridPos, float3 const& pos)
+{
+	plane_t plane;
+	plane.normal = normal;
+	plane.gridPos = gridPos;
+	plane.pos = pos;
+
+	return plane;
+}
+
+typedef std::vector<plane_t> PlaneList;
+
+#endif

@@ -52,8 +52,6 @@
 
 #define MAXKASINDEX 10
 
-texture<float, 2, cudaReadModeElementType> demTex;	// DEM
-
 /** \namespace cuforces
  *  \brief Contains all device functions/kernels/variables used force computations, filters and boundary conditions
  *
@@ -100,22 +98,7 @@ __constant__ float	d_MK_beta;	///< This is typically the ration between h and th
 __constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient
 __constant__ float	d_epsartvisc;					///< epsilon of artificial viscosity
 
-// Constants used for DEM
-// TODO switch to float2s
-__constant__ float	d_ewres;		///< east-west resolution (x)
-__constant__ float	d_nsres;		///< north-south resolution (y)
-__constant__ float	d_demdx;		///< ∆x increment of particle position for normal computation
-__constant__ float	d_demdy;		///< ∆y increment of particle position for normal computation
-__constant__ float	d_demdxdy;		///< ∆x*∆y
-__constant__ float	d_demzmin;		///< minimum distance from DEM for normal computation
-
 __constant__ float	d_partsurf;		///< particle surface (typically particle spacing suared)
-
-// Definition of planes for geometrical boundaries
-__constant__ uint	d_numplanes;
-__constant__ float3	d_planeNormal[MAX_PLANES];
-__constant__ int3	d_planePointGridPos[MAX_PLANES];
-__constant__ float3	d_planePointLocalPos[MAX_PLANES];
 
 // Sub-Particle Scale (SPS) Turbulence parameters
 __constant__ float	d_smagfactor;
@@ -183,39 +166,6 @@ MKForce(const float r, const float slength,
 	return force;
 }
 /************************************************************************************************************/
-
-/************************************************************************************************************/
-/*					   Reflect position or velocity with respect to a plane									*/
-/************************************************************************************************************/
-
-#if 0
-// TODO FIXME update for homogeneous precision
-
-// opposite of a point wrt to a plane specified as p.x * x + p.y * y + p.z * z + p.w, with
-// normal vector norm div
-__device__ __forceinline__ float4
-reflectPoint(const float4 &pos, const float4 &plane, float pdiv)
-{
-	// we only care about the 4th component of pos in the dot product to get
-	// a*x_0 + b*y_0 + c*z_0 + d*1, so:
-	float4 ret = make_float4(pos.x, pos.y, pos.z, 1);
-	ret = ret - 2*plane*dot(ret,plane)/(pdiv*pdiv);
-	// the fourth component will be whatever, we don't care
-	return ret;
-}
-
-// opposite of a point wrt to the nplane-th plane; the content of the 4th component is
-// undefined
-__device__ __forceinline__ float4
-reflectPoint(const float4 &pos, uint nplane)
-{
-	float4 plane = d_planes[nplane];
-	float pdiv = d_plane_div[nplane];
-
-	return reflectPoint(pos, plane, pdiv);
-}
-#endif
-
 
 /***************************************** Viscosities *******************************************************/
 //! Artificial viscosity
@@ -307,19 +257,6 @@ dtadaptBlockReduce(	float*	sm_max,
 
 /******************** Functions for computing repulsive force directly from DEM *****************************/
 
-//! Computes distance from a particle to a point on the plane
-__device__ __forceinline__ float
-PlaneDistance(	const int3&		gridPos,
-				const float3&	pos,
-				const float3&	planeNormal,
-				const int3&		planePointGridPos,
-				const float3&	planePointLocalPos)
-{
-	// relative position of our particle from the reference point of the plane
-	const float3 refRelPos = globalDistance(gridPos, pos, planePointGridPos, planePointLocalPos);
-	return abs(dot(planeNormal, refRelPos));
-}
-
 // TODO: check for the maximum timestep
 
 //! Computes normal and viscous force wrt to solid planar boundary
@@ -327,19 +264,17 @@ __device__ __forceinline__ float
 PlaneForce(	const int3&		gridPos,
 			const float3&	pos,
 			const float		mass,
-			const float3&	planeNormal,
-			const int3&		planePointGridPos,
-			const float3&	planePointLocalPos,
+			const plane_t&	plane,
 			const float3&	vel,
 			const float		dynvisc,
 			float4&			force)
 {
 	// relative position of our particle from the reference point of the plane
-	const float r = PlaneDistance(gridPos, pos, planeNormal, planePointGridPos, planePointLocalPos);
+	const float r = PlaneDistance(gridPos, pos, plane);
 	if (r < d_r0) {
 		const float DvDt = LJForce(r);
 		// Unitary normal vector of the surface
-		const float3 relPos = planeNormal*r;
+		const float3 relPos = plane.normal*r;
 
 		as_float3(force) += DvDt*relPos;
 
@@ -382,43 +317,13 @@ GeometryForce(	const int3&		gridPos,
 {
 	float coeff_max = 0.0f;
 	for (uint i = 0; i < d_numplanes; ++i) {
-		float coeff = PlaneForce(gridPos, pos, mass,
-			d_planeNormal[i], d_planePointGridPos[i], d_planePointLocalPos[i],
-			vel, dynvisc, force);
+		float coeff = PlaneForce(gridPos, pos, mass, d_plane[i], vel, dynvisc, force);
 		if (coeff > coeff_max)
 			coeff_max = coeff;
 	}
 
 	return coeff_max;
 }
-
-/**! Convert a grid + local position into a DEM cell position
- * This is done assuming that the worldOrigin is at DEM coordinates (0, 0).
- */
-__device__ __forceinline__ float2
-DemPos(const int2& gridPos, const float2 &pos)
-{
-	// note that we separate the grid conversion part from the pos conversion part,
-	// for improved accuracy. The final 0.5f is because texture values are assumed to be
-	// at the center of the DEM cell.
-	return make_float2(
-		(gridPos.x + 0.5f)*(d_cellSize.x/d_ewres) + pos.x/d_ewres + 0.5f,
-		(gridPos.y + 0.5f)*(d_cellSize.y/d_nsres) + pos.y/d_nsres + 0.5f);
-}
-
-/**! Interpolate DEM texref for a point at DEM cell pos demPos,
-  plus an optional multiple of (∆x, ∆y).
-  NOTE: the returned z coordinate is GLOBAL, not LOCAL!
-  TODO for improved homogeneous accuracy, maybe have a texture for grid cells and a
-  texture for local z coordinates?
- */
-__device__ __forceinline__ float
-DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
-	const float2& demPos, int dx=0, int dy=0)
-{
-	return tex2D(texref, demPos.x + dx*d_demdx/d_ewres, demPos.y + dy*d_demdy/d_nsres);
-}
-
 
 //! DOC-TODO describe function
 __device__ __forceinline__ float
@@ -430,38 +335,15 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 			const float		dynvisc,
 			float4&			force)
 {
-	const float2 demPos = DemPos(as_int2(gridPos), as_float2(pos));
+	const float2 demPos = DemPos(gridPos, pos);
 
 	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
 	const float globalZ0 = DemInterpol(texref, demPos);
 
 	if (globalZ - globalZ0 < d_demzmin) {
-		// TODO this method to generate the interpolating plane is suboptimal, as it
-		// breaks any possible symmetry in the original DEM. A better (but more expensive)
-		// approach would be to sample four points, one on each side of our point (in both
-		// directions)
-		const float globalZ1 = DemInterpol(texref, demPos, 1, 0);
-		const float globalZ2 = DemInterpol(texref, demPos, 0, 1);
+		const plane_t demPlane(DemTangentPlane(texref, gridPos, pos, demPos, globalZ0));
 
-		// TODO find a more accurate way to compute the normal
-		const float a = d_demdy*(globalZ0 - globalZ1);
-		const float b = d_demdx*(globalZ0 - globalZ2);
-		const float c = d_demdxdy;
-		const float l = sqrt(a*a+b*b+c*c);
-
-		const float3 planeNormal = make_float3(a, b, c)/l;
-
-		// our plane point is the one at globalZ0: this has the same (x, y) grid and local
-		// position as our particle, and the z grid and local position to be computed
-		// from globalZ0
-		const int3 planePointGridPos = make_int3(gridPos.x, gridPos.y,
-			(int)floor((globalZ0 - d_worldOrigin.z)/d_cellSize.z));
-		const float3 planePointLocalPos = make_float3(pos.x, pos.y,
-			globalZ0 - d_worldOrigin.z - (planePointGridPos.z + 0.5f)*d_cellSize.z);
-
-		return PlaneForce(gridPos, pos, mass,
-			planeNormal, planePointGridPos, planePointLocalPos,
-			vel, dynvisc, force);
+		return PlaneForce(gridPos, pos, mass, demPlane, vel, dynvisc, force);
 	}
 	return 0;
 }
@@ -1828,7 +1710,7 @@ saVertexBoundaryConditions(
 			// assign new values to array
 			oldPos[clone_idx] = clone_pos;
 			pinfo[clone_idx] = clone_info;
-			particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
+			particleHash[clone_idx] = calcGridHash(clone_gridPos);
 			// the new velocity of the fluid particle is the eulerian velocity of the vertex
 			oldVel[clone_idx] = oldEulerVel[index];
 			forces[clone_idx] = make_float4(0.0f);
@@ -2729,7 +2611,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 
 //! Identifies particles which form the free-surface
-template<KernelType kerneltype, bool savenormals>
+template<KernelType kerneltype, flag_t simflags, bool savenormals>
 __global__ void
 calcSurfaceparticleDevice(	const	float4*			posArray,
 									float4*			normals,
@@ -2810,16 +2692,15 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 	float normal_length = length(as_float3(normal));
 
-	//Checking the planes
-	for (uint i = 0; i < d_numplanes; ++i) {
-		const float3 planeNormal = d_planeNormal[i];
-		const float r = PlaneDistance(gridPos, as_float3(pos), planeNormal,
-			d_planePointGridPos[i], d_planePointLocalPos[i]);
-		if (r < influenceradius) {
-			as_float3(normal) += planeNormal*normal_length;
-			normal_length = length(as_float3(normal));
+	// Checking the planes
+	if (simflags & ENABLE_PLANES)
+		for (uint i = 0; i < d_numplanes; ++i) {
+			const float r = PlaneDistance(gridPos, as_float3(pos), d_plane[i]);
+			if (r < influenceradius) {
+				as_float3(normal) += d_plane[i].normal;
+				normal_length = length(as_float3(normal));
+			}
 		}
-	}
 
 	// Second loop over all neighbors
 

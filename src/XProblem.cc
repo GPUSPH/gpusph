@@ -1346,12 +1346,7 @@ int XProblem::fill_parts()
 		+ hdf5file_parts_counter + xyzfile_parts_counter;
 }
 
-uint XProblem::fill_planes()
-{
-	return m_numPlanes;
-}
-
-void XProblem::copy_planes(double4 *planes)
+void XProblem::copy_planes(PlaneList &planes)
 {
 	if (m_numPlanes == 0) return;
 	// look for planes
@@ -1367,7 +1362,7 @@ void XProblem::copy_planes(double4 *planes)
 
 		Plane *plane = (Plane*)(m_geometries[gid]->ptr);
 
-		planes[currPlaneIdx] = make_double4( plane->getA(), plane->getB(), plane->getC(), plane->getD() );
+		planes.push_back( implicit_plane( plane->getA(), plane->getB(), plane->getC(), plane->getD() ) );
 
 		currPlaneIdx++;
 	}

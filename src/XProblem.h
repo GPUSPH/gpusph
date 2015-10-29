@@ -300,8 +300,7 @@ class XProblem: public Problem {
 		bool initialize();
 
 		int fill_parts();
-		uint fill_planes(void);
-		void copy_planes(double4 *planes);
+		void copy_planes(PlaneList &planes);
 
 		void copy_to_array(BufferList &buffers);
 		void release_memory();

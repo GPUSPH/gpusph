@@ -94,8 +94,8 @@ public:
 						const uint		numParticles) = 0;
 
 	virtual void
-	sort(	hashKey	*particleHash,
-			uint	*particleIndex,
+	sort(	MultiBufferList::const_iterator bufread,
+			MultiBufferList::iterator bufwrite,
 			uint	numParticles) = 0;
 
 	virtual void

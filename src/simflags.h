@@ -45,8 +45,10 @@
 // XSPH
 #define ENABLE_XSPH				(ENABLE_DTADAPT << 1)
 
+// planes
+#define ENABLE_PLANES			(ENABLE_XSPH << 1)
 // DEM
-#define ENABLE_DEM				(ENABLE_XSPH << 1)
+#define ENABLE_DEM				(ENABLE_PLANES << 1)
 
 // moving boundaries and rigid bodies
 #define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)

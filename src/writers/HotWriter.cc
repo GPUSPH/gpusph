@@ -36,7 +36,7 @@ void HotWriter::write(uint numParts, const BufferList &buffers,
 
 	// generate filename with iterative integer
 	ofstream out;
-	string filename = open_data_file(out, "hot", next_filenum());
+	string filename = open_data_file(out, "hot", current_filenum());
 
 	// save the filename in order to manage removing unwanted files
 	_current_filenames.push_back(m_dirname + "/" + filename);

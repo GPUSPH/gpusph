@@ -29,6 +29,7 @@
 #include "define_buffers.h"
 #include "engine_integration.h"
 #include "utils.h"
+#include "euler_params.h"
 
 #include "euler_kernel.cu"
 
@@ -38,6 +39,7 @@ template<
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	KernelType kerneltype,
+	ViscosityType visctype,
 	flag_t simflags>
 class CUDAPredCorrEngine : public AbstractIntegrationEngine
 {
@@ -127,15 +129,6 @@ basicstep(
 	const particleinfo *info = bufread->getData<BUFFER_INFO>();
 	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
-	/* The kernel wants each array passed separately, but we should not dereference
-	   vertPos if it's NULL (i.e. in the non-SA case); to make the kernel invocation
-	   slightly cleaner, we check this now.
-	   TODO FIXME A _much_ cleaner solution would be to assemble a param struct,
-	   as we do for forces
-	 */
-	const float2 *vertPos0 = vertPos ? vertPos[0] : NULL;
-	const float2 *vertPos1 = vertPos ? vertPos[1] : NULL;
-	const float2 *vertPos2 = vertPos ? vertPos[2] : NULL;
 
 	const float4 *forces = bufread->getData<BUFFER_FORCES>();
 	const float2 *contupd = bufread->getData<BUFFER_CONTUPD>();
@@ -157,13 +150,17 @@ basicstep(
 	// boundary elements are updated in-place; only used for rotation in the second step
 	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
-#define ARGS oldPos, particleHash, neibsList, cellStart, oldVel, oldVol, oldEulerVel, oldgGam, oldTKE, oldEps, vertPos0, vertPos1, vertPos2,\
-	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newVol, newEulerVel, newgGam, newTKE, newEps, newBoundElement, particleRangeEnd, step, dt, dt2, t, slength, influenceradius
+	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
+			newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t, step,
+			xsph,
+			oldgGam, newgGam, contupd, newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
+			newTKE, newEps, oldTKE, oldEps, keps_dkde,
+			newVol, oldVol);
 
 	if (step == 1) {
-		cueuler::eulerDevice<sph_formulation, boundarytype, kerneltype, simflags><<< numBlocks, numThreads >>>(ARGS);
+		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
 	} else if (step == 2) {
-		cueuler::eulerDevice<sph_formulation, boundarytype, kerneltype, simflags><<< numBlocks, numThreads >>>(ARGS);
+		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}
