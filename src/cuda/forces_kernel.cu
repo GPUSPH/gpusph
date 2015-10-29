@@ -1673,10 +1673,12 @@ saVertexBoundaryConditions(
 			pos.w = fmax(-2.0f*refMass, fmin(2.0f*refMass, pos.w));
 
 			// clip to +/- originalVertexMass if we have outflow
-			if (sumMdot < 0.0f) {
+			// or if the normal eulerian velocity is less or equal to 0
+			if (sumMdot < 0.0f || dot(normal,as_float3(eulerVel)) < 1e-5f*d_sscoeff[fluid_num(info)]) {
 				const float4 boundElement = tex1Dfetch(boundTex, index);
 				pos.w = fmax(-refMass*boundElement.w, fmin(refMass*boundElement.w, pos.w));
 			}
+
 		}
 		// particles that have an initial density less than the reference density have their mass set to 0
 		// or if their velocity is initially 0
@@ -1692,6 +1694,8 @@ saVertexBoundaryConditions(
 			pos.w > refMass*0.5f &&
 			// if mass flux > 0
 			sumMdot > 0 &&
+			// if imposed velocity is greater 0
+			dot(normal,as_float3(eulerVel)) > 1e-5f &&
 			// pressure inlets need p > 0 to create particles
 			(VEL_IO(info) || eulerVel.w-rho0 > rho0*1e-5f) &&
 			// corner vertices are not allowed to create new particles
