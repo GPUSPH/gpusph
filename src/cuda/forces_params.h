@@ -107,6 +107,44 @@ struct common_forces_params
 	{}
 };
 
+/// Parameters common to all finalize forces kernel specializations
+struct common_finalize_forces_params
+{
+			float4	*forces;
+			float4	*rbforces;
+			float4	*rbtorques;
+	const	float4	*posArray;
+	const	float4	*velArray;
+	const	hashKey *particleHash;
+	const	uint	*cellStart;
+
+	// Particle range to work on. toParticle is _exclusive_
+	const	uint	fromParticle;
+	const	uint	toParticle;
+
+	// Constructor / initializer
+	common_finalize_forces_params(
+				float4	*_forces,
+				float4	*_rbforces,
+				float4	*_rbtorques,
+		const	float4	*_posArray,
+		const 	float4	*_velArray,
+		const	hashKey *_particleHash,
+		const	uint	*_cellStart,
+		const	uint	_fromParticle,
+		const	uint	_toParticle) :
+		forces(_forces),
+		rbforces(_rbforces),
+		rbtorques(_rbtorques),
+		posArray(_posArray),
+		velArray(_velArray),
+		particleHash(_particleHash),
+		cellStart(_cellStart),
+		fromParticle(_fromParticle),
+		toParticle(_toParticle)
+	{}
+};
+
 /// Additional parameters passed only to kernels with dynamic timestepping
 struct dyndt_forces_params
 {
@@ -134,6 +172,16 @@ struct grenier_forces_params
 {
 	const float	*sigmaArray;
 	grenier_forces_params(const float *_sigmaArray) : sigmaArray(_sigmaArray)
+	{}
+};
+
+/// Additional parameters passed only finalize forces with SPH_GRENIER formulation
+struct grenier_finalize_forces_params
+{
+	const float	*sigmaArray;
+
+	grenier_finalize_forces_params(const float *_sigmaArray) :
+		sigmaArray(_sigmaArray)
 	{}
 };
 
@@ -282,6 +330,83 @@ struct forces_params :
 	{}
 };
 
+
+/// The actual finalize_forces_params struct, which concatenates all of the above, as appropriate.
+template<SPHFormulation _sph_formulation,
+	BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
+struct finalize_forces_params :
+	common_finalize_forces_params,
+#if 0
+	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_forces_params),
+#endif
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)
+#if 0
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
+	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)
+#endif
+{
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
+	// This structure provides a constructor that takes as arguments the union of the
+	// parameters that would ever be passed to the finalize forces kernel.
+	// It then delegates the appropriate subset of arguments to the appropriate
+	// structs it derives from, in the correct order
+	finalize_forces_params(
+		// common
+				float4	*_forces,
+				float4	*_rbforces,
+				float4	*_rbtorques,
+		const	float4	*_posArray,
+		const	float4	*_velArray,
+		const	hashKey	*_particleHash,
+		const	uint	*_cellStart,
+				uint	_fromParticle,
+				uint	_toParticle,
+
+// TODO: add adaptative dt
+#if 0
+		// dyndt
+				float	*_cfl,
+				float	*_cfl_dS,
+				float	*_cflTVisc,
+				uint	_cflOffset,
+#endif
+
+		// SPH_GRENIER
+		const	float	*_sigmaArray
+
+// TODO: gamma_fixup
+#if 0
+		// SA_BOUNDARY
+				float4	*_newGGam,
+				float2	*_contupd,
+		const	float2	* const _vertPos[],
+		const	float	_epsilon,
+
+		// ENABLE_WATER_DEPTH
+				uint	*_IOwaterdepth,
+#endif
+		) :
+		common_finalize_forces_params(_forces, _rbforces, _rbtorques,
+			_posArray, _velArray, _particleHash, _cellStart,
+			 _fromParticle, _toParticle),
+#if 0
+		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
+			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
+#endif
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray)
+#if 0
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
+			(_newGGam, _contupd, _vertPos, _epsilon),
+		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth)
+#endif
+	{}
+};
 
 /// Parameters common to all SPS kernel specializations
 struct common_sps_params

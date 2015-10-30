@@ -171,6 +171,26 @@ struct common_particle_data
 	{}
 };
 
+// data used for all particles in finalize
+struct common_finalize_particle_data
+{
+	const	uint	index;
+	particleinfo	const& info;
+	float4	const&	pos;
+	float4	const&	vel;
+	const	int3	gridPos;
+
+	__device__ __forceinline__
+	common_finalize_particle_data(const uint _index, float4 const& _pos, float4 const& _vel,
+			particleinfo const& _info, hashKey const* hash) :
+		index(_index),
+		info(_info),
+		pos(_pos),
+		vel(_vel),
+		gridPos(calcGridPosFromParticleHash(hash[index]))
+	{}
+};
+
 // data used only for objects
 struct rb_particle_data
 {
@@ -227,6 +247,18 @@ struct grenier_particle_data
 	__device__ __forceinline__
 	grenier_particle_data(const uint index,
 		grenier_forces_params const& params) :
+		sigma(params.sigmaArray[index])
+	{}
+};
+
+// data used for SPH_GRENIER in finalize forces
+struct grenier_finalize_particle_data
+{
+	const	float	sigma;
+
+	__device__ __forceinline__
+	grenier_finalize_particle_data(const uint index,
+		grenier_finalize_forces_params const& params) :
 		sigma(params.sigmaArray[index])
 	{}
 };
@@ -438,8 +470,49 @@ struct forces_particle_data :
 			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
 		>::type >(vel.w, _info, *this),
 		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, fluid_num(_info), *this),
-		ptype(static_cast<ParticleType>PART_TYPE(_info))
+		ptype(PART_TYPE(_info))
 	{}
+};
+
+
+
+template<SPHFormulation _sph_formulation,
+	BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
+struct finalize_forces_particle_data :
+	// included unconditionally for all particles:
+	common_finalize_particle_data,
+	// the next is only needed for PT_OBJECT, which in fact need no other data
+	rb_particle_data,
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)
+#if 0
+	COND_STRUCT(_boundarytype == SA_BOUNDARY,
+		sa_boundary_particle_data<_visctype, _simflags>)
+#endif
+	{
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
+	// shorthand for the type of the forces params
+	typedef finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_t;
+
+	ParticleType	ptype;
+
+	// determine specialization automatically based on info and params
+	__device__ __forceinline__
+	finalize_forces_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info,
+		params_t const& params) :
+		common_finalize_particle_data(_index, _pos, params.velArray[_index], _info, params.particleHash),
+		rb_particle_data(_info),
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params)
+#if 0
+		COND_STRUCT(boundarytype == SA_BOUNDARY,
+			sa_boundary_particle_data<visctype, simflags>)(_index, _info, params)
+#endif
+		{}
 };
 
 /// Similarly for the output variables
@@ -692,7 +765,7 @@ struct forces_neib_data :
 			typename conditional<sph_formulation == SPH_GRENIER,
 			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
 		>::type >(this->relVel.w, _info, *this),
-		ntype(static_cast<ParticleType>PART_TYPE(_info))
+		ntype(PART_TYPE(_info))
 	{}
 };
 
@@ -2164,8 +2237,7 @@ template<KernelType kerneltype,
 	ViscosityType visctype,
 	flag_t simflags,
 	ParticleType ptype,
-	ParticleType ntype,
-	bool laststep>
+	ParticleType ntype>
 __global__ void
 forcesDevice(
 	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
@@ -2192,7 +2264,7 @@ forcesDevice(
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// Skip if the current particle is not of the type for which we are computing interactions
-		if (!laststep && PART_TYPE(info) != ptype) break;
+		if (PART_TYPE(info) != ptype) break;
 
 		// Determine how the current particle must act based on it's the particle type.
 		// The particles for which forces are computed are:
@@ -2211,7 +2283,7 @@ forcesDevice(
 			computes_stuff = !TESTPOINT(info);
 
 		// Nothing to do if the particle doesn't need to compute forces
-		if (!laststep && !computes_stuff)
+		if (!computes_stuff)
 			break;
 
 		// Cell-local position of the particle, stored in texture
@@ -2261,7 +2333,7 @@ forcesDevice(
 		if (ntype == PT_BOUNDARY)
 			i = cuneibs::d_neibboundpos*d_neiblist_stride;
 
-		while (!laststep && cont) {
+		while (cont) {
 			neibdata neib_data = params.neibsList[i + index];
 
 			if (neib_data == 0xffff) break;
@@ -2324,13 +2396,66 @@ forcesDevice(
 
 		} // End of loop over neighbors
 
-		if (laststep) {
-		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
-		if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
-			gamma_fixup<boundarytype>::with(params, pdata, pout);
+
+		if (!(COMPUTE_FORCE(pdata.info) && !VERTEX(pdata.info))) {
+			write_gamma<boundarytype>::with(params, pdata, pout);
+		}
+		write_forces<boundarytype>::with(params, pdata, pout);
+
+		if (FLUID(pdata.info)) {
+			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
+			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
 
-		// common division or multiplifaction
+	} while (0);
+}
+
+
+template<SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	flag_t simflags>
+__global__ void
+finalizeforcesDevice(
+	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params)
+{
+	// Global particle index
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
+	do {
+		if (index >= params.toParticle) break;
+
+		// Particle info struct, always stored in a texture
+		const particleinfo info = tex1Dfetch(infoTex, index);
+
+		const ParticleType part_type = PART_TYPE(info);
+
+		// Cell-local position of the particle, stored in texture
+		// or global memory depending on architecture
+		#if( __COMPUTE__ >= 20)
+		const float4 pos = params.posArray[index];
+		#else
+		const float4 pos = tex1Dfetch(posTex, index);
+		#endif
+
+		// Nothing to do if the particle is inactive
+		if (INACTIVE(pos))
+			break;
+
+		// Loading the rest of particle data
+		finalize_forces_particle_data<sph_formulation, boundarytype, visctype, simflags> const
+			pdata(index, pos, info, params);
+
+		// Preparing particle output variables
+		common_particle_output pout(params, index);
+
+		#if 0
+			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
+			if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
+				gamma_fixup<boundarytype>::with(params, pdata, pout);
+			}
+		#endif
+
+		// common division or multiplication
 		forces_fixup<sph_formulation>::with(params, pdata, pout);
 
 		// External forces
@@ -2367,12 +2492,15 @@ forcesDevice(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
-		} else
+		}
+#if 0
+		else
 		if (boundarytype == SA_BOUNDARY && FLOATING(pdata.info) && BOUNDARY(pdata.info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
 			compute_boundary_force<boundarytype>::with(params, pdata, pout);
 		}
-		}
+#endif
+
 
 		// Writing out the results
 		// NOTE: with SA bounds only boundary elements compute and write object forces, not vertices.
@@ -2395,19 +2523,17 @@ forcesDevice(
 
 			params.rbtorques[pdata.rbindex] = make_float4(cross(arm, as_float3(pout.force)));
 
-		} else {
+		}
+#if 0
+		else {
 			write_gamma<boundarytype>::with(params, pdata, pout);
 		}
+#endif
 		write_forces<boundarytype>::with(params, pdata, pout);
 
-		if (FLUID(pdata.info)) {
-			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
-			write_turbvisc<visctype>::with(params, pdata, pout);
-		}
 
 	} while (0);
 }
-
 /************************************************************************************************************/
 
 #endif

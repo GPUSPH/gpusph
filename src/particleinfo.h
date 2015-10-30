@@ -103,7 +103,7 @@ enum ParticleFlag {
 
 /* Extract a specific subfield from the particle type: */
 /// Extract particle type
-#define PART_TYPE(f)		(type(f) & PART_TYPE_MASK)
+#define PART_TYPE(f)		ParticleType(type(f) & PART_TYPE_MASK)
 /// Extract particle flags
 #define PART_FLAGS(f)		(type(f) & PART_FLAGS_MASK)
 
