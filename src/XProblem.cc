@@ -1073,6 +1073,8 @@ void XProblem::setParticleMass(const GeometryID gid, const double mass)
 {
 	if (!validGeometry(gid)) return;
 
+	// TODO: if SA bounds && geom is not fluid, throw exception or print warning
+
 	m_geometries[gid]->ptr->SetPartMass(mass);
 	m_geometries[gid]->particle_mass_was_set = true;
 }
