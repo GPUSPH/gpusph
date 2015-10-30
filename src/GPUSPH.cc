@@ -511,9 +511,6 @@ bool GPUSPH::runSimulation() {
 			}
 		}
 
-		//			//(init bodies)
-
-
 		// variable gravity
 		if (problem->simparams()->gcallback) {
 			// ask the Problem to update gravity, one per process
@@ -559,10 +556,6 @@ bool GPUSPH::runSimulation() {
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
 
-		//MM		fetch/update forces on neighbors in other GPUs/nodes
-		//				initially done trivial and slow: stop and read
-		//			//reduce bodies
-
 		// boundelements is swapped because the normals are updated in the moving objects case
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
@@ -587,10 +580,6 @@ bool GPUSPH::runSimulation() {
 		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
-		//			//reduce bodies
-		//MM		fetch/update forces on neighbors in other GPUs/nodes
-		//				initially done trivial and slow: stop and read
 
 		// variable gravity
 		if (problem->simparams()->gcallback) {
