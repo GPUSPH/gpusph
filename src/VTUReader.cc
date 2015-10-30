@@ -16,7 +16,6 @@ int
 VTUReader::getNParts()
 {
 	pugi::xml_document vtuFile;
-	string binaryData;
 	ostringstream err_msg;
 
 	if (!vtuFile.load_file(filename.c_str())) {
@@ -49,8 +48,6 @@ VTUReader::getNParts()
 			err_msg << "FATAL: Could not identify end of data in file " << filename << "!\n";
 			throw runtime_error(err_msg.str());
 		}
-		// put the binary data into the binaryData string for access later on
-		binaryData = buffer.substr(startData, endData-startData);
 		// remove the binary data in the original file to get a valid xml file in the buffer string
 		buffer.replace(startData, endData-startData, "");
 		// load that xml file with pugixml
