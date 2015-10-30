@@ -32,6 +32,8 @@
 // of inclusions, a forward declaration might be required
 #include "GlobalData.h"
 
+#include "vector_print.h"
+
 using namespace std;
 
 // TODO for the time being, we assume no more than 256 devices
@@ -42,6 +44,10 @@ static const char dev_idx_str[] = "UInt8";
 
 VTKWriter::VTKWriter(const GlobalData *_gdata)
   : Writer(_gdata),
+	m_multiblock(),
+	m_multiblock_fname(),
+	m_particle_fname(),
+	m_planes_fname(),
 	m_blockidx(-1)
 {
 	m_fname_sfx = ".vtu";
@@ -89,8 +95,17 @@ void VTKWriter::close_multiblock()
 
 void VTKWriter::start_writing()
 {
-	if (gdata->problem->simparams()->gage.size() > 0)
+	const bool has_gages = gdata->problem->simparams()->gage.size() > 0;
+	const bool has_planes = gdata->s_hPlanes.size() > 0;
+	if (has_gages || has_planes)
 		open_multiblock();
+
+	if (has_planes) {
+		if (m_planes_fname.size() == 0) {
+			save_planes();
+		}
+		add_multiblock("Planes", m_planes_fname);
+	}
 }
 
 void VTKWriter::mark_written(double t)
@@ -670,6 +685,7 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 {
 	ofstream fp;
 	string filename = open_data_file(fp, "WaveGage", current_filenum());
+
 	size_t num = gage.size();
 
 	// For gages without points, z will be NaN, and we'll set
@@ -724,6 +740,213 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 	fp.close();
 
 	add_multiblock("WaveGages", filename);
+}
+
+static inline void chomp(double3 &pt, double eps=FLT_EPSILON)
+{
+		if (fabs(pt.x) < eps)
+			pt.x = 0;
+		if (fabs(pt.y) < eps)
+			pt.y = 0;
+		if (fabs(pt.z) < eps)
+			pt.z = 0;
+}
+
+// check that pt is between inf and sup, with FLT_EPSILON relative tolerange
+static inline bool bound(float pt, float inf, float sup)
+{
+	// when inf or sup is zero, the tolerance must be absolute, not relative
+	// Also note the use of absolue value to ensure the limits are expanded
+	// in the right direction
+	const float lower = inf ? inf - FLT_EPSILON*fabs(inf) : -FLT_EPSILON;
+	const float upper = sup ? sup + FLT_EPSILON*fabs(sup) : FLT_EPSILON;
+	return (pt > lower) && (pt < upper);
+}
+
+void
+VTKWriter::save_planes()
+{
+	ofstream fp;
+	m_planes_fname = open_data_file(fp, "PLANES");
+
+	fp << set_vector_fmt(" ");
+
+	PlaneList const& planes = gdata->s_hPlanes;
+	const double3 wo = gdata->problem->get_worldorigin();
+	const double3 ow = wo + gdata->problem->get_worldsize();
+
+	typedef std::vector<std::pair<double4, int> > CheckList;
+	typedef std::vector<double3> CoordList;
+
+	// We want to find the intersection of the planes defined in the boundary
+	// with the bounding box of the plane (wo to ow). We do this by finding the intersection
+	// with each pair of planes of the bounding box. The CheckList is composed of such pairs,
+	// ordered such that the intersections are returned in sequence (otherwise the resulting
+	// planes in the VTK would come out butterfly-shaped.
+	// The number associated with each pair of planes is the index of the coordinate that must
+	// be found by the intersection.
+	CheckList checks;
+
+	checks.push_back(make_pair(
+			make_double4(wo.x, wo.y, 0, 1), 2));
+	checks.push_back(make_pair(
+			make_double4(wo.x, 0, wo.z, 1), 1));
+	checks.push_back(make_pair(
+			make_double4(wo.x, ow.y, 0, 1), 2));
+	checks.push_back(make_pair(
+			make_double4(wo.x, 0, ow.z, 1), 1));
+
+	checks.push_back(make_pair(
+			make_double4(ow.x, ow.y, 0, 1), 2));
+	checks.push_back(make_pair(
+			make_double4(ow.x, 0, ow.z, 1), 1));
+
+	checks.push_back(make_pair(
+			make_double4(ow.x, wo.y, 0, 1), 2));
+	checks.push_back(make_pair(
+			make_double4(0, wo.y, wo.z, 1), 0));
+	checks.push_back(make_pair(
+			make_double4(0, wo.y, ow.z, 1), 0));
+
+	checks.push_back(make_pair(
+			make_double4(0, ow.y, ow.z, 1), 0));
+
+	checks.push_back(make_pair(
+			make_double4(ow.x, 0, wo.z, 1), 1));
+	checks.push_back(make_pair(
+			make_double4(0, ow.y, wo.z, 1), 0));
+
+	CoordList centers;
+	CoordList normals;
+	std::vector< CoordList > all_intersections;
+
+	// we will store one point per plane (center)
+	// followed by the intersections for each plane with the domain bounding box
+	size_t npoints = planes.size();
+
+	// find the intersection of each plane with the domain bounding box
+	PlaneList::const_iterator plane(planes.begin());
+	for (; plane != planes.end(); ++plane) {
+		centers.push_back(gdata->calcGlobalPosOffset(plane->gridPos, plane->pos) + wo);
+		double3 &cpos = centers.back();
+		chomp(cpos);
+
+		normals.push_back(make_double3(plane->normal));
+		chomp(normals.back());
+		double3 const& normal = normals.back();
+
+		double4 implicit = make_double4(normal, -dot(cpos, normal));
+
+		cout << "plane through " << cpos << " normal " << normal << endl;
+		cout << "\timplicit " << implicit << endl;
+
+		all_intersections.push_back( std::vector<double3>() );
+
+		std::vector<double3> & intersections = all_intersections.back();
+
+		CheckList::const_iterator check(checks.begin());
+		for (; check != checks.end(); ++check) {
+			const double4 &ref = check->first;
+			const int coord = check->second;
+			double3 pt = make_double3(ref);
+			switch (coord) {
+			case 0:
+				if (!normal.x) continue;
+				pt.x = -dot(implicit, ref)/normal.x;
+				if (!bound(pt.x, wo.x, ow.x)) continue;
+				break;
+			case 1:
+				if (!normal.y) continue;
+				pt.y = -dot(implicit, ref)/normal.y;
+				if (!bound(pt.y, wo.y, ow.y)) continue;
+				break;
+			case 2:
+				if (!normal.z) continue;
+				pt.z = -dot(implicit, ref)/normal.z;
+				if (!bound(pt.z, wo.z, ow.z)) continue;
+				break;
+			}
+			chomp(pt);
+			intersections.push_back(pt);
+			cout << "\t(" << (check-checks.begin()) << ")" << endl;
+			cout << "\tcheck " << ref << " from " << coord << endl;
+			cout << "\t\tpoint " << intersections.back() << endl;
+		}
+		npoints += intersections.size();
+	}
+
+	size_t offset = 0;
+
+	fp << "<?xml version='1.0'?>" << endl;
+	fp << "<VTKFile type='UnstructuredGrid'  version='0.1'  byte_order='" <<
+		endianness[*(char*)&endian_int & 1] << "'>" << endl;
+	fp << " <UnstructuredGrid>" << endl;
+	fp << "  <Piece NumberOfPoints='" << npoints
+		<< "' NumberOfCells='" << planes.size() << " '>" << endl;
+
+	fp << "   <Points>" << endl;
+
+	fp << "<DataArray type='Float64' NumberOfComponents='3'>" << endl;
+
+	// intersection points
+	for (std::vector<CoordList>::const_iterator pl(all_intersections.begin());
+		pl < all_intersections.end(); ++pl) {
+		CoordList const& pts = *pl;
+		for (CoordList::const_iterator pt(pts.begin()); pt != pts.end(); ++pt)
+			fp << *pt << endl;
+	}
+
+	// center points
+	for (CoordList::const_iterator pt(centers.begin()); pt != centers.end(); ++pt)
+		fp << *pt << endl;
+
+	fp << "</DataArray>" << endl;
+
+	fp << "   </Points>" << endl;
+
+	fp << "   <Cells>" << endl;
+	fp << "<DataArray type='Int32' Name='connectivity'>" << endl;
+	// intersection points
+	offset = 0;
+	for (std::vector<CoordList>::const_iterator pl(all_intersections.begin());
+		pl < all_intersections.end(); ++pl) {
+		CoordList const& pts = *pl;
+		for (int i = 0; i < pts.size(); ++i) {
+			fp << " " << offset + i;
+		}
+		offset += pts.size();
+		fp << endl;
+	}
+	fp << "</DataArray>" << endl;
+	fp << "<DataArray type='Int32' Name='offsets'>" << endl;
+	offset = 0;
+	for (int i = 0; i < planes.size(); ++i) {
+		offset += all_intersections[i].size();
+		fp << offset << endl;
+	}
+	fp << "</DataArray>" << endl;
+	fp << "<DataArray type='Int32' Name='types'>" << endl;
+	for (int i = 0; i < planes.size(); ++i) {
+		fp << 7 << " "; // POLYGON
+	}
+	fp << endl;
+	fp << "</DataArray>" << endl;
+	fp << "   </Cells>" << endl;
+
+	fp << "   <PointData />" << endl;
+
+	fp << "   <CellData Normals='Normals'>" << endl;
+	fp << "<DataArray type='Float64' Name='Normals' NumberOfComponents='3'>" << endl;
+	for (CoordList::const_iterator pt(normals.begin()); pt != normals.end(); ++pt)
+		fp << *pt << endl;
+	fp << "</DataArray>" << endl;
+	fp << "   </CellData>" << endl;
+
+	fp << "  </Piece>" << endl;
+	fp << " </UnstructuredGrid>" << endl;
+	fp << "</VTKFile>" <<endl;
+
+	fp.close();
 }
 
 void

@@ -38,12 +38,20 @@ class VTKWriter : public Writer
 	std::string m_multiblock_fname;
 	std::string m_particle_fname;
 
+	// name of the planes file. since planes are static (currently),
+	// we only save one and reference it in all multiblocks
+	std::string m_planes_fname;
+
 	// index of the last written block
 	int m_blockidx;
 
 	// check if this is a multiblock save session
 	inline bool multiblock_p()
 	{ return m_multiblock.is_open(); }
+
+
+	// Save planes to a VTU file
+	void save_planes();
 
 	// Open a new multiblock file
 	void open_multiblock();
