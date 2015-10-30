@@ -667,7 +667,6 @@ basicstep(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step,
-			cfl, cfl_Ds, cflTVisc, cflOffset,
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),

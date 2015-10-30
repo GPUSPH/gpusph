@@ -251,7 +251,6 @@ template<KernelType _kerneltype,
 	flag_t _simflags>
 struct forces_params :
 	common_forces_params,
-	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_forces_params),
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 		_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params),
@@ -287,12 +286,6 @@ struct forces_params :
 				float	_influenceradius,
 				uint	_step,
 
-		// dyndt
-				float	*_cfl,
-				float	*_cfl_dS,
-				float	*_cflTVisc,
-				uint	_cflOffset,
-
 		// XSPH
 				float4	*_xsph,
 
@@ -317,8 +310,6 @@ struct forces_params :
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius, _step),
-		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
-			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
 		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 			_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params)(_volArray),
