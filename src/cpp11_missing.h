@@ -23,17 +23,48 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* decltype */
-
-#ifndef _DECLTYPE_H
-#define _DECLTYPE_H
-
-/* decltype is only avaialable on C++11, but both gcc and clang support
- * __decltype even on older standards, so use them
+/* Types, structures, operators and functions that are useful on host,
+ * but missing in versions of C++ earlier than C++11
  */
 
+#ifndef _CPP11_MISSING_H
+#define _CPP11_MISSING_H
+
 #if __cplusplus < 201103L
+
+/* decltype is only avaialable on C++11, but both gcc and clang support
+ * __decltype even on older standards, so use it
+ */
 #define decltype __decltype
+
+/* conditional is trivial to implement pre-C++11.
+ * It is used to choose either of two types depending on
+ * whether a boolean condition is satisfied or not.
+ */
+template<bool B, typename T, typename F>
+struct conditional { typedef T type; };
+
+template<typename T, typename F>
+struct conditional<false, T, F> { typedef F type; };
+
+/* enable_if is also trivial to implement pre-C++11.
+ * It is used as std::enable_if<some_condition, some_type>::type
+ * to restrict a function template to the cases where some_condition
+ * (generally assembled from the function template parameters) is satisfied.
+ */
+template<bool B, typename T=void>
+struct enable_if {};
+
+template<typename T>
+struct enable_if<true, T>
+{ typedef T type; };
+
+#else
+
+#include <type_traits>
+using std::conditional;
+using std::enable_if;
+
 #endif
 
 #endif
