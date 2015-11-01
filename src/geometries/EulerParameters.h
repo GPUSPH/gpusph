@@ -138,6 +138,7 @@ class EulerParameters {
 		//@{
 		double & operator()(int);
 		double operator()(int) const;
+		double4 params() const;
 		//@}
 
 		/** \name Overloaded operators */
