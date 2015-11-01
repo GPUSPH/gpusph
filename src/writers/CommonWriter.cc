@@ -141,9 +141,53 @@ CommonWriter::~CommonWriter()
 		m_objectforcesfile.close();
 }
 
+/// Write testpoints to CSV file
 void
 CommonWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
-{ /* do nothing */ }
+{
+	if (!testpoints)
+		return;
+
+	const double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
+	const hashKey *particleHash = buffers.getData<BUFFER_HASH>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
+	const float *tke = buffers.getData<BUFFER_TKE>();
+	const float *eps = buffers.getData<BUFFER_EPSILON>();
+
+	if (!info)
+		return; // this shouldn't happen, but whatever
+
+	ofstream testpoints_file;
+	string testpoints_fname = open_data_file(testpoints_file, "testpoints/testpoints", current_filenum(), ".csv");
+
+	// 9 decimal digits
+	testpoints_file.precision(9);
+	// output vectors without parenthesis and with a single comma as separator
+	testpoints_file << set_vector_fmt(",");
+
+	// write CSV header
+	testpoints_file << "T,ID,Pressure,Object,CellIndex,PosX,PosY,PosZ,VelX,VelY,VelZ,Tke,Eps" << endl;
+
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
+		if (!TESTPOINT(info[i]))
+			continue;
+
+		const float tkeVal = tke ? tke[i] : 0;
+		const float epsVal = eps ? eps[i] : 0;
+
+		testpoints_file << t << ","
+			<< id(info[i]) << ","
+			<< vel[i].w << ","
+			<< object(info[i]) << ","
+			<< cellHashFromParticleHash( particleHash[i] ) << ","
+			<< as_double3(pos[i]) << ","
+			<< as_float3(vel[i]) << ","
+			<< tkeVal << ","
+			<< epsVal << endl;
+	}
+	testpoints_file.close();
+}
 
 void
 CommonWriter::write_energy(double t, float4 *energy)

@@ -81,8 +81,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 10.0f; //seconds
 
-	simparams()->csvtestpoints = true;
-
 	//WaveGage
 	if (get_option("gages", false)) {
 		add_gage(1, 0.3);
@@ -216,7 +214,6 @@ int WaveTank::fill_parts()
 	 }
 
 	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
-		simparams()->csvtestpoints = true;
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
 		test_points.push_back(pos);
 		pos = Point(0.5748, 0.2799, 0.2564, 0.0);

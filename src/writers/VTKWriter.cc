@@ -173,20 +173,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 
-	// CSV file for tespoints
-	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
-	ofstream testpoints_file;
-	if (testpoints && gdata->problem->simparams()->csvtestpoints) {
-		testpoints_file.open(testpoints_fname.c_str());
-		if (!testpoints_file) {
-			stringstream ss;
-			ss << "Cannot open testpoints file " << testpoints_fname;
-			throw runtime_error(ss.str());
-		}
-		// write CSV header
-		testpoints_file << "T,ID,Pressure,Object,CellIndex,PosX,PosY,PosZ,VelX,VelY,VelZ,Tke,Eps" << endl;
-	}
-
 	string filename;
 
 	ofstream fid;
@@ -451,28 +437,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = type(info[i]);
-			if (testpoints && gdata->problem->simparams()->csvtestpoints && TESTPOINT(info[i])) {
-				float tkeVal = 0.0f;
-				float epsVal = 0.0f;
-				if(tke)
-					tkeVal = tke[i];
-				if(eps)
-					epsVal = eps[i];
-
-				testpoints_file << t << ","
-					<< id(info[i]) << ","
-					<< vel[i].w << ","
-					<< object(info[i]) << ","
-					<< cellHashFromParticleHash( particleHash[i] ) << ","
-					<< pos[i].x << ","
-					<< pos[i].y << ","
-					<< pos[i].z << ","
-					<< vel[i].x << ","
-					<< vel[i].y << ","
-					<< vel[i].z << ","
-					<< tkeVal << ","
-					<< epsVal << endl;
-			}
 			write_var(fid, value);
 		}
 
@@ -699,9 +663,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	if (multiblock_p())
 		add_multiblock("Particles", filename);
 
-	// close testpoints file
-	if (testpoints_file)
-		testpoints_file.close();
 }
 
 void
