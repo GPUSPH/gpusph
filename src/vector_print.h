@@ -29,40 +29,54 @@
 #define _VECTOR_PRINT_H
 
 #include <ostream>
+#include <iterator> // ostream_iterator
+#include <algorithm> // copy
 
-#include "common_types.h"
+#include "vector_traits.h"
+#include "cpp11_missing.h" // enable_if
 
-// operator to stream any 4-vector type
-// we can't use a function template because it's far from trivial
-// having it work with the CUDA vector types
-#define DEFINE_STREAM_XYZW(type) \
-template< class Traits> \
-std::basic_ostream<char,Traits>& operator<< \
-(std::basic_ostream<char,Traits>& os, type##4 const& t) \
-{ return os << "(" << t.x << ", " << t.y << ", " << t.z << ", " << t.w << ")"; }
+/*! overload of ostream operator << for vector types.
+ *
+ * Note the use of enable_if to only enable this override
+ * when V is a vector type (i.e. vector_traits<V>::components is larger than 0),
+ * and the use of ostream_iterator to output all components without
+ * knowing how many there are.
+ */
+template<typename V>
+typename enable_if<
+	(vector_traits<V>::components > 0),
+	std::ostream
+>::type&
+operator<<
+(std::ostream& out, V const& val)
+{
+	typedef vector_traits<V> traits;
+	typedef typename traits::component_type T;
+	const int N = traits::components;
 
-// ditto, 3-vector types
-#define DEFINE_STREAM_XYZ(type) \
-template< class Traits> \
-std::basic_ostream<char,Traits>& operator<< \
-(std::basic_ostream<char,Traits>& os, type##3 const& t) \
-{ return os << "(" << t.x << ", " << t.y << ", " << t.z << ")"; }
+	// We want to print all components, separated by a specific separator
+	// (comma-space aka ", "), regardless of how many there are and how they
+	// are named, so we use iterators, traversing our vector type V as if it
+	// was an array of N elements of type T. Of course in our case the iterators
+	// are just pointers.
+	// So, for example, if V is float4, T will be float,
+	// begin will be a pointer to the first component of val (.x), and
+	// end will be a pointer to the last component (.w).
+	const T* begin = (T*)&val;
+	const T* end = begin + N - 1;
 
-#define DEFINE_STREAM(type) \
-	DEFINE_STREAM_XYZ(type) \
-	DEFINE_STREAM_XYZW(type)
-
-DEFINE_STREAM(char)
-DEFINE_STREAM(uchar)
-DEFINE_STREAM(short)
-DEFINE_STREAM(ushort)
-DEFINE_STREAM(int)
-DEFINE_STREAM(uint)
-DEFINE_STREAM(long)
-DEFINE_STREAM(ulong)
-
-DEFINE_STREAM(float)
-DEFINE_STREAM(double)
+	// output the opening parenthesis
+	out << "(";
+	// output all components _except for the last_, appending
+	// the separator after each one. Note that end is exclusive, which is what
+	// we want, because we don't want to append the separator to that. Also we
+	// can skip all this if N == 1
+	if (N > 1)
+		std::copy(begin, end, std::ostream_iterator<T>(out, ", "));
+	// append the last component and the closing parenthesis
+	out << *end << ")";
+	return out;
+}
 
 #endif
 
