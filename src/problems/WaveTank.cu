@@ -49,6 +49,10 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	height = .63;
 	beta = 4.2364*M_PI/180.0;
 
+	// Add objects to the tank
+	use_cyl = false;
+	use_cone = false;
+
 	SETUP_FRAMEWORK(
 	    //viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
@@ -58,18 +62,18 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		flags<ENABLE_DTADAPT | ENABLE_PLANES>
 	);
 
-	m_size = make_double3(lx, ly, lz + 2.0*height);
-	m_origin = make_double3(0.0, 0.0, -2.0*height);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0, 0, 0);
+	if (use_cyl || use_cone) {
+		m_origin.z -= 2.0*height;
+		m_size.z += 2.0*height;
+	}
 
 	addFilter(SHEPARD_FILTER, 20); // or MLS_FILTER
 
 	if (get_option("testpoints", false)) {
 		addPostProcess(TESTPOINTS);
 	}
-
-	// Add objects to the tank
-	use_cyl = false;
-	use_cone = false;
 
 	// use a plane for the bottom
 	use_bottom_plane = 1;  //1 for plane; 0 for particles

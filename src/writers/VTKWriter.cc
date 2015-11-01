@@ -837,8 +837,10 @@ VTKWriter::save_planes()
 
 		double4 implicit = make_double4(normal, -dot(cpos, normal));
 
+#if DEBUG_VTK_PLANES
 		cout << "plane through " << cpos << " normal " << normal << endl;
 		cout << "\timplicit " << implicit << endl;
+#endif
 
 		all_intersections.push_back( std::vector<double3>() );
 
@@ -868,9 +870,11 @@ VTKWriter::save_planes()
 			}
 			chomp(pt);
 			intersections.push_back(pt);
+#if DEBUG_VTK_PLANES
 			cout << "\t(" << (check-checks.begin()) << ")" << endl;
 			cout << "\tcheck " << ref << " from " << coord << endl;
 			cout << "\t\tpoint " << intersections.back() << endl;
+#endif
 		}
 		npoints += intersections.size();
 	}
