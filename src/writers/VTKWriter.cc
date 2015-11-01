@@ -176,7 +176,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// CSV file for tespoints
 	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
 	ofstream testpoints_file;
-	if (gdata->problem->simparams()->csvtestpoints) {
+	if (testpoints && gdata->problem->simparams()->csvtestpoints) {
 		testpoints_file.open(testpoints_fname.c_str());
 		if (!testpoints_file) {
 			stringstream ss;
@@ -451,7 +451,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = type(info[i]);
-			if (gdata->problem->simparams()->csvtestpoints && TESTPOINT(info[i])) {
+			if (testpoints && gdata->problem->simparams()->csvtestpoints && TESTPOINT(info[i])) {
 				float tkeVal = 0.0f;
 				float epsVal = 0.0f;
 				if(tke)
