@@ -32,8 +32,7 @@
 #define _VECTOR_PRINT_H
 
 #include <ostream>
-#include <iterator> // ostream_iterator
-#include <algorithm> // copy
+#include <iomanip>
 
 #include "vector_traits.h"
 #include "cpp11_missing.h" // enable_if
@@ -107,32 +106,37 @@ operator<<
 	typedef typename traits::component_type T;
 	const int N = traits::components;
 
-	// We want to print all components, separated by a specific separator,
-	// regardless of how many there are and how they are named, so we use
-	// iterators, traversing our vector type V as if it was an array of N
-	// elements of type T. Of course in our case the iterators are just
-	// pointers.
-	// So, for example, if V is float4, T will be float,
-	// begin will be a pointer to the first component of val (.x), and
-	// end will be a pointer to the last component (.w).
-	const T* begin = (T*)&val;
-	const T* end = begin + N - 1;
-
 	const vector_fmt_options *stream_fmt =
 		static_cast<const vector_fmt_options *>(out.pword(vector_fmt_options::idx));
 	const vector_fmt_options *fmt = stream_fmt ? stream_fmt : &reset_vector_fmt;
 
+	// If the user set the width, (e.g. cout << setw(10) << somefloat4 << endl)
+	// we want to apply it to each component, and just those (i.e. not the
+	// opening/closing/separator strings). Since stream output operators reset
+	// the width, we store it and apply it to the parts we care about.
+	// TODO for efficiency, it would be better to manipulate the streambuf
+	// directly
+	const std::streamsize width = out.width();
+
+	out.width(0);
+
 	// output the opening parenthesis
 	out << fmt->opening;
-	// output all components _except for the last_, appending
-	// the separator after each one. Note that end is exclusive, which is what
-	// we want, because we don't want to append the separator to that. Also we
-	// can skip all this if N == 1
-	if (N > 1)
-		std::copy(begin, end, std::ostream_iterator<T>(out, fmt->separator.c_str()));
+
+	// We want to print all components, separated by a specific separator,
+	// regardless of how many there are and how they are named, so we traverse
+	// our vector type V as if it was an array of N elements of type T.
+	// So we get a pointer of type T to the first component of val
+	// and iterate over all components except for the last
+	const T* const ptr = (T*)&val;
+
+#pragma unroll
+	for(int i=0 ; i < N - 1; ++i)
+		out << std::setw(width) << ptr[i] << fmt->separator;
+
 	// append the last component and the closing parenthesis
-	out << *end << fmt->closing;
-	return out;
+	out << std::setw(width) << ptr[N-1] << fmt->closing;
+
 }
 
 #endif
