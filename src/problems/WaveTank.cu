@@ -61,9 +61,11 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz + 2.0*height);
 	m_origin = make_double3(0.0, 0.0, -2.0*height);
 
-	addFilter(SHEPARD_FILTER, 20);
-	  //MLS_FILTER
+	addFilter(SHEPARD_FILTER, 20); // or MLS_FILTER
 
+	if (get_option("testpoints", false)) {
+		addPostProcess(TESTPOINTS);
+	}
 
 	// Add objects to the tank
 	use_cyl = false;
@@ -78,6 +80,8 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 10.0f; //seconds
+
+	simparams()->csvtestpoints = true;
 
 	//WaveGage
 	if (get_option("gages", false)) {
@@ -211,8 +215,8 @@ int WaveTank::fill_parts()
 		n++;
 	 }
 
-/*
-	if (simparams()->testpoints) {
+	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
+		simparams()->csvtestpoints = true;
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
 		test_points.push_back(pos);
 		pos = Point(0.5748, 0.2799, 0.2564, 0.0);
@@ -220,7 +224,7 @@ int WaveTank::fill_parts()
 		pos = Point(1.5748, 0.2799, 0.2564, 0.0);
 		test_points.push_back(pos);
 	}
-*/
+
 	if (use_cyl) {
 		Point p[10];
 		p[0] = Point(h_length + slope_length/(cos(beta)*10), ly/2., 0);
@@ -250,7 +254,7 @@ int WaveTank::fill_parts()
 		cone.Unfill(parts, br);
     }
 
-	return  boundary_parts.size() + get_bodies_numparts() +parts.size(); // + test_points.size();
+	return  boundary_parts.size() + get_bodies_numparts() + parts.size() + test_points.size();
 }
 
 void WaveTank::copy_planes(PlaneList &planes)
@@ -277,20 +281,19 @@ void WaveTank::copy_to_array(BufferList &buffers)
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
 	int j = 0;
-	/*
+
 	if (test_points.size()) {
 		//Testpoints
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		std::cout << "      " << j << "--" << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
+			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);  // first is type, object, 3rd id
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
 		std::cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
-	*/
 
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 	std::cout << "      " << j  << "--" << boundary_parts.size() << "\n";
