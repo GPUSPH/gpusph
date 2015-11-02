@@ -93,8 +93,10 @@ void VTKWriter::close_multiblock()
 	m_multiblock.close();
 }
 
-void VTKWriter::start_writing()
+void VTKWriter::start_writing(double t)
 {
+	Writer::start_writing(t);
+
 	const bool has_gages = gdata->problem->simparams()->gage.size() > 0;
 	const bool has_planes = gdata->s_hPlanes.size() > 0;
 	if (has_gages || has_planes)

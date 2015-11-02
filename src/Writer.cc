@@ -227,7 +227,7 @@ Writer::StartWriting(double t, bool force)
 
 		Writer *writer = it->second;
 		if (writer->need_write(t) || force || m_forced) {
-			writer->start_writing();
+			writer->start_writing(t);
 			started[it->first] = it->second;
 		}
 	}
