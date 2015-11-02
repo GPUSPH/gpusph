@@ -1413,7 +1413,6 @@ saVertexBoundaryConditions(
 	float sumeps = 0.0f; // summation for computing epsilon (k-epsilon model)
 	float sumMdot = 0.0f; // summation for computing the mass variance based on in/outflow
 	float massFluid = 0.0f; // mass obtained from a outgoing - mass of a new fluid
-	float numseg  = 0.0f;  // number of adjacent segments
 	float sump = 0.0f; // summation for the pressure on IO boundaries
 	float3 sumvel = make_float3(0.0f); // summation for the velocity on IO boundaries
 	float alpha = 0.0f; // summation of normalization for IO boundaries
@@ -1572,9 +1571,6 @@ saVertexBoundaryConditions(
 						sumMdot += neibRho/numOutVerts*boundElement.w*
 									dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 					}
-					//sumtke += oldTKE ? oldTKE[neib_index] : NAN;
-					//sumeps += oldEps ? oldEps[neib_index] : NAN;
-					numseg += 1.0f;
 				}
 			}
 			else if (IO_BOUNDARY(info) && FLUID(neib_info)){
@@ -1611,11 +1607,10 @@ saVertexBoundaryConditions(
 		wallNormal = normalize(wallNormal);
 
 	// update boundary conditions on array
-	// note that numseg should never be zero otherwise you found a bug
 	alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
 	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 	if (oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
-		oldTKE[index] = sumtke/numseg;
+		oldTKE[index] = sumtke/alpha;
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
 		if (!initStep) {
 			if (CORNER(info))
@@ -1627,7 +1622,7 @@ saVertexBoundaryConditions(
 		}
 	}
 	if (oldEps && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info)))
-		oldEps[index] = sumeps/numseg;
+		oldEps[index] = sumeps/alpha;
 	// open boundaries
 	if (IO_BOUNDARY(info) && !CORNER(info)) {
 		float4 eulerVel = oldEulerVel[index];
