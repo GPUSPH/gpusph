@@ -122,6 +122,8 @@ struct common_finalize_forces_params
 	const	uint	fromParticle;
 	const	uint	toParticle;
 
+	const	float	slength;
+
 	// Constructor / initializer
 	common_finalize_forces_params(
 				float4	*_forces,
@@ -132,7 +134,8 @@ struct common_finalize_forces_params
 		const	hashKey *_particleHash,
 		const	uint	*_cellStart,
 		const	uint	_fromParticle,
-		const	uint	_toParticle) :
+		const	uint	_toParticle,
+		const 	float	_slength) :
 		forces(_forces),
 		rbforces(_rbforces),
 		rbtorques(_rbtorques),
@@ -141,7 +144,8 @@ struct common_finalize_forces_params
 		particleHash(_particleHash),
 		cellStart(_cellStart),
 		fromParticle(_fromParticle),
-		toParticle(_toParticle)
+		toParticle(_toParticle),
+		slength(_slength)
 	{}
 };
 
@@ -329,9 +333,7 @@ template<SPHFormulation _sph_formulation,
 	flag_t _simflags>
 struct finalize_forces_params :
 	common_finalize_forces_params,
-#if 0
 	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_forces_params),
-#endif
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)
 #if 0
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
@@ -359,14 +361,12 @@ struct finalize_forces_params :
 				uint	_fromParticle,
 				uint	_toParticle,
 
-// TODO: add adaptative dt
-#if 0
+		const 	float 	_slength,
 		// dyndt
 				float	*_cfl,
 				float	*_cfl_dS,
 				float	*_cflTVisc,
 				uint	_cflOffset,
-#endif
 
 		// SPH_GRENIER
 		const	float	*_sigmaArray
@@ -385,11 +385,9 @@ struct finalize_forces_params :
 		) :
 		common_finalize_forces_params(_forces, _rbforces, _rbtorques,
 			_posArray, _velArray, _particleHash, _cellStart,
-			 _fromParticle, _toParticle),
-#if 0
+			 _fromParticle, _toParticle, _slength),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
 			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
-#endif
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray)
 #if 0
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)

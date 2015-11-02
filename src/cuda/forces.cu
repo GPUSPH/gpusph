@@ -676,7 +676,8 @@ basicstep(
 
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> fparams(
 			forces, rbforces, rbtorques,
-			pos, vel, particleHash, cellStart, fromParticle, toParticle,
+			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
+			cfl, cfl_Ds, cflTVisc, cflOffset,
 			bufread->getData<BUFFER_SIGMA>());
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>

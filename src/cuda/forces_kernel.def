@@ -1998,7 +1998,7 @@ struct dyndt_shared_data
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
-		sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
+		sm_max[threadIdx.x] = max(length3(pout.force), d_sqC0[fluid_num(pdata.info)]/params.slength);
 	}
 
 	template<typename FP>
@@ -2421,6 +2421,11 @@ finalizeforcesDevice(
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
+
+	__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
+	shared.init();
+
+#pragma unroll
 	do {
 		if (index >= params.toParticle) break;
 
@@ -2492,6 +2497,7 @@ finalizeforcesDevice(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
+			shared.store(params, pdata, pout);
 		}
 #if 0
 		else
@@ -2531,8 +2537,9 @@ finalizeforcesDevice(
 #endif
 		write_forces<boundarytype>::with(params, pdata, pout);
 
-
 	} while (0);
+
+	shared.reduce(params);
 }
 /************************************************************************************************************/
 
