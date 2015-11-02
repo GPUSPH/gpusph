@@ -1477,11 +1477,10 @@ saVertexBoundaryConditions(
 					// kernel value times volume
 					const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
 					// normal distance based on grad Gamma which approximates the normal of the domain
-					const float normDist = fmax(fabs(dot(normal,as_float3(relPos))), deltap);
 					sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 					// for all boundaries we have dk/dn = 0
 					sumtke += w*neib_k;
-					if (IO_BOUNDARY(info)) {
+					if (IO_BOUNDARY(info) && !CORNER(info)) {
 						// for open boundaries compute dv/dn = 0
 						sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 						// for open boundaries compute pressure interior state
@@ -1490,10 +1489,18 @@ saVertexBoundaryConditions(
 						// and de/dn = 0
 						sumeps += w*neib_eps;
 					}
-					else
+					else {
+						float normDist = 0.0f;
+						if (IO_BOUNDARY(info)) // this actually implies we have a corner
+							// the normal here points away from the io, however, we are interested in the distance to the solid wall
+							// so we subtract the normal component of the relative position
+							normDist = fmax(fabs(length(as_float3(relPos) - normal*dot(normal,as_float3(relPos)))), deltap);
+						else // solid wall
+							normDist = fmax(fabs(dot(normal,as_float3(relPos))), deltap);
 						// for solid boundaries we have de/dn = c_mu^(3/4)*4*k^(3/2)/(\kappa r)
 						// the constant is coming from 4*powf(0.09,0.75)/0.41
 						sumeps += w*(neib_eps + 1.603090412f*powf(neib_k,1.5f)/normDist);
+					}
 					alpha += w;
 				}
 			}
