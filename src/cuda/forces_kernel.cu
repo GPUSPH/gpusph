@@ -1567,15 +1567,15 @@ saVertexBoundaryConditions(
 						float3 vertexWeights;
 						const float3 vx[3] = {as_float3(v0), as_float3(v1), as_float3(v2)};
 						getMassRepartitionFactor(vx, as_float3(boundElement), vertexWeights);
-						float numOutVerts = 0.0f;
+						float beta = 0.0f;
 						if (neibVertXidx == index)
-							numOutVerts = 1.0f/vertexWeights.x;
+							beta = vertexWeights.x;
 						else if (neibVertYidx == index)
-							numOutVerts = 1.0f/vertexWeights.y;
+							beta = vertexWeights.y;
 						else if (neibVertZidx == index)
-							numOutVerts = 1.0f/vertexWeights.z;
+							beta = vertexWeights.z;
 
-						sumMdot += neibRho/numOutVerts*boundElement.w*
+						sumMdot += neibRho*beta*boundElement.w*
 									dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 					}
 				}
