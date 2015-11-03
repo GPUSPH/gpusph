@@ -2941,7 +2941,9 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	CLEAR_FLAG(info, FG_SURFACE);
-	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
+
+	// self contribution to normalization: W(0)*vol
+	normal.w = W<kerneltype>(0.0f, slength)*pos.w/tex1Dfetch(velTex, index).w;
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -2971,14 +2973,15 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 		const float r = length(as_float3(relPos));
 
-		const float neib_density = tex1Dfetch(velTex, neib_index).w;
+		// neighbor volume
+		const float neib_vol = relPos.w/tex1Dfetch(velTex, neib_index).w;
 
 		if (r < influenceradius) {
-			const float f = F<kerneltype>(r, slength)*relPos.w /neib_density; // 1/r ∂Wij/∂r Vj
+			const float f = F<kerneltype>(r, slength)*neib_vol; // 1/r ∂Wij/∂r Vj
 			normal.x -= f * relPos.x;
 			normal.y -= f * relPos.y;
 			normal.z -= f * relPos.z;
-			normal.w += W<kerneltype>(r, slength)*relPos.w;	// Wij*mj ;
+			normal.w += W<kerneltype>(r, slength)*neib_vol;	// Wij*Vj ;
 
 		}
 	}
@@ -2988,7 +2991,9 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		for (uint i = 0; i < d_numplanes; ++i) {
 			const float r = PlaneDistance(gridPos, as_float3(pos), d_plane[i]);
 			if (r < influenceradius) {
-				as_float3(normal) += d_plane[i].normal;
+				// since our current normal is still unnormalized, the plane normal
+				// contribution must be scaled up to match the length of the current normal
+				as_float3(normal) += d_plane[i].normal*length3(normal);
 			}
 		}
 
