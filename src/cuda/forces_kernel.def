@@ -2009,7 +2009,7 @@ struct dyndt_keps_shared_data
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
-		sm_max_nut[threadIdx.x] = fabs(pout.contupd.y);
+		sm_max_nut[threadIdx.x] = pdata.turbVisc;
 	}
 
 	template<typename FP>
