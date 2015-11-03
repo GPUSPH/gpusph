@@ -2983,17 +2983,16 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		}
 	}
 
-	float normal_length = length(as_float3(normal));
-
 	// Checking the planes
 	if (simflags & ENABLE_PLANES)
 		for (uint i = 0; i < d_numplanes; ++i) {
 			const float r = PlaneDistance(gridPos, as_float3(pos), d_plane[i]);
 			if (r < influenceradius) {
 				as_float3(normal) += d_plane[i].normal;
-				normal_length = length(as_float3(normal));
 			}
 		}
+
+	const float normal_length = length3(normal);
 
 	// Second loop over all neighbors
 
@@ -3023,14 +3022,14 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
 		float cosconeangle;
 
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius) {
-			float criteria = -(normal.x * relPos.x + normal.y * relPos.y + normal.z * relPos.z);
+			float criteria = -dot3(normal, relPos);
 			if (FLUID(neib_info))
 				cosconeangle = d_cosconeanglefluid;
 			else
