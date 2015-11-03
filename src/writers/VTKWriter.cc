@@ -44,9 +44,6 @@ static const char dev_idx_str[] = "UInt8";
 
 VTKWriter::VTKWriter(const GlobalData *_gdata)
   : Writer(_gdata),
-	m_multiblock(),
-	m_multiblock_fname(),
-	m_particle_fname(),
 	m_planes_fname(),
 	m_blockidx(-1)
 {
@@ -69,54 +66,31 @@ VTKWriter::~VTKWriter()
 	m_timefile.close();
 }
 
-void VTKWriter::open_multiblock()
-{
-	m_multiblock_fname = open_data_file(m_multiblock, "data", current_filenum(), ".vtm");
-	m_multiblock << "<?xml version='1.0'?>\n";
-	m_multiblock << "<VTKFile type='vtkMultiBlockDataSet'  version='1.0'>\n";
-	m_multiblock << " <vtkMultiBlockDataSet>\n";
-
-	m_blockidx = -1;
-}
-
-void VTKWriter::add_multiblock(std::string const& blockname, std::string const& fname)
+void VTKWriter::add_block(std::string const& blockname, std::string const& fname, double t)
 {
 	++m_blockidx;
-	m_multiblock << "  <DataSet index='" << m_blockidx << "' name='" << blockname <<
-		"' file='" << fname << "'/>" << endl;
-}
-
-void VTKWriter::close_multiblock()
-{
-	m_multiblock << " </vtkMultiBlockDataSet>\n";
-	m_multiblock << "</VTKFile>" << endl;
-	m_multiblock.close();
+	m_timefile << "  <DataSet timestep='" << t << "' group='" << m_blockidx <<
+		"' name='" << blockname << "' file='" << fname << "'/>" << endl;
 }
 
 void VTKWriter::start_writing(double t)
 {
 	Writer::start_writing(t);
 
-	const bool has_gages = gdata->problem->simparams()->gage.size() > 0;
+	m_blockidx = -1;
+
 	const bool has_planes = gdata->s_hPlanes.size() > 0;
-	if (has_gages || has_planes)
-		open_multiblock();
 
 	if (has_planes) {
 		if (m_planes_fname.size() == 0) {
 			save_planes();
 		}
-		add_multiblock("Planes", m_planes_fname);
+		add_block("Planes", m_planes_fname, t);
 	}
 }
 
 void VTKWriter::mark_written(double t)
 {
-	if (multiblock_p())
-		close_multiblock();
-
-	m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
-		<< "file='" << (m_blockidx > 0 ? m_multiblock_fname : m_particle_fname) << "'/>" << endl;
 	mark_timefile();
 
 	Writer::mark_written(t);
@@ -675,10 +649,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
 
-	m_particle_fname = filename;
-
-	if (multiblock_p())
-		add_multiblock("Particles", filename);
+	add_block("Particles", filename, t);
 
 }
 
@@ -741,7 +712,7 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 
 	fp.close();
 
-	add_multiblock("WaveGages", filename);
+	add_block("WaveGages", filename, t);
 }
 
 static inline void chomp(double3 &pt, double eps=FLT_EPSILON)
