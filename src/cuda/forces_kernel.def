@@ -2230,7 +2230,11 @@ struct compute_pp_interaction
 	}
 };
 
-
+/// Specialization of particle-particle interaction for the fluid-fluid case
+/* When both the central particle and their neighbors are fluid the interaction
+ * is the same regardless of the boundary type and is computed in this specialized
+ * functor.
+ */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
@@ -2265,50 +2269,82 @@ struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctyp
 	}
 };
 
-/*template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype,
-simflags, PT_FLUID, PT_FLUID>
-{
-	template<typename FP, typename P, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP const& pout, ON const& nout)
-	{  }
-};
 
+/// Specialization of particle-particle interaction for boundary-fluid with dynamic boundaries
+/* When using dynamic boundaries the boundary-fluid interaction consist in the density derivative
+ * computation for boundary particles and a full force computation if we need to compute the
+ * force on a boundary.
+ */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype,
-simflags, PT_BOUNDARY, PT_FLUID>
+struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 {
-	template<typename FP, typename P, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, OP const& pout, ON const& nout)
-	{  }
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		if (!(simflags & ENABLE_DENSITY_SUM)) {
+			// Computes d\rho/dt, including ferrari correction
+			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		}
+
+		// We need to compute force on boudary particles only when we have floating bodies or force feedback
+		if (COMPUTE_FORCE(pdata.info)) {
+			// Compute pressure part of acceleration
+			compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+
+			// Compute viscous forces
+			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+
+			// Compute diffusion terms for k-epsilon and the strain rate tensor
+			//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
+			// TODO : implement keps for dynamic boundaries
+
+			// Sum all contributions from the neighbors in the force array
+			as_float3(pout.force) += nout.DvDt;
+		}
+	}
 };
 
+
+/// Specialization of particle-particle interaction for fluid-boundary with dynamic boundaries
+/* When using dynamic boundaries the fluid-boundary interaction is the same as the fluid-fluid
+ * except for the mean velocity with XSPH.
+ * TODO: check if we need to compute the mean vel for XSPH including the boundary particles
+ */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype,
-simflags, PT_FLUID, PT_BOUNDARY>
+struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 {
-	template<typename FP, typename P, typename OP, typename ON>
+	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, OP const& pout, ON const& nout)
-	{  }
-};*/
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		if (!(simflags & ENABLE_DENSITY_SUM)) {
+			// Computes d\rho/dt, including ferrari correction
+			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		}
+
+		// Compute pressure part of acceleration
+		compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+
+		// Compute viscous forces
+		compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+
+		// Compute diffusion terms for k-epsilon and the strain rate tensor
+		//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
+		// TODO : implement keps for dynamic boundaries
+
+		// Sum all contributions from the neighbors in the force array
+		as_float3(pout.force) += nout.DvDt;
+	}
+};
 
 
 /************************************************************************************************************/
