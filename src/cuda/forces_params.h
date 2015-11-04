@@ -252,14 +252,16 @@ template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
-	flag_t _simflags>
+	flag_t _simflags,
+	ParticleType _cptype,
+	ParticleType _nptype>
 struct forces_params :
 	common_forces_params,
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_forces_params),
+	COND_STRUCT((_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 		_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
-	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params)
 {
@@ -268,6 +270,8 @@ struct forces_params :
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
 	static const flag_t simflags = _simflags;
+	static const ParticleType cptype = _cptype;
+	static const ParticleType nptype = _nptype;
 
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the forces kernel.
@@ -318,7 +322,7 @@ struct forces_params :
 		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 			_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params)(_volArray),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
+		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_forces_params)
 			(_newGGam, _contupd, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)

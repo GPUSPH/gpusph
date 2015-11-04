@@ -401,7 +401,9 @@ template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
-	flag_t _simflags>
+	flag_t _simflags,
+	ParticleType _cptype,
+	ParticleType _nptype>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -415,11 +417,12 @@ struct forces_particle_data :
 		(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	// eulerian velocity only used in case of keps or with open boundaries
-	COND_STRUCT(_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype
+			&& (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
-	COND_STRUCT(_boundarytype == SA_BOUNDARY,
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype,
 		sa_boundary_particle_data<_visctype, _simflags>),
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
 	COND_STRUCT(_visctype == KEPSVISC,
@@ -440,9 +443,11 @@ struct forces_particle_data :
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
 	static const flag_t simflags = _simflags;
+	static const ParticleType cptype = _cptype;
+	static const ParticleType nptype = _nptype;
 
 	// shorthand for the type of the forces params
-	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
+	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> params_t;
 
 	ParticleType	ptype;
 
@@ -457,9 +462,10 @@ struct forces_particle_data :
 			(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
 			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
-		COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
+				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 			eulerVel_particle_data)(_index),
-		COND_STRUCT(boundarytype == SA_BOUNDARY,
+		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
 			sa_boundary_particle_data<visctype, simflags>)(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
 			keps_particle_data)(_index, _info),
@@ -624,13 +630,15 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	flag_t simflags>
+	flag_t simflags,
+	ParticleType cptype,
+	ParticleType nptype>
 struct common_neib_data
 {
 	// we will get as arguments also the current particle data and forces_kernel params.
 	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
-	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> pdata_t;
+	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> params_t;
 
 	particleinfo	const& info;
 	// relPos holds the distance vector in .xyz and the neib mass in .w
@@ -664,13 +672,15 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	flag_t simflags>
+	flag_t simflags,
+	ParticleType cptype,
+	ParticleType nptype>
 struct sa_boundary_neib_data
 {
 	// we will get as arguments also the current particle data and forces_kernel params.
 	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
-	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> pdata_t;
+	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> params_t;
 	typedef forces_particle_output<SA_BOUNDARY, visctype, simflags> pout_t;
 
 	const uint index;
@@ -694,12 +704,14 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	flag_t simflags>
+	flag_t simflags,
+	ParticleType cptype,
+	ParticleType nptype>
 struct eulerVel_neib_data
 {
 	// we will get as arguments also the current particle data and forces_kernel params.
 	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> pdata_t;
 
 	const float4 relEulerVel;
 
@@ -713,17 +725,20 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	flag_t simflags>
+	flag_t simflags,
+	ParticleType cptype,
+	ParticleType nptype>
 struct forces_neib_data :
-	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
+	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype>,
 	COND_STRUCT(sph_formulation == SPH_GRENIER &&
 		(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
 	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
-	COND_STRUCT(boundarytype == SA_BOUNDARY,
-		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>),
+	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
+		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype>),
 	// relative eulerian velocity
-	COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
-		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>),
+	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
+			(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
+		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype>),
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	// precalculated pressure
@@ -734,14 +749,15 @@ struct forces_neib_data :
 	COND_STRUCT(visctype == SPSVISC, sps_particle_data)
 {
 	// shortcut typedefs
-	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> _common_neib_data;
+	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> _common_neib_data;
 	typedef
-		typename COND_STRUCT(boundarytype == SA_BOUNDARY,
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>)
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
+			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype>)
 		_sa_boundary_neib_data;
 	typedef
-		typename COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>)
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
+				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
+			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype>)
 		_eulerVel_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
@@ -2109,8 +2125,8 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags,
-	ParticleType ptype,
-	ParticleType ntype>
+	ParticleType cptype,
+	ParticleType nptype>
 struct compute_pp_interaction
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -2355,11 +2371,11 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags,
-	ParticleType ptype,
-	ParticleType ntype>
+	ParticleType cptype,
+	ParticleType nptype>
 __global__ void
 forcesDevice(
-	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
+	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
@@ -2383,7 +2399,7 @@ forcesDevice(
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// Skip if the current particle is not of the type for which we are computing interactions
-		if (PART_TYPE(info) != ptype) break;
+		if (PART_TYPE(info) != cptype) break;
 
 
 		// Cell-local position of the particle, stored in texture
@@ -2399,7 +2415,7 @@ forcesDevice(
 			break;
 
 		// Loading the rest of particle data
-		forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> const
+		forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> const
 			pdata(index, pos, info, params);
 
 		// Preparing particle output variables
@@ -2430,14 +2446,14 @@ forcesDevice(
 		}
 
 		// Loop over all neighbors
-		if (ntype == PT_BOUNDARY || ntype == PT_VERTEX)
+		if (nptype == PT_BOUNDARY || nptype == PT_VERTEX)
 			i = cuneibs::d_neibboundpos*d_neiblist_stride;
 
 		while (cont) {
 			neibdata neib_data = params.neibsList[i + index];
 
 			if (neib_data == 0xffff) break;
-			i += (ntype == PT_BOUNDARY) ? -d_neiblist_stride : d_neiblist_stride;
+			i += (nptype == PT_BOUNDARY) ? -d_neiblist_stride : d_neiblist_stride;
 
 			const uint neib_index = getNeibIndex(pdata.pos, pos_corr, params.cellStart,
 				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
@@ -2463,14 +2479,14 @@ forcesDevice(
 				continue;
 
 			// Load rest of neib data
-			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> const
+			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype> const
 				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 			// Contributions from this neighbor
 			forces_neib_output<boundarytype> nout;
 
 			// Now compute the interactions based on pdata.info and ndata.info
-			compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, ptype, ntype>::
+			compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype>::
 				with(params, pdata, ndata, pout, nout);
 
 		} // End of loop over neighbors
@@ -2482,7 +2498,7 @@ forcesDevice(
 
 		write_forces<boundarytype>::with(params, pdata, pout);
 
-		if (ntype == PT_FLUID && ptype == PT_FLUID) {
+		if (nptype == PT_FLUID && cptype == PT_FLUID) {
 			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
 			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
