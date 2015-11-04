@@ -1417,6 +1417,7 @@ saVertexBoundaryConditions(
 	float3 sumvel = make_float3(0.0f); // summation for the velocity on IO boundaries
 	float alpha = 0.0f; // summation of normalization for IO boundaries
 	bool foundFluid = false; // check if a vertex particle has a fluid particle in its support
+	float numseg = 0.0f;
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -1471,15 +1472,12 @@ saVertexBoundaryConditions(
 					const float neib_rho = oldVel[neib_index].w;
 					const float neib_pres = P(neib_rho, fluid_num(neib_info));
 					const float neib_vel = length(make_float3(oldVel[neib_index]));
-					const float neib_k = oldTKE ? oldTKE[neib_index] : NAN;
-					const float neib_eps = oldEps ? oldEps[neib_index] : NAN;
 
 					// kernel value times volume
 					const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
 					// normal distance based on grad Gamma which approximates the normal of the domain
 					sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 					// for all boundaries we have dk/dn = 0
-					sumtke += w*neib_k;
 					if (IO_BOUNDARY(info) && !CORNER(info)) {
 						// for open boundaries compute dv/dn = 0
 						sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
@@ -1487,19 +1485,6 @@ saVertexBoundaryConditions(
 						//sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
 						sump += w*fmax(0.0f, neib_pres);
 						// and de/dn = 0
-						sumeps += w*neib_eps;
-					}
-					else {
-						float normDist = 0.0f;
-						if (IO_BOUNDARY(info)) // this actually implies we have a corner
-							// the normal here points away from the io, however, we are interested in the distance to the solid wall
-							// so we subtract the normal component of the relative position
-							normDist = fmax(fabs(length(as_float3(relPos) - normal*dot(normal,as_float3(relPos)))), deltap);
-						else // solid wall
-							normDist = fmax(fabs(dot(normal,as_float3(relPos))), deltap);
-						// for solid boundaries we have de/dn = c_mu^(3/4)*4*k^(3/2)/(\kappa r)
-						// the constant is coming from 4*powf(0.09,0.75)/0.41
-						sumeps += w*(neib_eps + 1.603090412f*powf(neib_k,1.5f)/normDist);
 					}
 					alpha += w;
 				}
@@ -1516,6 +1501,12 @@ saVertexBoundaryConditions(
 					// that the eulerian velocity in the k-eps case is only normal to the solid wall
 					if (initStep || (CORNER(info) && !IO_BOUNDARY(neib_info)))
 						wallNormal += as_float3(boundElement)*boundElement.w;
+					// k and eps are taken directly from the associated segments
+					const float neib_k = oldTKE ? oldTKE[neib_index] : NAN;
+					const float neib_eps = oldEps ? oldEps[neib_index] : NAN;
+					sumtke += neib_k;
+					sumeps += neib_eps;
+					numseg += 1.0f;
 					// corner vertices only take solid wall segments into account
 					if (CORNER(info) && IO_BOUNDARY(neib_info))
 						continue;
@@ -1619,20 +1610,19 @@ saVertexBoundaryConditions(
 	else
 		alpha = fmax(alpha, 1e-5f);
 	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
-	if (oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
-		oldTKE[index] = sumtke/alpha;
+	if (oldTKE)
+		oldTKE[index] = sumtke/numseg;
+	if (oldEps)
+		oldEps[index] = fmax(sumeps/numseg, 1e-5f);
+	if (!initStep && oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
-		if (!initStep) {
-			if (CORNER(info))
-				// normal for corners is normal to the IO it belongs, so we use wallNormal which is normal
-				// to the solid wall it is adjacent to
-				as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), wallNormal)*wallNormal;
-			else if (!IO_BOUNDARY(info))
-				as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), normal)*normal;
-		}
+		if (CORNER(info))
+			// normal for corners is normal to the IO it belongs, so we use wallNormal which is normal
+			// to the solid wall it is adjacent to
+			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), wallNormal)*wallNormal;
+		else if (!IO_BOUNDARY(info))
+			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), normal)*normal;
 	}
-	if (oldEps && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info)))
-		oldEps[index] = sumeps/alpha;
 	// open boundaries
 	if (IO_BOUNDARY(info) && !CORNER(info)) {
 		float4 eulerVel = oldEulerVel[index];
