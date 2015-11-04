@@ -534,7 +534,7 @@ Problem::check_neiblistsize(void)
 	double r = simparams()->sfactor*simparams()->kernelradius;
 	r = ceil(r);
 
-	// volumes are computed using a coefficient which is sligthly more than π
+	// volumes are computed using a coefficient which is sligthly more than PI
 #define PI_PLUS_EPS 3.2
 	double vol = 4*PI_PLUS_EPS*r*r*r/3;
 	// and rounded up
@@ -572,7 +572,7 @@ Problem::check_neiblistsize(void)
 	neiblistsize = (uint)ceil(ratio*neiblistsize);
 	// round up to multiple of 32
 	neiblistsize = round_up(neiblistsize, 32U);
-	uint neibboundpos = neiblistsize = - 1;
+	uint neibboundpos = neiblistsize - 1;
 
 	// with semi-analytical boundaries, boundary particles
 	// are doubled, so we expand by a factor of 1.5,
@@ -583,27 +583,28 @@ Problem::check_neiblistsize(void)
 	// if the neib list was user-set, check against computed minimum
 	if (simparams()->neiblistsize) {
 		if (simparams()->neiblistsize < neiblistsize) {
-			fprintf(stderr, "WARNING: problem-set neib list size too low! %u < %u\n",
-				simparams()->neiblistsize, neiblistsize);
+			cerr << "WARNING: problem-set neib list size too low! " <<
+				simparams()->neiblistsize << "<" << neiblistsize << "\n";
 		} else {
-			printf("Using problem-set neib list size %u (safe computed value was %u)\n",
-				simparams()->neiblistsize, neiblistsize);
+			cout << "Using problem-set neib list size " << simparams()->neiblistsize <<
+					" (safe computed value was " << neiblistsize << ")\n";
 		}
 	} else {
-		printf("Using computed max neib list size %u\n", neiblistsize);
+		cout << "Using computed max neib list size " << neiblistsize << "\n";
 		simparams()->neiblistsize = neiblistsize;
 	}
+
 	// if the neib bound pos was user-set, check against computed minimum
 	if (simparams()->neibboundpos) {
 		if (simparams()->neibboundpos < neibboundpos) {
-			fprintf(stderr, "WARNING: problem-set neib bound pos too low! %u < %u\n",
-				simparams()->neibboundpos, neibboundpos);
+			cerr << "WARNING: problem-set neib bound pos too low! " <<
+					simparams()->neibboundpos << "<" << neibboundpos << "\n";
 		} else {
-			printf("Using problem-set neib bound pos %u (safe computed value was %u)\n",
-				simparams()->neibboundpos, neibboundpos);
+			cout << "Using problem-set neib bound pos " << simparams()->neibboundpos <<
+					" (safe computed value was " << neibboundpos << ")\n";
 		}
 	} else {
-		printf("Using computed neib bound pos %u\n", neibboundpos);
+		cout << "Using computed neib bound pos " << neibboundpos << "\n";
 		simparams()->neibboundpos = neibboundpos;
 	}
 }
