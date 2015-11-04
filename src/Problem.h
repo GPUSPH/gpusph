@@ -260,6 +260,10 @@ RESTORE_WARNINGS
 		// wrappers for physparams functions
 		size_t add_fluid(float rho)
 		{ return m_physparams->add_fluid(rho); }
+		void set_density(size_t fluid_idx, float _rho0)
+		{ return m_physparams->set_density(fluid_idx, _rho0); }
+		float get_density(size_t fluid_idx)
+		{ return m_physparams->get_density(fluid_idx); }
 		void set_equation_of_state(size_t fluid_idx, float gamma, float c0)
 		{ return m_physparams->set_equation_of_state(fluid_idx, gamma, c0); }
 		void set_kinematic_visc(size_t fluid_idx, float nu)
