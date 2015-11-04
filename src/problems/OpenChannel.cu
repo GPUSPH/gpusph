@@ -65,9 +65,9 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 	}
 
 	// Size and origin of the simulation domain
-	a = 1.0;
-	h = H*1.4;
-	l = 15*simparams()->influenceRadius;
+	a = round_up(1.0, m_deltap);
+	h = round_up(H*1.4, m_deltap);
+	l = round_up(15*simparams()->influenceRadius, m_deltap);
 
 	m_size = make_double3(l, a, h) + 2*dyn_offset;
 	m_origin = make_double3(0.0, 0.0, 0.0) - dyn_offset;
