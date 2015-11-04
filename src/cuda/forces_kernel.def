@@ -2231,6 +2231,40 @@ struct compute_pp_interaction
 };
 
 
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		if (!(simflags & ENABLE_DENSITY_SUM)) {
+			// Computes d\rho/dt, including ferrari correction
+			compute_density_derivative<boundarytype>::with(params, pdata, ndata, pout, nout);
+		}
+
+		// Compute pressure part of acceleration
+		compute_pressure_contrib<boundarytype>::with(params, pdata, ndata, pout, nout);
+
+		// Compute viscous forces
+		compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
+
+		// Compute diffusion terms for k-epsilon and the strain rate tensor
+		compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
+
+		// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
+		compute_mean_vel<simflags & ENABLE_XSPH>::with(params, pdata, ndata, pout, nout);
+
+		// Sum all contributions from the neighbors in the force array
+		as_float3(pout.force) += nout.DvDt;
+	}
+};
+
 /*template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
@@ -2315,25 +2349,6 @@ forcesDevice(
 		// Skip if the current particle is not of the type for which we are computing interactions
 		if (PART_TYPE(info) != ptype) break;
 
-		// Determine how the current particle must act based on it's the particle type.
-		// The particles for which forces are computed are:
-		// 	* fluid particles
-		// 	* object particles
-		// 	* vertex particles (for SA_BOUNDARY)
-		// 	* everything except TESTPOINTS (for DYN_BOUNDARY)
-
-		bool computes_stuff = FLUID(info) || (boundarytype != SA_BOUNDARY && COMPUTE_FORCE(info));
-		if (boundarytype == SA_BOUNDARY) {
-			computes_stuff = computes_stuff || VERTEX(info);
-			// Floating objects need to compute the force acting on them
-			computes_stuff = computes_stuff || (BOUNDARY(info) && FLOATING(info));
-		}
-		if (boundarytype == DYN_BOUNDARY)
-			computes_stuff = !TESTPOINT(info);
-
-		// Nothing to do if the particle doesn't need to compute forces
-		if (!computes_stuff)
-			break;
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
@@ -2379,7 +2394,7 @@ forcesDevice(
 		}
 
 		// Loop over all neighbors
-		if (ntype == PT_BOUNDARY)
+		if (ntype == PT_BOUNDARY || ntype == PT_VERTEX)
 			i = cuneibs::d_neibboundpos*d_neiblist_stride;
 
 		while (cont) {
@@ -2407,30 +2422,8 @@ forcesDevice(
 
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			// We now check if the current particle interacts with the neighbor.
-			// We recycle the computes_stuff as boolean
-			if(BOUNDARY(neib_info))
-				computes_stuff = (r < params.influenceradius+params.deltap);
-			else
-				computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
-
-			// When not using SA_BOUNDARY, particles in rigid bodies that need
-			// to compute forces only interact with fluid particles, since
-			// object-object and object-boundary forces
-			// are computed with ODE.
-			if (boundarytype != SA_BOUNDARY && COMPUTE_FORCE(pdata.info))
-				computes_stuff = computes_stuff && FLUID(neib_info);
-
-			// With SA_BOUNDARY, fluid and vertex particles interact with any
-			// BOUNDARY particles in the neiblist, regardless of distance
-			// TODO FIXME they should interact with BOUNDARY particles such
-			// that the current particle influence radius intersects the
-			// boundary element
-			if (boundarytype == SA_BOUNDARY && (FLUID(info) || VERTEX(info)))
-				computes_stuff = computes_stuff || BOUNDARY(neib_info);
-
 			// Bail out if we do not interact with this neighbor
-			if (!computes_stuff)
+			if (r >= params.influenceradius)
 				continue;
 
 			// Load rest of neib data
@@ -2446,13 +2439,14 @@ forcesDevice(
 
 		} // End of loop over neighbors
 
-
-		if (!(COMPUTE_FORCE(pdata.info) && !VERTEX(pdata.info))) {
+		// TODO: check what to do with gamma
+		/*if (!(COMPUTE_FORCE(pdata.info) && !VERTEX(pdata.info))) {
 			write_gamma<boundarytype>::with(params, pdata, pout);
-		}
+		}*/
+
 		write_forces<boundarytype>::with(params, pdata, pout);
 
-		if (FLUID(pdata.info)) {
+		if (ntype == PT_FLUID && ptype == PT_FLUID) {
 			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
 			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
