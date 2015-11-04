@@ -1614,7 +1614,10 @@ saVertexBoundaryConditions(
 		wallNormal = normalize(wallNormal);
 
 	// update boundary conditions on array
-	alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
+	if (!initStep)
+		alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
+	else
+		alpha = fmax(alpha, 1e-5f);
 	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 	if (oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		oldTKE[index] = sumtke/alpha;
