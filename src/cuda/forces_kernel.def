@@ -292,7 +292,7 @@ struct keps_particle_data
 		keps_k(tex1Dfetch(keps_kTex, index)),
 		keps_e(tex1Dfetch(keps_eTex, index)),
 		turbVisc(0.09f*keps_k*keps_k/keps_e),
-		turbViscForViscTerm(FLUID(info) ? turbVisc : 0)
+		turbViscForViscTerm((FLUID(info) || (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info))) ? turbVisc : 0)
 	{}
 };
 
