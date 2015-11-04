@@ -2286,6 +2286,59 @@ struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctyp
 };
 
 
+/// Generic specialization of particle-particle interaction for boundary-fluid
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		if (boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY)
+			return;
+
+		// We need to compute force on boundary particles only when we have floating bodies or force feedback
+		if (COMPUTE_FORCE(pdata.info)) {
+			// Compute repulsive force from boundary particle
+			compute_repulsive_force(params, pdata, ndata, pout, nout);
+
+			// Sum all contributions from the neighbors in the force array
+			as_float3(pout.force) += nout.DvDt;
+		}
+	}
+};
+
+
+/// Generic specialization of particle-particle interaction for fluid-boundary
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		if (boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY)
+			return;
+
+		// Compute repulsive force from boundary particle
+		compute_repulsive_force(params, pdata, ndata, pout, nout);
+
+		// Sum all contributions from the neighbors in the force array
+		as_float3(pout.force) += nout.DvDt;
+	}
+};
+
+
 /// Specialization of particle-particle interaction for boundary-fluid with dynamic boundaries
 /* When using dynamic boundaries the boundary-fluid interaction consist in the density derivative
  * computation for boundary particles and a full force computation if we need to compute the
@@ -2307,7 +2360,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
 			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 		}
 
-		// We need to compute force on boudary particles only when we have floating bodies or force feedback
+		// We need to compute force on boundary particles only when we have floating bodies or force feedback
 		if (COMPUTE_FORCE(pdata.info)) {
 			// Compute pressure part of acceleration
 			compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
