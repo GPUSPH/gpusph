@@ -306,9 +306,9 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		);
 
 		set_deltap(0.1f);
-		m_simparams->maxneibsnum = 240;
-		m_simparams->tend = 10.0;
-		m_simparams->ferrari= 1.0f;
+		simparams()->maxneibsnum = 240;
+		simparams()->tend = 10.0;
+		simparams()->ferrari= 1.0f;
 		//m_simparams->ferrariLengthScale = 0.2f;
 
 		size_t water = add_fluid(1000.0f);
@@ -319,7 +319,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 	// Solitary Wave with IO
@@ -798,7 +798,7 @@ InputProblem_imposeBoundaryCondition(
 #elif SPECIFIC_PROBLEM == LaPalisseSmallerTest
 			if(absPos.z < sin(t*3.14f/2.0f)*0.2f) {
 				eulerVel.x = 1.0f;
-				eulerVel.y = 1.0f;
+				eulerVel.y = 0.5f;
 			}
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			// the 0.025 is deltap*0.5 = 0.05*0.5
@@ -862,8 +862,8 @@ InputProblem_imposeBoundaryCondition(
     SPECIFIC_PROBLEM == LaPalisseSmallerTest
 			if (object(info)==0)
 				//waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
-				waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
-				//waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				//waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));

@@ -250,10 +250,10 @@ template<typename EP, typename P>
 __device__ __forceinline__ void
 update_normals_SA<SA_BOUNDARY>::with(EP const& params, P &pdata, int index)
 {
-	if (!BOUNDARY(pdata.info))
-		return;
-	const float3 normal = as_float3(params.newBoundElement[index]);
-	applyrot(&d_rbsteprot[9*object(pdata.info)], normal, params.newBoundElement[index]);
+	if (BOUNDARY(pdata.info) || VERTEX(pdata.info)) {
+		const float3 normal = as_float3(params.newBoundElement[index]);
+		applyrot(&d_rbsteprot[9*object(pdata.info)], normal, params.newBoundElement[index]);
+	}
 }
 
 // A functor that helps to integrate Eulerian velocity for k-eps, if using SA_BOUNDARY

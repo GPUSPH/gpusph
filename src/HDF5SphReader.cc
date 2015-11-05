@@ -28,16 +28,6 @@
 // Dataset dimensions
 #define RANK 1
 
-HDF5SphReader::HDF5SphReader(void) {
-	filename = "";
-	npart = UINT_MAX;
-	buf = NULL;
-}
-
-HDF5SphReader::~HDF5SphReader() {
-	empty();
-}
-
 int
 HDF5SphReader::getNParts()
 {
@@ -133,35 +123,4 @@ HDF5SphReader::read()
 #else
 	NO_HDF5_ERR;
 #endif
-}
-
-void
-HDF5SphReader::empty()
-{
-	if(buf != NULL){
-		delete [] buf;
-		buf = NULL;
-	}
-}
-
-void
-HDF5SphReader::reset()
-{
-	empty();
-	filename = "";
-	npart = UINT_MAX;
-}
-
-void
-HDF5SphReader::setFilename(std::string const& fn)
-{
-	// reset npart
-	npart = UINT_MAX;
-	// copy filename
-	filename = fn;
-	// check whether file exists
-	std::ifstream f(filename.c_str());
-	if(!f.good())
-		throw std::invalid_argument(std::string("could not open ") + fn);
-	f.close();
 }

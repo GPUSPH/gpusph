@@ -26,7 +26,7 @@
 #define LaPalisseSmallerTest		15	// Smaller testcase for La Palisse (pressure in/out with free-surface)
 //*******************************************************************************************************
 // Choose one of the problems above
-#define SPECIFIC_PROBLEM BoxCorner
+#define SPECIFIC_PROBLEM LaPalisseSmallerTest
 
 class InputProblem: public Problem {
 	private:

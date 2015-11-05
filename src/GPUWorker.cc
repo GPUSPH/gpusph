@@ -1681,10 +1681,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing IDENTIFY_CORNER_VERTICES\n", deviceIndex);
 				instance->kernel_saIdentifyCornerVertices();
 				break;
-			case FIND_CLOSEST_VERTEX:
-				if (dbg_step_printf) printf(" T %d issuing FIND_CLOSEST_VERTEX\n", deviceIndex);
-				instance->kernel_saFindClosestVertex();
-				break;
 			case COMPUTE_DENSITY:
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_DENSITY\n", deviceIndex);
 				instance->kernel_compute_density();
@@ -1724,6 +1720,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case IMPOSE_OPEN_BOUNDARY_CONDITION:
 				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
 				instance->kernel_imposeBoundaryCondition();
+				break;
+			case INIT_GAMMA:
+				if (dbg_step_printf) printf(" T %d issuing INIT_GAMMA\n", deviceIndex);
+				instance->kernel_initGamma();
 				break;
 			case QUIT:
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
@@ -2280,6 +2280,29 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 
 }
 
+void GPUWorker::kernel_initGamma()
+{
+	uint numPartsToElaborate = m_numParticles;
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = *m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+
+	bcEngine->initGamma(
+		m_dBuffers.getWriteBufferList(),
+		m_dBuffers.getReadBufferList(),
+		m_numParticles,
+		m_simparams->slength,
+		gdata->problem->m_deltap,
+		m_simparams->influenceRadius,
+		m_simparams->epsilon,
+		m_dCellStart,
+		numPartsToElaborate);
+
+}
+
 void GPUWorker::kernel_filter()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2534,28 +2557,6 @@ void GPUWorker::kernel_saIdentifyCornerVertices()
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
 				m_simparams->epsilon);
-}
-
-void GPUWorker::kernel_saFindClosestVertex()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	bcEngine->saFindClosestVertex(
-				bufread.getData<BUFFER_POS>(),
-				bufwrite.getData<BUFFER_INFO>(),
-				bufwrite.getData<BUFFER_VERTICES>(),
-				bufread.getData<BUFFER_VERTIDINDEX>(),
-				bufread.getData<BUFFER_HASH>(),
-				m_dCellStart,
-				bufread.getData<BUFFER_NEIBSLIST>(),
-				m_numParticles,
-				numPartsToElaborate);
 }
 
 void GPUWorker::kernel_disableOutgoingParts()

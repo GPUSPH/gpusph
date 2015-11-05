@@ -135,8 +135,13 @@ template<
 			// flags
 			_simflags & ENABLE_XSPH			||	// untested
 			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
-			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM))
+			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
 												// inlet outlet works only with the summation density
+			(_simflags & ENABLE_GAMMA_QUADRATURE && _simflags & ENABLE_DENSITY_SUM) ||
+												// enable density sum only works with the dynamic equation for gamma
+			(!(_simflags & ENABLE_GAMMA_QUADRATURE) && !(_simflags & ENABLE_DENSITY_SUM))
+												// this has to be changed but for the moment it is only possible to use gamma quadrature
+												// when computing drho/dt=div u
 		)
 	)
 >

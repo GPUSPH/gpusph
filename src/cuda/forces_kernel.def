@@ -292,7 +292,7 @@ struct keps_particle_data
 		keps_k(tex1Dfetch(keps_kTex, index)),
 		keps_e(tex1Dfetch(keps_eTex, index)),
 		turbVisc(0.09f*keps_k*keps_k/keps_e),
-		turbViscForViscTerm(FLUID(info) ? turbVisc : 0)
+		turbViscForViscTerm((FLUID(info) || (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info))) ? turbVisc : 0)
 	{}
 };
 
@@ -841,20 +841,49 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
 	if (BOUNDARY(ndata.info)) {
-		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
-		const float sx = fmax(x*8.0f - 1.0f,0.0f);
-		// smootherstep function
-		const float smooth = VERTEX(pdata.info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
-		const float2 gamAS = Gamma<FP::kerneltype>(params.slength, ndata.relPos,
-				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
-				ndata.belem, pdata.oldGGam,
-				params.epsilon, params.deltap, pdata.computeGamma, ndata.index,
-				pout.minlRas);
-		pout.gGam.x += gamAS.x*ndata.belem.x;
-		pout.gGam.y += gamAS.x*ndata.belem.y;
-		pout.gGam.z += gamAS.x*ndata.belem.z;
-		pout.gGam.w -= (smooth > params.epsilon ? gamAS.y : 0.0f)*smooth;
-		nout.ggamAS = gamAS.x;
+		// local coordinate system for relative positions to vertices
+		uint j = 0;
+		// Get index j for which n_s is minimal
+		if (fabs(ndata.belem.x) > fabs(ndata.belem.y))
+			j = 1;
+		if ((1-j)*fabs(ndata.belem.x) + j*fabs(ndata.belem.y) > fabs(ndata.belem.z))
+			j = 2;
+
+		// compute the first coordinate which is a 2-D rotated version of the normal
+		const float4 coord1 = normalize(make_float4(
+					// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+					-((j==1)*ndata.belem.z) +  (j == 2)*ndata.belem.y , // -z if j == 1, y if j == 2
+					(j==0)*ndata.belem.z  - ((j == 2)*ndata.belem.x), // z if j == 0, -x if j == 2
+					-((j==0)*ndata.belem.y) +  (j == 1)*ndata.belem.x , // -y if j == 0, x if j == 1
+					0));
+		// the second coordinate is the cross product between the normal and the first coordinate
+		const float4 coord2 = cross3(ndata.belem, coord1);
+
+		// relative positions of vertices with respect to the segment
+		float4 v0 = -(params.vertPos0[ndata.index].x*coord1 + params.vertPos0[ndata.index].y*coord2); // e.g. v0 = r_{v0} - r_s
+		float4 v1 = -(params.vertPos1[ndata.index].x*coord1 + params.vertPos1[ndata.index].y*coord2);
+		float4 v2 = -(params.vertPos2[ndata.index].x*coord1 + params.vertPos2[ndata.index].y*coord2);
+		float4 vertexRelPos[3] = {v0, v1, v2};
+
+		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength, 
+				as_float3(ndata.relPos), vertexRelPos, as_float3(ndata.belem));
+		pout.gGam.x += nout.ggamAS*ndata.belem.x;
+		pout.gGam.y += nout.ggamAS*ndata.belem.y;
+		pout.gGam.z += nout.ggamAS*ndata.belem.z;
+
+		if (FP::simflags & ENABLE_GAMMA_QUADRATURE) {
+			// general formula (also used if particle is on 
+			// vertex / edge to compute remaining edges)
+			const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
+			const float sx = fmax(x*8.0f - 1.0f,0.0f);
+			// smootherstep function
+			const float smooth = VERTEX(pdata.info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
+			const float gamAS = Gamma<FP::kerneltype>(params.slength, as_float3(ndata.relPos),
+					vertexRelPos, as_float3(ndata.belem), 
+					as_float3(pdata.oldGGam), params.epsilon, params.deltap,
+					pdata.computeGamma, pout.minlRas);
+			pout.gGam.w -= (smooth > params.epsilon ? gamAS : 0.0f)*smooth;
+		}
 	}
 }
 
@@ -1322,7 +1351,11 @@ visc_boundary_part<DYNAMICVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// velocity of fluid particle along the wall
-	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
+	const float3 vel_tau = as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)) -
+		(IO_BOUNDARY(ndata.info) ?
+		 make_float3(0.0f) :
+		 dot(as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)), ndata.normal_s)*ndata.normal_s
+		);
 
 	nout.DvDt -= nout.ggamAS*
 		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
@@ -1335,6 +1368,16 @@ __device__ __forceinline__ void
 visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	if (IO_BOUNDARY(ndata.info)) {
+		// velocity of fluid particle along the wall
+		const float3 vel_tau = as_float3(ndata.relVel + ndata.relEulerVel);
+
+		nout.DvDt -= nout.ggamAS*
+			(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
+			vel_tau/pdata.vel.w;
+		return;
+	}
+
 	// for boundary particles without neighbouring fluid particle k is 0 so skip
 	if(pdata.keps_k < params.epsilon)
 		return;
@@ -1467,8 +1510,7 @@ struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
 	{
 		if (BOUNDARY(ndata.info)) {
 			// boundary term of the viscous part based on a boundary segment
-			if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
-				visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
+			visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
 		}
 		else {
 			// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
@@ -1967,7 +2009,7 @@ struct dyndt_keps_shared_data
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
-		sm_max_nut[threadIdx.x] = fabs(pout.contupd.y);
+		sm_max_nut[threadIdx.x] = pdata.turbVisc;
 	}
 
 	template<typename FP>
