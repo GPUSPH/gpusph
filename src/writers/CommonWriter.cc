@@ -53,6 +53,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 							<< "\tpotential" << fluid
 							<< "\telastic" << fluid;
 		m_energyfile << endl;
+		m_energyfile.precision(9);
 	}
 
 	size_t ngages = m_problem->simparams()->gage.size();
@@ -63,6 +64,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 			for (size_t gage = 0; gage < ngages; ++gage)
 				m_WaveGagefile << "\tzgage" << gage;
 			m_WaveGagefile << endl;
+			m_WaveGagefile.precision(9);
 		}
 	}
 
@@ -86,7 +88,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 				m_objectfile << "\tQ" << obj << "_K";
 			}
 			m_objectfile << endl;
-			m_objectfile.precision(7);
+			m_objectfile.precision(9);
 			m_objectfile << std::scientific;
 		}
 	}
@@ -117,7 +119,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 				m_objectforcesfile << "\tApplied_M" << obj << "_Z";
 			}
 			m_objectforcesfile << endl;
-			m_objectforcesfile.precision(7);
+			m_objectforcesfile.precision(9);
 			m_objectforcesfile << std::scientific;
 		}
 	}
