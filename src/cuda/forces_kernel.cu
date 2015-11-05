@@ -1157,7 +1157,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						oldTKE[index] = sumtke/alpha;
 					// for pressure imposed boundaries we have de/dn = 0
 					if (oldEps)
-						oldEps[index] = fmax(sumeps/alpha,1e-5f); // eps should never be 0
+						oldEps[index] = sumeps/alpha;
 				}
 			}
 			else {
@@ -1172,9 +1172,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					oldEulerVel[index] = make_float4(0.0f, 0.0f, 0.0f, oldEulerVel[index].w);
 				}
 				if (oldTKE)
-					oldTKE[index] = 1e-5f;
+					oldTKE[index] = 1e-6f;
 				if (oldEps)
-					oldEps[index] = 1e-5f;
+					oldEps[index] = 1e-6f;
 			}
 
 			// compute Riemann invariants for open boundaries
@@ -1611,9 +1611,9 @@ saVertexBoundaryConditions(
 		alpha = fmax(alpha, 1e-5f);
 	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 	if (oldTKE)
-		oldTKE[index] = sumtke/numseg;
+		oldTKE[index] = fmax(sumtke/numseg, 1e-6f);
 	if (oldEps)
-		oldEps[index] = fmax(sumeps/numseg, 1e-5f);
+		oldEps[index] = fmax(sumeps/numseg, 1e-6f);
 	if (!initStep && oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
 		if (CORNER(info))
