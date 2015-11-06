@@ -342,7 +342,7 @@ ifdef mpi
 endif
 
 # override: MPICXX - the MPI compiler
-MPICXX ?= $(shell which mpicxx)
+MPICXX ?= $(shell which mpicxx 2> /dev/null)
 
 ifeq ($(MPICXX),)
 	ifeq ($(USE_MPI),1)
