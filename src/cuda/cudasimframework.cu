@@ -194,6 +194,8 @@ protected:
 			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, simflags>(options);
 		case SURFACE_DETECTION:
 			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, simflags>(options);
+		case FLUX_COMPUTATION:
+			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, simflags>(options);
 		case CALC_PRIVATE:
 			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, simflags>(options);
 		case INVALID_POSTPROC:

@@ -1235,6 +1235,42 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 };
 
 template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
+: public CUDAPostProcessEngineHelperDefaults
+{
+	// buffers updated in-place
+	static flag_t get_written_buffers(flag_t)
+	{ return NO_FLAGS; }
+
+	static void process(
+				flag_t	options,
+		MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		const	uint	*cellStart,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius)
+	{
+		// thread per particle
+		uint numThreads = BLOCK_SIZE_CALCTEST;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+		const particleinfo *info = bufread->getData<BUFFER_INFO>();
+		const float4 *eulerVel = bufread->getData<BUFFER_EULERVEL>();
+
+		//execute kernel
+		cuforces::FluxComputationDevice<<<numBlocks, numThreads>>>
+			(	info,
+				eulerVel,
+				numParticles);
+
+		// check if kernel invocation generated an error
+		KERNEL_CHECK_ERROR;
+	}
+};
+
+template<KernelType kerneltype, flag_t simflags>
 struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
