@@ -53,7 +53,12 @@ public:
 	flag_t const& get_options() const
 	{ return m_options; }
 
-	virtual void setconstants() = 0 ; // TODO
+	virtual void
+	setconstants(
+		const	SimParams	*simparams,
+		const	PhysParams	*physparams,
+		idx_t	const&		allocatedParticles) const = 0;
+
 	virtual void getconstants() = 0 ; // TODO
 
 	//< Main processing routine

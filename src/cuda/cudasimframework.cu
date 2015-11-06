@@ -36,6 +36,7 @@
 #include "buildneibs.cu"
 #include "euler.cu"
 #include "forces.cu"
+#include "post_process.cu"
 
 // This class holds the implementation and interface of CUDASimFramework,
 // the CUDA simulation framework for GPUPSH. (In fact, the only simulation
