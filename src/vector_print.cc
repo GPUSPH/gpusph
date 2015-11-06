@@ -1,4 +1,4 @@
-/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2015 Giuseppe Bilotta, Alexis Herault, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,17 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* decltype */
+#include "vector_print.h"
 
-#ifndef _DECLTYPE_H
-#define _DECLTYPE_H
+const int vector_fmt_options::idx = std::ios_base::xalloc();
 
-/* decltype is only avaialable on C++11, but both gcc and clang support
- * __decltype even on older standards, so use them
- */
+const vector_fmt_options reset_vector_fmt = { "(", ", ", ")" };
 
-#if __cplusplus < 201103L
-#define decltype __decltype
-#endif
 
-#endif

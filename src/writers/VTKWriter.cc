@@ -32,6 +32,8 @@
 // of inclusions, a forward declaration might be required
 #include "GlobalData.h"
 
+#include "vector_print.h"
+
 using namespace std;
 
 // TODO for the time being, we assume no more than 256 devices
@@ -41,7 +43,9 @@ typedef unsigned char dev_idx_t;
 static const char dev_idx_str[] = "UInt8";
 
 VTKWriter::VTKWriter(const GlobalData *_gdata)
-  : Writer(_gdata)
+  : Writer(_gdata),
+	m_planes_fname(),
+	m_blockidx(-1)
 {
 	m_fname_sfx = ".vtu";
 
@@ -60,6 +64,36 @@ VTKWriter::~VTKWriter()
 {
 	mark_timefile();
 	m_timefile.close();
+}
+
+void VTKWriter::add_block(std::string const& blockname, std::string const& fname, double t)
+{
+	++m_blockidx;
+	m_timefile << "  <DataSet timestep='" << t << "' group='" << m_blockidx <<
+		"' name='" << blockname << "' file='" << fname << "'/>" << endl;
+}
+
+void VTKWriter::start_writing(double t)
+{
+	Writer::start_writing(t);
+
+	m_blockidx = -1;
+
+	const bool has_planes = gdata->s_hPlanes.size() > 0;
+
+	if (has_planes) {
+		if (m_planes_fname.size() == 0) {
+			save_planes();
+		}
+		add_block("Planes", m_planes_fname, t);
+	}
+}
+
+void VTKWriter::mark_written(double t)
+{
+	mark_timefile();
+
+	Writer::mark_written(t);
 }
 
 /* Endianness check: (char*)&endian_int reads the first byte of the int,
@@ -129,20 +163,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
-
-	// CSV file for tespoints
-	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
-	ofstream testpoints_file;
-	if (gdata->problem->simparams()->csvtestpoints) {
-		testpoints_file.open(testpoints_fname.c_str());
-		if (!testpoints_file) {
-			stringstream ss;
-			ss << "Cannot open testpoints file " << testpoints_fname;
-			throw runtime_error(ss.str());
-		}
-		// write CSV header
-		testpoints_file << "T,ID,Pressure,Object,CellIndex,PosX,PosY,PosZ,VelX,VelY,VelZ,Tke,Eps" << endl;
-	}
 
 	string filename;
 
@@ -408,28 +428,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = type(info[i]);
-			if (gdata->problem->simparams()->csvtestpoints && TESTPOINT(info[i])) {
-				float tkeVal = 0.0f;
-				float epsVal = 0.0f;
-				if(tke)
-					tkeVal = tke[i];
-				if(eps)
-					epsVal = eps[i];
-
-				testpoints_file << t << ","
-					<< id(info[i]) << ","
-					<< vel[i].w << ","
-					<< object(info[i]) << ","
-					<< cellHashFromParticleHash( particleHash[i] ) << ","
-					<< pos[i].x << ","
-					<< pos[i].y << ","
-					<< pos[i].z << ","
-					<< vel[i].x << ","
-					<< vel[i].y << ","
-					<< vel[i].z << ","
-					<< tkeVal << ","
-					<< epsVal << endl;
-			}
 			write_var(fid, value);
 		}
 
@@ -651,25 +649,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
 
-	bool multiblock = m_multiblock.is_open();
-	if (multiblock) {
-		m_multiblock << "  <DataSet index='1' name='Particles' file='" << filename << "'/>\n";
-		m_multiblock << " </vtkMultiBlockDataSet>\n";
-		m_multiblock << "</VTKFile>" << endl;
-		m_multiblock.close();
-	}
+	add_block("Particles", filename, t);
 
-	// Writing time to VTUinp.pvd file
-	if (m_timefile) {
-		// node info for multinode should be stored in part
-		m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
-			<< "file='" << (multiblock ? m_multiblock_fname : filename) << "'/>" << endl;
-		mark_timefile();
-	}
-
-	// close testpoints file
-	if (testpoints_file)
-		testpoints_file.close();
 }
 
 void
@@ -677,6 +658,7 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 {
 	ofstream fp;
 	string filename = open_data_file(fp, "WaveGage", current_filenum());
+
 	size_t num = gage.size();
 
 	// For gages without points, z will be NaN, and we'll set
@@ -730,15 +712,218 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 
 	fp.close();
 
-	// Open the multiblock
-	m_multiblock_fname = open_data_file(m_multiblock, "data", current_filenum(), ".vtm");
-	if (m_multiblock) {
-		m_multiblock << "<?xml version='1.0'?>\n";
-		m_multiblock << "<VTKFile type='vtkMultiBlockDataSet'  version='1.0'>\n";
-		m_multiblock << " <vtkMultiBlockDataSet>\n";
-		m_multiblock << "  <DataSet index='0' name='WaveGages' file='" << filename << "'/>" << endl;
+	add_block("WaveGages", filename, t);
+}
+
+static inline void chomp(double3 &pt, double eps=FLT_EPSILON)
+{
+		if (fabs(pt.x) < eps)
+			pt.x = 0;
+		if (fabs(pt.y) < eps)
+			pt.y = 0;
+		if (fabs(pt.z) < eps)
+			pt.z = 0;
+}
+
+// check that pt is between inf and sup, with FLT_EPSILON relative tolerange
+static inline bool bound(float pt, float inf, float sup)
+{
+	// when inf or sup is zero, the tolerance must be absolute, not relative
+	// Also note the use of absolue value to ensure the limits are expanded
+	// in the right direction
+	const float lower = inf ? inf - FLT_EPSILON*fabs(inf) : -FLT_EPSILON;
+	const float upper = sup ? sup + FLT_EPSILON*fabs(sup) : FLT_EPSILON;
+	return (pt > lower) && (pt < upper);
+}
+
+void
+VTKWriter::save_planes()
+{
+	ofstream fp;
+	m_planes_fname = open_data_file(fp, "PLANES");
+
+	fp << set_vector_fmt(" ");
+
+	PlaneList const& planes = gdata->s_hPlanes;
+	const double3 wo = gdata->problem->get_worldorigin();
+	const double3 ow = wo + gdata->problem->get_worldsize();
+
+	typedef std::vector<std::pair<double4, int> > CheckList;
+	typedef std::vector<double3> CoordList;
+
+	// We want to find the intersection of the planes defined in the boundary
+	// with the bounding box of the plane (wo to ow). We do this by finding the intersection
+	// with each pair of planes of the bounding box. The CheckList is composed of such pairs,
+	// ordered such that the intersections are returned in sequence (otherwise the resulting
+	// planes in the VTK would come out butterfly-shaped.
+	// The number associated with each pair of planes is the index of the coordinate that must
+	// be found by the intersection.
+	CheckList checks;
+
+	checks.push_back(make_pair(
+			make_double4(wo.x, wo.y, 0, 1), 2));
+	checks.push_back(make_pair(
+			make_double4(wo.x, 0, wo.z, 1), 1));
+	checks.push_back(make_pair(
+			make_double4(wo.x, ow.y, 0, 1), 2));
+	checks.push_back(make_pair(
+			make_double4(wo.x, 0, ow.z, 1), 1));
+
+	checks.push_back(make_pair(
+			make_double4(ow.x, ow.y, 0, 1), 2));
+	checks.push_back(make_pair(
+			make_double4(ow.x, 0, ow.z, 1), 1));
+
+	checks.push_back(make_pair(
+			make_double4(ow.x, wo.y, 0, 1), 2));
+	checks.push_back(make_pair(
+			make_double4(0, wo.y, wo.z, 1), 0));
+	checks.push_back(make_pair(
+			make_double4(0, wo.y, ow.z, 1), 0));
+
+	checks.push_back(make_pair(
+			make_double4(0, ow.y, ow.z, 1), 0));
+
+	checks.push_back(make_pair(
+			make_double4(ow.x, 0, wo.z, 1), 1));
+	checks.push_back(make_pair(
+			make_double4(0, ow.y, wo.z, 1), 0));
+
+	CoordList centers;
+	CoordList normals;
+	std::vector< CoordList > all_intersections;
+
+	// we will store one point per plane (center)
+	// followed by the intersections for each plane with the domain bounding box
+	size_t npoints = planes.size();
+
+	// find the intersection of each plane with the domain bounding box
+	PlaneList::const_iterator plane(planes.begin());
+	for (; plane != planes.end(); ++plane) {
+		centers.push_back(gdata->calcGlobalPosOffset(plane->gridPos, plane->pos) + wo);
+		double3 &cpos = centers.back();
+		chomp(cpos);
+
+		normals.push_back(make_double3(plane->normal));
+		chomp(normals.back());
+		double3 const& normal = normals.back();
+
+		double4 implicit = make_double4(normal, -dot(cpos, normal));
+
+#if DEBUG_VTK_PLANES
+		cout << "plane through " << cpos << " normal " << normal << endl;
+		cout << "\timplicit " << implicit << endl;
+#endif
+
+		all_intersections.push_back( std::vector<double3>() );
+
+		std::vector<double3> & intersections = all_intersections.back();
+
+		CheckList::const_iterator check(checks.begin());
+		for (; check != checks.end(); ++check) {
+			const double4 &ref = check->first;
+			const int coord = check->second;
+			double3 pt = make_double3(ref);
+			switch (coord) {
+			case 0:
+				if (!normal.x) continue;
+				pt.x = -dot(implicit, ref)/normal.x;
+				if (!bound(pt.x, wo.x, ow.x)) continue;
+				break;
+			case 1:
+				if (!normal.y) continue;
+				pt.y = -dot(implicit, ref)/normal.y;
+				if (!bound(pt.y, wo.y, ow.y)) continue;
+				break;
+			case 2:
+				if (!normal.z) continue;
+				pt.z = -dot(implicit, ref)/normal.z;
+				if (!bound(pt.z, wo.z, ow.z)) continue;
+				break;
+			}
+			chomp(pt);
+			intersections.push_back(pt);
+#if DEBUG_VTK_PLANES
+			cout << "\t(" << (check-checks.begin()) << ")" << endl;
+			cout << "\tcheck " << ref << " from " << coord << endl;
+			cout << "\t\tpoint " << intersections.back() << endl;
+#endif
+		}
+		npoints += intersections.size();
 	}
 
+	size_t offset = 0;
+
+	fp << "<?xml version='1.0'?>" << endl;
+	fp << "<VTKFile type='UnstructuredGrid'  version='0.1'  byte_order='" <<
+		endianness[*(char*)&endian_int & 1] << "'>" << endl;
+	fp << " <UnstructuredGrid>" << endl;
+	fp << "  <Piece NumberOfPoints='" << npoints
+		<< "' NumberOfCells='" << planes.size() << " '>" << endl;
+
+	fp << "   <Points>" << endl;
+
+	fp << "<DataArray type='Float64' NumberOfComponents='3'>" << endl;
+
+	// intersection points
+	for (std::vector<CoordList>::const_iterator pl(all_intersections.begin());
+		pl < all_intersections.end(); ++pl) {
+		CoordList const& pts = *pl;
+		for (CoordList::const_iterator pt(pts.begin()); pt != pts.end(); ++pt)
+			fp << *pt << endl;
+	}
+
+	// center points
+	for (CoordList::const_iterator pt(centers.begin()); pt != centers.end(); ++pt)
+		fp << *pt << endl;
+
+	fp << "</DataArray>" << endl;
+
+	fp << "   </Points>" << endl;
+
+	fp << "   <Cells>" << endl;
+	fp << "<DataArray type='Int32' Name='connectivity'>" << endl;
+	// intersection points
+	offset = 0;
+	for (std::vector<CoordList>::const_iterator pl(all_intersections.begin());
+		pl < all_intersections.end(); ++pl) {
+		CoordList const& pts = *pl;
+		for (int i = 0; i < pts.size(); ++i) {
+			fp << " " << offset + i;
+		}
+		offset += pts.size();
+		fp << endl;
+	}
+	fp << "</DataArray>" << endl;
+	fp << "<DataArray type='Int32' Name='offsets'>" << endl;
+	offset = 0;
+	for (int i = 0; i < planes.size(); ++i) {
+		offset += all_intersections[i].size();
+		fp << offset << endl;
+	}
+	fp << "</DataArray>" << endl;
+	fp << "<DataArray type='Int32' Name='types'>" << endl;
+	for (int i = 0; i < planes.size(); ++i) {
+		fp << 7 << " "; // POLYGON
+	}
+	fp << endl;
+	fp << "</DataArray>" << endl;
+	fp << "   </Cells>" << endl;
+
+	fp << "   <PointData />" << endl;
+
+	fp << "   <CellData Normals='Normals'>" << endl;
+	fp << "<DataArray type='Float64' Name='Normals' NumberOfComponents='3'>" << endl;
+	for (CoordList::const_iterator pt(normals.begin()); pt != normals.end(); ++pt)
+		fp << *pt << endl;
+	fp << "</DataArray>" << endl;
+	fp << "   </CellData>" << endl;
+
+	fp << "  </Piece>" << endl;
+	fp << " </UnstructuredGrid>" << endl;
+	fp << "</VTKFile>" <<endl;
+
+	fp.close();
 }
 
 void

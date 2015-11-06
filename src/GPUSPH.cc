@@ -512,9 +512,6 @@ bool GPUSPH::runSimulation() {
 			}
 		}
 
-		//			//(init bodies)
-
-
 		// variable gravity
 		if (problem->simparams()->gcallback) {
 			// ask the Problem to update gravity, one per process
@@ -560,10 +557,6 @@ bool GPUSPH::runSimulation() {
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
 
-		//MM		fetch/update forces on neighbors in other GPUs/nodes
-		//				initially done trivial and slow: stop and read
-		//			//reduce bodies
-
 		// boundelements is swapped because the normals are updated in the moving objects case
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
@@ -588,10 +581,6 @@ bool GPUSPH::runSimulation() {
 		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
-		//			//reduce bodies
-		//MM		fetch/update forces on neighbors in other GPUs/nodes
-		//				initially done trivial and slow: stop and read
 
 		// variable gravity
 		if (problem->simparams()->gcallback) {
@@ -1465,12 +1454,10 @@ void GPUSPH::doWrite(bool force)
 
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
-		double4 dpos;
 		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
-		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
-		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
-		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
-		dpos.w = pos.w;
+		double4 dpos = make_double4(
+			gdata->calcGlobalPosOffset(gridPos, as_float3(pos)) + wo,
+			pos.w);
 
 		if (!warned_nan_pos && !(isfinite(dpos.x) && isfinite(dpos.y) && isfinite(dpos.z))) {
 			fprintf(stderr, "WARNING: particle %u (id %u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g)\n",

@@ -170,7 +170,7 @@ protected:
 	// Writers that need to do special things before starting to write
 	// should override this
 	virtual void
-	start_writing() {}
+	start_writing(double t) {}
 
 	// finish writing. Writers that need to do special things when done
 	// can override this problem, but they should call Writer::mark_written

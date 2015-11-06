@@ -973,9 +973,9 @@ docsclean:
 # target: tags - Create TAGS file
 tags: TAGS cscope.out
 TAGS: $(ALLSRCFILES)
-	$(CMDECHO)etags -R -h=.h.cuh.inc --exclude=docs --langmap=c++:.cc.cuh.cu.def.h.inc
+	$(CMDECHO)etags -R -h=.h.cuh.inc --langmap=c++:.cc.cuh.cu.def.h.inc src/ options/ scripts/
 cscope.out: $(ALLSRCFILES)
-	$(CMDECHO)which cscope > /dev/null && cscope -b $(ALLSRCFILES) || touch cscope.out
+	$(CMDECHO)which cscope > /dev/null && cscope -b $(INCPATH) -R -ssrc/ -soptions/ || touch cscope.out
 
 
 # target: test - Run GPUSPH with WaveTank. Compile it if needed

@@ -36,9 +36,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 
 		simparams()->tend = 5.0;
-		simparams()->testpoints = true;
-		simparams()->csvtestpoints = true;
-		simparams()->surfaceparticle = true;
+		addPostProcess(SURFACE_DETECTION);
+		addPostProcess(TESTPOINTS);
 		H = 0.55;
 		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 		m_origin = make_double3(-0.01, -0.01, -0.01);
@@ -71,7 +70,6 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		simparams()->tend = 5.0;
 		addPostProcess(SURFACE_DETECTION);
 		addPostProcess(TESTPOINTS);
-		simparams()->csvtestpoints = true;
 		H = 1.0;
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);

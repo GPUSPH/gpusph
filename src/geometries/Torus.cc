@@ -116,8 +116,15 @@ Torus::FillBorder(PointVect& points, const double dx)
 }
 
 void
-Torus::FillIn(PointVect& points, const double dx, const int layers)
+Torus::FillIn(PointVect& points, const double dx, const int _layers)
 {
+	// NOTE - TODO
+	// XProblem calls FillIn with negative number of layers to fill rects in the opposite
+	// direction as the normal. Cubes and other primitives do not support it. This is a
+	// temporary workaround until we decide a common policy for the filling of DYNAMIC
+	// boundary layers consistent for any geometry.
+	int layers = abs(_layers);
+
 	Torus inner = Torus(m_center, m_R, m_r - ((double)layers + 0.5)*dx, m_ep);
 	PointVect inpoints;
 

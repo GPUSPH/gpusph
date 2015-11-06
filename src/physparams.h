@@ -154,7 +154,7 @@ RESTORE_WARNINGS
 
 protected:
 
-	/*! Add a new fluid with given density, adjabatic index and sound speed at rest
+	/*! Add a new fluid with given at-rest density
 	  @param rho	at-rest density
 	 */
 	size_t add_fluid(float rho) {
@@ -173,6 +173,18 @@ protected:
 		visccoeff.push_back(NAN);
 
 		return rho0.size() - 1;
+	}
+
+	//! Change the density of the given fluid
+	void set_density(size_t fluid_idx, float _rho0)
+	{
+		rho0.at(fluid_idx) = _rho0;
+	}
+
+	//! Get the density of the given fluid
+	float get_density(size_t fluid_idx)
+	{
+		return rho0.at(fluid_idx);
 	}
 
 	/*! Set the equation of state of a given fluid, specifying the adjabatic
@@ -232,7 +244,7 @@ protected:
 		}
 		else if (i < rho0.size()) {
 			std::cerr << "changing properties of fluid " << i << std::endl;
-			rho0[i] = rho;
+			set_density(i, rho);
 			set_equation_of_state(i, gamma, c0);
 		} else {
 			std::cerr << "setting density for fluid index " << i << " > " << rho0.size() << std::endl;
