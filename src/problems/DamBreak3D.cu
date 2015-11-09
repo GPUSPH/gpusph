@@ -131,7 +131,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1);
+	add_writer(VTKWRITER, 0.2);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
@@ -186,7 +186,10 @@ int DamBreak3D::fill_parts()
 	parts.reserve(14000);
 
 	obstacle.SetPartMass(r0, physparams()->rho0[0]);
-	obstacle.FillBorder(obstacle_parts, r0, true);
+	if (simparams()->boundarytype == DYN_BOUNDARY)
+		obstacle.FillIn(obstacle_parts, m_deltap, dyn_layers, true);
+	else
+		obstacle.FillBorder(obstacle_parts, r0, true);
 
 	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
