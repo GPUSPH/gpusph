@@ -128,7 +128,8 @@ public:
 		const	float	epsilon,
 				uint	*IOwaterdepth,
 				uint	cflOffset,
-		const	uint	step) = 0;
+		const	uint	step,
+		const	bool compute_object_forces) = 0;
 
 	// Reduction methods
 

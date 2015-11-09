@@ -619,7 +619,8 @@ basicstep(
 	const	float	epsilon,
 	uint	*IOwaterdepth,
 	uint	cflOffset,
-	const	uint	step)
+	const	uint	step,
+	const	bool compute_object_forces)
 {
 	const float4 *pos = bufread->getData<BUFFER_POS>();
 	const float4 *vel = bufread->getData<BUFFER_VEL>();
@@ -704,13 +705,15 @@ basicstep(
 			bufread->getData<BUFFER_SIGMA>());
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
-			<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+		<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
-				<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
-	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
-				<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
+		<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+	if ((boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY) ||
+			((boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) && compute_object_forces))
+		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+			<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
 	cuforces::finalizeforcesDevice<sph_formulation, boundarytype, visctype, simflags>
-				<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
+		<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
 
 	return numBlocks;
 }

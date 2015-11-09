@@ -1956,7 +1956,8 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		m_simparams->epsilon,
 		m_dIOwaterdepth,
 		cflOffset,
-		firstStep ? 1 : 2);
+		firstStep ? 1 : 2,
+		(m_simparams->numforcesbodies > 0) ? true : false);
 }
 
 // Bind the textures needed by forces kernel
