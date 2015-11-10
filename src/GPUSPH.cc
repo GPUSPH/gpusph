@@ -1071,6 +1071,16 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		}
 	}
 
+	const size_t numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
+	std::cout << "numOpenBoundaries : " << numOpenBoundaries << "\n";
+
+	// water depth computation array
+	if (problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
+		gdata->h_IOwaterdepth = new uint* [MULTI_GPU ? MAX_DEVICES_PER_NODE : 1];
+		for (uint i=0; i<(MULTI_GPU ? MAX_DEVICES_PER_NODE : 1); i++)
+			gdata->h_IOwaterdepth[i] = new uint [numOpenBoundaries];
+	}
+
 	if (MULTI_DEVICE) {
 		// deviceMap
 		gdata->s_hDeviceMap = new devcount_t[numcells];

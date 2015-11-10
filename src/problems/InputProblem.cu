@@ -309,6 +309,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		simparams()->maxneibsnum = 240;
 		simparams()->tend = 10.0;
 		simparams()->ferrari= 1.0f;
+		simparams()->numOpenBoundaries = 2;
 		//m_simparams->ferrariLengthScale = 0.2f;
 
 		size_t water = add_fluid(1000.0f);
