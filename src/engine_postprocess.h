@@ -39,6 +39,9 @@
 #include "buffer.h"
 #include "command_flags.h"
 
+// define the GlobalData struct so that we can pass pointers to the functions
+struct GlobalData;
+
 // TODO as usual, the API needs to be redesigned properly
 class AbstractPostProcessEngine
 {
@@ -69,13 +72,21 @@ public:
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	particleRangeEnd,
-				float	slength,
-				float	influenceradius) = 0;
+				uint	deviceIndex,
+			GlobalData	*gdata) = 0;
 
 	//< Returns a list of buffers updated (in the bufwrite list)
 	virtual flag_t get_written_buffers() const = 0;
 	//< Returns a list of buffers that were updated in-place
 	//< in the bufread list
 	virtual flag_t get_updated_buffers() const = 0;
+
+	//< Allocation of memory on host
+	virtual void
+	hostAllocate(GlobalData *gdata) = 0;
+
+	//< Main processing routine on host
+	virtual void
+	hostProcess(GlobalData *gdata) = 0;
 };
 #endif

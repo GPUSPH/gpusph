@@ -305,6 +305,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
 
+		addPostProcess(FLUX_COMPUTATION);
+
 		set_deltap(0.1f);
 		simparams()->maxneibsnum = 240;
 		simparams()->tend = 10.0;

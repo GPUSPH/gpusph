@@ -484,10 +484,21 @@ calcPrivateDevice(	const	float4*		pos_array,
 // TODO documentation
 __global__ void
 fluxComputationDevice
-			(	const	particleinfo	*info,
+			(	const	particleinfo	*pinfo,
 				const	float4			*eulerVel,
+				const	float4			*boundElement,
+						float			*d_IOflux,
 				const	uint			numParticles)
 {
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if(index < numParticles) {
+		const particleinfo info = pinfo[index];
+		if (IO_BOUNDARY(info) && BOUNDARY(info)) {
+			const float4 normal = boundElement[index];
+			atomicAdd(&d_IOflux[object(info)], normal.w*dot3(eulerVel[index],normal));
+		}
+	}
 }
 
 /************************************************************************************************************/

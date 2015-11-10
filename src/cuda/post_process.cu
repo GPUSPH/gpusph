@@ -32,6 +32,7 @@
 #include "engine_visc.h"
 #include "engine_filter.h"
 #include "simflags.h"
+#include "multi_gpu_defines.h"
 
 #include "utils.h"
 #include "cuda_call.h"
@@ -65,6 +66,14 @@ struct CUDAPostProcessEngineHelperDefaults
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cupostprocess::d_cosconeanglenonfluid, &physparams->cosconeanglenonfluid, sizeof(float)));
 	}
 
+	static void
+	hostAllocate(GlobalData *gdata)
+	{}
+
+	static void
+	hostProcess(GlobalData *gdata)
+	{}
+
 };
 
 template<PostProcessType filtertype, KernelType kerneltype, flag_t simflags>
@@ -77,8 +86,8 @@ struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	particleRangeEnd,
-				float	slength,
-				float	influenceradius);
+				uint	deviceIndex,
+			GlobalData	*gdata);
 };
 
 template<KernelType kerneltype, flag_t simflags>
@@ -95,8 +104,8 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, simflags>
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	particleRangeEnd,
-				float	slength,
-				float	influenceradius)
+				uint	deviceIndex,
+			GlobalData	*gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCVORT;
@@ -117,7 +126,14 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, simflags>
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 		cupostprocess::calcVortDevice<kerneltype><<< numBlocks, numThreads >>>
-			(pos, vort, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
+			(	pos,
+				vort,
+				particleHash,
+				cellStart,
+				neibsList,
+				particleRangeEnd,
+				gdata->problem->simparams()->slength,
+				gdata->problem->simparams()->influenceRadius);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
@@ -145,8 +161,8 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, simflags>
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	particleRangeEnd,
-				float	slength,
-				float	influenceradius)
+				uint	deviceIndex,
+			GlobalData	*gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -174,7 +190,16 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, simflags>
 
 		// execute the kernel
 		cupostprocess::calcTestpointsVelocityDevice<kerneltype><<< numBlocks, numThreads >>>
-			(pos, newVel, newTke, newEpsilon, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
+			(	pos,
+				newVel,
+				newTke,
+				newEpsilon,
+				particleHash,
+				cellStart,
+				neibsList,
+				particleRangeEnd,
+				gdata->problem->simparams()->slength,
+				gdata->problem->simparams()->influenceRadius);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
@@ -207,8 +232,8 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	particleRangeEnd,
-				float	slength,
-				float	influenceradius)
+				uint	deviceIndex,
+			GlobalData	*gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -232,10 +257,26 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 		// execute the kernel
 		if (options & BUFFER_NORMALS) {
 			cupostprocess::calcSurfaceparticleDevice<kerneltype, simflags, true><<< numBlocks, numThreads >>>
-				(pos, normals, newInfo, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
+				(	pos,
+					normals,
+					newInfo,
+					particleHash,
+					cellStart,
+					neibsList,
+					particleRangeEnd,
+					gdata->problem->simparams()->slength,
+					gdata->problem->simparams()->influenceRadius);
 		} else {
 			cupostprocess::calcSurfaceparticleDevice<kerneltype, simflags, false><<< numBlocks, numThreads >>>
-				(pos, normals, newInfo, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
+				(	pos,
+					normals,
+					newInfo,
+					particleHash,
+					cellStart,
+					neibsList,
+					particleRangeEnd,
+					gdata->problem->simparams()->slength,
+					gdata->problem->simparams()->influenceRadius);
 		}
 
 		// check if kernel invocation generated an error
@@ -253,6 +294,8 @@ template<KernelType kerneltype, flag_t simflags>
 struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
+	static float **h_IOflux;
+
 	// buffers updated in-place
 	static flag_t get_written_buffers(flag_t)
 	{ return NO_FLAGS; }
@@ -264,8 +307,8 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	particleRangeEnd,
-				float	slength,
-				float	influenceradius)
+				uint	deviceIndex,
+			GlobalData	*gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -273,17 +316,62 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
 
 		const particleinfo *info = bufread->getData<BUFFER_INFO>();
 		const float4 *eulerVel = bufread->getData<BUFFER_EULERVEL>();
+		const float4 *boundElement = bufread->getData<BUFFER_BOUNDELEMENTS>();
+
+		float *d_IOflux;
+
+		const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
+
+		CUDA_SAFE_CALL(cudaMalloc(&d_IOflux, numOpenBoundaries*sizeof(float)));
 
 		//execute kernel
 		cupostprocess::fluxComputationDevice<<<numBlocks, numThreads>>>
 			(	info,
 				eulerVel,
+				boundElement,
+				d_IOflux,
 				numParticles);
+
+		CUDA_SAFE_CALL(cudaMemcpy((void *) h_IOflux[deviceIndex], (void *) d_IOflux, numOpenBoundaries*sizeof(float), cudaMemcpyDeviceToHost));
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 	}
+
+	static void
+	hostAllocate(GlobalData *gdata)
+	{
+		const uint numDev = gdata->devices > 1 ? MAX_DEVICES_PER_NODE : 1;
+		const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
+		if (numOpenBoundaries > 0) {
+			h_IOflux = new float* [numDev];
+			for (uint i = 0; i < numDev; i++)
+				h_IOflux[i] = new float [numOpenBoundaries];
+		}
+	}
+
+	static void
+	hostProcess(GlobalData *gdata)
+	{
+		const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
+
+		// for multiple devices sum over all of them and write the result in the array for the first device
+		if (gdata->devices > 1) {
+			for (uint ob = 0; ob < numOpenBoundaries; ob++) {
+				for (uint d = 1; d < gdata->devices; d++)
+					h_IOflux[0][ob] += h_IOflux[d][ob];
+			} // Iterate on boundaries on which we compute fluxes
+		}
+
+		// if running multinode, also reduce across nodes
+		if (gdata->mpi_nodes > 1)
+			// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+			gdata->networkManager->networkFloatReduction(h_IOflux[0], numOpenBoundaries, SUM_REDUCTION);
+	}
 };
+
+template<KernelType kerneltype, flag_t simflags>
+float** CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>::h_IOflux;
 
 template<KernelType kerneltype, flag_t simflags>
 struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
@@ -300,8 +388,8 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	particleRangeEnd,
-				float	slength,
-				float	influenceradius)
+				uint	deviceIndex,
+			GlobalData	*gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -328,8 +416,8 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 				particleHash,
 				cellStart,
 				neibsList,
-				slength,
-				influenceradius,
+				gdata->problem->simparams()->slength,
+				gdata->problem->simparams()->influenceRadius,
 				numParticles);
 
 		#if (__COMPUTE__ < 20)
@@ -374,11 +462,28 @@ public:
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	particleRangeEnd,
-				float	slength,
-				float	influenceradius)
+				uint	deviceIndex,
+			GlobalData	*gdata)
 	{
-		Helper::process(m_options, bufread, bufwrite, cellStart, numParticles,
-			particleRangeEnd, slength, influenceradius);
+		Helper::process
+			(	m_options,
+				bufread,
+				bufwrite,
+				cellStart,
+				numParticles,
+				particleRangeEnd,
+				deviceIndex,
+				gdata);
+	}
+
+	void hostAllocate(GlobalData *gdata)
+	{
+		Helper::hostAllocate(gdata);
+	}
+
+	void hostProcess(GlobalData *gdata)
+	{
+		Helper::hostProcess(gdata);
 	}
 };
 

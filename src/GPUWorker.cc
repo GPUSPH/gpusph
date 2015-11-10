@@ -2355,8 +2355,8 @@ void GPUWorker::kernel_postprocess()
 		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
+		m_deviceIndex,
+		gdata);
 }
 
 void GPUWorker::kernel_compute_density()

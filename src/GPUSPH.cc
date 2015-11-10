@@ -795,6 +795,8 @@ bool GPUSPH::runSimulation() {
 				gdata->only_internal = true;
 				doCommand(POSTPROCESS, NO_FLAGS, float(filter));
 
+				flt->second->hostProcess(gdata);
+
 				/* list of buffers that were updated in-place */
 				const flag_t updated_buffers = flt->second->get_updated_buffers();
 				/* list of buffers that were written in BUFFER_WRITE */
@@ -1079,6 +1081,12 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->h_IOwaterdepth = new uint* [MULTI_GPU ? MAX_DEVICES_PER_NODE : 1];
 		for (uint i=0; i<(MULTI_GPU ? MAX_DEVICES_PER_NODE : 1); i++)
 			gdata->h_IOwaterdepth[i] = new uint [numOpenBoundaries];
+	}
+
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		flt->second->hostAllocate(gdata);
 	}
 
 	if (MULTI_DEVICE) {
