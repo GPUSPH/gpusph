@@ -38,6 +38,7 @@
 #include "particledefine.h"
 #include "buffer.h"
 #include "command_flags.h"
+#include "Writer.h"
 
 // define the GlobalData struct so that we can pass pointers to the functions
 struct GlobalData;
@@ -88,5 +89,9 @@ public:
 	//< Main processing routine on host
 	virtual void
 	hostProcess(GlobalData *gdata) = 0;
+
+	//< Main processing routine on host
+	virtual void
+	write(WriterMap writers, double t) = 0;
 };
 #endif

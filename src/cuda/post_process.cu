@@ -33,6 +33,7 @@
 #include "engine_filter.h"
 #include "simflags.h"
 #include "multi_gpu_defines.h"
+#include "Writer.h"
 
 #include "utils.h"
 #include "cuda_call.h"
@@ -72,6 +73,10 @@ struct CUDAPostProcessEngineHelperDefaults
 
 	static void
 	hostProcess(GlobalData *gdata)
+	{}
+
+	static void
+	write(WriterMap writers, double t)
 	{}
 
 };
@@ -368,6 +373,12 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
 			// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
 			gdata->networkManager->networkFloatReduction(h_IOflux[0], numOpenBoundaries, SUM_REDUCTION);
 	}
+
+	static void
+	write(WriterMap writers, double t)
+	{
+		Writer::WriteFlux(writers, t, h_IOflux[0]);
+	}
 };
 
 template<KernelType kerneltype, flag_t simflags>
@@ -484,6 +495,11 @@ public:
 	void hostProcess(GlobalData *gdata)
 	{
 		Helper::hostProcess(gdata);
+	}
+
+	void write(WriterMap writers, double t)
+	{
+		Helper::write(writers, t);
 	}
 };
 

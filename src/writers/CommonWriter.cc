@@ -127,6 +127,28 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 			m_objectforcesfile << std::scientific;
 		}
 	}
+
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		switch (flt->first) {
+		case FLUX_COMPUTATION: {
+			uint numOB = m_problem->simparams()->numOpenBoundaries;
+			if (numOB) {
+				string flux_fn = open_data_file(m_fluxfile, "IOflux");
+				if (m_fluxfile) {
+					m_fluxfile << "time";
+					for (uint i=0; i<numOB; i++)
+						m_fluxfile << "\tFlux_" << i;
+					m_fluxfile << endl;
+				}
+			}
+			break;
+		}
+		default:
+			break;
+		}
+	}
 }
 
 CommonWriter::~CommonWriter()
@@ -245,6 +267,18 @@ CommonWriter::write_objectforces(double t, uint numobjects,
 			m_objectforcesfile << "\t" << appliedtorques[i];
 		}
 		m_objectforcesfile << endl;
+	}
+}
+
+void
+CommonWriter::write_flux(double t, float *fluxes)
+{
+	uint numOB = m_problem->simparams()->numOpenBoundaries;
+	if (m_fluxfile) {
+		m_fluxfile << t;
+		for (uint i=0; i<numOB; i++)
+			m_fluxfile << "\t" << fluxes[i];
+		m_fluxfile << endl;
 	}
 }
 

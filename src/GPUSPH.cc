@@ -1534,6 +1534,12 @@ void GPUSPH::doWrite(bool force)
 		Writer::WriteObjects(writers, gdata->t);
 	}
 
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		flt->second->write(writers, gdata->t);
+	}
+
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],

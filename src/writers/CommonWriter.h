@@ -63,6 +63,7 @@ public:
 	void write_objectforces(double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques);
+	void write_flux(double t, float *fluxes);
 
 	bool need_write(double t) const;
 
@@ -77,6 +78,7 @@ private:
 	ofstream		m_WaveGagefile;
 	ofstream		m_objectfile;
 	ofstream		m_objectforcesfile;
+	ofstream		m_fluxfile;
 
 };
 #endif

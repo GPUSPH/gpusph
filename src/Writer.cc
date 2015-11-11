@@ -401,6 +401,26 @@ Writer::WriteObjectForces(WriterMap writers, double t, uint numobjects,
 }
 
 void
+Writer::WriteFlux(WriterMap writers, double t, float* fluxes)
+{
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		it->second->write_flux(t, fluxes);
+	}
+
+	if (common_special && !writers.empty())
+		m_writers[COMMONWRITER]->write_flux(t, fluxes);
+}
+
+void
 Writer::Destroy()
 {
 	WriterMap::iterator it(m_writers.begin());
