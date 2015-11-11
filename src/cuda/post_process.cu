@@ -68,11 +68,11 @@ struct CUDAPostProcessEngineHelperDefaults
 	}
 
 	static void
-	hostAllocate(GlobalData *gdata)
+	hostAllocate(const GlobalData * const gdata)
 	{}
 
 	static void
-	hostProcess(GlobalData *gdata)
+	hostProcess(const GlobalData * const gdata)
 	{}
 
 	static void
@@ -85,14 +85,14 @@ template<PostProcessType filtertype, KernelType kerneltype, flag_t simflags>
 struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 {
 	static void process(
-				flag_t	options,
+				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	particleRangeEnd,
-				uint	deviceIndex,
-			GlobalData	*gdata);
+		MultiBufferList::iterator 		bufwrite,
+		const	uint					*cellStart,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata);
 };
 
 template<KernelType kerneltype, flag_t simflags>
@@ -103,14 +103,14 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, simflags>
 	{ return BUFFER_VORTICITY; }
 
 	static void process(
-				flag_t	options,
+				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	particleRangeEnd,
-				uint	deviceIndex,
-			GlobalData	*gdata)
+		MultiBufferList::iterator 		bufwrite,
+		const	uint					*cellStart,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCVORT;
@@ -160,14 +160,14 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, simflags>
 	{ return BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON; }
 
 	static void process(
-				flag_t	options,
+				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	particleRangeEnd,
-				uint	deviceIndex,
-			GlobalData	*gdata)
+		MultiBufferList::iterator 		bufwrite,
+		const	uint					*cellStart,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -231,14 +231,14 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 	{ return BUFFER_INFO | (options & BUFFER_NORMALS); }
 
 	static void process(
-				flag_t	options,
+				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	particleRangeEnd,
-				uint	deviceIndex,
-			GlobalData	*gdata)
+		MultiBufferList::iterator 		bufwrite,
+		const	uint					*cellStart,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -306,14 +306,14 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
 	{ return NO_FLAGS; }
 
 	static void process(
-				flag_t	options,
+				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	particleRangeEnd,
-				uint	deviceIndex,
-			GlobalData	*gdata)
+		MultiBufferList::iterator 		bufwrite,
+		const	uint					*cellStart,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -344,7 +344,7 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
 	}
 
 	static void
-	hostAllocate(GlobalData *gdata)
+	hostAllocate(const GlobalData * const gdata)
 	{
 		const uint numDev = gdata->devices > 1 ? MAX_DEVICES_PER_NODE : 1;
 		const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
@@ -356,7 +356,7 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
 	}
 
 	static void
-	hostProcess(GlobalData *gdata)
+	hostProcess(const GlobalData * const gdata)
 	{
 		const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
 
@@ -393,14 +393,14 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 	{ return BUFFER_PRIVATE; }
 
 	static void process(
-				flag_t	options,
+				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	particleRangeEnd,
-				uint	deviceIndex,
-			GlobalData	*gdata)
+		MultiBufferList::iterator 		bufwrite,
+		const	uint					*cellStart,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata)
 	{
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -469,12 +469,12 @@ public:
 
 	void process(
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	particleRangeEnd,
-				uint	deviceIndex,
-			GlobalData	*gdata)
+		MultiBufferList::iterator 		bufwrite,
+		const	uint					*cellStart,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata)
 	{
 		Helper::process
 			(	m_options,
@@ -487,12 +487,12 @@ public:
 				gdata);
 	}
 
-	void hostAllocate(GlobalData *gdata)
+	void hostAllocate(const GlobalData * const gdata)
 	{
 		Helper::hostAllocate(gdata);
 	}
 
-	void hostProcess(GlobalData *gdata)
+	void hostProcess(const GlobalData * const gdata)
 	{
 		Helper::hostProcess(gdata);
 	}

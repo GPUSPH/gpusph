@@ -68,13 +68,13 @@ public:
 	//< Main processing routine
 	virtual void
 	process(
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	particleRangeEnd,
-				uint	deviceIndex,
-			GlobalData	*gdata) = 0;
+		MultiBufferList::const_iterator	bufread,
+		MultiBufferList::iterator		bufwrite,
+		const	uint					*cellStart,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata) = 0;
 
 	//< Returns a list of buffers updated (in the bufwrite list)
 	virtual flag_t get_written_buffers() const = 0;
@@ -84,11 +84,11 @@ public:
 
 	//< Allocation of memory on host
 	virtual void
-	hostAllocate(GlobalData *gdata) = 0;
+	hostAllocate(const GlobalData * const gdata) = 0;
 
 	//< Main processing routine on host
 	virtual void
-	hostProcess(GlobalData *gdata) = 0;
+	hostProcess(const GlobalData * const gdata) = 0;
 
 	//< Main processing routine on host
 	virtual void
