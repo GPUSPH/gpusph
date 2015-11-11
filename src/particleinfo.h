@@ -95,7 +95,10 @@ enum ParticleFlag {
 
 #define SET_FLAG(info, flag) ((info).x |= (flag))
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
-#define QUERY_FLAG(info, flag) ((info).x & (flag))
+/// Query whether all flags are set in the particleinfo struct of a certain particle
+#define QUERY_ALL_PART_FLAG(info, flags) ((info).x & (flags) == (flags))
+/// Query whether at least one flag (out of flags) is set in the particleinfo struct of a certain particle
+#define QUERY_ANY_PART_FLAG(info, flags) ((info).x & (flags))
 
 /// Bitmasks to select only the particle type or flags
 #define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-1)

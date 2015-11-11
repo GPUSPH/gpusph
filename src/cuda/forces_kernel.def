@@ -2023,7 +2023,7 @@ struct dyndt_keps_shared_data
 template<BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
 struct forces_shared_data :
 	COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_shared_data),
-	COND_SHARED(simflags & (ENABLE_DTADAPT & ENABLE_DENSITY_SUM) &&
+	COND_SHARED(QUERY_ALL_FLAGS(simflags, ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
 		boundarytype == SA_BOUNDARY, dyndt_densitySum_shared_data),
 	COND_SHARED(simflags & ENABLE_DTADAPT &&
 		visctype == KEPSVISC, dyndt_keps_shared_data)
@@ -2032,7 +2032,7 @@ struct forces_shared_data :
 		typename COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_shared_data)
 		common;
 	typedef
-		typename COND_SHARED(simflags & (ENABLE_DTADAPT & ENABLE_DENSITY_SUM) &&
+		typename COND_SHARED(QUERY_ALL_FLAGS(simflags, ENABLE_DTADAPT & ENABLE_DENSITY_SUM) &&
 			boundarytype == SA_BOUNDARY, dyndt_densitySum_shared_data)
 		density_sum;
 	typedef
