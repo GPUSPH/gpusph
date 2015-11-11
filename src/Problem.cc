@@ -635,7 +635,7 @@ Problem::pressure(float rho, int i) const
 void
 Problem::add_gage(double3 const& pt)
 {
-	simparams()->gage.push_back(pt);
+	simparams()->gage.push_back(make_double4(pt.x, pt.y, 0., pt.z));
 }
 
 plane_t
@@ -1318,4 +1318,25 @@ void Problem::imposeForcedMovingObjects(
 {
 	// not implemented
 	return;
+}
+
+
+
+
+void Problem::PlaneCut(PointVect& points, const double a, const double b,
+			const double c, const double d)
+{
+	PointVect new_points;
+	new_points.reserve(points.size());
+	//const double norm_factor = sqrt(a*a + b*b + c*c);
+	for (uint i = 0; i < points.size(); i++) {
+		const Point & p = points[i];
+		const double dist = a*p(0) + b*p(1) + c*p(2) + d;
+
+		if (dist >= 0)
+			new_points.push_back(p);
+	}
+
+	points.clear();
+	points = new_points;
 }
