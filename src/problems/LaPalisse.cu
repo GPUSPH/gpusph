@@ -25,6 +25,8 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 			ENABLE_DENSITY_SUM>
 	);
 
+	addPostProcess(FLUX_COMPUTATION);
+
 	simparams()->sfactor=1.3f;
 	set_deltap(0.015f);
 
@@ -34,6 +36,7 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 
 	simparams()->maxneibsnum = 240;
+	simparams()->numOpenBoundaries=2;
 
 	simparams()->tend = 10.0;
 
