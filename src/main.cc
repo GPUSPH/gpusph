@@ -335,15 +335,6 @@ int main(int argc, char** argv) {
 	if (gdata.clOptions->num_hosts > 0)
 		printf(" num-hosts was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
 
-#if HASH_KEY_SIZE < 64
-	// only single-node single-GPU possible with 32 bits keys
-	if (gdata.totDevices > 1) {
-		fprintf(stderr, "FATAL: multi-device simulations require the hashKey to be at least 64 bits long\n");
-		gdata.networkManager->finalizeNetwork();
-		return 1;
-	}
-#endif
-
 	if (gdata.clOptions->asyncNetworkTransfers) {
 
 		if (!gdata.clOptions->gpudirect) {
