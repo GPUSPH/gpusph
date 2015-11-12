@@ -349,7 +349,7 @@ struct GlobalData {
 	float3*	s_hRbAngularVelocities;
 
 	// waterdepth at pressure outflows
-	uint	h_IOwaterdepth[MAX_DEVICES_PER_NODE][MAX_BODIES];
+	uint**	h_IOwaterdepth;
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
@@ -417,11 +417,6 @@ struct GlobalData {
 			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
 				s_hDeviceCanAccessPeer[d][p] = false;
 
-		// init h_IOwaterdepth
-		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) {
-			for (uint ob=0; ob < MAX_BODIES; ob++)
-				h_IOwaterdepth[d][ob] = 0;
-		}
 	};
 
 	// compute the global position from grid and local pos. note that the

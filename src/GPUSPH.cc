@@ -795,6 +795,8 @@ bool GPUSPH::runSimulation() {
 				gdata->only_internal = true;
 				doCommand(POSTPROCESS, NO_FLAGS, float(filter));
 
+				flt->second->hostProcess(gdata);
+
 				/* list of buffers that were updated in-place */
 				const flag_t updated_buffers = flt->second->get_updated_buffers();
 				/* list of buffers that were written in BUFFER_WRITE */
@@ -1069,6 +1071,22 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			gdata->s_hRbDeviceTotalForce = gdata->s_hRbTotalForce;
 			gdata->s_hRbDeviceTotalTorque = gdata->s_hRbTotalTorque;
 		}
+	}
+
+	const size_t numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
+	std::cout << "numOpenBoundaries : " << numOpenBoundaries << "\n";
+
+	// water depth computation array
+	if (problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
+		gdata->h_IOwaterdepth = new uint* [MULTI_GPU ? MAX_DEVICES_PER_NODE : 1];
+		for (uint i=0; i<(MULTI_GPU ? MAX_DEVICES_PER_NODE : 1); i++)
+			gdata->h_IOwaterdepth[i] = new uint [numOpenBoundaries];
+	}
+
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		flt->second->hostAllocate(gdata);
 	}
 
 	if (MULTI_DEVICE) {
@@ -1530,6 +1548,12 @@ void GPUSPH::doWrite(bool force)
 
 	if (gdata->problem->simparams()->numbodies > 0) {
 		Writer::WriteObjects(writers, gdata->t);
+	}
+
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		flt->second->write(writers, gdata->t);
 	}
 
 	// TODO: enable energy computation and dump

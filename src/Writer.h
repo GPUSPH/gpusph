@@ -145,6 +145,10 @@ public:
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques);
 
+	// write fluxes of open boundaries
+	static void
+	WriteFlux(WriterMap writers, double t, float* fluxes);
+
 	// delete writers and clear the list
 	static void
 	Destroy();
@@ -201,6 +205,9 @@ protected:
 	write_objectforces(double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques) {}
+
+	virtual void
+	write_flux(double t, float *fluxes) {}
 
 	uint getFilenum() const;
 

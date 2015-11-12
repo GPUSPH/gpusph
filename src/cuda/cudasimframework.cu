@@ -36,6 +36,7 @@
 #include "buildneibs.cu"
 #include "euler.cu"
 #include "forces.cu"
+#include "post_process.cu"
 
 // This class holds the implementation and interface of CUDASimFramework,
 // the CUDA simulation framework for GPUPSH. (In fact, the only simulation
@@ -194,6 +195,8 @@ protected:
 			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, simflags>(options);
 		case SURFACE_DETECTION:
 			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, simflags>(options);
+		case FLUX_COMPUTATION:
+			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, simflags>(options);
 		case CALC_PRIVATE:
 			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, simflags>(options);
 		case INVALID_POSTPROC:

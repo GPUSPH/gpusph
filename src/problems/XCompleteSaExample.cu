@@ -109,6 +109,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	disableCollisions(inlet);
 
 	// set velocity or pressure driven (see define in header)
+	// TODO call this function setInflowType with enum VELOCITY_DRIVEN, PRESSURE_DRIVEN
 	setVelocityDriven(inlet, VELOCITY_DRIVEN);
 
 	// Floating box, with STL mesh for collision detection
