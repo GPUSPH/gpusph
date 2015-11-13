@@ -34,7 +34,7 @@
 #include "simflags.h"
 #include "deprecation.h"
 
-typedef std::vector<double3> GageList;
+typedef std::vector<double4> GageList;
 
 typedef struct SimParams {
 	// Options that are set via SimFramework.

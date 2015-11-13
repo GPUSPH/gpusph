@@ -432,5 +432,7 @@ RESTORE_WARNINGS
 		// partition by performing the specified number of cuts along the three cartesian axes
 		void fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices);
 
+		void PlaneCut(PointVect&, const double, const double, const double, const double);
+
 };
 #endif
