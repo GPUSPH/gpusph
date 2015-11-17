@@ -10,7 +10,6 @@
 //
 //		Keyword					Id	// Description
 //*******************************************************************************************************
-#define	Spheric2					2	// Spheric2 dambreak with obstacle
 #define	Box							3	// Small dambreak in a box
 #define	BoxCorner					4	// Small dambreak in a box with a corner
 #define	SmallChannelFlow			5	// Small channel flow for debugging

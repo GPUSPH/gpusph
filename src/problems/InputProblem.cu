@@ -17,38 +17,9 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	// If the value is not defined properly this will throw a compile error
 	int i = SPECIFIC_PROBLEM;
 
-	//Spheric2 (DamBreak)
-	//*************************************************************************************
-#if SPECIFIC_PROBLEM == Spheric2
-		h5File.setFilename("meshes/0.spheric2.h5sph");
-
-		SETUP_FRAMEWORK(
-			viscosity<DYNAMICVISC>,
-			boundary<SA_BOUNDARY>,
-			periodicity<PERIODIC_NONE>,
-			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI>
-		);
-
-		set_deltap(0.01833f);
-
-		physparams()->kinematicvisc = 1.0e-2f;
-		physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
-
-		simparams()->tend = 5.0;
-		addPostProcess(SURFACE_DETECTION);
-		addPostProcess(TESTPOINTS);
-		H = 0.55;
-		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
-		m_origin = make_double3(-0.01, -0.01, -0.01);
-		simparams()->ferrariLengthScale = 0.161f;
-		physparams()->set_density(0, 1000.0, 7.0f, 130.0f);
-		simparams()->maxneibsnum = 240;
-	//*************************************************************************************
-
 	//Box (Dambreak)
 	//*************************************************************************************
-#elif SPECIFIC_PROBLEM == BoxCorner || SPECIFIC_PROBLEM == Box
+#if SPECIFIC_PROBLEM == BoxCorner || SPECIFIC_PROBLEM == Box
 #if SPECIFIC_PROBLEM == BoxCorner
 			h5File.setFilename("meshes/0.box_corner.h5sph");
 #else
@@ -430,26 +401,6 @@ int InputProblem::fill_parts()
 	add_gage(m_origin + make_double3(1.0, 1.8, 0.0) + make_double3(0.1, 0.1, 0.1));
 	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
 		test_points.push_back(m_origin + make_double3(1.0, 2.0, 0.0) + make_double3(0.1, 0.1, 0.1));
-	}
-	//*******************************************************************
-	// Setting probes for Spheric2 test case
-	//*******************************************************************
-#elif SPECIFIC_PROBLEM == Spheric2
-	// Wave gages
-	add_gage(m_origin + make_double3(2.724, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
-	add_gage(m_origin + make_double3(2.228, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
-	add_gage(m_origin + make_double3(1.732, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
-	add_gage(m_origin + make_double3(0.582, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
-	// Pressure probes
-	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
-		test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.021) + make_double3(0.01, 0.01, 0.01)); // the (0.01,0.01,0.01) vector accounts for the slightly shifted origin
-		test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.061) + make_double3(0.01, 0.01, 0.01));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.101) + make_double3(0.01, 0.01, 0.01));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.141) + make_double3(0.01, 0.01, 0.01));
-		test_points.push_back(m_origin + make_double3(2.4165, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
-		test_points.push_back(m_origin + make_double3(2.4565, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
-		test_points.push_back(m_origin + make_double3(2.4965, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
-		test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 	}
 	//*******************************************************************
 	// Setting probes for channel flow keps test cases (with and without io)
