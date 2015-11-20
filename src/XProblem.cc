@@ -1113,6 +1113,14 @@ void XProblem::setVelocityDriven(const GeometryID gid, bool isVelocityDriven)
 	m_geometries[gid]->velocity_driven = isVelocityDriven;
 }
 
+// Set custom radius for unfill operations. NAN means: use dp
+void XProblem::setUnfillRadius(const GeometryID gid, double unfillRadius)
+{
+	if (!validGeometry(gid)) return;
+
+	m_geometries[gid]->unfill_radius = unfillRadius;
+}
+
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
 	// NOTE: not checking validGeometry() to allow for deleted geometries
@@ -1259,18 +1267,21 @@ int XProblem::fill_parts()
 		bool del_bound = (m_geometries[g]->erase_operation == ET_ERASE_BOUNDARY);
 		if (m_geometries[g]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
 
+		double unfill_dx = dx; // or, dp also if (r0!=dp)?
+		if (!isnan(m_geometries[g]->unfill_radius))
+			unfill_dx = m_geometries[g]->unfill_radius;
 		// erase operations with existent geometries
 		if (del_fluid) {
 			if (m_geometries[g]->intersection_type == IT_SUBTRACT)
-				m_geometries[g]->ptr->Unfill(m_fluidParts, dx);
+				m_geometries[g]->ptr->Unfill(m_fluidParts, unfill_dx);
 			else
-				m_geometries[g]->ptr->Intersect(m_fluidParts, dx);
+				m_geometries[g]->ptr->Intersect(m_fluidParts, unfill_dx);
 		}
 		if (del_bound) {
 			if (m_geometries[g]->intersection_type == IT_SUBTRACT)
-				m_geometries[g]->ptr->Unfill(m_boundaryParts, dx);
+				m_geometries[g]->ptr->Unfill(m_boundaryParts, unfill_dx);
 			else
-				m_geometries[g]->ptr->Intersect(m_boundaryParts, dx);
+				m_geometries[g]->ptr->Intersect(m_boundaryParts, unfill_dx);
 		}
 
 		// after making some space, fill

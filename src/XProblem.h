@@ -110,6 +110,9 @@ struct GeometryInfo {
 	// flag to distinguish pressure/velocity open boundaries
 	bool velocity_driven;
 
+	// custom radius for unfill operations. NAN -> use dp
+	double unfill_radius;
+
 	GeometryInfo() {
 		ptr = NULL;
 
@@ -144,6 +147,8 @@ struct GeometryInfo {
 		particle_mass_was_set = false;
 
 		velocity_driven = false;
+
+		unfill_radius = NAN;
 	}
 };
 
@@ -274,6 +279,9 @@ class XProblem: public Problem {
 
 		// flag an open boundary as velocity driven; use with false to revert to pressure driven
 		void setVelocityDriven(const GeometryID gid, bool isVelocityDriven = true);
+
+		// set custom radius for unfill operations. NAN means: use dp
+		void setUnfillRadius(const GeometryID gid, double unfillRadius);
 
 		// get read-only information
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
