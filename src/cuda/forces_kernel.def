@@ -836,7 +836,9 @@ struct forces_neib_output :
 /// The next set of functions check  if the given particle (pdata) should skip
 /// traversing the neib list, and define the actions to be taken when skipping.
 /// Since we need partial specialization, they cannot be actual functions.
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype,
+	ParticleType cptype,
+	ParticleType nptype>
 struct skip_neiblist
 {
 	/// check if the given particle must skip the neiblist traversal
@@ -855,30 +857,25 @@ struct skip_neiblist
 
 };
 
-template<>
-struct skip_neiblist<SA_BOUNDARY>
+template<ParticleType nptype>
+struct skip_neiblist<SA_BOUNDARY, PT_VERTEX, nptype>
 {
 	template<typename FP, typename P>
 	__device__ __forceinline__
 	bool check(FP const& params, P const& pdata)
 	{
-		// vertex particles need to loop over neighbors when certain conditions are met
-		if (VERTEX(pdata.info)) {
-			// if the vertex needs to compute gamma, then we can't skip
-			if (pdata.computeGamma)
-				return false;
-			// in case of k-epsilon we need to compute the viscous force acting on the vertex
-			else if (FP::visctype == KEPSVISC)
-				return false;
-			// in case of IO and pressure outlet we need to compute the water level
-			else if (FP::simflags & ENABLE_INLET_OUTLET && IO_BOUNDARY(pdata.info) && PRES_IO(pdata.info))
-				return false;
-			// if none of the above matches, then we can skip the neighbour loop
-			else
-				return true;
-		} else {
+		// if the vertex needs to compute gamma, then we can't skip
+		if (pdata.computeGamma)
 			return false;
-		}
+		// in case of k-epsilon we need to compute the viscous force acting on the vertex
+		else if (FP::visctype == KEPSVISC)
+			return false;
+		// in case of IO and pressure outlet we need to compute the water level
+		else if (FP::simflags & ENABLE_INLET_OUTLET && IO_BOUNDARY(pdata.info) && PRES_IO(pdata.info))
+			return false;
+		// if none of the above matches, then we can skip the neighbour loop
+		else
+			return true;
 	}
 
 	template<typename P, typename OP>
@@ -2416,6 +2413,141 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
 };
 
 
+/// Specialization of particle-particle interaction for boundary-fluid with SA boundaries
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		/*if (!(simflags & ENABLE_DENSITY_SUM)) {
+			// Computes d\rho/dt, including ferrari correction
+			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		}
+
+		// We need to compute force on boundary particles only when we have floating bodies or force feedback
+		if (COMPUTE_FORCE(pdata.info)) {
+			// Compute pressure part of acceleration
+			compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+
+			// Compute viscous forces
+			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+
+			// Compute diffusion terms for k-epsilon and the strain rate tensor
+			//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
+			// TODO : implement keps for dynamic boundaries
+
+			// Sum all contributions from the neighbors in the force array
+			as_float3(pout.force) += nout.DvDt;
+		}*/
+	}
+};
+
+
+/// Specialization of particle-particle interaction for fluid-boundary with SA boundaries
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_FLUID, PT_BOUNDARY>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		/*if (!(simflags & ENABLE_DENSITY_SUM)) {
+			// Computes d\rho/dt, including ferrari correction
+			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		}
+
+		// Compute pressure part of acceleration
+		compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+
+		// Compute viscous forces
+		compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+
+		// Compute diffusion terms for k-epsilon and the strain rate tensor
+		//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
+		// TODO : implement keps for dynamic boundaries
+
+		// Sum all contributions from the neighbors in the force array
+		as_float3(pout.force) += nout.DvDt;*/
+	}
+};
+
+/// Specialization of particle-particle interaction for vertex-fluid with SA boundaries
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_VERTEX, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		/*if (!(simflags & ENABLE_DENSITY_SUM)) {
+			// Computes d\rho/dt, including ferrari correction
+			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		}
+
+		// We need to compute force on boundary particles only when we have floating bodies or force feedback
+		if (COMPUTE_FORCE(pdata.info)) {
+			// Compute pressure part of acceleration
+			compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+
+			// Compute viscous forces
+			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+
+			// Compute diffusion terms for k-epsilon and the strain rate tensor
+			//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
+			// TODO : implement keps for dynamic boundaries
+
+			// Sum all contributions from the neighbors in the force array
+			as_float3(pout.force) += nout.DvDt;
+		}*/
+	}
+};
+
+
+/// Specialization of particle-particle interaction for fluid-vertex with SA boundaries
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_FLUID, PT_VERTEX>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		/*if (!(simflags & ENABLE_DENSITY_SUM)) {
+			// Computes d\rho/dt, including ferrari correction
+			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		}
+
+		// Compute pressure part of acceleration
+		compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+
+		// Compute viscous forces
+		compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+
+		// Compute diffusion terms for k-epsilon and the strain rate tensor
+		//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
+		// TODO : implement keps for dynamic boundaries
+
+		// Sum all contributions from the neighbors in the force array
+		as_float3(pout.force) += nout.DvDt;*/
+	}
+};
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
 /************************************************************************************************************/
@@ -2489,7 +2621,7 @@ forcesDevice(
 		// actually skip the neib list traversal is done in here rather than
 		// in the prepare() function.
 
-		skip_neiblist<boundarytype> skip;
+		skip_neiblist<boundarytype, cptype, nptype> skip;
 		idx_t i = 0;
 
 		bool cont = true;

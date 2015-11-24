@@ -697,6 +697,27 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
+	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vf(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step,
+			xsph,
+			bufread->getData<BUFFER_VOLUME>(),
+			bufread->getData<BUFFER_SIGMA>(),
+			newGGam, contupd, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc);
+
+	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step,
+			xsph,
+			bufread->getData<BUFFER_VOLUME>(),
+			bufread->getData<BUFFER_SIGMA>(),
+			newGGam, contupd, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc);
 
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
 			forces, rbforces, rbtorques,
@@ -706,12 +727,23 @@ basicstep(
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+
+	if (boundarytype == SA_BOUNDARY)
+		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
+			<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+
+	if (boundarytype == SA_BOUNDARY)
+		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID>
+			<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
+
 	if ((boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY) ||
 			((boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) && compute_object_forces))
 		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 			<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
+
 	cuforces::finalizeforcesDevice<sph_formulation, boundarytype, visctype, simflags>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
 
