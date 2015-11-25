@@ -198,6 +198,7 @@ struct volume_forces_params
 };
 
 /// Additional parameters passed only to kernels with SA_BOUNDARY
+/// in case of of a fluid/boudary interaction
 struct sa_boundary_forces_params
 {
 			float4	*newGGam;
@@ -225,6 +226,18 @@ struct sa_boundary_forces_params
 			vertPos0 = vertPos1 = vertPos2 = NULL;
 		}
 	}
+};
+
+
+/// Additional parameters passed only to kernels with SA_BOUNDARY
+/// in case of of a fluid/fluid interaction
+struct sa_forces_params
+{
+	float2	*contupd;
+
+	// Constructor / initializer
+	sa_forces_params(float2	*_contupd):contupd(_contupd)
+	{}
 };
 
 /// Additional parameters passed only to kernels with ENABLE_WATER_DEPTH
@@ -261,6 +274,7 @@ struct forces_params :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 		_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype == PT_FLUID && _nptype == PT_FLUID, sa_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params)
@@ -322,6 +336,8 @@ struct forces_params :
 		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 			_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params)(_volArray),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
+		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype == PT_FLUID && nptype == PT_FLUID, sa_forces_params)
+			(_contupd),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_forces_params)
 			(_newGGam, _contupd, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
