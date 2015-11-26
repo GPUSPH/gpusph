@@ -137,6 +137,7 @@ operator<<
 	// append the last component and the closing parenthesis
 	out << std::setw(width) << ptr[N-1] << fmt->closing;
 
+	return out;
 }
 
 #endif
