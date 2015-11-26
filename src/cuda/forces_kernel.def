@@ -1528,8 +1528,7 @@ compute_density_derivative<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(FP const& p
 
 /// Functor to compute the pressure contribution to the particle acceleration.
 /// The results should be stored in nout.DvDt
-template<BoundaryType>
-struct compute_pressure_contrib
+struct generic_compute_pressure_contrib
 {
 	// auxiliary function, which is used as fallback also in the SA_BOUNDARY case
 	// responsible for the volumic term, note that p_precalc can contain 2/3 \rho k if KEPSVISC is chosen
@@ -1573,22 +1572,36 @@ struct compute_pressure_contrib
 	}
 };
 
-/// Specialization in the SA_BOUNDARY case to add boundary terms
+/// Generic version, no overrides
+template<BoundaryType boundarytype,
+		ParticleType cptype,
+		ParticleType nptype>
+struct compute_pressure_contrib : public generic_compute_pressure_contrib
+{};
+
+template<ParticleType cptype,
+		ParticleType nptype>
+struct compute_pressure_contrib<SA_BOUNDARY, cptype, nptype> :
+public generic_compute_pressure_contrib
+{
+	// actual method: will need specializations depending on the particle types, so here it is just declared
+	template<typename FP, typename PD, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
+	{}
+};
+
+
+/// Specialization in the SA_BOUNDARY case with PT_FLUID PT_BOUNDARY interaction
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_pressure_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// general pressure term
 	const float pGradTerm(common_with(params, pdata, ndata, pout, nout));
-	if (ndata.ntype == PT_BOUNDARY) {
-		// full boundary term
-		nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
-	}
-	else {
-		// full volumic term
-		nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*as_float3(ndata.relPos);
-	}
+	nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
 }
 
 /// A functor that computes the mean velocity (XSPH)
@@ -1791,8 +1804,7 @@ visc_volumic_part<ARTVISC>::with(FP const& params, P const& pdata, N const& ndat
 /// A functor that computes the scalar viscous coefficient (plus additional optional contributions
 /// directly to nout.
 /// See above about the double template<> in the specializations
-template<BoundaryType boundarytype, SPHFormulation sph_formulation>
-struct compute_viscous_contrib {
+struct generic_compute_viscous_contrib {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
@@ -1803,29 +1815,47 @@ struct compute_viscous_contrib {
 
 };
 
+template<BoundaryType boundarytype,
+		SPHFormulation sph_formulation,
+		ParticleType cptype,
+		ParticleType nptype>
+struct compute_viscous_contrib : public generic_compute_viscous_contrib
+{};
+
+
 /// Specialization for SA_BOUNDARY
-template<SPHFormulation sph_formulation>
-struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
+template<SPHFormulation sph_formulation,
+		ParticleType cptype,
+		ParticleType nptype>
+struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation, cptype, nptype> : public generic_compute_viscous_contrib {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		if (BOUNDARY(ndata.info)) {
-			// boundary term of the viscous part based on a boundary segment
-			if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
-				visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
-		}
-		else {
-			// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
-			visc_volumic_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
-		}
+		// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
+		visc_volumic_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
+	}
+};
+
+template<SPHFormulation sph_formulation,
+		ParticleType cptype>
+struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation, cptype, PT_BOUNDARY> : public generic_compute_viscous_contrib {
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
+			visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
 	}
 };
 
 /// Specialization for SPH_GRENIER
-template<BoundaryType boundarytype>
-struct compute_viscous_contrib<boundarytype, SPH_GRENIER> {
+template<BoundaryType boundarytype,
+		ParticleType cptype,
+		ParticleType nptype>
+struct compute_viscous_contrib<boundarytype, SPH_GRENIER, cptype, nptype> : public generic_compute_viscous_contrib {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
@@ -1841,9 +1871,7 @@ struct compute_viscous_contrib<boundarytype, SPH_GRENIER> {
 };
 
 /// Functor to compute the KEPS diffusion and velocity gradient terms
-
-template<BoundaryType boundarytype, ViscosityType visctype>
-struct compute_keps_term
+struct generic_compute_keps_term
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -1852,18 +1880,62 @@ struct compute_keps_term
 	{ /* do nothing */ }
 };
 
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
-(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+template<BoundaryType boundarytype,
+		ViscosityType visctype,
+		ParticleType cptype,
+		ParticleType nptype>
+struct compute_keps_term : public generic_compute_keps_term
 {
-	float3 dvmul = make_float3(0.0f);
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
 
-	// diffusion terms for k and epsilon, to be divided later by rho_a and gamma_a
-	if (ndata.ntype == PT_BOUNDARY) {
+//k-e computation for SA and PT_FLUID <= PT_FLUID or PT_VERTEX
+template<ParticleType cptype,
+		ParticleType nptype>
+struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, nptype> : public generic_compute_keps_term
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		// volume contribution for k and epsilon diffusion terms
+		pout.diff_term_k += ndata.relPos.w*(
+			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc)
+			)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
+		pout.diff_term_e += ndata.relPos.w*(
+			pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc/1.3f)
+			)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
 
-		// yap correction
+		// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
+		const float3 dvmul = -ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ;
+
+		// velocity gradient
+		// From fluid/vertex:
+		//	dvx = -∑mb vxab ∇(ra - rb)/r ∂Wab/∂r
+		//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
+		//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
+
+		pout.dvx += (ndata.relVel.x+ndata.relEulerVel.x)*dvmul;
+		pout.dvy += (ndata.relVel.y+ndata.relEulerVel.y)*dvmul;
+		pout.dvz += (ndata.relVel.z+ndata.relEulerVel.z)*dvmul;
+	}
+};
+
+//k-e computation for SA and PT_FLUID <= PT_BOUNDARY
+template<ParticleType cptype>
+struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, PT_BOUNDARY> : public generic_compute_keps_term
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		// Yap correction
 		// constant is 0.09^0.75/0.41
 		const float lyap = 0.400772603f*powf(pdata.keps_k,1.5f)/(pdata.keps_e*ndata.r_as);
 		if (lyap > 1.0f)
@@ -1874,36 +1946,19 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 		pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.ggamAS;
 
 		// multiplication for velocity gradient terms (gradGam_as*rho_s)
-		dvmul = nout.ggamAS*ndata.normal_s*ndata.relVel.w;
+		const float3 dvmul = nout.ggamAS*ndata.normal_s*ndata.relVel.w;
 
-	} else if (ndata.ntype == PT_VERTEX || ndata.ntype == PT_FLUID) {
+		// velocity gradient
+		// From boundary:
+		//	dvx = ∑ρs vxas ∇γas
+		//	dvy = ∑ρs vyas ∇γas
+		//	dvz = ∑ρs vzas ∇γas
 
-		// volume contribution for k and epsilon diffusion terms
-		pout.diff_term_k += ndata.relPos.w*(
-			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc)
-			)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
-		pout.diff_term_e += ndata.relPos.w*(
-			pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc/1.3f)
-			)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
-
-		// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
-		dvmul = -ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ;
+		pout.dvx += (ndata.relVel.x+ndata.relEulerVel.x)*dvmul;
+		pout.dvy += (ndata.relVel.y+ndata.relEulerVel.y)*dvmul;
+		pout.dvz += (ndata.relVel.z+ndata.relEulerVel.z)*dvmul;
 	}
-
-	// velocity gradient
-	// From boundary:
-	//	dvx = ∑ρs vxas ∇γas
-	//	dvy = ∑ρs vyas ∇γas
-	//	dvz = ∑ρs vzas ∇γas
-	// From fluid/vertex:
-	//	dvx = -∑mb vxab ∇(ra - rb)/r ∂Wab/∂r
-	//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
-	//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
-
-	pout.dvx += (ndata.relVel.x+ndata.relEulerVel.x)*dvmul;
-	pout.dvy += (ndata.relVel.y+ndata.relEulerVel.y)*dvmul;
-	pout.dvz += (ndata.relVel.z+ndata.relEulerVel.z)*dvmul;
-}
+};
 
 /*
  * Post-processing and saving
@@ -2461,13 +2516,13 @@ struct compute_pp_interaction
 
 			if (computes_NS_accel) {
 				// Compute pressure part of acceleration
-				compute_pressure_contrib<boundarytype>::with(params, pdata, ndata, pout, nout);
+				//compute_pressure_contrib<boundarytype>::with(params, pdata, ndata, pout, nout);
 
 				// Compute viscous forces
-				compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
+				//compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
 
 				// Compute diffusion terms for k-epsilon and the strain rate tensor
-				compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
+				//compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
 
 				// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 				compute_mean_vel<simflags & ENABLE_XSPH>::with(params, pdata, ndata, pout, nout);
@@ -2482,7 +2537,7 @@ struct compute_pp_interaction
 			if (visctype == KEPSVISC && VERTEX(pdata.info)
 				&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
-				compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
+				//compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
 			}
 			else if ((simflags & ENABLE_WATER_DEPTH) && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) {
 				// Compute the maximum depth at pressure boundaries
@@ -2524,13 +2579,13 @@ struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctyp
 		}
 
 		// Compute pressure part of acceleration
-		//compute_pressure_contrib<boundarytype>::with(params, pdata, ndata, pout, nout);
+		compute_pressure_contrib<boundarytype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
-		//compute_viscous_contrib<boundarytype, sph_formulation>::with(params, pdata, ndata, pout, nout);
+		compute_viscous_contrib<boundarytype, sph_formulation, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		//compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
+		compute_keps_term<boundarytype, visctype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 		// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 		compute_mean_vel<simflags & ENABLE_XSPH>::with(params, pdata, ndata, pout, nout);
@@ -2621,10 +2676,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
 			//compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
 			// Compute viscous forces
-			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 			// Compute diffusion terms for k-epsilon and the strain rate tensor
-			//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
+			compute_keps_term<DYN_BOUNDARY, visctype, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 			// TODO : implement keps for dynamic boundaries
 
 			// Sum all contributions from the neighbors in the force array
@@ -2656,13 +2711,13 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
 		}
 
 		// Compute pressure part of acceleration
-		//compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		compute_pressure_contrib<DYN_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
-		compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+		compute_viscous_contrib<DYN_BOUNDARY, sph_formulation, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
+		compute_keps_term<DYN_BOUNDARY, visctype, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 		// TODO : implement keps for dynamic boundaries
 
 		// Sum all contributions from the neighbors in the force array
@@ -2683,11 +2738,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		/*if (!(simflags & ENABLE_DENSITY_SUM)) {
-			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
-		}
-
+		/*
 		// We need to compute force on boundary particles only when we have floating bodies or force feedback
 		if (COMPUTE_FORCE(pdata.info)) {
 			// Compute pressure part of acceleration
@@ -2721,21 +2772,21 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 	{
 		if (!(simflags & ENABLE_DENSITY_SUM)) {
 			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<DYN_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+			compute_density_derivative<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 		}
 
 		// Compute pressure part of acceleration
-		//compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
-		//compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+		compute_viscous_contrib<SA_BOUNDARY, sph_formulation, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
-		// TODO : implement keps for dynamic boundaries
+		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+
 
 		// Sum all contributions from the neighbors in the force array
-		//as_float3(pout.force) += nout.DvDt;
+		as_float3(pout.force) += nout.DvDt;
 	}
 };
 
@@ -2751,22 +2802,16 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		/*if (!(simflags & ENABLE_DENSITY_SUM)) {
-			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
-		}
+		// TODO: viscous contrib PT_VERTEX <= PT_FLUID
 
+		// TODO: check what we need to do in that case
 		// We need to compute force on boundary particles only when we have floating bodies or force feedback
-		if (COMPUTE_FORCE(pdata.info)) {
+		/*if (COMPUTE_FORCE(pdata.info)) {
 			// Compute pressure part of acceleration
 			compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
 			// Compute viscous forces
 			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
-
-			// Compute diffusion terms for k-epsilon and the strain rate tensor
-			//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
-			// TODO : implement keps for dynamic boundaries
 
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
@@ -2787,23 +2832,22 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		/*if (!(simflags & ENABLE_DENSITY_SUM)) {
+		if (!(simflags & ENABLE_DENSITY_SUM)) {
 			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+			compute_density_derivative<SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 		}
 
 		// Compute pressure part of acceleration
-		compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
-		compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
+		compute_viscous_contrib<SA_BOUNDARY, sph_formulation, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
-		// TODO : implement keps for dynamic boundaries
+		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 
 		// Sum all contributions from the neighbors in the force array
-		as_float3(pout.force) += nout.DvDt;*/
+		as_float3(pout.force) += nout.DvDt;
 	}
 };
 /************************************************************************************************************/
@@ -2961,9 +3005,10 @@ finalizeforcesDevice(
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
-	__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
-	shared.init();
+	//__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
+	//shared.init();
 
+/*
 #pragma unroll
 	do {
 		if (index >= params.toParticle) break;
@@ -2992,12 +3037,10 @@ finalizeforcesDevice(
 		// Preparing particle output variables
 		common_particle_output pout(params, index);
 
-		#if 0
-			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
-			if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
-				gamma_fixup<boundarytype>::with(params, pdata, pout);
-			}
-		#endif
+		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
+		if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
+			gamma_fixup<boundarytype>::with(params, pdata, pout);
+		}
 
 		// common division or multiplication
 		forces_fixup<sph_formulation>::with(params, pdata, pout);
@@ -3036,7 +3079,7 @@ finalizeforcesDevice(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
-			shared.store(params, pdata, pout);
+			//shared.store(params, pdata, pout);
 		}
 #if 0
 		else
@@ -3077,8 +3120,8 @@ finalizeforcesDevice(
 		write_forces<boundarytype>::with(params, pdata, pout);
 
 	} while (0);
-
-	shared.reduce(params);
+*/
+	//shared.reduce(params);
 }
 /************************************************************************************************************/
 
