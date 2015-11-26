@@ -18,13 +18,14 @@ class LaPalisse: public Problem {
 	private:
 		string			inputfile;
 		PointVect		test_points;
-		double			world_w, world_l, world_h;			// world size (i.e. incl. margins and inlet box)
-		double			box_w, box_l, box_h;	// size of the main box (excl. margins, no inlet box)
+		double			w, l, h;
+		double			H;				// water level (used to set D constant)
 		HDF5SphReader	h5File;
+
 
 	public:
 		LaPalisse(GlobalData *);
-		~LaPalisse(void);
+		~LaPalisse(void) {};
 
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
@@ -40,14 +41,6 @@ class LaPalisse: public Problem {
 			const	uint			numParticles,
 			const	uint			numOpenBoundaries,
 			const	uint			particleRangeEnd);
-
-		void imposeForcedMovingObjects(
-					float3	&gravityCenters,
-					float3	&translations,
-					float*	rotationMatrices,
-			const	uint	ob,
-			const	double	t,
-			const	float	dt);
 
 		void release_memory(void) {};
 

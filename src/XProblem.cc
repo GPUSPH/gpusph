@@ -718,7 +718,9 @@ GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, 
 	// shift STL origin to given point
 	stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
 
-	return addGeometry(otype, ftype,
+	return addGeometry(
+		otype,
+		ftype,
 		stlmesh,
 		NULL,			// HDF5 filename
 		NULL,			// XYZ filename
@@ -744,7 +746,9 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 
 	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts in initialize() for that
 
-	return addGeometry(otype, FT_NOFILL,
+	return addGeometry(
+		otype,
+		FT_NOFILL,
 		stlmesh,
 		fname_hdf5,		// HDF5 filename
 		NULL,			// XYZ filename
@@ -767,7 +771,9 @@ GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
 
 	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts for that
 
-	return addGeometry(otype, FT_NOFILL,
+	return addGeometry(
+		otype,
+		FT_NOFILL,
 		stlmesh,
 		NULL,			// HDF5 filename
 		fname_xyz,		// XYZ filename

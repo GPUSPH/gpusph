@@ -26,7 +26,7 @@
 #include <cmath>
 #include <iostream>
 
-#include "SphericTest2.h"
+#include "Spheric2LJ.h"
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
@@ -46,7 +46,7 @@
 #define OFFSET_Z 0
 #endif
 
-SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
+Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 3.22;
@@ -112,17 +112,17 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 	add_writer(VTKWRITER, 0.05);
 
 	// Name of problem used for directory creation
-	m_name = "SphericTest2";
+	m_name = "Spheric2LJ";
 }
 
 
-SphericTest2::~SphericTest2(void)
+Spheric2LJ::~Spheric2LJ(void)
 {
 	release_memory();
 }
 
 
-void SphericTest2::release_memory(void)
+void Spheric2LJ::release_memory(void)
 {
 	parts.clear();
 	obstacle_parts.clear();
@@ -130,7 +130,7 @@ void SphericTest2::release_memory(void)
 }
 
 
-int SphericTest2::fill_parts()
+int Spheric2LJ::fill_parts()
 {
 	float r0 = physparams()->r0;
 
@@ -190,7 +190,7 @@ int SphericTest2::fill_parts()
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + test_points.size();
 }
 
-void SphericTest2::copy_planes(PlaneList& planes)
+void Spheric2LJ::copy_planes(PlaneList& planes)
 {
 	if (!m_usePlanes) return;
 
@@ -206,14 +206,14 @@ void SphericTest2::copy_planes(PlaneList& planes)
 	planes.push_back( implicit_plane(0, -1.0, 0, m_origin.y + ly) );
 }
 
-void SphericTest2::fillDeviceMap()
+void Spheric2LJ::fillDeviceMap()
 {
 	// TODO: test which split performs better, if Y (not many particles passing) or X (smaller section)
 	fillDeviceMapByAxis(Y_AXIS);
 	//fillDeviceMapByEquation();
 }
 
-void SphericTest2::copy_to_array(BufferList &buffers)
+void Spheric2LJ::copy_to_array(BufferList &buffers)
 {
 	float4 *pos = buffers.getData<BUFFER_POS>();
 	hashKey *hash = buffers.getData<BUFFER_HASH>();

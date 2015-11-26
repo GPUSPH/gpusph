@@ -7,6 +7,7 @@
 #include "cudasimframework.cu"
 #include "textures.cuh"
 #include "utils.h"
+#include "Problem.h"
 
 #define USE_PLANES 0
 
@@ -17,50 +18,50 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	SETUP_FRAMEWORK(
 		viscosity<KEPSVISC>,
 		boundary<SA_BOUNDARY>,
-		formulation<SPH_F2>,
-		add_flags<
-			ENABLE_INLET_OUTLET |
-			ENABLE_FERRARI |
-			ENABLE_WATER_DEPTH |
-			ENABLE_DENSITY_SUM>
+		kernel<WENDLAND>,
+		add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 	);
 
 	addPostProcess(FLUX_COMPUTATION);
 
-	simparams()->sfactor=1.3f;
 	set_deltap(0.015f);
-
-	add_fluid(1000.0f);
-	set_equation_of_state(0,  7.0f, 50.0f);
-	set_kinematic_visc(0, 1.0e-6f);
-	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
-
 	simparams()->maxneibsnum = 240;
+	simparams()->tend = 40.0;
+	simparams()->ferrari= 1.0f;
+
+	size_t water = add_fluid(1000.0f);
+	set_equation_of_state(water, 7.0f, 50.0f);
+	set_kinematic_visc(water, 1.0e-6f);
 	simparams()->numOpenBoundaries=2;
 
-	simparams()->tend = 10.0;
-
-	// SPH parameters
-	simparams()->dt = 0.00001f;
-	simparams()->dtadaptfactor = 0.1;
-	simparams()->buildneibsfreq = 1;
-	simparams()->ferrari= 1.0f;
-	simparams()->nlexpansionfactor = 1.1;
-
-	// Size and origin of the simulation domain
 	m_size = make_double3(5.8f, 7.6f, 2.4f);
 	m_origin = make_double3(-2.35f, -3.5f, -1.3f);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
+
+	// SPH parameters
+	simparams()->dt = 0.00004f;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 1;
+	simparams()->nlexpansionfactor = 1.1;
+
+	// Physical parameters
+	float g = length(physparams()->gravity);
+
+	physparams()->dcoeff = 5.0f*g*H;
+
+	physparams()->r0 = m_deltap;
+
+	physparams()->artvisccoeff = 0.3f;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->epsxsph = 0.5f;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 1e-2f);
+	add_writer(VTKWRITER, 1e-7f);
 
 	// Name of problem used for directory creation
 	m_name = "LaPalisse";
 }
 
-LaPalisse::~LaPalisse()
-{
-}
 
 int LaPalisse::fill_parts()
 {
@@ -100,40 +101,37 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
 		float rho = density(INLET_WATER_LEVEL - h5File.buf[i].Coords_2, 0);
-		//float rho = physparams()->rho0[0];
 		vel[i] = make_float4(0, 0, 0, rho);
+		// Fluid particles don't have a eulerian velocity
 		if (eulerVel)
-			eulerVel[i] = make_float4(0);
+			eulerVel[i] = make_float4(0.0f);
 		info[i] = make_particleinfo(PT_FLUID, 0, i);
-		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
-			physparams()->rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
+		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, physparams()->rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
 	uint j = n_parts;
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
 	if(n_vparts) {
 		std::cout << "Vertex parts: " << n_vparts << "\n";
+		const float referenceVolume = m_deltap*m_deltap*m_deltap;
 		for (uint i = j; i < j + n_vparts; i++) {
-			float rho = density(INLET_WATER_LEVEL - h5File.buf[i].Coords_2, 0);
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = vel[i];
-			int specialBoundType = h5File.buf[i].KENT;
+			int openBoundType = h5File.buf[i].KENT;
 			// count the number of different objects
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
 			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			simparams()->numOpenBoundaries = max(specialBoundType, simparams()->numOpenBoundaries);
-			// TODO FIXME MERGE the object id should be sequential from 0, no shifting
-			info[i] = make_particleinfo(PT_VERTEX, specialBoundType, i);
-			// Define the type of boundaries
-			if (specialBoundType != 0) {
-				// this vertex is part of an open boundary
-				// TODO FIXME MERGE inlet or outlet?
+			simparams()->numOpenBoundaries = max(openBoundType, simparams()->numOpenBoundaries);
+			info[i] = make_particleinfo_by_ids(PT_VERTEX, 0, max(openBoundType-1,0), i);
+			// Define the type of open boundaries
+			// two pressure boundaries
+			if (openBoundType != 0)
 				SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-			}
-			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
-				physparams()->rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
+			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, physparams()->rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
+			// boundelm.w contains the reference mass of a vertex particle, actually only needed for IO_BOUNDARY
+			boundelm[i].w = h5File.buf[i].Volume/referenceVolume;
 		}
 		j += n_vparts;
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
@@ -145,15 +143,11 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = vel[i];
-			int specialBoundType = h5File.buf[i].KENT;
-			// TODO FIXME MERGE the object id should be sequential from 0, no shifting
-			info[i] = make_particleinfo(PT_BOUNDARY, specialBoundType, i);
-			// Define the type of boundaries
-			if (specialBoundType != 0) {
-				// this vertex is part of an open boundary
-				// TODO FIXME MERGE inlet or outlet?
+			// two pressure boundaries
+			int openBoundType = h5File.buf[i].KENT;
+			info[i] = make_particleinfo_by_ids(PT_BOUNDARY, 0, max(openBoundType-1,0), i);
+			if (openBoundType != 0)
 				SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
 			vertices[i].y = h5File.buf[i].VertexParticle2;
@@ -189,35 +183,32 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 void
 LaPalisse::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
 {
+	const float k0 = 1.0f/sqrtf(0.09f);
+
 	for (uint i = 0; i < numpart; i++) {
-		k[i] = 0.0f;
-		e[i] = 1e-5f;
+		const unsigned int cellHash = cellHashFromParticleHash(hash[i]);
+		const float gridPosZ = float((cellHash % (m_gridsize.COORD2*m_gridsize.COORD1)) / m_gridsize.COORD1);
+		const float z = pos[i].z + m_origin.z + (gridPosZ + 0.5f)*m_cellsize.z;
+		const float Ti = 0.01f;
+		const float u = 0.0f; // TODO set according to initial velocity
+		const float L = 1.0f; // TODO set according to geometry
+		k[i] = fmax(1e-5f, 3.0f/2.0f*(u*Ti)*(u*Ti));
+		e[i] = fmax(1e-5f, 2.874944542f*k[i]*u*Ti/L);
+		//k[i] = k0;
+		//e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*(float)m_deltap);
 	}
 }
 
 uint
 LaPalisse::max_parts(uint numpart)
 {
+	// gives an estimate for the maximum number of particles
 	return (uint)((float)numpart*2.0f);
 }
 
 void LaPalisse::fillDeviceMap()
 {
-	fillDeviceMapByAxis(Y_AXIS);
-}
-
-void LaPalisse::imposeForcedMovingObjects(
-			float3	&centerOfGravity,
-			float3	&translation,
-			float*	rotationMatrix,
-	const	uint	ob,
-	const	double	t,
-	const	float	dt)
-{
-	switch (ob) {
-		default:
-			break;
-	}
+	fillDeviceMapByAxis(X_AXIS);
 }
 
 namespace cuLaPalisse
@@ -241,19 +232,17 @@ LaPalisse_imposeBoundaryCondition(
 	tke = 0.0f;
 	eps = 0.0f;
 
-	// open boundary conditions
 	if (IO_BOUNDARY(info)) {
-		// impose pressure
-		if (!VEL_IO(info)) {
-			if (object(info)==1) {
-				// rise slowly over 6 seconds
-				waterdepth = (INLET_WATER_LEVEL - 1.08f - INITIAL_WATER_LEVEL)*fmin(t/RISE_TIME, 1.0f) + INITIAL_WATER_LEVEL;
-			}
-			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
-			const float pressure = 9.81e3f*localdepth;
-			eulerVel.w = RHO(pressure, fluid_num(info));
-		}
+		if (object(info)==0)
+			//waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
+			//waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+			//waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+			waterdepth = (INLET_WATER_LEVEL - 1.08f - INITIAL_WATER_LEVEL)*fmin(t/RISE_TIME, 1.0f) + INITIAL_WATER_LEVEL;
+		const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+		const float pressure = 9.81e3f*localdepth;
+		eulerVel.w = RHO(pressure, fluid_num(info));
 	}
+
 }
 
 __global__ void
@@ -286,16 +275,17 @@ LaPalisse_imposeBoundaryConditionDevice(
 		//   from the viscosity
 		// - for a pressure inlet the pressure is imposed on the corners. If we are in the k-epsilon case then
 		//   we need to get the viscosity info from newEulerVel (x,y,z) and add the imposed density in .w
-		if (VERTEX(info) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
+		if ((VERTEX(info) || BOUNDARY(info)) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
 			// For corners we need to get eulerVel in case of k-eps and pressure outlet
 			if (CORNER(info) && newTke && !VEL_IO(info))
 				eulerVel = newEulerVel[index];
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
+			// when pressure outlets require the water depth compute it from the IOwaterdepth integer
 			float waterdepth = 0.0f;
 			if (!VEL_IO(info) && IOwaterdepth) {
-				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
+				waterdepth = ((float)IOwaterdepth[object(info)])/((float)UINT_MAX); // now between 0 and 1
 				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
 				waterdepth += d_worldOrigin.z; // now absolute z position
 			}
@@ -309,6 +299,7 @@ LaPalisse_imposeBoundaryConditionDevice(
 			if(newEpsilon)
 				newEpsilon[index] = eps;
 		}
+		// all other vertex particles had their eulerVel set in euler already
 	}
 }
 

@@ -2160,7 +2160,7 @@ void GPUWorker::kernel_forces_async_complete()
 void GPUWorker::kernel_forces()
 {
 	if (!gdata->only_internal)
-		printf("WARNING: forces kernel called with only_internal == true, ignoring flag!\n");
+		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
 
 	uint numPartsToElaborate = m_particleRangeEnd;
 
