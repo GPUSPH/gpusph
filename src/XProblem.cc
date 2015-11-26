@@ -1487,7 +1487,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		globalPos[i] = m_testpointParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
 		const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
-			density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0]);
+			density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0]);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
