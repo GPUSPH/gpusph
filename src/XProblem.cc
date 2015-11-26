@@ -105,7 +105,7 @@ XProblem::~XProblem()
 bool XProblem::initialize()
 {
 	// setup the framework if the subclass did not do it; will have all defaults
-	if (!m_simframework) {
+	if (!simframework()) {
 		// TODO automatic framework setup
 		// This must be done in a CU file
 		//SETUP_FRAMEWORK();

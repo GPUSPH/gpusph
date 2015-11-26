@@ -75,6 +75,31 @@ class Problem {
 		const float		*m_dem;
 		int				m_ncols, m_nrows;
 
+		PhysParams			*m_physparams;				//< Physical parameters
+
+		SimFramework		*m_simframework;			// simulation framework
+
+		// Set up the simulation framework. This must be done before the rest of the simulation parameters, and it sets
+		// * SPH kernel
+		// * SPH formulation
+		// * viscosity model
+		// * boundary model
+		// * periodicity
+		// * flags (see simflags.h)
+		// Example usage with default parameters:
+		/*
+			SETUP_FRAMEWORK(
+				kernel<WENDLAND>,
+				formulation<SPH_F1>,
+				viscosity<ARTVISC>,
+				boundary<LJ_BOUNDARY>,
+				periodicity<PERIODIC_NONE>,
+				flags<ENABLE_DTADAPT>
+			);
+		*/
+
+#define	SETUP_FRAMEWORK(...) this->simframework() =  CUDASimFramework< __VA_ARGS__ >()
+
 	public:
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
 		enum SplitAxis
@@ -106,40 +131,6 @@ class Problem {
 
 		GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
-
-		PhysParams			*m_physparams;				//< Physical parameters
-
-		SimFramework		*m_simframework;			// simulation framework
-
-		// Set up the simulation framework. This must be done before the rest of the simulation parameters, and it sets
-		// * SPH kernel
-		// * SPH formulation
-		// * viscosity model
-		// * boundary model
-		// * periodicity
-		// * flags (see simflags.h)
-		// Example usage with default parameters:
-		/*
-			SETUP_FRAMEWORK(
-				kernel<WENDLAND>,
-				formulation<SPH_F1>,
-				viscosity<ARTVISC>,
-				boundary<LJ_BOUNDARY>,
-				periodicity<PERIODIC_NONE>,
-				flags<ENABLE_DTADAPT>
-			);
-		*/
-
-#define	SETUP_FRAMEWORK(...) m_simframework =  CUDASimFramework< __VA_ARGS__ >()
-
-		// add a filter (MLS, SHEPARD), with given frequency
-#define	addFilter(fltr, freq) m_simframework->addFilterEngine(fltr, freq)
-
-		// add a post-processing filter, e.g.:
-		// addPostProcess(CALC_PRIVATE);
-		// addPostProcess(SURFACE_DETECTION); // simple surface detection
-		// addPostProcess(SURFACE_DETECTION, BUFFER_NORMALS); // save normals too
-#define	addPostProcess m_simframework->addPostProcessEngine
 
 		MovingBodiesVect	m_bodies;			// array of moving objects
 		KinematicData		*m_bodies_storage;				// kinematic data storage for bodie movement integration
@@ -243,12 +234,31 @@ RESTORE_WARNINGS
 		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const;
 
 		inline
-		const SimFramework *simframework(void) const
+		const SimFramework* simframework(void) const
 		{ return m_simframework; }
 
 		inline
-		SimFramework *simframework(void)
+		SimFramework*& simframework(void)
 		{ return m_simframework; }
+
+		// add a filter (MLS, SHEPARD), with given frequency
+		inline AbstractFilterEngine*
+		addFilter(FilterType filtertype, int frequency)
+		{ return simframework()->addFilterEngine(filtertype, frequency); };
+
+		// add a post-processing filter, e.g.:
+		// addPostProcess(CALC_PRIVATE);
+		// addPostProcess(SURFACE_DETECTION); // simple surface detection
+		// addPostProcess(SURFACE_DETECTION, BUFFER_NORMALS); // save normals too
+		inline AbstractPostProcessEngine*
+		addPostProcess(PostProcessType pptype, flag_t options=NO_FLAGS)
+		{ return simframework()->addPostProcessEngine(pptype, options); }
+
+		// check if a post process engine is enabled
+		inline AbstractPostProcessEngine*
+		hasPostProcess(PostProcessType pptype)
+		{ return simframework()->hasPostProcessEngine(pptype); }
+
 
 		inline
 		const SimParams *simparams(void) const

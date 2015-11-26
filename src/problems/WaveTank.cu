@@ -217,7 +217,7 @@ int WaveTank::fill_parts()
 		n++;
 	 }
 
-	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
+	if (hasPostProcess(TESTPOINTS)) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
 		test_points.push_back(pos);
 		pos = Point(0.5748, 0.2799, 0.2564, 0.0);

@@ -175,7 +175,7 @@ int SphericTest2::fill_parts()
 	add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
 	add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
 	// Pressure probes
-	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
+	if (hasPostProcess(TESTPOINTS)) {
 		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
 		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
 		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
