@@ -243,6 +243,14 @@ RESTORE_WARNINGS
 		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const;
 
 		inline
+		const SimFramework *simframework(void) const
+		{ return m_simframework; }
+
+		inline
+		SimFramework *simframework(void)
+		{ return m_simframework; }
+
+		inline
 		const SimParams *simparams(void) const
 		{ return m_simframework->simparams(); }
 
