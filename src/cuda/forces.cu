@@ -697,7 +697,7 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
-	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vf(
+	/*forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vf(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step,
@@ -717,30 +717,35 @@ basicstep(
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, contupd, vertPos, epsilon,
 			IOwaterdepth,
-			keps_dkde, turbvisc);
+			keps_dkde, turbvisc);*/
 
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
 			forces, rbforces, rbtorques,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl, cfl_Ds, cflTVisc, cflOffset,
-			bufread->getData<BUFFER_SIGMA>());
+			bufread->getData<BUFFER_SIGMA>(),
+			newGGam, contupd, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc);
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
-	if (boundarytype == SA_BOUNDARY)
+	/*if (boundarytype == SA_BOUNDARY)
 		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
-			<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+			<<< numBlocks, numThreads, dummy_shared >>>(params_fv);*/
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
-	if (boundarytype == SA_BOUNDARY)
+	// TODO: check when this case is needed
+	/*if (boundarytype == SA_BOUNDARY)
 		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID>
-			<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
+			<<< numBlocks, numThreads, dummy_shared >>>(params_vf);*/
 
-	if ((boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY) ||
-			((boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) && compute_object_forces))
+	// TODO: for SA_BOUNDARY check when this case is needed
+	if ( boundarytype != SA_BOUNDARY && ((boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY) ||
+			((boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) && compute_object_forces)))
 		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 			<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
 

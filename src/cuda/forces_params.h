@@ -354,11 +354,10 @@ template<SPHFormulation _sph_formulation,
 struct finalize_forces_params :
 	common_finalize_forces_params,
 	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_forces_params),
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)
-#if 0
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
-	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)
-#endif
+	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
+	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params)
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
@@ -389,10 +388,9 @@ struct finalize_forces_params :
 				uint	_cflOffset,
 
 		// SPH_GRENIER
-		const	float	*_sigmaArray
+		const	float	*_sigmaArray,
 
 // TODO: gamma_fixup
-#if 0
 		// SA_BOUNDARY
 				float4	*_newGGam,
 				float2	*_contupd,
@@ -401,19 +399,21 @@ struct finalize_forces_params :
 
 		// ENABLE_WATER_DEPTH
 				uint	*_IOwaterdepth,
-#endif
+
+		// KEPSVISC
+				float3	*_keps_dkde,
+				float	*_turbvisc
 		) :
 		common_finalize_forces_params(_forces, _rbforces, _rbtorques,
 			_posArray, _velArray, _particleHash, _cellStart,
 			 _fromParticle, _toParticle, _slength),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
 			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray)
-#if 0
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
 			(_newGGam, _contupd, _vertPos, _epsilon),
-		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth)
-#endif
+		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
+		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}
 };
 

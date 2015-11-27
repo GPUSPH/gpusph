@@ -3005,10 +3005,10 @@ finalizeforcesDevice(
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
-	//__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
-	//shared.init();
+	__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
+	shared.init();
 
-/*
+
 #pragma unroll
 	do {
 		if (index >= params.toParticle) break;
@@ -3079,7 +3079,7 @@ finalizeforcesDevice(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
-			//shared.store(params, pdata, pout);
+			shared.store(params, pdata, pout);
 		}
 #if 0
 		else
@@ -3120,8 +3120,8 @@ finalizeforcesDevice(
 		write_forces<boundarytype>::with(params, pdata, pout);
 
 	} while (0);
-*/
-	//shared.reduce(params);
+
+	shared.reduce(params);
 }
 /************************************************************************************************************/
 
