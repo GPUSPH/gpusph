@@ -1570,7 +1570,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
-		bool dbg_step_printf = false;
+		const bool dbg_step_printf = gdata->debug.print_step;
 
 		// TODO
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas

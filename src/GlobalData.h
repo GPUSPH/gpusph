@@ -181,8 +181,11 @@ class Writer;
 
 class Problem;
 
-// Bitfield of things to debug
+/// Bitfield of things to debug
 struct DebugFlags {
+	/// print each step as it is being executed
+	uint print_step : 1;
+	/// debug the neighbors list on host
 	uint neibs : 1;
 };
 
