@@ -164,6 +164,37 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 
+	const neibdata *neibslist = buffers.getData<BUFFER_NEIBSLIST>();
+
+	ushort *neibsnum = new ushort[numParts];
+
+	if (neibslist) {
+		ofstream neibs;
+		open_data_file(neibs, "neibs", current_filenum(), ".txt");
+		const idx_t stride = numParts;
+		const idx_t maxneibsnum = gdata->problem->simparams()->maxneibsnum;
+		const id_t listend = maxneibsnum*stride;
+		for (int i = 0; i < numParts; ++i) {
+			neibsnum[i] = maxneibsnum;
+			neibs << i << "\t" << id(info[i]) << "\t";
+			for (int index = i; index < listend; index += stride) {
+				neibdata neib = neibslist[index];
+				neibs << neib << "\t";
+				if (neib == USHRT_MAX) {
+					neibsnum[i] = (index - i)/stride;
+					break;
+				}
+				if (neib >= CELLNUM_ENCODED) {
+					int neib_cellnum = DECODE_CELL(neib);
+					neibdata ndata = neib & NEIBINDEX_MASK;
+					neibs << "(" << neib_cellnum << ": " << ndata << ")\t";
+				}
+			}
+			neibs << "[" << neibsnum[i] << "]" << endl;
+		}
+		neibs.close();
+	}
+
 	string filename;
 
 	ofstream fid;
@@ -176,9 +207,15 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		endianness[*(char*)&endian_int & 1] << "'>" << endl;
 	fid << " <UnstructuredGrid>" << endl;
 	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfCells='" << numParts << "'>" << endl;
-	fid << "   <PointData Scalars='Pressure' Vectors='Velocity'>" << endl;
+	fid << "   <PointData Scalars='" << (neibslist ? "Neibs" : "Part id") << "' Vectors='Velocity'>" << endl;
 
 	size_t offset = 0;
+
+	// neibs
+	if (neibslist) {
+		scalar_array(fid, "UInt16", "Neibs", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
+	}
 
 	// pressure
 	scalar_array(fid, "Float32", "Pressure", offset);
@@ -342,8 +379,16 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	fid << " <AppendedData encoding='raw'>\n_";
 	//====================================================================================
 
-	int numbytes=sizeof(float)*numParts;
+	int numbytes;
 
+	// neibs
+	if (neibslist) {
+		numbytes = sizeof(ushort)*numParts;
+		write_var(fid, numbytes);
+		write_arr(fid, neibsnum, numParts);
+	}
+
+	numbytes=sizeof(float)*numParts;
 	// pressure
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
@@ -651,6 +696,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	add_block("Particles", filename, t);
 
+	delete[] neibsnum;
 }
 
 void
