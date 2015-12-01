@@ -181,10 +181,17 @@ class Writer;
 
 class Problem;
 
+// Bitfield of things to debug
+struct DebugFlags {
+	uint neibs : 1;
+};
+
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
 struct GlobalData {
+	DebugFlags debug;
+
 	// # of GPUs running
 
 	// number of user-specified devices (# of GPUThreads). When multi-node, #device per node
@@ -355,6 +362,7 @@ struct GlobalData {
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
 	GlobalData(void):
+		debug(),
 		devices(0),
 		mpi_nodes(0),
 		mpi_rank(-1),
