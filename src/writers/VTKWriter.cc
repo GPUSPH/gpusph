@@ -207,7 +207,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		endianness[*(char*)&endian_int & 1] << "'>" << endl;
 	fid << " <UnstructuredGrid>" << endl;
 	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfCells='" << numParts << "'>" << endl;
-	fid << "   <PointData Scalars='" << (neibslist ? "Neibs" : "Part id") << "' Vectors='Velocity'>" << endl;
+	fid << "   <PointData Scalars='" << (neibslist ? "Neibs" : "Pressure") << "' Vectors='Velocity'>" << endl;
 
 	size_t offset = 0;
 
