@@ -1144,6 +1144,8 @@ void GPUWorker::dumpBuffers() {
 
 		const AbstractBuffer *buf = buflist[buf_to_get];
 		size_t _size = howManyParticles * buf->get_element_size();
+		if (buf_to_get == BUFFER_NEIBSLIST)
+			_size *= gdata->problem->simparams()->maxneibsnum;
 
 		// get all the arrays of which this buffer is composed
 		// (actually currently all arrays are simple, since the only complex arrays (TAU

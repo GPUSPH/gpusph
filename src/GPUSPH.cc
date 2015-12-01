@@ -768,6 +768,9 @@ bool GPUSPH::runSimulation() {
 			// choose the read buffer for the double buffered arrays
 			which_buffers |= DBLBUFFER_READ;
 
+			if (gdata->debug.neibs)
+				which_buffers |= BUFFER_NEIBSLIST;
+
 			// get GradGamma
 			if (gdata->problem->simparams()->boundarytype == SA_BOUNDARY)
 				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
@@ -972,6 +975,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VEL>();
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INFO>();
 
+	if (gdata->debug.neibs)
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEIBSLIST>();
+
 #if _DEBUG_
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
 #endif
@@ -1020,7 +1026,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	BufferList::iterator iter = gdata->s_hBuffers.begin();
 	while (iter != gdata->s_hBuffers.end()) {
-		totCPUbytes += iter->second->alloc(numparts);
+		if (iter->first == BUFFER_NEIBSLIST)
+			totCPUbytes += iter->second->alloc(numparts*gdata->problem->simparams()->maxneibsnum);
+		else
+			totCPUbytes += iter->second->alloc(numparts);
 		++iter;
 	}
 
