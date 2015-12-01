@@ -770,6 +770,8 @@ bool GPUSPH::runSimulation() {
 
 			if (gdata->debug.neibs)
 				which_buffers |= BUFFER_NEIBSLIST;
+			if (gdata->debug.forces)
+				which_buffers |= BUFFER_FORCES;
 
 			// get GradGamma
 			if (gdata->problem->simparams()->boundarytype == SA_BOUNDARY)
@@ -978,9 +980,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (gdata->debug.neibs)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEIBSLIST>();
 
-#if _DEBUG_
-	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
-#endif
+	if (gdata->debug.forces)
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
 
 	if (gdata->simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();

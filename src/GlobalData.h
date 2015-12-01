@@ -187,6 +187,8 @@ struct DebugFlags {
 	uint print_step : 1;
 	/// debug the neighbors list on host
 	uint neibs : 1;
+	/// debug forces on host
+	uint forces : 1;
 };
 
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
