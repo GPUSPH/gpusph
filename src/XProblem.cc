@@ -65,6 +65,8 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_maxFall = NAN;
 	m_maxParticleSpeed = NAN;
 
+	m_hydrostaticFilling = true;
+
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
 	m_name = "XProblem";
@@ -1489,8 +1491,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_testpointParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_testpointParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		const float rho = (m_simparams->boundarytype == DYN_BOUNDARY ?
-			density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0]);
+		float rho = physparams()->rho0[0];
+		if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
+			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1506,7 +1509,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_fluidParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_fluidParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		const float rho = density(m_waterLevel - globalPos[i].z, 0);
+		float rho = physparams()->rho0[0];
+		if (m_hydrostaticFilling)
+			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1522,8 +1527,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_boundaryParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
-			density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0]);
+		float rho = physparams()->rho0[0];
+		if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
+			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1671,8 +1677,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
+				float rho = physparams()->rho0[0];
+				if (m_hydrostaticFilling && (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY))
+					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
@@ -1806,8 +1813,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
+				float rho = physparams()->rho0[0];
+				if (m_hydrostaticFilling && (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY))
+					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
@@ -1854,8 +1862,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				globalPos[i] = rbparts[i - tot_parts].toDouble4();
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
+				float rho = physparams()->rho0[0];
+				if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
+					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 				if (eulerVel)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway

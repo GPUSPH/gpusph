@@ -194,6 +194,9 @@ class XProblem: public Problem {
 		// number of layers for filling dynamic boundaries
 		uint m_numDynBoundLayers;
 
+		// enable hydrostatic filling already during fill - uses m_waterLevel
+		bool m_hydrostaticFilling;
+
 	protected:
 		// methods for creation of new objects
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
@@ -294,6 +297,10 @@ class XProblem: public Problem {
 		void setMaxFall(double maxFall) { m_maxFall = maxFall; }
 		// set _expected_ max particle speed
 		void setMaxParticleSpeed(double maxParticleSpeed) { m_maxParticleSpeed = maxParticleSpeed; }
+
+		// Enable/disable automatic hydrostatic filling
+		void enableHydrostaticFilling() { m_hydrostaticFilling = true; }
+		void disableHydrostaticFilling()  { m_hydrostaticFilling = false; }
 
 		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 		void setDynamicBoundariesLayers(const uint numLayers);
