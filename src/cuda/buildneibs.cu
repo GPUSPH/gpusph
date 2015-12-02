@@ -377,7 +377,8 @@ sort(	MultiBufferList::const_iterator bufread,
 
 	ptype_hash_compare comp;
 
-	// Sort of the particle indices by cell, fluid number and id
+	// Sort of the particle indices by cell, fluid number, id and
+	// particle type (PT_FLUID < PT_BOUNDARY < PT_VERTEX)
 	// There is no need for a stable sort due to the id sort
 	thrust::sort_by_key(
 		thrust::make_zip_iterator(thrust::make_tuple(particleHash, particleInfo)),

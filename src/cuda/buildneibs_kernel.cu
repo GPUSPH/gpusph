@@ -806,8 +806,7 @@ void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_index, f
 template <SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
-			buildneibs_params<boundarytype>
-				const& params,			// build neibs parameters
+			buildneibs_params<boundarytype> const& params,			// build neibs parameters
 			int3			gridPos,	// current particle grid position
 			const int3		gridOffset,	// cell offset from current particle grid position
 			const uchar		cell,		// cell number (0 ... 26)
@@ -851,6 +850,7 @@ neibsInCell(
 		if (TESTPOINT(neib_info))
 			continue;
 
+		// Force cell encode at each neib type change
 		if (!encode_cell && neib_type != PART_TYPE(neib_info))
 			encode_cell = true;
 		neib_type = PART_TYPE(neib_info);
@@ -905,8 +905,15 @@ neibsInCell(
  *  @{ */
 /// Builds particles neighbors list
 /*! This kernel builds the neighbor's indexes of all particles. The
- * 	parameter params is built on specialized version of
- * 	build_neibs_params according to template values.
+ * 	parameter params is built on specialized version of build_neibs_params
+ * 	according to template values.
+ *	The neighbor list is now organized by neighboring particle type :
+ *	index	0					neibboundpos		maxneibs-1
+ *			|						  |				 |
+ *			v						  v				 v
+ *		   |PT_FLUID->...<-PT_BOUNDARY PT_VERTEX->...|
+ *	This is made possible by the sort where particles are sorted by cell AND
+ *	by particle type according to the ordering PT_FLUID < PT_BOUNDARY < PT_VERTEX.
  *
  *	\param[in, out] params: build neibs parameters
  *	\tparam boundarytype : boundary type (determines which particles have a neib list)
@@ -915,6 +922,8 @@ neibsInCell(
  *
  *	First and last particle index for grid cells and particle's informations
  *	are read through texture fetches.
+ *
+ *	TODO: finish implementation for SA_BOUNDARY (include PT_VERTEX)
  */
 template<SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound,
 	bool neibcount>
@@ -926,7 +935,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	// Number of neighbors for the current particle
+	// Number of neighbors for the current particle for each neighbor type
 	uint neibs_num[PT_TESTPOINT] = {0};
 
 	// Rather than nesting if's, use a do { } while (0) loop with breaks
