@@ -277,6 +277,10 @@ bool XProblem::initialize()
 	const float g = length(physparams()->gravity);
 	physparams()->dcoeff = 5.0f * g * m_maxFall;
 
+	// Disable hydrostatic filling if there is no gravity
+	if (g == 0)
+		m_hydrostaticFilling = false;
+
 	if (!isfinite(m_maxParticleSpeed)) {
 		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
 		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
