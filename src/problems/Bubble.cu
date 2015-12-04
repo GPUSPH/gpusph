@@ -54,7 +54,8 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	SETUP_FRAMEWORK(
 		formulation<SPH_GRENIER>,
 		viscosity<DYNAMICVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		flags<ENABLE_DTADAPT | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
 	);
 
 	// SPH parameters
@@ -158,36 +159,22 @@ int Bubble::fill_parts()
 	return fluid_parts.size() + boundary_parts.size();
 }
 
-uint Bubble::fill_planes()
+void Bubble::copy_planes(PlaneList &planes)
 {
 #if USE_PLANES
-	return 6;
-#else
-	return 0;
-#endif
-}
-
-void Bubble::copy_planes(double4 *planes)
-{
-	uint pnum = 0;
 	// z = m_origin.z
-	planes[pnum] = make_double4(0, 0, 1.0, -m_origin.z);
-	++pnum;
+	planes.push_back( implicit_plane(0, 0, 1.0, -m_origin.z) );
 	// z = m_origin.z+lz
-	planes[pnum] = make_double4(0, 0, -1.0, m_origin.z+lz);
-	++pnum;
+	planes.push_back( implicit_plane(0, 0, -1.0, m_origin.z+lz) );
 	// y = m_origin.y
-	planes[pnum] = make_double4(0, 1.0, 0, -m_origin.y);
-	++pnum;
+	planes.push_back( implicit_plane(0, 1.0, 0, -m_origin.y) );
 	// y = m_origin.y+ly
-	planes[pnum] = make_double4(0, -1.0, 0, m_origin.y+ly);
-	++pnum;
+	planes.push_back( implicit_plane(0, -1.0, 0, m_origin.y+ly) );
 	// x = m_origin.x
-	planes[pnum] = make_double4(1.0, 0, 0, -m_origin.x);
-	++pnum;
+	planes.push_back( implicit_plane(1.0, 0, 0, -m_origin.x) );
 	// x = m_origin.x+lx
-	planes[pnum] = make_double4(-1.0, 0, 0, m_origin.x+lx);
-	++pnum;
+	planes.push_back( implicit_plane(-1.0, 0, 0, m_origin.x+lx) );
+#endif
 }
 
 

@@ -243,7 +243,6 @@ PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
-HASH_KEY_SIZE_SELECT_OPTFILE=$(OPTSDIR)/hash_key_size_select.opt
 MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
 HDF5_SELECT_OPTFILE=$(OPTSDIR)/hdf5_select.opt
 
@@ -254,7 +253,6 @@ OPTFILES=$(PROBLEM_SELECT_OPTFILE) \
 		 $(DBG_SELECT_OPTFILE) \
 		 $(COMPUTE_SELECT_OPTFILE) \
 		 $(FASTMATH_SELECT_OPTFILE) \
-		 $(HASH_KEY_SIZE_SELECT_OPTFILE) \
 		 $(MPI_SELECT_OPTFILE) \
 		 $(HDF5_SELECT_OPTFILE) \
 		 $(GPUSPH_VERSION_OPTFILE)
@@ -331,22 +329,6 @@ ifdef fastmath
 else
 	FASTMATH ?= 0
 endif
-
-# option: hash_key_size - Size in bits of the hash used to sort particles, currently 32 or 64. Must
-# option:                 be 64 to enable multi-device simulations. For single-device simulations,
-# option:                 can be set to 32 to reduce memory usage. Default: 64
-ifdef hash_key_size
-	# does it differ from last?
-	ifneq ($(HASH_KEY_SIZE),$(hash_key_size))
-		TMP:=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/HASH_KEY_SIZE $(HASH_KEY_SIZE)/HASH_KEY_SIZE $(hash_key_size)/' $(HASH_KEY_SIZE_SELECT_OPTFILE) )
-	endif
-	# user choice
-	HASH_KEY_SIZE=$(hash_key_size)
-else
-	HASH_KEY_SIZE ?= 64
-endif
-
 
 # option: mpi - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
 ifdef mpi
@@ -743,10 +725,6 @@ $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if fastmath is enabled for GPU code. */" \
 		> $@
 	@echo "#define FASTMATH $(FASTMATH)" >> $@
-$(HASH_KEY_SIZE_SELECT_OPTFILE): | $(OPTSDIR)
-	@echo "/* Determines the size in bits of the hashKey used to sort the particles on the device. */" \
-		> $@
-	@echo "#define HASH_KEY_SIZE $(HASH_KEY_SIZE)" >> $@
 $(MPI_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if we are using MPI (for multi-node) or not. */" \
 		> $@
@@ -765,7 +743,7 @@ $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJSUBS)
+$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
@@ -774,7 +752,7 @@ $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
 	$(CMDECHO)$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJSUBS)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
@@ -817,7 +795,7 @@ computeclean:
 	$(RM) $(LIST_CUDA_CC) $(COMPUTE_SELECT_OPTFILE)
 	$(SED_COMMAND) '/COMPUTE=/d' Makefile.conf
 
-# target: cookiesclean - Clean last dbg, problem, compute, hash_key_size and fastmath choices,
+# target: cookiesclean - Clean last dbg, problem, compute and fastmath choices,
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
 cookiesclean:
 	$(RM) -r $(OPTFILES) $(OPTSDIR)
@@ -868,7 +846,6 @@ show:
 	@echo "LINKER:          $(LINKER)"
 	@echo "Compute cap.:    $(COMPUTE)"
 	@echo "Fastmath:        $(FASTMATH)"
-	@echo "Hashkey size:    $(HASH_KEY_SIZE)"
 	@echo "USE_MPI:         $(USE_MPI)"
 	@echo "USE_HDF5:        $(USE_HDF5)"
 	@echo "INCPATH:         $(INCPATH)"
@@ -926,8 +903,6 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of FASTMATH from OPTFILES
 	$(CMDECHO)grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
-	$(CMDECHO)# recover value of HASH_KEY_SIZE from OPTFILES
-	$(CMDECHO)grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_MPI from OPTFILES
 	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_HDF5 from OPTFILES
@@ -946,10 +921,6 @@ Makefile.conf: Makefile $(OPTFILES)
 # to define __CUDA_INTERNAL_COMPILATION__ to mute an error during traversal of
 # some CUDA system includes
 #
-# Finally, both GPUDEPS and CPUDEPS must depend on the _presence_ of the option file
-# for hash keys, to prevent errors about undefined hash key size every time
-# `src/hashkey.h` is preprocessed
-#
 # Both GPUDEPS and CPUS also depend from Makefile.conf, to ensure they are rebuilt when
 # e.g. the problem changes. This avoids a situation like the following:
 # * developer builds with problem A
@@ -961,7 +932,7 @@ Makefile.conf: Makefile $(OPTFILES)
 # This is particularly important to ensure that `make compile-problems` works correctly.
 # Of course, Makefile.conf has to be stripped from the list of dependencies before passing them
 # to the loop that builds the deps.
-$(GPUDEPS): $(CUFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE)
+$(GPUDEPS): $(CUFILES) Makefile.conf
 	$(call show_stage,DEPS,GPU)
 	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
@@ -973,7 +944,7 @@ $(GPUDEPS): $(CUFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
-$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE)
+$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf
 	$(call show_stage,DEPS,CPU)
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \

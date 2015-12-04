@@ -343,13 +343,15 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_r0, &physparams->r0, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsartvisc, &physparams->epsartvisc, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ewres, &physparams->ewres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_nsres, &physparams->nsres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_demdx, &physparams->demdx, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_demdy, &physparams->demdy, sizeof(float)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_ewres, &physparams->ewres, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_nsres, &physparams->nsres, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_demdx, &physparams->demdx, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_demdy, &physparams->demdy, sizeof(float)));
 	float demdxdy = physparams->demdx*physparams->demdy;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_demdxdy, &demdxdy, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_demzmin, &physparams->demzmin, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_demdxdy, &demdxdy, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_demzmin, &physparams->demzmin, sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_smagfactor, &physparams->smagfactor, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_kspsfactor, &physparams->kspsfactor, sizeof(float)));
 
@@ -431,12 +433,11 @@ getconstants(PhysParams *physparams)
 }
 
 void
-setplanes(int numPlanes, const float3 *planeNormal, const int3 *gridPos, const float3 *localPos)
+setplanes(std::vector<plane_t> const& planes)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planeNormal, planeNormal, numPlanes*sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planePointGridPos, gridPos, numPlanes*sizeof(int3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planePointLocalPos, localPos, numPlanes*sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_numplanes, &numPlanes, sizeof(uint)));
+	uint numPlanes = planes.size();
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_numplanes, &numPlanes, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_plane, &planes[0], numPlanes*sizeof(plane_t)));
 }
 
 void
@@ -688,12 +689,12 @@ setDEM(const float *hDem, int width, int height)
 	CUDA_SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
 	CUDA_SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
 
-	demTex.addressMode[0] = cudaAddressModeClamp;
-	demTex.addressMode[1] = cudaAddressModeClamp;
-	demTex.filterMode = cudaFilterModeLinear;
-	demTex.normalized = false;
+	cubounds::demTex.addressMode[0] = cudaAddressModeClamp;
+	cubounds::demTex.addressMode[1] = cudaAddressModeClamp;
+	cubounds::demTex.filterMode = cudaFilterModeLinear;
+	cubounds::demTex.normalized = false;
 
-	CUDA_SAFE_CALL( cudaBindTextureToArray(demTex, dDem, channelDesc));
+	CUDA_SAFE_CALL( cudaBindTextureToArray(cubounds::demTex, dDem, channelDesc));
 }
 
 void
@@ -1051,7 +1052,7 @@ struct CUDAPostProcessEngineHelperDefaults
 	{ return NO_FLAGS; }
 };
 
-template<PostProcessType filtertype, KernelType kerneltype>
+template<PostProcessType filtertype, KernelType kerneltype, flag_t simflags>
 struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 {
 	static void process(
@@ -1065,8 +1066,8 @@ struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 				float	influenceradius);
 };
 
-template<KernelType kerneltype>
-struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype>
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	static flag_t get_written_buffers(flag_t)
@@ -1114,8 +1115,8 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype>
 	}
 };
 
-template<KernelType kerneltype>
-struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype>
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// buffers updated in-place
@@ -1175,8 +1176,8 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype>
 	}
 };
 
-template<KernelType kerneltype>
-struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype>
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// pass BUFFER_NORMALS option to the SURFACE_DETECTION filter
@@ -1215,10 +1216,10 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype>
 
 		// execute the kernel
 		if (options & BUFFER_NORMALS) {
-			cuforces::calcSurfaceparticleDevice<kerneltype, true><<< numBlocks, numThreads >>>
+			cuforces::calcSurfaceparticleDevice<kerneltype, simflags, true><<< numBlocks, numThreads >>>
 				(pos, normals, newInfo, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 		} else {
-			cuforces::calcSurfaceparticleDevice<kerneltype, false><<< numBlocks, numThreads >>>
+			cuforces::calcSurfaceparticleDevice<kerneltype, simflags, false><<< numBlocks, numThreads >>>
 				(pos, normals, newInfo, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 		}
 
@@ -1233,8 +1234,8 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype>
 	}
 };
 
-template<KernelType kerneltype>
-struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype>
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// buffers updated in-place
@@ -1292,10 +1293,10 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype>
 };
 
 /// The actual CUDAPostProcessEngine class delegates to the helpers
-template<PostProcessType pptype, KernelType kerneltype>
+template<PostProcessType pptype, KernelType kerneltype, flag_t simflags>
 class CUDAPostProcessEngine : public AbstractPostProcessEngine
 {
-	typedef CUDAPostProcessEngineHelper<pptype, kerneltype> Helper;
+	typedef CUDAPostProcessEngineHelper<pptype, kerneltype, simflags> Helper;
 
 public:
 	CUDAPostProcessEngine(flag_t options=NO_FLAGS) :

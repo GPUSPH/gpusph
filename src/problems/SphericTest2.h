@@ -49,8 +49,7 @@ class SphericTest2: public Problem {
 
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
-		uint fill_planes(void);
-		void copy_planes(double4*);
+		void copy_planes(PlaneList &);
 
 		// override standard split
 		void fillDeviceMap();

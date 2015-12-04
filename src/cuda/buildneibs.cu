@@ -29,6 +29,8 @@
 
 #include <thrust/sort.h>
 #include <thrust/device_vector.h>
+#include <thrust/tuple.h>
+#include <thrust/iterator/zip_iterator.h>
 
 #include "define_buffers.h"
 #include "engine_neibs.h"
@@ -248,9 +250,8 @@ reorderDataAndFindCellStart(
 	if (oldVol)
 		CUDA_SAFE_CALL(cudaBindTexture(0, volTex, oldVol, numParticles*sizeof(float4)));
 
-	const particleinfo *oldInfo = unsorted_buffers->getData<BUFFER_INFO>();
-	particleinfo *newInfo = sorted_buffers->getData<BUFFER_INFO>();
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, oldInfo, numParticles*sizeof(particleinfo)));
+	// sorted already
+	const particleinfo *particleInfo = sorted_buffers->getData<BUFFER_INFO>();
 
 	const float4 *oldBoundElement = unsorted_buffers->getData<BUFFER_BOUNDELEMENTS>();
 	float4 *newBoundElement = sorted_buffers->getData<BUFFER_BOUNDELEMENTS>();
@@ -289,15 +290,14 @@ reorderDataAndFindCellStart(
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
-		newPos, newVel, newVol, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
-		newEulerVel, particleHash, particleIndex, numParticles, newNumParticles);
+		newPos, newVel, newVol, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
+		newEulerVel, particleInfo, particleHash, particleIndex, numParticles, newNumParticles);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	if (oldBoundElement)
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
@@ -331,13 +331,55 @@ updateVertIDToIndex(
 	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
 }
 
-void
-sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
+/// Functor to sort particles by hash (cell), and
+/// by fluid number within the cell
+struct ptype_hash_compare :
+	public thrust::binary_function<
+		thrust::tuple<hashKey, particleinfo>,
+		thrust::tuple<hashKey, particleinfo>,
+		bool>
 {
-	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
-	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
+	typedef thrust::tuple<hashKey, particleinfo> value_type;
 
-	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
+	__host__ __device__
+	bool operator()(const value_type& a, const value_type& b)
+	{
+		uint ha(cellHashFromParticleHash(thrust::get<0>(a), true)),
+				hb(cellHashFromParticleHash(thrust::get<0>(b), true));
+		particleinfo pa(thrust::get<1>(a)),
+					 pb(thrust::get<1>(b));
+
+		if (ha == hb) {
+			if (PART_TYPE(pa) == PART_TYPE(pb))
+				return id(pa) < id(pb);
+			return (PART_TYPE(pa) < PART_TYPE(pb));
+		}
+		return (ha < hb);
+	}
+};
+
+void
+sort(	MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		uint	numParticles)
+{
+	thrust::device_ptr<particleinfo> particleInfo =
+		thrust::device_pointer_cast(bufwrite->getData<BUFFER_INFO>());
+	thrust::device_ptr<hashKey> particleHash =
+		thrust::device_pointer_cast(bufwrite->getData<BUFFER_HASH>());
+	thrust::device_ptr<uint> particleIndex =
+		thrust::device_pointer_cast(bufwrite->getData<BUFFER_PARTINDEX>());
+
+	ptype_hash_compare comp;
+
+	// Sort of the particle indices by cell, fluid number and id
+	// There is no need for a stable sort due to the id sort
+	thrust::sort_by_key(
+		thrust::make_zip_iterator(thrust::make_tuple(particleHash, particleInfo)),
+		thrust::make_zip_iterator(thrust::make_tuple(
+			particleHash + numParticles,
+			particleInfo + numParticles)),
+		particleIndex, comp);
 
 	KERNEL_CHECK_ERROR;
 }

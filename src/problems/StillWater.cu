@@ -60,7 +60,8 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		//boundary<SA_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
 	).select_options(
-		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>()
+		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
+		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	if (mlsIters > 0)
@@ -187,20 +188,15 @@ int StillWater::fill_parts()
 	return parts.size() + boundary_parts.size() + vertex_parts.size();
 }
 
-uint StillWater::fill_planes()
-{
-	return (m_usePlanes ? 5 : 0);
-}
-
-void StillWater::copy_planes(double4* planes)
+void StillWater::copy_planes(PlaneList& planes)
 {
 	if (!m_usePlanes) return;
 
-	planes[0] = make_double4(0, 0, 1.0, -m_origin.z);
-	planes[1] = make_double4(0, 1.0, 0, -m_origin.x);
-	planes[2] = make_double4(0, -1.0, 0, m_origin.x + w);
-	planes[3] = make_double4(1.0, 0, 0, -m_origin.y);
-	planes[4] = make_double4(-1.0, 0, 0, m_origin.y + l);
+	planes.push_back( implicit_plane(0, 0, 1.0, -m_origin.z) );
+	planes.push_back( implicit_plane(0, 1.0, 0, -m_origin.x) );
+	planes.push_back( implicit_plane(0, -1.0, 0, m_origin.x + w) );
+	planes.push_back( implicit_plane(1.0, 0, 0, -m_origin.y) );
+	planes.push_back( implicit_plane(-1.0, 0, 0, m_origin.y + l) );
 }
 
 

@@ -28,10 +28,14 @@
 
 #include "Writer.h"
 
-using namespace std;
-
 class VTKWriter : public Writer
 {
+	// When we write both gages and particles we will save a MultiBlock VTK file (.vtm)
+	// referencing both the current gage and particle savefile, and the PVD index will reference
+	// this instead of the particle file
+	std::ofstream m_multiblock;
+	std::string m_multiblock_fname;
+
 public:
 	VTKWriter(const GlobalData *_gdata);
 	~VTKWriter();

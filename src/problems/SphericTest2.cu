@@ -54,7 +54,7 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 	lz = 1.0;
 	H = 0.55;
 	wet = false;
-	m_usePlanes = true;
+	m_usePlanes = get_option("use-planes", true);
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
@@ -66,6 +66,8 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 		//viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>,
 		add_flags<ENABLE_FERRARI>
+	).select_options(
+		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	// SPH parameters
@@ -188,25 +190,20 @@ int SphericTest2::fill_parts()
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + test_points.size();
 }
 
-uint SphericTest2::fill_planes()
-{
-	return (m_usePlanes ? 5 : 0);
-}
-
-void SphericTest2::copy_planes(double4 *planes)
+void SphericTest2::copy_planes(PlaneList& planes)
 {
 	if (!m_usePlanes) return;
 
 	// bottom
-	planes[0] = make_double4(0, 0, 1.0, -m_origin.z);
+	planes.push_back( implicit_plane(0, 0, 1.0, -m_origin.z) );
 	// back
-	planes[1] = make_double4(1.0, 0, 0, -m_origin.x);
+	planes.push_back( implicit_plane(1.0, 0, 0, -m_origin.x) );
 	// front
-	planes[2] = make_double4(-1.0, 0, 0, m_origin.x + lx);
+	planes.push_back( implicit_plane(-1.0, 0, 0, m_origin.x + lx) );
 	// side with smaller Y ("left")
-	planes[3] = make_double4(0, 1.0, 0, -m_origin.y);
+	planes.push_back( implicit_plane(0, 1.0, 0, -m_origin.y) );
 	// side with greater Y ("right")
-	planes[4] = make_double4(0, -1.0, 0, m_origin.y + ly);
+	planes.push_back( implicit_plane(0, -1.0, 0, m_origin.y + ly) );
 }
 
 void SphericTest2::fillDeviceMap()

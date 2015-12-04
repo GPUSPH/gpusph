@@ -53,8 +53,9 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	    //viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
 		viscosity<SPSVISC>,
-		boundary<LJ_BOUNDARY>
-		//boundary<MK_BOUNDARY>
+		boundary<LJ_BOUNDARY>,
+		//boundary<MK_BOUNDARY>,
+		flags<ENABLE_DTADAPT | ENABLE_PLANES>
 	);
 
 	m_size = make_double3(lx, ly, lz + 2.0*height);
@@ -250,31 +251,19 @@ int WaveTank::fill_parts()
 	return  boundary_parts.size() + get_bodies_numparts() +parts.size(); // + test_points.size();
 }
 
-
-uint WaveTank::fill_planes()
-{
-    if (!use_bottom_plane) {
-		return 5;
-		}
-	else {
-		return 6;
-		} //corresponds to number of planes
-}
-
-
-void WaveTank::copy_planes(double4 *planes)
+void WaveTank::copy_planes(PlaneList &planes)
 {
 	const double w = m_size.y;
 	const double l = h_length + slope_length;
 
 	//  plane is defined as a x + by +c z + d= 0
-	planes[0] = make_double4(0, 0, 1.0, 0);   //bottom, where the first three numbers are the normal, and the last is d.
-	planes[1] = make_double4(0, 1.0, 0, 0);   //wall
-	planes[2] = make_double4(0, -1.0, 0, w); //far wall
-	planes[3] = make_double4(1.0, 0, 0, 0);  //end
-	planes[4] = make_double4(-1.0, 0, 0, l);  //one end
+	planes.push_back( implicit_plane(0, 0, 1.0, 0) );   //bottom, where the first three numbers are the normal, and the last is d.
+	planes.push_back( implicit_plane(0, 1.0, 0, 0) );   //wall
+	planes.push_back( implicit_plane(0, -1.0, 0, w) ); //far wall
+	planes.push_back( implicit_plane(1.0, 0, 0, 0) );  //end
+	planes.push_back( implicit_plane(-1.0, 0, 0, l) );  //one end
 	if (use_bottom_plane)  {
-		planes[5] = make_double4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
+		planes.push_back( implicit_plane(-sin(beta),0,cos(beta), h_length*sin(beta)) );  //sloping bottom starting at x=h_length
 	}
 }
 
