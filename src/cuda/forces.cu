@@ -719,12 +719,13 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc);*/
 
+
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
 			forces, rbforces, rbtorques,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl, cfl_Ds, cflTVisc, cflOffset,
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
+			newGGam, oldGGam,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 

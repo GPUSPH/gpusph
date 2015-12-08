@@ -61,7 +61,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_FERRARI | ENABLE_DENSITY_SUM>
+			flags<ENABLE_FERRARI>
+		// flags<ENABLE_FERRARI | ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.125f);
