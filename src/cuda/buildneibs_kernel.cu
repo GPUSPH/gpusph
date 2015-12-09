@@ -65,6 +65,7 @@ namespace cuneibs {
  *  @{ */
 __constant__ uint d_neibboundpos;		///< Starting pos of boundary particle in neib list
 __constant__ idx_t d_neiblist_stride;	///< Stride dimension
+__constant__ idx_t d_neiblist_end;		///< maximum number of neighbors * number of allocated particles
 /** @} */
 /** \name Device variables
  *  @{ */
@@ -72,7 +73,7 @@ __device__ int d_numInteractions;			///< Total number of interactions per type
 __device__ int d_maxNeibs[PT_TESTPOINT];	///< Computed maximum number of neighbors per particle per type
 /** @} */
 
-using namespace cubounds;
+#include "cellgrid.cuh"
 
 /** \name Device functions
  *  @{ */

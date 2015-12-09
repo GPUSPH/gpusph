@@ -40,9 +40,9 @@
  */
 namespace cubounds {
 
-// Grid data
-#include "cellgrid.cuh"
 #include "planes.h"
+
+using namespace cuneibs;
 
 /// \name Device constants
 /// @{

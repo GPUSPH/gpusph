@@ -35,8 +35,8 @@
 
 #include "sph_core.cu"
 #include "phys_core.cu"
-#include "bounds.cu"
 #include "buildneibs.cu"
+#include "bounds.cu"
 #include "euler.cu"
 #include "forces.cu"
 

@@ -68,13 +68,11 @@ namespace cuforces {
 using namespace cubounds;
 using namespace cusph;
 using namespace cuphys;
+using namespace cuneibs;
 
 // Core SPH functions
 /** \name Device constants
  *  @{ */
-__constant__ idx_t	d_neiblist_end;			///< maximum number of neighbors * number of allocated particles
-__constant__ idx_t	d_neiblist_stride;		///< stride between neighbors of the same particle
-
 // Rigid body data
 __constant__ int3	d_rbcgGridPos[MAX_BODIES]; //< cell of the center of gravity
 __constant__ float3	d_rbcgPos[MAX_BODIES]; //< in-cell coordinate of the center of gravity
