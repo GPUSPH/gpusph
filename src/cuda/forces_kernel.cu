@@ -66,48 +66,14 @@
 namespace cuforces {
 
 using namespace cubounds;
+using namespace cusph;
+using namespace cuphys;
 
 // Core SPH functions
-#include "sph_core_utils.cuh"
-#include "gamma.cuh"
-
 /** \name Device constants
  *  @{ */
 __constant__ idx_t	d_neiblist_end;			///< maximum number of neighbors * number of allocated particles
 __constant__ idx_t	d_neiblist_stride;		///< stride between neighbors of the same particle
-
-__constant__ int	d_numfluids;			///< number of different fluids
-
-__constant__ float	d_sqC0[MAX_FLUID_TYPES];	///< square of sound speed for at-rest density for each fluid
-
-__constant__ float	d_ferrari;				///< coefficient for Ferrari correction
-__constant__ float	d_rhodiffcoeff;			///< coefficient for density diffusion
-
-__constant__ float	d_epsinterface;			///< interface epsilon for simplified surface tension in Grenier
-
-// LJ boundary repusion force comuting
-__constant__ float	d_dcoeff;
-__constant__ float	d_p1coeff;
-__constant__ float	d_p2coeff;
-__constant__ float	d_r0;
-
-// Monaghan-Kaijar boundary repulsion force constants
-__constant__ float	d_MK_K;		///< This is typically the square of the maximum velocity, or gravity times the maximum height
-__constant__ float	d_MK_d;		///< This is typically the distance between boundary particles
-__constant__ float	d_MK_beta;	///< This is typically the ration between h and the distance between boundary particles
-
-__constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient
-__constant__ float	d_epsartvisc;					///< epsilon of artificial viscosity
-
-__constant__ float	d_partsurf;		///< particle surface (typically particle spacing suared)
-
-// Sub-Particle Scale (SPS) Turbulence parameters
-__constant__ float	d_smagfactor;
-__constant__ float	d_kspsfactor;
-
-// Free surface detection
-__constant__ float	d_cosconeanglefluid;
-__constant__ float	d_cosconeanglenonfluid;
 
 // Rigid body data
 __constant__ int3	d_rbcgGridPos[MAX_BODIES]; //< cell of the center of gravity

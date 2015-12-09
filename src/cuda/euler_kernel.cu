@@ -50,7 +50,8 @@ __constant__ float	d_rbsteprot[9*MAX_BODIES];
 __constant__ idx_t	d_neiblist_end; // neiblistsize * number of allocated particles
 __constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
 
-#include "sph_core_utils.cuh"
+using namespace cusph;
+using namespace cuphys;
 using namespace cubounds;
 
 /// Apply rotation to a given vector
