@@ -26,4 +26,4 @@
 /* Boundary conditions engine implementation */
 
 // TODO most of it still resides in forces*.cu, should be moved here
-#include "bounds_kernel.cu"
+#include "boundary_conditions_kernel.cu"

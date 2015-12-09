@@ -52,7 +52,7 @@ __constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same pa
 
 using namespace cusph;
 using namespace cuphys;
-using namespace cubounds;
+using namespace cuneibs;
 
 /// Apply rotation to a given vector
 /*! Apply the rotation given by the matrix rot to the vector relPos.

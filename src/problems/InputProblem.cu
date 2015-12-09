@@ -761,8 +761,7 @@ void InputProblem::fillDeviceMap()
 
 namespace cuInputProblem
 {
-using namespace cubounds;
-using namespace cuforces;
+using namespace cuneibs;
 
 __device__
 void

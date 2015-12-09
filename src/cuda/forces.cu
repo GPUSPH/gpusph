@@ -344,13 +344,13 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_r0, &physparams->r0, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_epsartvisc, &physparams->epsartvisc, sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_ewres, &physparams->ewres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_nsres, &physparams->nsres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_demdx, &physparams->demdx, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_demdy, &physparams->demdy, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_ewres, &physparams->ewres, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_nsres, &physparams->nsres, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdx, &physparams->demdx, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdy, &physparams->demdy, sizeof(float)));
 	float demdxdy = physparams->demdx*physparams->demdy;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_demdxdy, &demdxdy, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_demzmin, &physparams->demzmin, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdxdy, &demdxdy, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demzmin, &physparams->demzmin, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_smagfactor, &physparams->smagfactor, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_kspsfactor, &physparams->kspsfactor, sizeof(float)));
@@ -380,11 +380,11 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 			}
 		}
 	}
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_cell_to_offset, cell_to_offset, 27*sizeof(char3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_cell_to_offset, cell_to_offset, 27*sizeof(char3)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_cellSize, &cellSize, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_worldOrigin, &worldOrigin, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_gridSize, &gridSize, sizeof(uint3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_cellSize, &cellSize, sizeof(float3)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ferrari, &simparams->ferrari, sizeof(float)));
 
@@ -435,8 +435,8 @@ void
 setplanes(std::vector<plane_t> const& planes)
 {
 	uint numPlanes = planes.size();
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_numplanes, &numPlanes, sizeof(uint)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_plane, &planes[0], numPlanes*sizeof(plane_t)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_numplanes, &numPlanes, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_plane, &planes[0], numPlanes*sizeof(plane_t)));
 }
 
 void
@@ -764,12 +764,12 @@ setDEM(const float *hDem, int width, int height)
 	CUDA_SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
 	CUDA_SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
 
-	cubounds::demTex.addressMode[0] = cudaAddressModeClamp;
-	cubounds::demTex.addressMode[1] = cudaAddressModeClamp;
-	cubounds::demTex.filterMode = cudaFilterModeLinear;
-	cubounds::demTex.normalized = false;
+	cugeom::demTex.addressMode[0] = cudaAddressModeClamp;
+	cugeom::demTex.addressMode[1] = cudaAddressModeClamp;
+	cugeom::demTex.filterMode = cudaFilterModeLinear;
+	cugeom::demTex.normalized = false;
 
-	CUDA_SAFE_CALL( cudaBindTextureToArray(cubounds::demTex, dDem, channelDesc));
+	CUDA_SAFE_CALL( cudaBindTextureToArray(cugeom::demTex, dDem, channelDesc));
 }
 
 void
@@ -1473,7 +1473,7 @@ public:
 void
 updateNewIDsOffset(const uint &newIDsOffset)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuboundaryconditions::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
 }
 
 /// Disables particles that went through boundaries when open boundaries are used
