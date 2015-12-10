@@ -69,7 +69,6 @@ using namespace cugeom;
 using namespace cusph;
 using namespace cuphys;
 using namespace cuneibs;
-using namespace cuboundaryconditions; // TODO: remove this once saVertexBoundaryConditions is transfered to boundary_conditions_kernel.cu
 
 // Core SPH functions
 /** \name Device constants
