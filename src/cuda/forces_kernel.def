@@ -2172,20 +2172,20 @@ compute_water_depth_at_outflow<SA_BOUNDARY, true>::with(FP const& params, P cons
 
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
-template<BoundaryType>
+template<BoundaryType, ParticleType>
 struct write_gamma
 {
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, OP const& pout)
+	with(FP const& params, P const& pdata, OP& pout)
 	{ /* do nothing */ }
 };
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-write_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout)
+write_gamma<SA_BOUNDARY, PT_BOUNDARY>::with(FP const& params, P const& pdata, OP& pout)
 {
 	if ((FP::simflags & ENABLE_INLET_OUTLET && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) ||
 		(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f && (params.step==1 || pdata.ptype != PT_FLUID)))
@@ -2518,10 +2518,21 @@ struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctyp
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		if (boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY)
-			return;
+	{ /* do nothing */	}
+};
 
+
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, LJ_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
 		// We need to compute force on boundary particles only when we have floating bodies or force feedback
 		if (COMPUTE_FORCE(pdata.info)) {
 			// Compute repulsive force from boundary particle
@@ -2533,6 +2544,27 @@ struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctyp
 	}
 };
 
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, MK_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		// We need to compute force on boundary particles only when we have floating bodies or force feedback
+		if (COMPUTE_FORCE(pdata.info)) {
+			// Compute repulsive force from boundary particle
+			compute_repulsive_force(params, pdata, ndata, pout, nout);
+
+			// Sum all contributions from the neighbors in the force array
+			as_float3(pout.force) += nout.DvDt;
+		}
+	}
+};
 
 /// Generic specialization of particle-particle interaction for fluid-boundary
 template<KernelType kerneltype,
@@ -2636,38 +2668,6 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
 };
 
 
-/// Specialization of particle-particle interaction for boundary-fluid with SA boundaries
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		/*
-		// We need to compute force on boundary particles only when we have floating bodies or force feedback
-		if (COMPUTE_FORCE(pdata.info)) {
-			// Compute pressure part of acceleration
-			compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
-
-			// Compute viscous forces
-			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
-
-			// Compute diffusion terms for k-epsilon and the strain rate tensor
-			//compute_keps_term<DYN_BOUNDARY, visctype>::with(params, pdata, ndata, pout, nout);
-			// TODO : implement keps for dynamic boundaries
-
-			// Sum all contributions from the neighbors in the force array
-			as_float3(pout.force) += nout.DvDt;
-		}*/
-	}
-};
-
-
 /// Specialization of particle-particle interaction for fluid-boundary with SA boundaries
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
@@ -2762,6 +2762,24 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+	}
+};
+
+/// Specialization of particle-particle interaction for fluid-boundary with SA boundaries
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	flag_t simflags>
+struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{
+		// Compute gamma_as and |grad gamma_as| and add it to the respective values
+		// of the focal particle
+		compute_gamma<SA_BOUNDARY, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 	}
 };
 
@@ -2894,9 +2912,7 @@ forcesDevice(
 		} // End of loop over neighbors
 
 		// TODO: check what to do with gamma
-		/*if (!(COMPUTE_FORCE(pdata.info) && !VERTEX(pdata.info))) {
-			write_gamma<boundarytype>::with(params, pdata, pout);
-		}*/
+		write_gamma<boundarytype, nptype>::with(params, pdata, pout);
 
 		write_forces<boundarytype>::with(params, pdata, pout);
 

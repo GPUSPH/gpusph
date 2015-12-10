@@ -652,6 +652,10 @@ basicstep(
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
+	if (boundarytype == SA_BOUNDARY) {
+		thrust::device_ptr<float4> dev_ptr(newGGam);
+		thrust::fill(dev_ptr + fromParticle, dev_ptr + toParticle, make_float4(0, 0, 0, 1));
+	}
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
@@ -675,17 +679,6 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
-	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
-			xsph,
-			bufread->getData<BUFFER_VOLUME>(),
-			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc);
-
 	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
@@ -697,18 +690,8 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
-	/*forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vf(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
-			xsph,
-			bufread->getData<BUFFER_VOLUME>(),
-			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc);*/
 
-	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step,
@@ -719,22 +702,39 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
-
-	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
-			forces, rbforces, rbtorques,
-			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
-			cfl, cfl_Ds, cflTVisc, cflOffset,
-			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, oldGGam,
-			IOwaterdepth,
-			keps_dkde, turbvisc);
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
-	if (boundarytype == SA_BOUNDARY)
+	if (boundarytype == SA_BOUNDARY) {
+		forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+				forces, rbforces, rbtorques,
+				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+				deltap, slength, influenceradius, step,
+				xsph,
+				bufread->getData<BUFFER_VOLUME>(),
+				bufread->getData<BUFFER_SIGMA>(),
+				newGGam, contupd, vertPos, epsilon,
+				IOwaterdepth,
+				keps_dkde, turbvisc);
+
 		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
 			<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+
+		forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY> params_vb(
+				forces, rbforces, rbtorques,
+				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+				deltap, slength, influenceradius, step,
+				xsph,
+				bufread->getData<BUFFER_VOLUME>(),
+				bufread->getData<BUFFER_SIGMA>(),
+				newGGam, contupd, vertPos, epsilon,
+				IOwaterdepth,
+				keps_dkde, turbvisc);
+
+		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
+			<<< numBlocks, numThreads, dummy_shared >>>(params_vb);
+	}
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
@@ -745,10 +745,18 @@ basicstep(
 			<<< numBlocks, numThreads, dummy_shared >>>(params_vf);*/
 
 	// TODO: for SA_BOUNDARY check when this case is needed
-	if ( boundarytype != SA_BOUNDARY && ((boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY) ||
-			((boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) && compute_object_forces)))
+	if ( boundarytype != SA_BOUNDARY && compute_object_forces)
 		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 			<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
+
+	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
+			forces, rbforces, rbtorques,
+			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
+			cfl, cfl_Ds, cflTVisc, cflOffset,
+			bufread->getData<BUFFER_SIGMA>(),
+			newGGam, oldGGam,
+			IOwaterdepth,
+			keps_dkde, turbvisc);
 
 	cuforces::finalizeforcesDevice<sph_formulation, boundarytype, visctype, simflags>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
