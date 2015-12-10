@@ -276,7 +276,7 @@ struct TypeDefaults
 	typedef TypeValue<ViscosityType, ARTVISC> Viscosity;
 	typedef TypeValue<BoundaryType, LJ_BOUNDARY> Boundary;
 	typedef TypeValue<Periodicity, PERIODIC_NONE> Periodic;
-	typedef TypeValue<flag_t, ENABLE_DTADAPT> Flags;
+	typedef TypeValue<flag_t, ENABLE_NONE> Flags;
 };
 
 // The user-visible name template parameters will all subclass TypeDefaults,
