@@ -249,7 +249,6 @@ private:
 	void kernel_saSegmentBoundaryConditions();
 	void kernel_saVertexBoundaryConditions();
 	void kernel_saIdentifyCornerVertices();
-	void kernel_saFindClosestVertex();
 	void kernel_updatePositions();
 	void kernel_disableOutgoingParts();
 	void kernel_imposeBoundaryCondition();

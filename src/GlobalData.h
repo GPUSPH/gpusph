@@ -132,8 +132,6 @@ enum CommandType {
 	/// SA_BOUNDARY only: identify vertices at corner of open boundaries.
 	/// Corner vertices do not generate new particles,
 	IDENTIFY_CORNER_VERTICES,
-	/// SA_BOUNDARY only: find the closest vertex for boundaries that have no proper I/O vertex themselves
-	FIND_CLOSEST_VERTEX,
 	/// SA_BOUNDARY only: disable particles that went through an open boundary
 	DISABLE_OUTGOING_PARTS,
 	/// SPH_GRENIER only: compute density

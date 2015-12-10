@@ -1681,10 +1681,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing IDENTIFY_CORNER_VERTICES\n", deviceIndex);
 				instance->kernel_saIdentifyCornerVertices();
 				break;
-			case FIND_CLOSEST_VERTEX:
-				if (dbg_step_printf) printf(" T %d issuing FIND_CLOSEST_VERTEX\n", deviceIndex);
-				instance->kernel_saFindClosestVertex();
-				break;
 			case COMPUTE_DENSITY:
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_DENSITY\n", deviceIndex);
 				instance->kernel_compute_density();
@@ -2535,28 +2531,6 @@ void GPUWorker::kernel_saIdentifyCornerVertices()
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
 				m_simparams->epsilon);
-}
-
-void GPUWorker::kernel_saFindClosestVertex()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	bcEngine->saFindClosestVertex(
-				bufread.getData<BUFFER_POS>(),
-				bufwrite.getData<BUFFER_INFO>(),
-				bufwrite.getData<BUFFER_VERTICES>(),
-				bufread.getData<BUFFER_VERTIDINDEX>(),
-				bufread.getData<BUFFER_HASH>(),
-				m_dCellStart,
-				bufread.getData<BUFFER_NEIBSLIST>(),
-				m_numParticles,
-				numPartsToElaborate);
 }
 
 void GPUWorker::kernel_disableOutgoingParts()

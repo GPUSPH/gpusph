@@ -1672,42 +1672,5 @@ saIdentifyCornerVertices(
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 }
-
-/// Finds the closest vertex particles for segments which have no vertices themselves that are of
-/// the same object type and are no corner particles
-void
-saFindClosestVertex(
-	const	float4*			oldPos,
-			particleinfo*	info,
-			vertexinfo*		vertices,
-	const	uint*			vertIDToIndex,
-	const	hashKey*		particleHash,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
-	const	uint			numParticles,
-	const	uint			particleRangeEnd)
-{
-	int dummy_shared = 0;
-
-	uint numThreads = BLOCK_SIZE_SHEPARD;
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
-	cuforces::saFindClosestVertex<<< numBlocks, numThreads, dummy_shared >>>(
-				oldPos,
-				info,
-				vertices,
-				vertIDToIndex,
-				particleHash,
-				cellStart,
-				neibsList,
-				numParticles);
-
-	// check if kernel invocation generated an error
-	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-}
 };
 

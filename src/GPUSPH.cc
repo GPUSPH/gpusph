@@ -1896,11 +1896,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
 
-		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
-		doCommand(FIND_CLOSEST_VERTEX);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_VERTICES | DBLBUFFER_WRITE);
-
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO | BUFFER_GRADGAMMA);
 	}
 
@@ -1936,8 +1931,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	gdata->only_internal = true;
 
-	if (!(cFlag & INITIALIZATION_STEP))
-		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
+	doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
 
 	// compute boundary conditions on segments and detect outgoing particles at open boundaries
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
