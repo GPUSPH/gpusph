@@ -33,6 +33,7 @@
 #include "textures.cuh"
 
 #include "engine_forces.h"
+#include "engine_boundary_conditions.h"
 #include "engine_visc.h"
 #include "engine_filter.h"
 #include "simflags.h"

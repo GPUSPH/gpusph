@@ -38,6 +38,7 @@
 #include "engine_integration.h"
 #include "engine_visc.h"
 #include "engine_forces.h"
+#include "engine_boundary_conditions.h"
 
 // TODO this should be set by the integration scheme, when we have it
 #include "buffer_alloc_policy.h"

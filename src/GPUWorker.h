@@ -45,6 +45,7 @@
 #include "engine_integration.h"
 #include "engine_visc.h"
 #include "engine_forces.h"
+#include "engine_boundary_conditions.h"
 
 // buffers and buffer lists
 #include "buffer.h"
