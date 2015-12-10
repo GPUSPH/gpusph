@@ -2855,6 +2855,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 		as_float3(pout.force) += nout.DvDt;
 	}
 };
+
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
 /************************************************************************************************************/
