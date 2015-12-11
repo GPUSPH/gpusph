@@ -97,7 +97,7 @@ template<KernelType _kerneltype,
 	flag_t _simflags>
 struct euler_particle_data :
 	common_euler_particle_data,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags && ENABLE_INLET_OUTLET),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
 				sa_boundary_particle_data),
 	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_particle_data),
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_data),
@@ -116,7 +116,7 @@ struct euler_particle_data :
 	__device__ __forceinline__
 	euler_particle_data(const uint _index, params_t const& params) :
 		common_euler_particle_data(_index, params),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags && ENABLE_INLET_OUTLET),
+		COND_STRUCT(boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
 					sa_boundary_particle_data)(_index, params),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_data)(_index, params),
