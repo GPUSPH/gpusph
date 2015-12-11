@@ -65,6 +65,8 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_maxFall = NAN;
 	m_maxParticleSpeed = NAN;
 
+	m_hydrostaticFilling = true;
+
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
 	m_name = "XProblem";
@@ -274,6 +276,10 @@ bool XProblem::initialize()
 	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed (through set_density())
 	const float g = length(physparams()->gravity);
 	physparams()->dcoeff = 5.0f * g * m_maxFall;
+
+	// Disable hydrostatic filling if there is no gravity
+	if (g == 0)
+		m_hydrostaticFilling = false;
 
 	if (!isfinite(m_maxParticleSpeed)) {
 		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
@@ -1115,6 +1121,14 @@ void XProblem::setVelocityDriven(const GeometryID gid, bool isVelocityDriven)
 	m_geometries[gid]->velocity_driven = isVelocityDriven;
 }
 
+// Set custom radius for unfill operations. NAN means: use dp
+void XProblem::setUnfillRadius(const GeometryID gid, double unfillRadius)
+{
+	if (!validGeometry(gid)) return;
+
+	m_geometries[gid]->unfill_radius = unfillRadius;
+}
+
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
 	// NOTE: not checking validGeometry() to allow for deleted geometries
@@ -1261,18 +1275,21 @@ int XProblem::fill_parts()
 		bool del_bound = (m_geometries[g]->erase_operation == ET_ERASE_BOUNDARY);
 		if (m_geometries[g]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
 
+		double unfill_dx = dx; // or, dp also if (r0!=dp)?
+		if (!isnan(m_geometries[g]->unfill_radius))
+			unfill_dx = m_geometries[g]->unfill_radius;
 		// erase operations with existent geometries
 		if (del_fluid) {
 			if (m_geometries[g]->intersection_type == IT_SUBTRACT)
-				m_geometries[g]->ptr->Unfill(m_fluidParts, dx);
+				m_geometries[g]->ptr->Unfill(m_fluidParts, unfill_dx);
 			else
-				m_geometries[g]->ptr->Intersect(m_fluidParts, dx);
+				m_geometries[g]->ptr->Intersect(m_fluidParts, unfill_dx);
 		}
 		if (del_bound) {
 			if (m_geometries[g]->intersection_type == IT_SUBTRACT)
-				m_geometries[g]->ptr->Unfill(m_boundaryParts, dx);
+				m_geometries[g]->ptr->Unfill(m_boundaryParts, unfill_dx);
 			else
-				m_geometries[g]->ptr->Intersect(m_boundaryParts, dx);
+				m_geometries[g]->ptr->Intersect(m_boundaryParts, unfill_dx);
 		}
 
 		// after making some space, fill
@@ -1492,8 +1509,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_testpointParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_testpointParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
-			density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0]);
+		float rho = physparams()->rho0[0];
+		if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
+			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1509,7 +1527,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_fluidParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_fluidParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		const float rho = density(m_waterLevel - globalPos[i].z, 0);
+		float rho = physparams()->rho0[0];
+		if (m_hydrostaticFilling)
+			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1525,8 +1545,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_boundaryParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
-			density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0]);
+		float rho = physparams()->rho0[0];
+		if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
+			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1674,8 +1695,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
+				float rho = physparams()->rho0[0];
+				if (m_hydrostaticFilling && (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY))
+					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
@@ -1809,8 +1831,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
+				float rho = physparams()->rho0[0];
+				if (m_hydrostaticFilling && (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY))
+					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
@@ -1857,8 +1880,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				globalPos[i] = rbparts[i - tot_parts].toDouble4();
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
-					density(m_waterLevel - globalPos[i].z, 0) : physparams()->rho0[0] );
+				float rho = physparams()->rho0[0];
+				if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
+					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 				if (eulerVel)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
