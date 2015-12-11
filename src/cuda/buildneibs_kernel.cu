@@ -64,6 +64,7 @@ namespace cuneibs {
 /** \name Device constants
  *  @{ */
 __constant__ uint d_neibboundpos;		///< Starting pos of boundary particle in neib list
+__constant__ uint d_neiblistsize;		///< Total neib list size
 __constant__ idx_t d_neiblist_stride;	///< Stride dimension
 __constant__ idx_t d_neiblist_end;		///< maximum number of neighbors * number of allocated particles
 /** @} */
@@ -883,9 +884,11 @@ neibsInCell(
 		bool close_enough = isCloseEnough(relPos, neib_info, params);
 
 		if (close_enough) {
-			if (neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] < d_neibboundpos) {
+			// TODO : optimize for SA and not
+			if (neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] < d_neibboundpos && neibs_num[PT_VERTEX] < d_neiblistsize - d_neibboundpos) {
 				const uint offset = (neib_type == PT_FLUID) ? neibs_num[PT_FLUID] :
-						d_neibboundpos - neibs_num[PT_BOUNDARY];
+						( (neib_type == PT_BOUNDARY) ? d_neibboundpos - neibs_num[PT_BOUNDARY]:
+								d_neibboundpos + neibs_num[PT_VERTEX] + 1);
 				params.neibsList[offset*d_neiblist_stride + index] =
 						neib_index - var.bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
 				encode_cell = false;
@@ -909,10 +912,12 @@ neibsInCell(
  * 	parameter params is built on specialized version of build_neibs_params
  * 	according to template values.
  *	The neighbor list is now organized by neighboring particle type :
- *	index	0					neibboundpos		maxneibs-1
+ *	index	0					neibboundpos		neiblistsize-1
  *			|						  |				 |
  *			v						  v				 v
  *		   |PT_FLUID->...<-PT_BOUNDARY PT_VERTEX->...|
+ *  First boundary particle is at index neibboundpos and first vertex particle is at
+ *  neibboundpos + 1.
  *	This is made possible by the sort where particles are sorted by cell AND
  *	by particle type according to the ordering PT_FLUID < PT_BOUNDARY < PT_VERTEX.
  *
@@ -1016,8 +1021,14 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		__shared__ volatile uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
 		__shared__ volatile uint sm_fluidbound_neibs_max[BLOCK_SIZE_BUILDNEIBS];
 
-		sm_fluidbound_neibs_max[threadIdx.x] =  neibs_num[0] +  neibs_num[1];
-		sm_total_neibs_num[threadIdx.x] = neibs_num[0] +  neibs_num[1];
+		if (boundarytype == SA_BOUNDARY) {
+			sm_fluidbound_neibs_max[threadIdx.x] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] + neibs_num[PT_VERTEX];
+			sm_total_neibs_num[threadIdx.x] = neibs_num[PT_FLUID] +  neibs_num[PT_BOUNDARY] + neibs_num[PT_VERTEX];
+		}
+		else {
+			sm_fluidbound_neibs_max[threadIdx.x] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY];
+			sm_total_neibs_num[threadIdx.x] = neibs_num[PT_FLUID] +  neibs_num[PT_BOUNDARY];
+		}
 		__syncthreads();
 
 		uint i = blockDim.x/2;

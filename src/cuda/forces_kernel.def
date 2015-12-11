@@ -2866,8 +2866,10 @@ forcesDevice(
 		}
 
 		// Loop over all neighbors
-		if (nptype == PT_BOUNDARY || nptype == PT_VERTEX)
-			i = cuneibs::d_neibboundpos*d_neiblist_stride;
+		if (nptype == PT_BOUNDARY)
+			i = d_neibboundpos *d_neiblist_stride;
+		else if (nptype == PT_VERTEX)
+			i = (d_neibboundpos + 1)*d_neiblist_stride;
 
 		while (cont) {
 			neibdata neib_data = params.neibsList[i + index];
@@ -2895,7 +2897,11 @@ forcesDevice(
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// Bail out if we do not interact with this neighbor
-			if (r >= params.influenceradius)
+			if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
+				if (r >= params.influenceradius + params.deltap)
+					continue;
+			}
+			else if (r >= params.influenceradius)
 				continue;
 
 			// Load rest of neib data

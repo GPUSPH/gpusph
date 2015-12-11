@@ -577,6 +577,7 @@ Problem::check_neiblistsize(void)
 	// with semi-analytical boundaries, boundary particles
 	// are doubled, so we expand by a factor of 1.5,
 	// again rounding up
+	// TODO: optimize the 1.5 factor
 	if (simparams()->boundarytype == SA_BOUNDARY)
 		neiblistsize = round_up(3*neiblistsize/2, 32U);
 

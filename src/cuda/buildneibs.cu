@@ -105,6 +105,7 @@ setconstants(	const SimParams *simparams,		// pointer to simulation parameters s
 				idx_t const& allocatedParticles)	// number of allocated particles (in)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neibboundpos, &simparams->neibboundpos, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblistsize, &simparams->neiblistsize, sizeof(uint)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
 }
 
