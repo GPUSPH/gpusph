@@ -110,6 +110,9 @@ struct GeometryInfo {
 	// flag to distinguish pressure/velocity open boundaries
 	bool velocity_driven;
 
+	// custom radius for unfill operations. NAN -> use dp
+	double unfill_radius;
+
 	GeometryInfo() {
 		ptr = NULL;
 
@@ -144,6 +147,8 @@ struct GeometryInfo {
 		particle_mass_was_set = false;
 
 		velocity_driven = false;
+
+		unfill_radius = NAN;
 	}
 };
 
@@ -193,6 +198,9 @@ class XProblem: public Problem {
 
 		// number of layers for filling dynamic boundaries
 		uint m_numDynBoundLayers;
+
+		// enable hydrostatic filling already during fill - uses m_waterLevel
+		bool m_hydrostaticFilling;
 
 	protected:
 		// methods for creation of new objects
@@ -272,6 +280,9 @@ class XProblem: public Problem {
 		// flag an open boundary as velocity driven; use with false to revert to pressure driven
 		void setVelocityDriven(const GeometryID gid, bool isVelocityDriven = true);
 
+		// set custom radius for unfill operations. NAN means: use dp
+		void setUnfillRadius(const GeometryID gid, double unfillRadius);
+
 		// get read-only information
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
 
@@ -294,6 +305,10 @@ class XProblem: public Problem {
 		void setMaxFall(double maxFall) { m_maxFall = maxFall; }
 		// set _expected_ max particle speed
 		void setMaxParticleSpeed(double maxParticleSpeed) { m_maxParticleSpeed = maxParticleSpeed; }
+
+		// Enable/disable automatic hydrostatic filling
+		void enableHydrostaticFilling() { m_hydrostaticFilling = true; }
+		void disableHydrostaticFilling()  { m_hydrostaticFilling = false; }
 
 		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 		void setDynamicBoundariesLayers(const uint numLayers);
