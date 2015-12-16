@@ -134,6 +134,54 @@ saSegmentBoundaryConditions(
 	KERNEL_CHECK_ERROR;
 }
 
+/// Compute normal for vertices in initialization step
+void
+computeVertexNormal(
+	MultiBufferList::const_iterator	bufread,
+	MultiBufferList::iterator		bufwrite,
+	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd)
+{
+	int dummy_shared = 0;
+
+	uint numThreads = BLOCK_SIZE_SA_BOUND;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+
+	const float4 *boundelement = bufread->getData<BUFFER_BOUNDELEMENTS>();
+	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
+	const uint *vertIDToIndex = bufread->getData<BUFFER_VERTIDINDEX>();
+	const particleinfo *pinfo = bufread->getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+
+	// execute the kernel
+	cuboundaryconditions::computeVertexNormal<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
+		newGGam,
+		vertices,
+		vertIDToIndex,
+		pinfo,
+		particleHash,
+		cellStart,
+		neibsList,
+		particleRangeEnd);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+
+}
+
 /// Apply boundary conditions to vertex particles.
 // There is no need to use two velocity arrays (read and write) and swap them after.
 // Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.

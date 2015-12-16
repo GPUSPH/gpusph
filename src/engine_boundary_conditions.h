@@ -83,6 +83,15 @@ saVertexBoundaryConditions(
 	const	uint			deviceId,
 	const	uint			numDevices) = 0;
 
+// computes a normal for vertices in the initialization step
+virtual void
+computeVertexNormal(
+	MultiBufferList::const_iterator	bufread,
+	MultiBufferList::iterator		bufwrite,
+	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd) = 0;
+
 // disables particles that went through boundaries when open boundaries are used
 virtual void
 disableOutgoingParts(		float4*			pos,
