@@ -249,6 +249,7 @@ private:
 	void kernel_updateVertIdIndexBuffer();
 	void kernel_saSegmentBoundaryConditions();
 	void kernel_saVertexBoundaryConditions();
+	void kernel_saComputeVertexNormal();
 	void kernel_saIdentifyCornerVertices();
 	void kernel_updatePositions();
 	void kernel_disableOutgoingParts();

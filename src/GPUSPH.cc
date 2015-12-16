@@ -1891,12 +1891,22 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	// initially data is in read so swap to write
 	if (cFlag & INITIALIZATION_STEP) {
+		doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
+
+		// if no restart
+		if (clOptions->resume_fname.empty()) {
+			// compute normal for vertices
+			doCommand(SA_COMPUTE_VERTEX_NORMAL);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+		}
+
 		doCommand(SWAP_BUFFERS, BUFFER_INFO);
 		doCommand(IDENTIFY_CORNER_VERTICES);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
 
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO | BUFFER_GRADGAMMA);
+		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO);
 	}
 
 	// impose open boundary conditions

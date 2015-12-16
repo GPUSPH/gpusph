@@ -1673,6 +1673,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_VERTEX_BOUNDARY_CONDITIONS\n", deviceIndex);
 				instance->kernel_saVertexBoundaryConditions();
 				break;
+			case SA_COMPUTE_VERTEX_NORMAL:
+				if (dbg_step_printf) printf(" T %d issuing SA_COMPUTE_VERTEX_NORMAL\n", deviceIndex);
+				instance->kernel_saComputeVertexNormal();
+				break;
 			case SA_UPDATE_VERTIDINDEX:
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
 				instance->kernel_updateVertIdIndexBuffer();
@@ -2507,6 +2511,21 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				!gdata->clOptions->resume_fname.empty(),
 				m_globalDeviceIdx,
 				gdata->totDevices);
+}
+
+void GPUWorker::kernel_saComputeVertexNormal()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	bcEngine->computeVertexNormal(
+				m_dBuffers.getReadBufferList(),
+				m_dBuffers.getWriteBufferList(),
+				m_dCellStart,
+				m_numParticles,
+				numPartsToElaborate);
 }
 
 void GPUWorker::kernel_saIdentifyCornerVertices()
