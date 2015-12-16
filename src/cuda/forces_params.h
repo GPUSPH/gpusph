@@ -233,13 +233,16 @@ struct sa_finalize_forces_params
 {
 	const	float4	*gGam;
 	const	float4	*oldGGam;
+			float2	*contupd;
 
 	// Constructor / initializer
 	sa_finalize_forces_params(
 		const	float4	*_gGam,
-		const	float4	*_oldGGam) :
+		const	float4	*_oldGGam,
+				float2	*_contupd) :
 		gGam(_gGam),
-		oldGGam(_oldGGam)
+		oldGGam(_oldGGam),
+		contupd(_contupd)
 	{}
 };
 
@@ -407,6 +410,7 @@ struct finalize_forces_params :
 		// SA_BOUNDARY
 		const	float4	*_gGam,
 		const	float4	*_oldGGam,
+				float2	*_contupd,
 
 		// ENABLE_WATER_DEPTH
 				uint	*_IOwaterdepth,
@@ -421,7 +425,7 @@ struct finalize_forces_params :
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
 			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam, _oldGGam),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam, _oldGGam, _contupd),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}

@@ -652,6 +652,7 @@ basicstep(
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemset(contupd + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 	if (boundarytype == SA_BOUNDARY) {
 		thrust::device_ptr<float4> dev_ptr(newGGam);
 		thrust::fill(dev_ptr + fromParticle, dev_ptr + toParticle, make_float4(0, 0, 0, 1));
@@ -706,6 +707,7 @@ basicstep(
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
+	// TODO if !SA_BOUNDARY these kernels are still compiled. Is there some template if that avoids this?
 	if (boundarytype == SA_BOUNDARY) {
 		forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
 				forces, rbforces, rbtorques,
@@ -754,7 +756,7 @@ basicstep(
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl, cfl_Ds, cflTVisc, cflOffset,
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, oldGGam,
+			newGGam, oldGGam, contupd,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
