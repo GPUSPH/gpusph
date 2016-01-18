@@ -149,12 +149,29 @@ compute_corrected_velocity<true>::with(EP const& params, P &pdata)
 	pdata.velc.z += d_epsxsph*pdata.xpsh.z;
 }
 
-// A functor that helps to integrate density, SA or volume
+// A functor that helps to integrate density or volume
 enum continuity_integration_type {
 	INTEGRATE_VOLUME,
-	INTEGRATE_SA,
 	INTEGRATE_DENSITY
 };
+
+template<bool dynamic_gamma>
+struct gamma_integration {
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, int index, float dt)
+	{ /* do nothing */ }
+};
+
+// integrate gamma
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+gamma_integration<true>::with(EP const& params, P &pdata, int index, float dt)
+{
+	params.newgGam[index].w = params.oldgGam[index].w + dt*params.dgamdt[index];
+}
 
 template<enum continuity_integration_type>
 struct continuity_integration {
@@ -176,6 +193,7 @@ continuity_integration<INTEGRATE_VOLUME>::with(EP const& params, P &pdata, int i
 	pdata.vol.y += dt*pdata.force.w;
 }
 
+/*
 //specialization for SA Boundary
 template<>
 template<typename EP, typename P>
@@ -212,7 +230,7 @@ continuity_integration<INTEGRATE_SA>::with(EP const& params, P &pdata, int index
 			params.influenceradius,
 			params.step);
 }
-
+*/
 // A functor that helps to integrate when k-e model is enabled
 template<bool k_e_Enabled>
 struct k_e_integration {
@@ -420,7 +438,7 @@ write_viscosity_coeff<KEPSVISC>::with(EP const& params, P &pdata, int index)
  *	\param[in] oldEps : previous values of e, for k-e model
  *	\param[in] particleInfo : particle's information
  *	\param[in] forces : derivative of particle's velocity and density
- *	\param[in] contupd : ??? <- TODO
+ *	\param[in] dgamdt : time derivative of gamma
  *	\param[in] keps_dkde : derivative of ??? <- TODO
  *	\param[in] xsph : SPH mean of velocities used for xsph correction
  *	\param[out] newPos : updated particle's position
@@ -492,10 +510,13 @@ eulerDevice(
 				// Grenier evolves the volume, not the density,
 				// all other evolve the density directly.
 				continuity_integration<
-					boundarytype == SA_BOUNDARY ? INTEGRATE_SA :
-					(sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
-					INTEGRATE_DENSITY)
+					sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
+					INTEGRATE_DENSITY
 				>::with(params, pdata, index, dt);
+
+				// Update gamma
+				// AM-TODO do we need this in the DENSITY_SUM case? probably not
+				gamma_integration<simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, index, dt);
 
 				as_float3(pdata.vel) += dt*as_float3(pdata.force);
 

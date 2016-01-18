@@ -548,7 +548,8 @@ struct sa_boundary_particle_output
 {
 	// x,y,z contains the gradient of gamma, w gamma itself
 	float4	gGam;
-	float2	contupd;
+	// time derivative of gamma
+	float	dgamdt;
 	// max value of \nabla \gamma_{as} \cdot {v_{as}, v_a - u_s, u_s + v_s} for cfl condition
 	float gammaCfl;
 
@@ -556,7 +557,7 @@ struct sa_boundary_particle_output
 	__device__ __forceinline__
 	sa_boundary_particle_output(FP const& params, const uint index) :
 		gGam(make_float4(0, 0, 0, 1)),
-		contupd(params.contupd[index]),
+		dgamdt(params.dgamdt[index]),
 		gammaCfl(0.0f)
 	{}
 };
@@ -621,12 +622,12 @@ struct forces_particle_output :
 // SA_BOUNDARY
 struct sa_finalize_particle_output
 {
-	float2	contupd;
+	float	dgamdt;
 
 	template<typename FP>
 	__device__ __forceinline__
 	sa_finalize_particle_output(FP const& params, const uint index) :
-		contupd(params.contupd[index])
+		dgamdt(params.dgamdt[index])
 	{}
 };
 
@@ -1479,7 +1480,7 @@ compute_gamma_dot<true>::with(FP const& params, P const& pdata, N const & ndata,
 
 	compute_gamma_dot_io<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
 
-	pout.contupd.y += nout.DgamDt;
+	pout.dgamdt += nout.DgamDt;
 }
 
 
@@ -2320,7 +2321,7 @@ write_forces<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout
 	params.forces[pdata.index].y = pout.force.y;
 	params.forces[pdata.index].z = pout.force.z;
 	params.forces[pdata.index].w = pout.force.w;
-	params.contupd[pdata.index] = pout.contupd;
+	params.dgamdt[pdata.index] = pout.dgamdt;
 }
 
 /*

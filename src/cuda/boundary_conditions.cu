@@ -195,7 +195,7 @@ saVertexBoundaryConditions(
 			float4*			oldGGam,
 			float4*			oldEulerVel,
 			float4*			forces,
-			float2*			contupd,
+			float*			dgamdt,
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
 	const	float2			* const vertPos[],
@@ -231,7 +231,7 @@ saVertexBoundaryConditions(
 
 	// execute the kernel
 	cuboundaryconditions::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, contupd, vertices, vertPos[0], vertPos[1], vertPos[2], vertIDToIndex, info, particleHash, cellStart, neibsList,
+		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, dgamdt, vertices, vertPos[0], vertPos[1], vertPos[2], vertIDToIndex, info, particleHash, cellStart, neibsList,
 		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
 
 	// check if kernel invocation generated an error

@@ -131,7 +131,7 @@ basicstep(
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
 
 	const float4 *forces = bufread->getData<BUFFER_FORCES>();
-	const float2 *contupd = bufread->getData<BUFFER_CONTUPD>();
+	const float *dgamdt = bufread->getData<BUFFER_DGAMDT>();
 	const float3 *keps_dkde = bufread->getData<BUFFER_DKDE>();
 	const float4 *xsph = bufread->getData<BUFFER_XSPH>();
 
@@ -153,7 +153,7 @@ basicstep(
 	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
 			newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t, step,
 			xsph,
-			oldgGam, newgGam, contupd, newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
+			oldgGam, newgGam, dgamdt, newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
 			newTKE, newEps, oldTKE, oldEps, keps_dkde,
 			newVol, oldVol);
 

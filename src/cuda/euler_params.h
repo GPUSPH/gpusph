@@ -113,7 +113,7 @@ struct sa_boundary_euler_params
 {
 			float4	*oldgGam;
 			float4	*newgGam;
-	const	float2	*contupd;
+	const	float	*dgamdt;
 			float4	*oldVelRW;
 			float4	*newEulerVel;
 			float4	*newBoundElement;
@@ -130,7 +130,7 @@ struct sa_boundary_euler_params
 	sa_boundary_euler_params(
 				float4	*_oldgGam,
 				float4	*_newgGam,
-		const	float2	*_contupd,
+		const	float	*_dgamdt,
 		const	float4	*_oldVel,
 				float4	*_newEulerVel,
 				float4	*_newBoundElement,
@@ -142,7 +142,7 @@ struct sa_boundary_euler_params
 		const	uint	*_cellStart) :
 		oldgGam(_oldgGam),
 		newgGam(_newgGam),
-		contupd(_contupd),
+		dgamdt(_dgamdt),
 		oldVelRW(const_cast<float4*>(_oldVel)),
 		newEulerVel(_newEulerVel),
 		newBoundElement(_newBoundElement),
@@ -242,7 +242,7 @@ struct euler_params :
 		// SA_BOUNDARY
 				float4	*_oldgGam,
 				float4	*_newgGam,
-		const	float2	*_contupd,
+		const	float	*_dgamdt,
 				float4	*_newEulerVel,
 				float4	*_newBoundElement,
 		const	float2	* const _vertPos[],
@@ -267,7 +267,7 @@ struct euler_params :
 			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_euler_params)
-			(_oldgGam, _newgGam, _contupd, _oldVel, _newEulerVel, _newBoundElement,
+			(_oldgGam, _newgGam, _dgamdt, _oldVel, _newEulerVel, _newBoundElement,
 			_vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_euler_params)(_newTKE, _newEps,  _oldTKE, _oldEps, _keps_dkde),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol)

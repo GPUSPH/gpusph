@@ -61,7 +61,7 @@ saVertexBoundaryConditions(
 			float4*			oldGGam,
 			float4*			oldEulerVel,
 			float4*			forces,
-			float2*			contupd,
+			float*			dgamdt,
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
 	const	float2			* const vertPos[],

@@ -636,7 +636,7 @@ basicstep(
 
 	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
 	float4 *xsph = bufwrite->getData<BUFFER_XSPH>();
-	float2 *contupd = bufwrite->getData<BUFFER_CONTUPD>();
+	float *dgamdt = bufwrite->getData<BUFFER_DGAMDT>();
 	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
 
 	// TODO FIXME TURBVISC, TKE, EPSILON are in/out, but they are taken from the READ position
@@ -654,7 +654,7 @@ basicstep(
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemset(contupd + fromParticle, 0, numParticlesInRange*sizeof(float2)));
+	CUDA_SAFE_CALL(cudaMemset(dgamdt + fromParticle, 0, numParticlesInRange*sizeof(float)));
 	if (boundarytype == SA_BOUNDARY) {
 		thrust::device_ptr<float4> dev_ptr(newGGam);
 		thrust::fill(dev_ptr + fromParticle, dev_ptr + toParticle, make_float4(0, 0, 0, 1));
@@ -678,7 +678,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
+			newGGam, dgamdt, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
@@ -689,7 +689,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
+			newGGam, dgamdt, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
@@ -701,7 +701,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
+			newGGam, dgamdt, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
@@ -718,7 +718,7 @@ basicstep(
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
-				newGGam, contupd, vertPos, epsilon,
+				newGGam, dgamdt, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc);
 
@@ -732,7 +732,7 @@ basicstep(
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
-				newGGam, contupd, vertPos, epsilon,
+				newGGam, dgamdt, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc);
 
@@ -758,7 +758,7 @@ basicstep(
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl, cfl_Ds, cflTVisc, cflOffset,
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, oldGGam, contupd,
+			newGGam, oldGGam, dgamdt,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
