@@ -1567,7 +1567,7 @@ compute_density_derivative<SA_BOUNDARY, cptype, nptype>::with(FP const& params, 
 // Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_FLUID or PT_VERTEX
 template<DensityDiffusionType densitydiffusiontype,
 		ParticleType nptype>
-struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, nptype>
+struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, nptype> : generic_compute_density_derivative
 {
 	template<typename FP, typename PD, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -1590,7 +1590,7 @@ struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, n
 
 // Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_BOUNDARY
 template<DensityDiffusionType densitydiffusiontype>
-struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>
+struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, PT_BOUNDARY> : generic_compute_density_derivative
 {
 	template<typename FP, typename PD, typename N, typename OP, typename ON>
 	__device__ __forceinline__
