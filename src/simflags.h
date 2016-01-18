@@ -35,11 +35,11 @@
 
 // TODO macros to test presence of flag
 
-// no options
-#define ENABLE_NONE			0UL
+// No options
+#define ENABLE_NONE				0UL
 #define DISABLE_ALL_SIMFLAGS	(ENABLE_NONE)
 
-// adaptive timestepping
+// Adaptive timestepping
 #define ENABLE_DTADAPT			1UL
 
 // XSPH
@@ -47,6 +47,7 @@
 
 // planes
 #define ENABLE_PLANES			(ENABLE_XSPH << 1)
+
 // DEM
 #define ENABLE_DEM				(ENABLE_PLANES << 1)
 
@@ -68,7 +69,10 @@
 // Summation density
 #define ENABLE_DENSITY_SUM		(ENABLE_DENSITY_DIFFUSION << 1)
 
-#define LAST_SIMFLAG		ENABLE_DENSITY_SUM
+// Gamma computation from Dgamma/Dt
+#define ENABLE_DYNAMIC_GAMMA	(ENABLE_DENSITY_SUM << 1)
+
+#define LAST_SIMFLAG			ENABLE_DYNAMIC_GAMMA
 
 // since flags are a bitmap, LAST_SIMFLAG - 1 sets all bits before
 // the LAST_SIMFLAG bit, and OR-ing with LAST_SIMFLAG gives us
