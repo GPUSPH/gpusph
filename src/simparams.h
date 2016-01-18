@@ -40,8 +40,9 @@ typedef struct SimParams {
 	// Options that are set via SimFramework.
 	const KernelType		kerneltype;				// kernel type
 	const SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
-	const ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
-	const BoundaryType	boundarytype;			// boundary force formulation (Lennard-Jones etc)
+	const DensityDiffusionType densitydiffusiontype; 	// type of density diffusion corrective term
+	const ViscosityType		visctype;				// viscosity type (1 artificial, 2 laminar)
+	const BoundaryType		boundarytype;			// boundary force formulation (Lennard-Jones etc)
 	const Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
 	const flag_t			simflags;				// simulation flags
 
@@ -78,6 +79,7 @@ typedef struct SimParams {
 	SimParams(
 		KernelType _kernel = WENDLAND,
 		SPHFormulation _formulation = SPH_F1,
+		DensityDiffusionType _densitydiffusiontype = DENSITY_DIFFUSION_NONE,
 		ViscosityType _visctype = ARTVISC,
 		BoundaryType _btype = LJ_BOUNDARY,
 		Periodicity _periodic = PERIODIC_NONE,
@@ -85,6 +87,7 @@ typedef struct SimParams {
 
 		kerneltype(_kernel),
 		sph_formulation(_formulation),
+		densitydiffusiontype(_densitydiffusiontype),
 		visctype(_visctype),
 		boundarytype(_btype),
 		periodicbound(_periodic),

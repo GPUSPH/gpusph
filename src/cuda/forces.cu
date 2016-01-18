@@ -198,6 +198,7 @@ cflmax( const uint	n,
 template<
 	KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	BoundaryType boundarytype,
 	flag_t simflags>
@@ -263,6 +264,7 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 template<
 	KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	BoundaryType boundarytype,
 	flag_t simflags>
