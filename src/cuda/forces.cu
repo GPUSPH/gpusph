@@ -198,6 +198,7 @@ cflmax( const uint	n,
 template<
 	KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	BoundaryType boundarytype,
 	flag_t simflags>
@@ -263,6 +264,7 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 template<
 	KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	BoundaryType boundarytype,
 	flag_t simflags>
@@ -669,7 +671,7 @@ basicstep(
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
 
-	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID> params_ff(
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID> params_ff(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step,
@@ -680,19 +682,7 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
-	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
-			xsph,
-			bufread->getData<BUFFER_VOLUME>(),
-			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc);
-
-
-	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step,
@@ -704,12 +694,24 @@ basicstep(
 			keps_dkde, turbvisc);
 
 
-	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step,
+			xsph,
+			bufread->getData<BUFFER_VOLUME>(),
+			bufread->getData<BUFFER_SIGMA>(),
+			newGGam, contupd, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc);
+
+
+	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
 	// TODO if !SA_BOUNDARY these kernels are still compiled. Is there some template if that avoids this?
 	if (boundarytype == SA_BOUNDARY) {
-		forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
 				forces, rbforces, rbtorques,
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 				deltap, slength, influenceradius, step,
@@ -720,10 +722,10 @@ basicstep(
 				IOwaterdepth,
 				keps_dkde, turbvisc);
 
-		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
+		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
 			<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
 
-		forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY> params_vb(
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY> params_vb(
 				forces, rbforces, rbtorques,
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 				deltap, slength, influenceradius, step,
@@ -734,11 +736,11 @@ basicstep(
 				IOwaterdepth,
 				keps_dkde, turbvisc);
 
-		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
+		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
 			<<< numBlocks, numThreads, dummy_shared >>>(params_vb);
 	}
 
-	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
+	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
 	// TODO: check when this case is needed
@@ -748,7 +750,7 @@ basicstep(
 
 	// TODO: for SA_BOUNDARY check when this case is needed
 	if ( boundarytype != SA_BOUNDARY && compute_object_forces)
-		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 			<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
 
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(

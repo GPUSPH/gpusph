@@ -115,6 +115,7 @@ class InvalidOptionCombination : IncompleteType<invalid>
 template<
 	KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
+	DensityDiffusionType _densitydiffusiontype,
 	ViscosityType _visctype,
 	BoundaryType _boundarytype,
 	Periodicity _periodicbound,
@@ -149,6 +150,7 @@ class CUDASimFrameworkImpl : public SimFramework,
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const DensityDiffusionType densitydiffusiontype = _densitydiffusiontype;
 	static const ViscosityType visctype = _visctype;
 	static const BoundaryType boundarytype = _boundarytype;
 	static const Periodicity periodicbound = _periodicbound;
@@ -160,13 +162,13 @@ public:
 		m_neibsEngine = new CUDANeibsEngine<sph_formulation, boundarytype, periodicbound, true>();
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, visctype, simflags>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
-		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
+		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, densitydiffusiontype, visctype, boundarytype, simflags>();
 		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, visctype, boundarytype, simflags>::select();
 
 		// TODO should be allocated by the integration scheme
 		m_allocPolicy = new PredCorrAllocPolicy();
 
-		m_simparams = new SimParams(kerneltype, sph_formulation, visctype,
+		m_simparams = new SimParams(kerneltype, sph_formulation, densitydiffusiontype, visctype,
 			boundarytype, periodicbound, simflags);
 	}
 
@@ -258,14 +260,15 @@ struct MultiplexSubclass : virtual public T
 // should match that of the CUDASimFramework
 
 template<typename Arg1, typename Arg2, typename Arg3,
-	typename Arg4, typename Arg5, typename Arg6>
+	typename Arg4, typename Arg5, typename Arg6, typename Arg7>
 struct ArgSelector :
 	virtual public MultiplexSubclass<Arg1,1>,
 	virtual public MultiplexSubclass<Arg2,2>,
 	virtual public MultiplexSubclass<Arg3,3>,
 	virtual public MultiplexSubclass<Arg4,4>,
 	virtual public MultiplexSubclass<Arg5,5>,
-	virtual public MultiplexSubclass<Arg6,6>
+	virtual public MultiplexSubclass<Arg6,6>,
+	virtual public MultiplexSubclass<Arg7,7>
 {};
 
 // Now we set the defaults for each argument
@@ -273,6 +276,7 @@ struct TypeDefaults
 {
 	typedef TypeValue<KernelType, WENDLAND> Kernel;
 	typedef TypeValue<SPHFormulation, SPH_F1> Formulation;
+	typedef TypeValue<DensityDiffusionType, DENSITY_DIFFUSION_NONE> DensityDiffusion;
 	typedef TypeValue<ViscosityType, ARTVISC> Viscosity;
 	typedef TypeValue<BoundaryType, LJ_BOUNDARY> Boundary;
 	typedef TypeValue<Periodicity, PERIODIC_NONE> Periodic;
@@ -311,6 +315,17 @@ struct formulation : virtual public ParentArgs
 	template<typename NewParent> struct reparent :
 		virtual public formulation<sph_formulation, NewParent> {};
 };
+
+// Density diffusion override
+template<DensityDiffusionType densitydiffusiontype, typename ParentArgs=TypeDefaults>
+struct densitydiffusion : virtual public ParentArgs
+{
+	typedef TypeValue<DensityDiffusionType, densitydiffusiontype> DensityDiffusion;
+
+	template<typename NewParent> struct reparent :
+		virtual public densitydiffusion<densitydiffusiontype, NewParent> {};
+};
+
 
 // Viscosity override
 template<ViscosityType visctype, typename ParentArgs=TypeDefaults>
@@ -396,14 +411,16 @@ template<
 	typename Arg3 = DefaultArg,
 	typename Arg4 = DefaultArg,
 	typename Arg5 = DefaultArg,
-	typename Arg6 = DefaultArg>
+	typename Arg6 = DefaultArg,
+	typename Arg7 = DefaultArg>
 class CUDASimFramework {
 	/// The collection of arguments for our current setup
-	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6> Args;
+	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7> Args;
 
 	/// Comfort static defines
 	static const KernelType kerneltype = Args::Kernel::value;
 	static const SPHFormulation sph_formulation = Args::Formulation::value;
+	static const DensityDiffusionType densitydiffusiontype = Args::DensityDiffusion::value;
 	static const ViscosityType visctype = Args::Viscosity::value;
 	static const BoundaryType boundarytype = Args::Boundary::value;
 	static const Periodicity periodicbound = Args::Periodic::value;
@@ -413,6 +430,7 @@ class CUDASimFramework {
 	typedef CUDASimFrameworkImpl<
 			kerneltype,
 			sph_formulation,
+			densitydiffusiontype,
 			visctype,
 			boundarytype,
 			periodicbound,

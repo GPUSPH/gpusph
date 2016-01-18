@@ -280,6 +280,7 @@ struct kepsvisc_forces_params
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
+	DensityDiffusionType _densitydiffusiontype,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
 	flag_t _simflags,
@@ -298,6 +299,7 @@ struct forces_params :
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const DensityDiffusionType densitydiffusiontype = _densitydiffusiontype;
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
 	static const flag_t simflags = _simflags;

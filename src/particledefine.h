@@ -87,6 +87,31 @@ const char* SPHFormulationName[SPH_INVALID+1]
 #endif
 ;
 
+/* TODO find better names for F1 and F2 formulations */
+enum DensityDiffusionType {
+	FERRARI = 1,
+	COLAGROSSI,
+	BREZZI,
+	DENSITY_DIFFUSION_NONE,
+	INVALID_DENSITY_DIFFUSION
+} ;
+
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* DensityDiffusionTypeName[INVALID_DENSITY_DIFFUSION+1]
+#ifdef GPUSPH_MAIN
+= {
+	"(null)",
+	"Ferrari",
+	"Colagrossi",
+	"Brezzi",
+	"none",
+	"(invalid)"
+}
+#endif
+;
+
 
 enum BoundaryType {
 	LJ_BOUNDARY,
