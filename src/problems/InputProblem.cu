@@ -27,24 +27,25 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI>
+			add_flags<ENABLE_FERRARI | ENABLE_DYNAMIC_GAMMA>
 		);
 
 		set_deltap(0.01833f);
 
-		physparams()->kinematicvisc = 1.0e-2f;
 		physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 
 		simparams()->tend = 5.0;
-		simparams()->testpoints = true;
-		simparams()->csvtestpoints = true;
-		simparams()->surfaceparticle = true;
 		H = 0.55;
 		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 		m_origin = make_double3(-0.01, -0.01, -0.01);
 		simparams()->ferrariLengthScale = 0.161f;
-		physparams()->set_density(0, 1000.0, 7.0f, 130.0f);
-		simparams()->neiblistsize = 240;
+
+		size_t water = add_fluid(1000.0);
+		set_equation_of_state(water, 7.0f, 60.f);
+		set_kinematic_visc(water, 1.0e-2f);
+
+		simparams()->neibboundpos = 160;
+		simparams()->neiblistsize = 256;
 	//*************************************************************************************
 
 	//Box (Dambreak)
