@@ -1171,7 +1171,7 @@ compute_density_diffusion<BREZZI, boundarytype, cptype, PT_FLUID>
 		nout.DrDt += ((2.0/(pdata.vel.w + ndata.relVel.w))*
 					  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
 					  - dot(d_gravity, as_float3(ndata.relPos))
-					 )*ndata.relPos.w/ndata.relVel.w*ndata.f;
+					 )*ndata.relPos.w/ndata.relVel.w*ndata.f*params.dt*2.0f*pdata.vel.w;
 	}
 };
 
@@ -1191,7 +1191,7 @@ compute_density_diffusion<BREZZI, SA_BOUNDARY, cptype, PT_BOUNDARY>
 			nout.DrDt -= ((2.0/(pdata.vel.w + ndata.relVel.w))*
 						  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
 						  - dot(d_gravity, as_float3(ndata.relPos))
-						 )*nout.ggamAS/ndata.r_as;
+						 )*nout.ggamAS/ndata.r_as*params.dt*2.0f*pdata.vel.w;
 	}
 };
 

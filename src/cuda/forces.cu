@@ -622,6 +622,7 @@ basicstep(
 	uint	*IOwaterdepth,
 	uint	cflOffset,
 	const	uint	step,
+	const	float	dt,
 	const	bool compute_object_forces)
 {
 	const float4 *pos = bufread->getData<BUFFER_POS>();
@@ -674,7 +675,7 @@ basicstep(
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID> params_ff(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
+			deltap, slength, influenceradius, step, dt,
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
@@ -685,7 +686,7 @@ basicstep(
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
+			deltap, slength, influenceradius, step, dt,
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
@@ -697,7 +698,7 @@ basicstep(
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
+			deltap, slength, influenceradius, step, dt,
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
@@ -714,7 +715,7 @@ basicstep(
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
 				forces, rbforces, rbtorques,
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, step,
+				deltap, slength, influenceradius, step, dt,
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
@@ -728,7 +729,7 @@ basicstep(
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY> params_vb(
 				forces, rbforces, rbtorques,
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, step,
+				deltap, slength, influenceradius, step, dt,
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),

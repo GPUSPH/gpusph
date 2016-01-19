@@ -75,6 +75,7 @@ struct common_forces_params
 	const	float	slength;
 	const	float	influenceradius;
 	const	uint	step;
+	const	float	dt;
 
 	// Constructor / initializer
 	common_forces_params(
@@ -90,7 +91,8 @@ struct common_forces_params
 		const	float	_deltap,
 		const	float	_slength,
 		const	float	_influenceradius,
-		const	uint	_step) :
+		const	uint	_step,
+		const	float	_dt) :
 		forces(_forces),
 		rbforces(_rbforces),
 		rbtorques(_rbtorques),
@@ -103,7 +105,8 @@ struct common_forces_params
 		deltap(_deltap),
 		slength(_slength),
 		influenceradius(_influenceradius),
-		step(_step)
+		step(_step),
+		dt(_dt)
 	{}
 };
 
@@ -322,10 +325,11 @@ struct forces_params :
 				uint	_fromParticle,
 				uint	_toParticle,
 
-				float	_deltap,
-				float	_slength,
-				float	_influenceradius,
-				uint	_step,
+		const	float	_deltap,
+		const	float	_slength,
+		const	float	_influenceradius,
+		const	uint	_step,
+		const	float	_dt,
 
 		// XSPH
 				float4	*_xsph,
@@ -350,7 +354,7 @@ struct forces_params :
 		common_forces_params(_forces, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
-			_deltap, _slength, _influenceradius, _step),
+			_deltap, _slength, _influenceradius, _step, _dt),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
 		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 			_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params)(_volArray),

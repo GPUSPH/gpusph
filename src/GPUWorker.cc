@@ -1957,6 +1957,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		m_dIOwaterdepth,
 		cflOffset,
 		firstStep ? 1 : 2,
+		(firstStep ? 0.5f : 1.0f)*gdata->dt,
 		(m_simparams->numforcesbodies > 0) ? true : false);
 }
 
