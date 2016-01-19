@@ -23,8 +23,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _EULER_PARAMS_H
-#define _EULER_PARAMS_H
+#ifndef _DENSITY_SUM_PARAMS_H
+#define _DENSITY_SUM_PARAMS_H
 
 #include "particledefine.h"
 #include "simflags.h"
@@ -45,38 +45,44 @@
 
 #include "cond_params.h"
 
-// We now have the tools to assemble the structure that will be used to pass parameters to the euler kernel
+// We now have the tools to assemble the structure that will be used to pass parameters to the density_sum kernel
 
 /* Now we define structures that hold the parameters to be passed
-   to the euler kernel. These are defined in chunks, and then ‘merged’
+   to the density_sum kernel. These are defined in chunks, and then ‘merged’
    into the template structure that is actually used as argument to the kernel.
    Each struct must define an appropriate constructor / initializer for its const
    members
 */
 
 /// Parameters common to all forces kernel specializations
-struct common_euler_params
+struct common_density_sum_params
 {
-			float4	*newPos;		///< updated particle's position (out)
+			float4	*newPos;			///< updated particle's position (out)
 			float4	*newVel;			///< updated particle's velocity (out)
 	const	float4	*oldPos;			///< previous particle's position (in)
-	const	hashKey	*particleHash;	///< particle's hash (in)
-			float4	*oldVel;			///< previous particle's velocity (in/out)
+			float4	*oldgGam;
+			float4	*newgGam;
+	const	float	*dgamdt;
+	const	hashKey	*particleHash;		///< particle's hash (in)
+	const	float4	*oldVel;			///< previous particle's velocity (in/out)
 	const	particleinfo	*info;		///< particle's information
 	const	float4	*forces;			///< derivative of particle's velocity and density (in)
-	const	uint	numParticles;			///< total number of particles
+	const	uint	numParticles;		///< total number of particles
 	const	float	full_dt;			///< time step (dt)
 	const	float	half_dt;			///< half of time step (dt/2)
-	const	float	t;				///< simulation time
+	const	float	t;					///< simulation time
 	const	uint		step;			///< integrator step //parametro template di euler params struttura collettiva
 
 	// Constructor / initializer
-	common_euler_params(
+	common_density_sum_params(
 				float4		*_newPos,
 				float4		*_newVel,
 		const	float4		*_oldPos,
+				float4	*_oldgGam,
+				float4	*_newgGam,
+		const	float	*_dgamdt,
 		const	hashKey		*_particleHash,
-				float4		*_oldVel,
+		const	float4		*_oldVel,
 		const	particleinfo	*_info,
 		const	float4		*_forces,
 		const	uint			_numParticles,
@@ -87,6 +93,9 @@ struct common_euler_params
 		newPos(_newPos),
 		newVel(_newVel),
 		oldPos(_oldPos),
+		oldgGam(_oldgGam),
+		newgGam(_newgGam),
+		dgamdt(_dgamdt),
 		particleHash(_particleHash),
 		oldVel(_oldVel),
 		info(_info),
@@ -100,20 +109,17 @@ struct common_euler_params
 };
 
 /// Additional parameters passed only to kernels with XSPH enabled
-struct xsph_euler_params
+struct xsph_density_sum_params
 {
 	const	float4	*xsph;
-	xsph_euler_params(const	float4 *_xsph) :
+	xsph_density_sum_params(const	float4 *_xsph) :
 		xsph(_xsph)
 	{}
 };
 
 /// Additional parameters passed only to kernels with SA_BOUNDARY
-struct sa_boundary_euler_params
+struct sa_boundary_density_sum_params
 {
-			float4	*oldgGam;
-			float4	*newgGam;
-	const	float	*dgamdt;
 			float4	*oldVelRW;
 			float4	*newEulerVel;
 			float4	*newBoundElement;
@@ -127,11 +133,8 @@ struct sa_boundary_euler_params
 	const	uint	*cellStart;
 
 	// Constructor / initializer
-	sa_boundary_euler_params(
-				float4	*_oldgGam,
-				float4	*_newgGam,
-		const	float	*_dgamdt,
-				float4	*_oldVel,
+	sa_boundary_density_sum_params(
+		const	float4	*_oldVel,
 				float4	*_newEulerVel,
 				float4	*_newBoundElement,
 		const	float2	* const _vertPos[],
@@ -140,9 +143,6 @@ struct sa_boundary_euler_params
 		const	float	_influenceradius,
 		const	neibdata	*_neibsList,
 		const	uint	*_cellStart) :
-		oldgGam(_oldgGam),
-		newgGam(_newgGam),
-		dgamdt(_dgamdt),
 		oldVelRW(const_cast<float4*>(_oldVel)),
 		newEulerVel(_newEulerVel),
 		newBoundElement(_newBoundElement),
@@ -159,7 +159,7 @@ struct sa_boundary_euler_params
 
 
 /// Additional parameters passed only to kernels with KEPSVISC
-struct kepsvisc_euler_params
+struct kepsvisc_density_sum_params
 {
 	float			*newTKE;	///< updated values of k, for k-e model (out)
 	float			*newEps;	///< updated values of e, for k-e model (out)
@@ -168,7 +168,7 @@ struct kepsvisc_euler_params
 	const	float3	*keps_dkde;	///< derivative of ??? (in)
 
 	// Constructor / initializer
-	kepsvisc_euler_params(
+	kepsvisc_density_sum_params(
 			float		*_newTKE,
 			float		*_newEps,
 			const float	*_oldTKE,
@@ -184,13 +184,13 @@ struct kepsvisc_euler_params
 
 
 /// Additional parameters passed only to kernels with SPH_GRENIER formulation
-struct grenier_euler_params
+struct grenier_density_sum_params
 {
 			float4	*newVol;			///< updated particle's voume (out)
 	const	float4	*oldVol;			///< previous particle's volume (in)
 
 	// Constructor / initializer
-	grenier_euler_params(
+	grenier_density_sum_params(
 				float4 *_newVol,
 			const float4 *_oldVol) :
 			newVol(_newVol),
@@ -198,18 +198,18 @@ struct grenier_euler_params
 	{}
 };
 
-/// The actual euler_params struct, which concatenates all of the above, as appropriate.
+/// The actual density_sum_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
 	flag_t _simflags>
-struct euler_params :
-	common_euler_params,
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_euler_params),
-	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_euler_params),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_euler_params),
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_euler_params)
+struct density_sum_params :
+	common_density_sum_params,
+	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_density_sum_params),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_density_sum_params),
+	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_density_sum_params),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_density_sum_params)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -218,16 +218,16 @@ struct euler_params :
 	static const flag_t simflags = _simflags;
 
 	// This structure provides a constructor that takes as arguments the union of the
-	// parameters that would ever be passed to the euler kernel.
+	// parameters that would ever be passed to the density_sum kernel.
 	// It then delegates the appropriate subset of arguments to the appropriate
 	// structs it derives from, in the correct order
-	euler_params(
+	density_sum_params(
 		// common
 				float4		*_newPos,
 				float4		*_newVel,
 		const	float4		*_oldPos,
 		const	hashKey		*_particleHash,
-				float4		*_oldVel,
+		const	float4		*_oldVel,
 		const	particleinfo	*_info,
 		const	float4		*_forces,
 		const	uint			_numParticles,
@@ -263,16 +263,16 @@ struct euler_params :
 				float4	*_newVol,
 		const	float4	*_oldVol) :
 
-		common_euler_params(_newPos, _newVel, _oldPos, _particleHash,
+		common_density_sum_params(_newPos, _newVel, _oldPos, _oldgGam, _newgGam, _dgamdt, _particleHash,
 			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(_xsph),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_euler_params)
-			(_oldgGam, _newgGam, _dgamdt, _oldVel, _newEulerVel, _newBoundElement,
+		COND_STRUCT(simflags & ENABLE_XSPH, xsph_density_sum_params)(_xsph),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_density_sum_params)
+			(_oldVel, _newEulerVel, _newBoundElement,
 			_vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_euler_params)(_newTKE, _newEps,  _oldTKE, _oldEps, _keps_dkde),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol)
+		COND_STRUCT(visctype == KEPSVISC, kepsvisc_density_sum_params)(_newTKE, _newEps,  _oldTKE, _oldEps, _keps_dkde),
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_density_sum_params)(_newVol, _oldVol)
 	{}
 };
 
-#endif // _EULER_PARAMS_H
+#endif // _DENSITY_SUM_PARAMS_H
 

@@ -570,15 +570,18 @@ bool GPUSPH::runSimulation() {
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(1);
 
-		// in the case of the summation density there is a neighbour loop in euler and so we can run on internal only
-		if (!(problem->simparams()->simflags & ENABLE_DENSITY_SUM))
-			// integrate also the externals
-			gdata->only_internal = false;
+		// integrate also the externals
+		gdata->only_internal = false;
 
+		// perform the euler integration step
 		doCommand(EULER, INTEGRATOR_STEP_1);
 
-		// summation density requires an update from the other GPUs.
+		gdata->only_internal = true;
+
 		if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
+			// compute density based on an integral formulation
+			doCommand(DENSITY_SUM, INTEGRATOR_STEP_1);
+
 			if (MULTI_DEVICE) {
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 				// the following only need update after the first step, vel due to rhie and chow and gradgamma to save gam^n
@@ -653,15 +656,18 @@ bool GPUSPH::runSimulation() {
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(2);
 
-		// in the case of the summation density there is a neighbour loop in euler and so we can run on internal only
-		if (!(problem->simparams()->simflags & ENABLE_DENSITY_SUM))
-			// integrate also the externals
-			gdata->only_internal = false;
+		// integrate also the externals
+		gdata->only_internal = false;
 
+		// perform the euler integration step
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
-		// summation density requires an update from the other GPUs.
+		gdata->only_internal = true;
+
 		if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
+			// compute density based on an integral formulation
+			doCommand(DENSITY_SUM, INTEGRATOR_STEP_2);
+
 			if (MULTI_DEVICE) {
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 			}

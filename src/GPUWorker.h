@@ -240,6 +240,7 @@ private:
 	void kernel_buildNeibsList();
 	void kernel_forces();
 	void kernel_euler();
+	void kernel_density_sum();
 	void kernel_filter();
 	void kernel_postprocess();
 	void kernel_compute_density();

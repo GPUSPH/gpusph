@@ -102,6 +102,8 @@ enum CommandType {
 	FORCES_COMPLETE,
 	/// Integration (runs the Euler kernel)
 	EULER,
+	/// Integration of the density using an integral formulation
+	DENSITY_SUM,
 	/// Dump (device) particle data arrays into shared host arrays
 	DUMP,
 	/// Dump (device) cellStart and cellEnd into shared host arrays
