@@ -208,8 +208,8 @@ class Problem {
 		double get_deltap() const
 		{ return m_deltap; }
 
-		// Compute the ferrari coefficient based on a lengthscale
-		void calculateFerrariCoefficient();
+		// Compute the density diffusion coefficient
+		void calculateDensityDiffusionCoefficient();
 
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)

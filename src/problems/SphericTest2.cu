@@ -65,7 +65,7 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 		//viscosity<SPSVISC>,
 		//viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>,
-		add_flags<ENABLE_FERRARI>
+		densitydiffusion<FERRARI>
 	).select_options(
 		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
@@ -77,7 +77,7 @@ SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.02); //0.008
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
-	simparams()->ferrari = 0.1;
+	simparams()->densityDiffCoeff = 0.1;
 	simparams()->tend = 1.0f;
 
 	// Free surface detection

@@ -71,7 +71,7 @@ Problem::initialize()
 	// run post-construction functions
 	check_dt();
 	check_neiblistsize();
-	calculateFerrariCoefficient();
+	calculateDensityDiffusionCoefficient();
 	create_problem_dir();
 
 	printf("Problem calling set grid params\n");
@@ -1117,27 +1117,60 @@ Problem::max_parts(uint numParts)
 	return wparts;
 }
 
-// This function computes the Ferrari coefficient based on a length-scale. The formula for the coefficient
+// This function computes the density diffusion coefficient.
+//
+// For the Ferrari diffusion this coefficient is based on a lenght-scale. The formula for the coefficient
 // is L/(1000 * deltap), see Mayrhofer et al., 2013. If the length scale is not set then the ferrari coefficient
 // will be taken as it is, regardless of whether it is set or not (default value = 0)
+//
+// The Brezzi coefficient is 0 by default.
+//
+// The Colagrossi coefficient is 0.1 by default and is pre-multiplied with 2*h in order to avoid this
+// multiplication during the kernel runs.
 void
-Problem::calculateFerrariCoefficient()
+Problem::calculateDensityDiffusionCoefficient()
 {
-	if (isnan(simparams()->ferrari)) {
-		if (isnan(simparams()->ferrariLengthScale)) {
-			simparams()->ferrari = 0.0f;
-			printf("Ferrari coefficient: %e (default value, disabled)\n", simparams()->ferrari);
-			if (simparams()->simflags & ENABLE_FERRARI)
-				fprintf(stderr, "WARNING: Ferrari correction enabled, but no coefficient or length scale given!\n");
-			return;
+	switch (simparams()->densitydiffusiontype)
+	{
+	case FERRARI:
+		if (isnan(simparams()->densityDiffCoeff)) {
+			if (isnan(simparams()->ferrariLengthScale)) {
+				simparams()->densityDiffCoeff = 0.0f;
+				printf("Ferrari diffusion coefficient: %e (default value, disabled)\n", simparams()->densityDiffCoeff);
+				fprintf(stderr, "WARNING: Ferrari density diffusion enabled, but no coefficient or length scale given!\n");
+				break;
+			}
+			else {
+				simparams()->densityDiffCoeff = simparams()->ferrariLengthScale*1e-3f/m_deltap;
+				printf("Ferrari diffusion coefficient: %e (computed from length scale: %e)\n", simparams()->densityDiffCoeff, simparams()->ferrariLengthScale);
+				break;
+			}
 		}
-		else {
-			simparams()->ferrari = simparams()->ferrariLengthScale*1e-3f/m_deltap;
-			printf("Ferrari coefficient: %e (computed from length scale: %e)\n", simparams()->ferrari, simparams()->ferrariLengthScale);
-			return;
+		printf("Ferrari diffusion coefficient: %e\n", simparams()->densityDiffCoeff);
+		break;
+	case BREZZI:
+		if (isnan(simparams()->densityDiffCoeff)) {
+			simparams()->densityDiffCoeff = 0.0f;
+			printf("Brezzi diffusion coefficient: %e (default value, disabled)\n", simparams()->densityDiffCoeff);
+			fprintf(stderr, "WARNING: Brezzi density diffusion enabled, but no coefficient given!\n");
+			break;
 		}
+		printf("Brezzi diffusion coefficient = %d\n", simparams()->densityDiffCoeff);
+		break;
+	case COLAGROSSI:
+		if (isnan(simparams()->densityDiffCoeff)) {
+			simparams()->densityDiffCoeff = 0.1f;
+			printf("Colagrossi diffusion coefficient: %e (default value)\n", simparams()->densityDiffCoeff);
+			fprintf(stderr, "WARNING: Colagrossi density diffusion enabled, but no coefficient given!\n");
+		}
+		else
+			printf("Colagrossi diffusion coefficient ξ = %d\n", simparams()->densityDiffCoeff);
+		// pre-multiply xi with 2*h
+		simparams()->densityDiffCoeff *= 2.0f*simparams()->slength;
+		break;
+	default:
+		break;
 	}
-	printf("Ferrari coefficient: %e\n", simparams()->ferrari);
 	return;
 }
 

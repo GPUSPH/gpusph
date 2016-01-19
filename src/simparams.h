@@ -58,9 +58,7 @@ typedef struct SimParams {
 	float			dtadaptfactor;			// safety factor in the adaptive time step formula
 	uint			buildneibsfreq;			// frequency (in iterations) of neib list rebuilding
 
-	float			rhodiffcoeff;			//< coefficient for Colagrossi & Molteni 2009 CPC density diffusion
-
-	float			ferrari;				// coefficient for Ferrari correction
+	float			densityDiffCoeff;		// coefficient for density diffusion
 	float			ferrariLengthScale;		// length scale for Ferrari correction
 
 	bool			gcallback;				// true if using a variable gravity in problem
@@ -112,9 +110,7 @@ typedef struct SimParams {
 		dtadaptfactor(0.3f),
 		buildneibsfreq(10),
 
-		rhodiffcoeff(0.1),
-
-		ferrari(NAN),
+		densityDiffCoeff(NAN),
 		ferrariLengthScale(NAN),
 
 		gcallback(false),

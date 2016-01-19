@@ -60,14 +60,8 @@
 // water depth computation
 #define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)
 
-// Ferrari correction
-#define ENABLE_FERRARI			(ENABLE_WATER_DEPTH << 1)
-
-// Density diffusion (Molteni & Colagrossi 2009)
-#define ENABLE_DENSITY_DIFFUSION (ENABLE_FERRARI << 1)
-
 // Summation density
-#define ENABLE_DENSITY_SUM		(ENABLE_DENSITY_DIFFUSION << 1)
+#define ENABLE_DENSITY_SUM		(ENABLE_WATER_DEPTH << 1)
 
 // Gamma computation from Dgamma/Dt
 #define ENABLE_DYNAMIC_GAMMA	(ENABLE_DENSITY_SUM << 1)

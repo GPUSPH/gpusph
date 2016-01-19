@@ -293,7 +293,7 @@ struct forces_params :
 	common_forces_params,
 	COND_STRUCT((_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
-		_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params),
+		_densitydiffusiontype == COLAGROSSI, volume_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype == PT_FLUID && _nptype == PT_FLUID, sa_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_forces_params),
@@ -357,7 +357,7 @@ struct forces_params :
 			_deltap, _slength, _influenceradius, _step, _dt),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
 		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
-			_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params)(_volArray),
+			densitydiffusiontype == COLAGROSSI, volume_forces_params)(_volArray),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype == PT_FLUID && nptype == PT_FLUID, sa_forces_params)
 			(_dgamdt),
