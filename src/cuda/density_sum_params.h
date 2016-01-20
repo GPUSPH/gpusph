@@ -54,7 +54,7 @@
    members
 */
 
-/// Parameters common to all forces kernel specializations
+/// Parameters common to all density_sum kernel specializations
 struct common_density_sum_params
 {
 			float4	*newPos;			///< updated particle's position (out)
@@ -66,7 +66,7 @@ struct common_density_sum_params
 	const	hashKey	*particleHash;		///< particle's hash (in)
 	const	float4	*oldVel;			///< previous particle's velocity (in/out)
 	const	particleinfo	*info;		///< particle's information
-	const	float4	*forces;			///< derivative of particle's velocity and density (in)
+			float4	*forces;			///< derivative of particle's velocity and density (in/out)
 	const	uint	numParticles;		///< total number of particles
 	const	float	full_dt;			///< time step (dt)
 	const	float	half_dt;			///< half of time step (dt/2)
@@ -84,7 +84,7 @@ struct common_density_sum_params
 		const	hashKey		*_particleHash,
 		const	float4		*_oldVel,
 		const	particleinfo	*_info,
-		const	float4		*_forces,
+				float4		*_forces,
 		const	uint			_numParticles,
 		const	float		_full_dt,
 		const	float		_half_dt,
@@ -229,7 +229,7 @@ struct density_sum_params :
 		const	hashKey		*_particleHash,
 		const	float4		*_oldVel,
 		const	particleinfo	*_info,
-		const	float4		*_forces,
+				float4		*_forces,
 		const	uint			_numParticles,
 		const	float		_full_dt,
 		const	float		_half_dt,

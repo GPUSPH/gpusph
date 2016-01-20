@@ -125,7 +125,7 @@ struct density_sum_particle_data :
 template<KernelType kerneltype>
 __device__ __forceinline__
 static void
-computeDensitySumTerms(
+computeDensitySumVolumicTerms(
 	const	float4			posN,
 			float4			posNp1,
 	const	float4			velN,
@@ -150,10 +150,7 @@ computeDensitySumTerms(
 	const	int				step,
 			float			&sumPmwN,
 			float			&sumPmwNp1,
-			float			&sumVmwDelta,
-			float			&sumSgamDelta,
-			float			&gGamDotR,
-			float3			&gGam)
+			float			&sumVmwDelta)
 {
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -240,7 +237,104 @@ computeDensitySumTerms(
 					sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, slength);
 			}
 		}
-		else if (BOUNDARY(neib_info)) {
+	}
+}
+
+template<KernelType kerneltype>
+__device__ __forceinline__
+static void
+computeDensitySumBoundaryTerms(
+	const	float4			posN,
+			float4			posNp1,
+	const	float4			velN,
+	const	int				index,
+	const	float			dt,
+	const	float			half_dt,
+	const	float			influenceradius,
+	const	float			slength,
+	const	float4			*oldPos,
+	const	float4			*oldVel,
+	const	float4			*eulerVel,
+	const	float4			*forces,
+	const	particleinfo	*pinfo,
+	const	float4			*boundElement,
+	const	float2			*vPos0,
+	const	float2			*vPos1,
+	const	float2			*vPos2,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	int				step,
+			float			&sumSgamDelta,
+			float			&gGamDotR,
+			float3			&gGam)
+{
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+
+	// posNp1Obj cotains the position of a with the inverse movement of the object
+	float3 posNp1Obj;
+	// savedObjId identifies for which object id the posNp1Obj vector is computed
+	// because it is very likely that we only have one type of object per fluid particle
+	uint savedObjId = UINT_MAX;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(posN, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+		const particleinfo neib_info = pinfo[neib_index];
+
+		const float4 posN_neib = oldPos[neib_index];
+
+		if (INACTIVE(posN_neib)) continue;
+
+		const float4 velN_neib = oldVel[neib_index];
+		// fluid particles are moved every time-step according the the velocity
+		// vertex parts and boundary elements are moved only in the first integration step according to the velocity
+		// in the second step they are moved according to the solid body movement
+		float4 posNp1_neib = posN_neib;
+		if (MOVING(neib_info) && step == 2) { // this implies VERTEX(neib_info) || BOUNDARY(neib_info)
+			// now the following trick is employed for moving objects, instead of moving the segment and all vertices
+			// the fluid is moved virtually in opposite direction. this requires only one position to be recomputed
+			// and not all of them. additionally, the normal stays the same.
+			const uint i = object(neib_info)-1;
+			// if savedObjId is equal to i that means that we have already computed the virtual position of the fluid
+			// with respect to the opposite movement of the object, so we can reuse that information, if not we need
+			// to compute it
+			if (i != savedObjId) {
+				// first move the fluid particle in opposite direction of the body translation
+				float4 virtPos = posNp1 - make_float4(d_rbtrans[i]);
+				// compute position with respect to center of gravity
+				const float3 virtPosCG = d_worldOrigin + as_float3(virtPos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcgPos[i];
+				// apply inverse rotation matrix to position
+				applycounterrot(&d_rbsteprot[9*i], virtPosCG, virtPos);
+				// now store the virtual position
+				posNp1Obj = as_float3(virtPos);
+				// and the id for which this virtual position was computed
+				savedObjId = i;
+			}
+			// set the Np1 position of a to the virtual position that is saved
+			posNp1 = make_float4(posNp1Obj);
+		}
+		else if ((MOVING(neib_info) && step==1)) {
+			posNp1_neib += dt*velN_neib;
+		}
+		// vector r_{ab} at time N
+		const float4 relPosN = pos_corr - posN_neib;
+		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
+		const float4 relPosNp1 = make_float4(pos_corr) + posNp1 - posN - posNp1_neib;
+
+		if (BOUNDARY(neib_info)) {
 
 			// normal of segment
 			const float3 ns = as_float3(boundElement[neib_index]); // TODO this could be the new normal already
@@ -317,7 +411,7 @@ computeDensitySumTerms(
 //TODO templatize vars like other kernels
 template<KernelType kerneltype, SPHFormulation sph_formulation, BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
 __global__ void
-densitySumDevice(
+densitySumVolumicDevice(
 	density_sum_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -336,18 +430,12 @@ densitySumDevice(
 	// continuity equation based on particle positions
 	// - sum_{P\V^{io}} m^n w^n
 	float sumPmwN = 0.0f;
-	// sum_{S^{io}} (gradGam^n).delta r
-	const float sumSgamN = dt*params.dgamdt[index];
 	// sum_{P} m^n w^{n+1}
 	float sumPmwNp1 = 0.0f;
 	// - sum_{V^{io}} m^n w(r + delta r)
 	float sumVmwDelta = 0.0f;
-	// sum_{S^{io}} (gradGam(r + delta r)).delta r
-	float sumSgamDelta = 0.0f;
-	// sum_{S} (gradGam^{n+1} + gradGam^n)/2 . (r^{n+1} - r^{n})
-	float gGamDotR = 0.0f;
 	// compute new terms based on r^{n+1} and \delta r
-	computeDensitySumTerms<kerneltype>(
+	computeDensitySumVolumicTerms<kerneltype>(
 		pdata.posN,
 		pdata.posNp1,
 		pdata.velc,
@@ -372,7 +460,93 @@ densitySumDevice(
 		params.step,
 		sumPmwN,
 		sumPmwNp1,
-		sumVmwDelta,
+		sumVmwDelta);
+
+	params.forces[index].w = sumPmwNp1 + sumPmwN + sumVmwDelta;
+}
+
+/// Computes the density based on an integral formulation of the continuity equation
+/*! Updates the density of fluid particles
+ *
+ *	\param[in] oldPos : previous particle's position
+ *	\param[in] hashKey : particle's hash
+ *	\param[in] oldVel : previous particle's velocity
+ *	\param[in] oldEulerVel : previous eulerian velocities for ??? <- TODO
+ *	\param[in] oldGam : previous values of gradient of gamma
+ *	\param[in] okdTKE : previous values of k, for k-e model
+ *	\param[in] oldEps : previous values of e, for k-e model
+ *	\param[in] particleInfo : particle's information
+ *	\param[in] forces : derivative of particle's velocity and density
+ *	\param[in] dgamdt : time derivative of gamma
+ *	\param[in] keps_dkde : derivative of ??? <- TODO
+ *	\param[in] xsph : SPH mean of velocities used for xsph correction
+ *	\param[out] newPos : updated particle's position
+ *	\param[out] newVel : updated particle's  velocity
+ *	\param[out] newEulerVel : updated eulerian velocities for ??? <- TODO
+ *	\param[out] newgGam : updated values of gradient of gamma
+ *	\param[out] newTKE : updated values of k, for k-e model
+ *	\param[out] newEps : updated values of e, for k-e model
+ *	\param[in,out] newBoundElement : ??? <- TODO
+ *	\param[in] numParticles : total number of particles
+ *	\param[in] full_dt  : time step (dt)
+ *	\param[in] half_dt : half of time step (dt/2)
+ *	\param[in] t : simualation time
+ *
+ *	\tparam step : integration step (1, 2)
+ *	\tparam boundarytype : type of boundary
+ *	\tparam kerneltype : type of kernel
+ *	\tparam simflags : simulation flags
+ */
+//TODO templatize vars like other kernels
+template<KernelType kerneltype, SPHFormulation sph_formulation, BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
+__global__ void
+densitySumBoundaryDevice(
+	density_sum_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
+{
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	// only perform density integration for fluid particles
+	if (index >= params.numParticles || type(params.info[index]) != PT_FLUID)
+		return;
+
+	// We use dt/2 on the first step, the actual dt on the second step
+	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
+
+	density_sum_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata(index, params);
+
+	density_sum_particle_output pout;
+
+	// continuity equation based on particle positions
+	// sum_{S^{io}} (gradGam^n).delta r
+	const float sumSgamN = dt*params.dgamdt[index];
+	// sum_{S^{io}} (gradGam(r + delta r)).delta r
+	float sumSgamDelta = 0.0f;
+	// sum_{S} (gradGam^{n+1} + gradGam^n)/2 . (r^{n+1} - r^{n})
+	float gGamDotR = 0.0f;
+
+	computeDensitySumBoundaryTerms<kerneltype>(
+		pdata.posN,
+		pdata.posNp1,
+		pdata.velc,
+		index,
+		dt,
+		params.half_dt,
+		params.influenceradius,
+		params.slength,
+		params.oldPos,
+		params.oldVel,
+		params.oldEulerVel,
+		params.forces,
+		params.info,
+		params.newBoundElement,
+		params.vertPos0,
+		params.vertPos1,
+		params.vertPos2,
+		params.particleHash,
+		params.cellStart,
+		params.neibsList,
+		params.numParticles,
+		params.step,
 		sumSgamDelta,
 		gGamDotR,
 		as_float3(pout.gGamNp1));
@@ -391,7 +565,7 @@ densitySumDevice(
 		imposedGam = 0.1f;
 
 	// generate new density based on previously computed values
-	pout.rho = (imposedGam*pdata.vel.w + sumPmwNp1 + sumPmwN + sumVmwDelta)/pout.gGamNp1.w;
+	pout.rho = (imposedGam*pdata.vel.w + params.forces[index].w)/pout.gGamNp1.w;
 
 	// clipping of new gamma
 	// this needs to happen after the density update because otherwise density jumps can occur

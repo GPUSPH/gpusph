@@ -132,7 +132,7 @@ density_sum(
 	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
 
-	const float4 *forces = bufread->getData<BUFFER_FORCES>();
+	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
 	const float *dgamdt = bufread->getData<BUFFER_DGAMDT>();
 	const float3 *keps_dkde = bufread->getData<BUFFER_DKDE>();
 	const float4 *xsph = bufread->getData<BUFFER_XSPH>();
@@ -160,9 +160,17 @@ density_sum(
 			newVol, oldVol);
 
 	if (step == 1) {
-		cudensity_sum::densitySumDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+		cudensity_sum::densitySumVolumicDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
 	} else if (step == 2) {
-		cudensity_sum::densitySumDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+		cudensity_sum::densitySumVolumicDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+	} else {
+		throw std::invalid_argument("unsupported predcorr timestep");
+	}
+
+	if (step == 1) {
+		cudensity_sum::densitySumBoundaryDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+	} else if (step == 2) {
+		cudensity_sum::densitySumBoundaryDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}
