@@ -170,7 +170,15 @@ template<typename EP, typename P>
 __device__ __forceinline__ void
 gamma_integration<true>::with(EP const& params, P &pdata, int index, float dt)
 {
-	params.newgGam[index].w = params.oldgGam[index].w + dt*params.dgamdt[index];
+	// calculation of new gamma (gamma^{n+1} = gamma^n + dt*<v,grad gamma>)
+	float newGam = params.oldgGam[index].w + dt*params.dgamdt[index];
+	// clipping of new gamma
+	if (newGam > 1.0f || length3(params.oldgGam[index])*params.slength < 1e-10f)
+		newGam = 1.0f;
+	else if (newGam < 0.1f)
+		newGam = 0.1f;
+	// writing of new gamma
+	params.newgGam[index].w = newGam;
 }
 
 template<enum continuity_integration_type>
@@ -522,8 +530,10 @@ eulerDevice(
 					params.oldVel[index].w = pdata.vel.w;
 
 				// Update gamma
-				// AM-TODO do we need this in the DENSITY_SUM case? probably not
-				gamma_integration<simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, index, dt);
+				// In the density sum case this is done in the respective kernel. The
+				// reason being that density jumps can occur if gamma is not computed
+				// properly
+				gamma_integration<(simflags & ENABLE_DYNAMIC_GAMMA) && !(simflags & ENABLE_DENSITY_SUM)>::with(params, pdata, index, dt);
 
 				as_float3(pdata.vel) += dt*as_float3(pdata.force);
 
