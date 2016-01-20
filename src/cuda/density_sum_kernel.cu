@@ -166,11 +166,27 @@ computeDensitySumVolumicTerms(
 	// because it is very likely that we only have one type of object per fluid particle
 	uint savedObjId = UINT_MAX;
 
-	// Loop over all the neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+	idx_t i = 0;
+	bool fluid_done = false;
+
+	// Loop over fluid and vertex neighbors
+	while (true) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == 0xffff) {
+			if (fluid_done)
+				// if we hit this point loop over fluid and vertices has been completed
+				break;
+			else {
+				// finished loop over fluid particles
+				fluid_done = true;
+				// continue with vertex particles
+				i = (d_neibboundpos + 1)*d_neiblist_stride;
+				continue;
+			}
+		}
+
+		i += d_neiblist_stride;
 
 		const uint neib_index = getNeibIndex(posN, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -216,26 +232,23 @@ computeDensitySumVolumicTerms(
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
 		const float4 relPosNp1 = make_float4(pos_corr) + posNp1 - posN - posNp1_neib;
 
-		if (FLUID(neib_info) || VERTEX(neib_info)) {
+		// -sum_{P\V_{io}} m^n w^n
+		if (!IO_BOUNDARY(neib_info)) {
+			const float rN = length3(relPosN);
+			sumPmwN -= relPosN.w*W<kerneltype>(rN, slength);
+		}
 
-			// -sum_{P\V_{io}} m^n w^n
-			if (!IO_BOUNDARY(neib_info)) {
-				const float rN = length3(relPosN);
-				sumPmwN -= relPosN.w*W<kerneltype>(rN, slength);
-			}
+		// sum_{P} m^n w^{n+1}
+		const float rNp1 = length3(relPosNp1);
+		if (rNp1 < influenceradius)
+			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, slength);
 
-			// sum_{P} m^n w^{n+1}
-			const float rNp1 = length3(relPosNp1);
-			if (rNp1 < influenceradius)
-				sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, slength);
-
-			if (IO_BOUNDARY(neib_info)) {
-				// compute - sum_{V^{io}} m^n w(r + delta r)
-				const float4 deltaR = dt*(eulerVel[neib_index] - oldVel[neib_index]);
-				const float newDist = length3(relPosN + deltaR);
-				if (newDist < influenceradius)
-					sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, slength);
-			}
+		if (IO_BOUNDARY(neib_info)) {
+			// compute - sum_{V^{io}} m^n w(r + delta r)
+			const float4 deltaR = dt*(eulerVel[neib_index] - oldVel[neib_index]);
+			const float newDist = length3(relPosN + deltaR);
+			if (newDist < influenceradius)
+				sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, slength);
 		}
 	}
 }
@@ -284,8 +297,8 @@ computeDensitySumBoundaryTerms(
 	// because it is very likely that we only have one type of object per fluid particle
 	uint savedObjId = UINT_MAX;
 
-	// Loop over all the neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+	// Loop over boundary neighbors
+	for (idx_t i = d_neibboundpos*d_neiblist_stride; i > 0; i -= d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -334,44 +347,41 @@ computeDensitySumBoundaryTerms(
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
 		const float4 relPosNp1 = make_float4(pos_corr) + posNp1 - posN - posNp1_neib;
 
-		if (BOUNDARY(neib_info)) {
+		// normal of segment
+		const float3 ns = as_float3(boundElement[neib_index]); // TODO this could be the new normal already
 
-			// normal of segment
-			const float3 ns = as_float3(boundElement[neib_index]); // TODO this could be the new normal already
+		// vectors r_{v_i,s}
+		uint j = 0;
+		// Get index j for which n_s is minimal
+		if (fabs(ns.x) > fabs(ns.y))
+			j = 1;
+		if ((1-j)*fabs(ns.x) + j*fabs(ns.y) > fabs(ns.z))
+			j = 2;
+		// compute the first coordinate which is a 2-D rotated version of the normal
+		const float3 coord1 = normalize(make_float3(
+			// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+			-((j==1)*ns.z) +  (j == 2)*ns.y ,  // -z if j == 1, y if j == 2
+			  (j==0)*ns.z  - ((j == 2)*ns.x),  // z if j == 0, -x if j == 2
+			-((j==0)*ns.y) +  (j == 1)*ns.x ));// -y if j == 0, x if j == 1
+		// the second coordinate is the cross product between the normal and the first coordinate
+		const float3 coord2 = cross(ns, coord1);
+		// relative positions of vertices with respect to the segment
+		const float3 vertexRelPos[3] = { -(vPos0[neib_index].x*coord1 + vPos0[neib_index].y*coord2), // e.g. v0 = r_{v0} - r_s
+										 -(vPos1[neib_index].x*coord1 + vPos1[neib_index].y*coord2),
+										 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2) };
 
-			// vectors r_{v_i,s}
-			uint j = 0;
-			// Get index j for which n_s is minimal
-			if (fabs(ns.x) > fabs(ns.y))
-				j = 1;
-			if ((1-j)*fabs(ns.x) + j*fabs(ns.y) > fabs(ns.z))
-				j = 2;
-			// compute the first coordinate which is a 2-D rotated version of the normal
-			const float3 coord1 = normalize(make_float3(
-				// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-				-((j==1)*ns.z) +  (j == 2)*ns.y ,  // -z if j == 1, y if j == 2
-				  (j==0)*ns.z  - ((j == 2)*ns.x),  // z if j == 0, -x if j == 2
-				-((j==0)*ns.y) +  (j == 1)*ns.x ));// -y if j == 0, x if j == 1
-			// the second coordinate is the cross product between the normal and the first coordinate
-			const float3 coord2 = cross(ns, coord1);
-			// relative positions of vertices with respect to the segment
-			const float3 vertexRelPos[3] = { -(vPos0[neib_index].x*coord1 + vPos0[neib_index].y*coord2), // e.g. v0 = r_{v0} - r_s
-											 -(vPos1[neib_index].x*coord1 + vPos1[neib_index].y*coord2),
-											 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2) };
+		// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
+		const float3 gGamN   = gradGamma<kerneltype>(slength, as_float3(relPosN),   vertexRelPos, ns)*ns;
+		const float3 gGamNp1 = gradGamma<kerneltype>(slength, as_float3(relPosNp1), vertexRelPos, ns)*ns;
+		gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(relPosNp1 - relPosN));
+		gGam += gGamNp1;
 
-			// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
-			const float3 gGamN   = gradGamma<kerneltype>(slength, as_float3(relPosN),   vertexRelPos, ns)*ns;
-			const float3 gGamNp1 = gradGamma<kerneltype>(slength, as_float3(relPosNp1), vertexRelPos, ns)*ns;
-			gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(relPosNp1 - relPosN));
-			gGam += gGamNp1;
-
-			if (IO_BOUNDARY(neib_info)) {
-				// sum_{S^{io}} (gradGam(r + delta r)).delta r
-				const float3 deltaR = dt*as_float3(eulerVel[neib_index] - oldVel[neib_index]);
-				const float3 relPosDelta = as_float3(relPosN) + deltaR;
-				const float3 gGamDelta = gradGamma<kerneltype>(slength, relPosDelta, vertexRelPos, ns)*ns;
-				sumSgamDelta += dot(deltaR, gGamDelta);
-			}
+		if (IO_BOUNDARY(neib_info)) {
+			// sum_{S^{io}} (gradGam(r + delta r)).delta r
+			const float3 deltaR = dt*as_float3(eulerVel[neib_index] - oldVel[neib_index]);
+			const float3 relPosDelta = as_float3(relPosN) + deltaR;
+			const float3 gGamDelta = gradGamma<kerneltype>(slength, relPosDelta, vertexRelPos, ns)*ns;
+			sumSgamDelta += dot(deltaR, gGamDelta);
 		}
 	}
 }
