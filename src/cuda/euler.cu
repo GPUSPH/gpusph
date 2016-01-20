@@ -152,25 +152,28 @@ density_sum(
 	// boundary elements are updated in-place; only used for rotation in the second step
 	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
-	density_sum_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
-			newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t, step,
-			xsph,
-			oldgGam, newgGam, dgamdt, newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
-			newTKE, newEps, oldTKE, oldEps, keps_dkde,
-			newVol, oldVol);
+	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
+			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
+			dgamdt, particleHash, info, forces, numParticles, dt, dt2, t, step,
+			slength, influenceradius, neibsList, cellStart, NULL, NULL);
 
 	if (step == 1) {
-		cudensity_sum::densitySumVolumicDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+		cudensity_sum::densitySumDevice<kerneltype, PT_FLUID, simflags><<< numBlocks, numThreads >>>(volumic_params);
 	} else if (step == 2) {
-		cudensity_sum::densitySumVolumicDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+		cudensity_sum::densitySumDevice<kerneltype, PT_FLUID, simflags><<< numBlocks, numThreads >>>(volumic_params);
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}
 
+	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
+			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
+			dgamdt, particleHash, info, forces, numParticles, dt, dt2, t, step,
+			slength, influenceradius, neibsList, cellStart, newBoundElement, vertPos);
+
 	if (step == 1) {
-		cudensity_sum::densitySumBoundaryDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+		cudensity_sum::densitySumDevice<kerneltype, PT_BOUNDARY, simflags><<< numBlocks, numThreads >>>(boundary_params);
 	} else if (step == 2) {
-		cudensity_sum::densitySumBoundaryDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+		cudensity_sum::densitySumDevice<kerneltype, PT_BOUNDARY, simflags><<< numBlocks, numThreads >>>(boundary_params);
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}

@@ -57,99 +57,68 @@
 /// Parameters common to all density_sum kernel specializations
 struct common_density_sum_params
 {
-			float4	*newPos;			///< updated particle's position (out)
-			float4	*newVel;			///< updated particle's velocity (out)
 	const	float4	*oldPos;			///< previous particle's position (in)
+			float4	*newPos;			///< updated particle's position (out)
+	const	float4	*oldVel;			///< previous particle's velocity (in/out)
+			float4	*newVel;			///< updated particle's velocity (out)
 			float4	*oldgGam;
 			float4	*newgGam;
+	const	float4	*oldEulerVel;
+			float4	*newEulerVel;
 	const	float	*dgamdt;
 	const	hashKey	*particleHash;		///< particle's hash (in)
-	const	float4	*oldVel;			///< previous particle's velocity (in/out)
 	const	particleinfo	*info;		///< particle's information
 			float4	*forces;			///< derivative of particle's velocity and density (in/out)
 	const	uint	numParticles;		///< total number of particles
 	const	float	full_dt;			///< time step (dt)
 	const	float	half_dt;			///< half of time step (dt/2)
 	const	float	t;					///< simulation time
-	const	uint		step;			///< integrator step //parametro template di euler params struttura collettiva
-
-	// Constructor / initializer
-	common_density_sum_params(
-				float4		*_newPos,
-				float4		*_newVel,
-		const	float4		*_oldPos,
-				float4	*_oldgGam,
-				float4	*_newgGam,
-		const	float	*_dgamdt,
-		const	hashKey		*_particleHash,
-		const	float4		*_oldVel,
-		const	particleinfo	*_info,
-				float4		*_forces,
-		const	uint			_numParticles,
-		const	float		_full_dt,
-		const	float		_half_dt,
-		const	float		_t,
-		const	uint			_step) :
-		newPos(_newPos),
-		newVel(_newVel),
-		oldPos(_oldPos),
-		oldgGam(_oldgGam),
-		newgGam(_newgGam),
-		dgamdt(_dgamdt),
-		particleHash(_particleHash),
-		oldVel(_oldVel),
-		info(_info),
-		forces(_forces),
-		numParticles(_numParticles),
-		full_dt(_full_dt),
-		half_dt(_half_dt),
-		t(_t),
-		step(_step)
-	{}
-};
-
-/// Additional parameters passed only to kernels with XSPH enabled
-struct xsph_density_sum_params
-{
-	const	float4	*xsph;
-	xsph_density_sum_params(const	float4 *_xsph) :
-		xsph(_xsph)
-	{}
-};
-
-/// Additional parameters passed only to kernels with SA_BOUNDARY
-struct sa_boundary_density_sum_params
-{
-			float4	*oldVelRW;
-			float4	*newEulerVel;
-			float4	*newBoundElement;
-	const	float2	*vertPos0;
-	const	float2	*vertPos1;
-	const	float2	*vertPos2;
-	const	float4	*oldEulerVel;
+	const	uint	step;			///< integrator step //parametro template di euler params struttura collettiva
 	const	float	slength;
 	const	float	influenceradius;
 	const	neibdata	*neibsList;
 	const	uint	*cellStart;
 
 	// Constructor / initializer
-	sa_boundary_density_sum_params(
-		const	float4	*_oldVel,
-				float4	*_newEulerVel,
-				float4	*_newBoundElement,
-		const	float2	* const _vertPos[],
-		const	float4	*_oldEulerVel,
-		const	float	_slength,
-		const	float	_influenceradius,
+	common_density_sum_params(
+		const	float4		*_oldPos,
+				float4		*_newPos,
+		const	float4		*_oldVel,
+				float4		*_newVel,
+				float4		*_oldgGam,
+				float4		*_newgGam,
+		const	float4		*_oldEulerVel,
+				float4		*_newEulerVel,
+		const	float		*_dgamdt,
+		const	hashKey		*_particleHash,
+		const	particleinfo	*_info,
+				float4		*_forces,
+		const	uint		_numParticles,
+		const	float		_full_dt,
+		const	float		_half_dt,
+		const	float		_t,
+		const	uint		_step,
+		const	float		_slength,
+		const	float		_influenceradius,
 		const	neibdata	*_neibsList,
-		const	uint	*_cellStart) :
-		oldVelRW(const_cast<float4*>(_oldVel)),
-		newEulerVel(_newEulerVel),
-		newBoundElement(_newBoundElement),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2]),
+		const	uint		*_cellStart) :
+		oldPos(_oldPos),
+		newPos(_newPos),
+		oldVel(_oldVel),
+		newVel(_newVel),
+		oldgGam(_oldgGam),
+		newgGam(_newgGam),
 		oldEulerVel(_oldEulerVel),
+		newEulerVel(_newEulerVel),
+		dgamdt(_dgamdt),
+		particleHash(_particleHash),
+		info(_info),
+		forces(_forces),
+		numParticles(_numParticles),
+		full_dt(_full_dt),
+		half_dt(_half_dt),
+		t(_t),
+		step(_step),
 		slength(_slength),
 		influenceradius(_influenceradius),
 		neibsList(_neibsList),
@@ -157,64 +126,35 @@ struct sa_boundary_density_sum_params
 	{}
 };
 
-
-/// Additional parameters passed only to kernels with KEPSVISC
-struct kepsvisc_density_sum_params
+/// Additional parameters passed only to the kernel with BOUNDARY neighbors
+struct boundary_density_sum_params
 {
-	float			*newTKE;	///< updated values of k, for k-e model (out)
-	float			*newEps;	///< updated values of e, for k-e model (out)
-	const	float	*oldTKE;		///< previous values of k, for k-e model (in)
-	const	float	*oldEps;		///< previous values of e, for k-e model
-	const	float3	*keps_dkde;	///< derivative of ??? (in)
+			float4	*newBoundElement;
+	const	float2	*vertPos0;
+	const	float2	*vertPos1;
+	const	float2	*vertPos2;
 
 	// Constructor / initializer
-	kepsvisc_density_sum_params(
-			float		*_newTKE,
-			float		*_newEps,
-			const float	*_oldTKE,
-			const float	*_oldEps,
-			const float3	*_keps_dkde):
-			newTKE(_newTKE),
-			newEps(_newEps),
-			oldTKE(_oldTKE),
-			oldEps(_oldEps),
-			keps_dkde(_keps_dkde)
-	{}
-};
-
-
-/// Additional parameters passed only to kernels with SPH_GRENIER formulation
-struct grenier_density_sum_params
-{
-			float4	*newVol;			///< updated particle's voume (out)
-	const	float4	*oldVol;			///< previous particle's volume (in)
-
-	// Constructor / initializer
-	grenier_density_sum_params(
-				float4 *_newVol,
-			const float4 *_oldVol) :
-			newVol(_newVol),
-			oldVol(_oldVol)
+	boundary_density_sum_params(
+				float4	*_newBoundElement,
+		const	float2	* const _vertPos[]) :
+		newBoundElement(_newBoundElement),
+		vertPos0(_vertPos[0]),
+		vertPos1(_vertPos[1]),
+		vertPos2(_vertPos[2])
 	{}
 };
 
 /// The actual density_sum_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
-	SPHFormulation _sph_formulation,
-	BoundaryType _boundarytype,
-	ViscosityType _visctype,
+	ParticleType _ntype,
 	flag_t _simflags>
 struct density_sum_params :
 	common_density_sum_params,
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_density_sum_params),
-	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_density_sum_params),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_density_sum_params),
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_density_sum_params)
+	COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
 {
 	static const KernelType kerneltype = _kerneltype;
-	static const SPHFormulation sph_formulation = _sph_formulation;
-	static const BoundaryType boundarytype = _boundarytype;
-	static const ViscosityType visctype = _visctype;
+	static const ParticleType ntype = _ntype;
 	static const flag_t simflags = _simflags;
 
 	// This structure provides a constructor that takes as arguments the union of the
@@ -223,54 +163,36 @@ struct density_sum_params :
 	// structs it derives from, in the correct order
 	density_sum_params(
 		// common
-				float4		*_newPos,
-				float4		*_newVel,
 		const	float4		*_oldPos,
-		const	hashKey		*_particleHash,
+				float4		*_newPos,
 		const	float4		*_oldVel,
+				float4		*_newVel,
+				float4		*_oldgGam,
+				float4		*_newgGam,
+		const	float4		*_oldEulerVel,
+				float4		*_newEulerVel,
+		const	float		*_dgamdt,
+		const	hashKey		*_particleHash,
 		const	particleinfo	*_info,
 				float4		*_forces,
-		const	uint			_numParticles,
+		const	uint		_numParticles,
 		const	float		_full_dt,
 		const	float		_half_dt,
 		const	float		_t,
-		const	uint			_step,
-
-		// XSPH
-		const	float4	*_xsph,
+		const	uint		_step,
+		const	float		_slength,
+		const	float		_influenceradius,
+		const	neibdata	*_neibsList,
+		const	uint		*_cellStart,
 
 		// SA_BOUNDARY
-				float4	*_oldgGam,
-				float4	*_newgGam,
-		const	float	*_dgamdt,
-				float4	*_newEulerVel,
-				float4	*_newBoundElement,
-		const	float2	* const _vertPos[],
-		const	float4	*_oldEulerVel,
-		const	float	_slength,
-		const	float	_influenceradius,
-		const	neibdata	*_neibsList,
-		const	uint	*_cellStart,
+				float4*		_newBoundElement,
+		const	float2*		const _vertPos[]) :
 
-		// KEPSVISC
-				float	*_newTKE,
-				float	*_newEps,
-		const	float	*_oldTKE,
-		const	float	*_oldEps,
-		const	float3	*_keps_dkde,
-
-		// SPH_GRENIER
-				float4	*_newVol,
-		const	float4	*_oldVol) :
-
-		common_density_sum_params(_newPos, _newVel, _oldPos, _oldgGam, _newgGam, _dgamdt, _particleHash,
-			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_density_sum_params)(_xsph),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_density_sum_params)
-			(_oldVel, _newEulerVel, _newBoundElement,
-			_vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_density_sum_params)(_newTKE, _newEps,  _oldTKE, _oldEps, _keps_dkde),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_density_sum_params)(_newVol, _oldVol)
+		common_density_sum_params(_oldPos, _newPos, _oldVel, _newVel, _oldgGam, _newgGam, _oldEulerVel, _newEulerVel, _dgamdt,
+			_particleHash, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step, _slength, _influenceradius, _neibsList, _cellStart),
+		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
+			(_newBoundElement, _vertPos)
 	{}
 };
 

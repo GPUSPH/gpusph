@@ -88,16 +88,14 @@ struct open_boundary_particle_data
 	float4	eulerVel;
 
 	__device__ __forceinline__
-	open_boundary_particle_data(const uint index, sa_boundary_density_sum_params params) :
+	open_boundary_particle_data(const uint index, common_density_sum_params params) :
 		eulerVel(params.oldEulerVel[index])
 	{}
 };
 
-/// The actual density_sum_params struct, which concatenates all of the above, as appropriate.
+/// The actual density_sum_particle_data struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
-	SPHFormulation _sph_formulation,
-	BoundaryType _boundarytype,
-	ViscosityType _visctype,
+	ParticleType _ntype,
 	flag_t _simflags>
 struct density_sum_particle_data :
 	common_density_sum_particle_data,
@@ -105,13 +103,11 @@ struct density_sum_particle_data :
 				open_boundary_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
-	static const SPHFormulation sph_formulation = _sph_formulation;
-	static const BoundaryType boundarytype = _boundarytype;
-	static const ViscosityType visctype = _visctype;
+	static const ParticleType ntype = _ntype;
 	static const flag_t simflags = _simflags;
 
 	// shorthand for the type of the density_sum params
-	typedef density_sum_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
+	typedef density_sum_params<kerneltype, ntype, simflags> params_t;
 
 	// determine specialization automatically based on info and params
 	__device__ __forceinline__
@@ -139,10 +135,6 @@ computeDensitySumVolumicTerms(
 	const	float4			*eulerVel,
 	const	float4			*forces,
 	const	particleinfo	*pinfo,
-	const	float4			*boundElement,
-	const	float2			*vPos0,
-	const	float2			*vPos1,
-	const	float2			*vPos2,
 	const	hashKey*		particleHash,
 	const	uint*			cellStart,
 	const	neibdata*		neibsList,
@@ -419,10 +411,12 @@ computeDensitySumBoundaryTerms(
  *	\tparam simflags : simulation flags
  */
 //TODO templatize vars like other kernels
-template<KernelType kerneltype, SPHFormulation sph_formulation, BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
+template<KernelType kerneltype,
+	ParticleType ntype,
+	flag_t simflags>
 __global__ void
-densitySumVolumicDevice(
-	density_sum_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
+densitySumDevice(
+	density_sum_params<kerneltype, ntype, simflags> params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -433,7 +427,7 @@ densitySumVolumicDevice(
 	// We use dt/2 on the first step, the actual dt on the second step
 	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
 
-	density_sum_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata(index, params);
+	density_sum_particle_data<kerneltype, ntype, simflags> pdata(index, params);
 
 	density_sum_particle_output pout;
 
@@ -459,10 +453,6 @@ densitySumVolumicDevice(
 		params.oldEulerVel,
 		params.forces,
 		params.info,
-		params.newBoundElement,
-		params.vertPos0,
-		params.vertPos1,
-		params.vertPos2,
 		params.particleHash,
 		params.cellStart,
 		params.neibsList,
@@ -508,10 +498,11 @@ densitySumVolumicDevice(
  *	\tparam simflags : simulation flags
  */
 //TODO templatize vars like other kernels
-template<KernelType kerneltype, SPHFormulation sph_formulation, BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
+template<KernelType kerneltype,
+	flag_t simflags>
 __global__ void
-densitySumBoundaryDevice(
-	density_sum_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
+densitySumDevice(
+	density_sum_params<kerneltype, PT_BOUNDARY, simflags> params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -522,7 +513,7 @@ densitySumBoundaryDevice(
 	// We use dt/2 on the first step, the actual dt on the second step
 	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
 
-	density_sum_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata(index, params);
+	density_sum_particle_data<kerneltype, PT_BOUNDARY, simflags> pdata(index, params);
 
 	density_sum_particle_output pout;
 
