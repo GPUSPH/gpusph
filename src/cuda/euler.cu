@@ -152,31 +152,20 @@ density_sum(
 	// boundary elements are updated in-place; only used for rotation in the second step
 	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
+	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
 	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
 			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
 			dgamdt, particleHash, info, forces, numParticles, dt, dt2, t, step,
 			slength, influenceradius, neibsList, cellStart, NULL, NULL);
 
-	if (step == 1) {
-		cudensity_sum::densitySumDevice<kerneltype, PT_FLUID, simflags><<< numBlocks, numThreads >>>(volumic_params);
-	} else if (step == 2) {
-		cudensity_sum::densitySumDevice<kerneltype, PT_FLUID, simflags><<< numBlocks, numThreads >>>(volumic_params);
-	} else {
-		throw std::invalid_argument("unsupported predcorr timestep");
-	}
+	cudensity_sum::densitySumDevice<kerneltype, PT_FLUID, simflags><<< numBlocks, numThreads >>>(volumic_params);
 
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
 			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
 			dgamdt, particleHash, info, forces, numParticles, dt, dt2, t, step,
 			slength, influenceradius, neibsList, cellStart, newBoundElement, vertPos);
 
-	if (step == 1) {
-		cudensity_sum::densitySumDevice<kerneltype, PT_BOUNDARY, simflags><<< numBlocks, numThreads >>>(boundary_params);
-	} else if (step == 2) {
-		cudensity_sum::densitySumDevice<kerneltype, PT_BOUNDARY, simflags><<< numBlocks, numThreads >>>(boundary_params);
-	} else {
-		throw std::invalid_argument("unsupported predcorr timestep");
-	}
+	cudensity_sum::densitySumDevice<kerneltype, PT_BOUNDARY, simflags><<< numBlocks, numThreads >>>(boundary_params);
 
 #undef ARGS
 
