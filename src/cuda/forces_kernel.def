@@ -1599,7 +1599,7 @@ struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, P
 	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
 		// Boundary term for div(v)
-		nout.DrDt += pdata.vel.w*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+		nout.DrDt -= pdata.vel.w*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
 
 		// Density diffusion
 		generic_compute_density_diffusion(params, pdata, ndata, nout);
