@@ -821,6 +821,120 @@ computeVertexNormal(
 	newGGam[index].w = 0.0f;
 }
 
+/// Initializes gamma for the dynamic gamma case
+/*! In the dynamic gamma case gamma is computed using a transport equation. Thus an initial value needs
+ *	to be computed. In this kernel this value is determined using a numerical integration. As this integration
+ *	has it's problem when particles are close to the wall it's not useful with open boundaries, but at the
+ *	initial time-step particles should be far enough away.
+ *	\param[out] newGGam : vertex normal vector is computed
+ *	\param[in] oldPos : particle positions
+ *	\param[in] boundElement : pointer to vertex & segment normals
+ *	\param[in] pinfo : pointer to particle info
+ *	\param[in] particleHash : pointer to particle hash
+ *	\param[in] cellStart : pointer to indices of first particle in cells
+ *	\param[in] neibsList : neighbour list
+ *	\param[in] slength : smoothing length
+ *	\param[in] influenceradius : kernel radius
+ *	\param[in] deltap : particle size
+ *	\param[in] epsilon : numerical epsilon
+ *	\param[in] numParticles : number of particles
+ */
+template<KernelType kerneltype,
+		ParticleType cptype>
+__global__ void
+initGamma(
+						float4*			newGGam,
+				const	float4*			oldPos,
+				const	float4*			boundElement,
+				const	float2*			vertPos0,
+				const	float2*			vertPos1,
+				const	float2*			vertPos2,
+				const	particleinfo*	pinfo,
+				const	hashKey*		particleHash,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+				const	float			slength,
+				const	float			influenceradius,
+				const	float			deltap,
+				const	float			epsilon,
+				const	uint			numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	const particleinfo info = pinfo[index];
+	if (type(info) != cptype)
+		return;
+
+	float4 pos = oldPos[index];
+
+	// gamma that is to be computed
+	float gam = 1.0f;
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+
+	idx_t i = d_neibboundpos *d_neiblist_stride;
+
+	// Loop over all the neighbors
+	while (true) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+		i -= d_neiblist_stride;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const float3 relPos = pos_corr - as_float3(oldPos[neib_index]);
+
+		if (length(relPos) > influenceradius + deltap*0.5f)
+			continue;
+
+		const float3 normal = as_float3(boundElement[neib_index]);
+
+		// local coordinate system for relative positions to vertices
+		uint j = 0;
+		// Get index j for which n_s is minimal
+		if (fabs(normal.x) > fabs(normal.y))
+			j = 1;
+		if ((1-j)*fabs(normal.x) + j*fabs(normal.y) > fabs(normal.z))
+			j = 2;
+
+		// compute the first coordinate which is a 2-D rotated version of the normal
+		const float3 coord1 = normalize(make_float3(
+					// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+					-((j==1)*normal.z) +  (j == 2)*normal.y , // -z if j == 1, y if j == 2
+					(j==0)*normal.z  - ((j == 2)*normal.x), // z if j == 0, -x if j == 2
+					-((j==0)*normal.y) +  (j == 1)*normal.x // -y if j == 0, x if j == 1
+					));
+		// the second coordinate is the cross product between the normal and the first coordinate
+		const float3 coord2 = cross(normal, coord1);
+
+		// relative positions of vertices with respect to the segment
+		const float3 qva = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
+		const float3 qvb = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2)/slength;
+		const float3 qvc = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2)/slength;
+		float3 q_vb[3] = {qva, qvb, qvc};
+		const float3 q = relPos/slength;
+
+		const float gamma_as = Gamma<kerneltype, cptype>(slength, q, q_vb, normal,
+					as_float3(newGGam[index]), epsilon);
+		gam -= gamma_as;
+	}
+
+	newGGam[index].w = gam;
+}
+
 /// Compute boundary conditions for vertex particles in the semi-analytical boundary case
 /*! This function determines the physical properties of vertex particles in the semi-analytical boundary case. The properties of fluid particles are used to compute the properties of the vertices. Due to this most arrays are read from (the fluid info) and written to (the vertex info) simultaneously inside this function. In the case of open boundaries the vertex mass is updated in this routine and new fluid particles are created on demand. Additionally, the mass of outgoing fluid particles is redistributed to vertex particles herein.
  *	\param[in,out] oldPos : pointer to positions and masses; masses of vertex particles are updated

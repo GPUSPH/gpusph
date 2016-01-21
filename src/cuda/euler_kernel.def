@@ -542,12 +542,15 @@ eulerDevice(
 
 				break;
 
-		/* BOUNDARY and VERTEX particles behave essentially in the same way, so they are
+		/* BOUNDARY and VERTEX particles behave in nearly the same way, so they are
 		   handled in the same switch case (VERTEX particles are only preset in SA_BOUNDARY
 		   case)
 		 */
-		case PT_BOUNDARY:
 		case PT_VERTEX:
+			// only difference is that vertex needs the gamma to be updated in the dynamic case
+			gamma_integration<simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, index, dt);
+
+		case PT_BOUNDARY:
 
 			// integration pos and vel for moving objects
 			if (MOVING(pdata.info)) {

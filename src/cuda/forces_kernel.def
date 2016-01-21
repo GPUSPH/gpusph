@@ -2235,7 +2235,9 @@ compute_water_depth_at_outflow<SA_BOUNDARY, true>::with(FP const& params, P cons
 
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
-template<BoundaryType, ParticleType>
+template<BoundaryType boundarytype,
+		ParticleType cptype,
+		bool dynamic_gamma>
 struct write_gamma
 {
 	template<typename FP, typename P, typename OP>
@@ -2248,9 +2250,26 @@ struct write_gamma
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-write_gamma<SA_BOUNDARY, PT_BOUNDARY>::with(FP const& params, P const& pdata, OP& pout)
+write_gamma<SA_BOUNDARY, PT_BOUNDARY, false>::with(FP const& params, P const& pdata, OP& pout)
 {
 	params.newGGam[pdata.index] = pout.gGam;
+	//if ((FP::simflags & ENABLE_INLET_OUTLET && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) ||
+	//	(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f && (params.step==1 || pdata.ptype != PT_FLUID)))
+	//	params.newGGam[pdata.index] = pdata.oldGGam;
+	//else if (!((FP::simflags & ENABLE_DENSITY_SUM) && params.step==2)) {
+	//	// Gamma clipping (was previously in gamma_fixup)
+	//	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon), 1.0f);
+	//	params.newGGam[pdata.index] = pout.gGam;
+	//}
+}
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ void
+write_gamma<SA_BOUNDARY, PT_BOUNDARY, true>::with(FP const& params, P const& pdata, OP& pout)
+{
+	// only update gradient of gamma
+	as_float3(params.newGGam[pdata.index]) = as_float3(pout.gGam);
 	//if ((FP::simflags & ENABLE_INLET_OUTLET && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) ||
 	//	(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f && (params.step==1 || pdata.ptype != PT_FLUID)))
 	//	params.newGGam[pdata.index] = pdata.oldGGam;
@@ -2883,7 +2902,7 @@ forcesDevice(
 		} // End of loop over neighbors
 
 		// TODO: check what to do with gamma
-		write_gamma<boundarytype, nptype>::with(params, pdata, pout);
+		write_gamma<boundarytype, nptype, simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, pout);
 
 		write_forces<boundarytype>::with(params, pdata, pout);
 

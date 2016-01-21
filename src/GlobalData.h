@@ -133,6 +133,8 @@ enum CommandType {
 	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,
 	/// Compute the normal of a vertex in the initialization step
 	SA_COMPUTE_VERTEX_NORMAL,
+	/// Initialize gamma for dynamic gamma computation
+	SA_INIT_GAMMA,
 	/// SA_BOUNDARY only: identify vertices at corner of open boundaries.
 	/// Corner vertices do not generate new particles,
 	IDENTIFY_CORNER_VERTICES,

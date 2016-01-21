@@ -92,6 +92,19 @@ computeVertexNormal(
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
 
+// initialize gamma in the case of dynamic gamma
+virtual void
+initGamma(
+	MultiBufferList::const_iterator	bufread,
+	MultiBufferList::iterator		bufwrite,
+	const	uint*			cellStart,
+	const	float			slength,
+	const	float			influenceradius,
+	const	float			deltap,
+	const	float			epsilon,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd) = 0;
+
 // disables particles that went through boundaries when open boundaries are used
 virtual void
 disableOutgoingParts(		float4*			pos,

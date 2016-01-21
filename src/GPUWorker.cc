@@ -1681,6 +1681,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SA_COMPUTE_VERTEX_NORMAL\n", deviceIndex);
 				instance->kernel_saComputeVertexNormal();
 				break;
+			case SA_INIT_GAMMA:
+				if (dbg_step_printf) printf(" T %d issuing SA_INIT_GAMMA\n", deviceIndex);
+				instance->kernel_saInitGamma();
+				break;
 			case SA_UPDATE_VERTIDINDEX:
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
 				instance->kernel_updateVertIdIndexBuffer();
@@ -2553,6 +2557,25 @@ void GPUWorker::kernel_saComputeVertexNormal()
 				m_dBuffers.getReadBufferList(),
 				m_dBuffers.getWriteBufferList(),
 				m_dCellStart,
+				m_numParticles,
+				numPartsToElaborate);
+}
+
+void GPUWorker::kernel_saInitGamma()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	bcEngine->initGamma(
+				m_dBuffers.getReadBufferList(),
+				m_dBuffers.getWriteBufferList(),
+				m_dCellStart,
+				m_simparams->slength,
+				m_simparams->influenceRadius,
+				gdata->problem->m_deltap,
+				m_simparams->epsilon,
 				m_numParticles,
 				numPartsToElaborate);
 }

@@ -251,6 +251,7 @@ private:
 	void kernel_saSegmentBoundaryConditions();
 	void kernel_saVertexBoundaryConditions();
 	void kernel_saComputeVertexNormal();
+	void kernel_saInitGamma();
 	void kernel_saIdentifyCornerVertices();
 	void kernel_updatePositions();
 	void kernel_disableOutgoingParts();

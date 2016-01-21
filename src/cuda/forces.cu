@@ -653,10 +653,10 @@ basicstep(
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaMemset(dgamdt + fromParticle, 0, numParticlesInRange*sizeof(float)));
-	if (boundarytype == SA_BOUNDARY) {
-		thrust::device_ptr<float4> dev_ptr(newGGam);
-		thrust::fill(dev_ptr + fromParticle, dev_ptr + toParticle, make_float4(0, 0, 0, 1));
-	}
+	//if (boundarytype == SA_BOUNDARY) {
+	//	thrust::device_ptr<float4> dev_ptr(newGGam);
+	//	thrust::fill(dev_ptr + fromParticle, dev_ptr + toParticle, make_float4(0, 0, 0, 1));
+	//}
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
