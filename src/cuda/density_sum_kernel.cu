@@ -418,7 +418,7 @@ densitySumVolumicDevice(
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	// only perform density integration for fluid particles
-	if (index >= params.numParticles || type(params.info[index]) != PT_FLUID)
+	if (index >= params.numParticles || !FLUID(params.info[index]))
 		return;
 
 	// We use dt/2 on the first step, the actual dt on the second step
@@ -504,7 +504,7 @@ densitySumBoundaryDevice(
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	// only perform density integration for fluid particles
-	if (index >= params.numParticles || type(params.info[index]) != PT_FLUID)
+	if (index >= params.numParticles || !FLUID(params.info[index]))
 		return;
 
 	// We use dt/2 on the first step, the actual dt on the second step
