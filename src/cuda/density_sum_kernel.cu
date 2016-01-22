@@ -63,7 +63,6 @@ struct common_density_sum_particle_data
 	float4	posN;
 	float4	posNp1;
 	float4	vel;
-	const	float4	velc;
 	const	float4	gGamN;
 
 	__device__ __forceinline__
@@ -76,7 +75,6 @@ struct common_density_sum_particle_data
 		posN(params.oldPos[index]),
 		posNp1(params.newPos[index]),
 		vel(params.oldVel[index]),
-		velc(vel + (params.step - 1.0f)*force*params.half_dt),
 		gGamN(params.oldgGam[index])
 	{}
 };
@@ -122,7 +120,6 @@ static void
 computeDensitySumVolumicTerms(
 	const	float4			posN,
 			float4			posNp1,
-	const	float4			velN,
 	const	int				index,
 	const	float			dt,
 	const	float			half_dt,
@@ -215,7 +212,6 @@ static void
 computeDensitySumBoundaryTerms(
 	const	float4			posN,
 			float4			posNp1,
-	const	float4			velN,
 	const	int				index,
 	const	float			dt,
 	const	float			half_dt,
@@ -374,7 +370,6 @@ densitySumVolumicDevice(
 	computeDensitySumVolumicTerms<kerneltype>(
 		pdata.posN,
 		pdata.posNp1,
-		pdata.velc,
 		index,
 		dt,
 		params.half_dt,
@@ -461,7 +456,6 @@ densitySumBoundaryDevice(
 	computeDensitySumBoundaryTerms<kerneltype>(
 		pdata.posN,
 		pdata.posNp1,
-		pdata.velc,
 		index,
 		dt,
 		params.half_dt,
