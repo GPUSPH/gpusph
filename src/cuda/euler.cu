@@ -167,8 +167,6 @@ density_sum(
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 
-#undef ARGS
-
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 }
@@ -236,8 +234,6 @@ basicstep(
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}
-
-#undef ARGS
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
