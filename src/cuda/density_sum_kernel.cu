@@ -412,11 +412,10 @@ computeDensitySumBoundaryTerms(
  */
 //TODO templatize vars like other kernels
 template<KernelType kerneltype,
-	ParticleType ntype,
 	flag_t simflags>
 __global__ void
-densitySumDevice(
-	density_sum_params<kerneltype, ntype, simflags> params)
+densitySumVolumicDevice(
+	density_sum_params<kerneltype, PT_FLUID, simflags> params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -427,7 +426,7 @@ densitySumDevice(
 	// We use dt/2 on the first step, the actual dt on the second step
 	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
 
-	density_sum_particle_data<kerneltype, ntype, simflags> pdata(index, params);
+	density_sum_particle_data<kerneltype, PT_FLUID, simflags> pdata(index, params);
 
 	density_sum_particle_output pout;
 
@@ -501,7 +500,7 @@ densitySumDevice(
 template<KernelType kerneltype,
 	flag_t simflags>
 __global__ void
-densitySumDevice(
+densitySumBoundaryDevice(
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;

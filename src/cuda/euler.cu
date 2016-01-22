@@ -158,14 +158,14 @@ density_sum(
 			dgamdt, particleHash, info, forces, numParticles, dt, dt2, t, step,
 			slength, influenceradius, neibsList, cellStart, NULL, NULL);
 
-	cudensity_sum::densitySumDevice<kerneltype, PT_FLUID, simflags><<< numBlocks, numThreads >>>(volumic_params);
+	cudensity_sum::densitySumVolumicDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
 
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
 			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
 			dgamdt, particleHash, info, forces, numParticles, dt, dt2, t, step,
 			slength, influenceradius, neibsList, cellStart, newBoundElement, vertPos);
 
-	cudensity_sum::densitySumDevice<kerneltype, PT_BOUNDARY, simflags><<< numBlocks, numThreads >>>(boundary_params);
+	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 
 #undef ARGS
 
