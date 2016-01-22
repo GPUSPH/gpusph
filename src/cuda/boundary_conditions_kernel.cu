@@ -544,6 +544,8 @@ initGamma(
 
 	// gamma that is to be computed
 	float gam = 1.0f;
+	// grad gamma
+	float3 gGam = make_float3(0.0f);
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -597,12 +599,15 @@ initGamma(
 		float3 q_vb[3] = {qva, qvb, qvc};
 		const float3 q = relPos/slength;
 
+		const float ggamma_as = gradGamma<kerneltype>(slength, q, q_vb, normal);
+		gGam += ggamma_as*normal;
+
 		const float gamma_as = Gamma<kerneltype, cptype>(slength, q, q_vb, normal,
 					as_float3(newGGam[index]), epsilon);
 		gam -= gamma_as;
 	}
 
-	newGGam[index].w = gam;
+	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 }
 
 /// Compute boundary conditions for vertex particles in the semi-analytical boundary case
