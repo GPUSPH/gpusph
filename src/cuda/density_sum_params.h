@@ -58,7 +58,7 @@
 struct common_density_sum_params
 {
 	const	float4	*oldPos;			///< previous particle's position (in)
-			float4	*newPos;			///< updated particle's position (out)
+	const	float4	*newPos;			///< updated particle's position (in)
 	const	float4	*oldVel;			///< previous particle's velocity (in/out)
 			float4	*newVel;			///< updated particle's velocity (out)
 			float4	*oldgGam;
@@ -82,7 +82,7 @@ struct common_density_sum_params
 	// Constructor / initializer
 	common_density_sum_params(
 		const	float4		*_oldPos,
-				float4		*_newPos,
+		const	float4		*_newPos,
 		const	float4		*_oldVel,
 				float4		*_newVel,
 				float4		*_oldgGam,
@@ -164,7 +164,7 @@ struct density_sum_params :
 	density_sum_params(
 		// common
 		const	float4		*_oldPos,
-				float4		*_newPos,
+		const	float4		*_newPos,
 		const	float4		*_oldVel,
 				float4		*_newVel,
 				float4		*_oldgGam,

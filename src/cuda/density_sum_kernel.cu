@@ -77,7 +77,7 @@ struct common_density_sum_particle_data
 		posNp1(params.newPos[index]),
 		vel(params.oldVel[index]),
 		velc(vel + (params.step - 1.0f)*force*params.half_dt),
-		gGamN(params.newgGam[index])
+		gGamN(params.oldgGam[index])
 	{}
 };
 
@@ -129,6 +129,7 @@ computeDensitySumVolumicTerms(
 	const	float			influenceradius,
 	const	float			slength,
 	const	float4			*oldPos,
+	const	float4			*newPos,
 	const	float4			*oldVel,
 	const	float4			*eulerVel,
 	const	float4			*forces,
@@ -149,12 +150,6 @@ computeDensitySumVolumicTerms(
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
-
-	// posNp1Obj cotains the position of a with the inverse movement of the object
-	float3 posNp1Obj;
-	// savedObjId identifies for which object id the posNp1Obj vector is computed
-	// because it is very likely that we only have one type of object per fluid particle
-	uint savedObjId = UINT_MAX;
 
 	idx_t i = 0;
 	bool fluid_done = false;
@@ -186,37 +181,8 @@ computeDensitySumVolumicTerms(
 
 		if (INACTIVE(posN_neib)) continue;
 
-		const float4 velN_neib = oldVel[neib_index] + (FLUID(neib_info) ? (step - 1)*forces[neib_index]*half_dt : make_float4(0.0f));
-		// fluid particles are moved every time-step according the the velocity
-		// vertex parts and boundary elements are moved only in the first integration step according to the velocity
-		// in the second step they are moved according to the solid body movement
-		float4 posNp1_neib = posN_neib;
-		if (MOVING(neib_info) && step == 2) { // this implies VERTEX(neib_info) || BOUNDARY(neib_info)
-			// now the following trick is employed for moving objects, instead of moving the segment and all vertices
-			// the fluid is moved virtually in opposite direction. this requires only one position to be recomputed
-			// and not all of them. additionally, the normal stays the same.
-			const uint i = object(neib_info)-1;
-			// if savedObjId is equal to i that means that we have already computed the virtual position of the fluid
-			// with respect to the opposite movement of the object, so we can reuse that information, if not we need
-			// to compute it
-			if (i != savedObjId) {
-				// first move the fluid particle in opposite direction of the body translation
-				float4 virtPos = posNp1 - make_float4(d_rbtrans[i]);
-				// compute position with respect to center of gravity
-				const float3 virtPosCG = d_worldOrigin + as_float3(virtPos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcgPos[i];
-				// apply inverse rotation matrix to position
-				applycounterrot(&d_rbsteprot[9*i], virtPosCG, virtPos);
-				// now store the virtual position
-				posNp1Obj = as_float3(virtPos);
-				// and the id for which this virtual position was computed
-				savedObjId = i;
-			}
-			// set the Np1 position of a to the virtual position that is saved
-			posNp1 = make_float4(posNp1Obj);
-		}
-		else if (FLUID(neib_info) || (MOVING(neib_info) && step==1)) {
-			posNp1_neib += dt*velN_neib;
-		}
+		const float4 posNp1_neib = newPos[neib_index];
+
 		// vector r_{ab} at time N
 		const float4 relPosN = pos_corr - posN_neib;
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
@@ -256,6 +222,7 @@ computeDensitySumBoundaryTerms(
 	const	float			influenceradius,
 	const	float			slength,
 	const	float4			*oldPos,
+	const	float4			*newPos,
 	const	float4			*oldVel,
 	const	float4			*eulerVel,
 	const	float4			*forces,
@@ -281,12 +248,6 @@ computeDensitySumBoundaryTerms(
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 
-	// posNp1Obj cotains the position of a with the inverse movement of the object
-	float3 posNp1Obj;
-	// savedObjId identifies for which object id the posNp1Obj vector is computed
-	// because it is very likely that we only have one type of object per fluid particle
-	uint savedObjId = UINT_MAX;
-
 	// Loop over boundary neighbors
 	for (idx_t i = d_neibboundpos*d_neiblist_stride; i > 0; i -= d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
@@ -301,44 +262,15 @@ computeDensitySumBoundaryTerms(
 
 		if (INACTIVE(posN_neib)) continue;
 
-		const float4 velN_neib = oldVel[neib_index];
-		// fluid particles are moved every time-step according the the velocity
-		// vertex parts and boundary elements are moved only in the first integration step according to the velocity
-		// in the second step they are moved according to the solid body movement
-		float4 posNp1_neib = posN_neib;
-		if (MOVING(neib_info) && step == 2) { // this implies VERTEX(neib_info) || BOUNDARY(neib_info)
-			// now the following trick is employed for moving objects, instead of moving the segment and all vertices
-			// the fluid is moved virtually in opposite direction. this requires only one position to be recomputed
-			// and not all of them. additionally, the normal stays the same.
-			const uint i = object(neib_info)-1;
-			// if savedObjId is equal to i that means that we have already computed the virtual position of the fluid
-			// with respect to the opposite movement of the object, so we can reuse that information, if not we need
-			// to compute it
-			if (i != savedObjId) {
-				// first move the fluid particle in opposite direction of the body translation
-				float4 virtPos = posNp1 - make_float4(d_rbtrans[i]);
-				// compute position with respect to center of gravity
-				const float3 virtPosCG = d_worldOrigin + as_float3(virtPos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcgPos[i];
-				// apply inverse rotation matrix to position
-				applycounterrot(&d_rbsteprot[9*i], virtPosCG, virtPos);
-				// now store the virtual position
-				posNp1Obj = as_float3(virtPos);
-				// and the id for which this virtual position was computed
-				savedObjId = i;
-			}
-			// set the Np1 position of a to the virtual position that is saved
-			posNp1 = make_float4(posNp1Obj);
-		}
-		else if ((MOVING(neib_info) && step==1)) {
-			posNp1_neib += dt*velN_neib;
-		}
+		const float4 posNp1_neib = newPos[neib_index];
+
 		// vector r_{ab} at time N
-		const float4 relPosN = pos_corr - posN_neib;
+		const float4 qN = (pos_corr - posN_neib)/slength;
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-		const float4 relPosNp1 = make_float4(pos_corr) + posNp1 - posN - posNp1_neib;
+		const float4 qNp1 = (make_float4(pos_corr) + posNp1 - posN - posNp1_neib)/slength;
 
 		// normal of segment
-		const float3 ns = as_float3(boundElement[neib_index]); // TODO this could be the new normal already
+		const float3 ns = as_float3(boundElement[neib_index]);
 
 		// vectors r_{v_i,s}
 		uint j = 0;
@@ -356,24 +288,26 @@ computeDensitySumBoundaryTerms(
 		// the second coordinate is the cross product between the normal and the first coordinate
 		const float3 coord2 = cross(ns, coord1);
 		// relative positions of vertices with respect to the segment
-		const float3 vertexRelPos[3] = { -(vPos0[neib_index].x*coord1 + vPos0[neib_index].y*coord2), // e.g. v0 = r_{v0} - r_s
-										 -(vPos1[neib_index].x*coord1 + vPos1[neib_index].y*coord2),
-										 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2) };
+		// TODO vertexRelPos does not account for movement of the object atm
+		const float3 vertexRelPos[3] = { -(vPos0[neib_index].x*coord1 + vPos0[neib_index].y*coord2)/slength, // e.g. v0 = r_{v0} - r_s
+										 -(vPos1[neib_index].x*coord1 + vPos1[neib_index].y*coord2)/slength,
+										 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2)/slength };
 
 		// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
-		const float3 gGamN   = gradGamma<kerneltype>(slength, as_float3(relPosN),   vertexRelPos, ns)*ns;
-		const float3 gGamNp1 = gradGamma<kerneltype>(slength, as_float3(relPosNp1), vertexRelPos, ns)*ns;
-		gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(relPosNp1 - relPosN));
+		const float3 gGamN   = gradGamma<kerneltype>(slength, as_float3(qN),   vertexRelPos, ns)*ns;
+		const float3 gGamNp1 = gradGamma<kerneltype>(slength, as_float3(qNp1), vertexRelPos, ns)*ns;
+		gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(qNp1 - qN));
 		gGam += gGamNp1;
 
 		if (IO_BOUNDARY(neib_info)) {
 			// sum_{S^{io}} (gradGam(r + delta r)).delta r
 			const float3 deltaR = dt*as_float3(eulerVel[neib_index] - oldVel[neib_index]);
-			const float3 relPosDelta = as_float3(relPosN) + deltaR;
-			const float3 gGamDelta = gradGamma<kerneltype>(slength, relPosDelta, vertexRelPos, ns)*ns;
+			const float3 qDelta = as_float3(qN) + deltaR/slength;
+			const float3 gGamDelta = gradGamma<kerneltype>(slength, qDelta, vertexRelPos, ns)*ns;
 			sumSgamDelta += dot(deltaR, gGamDelta);
 		}
 	}
+	gGamDotR *= slength;
 }
 
 /// Computes the density based on an integral formulation of the continuity equation
@@ -413,6 +347,7 @@ template<KernelType kerneltype,
 	flag_t simflags>
 __global__ void
 densitySumVolumicDevice(
+	// parameters are the same for fluid and vertex
 	density_sum_params<kerneltype, PT_FLUID, simflags> params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -446,6 +381,7 @@ densitySumVolumicDevice(
 		params.influenceradius,
 		params.slength,
 		params.oldPos,
+		params.newPos,
 		params.oldVel,
 		params.oldEulerVel,
 		params.forces,
@@ -532,6 +468,7 @@ densitySumBoundaryDevice(
 		params.influenceradius,
 		params.slength,
 		params.oldPos,
+		params.newPos,
 		params.oldVel,
 		params.oldEulerVel,
 		params.forces,
@@ -577,9 +514,6 @@ densitySumBoundaryDevice(
 	params.newVel[index].w = pout.rho;
 	// gamma
 	params.newgGam[index] = pout.gGamNp1;
-	// we need to save the gamma at time N in the first integrator step
-	if (params.step==1)
-		params.oldgGam[index] = pdata.gGamN;
 }
 
 } // end of namespace cudensity_sum
