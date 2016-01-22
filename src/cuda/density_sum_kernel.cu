@@ -43,13 +43,11 @@ using namespace cueuler;
 
 struct density_sum_particle_output
 {
-	float4	newgGam;
 	float4	gGamNp1;
 	float	rho;
 
 	__device__ __forceinline__
 	density_sum_particle_output() :
-		newgGam(make_float4(0.0f)),
 		gGamNp1(make_float4(0.0f)),
 		rho(0.0f)
 	{}
