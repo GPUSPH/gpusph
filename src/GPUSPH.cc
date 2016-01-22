@@ -592,11 +592,8 @@ bool GPUSPH::runSimulation() {
 			// compute density based on an integral formulation
 			doCommand(DENSITY_SUM, INTEGRATOR_STEP_1);
 
-			if (MULTI_DEVICE) {
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-				// the following only need update after the first step, vel due to rhie and chow and gradgamma to save gam^n
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_READ);
-			}
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
@@ -682,9 +679,8 @@ bool GPUSPH::runSimulation() {
 			// compute density based on an integral formulation
 			doCommand(DENSITY_SUM, INTEGRATOR_STEP_2);
 
-			if (MULTI_DEVICE) {
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-			}
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		}
 
 		// Euler needs always cg(n)
