@@ -161,6 +161,12 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simframework->hasPostProcessEngine(CALC_PRIVATE))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE>();
+
+	if (m_simparams->simflags & ENABLE_INTERNAL_ENERGY) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>();
+	}
+
 }
 
 GPUWorker::~GPUWorker() {

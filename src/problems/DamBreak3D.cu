@@ -65,7 +65,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		add_flags<ENABLE_INTERNAL_ENERGY>
 	).select_options(
 		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
 		m_usePlanes, add_flags<ENABLE_PLANES>()

@@ -195,6 +195,15 @@ struct kepsvisc_forces_params
 	{}
 };
 
+/// Additional parameters only used to kernels with ENABLE_INTERNAL_ENERGY
+struct internal_energy_forces_params
+{
+	float	*DEDt; // derivative of the internal energy with respect to time
+	internal_energy_forces_params(float *_DEDt) :
+		DEDt(_DEDt)
+	{}
+};
+
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -210,7 +219,8 @@ struct forces_params :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params)
+	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params),
+	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -263,7 +273,9 @@ struct forces_params :
 
 		// KEPSVISC
 				float3	*_keps_dkde,
-				float	*_turbvisc
+				float	*_turbvisc,
+		// ENABLE_INTERNAL_ENERGY
+				float	*_DEDt
 		) :
 		common_forces_params(_forces, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
@@ -278,7 +290,8 @@ struct forces_params :
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
 			(_newGGam, _contupd, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
+		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc),
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
 	{}
 };
 

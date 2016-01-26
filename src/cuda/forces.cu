@@ -643,6 +643,7 @@ basicstep(
 	float *cfl_Ds = bufwrite->getData<BUFFER_CFL_DS>();
 	float *cflTVisc = bufwrite->getData<BUFFER_CFL_KEPS>();
 	float *tempCfl = bufwrite->getData<BUFFER_CFL_TEMP>();
+	float *DEDt = bufwrite->getData<BUFFER_INTERNAL_ENERGY_UPD>();
 
 	int dummy_shared = 0;
 
@@ -668,7 +669,7 @@ basicstep(
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, contupd, vertPos, epsilon,
 			IOwaterdepth,
-			keps_dkde, turbvisc);
+			keps_dkde, turbvisc, DEDt);
 
 	// FIXME forcesDevice should use simflags, not the neverending pile of booleans
 	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags>

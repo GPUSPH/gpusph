@@ -71,7 +71,10 @@
 // Compute gamma through Gauss quadrature forumla
 #define ENABLE_GAMMA_QUADRATURE		(ENABLE_DENSITY_SUM << 1)
 
-#define LAST_SIMFLAG		ENABLE_GAMMA_QUADRATURE
+// Compute internal energy
+#define ENABLE_INTERNAL_ENERGY (ENABLE_GAMMA_QUADRATURE << 1)
+
+#define LAST_SIMFLAG		ENABLE_INTERNAL_ENERGY
 
 // since flags are a bitmap, LAST_SIMFLAG - 1 sets all bits before
 // the LAST_SIMFLAG bit, and OR-ing with LAST_SIMFLAG gives us

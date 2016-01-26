@@ -1016,6 +1016,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (gdata->simframework->hasPostProcessEngine(CALC_PRIVATE))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE>();
 
+	if (problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();
+	}
+
 	// number of elements to allocate
 	const size_t numparts = gdata->allocatedParticles;
 
