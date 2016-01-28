@@ -52,6 +52,9 @@ NetworkManager::~NetworkManager() {
 	if (m_requestsList)
 		free(m_requestsList);
 #endif
+	delete[] processor_name;
+	processor_name = NULL;
+	processor_name_len = 0;
 }
 
 void NetworkManager::setNumRequests(uint _numRequests)
