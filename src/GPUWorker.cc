@@ -1817,6 +1817,8 @@ void GPUWorker::finalize()
 	deallocateHostBuffers();
 	deallocateDeviceBuffers();
 	// ...what else?
+
+	cudaDeviceReset();
 }
 
 void GPUWorker::kernel_calcHash()
