@@ -694,6 +694,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
 
+	fid.close();
+
 	add_block("Particles", filename, t);
 
 	delete[] neibsnum;
