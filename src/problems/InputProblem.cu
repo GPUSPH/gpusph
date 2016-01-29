@@ -84,6 +84,9 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		set_equation_of_state(water,  7.0f, 60.f);
 		set_kinematic_visc(water, 1.0e-2f);
 		addPostProcess(CALC_PRIVATE);
+
+		simparams()->neibboundpos = 160;
+		simparams()->neiblistsize = 256;
 	//*************************************************************************************
 
 	//SmallChannelFlow (a small channel flow for debugging viscosity)
