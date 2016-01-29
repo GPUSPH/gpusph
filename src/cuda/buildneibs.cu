@@ -428,7 +428,7 @@ const	float		boundNlSqInflRad)
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	// bind textures to read all particles, not only internal ones
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
@@ -453,7 +453,7 @@ const	float		boundNlSqInflRad)
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	}
 
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));

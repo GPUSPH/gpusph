@@ -33,7 +33,7 @@
 struct common_buildneibs_params
 {
 			neibdata	*neibsList;				///< neighbor's list (out)
-#if (__COMPUTE__ >= 20)
+#if PREFER_L1
 	const	float4		*posArray;				///< particle's positions (in)
 #endif
 	const	hashKey		*particleHash;			///< particle's hashes (in)
@@ -47,7 +47,7 @@ struct common_buildneibs_params
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius) :
 		neibsList(_neibsList),
-#if (__COMPUTE__ >= 20)
+#if PREFER_L1
 		posArray(_pos),
 #endif
 		particleHash(_particleHash),

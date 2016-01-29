@@ -2252,7 +2252,7 @@ forcesDevice(
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 pos = params.posArray[index];
 		#else
 		const float4 pos = tex1Dfetch(posTex, index);
@@ -2303,7 +2303,7 @@ forcesDevice(
 
 			// Compute relative position vector and distance
 			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			#if( __COMPUTE__ >= 20)
+			#if PREFER_L1
 			const float4 relPos = pos_corr - params.posArray[neib_index];
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);

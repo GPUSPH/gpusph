@@ -25,6 +25,19 @@
 #ifndef _TEXTURES_CUH_
 #define _TEXTURES_CUH_
 
+// On devices with compute capability 2.x, we want to distribute cache load
+// between L1 cache and the texture cache. On older architectures (no L1 cache)
+// we prefer using textures for all read-only arrays. Define PREFER_L1 to 1 or
+// 0 accordingly.
+
+#if defined(__COMPUTE__)
+#if __COMPUTE__ >= 20
+#define PREFER_L1 1
+#else
+#define PREFER_L1 0
+#endif
+#endif
+
 #include "particledefine.h"
 
 // textures for particle position, velocity and flags

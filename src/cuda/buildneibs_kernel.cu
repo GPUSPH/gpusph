@@ -860,7 +860,7 @@ neibsInCell(
 
 		// Compute relative position between particle and potential neighbor
 		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
-		#if (__COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 neib_pos = params.posArray[neib_index];
 		#else
 		const float4 neib_pos = tex1Dfetch(posTex, neib_index);
@@ -953,7 +953,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 			break;
 
 		// Get particle position
-		#if (__COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 pos = params.posArray[index];
 		#else
 		const float4 pos = tex1Dfetch(posTex, index);

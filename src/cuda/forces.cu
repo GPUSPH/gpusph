@@ -462,7 +462,7 @@ bind_textures(
 	uint	numParticles)
 {
 	// bind textures to read all particles, not only internal ones
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread->getData<BUFFER_POS>(), numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, bufread->getData<BUFFER_VEL>(), numParticles*sizeof(float4)));
@@ -515,7 +515,7 @@ unbind_textures()
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 }
@@ -823,7 +823,7 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 {
 	int dummy_shared = 0;
 	// bind textures to read all particles, not only internal ones
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
@@ -848,7 +848,7 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 
@@ -932,7 +932,7 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
@@ -949,7 +949,7 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -979,7 +979,7 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 	uint numThreads = BLOCK_SIZE_MLS;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
@@ -996,7 +996,7 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));

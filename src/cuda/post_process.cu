@@ -124,7 +124,7 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, simflags>
 
 		float3 *vort = bufwrite->getData<BUFFER_VORTICITY>();
 
-		#if (__COMPUTE__ < 20)
+		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 		#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
@@ -143,7 +143,7 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, simflags>
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 
-		#if (__COMPUTE__ < 20)
+		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 		#endif
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -183,7 +183,7 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, simflags>
 		float *newTke = const_cast<float*>(bufread->getData<BUFFER_TKE>());
 		float *newEpsilon = const_cast<float*>(bufread->getData<BUFFER_EPSILON>());
 
-		#if (__COMPUTE__ < 20)
+		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 		#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
@@ -209,7 +209,7 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, simflags>
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 
-		#if (__COMPUTE__ < 20)
+		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 		#endif
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -253,7 +253,7 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 		particleinfo *newInfo = bufwrite->getData<BUFFER_INFO>();
 		float4 *normals = bufwrite->getData<BUFFER_NORMALS>();
 
-		#if (__COMPUTE__ < 20)
+		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 		#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
@@ -287,7 +287,7 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 
-		#if (__COMPUTE__ < 20)
+		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 		#endif
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -414,7 +414,7 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 
 		float *priv = bufwrite->getData<BUFFER_PRIVATE>();
 
-		#if (__COMPUTE__ < 20)
+		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 		#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
@@ -431,7 +431,7 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 				gdata->problem->simparams()->influenceRadius,
 				numParticles);
 
-		#if (__COMPUTE__ < 20)
+		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 		#endif
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));

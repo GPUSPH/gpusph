@@ -660,7 +660,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	const particleinfo info = tex1Dfetch(infoTex, index);
 
 	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = params.pos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -696,7 +696,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 relPos = pos_corr - params.pos[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -1855,7 +1855,7 @@ shepardDevice(	const float4*	posArray,
 
 	const particleinfo info = tex1Dfetch(infoTex, index);
 
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -1900,7 +1900,7 @@ shepardDevice(	const float4*	posArray,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 relPos = pos_corr - posArray[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -1954,7 +1954,7 @@ MlsDevice(	const float4*	posArray,
 
 	const particleinfo info = tex1Dfetch(infoTex, index);
 
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -2006,7 +2006,7 @@ MlsDevice(	const float4*	posArray,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 relPos = pos_corr - posArray[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -2109,7 +2109,7 @@ MlsDevice(	const float4*	posArray,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-#if( __COMPUTE__ >= 20)
+#if PREFER_L1
 		const float4 relPos = pos_corr - posArray[neib_index];
 #else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);

@@ -87,7 +87,7 @@ calcVortDevice(	const	float4*		posArray,
 	if (NOT_FLUID(info))
 		return;
 
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -115,7 +115,7 @@ calcVortDevice(	const	float4*		posArray,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 relPos = pos_corr - posArray[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -170,7 +170,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	if(!TESTPOINT(info))
 		return;
 
-	#if (__COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = oldPos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -203,7 +203,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if (__COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 relPos = pos_corr - oldPos[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -285,7 +285,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// read particle data from sorted arrays
 	particleinfo info = tex1Dfetch(infoTex, index);
 
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -322,7 +322,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 relPos = pos_corr - posArray[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -378,7 +378,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 relPos = pos_corr - posArray[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -438,7 +438,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if(index < numParticles) {
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		float4 pos = pos_array[index];
 		#else
 		float4 pos = tex1Dfetch(posTex, index);
@@ -468,7 +468,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 			// Compute relative position vector and distance
 
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-			#if( __COMPUTE__ >= 20)
+			#if PREFER_L1
 			const float4 relPos = pos_corr - pos_array[neib_index];
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
