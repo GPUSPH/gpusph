@@ -94,7 +94,7 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 		//   from the viscosity
 		// - for a pressure inlet the pressure is imposed on the corners. If we are in the k-epsilon case then
 		//   we need to get the viscosity info from newEulerVel (x,y,z) and add the imposed density in .w
-		if (VERTEX(info) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
+		if ((VERTEX(info) || BOUNDARY(info)) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
 			// For corners we need to get eulerVel in case of k-eps and pressure outlet
 			if (CORNER(info) && newTke && !VEL_IO(info))
 				eulerVel = newEulerVel[index];
@@ -102,6 +102,11 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
 			float waterdepth = 0.0f;
+			if (!VEL_IO(info) && IOwaterdepth) {
+				waterdepth = ((float)IOwaterdepth[object(info)])/((float)UINT_MAX); // now between 0 and 1
+				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
+				waterdepth += d_worldOrigin.z; // now absolute z position
+			}
 			// this now calls the virtual function that is problem specific
 			XCompleteSaExample_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
 			// copy values to arrays
