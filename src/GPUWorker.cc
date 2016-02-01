@@ -1750,7 +1750,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 			}
 		}
 	} catch (std::exception &e) {
-		cerr << e.what() << endl;
+		cerr << "Device " << deviceIndex << " thread " << pthread_self() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
 		const_cast<GlobalData*>(gdata)->keep_going = false;
 	}
 
