@@ -190,7 +190,9 @@ struct sa_integrate_continuity_equation
 					// first move the fluid particle in opposite direction of the body translation
 					float4 virtPos = posNp1 - make_float4(d_rbtrans[i]);
 					// compute position with respect to center of gravity
-					const float3 virtPosCG = d_worldOrigin + as_float3(virtPos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcgPos[i];
+					const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
+					const float3 virtPosCG = globalDistance(gridPos, as_float3(virtPos),
+						d_rbcgGridPos[i], d_rbcgPos[i]);
 					// apply inverse rotation matrix to position
 					applycounterrot(&d_rbsteprot[9*i], virtPosCG, virtPos);
 					// now store the virtual position
