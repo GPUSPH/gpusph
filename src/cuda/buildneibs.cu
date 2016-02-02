@@ -32,6 +32,8 @@
 #include <thrust/tuple.h>
 #include <thrust/iterator/zip_iterator.h>
 
+#include "thrust_custom_alloc.h"
+
 #include "define_buffers.h"
 #include "engine_neibs.h"
 #include "utils.h"
@@ -82,6 +84,9 @@
 template<SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
+	// allocator used by thrust
+	cached_allocator thrust_allocator;
+
 public:
 
 /** \name Constants upload/download and timing related function
@@ -376,6 +381,7 @@ sort(	MultiBufferList::const_iterator bufread,
 	// Sort of the particle indices by cell, fluid number and id
 	// There is no need for a stable sort due to the id sort
 	thrust::sort_by_key(
+		thrust::cuda::par(thrust_allocator),
 		thrust::make_zip_iterator(thrust::make_tuple(particleHash, particleInfo)),
 		thrust::make_zip_iterator(thrust::make_tuple(
 			particleHash + numParticles,
