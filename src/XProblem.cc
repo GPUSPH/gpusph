@@ -68,7 +68,6 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_hydrostaticFilling = true;
 
 	// *** Other parameters and settings
-	add_writer(VTKWRITER, 1e-2f);
 	m_name = "XProblem";
 
 	// We don't initialize simparams because it will be done by the SETUP_FRAMEWORK
@@ -113,6 +112,10 @@ bool XProblem::initialize()
 		//SETUP_FRAMEWORK();
 		throw std::runtime_error("no simulation framework defined");
 	}
+
+	// *** Add a writer, if none was specified
+	if (get_writers().size() == 0)
+		add_writer(VTKWRITER, 1e-2f);
 
 	// *** Initialization of minimal physical parameters
 	if (isnan(m_deltap))
