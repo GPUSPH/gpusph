@@ -253,7 +253,7 @@ struct sa_integrate_continuity_equation
 												 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2)};
 
 				// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
-				const float3 gGamN = gradGamma<kerneltype>(slength, as_float3(relPosN), vertexRelPos,ns)*ns;
+				const float3 gGamN = gradGamma<kerneltype>(slength, as_float3(relPosN), vertexRelPos, ns)*ns;
 				const float3 gGamNp1 = gradGamma<kerneltype>(slength, as_float3(relPosNp1), vertexRelPos, ns)*ns;
 				gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(relPosNp1 - relPosN));
 				gGam += gGamNp1;
