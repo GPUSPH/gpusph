@@ -986,6 +986,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		forcesEngine->setDEM(gdata->problem->get_dem(), ncols, nrows);
 	}
 
+	neibsEngine->allocateWorkerData();
+
 	m_deviceMemory += allocated;
 	return allocated;
 }
@@ -1004,6 +1006,8 @@ void GPUWorker::deallocateHostBuffers() {
 }
 
 void GPUWorker::deallocateDeviceBuffers() {
+
+	neibsEngine->deallocateWorkerData();
 
 	m_dBuffers.clear();
 
