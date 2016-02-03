@@ -77,11 +77,15 @@ Writer::Create(GlobalData *_gdata)
 		Writer *writer = NULL;
 		WriterType wt = it->first;
 		double freq = it->second;
+		// previous frequency, in case of override. used to correct the
+		// avg_freq
+		double old_freq = 0;
 
 		/* Check if the writer is in there already */
 		WriterMap::iterator wm = m_writers.find(wt);
 		if (wm != m_writers.end()) {
 			writer = wm->second;
+			old_freq = writer->get_write_freq();
 			cerr << "Overriding " << WriterName[wt] << " writing frequency" << endl;
 		} else {
 			switch (wt) {
@@ -129,8 +133,13 @@ Writer::Create(GlobalData *_gdata)
 		else
 			cerr << WriterName[wt] << " has unknown writing frequency " << freq << endl;
 
-		avg_freq += freq;
-		++avg_count;
+		// add current frequency for the average computation,
+		// keeping in mind it might be an override of a previously set frequency
+		avg_freq += (freq - old_freq);
+
+		// increment the average divisor when this wasn't an override
+		if (freq > 0 && old_freq == 0)
+			++avg_count;
 	}
 
 	avg_freq /= avg_count;
