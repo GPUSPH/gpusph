@@ -178,11 +178,11 @@ struct sa_integrate_continuity_equation
 			// vertex parts and boundary elements are moved only in the first integration step according to the velocity
 			// in the second step they are moved according to the solid body movement
 			float4 posNp1_neib = posN_neib;
-			if (MOVING(neib_info) && step == 2) { // this implies VERTEX(neib_info) || BOUNDARY(neib_info)
+			if (MOVING(neib_info)) { // this implies VERTEX(neib_info) || BOUNDARY(neib_info)
 				// now the following trick is employed for moving objects, instead of moving the segment and all vertices
 				// the fluid is moved virtually in opposite direction. this requires only one position to be recomputed
 				// and not all of them. additionally, the normal stays the same.
-				const uint i = object(neib_info)-1;
+				const uint i = object(neib_info);
 				// if savedObjId is equal to i that means that we have already computed the virtual position of the fluid
 				// with respect to the opposite movement of the object, so we can reuse that information, if not we need
 				// to compute it
