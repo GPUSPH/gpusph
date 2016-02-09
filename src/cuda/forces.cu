@@ -1184,6 +1184,76 @@ saVertexBoundaryConditions(
 
 }
 
+/// Performs a vertex count for IO boundaries as preparation for the initial mass modification
+void
+initIOmass_vertexCount(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd)
+{
+	uint numThreads = BLOCK_SIZE_FORCES;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	int dummy_shared = 0;
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
+	const uint *vertIDToIndex = bufread->getData<BUFFER_VERTIDINDEX>();
+	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
+
+	// execute the kernel
+	cuforces::initIOmass_vertexCount<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+		(vertices, vertIDToIndex, pHash, info, cellStart, neibsList, forces, particleRangeEnd);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
+/// Adjusts the initial mass of vertex particles on open boundaries
+void
+initIOmass(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd,
+	const	float			deltap)
+{
+	uint numThreads = BLOCK_SIZE_FORCES;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	int dummy_shared = 0;
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+
+	const float4 *oldPos = bufread->getData<BUFFER_POS>();
+	const float4 *forces = bufread->getData<BUFFER_FORCES>();
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
+	const uint *vertIDToIndex = bufread->getData<BUFFER_VERTIDINDEX>();
+
+	float4 *newPos = bufwrite->getData<BUFFER_POS>();
+
+	// execute the kernel
+	cuforces::initIOmass<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+		(oldPos, forces, vertices, vertIDToIndex, pHash, info, cellStart, neibsList, newPos, particleRangeEnd, deltap);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
 /// Computes the initial value of gamma using a Gauss quadrature formula
 void
 initGamma(

@@ -234,6 +234,27 @@ initGamma(
 	const	uint*			cellStart,
 	const	uint			particleRangeEnd) = 0;
 
+// counts vertices that belong to IO and same segment as other IO vertex
+virtual
+void
+initIOmass_vertexCount(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd) = 0;
+
+// modification of initial io vertex mass
+virtual
+void
+initIOmass(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd,
+	const	float			deltap) = 0;
+
 // disables particles that went through boundaries when open boundaries are used
 virtual void
 disableOutgoingParts(		float4*			pos,
