@@ -332,6 +332,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 										float4*			sortedPos,			// new sorted particle's positions (out)
 										float4*			sortedVel,			// new sorted particle's velocities (out)
 										float4*			sortedVol,			// new sorted particle's volumes (out)
+										float*			sortedEnergy,		// new sorted particle's internal energy (out)
 										float4*			sortedBoundElements,// new sorted boundary elements (out)
 										float4*			sortedGradGamma,	// new sorted gradient gamma (out)
 										vertexinfo*		sortedVertices,		// new sorted vertices (out)
@@ -426,6 +427,10 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 
 		if (sortedVol) {
 			sortedVol[index] = tex1Dfetch(volTex, sortedIndex);
+		}
+
+		if (sortedEnergy) {
+			sortedEnergy[index] = tex1Dfetch(energyTex, sortedIndex);
 		}
 
 		if (sortedBoundElements) {

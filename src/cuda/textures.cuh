@@ -47,6 +47,7 @@
 texture<float4, 1, cudaReadModeElementType> posTex;		// position and mass
 texture<float4, 1, cudaReadModeElementType> velTex;		// velocity and density
 texture<float4, 1, cudaReadModeElementType> volTex;		// volume
+texture<float, 1, cudaReadModeElementType> energyTex;	// internal energy
 texture<float4, 1, cudaReadModeElementType> boundTex;		// boundary elements
 texture<float4, 1, cudaReadModeElementType> gamTex;		// gradient gamma
 texture<particleinfo, 1, cudaReadModeElementType> infoTex;	// info

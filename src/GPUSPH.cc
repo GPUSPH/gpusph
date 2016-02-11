@@ -637,7 +637,7 @@ bool GPUSPH::runSimulation() {
 
 		// swap read and writes again because the write contains the variables at time n
 		// boundelements is swapped because the normals are updated in the moving objects case
-		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
+		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_INTERNAL_ENERGY | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
 
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
