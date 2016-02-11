@@ -299,6 +299,9 @@ reorderDataAndFindCellStart(
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 
+	if (oldVol)
+		CUDA_SAFE_CALL(cudaUnbindTexture(volTex));
+
 	if (oldBoundElement)
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	if (oldGradGamma)
