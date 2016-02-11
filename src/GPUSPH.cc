@@ -773,6 +773,9 @@ bool GPUSPH::runSimulation() {
 			if (gdata->debug.forces)
 				which_buffers |= BUFFER_FORCES;
 
+			if (gdata->problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY)
+				which_buffers |= BUFFER_INTERNAL_ENERGY;
+
 			// get GradGamma
 			if (gdata->problem->simparams()->boundarytype == SA_BOUNDARY)
 				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;

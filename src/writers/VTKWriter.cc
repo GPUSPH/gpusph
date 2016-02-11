@@ -163,6 +163,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
+	const float *intEnergy = buffers.getData<BUFFER_INTERNAL_ENERGY>();
 
 	const neibdata *neibslist = buffers.getData<BUFFER_NEIBSLIST>();
 
@@ -215,6 +216,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	if (neibslist) {
 		scalar_array(fid, "UInt16", "Neibs", offset);
 		offset += sizeof(ushort)*numParts+sizeof(int);
+	}
+
+	if (intEnergy) {
+		scalar_array(fid, "Float32", "Internal Energy", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// pressure
@@ -386,6 +392,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		numbytes = sizeof(ushort)*numParts;
 		write_var(fid, numbytes);
 		write_arr(fid, neibsnum, numParts);
+	}
+
+	if (intEnergy) {
+		numbytes = sizeof(float)*numParts;
+		write_var(fid, numbytes);
+		write_arr(fid, intEnergy, numParts);
 	}
 
 	numbytes=sizeof(float)*numParts;
