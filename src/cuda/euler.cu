@@ -123,6 +123,7 @@ basicstep(
 	const float4  *oldPos = bufread->getData<BUFFER_POS>();
 	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
 	const float4  *oldVol = bufread->getData<BUFFER_VOLUME>();
+	const float *oldEnergy = bufread->getData<BUFFER_INTERNAL_ENERGY>();
 	const float4 *oldEulerVel = bufread->getData<BUFFER_EULERVEL>();
 	const float *oldTKE = bufread->getData<BUFFER_TKE>();
 	const float *oldEps = bufread->getData<BUFFER_EPSILON>();
@@ -131,6 +132,7 @@ basicstep(
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
 
 	const float4 *forces = bufread->getData<BUFFER_FORCES>();
+	const float *DEDt = bufread->getData<BUFFER_INTERNAL_ENERGY_UPD>();
 	const float2 *contupd = bufread->getData<BUFFER_CONTUPD>();
 	const float3 *keps_dkde = bufread->getData<BUFFER_DKDE>();
 	const float4 *xsph = bufread->getData<BUFFER_XSPH>();
@@ -143,6 +145,7 @@ basicstep(
 	float4 *newPos = bufwrite->getData<BUFFER_POS>();
 	float4 *newVel = bufwrite->getData<BUFFER_VEL>();
 	float4 *newVol = bufwrite->getData<BUFFER_VOLUME>();
+	float *newEnergy = bufwrite->getData<BUFFER_INTERNAL_ENERGY>();
 	float4 *newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
 	float4 *newgGam = bufwrite->getData<BUFFER_GRADGAMMA>();
 	float *newTKE = bufwrite->getData<BUFFER_TKE>();
@@ -155,7 +158,8 @@ basicstep(
 			xsph,
 			oldgGam, newgGam, contupd, newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
 			newTKE, newEps, oldTKE, oldEps, keps_dkde,
-			newVol, oldVol);
+			newVol, oldVol,
+			newEnergy, oldEnergy, DEDt);
 
 	if (step == 1) {
 		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
