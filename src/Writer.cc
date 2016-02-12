@@ -384,6 +384,26 @@ Writer::WriteObjects(WriterMap writers, double t)
 }
 
 void
+Writer::WriteEnergy(WriterMap writers, double t, double4 *energy)
+{
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		it->second->write_energy(t, energy);
+	}
+
+	if (common_special && !writers.empty())
+		m_writers[COMMONWRITER]->write_energy(t, energy);
+}
+
+void
 Writer::WriteObjectForces(WriterMap writers, double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques)

@@ -57,7 +57,7 @@ public:
 
 	void write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
 
-	void write_energy(double t, float4 *energy);
+	void write_energy(double t, double4 *energy);
 	void write_WaveGage(double t, GageList const& gage);
 	void write_objects(double t);
 	void write_objectforces(double t, uint numobjects,

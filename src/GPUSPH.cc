@@ -1480,11 +1480,20 @@ void GPUSPH::doWrite(bool force)
 		gages[g].z = 0.;
 	}
 
+	// energy in non-fluid particles + one for each fluid type
+	// double4 with .x kinetic, .y potential, .z internal, .w currently ignored
+	double4 energy[MAX_FLUID_TYPES+1] = {0.0f};
+
 	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
 	double3 const& wo = problem->get_worldorigin();
 	const float4 *lpos = gdata->s_hBuffers.getData<BUFFER_POS>();
 	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
 	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
+
+	const float *intEnergy = gdata->s_hBuffers.getData<BUFFER_INTERNAL_ENERGY>();
+	/* vel is only used to compute kinetic energy */
+	const float4 *vel = gdata->s_hBuffers.getData<BUFFER_VEL>();
+	const double3 gravity = make_double3(gdata->problem->physparams()->gravity);
 
 	bool warned_nan_pos = false;
 
@@ -1494,6 +1503,7 @@ void GPUSPH::doWrite(bool force)
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
 		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
+		// double-precision absolute position, without using world offset (useful for computing the potential energy)
 		double4 dpos = make_double4(
 			gdata->calcGlobalPosOffset(gridPos, as_float3(pos)) + wo,
 			pos.w);
@@ -1505,6 +1515,18 @@ void GPUSPH::doWrite(bool force)
 				gridPos.x, gridPos.y, gridPos.z,
 				dpos.x, dpos.y, dpos.z);
 			warned_nan_pos = true;
+		}
+
+		// if we're tracking internal energy, we're interested in all the energy
+		// in the system, including kinetic and potential: keep track of that too
+		if (intEnergy) {
+			const double4 energies = dpos.w*make_double4(
+				/* kinetic */ sqlength3(vel[i])/2,
+				/* potential */ -dot3(dpos, gravity),
+				/* internal */ intEnergy[i],
+				/* TODO */ 0);
+			int idx = FLUID(info[i]) ? fluid_num(info[i]) : MAX_FLUID_TYPES;
+			energy[idx] += energies;
 		}
 
 		// for surface particles add the z coordinate to the appropriate wavegages
@@ -1573,14 +1595,7 @@ void GPUSPH::doWrite(bool force)
 		flt->second->write(writers, gdata->t);
 	}
 
-	// TODO: enable energy computation and dump
-	/*calc_energy(m_hEnergy,
-		m_dPos[m_currentPosRead],
-		m_dVel[m_currentVelRead],
-		m_dInfo[m_currentInfoRead],
-		m_numParticles,
-		physparams()->numFluids());
-	m_writer->write_energy(m_simTime, m_hEnergy);*/
+	Writer::WriteEnergy(writers, gdata->t, energy);
 
 	Writer::Write(writers,
 		gdata->processParticles[gdata->mpi_rank],

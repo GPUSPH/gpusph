@@ -52,7 +52,11 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 		for (; fluid < m_problem->physparams()->numFluids(); ++fluid)
 			m_energyfile	<< "\tkinetic" << fluid
 							<< "\tpotential" << fluid
-							<< "\telastic" << fluid;
+							<< "\tinternal" << fluid;
+		/* non-fluid */
+		m_energyfile	<< "\tkineticNF"
+						<< "\tpotentialNF"
+						<< "\tinternalNF";
 		m_energyfile << endl;
 		m_energyfile << set_vector_fmt("\t");
 		m_energyfile.precision(9);
@@ -212,13 +216,14 @@ CommonWriter::write(uint numParts, BufferList const& buffers, uint node_offset, 
 }
 
 void
-CommonWriter::write_energy(double t, float4 *energy)
+CommonWriter::write_energy(double t, double4 *energy)
 {
 	if (m_energyfile) {
 		m_energyfile << t;
 		uint fluid = 0;
 		for (; fluid < m_problem->physparams()->numFluids(); ++fluid)
-			m_energyfile	<< "\t" << as_float3(energy[fluid]);
+			m_energyfile	<< "\t" << as_double3(energy[fluid]);
+		m_energyfile	<< "\t" << as_double3(energy[MAX_FLUID_TYPES]);
 		m_energyfile << endl;
 	}
 }

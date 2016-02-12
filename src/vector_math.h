@@ -905,6 +905,13 @@ static __forceinline__ __host__ __device__ double dot3(const double4 &a, const d
 	return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+// dot product for double4 but act as if they were double3s
+static __forceinline__ __host__ __device__ double dot3(const double4 &a, const double3 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+
 // show a double4 as a double3
 static __forceinline__ __host__ __device__ double3& as_double3(const double4 &v)
 {
