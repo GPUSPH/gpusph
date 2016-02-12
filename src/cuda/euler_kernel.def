@@ -144,9 +144,9 @@ __device__ __forceinline__ void
 compute_corrected_velocity<true>::with(EP const& params, P &pdata)
 {
 	pdata.velc = pdata.vel + (params.step - 1)*pdata.force*params.half_dt;
-	pdata.velc.x += d_epsxsph*pdata.xpsh.x;
-	pdata.velc.y += d_epsxsph*pdata.xpsh.y;
-	pdata.velc.z += d_epsxsph*pdata.xpsh.z;
+	pdata.velc.x += d_epsxsph*pdata.xsph.x;
+	pdata.velc.y += d_epsxsph*pdata.xsph.y;
+	pdata.velc.z += d_epsxsph*pdata.xsph.z;
 }
 
 // A functor that helps to integrate density, SA or volume
