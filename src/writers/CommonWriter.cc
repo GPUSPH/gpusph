@@ -334,6 +334,8 @@ CommonWriter::write_simparams(ostream &out)
 	out << " adaptive time stepping " << ED[!!(SP->simflags & ENABLE_DTADAPT)] << endl;
 	if (SP->simflags & ENABLE_DTADAPT)
 		out << "    safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
+	out << " internal energy computation " << ED[!!(SP->simflags & ENABLE_INTERNAL_ENERGY)] << endl;
+
 	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
 	out << " Density diffusion " << ED[!!(SP->simflags & ENABLE_DENSITY_DIFFUSION)] << endl;
 	if (SP->simflags & ENABLE_DENSITY_DIFFUSION) {
