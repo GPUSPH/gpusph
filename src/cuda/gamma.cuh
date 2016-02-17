@@ -290,8 +290,8 @@ gradGamma<WENDLAND>(
 
 					+3.0f*(5.0f*pae6+21.0f*pae4*(8.0f+qas2)+35.0f*pae2*qas2*(16.0f+qas2)+35.0f*qas4*(24.0f+qas2))
 					*(
-						 copysign(1.f, pav1)*acoshf(fmax(qav1/fmax(qae, 1e-7f), 1.f))
-						-copysign(1.f, pav0)*acoshf(fmax(qav0/fmax(qae, 1e-7f), 1.f))
+						 copysign(1.f, pav1)*log(fmax(qav1+fabs(pav1), 1e-7f)/fmax(qae, 1e-7f))
+						-copysign(1.f, pav0)*log(fmax(qav0+fabs(pav0), 1e-7f)/fmax(qae, 1e-7f))
 						)
 					)
 				);
