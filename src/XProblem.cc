@@ -1290,12 +1290,12 @@ int XProblem::fill_parts()
 		switch (m_geometries[g]->fill_type) {
 			case FT_BORDER:
 				if (simparams()->boundarytype == DYN_BOUNDARY)
-					m_geometries[g]->ptr->FillIn(*parts_vector, m_deltap, - m_numDynBoundLayers);
+					m_geometries[g]->ptr->FillIn(*parts_vector, dx, - m_numDynBoundLayers);
 				else
-					m_geometries[g]->ptr->FillBorder(*parts_vector, m_deltap);
+					m_geometries[g]->ptr->FillBorder(*parts_vector, dx);
 				break;
 			case FT_SOLID:
-				m_geometries[g]->ptr->Fill(*parts_vector, m_deltap);
+				m_geometries[g]->ptr->Fill(*parts_vector, dx);
 				break;
 			case FT_SOLID_BORDERLESS:
 				printf("WARNING: borderless not yet implemented; not filling\n");
@@ -1352,6 +1352,7 @@ int XProblem::fill_parts()
 			// calls the latter in a dummy way if no ODE space is passed and this messes
 			// up the position for the actual later ODEGeomCreate() call.
 			// Thus, special call if both are active, individual calls otherwise.
+			// TODO: check if in next 3 ODEBodyCreate() calls dx should be used instead of m_deltap
 			if (m_geometries[g]->handle_dynamics && m_geometries[g]->handle_collisions)
 				// both body and geom
 				m_geometries[g]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace);
