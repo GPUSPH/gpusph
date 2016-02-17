@@ -178,6 +178,7 @@ struct sa_integrate_continuity_equation
 			// vertex parts and boundary elements are moved only in the first integration step according to the velocity
 			// in the second step they are moved according to the solid body movement
 			float4 posNp1_neib = posN_neib;
+			float4 shift_pos = make_float4(0.0f);
 			if (MOVING(neib_info)) { // this implies VERTEX(neib_info) || BOUNDARY(neib_info)
 				// now the following trick is employed for moving objects, instead of moving the segment and all vertices
 				// the fluid is moved virtually in opposite direction. this requires only one position to be recomputed
@@ -201,7 +202,7 @@ struct sa_integrate_continuity_equation
 					savedObjId = i;
 				}
 				// set the Np1 position of a to the virtual position that is saved
-				posNp1 = make_float4(posNp1Obj);
+				shift_pos = make_float4(posNp1Obj) - posNp1;
 			}
 			else if (FLUID(neib_info) || (MOVING(neib_info) && step==1)) {
 				posNp1_neib += dt*velN_neib;
@@ -209,7 +210,7 @@ struct sa_integrate_continuity_equation
 			// vector r_{ab} at time N
 			const float4 relPosN = pos_corr - posN_neib;
 			// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-			const float4 relPosNp1 = make_float4(pos_corr) + posNp1 - posN - posNp1_neib;
+			const float4 relPosNp1 = make_float4(pos_corr) + posNp1 + shift_pos - posN - posNp1_neib;
 
 			if (FLUID(neib_info) || VERTEX(neib_info)) {
 
