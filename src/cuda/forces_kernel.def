@@ -1812,9 +1812,9 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<DYNAMICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	//const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
-	//	d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w, d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w));
-	//nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata));
+	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
+				d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w, d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w));
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata));
 }
 
 template<>
@@ -2463,7 +2463,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_pressure_contrib<boundarytype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
-		//compute_viscous_contrib<boundarytype, sph_formulation, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+		compute_viscous_contrib<boundarytype, sph_formulation, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
 		compute_keps_term<boundarytype, visctype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
@@ -2737,7 +2737,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
-		//compute_viscous_contrib<SA_BOUNDARY, sph_formulation, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
+		compute_viscous_contrib<SA_BOUNDARY, sph_formulation, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
 		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
