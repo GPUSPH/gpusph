@@ -465,9 +465,8 @@ calculateIOboundaryCondition(
 					flux = unInt;
 			}
 		}
-		// AM-TODO allow imposed tangential velocity (make sure normal component is zero)
-		// currently for inflow we assume that the tangential velocity is zero
-		as_float3(eulerVel) = make_float3(0.0f);
+		// remove normal component of imposed Eulerian velocity
+		as_float3(eulerVel) = as_float3(eulerVel) - dot(as_float3(eulerVel), normal)*normal;
 		// if the imposed pressure on the boundary is negative make sure that the flux is negative
 		// as well (outflow)
 		if (rhoExt < d_rho0[a])
@@ -952,8 +951,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 	if (BOUNDARY(info)) {
 
 		float4 eulerVel = make_float4(0.0f);
-		float tke = 0.0f;
-		float eps = 0.0f;
 		const vertexinfo verts = vertices[index];
 
 		// load the indices of the vertices only once
@@ -962,20 +959,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		const uint vertZidx = vertIDToIndex[verts.z];
 
 		// get the imposed quantities from the arrays which were set in the problem specific routines
-		if (IO_BOUNDARY(info)) {
-			// for imposed velocity the velocity, tke and eps are required and only rho will be calculated
-			if (VEL_IO(info)) {
-				eulerVel = oldEulerVel[index];
-				eulerVel.w = 0.0f;
-				if (oldTKE)
-					tke = oldTKE[index];
-				if (oldEps)
-					eps = oldEps[index];
-			}
-			// for imposed density only eulerVel.w will be required, the rest will be computed
-			else
-				eulerVel.w = oldEulerVel[index].w;
-		}
+		if (IO_BOUNDARY(info))
+			eulerVel = oldEulerVel[index];
 
 		// velocity for moving objects transferred from vertices
 		float3 vel = make_float3(0.0f);
@@ -1075,18 +1060,11 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 
 		if (IO_BOUNDARY(info)) {
-			if (alpha > 0.1f*gam) {
+			if (alpha > 0.1f*gam) { // note: defaults are set in the place where bcs are imposed
 				sumvel /= alpha;
 				sump /= alpha;
 				oldVel[index].w = RHO(sump, fluid_num(info));
-				if (VEL_IO(info)) {
-					// for velocity imposed boundaries we impose k and epsilon
-					if (oldTKE)
-						oldTKE[index] = tke;
-					if (oldEps)
-						oldEps[index] = eps;
-				}
-				else {
+				if (PRES_IO(info)) {
 					oldEulerVel[index] = make_float4(0.0f);
 					// for pressure imposed boundaries we take dk/dn = 0
 					if (oldTKE)
@@ -1095,33 +1073,23 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					if (oldEps)
 						oldEps[index] = sumeps/alpha;
 				}
+
+				// compute Riemann invariants for open boundaries
+				const float unInt = dot(sumvel, as_float3(normal));
+				const float unExt = dot3(eulerVel, normal);
+				const float rhoInt = oldVel[index].w;
+				const float rhoExt = eulerVel.w;
+
+				calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, as_float3(normal));
+
+				oldEulerVel[index] = eulerVel;
 			}
 			else {
-				sump = 0.0f;
-				if (VEL_IO(info)) {
-					sumvel = as_float3(eulerVel);
-					oldVel[index].w = d_rho0[fluid_num(info)];
-				}
-				else {
-					sumvel = make_float3(0.0f);
-					oldVel[index].w = oldEulerVel[index].w;
-					oldEulerVel[index] = make_float4(0.0f, 0.0f, 0.0f, oldEulerVel[index].w);
-				}
-				if (oldTKE)
-					oldTKE[index] = 1e-6f;
-				if (oldEps)
-					oldEps[index] = 1e-6f;
+				//if (oldTKE)
+				//	oldTKE[index] = 1e-6f;
+				//if (oldEps)
+				//	oldEps[index] = 1e-6f;
 			}
-
-			// compute Riemann invariants for open boundaries
-			const float unInt = dot(sumvel, as_float3(normal));
-			const float unExt = dot3(eulerVel, normal);
-			const float rhoInt = oldVel[index].w;
-			const float rhoExt = eulerVel.w;
-
-			calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, as_float3(normal));
-
-			oldEulerVel[index] = eulerVel;
 			// the density of the particle is equal to the "eulerian density"
 			oldVel[index].w = eulerVel.w;
 
@@ -1414,7 +1382,7 @@ saVertexBoundaryConditions(
 					// normal distance based on grad Gamma which approximates the normal of the domain
 					sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 					// for all boundaries we have dk/dn = 0
-					if (IO_BOUNDARY(info) && !CORNER(info)) {
+					if (IO_BOUNDARY(info)) {
 						// for open boundaries compute dv/dn = 0
 						sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 						// for open boundaries compute pressure interior state
@@ -1537,7 +1505,7 @@ saVertexBoundaryConditions(
 	}
 
 	// normalize wall normal
-	if (CORNER(info) || initStep)
+	if ((CORNER(info) || initStep) && length(wallNormal) > 1e-6f)
 		wallNormal = normalize(wallNormal);
 
 	// update boundary conditions on array
@@ -1546,23 +1514,31 @@ saVertexBoundaryConditions(
 	else
 		alpha = fmax(alpha, 1e-5f);
 	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
-	if (oldTKE)
-		oldTKE[index] = fmax(sumtke/numseg, 1e-6f);
-	if (oldEps)
-		oldEps[index] = fmax(sumeps/numseg, 1e-6f);
+	if (!(IO_BOUNDARY(info) && VEL_IO(info) && !CORNER(info))) {
+		if (oldTKE)
+			oldTKE[index] = fmax(sumtke/numseg, 1e-6f);
+		if (oldEps)
+			oldEps[index] = fmax(sumeps/numseg, 1e-6f);
+	}
 	if (!initStep && oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
-		if (CORNER(info))
-			// normal for corners is normal to the IO it belongs, so we use wallNormal which is normal
-			// to the solid wall it is adjacent to
-			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), wallNormal)*wallNormal;
+		if (CORNER(info)) {
+			// the wallNormal can be equal to 0 as it is possible that a corner is only adjacent to open boundaries (in a |_ corner for example)
+			if(length(wallNormal) > 1e-6f)
+				// normal for corners is normal to the IO it belongs, so we use wallNormal which is normal
+				// to the solid wall it is adjacent to
+				as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), wallNormal)*wallNormal;
+			else
+				// if the corner is between open boundaries only, then we simply assume dv/dn = 0
+				as_float3(oldEulerVel[index]) = sumvel/alpha;
+		}
 		else if (!IO_BOUNDARY(info))
 			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), normal)*normal;
 	}
 	// open boundaries
 	if (IO_BOUNDARY(info) && !CORNER(info)) {
 		float4 eulerVel = oldEulerVel[index];
-		if (alpha > 0.1f*oldGGam[index].w) {
+		if (alpha > 0.1f*oldGGam[index].w) { // note: defaults are set in the place where bcs are imposed
 			sumvel /= alpha;
 			sump /= alpha;
 			const float unInt = dot(sumvel, normal);
@@ -1571,12 +1547,6 @@ saVertexBoundaryConditions(
 			const float rhoExt = eulerVel.w;
 
 			calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, normal);
-		}
-		else {
-			if (VEL_IO(info))
-				eulerVel.w = d_rho0[fluid_num(info)];
-			else
-				eulerVel = make_float4(0.0f, 0.0f, 0.0f, eulerVel.w);
 		}
 		oldEulerVel[index] = eulerVel;
 		// the density of the particle is equal to the "eulerian density"
@@ -1818,6 +1788,240 @@ initGamma(
 	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 	newNormal = normalize3(newNormal);
 	boundelement[index] = make_float4(newNormal.x, newNormal.y, newNormal.z, boundelement[index].w);
+}
+
+/// Modifies the initial mass of vertices on open boundaries
+/*! This function computes the initial value of \f[\gamma\f] in the semi-analytical boundary case, using a Gauss quadrature formula.
+ *	\param[out] newGGam : pointer to the new value of (grad) gamma
+ *	\param[in,out] boundelement : normal of segments and of vertices (the latter is computed in this routine)
+ *	\param[in] oldPos : pointer to positions and masses; masses of vertex particles are updated
+ *	\param[in] oldGGam : pointer to (grad) gamma; used as an approximate normal to the boundary in the computation of gamma
+ *	\param[in] vertPos[0] : relative position of the vertex 0 with respect to the segment center
+ *	\param[in] vertPos[1] : relative position of the vertex 1 with respect to the segment center
+ *	\param[in] vertPos[2] : relative position of the vertex 2 with respect to the segment center
+ *	\param[in] pinfo : pointer to particle info; written only when cloning
+ *	\param[in] particleHash : pointer to particle hash; written only when cloning
+ *	\param[in] cellStart : pointer to indices of first particle in cells
+ *	\param[in] neibsList : neighbour list
+ *	\param[in] numParticles : number of particles
+ *	\param[in] slength : the smoothing length
+ *	\param[in] influenceradius : the kernel radius
+ */
+template<KernelType kerneltype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+initIOmass_vertexCount(
+				const	vertexinfo*		vertices,
+				const	uint*			vertIDToIndex,
+				const	hashKey*		particleHash,
+				const	particleinfo*	pinfo,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+						float4*			forces,
+				const	uint			numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	const particleinfo info = pinfo[index];
+	if (!(VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info)))
+		return;
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	uint vertexCount = 0;
+
+	const float4 pos = make_float4(0.0f); // we don't need pos, so let's just set it to 0
+	float3 pos_corr;
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		// only boundary neighbours as we need to count the vertices that belong to the same segment as our vertex particle
+		if (BOUNDARY(neib_info) && IO_BOUNDARY(neib_info)) {
+
+			// prepare ids of neib vertices
+			const vertexinfo neibVerts = vertices[neib_index];
+
+			// load the indices of the vertices
+			const uint neibVertXidx = vertIDToIndex[neibVerts.x];
+			const uint neibVertYidx = vertIDToIndex[neibVerts.y];
+			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
+
+			// only check adjacent boundaries
+			if (index == neibVertXidx || index == neibVertYidx || index == neibVertZidx) {
+				// check if we don't have the current vertex
+				if (index != neibVertXidx) {
+					// only count the vertex if it's IO and not a corner
+					const particleinfo vertex_info = pinfo[neibVertXidx];
+					if (!CORNER(vertex_info))
+						vertexCount += 1;
+				}
+				if (index != neibVertYidx) {
+					const particleinfo vertex_info = pinfo[neibVertYidx];
+					if (!CORNER(vertex_info))
+						vertexCount += 1;
+				}
+				if (index != neibVertZidx) {
+					const particleinfo vertex_info = pinfo[neibVertZidx];
+					if (!CORNER(vertex_info))
+						vertexCount += 1;
+				}
+			}
+
+		}
+	}
+
+	forces[index].w = (float)(vertexCount/2); // divide by two because each vertex is counted twice
+}
+
+template<KernelType kerneltype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+initIOmass(
+				const	float4*			oldPos,
+				const	float4*			forces,
+				const	vertexinfo*		vertices,
+				const	uint*			vertIDToIndex,
+				const	hashKey*		particleHash,
+				const	particleinfo*	pinfo,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+						float4*			newPos,
+				const	uint			numParticles,
+				const	float			deltap)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = pinfo[index];
+	const float4 pos = oldPos[index];
+	newPos[index] = pos;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	//const particleinfo info = pinfo[index];
+	if (!(VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info)))
+		return;
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// does this vertex get or donate mass; decided by the id of a vertex particle
+	const bool getMass = id(info)%2;
+	float massChange = 0.0f;
+
+	const float refMass = 0.5f*deltap*deltap*deltap*d_rho0[fluid_num(info)]; // half of the fluid mass
+
+	// difference between reference mass and actual mass of particle
+	const float massDiff = refMass - pos.w;
+	// number of vertices associated with the same boundary segment as this vertex (that are also IO)
+	const float vertexCount = forces[index].w;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		// only boundary neighbours as we need to count the vertices that belong to the same segment as our vertex particle
+		if (BOUNDARY(neib_info) && IO_BOUNDARY(neib_info)) {
+
+			// prepare ids of neib vertices
+			const vertexinfo neibVerts = vertices[neib_index];
+
+			// load the indices of the vertices
+			const uint neibVertXidx = vertIDToIndex[neibVerts.x];
+			const uint neibVertYidx = vertIDToIndex[neibVerts.y];
+			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
+
+			// only check adjacent boundaries
+			if (index == neibVertXidx || index == neibVertYidx || index == neibVertZidx) {
+				// check if we don't have the current vertex
+				if (index != neibVertXidx) {
+					const particleinfo vertex_info = pinfo[neibVertXidx];
+					const bool neib_getMass = id(vertex_info)%2;
+					if (getMass != neib_getMass && !CORNER(vertex_info)) { // if not both vertices get or donate mass
+						if (getMass) {// original vertex gets mass
+							if (massDiff > 0.0f)
+								massChange += massDiff/vertexCount; // get mass from all adjacent vertices equally
+						}
+						else {
+							const float neib_massDiff = refMass - oldPos[neibVertXidx].w;
+							if (neib_massDiff > 0.0f) {
+								const float neib_vertexCount = forces[neibVertXidx].w;
+								massChange -= neib_massDiff/neib_vertexCount; // get mass from this vertex
+							}
+						}
+					}
+				}
+				// check if we don't have the current vertex
+				if (index != neibVertYidx) {
+					const particleinfo vertex_info = pinfo[neibVertYidx];
+					const bool neib_getMass = id(vertex_info)%2;
+					if (getMass != neib_getMass && !CORNER(vertex_info)) { // if not both vertices get or donate mass
+						if (getMass) {// original vertex gets mass
+							if (massDiff > 0.0f)
+								massChange += massDiff/vertexCount; // get mass from all adjacent vertices equally
+						}
+						else {
+							const float neib_massDiff = refMass - oldPos[neibVertYidx].w;
+							if (neib_massDiff > 0.0f) {
+								const float neib_vertexCount = forces[neibVertYidx].w;
+								massChange -= neib_massDiff/neib_vertexCount; // get mass from this vertex
+							}
+						}
+					}
+				}
+				// check if we don't have the current vertex
+				if (index != neibVertZidx) {
+					const particleinfo vertex_info = pinfo[neibVertZidx];
+					const bool neib_getMass = id(vertex_info)%2;
+					if (getMass != neib_getMass && !CORNER(vertex_info)) { // if not both vertices get or donate mass
+						if (getMass) {// original vertex gets mass
+							if (massDiff > 0.0f)
+								massChange += massDiff/vertexCount; // get mass from all adjacent vertices equally
+						}
+						else {
+							const float neib_massDiff = refMass - oldPos[neibVertZidx].w;
+							if (neib_massDiff > 0.0f) {
+								const float neib_vertexCount = forces[neibVertZidx].w;
+								massChange -= neib_massDiff/neib_vertexCount; // get mass from this vertex
+							}
+						}
+					}
+				}
+			}
+
+		}
+	}
+
+	newPos[index].w += massChange;
 }
 
 /************************************************************************************************************/

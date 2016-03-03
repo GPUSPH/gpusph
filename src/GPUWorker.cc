@@ -1727,6 +1727,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing INIT_GAMMA\n", deviceIndex);
 				instance->kernel_initGamma();
 				break;
+			case INIT_IO_MASS_VERTEX_COUNT:
+				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS_VERTEX_COUNT\n", deviceIndex);
+				instance->kernel_initIOmass_vertexCount();
+				break;
+			case INIT_IO_MASS:
+				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS\n", deviceIndex);
+				instance->kernel_initIOmass();
+				break;
 			case QUIT:
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -2304,6 +2312,45 @@ void GPUWorker::kernel_initGamma()
 		m_simparams->epsilon,
 		m_dCellStart,
 		numPartsToElaborate);
+
+}
+
+void GPUWorker::kernel_initIOmass_vertexCount()
+{
+	uint numPartsToElaborate = m_numParticles;
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = *m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+
+	bcEngine->initIOmass_vertexCount(
+		m_dBuffers.getWriteBufferList(),
+		m_dBuffers.getReadBufferList(),
+		m_numParticles,
+		m_dCellStart,
+		numPartsToElaborate);
+
+}
+
+void GPUWorker::kernel_initIOmass()
+{
+	uint numPartsToElaborate = m_numParticles;
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = *m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+
+	bcEngine->initIOmass(
+		m_dBuffers.getWriteBufferList(),
+		m_dBuffers.getReadBufferList(),
+		m_numParticles,
+		m_dCellStart,
+		numPartsToElaborate,
+		gdata->problem->m_deltap);
 
 }
 

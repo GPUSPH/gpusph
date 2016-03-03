@@ -136,7 +136,7 @@ void XCompleteSaExample::init_keps(float* k, float* e, uint numpart, particleinf
 	}
 } // */
 
-/*
+/* TODO this routine is never called
 void XCompleteSaExample::imposeForcedMovingObjects(
 			float3	&centerOfGravity,
 			float3	&translation,

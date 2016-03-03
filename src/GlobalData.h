@@ -166,6 +166,10 @@ enum CommandType {
 	UPLOAD_IOWATERDEPTH,
 	/// Initialize gamma using a Gaussian quadrature rule
 	INIT_GAMMA,
+	/// Count vertices that belong to the same IO and the same segment as an IO vertex
+	INIT_IO_MASS_VERTEX_COUNT,
+	/// Modifiy initial mass of open boundaries
+	INIT_IO_MASS,
 	/// Quit the simulation cycle
 	QUIT
 };

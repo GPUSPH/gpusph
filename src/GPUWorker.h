@@ -254,6 +254,8 @@ private:
 	void kernel_disableOutgoingParts();
 	void kernel_imposeBoundaryCondition();
 	void kernel_initGamma();
+	void kernel_initIOmass_vertexCount();
+	void kernel_initIOmass();
 	void kernel_download_iowaterdepth();
 	void kernel_upload_iowaterdepth();
 	/*void uploadMbData();

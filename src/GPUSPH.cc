@@ -1910,14 +1910,29 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
-	// initially data is in read so swap to write
 	if (cFlag & INITIALIZATION_STEP) {
+		// identify all the corner vertex particles
 		doCommand(SWAP_BUFFERS, BUFFER_INFO);
 		doCommand(IDENTIFY_CORNER_VERTICES);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
+		doCommand(SWAP_BUFFERS, BUFFER_INFO);
 
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO | BUFFER_GRADGAMMA | BUFFER_VERTICES);
+		// modify particle mass on open boundaries
+		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+			// first step: count the vertices that belong to IO and the same segment as each IO vertex
+			doCommand(INIT_IO_MASS_VERTEX_COUNT);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+			// second step: modify the mass of the IO vertices
+			doCommand(INIT_IO_MASS);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
+			doCommand(SWAP_BUFFERS, BUFFER_POS);
+		}
+
+		// initially data is in read so swap to write
+		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 	}
 
 	// impose open boundary conditions

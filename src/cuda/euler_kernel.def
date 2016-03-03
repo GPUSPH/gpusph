@@ -97,7 +97,7 @@ template<KernelType _kerneltype,
 	flag_t _simflags>
 struct euler_particle_data :
 	common_euler_particle_data,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags && ENABLE_INLET_OUTLET),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
 				sa_boundary_particle_data),
 	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_particle_data),
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_data),
@@ -116,7 +116,7 @@ struct euler_particle_data :
 	__device__ __forceinline__
 	euler_particle_data(const uint _index, params_t const& params) :
 		common_euler_particle_data(_index, params),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags && ENABLE_INLET_OUTLET),
+		COND_STRUCT(boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
 					sa_boundary_particle_data)(_index, params),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_data)(_index, params),
@@ -320,9 +320,12 @@ write_volume<SPH_GRENIER>::with(EP const& params, P &pdata, int index)
 }
 
 
-// A functor that helps to writes velocity output, if using SA_BOUNDARY
-template<BoundaryType boundarytype, ViscosityType visctype>
-struct write_velocity{
+// Writes out the eulerian velocity for SA boundaries
+// this variable needs to be written if:
+// 1.) k-eps turbulence (as vertices have a dv/dt for eulerVel
+// 2.) open boundaries (as this sets eulerVel = 0 for fluid)
+template<BoundaryType boundarytype, bool updateRequired>
+struct write_eulerVel{
 	template<typename EP, typename P>
 	__device__ __forceinline__
 	static void
@@ -334,7 +337,7 @@ struct write_velocity{
 template<>
 template<typename EP, typename P>
 __device__ __forceinline__ void
-write_velocity<SA_BOUNDARY, KEPSVISC>::with(EP const& params, P &pdata, int index)
+write_eulerVel<SA_BOUNDARY, true>::with(EP const& params, P &pdata, int index)
 {
 	params.newEulerVel[index] = pdata.eulerVel;
 }
@@ -570,7 +573,7 @@ eulerDevice(
 	params.newPos[index] = pdata.pos;
 	params.newVel[index] = pdata.vel;
 	write_volume<sph_formulation>::with(params, pdata, index);
-	write_velocity<boundarytype, visctype>::with(params, pdata, index);
+	write_eulerVel<boundarytype, visctype==KEPSVISC || simflags & ENABLE_INLET_OUTLET>::with(params, pdata, index);
 	write_viscosity_coeff<visctype>::with(params, pdata, index);
 	write_gamma_of_boundary<boundarytype>::with(params, pdata);
 }
