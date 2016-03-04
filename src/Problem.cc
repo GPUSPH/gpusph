@@ -72,6 +72,13 @@ Problem::initialize()
 	check_dt();
 	check_maxneibsnum();
 	calculateFerrariCoefficient();
+
+	/* Set ARTVISC epsilon to h^2/10 if not set by the user.
+	 * For simplicity, we do this regardless of the viscosity model used,
+	 * it'll just be ignored otherwise */
+	if (isnan(physparams()->epsartvisc))
+		physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+
 	create_problem_dir();
 
 	printf("Problem calling set grid params\n");

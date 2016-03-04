@@ -97,7 +97,7 @@ typedef struct PhysParams {
 	float	MK_d;			// Typically: distance between boundary particles
 	float	MK_beta;		// Typically: ratio between h and MK_d
 
-	float	epsartvisc;
+	float	epsartvisc;		/// coefficient used in the artificial viscosity expresison to avoid dividing by zero for very close particles
 	float	epsxsph;		// XSPH correction coefficient
 
 	// offset vector and limits for periodic boundaries:
@@ -131,6 +131,7 @@ IGNORE_WARNINGS(deprecated-declarations)
 		r0(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
+		epsartvisc(NAN),
 		epsxsph(0.5f),
 		smagfactor(NAN),
 		kspsfactor(NAN),
