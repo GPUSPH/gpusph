@@ -953,32 +953,15 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		float4 eulerVel = make_float4(0.0f);
 		const vertexinfo verts = vertices[index];
 
-		// load the indices of the vertices only once
-		const uint vertXidx = vertIDToIndex[verts.x];
-		const uint vertYidx = vertIDToIndex[verts.y];
-		const uint vertZidx = vertIDToIndex[verts.z];
-
 		// get the imposed quantities from the arrays which were set in the problem specific routines
 		if (IO_BOUNDARY(info))
 			eulerVel = oldEulerVel[index];
 
-		// velocity for moving objects transferred from vertices
+		// velocity for segment (for moving objects) taken as average from the vertices
 		float3 vel = make_float3(0.0f);
-		if (MOVING(info)) {
-			vel += as_float3(oldVel[vertXidx]);
-			vel += as_float3(oldVel[vertYidx]);
-			vel += as_float3(oldVel[vertZidx]);
-			vel /= 3.0f;
-		}
-		as_float3(oldVel[index]) = vel;
-
-		// compute an average gamma for the segment
-		float gam = oldGGam[index].w;
-		if (gam < 1e-5f) {
-			float4 gGam = (oldGGam[vertXidx] + oldGGam[vertYidx] + oldGGam[vertZidx])/3.0f;
-			oldGGam[index] = gGam;
-			gam = fmax(gGam.w, 1e-5f);
-		}
+		// gamma of segment (if not set) taken as average from the vertices
+		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, oldGGam[index].w);
+		bool calcGam = oldGGam[index].w < 1e-5f;
 
 		const float4 pos = oldPos[index];
 
@@ -1023,6 +1006,19 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			const float r = length(as_float3(relPos));
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
+			// averages taken from associated vertices:
+			// - velocity (for moving objects)
+			// - gGam if not yet computed
+			// - Eulerian velocity (if TKE is enabled and only for solid walls)
+			if (verts.x == id(info) || verts.y == id(info) || verts.z == id(info)) {
+				if (MOVING(info))
+					vel += as_float3(oldVel[neib_index]);
+				if (calcGam)
+					gGam += oldGGam[neib_index];
+				if (!IO_BOUNDARY(info) && oldTKE)
+					eulerVel += oldEulerVel[neib_index];
+			}
+
 			if (dot3(normal, relPos) < 0.0f &&
 				r < influenceradius &&
 				FLUID(neib_info)
@@ -1059,8 +1055,15 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			}
 		}
 
+		// set variables that have been obtained as average from the associated vertices
+		as_float3(oldVel[index]) = vel/3.0f;
+		if (calcGam) {
+			gGam /= 3.0f;
+			oldGGam[index] = gGam;
+		}
+
 		if (IO_BOUNDARY(info)) {
-			if (alpha > 0.1f*gam) { // note: defaults are set in the place where bcs are imposed
+			if (alpha > 0.1f*gGam.w) { // note: defaults are set in the place where bcs are imposed
 				sumvel /= alpha;
 				sump /= alpha;
 				oldVel[index].w = RHO(sump, fluid_num(info));
@@ -1096,17 +1099,15 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 		// non-open boundaries
 		else {
-			alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
+			alpha = fmax(alpha, 0.1f*gGam.w); // avoid division by 0
 			// density condition
 			oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 			// k-epsilon boundary conditions
 			if (oldTKE) {
 				// k condition
 				oldTKE[index] = sumtke/alpha;
-				// eulerian velocity on the wall
-				eulerVel = (	oldEulerVel[vertXidx] +
-								oldEulerVel[vertYidx] +
-								oldEulerVel[vertZidx] )/3.0f;
+				// average eulerian velocity on the wall (from associated vertices)
+				eulerVel /= 3.0f;
 				// ensure that velocity is normal to segment normal
 				eulerVel -= dot3(eulerVel,normal)*normal;
 				oldEulerVel[index] = eulerVel;
@@ -1358,11 +1359,6 @@ saVertexBoundaryConditions(
 			// prepare indices of neib vertices
 			const vertexinfo neibVerts = vertices[neib_index];
 
-			// load the indices of the vertices
-			const uint neibVertXidx = vertIDToIndex[neibVerts.x];
-			const uint neibVertYidx = vertIDToIndex[neibVerts.y];
-			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
-
 			if (FLUID(neib_info)) {
 			//if (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info))) {
 			//if (FLUID(neib_info) || (!IO_BOUNDARY(info) && VERTEX(neib_info) && IO_BOUNDARY(neib_info) && !CORNER(neib_info))) {
@@ -1398,7 +1394,7 @@ saVertexBoundaryConditions(
 				const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 
 				// check if vertex is associated with this segment
-				if (neibVertXidx == index || neibVertYidx == index || neibVertZidx == index) {
+				if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
 					// in the initial step we need to compute an approximate grad gamma direction
 					// for the computation of gamma, in general we need a sort of normal as well
 					// for corner vertices this wallNormal takes only solid walls into account so
@@ -1463,11 +1459,11 @@ saVertexBoundaryConditions(
 						const float3 vx[3] = {as_float3(v0), as_float3(v1), as_float3(v2)};
 						getMassRepartitionFactor(vx, as_float3(boundElement), vertexWeights);
 						float beta = 0.0f;
-						if (neibVertXidx == index)
+						if (neibVerts.x == id(info))
 							beta = vertexWeights.x;
-						else if (neibVertYidx == index)
+						else if (neibVerts.y == id(info))
 							beta = vertexWeights.y;
-						else if (neibVertZidx == index)
+						else if (neibVerts.z == id(info))
 							beta = vertexWeights.z;
 
 						sumMdot += neibRho*beta*boundElement.w*
@@ -1487,11 +1483,11 @@ saVertexBoundaryConditions(
 					float betaAV = 0.0f;
 					const float4 vertexWeights = oldGGam[neib_index];
 					// check if one of the vertices is equal to the present one
-					if (neibVertXidx == index)
+					if (neibVerts.x == id(info))
 						betaAV = vertexWeights.x;
-					else if (neibVertYidx == index)
+					else if (neibVerts.y == id(info))
 						betaAV = vertexWeights.y;
-					else if (neibVertZidx == index)
+					else if (neibVerts.z == id(info))
 						betaAV = vertexWeights.z;
 					if(betaAV > 0.0f){
 						// add mass from fluid particle to vertex particle
@@ -1733,11 +1729,7 @@ initGamma(
 				// prepare ids of neib vertices
 				const vertexinfo neibVerts = vertices[neib_index];
 
-				// load the indices of the vertices
-				const uint neibVertXidx = vertIDToIndex[neibVerts.x];
-				const uint neibVertYidx = vertIDToIndex[neibVerts.y];
-				const uint neibVertZidx = vertIDToIndex[neibVerts.z];
-				if (index == neibVertXidx || index == neibVertYidx || index == neibVertZidx) {
+				if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
 					if ((IO_BOUNDARY(info) && IO_BOUNDARY(neib_info)) || (!IO_BOUNDARY(info) && !IO_BOUNDARY(neib_info)))
 						newNormal += ns;
 				}
@@ -1790,6 +1782,8 @@ initGamma(
 	boundelement[index] = make_float4(newNormal.x, newNormal.y, newNormal.z, boundelement[index].w);
 }
 
+#define MAXNEIBVERTS 30
+
 /// Modifies the initial mass of vertices on open boundaries
 /*! This function computes the initial value of \f[\gamma\f] in the semi-analytical boundary case, using a Gauss quadrature formula.
  *	\param[out] newGGam : pointer to the new value of (grad) gamma
@@ -1840,6 +1834,9 @@ initIOmass_vertexCount(
 	float3 pos_corr;
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
+	uint neibVertIds[MAXNEIBVERTS];
+	uint neibVertIdsCount=0;
+
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
@@ -1857,36 +1854,50 @@ initIOmass_vertexCount(
 			// prepare ids of neib vertices
 			const vertexinfo neibVerts = vertices[neib_index];
 
-			// load the indices of the vertices
-			const uint neibVertXidx = vertIDToIndex[neibVerts.x];
-			const uint neibVertYidx = vertIDToIndex[neibVerts.y];
-			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
-
 			// only check adjacent boundaries
-			if (index == neibVertXidx || index == neibVertYidx || index == neibVertZidx) {
+			if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
 				// check if we don't have the current vertex
-				if (index != neibVertXidx) {
-					// only count the vertex if it's IO and not a corner
-					const particleinfo vertex_info = pinfo[neibVertXidx];
-					if (!CORNER(vertex_info))
-						vertexCount += 1;
+				if (id(info) != neibVerts.x) {
+					neibVertIds[neibVertIdsCount] = neibVerts.x;
+					neibVertIdsCount+=1;
 				}
-				if (index != neibVertYidx) {
-					const particleinfo vertex_info = pinfo[neibVertYidx];
-					if (!CORNER(vertex_info))
-						vertexCount += 1;
+				if (id(info) != neibVerts.y) {
+					neibVertIds[neibVertIdsCount] = neibVerts.y;
+					neibVertIdsCount+=1;
 				}
-				if (index != neibVertZidx) {
-					const particleinfo vertex_info = pinfo[neibVertZidx];
-					if (!CORNER(vertex_info))
-						vertexCount += 1;
+				if (id(info) != neibVerts.z) {
+					neibVertIds[neibVertIdsCount] = neibVerts.z;
+					neibVertIdsCount+=1;
 				}
 			}
 
 		}
 	}
 
-	forces[index].w = (float)(vertexCount/2); // divide by two because each vertex is counted twice
+	neib_cellnum = 0;
+	neib_cell_base_index = 0;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		if (!VERTEX(neib_info))
+			continue;
+
+		for (uint j = 0; j<neibVertIdsCount; j++) {
+			if (id(neib_info) == neibVertIds[j] && !CORNER(neib_info))
+				vertexCount += 1;
+		}
+	}
+
+	forces[index].w = (float)(vertexCount);
 }
 
 template<KernelType kerneltype>
@@ -1938,6 +1949,9 @@ initIOmass(
 	// number of vertices associated with the same boundary segment as this vertex (that are also IO)
 	const float vertexCount = forces[index].w;
 
+	uint neibVertIds[MAXNEIBVERTS];
+	uint neibVertIdsCount=0;
+
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
@@ -1955,69 +1969,60 @@ initIOmass(
 			// prepare ids of neib vertices
 			const vertexinfo neibVerts = vertices[neib_index];
 
-			// load the indices of the vertices
-			const uint neibVertXidx = vertIDToIndex[neibVerts.x];
-			const uint neibVertYidx = vertIDToIndex[neibVerts.y];
-			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
-
 			// only check adjacent boundaries
-			if (index == neibVertXidx || index == neibVertYidx || index == neibVertZidx) {
+			if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
 				// check if we don't have the current vertex
-				if (index != neibVertXidx) {
-					const particleinfo vertex_info = pinfo[neibVertXidx];
-					const bool neib_getMass = id(vertex_info)%2;
-					if (getMass != neib_getMass && !CORNER(vertex_info)) { // if not both vertices get or donate mass
-						if (getMass) {// original vertex gets mass
-							if (massDiff > 0.0f)
-								massChange += massDiff/vertexCount; // get mass from all adjacent vertices equally
-						}
-						else {
-							const float neib_massDiff = refMass - oldPos[neibVertXidx].w;
-							if (neib_massDiff > 0.0f) {
-								const float neib_vertexCount = forces[neibVertXidx].w;
-								massChange -= neib_massDiff/neib_vertexCount; // get mass from this vertex
-							}
-						}
-					}
+				if (id(info) != neibVerts.x) {
+					neibVertIds[neibVertIdsCount] = neibVerts.x;
+					neibVertIdsCount+=1;
 				}
-				// check if we don't have the current vertex
-				if (index != neibVertYidx) {
-					const particleinfo vertex_info = pinfo[neibVertYidx];
-					const bool neib_getMass = id(vertex_info)%2;
-					if (getMass != neib_getMass && !CORNER(vertex_info)) { // if not both vertices get or donate mass
-						if (getMass) {// original vertex gets mass
-							if (massDiff > 0.0f)
-								massChange += massDiff/vertexCount; // get mass from all adjacent vertices equally
-						}
-						else {
-							const float neib_massDiff = refMass - oldPos[neibVertYidx].w;
-							if (neib_massDiff > 0.0f) {
-								const float neib_vertexCount = forces[neibVertYidx].w;
-								massChange -= neib_massDiff/neib_vertexCount; // get mass from this vertex
-							}
-						}
-					}
+				if (id(info) != neibVerts.y) {
+					neibVertIds[neibVertIdsCount] = neibVerts.y;
+					neibVertIdsCount+=1;
 				}
-				// check if we don't have the current vertex
-				if (index != neibVertZidx) {
-					const particleinfo vertex_info = pinfo[neibVertZidx];
-					const bool neib_getMass = id(vertex_info)%2;
-					if (getMass != neib_getMass && !CORNER(vertex_info)) { // if not both vertices get or donate mass
-						if (getMass) {// original vertex gets mass
-							if (massDiff > 0.0f)
-								massChange += massDiff/vertexCount; // get mass from all adjacent vertices equally
-						}
-						else {
-							const float neib_massDiff = refMass - oldPos[neibVertZidx].w;
-							if (neib_massDiff > 0.0f) {
-								const float neib_vertexCount = forces[neibVertZidx].w;
-								massChange -= neib_massDiff/neib_vertexCount; // get mass from this vertex
-							}
+				if (id(info) != neibVerts.z) {
+					neibVertIds[neibVertIdsCount] = neibVerts.z;
+					neibVertIdsCount+=1;
+				}
+			}
+
+		}
+	}
+
+	neib_cellnum = 0;
+	neib_cell_base_index = 0;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		if (!VERTEX(neib_info))
+			continue;
+
+		for (uint j = 0; j<neibVertIdsCount; j++) {
+			if (id(neib_info) == neibVertIds[j]) {
+				const bool neib_getMass = id(neib_info)%2;
+				if (getMass != neib_getMass && !CORNER(neib_info)) { // if not both vertices get or donate mass
+					if (getMass) {// original vertex gets mass
+						if (massDiff > 0.0f)
+							massChange += massDiff/vertexCount; // get mass from all adjacent vertices equally
+					}
+					else {
+						const float neib_massDiff = refMass - oldPos[neib_index].w;
+						if (neib_massDiff > 0.0f) {
+							const float neib_vertexCount = forces[neib_index].w;
+							massChange -= neib_massDiff/neib_vertexCount; // get mass from this vertex
 						}
 					}
 				}
 			}
-
 		}
 	}
 
