@@ -54,6 +54,10 @@ typedef struct TimingInfo {
 	//uint	numParticles;
 	// current maximum number of neibs
 	uint	maxNeibs;
+	// index of a particle with too many neibs
+	int	hasTooManyNeibs;
+	// number of neibs of that particle
+	int	hasMaxNeibs;
 	// iterations done so far
 	//ulong	iterations;
 	// number of particle-particle interactions with current neiblist

@@ -70,6 +70,8 @@ __constant__ idx_t d_neiblist_stride;	///< Stride dimension
  *  @{ */
 __device__ int d_numInteractions;		///< Total number of interactions
 __device__ int d_maxNeibs;				///< Computed maximum number of neighbors per particle
+__device__ int d_hasTooManyNeibs;		///< Index of a particle with more than d_maxneibsnum neighbors
+__device__ int d_hasMaxNeibs;			///< Number of neighbors of that particle
 /** @} */
 
 using namespace cubounds;
@@ -959,7 +961,14 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 	// have an empty neighbor list. Otherwise, particles which are
 	// marked inactive will keep their old neighbor list.
 	if (index < params.numParticles && neibs_num < d_maxneibsnum) {
-		params.neibsList[neibs_num*d_neiblist_stride + index] = NEIBS_END;
+		if (neibs_num < d_maxneibsnum) {
+			params.neibsList[neibs_num*d_neiblist_stride + index] = NEIBS_END;
+		} else {
+			const particleinfo info = tex1Dfetch(infoTex, index);
+			atomicCAS(&d_hasTooManyNeibs, -1, (int)id(info));
+			if(d_hasTooManyNeibs == id(info))
+				d_hasMaxNeibs = neibs_num;
+		}
 	}
 
 	if (neibcount) {
