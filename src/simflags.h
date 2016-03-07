@@ -80,4 +80,10 @@
 // in case LAST_SIMFLAG is already the last bit
 #define ENABLE_ALL_SIMFLAGS		(LAST_SIMFLAG | (LAST_SIMFLAG-1))
 
+/// General query that identifies whether the flags in field are set, true only if all of them are
+#define QUERY_ALL_FLAGS(field, flags)	(((field) & (flags)) == (flags))
+/// General query that identifies whether at least one flag in field is set
+#define QUERY_ANY_FLAGS(field, flags)	((field) & (flags))
+
+
 #endif

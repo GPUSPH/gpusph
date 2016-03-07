@@ -1994,9 +1994,15 @@ float GPUWorker::forces_dt_reduce()
 		for (uint f = 0; f < m_physparams->numFluids(); ++f)
 			max_kinematic = fmaxf(max_kinematic, m_physparams->kinematicvisc[f]);
 
+	float sspeed_cfl = NAN;
+	for (uint f = 0; f < m_physparams->numFluids(); ++f)
+		sspeed_cfl = fmaxf(sspeed_cfl, m_physparams->sscoeff[f]);
+	sspeed_cfl *= 1.1;
+
 	return forcesEngine->dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
+		sspeed_cfl,
 		max_kinematic,
 		bufwrite.getData<BUFFER_CFL>(),
 		bufwrite.getData<BUFFER_CFL_DS>(),

@@ -2273,65 +2273,157 @@ write_forces<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout
 /// for each of the parent structures. Therefore, the alternative in case of a missing
 /// structure cannot be the empty struct, as it must provide the needed interface
 
-template<uint fields>
-struct shared_reduce
-{
-	float sm_data[fields][BLOCK_SIZE_FORCES];
-
-	// init shared data
-	__device__ __forceinline__ void
-	init()
-	{
-		for (uint i = 0; i < fields; i++)
-			sm_data[i][threadIdx.x] = 0.0f;
-	}
-
-	// store shared data
-	__device__ __forceinline__ void
-	store(uint i, float val)
-	{
-		sm_data[i][threadIdx.x] = val;
-	}
-
-	// reduce shared data
-	__device__ __forceinline__ void
-	reduce(float* data[], uint dataOffset)
-	{
-		for(unsigned int s = blockDim.x/2; s > 0; s >>= 1)
-		{
-			__syncthreads();
-			if (threadIdx.x < s)
-			{
-				for (uint i = 0; i < fields; i++)
-					sm_data[i][threadIdx.x] = max(sm_data[i][threadIdx.x + s], sm_data[i][threadIdx.x]);
-			}
-		}
-
-		// write result for this block to global mem
-		if (!threadIdx.x) {
-			for (uint i = 0; i < fields; i++)
-				data[i][dataOffset + blockIdx.x] = sm_data[i][0];
-		}
-	}
-};
-
-
-template<>
-struct shared_reduce<0>
+template<typename T>
+struct dyndt_shared_none
 {
 	// init shared data
 	__device__ __forceinline__ void
 	init() { /* do nothing */ }
 
 	// store shared data
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
-	store(uint i, float val)
+	store(FP const& params, P const& pdata, OP const& pout)
 	{ /* do nothing */ }
 
 	// reduce shared data
+	template<typename FP>
 	__device__ __forceinline__ void
-	reduce(float* data[], uint dataOffset)
+	reduce(FP const& params)
 	{ /* do nothing */ }
+};
+
+template<bool densitySum, BoundaryType boundarytype>
+struct store_sm_densitysum_max
+{
+	template<typename OP>
+	__device__ __forceinline__
+	static float
+	with(OP const& pout)
+	{ return 0.0f; }
+};
+
+template<>
+template<typename OP>
+__device__ __forceinline__
+float
+store_sm_densitysum_max<true, SA_BOUNDARY>::with(OP const& pout)
+{ return pout.gammaCfl; }
+
+#define COND_SHARED(some_cond, some_struct) \
+	conditional<some_cond, some_struct, dyndt_shared_none<some_struct> >::type
+
+struct dyndt_forces_shared_data
+{
+	float sm_forces_max[BLOCK_SIZE_FORCES];
+
+	__device__ __forceinline__ void
+	init() { sm_forces_max[threadIdx.x] = 0; }
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_forces_max[threadIdx.x] = length(as_float3(pout.force));
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(this->sm_forces_max, params.cfl_forces, params.cflOffset);
+	}
+};
+
+struct dyndt_densitysum_shared_data
+{
+	float sm_densitysum_max[BLOCK_SIZE_FORCES];
+
+	__device__ __forceinline__ void
+	init() { sm_densitysum_max[threadIdx.x] = 0; }
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_densitysum_max[threadIdx.x] = store_sm_densitysum_max<FP::simflags & ENABLE_DENSITY_SUM, FP::boundarytype>::with(pout);
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(sm_densitysum_max, params.cfl_densitysum, params.cflOffset);
+	}
+};
+
+struct dyndt_keps_shared_data
+{
+	float sm_keps_max[BLOCK_SIZE_FORCES];
+
+	__device__ __forceinline__ void
+	init() { sm_keps_max[threadIdx.x] = 0; }
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_keps_max[threadIdx.x] = pdata.turbVisc;
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(sm_keps_max, params.cfl_keps, params.cflOffset);
+	}
+};
+
+template<BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
+struct forces_shared_data :
+	COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_forces_shared_data),
+	COND_SHARED(QUERY_ALL_FLAGS(simflags, ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
+		boundarytype == SA_BOUNDARY, dyndt_densitysum_shared_data),
+	COND_SHARED(simflags & ENABLE_DTADAPT &&
+		visctype == KEPSVISC, dyndt_keps_shared_data)
+{
+	typedef
+		typename COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_forces_shared_data)
+		common;
+	typedef
+		typename COND_SHARED(QUERY_ALL_FLAGS(simflags, ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
+			boundarytype == SA_BOUNDARY, dyndt_densitysum_shared_data)
+		densitysum;
+	typedef
+		typename COND_SHARED(simflags & ENABLE_DTADAPT &&
+			visctype == KEPSVISC, dyndt_keps_shared_data)
+		keps;
+
+	__device__ __forceinline__ void
+	init()
+	{
+		common::init();
+		densitysum::init();
+		keps::init();
+	}
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		common::store(params, pdata, pout);
+		densitysum::store(params, pdata, pout);
+		keps::store(params, pdata, pout);
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		common::reduce(params);
+		densitysum::reduce(params);
+		keps::reduce(params);
+	}
 };
 
 
@@ -2832,9 +2924,9 @@ finalizeforcesDevice(
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
-	//__shared__ shared_reduce<(simflags & ENABLE_DTADAPT) ? 1 : 0> shared;
-
-	//shared.init();
+	// Allocating shared data in case of adaptive time step
+	__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
+	shared.init();
 
 #pragma unroll
 	do {
@@ -2905,7 +2997,7 @@ finalizeforcesDevice(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
-			//shared.store(0, length3(pout.force));
+			shared.store(params, pdata, pout);
 		}
 #if 0
 		else
@@ -2943,8 +3035,7 @@ finalizeforcesDevice(
 
 	} while (0);
 
-	/*if(boundarytype == LJ_BOUNDARY)
-		shared.reduce(&params.cfl, params.cflOffset);*/
+	shared.reduce(params);
 }
 /************************************************************************************************************/
 

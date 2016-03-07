@@ -550,20 +550,21 @@ getFmaxTempElements(const uint n)
 float
 dtreduce(	float	slength,
 			float	dtadaptfactor,
+			float	sspeed_cfl,
 			float	max_kinematic,
-			float	*cfl,
-			float	*cfl_dS,
-			float	*cflTVisc,
+			float	*cfl_forces,
+			float	*cfl_densitysum,
+			float	*cfl_keps,
 			float	*tempCfl,
 			uint	numBlocks)
 {
 	// cfl holds one value per block in the forces kernel call,
 	// so it holds numBlocks elements
-	float maxcfl = cflmax(numBlocks, cfl, tempCfl);
-	float dt = dtadaptfactor*sqrtf(slength/maxcfl);
+	float maxcfl = cflmax(numBlocks, cfl_forces, tempCfl);
+	float dt = dtadaptfactor*fminf(sqrtf(slength/maxcfl), slength/sspeed_cfl);
 
 	if(simflags & ENABLE_DENSITY_SUM) {
-		maxcfl = fmax(cflmax(numBlocks, cfl_dS, tempCfl), 1e-5f/dt);
+		maxcfl = fmaxf(cflmax(numBlocks, cfl_densitysum, tempCfl), 1e-5f/dt);
 		const float dt_gam = 0.001f/maxcfl;
 		if (dt_gam < dt)
 			dt = dt_gam;
@@ -576,7 +577,7 @@ dtreduce(	float	slength,
 		 */
 		float visccoeff = max_kinematic;
 		if (visctype == KEPSVISC)
-			visccoeff += cflmax(numBlocks, cflTVisc, tempCfl);
+			visccoeff += cflmax(numBlocks, cfl_keps, tempCfl);
 
 		float dt_visc = slength*slength/visccoeff;
 		dt_visc *= 0.125; // TODO allow customization
@@ -645,9 +646,9 @@ basicstep(
 	float *keps_eps = const_cast<float*>(bufread->getData<BUFFER_EPSILON>());
 
 	float3 *keps_dkde = bufwrite->getData<BUFFER_DKDE>();
-	float *cfl = bufwrite->getData<BUFFER_CFL>();
-	float *cfl_Ds = bufwrite->getData<BUFFER_CFL_DS>();
-	float *cflTVisc = bufwrite->getData<BUFFER_CFL_KEPS>();
+	float *cfl_forces = bufwrite->getData<BUFFER_CFL>();
+	float *cfl_densitysum = bufwrite->getData<BUFFER_CFL_DS>();
+	float *cfl_keps = bufwrite->getData<BUFFER_CFL_KEPS>();
 	float *tempCfl = bufwrite->getData<BUFFER_CFL_TEMP>();
 
 	int dummy_shared = 0;
@@ -756,7 +757,7 @@ basicstep(
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
 			forces, rbforces, rbtorques,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
-			cfl, cfl_Ds, cflTVisc, cflOffset,
+			cfl_forces, cfl_densitysum, cfl_keps, cflOffset,
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, oldGGam, contupd,
 			IOwaterdepth,

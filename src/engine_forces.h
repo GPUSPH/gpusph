@@ -142,10 +142,11 @@ public:
 	virtual float
 	dtreduce(	float	slength,
 				float	dtadaptfactor,
+				float	sspeed_cfl,
 				float	max_kinematic,
-				float	*cfl,
-				float	*cflDs,
-				float	*cflTVisc,
+				float	*cfl_forces,
+				float	*cfl_densitysum,
+				float	*cfl_keps,
 				float	*tempCfl,
 				uint	numBlocks) = 0;
 

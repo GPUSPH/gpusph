@@ -150,15 +150,15 @@ struct common_finalize_forces_params
 };
 
 /// Additional parameters passed only to kernels with dynamic timestepping
-struct dyndt_forces_params
+struct dyndt_finalize_forces_params
 {
-	float	*cfl;
-	float	*cfl_dS;
-	float	*cfltvisc;
+	float	*cfl_forces;
+	float	*cfl_densitysum;
+	float	*cfl_keps;
 	uint	cflOffset;
 
-	dyndt_forces_params(float *_cfl, float *_cfl_dS, float *_cfltvisc, uint _cflOffset) :
-		cfl(_cfl), cfl_dS(_cfl_dS), cfltvisc(_cfltvisc), cflOffset(_cflOffset)
+	dyndt_finalize_forces_params(float *_cfl_forces, float *_cfl_densitysum, float *_cfl_keps, uint _cflOffset) :
+		cfl_forces(_cfl_forces), cfl_densitysum(_cfl_densitysum), cfl_keps(_cfl_keps), cflOffset(_cflOffset)
 	{}
 };
 
@@ -372,7 +372,7 @@ template<SPHFormulation _sph_formulation,
 	flag_t _simflags>
 struct finalize_forces_params :
 	common_finalize_forces_params,
-	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_forces_params),
+	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
@@ -401,9 +401,9 @@ struct finalize_forces_params :
 
 		const 	float 	_slength,
 		// dyndt
-				float	*_cfl,
-				float	*_cfl_dS,
-				float	*_cflTVisc,
+				float	*_cfl_forces,
+				float	*_cfl_densitysum,
+				float	*_cfl_keps,
 				uint	_cflOffset,
 
 		// SPH_GRENIER
@@ -424,8 +424,8 @@ struct finalize_forces_params :
 		common_finalize_forces_params(_forces, _rbforces, _rbtorques,
 			_posArray, _velArray, _particleHash, _cellStart,
 			 _fromParticle, _toParticle, _slength),
-		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
-			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
+		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params)
+			(_cfl_forces, _cfl_densitysum, _cfl_keps, _cflOffset),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam, _oldGGam, _contupd),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
