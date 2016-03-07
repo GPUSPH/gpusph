@@ -57,7 +57,8 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 		boundary<LJ_BOUNDARY>,
 		//boundary<MK_BOUNDARY>
 		//boundary<DYN_BOUNDARY>,
-		flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+		densitydiffusion<FERRARI>,
+		flags<ENABLE_DTADAPT>
 	);
 
 	addPostProcess(SURFACE_DETECTION);
@@ -73,7 +74,7 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->buildneibsfreq = 10;
 	t0 = 0.4;
 	simparams()->tend = 4.0 + t0; //seconds
-	simparams()->ferrari = 1.0;
+	simparams()->densityDiffCoeff = 1.0;
 
 	// Physical parameters
 	m_physparams->gravity = make_float3(0.0f, 0.0f, -9.81f);

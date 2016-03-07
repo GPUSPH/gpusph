@@ -61,7 +61,7 @@ saVertexBoundaryConditions(
 			float4*			oldGGam,
 			float4*			oldEulerVel,
 			float4*			forces,
-			float2*			contupd,
+			float*			dgamdt,
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
 	const	float2			* const vertPos[],
@@ -89,6 +89,19 @@ computeVertexNormal(
 	MultiBufferList::const_iterator	bufread,
 	MultiBufferList::iterator		bufwrite,
 	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd) = 0;
+
+// initialize gamma in the case of dynamic gamma
+virtual void
+initGamma(
+	MultiBufferList::const_iterator	bufread,
+	MultiBufferList::iterator		bufwrite,
+	const	uint*			cellStart,
+	const	float			slength,
+	const	float			influenceradius,
+	const	float			deltap,
+	const	float			epsilon,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
 

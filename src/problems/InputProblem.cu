@@ -27,7 +27,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI | ENABLE_DYNAMIC_GAMMA>
+			densitydiffusion<FERRARI>,
+			add_flags<ENABLE_DYNAMIC_GAMMA>
 		);
 
 		set_deltap(0.01833f);
@@ -62,8 +63,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_FERRARI>
-		// flags<ENABLE_FERRARI | ENABLE_DENSITY_SUM>
+			densitydiffusion<FERRARI> //,
+		// flags<ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.125f);
@@ -78,11 +79,14 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
 		//simparams()->ferrariLengthScale = 1.0f;
-		simparams()->ferrari = 1.0f;
+		simparams()->densityDiffCoeff = 1.0f;
 		size_t water = add_fluid(1000.0);
 		set_equation_of_state(water,  7.0f, 60.f);
 		set_kinematic_visc(water, 1.0e-2f);
 		addPostProcess(CALC_PRIVATE);
+
+		simparams()->neibboundpos = 160;
+		simparams()->neiblistsize = 256;
 	//*************************************************************************************
 
 	//SmallChannelFlow (a small channel flow for debugging viscosity)
@@ -95,12 +99,12 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_XY>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI>
+			densitydiffusion<FERRARI>
 		);
 
 		set_deltap(0.0625f);
 		simparams()->tend = 100.0;
-		simparams()->ferrari = 1.0f;
+		simparams()->densityDiffCoeff = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -122,7 +126,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_XY>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI>
+			densitydiffusion<FERRARI>
 		);
 
 		simparams()->sfactor=2.0f;
@@ -154,13 +158,14 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			densitydiffusion<BREZZI>,
+			add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.2f);
 		simparams()->neiblistsize = 220;
 		simparams()->tend = 100.0;
-		simparams()->ferrariLengthScale = 1.0f;
+		simparams()->densityDiffCoeff = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -183,17 +188,18 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
+			densitydiffusion<BREZZI>,
 #if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
-			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+			add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 #else
-			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 #endif
 		);
 
 		simparams()->sfactor=1.3f;
 		set_deltap(0.05f);
 		simparams()->tend = 10.0;
-		simparams()->ferrari = 1.0f;
+		simparams()->densityDiffCoeff = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -221,13 +227,14 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			densitydiffusion<BREZZI>,
+			add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
 		simparams()->sfactor=1.3f;
 		set_deltap(0.05f);
 		simparams()->tend = 10.0;
-		simparams()->ferrariLengthScale = 1.0f;
+		simparams()->densityDiffCoeff = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 200.0f);
@@ -249,12 +256,13 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_YZ>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			densitydiffusion<BREZZI>,
+			add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.2f);
 		simparams()->tend = 100.0;
-		simparams()->ferrari = 1.0f;
+		simparams()->densityDiffCoeff = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -276,14 +284,14 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			//viscosity<DYNAMICVISC>,
 			boundary<SA_BOUNDARY>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+			densitydiffusion<BREZZI>,
+			add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
 
 		set_deltap(0.1f);
 		simparams()->neiblistsize = 240;
 		simparams()->tend = 40.0;
-		simparams()->ferrari= 1.0f;
-		//simparams()->ferrariLengthScale = 0.2f;
+		simparams()->densityDiffCoeff= 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 110.0f);
@@ -306,14 +314,14 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			viscosity<DYNAMICVISC>,
 			boundary<SA_BOUNDARY>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+			densitydiffusion<BREZZI>,
+			flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
 
 		set_deltap(0.1f);
 		m_simparams->neiblistsize = 240;
 		m_simparams->tend = 10.0;
-		m_simparams->ferrari= 1.0f;
-		//m_simparams->ferrariLengthScale = 0.2f;
+		m_simparams->densityDiffCoeff= 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 50.0f);
@@ -337,14 +345,15 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+			densitydiffusion<BREZZI>,
+			add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
 
 		//set_deltap(0.026460);
 		set_deltap(0.017637f);
 		simparams()->neiblistsize = 512;
 		simparams()->tend = 7.0;
-		simparams()->ferrari = 1.0f;
+		simparams()->densityDiffCoeff = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 20.0f);
@@ -371,14 +380,15 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
-			add_flags<ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			densitydiffusion<BREZZI>,
+			add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
 		);
 
 		simparams()->sfactor=2.0f;
 		set_deltap(0.02f);
 		simparams()->neiblistsize = 440;
 		simparams()->tend = 10.0;
-		simparams()->ferrari = 0.1f;
+		simparams()->densityDiffCoeff = 0.1f;
 
 		addPostProcess(SURFACE_DETECTION);
 		addPostProcess(CALC_PRIVATE);

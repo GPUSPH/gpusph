@@ -544,6 +544,11 @@ bool GPUSPH::runSimulation() {
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
+		// the read buffer of gamma becomes the write one in case of dynamic gamma as forces
+		// writes the gradient of gamma at time n
+		if (problem->simparams()->simflags & ENABLE_DYNAMIC_GAMMA)
+			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
+
 		// compute forces only on internal particles
 		gdata->only_internal = true;
 		if (gdata->clOptions->striping && MULTI_DEVICE)
@@ -566,24 +571,29 @@ bool GPUSPH::runSimulation() {
 		// boundelements is swapped because the normals are updated in the moving objects case
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
+		// swap back the gamma buffer that now contains the correct gradient of gamma
+		if (problem->simparams()->simflags & ENABLE_DYNAMIC_GAMMA)
+			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
+
+
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(1);
 
-		// in the case of the summation density there is a neighbour loop in euler and so we can run on internal only
-		if (!(problem->simparams()->simflags & ENABLE_DENSITY_SUM))
-			// integrate also the externals
-			gdata->only_internal = false;
+		// integrate also the externals
+		gdata->only_internal = false;
 
+		// perform the euler integration step
 		doCommand(EULER, INTEGRATOR_STEP_1);
 
-		// summation density requires an update from the other GPUs.
+		gdata->only_internal = true;
+
 		if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
-			if (MULTI_DEVICE) {
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-				// the following only need update after the first step, vel due to rhie and chow and gradgamma to save gam^n
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_READ);
-			}
+			// compute density based on an integral formulation
+			doCommand(DENSITY_SUM, INTEGRATOR_STEP_1);
+
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
@@ -631,6 +641,10 @@ bool GPUSPH::runSimulation() {
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
+		// swap grad gamma buffer so that gamma^{n+1/2} is in the write buffer
+		if (problem->simparams()->simflags & ENABLE_DYNAMIC_GAMMA)
+			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
+
 		gdata->only_internal = true;
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_2);
@@ -653,18 +667,20 @@ bool GPUSPH::runSimulation() {
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(2);
 
-		// in the case of the summation density there is a neighbour loop in euler and so we can run on internal only
-		if (!(problem->simparams()->simflags & ENABLE_DENSITY_SUM))
-			// integrate also the externals
-			gdata->only_internal = false;
+		// integrate also the externals
+		gdata->only_internal = false;
 
+		// perform the euler integration step
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
-		// summation density requires an update from the other GPUs.
+		gdata->only_internal = true;
+
 		if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
-			if (MULTI_DEVICE) {
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-			}
+			// compute density based on an integral formulation
+			doCommand(DENSITY_SUM, INTEGRATOR_STEP_2);
+
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		}
 
 		// Euler needs always cg(n)
@@ -1899,6 +1915,12 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(SA_COMPUTE_VERTEX_NORMAL);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			// compute gamma for fluid and vertices if dynamic gamma is used
+			if (problem->simparams()->simflags & ENABLE_DYNAMIC_GAMMA) {
+				doCommand(SA_INIT_GAMMA);
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			}
 		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_INFO);
@@ -1962,5 +1984,5 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	// swap changed buffers back so that read contains the new data
 	if (cFlag & INITIALIZATION_STEP)
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_GRADGAMMA);
+		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_VERTICES | BUFFER_GRADGAMMA);
 }

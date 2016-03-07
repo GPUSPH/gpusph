@@ -120,7 +120,8 @@ template<
 	BoundaryType _boundarytype,
 	Periodicity _periodicbound,
 	flag_t _simflags,
-	bool invalid_combination = (
+	bool invalid_combination =
+	(
 		// Currently, we consider invalid only the case
 		// of SA_BOUNDARY
 
@@ -130,7 +131,7 @@ template<
 			// viscosity
 			_visctype == KINEMATICVISC		||	// untested
 			_visctype == SPSVISC			||	// untested
-			_visctype == ARTVISC			||	// untested (use is discouraged, use Ferrari correction)
+			_visctype == ARTVISC			||	// untested (use is discouraged, use density diffusion instead)
 			// kernel
 			! (_kerneltype == WENDLAND)		||	// only the Wendland kernel is allowed in SA_BOUNDARY
 												// all other kernels would require their respective
@@ -140,9 +141,16 @@ template<
 			// flags
 			_simflags & ENABLE_XSPH			||	// untested
 			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
-			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM))
+			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
 												// inlet outlet works only with the summation density
+			(_simflags & ENABLE_DENSITY_SUM && !(_simflags & ENABLE_DYNAMIC_GAMMA))
+												// when density sum is active dynamic gamma needs to be used
 		)
+	)
+	||
+	(
+	!(_boundarytype == SA_BOUNDARY) && _simflags & ENABLE_DENSITY_SUM
+												// density sum is untested with boundary conditions other than SA
 	)
 >
 class CUDASimFrameworkImpl : public SimFramework,

@@ -87,7 +87,6 @@ const char* SPHFormulationName[SPH_INVALID+1]
 #endif
 ;
 
-/* TODO find better names for F1 and F2 formulations */
 enum DensityDiffusionType {
 	FERRARI = 1,
 	COLAGROSSI,

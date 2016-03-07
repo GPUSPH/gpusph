@@ -68,14 +68,13 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 		boundary<DYN_BOUNDARY>,
 		flags<ENABLE_DTADAPT>
 	).select_options(
-		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
 		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
-	// diffusion is enabled or Ferrari correction is enabled, 10 otherwise
+	// diffusion is enabled, 10 otherwise
 	const int mlsIters = get_option("mls",
-		(simparams()->simflags & (ENABLE_DENSITY_DIFFUSION | ENABLE_FERRARI)) ? 0 : 10);
+		(simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) ? 0 : 10);
 
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);

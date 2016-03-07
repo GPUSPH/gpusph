@@ -65,6 +65,23 @@ public:
 	virtual void
 	setrbangularvel(const float3* angularvel, int numbodies) = 0;
 
+	/// Integral formulation of continuity equation
+	virtual void
+	density_sum(
+		MultiBufferList::const_iterator bufread,	// this is the read only arrays
+		MultiBufferList::iterator bufreadUpdate,	// the read array but it will be written to in certain cases (densitySum)
+		MultiBufferList::iterator bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt,
+		const	float	dt2,
+		const	int		step,
+		const	float	t,
+		const	float	slength,
+		const	float	influenceRadius)
+	= 0;
+
 	/// Single integration 
 	// TODO will probably need to be made more generic for other
 	// integration schemes

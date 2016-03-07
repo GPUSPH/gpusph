@@ -30,8 +30,10 @@
 #include "engine_integration.h"
 #include "utils.h"
 #include "euler_params.h"
+#include "density_sum_params.h"
 
 #include "euler_kernel.cu"
+#include "density_sum_kernel.cu"
 
 #define BLOCK_SIZE_INTEGRATE	256
 
@@ -52,8 +54,8 @@ setconstants(const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
 
 	idx_t neiblist_end = neiblistsize*allocatedParticles;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_neiblist_end, &neiblist_end, sizeof(idx_t)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_end, &neiblist_end, sizeof(idx_t)));
 
 	const float h3 = slength*slength*slength;
 	float kernelcoeff = 1.0f/(M_PI*h3);
@@ -102,6 +104,74 @@ setrbsteprot(const float* rot, int numbodies)
 }
 
 void
+density_sum(
+		MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufreadUpdate,
+		MultiBufferList::iterator bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt,
+		const	float	dt2,
+		const	int		step,
+		const	float	t,
+		const	float	slength,
+		const	float	influenceradius)
+{
+	// thread per particle
+	uint numThreads = BLOCK_SIZE_INTEGRATE;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	const float4  *oldPos = bufread->getData<BUFFER_POS>();
+	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
+	const float4  *oldVol = bufread->getData<BUFFER_VOLUME>();
+	const float4 *oldEulerVel = bufread->getData<BUFFER_EULERVEL>();
+	const float *oldTKE = bufread->getData<BUFFER_TKE>();
+	const float *oldEps = bufread->getData<BUFFER_EPSILON>();
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
+
+	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
+	const float *dgamdt = bufread->getData<BUFFER_DGAMDT>();
+	const float3 *keps_dkde = bufread->getData<BUFFER_DKDE>();
+	const float4 *xsph = bufread->getData<BUFFER_XSPH>();
+
+	// The following two arrays are update in case ENABLE_DENSITY_SUM is set
+	// so they are taken from the non-const bufreadUpdate
+	float4  *oldVel = bufreadUpdate->getData<BUFFER_VEL>();
+	float4 *oldgGam = bufreadUpdate->getData<BUFFER_GRADGAMMA>();
+
+	float4 *newPos = bufwrite->getData<BUFFER_POS>();
+	float4 *newVel = bufwrite->getData<BUFFER_VEL>();
+	float4 *newVol = bufwrite->getData<BUFFER_VOLUME>();
+	float4 *newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
+	float4 *newgGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+	float *newTKE = bufwrite->getData<BUFFER_TKE>();
+	float *newEps = bufwrite->getData<BUFFER_EPSILON>();
+	// boundary elements are updated in-place; only used for rotation in the second step
+	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
+
+	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
+	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
+			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
+			dgamdt, particleHash, info, forces, numParticles, dt, dt2, t, step,
+			slength, influenceradius, neibsList, cellStart, NULL, NULL);
+
+	cudensity_sum::densitySumVolumicDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
+
+	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
+			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
+			dgamdt, particleHash, info, forces, numParticles, dt, dt2, t, step,
+			slength, influenceradius, neibsList, cellStart, newBoundElement, vertPos);
+
+	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
+void
 basicstep(
 		MultiBufferList::const_iterator bufread,
 		MultiBufferList::iterator bufreadUpdate,
@@ -131,7 +201,7 @@ basicstep(
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
 
 	const float4 *forces = bufread->getData<BUFFER_FORCES>();
-	const float2 *contupd = bufread->getData<BUFFER_CONTUPD>();
+	const float *dgamdt = bufread->getData<BUFFER_DGAMDT>();
 	const float3 *keps_dkde = bufread->getData<BUFFER_DKDE>();
 	const float4 *xsph = bufread->getData<BUFFER_XSPH>();
 
@@ -153,7 +223,7 @@ basicstep(
 	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
 			newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t, step,
 			xsph,
-			oldgGam, newgGam, contupd, newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
+			oldgGam, newgGam, dgamdt, newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
 			newTKE, newEps, oldTKE, oldEps, keps_dkde,
 			newVol, oldVol);
 
@@ -164,8 +234,6 @@ basicstep(
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}
-
-#undef ARGS
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

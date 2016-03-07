@@ -415,7 +415,7 @@ struct forces_particle_data :
 	// PT_OBJECT don't use them
 	vel_particle_data,
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
-		(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
+		(_densitydiffusiontype == COLAGROSSI), volume_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	// eulerian velocity only used in case of keps or with open boundaries
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype
@@ -461,7 +461,7 @@ struct forces_particle_data :
 		rb_particle_data(_info),
 		vel_particle_data(_index, _info),
 		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
-			(_simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
+			(_densitydiffusiontype == COLAGROSSI), volume_particle_data)
 			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
@@ -548,7 +548,8 @@ struct sa_boundary_particle_output
 {
 	// x,y,z contains the gradient of gamma, w gamma itself
 	float4	gGam;
-	float2	contupd;
+	// time derivative of gamma
+	float	dgamdt;
 	// max value of \nabla \gamma_{as} \cdot {v_{as}, v_a - u_s, u_s + v_s} for cfl condition
 	float gammaCfl;
 
@@ -556,7 +557,7 @@ struct sa_boundary_particle_output
 	__device__ __forceinline__
 	sa_boundary_particle_output(FP const& params, const uint index) :
 		gGam(make_float4(0, 0, 0, 1)),
-		contupd(params.contupd[index]),
+		dgamdt(params.dgamdt[index]),
 		gammaCfl(0.0f)
 	{}
 };
@@ -621,12 +622,12 @@ struct forces_particle_output :
 // SA_BOUNDARY
 struct sa_finalize_particle_output
 {
-	float2	contupd;
+	float	dgamdt;
 
 	template<typename FP>
 	__device__ __forceinline__
 	sa_finalize_particle_output(FP const& params, const uint index) :
-		contupd(params.contupd[index])
+		dgamdt(params.dgamdt[index])
 	{}
 };
 
@@ -759,7 +760,7 @@ template<KernelType kerneltype,
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>,
 	COND_STRUCT(sph_formulation == SPH_GRENIER &&
-		(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data),
+		(densitydiffusiontype == COLAGROSSI), volume_particle_data),
 	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
 		sa_boundary_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>),
@@ -798,7 +799,7 @@ struct forces_neib_data :
 		float4 const& _relPos, const float _r) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
 		COND_STRUCT(sph_formulation == SPH_GRENIER &&
-			(simflags & ENABLE_DENSITY_DIFFUSION), volume_particle_data)
+			(densitydiffusiontype == COLAGROSSI), volume_particle_data)
 			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
@@ -1092,42 +1093,119 @@ volume_ratio<true>::with(P const& pdata, N const& ndata) {
 	return pdata.volume/ndata.volume;
 }
 
-
-struct generic_compute_density_derivative {
-	// Ferrari updates nout.contDiff in the SA case, and nout.DrDt otherwise,
-	// so we need a boundary-type templatized selector
-	template<typename ON>
-	__device__ __forceinline__
-	static float&
-	ferrari_updates(ON &nout)
-	{ return nout.DrDt; }
-
-	// common volumic Ferrari diffusion term
-	// TODO the Ferrari correction should be handled based on its own template
-	// parameter (use_ferrari or whatever).
-	template<typename FP, typename P, typename N, typename OP, typename ON>
+/// A functor that computes a density diffusion term.
+/// There are three different options implemented at the moment, Ferrari, Brezzi and Colagrossi
+template<DensityDiffusionType densitydiffusiontype,
+		BoundaryType boundarytype,
+		ParticleType cptype,
+		ParticleType nptype>
+struct compute_density_diffusion {
+	template<typename FP, typename P, typename N, typename ON>
 	__device__ __forceinline__
 	static void
-	ferrari_correction(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
+	{ /* do nothing */ }
+};
+
+/// Diffusion term for Ferrari for fluid neighbours
+/// according to Mayrhofer et al. 2013, CPC
+template<BoundaryType boundarytype,
+		ParticleType cptype>
+struct compute_density_diffusion<FERRARI, boundarytype, cptype, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
+	{
+		const uint fType =  fluid_num(pdata.info);
+		// gravity correction for free-surface flows
+		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
+		// actual diffusion term
+		const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
+			max(pdata.sspeed, ndata.sspeed)*
+			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
+			make_float3(0.0f);
+		// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
+		nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+	}
+};
+
+/// Diffusion term for Ferrari for boundary neighbours in the case of semi-analytical boundaries
+/// according to Mayrhofer et al. 2013, CPC
+template<ParticleType cptype>
+struct
+compute_density_diffusion<FERRARI, SA_BOUNDARY, cptype, PT_BOUNDARY>
+{
+	template<typename FP, typename P, typename N, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
 	{
 		const int fType =  fluid_num(pdata.info);
 		// gravity correction for free-surface flows
 		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
 		// actual diffusion term
-		// TODO should use pdata.sspeed, ndata.sspeed, which should therefore be defined when use_ferrari is enabled
-		const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
+		const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
 			max(pdata.sspeed, ndata.sspeed)*
-			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
-			make_float3(0.0f);
-		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-		ferrari_updates(nout) += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+			(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r :
+			0.0f;
+		// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
+		//nout.contDiff -= 2.0f*d_densityDiffCoeff*ferraricor*nout.ggamAS;
+		nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
 	}
+};
 
-	// density diffusion term following Molteni & Colagrossi 2009
-	template<typename FP, typename P_t, typename N, typename OP, typename ON>
+/// Diffusion term for Brezzi for fluid neighbours
+template<BoundaryType boundarytype,
+		ParticleType cptype>
+struct
+compute_density_diffusion<BREZZI, boundarytype, cptype, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename ON>
 	__device__ __forceinline__
 	static void
-	density_diffusion(FP const& params, P_t const& pdata, N const& ndata, OP &pout, ON &nout)
+	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
+	{
+		// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
+		nout.DrDt += ((2.0/(pdata.vel.w + ndata.relVel.w))*
+					  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+					  - dot(d_gravity, as_float3(ndata.relPos))
+					 )*ndata.relPos.w/ndata.relVel.w*ndata.f*params.dt*2.0f*pdata.vel.w;
+	}
+};
+
+/// Diffusion term for Brezzi for boundary neighbours in the case of semi-analytical boundaries
+template<ParticleType cptype>
+struct
+compute_density_diffusion<BREZZI, SA_BOUNDARY, cptype, PT_BOUNDARY>
+{
+	template<typename FP, typename P, typename N, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
+	{
+		// for pressure inlets we need to compute a boundary term for the Rhie & Chow filter
+		// the term is essentially the same as the one for the fluid particle except that V_b w' -> |ggam|/r_{as}
+		if (IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info))
+			nout.DrDt -= ((2.0/(pdata.vel.w + ndata.relVel.w))*
+						  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+						  - dot(d_gravity, as_float3(ndata.relPos))
+						 )*nout.ggamAS/ndata.r_as*params.dt*2.0f*pdata.vel.w;
+	}
+};
+
+/// Diffusion term for Colagrossi for fluid neighbours
+/// following Molteni & Colagrossi 2009
+template<BoundaryType boundarytype,
+		ParticleType cptype>
+struct
+compute_density_diffusion<COLAGROSSI, boundarytype, cptype, PT_FLUID>
+{
+	template<typename FP, typename P, typename N, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
 	{
 		const int fType = fluid_num(pdata.info);
 		/* only applies to same-fluid particles */
@@ -1148,9 +1226,9 @@ struct generic_compute_density_derivative {
 		// Additionally, when the density evolution formulation is NOT based on
 		// volumes, we need to multiply by the neighbor mass
 
-		const bool has_volume = (FP::sph_formulation == SPH_GRENIER &&
-			FP::simflags & ENABLE_DENSITY_DIFFUSION);
-		const float diff_term = d_rhodiffcoeff*d_sscoeff[fType]*
+		// TODO templetize on sph_formulation
+		const bool has_volume = (FP::sph_formulation == SPH_GRENIER);
+		const float diff_term = d_densityDiffCoeff*d_sscoeff[fType]*
 			(volume_ratio<has_volume>::with(pdata, ndata) - 1)*
 			ndata.f*(has_volume ? -1 : ndata.relPos.w);
 
@@ -1158,7 +1236,9 @@ struct generic_compute_density_derivative {
 
 		nout.DrDt -= diff_term;
 	}
+};
 
+struct generic_compute_density_derivative {
 	// auxiliary function
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -1180,6 +1260,15 @@ struct generic_compute_density_derivative {
 	update_drho_dt(OP &pout, ON const& nout)
 	{ pout.force.w += nout.DrDt; }
 
+	// update force.w
+	template<typename FP, typename PD, typename N, typename ON>
+	__device__ __forceinline__
+	static void
+	generic_compute_density_diffusion(FP const& params, PD const& pdata, N const& ndata, ON &nout)
+	{
+		compute_density_diffusion<FP::densitydiffusiontype, FP::boundarytype, FP::cptype, FP::nptype>::with(params, pdata, ndata, nout);
+	}
+
 	// actual method
 	template<typename FP, typename PD, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -1194,13 +1283,9 @@ struct generic_compute_density_derivative {
 		} else {
 			// SPH_F1 or SPH_F2
 			common_with(params, pdata, ndata, pout, nout);
-			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
-			if (FP::simflags & ENABLE_FERRARI && FLUID(ndata.info))
-				ferrari_correction(params, pdata, ndata, pout, nout);
 		}
-		// Density diffusion term according to Colagrossi & Molteni 2009, CPC
-		if (FP::simflags & ENABLE_DENSITY_DIFFUSION && FLUID(ndata.info))
-			density_diffusion(params, pdata, ndata, pout, nout);
+		// Density diffusion
+		generic_compute_density_diffusion(params, pdata, ndata, nout);
 		/* The second formulation takes into consideration the density ratio */
 		if (FP::sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
@@ -1211,45 +1296,12 @@ struct generic_compute_density_derivative {
 };
 
 /// Generic version, no overrides
-template<BoundaryType boundarytype,
+template<DensityDiffusionType densitydiffusiontype,
+		BoundaryType boundarytype,
 		ParticleType cptype,
 		ParticleType nptype>
 struct compute_density_derivative : public generic_compute_density_derivative
 {};
-
-/// SA_BOUNDARY version: the methods ferrari_updates and update_drho_dt do not depend on the
-/// particle types, so they are implemented in the partial SA_BOUNDARY specialization
-template<ParticleType cptype,
-		ParticleType nptype>
-struct compute_density_derivative<SA_BOUNDARY, cptype, nptype> :
-public generic_compute_density_derivative
-{
-	// Ferrari updates nout.contDiff in the SA case
-	template<typename ON>
-	__device__ __forceinline__
-	static float&
-	ferrari_updates(ON &nout)
-	{ return nout.contDiff; }
-
-	// apply the density evolution to either forces or contupd depending on
-	// conditions
-	template<typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	update_drho_dt(OP &pout, ON const& nout)
-	{
-		pout.force.w += nout.DrDt;
-		pout.contupd.x += nout.contDiff;
-		pout.contupd.y += nout.DgamDt;
-	}
-
-	// actual method: will need specializations depending on the particle types, so here it is just declared
-	template<typename FP, typename PD, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
-	{}
-};
 
 /*
 /// A functor that computes the time derivative of rho
@@ -1377,29 +1429,20 @@ struct compute_density_derivative {
 
 // A functor that helps to compute the influence of eulerian velocities onto the governing equations
 template<bool inoutBoundaries>
-struct compute_relEulerVel_continuity_contribution {
+struct compute_gamma_dot_io {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
-		pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
-			// n . (v_a - v_s)
-			fabs(dot3(ndata.belem, ndata.relVel)), fmax(
-			// n . (v_a - u_s)
-			fabs(dot3(ndata.belem, pdata.vel)),
-			// n . (v_s + u_s)
-			fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel)) )));
-	}
+	{ /* do nothing */ }
 };
 
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_relEulerVel_continuity_contribution<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_gamma_dot_io<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DgamDt = -nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
+	nout.DgamDt -= nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
 	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
 	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
 		// n . (v_a - v_s)
@@ -1408,6 +1451,36 @@ compute_relEulerVel_continuity_contribution<true>::with(FP const& params, P cons
 		fabs(dot3(ndata.belem, pdata.vel+ndata.relEulerVel)),
 		// n . (v_s + u_s)
 		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) )));
+}
+
+// A functor that computes D gamma / Dt
+template<bool dynamic_gamma>
+struct
+compute_gamma_dot
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{ /* do nothing */ }
+};
+
+// Compute D gamma / Dt in the case of dynamic gamma
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+void
+compute_gamma_dot<true>::with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	// boundary term of div(v)
+	nout.DgamDt += dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+
+	// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
+	pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fabs(dot3(ndata.belem, ndata.relVel)) );
+
+	compute_gamma_dot_io<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
+
+	pout.dgamdt += nout.DgamDt;
 }
 
 
@@ -1492,61 +1565,49 @@ compute_density_derivative<SA_BOUNDARY, cptype, nptype>::with(FP const& params, 
 	update_drho_dt(pout, nout);
 }*/
 
-// Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_FLUID
-template<>
-template<typename FP, typename PD, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_density_derivative<SA_BOUNDARY, PT_FLUID, PT_FLUID>::with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
+// Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_FLUID or PT_VERTEX
+template<DensityDiffusionType densitydiffusiontype,
+		ParticleType nptype>
+struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, nptype> : generic_compute_density_derivative
 {
-	common_with(params, pdata, ndata, pout, nout);
+	template<typename FP, typename PD, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		common_with(params, pdata, ndata, pout, nout);
 
-	if (FP::simflags & ENABLE_FERRARI)
-		// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
-		ferrari_correction(params, pdata, ndata, pout, nout);
+		// Density diffusion
+		generic_compute_density_diffusion(params, pdata, ndata, nout);
 
-	/* The second formulation takes into consideration the density ratio */
-	if (FP::sph_formulation == SPH_F2)
-		nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+		/* The second formulation takes into consideration the density ratio */
+		if (FP::sph_formulation == SPH_F2)
+			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
 
-	/* Add contribution to density derivative */
-	update_drho_dt(pout, nout);
-}
-
-// Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_VERTEX
-template<>
-template<typename FP, typename PD, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_density_derivative<SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	common_with(params, pdata, ndata, pout, nout);
-
-	if (FP::simflags & ENABLE_FERRARI)
-		// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
-		ferrari_correction(params, pdata, ndata, pout, nout);
-
-	/* The second formulation takes into consideration the density ratio */
-	if (FP::sph_formulation == SPH_F2)
-		nout.DrDt *= pdata.vel.w/ndata.relVel.w;
-
-	/* Add contribution to density derivative */
-	update_drho_dt(pout, nout);
-}
+		/* Add contribution to density derivative */
+		update_drho_dt(pout, nout);
+	}
+};
 
 // Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_BOUNDARY
-template<>
-template<typename FP, typename PD, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_density_derivative<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
+template<DensityDiffusionType densitydiffusiontype>
+struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, PT_BOUNDARY> : generic_compute_density_derivative
 {
-	// boundary term of div(v)
-	nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+	template<typename FP, typename PD, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		// Boundary term for div(v)
+		nout.DrDt -= pdata.vel.w*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
 
-	// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
-	pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fabs(dot3(ndata.belem, ndata.relVel)) );
+		// Density diffusion
+		generic_compute_density_diffusion(params, pdata, ndata, nout);
 
-	/* Add contribution to density derivative */
-	update_drho_dt(pout, nout);
-}
+		/* Add contribution to density derivative */
+		update_drho_dt(pout, nout);
+	}
+};
 
 /// Functor to compute the pressure contribution to the particle acceleration.
 /// The results should be stored in nout.DvDt
@@ -2174,7 +2235,9 @@ compute_water_depth_at_outflow<SA_BOUNDARY, true>::with(FP const& params, P cons
 
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
-template<BoundaryType, ParticleType>
+template<BoundaryType boundarytype,
+		ParticleType cptype,
+		bool dynamic_gamma>
 struct write_gamma
 {
 	template<typename FP, typename P, typename OP>
@@ -2187,9 +2250,26 @@ struct write_gamma
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-write_gamma<SA_BOUNDARY, PT_BOUNDARY>::with(FP const& params, P const& pdata, OP& pout)
+write_gamma<SA_BOUNDARY, PT_BOUNDARY, false>::with(FP const& params, P const& pdata, OP& pout)
 {
 	params.newGGam[pdata.index] = pout.gGam;
+	//if ((FP::simflags & ENABLE_INLET_OUTLET && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) ||
+	//	(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f && (params.step==1 || pdata.ptype != PT_FLUID)))
+	//	params.newGGam[pdata.index] = pdata.oldGGam;
+	//else if (!((FP::simflags & ENABLE_DENSITY_SUM) && params.step==2)) {
+	//	// Gamma clipping (was previously in gamma_fixup)
+	//	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon), 1.0f);
+	//	params.newGGam[pdata.index] = pout.gGam;
+	//}
+}
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ void
+write_gamma<SA_BOUNDARY, PT_BOUNDARY, true>::with(FP const& params, P const& pdata, OP& pout)
+{
+	// only update gradient of gamma
+	as_float3(params.newGGam[pdata.index]) = as_float3(pout.gGam);
 	//if ((FP::simflags & ENABLE_INLET_OUTLET && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) ||
 	//	(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f && (params.step==1 || pdata.ptype != PT_FLUID)))
 	//	params.newGGam[pdata.index] = pdata.oldGGam;
@@ -2260,7 +2340,7 @@ write_forces<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout
 	params.forces[pdata.index].y = pout.force.y;
 	params.forces[pdata.index].z = pout.force.z;
 	params.forces[pdata.index].w = pout.force.w;
-	params.contupd[pdata.index] = pout.contupd;
+	params.dgamdt[pdata.index] = pout.dgamdt;
 }
 
 /*
@@ -2433,6 +2513,7 @@ struct forces_shared_data :
 /// A functor that computes particle-particle interaction
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags,
@@ -2454,19 +2535,20 @@ struct compute_pp_interaction
  */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		if (!(simflags & ENABLE_DENSITY_SUM)) {
-			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<boundarytype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+		if (!(simflags & ENABLE_DENSITY_SUM)) { // AM-TODO: this if can be probably removed
+			// Computes d\rho/dt, including density diffusion
+			compute_density_derivative<densitydiffusiontype, boundarytype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 		}
 
 		// Compute pressure part of acceleration
@@ -2490,10 +2572,11 @@ struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctyp
 /// Generic specialization of particle-particle interaction for boundary-fluid
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2505,9 +2588,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctyp
 
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, LJ_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, LJ_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2527,9 +2611,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, LJ_BOUNDARY, visctype
 
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, MK_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, MK_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2550,10 +2635,11 @@ struct compute_pp_interaction<kerneltype, sph_formulation, MK_BOUNDARY, visctype
 /// Generic specialization of particle-particle interaction for fluid-boundary
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2579,9 +2665,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctyp
  */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, DYN_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2590,7 +2677,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
 	{
 		if (!(simflags & ENABLE_DENSITY_SUM)) {
 			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<DYN_BOUNDARY, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+			compute_density_derivative<densitydiffusiontype, DYN_BOUNDARY, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 		}
 
 		// We need to compute force on boundary particles only when we have floating bodies or force feedback
@@ -2619,9 +2706,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
  */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctype, simflags, PT_FLUID, PT_BOUNDARY>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, DYN_BOUNDARY, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2630,7 +2718,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
 	{
 		if (!(simflags & ENABLE_DENSITY_SUM)) {
 			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<DYN_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+			compute_density_derivative<densitydiffusiontype, DYN_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 		}
 
 		// Compute pressure part of acceleration
@@ -2652,9 +2740,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, DYN_BOUNDARY, visctyp
 /// Specialization of particle-particle interaction for fluid-boundary with SA boundaries
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_FLUID, PT_BOUNDARY>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, SA_BOUNDARY, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2667,7 +2756,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 
 		if (!(simflags & ENABLE_DENSITY_SUM)) {
 			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+			compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 		}
 
 		// Compute pressure part of acceleration
@@ -2679,6 +2768,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
 		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
+		// Compute time derivative of gamma
+		compute_gamma_dot<simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, ndata, pout, nout);
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
@@ -2688,9 +2779,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 /// Specialization of particle-particle interaction for vertex-fluid with SA boundaries
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_VERTEX, PT_FLUID>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, SA_BOUNDARY, visctype, simflags, PT_VERTEX, PT_FLUID>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2718,9 +2810,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 /// Specialization of particle-particle interaction for fluid-vertex with SA boundaries
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_FLUID, PT_VERTEX>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, SA_BOUNDARY, visctype, simflags, PT_FLUID, PT_VERTEX>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2729,7 +2822,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 	{
 		if (!(simflags & ENABLE_DENSITY_SUM)) {
 			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
+			compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 		}
 
 		// Compute pressure part of acceleration
@@ -2749,9 +2842,10 @@ struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype
 /// Specialization of particle-particle interaction for fluid-boundary with SA boundaries
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
 	ViscosityType visctype,
 	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
+struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, SA_BOUNDARY, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -2894,13 +2988,13 @@ forcesDevice(
 			forces_neib_output<boundarytype> nout;
 
 			// Now compute the interactions based on pdata.info and ndata.info
-			compute_pp_interaction<kerneltype, sph_formulation, boundarytype, visctype, simflags, cptype, nptype>::
+			compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>::
 				with(params, pdata, ndata, pout, nout);
 
 		} // End of loop over neighbors
 
 		// TODO: check what to do with gamma
-		write_gamma<boundarytype, nptype>::with(params, pdata, pout);
+		write_gamma<boundarytype, nptype, simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, pout);
 
 		write_forces<boundarytype>::with(params, pdata, pout);
 

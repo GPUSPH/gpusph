@@ -41,7 +41,8 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<DYNAMICVISC>,
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
-		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES | ENABLE_FERRARI>
+		densitydiffusion<BREZZI>,
+		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES>
 	);
 
 	// *** Initialization of minimal physical parameters
@@ -51,8 +52,8 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal simulation parameters
 	simparams()->neiblistsize = 256 + 64 + 32; // 352
-	// ferrari correction
-	simparams()->ferrariLengthScale = 0.25f;
+	// Density diffusion term
+	simparams()->densityDiffCoeff = 1.0f;
 
 	// buildneibs at every iteration
 	simparams()->buildneibsfreq = 1;

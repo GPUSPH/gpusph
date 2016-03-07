@@ -102,6 +102,8 @@ enum CommandType {
 	FORCES_COMPLETE,
 	/// Integration (runs the Euler kernel)
 	EULER,
+	/// Integration of the density using an integral formulation
+	DENSITY_SUM,
 	/// Dump (device) particle data arrays into shared host arrays
 	DUMP,
 	/// Dump (device) cellStart and cellEnd into shared host arrays
@@ -131,6 +133,8 @@ enum CommandType {
 	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,
 	/// Compute the normal of a vertex in the initialization step
 	SA_COMPUTE_VERTEX_NORMAL,
+	/// Initialize gamma for dynamic gamma computation
+	SA_INIT_GAMMA,
 	/// SA_BOUNDARY only: identify vertices at corner of open boundaries.
 	/// Corner vertices do not generate new particles,
 	IDENTIFY_CORNER_VERTICES,

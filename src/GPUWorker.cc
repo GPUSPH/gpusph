@@ -106,7 +106,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_VEL>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_INFO>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>();
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CONTUPD>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_DGAMDT>();
 
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_HASH>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
@@ -1617,6 +1617,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing EULER\n", deviceIndex);
 				instance->kernel_euler();
 				break;
+			case DENSITY_SUM:
+				if (dbg_step_printf) printf(" T %d issuing DENSITY_SUM\n", deviceIndex);
+				instance->kernel_density_sum();
+				break;
 			case DUMP:
 				if (dbg_step_printf) printf(" T %d issuing DUMP\n", deviceIndex);
 				instance->dumpBuffers();
@@ -1676,6 +1680,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case SA_COMPUTE_VERTEX_NORMAL:
 				if (dbg_step_printf) printf(" T %d issuing SA_COMPUTE_VERTEX_NORMAL\n", deviceIndex);
 				instance->kernel_saComputeVertexNormal();
+				break;
+			case SA_INIT_GAMMA:
+				if (dbg_step_printf) printf(" T %d issuing SA_INIT_GAMMA\n", deviceIndex);
+				instance->kernel_saInitGamma();
 				break;
 			case SA_UPDATE_VERTIDINDEX:
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
@@ -1957,6 +1965,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		m_dIOwaterdepth,
 		cflOffset,
 		firstStep ? 1 : 2,
+		(firstStep ? 0.5f : 1.0f)*gdata->dt,
 		(m_simparams->numforcesbodies > 0) ? true : false);
 }
 
@@ -2238,6 +2247,30 @@ void GPUWorker::kernel_euler()
 		m_simparams->influenceRadius);
 }
 
+void GPUWorker::kernel_density_sum()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+
+	integrationEngine->density_sum(
+		m_dBuffers.getReadBufferList(),	// this is the read only arrays
+		m_dBuffers.getReadBufferList(),	// the read array but it will be written to in certain cases (densitySum)
+		m_dBuffers.getWriteBufferList(),
+		m_dCellStart,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->dt, // m_dt,
+		gdata->dt/2.0f, // m_dt/2.0,
+		firstStep ? 1 : 2,
+		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+}
+
 void GPUWorker::kernel_download_iowaterdepth()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2492,7 +2525,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				bufwrite.getData<BUFFER_GRADGAMMA>(),
 				bufwrite.getData<BUFFER_EULERVEL>(),
 				bufwrite.getData<BUFFER_FORCES>(),
-				bufwrite.getData<BUFFER_CONTUPD>(),
+				bufwrite.getData<BUFFER_DGAMDT>(),
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufwrite.getData<BUFFER_VERTICES>(),
 				bufread.getRawPtr<BUFFER_VERTPOS>(),
@@ -2530,6 +2563,25 @@ void GPUWorker::kernel_saComputeVertexNormal()
 				m_dBuffers.getReadBufferList(),
 				m_dBuffers.getWriteBufferList(),
 				m_dCellStart,
+				m_numParticles,
+				numPartsToElaborate);
+}
+
+void GPUWorker::kernel_saInitGamma()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	bcEngine->initGamma(
+				m_dBuffers.getReadBufferList(),
+				m_dBuffers.getWriteBufferList(),
+				m_dCellStart,
+				m_simparams->slength,
+				m_simparams->influenceRadius,
+				gdata->problem->m_deltap,
+				m_simparams->epsilon,
 				m_numParticles,
 				numPartsToElaborate);
 }

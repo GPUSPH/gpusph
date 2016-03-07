@@ -75,6 +75,7 @@ struct common_forces_params
 	const	float	slength;
 	const	float	influenceradius;
 	const	uint	step;
+	const	float	dt;
 
 	// Constructor / initializer
 	common_forces_params(
@@ -90,7 +91,8 @@ struct common_forces_params
 		const	float	_deltap,
 		const	float	_slength,
 		const	float	_influenceradius,
-		const	uint	_step) :
+		const	uint	_step,
+		const	float	_dt) :
 		forces(_forces),
 		rbforces(_rbforces),
 		rbtorques(_rbtorques),
@@ -103,7 +105,8 @@ struct common_forces_params
 		deltap(_deltap),
 		slength(_slength),
 		influenceradius(_influenceradius),
-		step(_step)
+		step(_step),
+		dt(_dt)
 	{}
 };
 
@@ -202,7 +205,7 @@ struct volume_forces_params
 struct sa_boundary_forces_params
 {
 			float4	*newGGam;
-			float2	*contupd;
+			float	*dgamdt;
 	const	float2	*vertPos0;
 	const	float2	*vertPos1;
 	const	float2	*vertPos2;
@@ -211,11 +214,11 @@ struct sa_boundary_forces_params
 	// Constructor / initializer
 	sa_boundary_forces_params(
 				float4	*_newGGam,
-				float2	*_contupd,
+				float	*_dgamdt,
 		const	float2	* const _vertPos[],
 		const	float	_epsilon) :
 		newGGam(_newGGam),
-		contupd(_contupd),
+		dgamdt(_dgamdt),
 		epsilon(_epsilon)
 	{
 		if (_vertPos) {
@@ -233,16 +236,16 @@ struct sa_finalize_forces_params
 {
 	const	float4	*gGam;
 	const	float4	*oldGGam;
-			float2	*contupd;
+			float	*dgamdt;
 
 	// Constructor / initializer
 	sa_finalize_forces_params(
 		const	float4	*_gGam,
 		const	float4	*_oldGGam,
-				float2	*_contupd) :
+				float	*_dgamdt) :
 		gGam(_gGam),
 		oldGGam(_oldGGam),
-		contupd(_contupd)
+		dgamdt(_dgamdt)
 	{}
 };
 
@@ -250,10 +253,10 @@ struct sa_finalize_forces_params
 /// in case of of a fluid/fluid interaction
 struct sa_forces_params
 {
-	float2	*contupd;
+	float	*dgamdt;
 
 	// Constructor / initializer
-	sa_forces_params(float2	*_contupd):contupd(_contupd)
+	sa_forces_params(float	*_dgamdt):dgamdt(_dgamdt)
 	{}
 };
 
@@ -290,7 +293,7 @@ struct forces_params :
 	common_forces_params,
 	COND_STRUCT((_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
-		_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params),
+		_densitydiffusiontype == COLAGROSSI, volume_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype == PT_FLUID && _nptype == PT_FLUID, sa_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_forces_params),
@@ -322,10 +325,11 @@ struct forces_params :
 				uint	_fromParticle,
 				uint	_toParticle,
 
-				float	_deltap,
-				float	_slength,
-				float	_influenceradius,
-				uint	_step,
+		const	float	_deltap,
+		const	float	_slength,
+		const	float	_influenceradius,
+		const	uint	_step,
+		const	float	_dt,
 
 		// XSPH
 				float4	*_xsph,
@@ -336,7 +340,7 @@ struct forces_params :
 
 		// SA_BOUNDARY
 				float4	*_newGGam,
-				float2	*_contupd,
+				float	*_dgamdt,
 		const	float2	* const _vertPos[],
 		const	float	_epsilon,
 
@@ -350,15 +354,15 @@ struct forces_params :
 		common_forces_params(_forces, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
-			_deltap, _slength, _influenceradius, _step),
+			_deltap, _slength, _influenceradius, _step, _dt),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
 		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
-			_simflags & ENABLE_DENSITY_DIFFUSION, volume_forces_params)(_volArray),
+			densitydiffusiontype == COLAGROSSI, volume_forces_params)(_volArray),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype == PT_FLUID && nptype == PT_FLUID, sa_forces_params)
-			(_contupd),
+			(_dgamdt),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_forces_params)
-			(_newGGam, _contupd, _vertPos, _epsilon),
+			(_newGGam, _dgamdt, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}
@@ -412,7 +416,7 @@ struct finalize_forces_params :
 		// SA_BOUNDARY
 		const	float4	*_gGam,
 		const	float4	*_oldGGam,
-				float2	*_contupd,
+				float	*_dgamdt,
 
 		// ENABLE_WATER_DEPTH
 				uint	*_IOwaterdepth,
@@ -427,7 +431,7 @@ struct finalize_forces_params :
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params)
 			(_cfl_forces, _cfl_densitysum, _cfl_keps, _cflOffset),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam, _oldGGam, _contupd),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam, _oldGGam, _dgamdt),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}

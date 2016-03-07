@@ -18,9 +18,9 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<KEPSVISC>,
 		boundary<SA_BOUNDARY>,
 		formulation<SPH_F2>,
+		densitydiffusion<BREZZI>,
 		add_flags<
 			ENABLE_INLET_OUTLET |
-			ENABLE_FERRARI |
 			ENABLE_WATER_DEPTH |
 			ENABLE_DENSITY_SUM>
 	);
@@ -41,7 +41,7 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->dt = 0.00001f;
 	simparams()->dtadaptfactor = 0.1;
 	simparams()->buildneibsfreq = 1;
-	simparams()->ferrari= 1.0f;
+	simparams()->densityDiffCoeff = 1.0f;
 	simparams()->nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain

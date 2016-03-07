@@ -129,6 +129,7 @@ public:
 				uint	*IOwaterdepth,
 				uint	cflOffset,
 		const	uint	step,
+		const	float	dt,
 		const	bool compute_object_forces) = 0;
 
 	// Reduction methods

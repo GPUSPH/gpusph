@@ -389,10 +389,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_gridSize, &gridSize, sizeof(uint3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_cellSize, &cellSize, sizeof(float3)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ferrari, &simparams->ferrari, sizeof(float)));
-
-	const float rhodiffcoeff = simparams->rhodiffcoeff*2*simparams->slength;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rhodiffcoeff, &rhodiffcoeff, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_densityDiffCoeff, &simparams->densityDiffCoeff, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
 }
@@ -623,6 +620,7 @@ basicstep(
 	uint	*IOwaterdepth,
 	uint	cflOffset,
 	const	uint	step,
+	const	float	dt,
 	const	bool compute_object_forces)
 {
 	const float4 *pos = bufread->getData<BUFFER_POS>();
@@ -637,7 +635,7 @@ basicstep(
 
 	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
 	float4 *xsph = bufwrite->getData<BUFFER_XSPH>();
-	float2 *contupd = bufwrite->getData<BUFFER_CONTUPD>();
+	float *dgamdt = bufwrite->getData<BUFFER_DGAMDT>();
 	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
 
 	// TODO FIXME TURBVISC, TKE, EPSILON are in/out, but they are taken from the READ position
@@ -655,11 +653,11 @@ basicstep(
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemset(contupd + fromParticle, 0, numParticlesInRange*sizeof(float2)));
-	if (boundarytype == SA_BOUNDARY) {
-		thrust::device_ptr<float4> dev_ptr(newGGam);
-		thrust::fill(dev_ptr + fromParticle, dev_ptr + toParticle, make_float4(0, 0, 0, 1));
-	}
+	CUDA_SAFE_CALL(cudaMemset(dgamdt + fromParticle, 0, numParticlesInRange*sizeof(float)));
+	//if (boundarytype == SA_BOUNDARY) {
+	//	thrust::device_ptr<float4> dev_ptr(newGGam);
+	//	thrust::fill(dev_ptr + fromParticle, dev_ptr + toParticle, make_float4(0, 0, 0, 1));
+	//}
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
@@ -675,22 +673,22 @@ basicstep(
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID> params_ff(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
+			deltap, slength, influenceradius, step, dt,
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
+			newGGam, dgamdt, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
+			deltap, slength, influenceradius, step, dt,
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
+			newGGam, dgamdt, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
@@ -698,11 +696,11 @@ basicstep(
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step,
+			deltap, slength, influenceradius, step, dt,
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, contupd, vertPos, epsilon,
+			newGGam, dgamdt, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
@@ -715,11 +713,11 @@ basicstep(
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
 				forces, rbforces, rbtorques,
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, step,
+				deltap, slength, influenceradius, step, dt,
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
-				newGGam, contupd, vertPos, epsilon,
+				newGGam, dgamdt, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc);
 
@@ -729,11 +727,11 @@ basicstep(
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY> params_vb(
 				forces, rbforces, rbtorques,
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, step,
+				deltap, slength, influenceradius, step, dt,
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
-				newGGam, contupd, vertPos, epsilon,
+				newGGam, dgamdt, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc);
 
@@ -759,7 +757,7 @@ basicstep(
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl_forces, cfl_densitysum, cfl_keps, cflOffset,
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, oldGGam, contupd,
+			newGGam, oldGGam, dgamdt,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 

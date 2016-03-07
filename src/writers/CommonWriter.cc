@@ -263,20 +263,29 @@ CommonWriter::write_simparams(ostream &out)
 	if (SP->simflags & ENABLE_DTADAPT)
 		out << "    safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
 	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
-	out << " Density diffusion " << ED[!!(SP->simflags & ENABLE_DENSITY_DIFFUSION)] << endl;
-	if (SP->simflags & ENABLE_DENSITY_DIFFUSION) {
-		out << "    ξ = " << SP->rhodiffcoeff << endl;
-	}
 
-	out << " Ferrari correction " << ED[!!(SP->simflags & ENABLE_FERRARI)] << endl;
-	if (SP->simflags & ENABLE_FERRARI) {
+	switch (SP->densitydiffusiontype) {
+	case FERRARI:
+		out << " Ferrari density diffusion enabled" << endl;
 		out << "    Ferrari length scale = " ;
 		if (isnan(SP->ferrariLengthScale))
 			out << "unset";
 		else
 			out << SP->ferrariLengthScale;
 		out << endl;
-		out << "    Ferrari coefficient = " << SP->ferrari << endl;
+		out << "    Diffusion coefficient = " << SP->densityDiffCoeff << endl;
+		break;
+	case BREZZI:
+		out << " Brezzi density diffusion enabled" << endl;
+		out << "    Diffusion coefficient = " << SP->densityDiffCoeff << endl;
+		break;
+	case COLAGROSSI:
+		out << " Colagrossi density diffusion enabled" << endl;
+		// recompute the input xi
+		out << "    ξ = " << SP->densityDiffCoeff/(2.0f*SP->slength) << endl;
+		break;
+	default:
+		break;
 	}
 	out << " moving bodies " << ED[!!(SP->simflags & ENABLE_MOVING_BODIES)] << endl;
 	out << " open boundaries " << ED[!!(SP->simflags & ENABLE_INLET_OUTLET)] << endl;

@@ -149,12 +149,37 @@ compute_corrected_velocity<true>::with(EP const& params, P &pdata)
 	pdata.velc.z += d_epsxsph*pdata.xpsh.z;
 }
 
-// A functor that helps to integrate density, SA or volume
+// A functor that helps to integrate density or volume
 enum continuity_integration_type {
 	INTEGRATE_VOLUME,
-	INTEGRATE_SA,
 	INTEGRATE_DENSITY
 };
+
+template<bool dynamic_gamma>
+struct gamma_integration {
+	template<typename EP, typename P>
+	__device__ __forceinline__
+	static void
+	with(EP const& params, P &pdata, int index, float dt)
+	{ /* do nothing */ }
+};
+
+// integrate gamma
+template<>
+template<typename EP, typename P>
+__device__ __forceinline__ void
+gamma_integration<true>::with(EP const& params, P &pdata, int index, float dt)
+{
+	// calculation of new gamma (gamma^{n+1} = gamma^n + dt*<v,grad gamma>)
+	float newGam = params.oldgGam[index].w + dt*params.dgamdt[index];
+	// clipping of new gamma
+	if (newGam > 1.0f || length3(params.oldgGam[index])*params.slength < 1e-10f)
+		newGam = 1.0f;
+	else if (newGam < 0.1f)
+		newGam = 0.1f;
+	// writing of new gamma
+	params.newgGam[index].w = newGam;
+}
 
 template<enum continuity_integration_type>
 struct continuity_integration {
@@ -176,6 +201,7 @@ continuity_integration<INTEGRATE_VOLUME>::with(EP const& params, P &pdata, int i
 	pdata.vol.y += dt*pdata.force.w;
 }
 
+/*
 //specialization for SA Boundary
 template<>
 template<typename EP, typename P>
@@ -212,7 +238,7 @@ continuity_integration<INTEGRATE_SA>::with(EP const& params, P &pdata, int index
 			params.influenceradius,
 			params.step);
 }
-
+*/
 // A functor that helps to integrate when k-e model is enabled
 template<bool k_e_Enabled>
 struct k_e_integration {
@@ -420,7 +446,7 @@ write_viscosity_coeff<KEPSVISC>::with(EP const& params, P &pdata, int index)
  *	\param[in] oldEps : previous values of e, for k-e model
  *	\param[in] particleInfo : particle's information
  *	\param[in] forces : derivative of particle's velocity and density
- *	\param[in] contupd : ??? <- TODO
+ *	\param[in] dgamdt : time derivative of gamma
  *	\param[in] keps_dkde : derivative of ??? <- TODO
  *	\param[in] xsph : SPH mean of velocities used for xsph correction
  *	\param[out] newPos : updated particle's position
@@ -491,11 +517,23 @@ eulerDevice(
 
 				// Grenier evolves the volume, not the density,
 				// all other evolve the density directly.
+				// AM-TODO in the density sum case this only updates the density
+				// with the diffusion term, so we would need it only in step == 1
 				continuity_integration<
-					boundarytype == SA_BOUNDARY ? INTEGRATE_SA :
-					(sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
-					INTEGRATE_DENSITY)
+					sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
+					INTEGRATE_DENSITY
 				>::with(params, pdata, index, dt);
+
+				// AM-TODO if step would be a template parameter we could avoid this if
+				// The old density is updated with the diffusion term
+				if (simflags & ENABLE_DENSITY_SUM && params.step == 1)
+					params.oldVel[index].w = pdata.vel.w;
+
+				// Update gamma
+				// In the density sum case this is done in the respective kernel. The
+				// reason being that density jumps can occur if gamma is not computed
+				// properly
+				gamma_integration<(simflags & ENABLE_DYNAMIC_GAMMA) && !(simflags & ENABLE_DENSITY_SUM)>::with(params, pdata, index, dt);
 
 				as_float3(pdata.vel) += dt*as_float3(pdata.force);
 
@@ -504,12 +542,15 @@ eulerDevice(
 
 				break;
 
-		/* BOUNDARY and VERTEX particles behave essentially in the same way, so they are
+		/* BOUNDARY and VERTEX particles behave in nearly the same way, so they are
 		   handled in the same switch case (VERTEX particles are only preset in SA_BOUNDARY
 		   case)
 		 */
-		case PT_BOUNDARY:
 		case PT_VERTEX:
+			// only difference is that vertex needs the gamma to be updated in the dynamic case
+			gamma_integration<simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, index, dt);
+
+		case PT_BOUNDARY:
 
 			// integration pos and vel for moving objects
 			if (MOVING(pdata.info)) {
