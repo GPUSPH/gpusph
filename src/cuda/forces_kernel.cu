@@ -1010,7 +1010,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			// - velocity (for moving objects)
 			// - gGam if not yet computed
 			// - Eulerian velocity (if TKE is enabled and only for solid walls)
-			if (verts.x == id(info) || verts.y == id(info) || verts.z == id(info)) {
+			if (verts.x == id(neib_info) || verts.y == id(neib_info) || verts.z == id(neib_info)) {
 				if (MOVING(info))
 					vel += as_float3(oldVel[neib_index]);
 				if (calcGam)
@@ -1056,11 +1056,16 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 
 		// set variables that have been obtained as average from the associated vertices
+		// we write only into array positions that are associated with segments here
+		// all the reads above are only on fluid or vertex particles
 		as_float3(oldVel[index]) = vel/3.0f;
 		if (calcGam) {
 			gGam /= 3.0f;
 			oldGGam[index] = gGam;
+			gGam.w = fmax(gGam.w, 1e-5f);
 		}
+		if (!IO_BOUNDARY(info) && oldTKE)
+			eulerVel /= 3.0f;
 
 		if (IO_BOUNDARY(info)) {
 			if (alpha > 0.1f*gGam.w) { // note: defaults are set in the place where bcs are imposed
