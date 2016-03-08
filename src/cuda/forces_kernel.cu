@@ -924,7 +924,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 										float4*		oldEulerVel,
 										float4*		oldGGam,
 										vertexinfo*	vertices,
-								const	uint*		vertIDToIndex,
 								const	float2*		vertPos0,
 								const	float2*		vertPos1,
 								const	float2*		vertPos2,
@@ -1251,7 +1250,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
  *	\param[in,out] forces : pointer to forces; used only for cloning
  *	\param[in,out] contupd : pointer to contudp; used only for cloning
  *	\param[in,out] vertices : pointer to associated vertices; fluid particles have this information if they are passing through a boundary and are going to be deleted
- *	\param[in] vertIDToIndex : pointer that associated a vertex id with an array index
  *	\param[in] vertPos[0] : relative position of the vertex 0 with respect to the segment center
  *	\param[in] vertPos[1] : relative position of the vertex 1 with respect to the segment center
  *	\param[in] vertPos[2] : relative position of the vertex 2 with respect to the segment center
@@ -1285,7 +1283,6 @@ saVertexBoundaryConditions(
 				const	float2*			vertPos0,
 				const	float2*			vertPos1,
 				const	float2*			vertPos2,
-				const	uint*			vertIDToIndex,
 						particleinfo*	pinfo,
 						hashKey*		particleHash,
 				const	uint*			cellStart,
@@ -1672,7 +1669,6 @@ initGamma(
 				const	float4*			oldPos,
 				const	float4*			oldGGam,
 				const	vertexinfo*		vertices,
-				const	uint*			vertIDToIndex,
 				const	float2*			vertPos0,
 				const	float2*			vertPos1,
 				const	float2*			vertPos2,
@@ -1811,7 +1807,6 @@ __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 initIOmass_vertexCount(
 				const	vertexinfo*		vertices,
-				const	uint*			vertIDToIndex,
 				const	hashKey*		particleHash,
 				const	particleinfo*	pinfo,
 				const	uint*			cellStart,
@@ -1912,7 +1907,6 @@ initIOmass(
 				const	float4*			oldPos,
 				const	float4*			forces,
 				const	vertexinfo*		vertices,
-				const	uint*			vertIDToIndex,
 				const	hashKey*		particleHash,
 				const	particleinfo*	pinfo,
 				const	uint*			cellStart,

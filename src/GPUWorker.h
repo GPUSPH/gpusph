@@ -245,7 +245,6 @@ private:
 	void kernel_sps();
 	void kernel_meanStrain();
 	void kernel_reduceRBForces();
-	void kernel_updateVertIdIndexBuffer();
 	void kernel_saSegmentBoundaryConditions();
 	void kernel_saVertexBoundaryConditions();
 	void kernel_saIdentifyCornerVertices();
@@ -262,7 +261,6 @@ private:
 	void uploadGravity();*/
 
 	void checkPartValByIndex(const char* printID, const uint pindex);
-	void checkPartValById(const char* printID, const uint pid);
 
 	// asynchronous alternative to kernel_force
 	void kernel_forces_async_enqueue();

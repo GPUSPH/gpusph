@@ -464,37 +464,6 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 	}
 }
 
-
-/// Update ID-to-particleIndex lookup table (BUFFER_VERTIDINDEX)
-/*! Update ID-to-particleIndex lookup table. This kernel should be
- * 	called after the reorder.
- * 	\param[in] particleInfo : particle's informations
- * 	\param[out] vertIDToIndex : ID-to-particle index lookup table, overwritten
- * 	\param[in] numParticles : total number of particles
- */
-__global__
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-/*! \endcond */
-void updateVertIDToIndexDevice(	const particleinfo*	particleInfo,	///< particle's informations (in)
-								uint*			vertIDToIndex,		///< vertex ID to index array (out)
-								const uint		numParticles)		///< total number of particles (in)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	// Handle the case when number of particles is not multiple of block size
-	if (index >= numParticles)
-		return;
-
-	// Assuming vertIDToIndex is allocated, since this kernel is called only with SA bounds
-	particleinfo info = particleInfo[index];
-
-	// Only vertex particles need to have this information, it should not be done
-	// for fluid particles as their id's can grow and cause buffer overflows
-	if(VERTEX(info))
-		// As the vertex particles never change their id (which is <= than the initial
-		// particle count), this buffer does not overflow
-		vertIDToIndex[ id(info) ] = index;
-}
 /** @} */
 
 
@@ -656,12 +625,7 @@ struct sa_boundary_niC_vars
 			),
 		// The second coordinate is the cross product between the normal and the first coordinate
 		coord2( cross3(boundElement, coord1) )
-		{
-			// Here local copy of part IDs of vertices are replaced by the correspondent part indices
-			vertices.x = bparams.vertIDToIndex[vertices.x];
-			vertices.y = bparams.vertIDToIndex[vertices.y];
-			vertices.z = bparams.vertIDToIndex[vertices.z];
-		}
+		{ }
 };
 
 
@@ -740,7 +704,7 @@ bool isCloseEnough<SA_BOUNDARY>(float3 const& relPos, particleinfo const& neib_i
  */
 template<BoundaryType boundarytype>
 __device__ __forceinline__
-void process_niC_segment(const uint index, const uint neib_index, float3 const& relPos,
+void process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
 	buildneibs_params<boundarytype> const& params,
 	niC_vars<boundarytype> const& var)
 { /* Do nothing by default */ }
@@ -750,16 +714,16 @@ void process_niC_segment(const uint index, const uint neib_index, float3 const& 
 /// \see process_niC_segment
 template<>
 __device__ __forceinline__
-void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_index, float3 const& relPos,
+void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_id, float3 const& relPos,
 	buildneibs_params<SA_BOUNDARY> const& params,
 	niC_vars<SA_BOUNDARY> const& var)
 {
 	int i = -1;
-	if (neib_index == var.vertices.x)
+	if (neib_id == var.vertices.x)
 		i = 0;
-	else if (neib_index == var.vertices.y)
+	else if (neib_id == var.vertices.y)
 		i = 1;
-	else if (neib_index == var.vertices.z)
+	else if (neib_id == var.vertices.z)
 		i = 2;
 	if (i>-1) {
 		// relPosProj is the projected relative position of the vertex to the segment.
@@ -885,7 +849,7 @@ neibsInCell(
 			neibs_num++;
 		}
 		if (segment) {
-			process_niC_segment(index, neib_index, relPos, params, var);
+			process_niC_segment(index, id(neib_info), relPos, params, var);
 		}
 
 	}

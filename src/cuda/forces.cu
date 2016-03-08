@@ -1087,7 +1087,6 @@ saSegmentBoundaryConditions(
 			float4*			oldEulerVel,
 			float4*			oldGGam,
 			vertexinfo*		vertices,
-	const	uint*			vertIDToIndex,
 	const	float2	* const vertPos[],
 	const	float4*			boundelement,
 	const	particleinfo*	info,
@@ -1116,7 +1115,7 @@ saSegmentBoundaryConditions(
 
 	// execute the kernel
 	cuforces::saSegmentBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertIDToIndex, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, step, simflags & ENABLE_INLET_OUTLET);
+		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, step, simflags & ENABLE_INLET_OUTLET);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
@@ -1142,7 +1141,6 @@ saVertexBoundaryConditions(
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
 	const	float2			* const vertPos[],
-	const	uint*			vertIDToIndex,
 			particleinfo*	info,
 			hashKey*		particleHash,
 	const	uint*			cellStart,
@@ -1174,7 +1172,7 @@ saVertexBoundaryConditions(
 
 	// execute the kernel
 	cuforces::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, contupd, vertices, vertPos[0], vertPos[1], vertPos[2], vertIDToIndex, info, particleHash, cellStart, neibsList,
+		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, contupd, vertices, vertPos[0], vertPos[1], vertPos[2], info, particleHash, cellStart, neibsList,
 		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
 
 	// check if kernel invocation generated an error
@@ -1206,12 +1204,11 @@ initIOmass_vertexCount(
 	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
 	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
 	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
-	const uint *vertIDToIndex = bufread->getData<BUFFER_VERTIDINDEX>();
 	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
 
 	// execute the kernel
 	cuforces::initIOmass_vertexCount<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(vertices, vertIDToIndex, pHash, info, cellStart, neibsList, forces, particleRangeEnd);
+		(vertices, pHash, info, cellStart, neibsList, forces, particleRangeEnd);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -1242,13 +1239,12 @@ initIOmass(
 	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
 	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
 	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
-	const uint *vertIDToIndex = bufread->getData<BUFFER_VERTIDINDEX>();
 
 	float4 *newPos = bufwrite->getData<BUFFER_POS>();
 
 	// execute the kernel
 	cuforces::initIOmass<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, forces, vertices, vertIDToIndex, pHash, info, cellStart, neibsList, newPos, particleRangeEnd, deltap);
+		(oldPos, forces, vertices, pHash, info, cellStart, neibsList, newPos, particleRangeEnd, deltap);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -1283,13 +1279,12 @@ initGamma(
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
 	const float4 *oldGGam = bufread->getData<BUFFER_GRADGAMMA>();
 	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
-	const uint *vertIDToIndex = bufread->getData<BUFFER_VERTIDINDEX>();
 	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
 	float4 *boundelement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
 	// execute the kernel
 	cuforces::initGamma<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(newGGam, boundelement, pos, oldGGam, vertices, vertIDToIndex, vertPos[0], vertPos[1], vertPos[2], pHash, info, cellStart, neibsList, particleRangeEnd, slength, deltap, influenceradius, epsilon);
+		(newGGam, boundelement, pos, oldGGam, vertices, vertPos[0], vertPos[1], vertPos[2], pHash, info, cellStart, neibsList, particleRangeEnd, slength, deltap, influenceradius, epsilon);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

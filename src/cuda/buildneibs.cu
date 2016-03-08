@@ -317,20 +317,6 @@ reorderDataAndFindCellStart(
 		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
 }
 
-
-/// Update vertex ID
-void
-updateVertIDToIndex(
-	const particleinfo	*particleInfo,
-			uint	*vertIDToIndex,
-	const	uint	numParticles)
-{
-	uint numThreads = BLOCK_SIZE_REORDERDATA;
-	uint numBlocks = div_up(numParticles, numThreads);
-
-	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
-}
-
 /// Functor to sort particles by hash (cell), and
 /// by fluid number within the cell
 struct ptype_hash_compare :
@@ -399,7 +385,6 @@ const	particleinfo*info,
 		vertexinfo	*vertices,
 const	float4		*boundelem,
 		float2		*vertPos[],
-const	uint		*vertIDToIndex,
 const	hashKey		*particleHash,
 const	uint		*cellStart,
 const	uint		*cellEnd,
@@ -441,7 +426,7 @@ const	float		boundNlSqInflRad)
 	}
 
 	buildneibs_params<boundarytype> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, vertIDToIndex, boundNlSqInflRad);
+			vertPos, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
 

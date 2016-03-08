@@ -133,7 +133,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTIDINDEX>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_GRADGAMMA>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_BOUNDELEMENTS>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTICES>();
@@ -1673,10 +1672,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_VERTEX_BOUNDARY_CONDITIONS\n", deviceIndex);
 				instance->kernel_saVertexBoundaryConditions();
 				break;
-			case SA_UPDATE_VERTIDINDEX:
-				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
-				instance->kernel_updateVertIdIndexBuffer();
-				break;
 			case IDENTIFY_CORNER_VERTICES:
 				if (dbg_step_printf) printf(" T %d issuing IDENTIFY_CORNER_VERTICES\n", deviceIndex);
 				instance->kernel_saIdentifyCornerVertices();
@@ -1929,7 +1924,6 @@ void GPUWorker::kernel_buildNeibsList()
 					(vertexinfo*)bufread.getData<BUFFER_VERTICES>(),
 					bufread.getData<BUFFER_BOUNDELEMENTS>(),
 					bufwrite.getRawPtr<BUFFER_VERTPOS>(),
-					bufwrite.getData<BUFFER_VERTIDINDEX>(),
 					bufwrite.getData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
@@ -2497,7 +2491,6 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				bufwrite.getData<BUFFER_EULERVEL>(),
 				bufwrite.getData<BUFFER_GRADGAMMA>(),
 				bufwrite.getData<BUFFER_VERTICES>(),
-				bufread.getData<BUFFER_VERTIDINDEX>(),
 				bufread.getRawPtr<BUFFER_VERTPOS>(),
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufread.getData<BUFFER_INFO>(),
@@ -2511,23 +2504,6 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				m_simparams->influenceRadius,
 				initStep,
 				firstStep ? 1 : 2);
-}
-
-void GPUWorker::kernel_updateVertIdIndexBuffer()
-{
-	// it is possible to run on internal particles only, although current design makes it meaningful only on all particles
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	neibsEngine->updateVertIDToIndex(
-						bufread.getData<BUFFER_INFO>(),
-						bufwrite.getData<BUFFER_VERTIDINDEX>(),
-						numPartsToElaborate);
 }
 
 void GPUWorker::kernel_saVertexBoundaryConditions()
@@ -2559,7 +2535,6 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufwrite.getData<BUFFER_VERTICES>(),
 				bufread.getRawPtr<BUFFER_VERTPOS>(),
-				bufread.getData<BUFFER_VERTIDINDEX>(),
 
 				// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position
 				// (updated in-place for generated particles)
@@ -2745,24 +2720,6 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 		}
 	}
 	*/
-}
-
-// Analogous to checkPartValByIndex(), but locates the particle by ID through the BUFFER_VERTIDINDEX
-// hash table. This is available only when SA_BOUNDARY is being used and only for VERTEX particles,
-// unless updateVertIDToIndexDevice() is changed to update also non-vertex particles.
-// WARNING: fixing updateVertIDToIndexDevice() for fluid particles is dangerous if there is an inlet,
-// since the ID of generate parts easily overflows the number of allocated particles!
-void GPUWorker::checkPartValById(const char* printID, const uint pid)
-{
-	// here it is possible to set a condition, e.g.:
-	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
-
-	uint pidx = 0;
-
-	// retrieve part index, if BUFFER_VERTIDINDEX was set also for this particle
-	CUDA_SAFE_CALL(cudaMemcpy(&pidx, m_dBuffers.getReadBufferList()->getData<BUFFER_VERTIDINDEX>() + pid, sizeof(uint), cudaMemcpyDeviceToHost));
-
-	checkPartValByIndex(printID, pidx);
 }
 
 

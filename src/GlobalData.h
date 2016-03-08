@@ -120,8 +120,6 @@ enum CommandType {
 	FILTER,
 	/// Run post-processing filters (e.g. vorticity, testpoints)
 	POSTPROCESS,
-	/// SA_BOUNDARY only: update the vertex ID-to-index map
-	SA_UPDATE_VERTIDINDEX,
 	/// SA_BOUNDARY only: compute segment boundary conditions and identify fluid particles
 	/// that leave open boundaries
 	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,
