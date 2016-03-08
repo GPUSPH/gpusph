@@ -204,7 +204,7 @@ struct sa_integrate_continuity_equation
 				// set the Np1 position of a to the virtual position that is saved
 				shift_pos = make_float4(posNp1Obj) - posNp1;
 			}
-			else if (FLUID(neib_info) || (MOVING(neib_info) && step==1)) {
+			else if (FLUID(neib_info)) {
 				posNp1_neib += dt*velN_neib;
 			}
 			// vector r_{ab} at time N

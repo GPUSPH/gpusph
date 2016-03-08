@@ -53,12 +53,10 @@ SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 
 #define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
 SET_BUFFER_TRAITS(BUFFER_PARTINDEX, uint, 1, "Particle Index");
-#define BUFFER_VERTIDINDEX		(BUFFER_PARTINDEX << 1)
-SET_BUFFER_TRAITS(BUFFER_VERTIDINDEX, uint, 1, "Vertex ID to Particle Index");
 
 // not used for the time being. evaluate if they should be migrated to the buffer mechanism
 // too or not
-#define BUFFER_CELLSTART	(BUFFER_VERTIDINDEX << 1)
+#define BUFFER_CELLSTART	(BUFFER_PARTINDEX << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLSTART, uint, 1, "Cell Start");
 #define BUFFER_CELLEND		(BUFFER_CELLSTART << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLEND, uint, 1, "Cell End");
