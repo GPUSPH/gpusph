@@ -204,7 +204,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		hot_in.exceptions(ifstream::failbit | ifstream::badbit);
 		hot_in.open(fname);
 		hf = new HotFile(hot_in, gdata);
-		hf->readHeader(gdata->totParticles);
+		hf->readHeader(gdata->totParticles, gdata->problem->simparams()->numOpenBoundaries);
 	}
 
 	// allocate the particles of the *whole* simulation

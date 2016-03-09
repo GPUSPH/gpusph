@@ -137,6 +137,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 		_header.particle_count = _particle_count;
 		//TODO FIXME
 		_header.body_count = _gdata->problem->simparams()->numbodies;
+		_header.numOpenBoundaries = _gdata->problem->simparams()->numOpenBoundaries;
 		_header.iterations = _gdata->iterations;
 		_header.dt = _gdata->dt;
 		_header.t = _gdata->t;
@@ -147,7 +148,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 	}
 }
 
-void HotFile::readHeader(uint &part_count) {
+void HotFile::readHeader(uint &part_count, uint &numOpenBoundaries) {
 	memset(&_header, 0, sizeof(_header));
 
 	// read and check version
@@ -159,6 +160,7 @@ void HotFile::readHeader(uint &part_count) {
 	_fp.in->seekg(0); // rewind
 	_fp.in->read((char*)&_header, sizeof(_header));
 	_particle_count = _header.particle_count;
+	numOpenBoundaries = _header.numOpenBoundaries;
 	part_count = _particle_count;
 }
 
