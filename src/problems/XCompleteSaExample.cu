@@ -96,16 +96,16 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 
 	// fluid
-	addHDF5File(GT_FLUID, Point(0,0,0), "./sa/0.xcomplete_sa_example.fluid.h5sph", NULL);
+	addHDF5File(GT_FLUID, Point(0,0,0), "./meshes/XCompleteSaExample/0.xcomplete_sa_example.fluid.h5sph", NULL);
 
 	// main container
 	GeometryID container =
-		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent0.h5sph", NULL);
+		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./meshes/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent0.h5sph", NULL);
 	disableCollisions(container);
 
 	// Inflow square. Load it as GT_FIXED_BOUNDARY to disable it.
 	GeometryID inlet =
-		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
+		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./meshes/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 
 	// set velocity or pressure driven (see define in header)
@@ -115,8 +115,8 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// Floating box, with STL mesh for collision detection
 	// GT_FLOATING_BODY for floating, GT_MOVING_BODY for force measurement only
 	GeometryID cube =
-		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent2.h5sph",
-			"./meshes/CompleteSaExample_cube_coarse.stl");
+		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./meshes/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent2.h5sph",
+			"./meshes/XCompleteSaExample/CompleteSaExample_cube_coarse.stl");
 
 	enableFeedback(cube);
 
