@@ -33,7 +33,7 @@ XCompleteSaExample_imposeBoundaryCondition(
 			float&			eps)
 {
 	vel = make_float4(0.0f);
-	eulerVel = make_float4(0.0f);
+	eulerVel = make_float4(0.0f, 0.0f, 0.0f, d_rho0[fluid_num(info)]);
 	tke = 0.0f;
 	eps = 0.0f;
 
