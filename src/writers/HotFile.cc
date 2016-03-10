@@ -54,7 +54,6 @@ void HotFile::save() {
 	// write a header
 	writeHeader(_fp.out, VERSION_1);
 
-	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
 		writeBuffer(_fp.out, iter->second, VERSION_1);
