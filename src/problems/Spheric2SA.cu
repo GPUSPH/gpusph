@@ -13,7 +13,7 @@
 
 Spheric2SA::Spheric2SA(GlobalData *_gdata) : Problem(_gdata)
 {
-	h5File.setFilename("meshes/0.spheric2.h5sph");
+	h5File.setFilename("./data_files/0.spheric2.h5sph");
 
 	SETUP_FRAMEWORK(
 		viscosity<DYNAMICVISC>,

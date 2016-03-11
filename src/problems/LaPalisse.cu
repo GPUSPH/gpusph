@@ -13,7 +13,7 @@
 
 LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 {
-	h5File.setFilename("meshes/0.LaPalisse.h5sph");
+	h5File.setFilename("./data_files/0.LaPalisse.h5sph");
 
 	SETUP_FRAMEWORK(
 		viscosity<KEPSVISC>,

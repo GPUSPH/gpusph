@@ -76,22 +76,22 @@ LaPalisseDetail::LaPalisseDetail(GlobalData *_gdata) : XProblem(_gdata)
 	set_equation_of_state(water, 7.0f, 50.0f);
 
 	// fluid
-	addHDF5File(GT_FLUID, Point(0,0,0), "./meshes/LaPalisseDetail/0.la_palisse_detail.fluid.h5sph", NULL);
+	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/LaPalisseDetail/0.la_palisse_detail.fluid.h5sph", NULL);
 
 	// main container
 	GeometryID container =
-		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./meshes/LaPalisseDetail/0.la_palisse_detail.boundary.kent0.h5sph", NULL);
+		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/LaPalisseDetail/0.la_palisse_detail.boundary.kent0.h5sph", NULL);
 	disableCollisions(container);
 
 	// Inflow area. Load it as GT_FIXED_BOUNDARY to disable it.
 	GeometryID inlet =
-		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./meshes/LaPalisseDetail/0.la_palisse_detail.boundary.kent1.h5sph", NULL);
+		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/LaPalisseDetail/0.la_palisse_detail.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 	setVelocityDriven(inlet, PRESSURE_DRIVEN);
 
 	// Outflow area. Load it as GT_FIXED_BOUNDARY to disable it.
 	GeometryID outlet =
-		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./meshes/LaPalisseDetail/0.la_palisse_detail.boundary.kent2.h5sph", NULL);
+		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/LaPalisseDetail/0.la_palisse_detail.boundary.kent2.h5sph", NULL);
 	disableCollisions(outlet);
 	setVelocityDriven(outlet, PRESSURE_DRIVEN);
 }
