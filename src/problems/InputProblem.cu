@@ -894,8 +894,12 @@ InputProblem_imposeBoundaryConditionDevice(
 	if (index >= numParticles)
 		return;
 
-	float4 vel = make_float4(0.0f);			// imposed velocity for moving objects
+	// Default value for eulerVel
+	// Note that this default value needs to be physically feasible, as it is used in case of boundary elements
+	// without fluid particles in their support. It is also possible to use this default value to impose tangential
+	// velocities for pressure outlets.
 	float4 eulerVel = make_float4(0.0f);	// imposed velocity/pressure for open boundaries
+	float4 vel = make_float4(0.0f);			// imposed velocity for moving objects
 	float tke = 0.0f;						// imposed turbulent kinetic energy for open boundaries
 	float eps = 0.0f;						// imposed turb. diffusivity for open boundaries
 

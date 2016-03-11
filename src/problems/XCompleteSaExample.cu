@@ -185,8 +185,12 @@ XCompleteSaExample_imposeBoundaryCondition(
 			float&			tke,
 			float&			eps)
 {
-	vel = make_float4(0.0f);
+	// Default value for eulerVel
+	// Note that this default value needs to be physically feasible, as it is used in case of boundary elements
+	// without fluid particles in their support. It is also possible to use this default value to impose tangential
+	// velocities for pressure outlets.
 	eulerVel = make_float4(0.0f, 0.0f, 0.0f, d_rho0[fluid_num(info)]);
+	vel = make_float4(0.0f);
 	tke = 0.0f;
 	eps = 0.0f;
 
