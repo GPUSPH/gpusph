@@ -2555,7 +2555,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_pressure_contrib<boundarytype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
-		//compute_viscous_contrib<boundarytype, sph_formulation, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+		compute_viscous_contrib<boundarytype, sph_formulation, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
 		compute_keps_term<boundarytype, visctype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
@@ -2683,7 +2683,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		// We need to compute force on boundary particles only when we have floating bodies or force feedback
 		if (COMPUTE_FORCE(pdata.info)) {
 			// Compute pressure part of acceleration
-			//compute_pressure_contrib<DYN_BOUNDARY, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+			compute_pressure_contrib<DYN_BOUNDARY, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 			// Compute viscous forces
 			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
@@ -2829,7 +2829,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
-		//compute_viscous_contrib<SA_BOUNDARY, sph_formulation, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
+		compute_viscous_contrib<SA_BOUNDARY, sph_formulation, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
 		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);

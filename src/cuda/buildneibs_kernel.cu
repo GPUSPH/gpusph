@@ -504,20 +504,17 @@ void updateVertIDToIndexDevice(	const particleinfo*	particleInfo,	///< particle'
  *  @{ */
 /// Compute the grid position for a neighboring cell
 /*! This function computes the grid position for a neighboring cell,
- * 	according to the given offset and periodicity.
+ * 	according to the given offset and periodicity specification.
  *
- *	\param[in, out] gridPos : current grid position (in) and neighbor grid position (out)
- *	\param[in] gridOffset : offset from current grid position
- *
- *	\tparam
+ *	\tparam periodicbound: periodicity specification
  *
  *	\return true if the new cell is in the domain, false otherwise.
  */
 template <Periodicity periodicbound>
 __device__ __forceinline__ bool
 calcNeibCell(
-		int3 &gridPos, 			///< current grid position
-		int3 const& gridOffset) ///< cell offset from current grid position
+		int3 &gridPos, 			///< [in, out] current grid position
+		int3 const& gridOffset) ///< [in] cell offset from current grid position
 {
 	// Compute the grid position of the current cell
 	gridPos += gridOffset;
