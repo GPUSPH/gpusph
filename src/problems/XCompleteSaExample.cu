@@ -94,6 +94,8 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// add "universe box" of planes
 	//makeUniverseBox(m_origin, m_origin + m_size );
 
+	// To simulate with no floating cube: comment the special boundary in the ini file, rerun Crixus, use the
+	// appropriate file radix (e.g. xcomplete_sa_example_nobox and do not add the "cube" geometry
 
 	// fluid
 	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.fluid.h5sph", NULL);
