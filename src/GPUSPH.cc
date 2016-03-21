@@ -183,8 +183,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	printf("Generating problem particles...\n");
 
-	ifstream hot_in;
-	HotFile *hf = NULL;
+	ifstream *hot_in;
+	HotFile **hf;
+	uint hot_nrank = 1;
 
 	if (clOptions->resume_fname.empty()) {
 		// get number of particles from problem file
@@ -193,18 +194,50 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		// get number of particles from hot file
 		struct stat statbuf;
 		ostringstream err_msg;
-		const char *fname = clOptions->resume_fname.c_str();
-		cout << "Hot starting from " << fname << "..." << endl;
-		if (stat(fname, &statbuf)) {
-			// stat failed
-			err_msg << "Hot start file " << fname << " not found";
-			throw runtime_error(err_msg.str());
+		// check if the hotfile is part of a multi-node simulation
+		size_t found = clOptions->resume_fname.find_last_of("/");
+		if (found == string::npos)
+			found = 0;
+		else
+			found++;
+		string resume_file = clOptions->resume_fname.substr(found);
+		string pre_fname, post_fname;
+		// this is the case if the filename is of the form "hot_nX.Y_Z.bin" where X,Y,Z are integers
+		if(resume_file.compare(0,5,"hot_n") == 0) {
+			// get number of ranks from previous simulation
+			pre_fname = clOptions->resume_fname.substr(0, found+5);
+			found = resume_file.find_first_of(".")+1;
+			size_t found2 = resume_file.find_first_of("_", 5);
+			if (found == string::npos || found2 == string::npos || found > found2) {
+				err_msg << "Malformed Hot start filename: " << resume_file << "\nNeeds to be of the form \"hot_nX.Y_ZZZZZ.bin\"";
+				throw runtime_error(err_msg.str());
+			}
+			istringstream (resume_file.substr(found,found2-found)) >> hot_nrank;
+			post_fname = resume_file.substr(found-1);
+			cout << "Hot start has been written from a multi-node simulation with " << hot_nrank << " processes" << endl;
 		}
-		/* enable automatic exception handling on failure */
-		hot_in.exceptions(ifstream::failbit | ifstream::badbit);
-		hot_in.open(fname);
-		hf = new HotFile(hot_in, gdata);
-		hf->readHeader(gdata->totParticles);
+		// allocate hot file arrays and file pointers
+		hot_in = new ifstream[hot_nrank];
+		hf = new HotFile*[hot_nrank];
+		gdata->totParticles = 0;
+		for (uint i = 0; i < hot_nrank; i++) {
+			ostringstream fname;
+			if (hot_nrank == 1)
+				fname << clOptions->resume_fname;
+			else
+				fname << pre_fname << i << post_fname;
+			cout << "Hot starting from " << fname.str() << "..." << endl;
+			if (stat(fname.str().c_str(), &statbuf)) {
+				// stat failed
+				err_msg << "Hot start file " << fname.str() << " not found";
+				throw runtime_error(err_msg.str());
+			}
+			/* enable automatic exception handling on failure */
+			hot_in[i].exceptions(ifstream::failbit | ifstream::badbit);
+			hot_in[i].open(fname.str().c_str());
+			hf[i] = new HotFile(hot_in[i], gdata);
+			hf[i]->readHeader(gdata->totParticles, gdata->problem->simparams()->numOpenBoundaries);
+		}
 	}
 
 	// allocate the particles of the *whole* simulation
@@ -286,20 +319,26 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		problem->copy_to_array(gdata->s_hBuffers);
 		printf("---\n");
 	} else {
-		hf->load();
-		cerr << "Successfully restored hot start file" << endl;
-		cerr << *hf << endl;
-		cerr << "Restarting from t=" << hf->get_t()
-			<< ", iteration=" << hf->get_iterations()
-			<< ", dt=" << hf->get_dt() << endl;
+		gdata->iterations = hf[0]->get_iterations();
+		gdata->dt = hf[0]->get_dt();
+		gdata->t = hf[0]->get_t();
+		for (uint i = 0; i < hot_nrank; i++) {
+			hf[i]->load();
+			float4 *pos = gdata->s_hBuffers.getData<BUFFER_POS>();
+			particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
+			hot_in[i].close();
+			cerr << "Successfully restored hot start file " << i+1 << " / " << hot_nrank << endl;
+			cerr << *hf[i];
+		}
+		cerr << "Restarting from t=" << gdata->t
+			<< ", iteration=" << gdata->iterations
+			<< ", dt=" << gdata->dt << endl;
 		// warn about possible discrepancies in case of ODE objects
 		if (problem->simparams()->numbodies) {
 			cerr << "WARNING: simulation has rigid bodies and/or moving boundaries, resume will not give identical results" << endl;
 		}
-		gdata->iterations = hf->get_iterations();
-		gdata->dt = hf->get_dt();
-		gdata->t = hf->get_t();
-		hot_in.close();
+		delete[] hf;
+		delete[] hot_in;
 		resumed = true;
 	}
 

@@ -23,6 +23,7 @@ typedef struct {
 	uint	buffer_count;
 	uint	particle_count;
 	uint	body_count;
+	uint	numOpenBoundaries;
 	uint	reserved[12];
 	ulong	iterations;
 	double	t;
@@ -46,7 +47,7 @@ public:
 	double get_t() { return _header.t; }
 	void save();
 	void load();
-	void readHeader(uint &part_count);
+	void readHeader(uint &part_count, uint &numOpenBoundaries);
 private:
 	union {
 		ifstream		*in;
