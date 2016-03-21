@@ -250,6 +250,11 @@ reorderDataAndFindCellStart(
 	if (oldVol)
 		CUDA_SAFE_CALL(cudaBindTexture(0, volTex, oldVol, numParticles*sizeof(float4)));
 
+	const float *oldEnergy = unsorted_buffers->getData<BUFFER_INTERNAL_ENERGY>();
+	float *newEnergy = sorted_buffers->getData<BUFFER_INTERNAL_ENERGY>();
+	if (oldEnergy)
+		CUDA_SAFE_CALL(cudaBindTexture(0, energyTex, oldEnergy, numParticles*sizeof(float)));
+
 	// sorted already
 	const particleinfo *particleInfo = sorted_buffers->getData<BUFFER_INFO>();
 
@@ -290,7 +295,7 @@ reorderDataAndFindCellStart(
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
-		newPos, newVel, newVol, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
+		newPos, newVel, newVol, newEnergy, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
 		newEulerVel, particleInfo, particleHash, particleIndex, numParticles, newNumParticles);
 
 	// check if kernel invocation generated an error
@@ -298,6 +303,11 @@ reorderDataAndFindCellStart(
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+
+	if (oldVol)
+		CUDA_SAFE_CALL(cudaUnbindTexture(volTex));
+	if (oldEnergy)
+		CUDA_SAFE_CALL(cudaUnbindTexture(energyTex));
 
 	if (oldBoundElement)
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
@@ -315,20 +325,6 @@ reorderDataAndFindCellStart(
 
 	if (oldEulerVel)
 		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
-}
-
-
-/// Update vertex ID
-void
-updateVertIDToIndex(
-	const particleinfo	*particleInfo,
-			uint	*vertIDToIndex,
-	const	uint	numParticles)
-{
-	uint numThreads = BLOCK_SIZE_REORDERDATA;
-	uint numBlocks = div_up(numParticles, numThreads);
-
-	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
 }
 
 /// Functor to sort particles by hash (cell), and
@@ -399,7 +395,6 @@ const	particleinfo*info,
 		vertexinfo	*vertices,
 const	float4		*boundelem,
 		float2		*vertPos[],
-const	uint		*vertIDToIndex,
 const	hashKey		*particleHash,
 const	uint		*cellStart,
 const	uint		*cellEnd,
@@ -428,7 +423,7 @@ const	float		boundNlSqInflRad)
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	// bind textures to read all particles, not only internal ones
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
@@ -441,7 +436,7 @@ const	float		boundNlSqInflRad)
 	}
 
 	buildneibs_params<boundarytype> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, vertIDToIndex, boundNlSqInflRad);
+			vertPos, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
 
@@ -453,7 +448,7 @@ const	float		boundNlSqInflRad)
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	}
 
-	#if (__COMPUTE__ < 20)
+	#if !PREFER_L1
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));

@@ -457,6 +457,7 @@ bool GPUSPH::runSimulation() {
 		buildNeibList();
 
 		// set density and other values for segments and vertices
+		// and set initial value of gamma using the quadrature formula
 		saBoundaryConditions(INITIALIZATION_STEP);
 
 	}
@@ -636,7 +637,7 @@ bool GPUSPH::runSimulation() {
 
 		// swap read and writes again because the write contains the variables at time n
 		// boundelements is swapped because the normals are updated in the moving objects case
-		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
+		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_INTERNAL_ENERGY | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
 
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
@@ -767,6 +768,14 @@ bool GPUSPH::runSimulation() {
 			// choose the read buffer for the double buffered arrays
 			which_buffers |= DBLBUFFER_READ;
 
+			if (gdata->debug.neibs)
+				which_buffers |= BUFFER_NEIBSLIST;
+			if (gdata->debug.forces)
+				which_buffers |= BUFFER_FORCES;
+
+			if (gdata->problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY)
+				which_buffers |= BUFFER_INTERNAL_ENERGY;
+
 			// get GradGamma
 			if (gdata->problem->simparams()->boundarytype == SA_BOUNDARY)
 				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
@@ -793,6 +802,8 @@ bool GPUSPH::runSimulation() {
 				PostProcessType filter = flt->first;
 				gdata->only_internal = true;
 				doCommand(POSTPROCESS, NO_FLAGS, float(filter));
+
+				flt->second->hostProcess(gdata);
 
 				/* list of buffers that were updated in-place */
 				const flag_t updated_buffers = flt->second->get_updated_buffers();
@@ -969,9 +980,11 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VEL>();
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INFO>();
 
-#if _DEBUG_
-	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
-#endif
+	if (gdata->debug.neibs)
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEIBSLIST>();
+
+	if (gdata->debug.forces)
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
 
 	if (gdata->simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
@@ -990,8 +1003,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TURBVISC>();
 	}
 
-	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
-		problem->simparams()->visctype == KEPSVISC)
+	if (problem->simparams()->boundarytype == SA_BOUNDARY &&
+		(problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
+		problem->simparams()->visctype == KEPSVISC))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EULERVEL>();
 
 	if (problem->simparams()->visctype == SPSVISC)
@@ -1006,6 +1020,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (gdata->simframework->hasPostProcessEngine(CALC_PRIVATE))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE>();
 
+	if (problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();
+	}
+
 	// number of elements to allocate
 	const size_t numparts = gdata->allocatedParticles;
 
@@ -1017,7 +1035,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	BufferList::iterator iter = gdata->s_hBuffers.begin();
 	while (iter != gdata->s_hBuffers.end()) {
-		totCPUbytes += iter->second->alloc(numparts);
+		if (iter->first == BUFFER_NEIBSLIST)
+			totCPUbytes += iter->second->alloc(numparts*gdata->problem->simparams()->maxneibsnum);
+		else
+			totCPUbytes += iter->second->alloc(numparts);
 		++iter;
 	}
 
@@ -1068,6 +1089,22 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			gdata->s_hRbDeviceTotalForce = gdata->s_hRbTotalForce;
 			gdata->s_hRbDeviceTotalTorque = gdata->s_hRbTotalTorque;
 		}
+	}
+
+	const size_t numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
+	std::cout << "numOpenBoundaries : " << numOpenBoundaries << "\n";
+
+	// water depth computation array
+	if (problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
+		gdata->h_IOwaterdepth = new uint* [MULTI_GPU ? MAX_DEVICES_PER_NODE : 1];
+		for (uint i=0; i<(MULTI_GPU ? MAX_DEVICES_PER_NODE : 1); i++)
+			gdata->h_IOwaterdepth[i] = new uint [numOpenBoundaries];
+	}
+
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		flt->second->hostAllocate(gdata);
 	}
 
 	if (MULTI_DEVICE) {
@@ -1414,6 +1451,14 @@ void GPUSPH::createWriter()
 	Writer::Create(gdata);
 }
 
+double GPUSPH::Wendland2D(const double r, const double h) {
+	const double q = r/h;
+	double temp = 1 - q/2.;
+	temp *= temp;
+	temp *= temp;
+	return 7/(4*M_PI*h*h)*temp*(2*q + 1);
+}
+
 void GPUSPH::doWrite(bool force)
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
@@ -1427,24 +1472,29 @@ void GPUSPH::doWrite(bool force)
 	double slength = problem->simparams()->slength;
 
 	size_t numgages = gages.size();
-
-	std::vector<double2> gage_llimit, gage_ulimit; // neighborhood limits
-	std::vector<uint> gage_parts;
-	GageList::iterator gage = gages.begin();
-	GageList::iterator gage_end = gages.end();
-	while (gage != gage_end) {
-		gage_llimit.push_back(make_double2(*gage) - 2*slength);
-		gage_ulimit.push_back(make_double2(*gage) + 2*slength);
-		gage_parts.push_back(0);
-		gage->z = 0;
-		++gage;
+	std::vector<double> gages_W(numgages, 0.);
+	for (uint g = 0; g < numgages; ++g) {
+		if (gages[g].w == 0.)
+			gages_W[g] = DBL_MAX;
+		else
+			gages_W[g] = 0.;
+		gages[g].z = 0.;
 	}
+
+	// energy in non-fluid particles + one for each fluid type
+	// double4 with .x kinetic, .y potential, .z internal, .w currently ignored
+	double4 energy[MAX_FLUID_TYPES+1] = {0.0f};
 
 	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
 	double3 const& wo = problem->get_worldorigin();
 	const float4 *lpos = gdata->s_hBuffers.getData<BUFFER_POS>();
 	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
 	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
+
+	const float *intEnergy = gdata->s_hBuffers.getData<BUFFER_INTERNAL_ENERGY>();
+	/* vel is only used to compute kinetic energy */
+	const float4 *vel = gdata->s_hBuffers.getData<BUFFER_VEL>();
+	const double3 gravity = make_double3(gdata->problem->physparams()->gravity);
 
 	bool warned_nan_pos = false;
 
@@ -1453,12 +1503,11 @@ void GPUSPH::doWrite(bool force)
 
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
-		double4 dpos;
 		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
-		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
-		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
-		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
-		dpos.w = pos.w;
+		// double-precision absolute position, without using world offset (useful for computing the potential energy)
+		double4 dpos = make_double4(
+			gdata->calcGlobalPosOffset(gridPos, as_float3(pos)) + wo,
+			pos.w);
 
 		if (!warned_nan_pos && !(isfinite(dpos.x) && isfinite(dpos.y) && isfinite(dpos.z))) {
 			fprintf(stderr, "WARNING: particle %u (id %u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g)\n",
@@ -1469,16 +1518,37 @@ void GPUSPH::doWrite(bool force)
 			warned_nan_pos = true;
 		}
 
+		// if we're tracking internal energy, we're interested in all the energy
+		// in the system, including kinetic and potential: keep track of that too
+		if (intEnergy) {
+			const double4 energies = dpos.w*make_double4(
+				/* kinetic */ sqlength3(vel[i])/2,
+				/* potential */ -dot3(dpos, gravity),
+				/* internal */ intEnergy[i],
+				/* TODO */ 0);
+			int idx = FLUID(info[i]) ? fluid_num(info[i]) : MAX_FLUID_TYPES;
+			energy[idx] += energies;
+		}
+
 		// for surface particles add the z coordinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
 			for (uint g = 0; g < numgages; ++g) {
-				if ((dpos.x > gage_llimit[g].x) && (dpos.x < gage_ulimit[g].x) &&
-					(dpos.y > gage_llimit[g].y) && (dpos.y < gage_ulimit[g].y)) {
-						gage_parts[g]++;
-						gages[g].z += dpos.z;
+				const double gslength  = gages[g].w;
+				const double r = sqrt((dpos.x - gages[g].x)*(dpos.x - gages[g].x) + (dpos.y - gages[g].y)*(dpos.y - gages[g].y));
+				if (gslength > 0) {
+					if (r < 2*gslength) {
+						const double W = Wendland2D(r, gslength);
+						gages_W[g] += W;
+						gages[g].z += dpos.z*W;
+					}
+				}
+				else {
+					if (r < gages_W[g]) {
+						gages_W[g] = r;
+						gages[g].z = dpos.z;
+					}
 				}
 			}
-
 		}
 
 		gpos[i] = dpos;
@@ -1501,7 +1571,10 @@ void GPUSPH::doWrite(bool force)
 
 	if (numgages) {
 		for (uint g = 0 ; g < numgages; ++g) {
-			gages[g].z /= gage_parts[g];
+			/*cout << "Ng : " << g << " gage: " << gages[g].x << "," << gages[g].y << " r : " << gages[g].w << " z: " << gages[g].z
+					<< " gparts :" << gage_parts[g] << endl;*/
+			if (gages[g].w)
+				gages[g].z /= gages_W[g];
 		}
 		//Write WaveGage information on one text file
 		Writer::WriteWaveGage(writers, gdata->t, gages);
@@ -1517,14 +1590,13 @@ void GPUSPH::doWrite(bool force)
 		Writer::WriteObjects(writers, gdata->t);
 	}
 
-	// TODO: enable energy computation and dump
-	/*calc_energy(m_hEnergy,
-		m_dPos[m_currentPosRead],
-		m_dVel[m_currentVelRead],
-		m_dInfo[m_currentInfoRead],
-		m_numParticles,
-		physparams()->numFluids());
-	m_writer->write_energy(m_simTime, m_hEnergy);*/
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		flt->second->write(writers, gdata->t);
+	}
+
+	Writer::WriteEnergy(writers, gdata->t, energy);
 
 	Writer::Write(writers,
 		gdata->processParticles[gdata->mpi_rank],
@@ -1583,12 +1655,6 @@ void GPUSPH::buildNeibList()
 			doCommand(UPLOAD_NEWNUMPARTS);
 	} else
 		updateArrayIndices();
-
-	// update vertID->particleIndex lookup table for vertex connectivity, on *all* particles
-	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-		gdata->only_internal = false;
-		doCommand(SA_UPDATE_VERTIDINDEX);
-	}
 
 	// build neib lists only for internal particles
 	gdata->only_internal = true;
@@ -1861,19 +1927,29 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
-	// initially data is in read so swap to write
 	if (cFlag & INITIALIZATION_STEP) {
+		// identify all the corner vertex particles
 		doCommand(SWAP_BUFFERS, BUFFER_INFO);
 		doCommand(IDENTIFY_CORNER_VERTICES);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
+		doCommand(SWAP_BUFFERS, BUFFER_INFO);
 
-		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
-		doCommand(FIND_CLOSEST_VERTEX);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_VERTICES | DBLBUFFER_WRITE);
+		// modify particle mass on open boundaries
+		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+			// first step: count the vertices that belong to IO and the same segment as each IO vertex
+			doCommand(INIT_IO_MASS_VERTEX_COUNT);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+			// second step: modify the mass of the IO vertices
+			doCommand(INIT_IO_MASS);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
+			doCommand(SWAP_BUFFERS, BUFFER_POS);
+		}
 
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO | BUFFER_GRADGAMMA);
+		// initially data is in read so swap to write
+		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 	}
 
 	// impose open boundary conditions
@@ -1928,7 +2004,17 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 	}
 
-	// swap changed buffers back so that read contains the new data
-	if (cFlag & INITIALIZATION_STEP)
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_GRADGAMMA);
+	if (cFlag & INITIALIZATION_STEP) {
+		// swap changed buffers back so that read contains the new data
+		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
+		if (clOptions->resume_fname.empty()) {
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+			// initialise gamma using a Gauss quadrature formula
+			doCommand(INIT_GAMMA);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
+			// swap GRADGAMMA buffer back so that read contains the new data
+			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
+		}
+	}
 }

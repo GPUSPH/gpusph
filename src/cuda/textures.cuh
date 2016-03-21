@@ -25,12 +25,29 @@
 #ifndef _TEXTURES_CUH_
 #define _TEXTURES_CUH_
 
+// On devices with compute capability 2.x, we want to distribute cache load
+// between L1 cache and the texture cache. On older architectures (no L1 cache)
+// we prefer using textures for all read-only arrays. Define PREFER_L1 to 1 or
+// 0 accordingly. On 3.x, the L1 cache is only used for register spills, so
+// exclude it from PREFER_L1. We keep PREFER_L1 on Maxwell because tests indicate
+// that using textures leads to no improvement at best (and possibly some minor
+// performance loss)
+
+#if defined(__COMPUTE__)
+#if __COMPUTE__ >= 20 && __COMPUTE__/10 != 3
+#define PREFER_L1 1
+#else
+#define PREFER_L1 0
+#endif
+#endif
+
 #include "particledefine.h"
 
 // textures for particle position, velocity and flags
 texture<float4, 1, cudaReadModeElementType> posTex;		// position and mass
 texture<float4, 1, cudaReadModeElementType> velTex;		// velocity and density
 texture<float4, 1, cudaReadModeElementType> volTex;		// volume
+texture<float, 1, cudaReadModeElementType> energyTex;	// internal energy
 texture<float4, 1, cudaReadModeElementType> boundTex;		// boundary elements
 texture<float4, 1, cudaReadModeElementType> gamTex;		// gradient gamma
 texture<particleinfo, 1, cudaReadModeElementType> infoTex;	// info

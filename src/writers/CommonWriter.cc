@@ -29,6 +29,7 @@
 
 #include "GlobalData.h"
 #include "simflags.h"
+#include "vector_print.h"
 
 using namespace std;
 
@@ -51,8 +52,15 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 		for (; fluid < m_problem->physparams()->numFluids(); ++fluid)
 			m_energyfile	<< "\tkinetic" << fluid
 							<< "\tpotential" << fluid
-							<< "\telastic" << fluid;
+							<< "\tinternal" << fluid;
+		/* non-fluid */
+		m_energyfile	<< "\tkineticNF"
+						<< "\tpotentialNF"
+						<< "\tinternalNF";
+		m_energyfile << "\ttotal";
 		m_energyfile << endl;
+		m_energyfile << set_vector_fmt("\t");
+		m_energyfile.precision(9);
 	}
 
 	size_t ngages = m_problem->simparams()->gage.size();
@@ -63,6 +71,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 			for (size_t gage = 0; gage < ngages; ++gage)
 				m_WaveGagefile << "\tzgage" << gage;
 			m_WaveGagefile << endl;
+			m_WaveGagefile.precision(9);
 		}
 	}
 
@@ -86,7 +95,8 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 				m_objectfile << "\tQ" << obj << "_K";
 			}
 			m_objectfile << endl;
-			m_objectfile.precision(7);
+			m_objectfile.precision(9);
+			m_objectfile << set_vector_fmt("\t");
 			m_objectfile << std::scientific;
 		}
 	}
@@ -117,8 +127,31 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 				m_objectforcesfile << "\tApplied_M" << obj << "_Z";
 			}
 			m_objectforcesfile << endl;
-			m_objectforcesfile.precision(7);
+			m_objectforcesfile.precision(9);
+			m_objectforcesfile << set_vector_fmt("\t");
 			m_objectforcesfile << std::scientific;
+		}
+	}
+
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		switch (flt->first) {
+		case FLUX_COMPUTATION: {
+			uint numOB = m_problem->simparams()->numOpenBoundaries;
+			if (numOB) {
+				string flux_fn = open_data_file(m_fluxfile, "IOflux");
+				if (m_fluxfile) {
+					m_fluxfile << "time";
+					for (uint i=0; i<numOB; i++)
+						m_fluxfile << "\tFlux_" << i;
+					m_fluxfile << endl;
+				}
+			}
+			break;
+		}
+		default:
+			break;
 		}
 	}
 }
@@ -131,24 +164,73 @@ CommonWriter::~CommonWriter()
 		m_WaveGagefile.close();
 	if (m_objectfile)
 		m_objectfile.close();
+	if (m_objectforcesfile)
+		m_objectforcesfile.close();
+}
+
+/// Write testpoints to CSV file
+void
+CommonWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
+{
+	if (!testpoints)
+		return;
+
+	const double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
+	const hashKey *particleHash = buffers.getData<BUFFER_HASH>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
+	const float *tke = buffers.getData<BUFFER_TKE>();
+	const float *eps = buffers.getData<BUFFER_EPSILON>();
+
+	if (!info)
+		return; // this shouldn't happen, but whatever
+
+	ofstream testpoints_file;
+	string testpoints_fname = open_data_file(testpoints_file, "testpoints/testpoints", current_filenum(), ".csv");
+
+	// 9 decimal digits
+	testpoints_file.precision(9);
+	// output vectors without parenthesis and with a single comma as separator
+	testpoints_file << set_vector_fmt(",");
+
+	// write CSV header
+	testpoints_file << "T,ID,Pressure,Object,CellIndex,PosX,PosY,PosZ,VelX,VelY,VelZ,Tke,Eps" << endl;
+
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
+		if (!TESTPOINT(info[i]))
+			continue;
+
+		const float tkeVal = tke ? tke[i] : 0;
+		const float epsVal = eps ? eps[i] : 0;
+
+		testpoints_file << t << ","
+			<< id(info[i]) << ","
+			<< vel[i].w << ","
+			<< object(info[i]) << ","
+			<< cellHashFromParticleHash( particleHash[i] ) << ","
+			<< as_double3(pos[i]) << ","
+			<< as_float3(vel[i]) << ","
+			<< tkeVal << ","
+			<< epsVal << endl;
+	}
+	testpoints_file.close();
 }
 
 void
-CommonWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
-{ /* do nothing */ }
-
-void
-CommonWriter::write_energy(double t, float4 *energy)
+CommonWriter::write_energy(double t, double4 *energy)
 {
+	double total = 0;
 	if (m_energyfile) {
 		m_energyfile << t;
 		uint fluid = 0;
-		for (; fluid < m_problem->physparams()->numFluids(); ++fluid)
-			m_energyfile	<< "\t" << energy[fluid].x
-							<< "\t" << energy[fluid].y
-							<< "\t" << energy[fluid].z;
+		for (; fluid < m_problem->physparams()->numFluids(); ++fluid) {
+			m_energyfile	<< "\t" << as_double3(energy[fluid]);
+			total += energy[fluid].x + energy[fluid].y + energy[fluid].z;
+		}
+		m_energyfile	<< "\t" << as_double3(energy[MAX_FLUID_TYPES]);
+		total += energy[MAX_FLUID_TYPES].x + energy[MAX_FLUID_TYPES].y + energy[MAX_FLUID_TYPES].z;
+		m_energyfile << "\t" << total;
 		m_energyfile << endl;
-		m_energyfile.flush();
 	}
 }
 
@@ -161,7 +243,6 @@ CommonWriter::write_WaveGage(double t, GageList const& gage)
 			m_WaveGagefile << "\t" << gage[i].z;
 		}
 		m_WaveGagefile << endl;
-		m_WaveGagefile.flush();
 	}
 }
 
@@ -174,12 +255,10 @@ CommonWriter::write_objects(double t)
 		for (vector<MovingBodyData *>::const_iterator it = mbvect.begin(); it != mbvect.end(); ++it) {
 			const MovingBodyData *mbdata = *it;
 			m_objectfile << "\t" << mbdata->index
-				<< "\t" << mbdata->kdata.crot.x << "\t" << mbdata->kdata.crot.y << "\t" << mbdata->kdata.crot.z
-				<< "\t" << mbdata->kdata.orientation(0) << "\t" << mbdata->kdata.orientation(1)
-				<< "\t" <<  mbdata->kdata.orientation(2) << "\t" <<  mbdata->kdata.orientation(3);
+				<< "\t" << mbdata->kdata.crot
+				<< "\t" << mbdata->kdata.orientation.params();
 		}
 		m_objectfile << endl;
-		m_objectfile.flush();
 	}
 }
 
@@ -193,25 +272,24 @@ CommonWriter::write_objectforces(double t, uint numobjects,
 		m_objectforcesfile << t;
 		for (int i=0; i < numobjects; i++) {
 			m_objectforcesfile << "\t" << mbvect[i]->index;
-			m_objectforcesfile
-				<< "\t" << computedforces[i].x
-				<< "\t" << computedforces[i].y
-				<< "\t" << computedforces[i].z;
-			m_objectforcesfile
-				<< "\t" << computedtorques[i].x
-				<< "\t" << computedtorques[i].y
-				<< "\t" << computedtorques[i].z;
-			m_objectforcesfile
-				<< "\t" << appliedforces[i].x
-				<< "\t" << appliedforces[i].y
-				<< "\t" << appliedforces[i].z;
-			m_objectforcesfile
-				<< "\t" << appliedtorques[i].x
-				<< "\t" << appliedtorques[i].y
-				<< "\t" << appliedtorques[i].z;
+			m_objectforcesfile << "\t" << computedforces[i];
+			m_objectforcesfile << "\t" << computedtorques[i];
+			m_objectforcesfile << "\t" << appliedforces[i];
+			m_objectforcesfile << "\t" << appliedtorques[i];
 		}
 		m_objectforcesfile << endl;
-		m_objectforcesfile.flush();
+	}
+}
+
+void
+CommonWriter::write_flux(double t, float *fluxes)
+{
+	uint numOB = m_problem->simparams()->numOpenBoundaries;
+	if (m_fluxfile) {
+		m_fluxfile << t;
+		for (uint i=0; i<numOB; i++)
+			m_fluxfile << "\t" << fluxes[i];
+		m_fluxfile << endl;
 	}
 }
 
@@ -262,6 +340,8 @@ CommonWriter::write_simparams(ostream &out)
 	out << " adaptive time stepping " << ED[!!(SP->simflags & ENABLE_DTADAPT)] << endl;
 	if (SP->simflags & ENABLE_DTADAPT)
 		out << "    safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
+	out << " internal energy computation " << ED[!!(SP->simflags & ENABLE_INTERNAL_ENERGY)] << endl;
+
 	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
 	out << " Density diffusion " << ED[!!(SP->simflags & ENABLE_DENSITY_DIFFUSION)] << endl;
 	if (SP->simflags & ENABLE_DENSITY_DIFFUSION) {
@@ -320,7 +400,7 @@ CommonWriter::write_physparams(ostream &out)
 	out << "Physical parameters:" << endl;
 
 #define g (PP->gravity)
-	out << " gravity = (" << g.x << ", " << g.y << ", " << g.z << ") [" << length(g) << "] "
+	out << " gravity = " << PP->gravity << " [" << length(g) << "] "
 		<< (SP->gcallback ? "time-dependent" : "fixed") << endl;
 #undef g
 	out << " numFluids = " << PP->numFluids() << endl;

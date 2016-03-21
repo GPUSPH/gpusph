@@ -36,6 +36,7 @@
 #include "buildneibs.cu"
 #include "euler.cu"
 #include "forces.cu"
+#include "post_process.cu"
 
 // This class holds the implementation and interface of CUDASimFramework,
 // the CUDA simulation framework for GPUPSH. (In fact, the only simulation
@@ -135,8 +136,13 @@ template<
 			// flags
 			_simflags & ENABLE_XSPH			||	// untested
 			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
-			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM))
+			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
 												// inlet outlet works only with the summation density
+			(_simflags & ENABLE_GAMMA_QUADRATURE && _simflags & ENABLE_DENSITY_SUM) ||
+												// enable density sum only works with the dynamic equation for gamma
+			(!(_simflags & ENABLE_GAMMA_QUADRATURE) && !(_simflags & ENABLE_DENSITY_SUM))
+												// this has to be changed but for the moment it is only possible to use gamma quadrature
+												// when computing drho/dt=div u
 		)
 	)
 >
@@ -189,6 +195,8 @@ protected:
 			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, simflags>(options);
 		case SURFACE_DETECTION:
 			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, simflags>(options);
+		case FLUX_COMPUTATION:
+			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, simflags>(options);
 		case CALC_PRIVATE:
 			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, simflags>(options);
 		case INVALID_POSTPROC:

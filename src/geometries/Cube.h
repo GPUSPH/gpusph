@@ -107,6 +107,7 @@ class Cube: public Object {
 		int Fill(PointVect& points, const double dx, const bool fill = true)
 		{ return Fill(points, dx, true, fill);}
 		void InnerFill(PointVect&, const double);
+		void FillOut(PointVect&, const double, const int, const bool);
 		void FillIn(PointVect&, const double, const int, const bool);
 		void FillIn(PointVect&, const double, const int);
 		//@}

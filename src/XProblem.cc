@@ -68,7 +68,6 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_hydrostaticFilling = true;
 
 	// *** Other parameters and settings
-	add_writer(VTKWRITER, 1e-2f);
 	m_name = "XProblem";
 
 	// We don't initialize simparams because it will be done by the SETUP_FRAMEWORK
@@ -107,12 +106,16 @@ XProblem::~XProblem()
 bool XProblem::initialize()
 {
 	// setup the framework if the subclass did not do it; will have all defaults
-	if (!m_simframework) {
+	if (!simframework()) {
 		// TODO automatic framework setup
 		// This must be done in a CU file
 		//SETUP_FRAMEWORK();
 		throw std::runtime_error("no simulation framework defined");
 	}
+
+	// *** Add a writer, if none was specified
+	if (get_writers().size() == 0)
+		add_writer(VTKWRITER, 1e-2f);
 
 	// *** Initialization of minimal physical parameters
 	if (isnan(m_deltap))
@@ -724,7 +727,9 @@ GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, 
 	// shift STL origin to given point
 	stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
 
-	return addGeometry(otype, ftype,
+	return addGeometry(
+		otype,
+		ftype,
 		stlmesh,
 		NULL,			// HDF5 filename
 		NULL,			// XYZ filename
@@ -750,7 +755,9 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 
 	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts in initialize() for that
 
-	return addGeometry(otype, FT_NOFILL,
+	return addGeometry(
+		otype,
+		FT_NOFILL,
 		stlmesh,
 		fname_hdf5,		// HDF5 filename
 		NULL,			// XYZ filename
@@ -773,7 +780,9 @@ GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
 
 	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts for that
 
-	return addGeometry(otype, FT_NOFILL,
+	return addGeometry(
+		otype,
+		FT_NOFILL,
 		stlmesh,
 		NULL,			// HDF5 filename
 		fname_xyz,		// XYZ filename

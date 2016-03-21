@@ -213,7 +213,7 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 
 	m_origin(3) = m_center(3);
 
-	for (uint l = 1; l <= layers; l++) {
+	for (uint l = 0; l < layers; l++) {
 
 		const double smaller_r = m_r - l * dx;
 		const double smaller_h = m_h - l * 2 * dx;

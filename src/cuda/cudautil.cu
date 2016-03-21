@@ -35,7 +35,6 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 
 	//printf("Using device %d: %s\n", cudaDevNum, deviceProp.name );
 	CUDA_SAFE_CALL(cudaSetDevice(cudaDevNum));
-	CUDA_SAFE_CALL(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
 
 	/* Check if we were compiled for the same compute capability as the device, and print
 	   warning/informational messages otherwise. */
@@ -53,6 +52,19 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 		if (deviceProp.major != COMPUTE/10) {
 			fprintf(stderr, "WARNING: code is compiled for a different MAJOR compute capability. Expect failures\n");
 		}
+	}
+
+	// We set the device to prefer L1 over shared memory on devices with compute
+	// capability 2 or higher, since 1.x doesn't have L1 cache anyway so the setting
+	// would be meaningless.
+	// On Kepler (3.x) we prefer shared memory instead because on that architecture
+	// L1 is only used for register spills (not global memory), and we are too
+	// constrained by the limited amount of shared memory.
+	if (deviceProp.major >= 2) {
+		cudaFuncCache cacheConfig = cudaFuncCachePreferL1;
+		if (deviceProp.major == 3)
+			cacheConfig = cudaFuncCachePreferShared;
+		CUDA_SAFE_CALL(cudaDeviceSetCacheConfig(cacheConfig));
 	}
 
 	return deviceProp;

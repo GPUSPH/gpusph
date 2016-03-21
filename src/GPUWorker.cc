@@ -133,7 +133,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTIDINDEX>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_GRADGAMMA>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_BOUNDELEMENTS>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTICES>();
@@ -151,7 +150,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SPS_TURBVISC>();
 	}
 
-	if (m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->visctype == KEPSVISC)
+	if (m_simparams->boundarytype == SA_BOUNDARY &&
+		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->visctype == KEPSVISC))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
 	if (m_simparams->sph_formulation == SPH_GRENIER) {
@@ -161,6 +161,12 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simframework->hasPostProcessEngine(CALC_PRIVATE))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE>();
+
+	if (m_simparams->simflags & ENABLE_INTERNAL_ENERGY) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>();
+	}
+
 }
 
 GPUWorker::~GPUWorker() {
@@ -1144,6 +1150,8 @@ void GPUWorker::dumpBuffers() {
 
 		const AbstractBuffer *buf = buflist[buf_to_get];
 		size_t _size = howManyParticles * buf->get_element_size();
+		if (buf_to_get == BUFFER_NEIBSLIST)
+			_size *= gdata->problem->simparams()->maxneibsnum;
 
 		// get all the arrays of which this buffer is composed
 		// (actually currently all arrays are simple, since the only complex arrays (TAU
@@ -1568,7 +1576,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
-		bool dbg_step_printf = false;
+		const bool dbg_step_printf = gdata->debug.print_step;
 
 		// TODO
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
@@ -1673,17 +1681,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_VERTEX_BOUNDARY_CONDITIONS\n", deviceIndex);
 				instance->kernel_saVertexBoundaryConditions();
 				break;
-			case SA_UPDATE_VERTIDINDEX:
-				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
-				instance->kernel_updateVertIdIndexBuffer();
-				break;
 			case IDENTIFY_CORNER_VERTICES:
 				if (dbg_step_printf) printf(" T %d issuing IDENTIFY_CORNER_VERTICES\n", deviceIndex);
 				instance->kernel_saIdentifyCornerVertices();
-				break;
-			case FIND_CLOSEST_VERTEX:
-				if (dbg_step_printf) printf(" T %d issuing FIND_CLOSEST_VERTEX\n", deviceIndex);
-				instance->kernel_saFindClosestVertex();
 				break;
 			case COMPUTE_DENSITY:
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_DENSITY\n", deviceIndex);
@@ -1725,6 +1725,18 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
 				instance->kernel_imposeBoundaryCondition();
 				break;
+			case INIT_GAMMA:
+				if (dbg_step_printf) printf(" T %d issuing INIT_GAMMA\n", deviceIndex);
+				instance->kernel_initGamma();
+				break;
+			case INIT_IO_MASS_VERTEX_COUNT:
+				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS_VERTEX_COUNT\n", deviceIndex);
+				instance->kernel_initIOmass_vertexCount();
+				break;
+			case INIT_IO_MASS:
+				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS\n", deviceIndex);
+				instance->kernel_initIOmass();
+				break;
 			case QUIT:
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -1748,7 +1760,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 			}
 		}
 	} catch (std::exception &e) {
-		cerr << e.what() << endl;
+		cerr << "Device " << deviceIndex << " thread " << pthread_self() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
 		const_cast<GlobalData*>(gdata)->keep_going = false;
 	}
 
@@ -1815,6 +1827,8 @@ void GPUWorker::finalize()
 	deallocateHostBuffers();
 	deallocateDeviceBuffers();
 	// ...what else?
+
+	cudaDeviceReset();
 }
 
 void GPUWorker::kernel_calcHash()
@@ -1921,7 +1935,6 @@ void GPUWorker::kernel_buildNeibsList()
 					(vertexinfo*)bufread.getData<BUFFER_VERTICES>(),
 					bufread.getData<BUFFER_BOUNDELEMENTS>(),
 					bufwrite.getRawPtr<BUFFER_VERTPOS>(),
-					bufwrite.getData<BUFFER_VERTIDINDEX>(),
 					bufwrite.getData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
@@ -2160,7 +2173,7 @@ void GPUWorker::kernel_forces_async_complete()
 void GPUWorker::kernel_forces()
 {
 	if (!gdata->only_internal)
-		printf("WARNING: forces kernel called with only_internal == true, ignoring flag!\n");
+		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
 
 	uint numPartsToElaborate = m_particleRangeEnd;
 
@@ -2280,6 +2293,68 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 
 }
 
+void GPUWorker::kernel_initGamma()
+{
+	uint numPartsToElaborate = m_numParticles;
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = *m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+
+	bcEngine->initGamma(
+		m_dBuffers.getWriteBufferList(),
+		m_dBuffers.getReadBufferList(),
+		m_numParticles,
+		m_simparams->slength,
+		gdata->problem->m_deltap,
+		m_simparams->influenceRadius,
+		m_simparams->epsilon,
+		m_dCellStart,
+		numPartsToElaborate);
+
+}
+
+void GPUWorker::kernel_initIOmass_vertexCount()
+{
+	uint numPartsToElaborate = m_numParticles;
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = *m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+
+	bcEngine->initIOmass_vertexCount(
+		m_dBuffers.getWriteBufferList(),
+		m_dBuffers.getReadBufferList(),
+		m_numParticles,
+		m_dCellStart,
+		numPartsToElaborate);
+
+}
+
+void GPUWorker::kernel_initIOmass()
+{
+	uint numPartsToElaborate = m_numParticles;
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = *m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+
+	bcEngine->initIOmass(
+		m_dBuffers.getWriteBufferList(),
+		m_dBuffers.getReadBufferList(),
+		m_numParticles,
+		m_dCellStart,
+		numPartsToElaborate,
+		gdata->problem->m_deltap);
+
+}
+
 void GPUWorker::kernel_filter()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2332,8 +2407,8 @@ void GPUWorker::kernel_postprocess()
 		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
+		m_deviceIndex,
+		gdata);
 }
 
 void GPUWorker::kernel_compute_density()
@@ -2427,7 +2502,6 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				bufwrite.getData<BUFFER_EULERVEL>(),
 				bufwrite.getData<BUFFER_GRADGAMMA>(),
 				bufwrite.getData<BUFFER_VERTICES>(),
-				bufread.getData<BUFFER_VERTIDINDEX>(),
 				bufread.getRawPtr<BUFFER_VERTPOS>(),
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufread.getData<BUFFER_INFO>(),
@@ -2441,23 +2515,6 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				m_simparams->influenceRadius,
 				initStep,
 				firstStep ? 1 : 2);
-}
-
-void GPUWorker::kernel_updateVertIdIndexBuffer()
-{
-	// it is possible to run on internal particles only, although current design makes it meaningful only on all particles
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	neibsEngine->updateVertIDToIndex(
-						bufread.getData<BUFFER_INFO>(),
-						bufwrite.getData<BUFFER_VERTIDINDEX>(),
-						numPartsToElaborate);
 }
 
 void GPUWorker::kernel_saVertexBoundaryConditions()
@@ -2489,7 +2546,6 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufwrite.getData<BUFFER_VERTICES>(),
 				bufread.getRawPtr<BUFFER_VERTPOS>(),
-				bufread.getData<BUFFER_VERTIDINDEX>(),
 
 				// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position
 				// (updated in-place for generated particles)
@@ -2536,28 +2592,6 @@ void GPUWorker::kernel_saIdentifyCornerVertices()
 				m_simparams->epsilon);
 }
 
-void GPUWorker::kernel_saFindClosestVertex()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	bcEngine->saFindClosestVertex(
-				bufread.getData<BUFFER_POS>(),
-				bufwrite.getData<BUFFER_INFO>(),
-				bufwrite.getData<BUFFER_VERTICES>(),
-				bufread.getData<BUFFER_VERTIDINDEX>(),
-				bufread.getData<BUFFER_HASH>(),
-				m_dCellStart,
-				bufread.getData<BUFFER_NEIBSLIST>(),
-				m_numParticles,
-				numPartsToElaborate);
-}
-
 void GPUWorker::kernel_disableOutgoingParts()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2587,6 +2621,8 @@ void GPUWorker::uploadConstants()
 		m_numAllocatedParticles, m_simparams->maxneibsnum, m_simparams->slength);
 	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
+	if(!postProcEngines.empty())
+		postProcEngines.begin()->second->setconstants(m_simparams, m_physparams, m_numAllocatedParticles);
 }
 
 // Auxiliary method for debugging purposes: downloads on the host one or multiple field values of
@@ -2695,24 +2731,6 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 		}
 	}
 	*/
-}
-
-// Analogous to checkPartValByIndex(), but locates the particle by ID through the BUFFER_VERTIDINDEX
-// hash table. This is available only when SA_BOUNDARY is being used and only for VERTEX particles,
-// unless updateVertIDToIndexDevice() is changed to update also non-vertex particles.
-// WARNING: fixing updateVertIDToIndexDevice() for fluid particles is dangerous if there is an inlet,
-// since the ID of generate parts easily overflows the number of allocated particles!
-void GPUWorker::checkPartValById(const char* printID, const uint pid)
-{
-	// here it is possible to set a condition, e.g.:
-	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
-
-	uint pidx = 0;
-
-	// retrieve part index, if BUFFER_VERTIDINDEX was set also for this particle
-	CUDA_SAFE_CALL(cudaMemcpy(&pidx, m_dBuffers.getReadBufferList()->getData<BUFFER_VERTIDINDEX>() + pid, sizeof(uint), cudaMemcpyDeviceToHost));
-
-	checkPartValByIndex(printID, pidx);
 }
 
 

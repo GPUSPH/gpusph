@@ -117,7 +117,9 @@ struct sa_boundary_euler_params
 			float4	*oldVelRW;
 			float4	*newEulerVel;
 			float4	*newBoundElement;
-	const	float2	*const *vertPos;
+	const	float2	*vertPos0;
+	const	float2	*vertPos1;
+	const	float2	*vertPos2;
 	const	float4	*oldEulerVel;
 	const	float	slength;
 	const	float	influenceradius;
@@ -144,7 +146,9 @@ struct sa_boundary_euler_params
 		oldVelRW(const_cast<float4*>(_oldVel)),
 		newEulerVel(_newEulerVel),
 		newBoundElement(_newBoundElement),
-		vertPos(_vertPos),
+		vertPos0(_vertPos[0]),
+		vertPos1(_vertPos[1]),
+		vertPos2(_vertPos[2]),
 		oldEulerVel(_oldEulerVel),
 		slength(_slength),
 		influenceradius(_influenceradius),
@@ -194,6 +198,24 @@ struct grenier_euler_params
 	{}
 };
 
+/// Additional parameters passed only to kernels with ENABLE_INTERNAL_ENERGY
+struct energy_euler_params
+{
+			float	*newEnergy;			///< updated particle's internal energy (out)
+	const	float	*oldEnergy;			///< previous particle's internal energy (in)
+	const	float	*DEDt;				///< internal energy derivative with respect to time (in)
+
+	// Constructor / initializer
+	energy_euler_params(
+				float *_newEnergy,
+		const	float *_oldEnergy,
+		const	float *_DEDt) :
+			newEnergy(_newEnergy),
+			oldEnergy(_oldEnergy),
+			DEDt(_DEDt)
+	{}
+};
+
 /// The actual euler_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -205,7 +227,8 @@ struct euler_params :
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_euler_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_euler_params),
 	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_euler_params),
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_euler_params)
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_euler_params),
+	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -257,7 +280,12 @@ struct euler_params :
 
 		// SPH_GRENIER
 				float4	*_newVol,
-		const	float4	*_oldVol) :
+		const	float4	*_oldVol,
+
+		// ENABLE_INTERNAL_ENERGY
+				float	*_newEnergy,
+		const	float	*_oldEnergy,
+		const	float	*_DEDt) :
 
 		common_euler_params(_newPos, _newVel, _oldPos, _particleHash,
 			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step),
@@ -266,7 +294,9 @@ struct euler_params :
 			(_oldgGam, _newgGam, _contupd, _oldVel, _newEulerVel, _newBoundElement,
 			_vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_euler_params)(_newTKE, _newEps,  _oldTKE, _oldEps, _keps_dkde),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol)
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol),
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(_newEnergy, _oldEnergy, _DEDt)
+
 	{}
 };
 

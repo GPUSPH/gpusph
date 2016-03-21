@@ -49,6 +49,10 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	height = .63;
 	beta = 4.2364*M_PI/180.0;
 
+	// Add objects to the tank
+	use_cyl = false;
+	use_cone = false;
+
 	SETUP_FRAMEWORK(
 	    //viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
@@ -58,16 +62,18 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		flags<ENABLE_DTADAPT | ENABLE_PLANES>
 	);
 
-	m_size = make_double3(lx, ly, lz + 2.0*height);
-	m_origin = make_double3(0.0, 0.0, -2.0*height);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0, 0, 0);
+	if (use_cyl || use_cone) {
+		m_origin.z -= 2.0*height;
+		m_size.z += 2.0*height;
+	}
 
-	addFilter(SHEPARD_FILTER, 20);
-	  //MLS_FILTER
+	addFilter(SHEPARD_FILTER, 20); // or MLS_FILTER
 
-
-	// Add objects to the tank
-	use_cyl = false;
-	use_cone = false;
+	if (get_option("testpoints", false)) {
+		addPostProcess(TESTPOINTS);
+	}
 
 	// use a plane for the bottom
 	use_bottom_plane = 1;  //1 for plane; 0 for particles
@@ -80,8 +86,10 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->tend = 10.0f; //seconds
 
 	//WaveGage
-//	add_gage(1, 0.3);
-//	add_gage(0.5, 0.3);
+	if (get_option("gages", false)) {
+		add_gage(1, 0.3);
+		add_gage(0.5, 0.3);
+	}
 
 	// Physical parameters
 	H = 0.45;
@@ -209,8 +217,7 @@ int WaveTank::fill_parts()
 		n++;
 	 }
 
-/*
-	if (simparams()->testpoints) {
+	if (hasPostProcess(TESTPOINTS)) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
 		test_points.push_back(pos);
 		pos = Point(0.5748, 0.2799, 0.2564, 0.0);
@@ -218,7 +225,7 @@ int WaveTank::fill_parts()
 		pos = Point(1.5748, 0.2799, 0.2564, 0.0);
 		test_points.push_back(pos);
 	}
-*/
+
 	if (use_cyl) {
 		Point p[10];
 		p[0] = Point(h_length + slope_length/(cos(beta)*10), ly/2., 0);
@@ -248,7 +255,7 @@ int WaveTank::fill_parts()
 		cone.Unfill(parts, br);
     }
 
-	return  boundary_parts.size() + get_bodies_numparts() +parts.size(); // + test_points.size();
+	return  boundary_parts.size() + get_bodies_numparts() + parts.size() + test_points.size();
 }
 
 void WaveTank::copy_planes(PlaneList &planes)
@@ -275,20 +282,19 @@ void WaveTank::copy_to_array(BufferList &buffers)
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
 	int j = 0;
-	/*
+
 	if (test_points.size()) {
 		//Testpoints
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		std::cout << "      " << j << "--" << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
+			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);  // first is type, object, 3rd id
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
 		std::cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
-	*/
 
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 	std::cout << "      " << j  << "--" << boundary_parts.size() << "\n";

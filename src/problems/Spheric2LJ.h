@@ -23,14 +23,14 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _SPHERICTEST2_H
-#define	_SPHERICTEST2_H
+#ifndef _SPHERIC2LJ_H
+#define	_SPHERIC2LJ_H
 
 #include "Problem.h"
 #include "Point.h"
 #include "Cube.h"
 
-class SphericTest2: public Problem {
+class Spheric2LJ: public Problem {
 	private:
 		Cube		experiment_box;
 		Cube		obstacle;
@@ -44,8 +44,8 @@ class SphericTest2: public Problem {
 		bool		m_usePlanes;	// use planes or boundaries
 
 	public:
-		SphericTest2(GlobalData *);
-		virtual ~SphericTest2(void);
+		Spheric2LJ(GlobalData *);
+		virtual ~Spheric2LJ(void);
 
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
@@ -56,5 +56,5 @@ class SphericTest2: public Problem {
 
 		void release_memory(void);
 };
-#endif	/* _SPHERICTEST2_H */
+#endif	/* _SPHERIC2LJ_H */
 

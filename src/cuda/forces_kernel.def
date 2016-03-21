@@ -292,7 +292,7 @@ struct keps_particle_data
 		keps_k(tex1Dfetch(keps_kTex, index)),
 		keps_e(tex1Dfetch(keps_eTex, index)),
 		turbVisc(0.09f*keps_k*keps_k/keps_e),
-		turbViscForViscTerm(FLUID(info) ? turbVisc : 0)
+		turbViscForViscTerm((FLUID(info) || (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info))) ? turbVisc : 0)
 	{}
 };
 
@@ -512,6 +512,15 @@ struct xsph_particle_output
 	{}
 };
 
+struct internal_energy_particle_output
+{
+	float DEDt; // derivative of the internal energy with respect to time
+
+	__device__ __forceinline__
+	internal_energy_particle_output() : DEDt(0.0f)
+	{}
+};
+
 template<BoundaryType _boundarytype,
 	ViscosityType _visctype,
 	flag_t _simflags>
@@ -522,7 +531,8 @@ struct forces_particle_output :
 	// When this is implemented, the || visctype == KEPSVISC should be removed
 	COND_STRUCT(_boundarytype == SA_BOUNDARY || _visctype == KEPSVISC, sa_boundary_particle_output),
 	COND_STRUCT(_visctype == KEPSVISC, keps_particle_output),
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_output)
+	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_output),
+	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)
 {
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
@@ -534,7 +544,8 @@ struct forces_particle_output :
 		// TODO FIXME see above
 		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output)(),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)()
+		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)(),
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)()
 	{}
 };
 
@@ -841,20 +852,49 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
 	if (BOUNDARY(ndata.info)) {
-		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
-		const float sx = fmax(x*8.0f - 1.0f,0.0f);
-		// smootherstep function
-		const float smooth = VERTEX(pdata.info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
-		const float2 gamAS = Gamma<FP::kerneltype>(params.slength, ndata.relPos,
-				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
-				ndata.belem, pdata.oldGGam,
-				params.epsilon, params.deltap, pdata.computeGamma, ndata.index,
-				pout.minlRas);
-		pout.gGam.x += gamAS.x*ndata.belem.x;
-		pout.gGam.y += gamAS.x*ndata.belem.y;
-		pout.gGam.z += gamAS.x*ndata.belem.z;
-		pout.gGam.w -= (smooth > params.epsilon ? gamAS.y : 0.0f)*smooth;
-		nout.ggamAS = gamAS.x;
+		// local coordinate system for relative positions to vertices
+		uint j = 0;
+		// Get index j for which n_s is minimal
+		if (fabs(ndata.belem.x) > fabs(ndata.belem.y))
+			j = 1;
+		if ((1-j)*fabs(ndata.belem.x) + j*fabs(ndata.belem.y) > fabs(ndata.belem.z))
+			j = 2;
+
+		// compute the first coordinate which is a 2-D rotated version of the normal
+		const float4 coord1 = normalize(make_float4(
+					// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+					-((j==1)*ndata.belem.z) +  (j == 2)*ndata.belem.y , // -z if j == 1, y if j == 2
+					(j==0)*ndata.belem.z  - ((j == 2)*ndata.belem.x), // z if j == 0, -x if j == 2
+					-((j==0)*ndata.belem.y) +  (j == 1)*ndata.belem.x , // -y if j == 0, x if j == 1
+					0));
+		// the second coordinate is the cross product between the normal and the first coordinate
+		const float4 coord2 = cross3(ndata.belem, coord1);
+
+		// relative positions of vertices with respect to the segment
+		float4 v0 = -(params.vertPos0[ndata.index].x*coord1 + params.vertPos0[ndata.index].y*coord2); // e.g. v0 = r_{v0} - r_s
+		float4 v1 = -(params.vertPos1[ndata.index].x*coord1 + params.vertPos1[ndata.index].y*coord2);
+		float4 v2 = -(params.vertPos2[ndata.index].x*coord1 + params.vertPos2[ndata.index].y*coord2);
+		float4 vertexRelPos[3] = {v0, v1, v2};
+
+		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength, 
+				as_float3(ndata.relPos), vertexRelPos, as_float3(ndata.belem));
+		pout.gGam.x += nout.ggamAS*ndata.belem.x;
+		pout.gGam.y += nout.ggamAS*ndata.belem.y;
+		pout.gGam.z += nout.ggamAS*ndata.belem.z;
+
+		if (FP::simflags & ENABLE_GAMMA_QUADRATURE) {
+			// general formula (also used if particle is on 
+			// vertex / edge to compute remaining edges)
+			const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
+			const float sx = fmax(x*8.0f - 1.0f,0.0f);
+			// smootherstep function
+			const float smooth = VERTEX(pdata.info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
+			const float gamAS = Gamma<FP::kerneltype>(params.slength, as_float3(ndata.relPos),
+					vertexRelPos, as_float3(ndata.belem), 
+					as_float3(pdata.oldGGam), params.epsilon, params.deltap,
+					pdata.computeGamma, pout.minlRas);
+			pout.gGam.w -= (smooth > params.epsilon ? gamAS : 0.0f)*smooth;
+		}
 	}
 }
 
@@ -1322,7 +1362,11 @@ visc_boundary_part<DYNAMICVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// velocity of fluid particle along the wall
-	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
+	const float3 vel_tau = as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)) -
+		(IO_BOUNDARY(ndata.info) ?
+		 make_float3(0.0f) :
+		 dot(as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)), ndata.normal_s)*ndata.normal_s
+		);
 
 	nout.DvDt -= nout.ggamAS*
 		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
@@ -1335,6 +1379,16 @@ __device__ __forceinline__ void
 visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	if (IO_BOUNDARY(ndata.info)) {
+		// velocity of fluid particle along the wall
+		const float3 vel_tau = as_float3(ndata.relVel + ndata.relEulerVel);
+
+		nout.DvDt -= nout.ggamAS*
+			(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
+			vel_tau/pdata.vel.w;
+		return;
+	}
+
 	// for boundary particles without neighbouring fluid particle k is 0 so skip
 	if(pdata.keps_k < params.epsilon)
 		return;
@@ -1467,8 +1521,7 @@ struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
 	{
 		if (BOUNDARY(ndata.info)) {
 			// boundary term of the viscous part based on a boundary segment
-			if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
-				visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
+			visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
 		}
 		else {
 			// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
@@ -1770,6 +1823,26 @@ compute_water_depth_at_outflow<SA_BOUNDARY, true>::with(FP const& params, P cons
 	atomicMax(&params.IOwaterdepth[object(pdata.info)], (uint)nZpos);
 }
 
+/// A functor that adds the internal energy contribution from a neighbor
+/// to the total one, if ENABLE_INTERNAL_ENERGY
+template<bool>
+struct add_internal_energy
+{
+	template<typename OP, typename N, typename ON>
+	__device__ __forceinline__
+	static void
+	with(OP &pout, N const& ndata, ON const& nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename OP, typename N, typename ON>
+__device__ __forceinline__ void
+add_internal_energy<true>::with(OP &pout, N const& ndata, ON const& nout)
+{
+	pout.DEDt -= dot3(nout.DvDt, ndata.relVel)/2;
+}
+
 
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
@@ -1812,6 +1885,24 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
 write_xsph<true>::with(FP const& params, P const& pdata, OP const& pout)
 { params.xsph[pdata.index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
+
+/// A functor that writes out the internal energy, if enabled
+template<bool>
+struct write_internal_energy
+{
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, OP const& pout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ void
+write_internal_energy<true>::with(FP const& params, P const& pdata, OP const& pout)
+{ params.DEDt[pdata.index] = pout.DEDt; }
+
 
 /// A functor that writes out turbvisc
 /// but only for KEPSVISC
@@ -1967,7 +2058,7 @@ struct dyndt_keps_shared_data
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
-		sm_max_nut[threadIdx.x] = fabs(pout.contupd.y);
+		sm_max_nut[threadIdx.x] = pdata.turbVisc;
 	}
 
 	template<typename FP>
@@ -1981,7 +2072,7 @@ struct dyndt_keps_shared_data
 template<BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
 struct forces_shared_data :
 	COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_shared_data),
-	COND_SHARED(simflags & (ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
+	COND_SHARED(QUERY_ALL_FLAGS(simflags, ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
 		boundarytype == SA_BOUNDARY, dyndt_densitySum_shared_data),
 	COND_SHARED(simflags & ENABLE_DTADAPT &&
 		visctype == KEPSVISC, dyndt_keps_shared_data)
@@ -1990,7 +2081,7 @@ struct forces_shared_data :
 		typename COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_shared_data)
 		common;
 	typedef
-		typename COND_SHARED(simflags & (ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
+		typename COND_SHARED(QUERY_ALL_FLAGS(simflags, ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
 			boundarytype == SA_BOUNDARY, dyndt_densitySum_shared_data)
 		density_sum;
 	typedef
@@ -2024,6 +2115,7 @@ struct forces_shared_data :
 		nut::reduce(params);
 	}
 };
+
 /************************************************************************************************************/
 /*		   Particle-particle interaction											*/
 /************************************************************************************************************/
@@ -2151,6 +2243,8 @@ particleParticleInteraction(
 
 	// Sum all contributions from the neighbors in the force array
 	as_float3(pout.force) += nout.DvDt;
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 }
 
 /************************************************************************************************************/
@@ -2210,7 +2304,7 @@ forcesDevice(
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 pos = params.posArray[index];
 		#else
 		const float4 pos = tex1Dfetch(posTex, index);
@@ -2254,14 +2348,14 @@ forcesDevice(
 		for (; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = params.neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == NEIBS_END) break;
 
 			const uint neib_index = getNeibIndex(pdata.pos, pos_corr, params.cellStart,
 				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
 
 			// Compute relative position vector and distance
 			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			#if( __COMPUTE__ >= 20)
+			#if PREFER_L1
 			const float4 relPos = pos_corr - params.posArray[neib_index];
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -2392,6 +2486,8 @@ forcesDevice(
 			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
 			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
+
+		write_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, pout);
 
 	} while (0);
 

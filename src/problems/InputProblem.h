@@ -5,12 +5,12 @@
 
 #include "Problem.h"
 #include "HDF5SphReader.h"
+#include "VTUReader.h"
 
 // Implemented problems:
 //
 //		Keyword					Id	// Description
 //*******************************************************************************************************
-#define	Spheric2					2	// Spheric2 dambreak with obstacle
 #define	Box							3	// Small dambreak in a box
 #define	BoxCorner					4	// Small dambreak in a box with a corner
 #define	SmallChannelFlow			5	// Small channel flow for debugging
@@ -26,7 +26,7 @@
 #define LaPalisseSmallerTest		15	// Smaller testcase for La Palisse (pressure in/out with free-surface)
 //*******************************************************************************************************
 // Choose one of the problems above
-#define SPECIFIC_PROBLEM BoxCorner
+#define SPECIFIC_PROBLEM LaPalisseSmallerTest
 
 class InputProblem: public Problem {
 	private:
@@ -35,6 +35,7 @@ class InputProblem: public Problem {
 		double			w, l, h;
 		double			H;				// water level (used to set D constant)
 		HDF5SphReader	h5File;
+		VTUReader		vtuFile;
 
 
 	public:

@@ -171,7 +171,6 @@ saSegmentBoundaryConditions(
 			float4*			oldEulerVel,
 			float4*			oldGGam,
 			vertexinfo*		vertices,
-	const	uint*			vertIDToIndex,
 	const	float2	* const vertPos[],
 	const	float4*			boundelement,
 	const	particleinfo*	info,
@@ -202,7 +201,6 @@ saVertexBoundaryConditions(
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
 	const	float2			* const vertPos[],
-	const	uint*			vertIDToIndex,
 			particleinfo*	info,
 			hashKey*		particleHash,
 	const	uint*			cellStart,
@@ -219,6 +217,41 @@ saVertexBoundaryConditions(
 	const	bool			resume,
 	const	uint			deviceId,
 	const	uint			numDevices) = 0;
+
+// initialisation of gamma
+virtual
+void
+initGamma(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	float			slength,
+	const	float			deltap,
+	const	float			influenceradius,
+	const	float			epsilon,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd) = 0;
+
+// counts vertices that belong to IO and same segment as other IO vertex
+virtual
+void
+initIOmass_vertexCount(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd) = 0;
+
+// modification of initial io vertex mass
+virtual
+void
+initIOmass(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd,
+	const	float			deltap) = 0;
 
 // disables particles that went through boundaries when open boundaries are used
 virtual void
@@ -256,20 +289,6 @@ saIdentifyCornerVertices(
 	const	uint			particleRangeEnd,
 	const	float			deltap,
 	const	float			eps) = 0;
-
-// finds the closest vertex particles for segments which have no vertices themselves that are of
-// the same object type and are no corner particles
-virtual void
-saFindClosestVertex(
-	const	float4*			oldPos,
-			particleinfo*	info,
-			vertexinfo*		vertices,
-	const	uint*			vertIDToIndex,
-	const	hashKey*		particleHash,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
-	const	uint			numParticles,
-	const	uint			particleRangeEnd) = 0;
 
 };
 #endif

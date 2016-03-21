@@ -245,7 +245,6 @@ private:
 	void kernel_sps();
 	void kernel_meanStrain();
 	void kernel_reduceRBForces();
-	void kernel_updateVertIdIndexBuffer();
 	void kernel_saSegmentBoundaryConditions();
 	void kernel_saVertexBoundaryConditions();
 	void kernel_saIdentifyCornerVertices();
@@ -253,13 +252,15 @@ private:
 	void kernel_updatePositions();
 	void kernel_disableOutgoingParts();
 	void kernel_imposeBoundaryCondition();
+	void kernel_initGamma();
+	void kernel_initIOmass_vertexCount();
+	void kernel_initIOmass();
 	void kernel_download_iowaterdepth();
 	void kernel_upload_iowaterdepth();
 	/*void uploadMbData();
 	void uploadGravity();*/
 
 	void checkPartValByIndex(const char* printID, const uint pindex);
-	void checkPartValById(const char* printID, const uint pid);
 
 	// asynchronous alternative to kernel_force
 	void kernel_forces_async_enqueue();

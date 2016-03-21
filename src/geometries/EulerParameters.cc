@@ -645,6 +645,13 @@ EulerParameters::operator()(int i) const
 	return m_ep[i];
 }
 
+/// Return a double4 of the 4 parameters
+double4
+EulerParameters::params() const
+{
+	return make_double4(m_ep[0], m_ep[1], m_ep[2], m_ep[3]);
+}
+
 
 // DEBUG
 #include <iostream>
@@ -666,10 +673,9 @@ void EulerParameters::printrot(void) const
 	return;
 }
 
-
 std::ostream& operator<<(std::ostream& out, const EulerParameters& ep) // output
 {
-    out << "Ep (" << ep.m_ep[0] << ", " << ep.m_ep[1] << ", " <<
-    		ep.m_ep[2] <<", " << ep.m_ep[3] << ")";
-    return out;
+	out << "Ep (" << ep.m_ep[0] << ", " << ep.m_ep[1] << ", "
+		<< ep.m_ep[2] <<", " << ep.m_ep[3] << ")";
+	return out;
 }

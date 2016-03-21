@@ -51,6 +51,7 @@ __constant__ idx_t	d_neiblist_end; // maxneibsnum * number of allocated particle
 __constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
 
 #include "sph_core_utils.cuh"
+#include "gamma.cuh"
 using namespace cubounds;
 
 /// Apply rotation to a given vector
@@ -162,7 +163,7 @@ struct sa_integrate_continuity_equation
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == NEIBS_END) break;
 
 			const uint neib_index = getNeibIndex(posN, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);
@@ -177,11 +178,12 @@ struct sa_integrate_continuity_equation
 			// vertex parts and boundary elements are moved only in the first integration step according to the velocity
 			// in the second step they are moved according to the solid body movement
 			float4 posNp1_neib = posN_neib;
-			if (MOVING(neib_info) && step == 2) { // this implies VERTEX(neib_info) || BOUNDARY(neib_info)
+			float4 shift_pos = make_float4(0.0f);
+			if (MOVING(neib_info)) { // this implies VERTEX(neib_info) || BOUNDARY(neib_info)
 				// now the following trick is employed for moving objects, instead of moving the segment and all vertices
 				// the fluid is moved virtually in opposite direction. this requires only one position to be recomputed
 				// and not all of them. additionally, the normal stays the same.
-				const uint i = object(neib_info)-1;
+				const uint i = object(neib_info);
 				// if savedObjId is equal to i that means that we have already computed the virtual position of the fluid
 				// with respect to the opposite movement of the object, so we can reuse that information, if not we need
 				// to compute it
@@ -189,7 +191,9 @@ struct sa_integrate_continuity_equation
 					// first move the fluid particle in opposite direction of the body translation
 					float4 virtPos = posNp1 - make_float4(d_rbtrans[i]);
 					// compute position with respect to center of gravity
-					const float3 virtPosCG = d_worldOrigin + as_float3(virtPos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcgPos[i];
+					const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
+					const float3 virtPosCG = globalDistance(gridPos, as_float3(virtPos),
+						d_rbcgGridPos[i], d_rbcgPos[i]);
 					// apply inverse rotation matrix to position
 					applycounterrot(&d_rbsteprot[9*i], virtPosCG, virtPos);
 					// now store the virtual position
@@ -198,15 +202,15 @@ struct sa_integrate_continuity_equation
 					savedObjId = i;
 				}
 				// set the Np1 position of a to the virtual position that is saved
-				posNp1 = make_float4(posNp1Obj);
+				shift_pos = make_float4(posNp1Obj) - posNp1;
 			}
-			else if (FLUID(neib_info) || (MOVING(neib_info) && step==1)) {
+			else if (FLUID(neib_info)) {
 				posNp1_neib += dt*velN_neib;
 			}
 			// vector r_{ab} at time N
 			const float4 relPosN = pos_corr - posN_neib;
 			// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-			const float4 relPosNp1 = make_float4(pos_corr) + posNp1 - posN - posNp1_neib;
+			const float4 relPosNp1 = make_float4(pos_corr) + posNp1 + shift_pos - posN - posNp1_neib;
 
 			if (FLUID(neib_info) || VERTEX(neib_info)) {
 
@@ -236,21 +240,22 @@ struct sa_integrate_continuity_equation
 				if ((1-j)*fabs(ns.x) + j*fabs(ns.y) > fabs(ns.z))
 					j = 2;
 				// compute the first coordinate which is a 2-D rotated version of the normal
-				const float3 coord1 = normalize(make_float3(
+				const float4 coord1 = normalize3(make_float4(
 					// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
 					-((j==1)*ns.z) +  (j == 2)*ns.y ,  // -z if j == 1, y if j == 2
 					  (j==0)*ns.z  - ((j == 2)*ns.x),  // z if j == 0, -x if j == 2
-					-((j==0)*ns.y) +  (j == 1)*ns.x ));// -y if j == 0, x if j == 1
+					-((j==0)*ns.y) +  (j == 1)*ns.x,   // -y if j == 0, x if j == 1
+					0 ));
 				// the second coordinate is the cross product between the normal and the first coordinate
-				const float3 coord2 = cross(ns, coord1);
+				const float4 coord2 = cross3(boundElement[neib_index], coord1);
 				// relative positions of vertices with respect to the segment
-				const float3 vertexRelPos[3] = { -(vPos0[neib_index].x*coord1 + vPos0[neib_index].y*coord2), // e.g. v0 = r_{v0} - r_s
+				const float4 vertexRelPos[3] = { -(vPos0[neib_index].x*coord1 + vPos0[neib_index].y*coord2), // e.g. v0 = r_{v0} - r_s
 												 -(vPos1[neib_index].x*coord1 + vPos1[neib_index].y*coord2),
-												 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2) };
+												 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2)};
 
 				// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
-				const float3 gGamN   = gradGamma<kerneltype>(as_float3(relPosN),   vertexRelPos, ns, slength)*ns;
-				const float3 gGamNp1 = gradGamma<kerneltype>(as_float3(relPosNp1), vertexRelPos, ns, slength)*ns;
+				const float3 gGamN = gradGamma<kerneltype>(slength, as_float3(relPosN), vertexRelPos, ns)*ns;
+				const float3 gGamNp1 = gradGamma<kerneltype>(slength, as_float3(relPosNp1), vertexRelPos, ns)*ns;
 				gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(relPosNp1 - relPosN));
 				gGam += gGamNp1;
 
@@ -258,7 +263,7 @@ struct sa_integrate_continuity_equation
 					// sum_{S^{io}} (gradGam(r + delta r)).delta r
 					const float3 deltaR = dt*as_float3(eulerVel[neib_index] - oldVel[neib_index]);
 					const float3 relPosDelta = as_float3(relPosN) + deltaR;
-					const float3 gGamDelta = gradGamma<kerneltype>(relPosDelta, vertexRelPos, ns, slength)*ns;
+					const float3 gGamDelta = gradGamma<kerneltype>(slength, relPosDelta, vertexRelPos, ns)*ns;
 					sumSgamDelta += dot(deltaR, gGamDelta);
 				}
 			}

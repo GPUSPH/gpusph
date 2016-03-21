@@ -72,6 +72,13 @@ Problem::initialize()
 	check_dt();
 	check_maxneibsnum();
 	calculateFerrariCoefficient();
+
+	/* Set ARTVISC epsilon to h^2/10 if not set by the user.
+	 * For simplicity, we do this regardless of the viscosity model used,
+	 * it'll just be ignored otherwise */
+	if (isnan(physparams()->epsartvisc))
+		physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+
 	create_problem_dir();
 
 	printf("Problem calling set grid params\n");
@@ -635,7 +642,7 @@ Problem::pressure(float rho, int i) const
 void
 Problem::add_gage(double3 const& pt)
 {
-	simparams()->gage.push_back(pt);
+	simparams()->gage.push_back(make_double4(pt.x, pt.y, 0., pt.z));
 }
 
 plane_t
@@ -1136,6 +1143,30 @@ Problem::calculateFerrariCoefficient()
 void
 Problem::set_grid_params(void)
 {
+	/* When using periodicity, it's important that the world size in the periodic
+	 * direction is an exact multiple of the deltap: if this is not the case,
+	 * fluid filling might use an effective inter-particle distance which is
+	 * “significantly” different from deltap, which would lead particles near
+	 * periodic boundaries to have distance _exactly_ deltap across the boundary,
+	 * but “significantly” different on the same side. While this in general would not
+	 * be extremely important, it can have a noticeable effect at the beginning of the
+	 * simulation, when particles are distributed quite regularly and the difference
+	 * between effective (inner) distance and cross-particle distance can create
+	 * a rather annoying discontinuity.
+	 * So warn if m_size.{x,y,z} is not a multiple of deltap in case of periodicity.
+	 * TODO FIXME this would not be needed if filling was made taking into account
+	 * periodicity and spaced particles accordingly.
+	 */
+	if (simparams()->periodicbound & PERIODIC_X && !is_multiple(m_size.x, m_deltap))
+		fprintf(stderr, "WARNING: problem is periodic in X, but X world size %.9g is not a multiple of deltap (%.g)\n",
+			m_size.x, m_deltap);
+	if (simparams()->periodicbound & PERIODIC_Y && !is_multiple(m_size.y, m_deltap))
+		fprintf(stderr, "WARNING: problem is periodic in Y, but Y world size %.9g is not a multiple of deltap (%.g)\n",
+			m_size.y, m_deltap);
+	if (simparams()->periodicbound & PERIODIC_Z && !is_multiple(m_size.z, m_deltap))
+		fprintf(stderr, "WARNING: problem is periodic in X, but Z world size %.9g is not a multiple of deltap (%.g)\n",
+			m_size.z, m_deltap);
+
 	double influenceRadius = simparams()->kernelradius*simparams()->slength;
 	// with semi-analytical boundaries, we want a cell size which is
 	// deltap/2 + the usual influence radius
@@ -1294,4 +1325,25 @@ void Problem::imposeForcedMovingObjects(
 {
 	// not implemented
 	return;
+}
+
+
+
+
+void Problem::PlaneCut(PointVect& points, const double a, const double b,
+			const double c, const double d)
+{
+	PointVect new_points;
+	new_points.reserve(points.size());
+	//const double norm_factor = sqrt(a*a + b*b + c*c);
+	for (uint i = 0; i < points.size(); i++) {
+		const Point & p = points[i];
+		const double dist = a*p(0) + b*p(1) + c*p(2) + d;
+
+		if (dist >= 0)
+			new_points.push_back(p);
+	}
+
+	points.clear();
+	points = new_points;
 }

@@ -353,8 +353,8 @@ int main(int argc, char** argv) {
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(&gdata);
-	if (gdata.problem->m_simframework)
-		gdata.simframework = gdata.problem->m_simframework;
+	if (gdata.problem->simframework())
+		gdata.simframework = gdata.problem->simframework();
 	else
 		throw invalid_argument("no simulation framework defined in the problem!");
 	gdata.allocPolicy = gdata.simframework->getAllocPolicy();

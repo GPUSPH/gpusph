@@ -77,11 +77,15 @@ Writer::Create(GlobalData *_gdata)
 		Writer *writer = NULL;
 		WriterType wt = it->first;
 		double freq = it->second;
+		// previous frequency, in case of override. used to correct the
+		// avg_freq
+		double old_freq = 0;
 
 		/* Check if the writer is in there already */
 		WriterMap::iterator wm = m_writers.find(wt);
 		if (wm != m_writers.end()) {
 			writer = wm->second;
+			old_freq = writer->get_write_freq();
 			cerr << "Overriding " << WriterName[wt] << " writing frequency" << endl;
 		} else {
 			switch (wt) {
@@ -129,8 +133,13 @@ Writer::Create(GlobalData *_gdata)
 		else
 			cerr << WriterName[wt] << " has unknown writing frequency " << freq << endl;
 
-		avg_freq += freq;
-		++avg_count;
+		// add current frequency for the average computation,
+		// keeping in mind it might be an override of a previously set frequency
+		avg_freq += (freq - old_freq);
+
+		// increment the average divisor when this wasn't an override
+		if (freq > 0 && old_freq == 0)
+			++avg_count;
 	}
 
 	avg_freq /= avg_count;
@@ -227,7 +236,7 @@ Writer::StartWriting(double t, bool force)
 
 		Writer *writer = it->second;
 		if (writer->need_write(t) || force || m_forced) {
-			writer->start_writing();
+			writer->start_writing(t);
 			started[it->first] = it->second;
 		}
 	}
@@ -375,6 +384,26 @@ Writer::WriteObjects(WriterMap writers, double t)
 }
 
 void
+Writer::WriteEnergy(WriterMap writers, double t, double4 *energy)
+{
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		it->second->write_energy(t, energy);
+	}
+
+	if (common_special && !writers.empty())
+		m_writers[COMMONWRITER]->write_energy(t, energy);
+}
+
+void
 Writer::WriteObjectForces(WriterMap writers, double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques)
@@ -398,6 +427,26 @@ Writer::WriteObjectForces(WriterMap writers, double t, uint numobjects,
 		m_writers[COMMONWRITER]->write_objectforces(t, numobjects,
 				computedforces, computedtorques,
 				appliedforces, appliedtorques);
+}
+
+void
+Writer::WriteFlux(WriterMap writers, double t, float* fluxes)
+{
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+
+	WriterMap::iterator it(writers.begin());
+	WriterMap::iterator end(writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		it->second->write_flux(t, fluxes);
+	}
+
+	if (common_special && !writers.empty())
+		m_writers[COMMONWRITER]->write_flux(t, fluxes);
 }
 
 void

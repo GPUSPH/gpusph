@@ -120,8 +120,6 @@ enum CommandType {
 	FILTER,
 	/// Run post-processing filters (e.g. vorticity, testpoints)
 	POSTPROCESS,
-	/// SA_BOUNDARY only: update the vertex ID-to-index map
-	SA_UPDATE_VERTIDINDEX,
 	/// SA_BOUNDARY only: compute segment boundary conditions and identify fluid particles
 	/// that leave open boundaries
 	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,
@@ -132,8 +130,6 @@ enum CommandType {
 	/// SA_BOUNDARY only: identify vertices at corner of open boundaries.
 	/// Corner vertices do not generate new particles,
 	IDENTIFY_CORNER_VERTICES,
-	/// SA_BOUNDARY only: find the closest vertex for boundaries that have no proper I/O vertex themselves
-	FIND_CLOSEST_VERTEX,
 	/// SA_BOUNDARY only: disable particles that went through an open boundary
 	DISABLE_OUTGOING_PARTS,
 	/// SPH_GRENIER only: compute density
@@ -166,6 +162,12 @@ enum CommandType {
 	DOWNLOAD_IOWATERDEPTH,
 	/// Upload (total)computed water depth from host to device
 	UPLOAD_IOWATERDEPTH,
+	/// Initialize gamma using a Gaussian quadrature rule
+	INIT_GAMMA,
+	/// Count vertices that belong to the same IO and the same segment as an IO vertex
+	INIT_IO_MASS_VERTEX_COUNT,
+	/// Modifiy initial mass of open boundaries
+	INIT_IO_MASS,
 	/// Quit the simulation cycle
 	QUIT
 };
@@ -181,10 +183,22 @@ class Writer;
 
 class Problem;
 
+/// Bitfield of things to debug
+struct DebugFlags {
+	/// print each step as it is being executed
+	uint print_step : 1;
+	/// debug the neighbors list on host
+	uint neibs : 1;
+	/// debug forces on host
+	uint forces : 1;
+};
+
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
 struct GlobalData {
+	DebugFlags debug;
+
 	// # of GPUs running
 
 	// number of user-specified devices (# of GPUThreads). When multi-node, #device per node
@@ -349,12 +363,13 @@ struct GlobalData {
 	float3*	s_hRbAngularVelocities;
 
 	// waterdepth at pressure outflows
-	uint	h_IOwaterdepth[MAX_DEVICES_PER_NODE][MAX_BODIES];
+	uint**	h_IOwaterdepth;
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
 	GlobalData(void):
+		debug(),
 		devices(0),
 		mpi_nodes(0),
 		mpi_rank(-1),
@@ -417,12 +432,18 @@ struct GlobalData {
 			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
 				s_hDeviceCanAccessPeer[d][p] = false;
 
-		// init h_IOwaterdepth
-		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) {
-			for (uint ob=0; ob < MAX_BODIES; ob++)
-				h_IOwaterdepth[d][ob] = 0;
-		}
 	};
+
+	// compute the global position from grid and local pos. note that the
+	// world origin needs to be added to this
+	template<typename T> // T should be uint3 or int3
+	double3 calcGlobalPosOffset(T const& gridPos, float3 const& pos) const {
+		double3 dpos;
+		dpos.x = ((double) this->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x;
+		dpos.y = ((double) this->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y;
+		dpos.z = ((double) this->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z;
+		return dpos;
+	}
 
 	// compute the coordinates of the cell which contains the particle located at pos
 	int3 calcGridPosHost(double px, double py, double pz) const {

@@ -139,11 +139,19 @@ public:
 	static void
 	WriteObjects(WriterMap writers, double t);
 
+	// write energy data
+	static void
+	WriteEnergy(WriterMap writers, double t, double4 *energy);
+
 	// write object forces
 	static void
 	WriteObjectForces(WriterMap writers, double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques);
+
+	// write fluxes of open boundaries
+	static void
+	WriteFlux(WriterMap writers, double t, float* fluxes);
 
 	// delete writers and clear the list
 	static void
@@ -170,7 +178,7 @@ protected:
 	// Writers that need to do special things before starting to write
 	// should override this
 	virtual void
-	start_writing() {}
+	start_writing(double t) {}
 
 	// finish writing. Writers that need to do special things when done
 	// can override this problem, but they should call Writer::mark_written
@@ -189,7 +197,7 @@ protected:
 	write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints) = 0;
 
 	virtual void
-	write_energy(double t, float4 *energy) {}
+	write_energy(double t, double4 *energy) {}
 
 	virtual void
 	write_WaveGage(double t, GageList const& gage) {}
@@ -201,6 +209,9 @@ protected:
 	write_objectforces(double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques) {}
+
+	virtual void
+	write_flux(double t, float *fluxes) {}
 
 	uint getFilenum() const;
 

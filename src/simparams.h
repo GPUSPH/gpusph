@@ -34,7 +34,7 @@
 #include "simflags.h"
 #include "deprecation.h"
 
-typedef std::vector<double3> GageList;
+typedef std::vector<double4> GageList;
 
 typedef struct SimParams {
 	// Options that are set via SimFramework.
@@ -63,8 +63,6 @@ typedef struct SimParams {
 	float			ferrariLengthScale;		// length scale for Ferrari correction
 
 	bool			gcallback;				// true if using a variable gravity in problem
-	bool			csvtestpoints;			// true to dump the testpoints also in CSV files
-	bool			csvsimplegages;			// true to dump the gages also in CSV files
 	bool			calc_energy;			// true if we want to compute system energy at save time
 	GageList		gage;					// water gages
 	uint			numODEbodies;			// number of bodies which movmement is computed by ODE
@@ -114,8 +112,6 @@ typedef struct SimParams {
 		ferrariLengthScale(NAN),
 
 		gcallback(false),
-		csvtestpoints(false),
-		csvsimplegages(false),
 		calc_energy(true),
 		numforcesbodies(0),
 		numbodies(0),
