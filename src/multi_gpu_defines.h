@@ -43,12 +43,10 @@ typedef unsigned char devcount_t;
 #define MAX_DEVICES_PER_NODE  (1 << DEVICE_BITS)
 #define DEVICE_BITS_MASK (MAX_DEVICES_PER_NODE - 1)
 
-// If hashKey is 64 bits long, the first two bits of the cell hash are reserved; otherwise, the max number of cells is UINT_MAX
-#if HASH_KEY_SIZE == 32
-#define MAX_CELLS			(UINT_MAX)
-#else
+// The two most significant bits of the cell hash are reserved for multi-GPU usage, as they are used
+// to indicate the cell type (inner, edge, outer). Take this into account in the maximum number of
+// cells we can have in a problem
 #define MAX_CELLS			(UINT_MAX >> 2)
-#endif
 
 // cellTypes used as array indices for the segments
 #define CELLTYPE_INNER_CELL			0U
@@ -64,14 +62,7 @@ typedef unsigned char devcount_t;
 #define CELLTYPE_OUTER_CELL_SHIFTED			(CELLTYPE_OUTER_CELL<<30) // memset to 0xFF for making OUTER_CELL defaults
 
 // Bitmasks used to reset the cellType (AND mask to reset the high bits, AND ~mask to extract them)
-#if HASH_KEY_SIZE == 32
-// mask: 111111...
-#define CELLTYPE_BITMASK (UINT_MAX)
-#else
-// mask: 001111...
 #define CELLTYPE_BITMASK		(~( 3U  << 30 ))
-#define CELLTYPE_BITMASK_LONG	(~( 3LU  << 62 ))
-#endif
 
 // Empty segment (uint)
 #define EMPTY_SEGMENT (UINT_MAX)
