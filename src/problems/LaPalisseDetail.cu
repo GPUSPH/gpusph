@@ -26,156 +26,150 @@
 #include <cmath>
 #include <iostream>
 
-#include "XCompleteSaExample.h"
+#include "LaPalisseDetail.h"
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
+#include "textures.cuh"
+#include "utils.h"
 
-XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
+LaPalisseDetail::LaPalisseDetail(GlobalData *_gdata) : XProblem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
 		formulation<SPH_F1>,
-		viscosity<DYNAMICVISC>,
+		viscosity<KEPSVISC>,
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
-		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES | ENABLE_FERRARI>
+		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH | ENABLE_FERRARI>
 	);
 
 	// *** Initialization of minimal physical parameters
-	set_deltap(0.02f);
-	physparams()->r0 = m_deltap;
+	set_deltap(0.005f);
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 
 	// *** Initialization of minimal simulation parameters
 	simparams()->maxneibsnum = 256 + 64 + 32; // 352
 	// ferrari correction
-	simparams()->ferrariLengthScale = 0.25f;
+	simparams()->ferrari = 1.0f;
 
 	// buildneibs at every iteration
 	simparams()->buildneibsfreq = 1;
 
 	// *** Other parameters and settings
-	add_writer(VTKWRITER, 1e-2f);
-	m_name = "XCompleteSaExample";
+	add_writer(VTKWRITER, 1e-1f);
+	m_name = "LaPalisseDetail";
 
-		m_origin = make_double3(-1, -1, -1);
-	m_size = make_double3(3, 3, 3);
+	// Size and origin of the simulation domain
+	H = 1.35;
+	l = 3.6; w = 6.1; h = 1.7;
+	m_size = make_double3(l, w ,h);
+	m_origin = make_double3(-0.38, -5.48, -0.65);
 
-	// Set world size and origin like CompleteSaExample, instead of computing automatically.
-	// Also, HDF5 file loading does not support bounding box detection yet
-	const double MARGIN = 0.1;
-	const double INLET_BOX_LENGTH = 0.25;
-	// size of the main cube, excluding the inlet and any margin
-	double box_l, box_w, box_h;
-	box_l = box_w = box_h = 1.0;
-	// world size
-	double world_l = box_l + INLET_BOX_LENGTH + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box length)
-	double world_w = box_w + 2 * MARGIN;
-	double world_h = box_h + 2 * MARGIN;
-	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
-	m_size = make_double3(world_l, world_w ,world_h);
+	setWaterLevel(H);
+	setMaxParticleSpeed(5.0);
 
-	// set max_fall 5 for sspeed =~ 70
-	//setMaxFall(5);
-	setWaterLevel(0.5);
-	setMaxParticleSpeed(7.0);
-
-	add_fluid(1000.0);
-	// explicitly set sspeed (not necessary since using setMaxParticleSpeed();
-	//set_equation_of_state(7.0f, 70.0f);
-	// also possible:
-	//set_equation_of_state(7.0f, NAN);
-	// to set the adjabatic exponent, but no the sound speed
-	set_kinematic_visc(0, 1.0e-2f);
-
-	// add "universe box" of planes
-	//makeUniverseBox(m_origin, m_origin + m_size );
-
+	size_t water = add_fluid(1000.0);
+	set_kinematic_visc(water, 1.0e-6f);
+	set_equation_of_state(water, 7.0f, 50.0f);
 
 	// fluid
-	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.fluid.h5sph", NULL);
+	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/LaPalisseDetail/0.la_palisse_detail.fluid.h5sph", NULL);
 
 	// main container
 	GeometryID container =
-		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent0.h5sph", NULL);
+		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/LaPalisseDetail/0.la_palisse_detail.boundary.kent0.h5sph", NULL);
 	disableCollisions(container);
 
-	// Inflow square. Load it as GT_FIXED_BOUNDARY to disable it.
+	// Inflow area. Load it as GT_FIXED_BOUNDARY to disable it.
 	GeometryID inlet =
-		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
+		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/LaPalisseDetail/0.la_palisse_detail.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
+	setVelocityDriven(inlet, PRESSURE_DRIVEN);
 
-	// set velocity or pressure driven (see define in header)
-	// TODO call this function setInflowType with enum VELOCITY_DRIVEN, PRESSURE_DRIVEN
-	setVelocityDriven(inlet, VELOCITY_DRIVEN);
-
-	// Floating box, with STL mesh for collision detection
-	// GT_FLOATING_BODY for floating, GT_MOVING_BODY for force measurement only
-	GeometryID cube =
-		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent2.h5sph",
-			"./data_files/XCompleteSaExample/CompleteSaExample_cube_coarse.stl");
-
-	enableFeedback(cube);
-
-	// NOTE: physparams()->rho0[0] is not available yet if set_density() was not explicitly called,
-	// so we use an absolute value instead (half water density)
-	setMassByDensity(cube, 500);
+	// Outflow area. Load it as GT_FIXED_BOUNDARY to disable it.
+	GeometryID outlet =
+		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/LaPalisseDetail/0.la_palisse_detail.boundary.kent2.h5sph", NULL);
+	disableCollisions(outlet);
+	setVelocityDriven(outlet, PRESSURE_DRIVEN);
 }
 
-/*
-void XCompleteSaExample::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
+void LaPalisseDetail::initializeParticles(BufferList &buffers, const uint numParticles)
 {
-	const float k0 = 1.0f/sqrtf(0.09f);
+	printf("Initializing particle properties...\n");
 
-	for (uint i = 0; i < numpart; i++) {
-		k[i] = k0;
-		e[i] = 2.874944542f*k0*0.01f;
-	}
-} // */
+	// grab the particle arrays from the buffer list
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
+	float *k = buffers.getData<BUFFER_TKE>();
+	float *e = buffers.getData<BUFFER_EPSILON>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
+	const hashKey *hash = buffers.getData<BUFFER_HASH>();
 
-/* TODO this routine is never called
-void XCompleteSaExample::imposeForcedMovingObjects(
-			float3	&centerOfGravity,
-			float3	&translation,
-			float*	rotationMatrix,
-	const	uint	ob,
-	const	double	t,
-	const	float	dt)
-{
-	switch (ob) {
-		case 2:
-			centerOfGravity = make_float3(0.0f, 0.0f, 0.0f);
-			translation = make_float3(0.2f*dt, 0.0f, 0.0f);
-			for (uint i=0; i<9; i++)
-				rotationMatrix[i] = (i%4==0) ? 1.0f : 0.0f;
-			break;
-		default:
-			break;
+	const float Htilde = H + 0.1f*m_deltap;
+
+	// iterate on the particles
+	for (uint i = 0; i < numParticles; i++) {
+
+		// get absolute z position
+		const unsigned int cellHash = cellHashFromParticleHash(hash[i]);
+		const float gridPosZ = float((cellHash % (m_gridsize.COORD2*m_gridsize.COORD1)) / m_gridsize.COORD1);
+		const float z = pos[i].z + m_origin.z + (gridPosZ + 0.5f)*m_cellsize.z;
+
+		const float rho = density(H - z, 0);
+		const float lvel = 0.0f;
+
+		if (FLUID(info[i])) {
+			vel[i].x = lvel;
+			if (z < Htilde) {
+				// turbulent intensity
+				const float Ti = 0.01f;
+				// length scale of the flow (water depth)
+				const float L = H;
+
+				k[i] = fmax(3.0f/2.0f*lvel*Ti*lvel*Ti, 1e-6f);
+				// constant is C_\mu^(3/4)/0.07*sqrt(3/2)
+				// formula is epsilon = C_\mu^(3/4) k^(3/2)/(0.07 L)
+				e[i] = fmax(2.874944542f*k[i]*lvel*Ti/L, 1e-6f);
+			}
+			else {
+				k[i] = 1e-6f;
+				e[i] = 1e-6f;
+			}
+		}
+		else if (eulerVel) {
+			if (!MOVING(info[i]))
+				eulerVel[i].x = lvel;
+		}
 	}
 }
-// */
 
-uint XCompleteSaExample::max_parts(uint numpart)
+void LaPalisseDetail::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
+{
+	/* do nothing, init of keps is in general init routine */
+}
+
+uint LaPalisseDetail::max_parts(uint numpart)
 {
 	return (uint)((float)numpart*2.0f);
 }
 
-void XCompleteSaExample::fillDeviceMap()
+void LaPalisseDetail::fillDeviceMap()
 {
-	fillDeviceMapByAxis(Y_AXIS);
+	fillDeviceMapByAxisBalanced(Y_AXIS);
 }
 
-namespace cuXCompleteSaExample
+namespace cuLaPalisseDetail
 {
-using namespace cuforces;
 using namespace cubounds;
+using namespace cuforces;
 
 __device__
 void
-XCompleteSaExample_imposeBoundaryCondition(
+LaPalisseDetail_imposeBoundaryCondition(
 	const	particleinfo	info,
 	const	float3			absPos,
 			float			waterdepth,
@@ -185,44 +179,23 @@ XCompleteSaExample_imposeBoundaryCondition(
 			float&			tke,
 			float&			eps)
 {
-	// Default value for eulerVel
-	// Note that this default value needs to be physically feasible, as it is used in case of boundary elements
-	// without fluid particles in their support. It is also possible to use this default value to impose tangential
-	// velocities for pressure outlets.
-	eulerVel = make_float4(0.0f, 0.0f, 0.0f, d_rho0[fluid_num(info)]);
 	vel = make_float4(0.0f);
-	tke = 0.0f;
-	eps = 0.0f;
+	tke = 1e-6f;
+	eps = 1e-6f;
+	eulerVel = make_float4(0.0f, 0.0f, 0.0f, d_rho0[fluid_num(info)]);
 
-	// open boundary conditions
 	if (IO_BOUNDARY(info)) {
-
-		if (!VEL_IO(info)) {
-			// impose pressure
-
-			/*
-			if (t < 1.0)
-				// inlet pressure grows to target in 1s settling time
-				waterdepth = 0.5 + t * (INLET_WATER_LEVEL - 0.5F);
-			else
-			*/
-				// set inflow waterdepth
-				waterdepth = INLET_WATER_LEVEL;
-			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
-			const float pressure = 9.81e3f*localdepth;
-			eulerVel.w = RHO(pressure, fluid_num(info));
-		} else {
-			// impose velocity
-			if (t < INLET_VELOCITY_FADE)
-				eulerVel.x = INLET_VELOCITY * t / INLET_VELOCITY_FADE;
-			else
-				eulerVel.x = INLET_VELOCITY;
-		}
+		if (object(info)==0) // inlet has prescribed water depth
+			waterdepth = INITIAL_WATER_LEVEL + (INLET_WATER_LEVEL - INITIAL_WATER_LEVEL)*fmax(t,RISE_TIME)/RISE_TIME;
+		const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+		const float pressure = 9.807e3f*localdepth;
+		eulerVel.w = RHO(pressure, fluid_num(info));
 	}
+
 }
 
 __global__ void
-XCompleteSaExample_imposeBoundaryConditionDevice(
+LaPalisseDetail_imposeBoundaryConditionDevice(
 			float4*		newVel,
 			float4*		newEulerVel,
 			float*		newTke,
@@ -258,6 +231,7 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
+			// when pressure outlets require the water depth compute it from the IOwaterdepth integer
 			float waterdepth = 0.0f;
 			if (!VEL_IO(info) && IOwaterdepth) {
 				waterdepth = ((float)IOwaterdepth[object(info)])/((float)UINT_MAX); // now between 0 and 1
@@ -265,7 +239,7 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 				waterdepth += d_worldOrigin.z; // now absolute z position
 			}
 			// this now calls the virtual function that is problem specific
-			XCompleteSaExample_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
+			LaPalisseDetail_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
 			// copy values to arrays
 			newVel[index] = vel;
 			newEulerVel[index] = eulerVel;
@@ -274,13 +248,14 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 			if(newEpsilon)
 				newEpsilon[index] = eps;
 		}
+		// all other vertex particles had their eulerVel set in euler already
 	}
 }
 
-} // end of cuXCompleteSaExample namespace
+} // end of cuLaPalisseDetail namespace
 
 void
-XCompleteSaExample::imposeBoundaryConditionHost(
+LaPalisseDetail::imposeBoundaryConditionHost(
 			MultiBufferList::iterator		bufwrite,
 			MultiBufferList::const_iterator	bufread,
 					uint*			IOwaterdepth,
@@ -309,7 +284,7 @@ XCompleteSaExample::imposeBoundaryConditionHost(
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	cuXCompleteSaExample::XCompleteSaExample_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
+	cuLaPalisseDetail::LaPalisseDetail_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
 		(newVel, newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, t, numParticles, particleHash);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));

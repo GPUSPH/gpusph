@@ -21,11 +21,11 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//*************************************************************************************
 #if SPECIFIC_PROBLEM == BoxCorner || SPECIFIC_PROBLEM == Box
 #if SPECIFIC_PROBLEM == BoxCorner
-			h5File.setFilename("meshes/0.box_corner.h5sph");
-			//vtuFile.setFilename("meshes/box_corner.vtu");
+			h5File.setFilename("./data_files/0.box_corner.h5sph");
+			//vtuFile.setFilename("./data_files/box_corner.vtu");
 #else
-			h5File.setFilename("meshes/0.box_blend_16.h5sph");
-			//vtuFile.setFilename("meshes/box_blend_16.vtu");
+			h5File.setFilename("./data_files/0.box_blend_16.h5sph");
+			//vtuFile.setFilename("./data_files/box_blend_16.vtu");
 #endif
 
 		SETUP_FRAMEWORK(
@@ -57,7 +57,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//SmallChannelFlow (a small channel flow for debugging viscosity)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlow
-		h5File.setFilename("meshes/0.small_channel.h5sph");
+		h5File.setFilename("./data_files/0.small_channel.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -84,7 +84,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//SmallChannelFlowKEPS (a small channel flow for debugging the k-epsilon model)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS
-		h5File.setFilename("meshes/0.small_channel_keps.h5sph");
+		h5File.setFilename("./data_files/0.small_channel_keps.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<KEPSVISC>,
@@ -116,7 +116,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//SmallChannelFlowIO (a small channel flow for debugging in/outflow)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIO
-		h5File.setFilename("meshes/0.small_channel_io_walls.h5sph");
+		h5File.setFilename("./data_files/0.small_channel_io_walls.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -145,7 +145,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
       SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
-		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
+		h5File.setFilename("./data_files/0.small_channel_io_2d_per.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -183,7 +183,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//SmallChannelFlowIOKeps (a small channel flow for debugging in/outflow with keps)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
+		h5File.setFilename("./data_files/0.small_channel_io_2d_per.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<KEPSVISC>,
@@ -211,7 +211,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//IOWithoutWalls (i/o between two plates without walls)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-		h5File.setFilename("meshes/0.io_without_walls.h5sph");
+		h5File.setFilename("./data_files/0.io_without_walls.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -238,7 +238,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//Small test case with similar features to La Palisse
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
-		h5File.setFilename("meshes/0.la_palisse_small_test.h5sph");
+		h5File.setFilename("./data_files/0.la_palisse_small_test.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<KEPSVISC>,
@@ -268,7 +268,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//Small test case with similar features to La Palisse
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == LaPalisseSmallerTest
-		h5File.setFilename("meshes/0.lp_smaller_test.h5sph");
+		h5File.setFilename("./data_files/0.lp_smaller_test.h5sph");
 
 		SETUP_FRAMEWORK(
 			//viscosity<KEPSVISC>,
@@ -301,8 +301,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	// Solitary Wave with IO
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SolitaryWave
-		//h5File.setFilename("meshes/0.solitaryWave_small.h5sph");
-		h5File.setFilename("meshes/0.solitaryWave.h5sph");
+		//h5File.setFilename("./data_files/0.solitaryWave_small.h5sph");
+		h5File.setFilename("./data_files/0.solitaryWave.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -336,7 +336,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//Periodic wave with IO
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == PeriodicWave
-		h5File.setFilename("meshes/0.periodic_wave_0.02.h5sph");
+		h5File.setFilename("./data_files/0.periodic_wave_0.02.h5sph");
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -894,8 +894,12 @@ InputProblem_imposeBoundaryConditionDevice(
 	if (index >= numParticles)
 		return;
 
-	float4 vel = make_float4(0.0f);			// imposed velocity for moving objects
+	// Default value for eulerVel
+	// Note that this default value needs to be physically feasible, as it is used in case of boundary elements
+	// without fluid particles in their support. It is also possible to use this default value to impose tangential
+	// velocities for pressure outlets.
 	float4 eulerVel = make_float4(0.0f);	// imposed velocity/pressure for open boundaries
+	float4 vel = make_float4(0.0f);			// imposed velocity for moving objects
 	float tke = 0.0f;						// imposed turbulent kinetic energy for open boundaries
 	float eps = 0.0f;						// imposed turb. diffusivity for open boundaries
 

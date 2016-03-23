@@ -54,7 +54,6 @@ void HotFile::save() {
 	// write a header
 	writeHeader(_fp.out, VERSION_1);
 
-	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
 		writeBuffer(_fp.out, iter->second, VERSION_1);
@@ -89,8 +88,8 @@ check_counts_match(const char* what, size_t hf_count, size_t sim_count)
 void HotFile::load() {
 	// read header
 
-	// TODO FIXME multinode should take into account per-rank particles
-	check_counts_match("particle", _particle_count, _gdata->totParticles);
+	//// TODO FIXME multinode should take into account per-rank particles
+	//check_counts_match("particle", _particle_count, _gdata->totParticles);
 
 	// TODO FIXME would it be possible to restore from a situation with a
 	// different number of arrays?
@@ -101,7 +100,6 @@ void HotFile::load() {
 	// TODO FIXME/ should be num ODE bodies
 	check_counts_match("body", _header.body_count, _gdata->problem->simparams()->numbodies);
 
-	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
 		cout << "Will load buffer here..." << endl;
@@ -137,6 +135,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 		_header.particle_count = _particle_count;
 		//TODO FIXME
 		_header.body_count = _gdata->problem->simparams()->numbodies;
+		_header.numOpenBoundaries = _gdata->problem->simparams()->numOpenBoundaries;
 		_header.iterations = _gdata->iterations;
 		_header.dt = _gdata->dt;
 		_header.t = _gdata->t;
@@ -147,7 +146,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 	}
 }
 
-void HotFile::readHeader(uint &part_count) {
+void HotFile::readHeader(uint &part_count, uint &numOpenBoundaries) {
 	memset(&_header, 0, sizeof(_header));
 
 	// read and check version
@@ -159,7 +158,9 @@ void HotFile::readHeader(uint &part_count) {
 	_fp.in->seekg(0); // rewind
 	_fp.in->read((char*)&_header, sizeof(_header));
 	_particle_count = _header.particle_count;
-	part_count = _particle_count;
+	numOpenBoundaries = _header.numOpenBoundaries;
+	_node_offset = part_count;
+	part_count += _particle_count;
 }
 
 void HotFile::writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t version) {
@@ -183,7 +184,7 @@ void HotFile::writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t 
 		// may be 1 or 2 for the same buffer depending on whether the hotfile
 		// was saved after or before the introduction of the multibufferlist.
 		for(int i = 0; i < 1 /*buffer->get_array_count()*/; i++) {
-			const void *data = buffer->get_buffer(i);
+			const void *data = buffer->get_offset_buffer(i, _node_offset);
 			const size_t size = buffer->get_element_size()*_particle_count;
 			if(data == NULL) {
 				cerr << "NULL buffer " << i << " for " << buffer->get_buffer_name()
@@ -220,7 +221,7 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 		cout << "read buffer header: " << eb.name << endl;
 		if (strcmp(buffer->get_buffer_name(), eb.name))
 			bufname_mismatch(buffer->get_buffer_name(), eb.name);
-		fp->read((char*)buffer->get_buffer(), sz);
+		fp->read((char*)buffer->get_offset_buffer(0, _node_offset), sz);
 		break;
 	default:
 		unsupported_version(version);
@@ -280,6 +281,6 @@ void HotFile::readBody(ifstream *fp, version_t version)
 
 std::ostream& operator<<(std::ostream &strm, const HotFile &h) {
 	return strm << "HotFile( version=" << h._header.version << ", pc=" <<
-		h._header.particle_count << ", bc=" << h._header.body_count << ")";
+		h._header.particle_count << ", bc=" << h._header.body_count << ")" << endl;
 }
 
