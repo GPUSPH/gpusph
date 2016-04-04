@@ -1,0 +1,132 @@
+/*!                                                                         
+@addtogroup neibs
+@{
+	\section neiblist_overview General overview
+	\note For sake of simplicity all explanations and figures refers to a 2D simualtion. The extensin to 3D
+	is trivial.
+	
+	<p>Only the particles lying inside the SPH kernel support (of radius \f$ \kappa h \f$) participate to
+	the SPH sums. One step of the SPH computation is then to find the neighbors within a given radius of
+	an arbitrary set of particles. For \f$ n \f$ particles the complexity of the naive algorithm (in which
+	we evaluate the distance between al particle) is \f$ \mathcal{O}(n) \f$. With simulations involving 
+	millions of particle we need to use a more effeceint algorithm. The calssical approach is to create 
+	a geometrical partition and for each particles search for neigbhors in a fixed size susbset. This
+	will involve the creation of a tree or a sorting operation. In that case he complexity of the tree creation 
+	or the sort is generally \f$ \mathcal{O}(n\log n) \f$ and the complexity of the neighbor search 
+	\f$ \mathcal{O}(n) \f$. The overall complexity is then \f$ \mathcal{O}(n\log n) \f$.</p>
+	<p>In GPUSPH we decide to use an underlying grid structure : we subdivide the
+	simulation domain in a grid of cell of size \f$ \kappa h \f$ and then search for neighbors in the
+	cell containing \f$P\f$ and it's immediate surrounding (see figure 1).</p>
+	\image html sort_grid0.pdf "Figure 1: potential neighbors of P" width=18cm
+	<p>For the compuation of SPH sums we have then two options:
+	<ol>
+		<li> get the neighbors as described above </li>
+		<li> use a list containing the indices of the neighbors of all the particles </li>
+	</ol>
+	</p>
+	
+	<p>The first option is easy to implement but requires for each sum (or each group of sum that can be computed
+	in the same loop) a walk through 9 in 2D (or 27 in 3D) cells containing potential neighbors.</p>
+	<p>The second option will still require a walk trough the cells containing potential neighbors,
+	but will result in a list of neighbor for all particles (real neighbors not potential ones ..), list that will be 
+	used for all the SPH sums involved in a time step. 
+	The main drawback of this approach is the large amount of memory used for the storage of the neighbor list.
+	Moreover, considering that for explicit integration schemes the CFL condition results in quite small time steps 
+	we can generate the neighbor list each \f$n_{neib} > 1\f$ iterations and reuse-it.</p>
+	
+	<p>In GPUSPH we decide to use the second option and generate a neighbor list.</p>
+	<p>The construction of the neighbor list is basically a for steps process :
+	<ol>
+		<li> compute an hash based on the particle position in the grid </li>
+		<li> sort according to the hash value </li>
+		<li> reorder all particle data according to the sort </li>
+		<li> construct the list of neighbor indices </li>
+	</ol>
+	</p>
+	
+	<p> As usual the host side of the code is encapsulated in the CUDANeibsEngine class and the
+	device code in cuneibs namespace.</p>
+	
+	\section neiblist_detail Detailed description
+	\subsection neiblist_grid Grid and cell size
+	<p>Let's consider a simulation domain of size <tt>(size.x, size.y)</tt>. The size of the grid is then 
+	computed as follow :
+	<ul style="list-style: none;">
+		<li> <tt>gridsize.x = floor(size.x / cellSide)</tt> </li>
+		<li> <tt>gridsize.y = floor(size.y / cellSide)</tt> </li>
+	</ul>
+	with <tt>cellSide</tt> equals to \f$ \kappa h \f$ or \f$ \kappa h + \frac{\Delta p}{2}\f$ when using SA boundary.
+	The size of the cells is then readjusted :
+	<ul style="list-style: none;">
+		<li> <tt>cellsize.x = size.x / gridsize.x</tt> </li>
+		<li> <tt>cellsize.y = size.y / gridsize.x</tt> </li>
+	</ul>
+	In this way we are sure that <tt>cellsize</tt> is at least \f$ \kappa h \f$ (or \f$ \kappa h + \frac{\Delta p}{2}\f$).</p>
+	
+	<p>With SA boundary the criterion used to include boundary element particles in the neighbor list of a particle \f$ P \f$ should 
+	rely on the geometrical distance between the particle and the boundary element: all the boundary element particles are neighbors of 
+	\f$ P \f$ if \f$ d \leq \kappa h \f$ (figure 2.a).
+	\image html sort_grid_SA_a.pdf "Figure 2.a" width=8cm
+	Instead of that we use the distance between the particle and the boundary element particles: a particle \f$ i \f$ of the boundary elemnt 
+	is a neighbor of \f$ P \f$ if \f$ d_i \leq \kappa h + \frac{\Delta p}{2}\f$ (figure 2.b).
+ 	\image html sort_grid_SA_b.pdf "Figure 2.b" width=8cm
+ 	The main advantage of this approach is to use the sorting grid to search for neighboring boundary element particles. This come at
+ 	the cost of two main drawbacks: the size of the boundary elements must be inferior to \f$ \Delta p \f$ and the increased cell size will
+ 	result in useless distance compuation where no boundary elements are involved.</p>
+ 	\warning The size of boundary elements with SA boundary should be inferior to \f$ \Delta p \f$
+ 	
+ 	\subsection neiblist_hash Hash computation
+ 	<p>We associate to a cell it's integer coordinates in the grid <tt>gridPos</tt> (in <tt>{0, ..., gridSize.x -1}x{0, ..., gridSize.y -1}</tt>
+	and it's linear index <tt>cellHash</tt> (numbering starting in the \f$x\f$ or \f$y\f$ direction, depending on the user choice) (see figure 3).
+	\image html sort_grid1.pdf "Figure 3: blue cell coordinate, black cellHash" width=18cm
+	Computing <tt>gridPos</tt> from <tt>cellHash</tt> (and the opposite) is easy:
+	<ul style="list-style: none;">
+		<li> <tt>cellHash = gridPos.y*gridsize.x + gridPos.x</tt> </li>
+		<li> <tt>gridPos.y = (int)cellHash / gridSize.x</tt> </li>
+		<li> <tt>gridPos.x = cellHash - gridPos.y*gridSize.x</tt> </li>
+	</ul>
+	
+	The grid relative hash value (<tt>gridhash</tt>) of a particle \f$ P \f$ is simply the <tt>cellHash</tt> of the cell in which \f$ P \f$ 
+	belong. When particles are generated on the CPU with position in double precision the <tt>gridhash</tt> is computed once from the 
+	particle position \f$ (x, y) \f$ as:
+	<ul style="list-style: none;">
+		<li> <tt>gridPos.x = (int)floor((x - origin.x) / cellsize.x)</tt> </li>
+		<li> <tt>gridPos.y = (int)floor((y - origin.y) / cellsize.y)</tt> </li>
+		<li> <tt>gridhash = gridPos.y*gridsize.x + gridPos.x</tt> </li>
+	</ul>
+	where <tt>origin</tt> is the origin of the simulation global reference frame.</p>
+
+	<p>It's important to remenber that, except for the particle generation step, we never have the absolute particle position but rather
+	it's relative position respect to the particle cell center. In order to not loose accuracy we cannot compute absolute position in single
+	precison, so rather then computing a new <tt>gridhash</tt> we evolve it according to the particle motion.</p>
+	
+	<p>Suppose that a particle \f$ i \f$ moved from \f$ (x_{old}, y_{old}) \f$ to \f$ (x, y) \f$ since the last neighbor list construction. 
+	In the first phase of the current neighbor list construction (i.e. before completion of hash computation) the particle 
+	positions and hash are still relative to the cell containing the particle when we construct the current neighbor list (see figure 4). 
+	\image html hash_evolve.pdf "Figure 4: hash computation" width=18cm	
+	The hash of particle \f$ i \f$ is evolved in the following way:
+		<ul>
+		<li> compute the <tt>gridPos</tt> position of particle \f$ i \f$ form it's <tt>gridHash</tt> </li>
+		<li> compute the change in grid coordinates, <tt>gridOffset</tt>, from postion \f$ (x_{old}, y_{old}) \f$ to \f$ (x, y) \f$ </li>
+		<li> compute grid hash according to <tt>gridPos</tt> and <tt>gridOffset</tt>. Without periodicity we have: <br>
+			<tt>gridHash = (griPos.y + gridOffset.y)*gridSize.x + griPos.x + gridOffset.x</tt> </li>
+		<li> adjust particle coordinates respect to the cell containing the particle:<br>
+			<tt>x = x - gridOffset.x*cellSize.x</tt><br>
+			<tt>y = y - gridOffset.y*cellSize.y</tt> </li>
+	</ul>
+	</p>
+	
+	\todo Fix variable naming: use griPos and gridHash or cellPos and cellHash but not both !
+	
+	\subsection neiblist_sort Sort
+	<p>
+	<p>The sort by key is done with thrust. For the choice of the key we need to take into account that:
+	<ol>
+		<li>multi-GPU simulation requires data duplication and exchange between GPU: the sort must always give the same result</li>
+		<li>we want to be able to do particle type wise neighbor list traversal: i.e compute only fluid-fluid, 
+		fluid-boundary, ... interactions</li>
+	</ol>
+	The solution is to do a multiple key search based on the particle hash, type and id. The particle indexes are 
+	
+@}
+*/

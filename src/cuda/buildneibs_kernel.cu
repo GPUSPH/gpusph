@@ -58,7 +58,7 @@
  *  	- device functions
  *  	- kernels
  *
- *  \ingroup neibs
+ *  \ingroup neibs_device
  */
 namespace cuneibs {
 /** \name Device constants

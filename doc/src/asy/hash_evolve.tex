@@ -1,0 +1,35 @@
+\documentclass{article}
+\usepackage[paperheight=8cm,paperwidth=10cm,margin=0.1cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{asymptote}
+\begin{document}
+\begin{asy}
+import math;
+import graph;
+import geometry;
+
+unitsize(2.5cm);
+
+pen dot_cross = makepen(scale(1mm)*cross(4,0.15));
+int size = 3;
+
+add(grid(size, size, black));
+
+pair O1 = (1.5, 1.5);
+pair O2 = (2.5, 2.5);
+pair P1 = O1 + (-0.3, 0.2);
+pair P2 = O2 + (0.3, -0.4);
+
+dot("$O_1$", O1, SE);
+dot("$O_2$", O2, E);
+dot(Label("$(x_{old}, y_{old})$", align=N), P1, dot_cross);
+dot(Label("$(x, y)$", align=N), P2, dot_cross);
+
+path seg = O1 -- O2;
+draw(Label("gridOffset", Rotate(dir(seg)), align = LeftSide), seg, dashed+blue, Arrow());
+draw(O1--P1, Arrow);
+draw(O1--P2, Arrow);
+
+\end{asy}
+\end{document}

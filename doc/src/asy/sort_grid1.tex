@@ -1,0 +1,40 @@
+\documentclass{article}
+\usepackage[paperheight=10cm,paperwidth=10cm,margin=0.1cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{asymptote}
+\begin{document}
+\begin{asy}
+import math;
+import graph;
+import geometry;
+
+unitsize(2.5cm);
+
+int size = 3;
+xlimits(-0.3, size + 0.3);
+ylimits(-0.3, size+ 0.3);
+yaxis("y", Arrow);
+xaxis("x", Arrow);
+
+pair p0 = (0, 0);
+pair p1 = (size, size);
+
+add(grid(size, size, black));
+
+int id = 0;
+int xi = 0, yi = 0;
+for (real y = 0.5; y < size; y += 1) {
+	xi = 0;
+	for (real x = 0.5; x <= size; x += 1) {
+		pair pos = (x, y);
+		label(string(id), pos, fontsize(16pt));
+		label("(" + string(xi) + "," + string(yi) + ")", pos -(0.2, 0.35), fontsize(16pt)+blue);
+		id += 1;
+		xi += 1;
+	}
+	yi += 1;
+}
+
+\end{asy}
+\end{document}

@@ -1,0 +1,29 @@
+\documentclass{article}
+\usepackage[paperheight=4.5cm,paperwidth=4cm,margin=0.1cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{asymptote}
+\begin{document}
+\begin{asy}
+import math;
+import patterns;
+import geometry;
+
+unitsize(1cm);
+
+pair pV1 = (0.5, 2.5), pV2 = (2, 0.5);
+pair pB = (pV1 + pV2)/2;
+pair p = (3.2, 3.5);
+
+draw(pV1--pV2, black+2bp);
+draw(Label("$d_1$", align=Center, UnFill), p--pV1);
+draw(Label("$d_2$", align=Center, UnFill), p--pV2);
+draw(Label("$d_3$", align=Center, UnFill), p--pB);
+
+dot(pV1--pV2, yellow+8bp);
+dot(pB, orange+8bp);
+dot(p, green+8bp);
+
+label("(b)", (1.95, -0.2));
+\end{asy}
+\end{document}

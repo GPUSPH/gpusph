@@ -71,9 +71,6 @@
 /*! This function precomputes the pressure contribution to the
  * 	momentum equation according to the chosen SPH formulation.
  *
- *	\param[in] rho : particle density
- *	\param[in] info : particle info (used for fluid number)
- *
  * 	\tparam sph_formulation : SPH formulation used
  *
  *	\return : pressure contribution
@@ -82,10 +79,43 @@
 template<SPHFormulation sph_formulation>
 __device__ __forceinline__
 float
-precalc_pressure(const float rho, particleinfo const& info);
+precalc_pressure(const float rho, 	/// [in] particle density \f$\rho/f$
+		particleinfo const& info, 	/// [in] particle info (used for fluid number)
+		const float keps_k);		/// [in] particle \f$\kappaf$
 
+/// <tt>SPH1</tt> specialisation of the #precalc_pressure with \f$\kappa - \epsilon\f$
+/*! When using SPH formulation 1 with \f$\kappa - \epsilon\f$, the precomputed pressure
+* contribution for the current particle is \f$\frac{P}{\rho^2} + \frac{2}{3} \frac{\kappa}{\rho}\f$.
+*/
+template<>
+__device__ __forceinline__
+float
+precalc_pressure<SPH_F1>(const float rho, particleinfo const& info, const float keps_k)
+{
+	return (P(rho, fluid_num(info)) + 2.0f*keps_k/rho/3.0f)/(rho*rho);
+}
+
+/// <tt>SPH2</tt> specialisation of the #precalc_pressure with \f$ \kappa - \epsilon \f$
+/*! When using SPH formulation 2 with \f$ \kappa - \epsilon \f$, the precomputed pressure
+* contribution for the current particle is \f$ \frac{P} + \frac{2}{3} \kappa \rho \f$.
+*/
+template<>
+__device__ __forceinline__
+float
+precalc_pressure<SPH_F2>(const float rho, particleinfo const& info, const float keps_k)
+{
+	return P(rho, fluid_num(info)) + 2.0f*keps_k/rho/3.0f;
+}
+
+template<SPHFormulation sph_formulation>
+__device__ __forceinline__
+float
+precalc_pressure(const float rho,
+		particleinfo const& info);
+
+/// <tt>SPH1</tt> specialisation of #precalc_pressure
 /*! When using SPH formulation 1, the precomputed pressure contribution
-*   for the current particle is p/rho^2
+*   for the current particle is \f$ \frac{P}{\rho^2} \f$.
 */
 template<>
 __device__ __forceinline__
@@ -95,8 +125,9 @@ precalc_pressure<SPH_F1>(const float rho, particleinfo const& info)
 	return P(rho, fluid_num(info))/(rho*rho);
 }
 
+/// <tt>SPH2</tt> specialisation of the #precalc_pressure template
 /*! When using SPH formulation 2, the precomputed pressure contribution
-*   for the current particle is just p
+*   for the current particle is just \f$ P \f$.
 */
 template<>
 __device__ __forceinline__
@@ -106,9 +137,10 @@ precalc_pressure<SPH_F2>(const float rho, particleinfo const& info)
 	return P(rho, fluid_num(info));
 }
 
+/// <tt>SPH_GRENIER</tt> specialisation of the #precalc_pressure template
 /*! When using Grenier's SPH formulation, the precomputed pressure contribution
-*   for the current particle is P/sigma. The division by sigma will be done in
-*   p_precalc_particle_data
+*   for the current particle is \f$ \frac{P}{\sigma} \f$. The division by \f$ \sigma \f$
+*   will be done in p_precalc_particle_data
 */
 template<>
 __device__ __forceinline__
@@ -116,30 +148,6 @@ float
 precalc_pressure<SPH_GRENIER>(const float rho, particleinfo const& info)
 {
 	return P(rho, fluid_num(info));
-}
-
-/*! When using k-e visc, we use p~ = p + 2/3*rho*k.
-*   The remaining implementation is the same as in the generic case.
-*/
-template<SPHFormulation sph_formulation>
-__device__ __forceinline__
-float
-precalc_pressure(const float rho, particleinfo const& info, const float keps_k);
-
-template<>
-__device__ __forceinline__
-float
-precalc_pressure<SPH_F1>(const float rho, particleinfo const& info, const float keps_k)
-{
-	return (P(rho, fluid_num(info)) + 2.0f*keps_k/rho/3.0f)/(rho*rho);
-}
-
-template<>
-__device__ __forceinline__
-float
-precalc_pressure<SPH_F2>(const float rho, particleinfo const& info, const float keps_k)
-{
-	return P(rho, fluid_num(info)) + 2.0f*keps_k/rho/3.0f;
 }
 //}@
 

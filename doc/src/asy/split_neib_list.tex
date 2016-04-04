@@ -1,0 +1,71 @@
+\documentclass{article}
+\usepackage[paperheight=3cm,paperwidth=11cm,margin=0.1cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{asymptote}
+\begin{document}
+\begin{asy}
+import math;
+import patterns;
+
+unitsize(1cm);
+
+real h = 1;
+real w = 8;
+real ha = 0.7;
+real hw = 0.3; 
+
+real am = 0.05;
+pair p0 = (0, 0);
+pair p1 = (0.4*w, h);
+
+pair p2 = (0.4*w, 0);
+pair p3 = (0.55*w, h);
+
+pair p4 = (0.55*w, 0);
+pair p5 = (0.7*w, h);
+
+pair p6 =  (0.7*w, 0);
+pair p7 = (0.9*w, h);
+
+pair p8 = (0.9*w, 0);
+pair p9 = (w, h);
+pair p10 = (w, 0);
+
+add("hachures",hatch(H=3mm, dir=S));
+filldraw(box(p0, p1), green, green);
+filldraw(box(p0, p1), pattern("hachures"));
+//draw(box (p2, p3));
+filldraw(box(p4, p5), orange, orange);
+filldraw(box(p4, p5), pattern("hachures"));
+filldraw(box(p6, p7), yellow, yellow);
+//draw(box(p8, p9));
+draw(p6 -- p6 + (0, h));
+draw(box(p0, p9));
+draw(L=Label("$0$", position=Relative(0), S) , p0 - (- hw/2, ha) -- p0 - (-hw/2, am),  Arrow);
+draw(L=Label("neibboundpos - $1$", position=Relative(0), S+0.5*W), p6 - (0, ha) -- p6 - (0, am),  Arrow);
+draw(L=Label("neiblistsize - $1$", position=Relative(0), S + 0.2*E), p10 - (0, ha) -- p10 - (0, am),  Arrow);
+
+\end{asy}
+\end{document}
+drawpart(pair cenyer, real radius, int type, int gid, int lid) {
+	pen p = currentpen;
+	switch (type) {
+		case 0:
+			p += green;
+			break;
+		
+		case 1:
+			p += orange;
+			break;
+		
+		case 2:
+			p += yellow;
+			break;
+			
+		default:
+			break;
+	}
+	
+	draw(circle(center, radius), p);
+}

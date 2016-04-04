@@ -1,0 +1,71 @@
+\documentclass{article}
+\usepackage[paperheight=11cm,paperwidth=10cm,margin=0.1cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{asymptote}
+\begin{document}
+\begin{asy}
+import math;
+import patterns;
+import geometry;
+
+unitsize(2.5cm);
+
+void drawpart(pair pos, int type, real radius, int id) {
+	pen p;
+	
+	if (type == 0)
+		p = green;
+	else if (type == 1)
+		p = orange;
+	else if (type == 2)
+		p = yellow;
+	else
+		p = currentpen;
+
+	filldraw(circle(pos, radius), p, p);
+	if (id >= 0)
+		label(string(id), pos);
+}
+
+int size = 3;
+pair p0 = (0, 0);
+pair p1 = (size, size);
+
+add(grid(size, size, black));
+
+int id = 0;
+drawpart((0, 0), 2, 0.2, id);
+id += 1;
+for (int i = 1; i <= 2*((int) size); i+=1) {
+	pair pos = (0, 0.5*i);
+	int type = ((i % 2) == 0 ) ? 2 : 1;
+	drawpart(pos, type, 0.2, id);
+	id += 1;
+}
+for (int i = 1; i <= 2*((int) size); i+=1) {
+	pair pos = (0.5*i, 0);
+	int type = ((i % 2) == 0 ) ? 2 : 1;
+	drawpart(pos, type, 0.2, id);
+	id += 1;
+}
+
+for (real x = 0.25; x <= 2; x += 0.5) {
+	for (real y = 0.25; y <= 2; y += 0.5) {
+		drawpart((x, y), 0, 0.2, id);
+		id += 1;
+	}
+}
+
+pair pos = (0, -0.4);
+drawpart(pos, 0, 0.1, -1);
+label("Fluid particle", pos + (0.1, 0) , E);
+pos = (0, -0.7);
+drawpart(pos, 1, 0.1, -1);
+label("Boundary particle", pos + (0.1, 0) , E);
+pos = (2, -0.4);
+drawpart(pos, 2, 0.1, -1);
+label("Vertex particle", pos + (0.1, 0) , E);
+
+\end{asy}
+\end{document}

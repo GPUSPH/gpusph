@@ -1,0 +1,36 @@
+\documentclass{article}
+\usepackage[paperheight=10cm,paperwidth=10cm,margin=0.1cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{asymptote}
+\begin{document}
+\begin{asy}
+import math;
+import graph;
+import geometry;
+
+unitsize(1.8cm);
+
+int size = 5;
+
+filldraw(box((1, 1), (4, 4)), lightgreen);
+pair p = (2.4, 2.7);
+filldraw(circle(p, 1), green, green);
+draw(Label(rotate(-40)*"$\kappa h$", align=Center, Fill(green)),p -- p + dir(-40), Arrow);
+
+add(grid(size, size, black));
+
+dot(Label("$P$"), p, W);
+
+pair center = (2.5, 2.5);
+draw( center + (0, 0.4) -- center + (0, 1), 0.4mm+blue, Arrow(size=2mm));
+draw( center + (0.4, 0.4) -- center + (1, 1), 0.4mm+blue, Arrow(size=2mm));
+draw( center + (-.4, 0.4) -- center + (-1, 1), 0.4mm+blue, Arrow(size=2mm));
+draw( center + (-.4, 0) -- center + (-1, 0), 0.4mm+blue, Arrow(size=2mm));
+draw( center + (-.4, -0.4) -- center + (-1, -1), 0.4mm+blue, Arrow(size=2mm));
+draw( center + (0, -0.4) -- center + (0, -1), 0.4mm+blue, Arrow(size=2mm));
+draw( center + (0.4, -0.4) -- center + (1, -1), 0.4mm+blue, Arrow(size=2mm));
+draw( center + (0.4, 0) -- center + (1, 0), 0.4mm+blue, Arrow(size=2mm));
+
+\end{asy}
+\end{document}
