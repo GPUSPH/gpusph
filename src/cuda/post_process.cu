@@ -87,7 +87,7 @@ struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 	static void process(
 				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator 		bufwrite,
+		MultiBufferList::iterator		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -105,7 +105,7 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, simflags>
 	static void process(
 				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator 		bufwrite,
+		MultiBufferList::iterator		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -162,7 +162,7 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, simflags>
 	static void process(
 				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator 		bufwrite,
+		MultiBufferList::iterator		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -233,7 +233,7 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, simflags>
 	static void process(
 				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator 		bufwrite,
+		MultiBufferList::iterator		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -308,7 +308,7 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, simflags>
 	static void process(
 				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator 		bufwrite,
+		MultiBufferList::iterator		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -395,7 +395,7 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, simflags>
 	static void process(
 				flag_t					options,
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator 		bufwrite,
+		MultiBufferList::iterator		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -469,7 +469,7 @@ public:
 
 	void process(
 		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator 		bufwrite,
+		MultiBufferList::iterator		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
