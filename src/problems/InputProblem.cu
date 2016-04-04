@@ -401,14 +401,14 @@ int InputProblem::fill_parts()
 	//*******************************************************************
 #if SPECIFIC_PROBLEM == Box
 	add_gage(m_origin + make_double3(1.0, 1.8, 0.0) + make_double3(0.1, 0.1, 0.1));
-	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
+	if (simframework()->hasPostProcessEngine(TESTPOINTS)) {
 		test_points.push_back(m_origin + make_double3(1.0, 2.0, 0.0) + make_double3(0.1, 0.1, 0.1));
 	}
 	//*******************************************************************
 	// Setting probes for channel flow keps test cases (with and without io)
 	//*******************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS || SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
+	if (simframework()->hasPostProcessEngine(TESTPOINTS)) {
 		// create test points at (0,0,.) with dp spacing from bottom to top
 		for(uint i=0; i<=40; i++)
 			test_points.push_back(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
