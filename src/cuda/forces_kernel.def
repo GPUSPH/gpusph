@@ -163,7 +163,7 @@ struct common_particle_data
 	const	int3	gridPos;
 
 	__device__ __forceinline__
-	common_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info, hashKey const* hash) :
+	common_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info, hashKey const* __restrict__ hash) :
 		index(_index),
 		info(_info),
 		pos(_pos),
