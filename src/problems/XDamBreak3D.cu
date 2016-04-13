@@ -163,8 +163,8 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	GeometryID floating_obj =
 		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/2, water_height), obstacle_side);
 	// half water density to make it float
-	setMassByDensity(floating_obj, m_physparams->rho0[0] / 2);
-	setParticleMassByDensity(floating_obj, m_physparams->rho0[0] / 2);
+	setMassByDensity(floating_obj, physparams()->rho0[0] / 2);
+	setParticleMassByDensity(floating_obj, physparams()->rho0[0] / 2);
 	// disable collisions: will only interact with fluid
 	// disableCollisions(floating_obj);
 	*/
