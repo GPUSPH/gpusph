@@ -111,6 +111,10 @@ private:
 	// writing was forced)
 	void doWrite(bool force);
 
+	// save the particle system to disk (optionally let
+	// writers know if writing was forced)
+	void saveParticles(PostProcessEngineSet const& enabledPostProcess, bool force);
+
 	// callbacks for moving boundaries and variable gravity
 	void doCallBacks();
 

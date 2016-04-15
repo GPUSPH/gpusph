@@ -805,116 +805,37 @@ bool GPUSPH::runSimulation() {
 		if (force_write)
 			gdata->save_request = false;
 
-		// Launch specific post processing kernels (vorticity, free surface detection , ...)
-		// before writing to disk
 		if (need_write || force_write) {
-			//if (final_save)
-			//	printf("Issuing final save...\n");
-
-			// set the buffers to be dumped
-			flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
-
-			// choose the read buffer for the double buffered arrays
-			which_buffers |= DBLBUFFER_READ;
-
-			if (gdata->debug.neibs)
-				which_buffers |= BUFFER_NEIBSLIST;
-			if (gdata->debug.forces)
-				which_buffers |= BUFFER_FORCES;
-
-			if (gdata->problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY)
-				which_buffers |= BUFFER_INTERNAL_ENERGY;
-
-			// get GradGamma
-			if (gdata->problem->simparams()->boundarytype == SA_BOUNDARY)
-				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
-
-			if (gdata->problem->simparams()->sph_formulation == SPH_GRENIER)
-				which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
-
-			// get k and epsilon
-			if (gdata->problem->simparams()->visctype == KEPSVISC)
-				which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
-
-			// Get SPS turbulent viscocity
-			if (gdata->problem->simparams()->visctype == SPSVISC)
-				which_buffers |= BUFFER_SPS_TURBVISC;
-
-			// get Eulerian velocity
-			if (gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
-				gdata->problem->simparams()->visctype == KEPSVISC)
-				which_buffers |= BUFFER_EULERVEL;
-
-			// run post-process filters and dump their arrays
-			for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
-				flt != enabledPostProcess.end(); ++flt) {
-				PostProcessType filter = flt->first;
-				gdata->only_internal = true;
-				doCommand(POSTPROCESS, NO_FLAGS, float(filter));
-
-				flt->second->hostProcess(gdata);
-
-				/* list of buffers that were updated in-place */
-				const flag_t updated_buffers = flt->second->get_updated_buffers();
-				/* list of buffers that were written in BUFFER_WRITE */
-				const flag_t written_buffers = flt->second->get_written_buffers();
-				/* TODO FIXME ideally we would have a way to specify when,
-				 * after a post-processing, buffers need to be uploaded to other
-				 * devices as well.
-				 * This might be needed e.g. after the INFO update from SURFACE_DETECTION,
-				 * although maybe not during pre-write post-processing
-				 */
-#if 0
-				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, written_buffers | DBLBUFFER_WRITE);
-#endif
-				/* Swap the written buffers, so we can access the new data from
-				 * DBLBUFFER_READ
-				 */
-				doCommand(SWAP_BUFFERS, written_buffers);
-				which_buffers |= updated_buffers | written_buffers;
-			}
-
-			// If --nosave was passed on the command-line, we will
-			// avoid dumping the buffers and writing, unless a write
-			// was forced (e.g. final save)
 			if (gdata->nosave && !force_write) {
 				// we want to avoid writers insisting we need to save,
 				// so pretend we actually saved
 				Writer::FakeMarkWritten(writers, gdata->t);
 			} else {
-				// ok, we actually want to save
-				// TODO: the performanceCounter could be "paused" here
+				saveParticles(enabledPostProcess, force_write);
 
-				// dump what we want to save
-				doCommand(DUMP, which_buffers);
-
-				// triggers Writer->write()
-				doWrite(force_write);
-			}
-
-			// we generally want to print the current status and reset the
-			// interval performance counter when writing. However, when writing
-			// at every timestep, this can be very bothersome (lots and lots of
-			// output) so we do not print the status if the only writer(s) that
-			// have been writing have a frequency of 0 (write every timestep)
-			// TODO the logic here could be improved; for example, we are not
-			// considering the case of a single writer that writes at every timestep:
-			// when do we print the status then?
-			// TODO other enhancements would be to print who is writing (what)
-			// during the print status
-			double maxfreq = 0;
-			ConstWriterMap::iterator it(writers.begin());
-			ConstWriterMap::iterator end(writers.end());
-			while (it != end) {
-				double freq = it->second->get_write_freq();
-				if (freq > maxfreq)
-					maxfreq = freq;
-				++it;
-			}
-			if (force_write || maxfreq > 0) {
-				printStatus();
-				m_intervalPerformanceCounter->restart();
+				// we generally want to print the current status and reset the
+				// interval performance counter when writing. However, when writing
+				// at every timestep, this can be very bothersome (lots and lots of
+				// output) so we do not print the status if the only writer(s) that
+				// have been writing have a frequency of 0 (write every timestep)
+				// TODO the logic here could be improved; for example, we are not
+				// considering the case of a single writer that writes at every timestep:
+				// when do we print the status then?
+				// TODO other enhancements would be to print who is writing (what)
+				// during the print status
+				double maxfreq = 0;
+				ConstWriterMap::iterator it(writers.begin());
+				ConstWriterMap::iterator end(writers.end());
+				while (it != end) {
+					double freq = it->second->get_write_freq();
+					if (freq > maxfreq)
+						maxfreq = freq;
+					++it;
+				}
+				if (force_write || maxfreq > 0) {
+					printStatus();
+					m_intervalPerformanceCounter->restart();
+				}
 			}
 		}
 
@@ -1661,6 +1582,87 @@ void GPUSPH::doWrite(bool force)
 		gdata->t, gdata->simframework->hasPostProcessEngine(TESTPOINTS));
 
 	Writer::MarkWritten(writers, gdata->t);
+}
+
+/*! Save the particle system to disk.
+ *
+ * This method downloads all necessary buffers from devices to host,
+ * after running the defined post-process functions, and invokes the write-out
+ * routine.
+ */
+void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, bool force)
+{
+	// set the buffers to be dumped
+	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
+
+	// choose the read buffer for the double buffered arrays
+	which_buffers |= DBLBUFFER_READ;
+
+	if (gdata->debug.neibs)
+		which_buffers |= BUFFER_NEIBSLIST;
+	if (gdata->debug.forces)
+		which_buffers |= BUFFER_FORCES;
+
+	if (gdata->problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY)
+		which_buffers |= BUFFER_INTERNAL_ENERGY;
+
+	// get GradGamma
+	if (gdata->problem->simparams()->boundarytype == SA_BOUNDARY)
+		which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
+
+	if (gdata->problem->simparams()->sph_formulation == SPH_GRENIER)
+		which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
+
+	// get k and epsilon
+	if (gdata->problem->simparams()->visctype == KEPSVISC)
+		which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
+
+	// Get SPS turbulent viscocity
+	if (gdata->problem->simparams()->visctype == SPSVISC)
+		which_buffers |= BUFFER_SPS_TURBVISC;
+
+	// get Eulerian velocity
+	if (gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
+		gdata->problem->simparams()->visctype == KEPSVISC)
+		which_buffers |= BUFFER_EULERVEL;
+
+	// run post-process filters and dump their arrays
+	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+		flt != enabledPostProcess.end(); ++flt) {
+		PostProcessType filter = flt->first;
+		gdata->only_internal = true;
+		doCommand(POSTPROCESS, NO_FLAGS, float(filter));
+
+		flt->second->hostProcess(gdata);
+
+		/* list of buffers that were updated in-place */
+		const flag_t updated_buffers = flt->second->get_updated_buffers();
+		/* list of buffers that were written in BUFFER_WRITE */
+		const flag_t written_buffers = flt->second->get_written_buffers();
+		/* TODO FIXME ideally we would have a way to specify when,
+		 * after a post-processing, buffers need to be uploaded to other
+		 * devices as well.
+		 * This might be needed e.g. after the INFO update from SURFACE_DETECTION,
+		 * although maybe not during pre-write post-processing
+		 */
+#if 0
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, written_buffers | DBLBUFFER_WRITE);
+#endif
+		/* Swap the written buffers, so we can access the new data from
+		 * DBLBUFFER_READ
+		 */
+		doCommand(SWAP_BUFFERS, written_buffers);
+		which_buffers |= updated_buffers | written_buffers;
+	}
+
+	// TODO: the performanceCounter could be "paused" here
+
+	// dump what we want to save
+	doCommand(DUMP, which_buffers);
+
+	// triggers Writer->write()
+	doWrite(force);
 }
 
 void GPUSPH::buildNeibList()
