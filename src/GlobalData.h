@@ -191,6 +191,8 @@ struct DebugFlags {
 	uint neibs : 1;
 	/// debug forces on host
 	uint forces : 1;
+	/// inspect pre-force particle status on
+	uint inspect_preforce : 1;
 };
 
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
