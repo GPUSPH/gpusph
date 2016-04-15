@@ -1592,6 +1592,8 @@ void GPUSPH::doWrite(bool force)
  */
 void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, bool force)
 {
+	const SimParams * const simparams = problem->simparams();
+
 	// set the buffers to be dumped
 	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
@@ -1603,27 +1605,27 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, bool 
 	if (gdata->debug.forces)
 		which_buffers |= BUFFER_FORCES;
 
-	if (gdata->problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY)
+	if (simparams->simflags & ENABLE_INTERNAL_ENERGY)
 		which_buffers |= BUFFER_INTERNAL_ENERGY;
 
 	// get GradGamma
-	if (gdata->problem->simparams()->boundarytype == SA_BOUNDARY)
+	if (simparams->boundarytype == SA_BOUNDARY)
 		which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
 
-	if (gdata->problem->simparams()->sph_formulation == SPH_GRENIER)
+	if (simparams->sph_formulation == SPH_GRENIER)
 		which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
 
 	// get k and epsilon
-	if (gdata->problem->simparams()->visctype == KEPSVISC)
+	if (simparams->visctype == KEPSVISC)
 		which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
 
 	// Get SPS turbulent viscocity
-	if (gdata->problem->simparams()->visctype == SPSVISC)
+	if (simparams->visctype == SPSVISC)
 		which_buffers |= BUFFER_SPS_TURBVISC;
 
 	// get Eulerian velocity
-	if (gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
-		gdata->problem->simparams()->visctype == KEPSVISC)
+	if (simparams->simflags & ENABLE_INLET_OUTLET ||
+		simparams->visctype == KEPSVISC)
 		which_buffers |= BUFFER_EULERVEL;
 
 	// run post-process filters and dump their arrays
