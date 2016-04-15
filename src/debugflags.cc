@@ -23,24 +23,34 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef DEBUG_FLAGS_H
-#define DEBUG_FLAGS_H
+#include "debugflags.h"
 
-#include <string>
+#include <sstream>
 
-/// Bitfield of things to debug
-struct DebugFlags {
-	/// print each step as it is being executed
-	unsigned print_step : 1;
-	/// debug the neighbors list on host
-	unsigned neibs : 1;
-	/// debug forces on host
-	unsigned forces : 1;
-	/// inspect pre-force particle status on
-	unsigned inspect_preforce : 1;
-};
+#include <stdexcept>
 
-/// Get a DebugFlag from a comma-separated list
-DebugFlags parse_debug_flags(std::string const& str);
+using namespace std;
 
-#endif
+DebugFlags parse_debug_flags(string const& str)
+{
+	DebugFlags ret = DebugFlags();
+
+	istringstream in(str);
+	string flag;
+
+	while (getline(in, flag, ',')) {
+		if (flag == "print_step")
+			ret.print_step = 1;
+		else if (flag == "neibs")
+			ret.neibs = 1;
+		else if (flag == "forces")
+			ret.forces = 1;
+		else if (flag == "inspect_preforce")
+			ret.inspect_preforce = 1;
+		else
+			throw std::invalid_argument("unknown debug flag '" + flag + "'");
+	}
+
+	return ret;
+}
+
