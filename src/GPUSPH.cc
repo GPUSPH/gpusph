@@ -515,6 +515,11 @@ bool GPUSPH::runSimulation() {
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
+	// an empty set of PostProcessEngines, to be used when we want to save
+	// the particle system without running post-processing filters
+	// (e.g. when inspecting the particle system before each forces computation)
+	const PostProcessEngineSet noPostProcess;
+
 	// Run the actual simulation loop, by issuing the appropriate doCommand()s
 	// in sequence. keep_going will be set to false either by the loop itself
 	// if the simulation is finished, or by a Worker that fails in executing a
