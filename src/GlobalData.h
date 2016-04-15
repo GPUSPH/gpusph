@@ -183,17 +183,7 @@ class Writer;
 
 class Problem;
 
-/// Bitfield of things to debug
-struct DebugFlags {
-	/// print each step as it is being executed
-	uint print_step : 1;
-	/// debug the neighbors list on host
-	uint neibs : 1;
-	/// debug forces on host
-	uint forces : 1;
-	/// inspect pre-force particle status on
-	uint inspect_preforce : 1;
-};
+#include "debugflags.h"
 
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
