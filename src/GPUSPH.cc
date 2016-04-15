@@ -776,24 +776,34 @@ bool GPUSPH::runSimulation() {
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
 		// are we done?
-		bool finished = gdata->problem->finished(gdata->t);
-		finished = finished || (gdata->clOptions->maxiter &&
-			gdata->iterations >= gdata->clOptions->maxiter);
-		// list of writers that need to write
-		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
-		// do we need to write?
-		bool need_write = !writers.empty();
-		// do we want to write anyway? (the problem want us to write, or we are done,
-		// or we are quitting)
-		bool force_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
-		if (gdata->save_request) {
-			force_write = true;
-			gdata->save_request = false;
-		}
+		const bool we_are_done =
+			// ask the problem if we're done
+			gdata->problem->finished(gdata->t) ||
+			// if not, check if we've completed the number of iterations prescribed
+			// from the command line
+			(gdata->clOptions->maxiter && gdata->iterations >= gdata->clOptions->maxiter) ||
+			// we're finished if a quit was requested
+			gdata->quit_request;
 
-		// If we are about to quit, we want to save regardless --nosave option
-		if (finished || gdata->quit_request)
-			force_write = true;
+		// list of writers that need to write at this timestep
+		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
+
+		// we need to to write if any writer is configured to write at this timestep
+		// i.e. if the writers list is not empty
+		const bool need_write = !writers.empty();
+
+		// do we want to write even if no writer is asking to?
+		const bool force_write =
+			// ask the problem if we want to write anyway
+			gdata->problem->need_write(gdata->t) ||
+			// always write if we're done with the simulation
+			we_are_done ||
+			// write if it was requested
+			gdata->save_request;
+
+		// reset save_request, we're going to satisfy it anyway
+		if (force_write)
+			gdata->save_request = false;
 
 		// Launch specific post processing kernels (vorticity, free surface detection , ...)
 		// before writing to disk
@@ -865,15 +875,22 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= updated_buffers | written_buffers;
 			}
 
-			if ( force_write || !gdata->nosave) {
+			// If --nosave was passed on the command-line, we will
+			// avoid dumping the buffers and writing, unless a write
+			// was forced (e.g. final save)
+			if (gdata->nosave && !force_write) {
+				// we want to avoid writers insisting we need to save,
+				// so pretend we actually saved
+				Writer::FakeMarkWritten(writers, gdata->t);
+			} else {
+				// ok, we actually want to save
 				// TODO: the performanceCounter could be "paused" here
+
 				// dump what we want to save
 				doCommand(DUMP, which_buffers);
+
 				// triggers Writer->write()
 				doWrite(force_write);
-			} else {
-				// --nosave enabled, not final: just pretend we actually saved
-				Writer::FakeMarkWritten(writers, gdata->t);
 			}
 
 			// we generally want to print the current status and reset the
@@ -901,7 +918,7 @@ bool GPUSPH::runSimulation() {
 			}
 		}
 
-		if (finished || gdata->quit_request)
+		if (we_are_done)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
 	} catch (std::exception &e) {
