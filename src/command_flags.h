@@ -41,6 +41,9 @@
 #define	LAST_DEFINED_STEP	INTEGRATOR_STEP_2
 // if new steps are added after INTEGRATOR_STEP_2, remember to update LAST_DEFINED_STEP
 
+// A mask for all integration steps
+#define ALL_INTEGRATION_STEPS ((LAST_DEFINED_STEP << 1) - 1)
+
 // flags to select which buffer to access, in case of double-buffered arrays
 // these grow from the top
 #define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type

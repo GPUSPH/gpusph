@@ -40,7 +40,7 @@
 #include "HotWriter.h"
 
 WriterMap Writer::m_writers = WriterMap();
-bool Writer::m_forced = false;
+flag_t Writer::m_write_flags = NO_FLAGS;
 
 static const char* WriterName[] = {
 	"CommonWriter",
@@ -218,11 +218,14 @@ Writer::NeedWrite(double t)
 }
 
 WriterMap
-Writer::StartWriting(double t, bool force)
+Writer::StartWriting(double t, flag_t write_flags)
 {
 	WriterMap started;
 
-	m_forced = force;
+	m_write_flags = write_flags;
+
+	// if any flag is set, then this is a forced write
+	const bool forced = (write_flags != NO_FLAGS);
 
 	// is the common writer special?
 	bool common_special = m_writers[COMMONWRITER]->is_special();
@@ -235,7 +238,7 @@ Writer::StartWriting(double t, bool force)
 			continue;
 
 		Writer *writer = it->second;
-		if (writer->need_write(t) || force || m_forced) {
+		if (writer->need_write(t) || forced) {
 			writer->start_writing(t);
 			started[it->first] = it->second;
 		}
@@ -267,8 +270,8 @@ Writer::MarkWritten(WriterMap writers, double t)
 	if (common_special && !writers.empty())
 		m_writers[COMMONWRITER]->mark_written(t);
 
-	// clear the forced flag
-	m_forced = false;
+	// clear the write flags
+	m_write_flags = NO_FLAGS;
 }
 
 void
@@ -294,8 +297,8 @@ Writer::FakeMarkWritten(ConstWriterMap writers, double t)
 	if (common_special && !writers.empty())
 		m_writers[COMMONWRITER]->mark_written(t);
 
-	// clear the forced flag
-	m_forced = false;
+	// clear the write flags
+	m_write_flags = NO_FLAGS;
 }
 
 /* TODO FIXME C++11

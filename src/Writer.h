@@ -91,11 +91,12 @@ class Writer
 	// list of actual writers
 	static WriterMap m_writers;
 
-	// should we be force saving regardless of timer ticks
-	// and frequencies?
-	// TODO FIXME might not be the most thread-safe way
-	// to handle this
-	static bool m_forced;
+	// Flags enabled for the current writing session
+	// NO_FLAGS indicate a standard write-out (saving
+	// at the normal frequency), other flags such as
+	// the current integration step are enabled during
+	// forced writes
+	static flag_t m_write_flags;
 
 public:
 	// maximum number of files
@@ -117,7 +118,7 @@ public:
 	// tell writers that we're starting to send write requests
 	// returns the list of writers that will be involved
 	static WriterMap
-	StartWriting(double t, bool force=false);
+	StartWriting(double t, flag_t write_flags);
 
 	// mark writers as done if they needed to save at the given time
 	static void
