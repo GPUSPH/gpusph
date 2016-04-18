@@ -39,6 +39,8 @@
 #include "Writer.h"
 #include "HotWriter.h"
 
+using namespace std;
+
 WriterMap Writer::m_writers = WriterMap();
 flag_t Writer::m_write_flags = NO_FLAGS;
 

@@ -53,8 +53,6 @@
 struct GlobalData;
 class Problem;
 
-using namespace std;
-
 // Writer types. Define new ones here and remember to include the corresponding
 // header in Writer.cc and the switch case in the implementation of Writer::Create
 
@@ -162,7 +160,7 @@ public:
 	{ return m_writefreq; }
 
 	/* return the last file number as string */
-	string last_filenum() const;
+	std::string last_filenum() const;
 
 protected:
 
@@ -217,7 +215,7 @@ protected:
 	uint getFilenum() const;
 
 	// default suffix (extension) for data files)
-	string			m_fname_sfx;
+	std::string		m_fname_sfx;
 
 	/* open a data file on stream `out` assembling the file name from the provided
 	 * base, the current node (in case of multi-node simulaions), the provided sequence
@@ -225,16 +223,18 @@ protected:
 	 *
 	 * Returns the file name (without the directory part)
 	 */
-	string
-	open_data_file(ofstream &out, const char* base, string const& num, string const& sfx);
+	std::string
+	open_data_file(std::ofstream &out, const char* base,
+		std::string const& num, std::string const& sfx);
 
-	inline string
-	open_data_file(ofstream &out, const char* base, string const& num)
+	inline std::string
+	open_data_file(std::ofstream &out, const char* base,
+		std::string const& num)
 	{ return open_data_file(out, base, num, m_fname_sfx); }
 
-	inline string
-	open_data_file(ofstream &out, const char* base)
-	{ return open_data_file(out, base, string(), m_fname_sfx); }
+	inline std::string
+	open_data_file(std::ofstream &out, const char* base)
+	{ return open_data_file(out, base, std::string(), m_fname_sfx); }
 
 
 	// time of last write
@@ -244,12 +244,12 @@ protected:
 	// negative values means don't write (writer disabled)
 	double			m_writefreq;
 
-	string			m_dirname;
+	std::string		m_dirname;
 	uint			m_FileCounter;
-	ofstream		m_timefile;
+	std::ofstream	m_timefile;
 
 	const Problem	*m_problem;
-	string			current_filenum() const;
+	std::string		current_filenum() const;
 	const GlobalData*		gdata;
 };
 
