@@ -241,7 +241,7 @@ Writer::StartWriting(double t, flag_t write_flags)
 
 		Writer *writer = it->second;
 		if (writer->need_write(t) || forced) {
-			writer->start_writing(t);
+			writer->start_writing(t, write_flags);
 			started[it->first] = it->second;
 		}
 	}
