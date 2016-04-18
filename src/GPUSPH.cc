@@ -586,6 +586,9 @@ bool GPUSPH::runSimulation() {
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
+		if (gdata->debug.inspect_preforce)
+			saveParticles(noPostProcess, INTEGRATOR_STEP_1);
+
 		// compute forces only on internal particles
 		gdata->only_internal = true;
 		if (gdata->clOptions->striping && MULTI_DEVICE)
@@ -664,6 +667,9 @@ bool GPUSPH::runSimulation() {
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
+
+		if (gdata->debug.inspect_preforce)
+			saveParticles(noPostProcess, INTEGRATOR_STEP_2);
 
 		gdata->only_internal = true;
 		if (gdata->clOptions->striping && MULTI_DEVICE)
