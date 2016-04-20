@@ -50,13 +50,13 @@ using namespace std;
 Problem::Problem(GlobalData *_gdata) :
 	m_problem_dir(_gdata->clOptions->dir),
 	m_dem(NULL),
+	m_physparams(new PhysParams()),
+	m_simframework(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_deltap(NAN),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
-	m_physparams(new PhysParams()),
-	m_simframework(NULL),
 	m_bodies_storage(NULL)
 {
 }
