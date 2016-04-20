@@ -53,8 +53,6 @@
 struct GlobalData;
 class Problem;
 
-using namespace std;
-
 // Writer types. Define new ones here and remember to include the corresponding
 // header in Writer.cc and the switch case in the implementation of Writer::Create
 
@@ -91,11 +89,12 @@ class Writer
 	// list of actual writers
 	static WriterMap m_writers;
 
-	// should we be force saving regardless of timer ticks
-	// and frequencies?
-	// TODO FIXME might not be the most thread-safe way
-	// to handle this
-	static bool m_forced;
+	// Flags enabled for the current writing session
+	// NO_FLAGS indicate a standard write-out (saving
+	// at the normal frequency), other flags such as
+	// the current integration step are enabled during
+	// forced writes
+	static flag_t m_write_flags;
 
 public:
 	// maximum number of files
@@ -117,7 +116,7 @@ public:
 	// tell writers that we're starting to send write requests
 	// returns the list of writers that will be involved
 	static WriterMap
-	StartWriting(double t, bool force=false);
+	StartWriting(double t, flag_t write_flags);
 
 	// mark writers as done if they needed to save at the given time
 	static void
@@ -161,7 +160,7 @@ public:
 	{ return m_writefreq; }
 
 	/* return the last file number as string */
-	string last_filenum() const;
+	std::string last_filenum() const;
 
 protected:
 
@@ -178,7 +177,7 @@ protected:
 	// Writers that need to do special things before starting to write
 	// should override this
 	virtual void
-	start_writing(double t) {}
+	start_writing(double t, flag_t write_flags) {}
 
 	// finish writing. Writers that need to do special things when done
 	// can override this problem, but they should call Writer::mark_written
@@ -216,7 +215,7 @@ protected:
 	uint getFilenum() const;
 
 	// default suffix (extension) for data files)
-	string			m_fname_sfx;
+	std::string		m_fname_sfx;
 
 	/* open a data file on stream `out` assembling the file name from the provided
 	 * base, the current node (in case of multi-node simulaions), the provided sequence
@@ -224,16 +223,18 @@ protected:
 	 *
 	 * Returns the file name (without the directory part)
 	 */
-	string
-	open_data_file(ofstream &out, const char* base, string const& num, string const& sfx);
+	std::string
+	open_data_file(std::ofstream &out, const char* base,
+		std::string const& num, std::string const& sfx);
 
-	inline string
-	open_data_file(ofstream &out, const char* base, string const& num)
+	inline std::string
+	open_data_file(std::ofstream &out, const char* base,
+		std::string const& num)
 	{ return open_data_file(out, base, num, m_fname_sfx); }
 
-	inline string
-	open_data_file(ofstream &out, const char* base)
-	{ return open_data_file(out, base, string(), m_fname_sfx); }
+	inline std::string
+	open_data_file(std::ofstream &out, const char* base)
+	{ return open_data_file(out, base, std::string(), m_fname_sfx); }
 
 
 	// time of last write
@@ -243,12 +244,12 @@ protected:
 	// negative values means don't write (writer disabled)
 	double			m_writefreq;
 
-	string			m_dirname;
+	std::string		m_dirname;
 	uint			m_FileCounter;
-	ofstream		m_timefile;
+	std::ofstream	m_timefile;
 
 	const Problem	*m_problem;
-	string			current_filenum() const;
+	std::string		current_filenum() const;
 	const GlobalData*		gdata;
 };
 

@@ -69,6 +69,7 @@ void print_usage() {
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
+	cout << "\t       [--debug FLAGS]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
 	cout << " --checkpoint-every : HotStart checkpoints will be created every VAL seconds\n";
@@ -88,6 +89,7 @@ void print_usage() {
 	cout << " --byslot-scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
+	cout << " --debug : enable debug flags FLAGS\n";
 	cout << " --help: Show this help and exit\n";
 }
 
@@ -196,6 +198,10 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 #endif
+		} else if (!strcmp(arg, "--debug")) {
+			gdata->debug = parse_debug_flags(*argv);
+			argv++;
+			argc--;
 		} else if (!strcmp(arg, "--help")) {
 			print_usage();
 			return 0;

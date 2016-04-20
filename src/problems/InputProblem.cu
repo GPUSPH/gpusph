@@ -232,7 +232,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 2.2; w = 2.0; h = 2.0;
 		m_origin = make_double3(-1.1, -1.0, -1.0);
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
+		physparams()->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//Small test case with similar features to La Palisse
@@ -285,7 +285,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		simparams()->tend = 10.0;
 		simparams()->ferrari= 1.0f;
 		simparams()->numOpenBoundaries = 2;
-		//m_simparams->ferrariLengthScale = 0.2f;
+		//simparams()->ferrariLengthScale = 0.2f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 50.0f);
@@ -401,14 +401,14 @@ int InputProblem::fill_parts()
 	//*******************************************************************
 #if SPECIFIC_PROBLEM == Box
 	add_gage(m_origin + make_double3(1.0, 1.8, 0.0) + make_double3(0.1, 0.1, 0.1));
-	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
+	if (simframework()->hasPostProcessEngine(TESTPOINTS)) {
 		test_points.push_back(m_origin + make_double3(1.0, 2.0, 0.0) + make_double3(0.1, 0.1, 0.1));
 	}
 	//*******************************************************************
 	// Setting probes for channel flow keps test cases (with and without io)
 	//*******************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS || SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
+	if (simframework()->hasPostProcessEngine(TESTPOINTS)) {
 		// create test points at (0,0,.) with dp spacing from bottom to top
 		for(uint i=0; i<=40; i++)
 			test_points.push_back(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
@@ -502,7 +502,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float w = A*omega*sinh(k*z)/sinh(k*D)*sin(k*x+phi);
 			vel[i] = make_float4(u, 0, w, _rho);
 #elif SPECIFIC_PROBLEM == SolitaryWave
-			vel[i] = make_float4(0, 0, 0, powf(((0.58212-h5File.buf[i].Coords_2)*9.807f*m_physparams->rho0[0])*7.0f/m_physparams->sscoeff[0]/m_physparams->sscoeff[0]/m_physparams->rho0[0] + 1.0f,1.0f/7.0f)*m_physparams->rho0[0]);
+			vel[i] = make_float4(0, 0, 0, powf(((0.58212-h5File.buf[i].Coords_2)*9.807f*physparams()->rho0[0])*7.0f/physparams()->sscoeff[0]/physparams()->sscoeff[0]/physparams()->rho0[0] + 1.0f,1.0f/7.0f)*physparams()->rho0[0]);
 #else
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 #endif

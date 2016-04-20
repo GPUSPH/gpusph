@@ -138,11 +138,15 @@ template<
 			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
 			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
 												// inlet outlet works only with the summation density
-			(_simflags & ENABLE_GAMMA_QUADRATURE && _simflags & ENABLE_DENSITY_SUM) ||
-												// enable density sum only works with the dynamic equation for gamma
-			(!(_simflags & ENABLE_GAMMA_QUADRATURE) && !(_simflags & ENABLE_DENSITY_SUM))
-												// this has to be changed but for the moment it is only possible to use gamma quadrature
-												// when computing drho/dt=div u
+			(_simflags & ENABLE_DENSITY_SUM && _simflags & ENABLE_GAMMA_QUADRATURE) ||
+												// enable density sum only works with the dynamic equation for gamma,
+												// so gamma quadrature must be disabled
+			(!(_simflags & ENABLE_DENSITY_SUM) && !(_simflags & ENABLE_GAMMA_QUADRATURE))
+												// when using the continuity equation (density sum is disabled) it would
+												// possible to use either gamma formulation (dynamic or quadrature);
+												// however the code in this branch is only written for the quadrature case,
+												// so error out if gamma quadrature is disabled
+												// (TODO FIXME this will be fixed by the merge with splitneibs)
 		)
 	)
 >

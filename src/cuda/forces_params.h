@@ -58,13 +58,13 @@
 /// Parameters common to all forces kernel specializations
 struct common_forces_params
 {
-			float4	*forces;
-			float4	*rbforces;
-			float4	*rbtorques;
-	const	float4	*posArray;
-	const	hashKey *particleHash;
-	const	uint	*cellStart;
-	const	neibdata	*neibsList;
+			float4	* __restrict__ forces;
+			float4	* __restrict__ rbforces;
+			float4	* __restrict__ rbtorques;
+	const	float4	* __restrict__ posArray;
+	const	hashKey * __restrict__ particleHash;
+	const	uint	* __restrict__ cellStart;
+	const	neibdata	* __restrict__ neibsList;
 
 	// Particle range to work on. toParticle is _exclusive_
 	const	uint	fromParticle;
@@ -78,13 +78,13 @@ struct common_forces_params
 
 	// Constructor / initializer
 	common_forces_params(
-				float4	*_forces,
-				float4	*_rbforces,
-				float4	*_rbtorques,
-		const	float4	*_posArray,
-		const	hashKey *_particleHash,
-		const	uint	*_cellStart,
-		const	neibdata	*_neibsList,
+				float4	* __restrict__ _forces,
+				float4	* __restrict__ _rbforces,
+				float4	* __restrict__ _rbtorques,
+		const	float4	* __restrict__ _posArray,
+		const	hashKey * __restrict__ _particleHash,
+		const	uint	* __restrict__ _cellStart,
+		const	neibdata	* __restrict__ _neibsList,
 		const	uint	_fromParticle,
 		const	uint	_toParticle,
 		const	float	_deltap,
@@ -110,12 +110,12 @@ struct common_forces_params
 /// Additional parameters passed only to kernels with dynamic timestepping
 struct dyndt_forces_params
 {
-	float	*cfl;
-	float	*cfl_dS;
-	float	*cfltvisc;
+	float	* __restrict__ cfl;
+	float	* __restrict__ cfl_dS;
+	float	* __restrict__ cfltvisc;
 	uint	cflOffset;
 
-	dyndt_forces_params(float *_cfl, float *_cfl_dS, float *_cfltvisc, uint _cflOffset) :
+	dyndt_forces_params(float * __restrict__ _cfl, float * __restrict__ _cfl_dS, float * __restrict__ _cfltvisc, uint _cflOffset) :
 		cfl(_cfl), cfl_dS(_cfl_dS), cfltvisc(_cfltvisc), cflOffset(_cflOffset)
 	{}
 };
@@ -123,8 +123,8 @@ struct dyndt_forces_params
 /// Additional parameters passed only to kernels with XSPH enabled
 struct xsph_forces_params
 {
-	float4	*xsph;
-	xsph_forces_params(float4 *_xsph) :
+	float4	* __restrict__ xsph;
+	xsph_forces_params(float4 * __restrict__ _xsph) :
 		xsph(_xsph)
 	{}
 };
@@ -132,34 +132,34 @@ struct xsph_forces_params
 /// Additional parameters passed only to kernels with SPH_GRENIER formulation
 struct grenier_forces_params
 {
-	const float	*sigmaArray;
-	grenier_forces_params(const float *_sigmaArray) : sigmaArray(_sigmaArray)
+	const float	* __restrict__ sigmaArray;
+	grenier_forces_params(const float * __restrict__ _sigmaArray) : sigmaArray(_sigmaArray)
 	{}
 };
 
 /// Used by formulations that have volume
 struct volume_forces_params
 {
-	const float4	*volArray;
-	volume_forces_params(const float4 *_volArray) : volArray(_volArray)
+	const float4	* __restrict__ volArray;
+	volume_forces_params(const float4 * __restrict__ _volArray) : volArray(_volArray)
 	{}
 };
 
 /// Additional parameters passed only to kernels with SA_BOUNDARY
 struct sa_boundary_forces_params
 {
-			float4	*newGGam;
-			float2	*contupd;
-	const	float2	*vertPos0;
-	const	float2	*vertPos1;
-	const	float2	*vertPos2;
+			float4	* __restrict__ newGGam;
+			float2	* __restrict__ contupd;
+	const	float2	* __restrict__ vertPos0;
+	const	float2	* __restrict__ vertPos1;
+	const	float2	* __restrict__ vertPos2;
 	const	float	epsilon;
 
 	// Constructor / initializer
 	sa_boundary_forces_params(
-				float4	*_newGGam,
-				float2	*_contupd,
-		const	float2	* const _vertPos[],
+				float4	* __restrict__ _newGGam,
+				float2	* __restrict__ _contupd,
+		const	float2	* __restrict__ const _vertPos[],
 		const	float	_epsilon) :
 		newGGam(_newGGam),
 		contupd(_contupd),
@@ -178,18 +178,18 @@ struct sa_boundary_forces_params
 /// Additional parameters passed only to kernels with ENABLE_WATER_DEPTH
 struct water_depth_forces_params
 {
-	uint	*IOwaterdepth;
+	uint	* __restrict__ IOwaterdepth;
 
-	water_depth_forces_params(uint *_IOwaterdepth) : IOwaterdepth(_IOwaterdepth)
+	water_depth_forces_params(uint * __restrict__ _IOwaterdepth) : IOwaterdepth(_IOwaterdepth)
 	{}
 };
 
 /// Additional parameters passed only to kernels with KEPSVISC
 struct kepsvisc_forces_params
 {
-	float3	*keps_dkde;
-	float	*turbvisc;
-	kepsvisc_forces_params(float3 *_keps_dkde, float *_turbvisc) :
+	float3	* __restrict__ keps_dkde;
+	float	* __restrict__ turbvisc;
+	kepsvisc_forces_params(float3 * __restrict__ _keps_dkde, float * __restrict__ _turbvisc) :
 		keps_dkde(_keps_dkde),
 		turbvisc(_turbvisc)
 	{}
@@ -198,8 +198,8 @@ struct kepsvisc_forces_params
 /// Additional parameters only used to kernels with ENABLE_INTERNAL_ENERGY
 struct internal_energy_forces_params
 {
-	float	*DEDt; // derivative of the internal energy with respect to time
-	internal_energy_forces_params(float *_DEDt) :
+	float	* __restrict__ DEDt; // derivative of the internal energy with respect to time
+	internal_energy_forces_params(float * __restrict__ _DEDt) :
 		DEDt(_DEDt)
 	{}
 };
@@ -234,13 +234,13 @@ struct forces_params :
 	// structs it derives from, in the correct order
 	forces_params(
 		// common
-				float4	*_forces,
-				float4	*_rbforces,
-				float4	*_rbtorques,
-		const	float4	*_pos,
-		const	hashKey	*_particleHash,
-		const	uint	*_cellStart,
-		const	neibdata*_neibsList,
+				float4	* __restrict__ _forces,
+				float4	* __restrict__ _rbforces,
+				float4	* __restrict__ _rbtorques,
+		const	float4	* __restrict__ _pos,
+		const	hashKey	* __restrict__ _particleHash,
+		const	uint	* __restrict__ _cellStart,
+		const	neibdata* __restrict__ _neibsList,
 				uint	_fromParticle,
 				uint	_toParticle,
 
@@ -250,32 +250,32 @@ struct forces_params :
 				uint	_step,
 
 		// dyndt
-				float	*_cfl,
-				float	*_cfl_dS,
-				float	*_cflTVisc,
+				float	* __restrict__ _cfl,
+				float	* __restrict__ _cfl_dS,
+				float	* __restrict__ _cflTVisc,
 				uint	_cflOffset,
 
 		// XSPH
-				float4	*_xsph,
+				float4	* __restrict__ _xsph,
 
 		// SPH_GRENIER
-		const	float4	*_volArray,
-		const	float	*_sigmaArray,
+		const	float4	* __restrict__ _volArray,
+		const	float	* __restrict__ _sigmaArray,
 
 		// SA_BOUNDARY
-				float4	*_newGGam,
-				float2	*_contupd,
-		const	float2	* const _vertPos[],
+				float4	* __restrict__ _newGGam,
+				float2	* __restrict__ _contupd,
+		const	float2	* __restrict__  const _vertPos[],
 		const	float	_epsilon,
 
 		// ENABLE_WATER_DEPTH
-				uint	*_IOwaterdepth,
+				uint	* __restrict__ _IOwaterdepth,
 
 		// KEPSVISC
-				float3	*_keps_dkde,
-				float	*_turbvisc,
+				float3	* __restrict__ _keps_dkde,
+				float	* __restrict__ _turbvisc,
 		// ENABLE_INTERNAL_ENERGY
-				float	*_DEDt
+				float	* __restrict__ _DEDt
 		) :
 		common_forces_params(_forces, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
@@ -299,20 +299,20 @@ struct forces_params :
 /// Parameters common to all SPS kernel specializations
 struct common_sps_params
 {
-	const float4*	pos;
-	const hashKey*	particleHash;
-	const uint*		cellStart;
-	const neibdata*	neibsList;
+	const float4* __restrict__ 	pos;
+	const hashKey* __restrict__ 	particleHash;
+	const uint* __restrict__ 		cellStart;
+	const neibdata* __restrict__ 	neibsList;
 	const uint		numParticles;
 	const float		slength;
 	const float		influenceradius;
 
 	// Constructor / initializer
 	common_sps_params(
-		const	float4	*_pos,
-		const	hashKey	*_particleHash,
-		const	uint	*_cellStart,
-		const	neibdata	*_neibsList,
+		const	float4	* __restrict__ _pos,
+		const	hashKey	* __restrict__ _particleHash,
+		const	uint	* __restrict__ _cellStart,
+		const	neibdata	* __restrict__ _neibsList,
 		const	uint	_numParticles,
 		const	float	_slength,
 		const	float	_influenceradius) :
@@ -329,11 +329,11 @@ struct common_sps_params
 /// Additional parameters passed only if simflag SPS_STORE_TAU is set
 struct tau_sps_params
 {
-	float2*		tau0;
-	float2*		tau1;
-	float2*		tau2;
+	float2* __restrict__ 		tau0;
+	float2* __restrict__ 		tau1;
+	float2* __restrict__ 		tau2;
 
-	tau_sps_params(float2 *_tau0, float2 *_tau1, float2 *_tau2) :
+	tau_sps_params(float2 * __restrict__ _tau0, float2 * __restrict__ _tau1, float2 * __restrict__ _tau2) :
 		tau0(_tau0), tau1(_tau1), tau2(_tau2)
 	{}
 };
@@ -341,8 +341,8 @@ struct tau_sps_params
 /// Additional parameters passed only if simflag SPS_STORE_TURBVISC is set
 struct turbvisc_sps_params
 {
-	float	*turbvisc;
-	turbvisc_sps_params(float *_turbvisc) :
+	float	* __restrict__ turbvisc;
+	turbvisc_sps_params(float * __restrict__ _turbvisc) :
 		turbvisc(_turbvisc)
 	{}
 };
@@ -363,19 +363,19 @@ struct sps_params :
 	// structs it derives from, in the correct order
 	sps_params(
 		// common
-			const	float4*	_pos,
-			const	hashKey*	_particleHash,
-			const	uint*		_cellStart,
-			const	neibdata*	_neibsList,
+			const	float4* __restrict__ 	_pos,
+			const	hashKey* __restrict__ 	_particleHash,
+			const	uint* __restrict__ 		_cellStart,
+			const	neibdata* __restrict__ 	_neibsList,
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
 		// tau
-					float2*		_tau0,
-					float2*		_tau1,
-					float2*		_tau2,
+					float2* __restrict__ 		_tau0,
+					float2* __restrict__ 		_tau1,
+					float2* __restrict__ 		_tau2,
 		// turbvisc
-					float*		_turbvisc
+					float* __restrict__ 		_turbvisc
 		) :
 		common_sps_params(_pos, _particleHash, _cellStart,
 			_neibsList, _numParticles, _slength, _influenceradius),

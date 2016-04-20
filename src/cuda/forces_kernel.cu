@@ -1063,8 +1063,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			oldGGam[index] = gGam;
 			gGam.w = fmax(gGam.w, 1e-5f);
 		}
-		if (!IO_BOUNDARY(info) && oldTKE)
-			eulerVel /= 3.0f;
 
 		if (IO_BOUNDARY(info)) {
 			if (alpha > 0.1f*gGam.w) { // note: defaults are set in the place where bcs are imposed

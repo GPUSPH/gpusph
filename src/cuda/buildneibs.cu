@@ -129,9 +129,12 @@ getconstants(	SimParams *simparams,	// pointer to simulation parameters structur
 void
 resetinfo(void)
 {
-	uint temp = 0;
+	int temp = 0;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp, sizeof(int)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxNeibs, &temp, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasMaxNeibs, &temp, sizeof(int)));
+	temp = -1;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyNeibs, &temp, sizeof(int)));
 }
 
 
@@ -147,6 +150,8 @@ getinfo(TimingInfo & timingInfo)	// timing info (in, out)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxNeibs, cuneibs::d_maxNeibs, sizeof(int), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyNeibs, cuneibs::d_hasTooManyNeibs, sizeof(int), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasMaxNeibs, cuneibs::d_hasMaxNeibs, sizeof(int), 0));
 }
 
 /** @} */

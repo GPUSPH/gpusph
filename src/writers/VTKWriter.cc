@@ -66,16 +66,28 @@ VTKWriter::~VTKWriter()
 	m_timefile.close();
 }
 
-void VTKWriter::add_block(std::string const& blockname, std::string const& fname, double t)
+void VTKWriter::add_block(std::string const& blockname, std::string const& fname)
 {
 	++m_blockidx;
-	m_timefile << "  <DataSet timestep='" << t << "' group='" << m_blockidx <<
+	m_timefile << "  <DataSet timestep='" << m_current_time << "' group='" << m_blockidx <<
 		"' name='" << blockname << "' file='" << fname << "'/>" << endl;
 }
 
-void VTKWriter::start_writing(double t)
+void VTKWriter::start_writing(double t, flag_t write_flags)
 {
-	Writer::start_writing(t);
+	Writer::start_writing(t, write_flags);
+
+	ostringstream time_repr;
+	time_repr << t;
+	m_current_time = time_repr.str();
+
+	// we append the current integrator step to the timestring,
+	// but we need to add a dot if there isn't one already
+	string dot = m_current_time.find('.') != string::npos ? "" : ".";
+	if (write_flags == INTEGRATOR_STEP_1)
+		m_current_time += dot + "00000001";
+	else if (write_flags == INTEGRATOR_STEP_2)
+		m_current_time += dot + "00000002";
 
 	m_blockidx = -1;
 
@@ -85,7 +97,7 @@ void VTKWriter::start_writing(double t)
 		if (m_planes_fname.size() == 0) {
 			save_planes();
 		}
-		add_block("Planes", m_planes_fname, t);
+		add_block("Planes", m_planes_fname);
 	}
 }
 
@@ -708,7 +720,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	fid.close();
 
-	add_block("Particles", filename, t);
+	add_block("Particles", filename);
 
 	delete[] neibsnum;
 }
@@ -772,7 +784,7 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 
 	fp.close();
 
-	add_block("WaveGages", filename, t);
+	add_block("WaveGages", filename);
 }
 
 static inline void chomp(double3 &pt, double eps=FLT_EPSILON)

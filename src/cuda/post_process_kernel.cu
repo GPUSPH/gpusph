@@ -47,8 +47,8 @@ namespace cupostprocess {
 
 using namespace cubounds;
 
-// Core SPH functions
-#include "sph_core_utils.cuh"
+// To gain access to W and F
+using namespace cuforces;
 
 /** \name Device constants
  *  @{ */
