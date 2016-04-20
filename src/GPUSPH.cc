@@ -732,6 +732,16 @@ bool GPUSPH::runSimulation() {
 			// update the it counter if new particles are created
 			if (gdata->particlesCreated) {
 				gdata->createdParticlesIterations++;
+
+				/*** IMPORTANT: updateArrayIndices() is only useful to be able to dump
+				 * the newly generated particles on the upcoming (if any) save. HOWEVER,
+				 * it introduces significant issued when used in multi-GPU, due
+				 * to the fact that generated particles are appended after the externals.
+				 * A method to handle this better needs to be devised (at worst enabling
+				 * this only as a debug feature in single-GPU mode). For the time being
+				 * the code section is disabled.
+				 */
+#if 0
 				// we also update the array indices, so that e.g. when saving
 				// the newly created particles are visible
 				// TODO this doesn't seem to impact performance noticeably
@@ -741,6 +751,7 @@ bool GPUSPH::runSimulation() {
 				// anyway, since it will be done during the next buildNeibList()
 				// call
 				updateArrayIndices();
+#endif
 			}
 		}
 
