@@ -176,6 +176,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 	const float *intEnergy = buffers.getData<BUFFER_INTERNAL_ENERGY>();
+	const float4 *forces = buffers.getData<BUFFER_FORCES>();
 
 	const neibdata *neibslist = buffers.getData<BUFFER_NEIBSLIST>();
 
@@ -232,6 +233,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	if (intEnergy) {
 		scalar_array(fid, "Float32", "Internal Energy", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	if (forces) {
+		vector_array(fid, "Float32", "Spatial acceleration", 3, offset);
+		offset += sizeof(float)*3*numParts+sizeof(int);
+		scalar_array(fid, "Float32", "Continuity derivative", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
@@ -410,6 +418,22 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		numbytes = sizeof(float)*numParts;
 		write_var(fid, numbytes);
 		write_arr(fid, intEnergy, numParts);
+	}
+
+	if (forces) {
+		numbytes=sizeof(float)*numParts*3;
+		// write spatial acceleration
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			const float *value = (float*)(forces + i);
+			write_arr(fid, value, 3);
+		}
+		numbytes=sizeof(float)*numParts;
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			const float value = forces[i].w;
+			write_var(fid, value);
+		}
 	}
 
 	numbytes=sizeof(float)*numParts;
