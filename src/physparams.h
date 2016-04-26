@@ -69,15 +69,15 @@ typedef struct PhysParams {
 	std::vector<float> bcoeff; 			///< Pressure parameter, \f$ B \f$
 	std::vector<float> gammacoeff;		///< Adiabatic index, \f$\gamma\f$
 	std::vector<float> sscoeff; 		///< Sound speed coefficient ( = sound speed at rest density, \f$ c_0 \f$)
-	std::vector<float> sspowercoeff; 	///< Sound speed equaiton exponent ( = \f$(\gamma -1)/2\f$ )
+	std::vector<float> sspowercoeff; 	///< Sound speed equation exponent ( = \f$(\gamma -1)/2\f$ )
 	/** @} */
 
 	/** \name Viscosity related parameters
 	 *  Viscosity coefficient used in the viscous contribution functions, depends on
 	 *  viscosity model:
-	 *		* for ARTVSIC: artificial viscosity coefficient
-	 *  	* for KINEMATICVISC: 4*kinematic viscosity,
-	 *  	* for DYNAMICVISC: kinematic viscosity
+	 *		- for ARTVSIC: artificial viscosity coefficient
+	 *  	- for KINEMATICVISC: 4xkinematic viscosity,
+	 *   	- for DYNAMICVISC: kinematic viscosity
 	 *
 	 *  (The choice might seem paradoxical, but with DYNAMICVISC the dynamic viscosity
 	 *  coefficient is obtained multiplying visccoeff by the particle density, while
@@ -112,6 +112,22 @@ typedef struct PhysParams {
 	float	p2coeff;	///< \f$ p_2 \f$
 	/** @} */
 
+
+	/** \name Geometrical LJ boundary related parameters
+	 *  When boundaries can be built using a set of plane or when simulating flows over a real topography
+	 *  we can directly compute a boundary normal repulsive force without using boundary particles.
+	 *  With a real topography we directly use the Digital Elevation Model (DEM).
+	 *  The parameters needed in those case are describe below.
+	 * @{ */
+	float	ewres;			///< DEM east-west resolution
+	float	nsres;			///< DEM north-south resolution
+	float	demdx;			///< Displacement in x direction (in ]0, ewres[) used for normal computation
+	float	demdy;			///< Displacement in y direction (in ]0, nsres[) used for normal computation
+	float	demdxdy;		///< demdx*demdy
+	float	demzmin;		///< Minimum elevation of the terrain
+	float	partsurf;		///< Particle surface (used to compute surface friction)
+	/** @} */
+
 	/** \name Monaghan-Kajtar (MK) boundary related parameters
 	 *  With MK boundary the boundary particle interact with fluid one only trough a repulsive force \f$ {\bf{f}}({\bf{r}}) \f$
 	 *  defined by :
@@ -125,17 +141,14 @@ typedef struct PhysParams {
 	/** \name XSPH related parameter
 	 * @{ */
 	float	epsxsph;		///< \f$ \epsilon \f$ coefficient for XSPH correction
+	/** @} */
 
 	/** \name Large Eddy Simulation (LES) related parameters
 	 *  The implemented Smagorinsky LES model depends on two parameters
 	 * @{ */
-	float	smagfactor;		/// (Cs*∆p)^2
-	float	kspsfactor;		/// 2/3*Ci*∆p^2
+	float	smagfactor;		///< TDOD
+	float	kspsfactor;		///< TDOD
 	/** @} */
-
-	float	partsurf;		///< Particle area (for surface friction)
-
-	float3	gravity;		///< Gravity
 
 	/** \name Surface tension related parameter
 	 * @{ */
@@ -148,15 +161,9 @@ typedef struct PhysParams {
 	float	cosconeanglenonfluid;	 ///< Cosine of cone angle for free surface detection (If the neighboring particle is non_fluid
 	/** @} */
 
-
-	/** \name Topography related parameters
+	/** \name Other parameters
 	 * @{ */
-	float	ewres;			///< DEM east-west resolution
-	float	nsres;			///< DEM north-south resolution
-	float	demdx;			///< Displacement in x direction (in ]0, ewres[) used for normal computation
-	float	demdy;			///< Displacement in y direction (in ]0, nsres[) used for normal computation
-	float	demdxdy;		///< demdx*demdy
-	float	demzmin;		///< Minimum elevation of the terrain
+	float3	gravity;		///< Gravity
 	/** @} */
 
 	/** \name Deprecated parameters
@@ -167,7 +174,6 @@ typedef struct PhysParams {
 	float	objectobjectdf DEPRECATED_MSG("objectobjectdf is not needed anymore");
 	float	objectboundarydf DEPRECATED_MSG("objectboundarydf is not needed anymore");
 	/** @} */
-
 
 	// We have 5 deprecated members, but we don't need
 	// to get a warning about them for the constructor, only
@@ -199,15 +205,26 @@ RESTORE_WARNINGS
 	friend class GPUWorker;
 	friend class GPUSPH;
 
+	/// Returns the number of fluids in the simulation
+	/*! This function return the current number of fluids in the simulation
+	 *
+	 *	\return number of fluids in the simualtion
+	 */
 	size_t numFluids() const
 	{ return rho0.size(); }
 
 protected:
-
-	/*! Add a new fluid with given density, adjabatic index and sound speed at rest
-	  @param rho	at-rest density
+	/** \name Density - equation of state related methods
+	 * @{ */
+	/// Add a new fluid of given density in the simulation
+	/*! This function add a new fluid of at-rest density \f$ \rho_0 \f$ in the
+	 *  simulation and prime the equation of state vectors WITHOUT initializing them:
+	 *  i.e. \f$ \gamma \f$, ... ARE NOT SET. A call to add_fluid should then be followed
+	 *  by a call to set_equation_of_state.
 	 */
-	size_t add_fluid(float rho) {
+	size_t add_fluid(
+			float rho	///< [in] at-rest fluid density \f$ \rho_0 \f$
+			) {
 		if (numFluids() == MAX_FLUID_TYPES)
 			throw std::runtime_error("too many fluids");
 		rho0.push_back(rho);
@@ -225,14 +242,16 @@ protected:
 		return rho0.size() - 1;
 	}
 
-	/*! Set the equation of state of a given fluid, specifying the adiabatic
-	 *  index and speed of sound. A non-finite speed of sound implies
-	 *  that it should be autocomputed (currrently supported in XProblem only)
-	  @param fluid_idx	fluid index
-	  @param gamma	adjabatic index
-	  @param c0	sound speed at rest
-	  */
-	void set_equation_of_state(size_t fluid_idx, float gamma, float c0) {
+	/// Set the equation of state of a given fluid
+	/*! Set the parameters of the equation of state of a given fluid, specifying the adiabatic
+	 *  index and speed of sound. A non-finite speed of sound implies that it should be autocomputed
+	 *  (currrently supported in XProblem only). \f$ B \f$ is automatically computed as \f$ \frac{\rho_0 c_0^2}{\gamma} \f$.
+	 */
+	void set_equation_of_state(
+			size_t fluid_idx, 	///< [in] fluid number
+			float gamma, 		///< [in] \f$ \gamma \f$
+			float c0			///< [in] \f$ c_0 \f$
+			) {
 		if (fluid_idx >= numFluids())
 			throw std::out_of_range("trying to set equation of state for a non-existing fluid");
 		gammacoeff[fluid_idx] = gamma;
@@ -241,40 +260,24 @@ protected:
 		sspowercoeff[fluid_idx] = (gamma-1)/2;
 	}
 
-	/*! Set the kinematic viscosity of the given fluid
-	  @param fluid_idx	fluid index
-	  @param nu	kinematic viscosity
-	  */
-	void set_kinematic_visc(size_t fluid_idx, float nu) {
-		kinematicvisc.at(fluid_idx) = nu;
-	}
 
-	/*! Set the dynamic viscosity of the given fluid
-	  @param fluid_idx	fluid index
-	  @param mu	dynamic viscosity
-	  */
-	void set_dynamic_visc(size_t fluid_idx, float mu) {
-		set_kinematic_visc(fluid_idx, mu/rho0[fluid_idx]);
-	}
-
-	/*! Get the kinematic viscosity for the given fluid
-	 * @param fluid_idx	fluid index
+	/// Set density and equation of state of a given fluid
+	/*! \deprecated
+	 *  Set the density and the parameters of the equation of state of a given fluid, specifying
+	 *  the at-rest density, the adiabatic index and speed of sound.\f$ B \f$ is automatically
+	 *  computed as \f$ \frac{\rho_0 c_0^2}{\gamma} \f$.
+	 *  The number of fluids is automatically increased if set_density() is called with a fluid number
+	 *  equals to actual number of fluids.
 	 */
-	float get_kinematic_visc(size_t fluid_idx) const {
-		return kinematicvisc.at(fluid_idx);
-	}
-
-	/*! Set density parameters
-	  @param i	index in the array of materials
-	  @param rho	base density
-	  @param gamma	gamma coefficient
-	  @param c0	sound speed for density at rest
-
-	  The number of fluids is automatically increased if set_density()
-	  is called with consecutive indices
-	 */
-	void set_density(uint i, float rho, float gamma, float c0)
+	void set_density(
+			uint i, 		///< [in] fluid number
+			float rho, 		///< [in] at-rest fluid density \f$ \rho_0 \f$
+			float gamma, 	///< [in] \f$ \gamma \f$
+			float c0		///< [in] \f$ c_0 \f$
+			)
+	/*! \cond */
 	DEPRECATED_MSG("set_density() is deprecated, use add_fluid() + set_equation_of_state() instead")
+	/*! \endcond */
 	{
 		if (i == rho0.size()) {
 			add_fluid(rho);
@@ -289,6 +292,42 @@ protected:
 			throw std::runtime_error("fluid index is growing too fast");
 		}
 	}
+	/** @} */
+
+	/** \name Viscosity related methods
+	 * @{ */
+	/// Set the kinematic viscosity of a given fluid
+	/*! This function set the kinematic viscosity \f$ \nu \f$ of a given fluid
+	 */
+	void set_kinematic_visc(
+			size_t fluid_idx,	///< [in] fluid number
+			float nu			///< [in] kinematic viscosity \f$ \nu \f$
+			) {
+		kinematicvisc.at(fluid_idx) = nu;
+	}
+
+	/// Set the dynamic viscosity of a given fluid
+	/*! This set the dynamic viscosity \f$ \mu \f$ of a given fluid
+	*/
+	void set_dynamic_visc(
+			size_t fluid_idx,	///< [in] fluid number
+			float mu			///< [in] dynamic viscosity viscosity \f$ \mu \f$
+			) {
+		set_kinematic_visc(fluid_idx, mu/rho0[fluid_idx]);
+	}
+
+	/// Return the kinematic viscosity of a given fluid
+	/*! This function return kinematic viscosity \f$ \nu \f$ of a given fluid
+	 *
+	 * \return \f$ \nu \f$
+	*/
+	float get_kinematic_visc(
+			size_t fluid_idx	///< [in] fluid number
+			) const {
+		return kinematicvisc.at(fluid_idx);
+	}
+	/** @} */
+
 } PhysParams;
 
 #endif
