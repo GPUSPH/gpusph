@@ -200,7 +200,7 @@ Particles is worth playing with as well, as it provided a basis for
 developing GPUSPH.
 
 At the present time, you must have a card with at least Compute
-Capability of 1.1 to run GPUSPH.
+Capability of 2.0 to run GPUSPH.
 
 \todo{How to install relevant packages on common distributions
 (Debian/Ubuntu, Arch, Fedora/RedHat).}
@@ -275,42 +275,6 @@ compiled binary. \cmd{make test} will also automatically run
 After building, simply runnning \cmd{./GPUSPH} will run the program
 again.
 
-\subsection{Visualizing the results}
-
-Please note that since version~3.0 the OpenGL user interface has been
-removed, since it was not compatible with the new design that allows
-distributing GPUSPH across multiple nodes in a network.
-
-\todo{Maybe we could have a writer in single-node mode that does what
-the old OpenGL visualization did?}
-
-The results of the simulation are stored in a directory under
-\cmd{tests}, named after the used Problem and the date of execution
-(e.g. \cmd{tests/DamBreak3D_2014-6-12T13h23}). Data files (found in a
-\cmd{data} subdirectory of the specific test directory) are normally
-written in VTK Unstructured Grid format (\cmd{.vtu}) and can be
-visualized with ParaView.
-
-\iffalse % OBSOLETE
-\begin{figure}
-\centering{%
-\includegraphics[scale=0.5]{DamBreak3D.png}%
-}
-\caption{Initial OpenGL window for the problem DamBreak3DObjects,
-showing the fluid behind the dam on the right and the containment tank
-in green and structure in red in the middle of the tank. There are
-10,664 particles in this example problem, 6000 of which are fluid
-particles. The remaining particles form the boundaries. Note the
-caption indicating that to initiate the computation, you have to tap the
-space bar.}
-\end{figure}
-\else
-\todo{damreak picture}
-\fi
-
-The run directories and their content are preserved until manually
-removed. The \cmd{scripts/rmtests} auxiliary script can be used to clean
-up the \cmd{tests} directory.
 
 \subsection{Choosing the \cmd{Problem} and other options}
 
@@ -328,7 +292,21 @@ help-options}. All options (with the exception of \cmd{plain} and
 with \cmd{make option=value}, and subsequent executions of \cmd{make}
 will remember the \cmd{value} set.
 
-\todo{List and describe \cmd{make} options}
+\todo{Describe \cmd{make} options}
+The \cmd{make} options are listed below:
+\begin{itemize}
+\item \cmd{target_arch} - if set to 32, force compilation for 32 bit architecture
+\item \cmd{problem} - Name of the problem.
+\item \cmd{dbg} - 0 no debugging, 1 enable debugging
+\item \cmd{compute} - 11, 12, 13, 20, 21, 30, 35, etc: compute capability to compile for (default: autodetect)
+\item \cmd{fastmath} - Enable or disable fastmath. Default: 0 (disabled)
+\item \cmd{mpi} - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
+\item \cmd{hdf5} - 0 do not use HDF5, 1 use HDF5, 2 use HDF5 and HDF5 requires MPI. Default: autodetect
+\item \cmd{verbose} - 0 quiet compiler, 1 ptx assembler, 2 all warnings
+\item \cmd{plain} - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
+\item \cmd{echo} - 0 silent, 1 show commands
+\end{itemize}
+To view your current make options type \cmd{make show} instead of make.
 
 \section{Example Problems}
 
@@ -539,24 +517,23 @@ For the Problem TestTopo: the name of the DEM file to use.
 
 To run simulations with your own setup, you must create a new
 \cmd{Problem}. This is done by creating a new \cpp\ source file, with
-the associated header (e.g.\ \cmd{MyProject.cc} and \cmd{MyProject.h}),
-placing them under \cmd{src}, running \cmd{make problem=MyProject} to
+the associated header (e.g.\ \cmd{MyProject.cu} and \cmd{MyProject.h}),
+placing them under \cmd{src/problems}, running \cmd{make problem=MyProject} to
 build it, and finally \cmd{./GPUSPH} to run it. Beginners should use one
-of the provided sample files as template for their project.
+of the provided sample files as a template for their project.
+There are two main samples available in the \cmd{src/problems} directory: 
+\cmd{XProblemExample} (for Lennard-Jones or dynamic boundaries) 
+and \cmd{XCompleteSaExample} (for semi-analytical boundaries).\\
 
-\cmd{MyProject.cc} should define a new \cpp\ class by the same name
-(\cmd{MyProject}), derived of the \cmd{Problem} class. The constructor
+\cmd{MyProject.cu} should define a new \cpp\ class by the same name
+(\cmd{MyProject}), derived of the \cmd{XProblem} class. The constructor
 for \cmd{MyProject} should set up the domain size, the physical
 parameters to be used in the simulation (gravity, viscosity,
 sound-speed, etc), as well as any other simulation parameter (such as
 SPH formulation to use, viscosity model, boundary type, etc).
 
-The \cmd{MyProject} class must have at least two methods, aside from the
-constructor and destructor: \cmd{fill_parts}, where the objects
-describing the domain and the fluid are filled with particles (whose
-total number is then fed back to GPUSPH), and \cmd{copy_to_array}, where
-the particles generated during \cmd{fill_parts} are uploaded to the
-particle system.
+
+
 
 \todo{Next: sections describing each part of a project file, both the
 \cmd{.cc} source and the \cmd{.h} header, with a step-by-step
@@ -564,24 +541,514 @@ construction.}
 
 \section{Anatomy of a project}
 
-\subsection{Starting from scratch}
+Below are the steps required to build a new project and run it with GPUSPH:
+\begin{enumerate}
+\item In case you use semi-analytical boundary conditions, follow the steps 
+described in section \ref{sec:preprocess_sa} for the pre-processing;
+\item Create \cmd{MyProject.cu} and \cmd{MyProject.h} files in 
+the \cmd{src/problems} directory
+\item In the GPUSPH folder, compile the code for your project:
+\begin{shellcode}
+make problem=MyProject
+\end{shellcode}
+\item Execute GPUSPH:
+\begin{shellcode}
+./GPUSPH
+\end{shellcode}
+\item Follow the steps described in section \ref{sec:postprocess} 
+to visualize and post-process the results.
+\end{enumerate}
 
-\todo{start with minimal files (just declaring the class in the header,
-empty methods in the body)}
+\section{Specific pre-processing for semi-analytical boundaries}\label{sec:preprocess_sa}
 
-\subsection{Setting up the simulation}
+Several types of boundary conditions are available in GPUSPH. 
+They are described in section \ref{sec:boundary_conditions}.
+With classical boundary conditions (Lennard-Jones, dynamic boundaries) the problem 
+geometries are defined and filled with particles by GPUSPH itself.
+For simulations involving complex objects and/or open boundaries, 
+the semi-analytical boundaries can be used. They make it possible 
+to import a geometry in \cmd{h5sph} format. These geometries are 
+generated using a mesher (\textit{e.g.} \cmd{SALOME}) and \cmd{CRIXUS},
+an open-source software which is able to fill the computational 
+domain with particles. 
 
-\todo{fill the constructor: define the domain, set up a minimum of
-physical and simulation properties, define the writers}
+The pre-processing steps specific to semi-analytical boundaries 
+are the following:
+\begin{enumerate}
+\item create a mesh of the boundaries in SALOME and 
+export it as a binary STL file;
+\item run the \cmd{testTriangle} script to know the 
+minimum interparticle distance to set in the simulation, 
+with the following syntax:
+\begin{shellcode}
+testTriangle NameOfTheSTLFile.stl 0.1
+\end{shellcode}
+where 0.1 could be any number (the program just checks if 
+the distance between the center and the vertex of a 
+triangle is bigger than the specified number, and returns 
+the maximum and minimum found for that dimension);
+\item run CRIXUS to fill the domain with particles:
+\begin{shellcode}
+Crixus NameOfTheINIFile.ini
+\end{shellcode}
+\item copy the resulting \cmd{h5sph} file(s) containing 
+the initial particles to the directory \cmd{data_files}.
+\end{enumerate}
 
-\subsection{Filling up the domain}
+These steps are described with more detail below.
 
-\todo{fill \cmd{fill_parts}: define a few objects, cover everything with
-particles, fill the domain with fluid}
+\subsection{Preparing the geometry with SALOME}
+
+The input files for CRIXUS are meshes of:
+\begin{itemize}
+\item the total domain's boundaries
+\item the free-surface
+\item the special boundaries (for moving objects 
+and/or open boundaries)
+\end{itemize}
+These meshes must be composed of triangles and can 
+be generated using SALOME, which is an open source 
+software very useful for 3D modeling and meshing.\\
+
+\textbf{It is important to generate meshes with homogeneous 
+triangle size, otherwise the quality of results may be affected.}\\
+
+
+In order to start a new project in SALOME, click on \cmd{File/New}. 
+When you save your project, SALOME creates a file with the 
+\cmd{.hdf} extension, which stores all the geometry elements 
+and meshes that you design for your project.\\
+
+\textbf{Building the geometry}\\
+
+The complete SALOME documentation for the GEOMETRY module can be found here:\\
+\url{http://docs.salome-platform.org/7/gui/GEOM/}\\
+
+Designing is easy in SALOME. To start building the geometry 
+elements, click on the “Geometry” module. 
+There are 7 types of basic geometrical elements:
+\begin{enumerate}
+\item VERTEX: it can be created by providing its coordinates, 
+by clicking on the vertex of another geometry element, 
+by using another point as reference…There are many ways 
+which are described in the “Point Construction” window 
+which appears when we click on “Create a point”
+\item SEGMENT: it can be created providing two points 
+that were previously stated, or using the intersection of 
+two planar elements. 
+\item WIRE: a wire is just a series of segments. 
+It can be a closed wire or if the end matches the start, 
+or an open one.
+\item FACE: a face is just a limited plane 
+\item SHELL: a shell is a series of faces. 
+SALOME would consider it a closed shell when it 
+encloses a volume
+\item SOLID: a solid is just a limited part of the 3D space; 
+it can be easily created on the basis of a closed shell
+\item COMPOUND: a compound is just the combination 
+of two or more elements of different type, merged 
+into one single element
+\end{enumerate}
+Apart from these basic geometry types, we can find 
+three special types, which are 
+DIVIDED DISK, DIVIDED CYLINDER, and SMOOTHING SURFACE. 
+Among these three special types, the most interesting 
+is the smoothing surface, as it is useful to create 
+3D surfaces from a point cloud.
+Finally, we can find auxiliary geometry elements such as 
+circles, ellipses, arcs, vectors, sketches, polylines, cylinders, 
+cones, spheres, cubes, torus, disks, T shape pipes, etc.
+
+SALOME makes it possible to import geometries from 
+a wide range of file types: STL, BREP, STEP,etc. 
+It is possible to import a geometry in STL format 
+(generated with another 3D modeling software, such 
+as Autocad, SolidWorks, Catia, etc.). \\
+
+\textbf{Caution}: STL files are ASCII or binary 
+files in which geometry is described by triangles. 
+Each element of an STL file is composed by the 3 
+coordinates of each 3 vertex of the triangle, 
+and the 3 components of the triangle’s normal vector. 
+This means that when we export some geometry 
+elements in STL format, triangles would be automatically created. 
+When importing this file in SALOME, the geometry is then 
+composed of triangular faces and that the meshing operations 
+to be implemented afterwards are influenced by this previous 
+and automatic discretization of the geometry.
+This results in bad mesh quality.
+So when importing geometry on a STL format, a redesigning of it is necessary 
+in order to obtain a good mesh quality.\\
+
+\textbf{Generating the mesh}\\
+
+The complete SALOME documentation for the MESH module can be found here:\\
+\url{http://docs.salome-platform.org/latest/gui/SMESH/index.html}\\
+
+Once the geometry is defined, it can be meshed using SALOME.
+In order to access the meshing tools, change from the Geometry 
+module to the Mesh module.
+To create a mesh from a geometry element, click on \cmd{Create Mesh}, 
+and a window opens in which the following options are available:
+\begin{itemize}
+\item Name: the name of the mesh which is going to be created
+\item Geometry: the geometry element that we want to mesh
+\item 3D/2D/1D/0D: it’s the nature of the mesh that we are 
+going to create, it automatically chooses the correct one 
+depending on the type of element that we have specified in Geometry
+\item Algorithm: is the meshing method’s algorithm. 
+Netgen 1D-2D works well for shell meshing.
+\item Hypothesis: here we can specify the hypothesis to be used 
+by the algorithm method. Clicking on the first icon on the right, 
+we can specify the parameters of the algorithm. See the SALOME 
+documentation for more details about the options.
+\end{itemize}
+
+The most relevant mesh options with the Netgen 1D-2D algorithm 
+are Max Size and Minimum Size. 
+It is important to note that SALOME usually respects the Max Size, 
+whereas the minimum size is often ignored due to geometry-mesh 
+adaptation problems. In addition, the minimum size would be 
+always delimited by the characteristic size of the geometry, 
+that is to say, the minimum length of the faces composing the shell. 
+Regarding the option Fineness, Fine works usually well. 
+Once we press OK and then Apply, an element of mesh type 
+will appear in the Object Browser on the left side of the screen. 
+The icon will appear with an exclamation mark on it: that means 
+that the mesh has not been computed yet. To do so, we click on 
+the icon Compute or we just do right click and we select 
+the option Compute. The algorithm will now begin iterating 
+until a solution has been found. 
+The mesh is then prepared to be exported as an STL file 
+in order to be used as an input for CRIXUS. \\
+
+\textbf{Caution}: STL files for CRIXUS need to be binary, 
+so when exporting the mesh, make sure you choose the correct 
+file format at the bottom tab.
+
+
+\subsection{Check the triangles' dimensions with \cmd{testTriangle}}
+In order to know the triangle dimensions that we have just created in SALOME, 
+we can run the TESTTRIANGLE script, available with CRIXUS.
+To work correctly, the distance between particles (dr) of a given simulation 
+should not be less than the maximum distance between the center and the 
+vertex of a triangle. This is why TESTTRIANGLE is used to get the maximum 
+value of this magnitude for all triangles of the main geometry STL file. 
+Run the program with the command:
+\begin{shellcode}
+./testTriangle NameOfTheSTLFile.stl 0.1
+\end{shellcode}
+Where 0.1 could be any number. 
+The program just checks for each triangle of the mesh whether the 
+radius is bigger than the specified number, and returns the 
+maximum and the minimum value found for the radius of each triangle. 
+The user is supposed to set the dr of the simulation equal 
+or superior to the maximum value got by TESTTRIANGLE. 
+However, it should not be much bigger, as the number of neighbors 
+would increase enormously, driving the simulation slower in terms of computation time.
+
+\subsection{Fill the geometry with particles using CRIXUS}
+
+CRIXUS is an open source software which performs the initialization 
+of the fluid as a previous step for GPUSPH. 
+As input, it basically needs the STL files describing the model geometry 
+and, if necessary, an STL file describing the free-surface and/or the special 
+boundary meshes. 
+In addition, we have to specify the distance between particles 
+of the simulation and other options as described below.\\
+
+\textbf{Remark}: what follows is just a summary of the CRIXUS manual, 
+available in the README file of CRIXUS.\\
+
+CRIXUS takes an INI file as an input. 
+This is essentially a text file with \cmd{.ini} extension 
+where we specify all the necessary STL files and other parameters.
+The INI file follows the following structure:
+
+
+Every section of the file starts with the title \cmd{[XXX]} 
+and all following statements refer to that section.
+These sections are described below.\\
+
+\textbf{Section [mesh]}\\
+Here is where the main geometry STL file will be specified. 
+The value of stlfile is the name of the STL file containing 
+the geometry of the walls and other elements limiting 
+the movement of the fluid. 
+The value of dr is the distance between particles 
+which CRIXUS will use to fill the domain with fluid.
+swap_normals enables the user to change the orientation 
+of the shell’s faces of the STL file. Faces should be 
+inner-fluid oriented for the simulation to work correctly.
+fshape is optional and specifies the free surface of 
+the fluid which we want the simulation to start with. 
+The geometry of the surface has to be represented by a STL file, 
+whose name is the value of fshape. If no initial surface is 
+specify, CRIXUS would fill the domain until the Z limit 
+is reached. Note that this time the STL file need to be binary, 
+but its meshing is irrelevant since its only goal 
+is to limit the domain’s filling.\\
+
+\textbf{Section [fill\_number]}\\
+In this section we tell CRIXUS how to fill the domain. 
+There are two ways of doing that: we can fill the domain by boxes 
+(option=box) or by a seed point (option=geometry).  The first one 
+just fills the specified box with fluid, whereas the second 
+one starts filling the domain from the specified point 
+and only stops if it reaches a wall or the free surface. 
+We can call the filling algorithm as many times as wished, 
+even with different filling option. 
+This is useful when we want to initialize the fluid 
+in two areas which are not self connected. \\
+
+\textbf{Section [special\_boundary\_grids]}\\
+Here we are able to specify which boundaries of 
+the domain are open boundaries, that is to say, 
+boundaries where the fluid can get in and out. 
+It is important to note that these boundaries have 
+to be part of the geometry represented by the STL 
+file specified as stlfile at the beginning. 
+Then, the open boundaries will be implemented by specifying 
+the names of their STL files.\\
+
+\textbf{Section [output]}\\
+In this section we simply choose the format of the output file. 
+This could be either \cmd{.h5sph} or \cmd{.vtu} format. 
+The first one is a table ready to be used as the $t=0$ 
+parameters for the simulation in GPUSPH, whereas the second 
+one is the file format that can be read by ParaView. 
+In a normal situation, in this section we would 
+always write \cmd{format=h5sph}, since this gives us the file 
+to be implemented on GPUSPH. Nevertheless, if we want first 
+to observe the results of the filling processes in ParaView, 
+we would write \cmd{format=vtu}. 
+The H5SPH files can be opened in HDF, a program to visualize data in tables.
+It is important to know, once again, that these are just the basic options for CRIXUS, 
+sufficient to launch most of the simulations. 
+It could happen, however, that we needed to specify more options 
+in order to customize our filling process: in this case, 
+the rest of the information, including the developer’s e-mail 
+can be found in the mentioned README file.\\
+
+In order to run CRIXUS, follow these steps:
+\begin{enumerate}
+\item Open the Linux Terminal
+\item Place the directory in the folder where we 
+have all the STL files used by CRIXUS, as well as the INI file:
+\begin{shellcode}
+cd Directory/Of/The/Files
+\end{shellcode}
+\item Launch Crixus:
+\begin{shellcode}
+Crixus NameOfTheINIFile.ini
+\end{shellcode}
+\item Once Crixus has finished, copy the resulting H5SPH files to the \cmd{data\_files} directory of GPUSPH. 
+The geometry (i.e., the H5SPH file) is now ready to be used by GPUSPH.
+\end{enumerate}
+
+\section{Setting up the simulation}
+
+As said before, the simulation setup only involves manipulating the .cu and the .h 
+files of your problem in order to specify all its parameters before running GPUSPH. 
+The structure of a problem, is in fact the structure of the .cu file, 
+which could be defined as follows:
+\begin{enumerate}
+\item GEOMETRY. As the mesh geometry has previously been 
+created by CRIXUS, we only have to specify the file 
+containing this information: the .h5sph file.
+\item SIMULATION PARAMETERS. There are several simulation 
+parameters that need to be specified, concerning the time, 
+the frequency of output writing or specific SPH parameters.
+\item INITIAL CONDITIONS. We need to specify an initial 
+value for each of the fields to be implemented on each particle.
+\item BOUNDARY CONDITIONS. Boundary conditions 
+have also to be stated before running GPUSPH.
+\end{enumerate}
+In the following sections we develop each section to help 
+the readers write the .cu file in order to build their own simulation.
+
 
 \subsection{Initializing the particle system}
 
-\todo{fill \cmd{copy_to_array}}
+\textbf{With classical boundary conditions:}\\
+
+With DYNAMIC or LENNARD-JONES boundary conditions, the
+problem geometry and the filling with particles is done
+inside GPUSPH. An example of generation of arrays
+of cubes and spheres in the computational domain is given in
+\cmd{XProblemExample.cu}. 
+The geometrical objects can be added using functions like:
+\begin{ccode}
+addCube(GT_FIXED_BOUNDARY, FT_BORDER,
+             Point(X,Y,Z),cube_size);
+\end{ccode}
+The geometrical objects are defined in the \cmd{src/geometry} folder.
+They may be:
+\begin{itemize}
+\item cubes
+\item spheres
+\item torus
+\item cylinders
+\item cones
+\end{itemize}
+
+The XProblem class makes it possible to rotate or shift them after they were defined.
+They can be assigned a mass and a center of gravity.\\
+
+\textbf{With semi-analytical boundary conditions:}\\
+
+The fluid initialization performed by CRIXUS and stored in the H5SPH 
+files is used by GPUSPH to start the simulation. 
+The specification of the file containing the fluid particles occurs with the following statement:
+\begin{ccode}
+addHDF5File(GT_FLUID, Point(0,0,0), 
+"./data_files/XCompleteSaExample/0.my_project.fluid.h5sph",
+NULL);
+\end{ccode}
+The specification of the file containing the special boundary particles  occurs with the following statement:\\
+
+\begin{ccode}
+  // Main container
+  GeometryID container =
+  addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), 
+  "./data_files/MyProject/0.my_project.boundary.kent0.h5sph",
+  NULL);
+  disableCollisions(container);
+  
+  // Inflow boundary 
+  GeometryID inlet =
+  addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), 
+  "./data_files/MyProject/0.my_project.boundary.kent1.h5sph",
+  NULL);
+  disableCollisions(inlet);
+\end{ccode}
+
+In order to specify whether the open boundary is pressure driven or velocity driven, the following lines
+are used:
+\begin{shellcode}
+setVelocityDriven(inlet, VELOCITY_DRIVEN);
+setVelocityDriven(inlet, PRESSURE_DRIVEN);
+\end{shellcode}
+
+\subsection{Setting the simulation parameters}
+There is a big amount of simulation parameters that have to be stated. 
+We could organize them in several types:
+\subsubsection{Framework setup}
+
+The \cmd{SETUP_FRAMEWORK} function enables to change the
+ general options of the simulation:
+\begin{enumerate}
+\item The first parameter is in fact the viscosity model. There are 5 options for this term: \\
+ARTVISC\\
+KINEMATICVISC\\
+DYNAMICVISC\\
+SPSVISC\\
+KEPSVISC\\
+\item The second parameter is the type of boundary. There are 3 options for this term:\\
+LJ\_BOUNDARY\\
+MK\_BOUNDARY\\
+SA\_BOUNDARY\\
+\item The third term enables to choose the type of kernel:\\
+QUADRATIC\\
+CUBICSPLINE\\
+WENDLAND\\
+\item Finally, the \cmd{add_flags} term enables the implementation 
+of some extra functions in the simulation, such as the extra Ferrari diffusion term, 
+the in \& out boundaries or the waterdepth function, 
+which computes the flow depth at a given set of X, Y.
+\end{enumerate}
+
+\subsubsection{Generic simulation parameters}
+\begin{itemize}
+\item \cmd{deltap} is the distance between particles used in the current simulation. 
+For consistency reasons, it has to be the same that we have set in the INI file for CRIXUS.
+\item \cmd{maxneibsnum} is simply a limit for the number of neighbors computed 
+in the SPH method. It allows the user control the amount of calculus 
+done for each particle at each iteration. If the mesh of the geometry 
+is coherent with \cmd{deltap}, the maximum neighbor number should not be over 280, 
+so setting this number to 300 would be a good choice.
+\item \cmd{tend} is the simulated time, in seconds
+\item \cmd{ferrari} is the Ferrari diffusion coefficient, which is used 
+to potentiate diffusion dissipation (0 for no extra diffusion, 1 for the maximum)
+\item The next three functions are used to set the name, density, state equation and viscosity of the fluid
+\item \cmd{numOpenBoundaries} is the number of open boundaries in the simulation
+\item \cmd{m_size} and \cmd{m_origin} are the size and the origin of the domain defined in SALOME
+\end{itemize}
+
+\subsubsection{SPH parameters}
+
+\begin{itemize}
+\item \cmd{dt} is the first time step size
+\item \cmd{dtadaptfactor} is the CFL coefficient, usually taken as 0.3
+\item \cmd{buildneibsfreq} is the neighbor counting frequency, in terms of number of time steps
+\item \cmd{nlexpansionfactor} is the factor increasing the area where we count the neighbor particles
+\end{itemize}
+
+\subsubsection{Physical parameters}
+Gravity specification
+
+\subsubsection{Results parameters}
+
+Specify the file writing frequency (in terms of simulated seconds). 
+That is, in this case, we will have a VTU file every 0.1 simulated second. 
+It is important to note that, since some simulations could become 
+too large, this frequency is essential in order to limit the size of the result files.
+
+
+\section{Visualizing the results}
+
+The results of the simulation are stored in a directory under
+\cmd{tests}, named after the used Problem and the date of execution
+(e.g. \cmd{tests/DamBreak3D_2014-6-12T13h23}). Data files (found in a
+\cmd{data} subdirectory of the specific test directory) are normally
+written in VTK Unstructured Grid format (\cmd{.vtu}) and can be
+visualized with ParaView.
+
+The files necessary to hotstart the simulation are also stored
+in the \\ \cmd{tests/MyProject_2014-6-12T13h23/data} folder.
+
+The run directories and their content are preserved until manually
+removed. The \cmd{scripts/rmtests} auxiliary script can be used to clean
+up the \cmd{tests} directory.
+
+A tutorial to start using ParaView is available here:\\
+\url{http://www.paraview.org/Wiki/Beginning_ParaView}\\
+
+Below some useful filters of ParaView are listed:\\
+\begin{itemize} 
+\item \textbf{Find Data}\\
+Find data by scalar value makes it possible to select particles 
+on the basis of the value of their fields. When activating a filter
+a window opens. In order to select the particles we want, 
+we have to set the Find tab on Point in that window. 
+In the left tab we can choose the desired field, whereas in the right one 
+we can set the value (note that there are several conditions: >=, <=, =, between, etc.). 
+Once we have set all the options, we press on Run Selection Query and we 
+will be able to see a table containing all the particles that match 
+the imposed condition. 
+In addition; we will be able to see these particles on 
+the Layout, colored with the chosen Selection Color.
+\item \textbf{Clip} \\
+In order to visualize a section of the domain, 
+since the fields are discrete, we are obliged to perform a Clip. 
+By changing the Clip Type tab into Box, we are able to set the dimensions 
+and position of the box. It is important to click on the Inside Out button 
+to select the particles that are inside the box. Once we are ready, we click on 
+Apply and we get another object in the Pipeline Browser 
+that we can manipulate in the same conditions as the whole domain. 
+Note that the Slice option does not work because the flow fields are not continuous.
+\item \textbf{Save Data} \\
+We are able to get a table in CSV format containing the values of the 
+fields for each particle. If we click on , a windows appears where 
+we can set the name and other options for the resulting file. 
+There are many options for the format of the file, but the recommended 
+one is .csv, as we can visualize it on the Linux’ LibreOffice Calc 
+(which is the analogous for Windows’ Excel). In addition, 
+we can change the format of the file to .dat in order to open 
+it with Linux’ gedit. 
+\item \textbf{Threshold} \\
+\item \textbf{Calculator} \\
+\end{itemize}
 
 \chapter{Implemented SPH formulations}
 
@@ -918,7 +1385,7 @@ It can be shown \todo{cite vila} that this is equivalent to the
 continuity equation based on the divergence. However, as the formulation
 depends only on the particle position it is numerically more stable.
 
-\section{Boundary conditions}
+\section{Boundary conditions}\label{sec:boundary_conditions}
 
 Several different boundary conditions are available for the SPH method
 and a few selected ones are implemented in GPUSPH. Currently the
@@ -1724,9 +2191,12 @@ parameters are stored in a structure that is defined in
 \verb!particledefine.h.!
 
 The structure SimParams is specified within the user's problem file.
-For example, parts of WaveTank.cc look like: \begin{verbatim}
+For example, parts of WaveTank.cc look like: 
+\begin{verbatim}
 m_simparams.slength = 1.3f*m_deltap; m_simparams.kernelradius = 2.0f;
-m_simparams.kerneltype = WENDLAND; \end{verbatim} These variables set
+m_simparams.kerneltype = WENDLAND; 
+\end{verbatim} 
+These variables set
 the smoothing length to be 1.3 times the particle size (m\_deltap, set
 earlier in the problem); the kernel type is taken as a Wendland SPH
 kernel \cite{wendland_piecewise_1995} (choices for smoothing kernels are
@@ -1735,7 +2205,8 @@ the kernel radius in terms of multiples of the smoothing length (2 $h$
 in this case). The simparams structure is defined in
 $particledefine.h$ and it is given below along with the parameters'
 default values if not specified in the problem statement.
-\begin{verbatim} \begin{verbatim} typedef struct SimParams { float
+\begin{verbatim} 
+typedef struct SimParams { float
 slength; // smoothing length KernelType
 kerneltype; // kernel type float
 kernelradius; // kernel radius float dt;
@@ -1769,14 +2240,16 @@ dtadaptfactor(0.3), buildneibsfreq(10), shepardfreq(0), mlsfreq(15),
 visctype(ARTVISC), mbcallback(false), periodicbound(false),
 nlexpansionfactor(1.0), usedem(false), sph_formulation(SPH_F1),
 boundarytype(LJ_BOUNDARY), vorticity(false) {}; } SimParams;
-
-\end{verbatim} The default values of some of the simulation parameters
+\end{verbatim} 
+The default values of some of the simulation parameters
 are set in the last set of lines above and therefore do not have to be
 specified, unless different than desired.
 
 
 Some of the variables such as KernelType have a fixed set of values.
-These are defined with enum blocks: \begin{verbatim} enum KernelType {
+These are defined with enum blocks: 
+\begin{verbatim} 
+enum KernelType {
 CUBICSPLINE = 1, QUADRATIC, WENDLAND } ;
 
 enum SPHFormulation { SPH_F1 = 1, SPH_F2 } ;
@@ -1784,7 +2257,8 @@ enum SPHFormulation { SPH_F1 = 1, SPH_F2 } ;
 enum BoundaryType { LJ_BOUNDARY, MK_BOUNDARY, INVALID_BOUNDARY }; enum
 ViscosityType { ARTVISC = 1, KINEMATICVISC, DYNAMICVISC, SPSVISC,
 INVALID_VISCOSITY } ; enum ParticleType { GATEPART = -4, PADDLEPART,
-PISTONPART, BOUNDPART, FLUIDPART }; \end{verbatim}
+PISTONPART, BOUNDPART, FLUIDPART }; 
+\end{verbatim}
 
 There are five particle types (ParticleType) available. FLUIDPART
 refers to the fluid particles in the model, while GATEPART, PADDLEPART,
@@ -1796,19 +2270,21 @@ planes).
 \subsection{Physical Parameters} The variables that govern the physical
 problem are stored in the structure PhysParams. These variables are set
 in the problem file. Again, in WaveTank.cc, we have a number of
-physparams set. Here is a selection: \begin{verbatim}
-
+physparams set. Here is a selection: 
+\begin{verbatim}
 m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 m_physparams.kinematicvisc = 1.0e-6f; m_physparams.artvisccoeff =
 0.3f; m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
-\end{verbatim} These parameters set the constant value of the
+\end{verbatim} 
+These parameters set the constant value of the
 acceleration of gravity in all three component directions, with
 magnitude $g$. The others set the values of viscosity and the
 Smagorinsky value for the SPS (sub-particle-scaling) model of viscosity.
 
 The structure PhysParams is given as:
 
-\begin{verbatim} typedef struct PhysParams { float
+\begin{verbatim} 
+typedef struct PhysParams { float
 rho0[MAX_FLUID_TYPES]; // density of various particles
 
 float partsurf; // particle area (for surface
@@ -1944,7 +2420,9 @@ the following example, where the denominators for all the planes
 In the problem statement, there are two sections of code to be added.
 Here is an example derived from WaveTank.cc, used to set up the
 experimental wave tank. Here $w$ is the width of the tank and $l$ is
-the length. \begin{verbatim} uint WaveTank::fill_planes() { return 5;
+the length. 
+\begin{verbatim} 
+uint WaveTank::fill_planes() { return 5;
 //corresponds to number of planes }
 
 void WaveTank::copy_planes(float4 *planes, float *planediv) { // plane
@@ -1956,7 +2434,9 @@ wall planediv[2] = 1.0; planes[3] = make_float4(1.0, 0, 0, 0); //end
 planediv[3] = 1.0; planes[4] = make_float4(-1.0, 0, 0, l); //one end
 planediv[4] = 1.0; }
 
-\end{verbatim} \subsection{Moving Boundaries}
+\end{verbatim} 
+
+\subsection{Moving Boundaries}
 
 GPUSPH allows for moving boundaries, such as piston and flap wavemakers,
 and gates. The particles that delimit these boundaries are of three
@@ -1974,15 +2454,15 @@ that are needed to provide starting and stopping times of the moving
 boundary, for example, sometimes it is convenient to wait some time for
 the fluid particles to equilibrate with the boundaries when a problem is
 started before the moving boundary is started. As an example, the
-DamBreakGate.cc problem, has the mb\_callback function: \begin{verbatim}
-
+DamBreakGate.cc problem, has the mb\_callback function: 
+\begin{verbatim}
 MbCallBack& DamBreakGate::mb_callback(const float t, const float dt,
 const int i) { MbCallBack& mbgatedata = m_mbcallbackdata[0]; if (t >=
 mbgatedata.tstart && t < mbgatedata.tend) { mbgatedata.vel =
 make_float3(0.0, 0.0, 4.*(t - mbgatedata.tstart)); mbgatedata.disp +=
 mbgatedata.vel*dt; } else mbgatedata.vel = make_float3(0.0f);
-
-return m_mbcallbackdata[0]; } \end{verbatim}
+return m_mbcallbackdata[0]; } 
+\end{verbatim}
 
 The GATEPART requires the velocity of the gate, so that is computed as
 mbgatedata.vel. (The other variable, mbgatedata.disp, is computed but
@@ -1999,8 +2479,11 @@ with the fluid. To allow for Eulerian measurements, set of imaginary
 particles are defined that are used only for measurements:
 TESTPOINTPART. For instance, the velocity at fixed position f is
 calculated by where p is related to neighboring moving particles and f
-is related to fixed positions. \begin{equation} v_f = \sum_p^{N_n}
-\frac{m_p}{\rho_p}\, v_p\, W_{fp} \end{equation} where the index $p$
+is related to fixed positions. 
+\begin{equation} 
+v_f = \sum_p^{N_n}\frac{m_p}{\rho_p}\, v_p\, W_{fp} 
+\end{equation} 
+where the index $p$
 includes all the $N_n$ neighboring fluid particles, $m$ is the mass of
 the particle, $\rho$ is the density, and $W_{fp}$ is the weighting
 kernel determine for the test point particle $f$ and the fluid particle
@@ -2008,52 +2491,57 @@ $p$.
 
 To use test points, we have to set the parameter \cmd{m_simparams.testpoints=true} in the problem description (say,
 WaveTank.cc). Then we have to inform GPUSPH how many test points to
-include, here we will use three as an example. \begin{verbatim}
-if(m_simparams.testpoints) numTestpoints = 3; \end{verbatim} Later in
-the problem in \cmd{fill_parts()}, we include \begin{verbatim} if
-(m_simparams.testpoints) return
-parts.size()+boundary_parts.size()+paddle_parts.size()
-+gate_parts.size()+numTestpoints; else return parts.size()
-+boundary_parts.size() +paddle_parts.size() +gate_parts.size();
-\end{verbatim} The position of testpoints are introduced at the
-beginning of \verb{copy_to_array(...){: \begin{verbatim} int j; if
+include, here we will use three as an example. 
+\begin{verbatim}
+if(m_simparams.testpoints) numTestpoints = 3; 
+\end{verbatim} 
+Later in
+the problem in \cmd{fill_parts()}, we include 
+\begin{verbatim} 
+if (m_simparams.testpoints) return parts.size()
++boundary_parts.size()+paddle_parts.size()
++gate_parts.size()+numTestpoints; 
+else return parts.size()
++boundary_parts.size() +paddle_parts.size() 
++gate_parts.size();
+\end{verbatim} 
+The position of testpoints are introduced at the
+beginning of \verb{copy_to_array(...){: 
+\begin{verbatim} 
+int j; if
 (m_simparams.testpoints ) { std::cout << "\nTestpoints parts: " <<
 numTestpoints << "\n"; std::cout << " "<< 0 <<"--"<< numTestpoints
 << "\n";
-
 pos[0] = make_float4(0.364,0.16,0.04,0.0); pos[1] =
 make_float4(0.37,0.17,0.04,0.0); pos[2] =
 make_float4(1.5748,0.2799,0.2564,0.0);
-
-
 for (uint i = 0; i < numTestpoints; i++) { vel[i] = make_float4(0, 0, 0,
 m_physparams.rho0[0]); info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
 // first is type, object, 3rd id }
-
 j =numTestpoints; std::cout << "Testpoints part mass:" << pos[j-1].w <<
 "\n"; }
-
-else j=0; //If there is no testpoints \end{verbatim} Velocity at the
+else j=0; //If there is no testpoints 
+\end{verbatim} 
+Velocity at the
 test points are calculated only when we write results in output files
 and the results of test points are saved in \cmd{PARTTESTPOINTS} files and
 these files are saved in the same directory as \cmd{PART} files are saved.
-For example in \cmd{TextWriter.cc}, we have: \begin{verbatim} if
+For example in \cmd{TextWriter.cc}, we have: 
+\begin{verbatim} 
+if
 (testpoints){ filename = "PARTTESTPOINTS_" + filenum + ".txt";
 full_filename = m_dirname + "/" + filename;
-
 FILE *fid1 = fopen(full_filename.c_str(), "w");
-
 // Writing datas for (int i=0; i < numParts; i++) { if
 (TESTPOINTS(info[i])){ // position
 fprintf(fid1,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]),
 object(info[i]) , pos[i].x, pos[i].y, pos[i].z);
-
 // velocity
-
 fprintf(fid1,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
+fprintf(fid1,"\n"); } 
+\end{verbatim} 
 
-
-fprintf(fid1,"\n"); } \end{verbatim} \subsection{Surface Particles}
+\subsection{Surface Particles}
 
 The on-screen video output of GPUSPH shows all the particles and the
 written data output files also include all the particles. Sometimes it
@@ -2066,13 +2554,17 @@ The free surface detection algorithm is a simplification of
 vector to a particle, and then determining the number of neighbors in
 the direction of the normal.
 
-The normal vector for particle $i$ is defined as \begin{equation}
-\vec{n}_i = \frac{\vec{\nu_i}}{|\vec{\nu}_i|} \mbox{,
-where}\end{equation} \begin{equation} \vec{n}_i = \!\sum_j
+The normal vector for particle $i$ is defined as 
+\begin{equation}
+\vec{n}_i = \frac{\vec{\nu_i}}{|\vec{\nu}_i|} \mbox{, where}
+\end{equation} 
+\begin{equation} 
+\vec{n}_i = \!\sum_j
 \frac{m_j}{\rho_j} \;\nabla W_{ij} = \!\left\{\sum_j \frac{m_j}{\rho_j}
 \tdv{W_{ij}}{r} \frac{(x_i-x_j)}{r_{ij}}, \sum_j \frac{m_j}{\rho_j}
 \tdv{W_{ij}}{r} \frac{(y_i-y_j)}{r_{ij}}, \sum_j \frac{m_j}{\rho_j}
-\tdv{W_{ij}}{r} \frac{(z_i-z_j)}{r_{ij}}\right\} \end{equation}
+\tdv{W_{ij}}{r} \frac{(z_i-z_j)}{r_{ij}}\right\} 
+\end{equation}
 
 In the second step, for each particle, a cone is defined with the
 particle's normal vector as its axis and a cone angle that is taken as
@@ -2109,10 +2601,13 @@ the angle between the fixed $x$ axis and the
 
 The rotations of the object about its principal axes are $(\omega_1,
 \omega_2, \omega_3)$ and the Euler equations for angular acceleration
-given by applied moments to the object are \begin{eqnarray} (I_3 - I_2)
+given by applied moments to the object are 
+\begin{eqnarray} 
+(I_3 - I_2)
 \;\omega_3\omega_2 + I_1 \; \dot{{\omega_1}} &=& M_1 \\ (I_1-I_3)
 \;\omega_1 \omega_3 + I_2 \;\dot{{\omega_2}} &=& M_2\\ (I_2-I_1)
-\;\omega_1 \omega_2 + I_3 \;\dot{{\omega_3}} &=& M_3 \end{eqnarray}
+\;\omega_1 \omega_2 + I_3 \;\dot{{\omega_3}} &=& M_3 
+\end{eqnarray}
 where the moments are determined in the body frame of reference.
 
 
