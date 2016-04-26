@@ -48,24 +48,3 @@ draw(L=Label("neiblistsize - $1$", position=Relative(0), S + 0.2*E), p10 - (0, h
 
 \end{asy}
 \end{document}
-drawpart(pair cenyer, real radius, int type, int gid, int lid) {
-	pen p = currentpen;
-	switch (type) {
-		case 0:
-			p += green;
-			break;
-		
-		case 1:
-			p += orange;
-			break;
-		
-		case 2:
-			p += yellow;
-			break;
-			
-		default:
-			break;
-	}
-	
-	draw(circle(center, radius), p);
-}

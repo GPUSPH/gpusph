@@ -41,85 +41,135 @@ class XProblem;
 class GPUWorker;
 class GPUSPH;
 
+/// Structure holding all physical parameters
+/*! This structure holds all the physical parameters needed by the simulation
+ *  along with some basic initialization functions.
+ *
+ *
+ *	\ingroup datastructs
+ */
 typedef struct PhysParams {
-	/*! Parameters for Cole's equation of state
-		\f[
-			P(\rho) = B((\rho/\rho_0)^\gamma - 1),
-		\f]
-		where \f$\rho_0\$ is the at-rest density,
-		\f$\gamma\f$ is the adjabatic index and
-		\f$B = \rho_0 c_0^2/\gamma\f$ for a given
-		at-rest sound speed \f$c_0\f$.
-		The sound speed for density \f$\rho\f$ can thus be computed as
-		\f[
-			c(\rho) = c_0((\rho/\rho_0)^{(\gamma -1)/2},
-		\f]
-	 */
-	//! @{
-	std::vector<float> rho0; //< At-rest density
-	std::vector<float> bcoeff; //< Pressure parameter
-	std::vector<float> gammacoeff; //< Adjabatic index
-	std::vector<float> sscoeff; //< Sound speed coefficient ( = sound speed at rest density)
-	std::vector<float> sspowercoeff; //< Sound speed exponent ( = (\gamma - 1)/2 )
-	//! @}
+	/** \name Equation of state related parameters
+	 *  The relation between pressure and density is given for Cole's equation of state
+	 *	\f[
+	 *		P(\rho) = B\left(\left(\frac{\rho}{\rho_0}\right)^\gamma - 1\right)
+	 *	\f]
+	 *	where \f$\rho_0\f$ is the at-rest density,
+	 *	\f$\gamma\f$ is the adiabatic index and
+	 *	\f$B = \rho_0 c_0^2/\gamma\f$ for a given
+	 *	at-rest sound speed \f$c_0\f$.
+	 *	The sound speed for a given density \f$\rho\f$ can thus be computed as
+	 *	\f[
+	 *		c(\rho) = c_0 \left(\frac{\rho}{\rho_0}\right)^{(\gamma -1)/2},
+	 *	\f]
+	 *	Obviously all of the coefficients below are fluid dependent and are then stored in an
+	 *	STL vector.
+	 *  @{ */
+	std::vector<float> rho0; 			///< At-rest density, \f$\rho_0\f$
+	std::vector<float> bcoeff; 			///< Pressure parameter, \f$ B \f$
+	std::vector<float> gammacoeff;		///< Adiabatic index, \f$\gamma\f$
+	std::vector<float> sscoeff; 		///< Sound speed coefficient ( = sound speed at rest density, \f$ c_0 \f$)
+	std::vector<float> sspowercoeff; 	///< Sound speed equaiton exponent ( = \f$(\gamma -1)/2\f$ )
+	/** @} */
 
-	//! Fluid viscosity
-	//! @{
-	float	artvisccoeff;	//< Artificial viscosity coefficient (one, for all fluids)
-	std::vector<float>	kinematicvisc;	//< Kinematic viscosity coefficient (ν)
-	/*! Viscosity coefficient used in the viscous contribution functions, depends on
-		viscosity model:
-		* for ARTVSIC: artificial viscosity coefficient
-		* for KINEMATICVISC: 4*kinematic viscosity coefficient,
-		* for DYNAMICVISC: kinematic viscosity coefficient
-		(The choice might seem paradoxical, but with DYNAMICVISC the dynamic viscosity
-		 coefficient is obtained multiplying visccoeff by the particle density, while
-		 with the KINEMATICVISC model the kinematic coefficient is used directly, in a
-		 formula what also includes a harmonic average from which the factor 4 emerges.)
-	 */
-	std::vector<float>	visccoeff;
-	//! @}
+	/** \name Viscosity related parameters
+	 *  Viscosity coefficient used in the viscous contribution functions, depends on
+	 *  viscosity model:
+	 *		* for ARTVSIC: artificial viscosity coefficient
+	 *  	* for KINEMATICVISC: 4*kinematic viscosity,
+	 *  	* for DYNAMICVISC: kinematic viscosity
+	 *
+	 *  (The choice might seem paradoxical, but with DYNAMICVISC the dynamic viscosity
+	 *  coefficient is obtained multiplying visccoeff by the particle density, while
+	 *  with the KINEMATICVISC model the kinematic viscosity is used directly, in a
+	 *  formula what also includes a harmonic average from which the factor 4 emerges).
+	 *
+	 *  Obviously the fluid dependent coefficients below are stored in an STL vector.
+	 * @{ */
+	float	artvisccoeff;				///< Artificial viscosity coefficient (one, for all fluids)
+	float	epsartvisc;					///< Small coefficient used to avoid singularity in artificial viscosity computation
+	std::vector<float>	kinematicvisc;	///< Kinematic viscosity (\f$ \nu \f$)
+	std::vector<float>	visccoeff;		///< Viscosity coefficient
+	/** @} */
 
-	float	partsurf;		// particle area (for surface friction)
+	/** \name Lennard-Jones (LJ) boundary related parameters
+	 *  With LJ boundary the boundary particle interact with fluid one only trough a repulsive force \f$ {\bf{f}}({\bf{r}}) \f$
+	 *  defined by :
+	 *	\f[
+	 *		{\bf{f}}({\bf{r}}) =
+	 *		\begin{cases}
+ 	 *		D\left( \left( \frac{r_0 }{||{\bf{r}}||} \right)^{p_1}  - \left( \frac{r_0 }{||{\bf{r}}||} \right)^{p_2 } \right)\frac{{\bf{r}}}{||{\bf{r}}||}&\text{for $||{\bf{r}}|| \le r_0$}\\
+ 0&\text{if $||{\bf{r}}|| > r_0$}
+	*	\end{cases}
+	 *	\f]
+	 *	where \f$ {\bf{f}} \f$ is the relative position between the boundary particle and the fluid particle, \f$ r_0 \f$
+	 *	the influence radius of the repulsive force (typically equal to initial inter-particle distance \f$ \Delta p \f$),
+	 *	usually \f$ p_1 = 12 \f$, \f$p_2 = 6\f$ and \f$ D \f$ is a problem dependent parameter.
+	 * @{ */
+	float	r0;			///< Influence radius of LJ repulsive force, \f$ r_0 \f$
+	float	dcoeff;		///< \f$ D \f$
+	float	p1coeff;	///< \f$ p_1 \f$
+	float	p2coeff;	///< \f$ p_2 \f$
+	/** @} */
 
-	float3	gravity;		// gravity
+	/** \name Monaghan-Kajtar (MK) boundary related parameters
+	 *  With MK boundary the boundary particle interact with fluid one only trough a repulsive force \f$ {\bf{f}}({\bf{r}}) \f$
+	 *  defined by :
+	 *	TODO.
+	 * @{ */
+	float	MK_K;			///< Typically: maximum velocity squared, or gravity times maximum height
+	float	MK_d;			///< Typically: distance between boundary particles
+	float	MK_beta;		///< Typically: ratio between h and MK_d
+	/** @} */
 
-	// interface epsilon for Grenier's simplified surface tension model
-	float	epsinterface;
+	/** \name XSPH related parameter
+	 * @{ */
+	float	epsxsph;		///< \f$ \epsilon \f$ coefficient for XSPH correction
 
-	// Lennard-Jones boundary coefficients
-	float	r0;				// influence radius of boundary repulsive force
-	float	dcoeff;
-	float	p1coeff;
-	float	p2coeff;
-	// Monaghan-Kajtar boundary coefficients
-	float	MK_K;			// Typically: maximum velocity squared, or gravity times maximum height
-	float	MK_d;			// Typically: distance between boundary particles
-	float	MK_beta;		// Typically: ratio between h and MK_d
+	/** \name Large Eddy Simulation (LES) related parameters
+	 *  The implemented Smagorinsky LES model depends on two parameters
+	 * @{ */
+	float	smagfactor;		/// (Cs*∆p)^2
+	float	kspsfactor;		/// 2/3*Ci*∆p^2
+	/** @} */
 
-	float	epsartvisc;
-	float	epsxsph;		// XSPH correction coefficient
+	float	partsurf;		///< Particle area (for surface friction)
 
-	// offset vector and limits for periodic boundaries:
-	// DEPRECATED
+	float3	gravity;		///< Gravity
+
+	/** \name Surface tension related parameter
+	 * @{ */
+	float	epsinterface;	///< Interface epsilon for Grenier's simplified surface tension model
+	/** @} */
+
+	/** \name Free surface detection related parameters
+	 * @{ */
+	float	cosconeanglefluid;	     ///< Cosine of cone angle for free surface detection (If the neighboring particle is fluid)
+	float	cosconeanglenonfluid;	 ///< Cosine of cone angle for free surface detection (If the neighboring particle is non_fluid
+	/** @} */
+
+
+	/** \name Topography related parameters
+	 * @{ */
+	float	ewres;			///< DEM east-west resolution
+	float	nsres;			///< DEM north-south resolution
+	float	demdx;			///< Displacement in x direction (in ]0, ewres[) used for normal computation
+	float	demdy;			///< Displacement in y direction (in ]0, nsres[) used for normal computation
+	float	demdxdy;		///< demdx*demdy
+	float	demzmin;		///< Minimum elevation of the terrain
+	/** @} */
+
+	/** \name Deprecated parameters
+	 * @{ */
 	float3	dispvect DEPRECATED_MSG("dispvect is not needed anymore");
 	float3	maxlimit DEPRECATED_MSG("maxlimit is not needed anymore");
 	float3	minlimit DEPRECATED_MSG("minlimit is not needed anymore");
+	float	objectobjectdf DEPRECATED_MSG("objectobjectdf is not needed anymore");
+	float	objectboundarydf DEPRECATED_MSG("objectboundarydf is not needed anymore");
+	/** @} */
 
-	float	ewres;			// DEM east-west resolution
-	float	nsres;			// DEM north-south resolution
-	float	demdx;			// Used for normal compution: displcement in x direction range ]0, exres[
-	float	demdy;			// displcement in y direction range ]0, nsres[
-	float	demdxdy;		// demdx*demdy
-	float	demzmin;		// minimum z in DEM
-	float	smagfactor;		// (Cs*∆p)^2
-	float	kspsfactor;		// 2/3*Ci*∆p^2
-	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
-	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
-	float	objectobjectdf;	// damping factor for object-object interaction
-	float	objectboundarydf;	// damping factor for object-boundary interaction
 
-	// We have three deprecated members, but we don't need
+	// We have 5 deprecated members, but we don't need
 	// to get a warning about them for the constructor, only
 	// when the users actually assign to them
 IGNORE_WARNINGS(deprecated-declarations)
@@ -175,7 +225,7 @@ protected:
 		return rho0.size() - 1;
 	}
 
-	/*! Set the equation of state of a given fluid, specifying the adjabatic
+	/*! Set the equation of state of a given fluid, specifying the adiabatic
 	 *  index and speed of sound. A non-finite speed of sound implies
 	 *  that it should be autocomputed (currrently supported in XProblem only)
 	  @param fluid_idx	fluid index

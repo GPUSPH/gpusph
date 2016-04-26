@@ -7,6 +7,9 @@
 \defgroup cuda Device code
 \ingroup developper_group
 
+\defgroup datastructs Data structures
+\ingroup developper_group
+
 \defgroup neibs Neighbor search
 \ingroup developper_group
 

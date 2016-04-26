@@ -57,6 +57,15 @@ for (real x = 0.25; x <= 2; x += 0.5) {
 	}
 }
 
+id = 0;
+for (real y = 0.5; y < size; y += 1) {
+	for (real x = 0.5; x <= size; x += 1) {
+		pair pos = (x, y);
+		label(string(id), pos, fontsize(16pt));
+		id += 1;
+	}
+}
+
 pair pos = (0, -0.4);
 drawpart(pos, 0, 0.1, -1);
 label("Fluid particle", pos + (0.1, 0) , E);
