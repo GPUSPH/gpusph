@@ -1,0 +1,44 @@
+/*!                                                                         
+@addtogroup datastructs
+@{
+	\section datastructs_overview General overview
+	<p>In order to run an SPH simulation we basicaly need three classes of data :
+	<ul>
+		<li> particle - related data (position, velocity, neighbors, ...) </li>
+		<li> physical parameters (rest density, speed of dound at rest, ...) </li>
+		<li> simulation parameters (kernel type, boundary type, ...) </li>
+	</ul>
+	</p>
+	
+	There are three types of particle - related data:
+	<ul>
+		<li> persistent data: data corresponding to variables carried by the particles (such as position, velocity) that 
+		are sorted and reorderd at each neighbor list construction</li>
+		<li> temporary data: intermediate variables used to compute the previous one (velocity derivative, density deravitive, ....) 
+		that are not involved in the sort and reordering process</li>
+		<li> the list of neighbors of each particle </li>
+	</ul>
+	</p>
+	
+	These data are stored in arrays and structures which are described below, execpt for the neighbor part detailed
+	in a separate section.
+	
+	\section datastructs_pdata Particle - related data
+	We will detail below the minimum set of data required for a basic SPH simulation (without LES, adaptative dt, ...).
+	\subsection datastructs_pdata_common Data common to all boundary types
+	<p>Persistent particle data: position \f$ p \f$, mass \f$ m \f$, velocity \f$ v \f$ and density \f$ \rho \f$. <br>
+	On the GPU position and mass are stored in a <tt>float4</tt> array with <tt>(.x, .y, .z, .w)</tt>=\f$ (p_x, p_y, p_z, m) \f$<br>
+	Velocity and density are stored in another <tt>float4</tt> array with <tt>(.x, .y, .z, .w)
+	</tt>=\f$ v_x, v_y, v_z, \rho \f$ 
+	</p>
+	
+	<p>Temporary particle data: velocity derivative \f$ \frac{Dv}{Dt} \f$ and density derivative \f$ \frac{D\rho}{Dt} \f$.</p>
+	
+	\subsection datastructs_pdata_SA Data specific to SA boundary
+	<p>As described in the particle and boundary type section, the SA boundary requires a triangular mesh ...</p>
+	
+	\section datastructs_physparams Physical parameters
+	<p>All the physical parameters needed for simulation are stored in a PhysParams structure.
+	\section datastructs_simparams Physical parameters
+@}
+*/
