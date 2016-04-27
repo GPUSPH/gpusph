@@ -9,6 +9,7 @@ using namespace std;
 #include "Reader.h"
 #include "pugixml.h"
 #include "base64.h"
+#include "common_types.h"
 
 class VTUReader : public Reader{
 public:
