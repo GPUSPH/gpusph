@@ -957,10 +957,13 @@ $(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf
 # target: docs - Generate Doxygen documentation in $(DOCSDIR);
 # target:        to produce refman.pdf, run "make pdf" in $(DOCSDIR)/latex/.
 docs: $(DOXYCONF) img/logo.png
-	$(CMDECHO)mkdir -p $(DOCSDIR)
-	@echo Running Doxygen...
-	$(CMDECHO)doxygen $(DOXYCONF) && \
-	echo Generated Doxygen documentation in $(DOCSDIR)
+	@printf "\r                                 \r"
+	@echo Generating developer documentation...
+	$(CMDECHO)doxygen $(DOXYCONF) > make_docs.log 2>&1 && \
+		echo "  developer documentation: $(DOCSDIR)/dev-guide/html/index.html"
+	@echo Generating user documentation...
+	$(CMDECHO)cd docs/user-guide && make >> make_docs.log && \
+		echo "  user documentation: $(DOCSDIR)/user-guide/gpusph-manual.pdf"
 
 img/logo.png:
 	$(CMDECHO)mkdir -p img && \
@@ -968,7 +971,7 @@ img/logo.png:
 
 # target: docsclean - Remove $(DOCSDIR)
 docsclean:
-	$(CMDECHO)rm -rf $(DOCSDIR)
+	$(CMDECHO)rm -rf $(DOCSDIR)/dev-guide/html/ $(DOCSDIR)/user-guide/gpusph-manual.pdf
 
 # target: tags - Create TAGS file
 tags: TAGS cscope.out
