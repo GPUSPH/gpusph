@@ -56,6 +56,9 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
 
+	// will dump testpoints separately
+	addPostProcess(TESTPOINTS);
+
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
 	// diffusion is enabled or Ferrari correction is enabled, 10 otherwise
 	const int mlsIters = get_option("mls",
