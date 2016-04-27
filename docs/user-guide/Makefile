@@ -8,4 +8,4 @@ clean:
 	cd $(SRCDIR); make clean
 	rm -rf gpusph-manual.pdf
 
-.PHONY: clean gpusph-manual.pdf
+.PHONY: clean
