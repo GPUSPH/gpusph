@@ -327,9 +327,6 @@ struct GlobalData {
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
 
-	// disable saving (for timing, or only for the last)
-	bool nosave;
-
 	// ODE objects
 	int* s_hRbFirstIndex; // first indices: so forces kernel knows where to write rigid body force
 	uint* s_hRbLastIndex; // last indices are the same for all workers
@@ -396,7 +393,6 @@ struct GlobalData {
 		commandFlags(NO_FLAGS),
 		extraCommandArg(NAN),
 		only_internal(false),
-		nosave(false),
 		s_hRbFirstIndex(NULL),
 		s_hRbLastIndex(NULL),
 		s_hRbDeviceTotalForce(NULL),

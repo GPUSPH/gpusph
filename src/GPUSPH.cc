@@ -804,13 +804,13 @@ bool GPUSPH::runSimulation() {
 			// if not, check if we've completed the number of iterations prescribed
 			// from the command line
 			(gdata->clOptions->maxiter && gdata->iterations >= gdata->clOptions->maxiter) ||
-			// we're finished if a quit was requested
+			// and of course we're finished if a quit was requested
 			gdata->quit_request;
 
 		// list of writers that need to write at this timestep
 		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
 
-		// we need to to write if any writer is configured to write at this timestep
+		// we need to write if any writer is configured to write at this timestep
 		// i.e. if the writers list is not empty
 		const bool need_write = !writers.empty();
 
@@ -828,7 +828,7 @@ bool GPUSPH::runSimulation() {
 			gdata->save_request = false;
 
 		if (need_write || force_write) {
-			if (gdata->nosave && !force_write) {
+			if (gdata->clOptions->nosave && !force_write) {
 				// we want to avoid writers insisting we need to save,
 				// so pretend we actually saved
 				Writer::FakeMarkWritten(writers, gdata->t);
