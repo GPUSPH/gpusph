@@ -79,6 +79,9 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	//set_kinematic_visc(0, 1.0e-2f);
 	set_dynamic_visc(0, 1.0e-4f);
 
+	// default tend 1.5s
+	simparams()->tend=1.5f;
+
 	// *** Initialization of minimal simulation parameters
 	simparams()->maxneibsnum = 128 + 64;
 
