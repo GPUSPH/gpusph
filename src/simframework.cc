@@ -75,7 +75,7 @@ AbstractFilterEngine* SimFramework::addFilterEngine(FilterType filtertype, int f
 			++place;
 		if (place != ffend)
 			--place;
-		m_filterFreqList.insert(place, make_pair(filtertype, frequency));
+		m_filterFreqList.insert(place, std::make_pair(filtertype, frequency));
 
 	} else {
 		flt = found->second;

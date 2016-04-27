@@ -238,7 +238,7 @@ class MultiBufferList;
  */
 class BufferList
 {
-	typedef map<flag_t, AbstractBuffer*> map_type;
+	typedef std::map<flag_t, AbstractBuffer*> map_type;
 
 	map_type m_map;
 

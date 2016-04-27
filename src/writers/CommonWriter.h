@@ -47,8 +47,6 @@
 
 #include "Writer.h"
 
-using namespace std;
-
 class CommonWriter : public Writer
 {
 public:
@@ -69,16 +67,16 @@ public:
 
 private:
 	/* Save a summary of phys_params, sim_params and options */
-	void write_simparams(ostream &out);
-	void write_physparams(ostream &out);
-	void write_options(ostream &out);
+	void write_simparams(std::ostream &out);
+	void write_physparams(std::ostream &out);
+	void write_options(std::ostream &out);
 	void write_summary();
 
-	ofstream		m_energyfile;
-	ofstream		m_WaveGagefile;
-	ofstream		m_objectfile;
-	ofstream		m_objectforcesfile;
-	ofstream		m_fluxfile;
+	std::ofstream		m_energyfile;
+	std::ofstream		m_WaveGagefile;
+	std::ofstream		m_objectfile;
+	std::ofstream		m_objectforcesfile;
+	std::ofstream		m_fluxfile;
 
 };
 #endif

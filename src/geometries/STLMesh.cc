@@ -200,7 +200,7 @@ STLMesh::add(STLTriangle const& t, uint tnum)
 
 	// the stored normal is assumed to be 'correct' if it introduces an error of less than
 	// FLT_EPSILON relative to the triangle barycenter
-	bool normal_match = (length(cnormal - t.normal) < max(1,length(avg_pos)) * FLT_EPSILON);
+	bool normal_match = (length(cnormal - t.normal) < std::max(1.0f, length(avg_pos)) * FLT_EPSILON);
 
 	// we add the original normal if it matches,
 	// our own if it doesn't

@@ -237,8 +237,8 @@ LaPalisse_imposeBoundaryCondition(
 			//waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			//waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			//waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
-			waterdepth = (INLET_WATER_LEVEL - 1.08f - INITIAL_WATER_LEVEL)*fmin(t/RISE_TIME, 1.0f) + INITIAL_WATER_LEVEL;
-		const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			waterdepth = (INLET_WATER_LEVEL - 1.08f - INITIAL_WATER_LEVEL)*fminf(t/RISE_TIME, 1.0f) + INITIAL_WATER_LEVEL;
+		const float localdepth = fmaxf(waterdepth - absPos.z, 0.0f);
 		const float pressure = 9.81e3f*localdepth;
 		eulerVel.w = RHO(pressure, fluid_num(info));
 	}

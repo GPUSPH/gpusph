@@ -65,11 +65,9 @@ class CallbackWriter;
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
 
-using namespace std;
-
 class Problem {
 	private:
-		string			m_problem_dir;
+		std::string			m_problem_dir;
 		WriterList		m_writers;
 
 		const float		*m_dem;
@@ -127,7 +125,7 @@ class Problem {
 			m_dem = dem; m_ncols = ncols; m_nrows = nrows;
 		}
 
-		string	m_name;
+		std::string	m_name;
 
 		GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
@@ -151,7 +149,7 @@ class Problem {
 		 * just set it by default */
 		virtual void check_maxneibsnum();
 
-		string const& create_problem_dir();
+		std::string const& create_problem_dir();
 
 		Options const& get_options(void) const
 		{ return *m_options; }
@@ -181,12 +179,12 @@ class Problem {
 
 		float soundspeed(float, int) const;
 
-		string const& get_dirname(void) const
+		std::string const& get_dirname(void) const
 		{ return m_problem_dir; }
 
 		double set_deltap(const double dflt)
 		{
-			if (isfinite((double) m_options->deltap))
+			if (std::isfinite((double) m_options->deltap))
 				m_deltap = m_options->deltap;
 			else
 				m_deltap = dflt;
@@ -356,7 +354,7 @@ RESTORE_WARNINGS
 		/* ODE callbacks */
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		{
-			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
+			std::cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
 		}
 
 		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)

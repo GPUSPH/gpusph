@@ -2053,7 +2053,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			for (uint ob = 0; ob < problem->simparams()->numOpenBoundaries; ob ++) {
 				n_IOwaterdepth[ob] = 0;
 				for (uint d = 0; d < gdata->devices; d++)
-					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
+					n_IOwaterdepth[ob] = std::max(n_IOwaterdepth[ob], int(gdata->h_IOwaterdepth[d][ob]));
 			}
 			// if we are in multi-node mode we need to run an mpi reduction over all nodes
 			if (MULTI_NODE) {

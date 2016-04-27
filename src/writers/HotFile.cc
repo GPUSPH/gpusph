@@ -6,6 +6,8 @@ The file represents particle and other state.
 #include <stdexcept>
 #include "HotFile.h"
 
+using namespace std;
+
 /**
 HotFile buffer encoding.
 */

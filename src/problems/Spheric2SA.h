@@ -8,7 +8,7 @@
 
 class Spheric2SA: public Problem {
 	private:
-		string			inputfile;
+		std::string		inputfile;
 		PointVect		test_points;
 		double			w, l, h;
 		double			H;				// water level (used to set D constant)
