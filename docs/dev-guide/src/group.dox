@@ -1,27 +1,27 @@
-/*!                                                                         
+/*!
 \defgroup user_group User documentation
 
-\defgroup developper_group Developper documentation
-@{ 
+\defgroup developer_group Developer documentation
+@{
 	\tableofcontents
-  	Leading text.
-  	\section sec1 Uses of template functions
-  	Template bla bla bla.
-  	\section sec2 Dealing with variable list of arguments or variables
-  	This page contains the subsections \ref subsection1 and \ref subsection2.
-  	\subsection subsection1 The first subsection
-  	Text subsection 1.
-  	\subsection subsection2 The second subsection
-  	Text sub section 
-  	\section sec3 The Buffer and MultiBuffer concept
+	Leading text.
+	\section sec1 Uses of template functions
+	Template bla bla bla.
+	\section sec2 Dealing with variable list of arguments or variables
+	This page contains the subsections \ref subsection1 and \ref subsection2.
+	\subsection subsection1 The first subsection
+	Text subsection 1.
+	\subsection subsection2 The second subsection
+	Text sub section
+	\section sec3 The Buffer and MultiBuffer concept
 	\defgroup cuda Device code
 	@{
 		\defgroup neibs Neighbor search
 		<p>The neighbor search is done trough a walk in a neighbor list consisting
 		of the indices of each neighbors of each particles.</p>
-		<p>Actually we use a more compact format where instead of storing neighbors 
-		indices (size of uint) we store their relative (size ushort) indices respect 
-		to the cells they belong to. One other consequence of this choice is to simplify 
+		<p>Actually we use a more compact format where instead of storing neighbors
+		indices (size of uint) we store their relative (size ushort) indices respect
+		to the cells they belong to. One other consequence of this choice is to simplify
 		the periodic boundatries treatment.</p>
 		<p>The construction of the neighbor list is basically a 3 steps process :
 		<ol>
