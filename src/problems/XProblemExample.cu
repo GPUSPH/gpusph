@@ -39,7 +39,9 @@ XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 		// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
 		viscosity<ARTVISC>,
 		// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
-		boundary<LJ_BOUNDARY>);
+		boundary<LJ_BOUNDARY>,
+		add_flags<ENABLE_PLANES>()
+	);
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
