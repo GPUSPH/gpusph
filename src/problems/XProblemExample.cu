@@ -40,7 +40,7 @@ XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<ARTVISC>,
 		// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
 		boundary<LJ_BOUNDARY>,
-		add_flags<ENABLE_PLANES>()
+		add_flags<ENABLE_PLANES>
 	);
 
 	// *** Initialization of minimal physical parameters
