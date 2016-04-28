@@ -962,7 +962,7 @@ docs: $(DOXYCONF) img/logo.png
 	$(CMDECHO)doxygen $(DOXYCONF) > make_docs.log 2>&1 && \
 		echo "  developer documentation: $(DOCSDIR)/dev-guide/html/index.html"
 	@echo Generating user documentation...
-	$(CMDECHO)cd docs/user-guide && make >> make_docs.log && \
+	$(CMDECHO)cd docs/user-guide && $(MAKE) >> make_docs.log && \
 		echo "  user documentation: $(DOCSDIR)/user-guide/gpusph-manual.pdf"
 
 img/logo.png:
