@@ -684,7 +684,7 @@ InputProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, fl
 		const float gridPosZ = float((cellHash % (m_gridsize.COORD2*m_gridsize.COORD1)) / m_gridsize.COORD1);
 		const float z = pos[i].z + m_origin.z + (gridPosZ + 0.5f)*m_cellsize.z;
 		k[i] = k0;
-		e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*(float)m_deltap);
+		e[i] = 1.0f/0.41f/fmaxf(1.0f-fabs(z),0.5f*(float)m_deltap);
 	}
 }
 

@@ -23,6 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <cstdio>
 #include "Plane.h"
 
 Plane::Plane(const double a, const double b, const double c, const double d)

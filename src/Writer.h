@@ -29,7 +29,7 @@
 #include <fstream>
 #include <string>
 #include <map>
-#include <stdlib.h>
+#include <cstdlib>
 // TODO on Windows it's direct.h
 #include <sys/stat.h>
 
@@ -69,15 +69,15 @@ enum WriterType
 };
 
 // list of writer type, write freq pairs
-typedef vector<pair<WriterType, double> > WriterList;
+typedef std::vector<std::pair<WriterType, double> > WriterList;
 
 class Writer;
 
 // hash of WriterType, pointer to actual writer
-typedef map<WriterType, Writer*> WriterMap;
+typedef std::map<WriterType, Writer*> WriterMap;
 
 // ditto, const
-typedef map<WriterType, const Writer*> ConstWriterMap;
+typedef std::map<WriterType, const Writer*> ConstWriterMap;
 
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
@@ -172,7 +172,7 @@ protected:
 	// does this writer need special treatment?
 	// (This is only used for the COMMONWRITER presently.)
 	bool is_special() const
-	{ return isnan(m_writefreq); }
+	{ return std::isnan(m_writefreq); }
 
 	// Writers that need to do special things before starting to write
 	// should override this

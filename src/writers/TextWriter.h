@@ -27,8 +27,6 @@
 
 #include "Writer.h"
 
-using namespace std;
-
 class TextWriter : public Writer
 {
 public:

@@ -201,8 +201,8 @@ size_t GPUWorker::computeMemoryPerParticle()
 {
 	size_t tot = 0;
 
-	set<flag_t>::const_iterator it = m_dBuffers.get_keys().begin();
-	const set<flag_t>::const_iterator stop = m_dBuffers.get_keys().end();
+	std::set<flag_t>::const_iterator it = m_dBuffers.get_keys().begin();
+	const std::set<flag_t>::const_iterator stop = m_dBuffers.get_keys().end();
 	while (it != stop) {
 		flag_t key = *it;
 		size_t contrib = m_dBuffers.get_memory_occupation(key, 1);
@@ -286,7 +286,7 @@ void GPUWorker::computeAndSetAllocableParticles()
 			m_deviceIndex, numAllocableParticles, gdata->allocatedParticles);
 
 	// allocate at most the number of particles required for the whole simulation
-	m_numAllocatedParticles = min( numAllocableParticles, gdata->allocatedParticles );
+	m_numAllocatedParticles = std::min( numAllocableParticles, gdata->allocatedParticles );
 
 	if (m_numAllocatedParticles < m_numParticles) {
 		fprintf(stderr, "FATAL: thread %u needs %u particles, but we can only store %u in %s available of %s total with %s safety margin\n",
@@ -794,7 +794,7 @@ void GPUWorker::transferBursts()
 					std::stringstream err_msg;
 					err_msg << "Import request for double-buffered " << buf->get_buffer_name()
 						<< " array without a specification of which buffer to use.";
-						throw runtime_error(err_msg.str());
+						throw std::runtime_error(err_msg.str());
 				}
 
 				const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
@@ -897,8 +897,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	const uint fmaxElements = forcesEngine->getFmaxElements(m_numAllocatedParticles);
 	const uint tempCflEls = forcesEngine->getFmaxTempElements(fmaxElements);
-	set<flag_t>::const_iterator iter = m_dBuffers.get_keys().begin();
-	set<flag_t>::const_iterator stop = m_dBuffers.get_keys().end();
+	std::set<flag_t>::const_iterator iter = m_dBuffers.get_keys().begin();
+	std::set<flag_t>::const_iterator stop = m_dBuffers.get_keys().end();
 	while (iter != stop) {
 		const flag_t key = *iter;
 		// number of elements to allocate
@@ -1760,7 +1760,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 			}
 		}
 	} catch (std::exception &e) {
-		cerr << "Device " << deviceIndex << " thread " << pthread_self() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
+		std::cerr << "Device " << deviceIndex << " thread " << pthread_self() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << std::endl;
 		const_cast<GlobalData*>(gdata)->keep_going = false;
 	}
 
@@ -1771,7 +1771,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	} catch (std::exception &e) {
 		// if anything goes wrong here, there isn't much we can do,
 		// so just show the error and carry on
-		cerr << e.what() << endl;
+		std::cerr << e.what() << std::endl;
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
@@ -2111,7 +2111,7 @@ void GPUWorker::kernel_forces_async_enqueue()
 	const uint halfParts = numPartsToElaborate / 2;
 
 	// stripe size
-	uint edgingStripeSize = max( internalEdgeParts, min( saturatingParticles, halfParts) );
+	uint edgingStripeSize = std::max( internalEdgeParts, std::min( saturatingParticles, halfParts) );
 
 	// round
 	uint nonEdgingStripeSize = numPartsToElaborate - edgingStripeSize;
@@ -2166,7 +2166,7 @@ void GPUWorker::kernel_forces_async_complete()
 	if (firstStep)
 		gdata->dts[m_deviceIndex] = returned_dt;
 	else
-		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
+		gdata->dts[m_deviceIndex] = std::min(gdata->dts[m_deviceIndex], returned_dt);
 }
 
 
@@ -2216,7 +2216,7 @@ void GPUWorker::kernel_forces()
 	if (firstStep)
 		gdata->dts[m_deviceIndex] = returned_dt;
 	else
-		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
+		gdata->dts[m_deviceIndex] = std::min(gdata->dts[m_deviceIndex], returned_dt);
 	//printf("set to %g\n",gdata->dts[m_deviceIndex]);
 }
 
@@ -2366,7 +2366,7 @@ void GPUWorker::kernel_filter()
 	FilterEngineSet::const_iterator filterpair(filterEngines.find(filtertype));
 	// make sure we're going to call an instantiated filter
 	if (filterpair == filterEngines.end()) {
-		throw invalid_argument("non-existing filter invoked");
+		throw std::invalid_argument("non-existing filter invoked");
 	}
 
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
@@ -2397,7 +2397,7 @@ void GPUWorker::kernel_postprocess()
 	PostProcessEngineSet::const_iterator procpair(postProcEngines.find(proctype));
 	// make sure we're going to call an instantiated filter
 	if (procpair == postProcEngines.end()) {
-		throw invalid_argument("non-existing postprocess filter invoked");
+		throw std::invalid_argument("non-existing postprocess filter invoked");
 	}
 
 

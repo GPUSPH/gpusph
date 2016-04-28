@@ -36,8 +36,6 @@
 
 #include "common_types.h"
 
-using namespace std;
-
 struct BufferAllocPolicy {
 	virtual ~BufferAllocPolicy() {};
 

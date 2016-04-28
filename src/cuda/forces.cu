@@ -23,8 +23,15 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdio.h>
+#include <cstdio>
 #include <stdexcept>
+
+// erf is in the std namespace in C++11, but unqualified in C++98,
+// so just bring it in if compiling with C++11
+#include <cmath>
+#if __cplusplus >= 201103L
+using std::erf
+#endif
 
 #include <thrust/device_vector.h>
 #include <thrust/scan.h>
@@ -475,7 +482,7 @@ bind_textures(
 		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, eulerVel, numParticles*sizeof(float4)));
 	} else {
 		if (eulerVel)
-			cerr << "eulerVel set but not used" << endl;
+			std::cerr << "eulerVel set but not used" << std::endl;
 	}
 
 	if (boundarytype == SA_BOUNDARY) {

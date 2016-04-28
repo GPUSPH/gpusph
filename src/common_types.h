@@ -28,10 +28,21 @@
 #ifndef _COMMON_TYPES_H
 #define _COMMON_TYPES_H
 
-// uint64_t et similia
+/* We need to include stdint for uint64_t and similia,
+ * stddef for size_t. When using C++11 or higher, we also
+ * want to avoid global pollution from the std namespace,
+ * due to our intention to switch to Chrono, whose choice
+ * of namespace conflicts with std::chrono, so we want
+ * to use cstdint, which is not available in C++98:
+ */
+#if __cplusplus < 201103L
 #include <stdint.h>
+#else
+#include <cstdint>
+#endif
+
 // size_t
-#include <stddef.h>
+#include <cstddef>
 
 // define uint, uchar, ulong
 typedef unsigned long ulong; // only used in timing

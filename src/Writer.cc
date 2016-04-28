@@ -130,7 +130,7 @@ Writer::Create(GlobalData *_gdata)
 			cout << WriterName[wt] << " will write every iteration" << endl;
 		else if (freq < 0)
 			cout << WriterName[wt] << " has been disabled" << endl;
-		else if (isnan(freq))
+		else if (std::isnan(freq))
 			cout << WriterName[wt] << " has special treatment" << endl;
 		else
 			cerr << WriterName[wt] << " has unknown writing frequency " << freq << endl;

@@ -28,8 +28,6 @@
 
 #include "Writer.h"
 
-using namespace std;
-
 class CustomTextWriter : public Writer
 {
 public:

@@ -449,9 +449,9 @@ struct GlobalData {
 	// compute the linearized hash of the cell located at gridPos
 	uint calcGridHashHost(int cellX, int cellY, int cellZ) const {
 		int3 trimmed;
-		trimmed.x = min( max(0, cellX), gridSize.x-1);
-		trimmed.y = min( max(0, cellY), gridSize.y-1);
-		trimmed.z = min( max(0, cellZ), gridSize.z-1);
+		trimmed.x = std::min( std::max(0, cellX), int(gridSize.x)-1);
+		trimmed.y = std::min( std::max(0, cellY), int(gridSize.y)-1);
+		trimmed.z = std::min( std::max(0, cellZ), int(gridSize.z)-1);
 		return ( (trimmed.COORD3 * gridSize.COORD2) * gridSize.COORD1 ) + (trimmed.COORD2 * gridSize.COORD1) + trimmed.COORD1;
 	}
 	// overloaded
@@ -495,7 +495,7 @@ struct GlobalData {
 	}
 
 	// pretty-print memory amounts
-	string memString(size_t memory) const {
+	std::string memString(size_t memory) const {
 		static const char *memSuffix[] = {
 			"B", "KiB", "MiB", "GiB", "TiB"
 		};
@@ -515,7 +515,7 @@ struct GlobalData {
 	}
 
 	// convert to string and add thousand separators
-	string addSeparators(long int number) const {
+	std::string addSeparators(long int number) const {
 		std::ostringstream oss;
 		ulong mod, div;
 		uchar separator = ',';
@@ -550,14 +550,14 @@ struct GlobalData {
 		return oss.str();
 	}
 
-	string to_string(uint number) const {
-		ostringstream ss;
+	std::string to_string(uint number) const {
+		std::ostringstream ss;
 		ss << number;
 		return ss.str();
 	}
 
 	// returns a string in the format "r.w" with r = process rank and w = world size
-	string rankString() const {
+	std::string rankString() const {
 		return to_string(mpi_rank) + "." + to_string(mpi_nodes);
 	}
 
@@ -596,7 +596,7 @@ struct GlobalData {
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
 	// set the correct fields; apply and enable visibility
-	void saveDeviceMapToFile(string prefix) const {
+	void saveDeviceMapToFile(std::string prefix) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
 		if (!prefix.empty())
@@ -620,7 +620,7 @@ struct GlobalData {
 
 	// Same as saveDeviceMapToFile() but saves the *compact* device map and, if multi-gpu, also appends the device number
 	// NOTE: values are shifted; CELLTYPE_*_CELL is written while CELLTYPE_*_CELL_SHIFTED is in memory
-	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) const {
+	void saveCompactDeviceMapToFile(std::string prefix, uint srcDev, uint *compactDeviceMap) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
 		if (!prefix.empty())

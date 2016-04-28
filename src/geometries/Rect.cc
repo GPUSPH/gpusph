@@ -249,8 +249,8 @@ Rect::Fill(PointVect& points, const double dx, const bool fill_edges, const bool
 	m_origin(3) = m_center(3);
 	int nparts = 0;
 
-	int nx = max((int) (m_lx/dx), 1);
-	int ny = max((int) (m_ly/dx), 1);
+	int nx = std::max((int) (m_lx/dx), 1);
+	int ny = std::max((int) (m_ly/dx), 1);
 	int startx = 0;
 	int starty = 0;
 	int endx = nx;
@@ -332,13 +332,13 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp + m_vx/(nx*3) + 2*m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {vpoint_index, vpoint_index + 1, vpoints.size() + i + 1, 0};
+				uint4 vertices1 = {vpoint_index, vpoint_index + 1, uint(vpoints.size() + i + 1), 0};
 				vindexes.push_back(vertices1);
 
 				Point bp2 = vp + 2*m_vx/(nx*3) + m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {vpoint_index, vpoints.size() + i, vpoints.size() + i + 1, 0};
+				uint4 vertices2 = {vpoint_index, uint(vpoints.size() + i), uint(vpoints.size() + i + 1), 0};
 				vindexes.push_back(vertices2);
 
 				belems.push_back(belm);
@@ -359,13 +359,13 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp + m_vx/(nx*3) + 2*m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {vpoint_index, vpoint_index + 1, vpoints.size() + i + 1, 0};
+				uint4 vertices1 = {vpoint_index, vpoint_index + 1, uint(vpoints.size() + i + 1), 0};
 				vindexes.push_back(vertices1);
 
 				Point bp2 = vp + 2*m_vx/(nx*3) + m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {vpoint_index, vpoints.size() + i, vpoints.size() + i + 1, 0};
+				uint4 vertices2 = {vpoint_index, uint(vpoints.size() + i), uint(vpoints.size() + i + 1), 0};
 				vindexes.push_back(vertices2);
 
 				belems.push_back(belm);
@@ -387,13 +387,13 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp + m_vx/(nx*3) + 2*m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {vpoint_index, vpoint_index + 1, vpoints.size() + i + 1, 0};
+				uint4 vertices1 = {vpoint_index, vpoint_index + 1, uint(vpoints.size() + i + 1), 0};
 				vindexes.push_back(vertices1);
 
 				Point bp2 = vp + 2*m_vx/(nx*3) + m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {vpoint_index, vpoints.size() + i, vpoints.size() + i + 1, 0};
+				uint4 vertices2 = {vpoint_index, uint(vpoints.size() + i), uint(vpoints.size() + i + 1), 0};
 				vindexes.push_back(vertices2);
 			}
 
@@ -406,13 +406,13 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp - 2*m_vx/(nx*3) + 2*m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {vpoints.size() + (endy-starty+1)*(endx-startx) + i, vpoints.size() + (endy-starty+1)*(endx-startx)+ i + 1, vpoint_index + 1, 0};
+				uint4 vertices1 = {uint(vpoints.size() + (endy-starty+1)*(endx-startx) + i), uint(vpoints.size() + (endy-starty+1)*(endx-startx)+ i + 1), vpoint_index + 1, 0};
 				vindexes.push_back(vertices1);
 
 				Point bp2 = vp - m_vx/(nx*3) + m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {vpoints.size() + (endy-starty+1)*(endx-startx) + i, vpoint_index, vpoint_index + 1, 0};
+				uint4 vertices2 = {uint(vpoints.size() + (endy-starty+1)*(endx-startx) + i), vpoint_index, vpoint_index + 1, 0};
 				vindexes.push_back(vertices2);
 			}
 
@@ -437,13 +437,13 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp + 2*m_vx/(nx*3) + m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {vpoint1_index, vpoints.size() + (endy-starty) - i, vpoints.size() + (endy-starty) - i + 1, 0};
+				uint4 vertices1 = {vpoint1_index, uint(vpoints.size() + (endy-starty) - i), uint(vpoints.size() + (endy-starty) - i + 1), 0};
 				vindexes.push_back(vertices1);
 
 				Point bp2 = vp + m_vx/(nx*3) + 2*m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {vpoint0_index, vpoint1_index, vpoints.size() + (endy-starty) - i + 1, 0};
+				uint4 vertices2 = {vpoint0_index, vpoint1_index, uint(vpoints.size() + (endy-starty) - i + 1), 0};
 				vindexes.push_back(vertices2);
 			}
 
@@ -457,7 +457,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp + 2*m_vx/(nx*3) - 2*m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {vpoint0_index, vpoints.size()-1 + (endy-starty+1)*(endx-startx-i+1), vpoints.size()-1 + (endy-starty+1)*(endx-startx-i+2), 0};
+				uint4 vertices1 = {vpoint0_index, uint(vpoints.size()-1 + (endy-starty+1)*(endx-startx-i+1)), uint(vpoints.size()-1 + (endy-starty+1)*(endx-startx-i+2)), 0};
 				if(i == predef_vparts-1)
 					vertices1.y = edgeparts[3][1][0];
 				vindexes.push_back(vertices1);
@@ -465,7 +465,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp2 = vp + m_vx/(nx*3) - 1*m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {vpoint0_index, vpoints.size()-1 + (endy-starty+1)*(endx-startx-i+1), vpoint1_index, 0};
+				uint4 vertices2 = {vpoint0_index, uint(vpoints.size()-1 + (endy-starty+1)*(endx-startx-i+1)), vpoint1_index, 0};
 				if(i == predef_vparts-1)
 					vertices2.y = edgeparts[3][1][0];
 				vindexes.push_back(vertices2);
@@ -481,13 +481,13 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp - m_vx/(nx*3) - 2*m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {vpoint1_index, vpoint0_index, vpoints.size()-1 + (endy-starty+1)*(endx-startx) + i, 0};
+				uint4 vertices1 = {vpoint1_index, vpoint0_index, uint(vpoints.size()-1 + (endy-starty+1)*(endx-startx) + i), 0};
 				vindexes.push_back(vertices1);
 
 				Point bp2 = vp - 2*m_vx/(nx*3) - m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {vpoint1_index,vpoints.size()-1 + (endy-starty+1)*(endx-startx) + i,vpoints.size()-1 + (endy-starty+1)*(endx-startx) + i + 1, 0};
+				uint4 vertices2 = {vpoint1_index, uint(vpoints.size()-1 + (endy-starty+1)*(endx-startx) + i), uint(vpoints.size()-1 + (endy-starty+1)*(endx-startx) + i + 1), 0};
 				if(i == predef_vparts-1)
 					vertices2.z = edgeparts[2][1][0];
 				vindexes.push_back(vertices2);
@@ -503,7 +503,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp - m_vx/(nx*3) + m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {vpoint0_index, vpoint1_index, vpoints.size() + (endy-starty+1)*(i-1), 0};
+				uint4 vertices1 = {vpoint0_index, vpoint1_index, uint(vpoints.size() + (endy-starty+1)*(i-1)), 0};
 				if(i == predef_vparts-1)
 					vertices1.z = edgeparts[1][1][0];
 				vindexes.push_back(vertices1);
@@ -511,7 +511,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp2 = vp - 2*m_vx/(nx*3) + 2*m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {vpoint0_index, vpoints.size() + (endy-starty+1)*(i-2), vpoints.size() + (endy-starty+1)*(i-1), 0};
+				uint4 vertices2 = {vpoint0_index, uint(vpoints.size() + (endy-starty+1)*(i-2)), uint(vpoints.size() + (endy-starty+1)*(i-1)), 0};
 				if(i == 1)
 					vertices2.y = edgeparts[3][1][endx-startx];
 				if(i == predef_vparts-1)
@@ -537,7 +537,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 	for (int i = startx; i <= endx; i++)
 	for (int j = starty; j <= endy; j++) {
 			Point vp = m_origin + i*m_vx/nx + j*m_vy/ny;
-			int nvertex = vpoints.size();
+			uint nvertex = vpoints.size();
 
 			//Save vertex particles located at the edges of planes
 			if (i == 0) {
@@ -563,13 +563,13 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 				Point bp1 = vp + m_vx/(nx*3) + 2*m_vy/(ny*3);
 				bpoints.push_back(bp1);
 
-				uint4 vertices1 = {nvertex, nvertex + 1, nvertex + (endy-starty) + 2, 0};
+				uint4 vertices1 = {nvertex, nvertex + 1, uint(nvertex + (endy-starty) + 2), 0};
 				vindexes.push_back(vertices1);
 
 				Point bp2 = vp + 2*m_vx/(nx*3) + m_vy/(ny*3);
 				bpoints.push_back(bp2);
 
-				uint4 vertices2 = {nvertex, nvertex + (endy-starty) + 1, nvertex + (endy-starty) + 2, 0};
+				uint4 vertices2 = {nvertex, uint(nvertex + (endy-starty) + 1), uint(nvertex + (endy-starty) + 2), 0};
 				vindexes.push_back(vertices2);
 
 				belems.push_back(belm);

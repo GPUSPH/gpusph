@@ -11,8 +11,8 @@
 #define NO_HDF5_ERR throw std::runtime_error("HDF5 support not compiled in")
 #endif
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdlib>
+#include <cstdio>
 #include <fstream>
 #include <limits.h> // UINT_MAX
 
