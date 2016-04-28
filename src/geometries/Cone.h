@@ -32,7 +32,6 @@
 #include "Point.h"
 #include "Vector.h"
 
-
 class Cone: public Object {
 	private:
 		Point	m_origin;
@@ -58,15 +57,23 @@ class Cone: public Object {
 
 		void FillBorder(PointVect& points, const double, const bool, const bool);
 		void FillBorder(PointVect& points, double dx)
-		{
-			FillBorder(points, dx, true, true);
-		}
+		{ FillBorder(points, dx, true, true);}
 
 		int Fill(PointVect& points, const double, const bool fill = true);
 		void FillIn(PointVect& points, const double dx, const int layers)
-		{ throw std::runtime_error("FillIn not implemented for this object!"); }
+		{ throw std::runtime_error("Cone::FillIn not implemented !"); }
 
 		bool IsInside(const Point&, const double) const;
+
+#if USE_CHRONO == 1
+		void BodyCreate(chrono::ChSystem *, const double, const bool);
+		void GeomCreate(const double);
+#else
+		void BodyCreate(void *p1, const double p2, const bool p3)
+		{ Object::BodyCreate(p1, p2, p3); }
+		void GeomCreate(const double p1)
+		{ Object::GeomCreate(p1); }
+#endif
 };
 
 #endif	/* _CONE_H */

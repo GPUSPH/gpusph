@@ -40,6 +40,8 @@
 
 using namespace std;
 
+using namespace std;
+
 // This class holds the implementation and interface of CUDASimFramework,
 // the CUDA simulation framework for GPUPSH. (In fact, the only simulation
 // framework in GPUSPH, presently).

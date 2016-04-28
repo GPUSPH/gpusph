@@ -38,6 +38,11 @@
 #include <fstream>
 #include <vector>
 
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChSystem.h"
+#endif
+
 #include "Options.h"
 #include "Writer.h"
 #include "particledefine.h"
@@ -49,10 +54,7 @@
 
 #include "buffer.h"
 #include "simframework.h"
-
 #include "deprecation.h"
-
-#include "ode/ode.h"
 
 #define BLOCK_SIZE_IOBOUND	256
 
@@ -108,9 +110,11 @@ class Problem {
 			Z_AXIS
 		};
 
-		dWorldID		m_ODEWorld;
-		dSpaceID		m_ODESpace;
-		dJointGroupID	m_ODEJointGroup;
+#if USE_CHRONO == 1
+		chrono::ChSystem 	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
+#else
+		void				*m_bodies_physical_system;
+#endif
 
 		double3	m_size;			// Size of computational domain
 		double3	m_origin;		// Origin of computational domain
@@ -154,7 +158,6 @@ class Problem {
 		Options const& get_options(void) const
 		{ return *m_options; }
 
-
 		template <typename T>
 		T
 		get_option(std::string const& key, T _default) const
@@ -171,7 +174,6 @@ class Problem {
 
 		uint3 const& get_gridsize(void) const
 		{ return m_gridsize; }
-
 		float density(float, int) const;
 		float density_for_pressure(float, int) const;
 
@@ -351,7 +353,9 @@ RESTORE_WARNINGS
 		virtual float3 g_callback(const float t) DEPRECATED;
 		virtual float3 g_callback(const double t);
 
+		// TODO for chrono merge: what is the equivalent in Chrono?
 		/* ODE callbacks */
+		/*
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		{
 			std::cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
@@ -362,6 +366,7 @@ RESTORE_WARNINGS
 			Problem* problem = (Problem *) data;
 			problem->ODE_near_callback(data, o1, o2);
 		}
+		*/
 
 		void allocate_bodies_storage();
 		void add_moving_body(Object *, const MovingBodyType);
@@ -388,6 +393,8 @@ RESTORE_WARNINGS
 		void set_body_angularvel(const uint, const double3&);
 		void set_body_angularvel(const Object*, const double3&);
 
+		void InitChrono(void);
+
 		/* This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
 		 */
@@ -407,9 +414,6 @@ RESTORE_WARNINGS
 							int3 * & cgGridPos, float3 * & cgPos,
 							float3 * & trans, float * & steprot,
 							float3 * & linearvel, float3 * & angularvel);
-
-		/*void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
-			const float *linvel, const float *angvel);*/
 
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 

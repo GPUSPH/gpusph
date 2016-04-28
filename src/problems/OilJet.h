@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,52 +22,51 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
-/*
- * File:   OdeObjects.h
- * Author: alexis
- *
- * Created on 9 juin 2012, 12:12
- */
 
-#ifndef _ODEOBJECTS_H
-#define	_ODEOBJECTS_H
+
+#ifndef OILJET_H_
+#define OILJET_H_
 
 #include "Problem.h"
 #include "Point.h"
-#include "Cube.h"
-#include "Sphere.h"
-#include "Cone.h"
-#include "Torus.h"
 #include "Cylinder.h"
+#include "Vector.h"
+#include "Cube.h"
 
-class OdeObjects: public Problem {
+class OilJet: public Problem {
 	private:
-		Cube		experiment_box;
-		Cube		obstacle;
-		PointVect	parts;
-		PointVect	boundary_parts;
-		PointVect	obstacle_parts;
-		double		H;				// still water level
-		double		lx, ly, lz;		// dimension of experiment box
-		bool		wet;			// set wet to true have a wet bed experiment
-		// ODE stuff
-		Sphere		sphere;
-		Cube		cube;
-		Cylinder	cylinder;
-		dGeomID		planes[5];
-		dJointID	joint;
+		PointVect	parts_f1;
+		PointVect	parts_f2;
+		PointVect	boundary_parts_f1;
+		PointVect	boundary_parts_f2;
 
+		double		lx, ly, lz;		// dimension of water tank
+		double 		water_level;	// water level
+		double		inner_diam;		// pipe inner diameter
+		double		pipe_length;	// pipe length
 
+		// Moving boundary data
+		Cylinder	piston;
+		double		piston_amplitude, piston_omega;
+		double3     piston_origin;
+		double		piston_tstart, piston_tend;
+		double		piston_vel;
+
+		int 		layers;		// Number of particles layers for dynamic boundaries
 	public:
-		OdeObjects(GlobalData *);
-		virtual ~OdeObjects(void);
-
+		OilJet(GlobalData *);
+		~OilJet(void);
 		int fill_parts(void);
+
 		void copy_to_array(BufferList &);
 
-		void ODE_near_callback(void *, dGeomID, dGeomID);
+		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
+									const float3&, const KinematicData &, KinematicData &,
+									double3&, EulerParameters&);
 
 		void release_memory(void);
 };
-#endif	/* _ODEOBJECTS_H */
 
+
+
+#endif /* OILJET_H_ */

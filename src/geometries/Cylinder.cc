@@ -115,11 +115,6 @@ void Cylinder::setEulerParameters(const EulerParameters &ep)
 	m_ep.ComputeRot();
 
 	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
-
-	dQuaternion q;
-	for (int i = 0; i < 4; i++)
-		q[i] = m_ep(i);
-	dQtoR(q, m_ODERot);
 }
 
 void Cylinder::getBoundingBox(Point &output_min, Point &output_max)
@@ -134,35 +129,6 @@ void Cylinder::shift(const double3 &offset)
 	const Point poff = Point(offset);
 	m_origin += poff;
 	m_center += poff;
-}
-
-void
-Cylinder::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	m_ODEBody = dBodyCreate(ODEWorld);
-	dMassSetZero(&m_ODEMass);
-	dMassSetCylinderTotal(&m_ODEMass, m_mass, 3, m_r +dx/2.0, m_h + dx);
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dQuaternion q;
-	m_ep.ToODEQuaternion(q);
-	dBodySetQuaternion(m_ODEBody, q);
-	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx);
-}
-
-
-void
-Cylinder::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
-	m_ODEGeom = dCreateCylinder(ODESpace, m_r, m_h);
-	if (m_ODEBody)
-		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	else {
-		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
-		dQuaternion q;
-		m_ep.ToODEQuaternion(q);
-		dGeomSetQuaternion(m_ODEGeom, q);
-	}
 }
 
 
@@ -244,3 +210,34 @@ Cylinder::IsInside(const Point& p, const double dx) const
 
 	return inside;
 }
+
+#if USE_CHRONO == 1
+/* Create a cube Chrono body inside a specified Chrono physical system. If
+ * collide his true this method calls GeomCreate to associate a collision model
+ * to the object.
+ * Here we have to specialize this function for the Cone because the Chrono cone
+ * is by default in the Y direction and ours in the Z direction.
+ *	\param bodies_physical_system : Chrono physical system
+ *	\param dx : particle spacing
+ *	\param collide : add collision handling
+ */
+void
+Cylinder::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+{
+	Object::BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(chrono::CH_C_PI/2., chrono::VECT_X));
+}
+
+/// Create a Chrono collision model
+/* Create a Chrono collsion model for the cube.
+ *	\param dx : particle spacing
+ */
+void
+Cylinder::GeomCreate(const double dx) {
+	m_body->GetCollisionModel()->ClearModel();
+	const double b = m_r + dx/2.;
+	const double h = m_h + dx;
+	m_body->GetCollisionModel()->AddCylinder(m_r, m_r, m_h/2.);
+	m_body->GetCollisionModel()->BuildModel();
+	m_body->SetCollide(true);
+}
+#endif

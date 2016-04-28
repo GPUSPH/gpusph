@@ -359,7 +359,6 @@ bool XProblem::initialize()
 
 void XProblem::initializeODE()
 {
-#if 0
 	// TODO FIXME MERGE
 	// allocate_ODE_bodies(m_numFloatingBodies);
 	dInitODE();
@@ -370,24 +369,20 @@ void XProblem::initializeODE()
 	// Set gravity (x, y, z)
 	dWorldSetGravity(m_ODEWorld,
 		physparams()->gravity.x, physparams()->gravity.y, physparams()->gravity.z);
-#endif
 }
 
 void XProblem::cleanupODE()
 {
-#if 0
 	dJointGroupDestroy(m_ODEJointGroup);
 	dSpaceDestroy(m_ODESpace);
 	dWorldDestroy(m_ODEWorld);
 	dCloseODE();
-#endif
 }
 
 // for an exaple ODE_nearCallback see
 // http://ode-wiki.org/wiki/index.php?title=Manual:_Collision_Detection#Collision_detection
 void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 {
-#if 0
 	// ODE generates multiple candidate contact points. We should use at least 3 for cube-plane
 	// interaction, the more the better (probably).
 	// CHECK: any significant correlation between performance and MAX_CONTACTS?
@@ -428,7 +423,6 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
 		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
 	}
-#endif
 }
 
 GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
@@ -974,7 +968,6 @@ void XProblem::setOrientation(const GeometryID gid, const dQuaternion quat)
 
 void XProblem::rotate(const GeometryID gid, const dQuaternion quat)
 {
-#if 0
 	if (!validGeometry(gid)) return;
 
 	// will compute qNewOrientation as qCurrentOrientation + requested rotation (quat)
@@ -988,14 +981,12 @@ void XProblem::rotate(const GeometryID gid, const dQuaternion quat)
 
 	// set the new orientation
 	setOrientation( gid, qNewOrientation );
-#endif
 }
 
 
 // NOTE: rotates X first, then Y, then Z
 void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
-#if 0
 	if (!validGeometry(gid)) return;
 
 	// multiple temporary variables to keep code readable
@@ -1042,7 +1033,6 @@ void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot
 
 	// rotate with computed quaternion
 	rotate( gid, qXYZ );
-#endif
 }
 
 void XProblem::shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset)
@@ -1364,7 +1354,6 @@ int XProblem::fill_parts()
 		}
 #endif
 
-#if 0
 		// ODE-related operations - only for floating bodies
 		if (m_numFloatingBodies > 0 && (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions)) {
 
@@ -1423,7 +1412,6 @@ int XProblem::fill_parts()
 			if (m_geometries[g]->type != GT_PLANE)
 				m_geometries[g]->ptr->ODEPrintInformation();
 		} // if m_numFloatingBodies > 0
-#endif
 
 		// tell Problem to add the proper type of body
 		if (m_geometries[g]->type == GT_FLOATING_BODY)

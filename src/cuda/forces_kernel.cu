@@ -33,6 +33,8 @@
 #ifndef _FORCES_KERNEL_
 #define _FORCES_KERNEL_
 
+#include <cfloat> //FLT_EPSILON
+
 #include "particledefine.h"
 #include "textures.cuh"
 #include "vector_math.h"

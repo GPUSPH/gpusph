@@ -214,3 +214,35 @@ Cone::IsInside(const Point& p, const double dx) const
 
 	return inside;
 }
+
+#if USE_CHRONO == 1
+/* Create a cube Chrono body inside a specified Chrono physical system. If
+ * collide his true this method calls GeomCreate to associate a collision model
+ * to the object.
+ * Here we have to specialize this function for the Cone because the Chrono cone
+ * is by default in the Y direction and ours in the Z direction.
+ *	\param bodies_physical_system : Chrono physical system
+ *	\param dx : particle spacing
+ *	\param collide : add collision handling
+ */
+void
+Cone::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+{
+	Object::BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(chrono::CH_C_PI/2., chrono::VECT_X));
+}
+
+/// Create a Chrono collision model
+/* Create a Chrono collsion model for the cube.
+ *	\param dx : particle spacing
+ */
+void
+Cone::GeomCreate(const double dx) {
+	m_body->GetCollisionModel()->ClearModel();
+	const double rb = m_rb + dx/2.;
+	const double rt = rt + dx/2.;
+	const double h = m_h + dx;
+	m_body->GetCollisionModel()->AddCone(m_rb, m_rt, m_h);
+	m_body->GetCollisionModel()->BuildModel();
+	m_body->SetCollide(true);
+}
+#endif

@@ -34,6 +34,9 @@
 
 #include "vector_print.h"
 
+// for FLT_EPSILON
+#include <cfloat>
+
 using namespace std;
 
 // TODO for the time being, we assume no more than 256 devices

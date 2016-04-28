@@ -73,26 +73,6 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 	setEulerParameters(ep);
 }
 
-
-/// Constructor from edges length and orientation (ODE quaternion)
-/*! Construct a cube of given dimension with an orientation given by
- *  a quaternion in ODE format.
- *	lx, ly, lz parameters are the dimension of the cube along the X', Y'
- *	and Z' axis.
- *	\param origin : cube origin (bottom left corner)
- *	\param lx : length along X' axis
- *	\param ly : length along Y' axis
- *	\param lz : length along Z' axis
- *	\param quat : quaternion defining the orientation
- *
- *  Beware, particle mass should be set before any filling operation
- */
-Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const dQuaternion quat)
-{
-	Cube(origin, lx, ly, lz, EulerParameters(quat));
-}
-
-
 /// DEPRECATED Constructor from edge vectors
 /*! Construct a cube according to 3 vectors defining the edges along
  *  X', Y' and Z' axis.
@@ -704,58 +684,6 @@ void Cube::shift(const double3 &offset)
 	m_center += poff;
 }
 
-/// Create an ODE body associated to the cube
-/* Create a cube ODE body inside a specified ODE world. If
- * a space (used for handling collision detection) has been defined
- * this method calls ODEGeomCreate to associate a geometry to the cube.
- *	\param ODEWorld : ODE world ID
- *	\param dx : particle spacing
- *	\param ODESpace : ODE space ID
- */
-void
-Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	// Create an ODE body
-	m_ODEBody = dBodyCreate(ODEWorld);
-	// Compute mass and inertia of the cube and associate it to the ODE body
-	dMassSetZero(&m_ODEMass);
-	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	// Move an rotate the body to match current cube location and orientation
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dQuaternion q;
-	m_ep.ToODEQuaternion(q);
-	dBodySetQuaternion(m_ODEBody, q);
-	// If an ODE space has been defined create a geometry associated with the body
-	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx);
-}
-
-
-/// Create an ODE geometry associated to the cube
-/* Create an ODE geometry in the specified space associated
- * with the cube. If an ODE body is associated with cube, the
- * ODE geometry is associated to the ODE body.
- *	\param ODESpace : ODE space ID
- *	\param dx : particle spacing
- *	\param ODESpace : ODE space ID
- */
-void
-Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
-	// Create a cube geometry
-	m_ODEGeom = dCreateBox(ODESpace, m_lx + dx, m_ly + dx, m_lz + dx);
-	// If an ODE body has been defined, associate the geometry with the ODE body
-	if (m_ODEBody)
-		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	// Otherwise move and rotate the geometry to match current cube position and orientation
-	else {
-		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
-		dQuaternion q;
-		m_ep.ToODEQuaternion(q);
-		dGeomSetQuaternion(m_ODEGeom, q);
-	}
-}
-
 
 std::ostream& operator<<(std::ostream& out, const Cube& cube) // output
 {
@@ -763,3 +691,21 @@ std::ostream& operator<<(std::ostream& out, const Cube& cube) // output
     		<< ") particles: " << cube.m_parts.size() << "\n";
     return out;
 }
+
+
+#if USE_CHRONO == 1
+/// Create a Chrono collision model
+/* Create a Chrono collsion model for the cube.
+ *	\param dx : particle spacing
+ */
+void
+Cube::GeomCreate(const double dx) {
+	m_body->GetCollisionModel()->ClearModel();
+	const double lx = (m_lx + dx)/2.;
+	const double ly = (m_ly + dx)/2.;
+	const double lz = (m_lz + dx)/2.;
+	m_body->GetCollisionModel()->AddBox(lx, ly, lz);
+	m_body->GetCollisionModel()->BuildModel();
+	m_body->SetCollide(true);
+}
+#endif

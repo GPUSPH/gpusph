@@ -83,35 +83,6 @@ void Sphere::shift(const double3 &offset)
 	m_center += poff;
 }
 
-void
-Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	m_ODEBody = dBodyCreate(ODEWorld);
-	dMassSetZero(&m_ODEMass);
-	dMassSetSphereTotal(&m_ODEMass, m_mass, m_r + dx/2.0);
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dQuaternion q;
-	m_ep.ToODEQuaternion(q);
-	dBodySetQuaternion(m_ODEBody, q);
-	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx);
-}
-
-
-void
-Sphere::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
-	m_ODEGeom = dCreateSphere(ODESpace, m_r + dx/2.0);
-	if (m_ODEBody)
-		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	else {
-		dGeomSetPosition(m_ODEGeom,  m_center(0), m_center(1), m_center(2));
-		dQuaternion q;
-		m_ep.ToODEQuaternion(q);
-		dGeomSetQuaternion(m_ODEGeom, q);
-	}
-}
-
 
 void
 Sphere::FillBorder(PointVect& points, const double dx)
@@ -177,3 +148,18 @@ Sphere::IsInside(const Point& p, const double dx) const
 
 	return inside;
 }
+
+#if USE_CHRONO == 1
+/// Create a Chrono collision model
+/* Create a Chrono collsion model for the cube.
+ *	\param dx : particle spacing
+ */
+void
+Sphere::GeomCreate(const double dx) {
+	m_body->GetCollisionModel()->ClearModel();
+	const double r = m_r + dx/2.;
+	m_body->GetCollisionModel()->AddSphere(r);
+	m_body->GetCollisionModel()->BuildModel();
+	m_body->SetCollide(true);
+}
+#endif

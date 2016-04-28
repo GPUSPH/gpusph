@@ -13,7 +13,6 @@
 #include "Cube.h"
 #include "Sphere.h"
 #include "Torus.h"
-#include "ode/ode.h"
 
 class XBuoyancyTest: public XProblem {
 

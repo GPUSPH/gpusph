@@ -37,7 +37,6 @@
 
 #include <vector>
 #include "Vector.h"
-#include "ode/ode.h"
 
 class Vector;
 
@@ -68,9 +67,6 @@ class Point {
 		void SetCoord(double *);
 		void SetCoord(double, double, double);
 		void SetMass(const double _newVal);
-
-		Point Rot(const dMatrix3);
-		Point TransposeRot(const dMatrix3);
 
 		/*! \name
 			Distance calculation
@@ -132,10 +128,6 @@ double4 make_double4(const Point &);
 
 float3 make_float3(const Point &);
 double3 make_double3(const Point &);
-
-void make_dvector3(const Point &, dVector3);
-
-void make_dvector4(const Point &, dVector4);
 
 typedef std::vector<Point> PointVect;
 

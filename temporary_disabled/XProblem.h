@@ -32,15 +32,11 @@
 // SIZE_MAX
 #include <limits.h>
 
-#include "Problem.h"´
+#include "Problem.h"
 
 // HDF5 and XYF file readers
 #include "HDF5SphReader.h"
 #include "XYZReader.h"
-
-// Temporary definition of dGeomID and dQuaternion for compile-only chrono merge
-typedef uint dGeomID;
-typedef EulerParameters dQuaternion;
 
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,

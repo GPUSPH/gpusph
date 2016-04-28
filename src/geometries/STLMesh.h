@@ -114,8 +114,9 @@ private:
 	// minimum coordinates
 	double3	m_minbounds, m_maxbounds;
 
-	// ODE-related stuff
-	dTriMeshDataID m_ODETriMeshData;
+//	// ODE-related stuff
+//	dTriMeshDataID m_ODETriMeshData;
+	// TODO: Chrono triangle mesh need to be added here
 
 	// minimum and maximum distance between vertices
 	double m_minres, m_maxres;
@@ -167,8 +168,13 @@ public:
 	void SetInertia(double);
 	void SetInertia(const double*);
 
-	void ODEGeomCreate(dSpaceID ODESpace, const double dx);
-	void ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace = 0);
+#if USE_CHRONO == 1
+		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+		{ throw std::runtime_error("STLMesh::BodyCreate not implemented !"); }
+#else
+		void BodyCreate(void *p1, const double p2, const bool p3)
+		{ Object::BodyCreate(p1, p2, p3); }
+#endif
 };
 
 #endif // _STLMESH_H

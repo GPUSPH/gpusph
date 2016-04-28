@@ -135,29 +135,6 @@ double4 Point::toDouble4() const
 	return make_double4(x[0], x[1], x[2], x[3]);
 }
 
-Point
-Point::Rot(const dMatrix3 rot)
-{
-	Point res;
-	res(0) = rot[0]*x[0] + rot[1]*x[1] + rot[2]*x[2];
-	res(1) = rot[4]*x[0] + rot[5]*x[1] + rot[6]*x[2];
-	res(2) = rot[8]*x[0] + rot[9]*x[1] + rot[10]*x[2];
-
-	return res;
-}
-
-
-Point
-Point::TransposeRot(const dMatrix3 rot)
-{
-	Point res;
-	res(0) = rot[0]*x[0] + rot[4]*x[1] + rot[8]*x[2];
-	res(1) = rot[1]*x[0] + rot[5]*x[1] + rot[9]*x[2];
-	res(2) = rot[2]*x[0] + rot[6]*x[1] + rot[10]*x[2];
-
-	return res;
-}
-
 
 void
 Point::SetCoord(double *data)
@@ -498,23 +475,6 @@ float3 make_float3(const Point &pt)
 double3 make_double3(const Point &pt)
 {
 	return make_double3(pt(0), pt(1), pt(2));
-}
-
-
-void make_dvector3(const Point &pt, dVector3 vec)
-{
-	vec[0] = dReal(pt(0));
-	vec[1] = dReal(pt(1));
-	vec[2] = dReal(pt(2));
-}
-
-
-void make_dvector4(const Point &pt, dVector4 vec)
-{
-	vec[0] = dReal(pt(0));
-	vec[1] = dReal(pt(1));
-	vec[2] = dReal(pt(2));
-	vec[3] = dReal(pt(3));
 }
 
 // DEBUG

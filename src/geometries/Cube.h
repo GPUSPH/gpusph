@@ -76,7 +76,6 @@ class Cube: public Object {
 		//@{
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters& = EulerParameters());
-		Cube(const Point&, const double, const double, const double, const dQuaternion);
 		Cube(const Point&, const Vector&, const Vector&, const Vector&) DEPRECATED;
 		virtual ~Cube(void) {};
 		//@}
@@ -120,12 +119,15 @@ class Cube: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-		/// \name ODE related  functions
+		/// \name Chrono related  functions
 		//@{
-		void ODEBodyCreate(dWorldID, const double density = 1.0, dSpaceID ODESpace = 0);
-		void ODEGeomCreate(dSpaceID, const double);
+#if USE_CHRONO == 1
+		void GeomCreate(const double);
+#else
+		void GeomCreate(const double p)
+		{ Object::GeomCreate(p); }
+#endif
 		//@}
-
 		friend std::ostream& operator<<(std::ostream&, const Cube&);
 };
 #endif	/* _CUBE_H */

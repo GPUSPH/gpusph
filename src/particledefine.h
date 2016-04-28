@@ -36,8 +36,6 @@
 #include "vector_math.h"
 #include "cuda_call.h"
 
-#include "ode/ode.h"
-
 #include "common_types.h"
 
 enum KernelType {

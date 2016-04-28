@@ -47,14 +47,18 @@ class Sphere: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
-		void ODEGeomCreate(dSpaceID, const double);
-
 		void FillBorder(PointVect&, const double);
 		void FillIn(PointVect&, const double, const int);
 		int Fill(PointVect&, const double, const bool fill = true);
 
 		bool IsInside(const Point&, const double) const;
+
+#if USE_CHRONO == 1
+		void GeomCreate(const double);
+#else
+		void GeomCreate(const double p)
+		{ Object::GeomCreate(p); }
+#endif
 };
 
 #endif	/* _SPHERE_H */
