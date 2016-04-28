@@ -538,6 +538,60 @@ For the Problem TestTopo: the name of the DEM file to use.
 
 \todo{add missing options}
 
+\section{Installing pre/post processing tools}
+
+\subsection{Installing SALOME}
+You can download SALOME from:\\
+\url{http://www.salome-platform.org/downloads/current-version}
+
+For this you need to register on the SALOME website.
+Then, follow the installation instructions from the SALOME website and the
+installer.
+
+\subsection{Installing CRIXUS}
+Crixus is a preprocessing tool for GPUSPH. \\
+
+\textbf{Prerequisites}:
+\begin{itemize}
+\item cmake $\ge$ 2.8
+\item cuda
+\item hdf5 $\ge$ 1.8.7
+\end{itemize}
+
+\textbf{Getting CRIXUS}:
+\begin{shellcode}
+git clone https://github.com/Azrael3000/Crixus.git
+cd Crixus.git
+\end{shellcode}
+
+\textbf{Compiling Crixus}: \\
+Crixus uses CMake for compilation. 
+Let us assume that you have CRIXUS in a \cmd{Crixus.git} directory. 
+and you want the building to happen in \cmd{Crixus.git/build} then follow the commands below:
+\begin{shellcode}
+mkdir build
+cd build
+cmake ..
+make
+\end{shellcode}
+Note that you should not run cmake in the main Crixus folder.
+
+The binary is then located at \cmd{Crixus.git/build/bin/Release/Crixus}.
+Note that "make install" is not supported yet. To easily change the parameters of cmake you can use ccmake instead.
+
+If hdf5 cannot be found due to lacking environmental variable you can edit the main CMakeLists.txt which has a commented line that reads:
+\begin{shellcode}
+#set(ENV{HDF5_ROOT} "/your/path/to/hdf5")
+\end{shellcode}
+Uncomment it and set the respective hdf5 path in order to use your custom installation.\\
+
+To finish the installation it is recommended to add the path to the CRIXUS binary to your
+\cmd{$PATH} environment variable. Add this line in \cmd{~/.bashrc}:
+\begin{shellcode}
+export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:$PATH
+\end{shellcode}
+where \cmd{/your_path} is your path to the CRIXUS directory.
+
 \chapter{Making your own simulations}
 
 To run simulations with your own setup, you must create a new
