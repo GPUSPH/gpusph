@@ -29,7 +29,15 @@
 #include "cond_params.h"
 #include "particledefine.h"
 
-/// Parameters common to all buildneibs kernel specializations
+/** \addtogroup neibs_buildnibskernel_params Neighbor list kernel parameters
+ * 	\ingroup neibs
+ *  Templatized structures holding parameters passed to buildneibs kernel
+ *  @{ */
+/// Common parameters used in buildneibs kernel
+/*!	Parameters passed to buildneibs device function depends on the type of
+ * 	of boundary used. This structure contains the parameters common to all
+ * 	boundary types.
+ */
 struct common_buildneibs_params
 {
 			neibdata	*neibsList;				///< neighbor's list (out)
@@ -62,7 +70,7 @@ struct sa_boundary_buildneibs_params
 			float2	*vertPos0;				///< relative position of vertex to segment, first vertex
 			float2	*vertPos1;				///< relative position of vertex to segment, second vertex
 			float2	*vertPos2;				///< relative position of vertex to segment, third vertex
-	const	float	boundNlSqInflRad;		///< neighbour search radius for boundary segments
+	const	float	boundNlSqInflRad;		///< neighbor search radius for PT_FLUID <-> PT_BOUNDARY interaction
 	const	uint	*vertIDToIndex;			///< vertex ID to particleIndex lookup table
 
 	sa_boundary_buildneibs_params(
@@ -77,18 +85,20 @@ struct sa_boundary_buildneibs_params
 	{}
 };
 
-/// The actual forces_params struct, which concatenates the above, as appropriate
+/// The actual buildneibs parameters structure, which concatenates the above, as appropriate
+/*! This structure provides a constructor that takes as arguments the union of the
+ *	parameters that would ever be passed to the forces kernel.
+ *  It then delegates the appropriate subset of arguments to the appropriate
+ *  structures it derives from, in the correct order
+ */
 template<BoundaryType boundarytype>
 struct buildneibs_params :
 	common_buildneibs_params,
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)
 {
-	// This structure provides a constructor that takes as arguments the union of the
-	// parameters that would ever be passed to the forces kernel.
-	// It then delegates the appropriate subset of arguments to the appropriate
-	// structs it derives from, in the correct order
+
 	buildneibs_params(
-		// common
+		// Common
 				neibdata	*_neibsList,
 		const	float4		*_pos,
 		const	hashKey		*_particleHash,
@@ -105,8 +115,7 @@ struct buildneibs_params :
 			_vertPos, _vertIDToIndex, _boundNlSqInflRad)
 	{}
 };
-
-
+/** @} */
 
 #endif // _BUILDNEIBS_PARAMS_H
 

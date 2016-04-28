@@ -38,7 +38,9 @@
 	<p>As described in the particle and boundary type section, the SA boundary requires a triangular mesh ...</p>
 	
 	\section datastructs_physparams Physical parameters
-	<p>All the physical parameters needed for simulation are stored in a PhysParams structure.
-	\section datastructs_simparams Physical parameters
+	<p>All the physical parameters needed for simulation are stored in a PhysParams structure. <\p>
+	
+	\section datastructs_simparams Simulation parameters
+	<p>All the simulation related parameters needed for simulation are stored in a SimParams structure. <\p>
 @}
 */

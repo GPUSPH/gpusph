@@ -1,6 +1,7 @@
 /*!                                                                         
-@addtogroup neibs
-@{
+@addtogroup neibs Neighbor list construction
+@{	
+	\ingroup developper_group
 	\section neiblist_overview General overview
 	\note For sake of simplicity all explanations and figures refers to a 2D simualtion. The extension to 3D
 	is trivial.

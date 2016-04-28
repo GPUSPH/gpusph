@@ -2,8 +2,31 @@
 @addtogroup developper_group
 @{                                                                        
 	\tableofcontents
-  	Leading text.
-  	\section sec1 Uses of template functions
+  	<p>The GPUSPH developper documentation covers all the GPUSPH internals along with guidelines to add
+  	new or user specific features to the code.</p>
+  	<p>We assume that the reader is familiar with SPH theory and C++.</p>
+  	<p>GPUSPH is a multi-node and multi-GPU per node CUDA SPH code. The user specific</p>
+  	
+  	\section gpusph_struct_overview GPUSPH structure overview
+  	<p>The sequence of operations to run a SPH simulation with GPUSPH are :
+  	<ul>
+  		<li>GPUSPH get the user problem specific setup from an user written class derived from Problem or XProblem</li>
+  		<li>GPUSPH executes the main simulation cycle that consists in 
+  		<ul>
+  			<li>the sequence of computational steps involved in an SPH time step (force computation, boundary condition, 
+  			integration, ...)</li>
+  			<li>data transferts between GPUs and nodes</li>
+		</ul>
+		</li>
+		<li>GPUSPH instanciate a GPUWorker for each GPU local (in the same node) being used</li>
+  		<li>Each ascpect of the SPH computational process is carried on by an abstract entity called engine. Thus we have
+  		 an engine that takes care of the SPH force computation, another one for the time integration and so on.</li>
+  		<li>Each engine </li>
+  	</ul>
+  	</p>
+  		
+  	\image html GPUSPH_struct.pdf "Figure 1: GPUSPH structure" width=10cm
+  	
   	Template bla bla bla.
   	\section sec2 Dealing with variable list of arguments or variables
   	This page contains the subsections \ref subsection1 and \ref subsection2.

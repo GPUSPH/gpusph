@@ -3,29 +3,15 @@
 
 \defgroup developper_group Developper documentation
 
-
-\defgroup cuda Device code
-\ingroup developper_group
-
 \defgroup datastructs Data structures
 \ingroup developper_group
 
-\defgroup neibs Neighbor search
-\ingroup developper_group
-
-\defgroup neibs_device Device code
-\ingroup neibs
 
 \defgroup integration Time integration
 \ingroup developper_group
 
-\defgroup integration_device Device code
-\ingroup integration
-
 \defgroup forces Forces computation
 \ingroup developper_group
 
-\defgroup forces_device Device code
-\ingroup forces
 
 */

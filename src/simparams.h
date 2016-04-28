@@ -36,43 +36,76 @@
 
 typedef std::vector<double4> GageList;
 
+/// Structure holding all simulation related parameters
+/*! This structure holds all the simulation related parameters
+ *  along with some basic initialization functions.
+ *
+ *	\ingroup datastructs
+ */
 typedef struct SimParams {
-	// Options that are set via SimFramework.
-	const KernelType		kerneltype;				// kernel type
-	const SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
-	const DensityDiffusionType densitydiffusiontype; 	// type of density diffusion corrective term
-	const ViscosityType		visctype;				// viscosity type (1 artificial, 2 laminar)
-	const BoundaryType		boundarytype;			// boundary force formulation (Lennard-Jones etc)
-	const Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
-	const flag_t			simflags;				// simulation flags
+	/** \name Options that are set via SimFramework
+	 * @{ */
+	const KernelType		kerneltype;					///< Kernel type
+	const SPHFormulation	sph_formulation;			///< SPH formulation to use
+	const DensityDiffusionType densitydiffusiontype; 	///< Type of density diffusion corrective term
+	const ViscosityType		visctype;					///< Viscosity type (artificial, laminar, ...)
+	const BoundaryType		boundarytype;				///< Boundary type (Lennard-Jones, SA? ...)
+	const Periodicity		periodicbound;				///< Periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
+	const flag_t			simflags;					///< Simulation flags
+	/** @} */
 
-	double			sfactor;				// smoothing factor
-	double			slength;				// smoothing length (smoothing factor * deltap)
-	double			kernelradius;			// kernel radius
-	double			influenceRadius;		// influence radius ( = kernelradius * slength)
-	double			nlexpansionfactor;		// expand influenceradius by nlexpansionfactor for neib list construction
-	double			nlInfluenceRadius;		// extended radius ( = influence radius * nlexpansionfactor)
-	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
-	float			dt;						// initial timestep
-	double			tend;					// simulation end time (0 means run forever)
-	float			dtadaptfactor;			// safety factor in the adaptive time step formula
-	uint			buildneibsfreq;			// frequency (in iterations) of neib list rebuilding
+	/** \name Kernel and neighbor list related parameters
+	 * @{ */
+	double			sfactor;				///< Smoothing factor
+	double			slength;				///< Smoothing length \f$ h \f$ (smoothing factor * \f$ \Delta p \f$)
+	double			kernelradius;			///< Kernel radius \f$ \kappa \f$
+	double			influenceRadius;		///< Influence radius \f$ \kappa h \f$
+	double			nlexpansionfactor;		///< Expansion factor to apply to influenceradius for the neighbor list construction
+	double			nlInfluenceRadius;		///< Influence radius ( = \f$ \kappa h \f$ * nlexpansionfactor) used in neighbor list construction
+	double			nlSqInfluenceRadius;	///< Square influence radius for neighbor list construction
+	uint			buildneibsfreq;			///< Frequency (in iterations) of neighbor list rebuilding
+	uint			neiblistsize;			///< Total size of the neighbor list (per particle)
+	uint			neibboundpos;			///< Marker for boundary parts section of the neighbor list
+	/** @} */
 
-	float			densityDiffCoeff;		// coefficient for density diffusion
-	float			ferrariLengthScale;		// length scale for Ferrari correction
+	/** \name Time related parameters
+	 * @{ */
+	float			dt;						///< Time step (initial when using adaptive time stepping)
+	double			tend;					///< Simulation end time (0 means run forever)
+	float			dtadaptfactor;			///< Safety factor used in adaptive time step computation
+	/** @} */
 
-	bool			gcallback;				// true if using a variable gravity in problem
-	bool			csvtestpoints;			// true to dump the testpoints also in CSV files
-	bool			csvsimplegages;			// true to dump the gages also in CSV files
-	bool			calc_energy;			// true if we want to compute system energy at save time
-	GageList		gage;					// water gages
-	uint			numODEbodies;			// number of bodies which movmement is computed by ODE
-	uint			numforcesbodies;		// number of moving bodies on which we need to compute the forces (includes ODE bodies)
-	uint			numbodies;				// total number of bodies (ODE + forces + moving)
-	uint			neiblistsize;			// total size of the neighbor list
-	uint			neibboundpos;			// marker for boundary parts section of the neighbor list
-	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical
-	uint			numOpenBoundaries;		// number of open boundaries
+	/** \name Density diffusion related parameters
+	 * @{ */
+	float			densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
+	float			ferrariLengthScale;		///< Length scale for Ferrari correction
+	/** @} */
+
+	/** \name Call back and post-processing related parameters
+	 * @{ */
+	bool			gcallback;				///< True if using a variable gravity set trough a callback function
+	bool			csvtestpoints;			///< True to dump the testpoints also in CSV files
+	bool			csvsimplegages;			///< True to dump the gages also in CSV files
+	bool			calc_energy;			///< True if we want to compute system energy at save time
+	GageList		gage;					///< Water gages list
+	/** @} */
+
+	/** \name Floating/moving bodies related parameters
+	 * @{ */
+	uint			numODEbodies;			///< Number of bodies which movement is computed by ODE
+	uint			numforcesbodies;		///< Number of moving bodies on which we need to compute the forces on (includes ODE bodies)
+	uint			numbodies;				///< Total number of bodies (ODE + forces + moving)
+	/** @} */
+
+	/** \name I/O boundaries related parameters
+	 * @{ */
+	uint			numOpenBoundaries;		///< Number of open boundaries
+	/** @} */
+
+	/** \name Other parameters
+	 * @{ */
+	float			epsilon;				///< If \f$ |r_a - r_b| < \epsilon \f$ two positions are considered identical. TODO: check that the test is done on a relative quantity
+	/** @} */
 
 	SimParams(
 		KernelType _kernel = WENDLAND,
@@ -125,8 +158,19 @@ typedef struct SimParams {
 		numOpenBoundaries(0)
 	{};
 
+	/** \name Kernel parameters related methods
+	 * @{ */
+	/// Set Kernel and neighbor list influence radius parameters
+	/*! This function set the kernel parameters (smoothing factor, \f$ h \f$, ...) along
+	 *  with the influence radius used for the neighbor list construction.
+	 *
+	 *  \return smoothing length \f$ h \f$
+	 */
 	inline double
-	set_smoothing(double smooth, double deltap)
+	set_smoothing(
+			double smooth, 	///< [in]Êsmoothing factor
+			double deltap	///< [in] particle spacing \f$ \Delta p \f$
+			)
 	{
 		sfactor = smooth;
 		slength = smooth*deltap;
@@ -136,31 +180,48 @@ typedef struct SimParams {
 		return slength;
 	}
 
-	// DEPRECATED, use set_kernel_radius instead
+	/// Set Kernel radius
+	/*! \deprecated This function set the radius of the currently used Kernel and update the
+	 *  related variables.
+	 *
+	 *  \return smoothing length \f$ h \f$
+	 */
 	inline double
-	set_kernel(KernelType kernel, double radius=0) DEPRECATED
+	set_kernel(
+			KernelType kernel, 	///< Kernel type
+			double radius=0		///< Kernel radius
+			)
+	/*! \cond */
+	DEPRECATED
+	/*! \endcond */
 	{
 		if (kernel != kerneltype)
 			throw std::runtime_error("cannot change kernel type this way anymore");
 
-		// TODO currently all our kernels have radius 2,
-		// remember to adjust this when we have kernels
-		// with different radii
 		set_kernel_radius(radius ? radius :
 			kernel == GAUSSIAN ? 3.0 : 2.0);
 
 		return set_influenceradius();
 	}
 
+	/// Set Kernel radius
+	/*! This function set the radius of the currently used Kernel and update the
+	 *  related variables.
+	 */
 	inline void
-	set_kernel_radius(double radius)
+	set_kernel_radius(
+			double radius	///< Influence radius \f$ \kappa \f$
+			)
 	{
 		kernelradius = radius;
 		set_influenceradius();
 	}
 
 
-	// internal: update the influence radius et al
+	/// Update Kernel radius related parameters
+	/*! This the Kernel radius related parameters (influenceRadius, nlInfluenceRadius, ...).
+	 *  Only used internally.
+	 */
 	inline double
 	set_influenceradius() {
 		influenceRadius = slength * kernelradius;
@@ -170,11 +231,14 @@ typedef struct SimParams {
 		return influenceRadius;
 	}
 
-	/// return the number of layers of particles necessary
-	/// to cover the influence radius
+	/// Return the number of layers of particles necessary to cover the influence radius
+	/*!
+	 *  \return layers number
+	 */
 	inline int
 	get_influence_layers() const
 	{ return (int)ceil(sfactor*kernelradius); }
+	/** @} */
 
 } SimParams;
 

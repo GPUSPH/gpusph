@@ -36,29 +36,37 @@
 #include "hashkey.h"
 #include "linearization.h"
 
-/** \name Device constants
+/** \addtogroup cellgrid Common cell/grid related device functions and variables/constants
+ * 	\ingroup neibs
+ * 	Device constant/variables and functions involved in computing particles hash, relative positions
+ * 	and used in several namespaces (actually \ref cuneibs and \ref cuforces)
  *  @{ */
 
-/* World and cell size */
+/** \addtogroup cellgrid_device_constants Common position/neighbor related device constants
+ * 	\ingroup cellgrid
+ * 	Device constant involved in computing particles hash, relative positions
+ * 	and used in several namespaces (actually \ref cuneibs and \ref cuforces)
+ *  @{ */
 __constant__ float3	d_worldOrigin;			///< Origin of the simulation domain
 __constant__ float3	d_cellSize;				///< Size of cells used for the neighbor search
 __constant__ uint3	d_gridSize;				///< Size of the simulation domain expressed in terms of cell number
-__constant__ char3	d_cell_to_offset[27];	///< Map neibdata cell number to offset
-
+__constant__ char3	d_cell_to_offset[27];	///< Neighbor cell index to 3D offset (in cells) map
 /** @} */
 
-/** \name Device functions
+/** \addtogroup cellgrid_devices_functions Common position/neighbor related device functions
+ * 	\ingroup cellgrid
+ *  Contains all the device function needed for computing particles hash, relative positions, ...
+ * 	and used in several namespaces (actually cuneibs and cuforces)
  *  @{ */
-
-/// Compute offset to neighbor cell
-/*! Return the relative position offset to the center of the neighbor cell
+/// Return the offset to a neighbor cell
+/*! Given the index (0 ... 26) of the neighbor of a cell C, returns the
+ *  offset vector between the center of C and it's neighbor.
  *
- * \param[in] neib_cellnum : number of neighbor cell (0..26)
- *
- * \return displacement offset
+ * \return offset vector
  */
 __device__ __forceinline__ float3
-cellOffset(char neib_cellnum)
+cellOffset(	char neib_cellnum	///< [in] index of neighboring cell (0..26)
+			)
 {
 	return d_cell_to_offset[neib_cellnum]*d_cellSize;
 }
@@ -68,12 +76,11 @@ cellOffset(char neib_cellnum)
  * 	linearization (starting from x, y or z direction). The link
  * 	between COORD1,2,3 and .x, .y and .z is defined in linearization.h
  *
- * \param[in] gridPos : grid position
- *
  * \return hash value
  */
 __device__ __forceinline__ uint
-calcGridHash(int3 const& gridPos)
+calcGridHash(	int3 const& gridPos	///< [in] grid position
+				)
 {
 	return INTMUL(INTMUL(gridPos.COORD3, d_gridSize.COORD2), d_gridSize.COORD1)
 			+ INTMUL(gridPos.COORD2, d_gridSize.COORD1) + gridPos.COORD1;
@@ -84,14 +91,13 @@ calcGridHash(int3 const& gridPos)
 /*! Compute the grid position corresponding to the given cell hash. The position
  *  should be in the range [0, d_gridSize.x - 1]x[0, d_gridSize.y - 1]x[0, d_gridSize.z - 1].
  *
- * \param[in] cellHash : cell hash value
- *
  * \return grid position
  *
  * \note no test is done by this function to ensure that hash value is valid.
  */
 __device__ __forceinline__ int3
-calcGridPosFromCellHash(const uint cellHash)
+calcGridPosFromCellHash(	const uint cellHash	///< [in] cell hash value
+							)
 {
 	int3 gridPos;
 	int temp = INTMUL(d_gridSize.COORD2, d_gridSize.COORD1);
@@ -107,8 +113,6 @@ calcGridPosFromCellHash(const uint cellHash)
 /*! Compute the grid position corresponding to the given particle hash. The position
  *  should be in the range [0, d_gridSize.x - 1]x[0, d_gridSize.y - 1]x[0, d_gridSize.z - 1].
  *
- * \param[in] particleHash : particle hash value
- *
  * \return grid position
  *
  * \note
@@ -116,45 +120,28 @@ calcGridPosFromCellHash(const uint cellHash)
  * 	- when hashKey is 32bit long, this is equivalent to calcGridPosFromCellHash()
  */
 __device__ __forceinline__ int3
-calcGridPosFromParticleHash(const hashKey particleHash)
+calcGridPosFromParticleHash(	const hashKey particleHash	///< [in] particle hash value
+								)
 {
 	// Read the cellHash out of the particleHash
 	const uint cellHash = cellHashFromParticleHash(particleHash);
 	return calcGridPosFromCellHash(cellHash);
 }
 
-/// Compute global distance vector between points
-/*! Compute the distance vector between two points in different cells
+/// Compute relative distance vector between points
+/*! Compute the relative distance between two points
  *
- * \param[in] gridPos1 : grid cell of point 1
- * \param[in] pos1 : in-cell position of point 1
- * \param[in] gridPos2 : grid cell of point 2
- * \param[in] pos2 : in-cell position of point 2
- *
- * \return vector distance
+ * \return relative distance
  */
 __device__ __forceinline__ float3
-globalDistance(int3 const& gridPos1, float3 const& pos1,
-	int3 const& gridPos2, float3 const& pos2)
+globalDistance(	int3 const& gridPos1,	///< [in] grid cell of point 1
+				float3 const& pos1,		///< [in] cell relative position of point 1
+				int3 const& gridPos2, 	///< [in] grid cell of point 2
+				float3 const& pos2		///< [in] cell relative position of point 2
+				)
 {
 	return (gridPos1 - gridPos2)*d_cellSize + (pos1 - pos2);
 }
-
-/** @} */
-
-
-/* The neighbor cell num ranges from 1 to 27 (included), so it fits in
- * 5 bits, which we put in the upper 5 bits of the neibdata, which is
- * 16-bit wide.
- * TODO actually compute this from sizeof(neibdata)
- */
-#define CELLNUM_SHIFT	11
-#define CELLNUM_ENCODED	(1U<<CELLNUM_SHIFT)
-#define NEIBINDEX_MASK	(CELLNUM_ENCODED-1)
-#define ENCODE_CELL(cell) ((cell + 1) << CELLNUM_SHIFT)
-#define DECODE_CELL(data) ((data >> CELLNUM_SHIFT) - 1)
-
-/********************************* Neighbor data access management ******************************************/
 
 /// Compute hash value from grid position
 /*! Compute the hash value corresponding to the given position. If the position
@@ -162,16 +149,15 @@ globalDistance(int3 const& gridPos1, float3 const& pos1,
  *  we have periodic boundary and the grid position is updated according to the
  *  chosen periodicity.
  *
- * \param[in] gridPos : grid position
+ *  \return hash value
  *
- * \return hash value
- *
- *	Note : no test is done by this function to ensure that grid position is within the
+ *	\note no test is done by this function to ensure that grid position is within the
  *	range and no clamping is done
  */
-// TODO: verify periodicity along multiple axis and templatize
 __device__ __forceinline__ uint
-calcGridHashPeriodic(int3 gridPos)
+calcGridHashPeriodic(
+						int3 gridPos	///< grid position
+						)
 {
 	if (gridPos.x < 0) gridPos.x = d_gridSize.x - 1;
 	if (gridPos.x >= d_gridSize.x) gridPos.x = 0;
@@ -182,18 +168,12 @@ calcGridHashPeriodic(int3 gridPos)
 	return calcGridHash(gridPos);
 }
 
+
 /// Return neighbor index and add cell offset vector to current position
 /*! For given neighbor data this function compute the neighbor index
  *  and subtract, if necessary, the neighbor cell offset vector to the
  *  current particle position. This last operation is done only
  *  when the neighbor cell change and result is stored in pos_corr.
- *
- * \param[in] pos : current particle's positions
- * \param[out] pos_corr : pos - current neighbor cell offset
- * \param[in] cellStart : cells first particle index
- * \param[in] neibdata : neighbor data
- * \param[in,out] neib_cellnum : current neighbor cell number (0...27)
- * \param[in,out] neib_cell_base_index : index of first particle of the current cell
  *
  * \return neighbor index
  *
@@ -201,13 +181,14 @@ calcGridHashPeriodic(int3 gridPos)
  * getNeibIndex calls.
  */
 __device__ __forceinline__ uint
-getNeibIndex(float4 const&	pos,
-			float3&			pos_corr,
-			const uint*		cellStart,
-			neibdata		neib_data,
-			int3 const&		gridPos,
-			char&			neib_cellnum,
-			uint&			neib_cell_base_index)
+getNeibIndex(	float4 const&	pos,					///< [in] current particle cell relative position
+				float3&			pos_corr,				///< [out] offset between particle cell and current neighbor cell
+				const uint*		cellStart,				///< [in] cells first particle index
+				neibdata		neib_data,				///< [in] neighbor data
+				int3 const&		gridPos,				///< [in] current particle cell position
+				char&			neib_cellnum,			///< [in,out] current neighbor cell index (0...26)
+				uint&			neib_cell_base_index	///< [in,out] neib_cell_base_index : index of first particle of the current cell
+				)
 {
 	if (neib_data >= CELLNUM_ENCODED) {
 		// Update current neib cell number
@@ -228,5 +209,16 @@ getNeibIndex(float4 const&	pos,
 	// Compute and return neighbor index
 	return neib_cell_base_index + neib_data;
 }
+/** @} */
+/** @} */
 
-/************************************************************************************************************/
+/* The neighbor cell num ranges from 1 to 27 (included), so it fits in
+ * 5 bits, which we put in the upper 5 bits of the neibdata, which is
+ * 16-bit wide.
+ * TODO actually compute this from sizeof(neibdata)
+ */
+#define CELLNUM_SHIFT	11
+#define CELLNUM_ENCODED	(1U<<CELLNUM_SHIFT)
+#define NEIBINDEX_MASK	(CELLNUM_ENCODED-1)
+#define ENCODE_CELL(cell) ((cell + 1) << CELLNUM_SHIFT)
+#define DECODE_CELL(data) ((data >> CELLNUM_SHIFT) - 1)

@@ -57,43 +57,154 @@
  *  	- device constants/variables
  *  	- device functions
  *  	- kernels
- *
- *  \ingroup neibs_device
  */
 namespace cuneibs {
-/** \name Device constants
+/** \addtogroup neibs_device_constants Device constants
+ * 	\ingroup neibs
+ *  Device constants used in neighbor list construction
  *  @{ */
 __constant__ uint d_neibboundpos;		///< Starting pos of boundary particle in neib list
 __constant__ uint d_neiblistsize;		///< Total neib list size
 __constant__ idx_t d_neiblist_stride;	///< Stride dimension
 __constant__ idx_t d_neiblist_end;		///< maximum number of neighbors * number of allocated particles
 /** @} */
-/** \name Device variables
+
+/** \addtogroup neibs_device_variables Device variables
+ * 	\ingroup neibs
+ *  Device variables used in neighbor list construction
  *  @{ */
 __device__ int d_numInteractions;			///< Total number of interactions per type
 __device__ int d_maxNeibs[PT_TESTPOINT];	///< Computed maximum number of neighbors per particle per type
 /** @} */
 
+/*! \cond */
 #include "cellgrid.cuh"
+/*! \endcond */
 
-/** \name Device functions
+//TODO: Giuseppe write a REAL documentation COMPLYING with Doxygen
+// standards and with OUR DOCUMENTING CONVENTIONS !!!! (Alexis).
+
+/** \addtogroup neibs_device_functions_params Neighbor list device function variables
+ * 	\ingroup neibs
+ *  Templatized structures holding variables used by neibsInCell device function
+ *  @{ */
+/// Common variables used in neibsInCell device function
+/*!	Variables used in neibsInCell device function depends on the type of
+ * 	of boundary. This structure contains the variables common to all
+ * 	boundary types.
+ */
+struct common_niC_vars
+{
+	const	uint	gridHash;		///< Hash value of grid position
+	const	uint	bucketStart;	///< Index of first particle in cell
+	const	uint	bucketEnd;		///< Index of last particle in cell
+
+	/// Constructor
+	/*!	Computes structure members value according to the grid position.
+	 */
+	__device__ __forceinline__
+	common_niC_vars(int3 const& gridPos		///< [in] position in the grid
+					) :
+		gridHash(calcGridHash(gridPos)),
+		bucketStart(tex1Dfetch(cellStartTex, gridHash)),
+		bucketEnd(tex1Dfetch(cellEndTex, gridHash))
+	{}
+};
+
+
+/// Specific variables used in neibsInCell with SA boundary
+/*!	This structure contains specific variables used in plus of the
+ * 	common one in neibsInCell for SA boundary.
+ */
+struct sa_boundary_niC_vars
+{
+	vertexinfo			vertices; 		///< TODO
+	const	float4		boundElement; 	///< TODO
+	const	uint		j; 				///< TODO
+	const	float4		coord1; 		///< TODO
+	const	float4		coord2; 		///< TODO
+
+	/// Constructor
+	/*!	Computes structure members according to particle's index
+	 * 	and parameters passed to buildneibs kernel.
+	 *
+	 * 	\param[in] index : particle index
+	 * 	\param[in] bparams : TODO
+	 */
+	__device__ __forceinline__
+	sa_boundary_niC_vars(const uint index, buildneibs_params<SA_BOUNDARY> const& bparams) :
+		vertices(tex1Dfetch(vertTex, index)),
+		boundElement(tex1Dfetch(boundTex, index)),
+		// j is 0, 1 or 2 depending on which is smaller (in magnitude) between
+		// boundElement.{x,y,z}
+		j(
+			(fabs(boundElement.z) < fabs(boundElement.y) &&
+			fabs(boundElement.z) < fabs(boundElement.x)) ? 2 :
+			(fabs(boundElement.y) < fabs(boundElement.x) ? 1 : 0)
+		 ),
+		// Compute the first coordinate which is a 2-D rotated version of the normal with the j-th coordinate set to 0
+		coord1(
+			normalize(make_float4(
+			// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+			-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
+			  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
+			-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
+			0))
+			),
+		// The second coordinate is the cross product between the normal and the first coordinate
+		coord2( cross3(boundElement, coord1) )
+		{
+			// Here local copy of part IDs of vertices are replaced by the correspondent part indices
+			vertices.x = bparams.vertIDToIndex[vertices.x];
+			vertices.y = bparams.vertIDToIndex[vertices.y];
+			vertices.z = bparams.vertIDToIndex[vertices.z];
+		}
+};
+
+
+/// The actual neibInCell variables structure, which concatenates the above, as appropriate
+/*! This structure provides a constructor that takes as arguments the union of the
+ *	variables that would ever be needed by the neibsInCell device function.
+ *  It then delegates the appropriate subset of variables to the appropriate
+ *  structures it derives from, in the correct order
+ */
+template<BoundaryType boundarytype>
+struct niC_vars :
+	common_niC_vars,
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)
+{
+	__device__ __forceinline__
+	niC_vars(
+		int3 const& gridPos,
+		const uint index,
+		buildneibs_params<boundarytype> const& bparams) :
+		common_niC_vars(gridPos),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
+	{}
+};
+/** @} */
+
+
+/** \addtogroup neibs_device_functions Device functions
+ * 	\ingroup neibs
+ *  Device functions used in neighbor list construction
  *  @{ */
 /// Clamp grid position to edges according to periodicity
 /*! This function clamp grid position to edges according to the chosen
  * 	periodicity, returns the new grid position and update the grid offset.
+ * 	If the offset is more than one cell the flag toofar is set to true.
  *
- *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- *
- *	\param[in] gridPos : grid position to be clamped
- *	\param[in] gridOffset : grid offset
- *	\param[out] toofar : has the gridPos been clamped when the offset was of more than 1 cell ?
+ *	\tparam periodicbound type of periodic boundaries (0 ... 7)
  *
  *	\return new grid position
+ *	\todo: verify periodicity along multiple axis
  */
-// TODO: verify periodicity along multiple axis
 template <Periodicity periodicbound>
 __device__ __forceinline__ int3
-clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
+clampGridPos(	const int3& gridPos, 	///< [in] grid position to be clamped
+				int3& gridOffset, 		///< [in, out] grid offset
+				bool *toofar			///< [out] set to true offset > 1 cell
+				)
 {
 	int3 newGridPos = gridPos + gridOffset;
 	// For the axis involved in periodicity the new grid position reflects
@@ -140,7 +251,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
 
 
 /// clampGridPos Specialization without any periodicity
-/*! @see clampGridPos
+/*! \see clampGridPos
  */
 template <>
 __device__ __forceinline__ int3
@@ -162,351 +273,13 @@ clampGridPos<PERIODIC_NONE>(const int3& gridPos, int3& gridOffset, bool *toofar)
 
 	return newGridPos;
 }
-/** @} */
 
 
-/** \name Kernels
- *  @{ */
-/// Updates particles hash value of particles and prepare the index table
-/*! This kernel should be called before the sort. It
- * 	- updates hash values and relative positions for fluid and
- * 	object particles
- * 	- fill the particle's indexes array with current index
- *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- *	\param[in,out] posArray : particle's positions
- *	\param[in,out] particleHash : particle's hashes
- *	\param[out] particleIndex : particle's indexes
- *	\param[in] particleInfo : particle's informations
- *	\param[in] numParticles : total number of particles
- */
-// TODO: document compactMapDevice (Alexis).
-template <Periodicity periodicbound>
-__global__ void
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
-/*! \endcond */
-calcHashDevice(float4*			posArray,			// particle's positions (in, out)
-			   hashKey*			particleHash,		// particle's hashes (in, out)
-			   uint*			particleIndex,		// particle's indexes (out)
-			   const particleinfo*	particelInfo,	// particle's informations (in)
-			   uint				*compactDeviceMap,	// TODO
-			   const uint		numParticles)		// total number of particles
-{
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-
-	const particleinfo info = particelInfo[index];
-
-	// Get the old grid hash
-	uint gridHash = cellHashFromParticleHash( particleHash[index] );
-
-	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
-	if (FLUID(info) || MOVING(info)) {
-		// Getting new pos relative to old cell
-		float4 pos = posArray[index];
-
-		// Getting grid address of old cell (computed from old hash)
-		const int3 gridPos = calcGridPosFromCellHash(gridHash);
-
-		// Computing grid offset from new pos relative to old hash
-		int3 gridOffset = make_int3(floor((as_float3(pos) + 0.5f*d_cellSize)/d_cellSize));
-
-		// Has the particle flown out of the domain by more than a cell? Clamping
-		// its position will set this to true if necessary
-		bool toofar = false;
-		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
-		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
-
-		// Adjust position
-		as_float3(pos) -= gridOffset*d_cellSize;
-
-		// If the particle would have flown out of the domain by more than a cell, disable it
-		if (toofar)
-			disable_particle(pos);
-
-		// Mark with special hash if inactive.
-		// NOTE: it could have been marked as inactive outside this kernel.
-		if (INACTIVE(pos))
-			gridHash = CELL_HASH_MAX;
-
-		posArray[index] = pos;
-	}
-
-	// Mark the cell as inner/outer and/or edge by setting the high bits
-	// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set.
-	// See multi_gpu_defines.h for the definition of these macros.
-	if (compactDeviceMap && gridHash != CELL_HASH_MAX)
-		gridHash |= compactDeviceMap[gridHash];
-
-	// Store grid hash
-	particleHash[index] = gridHash;
-
-	// Preparing particle index array for the sort phase
-	particleIndex[index] = index;
-}
-
-
-/// Updates high bits of cell hash with compact device map
-/*! This kernel is specific for MULTI_DEVICE simulations
- * 	and should be called at the 1st iteration.
- * 	He computes the high bits of particle hash according to the
- * 	compact device map. Also initialize particleIndex.
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\param[in,out] particleHash : particle's hashes
- * 	\param[out] particleIndex : particle's indexes
- * 	\param[in] particleInfo : particle's informations
- * 	\param[out] compactDeviceMap : ???
- * 	\param[in] numParticles : total number of particles
- */
-__global__ void
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
-/*! \endcond */
-fixHashDevice(hashKey*			particleHash,		// particle's hashes (in, out)
-			   uint*			particleIndex,		// particle's indexes (out)
-			   const particleinfo*	particelInfo,	// particle's informations (in)
-			   uint				*compactDeviceMap,	// TODO
-			   const uint		numParticles)		// total number of particles
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-
-	if (particleHash) {
-
-		uint gridHash = cellHashFromParticleHash( particleHash[index] );
-
-		// Mark the cell as inner/outer and/or edge by setting the high bits
-		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
-		if (compactDeviceMap)
-			particleHash[index] = particleHash[index] | compactDeviceMap[gridHash];
-	}
-
-	// Preparing particle index array for the sort phase
-	particleIndex[index] = index;
-}
-
-
-/// Reorders particles data after the sort and updates cells informations
-/*! This kernel should be called after the sort. It
- * 		- computes the index of the first and last particle of
- * 		each grid cell
- * 		- reorders the particle's data (position, velocity, ...)
- * 		according to particles index that have been previously
- * 		sorted during the sort phase
- *
- *	\param[out] cellStart : index of cells first particle
- *	\param[out] cellEnd : index of cells last particle
- *	\param[out] segmentStart : TODO
- *	\param[out] sortedPos : new sorted particle's positions
- *	\param[out] sortedVel : new sorted particle's velocities
- *	\param[out] sortedInfo : new sorted particle's informations
- *	\param[out] sortedBoundElements : new sorted boundary elements
- *	\param[out] sortedGradGamma : new sorted gradient of gamma
- *	\param[out] sortedVertices : new sorted vertices
- *	\param[out] sortedTKE : new sorted k
- *	\param[out] sortedEps : new sorted e
- *	\param[out] sortedTurbVisc : new sorted eddy viscosity
- *	\param[out] sortedEulerVel : new sorted eulerian velocity (used in SA only)
- *	\param[in] particleHash : previously sorted particle's hashes
- *	\param[in] particleIndex : previously sorted particle's indexes
- *	\param[in] numParticles : total number of particles
- *	\param[out] numParticles : device pointer to new number of active particles
- *
- * In order to avoid WAR issues we use double buffering : the unsorted data
- * are read trough texture fetches and the sorted one written in a coalesced
- * way in global memory.
- */
-// FIXME: we cannot avoid WAR, instead we need to be prepared to WAR ....
-// TODO: should be templatized according to boundary type. (Alexis)
-// TODO: k goes with e, make it a float2. (Alexis).
-// TODO: document segmentStart (Alexis).
-__global__
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-/*! \endcond */
-void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells first particle (out)
-										uint*			cellEnd,			// index of cells last particle (out)
-										uint*			segmentStart,		// TODO
-										float4*			sortedPos,			// new sorted particle's positions (out)
-										float4*			sortedVel,			// new sorted particle's velocities (out)
-										float4*			sortedVol,			// new sorted particle's volumes (out)
-										float4*			sortedBoundElements,// new sorted boundary elements (out)
-										float4*			sortedGradGamma,	// new sorted gradient gamma (out)
-										vertexinfo*		sortedVertices,		// new sorted vertices (out)
-										float*			sortedTKE,			// new sorted k for k-e model (out)
-										float*			sortedEps,			// new sorted e for k-e model (out)
-										float*			sortedTurbVisc,		// new sorted eddy viscosity (out)
-										float4*			sortedEulerVel,		// new sorted eulerian velocity (out)
-										const particleinfo*	particleInfo,	// previously sorted particle's informations (in)
-										const hashKey*	particleHash,		// previously sorted particle's hashes (in)
-										const uint*		particleIndex,		// previously sorted particle's hashes (in)
-										const uint		numParticles,		// total number of particles (in)
-										uint*			newNumParticles)	// device pointer to new number of active particles (out)
-{
-	// Shared hash array of dimension blockSize + 1
-	extern __shared__ uint sharedHash[];
-
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	// Initialize segmentStarts
-	if (segmentStart && index < 4) segmentStart[index] = EMPTY_SEGMENT;
-
-	uint cellHash;
-	// Handle the case when number of particles is not multiple of block size
-	if (index < numParticles) {
-		// To find where cells start/end we only need the cell part of the hash.
-		// Note: we do not reset the high bits since we need them to find the segments
-		// (aka where the outer particles begin)
-		cellHash = cellHashFromParticleHash(particleHash[index], true);
-
-		// Load hash data into shared memory so that we can look
-		// at neighboring particle's hash value without loading
-		// two hash values per thread
-		sharedHash[threadIdx.x + 1] = cellHash;
-
-		if (index > 0 && threadIdx.x == 0) {
-			// first thread in block must load neighbor particle hash
-			sharedHash[0] = cellHashFromParticleHash(particleHash[index - 1], true);
-		}
-	}
-
-	__syncthreads();
-
-	if (index < numParticles) {
-		// If this particle has a different cell index to the previous
-		// particle then it must be the first particle in the cell
-		// or the first inactive particle.
-		// Store the index of this particle as the new cell start and as
-		// the previous cell end
-
-		// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
-		// every time we use a cell hash to access an element of CellStart or CellEnd
-
-		if (index == 0 || cellHash != sharedHash[threadIdx.x]) {
-
-			// New cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
-			if (cellHash != CELL_HASH_MAX)
-				// If it isn't an inactive particle, it is also the start of the cell
-				cellStart[cellHash & CELLTYPE_BITMASK] = index;
-			else
-				*newNumParticles = index;
-
-			// If it isn't the first particle, it must also be the end of the previous cell
-			if (index > 0)
-				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
-		}
-
-		// If we are an inactive particle, we're done (short hash: compare with 32 bits max)
-		if (cellHash == CELL_HASH_MAX)
-			return;
-
-		if (index == numParticles - 1) {
-			// Ditto
-			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
-			*newNumParticles = numParticles;
-		}
-
-		if (segmentStart) {
-			// If segment start is given, hash key size is 64 and we detect the segments
-			uchar curr_type = cellHash >> 30;
-			uchar prev_type = sharedHash[threadIdx.x] >> 30;
-			if (index == 0 || curr_type != prev_type)
-				segmentStart[curr_type] = index;
-		}
-
-		// Now use the sorted index to reorder particle's data
-		const uint sortedIndex = particleIndex[index];
-		const float4 pos = tex1Dfetch(posTex, sortedIndex);
-		const float4 vel = tex1Dfetch(velTex, sortedIndex);
-
-		sortedPos[index] = pos;
-		sortedVel[index] = vel;
-
-		if (sortedVol) {
-			sortedVol[index] = tex1Dfetch(volTex, sortedIndex);
-		}
-
-		if (sortedBoundElements) {
-			sortedBoundElements[index] = tex1Dfetch(boundTex, sortedIndex);
-		}
-
-		if (sortedGradGamma) {
-			sortedGradGamma[index] = tex1Dfetch(gamTex, sortedIndex);
-		}
-
-		if (sortedVertices) {
-			if (BOUNDARY(particleInfo[index])) {
-				const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
-				sortedVertices[index] = vertices;
-			}
-			else
-				sortedVertices[index] = make_vertexinfo(0, 0, 0, 0);
-		}
-
-		if (sortedTKE) {
-			sortedTKE[index] = tex1Dfetch(keps_kTex, sortedIndex);
-		}
-
-		if (sortedEps) {
-			sortedEps[index] = tex1Dfetch(keps_eTex, sortedIndex);
-		}
-
-		if (sortedTurbVisc) {
-			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
-		}
-
-		if (sortedEulerVel) {
-			sortedEulerVel[index] = tex1Dfetch(eulerVelTex, sortedIndex);
-		}
-
-	}
-}
-
-
-/// Update ID-to-particleIndex lookup table (BUFFER_VERTIDINDEX)
-/*! Update ID-to-particleIndex lookup table. This kernel should be
- * 	called after the reorder.
- * 	\param[in] particleInfo : particle's informations
- * 	\param[out] vertIDToIndex : ID-to-particle index lookup table, overwritten
- * 	\param[in] numParticles : total number of particles
- */
-__global__
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-/*! \endcond */
-void updateVertIDToIndexDevice(	const particleinfo*	particleInfo,	///< particle's informations (in)
-								uint*			vertIDToIndex,		///< vertex ID to index array (out)
-								const uint		numParticles)		///< total number of particles (in)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	// Handle the case when number of particles is not multiple of block size
-	if (index >= numParticles)
-		return;
-
-	// Assuming vertIDToIndex is allocated, since this kernel is called only with SA bounds
-	particleinfo info = particleInfo[index];
-
-	// Only vertex particles need to have this information, it should not be done
-	// for fluid particles as their id's can grow and cause buffer overflows
-	if(VERTEX(info))
-		// As the vertex particles never change their id (which is <= than the initial
-		// particle count), this buffer does not overflow
-		vertIDToIndex[ id(info) ] = index;
-}
-/** @} */
-
-
-/** \name Device functions
- *  @{ */
 /// Compute the grid position for a neighboring cell
 /*! This function computes the grid position for a neighboring cell,
  * 	according to the given offset and periodicity specification.
  *
- *	\tparam periodicbound: periodicity specification
+ *	\tparam periodicbound type of periodic boundaries (0 ... 7)
  *
  *	\return true if the new cell is in the domain, false otherwise.
  */
@@ -580,120 +353,7 @@ calcNeibCell(
 	return true;
 
 }
-/** @} */
 
-//TODO: Giuseppe write a REAL documentation COMPLYING with Doxygen
-// standards and with OUR DOCUMENTING CONVENTIONS !!!! (Alexis).
-/// variables found in all specializations of neibsInCell
-/** \name Data structures
- *  @{ */
-/*!	\struct common_niC_vars
- * 	\brief Common parameters used in neibsInCell device function
- *
- * 	Parameters passed to neibsInCell device function depends on the type of
- * 	of boundary used. This structure contains the parameters common to all
- * 	boundary types.
- */
-struct common_niC_vars
-{
-	const	uint	gridHash;		///< Hash value of grid position
-	const	uint	bucketStart;	///< Index of first particle in cell
-	const	uint	bucketEnd;		///< Index of last particle in cell
-
-	/// Constructor
-	/*!	Computes struct member values according to the grid position.
-	 * 	\param[in] gridPos : position in the grid
-	 */
-	__device__ __forceinline__
-	common_niC_vars(int3 const& gridPos) :
-		gridHash(calcGridHash(gridPos)),
-		bucketStart(tex1Dfetch(cellStartTex, gridHash)),
-		bucketEnd(tex1Dfetch(cellEndTex, gridHash))
-	{}
-};
-
-
-/*!	\struct sa_boundary_niC_vars
- * 	\brief Specific parameters used in neibsInCell with SA boundary
- *
- * 	This structure contains specific parameters to be passed in plus of the
- * 	common one to neibsInCell.
- */
-struct sa_boundary_niC_vars
-{
-	vertexinfo			vertices; 		///< TODO
-	const	float4		boundElement; 	///< TODO
-	const	uint		j; 				///< TODO
-	const	float4		coord1; 		///< TODO
-	const	float4		coord2; 		///< TODO
-
-	/// Constructor
-	/*!	Computes struct variable values according to particle's index
-	 * 	and parameters passed to buildNeibsKernnel
-	 * 	\param[in] index : particle index
-	 * 	\param[in] bparams : TODO
-	 */
-	__device__ __forceinline__
-	sa_boundary_niC_vars(const uint index, buildneibs_params<SA_BOUNDARY> const& bparams) :
-		vertices(tex1Dfetch(vertTex, index)),
-		boundElement(tex1Dfetch(boundTex, index)),
-		// j is 0, 1 or 2 depending on which is smaller (in magnitude) between
-		// boundElement.{x,y,z}
-		j(
-			(fabs(boundElement.z) < fabs(boundElement.y) &&
-			fabs(boundElement.z) < fabs(boundElement.x)) ? 2 :
-			(fabs(boundElement.y) < fabs(boundElement.x) ? 1 : 0)
-		 ),
-		// Compute the first coordinate which is a 2-D rotated version of the normal with the j-th coordinate set to 0
-		coord1(
-			normalize(make_float4(
-			// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-			-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
-			  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
-			-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
-			0))
-			),
-		// The second coordinate is the cross product between the normal and the first coordinate
-		coord2( cross3(boundElement, coord1) )
-		{
-			// Here local copy of part IDs of vertices are replaced by the correspondent part indices
-			vertices.x = bparams.vertIDToIndex[vertices.x];
-			vertices.y = bparams.vertIDToIndex[vertices.y];
-			vertices.z = bparams.vertIDToIndex[vertices.z];
-		}
-};
-
-
-/*!	\struct niC_vars
- * 	\brief Parameters used in neibsInCell device function
- *
- * 	This structure contains all the parameters needed by neibsInCell.
- * 	The parameters automatically adjust them self in case of use of SA
- * 	boundary type.
- * 	\tparam boundarytype : the boundary model used
- */
-template<BoundaryType boundarytype>
-struct niC_vars :
-	common_niC_vars,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)
-{
-	/// Constructor
-	/*!	Computes struct member values according to particle's index
-	 * 	and parameters passed to buildNeibsKernnel
-	 * 	\param[in] index : particle index
-	 * 	\param[in] bparams : TODO
-	 */
-	__device__ __forceinline__
-	niC_vars(int3 const& gridPos, const uint index, buildneibs_params<boundarytype> const& bparams) :
-		common_niC_vars(gridPos),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
-	{}
-};
-/** @} */
-
-
-/** \name Device functions
- *  @{ */
 /// Check if a particle is close enough to be considered for neibslist inclusion
 /*! Compares the squared distance between two particles to the squared influence
  * 	radius.
@@ -900,10 +560,322 @@ neibsInCell(
 
 	return;
 }
-/**  @} */
+/** @} */
 
-/** \name Kernels
+
+/** \addtogroup neibs_kernel Kernels
+ * 	\ingroup neibs
+ *  Kernels used in neighbor list construction
  *  @{ */
+/// Updates particles hash value of particles and prepare the index table
+/*! This kernel should be called before the sort. It
+ * 	- updates hash values and relative positions for fluid and
+ * 	object particles
+ * 	- fill the particle's indexes array with current indexes
+ *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ *	\todo compactDeviceMap seems to be read-only, constify-it
+ */
+template <Periodicity periodicbound>
+__global__ void
+/*! \cond */
+__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+/*! \endcond */
+calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
+				hashKey*			particleHash,		///< [in,out] particle's hashes
+				uint*				particleIndex,		///< [out] particle's indexes
+				const particleinfo*	particelInfo,		///< [in] particle's informations
+				uint				*compactDeviceMap,	///< [in] type of the cells belonging to the device
+				const uint			numParticles		///< [in] total number of particles
+				)
+{
+	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = particelInfo[index];
+
+	// Get the old grid hash
+	uint gridHash = cellHashFromParticleHash( particleHash[index] );
+
+	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
+	if (FLUID(info) || MOVING(info)) {
+		// Getting new pos relative to old cell
+		float4 pos = posArray[index];
+
+		// Getting grid address of old cell (computed from old hash)
+		const int3 gridPos = calcGridPosFromCellHash(gridHash);
+
+		// Computing grid offset from new pos relative to old hash
+		int3 gridOffset = make_int3(floor((as_float3(pos) + 0.5f*d_cellSize)/d_cellSize));
+
+		// Has the particle flown out of the domain by more than a cell? Clamping
+		// its position will set this to true if necessary
+		bool toofar = false;
+		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
+		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
+
+		// Adjust position
+		as_float3(pos) -= gridOffset*d_cellSize;
+
+		// If the particle would have flown out of the domain by more than a cell, disable it
+		if (toofar)
+			disable_particle(pos);
+
+		// Mark with special hash if inactive.
+		// NOTE: it could have been marked as inactive outside this kernel.
+		if (INACTIVE(pos))
+			gridHash = CELL_HASH_MAX;
+
+		posArray[index] = pos;
+	}
+
+	// Mark the cell as inner/outer and/or edge by setting the high bits
+	// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set.
+	// See multi_gpu_defines.h for the definition of these macros.
+	if (compactDeviceMap && gridHash != CELL_HASH_MAX)
+		gridHash |= compactDeviceMap[gridHash];
+
+	// Store grid hash
+	particleHash[index] = gridHash;
+
+	// Preparing particle index array for the sort phase
+	particleIndex[index] = index;
+}
+
+
+/// Updates high bits of cell hash with compact device map
+/*! This kernel is specific for MULTI_DEVICE simulations
+ * 	and should be called at the 1st iteration.
+ * 	He computes the high bits of particle hash according to the
+ * 	compact device map. Also initialize particleIndex.
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\todo compactDeviceMap seems to be read-only, constify-it
+ */
+__global__ void
+/*! \cond */
+__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+/*! \endcond */
+fixHashDevice(	hashKey*			particleHash,		///< [in,out] particle's hashes
+				uint*				particleIndex,		///< [out] particle's indexes
+				const particleinfo* particelInfo,		///< [in] particle's informations
+				uint				*compactDeviceMap,	///< [in] type of the cells belonging to the device
+				const uint			numParticles		///< [in] total number of particles
+				)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	if (particleHash) {
+
+		uint gridHash = cellHashFromParticleHash( particleHash[index] );
+
+		// Mark the cell as inner/outer and/or edge by setting the high bits
+		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
+		if (compactDeviceMap)
+			particleHash[index] = particleHash[index] | compactDeviceMap[gridHash];
+	}
+
+	// Preparing particle index array for the sort phase
+	particleIndex[index] = index;
+}
+
+
+/// Reorders particles data after the sort and updates cells informations
+/*! This kernel should be called after the sort. It
+ * 		- computes the index of the first and last particle of
+ * 		each grid cell
+ * 		- reorders the particle's data (position, velocity, ...)
+ * 		according to particles index that have been previously
+ * 		sorted during the sort phase
+ * 		- compute the new number of particles accounting for those
+ * 		marked for deletion
+ *
+ *  In order to avoid WAR issues we use double buffering : the unsorted data
+ *  are read trough texture fetches and the sorted one written in a coalesced
+ *  way in global memory.
+ *
+ * \todo should be templatized according to boundary type. (Alexis)
+// \todo k goes with e, make it a float2. (Alexis).
+// \todo document segmentStart (Alexis).
+ */
+// FIXME: we cannot avoid WAR, instead we need to be prepared to WAR ....
+__global__
+/*! \cond */
+__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
+/*! \endcond */
+void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of cells first particle
+										uint*			cellEnd,			///< [out] index of cells last particle
+										uint*			segmentStart,		///< [out]
+										float4*			sortedPos,			///< [out] new sorted particle's positions
+										float4*			sortedVel,			///< [out] new sorted particle's velocities
+										float4*			sortedVol,			///< [out] new sorted particle's informations
+										float4*			sortedBoundElements,///< [out] new sorted boundary elements normals and surface
+										float4*			sortedGradGamma,	///< [out] new sorted gradient of gamma
+										vertexinfo*		sortedVertices,		///< [out] new sorted vertices
+										float*			sortedTKE,			///< [out] new sorted k
+										float*			sortedEps,			///< [out] new sorted e
+										float*			sortedTurbVisc,		///< [out] new sorted eddy viscosity
+										float4*			sortedEulerVel,		///< [out] new sorted IO/k-e boundary velocity (used in SA only)
+										const particleinfo*	particleInfo,	///< [in] previously sorted particle's informations
+										const hashKey*	particleHash,		///< [in] previously sorted particle's hashes
+										const uint*		particleIndex,		///< [in] previously sorted particle's indexes
+										const uint		numParticles,		///< [in] total number of particles
+										uint*			newNumParticles)	///< [out] device pointer to new number of active particles
+{
+	// Shared hash array of dimension blockSize + 1
+	extern __shared__ uint sharedHash[];
+
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	// Initialize segmentStarts
+	if (segmentStart && index < 4) segmentStart[index] = EMPTY_SEGMENT;
+
+	uint cellHash;
+	// Handle the case when number of particles is not multiple of block size
+	if (index < numParticles) {
+		// To find where cells start/end we only need the cell part of the hash.
+		// Note: we do not reset the high bits since we need them to find the segments
+		// (aka where the outer particles begin)
+		cellHash = cellHashFromParticleHash(particleHash[index], true);
+
+		// Load hash data into shared memory so that we can look
+		// at neighboring particle's hash value without loading
+		// two hash values per thread
+		sharedHash[threadIdx.x + 1] = cellHash;
+
+		if (index > 0 && threadIdx.x == 0) {
+			// first thread in block must load neighbor particle hash
+			sharedHash[0] = cellHashFromParticleHash(particleHash[index - 1], true);
+		}
+	}
+
+	__syncthreads();
+
+	if (index < numParticles) {
+		// If this particle has a different cell index to the previous
+		// particle then it must be the first particle in the cell
+		// or the first inactive particle.
+		// Store the index of this particle as the new cell start and as
+		// the previous cell end
+
+		// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
+		// every time we use a cell hash to access an element of CellStart or CellEnd
+
+		if (index == 0 || cellHash != sharedHash[threadIdx.x]) {
+
+			// New cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
+			if (cellHash != CELL_HASH_MAX)
+				// If it isn't an inactive particle, it is also the start of the cell
+				cellStart[cellHash & CELLTYPE_BITMASK] = index;
+			else
+				*newNumParticles = index;
+
+			// If it isn't the first particle, it must also be the end of the previous cell
+			if (index > 0)
+				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
+		}
+
+		// If we are an inactive particle, we're done (short hash: compare with 32 bits max)
+		if (cellHash == CELL_HASH_MAX)
+			return;
+
+		if (index == numParticles - 1) {
+			// Ditto
+			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
+			*newNumParticles = numParticles;
+		}
+
+		if (segmentStart) {
+			// If segment start is given, hash key size is 64 and we detect the segments
+			uchar curr_type = cellHash >> 30;
+			uchar prev_type = sharedHash[threadIdx.x] >> 30;
+			if (index == 0 || curr_type != prev_type)
+				segmentStart[curr_type] = index;
+		}
+
+		// Now use the sorted index to reorder particle's data
+		const uint sortedIndex = particleIndex[index];
+		const float4 pos = tex1Dfetch(posTex, sortedIndex);
+		const float4 vel = tex1Dfetch(velTex, sortedIndex);
+
+		sortedPos[index] = pos;
+		sortedVel[index] = vel;
+
+		if (sortedVol) {
+			sortedVol[index] = tex1Dfetch(volTex, sortedIndex);
+		}
+
+		if (sortedBoundElements) {
+			sortedBoundElements[index] = tex1Dfetch(boundTex, sortedIndex);
+		}
+
+		if (sortedGradGamma) {
+			sortedGradGamma[index] = tex1Dfetch(gamTex, sortedIndex);
+		}
+
+		if (sortedVertices) {
+			if (BOUNDARY(particleInfo[index])) {
+				const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
+				sortedVertices[index] = vertices;
+			}
+			else
+				sortedVertices[index] = make_vertexinfo(0, 0, 0, 0);
+		}
+
+		if (sortedTKE) {
+			sortedTKE[index] = tex1Dfetch(keps_kTex, sortedIndex);
+		}
+
+		if (sortedEps) {
+			sortedEps[index] = tex1Dfetch(keps_eTex, sortedIndex);
+		}
+
+		if (sortedTurbVisc) {
+			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
+		}
+
+		if (sortedEulerVel) {
+			sortedEulerVel[index] = tex1Dfetch(eulerVelTex, sortedIndex);
+		}
+
+	}
+}
+
+
+/// Update ID-to-particleIndex lookup table (BUFFER_VERTIDINDEX)
+/*! Update ID-to-particleIndex lookup table. This kernel should be
+ * 	called after the reorder.
+ * 	\todo apparently not needed anymore
+ */
+__global__
+/*! \cond */
+__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
+/*! \endcond */
+void updateVertIDToIndexDevice(	const particleinfo*	particleInfo,	///< [in] particle's informations (in)
+								uint*			vertIDToIndex,		///< [out] vertex ID to index array (out)
+								const uint		numParticles		///< [in] total number of particles (in)
+								)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	// Handle the case when number of particles is not multiple of block size
+	if (index >= numParticles)
+		return;
+
+	// Assuming vertIDToIndex is allocated, since this kernel is called only with SA bounds
+	particleinfo info = particleInfo[index];
+
+	// Only vertex particles need to have this information, it should not be done
+	// for fluid particles as their id's can grow and cause buffer overflows
+	if(VERTEX(info))
+		// As the vertex particles never change their id (which is <= than the initial
+		// particle count), this buffer does not overflow
+		vertIDToIndex[ id(info) ] = index;
+}
+
+
 /// Builds particles neighbors list
 /*! This kernel builds the neighbor's indexes of all particles. The
  * 	parameter params is built on specialized version of build_neibs_params
@@ -1048,7 +1020,6 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 	}
 	return;
 }
-/**  @} */
-
+/** @} */
 }
 #endif

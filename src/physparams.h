@@ -45,7 +45,6 @@ class GPUSPH;
 /*! This structure holds all the physical parameters needed by the simulation
  *  along with some basic initialization functions.
  *
- *
  *	\ingroup datastructs
  */
 typedef struct PhysParams {
