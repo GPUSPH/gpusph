@@ -1,17 +1,16 @@
 /*!                                                                         
 \defgroup user_group User documentation
 
-\defgroup developper_group Developper documentation
+\defgroup developper_group Developer documentation
 
 \defgroup datastructs Data structures
 \ingroup developper_group
 
-
 \defgroup integration Time integration
-\ingroup developper_group
+\ingroup developer_group
 
 \defgroup forces Forces computation
-\ingroup developper_group
+\ingroup developer_group
 
 
 */

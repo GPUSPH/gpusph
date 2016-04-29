@@ -1,8 +1,8 @@
 /*! 
-@addtogroup developper_group
+@addtogroup developer_group
 @{                                                                        
 	\tableofcontents
-  	<p>The GPUSPH developper documentation covers all the GPUSPH internals along with guidelines to add
+  	<p>The GPUSPH developer documentation covers all the GPUSPH internals along with guidelines to add
   	new or user specific features to the code.</p>
   	<p>We assume that the reader is familiar with SPH theory and C++.</p>
   	<p>GPUSPH is a multi-node and multi-GPU per node CUDA SPH code. The user specific</p>
