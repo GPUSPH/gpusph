@@ -32,7 +32,7 @@
 // SIZE_MAX
 #include <limits.h>
 
-#include "Problem.h"´
+#include "Problem.h"
 
 // HDF5 and XYF file readers
 #include "HDF5SphReader.h"
