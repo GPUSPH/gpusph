@@ -30,7 +30,7 @@
 // so just bring it in if compiling with C++11
 #include <cmath>
 #if __cplusplus >= 201103L
-using std::erf
+using std::erf;
 #endif
 
 #include <thrust/device_vector.h>
