@@ -102,7 +102,7 @@ struct empty
 */
 
 #define COND_STRUCT(some_cond, ...) \
-	conditional<some_cond, __VA_ARGS__, empty< __VA_ARGS__ > >::type
+	conditional<bool(some_cond), __VA_ARGS__, empty< __VA_ARGS__ > >::type
 
 #endif // _COND_PARAMS_H
 
