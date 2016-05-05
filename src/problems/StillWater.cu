@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
+#include <cmath>
 #include <iostream>
 
 #include "StillWater.h"
@@ -209,7 +209,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+	cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 #if 1
 		double water_column = m_fluidOrigin.z + H - boundary_parts[i](2);
@@ -224,9 +224,9 @@ void StillWater::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
+	cout << "Boundary part mass: " << pos[j-1].w << "\n";
 
-	std::cout << "Fluid parts: " << parts.size() << "\n";
+	cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		double water_column = m_fluidOrigin.z + H - parts[i - j](2);
 		if (water_column < 0)
@@ -237,12 +237,12 @@ void StillWater::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
+	cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
 	if (simparams()->boundarytype == SA_BOUNDARY) {
 			uint j = parts.size() + boundary_parts.size();
 
-			std::cout << "Vertex parts: " << vertex_parts.size() << "\n";
+			cout << "Vertex parts: " << vertex_parts.size() << "\n";
 		for (uint i = j; i < j + vertex_parts.size(); i++) {
 			float rho = density(H - vertex_parts[i-j](2), 0);
 			vel[i] = make_float4(0, 0, 0, rho);
@@ -250,14 +250,14 @@ void StillWater::copy_to_array(BufferList &buffers)
 			calc_localpos_and_hash(vertex_parts[i-j], info[i], pos[i], hash[i]);
 		}
 		j += vertex_parts.size();
-		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
+		cout << "Vertex part mass: " << pos[j-1].w << "\n";
 
 		if(vertex_indexes.size() != boundary_parts.size()) {
-			std::cout << "ERROR! Incorrect connectivity array!\n";
+			cout << "ERROR! Incorrect connectivity array!\n";
 			exit(1);
 		}
 		if(boundary_elems.size() != boundary_parts.size()) {
-			std::cout << "ERROR! Incorrect boundary elements array!\n";
+			cout << "ERROR! Incorrect boundary elements array!\n";
 			exit(1);
 		}
 

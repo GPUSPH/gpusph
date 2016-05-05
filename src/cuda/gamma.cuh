@@ -202,7 +202,7 @@ gradGamma<WENDLAND>(
 	// pas: is the algebraic distance of the particle a to the plane
 	// qas: is the distance of the particle a to the plane
 	float pas = dot(ns, relPos)/slength;
-	float qas = fabs(pas);
+	float qas = fabsf(pas);
 
 	if (qas >= 2.f)
 		return 0.f;
@@ -249,21 +249,21 @@ gradGamma<WENDLAND>(
 		float pav1 = -dot(relPos - as_float3(vertexRelPos[sIdx[1]]), v01)/slength;
 
 		// This is -2*pi if inside the segment, 0 otherwise
-		totalSumAngles += copysign(atan2(pav1, fabs(pae))-atan2(pav0, fabs(pae)), pae);
+		totalSumAngles += copysignf(atan2(pav1, fabsf(pae))-atan2(pav0, fabsf(pae)), pae);
 
 		// if qae is greater than 2 the kernel support does not intersect the edge
 		if (qae < 2.0f) {
 			// Clip the point on the edge to a maximum distance of 2. if the vertex is
 			// not in the influence radius
-			pav0 = copysign(fmin(fabs(pav0), sqrt(4.0f - qae*qae)), pav0);
+			pav0 = copysignf(fminf(fabsf(pav0), sqrtf(4.0f - qae*qae)), pav0);
 			float pav02 = pav0*pav0;
-			pav1 = copysign(fmin(fabs(pav1), sqrt(4.0f - qae*qae)), pav1);
+			pav1 = copysignf(fminf(fabsf(pav1), sqrtf(4.0f - qae*qae)), pav1);
 			float pav12 = pav1*pav1;
 
 			// Distance from particle a to the vertices OR the points on the edge
 			// which are at a distance of the influence radius
-			float qav0 = fmin(sqrt(qae*qae + pav0*pav0), 2.0f);
-			float qav1 = fmin(sqrt(qae*qae + pav1*pav1), 2.0f);
+			float qav0 = fminf(sqrtf(qae*qae + pav0*pav0), 2.0f);
+			float qav1 = fminf(sqrtf(qae*qae + pav1*pav1), 2.0f);
 
 			float pae2 = pae*pae;
 			float pae4 = pae2*pae2;
@@ -290,13 +290,13 @@ gradGamma<WENDLAND>(
 
 					+3.0f*(5.0f*pae6+21.0f*pae4*(8.0f+qas2)+35.0f*pae2*qas2*(16.0f+qas2)+35.0f*qas4*(24.0f+qas2))
 					*(
-						 copysign(1.f, pav1)*log(fmax(qav1+fabs(pav1), 1e-7f)/fmax(qae, 1e-7f))
-						-copysign(1.f, pav0)*log(fmax(qav0+fabs(pav0), 1e-7f)/fmax(qae, 1e-7f))
+						 copysignf(1.f, pav1)*log(fmaxf(qav1+fabsf(pav1), 1e-7f)/fmaxf(qae, 1e-7f))
+						-copysignf(1.f, pav0)*log(fmaxf(qav0+fabsf(pav0), 1e-7f)/fmaxf(qae, 1e-7f))
 						)
 					)
 				);
 
-			sumAngles += copysign(atan2(pav1, fabs(pae))-atan2(pav0, fabs(pae)), pae);
+			sumAngles += copysignf(atan2(pav1, fabsf(pae))-atan2(pav0, fabsf(pae)), pae);
 
 		}
 	}
@@ -349,7 +349,7 @@ Gamma<WENDLAND>(
 	// r_aSigma is the non-dimensionalized vector between this plane and the particle
 	// q_aSigma is the clipped non-dimensionalized distance between this plane and the particle
 	float3 r_aSigma = ns*dot(ns,relPos);
-	float q_aSigma = fmin(length(r_aSigma),2.0f);
+	float q_aSigma = fminf(length(r_aSigma),2.0f);
 
 	// calculate if the projection of a (with respect to n) is inside the segment
 	const float3 ba = as_float3(vertexRelPos[1] - vertexRelPos[0]); // vector from v0 to v1
@@ -372,17 +372,17 @@ Gamma<WENDLAND>(
 	float gamma_as = 0.0f;
 	float gamma_vs = 0.0f;
 	// check if the particle is on a vertex
-	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
-			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
-			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma < epsilon) {
+	if ((	(fabsf(u-1.0f) < epsilon && fabsf(v) < epsilon) ||
+			(fabsf(v-1.0f) < epsilon && fabsf(u) < epsilon) ||
+			(     fabsf(u) < epsilon && fabsf(v) < epsilon)   ) && q_aSigma < epsilon) {
 		// set touching vertex to v0
-		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
+		if (fabsf(u-1.0f) < epsilon && fabsf(v) < epsilon) {
 			const float4 tmp = vertexRelPos[1];
 			vertexRelPos[1] = vertexRelPos[2];
 			vertexRelPos[2] = vertexRelPos[0];
 			vertexRelPos[0] = tmp;
 		}
-		else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
+		else if (fabsf(v-1.0f) < epsilon && fabsf(u) < epsilon) {
 			const float4 tmp = vertexRelPos[2];
 			vertexRelPos[2] = vertexRelPos[1];
 			vertexRelPos[1] = vertexRelPos[0];
@@ -390,7 +390,7 @@ Gamma<WENDLAND>(
 		}
 		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
 		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
-		const float3 unitOldGGam = -oldGGam/fmax(length(oldGGam),slength*1e-3f);
+		const float3 unitOldGGam = -oldGGam/fmaxf(length(oldGGam),slength*1e-3f);
 		float l1 = length3(vertexRelPos[1]-vertexRelPos[0]);
 		float l2 = length3(vertexRelPos[2]-vertexRelPos[0]);
 		float abc = dot(as_float3(vertexRelPos[1]-vertexRelPos[0]),unitOldGGam)/l1
@@ -399,13 +399,13 @@ Gamma<WENDLAND>(
 		float d = dot(unitOldGGam,as_float3(cross3((vertexRelPos[1]-vertexRelPos[0]),(vertexRelPos[2]-vertexRelPos[0]))))/l1/l2;
 
 		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
-		float SolidAngle = fabs(2.0f*atan2(d,(1.0f+abc)));
+		float SolidAngle = fabsf(2.0f*atan2(d,(1.0f+abc)));
 		gamma_vs = SolidAngle*0.079577471545947667884441881686257181017229822870228224373833f; // 1/(4π)
 	}
 	// check if particle is on an edge
-	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
-				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
-				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
+	else if ((	(fabsf(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
+				(fabsf(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
+				(fabsf(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
 			 ) && q_aSigma < epsilon) {
 		const float3 unitOldGGam = -oldGGam/length(oldGGam);
 
@@ -413,7 +413,7 @@ Gamma<WENDLAND>(
 		const float theta0 = acos(dot(ns,unitOldGGam)); // angle of the norms between 0 and pi
 		const float3 refDir = cross(ns, relPos); // this defines a reference direction
 		const float3 normDir = cross(ns, unitOldGGam); // this is the sin between the two norms
-		const float theta = M_PIf + copysign(theta0, dot(refDir, normDir)); // determine the actual angle based on the orientation of the sin
+		const float theta = M_PIf + copysignf(theta0, dot(refDir, normDir)); // determine the actual angle based on the orientation of the sin
 
 		// this is actually two times gamma_as:
 		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)

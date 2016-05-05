@@ -92,7 +92,7 @@ VTUReader::read()
 	if (npart == UINT_MAX)
 		getNParts();
 
-	std::cout << "Reading particle data from the input: " << filename << std::endl;
+	cout << "Reading particle data from the input: " << filename << endl;
 
 	// allocating read buffer
 	if(buf == NULL)

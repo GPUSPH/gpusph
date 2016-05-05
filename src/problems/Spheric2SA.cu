@@ -1,4 +1,4 @@
-#include <math.h>
+#include <cmath>
 #include <string>
 #include <iostream>
 
@@ -121,7 +121,7 @@ void Spheric2SA::copy_to_array(BufferList &buffers)
 		}
 	}
 
-	std::cout << "Fluid parts: " << n_parts << "\n";
+	cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - h5File.buf[i].Coords_2, 0);
 		float rho = physparams()->rho0[0];
@@ -133,10 +133,10 @@ void Spheric2SA::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
 	uint j = n_parts;
-	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
+	cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
 	if(n_vparts) {
-		std::cout << "Vertex parts: " << n_vparts << "\n";
+		cout << "Vertex parts: " << n_vparts << "\n";
 		const float referenceVolume = m_deltap*m_deltap*m_deltap;
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(H - h5File.buf[i].Coords_2, 0);
@@ -156,11 +156,11 @@ void Spheric2SA::copy_to_array(BufferList &buffers)
 			boundelm[i].w = h5File.buf[i].Volume/referenceVolume;
 		}
 		j += n_vparts;
-		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
+		cout << "Vertex part mass: " << pos[j-1].w << "\n";
 	}
 
 	if(n_bparts) {
-		std::cout << "Boundary parts: " << n_bparts << "\n";
+		cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			if (eulerVel)
@@ -178,24 +178,24 @@ void Spheric2SA::copy_to_array(BufferList &buffers)
 			boundelm[i].w = h5File.buf[i].Surface;
 		}
 		j += n_bparts;
-		std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
+		cout << "Boundary part mass: " << pos[j-1].w << "\n";
 	}
 	// Make sure that fluid + vertex + boundaries are done in that order
 	// before adding any other items like testpoints, etc.
 
 	//Testpoints
 	if (test_points.size()) {
-		std::cout << "\nTest points: " << test_points.size() << "\n";
+		cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = j; i < j+test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, 0.0);
 			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
 			calc_localpos_and_hash(test_points[i-j], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
-		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+		cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
 
-	std::flush(std::cout);
+	flush(cout);
 
 	h5File.empty();
 }
@@ -209,8 +209,8 @@ Spheric2SA::init_keps(float* k, float* e, uint numpart, particleinfo* info, floa
 		const float Ti = 0.01f;
 		const float u = 0.0f; // TODO set according to initial velocity
 		const float L = 1.0f; // TODO set according to geometry
-		k[i] = fmax(1e-5f, 3.0f/2.0f*(u*Ti)*(u*Ti));
-		e[i] = fmax(1e-5f, 2.874944542f*k[i]*u*Ti/L);
+		k[i] = fmaxf(1e-5f, 3.0f/2.0f*(u*Ti)*(u*Ti));
+		e[i] = fmaxf(1e-5f, 2.874944542f*k[i]*u*Ti/L);
 		//k[i] = k0;
 		//e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*(float)m_deltap);
 	}

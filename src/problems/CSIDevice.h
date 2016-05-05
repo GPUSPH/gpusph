@@ -77,7 +77,7 @@ class CSIDevice: public Problem {
 		Cube				platform;
 		Cylinder			tower0, tower1, crossbar;
 		Sphere				swing1, swing2;
-        vector<dJointID> 	joints;
+		std::vector<dJointID> 	joints;
         double3				mooring[4];					// Mooring points on the sea bed
         double3				attachment_object_frame[4];	// Mooring points on the platform relative to the platform frame
         double3				attachment_rest_frame[4];	// Mooring points on the platform relative to rest frame

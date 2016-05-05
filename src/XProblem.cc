@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
+#include <cmath>
 #include <string>
 #include <iostream>
 
@@ -44,6 +44,8 @@
 #include "GlobalData.h"
 
 //#define USE_PLANES 0
+
+using namespace std;
 
 XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 {
@@ -110,7 +112,7 @@ bool XProblem::initialize()
 		// TODO automatic framework setup
 		// This must be done in a CU file
 		//SETUP_FRAMEWORK();
-		throw std::runtime_error("no simulation framework defined");
+		throw runtime_error("no simulation framework defined");
 	}
 
 	// *** Add a writer, if none was specified
@@ -118,9 +120,9 @@ bool XProblem::initialize()
 		add_writer(VTKWRITER, 1e-2f);
 
 	// *** Initialization of minimal physical parameters
-	if (isnan(m_deltap))
+	if (isnanf(m_deltap))
 		set_deltap(0.02f);
-	if (isnan(physparams()->r0))
+	if (isnanf(physparams()->r0))
 		physparams()->r0 = m_deltap;
 
 	// aux vars to compute bounding box
@@ -187,7 +189,7 @@ bool XProblem::initialize()
 
 		// store highest fluid part Z coordinate
 		if (m_geometries[g]->type == GT_FLUID) {
-			if (!std::isfinite(highest_water_part) || currMax(2) > highest_water_part)
+			if (!isfinite(highest_water_part) || currMax(2) > highest_water_part)
 				highest_water_part = currMax(2);
 		}
 
@@ -248,12 +250,12 @@ bool XProblem::initialize()
 	}
 
 	// set computed world origin and size without overriding possible user choices
-	if (!std::isfinite(m_origin.x)) m_origin.x = globalMin(0);
-	if (!std::isfinite(m_origin.y)) m_origin.y = globalMin(1);
-	if (!std::isfinite(m_origin.z)) m_origin.z = globalMin(2);
-	if (!std::isfinite(m_size.x)) m_size.x = globalMax(0) - globalMin(0);
-	if (!std::isfinite(m_size.y)) m_size.y = globalMax(1) - globalMin(1);
-	if (!std::isfinite(m_size.z)) m_size.z = globalMax(2) - globalMin(2);
+	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
+	if (!isfinite(m_origin.y)) m_origin.y = globalMin(1);
+	if (!isfinite(m_origin.z)) m_origin.z = globalMin(2);
+	if (!isfinite(m_size.x)) m_size.x = globalMax(0) - globalMin(0);
+	if (!isfinite(m_size.y)) m_size.y = globalMax(1) - globalMin(1);
+	if (!isfinite(m_size.z)) m_size.z = globalMax(2) - globalMin(2);
 
 	// add user-defined world margin, if any
 	if (m_extra_world_margin > 0.0) {
@@ -262,16 +264,16 @@ bool XProblem::initialize()
 	}
 
 	// compute water level automatically, if not set
-	if (!std::isfinite(m_waterLevel)) {
+	if (!isfinite(m_waterLevel)) {
 		// water level: highest fluid coordinate or (absolute) domain height
-		m_waterLevel = ( std::isfinite(highest_water_part) ? highest_water_part : m_size.z - m_origin.z );
+		m_waterLevel = ( isfinite(highest_water_part) ? highest_water_part : m_size.z - m_origin.z );
 		printf("Water level not set, autocomputed: %g\n", m_waterLevel);
 	}
 
 	// ditto for max fall; approximated as (waterLevel - lowest_domain_point)
 	// NOTE: if there is no fluid geometry and both water level and maxFall are autocomputed, then
 	// water level will be equal to highest domain point and max fall to domain height
-	if (!std::isfinite(m_maxFall)) {
+	if (!isfinite(m_maxFall)) {
 		m_maxFall = m_waterLevel - globalMin(2);
 		printf("Max fall height not set, autocomputed: %g\n", m_maxFall);
 	}
@@ -284,7 +286,7 @@ bool XProblem::initialize()
 	if (g == 0)
 		m_hydrostaticFilling = false;
 
-	if (!std::isfinite(m_maxParticleSpeed)) {
+	if (!isfinite(m_maxParticleSpeed)) {
 		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
 		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
 	}
@@ -343,9 +345,9 @@ bool XProblem::initialize()
 	// they are present, but this isn't trivial to do with the static framework
 	// options
 	if (m_numOpenBoundaries > 0 && !(simparams()->simflags & ENABLE_INLET_OUTLET))
-		throw std::invalid_argument("open boundaries present, but ENABLE_INLET_OUTLET not specified in framework flag");
+		throw invalid_argument("open boundaries present, but ENABLE_INLET_OUTLET not specified in framework flag");
 	if (m_numOpenBoundaries == 0 && (simparams()->simflags & ENABLE_INLET_OUTLET))
-		throw std::invalid_argument("no open boundaries present, but ENABLE_INLET_OUTLET specified in framework flag");
+		throw invalid_argument("no open boundaries present, but ENABLE_INLET_OUTLET specified in framework flag");
 
 	// TODO FIXME m_numMovingObjects does not exist yet
 	//if (m_numMovingObjects > 0)
@@ -441,7 +443,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
 	if (hdf5_fname) {
-		geomInfo->hdf5_filename = std::string(hdf5_fname);
+		geomInfo->hdf5_filename = string(hdf5_fname);
 		geomInfo->has_hdf5_file = true;
 		// initialize the reader
 		// TODO: error checking
@@ -449,7 +451,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 		geomInfo->hdf5_reader->setFilename(hdf5_fname);
 	} else
 	if (xyz_fname) {
-		geomInfo->xyz_filename = std::string(xyz_fname);
+		geomInfo->xyz_filename = string(xyz_fname);
 		geomInfo->has_xyz_file = true;
 		// initialize the reader
 		// TODO: error checking
@@ -457,7 +459,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 		geomInfo->xyz_reader->setFilename(xyz_fname);
 	}
 	if (stl_fname) {
-		geomInfo->stl_filename = std::string(stl_fname);
+		geomInfo->stl_filename = string(stl_fname);
 		geomInfo->has_stl_file = true;
 	}
 	m_numActiveGeometries++;
@@ -1164,18 +1166,18 @@ void XProblem::setPositioning(PositioningPolicy positioning)
 
 // Create 6 planes delimiting the box defined by the two points and update (overwrite) the world origin and size.
 // Write their GeometryIDs in planesIds, if given, so that it is possible to delete one or more of them afterwards.
-std::vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double3 corner2)
+vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double3 corner2)
 {
-	std::vector<GeometryID> planes;
+	vector<GeometryID> planes;
 
 	// compute min and max
 	double3 min, max;
-	min.x = std::min(corner1.x, corner2.x);
-	min.y = std::min(corner1.y, corner2.y);
-	min.z = std::min(corner1.z, corner2.z);
-	max.x = std::max(corner1.x, corner2.x);
-	max.y = std::max(corner1.y, corner2.y);
-	max.z = std::max(corner1.z, corner2.z);
+	min.x = fmin(corner1.x, corner2.x);
+	min.y = fmin(corner1.y, corner2.y);
+	min.z = fmin(corner1.z, corner2.z);
+	max.x = fmax(corner1.x, corner2.x);
+	max.y = fmax(corner1.y, corner2.y);
+	max.z = fmax(corner1.z, corner2.z);
 
 	// we need the periodicity to see which planes are needed. If simparams() is NULL,
 	// it means SETUP_FRAMEWORK was not invoked, in which case we assume no periodicity.
@@ -1289,7 +1291,7 @@ int XProblem::fill_parts()
 		if (m_geometries[g]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
 
 		double unfill_dx = dx; // or, dp also if (r0!=dp)?
-		if (!isnan(m_geometries[g]->unfill_radius))
+		if (!isnanf(m_geometries[g]->unfill_radius))
 			unfill_dx = m_geometries[g]->unfill_radius;
 		// erase operations with existent geometries
 		if (del_fluid) {
@@ -1388,9 +1390,9 @@ int XProblem::fill_parts()
 			if (m_geometries[g]->handle_dynamics) {
 
 				// use custom inertia only if entirely finite (no partial overwrite)
-				if (std::isfinite(m_geometries[g]->custom_inertia[0]) &&
-					std::isfinite(m_geometries[g]->custom_inertia[1]) &&
-					std::isfinite(m_geometries[g]->custom_inertia[2]) ) {
+				if (isfinite(m_geometries[g]->custom_inertia[0]) &&
+					isfinite(m_geometries[g]->custom_inertia[1]) &&
+					isfinite(m_geometries[g]->custom_inertia[2]) ) {
 
 					// setting the main diagonal only...
 					m_geometries[g]->ptr->m_ODEMass.I[0] =  m_geometries[g]->custom_inertia[0];
@@ -1506,7 +1508,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	double vertex_part_mass = NAN;
 
 	// we use a simple map for the HDF5_id->id map translation (connectivity fix)
-	std::map<uint, uint> hdf5idx_to_idx_map;
+	map<uint, uint> hdf5idx_to_idx_map;
 
 	// count how many particles will be loaded from file
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
@@ -1728,19 +1730,19 @@ void XProblem::copy_to_array(BufferList &buffers)
 					eulerVel[i] = make_float4(0);
 
 				// store particle mass for current type, if it was not store already
-				if (ptype == PT_FLUID && !std::isfinite(fluid_part_mass))
+				if (ptype == PT_FLUID && !isfinite(fluid_part_mass))
 					fluid_part_mass = pos[i].w;
 				else
-				if (ptype == PT_BOUNDARY && !std::isfinite(boundary_part_mass))
+				if (ptype == PT_BOUNDARY && !isfinite(boundary_part_mass))
 					boundary_part_mass = pos[i].w;
 				else
-				if (ptype == PT_VERTEX && !std::isfinite(vertex_part_mass))
+				if (ptype == PT_VERTEX && !isfinite(vertex_part_mass))
 					vertex_part_mass = pos[i].w;
 				// also set rigid_body_part_mass, which is orthogonal the the previous values
 				// TODO: with SA bounds, this value has little meaning or should be split
 				if ((m_geometries[g]->type == GT_FLOATING_BODY ||
 					 m_geometries[g]->type == GT_MOVING_BODY) &&
-					 !std::isfinite(rigid_body_part_mass))
+					 !isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
 
 				// load boundary-specific data (SA bounds only)
@@ -1864,17 +1866,17 @@ void XProblem::copy_to_array(BufferList &buffers)
 					eulerVel[i] = make_float4(0);
 
 				// store particle mass for current type, if it was not store already
-				if (ptype == PT_FLUID && !std::isfinite(fluid_part_mass))
+				if (ptype == PT_FLUID && !isfinite(fluid_part_mass))
 					fluid_part_mass = pos[i].w;
 				else
-				if (ptype == PT_BOUNDARY && !std::isfinite(boundary_part_mass))
+				if (ptype == PT_BOUNDARY && !isfinite(boundary_part_mass))
 					boundary_part_mass = pos[i].w;
 				// no else supported yet
 
 				// also set rigid_body_part_mass, which is orthogonal the the previous values
 				if ((m_geometries[g]->type == GT_FLOATING_BODY ||
 					 m_geometries[g]->type == GT_MOVING_BODY) &&
-					 !std::isfinite(rigid_body_part_mass))
+					 !isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
 
 			} // for every particle in the XYZ buffer
@@ -1904,7 +1906,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
 					eulerVel[i] = make_float4(0);
 				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
-				if (m_geometries[g]->type == GT_FLOATING_BODY && !std::isfinite(rigid_body_part_mass))
+				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
 				// set appropriate particle flags
 				switch (m_geometries[g]->type) {
@@ -1946,7 +1948,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			body_particle_counters[object_id] = current_geometry_num_boundary_parts;
 
 			// recap on stdout
-			std::cout << "Rigid body " << forces_bodies_incremental << ": " << current_geometry_particles <<
+			cout << "Rigid body " << forces_bodies_incremental << ": " << current_geometry_particles <<
 				" parts, mass " << rigid_body_part_mass << ", object mass " << m_geometries[g]->ptr->GetMass() << "\n";
 
 			// reset value to spot possible anomalies in next bodies
@@ -1988,7 +1990,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// TODO: instead of iterating on all the particles, we could create a list of boundary particles while
 	// loading them from file, and here iterate only on that vector
 	if (simparams()->boundarytype == SA_BOUNDARY && hdf5_loaded_parts > 0) {
-		std::cout << "Fixing connectivity..." << std::flush;
+		cout << "Fixing connectivity..." << flush;
 		for (uint i=0; i< tot_parts; i++)
 			if (BOUNDARY(info[i])) {
 				if (hdf5idx_to_idx_map.count(vertices[i].x) == 0 ||
@@ -2003,20 +2005,20 @@ void XProblem::copy_to_array(BufferList &buffers)
 					vertices[i].z = id(info[ hdf5idx_to_idx_map.find(vertices[i].z)->second ]);
 				}
 			}
-		std::cout << "DONE" << "\n";
+		cout << "DONE" << "\n";
 		hdf5idx_to_idx_map.clear();
 	}
 
 	// FIXME: move this somewhere else
 	printf("Open boundaries: %zu\n", m_numOpenBoundaries);
 
-	std::cout << "Fluid: " << fluid_parts << " parts, mass " << fluid_part_mass << "\n";
-	std::cout << "Boundary: " << boundary_parts << " parts, mass " << boundary_part_mass << "\n";
+	cout << "Fluid: " << fluid_parts << " parts, mass " << fluid_part_mass << "\n";
+	cout << "Boundary: " << boundary_parts << " parts, mass " << boundary_part_mass << "\n";
 	if (simparams()->boundarytype == SA_BOUNDARY)
-		std::cout << "Vertices: " << vertex_parts << " parts, mass " << vertex_part_mass << "\n";
-	std::cout << "Testpoint: " << testpoint_parts << " parts\n";
-	std::cout << "Tot: " << tot_parts << " particles\n";
-	std::flush(std::cout);
+		cout << "Vertices: " << vertex_parts << " parts, mass " << vertex_part_mass << "\n";
+	cout << "Testpoint: " << testpoint_parts << " parts\n";
+	cout << "Tot: " << tot_parts << " particles\n";
+	flush(cout);
 
 	// call user-set initialization routine, if any
 	initializeParticles(buffers, tot_parts);

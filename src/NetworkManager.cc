@@ -32,7 +32,7 @@ NetworkManager::NetworkManager() {
 	// TODO Auto-generated constructor stub
 	processor_name = new char[MPI_MAX_PROCESSOR_NAME];
 	processor_name[0] = '\0';
-	// std::cout << MPI_MAX_PROCESSOR_NAME; // 256
+	// cout << MPI_MAX_PROCESSOR_NAME; // 256
 
 	world_size = 0; // 1 process = single node. 0 is reserved for "uninitialized"
 	process_rank = -1; // -1 until initialization is done

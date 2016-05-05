@@ -207,19 +207,19 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+	cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_bodies.size(); k++) {
 		PointVect & rbparts = m_bodies[k]->object->GetParts();
-		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+		cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = 0; i < rbparts.size(); i++) {
 			uint ij = i + j;
 			float ht = H - rbparts[i](2);
@@ -249,26 +249,26 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 			object_particle_counter += rbparts.size();
 		}
 		j += rbparts.size();
-		std::cout << ", part mass: " << pos[j-1].w << "\n";
-		std::cout << ", part type: " << type(info[j-1])<< "\n";
+		cout << ", part mass: " << pos[j-1].w << "\n";
+		cout << ", part type: " << type(info[j-1])<< "\n";
 	}
 
-	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
+	cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 1, i);
 		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
-	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
+	cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "Fluid parts: " << parts.size() << "\n";
+	cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i] = make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	cout << "Fluid part mass:" << pos[j-1].w << "\n";
 }
 

@@ -445,9 +445,9 @@ calculateIOboundaryCondition(
 			flux = unInt + (rExt - rInt);
 			float lambda = flux + cExt;
 			if (lambda > lambdaInt) { // shock wave
-				flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
+				flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmaxf(unInt,1e-5f*d_sscoeff[a])) + unInt;
 				// check that unInt was not too small
-				if (fabs(flux) > d_sscoeff[a] * 0.1f)
+				if (fabsf(flux) > d_sscoeff[a] * 0.1f)
 					flux = unInt;
 				lambda = flux + cExt;
 				if (lambda <= lambdaInt) // contact discontinuity
@@ -455,9 +455,9 @@ calculateIOboundaryCondition(
 			}
 		}
 		else { // shock wave
-			flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
+			flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmaxf(unInt,1e-5f*d_sscoeff[a])) + unInt;
 			// check that unInt was not too small
-			if (fabs(flux) > d_sscoeff[a] * 0.1f)
+			if (fabsf(flux) > d_sscoeff[a] * 0.1f)
 				flux = unInt;
 			float lambda = flux + cExt;
 			if (lambda <= lambdaInt) { // expansion wave
@@ -472,7 +472,7 @@ calculateIOboundaryCondition(
 		// if the imposed pressure on the boundary is negative make sure that the flux is negative
 		// as well (outflow)
 		if (rhoExt < d_rho0[a])
-			flux = fmin(flux, 0.0f);
+			flux = fminf(flux, 0.0f);
 		// Outflow
 		if (flux < 0.0f)
 			// impose eulerVel according to dv/dn = 0
@@ -1036,15 +1036,15 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				// kernel value times volume
 				const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
 				// normal distance based on grad Gamma which approximates the normal of the domain
-				const float normDist = fmax(fabs(dot3(normal,relPos)), deltap);
-				sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
+				const float normDist = fmaxf(fabsf(dot3(normal,relPos)), deltap);
+				sumpWall += fmaxf(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 				// for all boundaries we have dk/dn = 0
 				sumtke += w*neib_k;
 				if (IO_BOUNDARY(info)) {
 					sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 					// for open boundaries compute pressure interior state
-					//sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-					sump += w*fmax(0.0f, neib_pres);
+					//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+					sump += w*fmaxf(0.0f, neib_pres);
 					// and de/dn = 0
 					sumeps += w*neib_eps;
 				}
@@ -1063,7 +1063,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		if (calcGam) {
 			gGam /= 3.0f;
 			oldGGam[index] = gGam;
-			gGam.w = fmax(gGam.w, 1e-5f);
+			gGam.w = fmaxf(gGam.w, 1e-5f);
 		}
 
 		if (IO_BOUNDARY(info)) {
@@ -1103,7 +1103,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 		// non-open boundaries
 		else {
-			alpha = fmax(alpha, 0.1f*gGam.w); // avoid division by 0
+			alpha = fmaxf(alpha, 0.1f*gGam.w); // avoid division by 0
 			// density condition
 			oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 			// k-epsilon boundary conditions
@@ -1122,7 +1122,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			// epsilon condition
 			if (oldEps)
 				// for solid boundaries we have de/dn = 4 0.09^0.075 k^1.5/(0.41 r)
-				oldEps[index] = fmax(sumeps/alpha,1e-5f); // eps should never be 0
+				oldEps[index] = fmaxf(sumeps/alpha,1e-5f); // eps should never be 0
 		}
 
 	}
@@ -1194,9 +1194,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			// first get the position of the vertices local coordinate system for relative positions to vertices
 			uint j = 0;
 			// Get index j for which n_s is minimal
-			if (fabs(normal.x) > fabs(normal.y))
+			if (fabsf(normal.x) > fabsf(normal.y))
 				j = 1;
-			if ((1-j)*fabs(normal.x) + j*fabs(normal.y) > fabs(normal.z))
+			if ((1-j)*fabsf(normal.x) + j*fabsf(normal.y) > fabsf(normal.z))
 				j = 2;
 
 			// compute the first coordinate which is a 2-D rotated version of the normal
@@ -1378,14 +1378,14 @@ saVertexBoundaryConditions(
 					// kernel value times volume
 					const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
 					// normal distance based on grad Gamma which approximates the normal of the domain
-					sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
+					sumpWall += fmaxf(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 					// for all boundaries we have dk/dn = 0
 					if (IO_BOUNDARY(info)) {
 						// for open boundaries compute dv/dn = 0
 						sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 						// for open boundaries compute pressure interior state
-						//sump += w*fmax(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-						sump += w*fmax(0.0f, neib_pres);
+						//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+						sump += w*fmaxf(0.0f, neib_pres);
 						// and de/dn = 0
 					}
 					alpha += w;
@@ -1434,9 +1434,9 @@ saVertexBoundaryConditions(
 						// first get the position of the vertices local coordinate system for relative positions to vertices
 						uint j = 0;
 						// Get index j for which n_s is minimal
-						if (fabs(boundElement.x) > fabs(boundElement.y))
+						if (fabsf(boundElement.x) > fabsf(boundElement.y))
 							j = 1;
-						if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
+						if ((1-j)*fabsf(boundElement.x) + j*fabsf(boundElement.y) > fabsf(boundElement.z))
 							j = 2;
 
 						// compute the first coordinate which is a 2-D rotated version of the normal
@@ -1508,15 +1508,15 @@ saVertexBoundaryConditions(
 
 	// update boundary conditions on array
 	if (!initStep)
-		alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
+		alpha = fmaxf(alpha, 0.1f*gam); // avoid division by 0
 	else
-		alpha = fmax(alpha, 1e-5f);
+		alpha = fmaxf(alpha, 1e-5f);
 	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 	if (!(IO_BOUNDARY(info) && VEL_IO(info) && !CORNER(info))) {
 		if (oldTKE)
-			oldTKE[index] = fmax(sumtke/numseg, 1e-6f);
+			oldTKE[index] = fmaxf(sumtke/numseg, 1e-6f);
 		if (oldEps)
-			oldEps[index] = fmax(sumeps/numseg, 1e-6f);
+			oldEps[index] = fmaxf(sumeps/numseg, 1e-6f);
 	}
 	if (!initStep && oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
@@ -1565,13 +1565,13 @@ saVertexBoundaryConditions(
 				pos.w = 0.0f;
 
 			// clip to +/- 2 refMass all the time
-			pos.w = fmax(-2.0f*refMass, fmin(2.0f*refMass, pos.w));
+			pos.w = fmaxf(-2.0f*refMass, fminf(2.0f*refMass, pos.w));
 
 			// clip to +/- originalVertexMass if we have outflow
 			// or if the normal eulerian velocity is less or equal to 0
 			if (sumMdot < 0.0f || dot(normal,as_float3(eulerVel)) < 1e-5f*d_sscoeff[fluid_num(info)]) {
 				const float4 boundElement = tex1Dfetch(boundTex, index);
-				pos.w = fmax(-refMass*boundElement.w, fmin(refMass*boundElement.w, pos.w));
+				pos.w = fmaxf(-refMass*boundElement.w, fminf(refMass*boundElement.w, pos.w));
 			}
 
 		}
@@ -1740,9 +1740,9 @@ initGamma(
 			// local coordinate system for relative positions to vertices
 			uint j = 0;
 			// Get index j for which n_s is minimal
-			if (fabs(ns.x) > fabs(ns.y))
+			if (fabsf(ns.x) > fabsf(ns.y))
 				j = 1;
-			if ((1-j)*fabs(ns.x) + j*fabs(ns.y) > fabs(ns.z))
+			if ((1-j)*fabsf(ns.x) + j*fabsf(ns.y) > fabsf(ns.z))
 				j = 2;
 
 			// compute the first coordinate which is a 2-D rotated version of the normal
@@ -1771,8 +1771,8 @@ initGamma(
 
 			// general formula (also used if particle is on 
 			// vertex / edge to compute remaining edges)
-			const float x = fmin(dot3(ns, relPos)/slength, 0.25f);
-			const float sx = fmax(x*8.0f - 1.0f,0.0f);
+			const float x = fminf(dot3(ns, relPos)/slength, 0.25f);
+			const float sx = fmaxf(x*8.0f - 1.0f,0.0f);
 			// smootherstep function
 			const float smooth = VERTEX(info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
 			gam -= (smooth > epsilon ? gamAS : 0.0f)*smooth;
@@ -2258,9 +2258,9 @@ MlsDevice(	const float4*	posArray,
 
 	// solution
 	float4 B;
-	if (fabs(D) < FLT_EPSILON) {
+	if (fabsf(D) < FLT_EPSILON) {
 		symtensor4 mls_eps = mls;
-		const float eps = fabs(D) + FLT_EPSILON;
+		const float eps = fabsf(D) + FLT_EPSILON;
 		mls_eps.xx += eps;
 		mls_eps.yy += eps;
 		mls_eps.zz += eps;
@@ -2344,7 +2344,7 @@ MlsDevice(	const float4*	posArray,
 
 //#define DEBUG_PARTICLE (index == numParticles - 1)
 //#define DEBUG_PARTICLE (id(info) == numParticles - 1)
-//#define DEBUG_PARTICLE (fabs(err) > 64*FLT_EPSILON)
+//#define DEBUG_PARTICLE (fabsf(err) > 64*FLT_EPSILON)
 
 #ifdef DEBUG_PARTICLE
 	{

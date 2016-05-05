@@ -227,25 +227,25 @@ void Spheric2LJ::copy_to_array(BufferList &buffers)
 	}
 	uint j = boundary_parts.size();
 	if (boundary_parts.size() > 0)
-		std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+		cout << "Boundary part mass:" << pos[j-1].w << "\n";
 	else
-		std::cout << "No boundary parts" << std::endl;
+		cout << "No boundary parts" << endl;
 
 	//Testpoints
 	if (test_points.size()) {
-		std::cout << "\nTest points: " << test_points.size() << "\n";
+		cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
-		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+		cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
 	else
-		std::cout << "No test points" << std::endl;
+		cout << "No test points" << endl;
 
-	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
+	cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY,1,i);
@@ -253,11 +253,11 @@ void Spheric2LJ::copy_to_array(BufferList &buffers)
 	}
 	j += obstacle_parts.size();
 	if (obstacle_parts.size() > 0)
-		std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
+		cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 	else
-		std::cout << "No obstacle parts" << std::endl;
+		cout << "No obstacle parts" << endl;
 
-	std::cout << "Fluid parts: " << parts.size() << "\n";
+	cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_FLUID,0,i);
@@ -265,9 +265,9 @@ void Spheric2LJ::copy_to_array(BufferList &buffers)
 	}
 	j += parts.size();
 	if (parts.size() > 0)
-		std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+		cout << "Fluid part mass:" << pos[j-1].w << "\n";
 	else
-		std::cout << "No fluid parts" << std::endl;
+		cout << "No fluid parts" << endl;
 
-	std::flush(std::cout);
+	flush(cout);
 }

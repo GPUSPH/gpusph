@@ -411,7 +411,7 @@ Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx,
 {
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
-		throw std::runtime_error("Object::BodyCreate Trying to create a body in an invalid physical system !\n");
+		throw runtime_error("Object::BodyCreate Trying to create a body in an invalid physical system !\n");
 
 	// Creating a new Chrono object
 	m_body = new chrono::ChBody();

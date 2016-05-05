@@ -92,7 +92,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 	// Check if the three vectors are orthogonals in pairs
 	if (abs(vx*vy) > 1e-6*vx.norm()*vy.norm() || abs(vx*vz) > 1e-6*vx.norm()*vz.norm()
 		|| abs(vy*vz) > 1e-6*vy.norm()*vz.norm()) {
-		throw std::runtime_error("Trying to construct a cube with non perpendicular vectors\n");
+		throw runtime_error("Trying to construct a cube with non perpendicular vectors\n");
 		exit(1);
 	}
 
@@ -247,11 +247,11 @@ Cube::SetInertia(const double dx)
  */
 void
 Cube::FillBorder(PointVect& bpoints, PointVect& belems, PointVect& vpoints,
-		std::vector<uint4>& vindexes, const double dx, const bool fill_top_face)
+		vector<uint4>& vindexes, const double dx, const bool fill_top_face)
 {
 	Point   rorigin;
 	Vector  rvx, rvy;
-	std::vector<uint> edgeparts[6][4];
+	vector<uint> edgeparts[6][4];
 	m_origin(3) = m_center(3);
 	int last_face = 6;
 
@@ -685,7 +685,7 @@ void Cube::shift(const double3 &offset)
 }
 
 
-std::ostream& operator<<(std::ostream& out, const Cube& cube) // output
+ostream& operator<<(ostream& out, const Cube& cube) // output
 {
     out << "Cube size(" << cube.m_lx << ", " << cube.m_ly << ", " <<cube. m_lz
     		<< ") particles: " << cube.m_parts.size() << "\n";

@@ -177,7 +177,7 @@ void OpenChannel::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+	cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY,0,i);
@@ -185,13 +185,13 @@ void OpenChannel::copy_to_array(BufferList &buffers)
 	}
 	int j = boundary_parts.size();
 
-	std::cout << "Fluid parts: " << parts.size() << "\n";
+	cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_FLUID,0,i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
-	std::flush(std::cout);
+	cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	flush(cout);
 }

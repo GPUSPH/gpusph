@@ -8,7 +8,7 @@
 #include <hdf5.h>
 #else
 #include <stdexcept>
-#define NO_HDF5_ERR throw std::runtime_error("HDF5 support not compiled in")
+#define NO_HDF5_ERR throw runtime_error("HDF5 support not compiled in")
 #endif
 
 #include <cstdlib>
@@ -27,6 +27,8 @@
 
 // Dataset dimensions
 #define RANK 1
+
+using namespace std;
 
 int
 HDF5SphReader::getNParts()
@@ -64,7 +66,7 @@ HDF5SphReader::read()
 	// read npart if it was yet uninitialized
 	if (npart == UINT_MAX)
 		getNParts();
-	std::cout << "Reading particle data from the input: " << filename << std::endl;
+	cout << "Reading particle data from the input: " << filename << endl;
 	if(buf == NULL)
 		buf = new ReadParticles[npart];
 	else{
@@ -106,13 +108,13 @@ HDF5SphReader::read()
 	file_space_id = H5Dget_space(dataset_id);
 	status = H5Sselect_hyperslab(file_space_id, H5S_SELECT_SET, offset, NULL, count, NULL);
 	if (status < 0) {
-		throw std::runtime_error("reading HDF5 hyperslab");
+		throw runtime_error("reading HDF5 hyperslab");
 	}
 
 	// read data independently
 	status = H5Dread(dataset_id, mem_type_id, mem_space_id, file_space_id, H5P_DEFAULT, buf);
 	if (status < 0) {
-		throw std::runtime_error("reading HDF5 data");
+		throw runtime_error("reading HDF5 data");
 	}
 
 	H5Dclose(dataset_id);

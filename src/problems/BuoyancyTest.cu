@@ -148,8 +148,8 @@ int BuoyancyTest::fill_parts()
 	floating->BodyPrintInformation(collide);
 
 	PointVect & rbparts = get_mbdata(uint(0))->object->GetParts();
-	std::cout << "Rigid body " << 1 << ": " << rbparts.size() << " particles \n";
-	std::cout << "totl rb parts:" << get_bodies_numparts() << "\n";
+	cout << "Rigid body " << 1 << ": " << rbparts.size() << " particles \n";
+	cout << "totl rb parts:" << get_bodies_numparts() << "\n";
 	return parts.size() + boundary_parts.size() + get_bodies_numparts();
 }
 
@@ -162,7 +162,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << std::endl;
+	cout << "Boundary parts: " << boundary_parts.size() << endl;
 	for (uint i = 0; i < boundary_parts.size(); ++i) {
 		float ht = H - boundary_parts[i](2);
 		if (ht < 0)
@@ -173,12 +173,12 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	uint j = boundary_parts.size();
-	std::cout << "Boundary part mass: " << pos[j-1].w << std::endl;
+	cout << "Boundary part mass: " << pos[j-1].w << endl;
 
 	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_bodies.size(); k++) {
 		PointVect & rbparts = m_bodies[k]->object->GetParts();
-		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+		cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = 0; i < rbparts.size(); i++) {
 			uint ij = i + j;
 			float ht = H - rbparts[i](2);
@@ -209,10 +209,10 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			object_particle_counter += rbparts.size();
 		}
 		j += rbparts.size();
-		std::cout << ", part mass: " << pos[j-1].w << "\n";
+		cout << ", part mass: " << pos[j-1].w << "\n";
 	}
 
-	std::cout << "Fluid parts: " << parts.size() << std::endl;
+	cout << "Fluid parts: " << parts.size() << endl;
 	for (uint i = 0; i < parts.size(); ++i) {
 		uint ij = i+j;
 		float ht = H - parts[i](2);
@@ -225,7 +225,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 	}
 	j += parts.size();
 
-	std::cout << "Fluid part mass: " << pos[j-1].w << std::endl;
+	cout << "Fluid part mass: " << pos[j-1].w << endl;
 
-	std::flush(std::cout);
+	flush(cout);
 }

@@ -97,7 +97,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 			m_objectfile << endl;
 			m_objectfile.precision(9);
 			m_objectfile << set_vector_fmt("\t");
-			m_objectfile << std::scientific;
+			m_objectfile << scientific;
 		}
 	}
 
@@ -129,7 +129,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 			m_objectforcesfile << endl;
 			m_objectforcesfile.precision(9);
 			m_objectforcesfile << set_vector_fmt("\t");
-			m_objectforcesfile << std::scientific;
+			m_objectforcesfile << scientific;
 		}
 	}
 

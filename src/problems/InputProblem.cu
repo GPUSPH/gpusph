@@ -1,4 +1,4 @@
-#include <math.h>
+#include <cmath>
 #include <string>
 #include <iostream>
 
@@ -466,13 +466,13 @@ void InputProblem::copy_to_array(BufferList &buffers)
 		}
 	}
 
-	std::cout << "Fluid parts: " << n_parts << "\n";
+	cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - h5File.buf[i].Coords_2, 0);
 		float rho = physparams()->rho0[0];
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+			const float lvel = log(fmaxf(1.0f-fabsf(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 			vel[i] = make_float4(lvel, 0, 0, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 			const float lvel = 1.0f-h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
@@ -513,16 +513,16 @@ void InputProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
 	uint j = n_parts;
-	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
+	cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
 	if(n_vparts) {
-		std::cout << "Vertex parts: " << n_vparts << "\n";
+		cout << "Vertex parts: " << n_vparts << "\n";
 		const float referenceVolume = m_deltap*m_deltap*m_deltap;
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(H - h5File.buf[i].Coords_2, 0);
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
 	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+				const float lvel = log(fmaxf(1.0f-fabsf(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 				vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
 				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
@@ -583,15 +583,15 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			boundelm[i].w = h5File.buf[i].Volume/referenceVolume;
 		}
 		j += n_vparts;
-		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
+		cout << "Vertex part mass: " << pos[j-1].w << "\n";
 	}
 
 	if(n_bparts) {
-		std::cout << "Boundary parts: " << n_bparts << "\n";
+		cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
 	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+				const float lvel = log(fmaxf(1.0f-fabsf(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 				vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
 				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
@@ -652,24 +652,24 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			boundelm[i].w = h5File.buf[i].Surface;
 		}
 		j += n_bparts;
-		std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
+		cout << "Boundary part mass: " << pos[j-1].w << "\n";
 	}
 	// Make sure that fluid + vertex + boundaries are done in that order
 	// before adding any other items like testpoints, etc.
 
 	//Testpoints
 	if (test_points.size()) {
-		std::cout << "\nTest points: " << test_points.size() << "\n";
+		cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = j; i < j+test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, 0.0);
 			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
 			calc_localpos_and_hash(test_points[i-j], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
-		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+		cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
 
-	std::flush(std::cout);
+	flush(cout);
 
 	h5File.empty();
 }
@@ -684,7 +684,7 @@ InputProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, fl
 		const float gridPosZ = float((cellHash % (m_gridsize.COORD2*m_gridsize.COORD1)) / m_gridsize.COORD1);
 		const float z = pos[i].z + m_origin.z + (gridPosZ + 0.5f)*m_cellsize.z;
 		k[i] = k0;
-		e[i] = 1.0f/0.41f/fmaxf(1.0f-fabs(z),0.5f*(float)m_deltap);
+		e[i] = 1.0f/0.41f/fmaxf(1.0f-fabsf(z),0.5f*(float)m_deltap);
 	}
 }
 
@@ -747,7 +747,7 @@ InputProblem_imposeBoundaryCondition(
 			const float y8 = y4*y4;
 			const float z8 = z4*z4;
 			eulerVel.x = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
-			eulerVel.x = fmax(eulerVel.x, 0.0f);
+			eulerVel.x = fmaxf(eulerVel.x, 0.0f);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
 			eulerVel.x = 1.0f;
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
@@ -759,7 +759,7 @@ InputProblem_imposeBoundaryCondition(
 			}
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			// the 0.025 is deltap*0.5 = 0.05*0.5
-			eulerVel.x = log(fmax(1.0f-fabs(absPos.z), 0.025f)/0.0015625f)/0.41f+5.2f;
+			eulerVel.x = log(fmaxf(1.0f-fabsf(absPos.z), 0.025f)/0.0015625f)/0.41f+5.2f;
 #elif SPECIFIC_PROBLEM == PeriodicWave
 			// define some constants
 			const float L = 2.5f;
@@ -819,9 +819,9 @@ InputProblem_imposeBoundaryCondition(
     SPECIFIC_PROBLEM == LaPalisseSmallerTest
 			if (object(info)==0)
 				//waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
-				//waterdepth = -0.1 + 0.355*fmin(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
-				waterdepth = -0.1 + 0.355*fmin(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
-			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+				//waterdepth = -0.1 + 0.355*fminf(t,20.0f)/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				waterdepth = -0.1 + 0.355*fminf(t,5.0f)/5.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
+			const float localdepth = fmaxf(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
@@ -833,12 +833,12 @@ InputProblem_imposeBoundaryCondition(
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
 			if (object(info)==0)
 				waterdepth = 0.0f;
-			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			const float localdepth = fmaxf(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));
 #elif SPECIFIC_PROBLEM == SolitaryWave
 			waterdepth = 0.6 - 0.5*0.0195;
-			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			const float localdepth = fmaxf(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));
 #else
@@ -870,7 +870,7 @@ InputProblem_imposeBoundaryCondition(
 			// constant is C_\mu^(3/4)/0.07*sqrt(3/2)
 			// formula is epsilon = C_\mu^(3/4) k^(3/2)/(0.07 L)
 			eps = 2.874944542f*tke*u*Ti/L;
-			eps = 1.0f/0.41f/fmax(1.0f-fabs(absPos.z),0.025f);
+			eps = 1.0f/0.41f/fmaxf(1.0f-fabsf(absPos.z),0.025f);
 #endif
 		}
 	}

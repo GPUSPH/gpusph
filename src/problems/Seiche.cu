@@ -46,9 +46,9 @@ Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.015f);
 	H = .5f;
 	l = sqrt(2)*H; w = l/2; h = 1.5*H;
-	std::cout << "length= " << l<<"\n";
-	std::cout << "width= " << w <<"\n";
-	std::cout << "h = " << h <<"\n";
+	cout << "length= " << l<<"\n";
+	cout << "width= " << w <<"\n";
+	cout << "h = " << h <<"\n";
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
@@ -156,16 +156,16 @@ void Seiche::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+	cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
+	cout << "Boundary part mass: " << pos[j-1].w << "\n";
 
-	std::cout << "Fluid parts: " << parts.size() << "\n";
+	cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 	//	vel[i] = make_float4(0, 0, 0, rho);
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
@@ -174,6 +174,6 @@ void Seiche::copy_to_array(BufferList &buffers)
 	//	float rho = density(H - pos[i].z,0);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
+	cout << "Fluid part mass: " << pos[j-1].w << "\n";
 }
 

@@ -481,7 +481,7 @@ public:
 		case 2:
 			return extend< typename Switch::C >();
 		}
-		throw std::runtime_error("invalid selector value");
+		throw runtime_error("invalid selector value");
 	}
 
 	/// Chained selectors (for multiple overrides)
@@ -505,7 +505,7 @@ public:
 		case 2:
 			return extend< typename Switch::C >().select_options(selector2, Other());
 		}
-		throw std::runtime_error("invalid selector value");
+		throw runtime_error("invalid selector value");
 	}
 
 };

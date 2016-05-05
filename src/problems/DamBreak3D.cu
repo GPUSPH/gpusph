@@ -225,7 +225,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 	int j = 0;
 
 	if(boundary_parts.size()){
-		std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+		cout << "Boundary parts: " << boundary_parts.size() << "\n";
 		for (uint i = 0; i < boundary_parts.size(); i++) {
 #if HYDROSTATIC_INIT
 			double water_column = m_fluidOrigin.z + H - boundary_parts[i](2);
@@ -240,22 +240,22 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 			calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 		}
 		j = boundary_parts.size();
-		std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+		cout << "Boundary part mass:" << pos[j-1].w << "\n";
 	}
 
 	//Testpoints
 	if (test_points.size()) {
-		std::cout << "\nTest points: " << test_points.size() << "\n";
+		cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
-		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+		cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
 
-	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
+	cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 #if HYDROSTATIC_INIT
 		double water_column = m_fluidOrigin.z + H - obstacle_parts[i-j](2);
@@ -270,9 +270,9 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
-	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
+	cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "Fluid parts: " << parts.size() << "\n";
+	cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 #if HYDROSTATIC_INIT
 		double water_column = m_fluidOrigin.z + H - parts[i-j](2);
@@ -287,8 +287,8 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
-	std::flush(std::cout);
+	cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	flush(cout);
 }
 
 void DamBreak3D::fillDeviceMap()

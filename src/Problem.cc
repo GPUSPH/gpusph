@@ -45,6 +45,8 @@
 // COORD1, COORD2, COORD3
 #include "linearization.h"
 
+using namespace std;
+
 Problem::Problem(GlobalData *_gdata) :
 	m_problem_dir(_gdata->clOptions->dir),
 	m_dem(NULL),
@@ -106,7 +108,7 @@ Problem::InitChrono() {
 	m_bodies_physical_system->SetIterLCPmaxItersSpeed(100);
 	m_bodies_physical_system->SetLcpSolverType(chrono::ChSystem::LCP_ITERATIVE_SOR);
 #else
-	throw std::runtime_error ("Problem::InitChrono Trying to use Chrono without USE_CHRONO defined !\n");
+	throw runtime_error ("Problem::InitChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
 }
 
@@ -135,7 +137,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	// force computing must have consecutive ids.
 	const uint index = m_bodies.size();
 	if (index >= MAX_BODIES)
-		throw std::runtime_error ("Problem::add_moving_body Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
+		throw runtime_error ("Problem::add_moving_body Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
 	MovingBodyData *mbdata = new MovingBodyData;
 	mbdata->index = index;
 	mbdata->type = mbtype;
@@ -159,7 +161,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			simparams()->numODEbodies++;
 			simparams()->numforcesbodies++;
 #else
-			throw std::runtime_error ("Problem::add_moving_body Cannot add a floating body without CHRONO\n");
+			throw runtime_error ("Problem::add_moving_body Cannot add a floating body without CHRONO\n");
 #endif
 			break;
 		}
@@ -184,11 +186,11 @@ MovingBodyData *
 Problem::get_mbdata(const uint index)
 {
 	if (index >= m_bodies.size()) {
-		std::stringstream ss;
+		stringstream ss;
 		ss << "get_body: body number " << index << " >= numbodies";
-		throw std::runtime_error(ss.str());
+		throw runtime_error(ss.str());
 	}
-	for (std::vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		if ((*it)->index == index)
 			return *it;
 	}
@@ -199,11 +201,11 @@ Problem::get_mbdata(const uint index)
 MovingBodyData *
 Problem::get_mbdata(const Object* object)
 {
-	for (std::vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		if ((*it)->object == object)
 			return *it;
 	}
-	throw std::runtime_error("get_body: invalid object\n");
+	throw runtime_error("get_body: invalid object\n");
 	return NULL;
 }
 
@@ -211,7 +213,7 @@ size_t
 Problem::get_bodies_numparts(void)
 {
 	size_t total_parts = 0;
-	for (std::vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		total_parts += (*it)->object->GetNumParts();
 	}
 
@@ -223,7 +225,7 @@ size_t
 Problem::get_forces_bodies_numparts(void)
 {
 	size_t total_parts = 0;
-	for (std::vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		if ((*it)->type == MB_ODE || (*it)->type == MB_FORCES_MOVING)
 			total_parts += (*it)->object->GetNumParts();
 	}
@@ -382,7 +384,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 
 			if (false) {
-				std::cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+				cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
 				//mbdata->object->ODEPrintInformation(false);
 				printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
 				printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
@@ -453,7 +455,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 		if (false) {
 			if (i == 1 && trans[i].x != 0.0) {
-				std::cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+				cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
 			mbdata->object->BodyPrintInformation(false);
 			printf("   lvel: %e\t%e\t%e\n", linearvel[i].x, linearvel[i].y, linearvel[i].z);
 			printf("   avel: %e\t%e\t%e\n", angularvel[i].x, angularvel[i].y, angularvel[i].z);
@@ -661,7 +663,7 @@ Problem::make_plane(Point const& pt, Vector const& normal)
 	return plane;
 }
 
-std::string const&
+string const&
 Problem::create_problem_dir(void)
 {
 	// if no data save directory was specified, default to a name
@@ -675,7 +677,7 @@ Problem::create_problem_dir(void)
 		time_str[17] = '\0';
 		// if "./tests/" doesn't exist yet...
 		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
-		m_problem_dir = "./tests/" + m_name + std::string(time_str);
+		m_problem_dir = "./tests/" + m_name + string(time_str);
 	}
 
 	// TODO it should be possible to specify a directory with %-like
@@ -710,7 +712,7 @@ Problem::add_writer(WriterType wt, int freq)
 void
 Problem::add_writer(WriterType wt, double freq)
 {
-	m_writers.push_back(std::make_pair(wt, freq));
+	m_writers.push_back(make_pair(wt, freq));
 }
 
 
@@ -783,7 +785,7 @@ void Problem::fillDeviceMapByCellHash()
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
 		// guaranteed to fit in a devcount_t due to how it's computed
-		gdata->s_hDeviceMap[i] = devcount_t(std::min( int(i/cells_per_device), gdata->totDevices-1));
+		gdata->s_hDeviceMap[i] = devcount_t(min( int(i/cells_per_device), gdata->totDevices-1));
 }
 
 // partition by splitting along the specified axis
@@ -816,7 +818,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 	// Check that we have enough cells along the split axis. This check should
 	// be performed in all split algorithms
 	if (cells_per_split_axis / (double) gdata->totDevices < 3.0)
-		throw std::runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
+		throw runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
 
 	uint cells_per_device_per_split_axis = (uint)round(cells_per_split_axis / (double)gdata->totDevices);
 
@@ -836,7 +838,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 				// everything is just a preparation for the following line
 				devcount_t dstDevice = devcount_t(axis_coordinate / cells_per_device_per_split_axis);
 				// handle the case when cells_per_split_axis multiplies cells_per_split_axis
-				dstDevice = (devcount_t)std::min(int(dstDevice), gdata->totDevices - 1);
+				dstDevice = (devcount_t)min(int(dstDevice), gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -899,7 +901,7 @@ void Problem::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
 	// Check that we have enough cells along the split axis. This check should
 	// be performed in all split algorithms
 	if (cells_per_axis1 / (double) gdata->totDevices < 3.0)
-		throw std::runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
+		throw runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
 
 	// Compute ideal split values
 	const uint particles_per_device = gdata->totParticles / gdata->totDevices;
@@ -955,7 +957,7 @@ void Problem::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
 void Problem::fillDeviceMapByEquation()
 {
 	// 1st equation: diagonal plane. (x+y+z)=coeff
-	//uint longest_grid_size = std::max ( std::max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
+	//uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
 	uint coeff = (gdata->gridSize.x + gdata->gridSize.y + gdata->gridSize.z) / gdata->totDevices;
 	// 2nd equation: sphere. Sqrt(cx²+cy²+cz²)=radius
 	uint diagonal = (uint) sqrt(	gdata->gridSize.x * gdata->gridSize.x +
@@ -975,7 +977,7 @@ void Problem::fillDeviceMapByEquation()
 				//dstDevice = distance_from_origin / radius_part;
 				// -- end of 2nd eq.
 				// handle special cases at the edge
-				dstDevice = std::min(int(dstDevice), gdata->totDevices - 1);
+				dstDevice = min(int(dstDevice), gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -1086,7 +1088,7 @@ Problem::max_parts(uint numParts)
 	// his own version of this function
 	double3 range = get_worldsize();
 	range /= m_deltap; // regular fill
-	uint wparts = std::max(range.x, double(1))*std::max(range.y, double(1))*std::max(range.z, double(1));
+	uint wparts = max(range.x, double(1))*max(range.y, double(1))*max(range.z, double(1));
 	printf("  estimating %u particles to fill the world\n", wparts);
 
 	return wparts;
@@ -1168,10 +1170,10 @@ Problem::set_grid_params(void)
 	// of the gridsize components are zero) and throw.
 
 	if (!m_gridsize.x || !m_gridsize.y || !m_gridsize.z) {
-		std::stringstream ss;
+		stringstream ss;
 		ss << "resolution " << simparams()->slength << " is too low! Resulting grid size would be "
 			<< m_gridsize;
-		throw std::runtime_error(ss.str());
+		throw runtime_error(ss.str());
 	}
 
 	m_cellsize.x = m_size.x / m_gridsize.x;
@@ -1202,9 +1204,9 @@ Problem::calc_grid_pos(const Point& pos) const
 	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
 	gridPos.y = (int)floor((pos(1) - m_origin.y) / m_cellsize.y);
 	gridPos.z = (int)floor((pos(2) - m_origin.z) / m_cellsize.z);
-	gridPos.x = std::min(std::max(0, gridPos.x), int(m_gridsize.x-1));
-	gridPos.y = std::min(std::max(0, gridPos.y), int(m_gridsize.y-1));
-	gridPos.z = std::min(std::max(0, gridPos.z), int(m_gridsize.z-1));
+	gridPos.x = min(max(0, gridPos.x), int(m_gridsize.x-1));
+	gridPos.y = min(max(0, gridPos.y), int(m_gridsize.y-1));
+	gridPos.z = min(max(0, gridPos.z), int(m_gridsize.z-1));
 
 	return gridPos;
 }

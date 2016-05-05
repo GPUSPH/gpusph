@@ -50,7 +50,7 @@ Rect::Rect(void)
 Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 {
 	if (fabs(vx*vy) > 1.e-8*vx.norm()*vy.norm()) {
-		//std::cout << "Trying to construct a rectangle with non perpendicular vectors\n";
+		//cout << "Trying to construct a rectangle with non perpendicular vectors\n";
 		//exit(1);
 	}
 
@@ -249,8 +249,8 @@ Rect::Fill(PointVect& points, const double dx, const bool fill_edges, const bool
 	m_origin(3) = m_center(3);
 	int nparts = 0;
 
-	int nx = std::max((int) (m_lx/dx), 1);
-	int ny = std::max((int) (m_ly/dx), 1);
+	int nx = max((int) (m_lx/dx), 1);
+	int ny = max((int) (m_ly/dx), 1);
 	int startx = 0;
 	int starty = 0;
 	int endx = nx;

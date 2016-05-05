@@ -869,7 +869,7 @@ bool GPUSPH::runSimulation() {
 		if (we_are_done)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
-	} catch (std::exception &e) {
+	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata->keep_going = false;
 		// the loop is being ended by some exception, so we cannot guarantee that
@@ -1047,7 +1047,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	}
 
 	const size_t numbodies = gdata->problem->simparams()->numbodies;
-	std::cout << "Numbodies : " << numbodies << "\n";
+	cout << "Numbodies : " << numbodies << "\n";
 	if (numbodies > 0) {
 		gdata->s_hRbCgGridPos = new int3 [numbodies];
 		fill_n(gdata->s_hRbCgGridPos, numbodies, make_int3(0));
@@ -1064,7 +1064,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += numbodies*(sizeof(int3) + 4*sizeof(float3) + 9*sizeof(float));
 	}
 	const size_t numforcesbodies = gdata->problem->simparams()->numforcesbodies;
-	std::cout << "Numforcesbodies : " << numforcesbodies << "\n";
+	cout << "Numforcesbodies : " << numforcesbodies << "\n";
 	if (numforcesbodies > 0) {
 		gdata->s_hRbFirstIndex = new int [numforcesbodies];
 		fill_n(gdata->s_hRbFirstIndex, numforcesbodies, 0);
@@ -1096,7 +1096,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	}
 
 	const size_t numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
-	std::cout << "numOpenBoundaries : " << numOpenBoundaries << "\n";
+	cout << "numOpenBoundaries : " << numOpenBoundaries << "\n";
 
 	// water depth computation array
 	if (problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
@@ -1311,7 +1311,7 @@ void GPUSPH::sortParticlesByHash() {
 
 				// here it should never happen that (rightB <= leftB). We should throw an error if it happens
 				particleSwap(leftB, rightB);
-				std::swap(m_hParticleKeys[leftB], m_hParticleKeys[rightB]);
+				swap(m_hParticleKeys[leftB], m_hParticleKeys[rightB]);
 			}
 
 			// already correct or swapped, time to go on
@@ -1400,7 +1400,7 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 
 	if (!gdata->keep_going)
-		throw std::runtime_error("GPUSPH aborted by worker thread");
+		throw runtime_error("GPUSPH aborted by worker thread");
 }
 
 void GPUSPH::setViscosityCoefficient()
@@ -1476,7 +1476,7 @@ void GPUSPH::doWrite(flag_t write_flags)
 	double slength = problem->simparams()->slength;
 
 	size_t numgages = gages.size();
-	std::vector<double> gages_W(numgages, 0.);
+	vector<double> gages_W(numgages, 0.);
 	for (uint g = 0; g < numgages; ++g) {
 		if (gages[g].w == 0.)
 			gages_W[g] = DBL_MAX;
@@ -2053,7 +2053,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			for (uint ob = 0; ob < problem->simparams()->numOpenBoundaries; ob ++) {
 				n_IOwaterdepth[ob] = 0;
 				for (uint d = 0; d < gdata->devices; d++)
-					n_IOwaterdepth[ob] = std::max(n_IOwaterdepth[ob], int(gdata->h_IOwaterdepth[d][ob]));
+					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], int(gdata->h_IOwaterdepth[d][ob]));
 			}
 			// if we are in multi-node mode we need to run an mpi reduction over all nodes
 			if (MULTI_NODE) {

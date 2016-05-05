@@ -147,7 +147,7 @@ int Bubble::fill_parts()
 		experiment_box.FillIn(boundary_parts, m_deltap, dyn_layers);
 		break;
 	default:
-		throw std::runtime_error("unhandled boundary type in fill_parts");
+		throw runtime_error("unhandled boundary type in fill_parts");
 	}
 #endif
 
@@ -194,7 +194,7 @@ void Bubble::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+	cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		info[i]= make_particleinfo(PT_BOUNDARY, 1, i);
 		double depth = H - boundary_parts[i](2) + m_origin.z;
@@ -203,9 +203,9 @@ void Bubble::copy_to_array(BufferList &buffers)
 	}
 
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "Fluid parts: " << fluid_parts.size() << "\n";
+	cout << "Fluid parts: " << fluid_parts.size() << "\n";
 	int count[2] = {0, 0};
 	for (uint i = j; i < j + fluid_parts.size(); i++) {
 
@@ -241,7 +241,7 @@ void Bubble::copy_to_array(BufferList &buffers)
 
 		++count[fluid_idx];
 		if (count[fluid_idx] == 1)
-			std::cout << "Fluid #" << fluid_idx << " part mass: " << pos[i].w << "\n";
+			cout << "Fluid #" << fluid_idx << " part mass: " << pos[i].w << "\n";
 	}
 }
 

@@ -116,7 +116,7 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << std::endl;
+	cout << "Boundary parts: " << boundary_parts.size() << endl;
 	for (uint i = 0; i < boundary_parts.size(); ++i) {
 		float ht = m_origin.z + H+2*w - boundary_parts[i](2);
 		ht *= cos(alpha);
@@ -128,7 +128,7 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 	}
 	uint j = boundary_parts.size();
 
-	std::cout << "Fluid parts: " << parts.size() << std::endl;
+	cout << "Fluid parts: " << parts.size() << endl;
 	for (uint i = 0; i < parts.size(); ++i) {
 		uint ij = i+j;
 		float ht = m_origin.z + H+2*w - parts[i](2);
@@ -141,11 +141,11 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 	}
 	j += parts.size();
 
-	std::cout << "Fluid part mass: " << pos[j-1].w << std::endl;
+	cout << "Fluid part mass: " << pos[j-1].w << endl;
 
 	float flowvel = H*H*fabs(physparams()->gravity.x)/(8*physparams()->kinematicvisc[0]);
 	cout << "Expected maximum flow velocity: " << flowvel << endl;
 
-	std::flush(std::cout);
+	flush(cout);
 }
 

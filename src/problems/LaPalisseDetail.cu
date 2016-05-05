@@ -130,10 +130,10 @@ void LaPalisseDetail::initializeParticles(BufferList &buffers, const uint numPar
 				// length scale of the flow (water depth)
 				const float L = H;
 
-				k[i] = fmax(3.0f/2.0f*lvel*Ti*lvel*Ti, 1e-6f);
+				k[i] = fmaxf(3.0f/2.0f*lvel*Ti*lvel*Ti, 1e-6f);
 				// constant is C_\mu^(3/4)/0.07*sqrt(3/2)
 				// formula is epsilon = C_\mu^(3/4) k^(3/2)/(0.07 L)
-				e[i] = fmax(2.874944542f*k[i]*lvel*Ti/L, 1e-6f);
+				e[i] = fmaxf(2.874944542f*k[i]*lvel*Ti/L, 1e-6f);
 			}
 			else {
 				k[i] = 1e-6f;
@@ -186,8 +186,8 @@ LaPalisseDetail_imposeBoundaryCondition(
 
 	if (IO_BOUNDARY(info)) {
 		if (object(info)==0) // inlet has prescribed water depth
-			waterdepth = INITIAL_WATER_LEVEL + (INLET_WATER_LEVEL - INITIAL_WATER_LEVEL)*fmax(t,RISE_TIME)/RISE_TIME;
-		const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			waterdepth = INITIAL_WATER_LEVEL + (INLET_WATER_LEVEL - INITIAL_WATER_LEVEL)*fmaxf(t,RISE_TIME)/RISE_TIME;
+		const float localdepth = fmaxf(waterdepth - absPos.z, 0.0f);
 		const float pressure = 9.807e3f*localdepth;
 		eulerVel.w = RHO(pressure, fluid_num(info));
 	}

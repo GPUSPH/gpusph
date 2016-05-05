@@ -69,7 +69,7 @@ VTKWriter::~VTKWriter()
 	m_timefile.close();
 }
 
-void VTKWriter::add_block(std::string const& blockname, std::string const& fname)
+void VTKWriter::add_block(string const& blockname, string const& fname)
 {
 	++m_blockidx;
 	m_timefile << "  <DataSet timestep='" << m_current_time << "' group='" << m_blockidx <<
@@ -847,8 +847,8 @@ VTKWriter::save_planes()
 	const double3 wo = gdata->problem->get_worldorigin();
 	const double3 ow = wo + gdata->problem->get_worldsize();
 
-	typedef std::vector<std::pair<double4, int> > CheckList;
-	typedef std::vector<double3> CoordList;
+	typedef vector<pair<double4, int> > CheckList;
+	typedef vector<double3> CoordList;
 
 	// We want to find the intersection of the planes defined in the boundary
 	// with the bounding box of the plane (wo to ow). We do this by finding the intersection
@@ -890,7 +890,7 @@ VTKWriter::save_planes()
 
 	CoordList centers;
 	CoordList normals;
-	std::vector< CoordList > all_intersections;
+	vector< CoordList > all_intersections;
 
 	// we will store one point per plane (center)
 	// followed by the intersections for each plane with the domain bounding box
@@ -914,9 +914,9 @@ VTKWriter::save_planes()
 		cout << "\timplicit " << implicit << endl;
 #endif
 
-		all_intersections.push_back( std::vector<double3>() );
+		all_intersections.push_back( vector<double3>() );
 
-		std::vector<double3> & intersections = all_intersections.back();
+		vector<double3> & intersections = all_intersections.back();
 
 		CheckList::const_iterator check(checks.begin());
 		for (; check != checks.end(); ++check) {
@@ -965,7 +965,7 @@ VTKWriter::save_planes()
 	fp << "<DataArray type='Float64' NumberOfComponents='3'>" << endl;
 
 	// intersection points
-	for (std::vector<CoordList>::const_iterator pl(all_intersections.begin());
+	for (vector<CoordList>::const_iterator pl(all_intersections.begin());
 		pl < all_intersections.end(); ++pl) {
 		CoordList const& pts = *pl;
 		for (CoordList::const_iterator pt(pts.begin()); pt != pts.end(); ++pt)
@@ -984,7 +984,7 @@ VTKWriter::save_planes()
 	fp << "<DataArray type='Int32' Name='connectivity'>" << endl;
 	// intersection points
 	offset = 0;
-	for (std::vector<CoordList>::const_iterator pl(all_intersections.begin());
+	for (vector<CoordList>::const_iterator pl(all_intersections.begin());
 		pl < all_intersections.end(); ++pl) {
 		CoordList const& pts = *pl;
 		for (int i = 0; i < pts.size(); ++i) {

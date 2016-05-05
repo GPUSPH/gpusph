@@ -56,12 +56,12 @@ TestTopo::TestTopo(GlobalData *_gdata) : Problem(_gdata)
 
 	EB = TopoCube::load_ascii_grid(dem_file);
 
-	std::cout << "zmin=" << -EB->get_voff() << "\n";
-	std::cout << "zmax=" << EB->get_H() << "\n";
-	std::cout << "ncols=" << EB->get_ncols() << "\n";
-	std::cout << "nrows=" << EB->get_nrows() << "\n";
-	std::cout << "nsres=" << EB->get_nsres() << "\n";
-	std::cout << "ewres=" << EB->get_ewres() << "\n";
+	cout << "zmin=" << -EB->get_voff() << "\n";
+	cout << "zmax=" << EB->get_H() << "\n";
+	cout << "ncols=" << EB->get_ncols() << "\n";
+	cout << "nrows=" << EB->get_nrows() << "\n";
+	cout << "nsres=" << EB->get_nsres() << "\n";
+	cout << "ewres=" << EB->get_ewres() << "\n";
 
 	// Size and origin of the simulation domain
 	set_dem(EB->get_dem(), EB->get_ncols(), EB->get_nrows());
@@ -150,7 +150,7 @@ int TestTopo::fill_parts()
 void TestTopo::copy_planes(PlaneList& planes)
 {
 #if USE_PLANES
-	std::vector<double4> box_plane( experiment_box->get_planes() );
+	vector<double4> box_plane( experiment_box->get_planes() );
 	for (size_t i = 0; i < box_plane.size(); ++i)
 		planes.push_back(implicit_plane(box_plane[i]));
 #endif
@@ -163,23 +163,23 @@ void TestTopo::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+	cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY,0,i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "Fluid parts: " << parts.size() << "\n";
+	cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_FLUID,0,i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	cout << "Fluid part mass:" << pos[j-1].w << "\n";
 }
 
 void TestTopo::fillDeviceMap()

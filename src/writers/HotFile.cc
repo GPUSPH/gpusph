@@ -281,7 +281,7 @@ void HotFile::readBody(ifstream *fp, version_t version)
 }
 
 
-std::ostream& operator<<(std::ostream &strm, const HotFile &h) {
+ostream& operator<<(ostream &strm, const HotFile &h) {
 	return strm << "HotFile( version=" << h._header.version << ", pc=" <<
 		h._header.particle_count << ", bc=" << h._header.body_count << ")" << endl;
 }

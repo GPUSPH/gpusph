@@ -48,7 +48,7 @@ static const string true_values[] = {
 };
 static const string *true_values_end = true_values + sizeof(true_values)/sizeof(*true_values);
 
-static bool is_true_value(std::string const& value)
+static bool is_true_value(string const& value)
 {
 	return find(true_values, true_values_end, value) != true_values_end;
 }
@@ -58,7 +58,7 @@ static const string false_values[] = {
 };
 static const string *false_values_end = false_values + sizeof(false_values)/sizeof(*false_values);
 
-static bool is_false_value(std::string const& value)
+static bool is_false_value(string const& value)
 {
 	return find(false_values, false_values_end, value) != false_values_end;
 }

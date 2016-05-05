@@ -88,7 +88,7 @@ Cone::Cone(const Point& center, const Vector& radiusbottom, const Vector& radius
 	if (fabs(radiusbottom*height) > 1e-8*radiusbottom.norm()*height.norm()
 		|| fabs(radiustop*height) > 1e-8*radiustop.norm()*height.norm()) {
 		std::cout << "Trying to construct a cone with non perpendicular radius and axis\n";
-		std::exit(1);
+		exit(1);
 	}
 
 	m_origin = center;
@@ -157,7 +157,7 @@ void Cone::setEulerParameters(const EulerParameters &ep)
 // TODO: here assuming the cone is right (i.e. height == length(height_vector))
 void Cone::getBoundingBox(Point &output_min, Point &output_max)
 {
-	double radius = std::max(m_rt, m_rb);
+	double radius = max(m_rt, m_rb);
 	Point corner_origin = m_origin - Vector( -radius, -radius, 0.0 );
 	getBoundingBoxOfCube(output_min, output_max, corner_origin,
 		Vector(2*radius, 0, 0), Vector(0, 2*radius, 0), Vector(0, 0, m_h) );

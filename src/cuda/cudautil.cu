@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <cstdio>
 
 #include "cudautil.cuh"
 #include "compute_select.opt"

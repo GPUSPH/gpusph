@@ -4,8 +4,6 @@
 #include <string>
 #include <iostream>
 
-using namespace std;
-
 #include "Reader.h"
 #include "pugixml.h"
 #include "base64.h"
@@ -26,7 +24,7 @@ public:
 					void*			data2,
 					bool			swapRequired,
 					uint			sizeofHeader,
-					string			&binaryData,
+					std::string		&binaryData,
 					pugi::xml_node	vtkFile);
 
 	// read ascii data from a node in a vtk file
@@ -60,11 +58,11 @@ public:
 							uint			numberOfComponents,
 							bool			swapRequired,
 							uint			sizeofHeader,
-							string			&binaryData,
+							std::string		&binaryData,
 							pugi::xml_node	vtkFile);
 
 template<typename IN, typename OUT>
-void readBinaryVtkData (vector<BYTE>	&data,
+void readBinaryVtkData (std::vector<BYTE>	&data,
 						void			*data0,
 						void			*data1,
 						void			*data2,

@@ -129,7 +129,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	// m_mbamplitude is the maximal angular value for paddle angle
 	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
 	paddle_amplitude = atan(stroke/(2.0*(H - paddle_origin.z)));
-	std::cout << "\npaddle_amplitude (radians): " << paddle_amplitude << "\n";
+	cout << "\npaddle_amplitude (radians): " << paddle_amplitude << "\n";
 	paddle_omega = 2.0*M_PI/0.8;		// period T = 0.8 s
 
 	// Drawing and saving times
@@ -285,31 +285,31 @@ void WaveTank::copy_to_array(BufferList &buffers)
 
 	if (test_points.size()) {
 		//Testpoints
-		std::cout << "\nTest points: " << test_points.size() << "\n";
-		std::cout << "      " << j << "--" << test_points.size() << "\n";
+		cout << "\nTest points: " << test_points.size() << "\n";
+		cout << "      " << j << "--" << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);  // first is type, object, 3rd id
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
-		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+		cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
 
-	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
-	std::cout << "      " << j  << "--" << boundary_parts.size() << "\n";
+	cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
+	cout << "      " << j  << "--" << boundary_parts.size() << "\n";
 	for (uint i = j; i < j + boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);  // first is type, object, 3rd id
 		calc_localpos_and_hash(boundary_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_bodies.size(); k++) {
 			PointVect & rbparts = m_bodies[k]->object->GetParts();
-			std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+			cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 			for (uint i = 0; i < rbparts.size(); i++) {
 				uint ij = i + j;
 				float ht = H - rbparts[i](2);
@@ -339,21 +339,21 @@ void WaveTank::copy_to_array(BufferList &buffers)
 				object_particle_counter += rbparts.size();
 			}
 			j += rbparts.size();
-			std::cout << ", part mass: " << pos[j-1].w << "\n";
-			std::cout << ", part type: " << type(info[j-1])<< "\n";
+			cout << ", part mass: " << pos[j-1].w << "\n";
+			cout << ", part type: " << type(info[j-1])<< "\n";
 	}
 
-	std::cout << "\nFluid parts: " << parts.size() << "\n";
-	std::cout << "      "<< j  << "--" << j + parts.size() << "\n";
+	cout << "\nFluid parts: " << parts.size() << "\n";
+	cout << "      "<< j  << "--" << j + parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	cout << "Fluid part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "Everything uploaded" <<"\n";
+	cout << "Everything uploaded" <<"\n";
 }
 
 

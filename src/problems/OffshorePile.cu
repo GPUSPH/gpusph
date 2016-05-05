@@ -73,30 +73,30 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	addPostProcess(SURFACE_DETECTION);
 
 	// SPH parameters
-	m_simparams->dt = 0.00013;
-	m_simparams->dtadaptfactor = 0.2;
-	m_simparams->buildneibsfreq = 10;
-	m_simparams->tend = 160; //seconds
+	simparams()->dt = 0.00013;
+	simparams()->dtadaptfactor = 0.2;
+	simparams()->buildneibsfreq = 10;
+	simparams()->tend = 160; //seconds
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(0.0f, 0.0f, -9.81f);
-	float g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);
+	float g = length(physparams()->gravity);
 
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 25.f);
 	set_kinematic_visc(0, 1.0e-6);
 
-	m_physparams->artvisccoeff =  0.3;
-	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	physparams()->artvisccoeff =  0.3;
+	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 
 	//Wave piston definition:  location, start & stop times, stroke and frequency (2 \pi/period)
 	piston_height = 2*H;
 	piston_width = ly;
 	piston_tstart = 0.2;
-	piston_tend = m_simparams->tend;
+	piston_tend = simparams()->tend;
 	float stroke = 0.399; // EOL37: 0.145; // EOL95: 0.344; // EOL96: 0.404;
 	//float period = 2.4;
 	piston_amplitude = stroke/2.;
@@ -110,7 +110,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	cyl_rho = 607.99;
 
 	//WaveGage
-	const float slength = m_simparams->slength;
+	const float slength = simparams()->slength;
 	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, slength);
 	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, 0.5*slength);
 	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, 0.25*slength);
@@ -125,7 +125,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	m_ODEWorld = dWorldCreate();	// Create a dynamic world
 	m_ODESpace = dHashSpaceCreate(0);
 	m_ODEJointGroup = dJointGroupCreate(0);
-	dWorldSetGravity(m_ODEWorld, m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);	// Set gravity（x, y, z)
+	dWorldSetGravity(m_ODEWorld, physparams()->gravity.x, physparams()->gravity.y, physparams()->gravity.z);	// Set gravity（x, y, z)
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, .1);  //second argument is saving time in seconds
@@ -177,7 +177,7 @@ int OffshorePile::fill_parts()
 	const int layersm1 = layers - 1;
 
 	piston = Cube(Point(piston_origin), layersm1*m_deltap, piston_width, piston_height);
-    piston.SetPartMass(m_deltap, m_physparams->rho0[0]);
+    piston.SetPartMass(m_deltap, physparams()->rho0[0]);
 	piston.Fill(piston.GetParts(), m_deltap);
 	add_moving_body(&piston, MB_MOVING);
 	set_body_cg(&piston, piston_origin);
@@ -186,22 +186,22 @@ int OffshorePile::fill_parts()
 			h_length - x0 + 5*m_deltap , ly, layersm1*m_deltap);
 	Cube bottom_slope = Cube(Point(h_length, periodic_offset_y, -(layersm1 + 0.5)*m_deltap),
 			lx - h_length, ly, layersm1*m_deltap, EulerParameters(Vector(0, 1, 0), -beta));
-	bottom_flat.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	bottom_flat.SetPartMass(m_deltap, physparams()->rho0[0]);
 	bottom_flat.Fill(boundary_parts, m_deltap, true);
 	bottom_slope.Unfill(boundary_parts, m_deltap*0.9);
-	bottom_slope.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	bottom_slope.SetPartMass(m_deltap, physparams()->rho0[0]);
 	bottom_slope.Fill(boundary_parts, m_deltap, true);
 	double zfw = (lx - h_length)*tan(beta) - layersm1*m_deltap;
 	Cube far_wall = Cube(Point(lx - layersm1*m_deltap, periodic_offset_y, zfw), layersm1*m_deltap, ly, H);
-	far_wall.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	far_wall.SetPartMass(m_deltap, physparams()->rho0[0]);
 	far_wall.Unfill(boundary_parts, 0.9*m_deltap);
 	far_wall.Fill(boundary_parts, m_deltap, true);
 
 	Cube fluid1 = Cube(Point(m_deltap/2., periodic_offset_y, m_deltap/2.), h_length, ly, H - m_deltap);
 	Cube fluid2 = Cube(Point(h_length + m_deltap, periodic_offset_y,  m_deltap/2.),
 			lx - h_length - m_deltap, ly, H - m_deltap/2, EulerParameters(Vector(0, 1, 0), -beta));
-	fluid1.SetPartMass(m_deltap, m_physparams->rho0[0]);
-	fluid2.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid1.SetPartMass(m_deltap, physparams()->rho0[0]);
+	fluid2.SetPartMass(m_deltap, physparams()->rho0[0]);
 	fluid2.Fill(parts, m_deltap);
 	fluid1.Unfill(parts, m_deltap);
 	double hu = 1.2*(lx - h_length)*tan(beta);
@@ -216,7 +216,7 @@ int OffshorePile::fill_parts()
 
 	// Rigid body : cylinder
 	cyl = Cylinder(Point(cyl_xpos, ly/2. + periodic_offset_y, 0), (cyl_diam - m_deltap)/2., cyl_height);
-	cyl.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	cyl.SetPartMass(m_deltap, physparams()->rho0[0]);
 	cyl.SetMass(m_deltap, cyl_rho);
 	cyl.FillIn(cyl.GetParts(), m_deltap, layers);
 	cyl.Unfill(parts, m_deltap);
@@ -245,8 +245,8 @@ void OffshorePile::copy_to_array(BufferList &buffers)
 
 	int j = 0;
 
-	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
-	std::cout << "      " << j  << "--" << boundary_parts.size() << "\n";
+	cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
+	cout << "      " << j  << "--" << boundary_parts.size() << "\n";
 	for (uint i = j; i < j + boundary_parts.size(); i++) {
 		float ht = H - boundary_parts[i-j](2);
 		if (ht < 0)
@@ -257,19 +257,19 @@ void OffshorePile::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(boundary_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_bodies.size(); k++) {
 		PointVect & rbparts = m_bodies[k]->object->GetParts();
-		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+		cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = 0; i < rbparts.size(); i++) {
 			uint ij = i + j;
 			float ht = H - rbparts[i](2);
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
-			//rho = m_physparams->rho0[0];
+			//rho = physparams()->rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
@@ -286,17 +286,17 @@ void OffshorePile::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams->numforcesbodies) {
+		if (k < simparams()->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();
 		}
 		j += rbparts.size();
-		std::cout << ", part mass: " << pos[j-1].w << "\n";
+		cout << ", part mass: " << pos[j-1].w << "\n";
 	}
 
-	std::cout << "\nFluid parts: " << parts.size() << "\n";
-	std::cout << "      "<< j  << "--" << j + parts.size() << "\n";
+	cout << "\nFluid parts: " << parts.size() << "\n";
+	cout << "      "<< j  << "--" << j + parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		float ht = H - parts[i-j](2);
 		if (ht < 0)
@@ -307,9 +307,9 @@ void OffshorePile::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	cout << "Fluid part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "Everything uploaded" <<"\n";
+	cout << "Everything uploaded" <<"\n";
 }
 
 #undef MK_par

@@ -75,29 +75,29 @@ CSIDevice::CSIDevice(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	set_deltap(parser.getF("deltap"));
-	m_simparams->tend = parser.getD("duration");
-	m_simparams->dt = 0.00003;
-	m_simparams->dtadaptfactor = 0.3;
-	m_simparams->buildneibsfreq = 10;
+	simparams()->tend = parser.getD("duration");
+	simparams()->dt = 0.00003;
+	simparams()->dtadaptfactor = 0.3;
+	simparams()->buildneibsfreq = 10;
 
-	m_simparams->maxneibsnum = 192;
+	simparams()->maxneibsnum = 192;
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
-	float g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
+	float g = length(physparams()->gravity);
 
 	add_fluid(1000.0);
 	set_equation_of_state(0, 7.0f, 30.0f);
 
 
-	m_physparams->r0 = m_deltap;
+	physparams()->r0 = m_deltap;
 
-	m_physparams->artvisccoeff = 0.1f;
-    m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
+	physparams()->artvisccoeff = 0.1f;
+    physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 	// BC when using LJ
-	m_physparams->dcoeff = 5.0*g*H;
+	physparams()->dcoeff = 5.0*g*H;
 
 	//	Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
 	const double r0 = m_deltap;
@@ -105,7 +105,7 @@ CSIDevice::CSIDevice(GlobalData *_gdata) : Problem(_gdata)
 	paddle_width = m_size.y - 2*r0;
 	paddle_origin = make_double3(parser.getD("paddle_origin_x") * lx, 0.0, parser.getD("paddle_origin_z") * lz);
 	paddle_tstart = parser.getF("paddle_time_start");
-	paddle_tend = m_simparams->tend;
+	paddle_tend = simparams()->tend;
 	// The stroke value is given at free surface level H
 	float stroke = parser.getF("paddle_stroke");
 	// m_mbamplitude is the maximal angular value par paddle angle
@@ -126,7 +126,7 @@ CSIDevice::CSIDevice(GlobalData *_gdata) : Problem(_gdata)
 	m_ODEWorld = dWorldCreate();
 	m_ODESpace = dHashSpaceCreate(0);
 	m_ODEJointGroup = dJointGroupCreate(0);
-	dWorldSetGravity(m_ODEWorld, m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);	// Set gravity(x, y, z)
+	dWorldSetGravity(m_ODEWorld, physparams()->gravity.x, physparams()->gravity.y, physparams()->gravity.z);	// Set gravity(x, y, z)
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
@@ -236,7 +236,7 @@ CSIDevice::writer_callback(CallbackWriter *cbw,
 	uint numParts, BufferList const&, uint node_offset, double t,
 	const bool testpoints) const
 {
-	static std::ofstream& main_out = cbw->open_data_file("joint_feedback", string(), ".txt");
+	static ofstream& main_out = cbw->open_data_file("joint_feedback", string(), ".txt");
 	static bool first_write = false;
 
 	if (!first_write) {
@@ -258,7 +258,7 @@ CSIDevice::writer_callback(CallbackWriter *cbw,
 	// to render the mooring lines.
 	if (vtk) {
 		// VTK has written something
-		std::ofstream& vtk_out = cbw->open_data_file("mooring", vtk->last_filenum(), ".txt");
+		ofstream& vtk_out = cbw->open_data_file("mooring", vtk->last_filenum(), ".txt");
 		for (int i = 0; i < 4; i++)
 			vtk_out << mooring[i].x << "," << mooring[i].y << "," << mooring[i].z << "\n";
 
@@ -313,8 +313,8 @@ CSIDevice::build() {
 
 	// create the main floating platform
 	platform = Cube(Point(platform_x, platform_y, water_level), platform_l, platform_w, platform_h);
-	platform.SetPartMass(m_deltap, m_physparams->rho0[0]);
-	platform.SetMass(m_deltap, m_physparams->rho0[0]*platform_sg);
+	platform.SetPartMass(m_deltap, physparams()->rho0[0]);
+	platform.SetMass(m_deltap, physparams()->rho0[0]*platform_sg);
 	platform.Unfill(parts, m_deltap);
 	platform.FillIn(platform.GetParts(), m_deltap, layers);
 	platform.ODEBodyCreate(m_ODEWorld, m_deltap);
@@ -327,8 +327,8 @@ CSIDevice::build() {
 	double xloc = platform_x + (platform_l / 2.0);
 	double yloc = platform_y + (platform_w / 2.0) - (tower_width / 2.0);
 	tower0 = Cylinder(Point(xloc, yloc, water_level + platform_h), tower_diameter/2.0, tower_height);
-	tower0.SetPartMass(m_deltap, m_physparams->rho0[0]);
-	tower0.SetMass(m_deltap, m_physparams->rho0[0]);
+	tower0.SetPartMass(m_deltap, physparams()->rho0[0]);
+	tower0.SetMass(m_deltap, physparams()->rho0[0]);
 	tower0.Unfill(parts, m_deltap);
 	tower0.FillIn(tower0.GetParts(), m_deltap, layers);
 	tower0.ODEBodyCreate(m_ODEWorld, m_deltap);
@@ -342,8 +342,8 @@ CSIDevice::build() {
 	// create second tower
 	yloc = platform_y + (platform_w / 2.0) + (tower_width / 2.0);
 	tower1 = Cylinder(Point(xloc, yloc, water_level + platform_h), tower_diameter/2.0, tower_height);
-	tower1.SetPartMass(m_deltap, m_physparams->rho0[0]);
-	tower1.SetMass(m_deltap, m_physparams->rho0[0]);
+	tower1.SetPartMass(m_deltap, physparams()->rho0[0]);
+	tower1.SetMass(m_deltap, physparams()->rho0[0]);
 	tower1.Unfill(parts, m_deltap);
 	tower1.FillIn(tower1.GetParts(), m_deltap, layers);
 	tower1.ODEBodyCreate(m_ODEWorld, m_deltap);
@@ -357,8 +357,8 @@ CSIDevice::build() {
 	// crossbar
 	crossbar = Cylinder(Point(xloc, yloc-tower_width, water_level + platform_h + tower_height),
 			tower_diameter/2.0, tower_width, EulerParameters(Vector(1, 0, 0), -M_PI/2.0));
-	crossbar.SetPartMass(m_deltap, m_physparams->rho0[0]);
-	crossbar.SetMass(m_deltap, m_physparams->rho0[0]);
+	crossbar.SetPartMass(m_deltap, physparams()->rho0[0]);
+	crossbar.SetMass(m_deltap, physparams()->rho0[0]);
 	crossbar.Unfill(parts, m_deltap);
 	crossbar.FillIn(crossbar.GetParts(), m_deltap, layers);
 	crossbar.ODEBodyCreate(m_ODEWorld, m_deltap);
@@ -380,8 +380,8 @@ CSIDevice::build() {
 	double swing_length = parser.getD("swing_length");
 	double zloc = water_level + platform_h + tower_height - swing_length - swing_diameter/2.0;
 	swing1 = Sphere(Point(xloc, yloc, zloc), swing_diameter/2.0);
-	swing1.SetPartMass(m_deltap, m_physparams->rho0[0]);
-	swing1.SetMass(m_deltap, m_physparams->rho0[0]*parser.getD("swing_sg"));
+	swing1.SetPartMass(m_deltap, physparams()->rho0[0]);
+	swing1.SetMass(m_deltap, physparams()->rho0[0]*parser.getD("swing_sg"));
 	swing1.Unfill(parts, m_deltap);
 	swing1.FillIn(swing1.GetParts(), m_deltap, layers);
 	swing1.ODEBodyCreate(m_ODEWorld, m_deltap);
@@ -448,7 +448,7 @@ int CSIDevice::fill_parts()
 	paddle = Cube(Point(paddle_origin.x - (layers - 1)*dp, paddle_origin.y, paddle_origin.z + layers *dp),
 		(layers - 1)*dp, width, 0.7*lz);
 
-	paddle.SetPartMass(dp, m_physparams->rho0[0]);
+	paddle.SetPartMass(dp, physparams()->rho0[0]);
 #if 0 // fixed paddle
 	paddle.Fill(boundary_parts, dp, true);
 #else // moving paddle
@@ -459,7 +459,7 @@ int CSIDevice::fill_parts()
 
 	// Filling the horizontal portion of bottom boundary with layers number of particles
 	Cube h_bound = Cube(Point(-0.5, 0, 0), h_length + 2*dp + 0.5, width, (layers - 1)*dp, EulerParameters());
-	h_bound.SetPartMass(dp, m_physparams->rho0[0]);
+	h_bound.SetPartMass(dp, physparams()->rho0[0]);
 	h_bound.Fill(boundary_parts, dp, true);
 
 	// Filling the sloped portion of bottom boundary with layers number of particles
@@ -468,7 +468,7 @@ int CSIDevice::fill_parts()
 	// Unfilling the intersection of the horizontal part and sloped one before
 	// filling the sloped part
 	slope_bound.Unfill(boundary_parts, 0.4*dp);
-	slope_bound.SetPartMass(dp, m_physparams->rho0[0]);
+	slope_bound.SetPartMass(dp, physparams()->rho0[0]);
 	slope_bound.Fill(boundary_parts, dp, true);
 
 	// Filling the fluid part
@@ -483,13 +483,13 @@ int CSIDevice::fill_parts()
 		l = h_length + z/tan(beta) - x;
 		fluid = Rect(Point(x, 0, z),
 			Vector(0, width, 0), Vector(l, 0, 0));
-		fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
+		fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
 		fluid.Fill(parts, m_deltap, true);
 		n++;
 	}
 	H = z;
 
-	slope_bound.Unfill(parts, m_physparams->r0);
+	slope_bound.Unfill(parts, physparams()->r0);
 
 	build();
 
@@ -504,8 +504,8 @@ void CSIDevice::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
-	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
-		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
+	cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
+		cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		float ht = H - boundary_parts[i](2);
 		if (ht < 0)
@@ -516,19 +516,19 @@ void CSIDevice::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_bodies.size(); k++) {
 		PointVect & rbparts = m_bodies[k]->object->GetParts();
-		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+		cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = 0; i < rbparts.size(); i++) {
 			uint ij = i + j;
 			float ht = H - rbparts[i](2);
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
-			rho = m_physparams->rho0[0];
+			rho = physparams()->rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
@@ -545,17 +545,17 @@ void CSIDevice::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams->numforcesbodies) {
+		if (k < simparams()->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();
 		}
 		j += rbparts.size();
-		std::cout << ", part mass: " << pos[j-1].w << "\n";
+		cout << ", part mass: " << pos[j-1].w << "\n";
 	}
 
-	std::cout << "\nFluid parts: " << parts.size() << "\n";
-	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
+	cout << "\nFluid parts: " << parts.size() << "\n";
+	cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		float ht = H - parts[i-j](2);
 		if (ht < 0)
@@ -566,9 +566,9 @@ void CSIDevice::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(parts[i - j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	cout << "Fluid part mass:" << pos[j-1].w << "\n";
 
-	std::cout << " Everything uploaded" <<"\n";
-	std::flush(std::cout);
+	cout << " Everything uploaded" <<"\n";
+	flush(cout);
 }
 #undef MK_par

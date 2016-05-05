@@ -208,7 +208,7 @@ int SolitaryWave::fill_parts()
 			Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
 	   experiment_box1.SetPartMass(m_deltap, physparams()->rho0[0]);
 	   experiment_box1.Fill(boundary_parts,br,true);
-	   std::cout << "bottom rectangle defined" <<"\n";
+	   cout << "bottom rectangle defined" <<"\n";
 	   }
 
 	if (icyl == 1) {
@@ -284,20 +284,20 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
-	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
-		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
+	cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
+		cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);  // first is type, object, 3rd id
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_bodies.size(); k++) {
 		PointVect & rbparts = m_bodies[k]->object->GetParts();
-		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+		cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = 0; i < rbparts.size(); i++) {
 			uint ij = i + j;
 			float ht = H - rbparts[i](2);
@@ -327,12 +327,12 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 			object_particle_counter += rbparts.size();
 		}
 		j += rbparts.size();
-		std::cout << ", part mass: " << pos[j-1].w << "\n";
-		std::cout << ", part type: " << type(info[j-1])<< "\n";
+		cout << ", part mass: " << pos[j-1].w << "\n";
+		cout << ", part type: " << type(info[j-1])<< "\n";
 	}
 
-	std::cout << "\nFluid parts: " << parts.size() << "\n";
-	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
+	cout << "\nFluid parts: " << parts.size() << "\n";
+	cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 	    info[i]= make_particleinfo(PT_FLUID,0,i);
@@ -342,8 +342,8 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 		//        vel[i] = make_float4(0, 0, 0, rho);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	cout << "Fluid part mass:" << pos[j-1].w << "\n";
 
-	std::cout << " Everything uploaded" <<"\n";
+	cout << " Everything uploaded" <<"\n";
 }
 #undef MK_par

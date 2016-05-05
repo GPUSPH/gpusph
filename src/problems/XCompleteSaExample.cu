@@ -210,7 +210,7 @@ XCompleteSaExample_imposeBoundaryCondition(
 			*/
 				// set inflow waterdepth
 				waterdepth = INLET_WATER_LEVEL;
-			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			const float localdepth = fmaxf(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));
 		} else {

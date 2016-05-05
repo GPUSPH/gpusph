@@ -48,7 +48,7 @@ DebugFlags parse_debug_flags(string const& str)
 		else if (flag == "inspect_preforce")
 			ret.inspect_preforce = 1;
 		else
-			throw std::invalid_argument("unknown debug flag '" + flag + "'");
+			throw invalid_argument("unknown debug flag '" + flag + "'");
 	}
 
 	return ret;

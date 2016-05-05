@@ -26,13 +26,6 @@
 #include <cstdio>
 #include <stdexcept>
 
-// erf is in the std namespace in C++11, but unqualified in C++98,
-// so just bring it in if compiling with C++11
-#include <cmath>
-#if __cplusplus >= 201103L
-using std::erf;
-#endif
-
 #include <thrust/device_vector.h>
 #include <thrust/scan.h>
 #include <thrust/functional.h>
