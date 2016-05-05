@@ -984,7 +984,7 @@ $(GPUDEPS): $(CUFILES) Makefile.conf | $(CHRONO_SELECT_OPTFILE)
 		objfile="$${objfile%.*}.o" ; \
 		$(CXX) -x c++ \
 			-D__CUDA_INTERNAL_COMPILATION__ $(CC_INCPATH) $(CPPFLAGS) \
-			$(filter -D%,$(CUFLAGS)) \
+			$(filter -D%,$(CUFLAGS)) $(CXXFLAGS) \
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
@@ -994,7 +994,7 @@ $(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(CHRONO_SELECT_OPTFILE)
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
 		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
 		objfile="$${objfile%.*}.o" ; \
-		$(CXX) $(CC_INCPATH) $(CPPFLAGS) \
+		$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) \
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
