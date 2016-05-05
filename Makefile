@@ -672,9 +672,10 @@ endif
 # CXXFLAGS += -pg
 # LDFLAGS += -pg
 
-# Finally, add CXXFLAGS to CUFLAGS
+# Finally, add CXXFLAGS to CUFLAGS, except for -std, which gets moved outside
 
-CUFLAGS += --compiler-options $(subst $(space),$(comma),$(strip $(CXXFLAGS)))
+CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
+	   $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
 
 # CFLAGS notes
 # * Architecture (sm_XX and compute_XX):
