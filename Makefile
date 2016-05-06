@@ -674,7 +674,7 @@ endif
 
 # Finally, add CXXFLAGS to CUFLAGS, except for -std, which gets moved outside
 
-CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
+CUFLAGS += $(subst c++0x,c++11,$(filter -std=%,$(CXXFLAGS))) --compiler-options \
 	   $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
 
 # CFLAGS notes
