@@ -249,15 +249,15 @@ gradGamma<WENDLAND>(
 		float pav1 = -dot(relPos - as_float3(vertexRelPos[sIdx[1]]), v01)/slength;
 
 		// This is -2*pi if inside the segment, 0 otherwise
-		totalSumAngles += copysignf(atan2(pav1, fabsf(pae))-atan2(pav0, fabsf(pae)), pae);
+		totalSumAngles += copysign(atan2(pav1, fabsf(pae))-atan2(pav0, fabsf(pae)), pae);
 
 		// if qae is greater than 2 the kernel support does not intersect the edge
 		if (qae < 2.0f) {
 			// Clip the point on the edge to a maximum distance of 2. if the vertex is
 			// not in the influence radius
-			pav0 = copysignf(fminf(fabsf(pav0), sqrtf(4.0f - qae*qae)), pav0);
+			pav0 = copysign(fminf(fabsf(pav0), sqrtf(4.0f - qae*qae)), pav0);
 			float pav02 = pav0*pav0;
-			pav1 = copysignf(fminf(fabsf(pav1), sqrtf(4.0f - qae*qae)), pav1);
+			pav1 = copysign(fminf(fabsf(pav1), sqrtf(4.0f - qae*qae)), pav1);
 			float pav12 = pav1*pav1;
 
 			// Distance from particle a to the vertices OR the points on the edge
@@ -290,13 +290,13 @@ gradGamma<WENDLAND>(
 
 					+3.0f*(5.0f*pae6+21.0f*pae4*(8.0f+qas2)+35.0f*pae2*qas2*(16.0f+qas2)+35.0f*qas4*(24.0f+qas2))
 					*(
-						 copysignf(1.f, pav1)*log(fmaxf(qav1+fabsf(pav1), 1e-7f)/fmaxf(qae, 1e-7f))
-						-copysignf(1.f, pav0)*log(fmaxf(qav0+fabsf(pav0), 1e-7f)/fmaxf(qae, 1e-7f))
+						 copysign(1.f, pav1)*log(fmaxf(qav1+fabsf(pav1), 1e-7f)/fmaxf(qae, 1e-7f))
+						-copysign(1.f, pav0)*log(fmaxf(qav0+fabsf(pav0), 1e-7f)/fmaxf(qae, 1e-7f))
 						)
 					)
 				);
 
-			sumAngles += copysignf(atan2(pav1, fabsf(pae))-atan2(pav0, fabsf(pae)), pae);
+			sumAngles += copysign(atan2(pav1, fabsf(pae))-atan2(pav0, fabsf(pae)), pae);
 
 		}
 	}
@@ -413,7 +413,7 @@ Gamma<WENDLAND>(
 		const float theta0 = acos(dot(ns,unitOldGGam)); // angle of the norms between 0 and pi
 		const float3 refDir = cross(ns, relPos); // this defines a reference direction
 		const float3 normDir = cross(ns, unitOldGGam); // this is the sin between the two norms
-		const float theta = M_PIf + copysignf(theta0, dot(refDir, normDir)); // determine the actual angle based on the orientation of the sin
+		const float theta = M_PIf + copysign(theta0, dot(refDir, normDir)); // determine the actual angle based on the orientation of the sin
 
 		// this is actually two times gamma_as:
 		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)

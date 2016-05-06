@@ -25,7 +25,6 @@
 */
 
 #include "EulerParameters.h"
-#include <cmath>
 
 
 /// Empty constructor

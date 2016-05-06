@@ -29,7 +29,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <cmath>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -595,7 +594,7 @@ Problem::density(float h, int i) const
 
 	if (h > 0) {
 		//float g = length(physparams()->gravity);
-		float g = abs(physparams()->gravity.z);
+		float g = fabsf(physparams()->gravity.z);
 		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
 		density = physparams()->rho0[i]*pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
 				1/physparams()->gammacoeff[i]);

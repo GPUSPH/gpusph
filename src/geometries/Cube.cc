@@ -23,7 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -90,8 +89,8 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector& vz)
 {
 	// Check if the three vectors are orthogonals in pairs
-	if (abs(vx*vy) > 1e-6*vx.norm()*vy.norm() || abs(vx*vz) > 1e-6*vx.norm()*vz.norm()
-		|| abs(vy*vz) > 1e-6*vy.norm()*vz.norm()) {
+	if (fabs(vx*vy) > 1e-6*vx.norm()*vy.norm() || fabs(vx*vz) > 1e-6*vx.norm()*vz.norm()
+		|| fabs(vy*vz) > 1e-6*vy.norm()*vz.norm()) {
 		throw runtime_error("Trying to construct a cube with non perpendicular vectors\n");
 		exit(1);
 	}

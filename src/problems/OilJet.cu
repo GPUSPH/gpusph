@@ -4,7 +4,6 @@
  *  Created on: 25 juin 2015
  *      Author: alexisherault
  */
-#include <cmath>
 #include <iostream>
 #include <stdexcept>
 
