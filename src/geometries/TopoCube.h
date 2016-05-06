@@ -136,7 +136,7 @@ class TopoCube: public Object {
 		bool IsInside(const Point&, const double) const;
 
 #if USE_CHRONO == 1
-		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
 		{ throw std::runtime_error("TOpoCube::BodyCreate not implemented !"); }
 #else
 		void BodyCreate(void *p1, const double p2, const bool p3)

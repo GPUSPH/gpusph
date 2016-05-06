@@ -134,7 +134,7 @@ class EulerParameters {
 		void Normalize(void);
 		void ExtractEulerZXZ(double &, double &, double &) const;
 #if USE_CHRONO == 1
-		chrono::ChQuaternion<> ToChQuaternion(void) const;
+		::chrono::ChQuaternion<> ToChQuaternion(void) const;
 #endif
 		void ToIdentity(void);
 		//@}

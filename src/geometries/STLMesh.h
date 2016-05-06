@@ -169,7 +169,7 @@ public:
 	void SetInertia(const double*);
 
 #if USE_CHRONO == 1
-		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
 		{ throw std::runtime_error("STLMesh::BodyCreate not implemented !"); }
 #else
 		void BodyCreate(void *p1, const double p2, const bool p3)

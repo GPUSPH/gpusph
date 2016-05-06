@@ -61,7 +61,7 @@ class Object {
 		PointVect			m_parts;		///< Particles belonging to the object
 		uint				m_numParts;		///< Number of particles belonging to the object
 #if USE_CHRONO == 1
-		chrono::ChBody		*m_body;		///< Chrono body linked to the object
+		::chrono::ChBody		*m_body;		///< Chrono body linked to the object
 #else
 		void				*m_body;
 #endif
@@ -135,8 +135,8 @@ class Object {
 		//@{
 #if USE_CHRONO == 1
 		/// Create a Chrono body in the specified Chrono physical system
-		void BodyCreate(chrono::ChSystem *, const double, const bool, const chrono::ChQuaternion<> &);
-		void BodyCreate(chrono::ChSystem *, const double, const bool);
+		void BodyCreate(::chrono::ChSystem *, const double, const bool, const chrono::ChQuaternion<> &);
+		void BodyCreate(::chrono::ChSystem *, const double, const bool);
 		/// Create a Chrono collision model in the specified Chrono physical system
 		/*! \throws std::runtime_error if the method is not implemented
 		 */
@@ -146,7 +146,7 @@ class Object {
 		/*! \return the body ID associated with the object
 		 *	\throws std::runtime_error if the object has no associated ODE body
 		 */
-		chrono::ChBody* GetBody(void)
+		::chrono::ChBody* GetBody(void)
 		{	if (!m_body)
 				throw std::runtime_error("Object::GetBody called but object not associated with a Chrono body !");
 			return m_body; }
