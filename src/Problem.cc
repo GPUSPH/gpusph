@@ -102,11 +102,11 @@ Problem::~Problem(void)
 void
 Problem::InitChrono() {
 #if USE_CHRONO == 1
-	m_bodies_physical_system = new chrono::ChSystem();
-	m_bodies_physical_system->Set_G_acc(chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+	m_bodies_physical_system = new ::chrono::ChSystem();
+	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
 		m_physparams->gravity.z));
 	m_bodies_physical_system->SetIterLCPmaxItersSpeed(100);
-	m_bodies_physical_system->SetLcpSolverType(chrono::ChSystem::LCP_ITERATIVE_SOR);
+	m_bodies_physical_system->SetLcpSolverType(::chrono::ChSystem::LCP_ITERATIVE_SOR);
 #else
 	throw runtime_error ("Problem::InitChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
@@ -149,14 +149,14 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	switch (mbdata->type) {
 		case MB_ODE : {
 #if USE_CHRONO == 1
-			chrono::ChBody *body = object->GetBody();
-			chrono::ChVector<> vec = body->GetPos();
+			::chrono::ChBody *body = object->GetBody();
+			::chrono::ChVector<> vec = body->GetPos();
 			mbdata->kdata.crot = make_double3(vec.x, vec.y, vec.z);
 			vec = body->GetPos_dt();
 			mbdata->kdata.lvel = make_double3(vec.x, vec.y, vec.z);
 			vec = body->GetWvel_par();
 			mbdata->kdata.avel = make_double3(vec.x, vec.y, vec.z);
-			chrono::ChQuaternion<> quat = body->GetRot();
+			::chrono::ChQuaternion<> quat = body->GetRot();
 			m_bodies.insert(m_bodies.begin() + simparams()->numODEbodies, mbdata);
 			simparams()->numODEbodies++;
 			simparams()->numforcesbodies++;
@@ -368,19 +368,19 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 #if USE_CHRONO == 1
 		if (mbdata->type == MB_ODE) {
 			ode_bodies = true;
-			chrono::ChBody *body = mbdata->object->GetBody();
+			::chrono::ChBody *body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
 			if (step == 2) {
-				body->SetPos(chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
-				body->SetPos_dt(chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
-				body->SetWvel_par(chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+				body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
+				body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+				body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
 				body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
 			}
 
 			body->Empty_forces_accumulators();
-			body->Accumulate_force(chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
-			body->Accumulate_torque(chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
+			body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
+			body->Accumulate_torque(::chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
 
 
 			if (false) {
@@ -412,8 +412,8 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		// In case of an ODE body, new center of rotation position, linear and angular velocity
 		// and new orientation have been computed by ODE
 		if (mbdata->type == MB_ODE) {
-			chrono::ChBody *body = mbdata->object->GetBody();
-			chrono::ChVector<> vec = body->GetPos();
+			::chrono::ChBody *body = mbdata->object->GetBody();
+			::chrono::ChVector<> vec = body->GetPos();
 			const double3 new_crot = make_double3(vec.x, vec.y, vec.z);
 			new_trans = new_crot - mbdata->kdata.crot;
 			mbdata->kdata.crot = new_crot;
@@ -421,7 +421,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 			mbdata->kdata.lvel = make_double3(vec.x, vec.y, vec.z);
 			vec = body->GetWvel_par();
 			mbdata->kdata.avel = make_double3(vec.x, vec.y, vec.z);
-			chrono::ChQuaternion<> quat = body->GetRot();
+			::chrono::ChQuaternion<> quat = body->GetRot();
 			const EulerParameters new_orientation = EulerParameters(quat.e0, quat.e1, quat.e2, quat.e3);
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
 			mbdata->kdata.orientation = new_orientation;
