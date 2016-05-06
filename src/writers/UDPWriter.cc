@@ -92,7 +92,7 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
     }
 #endif
     /* bind to local address:port */
-    if (bind(w->mHeartbeatSocketFd, (struct sockaddr *)&my_address,
+    if (::bind(w->mHeartbeatSocketFd, (struct sockaddr *)&my_address,
         sizeof(my_address)) == -1) {
         perror("bind");
         pthread_exit(NULL);
