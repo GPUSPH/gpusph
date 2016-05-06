@@ -548,19 +548,19 @@ ifneq ($(USE_CHRONO),0)
 	# override:                     /usr is always tried as a last resort
 	CHRONO_INCLUDE_PATH ?= /usr/local/include
 	CHRONO_LIB_PATH ?= /usr/local/lib
-	
+
 	# We check the validity of the Chrono include path by looking for ChChrono.h under it.
 	# if not found we finally abort
 	ifeq ($(wildcard $(CHRONO_INCLUDE_PATH)/chrono/core/ChChrono.h),)
 		TMP := $(error Could not find Chrono include, please set CHRONO_INCLUDE_PATH)
 	endif
-	
+
 	# We check the validity of the Chrono lib path by looking for libChronoEngine under it.
 	# if not found we finally abort
 	ifeq ($(wildcard $(CHRONO_LIB_PATH)/libChronoEngine.*),)
 		TMP := $(error Could not find Chrono lib, please set CHRONO_LIB_PATH)
 	endif
-	
+
 	INCPATH += -I$(CHRONO_INCLUDE_PATH) -I$(CHRONO_INCLUDE_PATH)/chrono -I$(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
 	LIBPATH += -L$(CHRONO_LIB_PATH)
 	LIBS += -lChronoEngine
