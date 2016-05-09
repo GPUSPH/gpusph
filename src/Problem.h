@@ -394,6 +394,7 @@ RESTORE_WARNINGS
 		void set_body_angularvel(const Object*, const double3&);
 
 		void InitializeChrono(void);
+		void FinalizeChrono(void);
 
 		/* This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.

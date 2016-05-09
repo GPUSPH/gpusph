@@ -75,6 +75,7 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 BuoyancyTest::~BuoyancyTest(void)
 {
 	release_memory();
+	FinalizeChrono();
 }
 
 

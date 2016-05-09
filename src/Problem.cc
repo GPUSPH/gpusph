@@ -112,6 +112,14 @@ Problem::InitializeChrono()
 #endif
 }
 
+void Problem::FinalizeChrono(void)
+{
+#if USE_CHRONO == 1
+	delete m_bodies_physical_system;
+#else
+	throw runtime_error ("Problem::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
+#endif
+}
 
 /// Allocate storage required for the integration of the kinematic data
 /// of moving bodies.
