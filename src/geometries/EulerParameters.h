@@ -28,13 +28,14 @@
 
 #include <iostream>
 
+#include "Point.h"
+#include "Vector.h"
+
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/core/ChQuaternion.h"
 #endif
 
-#include "Point.h"
-#include "Vector.h"
 
 /// Euler parameters class
 /*!

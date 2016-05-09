@@ -28,6 +28,9 @@
 
 #include <stdexcept>
 
+#include "Point.h"
+#include "EulerParameters.h"
+
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBody.h"
@@ -35,9 +38,6 @@
 #include "chrono/core/ChQuaternion.h"
 #include "chrono/core/ChVector.h"
 #endif
-
-#include "Point.h"
-#include "EulerParameters.h"
 
 //! Object container class
 /*!

@@ -38,11 +38,6 @@
 #include <fstream>
 #include <vector>
 
-#include "chrono_select.opt"
-#if USE_CHRONO == 1
-#include "chrono/physics/ChSystem.h"
-#endif
-
 #include "Options.h"
 #include "Writer.h"
 #include "particledefine.h"
@@ -55,6 +50,13 @@
 #include "buffer.h"
 #include "simframework.h"
 #include "deprecation.h"
+
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChSystem.h"
+#endif
+
+//#include "math.h"
 
 #define BLOCK_SIZE_IOBOUND	256
 
