@@ -360,30 +360,15 @@ bool XProblem::initialize()
 
 void XProblem::initializeChrono()
 {
-
-	// TODO FIXME MERGE DELETE ME
-
-#if 0
-	// TODO FIXME MERGE DELETE ME
-	// allocate_ODE_bodies(m_numFloatingBodies);
-	dInitODE();
-	// world setup
-	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
-	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
-	m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
-	// Set gravity (x, y, z)
-	dWorldSetGravity(m_ODEWorld,
-		physparams()->gravity.x, physparams()->gravity.y, physparams()->gravity.z);
+#if USE_CHRONO == 1
+	InitializeChrono();
 #endif
 }
 
 void XProblem::cleanupChrono()
 {
-#if 0
-	dJointGroupDestroy(m_ODEJointGroup);
-	dSpaceDestroy(m_ODESpace);
-	dWorldDestroy(m_ODEWorld);
-	dCloseODE();
+#if USE_CHRONO == 1
+	FinalizeChrono();
 #endif
 }
 
