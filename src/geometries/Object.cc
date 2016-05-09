@@ -427,7 +427,7 @@ Object::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx,
 		m_body->SetCollide(false);
 
 	// Add the body to the physical system
-	bodies_physical_system->AddBody(std::shared_ptr<::chrono::ChBody>(m_body));
+	bodies_physical_system->AddBody(std::shared_ptr< ::chrono::ChBody >(m_body));
 }
 
 void
