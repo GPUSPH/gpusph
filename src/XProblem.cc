@@ -337,7 +337,7 @@ bool XProblem::initialize()
 
 	// only init ODE if m_numRigidBodies
 	if (m_numFloatingBodies)
-		InitChrono();
+		initializeChrono();
 
 	// check open boundaries consistency
 	// TODO ideally we should enable/disable them depending on whether

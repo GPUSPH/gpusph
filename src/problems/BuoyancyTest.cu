@@ -61,7 +61,7 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
 	// Initialize Chrono
-	InitChrono();
+	InitializeChrono();
 
 	//add_writer(VTKWRITER, 0.005);
 	add_writer(VTKWRITER, 0.1);

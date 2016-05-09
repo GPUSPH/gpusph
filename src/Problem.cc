@@ -99,7 +99,8 @@ Problem::~Problem(void)
 }
 
 void
-Problem::InitChrono() {
+Problem::InitializeChrono()
+{
 #if USE_CHRONO == 1
 	m_bodies_physical_system = new ::chrono::ChSystem();
 	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
@@ -107,7 +108,7 @@ Problem::InitChrono() {
 	m_bodies_physical_system->SetIterLCPmaxItersSpeed(100);
 	m_bodies_physical_system->SetLcpSolverType(::chrono::ChSystem::LCP_ITERATIVE_SOR);
 #else
-	throw runtime_error ("Problem::InitChrono Trying to use Chrono without USE_CHRONO defined !\n");
+	throw runtime_error ("Problem::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
 }
 
