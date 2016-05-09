@@ -26,7 +26,7 @@
 #ifndef _OPTIONS_H_
 #define _OPTIONS_H_
 
-#include <cmath>
+#include <math.h>
 #include <string>
 #include <sstream> // for de-serialization of option values
 #include <map> // unordered_map would be faster, but it's C++11

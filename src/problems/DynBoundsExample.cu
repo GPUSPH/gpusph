@@ -31,7 +31,6 @@
  */
 
 
-#include <cmath>
 
 #include "DynBoundsExample.h"
 #include "GlobalData.h"

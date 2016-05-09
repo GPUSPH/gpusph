@@ -24,7 +24,6 @@
 */
 
 #include <iostream>
-#include <cmath>
 #include <stdexcept>
 #include "CSIDevice.h"
 #include "GlobalData.h"

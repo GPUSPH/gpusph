@@ -23,7 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <iostream>
 
 #include "DamBreak3D.h"

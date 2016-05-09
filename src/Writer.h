@@ -172,7 +172,7 @@ protected:
 	// does this writer need special treatment?
 	// (This is only used for the COMMONWRITER presently.)
 	bool is_special() const
-	{ return std::isnan(m_writefreq); }
+	{ return isnan(m_writefreq); }
 
 	// Writers that need to do special things before starting to write
 	// should override this

@@ -24,7 +24,6 @@
 */
 
 
-#include <cmath>
 #include <iostream>
 
 #include "Bubble.h"

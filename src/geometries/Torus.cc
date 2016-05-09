@@ -5,7 +5,6 @@
  * Created on 8 septembre 2011-2013, 18:52
  */
 
-#include <cmath>
 #include <cstdlib>
 
 #include "Torus.h"

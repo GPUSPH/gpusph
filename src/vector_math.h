@@ -20,7 +20,7 @@ typedef unsigned int uint;
 typedef unsigned short ushort;
 
 #ifndef __CUDACC__
-#include <cmath>
+#include <math.h>
 
 inline __host__ __device__ int max(int a, int b)
 {

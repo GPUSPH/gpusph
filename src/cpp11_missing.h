@@ -33,9 +33,13 @@
 #if __cplusplus < 201103L
 
 /* decltype is only avaialable on C++11, but both gcc and clang support
- * __decltype even on older standards, so use it
+ * __decltype even on older standards, so use that (unless decltype was
+ * already defined, that happens in certain versions of Clang on the Mac
+ * OS X)
  */
+#ifndef decltype
 #define decltype __decltype
+#endif
 
 /* conditional is trivial to implement pre-C++11.
  * It is used to choose either of two types depending on

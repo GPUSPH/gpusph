@@ -23,7 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <string>
 #include <iostream>
 
@@ -120,9 +119,9 @@ bool XProblem::initialize()
 		add_writer(VTKWRITER, 1e-2f);
 
 	// *** Initialization of minimal physical parameters
-	if (isnanf(m_deltap))
+	if (isnan(m_deltap))
 		set_deltap(0.02f);
-	if (isnanf(physparams()->r0))
+	if (isnan(physparams()->r0))
 		physparams()->r0 = m_deltap;
 
 	// aux vars to compute bounding box
@@ -1291,7 +1290,7 @@ int XProblem::fill_parts()
 		if (m_geometries[g]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
 
 		double unfill_dx = dx; // or, dp also if (r0!=dp)?
-		if (!isnanf(m_geometries[g]->unfill_radius))
+		if (!isnan(m_geometries[g]->unfill_radius))
 			unfill_dx = m_geometries[g]->unfill_radius;
 		// erase operations with existent geometries
 		if (del_fluid) {

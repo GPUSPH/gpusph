@@ -28,8 +28,8 @@
 #ifndef _UTILS_H
 #define _UTILS_H
 
-#include <cmath>
-#include <cfloat>
+#include <math.h>
+#include <float.h>
 
 // use STR(SOMEMACRO) to turn the content of SOMEMACRO into a string
 #define _STR(x) #x
@@ -47,11 +47,11 @@ T div_up(T a, T b) {
 // for non-integral types:
 inline
 float div_up(float a, float b) {
-	return std::ceil(a/b);
+	return ceil(a/b);
 }
 inline
 double div_up(double a, double b) {
-	return std::ceil(a/b);
+	return ceil(a/b);
 }
 
 // Round a up to the next multiple of b.

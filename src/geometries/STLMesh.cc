@@ -308,7 +308,7 @@ bool STLMesh::IsInside(const Point& p, double dx) const
 
 	bool inside = true;
 	for (uint coord = 0; coord < 3; coord++)
-		if ( abs(rotated_point(coord)) >= half_size(coord) )
+		if ( fabs(rotated_point(coord)) >= half_size(coord) )
 			inside =  false;
 
 	return inside;
