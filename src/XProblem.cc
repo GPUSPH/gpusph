@@ -119,9 +119,9 @@ bool XProblem::initialize()
 		add_writer(VTKWRITER, 1e-2f);
 
 	// *** Initialization of minimal physical parameters
-	if (isnan(m_deltap))
+	if (std::isnan(m_deltap))
 		set_deltap(0.02f);
-	if (isnan(physparams()->r0))
+	if (std::isnan(physparams()->r0))
 		physparams()->r0 = m_deltap;
 
 	// aux vars to compute bounding box
@@ -303,8 +303,8 @@ bool XProblem::initialize()
 	}
 
 	for (size_t fluid = 0 ; fluid < physparams()->numFluids(); ++fluid) {
-		const bool must_set_gamma = isnan(physparams()->gammacoeff[fluid]);
-		const bool must_set_c0 = isnan(physparams()->sscoeff[fluid]);
+		const bool must_set_gamma = std::isnan(physparams()->gammacoeff[fluid]);
+		const bool must_set_c0 = std::isnan(physparams()->sscoeff[fluid]);
 
 		// tell the user what we're going to do
 		if (must_set_gamma && must_set_c0) {
@@ -328,7 +328,7 @@ bool XProblem::initialize()
 				must_set_c0 ? default_c0 : physparams()->sscoeff[fluid]);
 
 		// set the viscosity if needed
-		if (isnan(physparams()->kinematicvisc[fluid])) {
+		if (std::isnan(physparams()->kinematicvisc[fluid])) {
 			printf("Viscosity for fluid %zu not specified, assuming water (nu = %g)\n",
 				fluid, default_kinematic_visc);
 			physparams()->set_kinematic_visc(fluid, default_kinematic_visc);
@@ -1290,7 +1290,7 @@ int XProblem::fill_parts()
 		if (m_geometries[g]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
 
 		double unfill_dx = dx; // or, dp also if (r0!=dp)?
-		if (!isnan(m_geometries[g]->unfill_radius))
+		if (!std::isnan(m_geometries[g]->unfill_radius))
 			unfill_dx = m_geometries[g]->unfill_radius;
 		// erase operations with existent geometries
 		if (del_fluid) {
