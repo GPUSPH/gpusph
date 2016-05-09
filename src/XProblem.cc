@@ -101,7 +101,7 @@ XProblem::~XProblem()
 {
 	release_memory();
 	if (m_numFloatingBodies > 0)
-		cleanupODE();
+		cleanupChrono();
 }
 
 bool XProblem::initialize()
@@ -337,7 +337,7 @@ bool XProblem::initialize()
 
 	// only init ODE if m_numRigidBodies
 	if (m_numFloatingBodies)
-		initializeODE();
+		InitChrono();
 
 	// check open boundaries consistency
 	// TODO ideally we should enable/disable them depending on whether
@@ -358,10 +358,13 @@ bool XProblem::initialize()
 	return Problem::initialize();
 }
 
-void XProblem::initializeODE()
+void XProblem::initializeChrono()
 {
+
+	// TODO FIXME MERGE DELETE ME
+
 #if 0
-	// TODO FIXME MERGE
+	// TODO FIXME MERGE DELETE ME
 	// allocate_ODE_bodies(m_numFloatingBodies);
 	dInitODE();
 	// world setup
@@ -374,7 +377,7 @@ void XProblem::initializeODE()
 #endif
 }
 
-void XProblem::cleanupODE()
+void XProblem::cleanupChrono()
 {
 #if 0
 	dJointGroupDestroy(m_ODEJointGroup);

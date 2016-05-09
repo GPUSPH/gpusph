@@ -181,10 +181,10 @@ class XProblem: public Problem {
 
 		PositioningPolicy m_positioning;
 
-		// initialize ODE
-		void initializeODE();
+		// initialize Chrono
+		void initializeChrono();
 		// guess what
-		void cleanupODE();
+		void cleanupChrono();
 
 		// wrapper with common operations for adding a geometry
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
