@@ -381,9 +381,34 @@ should be run.
 The model time in seconds when you wish the model to stop.
 \item [-{}-dem \emph{string}]
 For the Problem TestTopo: the name of the DEM file to use.
+\item [-{}-resume \emph{fname}]
+Resume from the given file (HotStart file saved by HotWriter).
+\item [-{}-checkpoint-every \emph{float}]
+HotStart checkpoints will be created every VAL seconds of simulated time (float VAL, 0 disables).
+\item [-{}-checkpoints \emph{integer}]
+Number of HotStart checkpoints to keep.
+\item [-{}-maxiter \emph{integer}]
+Break after this many iterations.
+\item [-{}-dir \emph{string}]
+Use given directory for dumps instead of date-based one.
+\item [-{}-nosave]
+Disable all file dumps but the last.
+\item [-{}-gpudirect]
+Enable GPUDirect for RDMA (requires a CUDA-aware MPI library).
+\item [-{}-striping]
+Enable computation/transfer overlap in multi-GPU (usually convenient for 3+ devices).
+\item [-{}-asyncmpi]
+Enable asynchronous network transfers (requires GPUDirect and 1 process per device).
+\item [-{}-num-hosts \emph{integer}]
+Uses multiple processes per node by specifying the number of nodes.
+\item [-{}-byslot-scheduling]
+MPI scheduler is filling hosts first, as opposite to round robin scheduling.
+\item [-{}-debug \emph{flags}]
+Enable specified debug flags.
+\item [-{}-help]
+Show the help and exit.
 \end{description}
 
-\todo{add missing options}
 
 \section{Installing pre/post processing tools}
 
