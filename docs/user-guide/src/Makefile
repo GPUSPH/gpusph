@@ -2,7 +2,7 @@ LTX ?= pdflatex
 LTXFLAGS ?=
 
 # Command to convert an SVG to PDF
-SVG2PDF ?= inkscape -A $@ $<
+SVG2PDF ?= inkscape $< --export-pdf=$@
 
 EXTRA_DEPS = $(patsubst %.svg, %.pdf, $(wildcard fig/*.svg))
 

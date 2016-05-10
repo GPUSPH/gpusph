@@ -1,0 +1,444 @@
+The first step to run GPUSPH is to install the \nvidia\ company's CUDA
+compilers and libraries (directions given below). CUDA is an extension
+of the \cpp\ language to allow \cpp\ to talk to the graphics card.
+
+The second step is to install the open source software, Open Dynamics
+Engine, which simulates rigid body dynamics. This library is used for
+any rigid objects that move, such as floating objects or objects moved
+by fluid flow.
+
+The third step is to obtain, compile and run GPUSPH.
+
+\section{Installing CUDA}
+
+Ensure that your computer has an \nvidia\ graphics card that is CUDA
+enabled. The \nvidia\ website has a list of all the CUDA-enabled graphics
+cards: \url{www.nvidia.com/object/cuda_gpus.html}. You can check whether
+CUDA is already installed on your machine by launching the command:
+\begin{shellcode}
+nvidia-smi
+\end{shellcode}
+from the terminal. If CUDA is installed it will give you information
+on the current state of the NVIDIA graphics card(s) on the machine.\\
+
+\textbf{Caution}: At the present time, you must have a card with at least Compute
+Capability of 2.0 to run GPUSPH.
+\\
+
+\textbf{Remark}: 
+Regarding the choice of the GPU, the more streaming 
+processors and the more video memory on the card, the better. 
+Also, the higher the Compute Capability, the more
+CUDA language features can be used on the card. 
+\todo{Update this}
+Currently the Kepler
+K40 has the most memory (12~GB), the most processors (${}>2600$), and
+the highest Compute Capability (3.5) for scientific work. High end
+gaming cards, such as the GTX Titan, have a similar numbers of
+processors and memory, but with less computational features, such as
+error-correcting memory. While they are not quite as robust for
+scientific work, they are cheaper. On a MacBook Pro laptop, circa 2012,
+the graphics card is a GeForce GT 650M, with 384 processors with 1024~MB
+of VRAM with a Compute Capability of 3.0; more than enough to do
+significant parallel computing.\\
+
+The GPU programming language CUDA can be obtained from the \nvidia\ website,
+CUDA Zone. The CUDA Toolkit and CUDA Software Development Kit (SDK)
+need to be installed for your operating system along with the video
+driver. These packages include the CUDA compiler \cmd{nvcc}, which is
+needed to develop executable code, and the graphics card driver that
+allows your program to access the GPU card. \\
+
+Download the relevant driver for your machine from:\\
+\url{http://www.nvidia.com/Download/index.aspx?lang=en-us} \\
+and the CUDA toolkit from:\\
+\url{https://developer.nvidia.com/cuda-downloads}\\
+Follow the instructions provided by \nvidia\ for the installation.\\
+
+
+To ensure that all is installed correctly and working, you should
+compile and run the SDK examples, which include many programs that
+illustrate the capabilities of CUDA and the GPU; for example, \nvidia's
+sorting program \cmd{radixSort} is used by GPUSPH to organize the
+neighbor list. Some interesting SDK programs are \cmd{fluidsGL} and
+\cmd{particles}. To compile the SDK programs, after the SDK is
+installed, go to \url{/Developer/GPU Computing/C} and (on a unix/linux
+or mac machine), type \cmd{make} on a terminal window command line. This
+should create a directory of executable examples located within the C
+directory called bin/darwin/release for the mac and bin/linux/release
+for a linux machine. In this directory, type \cmd{./fluidsGL} to run
+the \cmd{fluidsGL} example. You should see a green window open on your
+desktop. Use the mouse to stir up the fluid. The example program
+Particles is worth playing with as well, as it provided a basis for
+developing GPUSPH.\\
+
+
+
+\section{Installing the Open Dynamics Engine}
+\todo{Replace with CHRONO}
+The website for the Open Dynamics Engine is \url{http://www.ode.org},
+with links to the Source Forge repository to download the code. This
+needs to be installed to run GPUSPH. If you use moving rigid bodies in
+your problems, you will need the manual (available from the link above
+but here it is anyway:
+\url{http://ode-wiki.org/wiki/index.php?title=Manual:_Introduction}) to
+assist in the writing of your own problem.
+
+Please note that ODE should be compiled in single-precision mode.
+
+\todo{How to install relevant packages on common distributions
+(Debian/Ubuntu, Arch, Fedora/RedHat).}
+
+\section{Installing GPUSPH}
+
+The GPUSPH source code is hosted on \href{http://github.com}{GitHub}.
+The project's GitHub page is \url{http://github.com/GPUSPH/gpusph}.
+
+To obtain the GPUSPH code, you can either use the \cmd{git} revision
+control system, or download a \cmd{.zip}ped archive of a specific
+version. This manual refers to \currentver\ of GPUSPH.
+
+If you have \cmd{git} installed, you can use
+\begin{shellcode}[escapeinside=\{\}]
+git clone https://github.com/GPUSPH/gpusph.git
+cd gpusph
+git checkout v{\version}
+\end{shellcode}
+to get \currentver\ specifically. Otherwise, download the \cmd{.zip}ped
+archive from \url{http://github.com/GPUSPH/gpusph/archive/v\version.zip},
+and then
+\begin{shellcode}[escapeinside=\{\}]
+unzip v{\version}.zip
+cd gpusph-{\version}
+\end{shellcode}
+(you may remove \cmd{v\version.zip} afterwards).
+
+Within the top directory, you can find the \cmd{Makefile}, a \cmd{src}
+directory (holding the main GPUSPH source), a \cmd{scripts} directory
+(holding various auxiliary scripts), a copy of the license, settings to
+produce internal documentation with Doxygen, and a sample Digital
+Elevation Model (DEM) data file.
+
+The most interesting source files in \cmd{src} are the \cmd{Problem}s.
+A few sample problems are shipped with GPUSPH, showing how to employ
+specific features. You can get a list of the available problems by
+running
+\begin{shellcode}
+make list-problems
+\end{shellcode}
+
+To build and test GPUSPH, you can run
+\begin{shellcode}
+make test
+\end{shellcode}
+which should automatically detect your configuration, such as the
+compute capability of your GPU as well as the availability of optional
+libraries such as MPI (for mulit-node support) or HDF5 (to read HDF5SPH
+data files).
+
+When the building completes, you will have some new directoryes
+(\cmd{build} and \cmd{dist}) and a \cmd{GPUSPH} soft link to the
+compiled binary. \cmd{make test} will also automatically run
+\cmd{./GPUSPH} for you.
+
+After building, simply runnning \cmd{./GPUSPH} will run the program
+again.
+
+
+\subsection{Choosing the \cmd{Problem} and other options}
+
+You can test a different problem by using:
+\begin{shellcode}
+make problem=OtherProblem test
+\end{shellcode}
+where \cmd{OtherProblem} is the name of a different problem. You can get
+a list of available problems with \cmd{make list-problems}.
+
+There are a number of other options available. A complete list of the
+options and their description can be obtained by running \cmd{make
+help-options}. All options (with the exception of \cmd{plain} and
+\cmd{echo}) are persistent across compilations, so they can be set once
+with \cmd{make option=value}, and subsequent executions of \cmd{make}
+will remember the \cmd{value} set.
+
+\todo{Describe \cmd{make} options}
+The \cmd{make} options are listed below:
+\begin{itemize}
+\item \cmd{target_arch} - if set to 32, force compilation for 32 bit architecture
+\item \cmd{problem} - Name of the problem.
+\item \cmd{dbg} - 0 no debugging, 1 enable debugging
+\item \cmd{compute} - 11, 12, 13, 20, 21, 30, 35, etc: compute capability to compile for (default: autodetect)
+\item \cmd{fastmath} - Enable or disable fastmath. Default: 0 (disabled)
+\item \cmd{mpi} - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
+\item \cmd{hdf5} - 0 do not use HDF5, 1 use HDF5, 2 use HDF5 and HDF5 requires MPI. Default: autodetect
+\item \cmd{verbose} - 0 quiet compiler, 1 ptx assembler, 2 all warnings
+\item \cmd{plain} - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
+\item \cmd{echo} - 0 silent, 1 show commands
+\end{itemize}
+To view your current make options type \cmd{make show} instead of make.
+
+\section{Example Problems}
+
+Simulations in GPUSPH are defined in terms of \cmd{Problem}s. Some
+example problems are provided with GPUSPH itself, to illustrate the
+basics of problem design, and how to use the fundamental building blocks
+provided by GPUSPH. Such building blocks include a variety of
+geometrical shapes to describe the (fixed) solid boundaries of the
+domain, as well as a number of objects that move following prescribed
+laws, such as gates, pistons and paddles.
+
+These objects are designed to offer great flexibility in their use, far
+beyond what is shown in the sample problems. This flexibility should
+allow you to create very complex simulations by combining the objects
+appropriately.
+
+\iffalse
+GPUSPH has options for specified moving objects, which are used to make
+piston and paddle wavemakers and a moving gate. These objects are
+comprised of particles that are distinguished by identifying their type
+as GATEPART, PISTONPART, and PADDLEPART. (Water is distinguished by
+FLUIDPART and fixed boundary particles are of type BOUNDPART.) The
+distinction between GATEPART and PISTONPART is that the particles of the
+GATE are moved by providing an arbitrary (possibly time-varying)
+velocity vector in the problem's callback function and a PISTONPART
+particle is moved by providing a displacement for the vertical piston in
+(only the) x direction with time, again via the callback function.
+\else
+\todo{blurb about the various moving object types shold be moved
+elsewhere}
+\fi
+
+The number of particles used in the test problems is deliberately taken
+as a small number, simply to allow for fast execution times even on
+older hardware. One of the first tests to try is to increase the
+resolution by reducing the size of the particles. For example,
+by~reducing the particle size from the default of~$0.025$m to the
+smalle~$0.02$m, \cmd{DamBreak3D} would run with $21,252$ particles
+instead of the default $10,664$.
+
+This can be done in two ways. A permanent change comes about by editing
+the problem file (e.g. \cmd{DamBreak3D.cc}) and changing the value
+passed as argument of \cmd{set_deltap()} (e.g., replace
+\cmd{set_deltap(0.025f);} with \cmd{set_deltap(0.02f);}. The second way
+is to specify the particle size at runtime using the appropriate command
+line option (described below): e.g. \cmd{./GPUSPH -{}-deltap 0.02}.
+
+\subsection{DamBreak3D}
+
+\cmd{DamBreak3D} is a case originally used by
+\cite{gomez-gesteira_using_2004}
+for testing a prototype version of SPHysics. It is based on some
+experiments done by \cite{arnason_interactions_2005} at the University of Washington.
+We assume an instantaneous breaking dam and the resulting flow impinging
+onto a rectangular object. The whole problem is contained within a
+bounding box, which extends $1.6$m in length ($x$ axis), $0.67$m in
+width ($y$ axis), and $0.4$m in height. This is the experimental box.
+The fluid behind the dam is a rectangular box of water at one end of the
+tank at time equal to zero. The dam is assumed to break instantaneously
+so that the column of water, confined on three sides, collapses into the
+tank. In the tank there is a vertical rectangular object ---the
+collapsing water column impacts on the tank and then flows up the front
+face of the object and around the sides. Finally the water hits the back
+wall of the tank.
+
+\subsection{DamBreakGate}
+
+In most laboratory experiments of dam breaks, the dam takes a certain
+amount of time to move out of the way. The example problem
+\cmd{DamBreakGate} illustrates the use of moving boundary particles of
+the type GATEPART. The problem is set up the same way as the
+\cmd{DamBreak3D} case, but there is a moving gate that is raised
+vertically with a linearly varying velocity. In this case, the gate will
+move with a velocity that is zero when the problem starts and that
+linearly increases with time until the gate is outside the domain. The
+effect on the dam break is that the escaping water is affected by the
+gage motion. (See \cite{crespo_modeling_2008}'s SPH modeling of
+\cite{janosi_turbulent_2004}'s experiment, where a moving gate was important.)
+
+The moving gate is created by defining its geometry with particles
+denoted as GATEPART particles and the \cmd{mb_callback} function, which
+is used for the \textbf{m}oving \textbf{b}oundaries.
+
+\subsection{OpenChannel}
+
+This problem represents an instantaneous start up of a highly viscous
+and dense fluid flow in an open channel on a $9\deg$ slope. The
+channel is rectangular in cross-section ($1$m wide and $0.7$m deep) and
+the computed length of the infinitely long channel is $2$m. The side
+walls are fixed (Leonard-Jones boundary force) while the computational
+ends of the domain are periodic, so that a particle leaving the
+downstream end of the model domain enters the upstream end at the same
+place, $2$m upstream.
+
+The periodic boundary here is used in the $x$ direction, although
+boundaries in other problems can be periodic in the other directions as
+well. The key parameter in the problem statement is
+\cmd{m_simparams.periodicbound}, which can be set to any combination of
+\cmd{PERIODIC_X}, \cmd{PERIODIC_Y}, \cmd{PERIODIC_Z} to indicate
+peridocity along each of the axes.
+
+
+\subsection{WaveTank}
+
+WaveTank uses a moving boundary to create a paddle wavemaker at one end
+of a wave tank with a sloping bottom (bottom slope is $4.2364\deg$). The
+wavemaker motion is controlled by the \cmd{mb_callback} function. In
+this case, the length of the paddle is $1.0$m and the paddle pivots
+about an origin \cmd{m_origin}; here, the pivot is located $0.1344$m
+below the bottom and $0.13$m from the front wall of the tank. To specify
+the paddle motion, the angular frequency of the motion ($2 \pi/T$, where
+$T=1$s is the wave period), and the wave paddle stroke at the water
+surface ($S=0.1$m) are given in the variables \cmd{mb_omega} and
+\cmd{mb_amplitude}. To change the stroke and the frequency of the wave
+paddle, you must change these variables in the problem file,
+\cmd{WaveTank.cc}.
+
+\iffalse
+\begin{figure}[h]
+\centering{%
+\includegraphics[width=0.63\textwidth]{paddle.png}%
+}
+\caption{Schematic of the wave paddle for \cmd{WaveTank.cc}}
+\end{figure}
+\else
+\todo{paddle picture}
+\fi
+
+\subsection{SolitaryWave}
+
+SolitaryWave is similar in set up to the WaveTank example, except that a
+piston moving boundary is used. The motion of a vertical plate is
+determined by the method of \cite{goring_tsunamis_1979}, available in PDF format
+from \cmd{http://caltechkhr.library.caltech.edu/50/}. The full
+excursion (stroke) of the paddle is the variable \cmd{S}.
+
+\subsection{Seiche}
+
+The Seiche problem is to examine the influence of shaking on a
+rectangular container of size: $\ell = 0.707$m, $w = \ell/2$, and depth,
+$H = 0.5$m. The purpose of the example is to illustrate the ability to
+vary gravity in a problem. As the problem starts, there is water in the
+container. After $0.3$s, gravity is modified by adding a component in
+the $x$ direction, such that the total gravity vector is
+\cmd{m_physparams.gravity = make_float3(3.*sin(9.8*(t-m_gtstart)), 0.0,
+-9.81f);}, which means that the container is shaken with a sinusoidal
+motion with angular frequency of $9.8\text{s}^-1$ (period${} = 0.64$s),
+with a magnitude of $3\text{m}/\text{s}^2$ until time \cmd{m_gtend=3.0}
+is reached, when the gravity vector once again returns to the vertical
+acceleration of gravity. After this time, the seiching motion starts to
+decrease in amplitude.
+
+\iffalse
+\begin{figure}[h]
+\centering{%
+\includegraphics[scale=0.5]{Seiche.png}%
+}
+\caption{Resonant seiching in a rectangular domain showing the results
+of a time varying gravity in the problem, \cmd{Seiche.cc}. Here the tank has
+been shaking side to side at the resonant frequency of $0.638$s. The
+color coding is for the pressure in the fluid.}
+\end{figure}
+\else
+\todo{seiche picture}
+\fi
+
+The variation of gravity with time (and any stop (\cmd{m_gtend}) and
+start times) is prescribed in a user-supplied (in the problem)
+\cmd{g_callback} function.
+
+\subsection{TestTopo}
+
+This is an example showing how to use GPUSPH's support for Digital
+Elevation Models (DEMs). It loads the topography of the bottom of the
+domain from a file called \cmd{half_wave0.1m.txt}, shipped with GPUSPH.
+A different DEM can be used, by either changing the name in the source
+\cmd{TestTopo.cc} file, or by providing the new name as argument to the
+\cmd{--dem} command-line option to GPUSPH.
+
+\todo{TestTopo picture}
+
+\section{GPUSPH Command Line Options}\label{options}
+
+When running from the command line, there are several options available
+to you to alter some aspects of the GPUSPH run.
+
+\begin{description}
+\item [-{}-device \emph{integer}]
+Choose which GPU(s) to use for the run.
+On the command line: \cmd{./GPUSPH -{}-device N}, where N is the
+(integer) number of the device you wish to use. 
+To find the number associated with each of your CUDA-enabled 
+devices (graphics cards), you
+can use the CUDA SDK program DeviceQueryDrv. If you only have one
+CUDA-enabled GPU, the only possible choice for N is~0, which is the
+default.
+If you want to run the simulation on several GPUs, the command is:
+\cmd{./GPUSPH -{}-device i,j,k}
+\item [-{}-deltap \emph{float}]
+Change the resolution (inter-particle spacing) at which the problem
+should be run.
+\item [-{}-tend \emph{float}]
+The model time in seconds when you wish the model to stop.
+\item [-{}-dem \emph{string}]
+For the Problem TestTopo: the name of the DEM file to use.
+\end{description}
+
+\todo{add missing options}
+
+\section{Installing pre/post processing tools}
+
+\subsection{Installing SALOME}
+You can download SALOME from:\\
+\url{http://www.salome-platform.org/downloads/current-version}
+
+For this you need to register on the SALOME website.
+Then, follow the installation instructions from the SALOME website and the
+installer.
+
+\subsection{Installing CRIXUS}
+Crixus is a preprocessing tool for GPUSPH. \\
+
+\textbf{Prerequisites}:
+\begin{itemize}
+\item cmake $\ge$ 2.8
+\item cuda
+\item hdf5 $\ge$ 1.8.7
+\end{itemize}
+
+\textbf{Getting CRIXUS}:
+\begin{shellcode}
+git clone https://github.com/Azrael3000/Crixus.git
+cd Crixus.git
+\end{shellcode}
+
+\textbf{Compiling Crixus}: \\
+Crixus uses CMake for compilation. 
+Let us assume that you have CRIXUS in a \cmd{Crixus.git} directory. 
+and you want the building to happen in \cmd{Crixus.git/build} then follow the commands below:
+\begin{shellcode}
+mkdir build
+cd build
+cmake ..
+make
+\end{shellcode}
+Note that you should not run cmake in the main Crixus folder.
+
+The binary is then located at \cmd{Crixus.git/build/bin/Release/Crixus}.
+Note that "make install" is not supported yet. To easily change the parameters of cmake you can use ccmake instead.
+
+If hdf5 cannot be found due to lacking environmental variable you can edit the main CMakeLists.txt which has a commented line that reads:
+\begin{shellcode}
+#set(ENV{HDF5_ROOT} "/your/path/to/hdf5")
+\end{shellcode}
+Uncomment it and set the respective hdf5 path in order to use your custom installation.\\
+
+To finish the installation it is recommended to add the path to the CRIXUS binary to your
+\cmd{$PATH} environment variable. Add this line in \cmd{~/.bashrc}:
+\begin{shellcode}
+export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:$PATH
+\end{shellcode}
+where \cmd{/your_path} is your path to the CRIXUS directory.
+
+\subsection{Installing PARAVIEW}
+
+\todo{PARAVIEW is available from the Linux packages.}
