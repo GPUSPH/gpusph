@@ -5,25 +5,25 @@ the respective methods.
 
 The basic premise is that GPUSPH approximates solutions to the
 Navier-Stokes equations which are given by
-\begin{equation}
-\tdv{\uvec{v}}{t} = -\frac{1}{\rho}\nabla p + \nabla \cdot (\nu
-\nabla \otimes \uvec{v}) + \uvec{g},
+\be
+\tdv{\uvec{v}}{t} = -\frac{1}{\rho}\vec{\nabla} p + \nabla \cdot (\nu
+\vec{\nabla} \otimes \vec{v}) + \vec{g},
 \label{e:sph:ns}
-\end{equation}
-where $\uvec{v}$ is the velocity, $\rho$ the density, $p$ the
-pressure, $\nu$ the kinematic viscosity and $\uvec{g}$ an external
+\en
+where $\vec{v}$ is the velocity, $\rho$ the density, $p$ the
+pressure, $\nu$ the kinematic viscosity and $\vec{g}$ an external
 force. These equations are coupled with the continuity equation
-\begin{equation}
-\tdv{\rho}{t} = - \rho \nabla \cdot \uvec{v}.
+\be
+\tdv{\rho}{t} = - \rho \nabla \cdot \vec{v}.
 \label{e:sph:cont}
-\end{equation}
+\en
 In order to close the system of equations a weakly-compressible
 formulation is chosen which uses the Cole Equation of State given by
-\begin{equation}
+\be
 p = \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho}{\rho_0}\right)^\xi
 -1 \right],
 \label{e:sph:eos}
-\end{equation}
+\en
 where $c_0$ is the speed of sound, $\rho_0$ the reference density and
 $\xi$ is the polytropic index, equal to 7 in the case of water.
 
@@ -32,25 +32,25 @@ $\xi$ is the polytropic index, equal to 7 in the case of water.
 At the heart of the SPH method is an interpolation that defines a
 physical quantity at a certain position. Let $f$ be such a quantity,
 then
-\begin{equation}
-f(r) = \int f(s) \delta(\|r-s\|) \td s,
+\be
+f(\vec{r}) = \int f(\vec{r'}) \delta(\|\vec{r}-\vec{r'}\|) \td \vec{r'},
 \label{e:sph:delta}
-\end{equation}
+\en
 where $\delta$ is the Dirac delta distribution. The continuous SPH
 approximation can be written as
-\begin{equation}
-[f]^c(r) = \int_\Omega f(s) w(\|r-s\|,h) \td s,
+\be
+[f]^c(\vec{r}) = \int_\Omega f(\vec{r'}) w(|\vec{r}-\vec{r'}|,h) \td \vec{r'},
 \label{e:sph:cint}
-\end{equation}
+\en
 where the Dirac delta function was replaced by a weight or kernel
 function $w$, $\Omega$ is the computational domain and $h$ is the
 smoothing length. Several constraints are imposed on this function
 \begin{itemize}
 \item $\underset{h\rightarrow 0}{\lim} w(.,h) = \delta(.)$, \ie the
 kernel function converges to the delta function,
-\item $\int w(s,h) \td s = 1$, \ie the kernel function has unitary
+\item $\int w(\vec{r}-\vec{r}',h) \td \vec{r}' = 1$, \ie the kernel function has unitary
 integral,
-\item $w(s,h) = w(-s,h)$, \ie the kernel is symmetric,
+\item $w(\vec{r}-\vec{r}',h) = w(\vec{r}'-\vec{r},h)$, \ie the kernel is symmetric,
 \item the kernel has compact support.
 \end{itemize}
 The continuous interpolation of Eq. \eqref{e:sph:cint} does not yet
@@ -59,19 +59,19 @@ discretized using points in space that have no explicit connection with
 each other. These points carry the physical information such as density
 and volume and are referred to as particles. They also carry a mass and
 thus have an associated volume. The position of a particle is denoted
-with $\uvec{r}_a$ where the subscript $a$ refers to particle $a$.
+with $\vec{r}_a$ where the subscript $a$ refers to particle $a$.
 Similarly any physical quantity is subscripted in order to refer to the
-particle, \eg $\rho(\uvec{r}_a) = \rho_a$.
+particle, \eg $\rho(\vec{r}_a) = \rho_a$.
 
 Now that the space has been discretized the continuous interpolation
 (Eq. \eqref{e:sph:cint}) can be converted by replacing the integral with
 a sum to yield the SPH interpolation as
-\begin{equation}
+\be
 [f]_a = \underset{b \in \mathcal{F}}{\sum} \frac{m_b}{\rho_b} f_b w_{ab},
 \label{e:sph:int}
-\end{equation}
+\en
 where $\mathcal{F}$ is the set of all particles, $m$ the mass and
-$w_{ab} = w(\|\uvec{r}_a - \uvec{r}_b\|/h, h)$. It should be noted that
+$w_{ab} = w(|\vec{r}_a - \vec{r}_b|/h, h)$. It should be noted that
 $[f]_a \neq f_a$, \ie SPH violates the Kronecker delta property.
 
 \subsection{SPH kernels}
@@ -85,68 +85,104 @@ Currently GPUSPH features four different kernels.
 \end{itemize}
 
 The formulae for the different kernels and their derivatives are given below.
+The variable $q$ is defined by:
+\be
+q = \dfrac{|\vec{r}-\vec{r}'|}{h}
+\en
+
+The B-splines kernels are widely used in the SPH literature. 
+The cubic spline is defined, in three-dimensions, by:
+\be
+  w(q,h)=\dfrac{\alpha_{3}}{h^3}f_3(q)
+\en
+with:
+\be \label{e:sph:spline3}
+  f_3(q)=\left \{
+    \begin{array} {l l} 
+      \displaystyle{1-\frac{3}{2}q^2+\frac{3}{4}q^3} & 0 \le q \le 1 \\
+      \displaystyle{\frac{1}{4}\left(2-q\right)^3} & 1 \le q \le 2 \\
+      0 & 2 < q
+    \end{array}\right.
+\en
+where $\alpha_3 = 1/\pi$ and its derivative by
+\be \label{e:sph:gradspline3}
+f'_3(q)= \left \{
+\begin{array} {l l} 
+\displaystyle{-3q+\frac{9}{4}q^2} & 0 \le q \le 1 \\
+\displaystyle{-\frac{3}{4}\left(2-q\right)^2} & 1 \le q \le 2 \\
+0 & 2 < q
+\end{array}\right.
+\en
 
 The Wendland kernel is given by
-\begin{equation}
+\be
 w(q,h) = \left\{ \begin{array}{rl}
- \dfrac{\alpha_W}{h^3} \left(1-\dfrac{q}{2}\right)^4(1+2q) &\mbox{ if $0\le q \le 2$,} \\
-  0 &\mbox{ if $2 < q$,}
+ \dfrac{\alpha_W}{h^3} \left(1-\dfrac{q}{2}\right)^4(1+2q) & 0\le q \le 2 \\
+  0 & if 2 < q
        \end{array} \right.
 \label{e:sph:wendland}
-\end{equation}
+\en
 where $\alpha_W = 21/(16\pi)$ and its derivative by
-\begin{equation}
-\|\nabla w(q,h)\| = \left\{ \begin{array}{rl}
-  \dfrac{\alpha_{\nabla W}}{h^5}\left(q-2\right)^3 &\mbox{ if $0\le q \le 2$,} \\
-  0 &\mbox{ if $2 < q$,}
+\be
+|\vec{\nabla} w(q,h)| = \left\{ \begin{array}{rl}
+  \dfrac{-5\alpha_{W}}{h^5}q\left(1-\dfrac{q}{2}\right)^3 & 0\le q \le 2 \\
+  0 & 2 < q
        \end{array} \right.
 \label{e:sph:gradwendland}
-\end{equation}
-where $\alpha_{\nabla W} = 105/(128\pi)$ in 3-D.
+\en
 
-\todo{Complete kernel information}
+The Gaussian kernel is defined by
+\be \label{e:sph:gaussian}
+  w(|\vec{r}-\vec{r}'|) = \dfrac{\alpha_{G}}{h^3} \left( e^{-q^2} - e^{-\left(\frac{3}{h}\right)^2} \right)
+\en
+where $\alpha_{G} = \frac{1}{\pi \left( \sqrt{\pi}-36e^{-9}\right)}$.
+\be \label{e:sph:gradgaussian}
+  w'(|\vec{r}-\vec{r}'|) = -2q\dfrac{\alpha_{G}}{h^3} \left( e^{-q^2} - e^{-\left(\frac{3}{h}\right)^2} \right)
+\en
+
+\todo{Complete quadratic kernel information}
 
 \subsection{First-order derivatives}
 
 In order to approximate derivatives the continuous SPH interpolation Eq.
 \eqref{e:sph:cint} is used as follows
-\begin{equation}
-[\nabla f]^c(r) = \int_\Omega \nabla f(s) w(\|r-s\|,h) \td s.
+\be
+[\vec{\nabla} f]^c(\vec{r}) = \int_\Omega \vec{\nabla} f(\vec{r'}) w(|\vec{r}-\vec{r'}|,h) \td \vec{r'}
 \label{e:sph:cint-gradf-start}
-\end{equation}
+\en
 Applying integration by parts yields
 \begin{equation}
-[\nabla f]^c(r) = - \int_\Omega f(s) \nabla_s w(\|r-s\|,h) \td s +
-\int_\Omega \nabla (f(s) w(\|r-s\|,h)) \td s.
+[\vec{\nabla} f]^c(\vec{r}) = - \int_\Omega f(\vec{r'}) \vec{\nabla}_{\vec{r'}} w(|\vec{r}-\vec{r'}|,h) \td \vec{r'} +
+\int_\Omega \vec{\nabla} (f(\vec{r'}) w(|\vec{r}-\vec{r'}|,h)) \td \vec{r'}
 \label{e:sph:cint-intpart}
 \end{equation}
 As $w$ is symmetric the kernel is antisymmetric and thus
 \begin{equation}
-\nabla_s w(\|r-s\|,h) = - \nabla_r w(\|r-s\|,h).
+\vec{\nabla}_{\vec{r'}} w(|\vec{r}-\vec{r'}|,h) = - \vec{\nabla}_{\vec{r}} w(|\vec{r}-\vec{r'}|,h)
 \label{e:sph:kernel-asym} \end{equation}
 Furthermore, using Stokes
 theorem the last term in Eq. \eqref{e:sph:cint-intpart} can be rewritten
 as integral over the boundary of the computational domain, denoted by
 $\partial \Omega$ which yields
 \begin{equation}
-[\nabla f]^c(r) = \int_\Omega f(s) \nabla_r w(\|r-s\|,h) \td s -
-\int_{\partial\Omega} (f(s) w(\|r-s\|,h)) \uvec{n}_s \td s,
+[\vec{\nabla} f]^c(\vec{r}) = \int_\Omega f(\vec{r'}) \vec{\nabla}_{\vec{r}} w(|\vec{r}-\vec{r'}\|,h) \td \vec{r'} -
+\int_{\partial\Omega} (f(\vec{r'}) w(|\vec{r}-\vec{r'}|,h)) \vec{n}_{\vec{r'}} \td \vec{\Gamma}(\vec{r'})
 \label{e:sph:cint-stokes}
 \end{equation}
-where $\uvec{n}_s$ is the inward pointing normal. As a convention for
+where $\vec{n}_{\vec{r'}}$ is the inward pointing normal. As a convention for
 the remainder of this document all normals will point inward the domain.
 If the domain $\Omega$ is unbounded then the last term of Eq.
 \eqref{e:sph:cint-stokes} will vanish due to the compact support of the
 kernel $w$. Thus, in a continuous sense the first derivative can be
 approximated as
 \begin{equation}
-[\nabla f]^c(r) = \int_\Omega f(s) \nabla_r w(\|r-s\|,h) \td s.
+[\vec{\nabla} f]^c(\vec{r}) = \int_\Omega f(\vec{r'}) \vec{\nabla}_{\vec{r}} w(|\vec{r}-\vec{r'}|,h) \td \vec{r'}
 \label{e:sph:cint-gradf}
 \end{equation}
 The discretization in space again replaces the integral by a sum over
 all particles and so
 \begin{equation}
-[\nabla f]_a = \sumF V_b f_b \nabla_a w_{ab},
+[\vec{\nabla} f]_a = \sumF V_b f_b \vec{\nabla}_a w_{ab}
 \label{e:sph:int-gradf}
 \end{equation}
 where $V_b = m_b/\rho_b$ is the volume of a particle $b$. It is common
@@ -155,7 +191,7 @@ is used to compute the pressure gradient and thus Newtons third law of
 equal but opposite forces should be obeyed. This can be achieved by
 defining the gradient as
 \begin{equation}
-\Grad_a(f) = [\nabla f]_a + [\nabla f_a]_a,
+\Grad_a(f) = [\vec{\nabla} f]_a + [\vec{\nabla} f_a]_a
 \label{e:sph:grad-def}
 \end{equation}
 where the latter derivative is that of a constant function $f_a$. As
@@ -167,23 +203,23 @@ will have a non-zero contribution.
 The principle of energy conservation requires the gradient and
 divergence operators to be skew-adjoint, \ie
 \begin{equation}
-<\Grad_a(f), \uvec{G}> = - <f, \Div_a(\uvec{G})>,
+<\Grad_a(f), \vec{F}> = - <f, \Div_a(\vec{F})>
 \label{e:sph:skew-ajd}
 \end{equation}
 where $<.,.>$ is a scalar product on all particles. As a result of this
 constraint the divergence can be shown to be
 \begin{equation}
-\Div_a(\uvec{G}) = [\nabla \uvec{G}]_a - [\nabla \uvec{G}_a]_a.
+\Div_a(\vec{F}) = [\nabla \cdot \vec{F}]_a - [\nabla \cdot \vec{F}_a]_a
 \label{e:sph:div-def}
 \end{equation}
 This allows to write the gradient and divergence as
 \begin{equation}
-\Grad_a(f) = \sumF V_b (f_b + f_a) \nabla_a w_{ab},
+\Grad_a(f) = \sumF V_b (f_b + f_a) \vec{\nabla}_a w_{ab}
 \label{e:sph:grad}
 \end{equation}
 and
 \begin{equation}
-\Div_a(\uvec{G}) = \sumF V_b (\uvec{G}_b - \uvec{G}_a) \cdot \nabla_a w_{ab},
+\Div_a(\vec{F}) = \sumF V_b (\vec{F}_b - \vec{F}_a) \cdot \vec{\nabla}_a w_{ab}
 \label{e:sph:div}
 \end{equation}
 respectively.
@@ -196,51 +232,51 @@ numerically unstable. Thus, the preferred approach is to use a
 combination of a SPH first order derivative and a finite difference
 first order derivative.
 
-The goal of this section is to derive a discretization for $\nabla f
-\nabla \otimes \uvec{G}$. To approximate the interior gradient, a
-Taylor Series of $\uvec{G}$ can be used as follows
+The goal of this section is to derive a discretization for $\vec{\nabla} f
+\nabla \otimes \vec{G}$. To approximate the interior gradient, a
+Taylor Series of $\vec{G}$ can be used as follows
 \begin{equation}
-\uvec{G}_b = \uvec{G}_a - (\nabla_a \otimes \uvec{G})^T \cdot
-\uvec{r}_{ab} + \mathcal{O}(\uvec{r}_{ab}),
+\vec{F}_b = \vec{F}_a - (\vec{\nabla}_a \otimes \vec{F})^T \cdot
+\vec{r}_{ab} + \mathcal{O}(\vec{r}_{ab})
 \label{e:sph:taylor}
 \end{equation}
-where $\uvec{r}_{ab} = \uvec{r}_a - \uvec{r}_b$, a convention that will
+where $\vec{r}_{ab} = \vec{r}_a - \vec{r}_b$, a convention that will
 be used throughout this document also for quantities different from
-$\uvec{r}$.
+$\vec{r}$.
 The above can be rewritten to obtain an expression for the interior
 gradient
 \begin{equation}
-(\nabla_a \otimes \uvec{G})^T \cdot
-\frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \approx
-\frac{1}{\|r_{ab}\|}\uvec{G}_{ab},
+(\vec{\nabla}_a \otimes \vec{F})^T \cdot
+\frac{\vec{r}_{ab}}{|\vec{r}_{ab}|} \approx
+\frac{1}{|r_{ab}|}\vec{F}_{ab}
 \label{e:sph:grad-finitediff}
 \end{equation}
 and similarly
 \begin{equation}
-(\nabla_b \otimes \uvec{G})^T \cdot
-\frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \approx
-\frac{1}{\|r_{ab}\|}\uvec{G}_{ab},
+(\vec{\nabla}_b \otimes \vec{F})^T \cdot
+\frac{\vec{r}_{ab}}{|\vec{r}_{ab}|} \approx
+\frac{1}{|r_{ab}|}\vec{F}_{ab}
 \label{e:sph:grad-finitediff-b}
 \end{equation}
 As the kernel is radially symmetric
 \begin{equation}
-\nabla_a w_{ab} = \frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \|\nabla_a
-w_{ab}\|.
+\vec{\nabla}_a w_{ab} = \frac{\vec{r}_{ab}}{|\vec{r}_{ab}|} |\vec{\nabla}_a
+w_{ab}|
 \label{e:sph:rad-sym}
 \end{equation}
 The Divergence similar to the one given by Eq.
 \eqref{e:sph:div} but with a $+$ instead of the $-$ yields
 \begin{equation}
-\nabla \cdot (f \nabla \otimes \uvec{G}) = \sumF V_b (f_b \nabla_b
-\otimes \uvec{G} + f_a \nabla_a \otimes \uvec{G})
-\frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \|\nabla_a w_{ab}\|,
+\nabla \cdot (f \nabla \otimes \vec{F}) = \sumF V_b (f_b \vec{\nabla}
+\otimes \vec{F} + f_a \vec{\nabla} \otimes \vec{F})
+\frac{\vec{r}_{ab}}{|\vec{r}_{ab}|} |\vec{\nabla} w_{ab}|
 \end{equation}
 which, with Eqs. \eqref{e:sph:grad-finitediff},
 \eqref{e:sph:grad-finitediff-b} and \eqref{e:sph:rad-sym}, can be used to
 define the Laplacian
 \begin{equation}
-\Lap_a(f, \uvec{G}) = \nabla \cdot (f \nabla \otimes \uvec{G}) = \sumF
-V_b (f_b + f_a) \uvec{G}_{ab} \frac{1}{\|\uvec{r}_{ab}\|} \|\nabla_a w_{ab}\|.
+\Lap_a(f, \vec{F}) = \nabla \cdot (f \vec{\nabla} \otimes \vec{F}) = \sumF
+V_b (f_b + f_a) \vec{F}_{ab} \frac{1}{|\vec{r}_{ab}|} |\vec{\nabla} w_{ab}|
 \label{e:sph:lap}
 \end{equation}
 
@@ -250,79 +286,79 @@ given by Eqs. \eqref{e:sph:grad}, \eqref{e:sph:div} and
 \eqref{e:sph:lap}, respectively, the Navier-Stokes equations
 \eqref{e:sph:ns} and \eqref{e:sph:cont} can be discretized in space as
 \begin{eqnarray}
-\tdv{\uvec{v}_a}{t} &=& - \frac{1}{\rho_a}\Grad_a(p) +
-\Lap_a(\nu,\uvec{v}) + \uvec{g},
+\tdv{\vec{v}_a}{t} &=& - \frac{1}{\rho_a}\Grad_a(p) +
+\Lap_a(\nu,\vec{v}) + \vec{g}
 \label{e:sph:ns-disc}
 \\
-\tdv{\rho_a}{t} &=& -\rho_a \Div_a(\uvec{v}).
+\tdv{\rho_a}{t} &=& -\rho_a \Div_a(\vec{v})
 \label{e:sph:cont-disc}
 \end{eqnarray}
 The final step to a full discretization is the implementation of a time
 integration scheme. GPUSPH currently features a predictor-corrector
 scheme that is given by
 \begin{eqnarray}
-\uvec{u}^{n+1/2} &=& \uvec{u}^n + \frac{\Delta t}{2} NS(\uvec{u}^n),
+\vec{u}^{n+1/2} &=& \vec{u}^n + \frac{\Delta t}{2} NS(\vec{u}^n)
 \label{e:sph:pred-corr}
 \\
-\uvec{u}^{n} &=& \uvec{u}^n + \Delta t NS(\uvec{u}^{n+1/2}),
+\vec{u}^{n} &=& \vec{u}^n + \Delta t NS(\vec{u}^{n+1/2})
 \nonumber
 \end{eqnarray}
-where $\uvec{u}$ is the state vector and $NS$ are the right-hand sides
+where $\vec{u}$ is the state vector and $NS$ are the right-hand sides
 of the discretized Navier-Stokes equations. Furthermore, the
 superscripts refer to the time instances. Written out in detail
 the full discretization reads
 \begin{eqnarray}
-\uvec{v}_a^{n+1/2} &=& \uvec{v}_a^n + \frac{\Delta t}{2} \left(
--\frac{1}{\rho^n_a}\Grad_a(p^n) + \Lap_a(\nu^n,\uvec{v}^n) + \uvec{g}
-\right),
+\vec{v}_a^{n+1/2} &=& \vec{v}_a^n + \frac{\Delta t}{2} \left(
+-\frac{1}{\rho^n_a}\Grad_a(p^n) + \Lap_a(\nu^n,\vec{v}^n) + \vec{g}
+\right)
 \label{e:sph:pred-corr-ns}
 \\
-\uvec{r}_a^{n+1/2} &=& \uvec{r}_a^{n} + \frac{\Delta t}{2}
-\uvec{v}_a^{n},
+\vec{r}_a^{n+1/2} &=& \vec{r}_a^{n} + \frac{\Delta t}{2}
+\vec{v}_a^{n}
 \nonumber
 \\
 \rho_a^{n+1/2} &=& \rho_a^n - \frac{\Delta t}{2} \rho_a^n
-\Div_a(\uvec{v}^n),
+\Div_a(\vec{v}^n)
 \nonumber
 \\
 p_a^{n+1/2} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1/2}}{\rho_0}\right)^\xi
--1 \right],
+-1 \right]
 \nonumber
 \\
-\uvec{v}_a^{n+1} &=& \uvec{v}_a^n + \Delta t \left(
+\vec{v}_a^{n+1} &=& \vec{v}_a^n + \Delta t \left(
 -\frac{1}{\rho^{n+1/2}_a}\Grad_a(p^{n+1/2}) +
-\Lap_a(\nu^{n+1/2},\uvec{v}^{n+1/2}) + \uvec{g}
-\right),
+\Lap_a(\nu^{n+1/2},\vec{v}^{n+1/2}) + \vec{g}
+\right)
 \nonumber
 \\
-\uvec{r}_a^{n+1} &=& \uvec{r}_a^{n} + \Delta t\,
-\uvec{v}_a^{n+1/2},
+\vec{r}_a^{n+1} &=& \vec{r}_a^{n} + \Delta t\,
+\vec{v}_a^{n+1/2}
 \nonumber
 \\
 \rho_a^{n+1} &=& \rho_a^n - \Delta t\, \rho_a^{n+1/2}
-\Div_a(\uvec{v}^{n+1/2}),
+\Div_a(\vec{v}^{n+1/2})
 \nonumber
 \\
 p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\right)^\xi
--1 \right].
+-1 \right]
 \nonumber
 \end{eqnarray}
 
 \subsubsection{Alternative continuity equation}
 The density can alternatively be computed by
 \begin{equation}
-[\rho]_a = \sumF V_b \rho_b w_{ab},
+[\rho]_a = \sumF V_b \rho_b w_{ab}
 \end{equation}
 which simplifies to
 \begin{equation}
-[\rho]_a = \sumF m_b w_{ab}.
+[\rho]_a = \sumF m_b w_{ab}
 \label{e:sph:sumrho}
 \end{equation}
 To be consisten with the time-stepping and to preserve initial density
 values the following time dependent version is used
 \begin{equation}
 \rho_a^{n+1} = \rho_a^n - \left(\sumF m_b w_{ab}\right)^n + \left(\sumF
-m_b w_{ab}\right)^{n+1},
+m_b w_{ab}\right)^{n+1}
 \label{e:sph:sumrho-time}
 \end{equation}
 where the sums inside the brackets are with respect to the positions of
@@ -370,12 +406,12 @@ The boundary segments are triangles, in the 3-D case, that are located at the bo
 
 The SPH interpolation in the context of the semi-analytical boundary conditions is given by
 \begin{equation}
-[f]_a = \frac{1}{\gamma_a}\sumP V_b f_b w_{ab},
+[f]_a = \frac{1}{\gamma_a}\sumP V_b f_b w_{ab}
 \label{e:sa:int}
 \end{equation}
 where $\gamma_a$ is the kernel renormalization parameter defined as
 \begin{equation}
-\gamma_a = \int_\Omega w(\|\uvec{r}-\uvec{r_b}\|),
+\gamma_a = \int_\Omega w(|\vec{r}-\vec{r_b}|)
 \label{e:sa:gam}
 \end{equation}
 which is computed following the idea by Violeau \etal
@@ -387,33 +423,33 @@ using this kernel.
 
 The differential operators gradient and divergence are given as
 \begin{eqnarray}
-\Grad_a(p) &=& \frac{1}{\gamma_a}\sumP V_b (p_a+p_b) \nabla_a w_{ab}
- -\frac{1}{\gamma_a}\sumS (p_a + p_s) \nabla \gamma_{as},
+\Grad_a(p) &=& \frac{1}{\gamma_a}\sumP V_b (p_a+p_b) \vec{\nabla} w_{ab}
+ -\frac{1}{\gamma_a}\sumS (p_a + p_s) \vec{\nabla} \gamma_{as}
 \label{e:sa:grad}
 \\
-\Div_a(\uvec{v}) &=& \frac{1}{\gamma_a}\sumP V_b (\uvec{v}_b - \uvec{v}_a) \cdot \nabla_a w_{ab}
- -\frac{1}{\gamma_a}\sumS (\uvec{v}_s - \uvec{v}_a) \cdot \nabla \gamma_{as},
+\Div_a(\vec{v}) &=& \frac{1}{\gamma_a}\sumP V_b (\vec{v}_b - \vec{v}_a) \cdot \vec{\nabla} w_{ab}
+ -\frac{1}{\gamma_a}\sumS (\vec{v}_s - \vec{v}_a) \cdot \vec{\nabla} \gamma_{as}
 \label{e:sa:div}
 \end{eqnarray}
-respectively. $\nabla \gamma_{as}$ is the surface integral of the kernel
+respectively. $\vec{\nabla} \gamma_{as}$ is the surface integral of the kernel
 on a triangle $s$ which is solved using the same \nth{5}-order
 quadrature rule. The derivation of these operators can be found in
 \cite{ferrand_unified_2012}. The basic idea is to not drop the surface
 integral term in Eq. \eqref{e:sph:cint-stokes} but instead replace it
 with a discrete approximation, \ie the sum over the segments. The Laplacian operator, required to discretize the viscous term of the momentum equation, is given by
 \begin{equation}
-\Lap_a(\nu, \uvec{v}) = \frac{1}{\gamma_a}\sumP m_b \left(\frac{\nu_a}{\rho_b} + \frac{\nu_b}{\rho_a}\right) \frac{\uvec{v}_{ab}}{\|\uvec{r}_{ab}\|^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab}
- - \frac{2 \nu_a \uvec{v}_a}{\gamma_a} \sumS \frac{\|\nabla \gamma_{as}\|}{\delta r_{as}},
+\Lap_a(\nu, \vec{v}) = \frac{1}{\gamma_a}\sumP m_b \left(\frac{\nu_a}{\rho_b} + \frac{\nu_b}{\rho_a}\right) \frac{\vec{v}_{ab}}{|\vec{r}_{ab}|^2}\vec{r}_{ab}\cdot \vec{\nabla} w_{ab}
+ - \frac{2 \nu_a \vec{v}_a}{\gamma_a} \sumS \frac{|\vec{\nabla} \gamma_{as}|}{\delta r_{as}}
 \label{e:sa:lap}
 \end{equation}
-where the laminar shear stress was used in the boundary term \cite{ferrand_unified_2012}, $\uvec{r}_{ab} = \uvec{r}_a - \uvec{r}_b$ and $\delta r_{as} = \max(\uvec{r}_{as}\cdot\uvec{n}_s, \Delta r)$. Finally the Dirichlet boundary condition $\uvec{v} = 0$ is applied at no-slip boundaries by imposing $\uvec{v}_a = 0\ \forall a \in \mathcal{V} \cup \mathcal{S}$. The Neumann boundary condition $\partial \rho/\partial \uvec{n} = 0$ is imposed using the approximation
+where the laminar shear stress was used in the boundary term \cite{ferrand_unified_2012}, $\vec{r}_{ab} = \vec{r}_a - \vec{r}_b$ and $\delta r_{as} = \max(\vec{r}_{as}\cdot\vec{n}_s, \Delta r)$. Finally the Dirichlet boundary condition $\vec{v} = 0$ is applied at no-slip boundaries by imposing $\vec{v}_a = 0\ \forall a \in \mathcal{V} \cup \mathcal{S}$. The Neumann boundary condition $\partial \rho/\partial \vec{n} = 0$ is imposed using the approximation
 \begin{equation}
-\rho_a = \frac{1}{\alpha_a}\sumF m_b w_{ab},
+\rho_a = \frac{1}{\alpha_a}\sumF m_b w_{ab}
 \end{equation}
 \todo{hydrostatic correction}
 with
 \begin{equation}
-\alpha_a = \sumF V_b w_{ab},
+\alpha_a = \sumF V_b w_{ab}
 \label{e:sa:alpha}
 \end{equation}
 for all vertex particles and boundary elements (for details see \cite{mayrhofer_investigation_2013}).
@@ -423,7 +459,7 @@ take boundaries into account via
 \begin{equation}
 \rho_a^{n+1} = \frac{1}{\gamma_a^{n+1}}\left[\gamma_a^n \rho_a^n - \left(\sumF m_b
 w_{ab}\right)^n + \left(\sumF\right]
-m_b w_{ab}\right)^{n+1}.
+m_b w_{ab}\right)^{n+1}
 \label{e:sa:sumrho-time}
 \end{equation}
 
@@ -441,17 +477,17 @@ employed.
 The Ferrari correction is based on the work by \todo{cite ferrari}
 and modifies the continuity equation with an additional term given by
 \begin{equation}
-\tdv{\rho_a}{t} = -\rho_a \Div_a(\uvec{v}) + \eta_F \sumF V_b c_{a,b}\frac{\uvec{r}_{ab}}{r_{ab}}\rho_{ab}\cdot\nabla_a w_{ab},
+\tdv{\rho_a}{t} = -\rho_a \Div_a(\vec{v}) + \eta_F \sumF V_b c_{a,b}\frac{\vec{r}_{ab}}{r_{ab}}\rho_{ab}\cdot\vec{\nabla} w_{ab}
 \label{e:ferrari:cont}
 \end{equation}
 where
 \begin{equation}
-c_{a,b} = \max(c_a,c_b),
+c_{a,b} = \max(c_a,c_b)
 \label{e:ferrari:upw}
 \end{equation}
 and
 \begin{equation}
-c_a = c_0\sqrt{\left(\frac{\rho_a}{\rho_0}\right)^{\xi-1}}.
+c_a = c_0\sqrt{\left(\frac{\rho_a}{\rho_0}\right)^{\xi-1}}
 \label{e:ferrari:ca}
 \end{equation}
 Note that in the case of the semi-analytical boundaries the formulation
@@ -464,7 +500,7 @@ coefficient $\eta_F$ different from one.
 \cite{mayrhofer_investigation_2013} have shown that it should be chosen
 according to
 \begin{equation}
-\eta_F = \frac{L}{10^3 \Delta r},
+\eta_F = \frac{L}{10^3 \Delta r}
 \label{e:ferrari:eta}
 \end{equation}
 where $L$ is a typical length-scale of the flow. In GPUSPH $L$ can be
@@ -481,7 +517,7 @@ correction is given by
 \begin{equation}
 \rho_a^{n+1} = \eta_{RC} \widetilde{\rho}^{n+1} \left[ \Lap_a\left(
 \frac{\Delta t}{\widetilde{\rho}}, \widetilde{\rho}
-\right) - \Lap_a (\Delta t, \uvec{g}\cdot\uvec{r})\right],
+\right) - \Lap_a (\Delta t, \vec{g}\cdot\vec{r})\right]
 \label{e:rc}
 \end{equation}
 where $\eta_{RC}$ governs the strength of this correction, but is
@@ -498,13 +534,13 @@ uses two additional differential equations to close the equations
 \cite{pope_turbulent_2001}. The RANS equations modify the momentum
 equations as follows:
 \begin{equation}
-\tdv{\uvec{v}}{t} = - \frac{1}{\rho}\nabla p + \nabla \cdot ( (\nu +
-\nu_T) \nabla \otimes \uvec{v}) + \uvec{g},
+\tdv{\vec{v}}{t} = - \frac{1}{\rho}\vec{\nabla} p + \vec{\nabla} \cdot ( (\nu +
+\nu_T) \vec{\nabla} \otimes \vec{v}) + \vec{g}
 \label{e:turb:ns}
 \end{equation}
 where $\nu_T$ is the turbulent viscosity. This in turn is given by
 \begin{equation}
-\nu_T = C_\mu \frac{k^2}{\epsilon},
+\nu_T = C_\mu \frac{k^2}{\epsilon}
 \label{e:turb:nut}
 \end{equation}
 where $k$ is the turbulent kinetic energy and $\epsilon$ the turbulent
@@ -513,14 +549,14 @@ dissipation. The constants, such as $C_\mu$ are summarized in Table
 differential equations:
 \begin{equation}
 \tdv{k}{t} = P - \epsilon + \nabla \cdot \left[  \left(\nu +
-\frac{\nu_T}{\sigma_k}\right) \nabla k\right],
+\frac{\nu_T}{\sigma_k}\right) \vec{\nabla} k\right]
 \label{e:turb:k}
 \end{equation}
 and
 \begin{equation}
 \tdv{\epsilon}{t} =\frac{\epsilon}{k}\left[ C_{\epsilon_1} P -
 C_{\epsilon_2} \epsilon \right]+ \nabla \cdot \left[  \left(\nu +
-\frac{\nu_T}{\sigma_\epsilon}\right) \nabla k\right],
+\frac{\nu_T}{\sigma_\epsilon}\right) \vec{\nabla} k\right]
 \label{e:turb:eps}
 \end{equation}
 where $P$ is the production, given by
@@ -528,8 +564,8 @@ where $P$ is the production, given by
 P = \min(\sqrt{C_\mu} k S, \nu_T S^2),
 \label{e:turb:strain}
 \end{equation}
-with $S$ is the scalar mean rate-of-strain $S = \sqrt{2 \uvec{\uvec{S}}
-: \uvec{\uvec{S}}}$.
+with $S$ is the scalar mean rate-of-strain $S = \sqrt{2 \vec{\vec{S}}
+: \vec{\vec{S}}}$.
 \begin{table}
 \centering
 \begin{tabular}{| c | c | c | c | c | c |}
@@ -555,7 +591,7 @@ imposed
 $\epsilon$ close to the wall can be approximated via the theoretical
 relation
 \begin{equation}
-\epsilon = \frac{u_k^3}{\kappa z},
+\epsilon = \frac{u_k^3}{\kappa z}
 \label{e:turb:eps-nearwall}
 \end{equation}
 where $u_k = C_\mu^{1/4} \sqrt{k}$ and $z$ is the normal distance to the
@@ -576,15 +612,15 @@ using the gradient operator. However, not the one of Eq.
 \eqref{e:sa:grad} is used, but instead the zero-order accurate version
 given by
 \begin{equation}
-\Grad^-_a(\uvec{v}) = - \frac{1}{\gamma_a}\sumP V_b \uvec{v}_{ab} \otimes \nabla_a w_{ab}
- +\frac{1}{\gamma_a}\sumS \uvec{v}_{ab} \otimes \nabla \gamma_{as},
+\Grad^-_a(\vec{v}) = - \frac{1}{\gamma_a}\sumP V_b \vec{v}_{ab} \otimes \vec{\nabla} w_{ab}
+ +\frac{1}{\gamma_a}\sumS \vec{v}_{ab} \otimes \vec{\nabla} \gamma_{as}
 \label{e:turb:grad-}
 \end{equation}
 One important change compared to the laminar simulation is that the
 vertex particles now also carry a velocity which is evolved according to
 the viscous term, \ie
 \begin{equation}
-\tdv{\uvec{v}_v}{t} = \Lap(\nu + \nu_T, \uvec{v})
+\tdv{\vec{v}_v}{t} = \Lap(\nu + \nu_T, \vec{v})
 \label{e:turb:vert-vel}
 \end{equation}
 The normal component of this velocity is set to zero to avoid particles
@@ -593,23 +629,23 @@ penetrating the wall. The laplacian of the viscous term presented in Eq.
 modified for turbulent flows in order to properly take the log law into
 account. This is achieved by setting the Laplacian to
 \begin{equation}
-\Lap_a(\nu, \uvec{v}) = \frac{1}{\gamma_a}\sumP m_b \left(\frac{\nu_a}{\rho_b} + \frac{\nu_b}{\rho_a}\right) \frac{\uvec{v}_{ab}}{\|\uvec{r}_{ab}\|^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab}
- - \frac{2}{\gamma_a} \sumS u_{*,as}^2 \uvec{t}_{as} \|\nabla \gamma_{as}\|,
+\Lap_a(\nu, \vec{v}) = \frac{1}{\gamma_a}\sumP m_b \left(\frac{\nu_a}{\rho_b} + \frac{\nu_b}{\rho_a}\right) \frac{\vec{v}_{ab}}{|\vec{r}_{ab}|^2}\vec{r}_{ab}\cdot \vec{\nabla} w_{ab}
+ - \frac{2}{\gamma_a} \sumS u_{*,as}^2 \vec{t}_{as} |\vec{\nabla} \gamma_{as}|
 \label{e:turb:lap}
 \end{equation}
 where $u_{*,as}$ is the friction velocity at the wall seen by particle
 $a$ computed iteratively from the implicit equation
 \begin{equation}
-\frac{\uvec{v}_{as}\cdot\uvec{t}_{as}}{u_{*,as}} =
+\frac{\vec{v}_{as}\cdot\vec{t}_{as}}{u_{*,as}} =
 \frac{1}{\kappa}\ln\left( \frac{\delta r_{as} u_{*,as}}{\nu} \right) +
-5.2,
+5.2
 \label{e:turb:fric-vel}
 \end{equation}
 where
 \begin{equation}
-\uvec{t}_{as} = \frac{\uvec{v}_{as} -
-(\uvec{v}_{as}\cdot\uvec{n}_s)\uvec{n}_s}{\|\uvec{v}_{as} -
-(\uvec{v}_{as}\cdot\uvec{n}_s)\uvec{n}_s\|}.
+\vec{t}_{as} = \frac{\vec{v}_{as} -
+(\vec{v}_{as}\cdot\vec{n}_s)\vec{n}_s}{|\vec{v}_{as} -
+(\vec{v}_{as}\cdot\vec{n}_s)\vec{n}_s|}
 \label{e:turb:tas}
 \end{equation}
 The other term in the governing equations for $k$ and $\epsilon$ is the
@@ -617,27 +653,27 @@ Laplacian which are discretized as follows:
 \begin{equation}
 \Lap_a(\nu + \frac{\nu_T}{\sigma_k}, k) = \frac{1}{\gamma_a}\sumP V_b
 \left( 2\nu + \frac{\nu_{T,a} + \nu_{T,b}}{\sigma_k} \right)
-\frac{k_{ab}}{r_{ab}^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab},
+\frac{k_{ab}}{r_{ab}^2}\vec{r}_{ab}\cdot \vec{\nabla} w_{ab}
 \label{e:turb:k-lap-sa}
 \end{equation}
 and
 \begin{equation}
 \Lap_a(\nu + \frac{\nu_T}{\sigma_\epsilon}, \epsilon) = \frac{1}{\gamma_a}\sumP V_b
 \left( 2\nu + \frac{\nu_{T,a} + \nu_{T,b}}{\sigma_\epsilon} \right)
-\frac{\epsilon_{ab}}{r_{ab}^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab} +
+\frac{\epsilon_{ab}}{r_{ab}^2}\vec{r}_{ab}\cdot \vec{\nabla} w_{ab} +
 \frac{4 C_\mu}{\sigma_\epsilon \gamma_a}\sumS\frac{k_a^2}{\delta
-r_{as}}\|\nabla \gamma_{as}\|.
+r_{as}}|\vec{\nabla} \gamma_{as}|
 \label{e:turb:eps-lap-sa}
 \end{equation}
 The compatible values on the boundary are given by
 \begin{equation}
-k_v = \frac{1}{\alpha_v}\sumF V_b k_b w_{vb},
+k_v = \frac{1}{\alpha_v}\sumF V_b k_b w_{vb}
 \label{e:turb:k-bound-sa}
 \end{equation}
 and
 \begin{equation}
 \epsilon_v = \frac{1}{\alpha_v}\sumF V_b \left( \epsilon_b +
-\frac{4 C_\mu^{3/4} k_b^{3/2}}{\kappa \delta r_{bv}} \right) w_{vb},
+\frac{4 C_\mu^{3/4} k_b^{3/2}}{\kappa \delta r_{bv}} \right) w_{vb}
 \label{e:turb:eps-bound-sa}
 \end{equation}
 where $\alpha_v$ is given according to Eq. \eqref{e:sa:alpha}.
@@ -673,13 +709,13 @@ The imposed normal velocity at the open boundary is denoted with
 $u_{ext}$. The normal velocity inside the flow is extrapolated to the wall
 by
 \begin{equation}
-u_{int,a} = \frac{1}{\alpha_a}\sumF V_b \uvec{v}_b \cdot \uvec{n}_a
-w_{ab}.
+u_{int,a} = \frac{1}{\alpha_a}\sumF V_b \vec{v}_b \cdot \vec{n}_a
+w_{ab}
 \label{e:open:uint}
 \end{equation}
 Similary, the pressure is extrapolated according to
 \begin{equation}
-p_{int,a} = \frac{1}{\alpha_a}\sumF V_b p_b w_{ab}.
+p_{int,a} = \frac{1}{\alpha_a}\sumF V_b p_b w_{ab}
 \label{e:open:pint}
 \end{equation}
 $\rho_{int}$ can easily be computed using the inverse Equation of State
@@ -697,7 +733,7 @@ Let
 \psi(\rho) = \frac{2 c_0}{\xi - 1}\left( \frac{\rho}{\rho_0}
 \right)^{\frac{\xi-1}{2}}\mbox{ if } \xi > 1 \quad \mbox{ or } \quad
 \psi(\rho) = c_0 \ln\left( \frac{\rho}{\rho_0} \right) \mbox{ if } \xi =
-1.
+1
 \label{e:open:psi}
 \end{equation}
 and $\psi^{-1}$ the respective inverse function. The three states yield
@@ -729,13 +765,13 @@ c(\rho) = c_0 \left( \frac{\rho}{\rho_0} \right)^{\frac{\xi - 1}{2}}
 \end{equation}
 to be able to compute the celerities $\lambda$. They are given as
 \begin{eqnarray}
-\lambda &=& u_{int} + c(\rho_{int}),
+\lambda &=& u_{int} + c(\rho_{int})
 \label{e:open:lambda}
 \\
-\lambda_e &=& u_{ext} + c(\rho_{ext,e}),
+\lambda_e &=& u_{ext} + c(\rho_{ext,e})
 \label{e:open:vlambda_e}
 \\
-\lambda_s &=& u_{ext} + c(\rho_{ext,s}),
+\lambda_s &=& u_{ext} + c(\rho_{ext,s})
 \label{e:open:vlambda_s}
 \end{eqnarray}
 Based on these celerities the states occur according to
@@ -786,17 +822,17 @@ segments that it is associated with it. The latter set will be denoted
 with $\mathcal{S}_v$ for a specific vertex $v$. The principal mass
 change comes from the flux through segments and reads
 \begin{equation}
-\widetilde{m}_v = m^n_v + \dot{m}_v,
+\widetilde{m}_v = m^n_v + \dot{m}_v
 \label{e:open:mtilde}
 \end{equation}
 where
 \begin{equation}
 \dot{m}_v = \Delta t \underset{s \in \mathcal{S}_v}{\sum}
-\rho_{ext,s} u_{ext,s} A_s \beta_v(\uvec{r}_s),
+\rho_{ext,s} u_{ext,s} A_s \beta_v(\vec{r}_s)
 \label{e:open:mdot}
 \end{equation}
 where $A_s$ represents the area of the segment $s$ and
-$\beta_v(\uvec{r}_s)$ is the mass repartition factor that will be
+$\beta_v(\vec{r}_s)$ is the mass repartition factor that will be
 described below.
 
 Next some mass clippings occur in the sequence listed below
@@ -820,7 +856,7 @@ If a fluid particle $a$ has crossed a segment $s \in \mathcal{S}_v$ then
 the mass of the fluid particle is redistributed to the vertex particles
 associated to that segment. If $v$ is one such segment then
 \begin{equation}
-\widetilde{m}_v = \widetilde{m}_v + \beta_v(\uvec{r}_a) m_{ref}.
+\widetilde{m}_v = \widetilde{m}_v + \beta_v(\vec{r}_a) m_{ref}
 \label{e:open:splitfluid}
 \end{equation}
 Finally the new mass of the vertex particle $m^{n+1}_v =
@@ -849,37 +885,37 @@ vertices respectively that are associated with open boundaries.
 \label{e:open:sumrho-time}
 \\
 &&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
-w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t) \right) \right]\right.
+w\left( \vec{r}_{av}^n + \vec{\delta r}_v^o(\Delta t) \right) \right]\right.
 \nonumber
 \\
 &&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
-\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t)\right) +
-\nabla\gamma_{as}(\uvec{r}_{as}^n)
-\right]\cdot\uvec{\delta r}_s^o(\Delta t)\right\},
+\vec{\nabla}\gamma_{as}\left(\vec{r}_{as}^n + \vec{\delta r}_s^o(\Delta t)\right) +
+\vec{\nabla}\gamma_{as}(\vec{r}_{as}^n)
+\right]\cdot\vec{\delta r}_s^o(\Delta t)\right\}
 \nonumber
 \end{eqnarray}
 where
 \begin{equation}
-\uvec{\delta r}_a^o(\Delta t) = \Delta t (\uvec{u}_a^n + \uvec{v}_a^n),
+\vec{\delta r}_a^o(\Delta t) = \Delta t (\vec{u}_a^n + \vec{v}_a^n)
 \label{e:open:deltar}
 \end{equation}
-where $\uvec{u}$ and $\uvec{v}$ are the Eulerian and Lagrangian
+where $\vec{u}$ and $\vec{v}$ are the Eulerian and Lagrangian
 velocity, respectively.
 
 \subsubsection{Time integration}
 The full time-stepping scheme including for open boundaries reads
 \begin{eqnarray}
-\uvec{v}_a^{n+1/2} &=& \uvec{v}_a^n + \frac{\Delta t}{2} \left(
--\frac{1}{\rho^n_a}\Grad_a(p^n) + \Lap_a(\nu^n,\uvec{v}^n) + \uvec{g}
-\right),
+\vec{v}_a^{n+1/2} &=& \vec{v}_a^n + \frac{\Delta t}{2} \left(
+-\frac{1}{\rho^n_a}\Grad_a(p^n) + \Lap_a(\nu^n,\vec{v}^n) + \vec{g}
+\right)
 \label{e:open:pred-corr-ns}
 \\
-\uvec{r}_a^{n+1/2} &=& \uvec{r}_a^{n} + \frac{\Delta t}{2}
-\uvec{v}_a^{n},
+\vec{r}_a^{n+1/2} &=& \vec{r}_a^{n} + \frac{\Delta t}{2}
+\vec{v}_a^{n}
 \nonumber
 \\
 \gamma_a^{n+1/2} &=& \gamma_a^{n} + \frac{1}{2}
-(\uvec{r}_a^{n+1/2} - \uvec{r}_a^{n}) \cdot (\nabla \gamma_a^n + \nabla \gamma_a^{n+1/2}),
+(\vec{r}_a^{n+1/2} - \vec{r}_a^{n}) \cdot (\vec{\nabla} \gamma_a^n + \vec{\nabla} \gamma_a^{n+1/2})
 \nonumber
 \\
 \rho_a^{n+1/2} &=& \frac{1}{\gamma_a^{n+1/2}}\left\{ \gamma_a^n \rho_a^n +
@@ -887,34 +923,34 @@ The full time-stepping scheme including for open boundaries reads
 \nonumber
 \\
 &&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
-w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t/2) \right) \right]\right.
+w\left( \vec{r}_{av}^n + \vec{\delta r}_v^o(\Delta t/2) \right) \right]\right.
 \nonumber
 \\
 &&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
-\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t/2)\right) +
-\nabla\gamma_{as}(\uvec{r}_{as}^n)
-\right]\cdot\uvec{\delta r}_s^o(\Delta t/2)\right\},
+\vec{\nabla}\gamma_{as}\left(\vec{r}_{as}^n + \vec{\delta r}_s^o(\Delta t/2)\right) +
+\vec{\nabla}\gamma_{as}(\vec{r}_{as}^n)
+\right]\cdot\vec{\delta r}_s^o(\Delta t/2)\right\}
 \nonumber
 \\
 p_a^{n+1/2} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1/2}}{\rho_0}\right)^\xi
--1 \right],
+-1 \right]
 \nonumber
 \\
 &&\mbox{Boundary conditions \& mass update}
 \nonumber
 \\
-\uvec{v}_a^{n+1} &=& \uvec{v}_a^n + \Delta t \left(
+\vec{v}_a^{n+1} &=& \vec{v}_a^n + \Delta t \left(
 -\frac{1}{\rho^{n+1/2}_a}\Grad_a(p^{n+1/2}) +
-\Lap_a(\nu^{n+1/2},\uvec{v}^{n+1/2}) + \uvec{g}
-\right),
+\Lap_a(\nu^{n+1/2},\vec{v}^{n+1/2}) + \vec{g}
+\right)
 \nonumber
 \\
-\uvec{r}_a^{n+1} &=& \uvec{r}_a^{n} + \Delta t\,
-\uvec{v}_a^{n+1/2},
+\vec{r}_a^{n+1} &=& \vec{r}_a^{n} + \Delta t\,
+\vec{v}_a^{n+1/2}
 \nonumber
 \\
 \gamma_a^{n+1} &=& \gamma_a^{n} +\frac{1}{2}
-(\uvec{r}^{n+1} - \uvec{r}_a^{n}) \cdot (\nabla \gamma_a^n + \nabla \gamma_a^{n+1}),
+(\vec{r}^{n+1} - \vec{r}_a^{n}) \cdot (\vec{\nabla} \gamma_a^n + \vec{\nabla} \gamma_a^{n+1})
 \nonumber
 \\
 \rho_a^{n+1} &=& \frac{1}{\gamma_a^{n+1}}\left\{ \gamma_a^n \rho_a^n +
@@ -922,17 +958,17 @@ p_a^{n+1/2} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1/2}}{\rho_0
 \nonumber
 \\
 &&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
-w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t) \right) \right]\right.
+w\left( \vec{r}_{av}^n + \vec{\delta r}_v^o(\Delta t) \right) \right]\right.
 \nonumber
 \\
 &&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
-\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t)\right) +
-\nabla\gamma_{as}(\uvec{r}_{as}^n)
-\right]\cdot\uvec{\delta r}_s^o(\Delta t)\right\},
+\vec{\nabla}\gamma_{as}\left(\vec{r}_{as}^n + \vec{\delta r}_s^o(\Delta t)\right) +
+\vec{\nabla}\gamma_{as}(\vec{r}_{as}^n)
+\right]\cdot\vec{\delta r}_s^o(\Delta t)\right\}
 \nonumber
 \\
 p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\right)^\xi
--1 \right].
+-1 \right]
 \nonumber
 \\
 &&\mbox{Boundary conditions \& mass update}

@@ -44,7 +44,7 @@
 \usepackage{graphicx}
 
 % extra mathematical symbols, full AMS math support
-\usepackage{amssymb,amsmath}
+\usepackage{amssymb,amsmath,bm}
 
 % wrap text around figures
 \usepackage{wrapfig}
@@ -58,6 +58,7 @@
 \newcommand{\en}{\end{equation}}
 \newcommand{\bx}{\mathbf{x}}
 \newcommand{\uvec}[1]{\underline{#1}}
+\renewcommand{\vec}[1]{\bm{#1}}
 \newcommand{\td}{\text{d}}
 \newcommand{\tdv}[2]{\frac{\td #1}{\td #2}}
 \newcommand{\tddv}[2]{\frac{\td^2 #1}{\td #2^2}}
@@ -72,7 +73,7 @@
 \newcommand{\sumP}{\underset{b \in \mathcal{P}}{\sum}}
 \newcommand{\sumS}{\underset{s \in \mathcal{S}}{\sum}}
 \newcommand{\Grad}{\textbf{G}}
-\newcommand{\Div}{\textbf{D}}
+\newcommand{\Div}{D}
 \newcommand{\Lap}{\textbf{L}}
 
 % current version

@@ -433,10 +433,8 @@ If hdf5 cannot be found due to lacking environmental variable you can edit the m
 Uncomment it and set the respective hdf5 path in order to use your custom installation.\\
 
 To finish the installation it is recommended to add the path to the CRIXUS binary to your
-\cmd{$PATH} environment variable. Add this line in \cmd{~/.bashrc}:
-\begin{shellcode}
-export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:$PATH
-\end{shellcode}
+\cmd{$PATH} environment variable. Add this line in \cmd{~/.bashrc}:\\
+\cmd{export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:\$PATH}\\
 where \cmd{/your_path} is your path to the CRIXUS directory.
 
 \subsection{Installing PARAVIEW}
