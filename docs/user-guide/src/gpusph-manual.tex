@@ -377,7 +377,7 @@ the problem file (e.g. \cmd{DamBreak3D.cc}) and changing the value
 passed as argument of \cmd{set_deltap()} (e.g., replace
 \cmd{set_deltap(0.025f);} with \cmd{set_deltap(0.02f);}. The second way
 is to specify the particle size at runtime using the appropriate command
-line option (described below): e.g. \cmd{./GPUSPH --deltap 0.02}.
+line option (described below): e.g. \cmd{./GPUSPH -{}-deltap 0.02}.
 
 \subsection{DamBreak3D}
 
@@ -931,6 +931,7 @@ The geometry (i.e., the H5SPH file) is now ready to be used by GPUSPH.
 
 As said before, the simulation setup only involves manipulating the .cu and the .h 
 files of your problem in order to specify all its parameters before running GPUSPH. 
+
 The structure of a problem, is in fact the structure of the .cu file, 
 which could be defined as follows:
 \begin{enumerate}
@@ -948,72 +949,117 @@ have also to be stated before running GPUSPH.
 In the following sections we develop each section to help 
 the readers write the .cu file in order to build their own simulation.
 
+There are actually two ways to develop new problems in GPUSPH.  
+The first is to modify a test problem that is similar to what you would like to do, 
+such as \cmd{WaveTank.cu} or \cmd{DamBreak3d.cu} in the \cmd{src/problems} directory.  
+These problems are based on \cmd{Problem.cc}.  
+The format of these programs is typically setting up the problem parameters, 
+including the fluid and the computational domain, 
+filling the appropriate volumes with particles, 
+and then copying the particles to the GPU.
 
-\subsection{Initializing the particle system}
+The second way is to use the \cmd{XProblem} approach, which is a higher 
+level approach requiring less programming and uses \cmd{XProblem.cc} 
+instead of \cmd{problem.cc}. This approach is recommended since it is meant to make 
+the problem construction easier:
+\cmd{XProblem} does much of the work of defining and placing objects of common shape 
+(cubes or parallelpipeds, spheres, etc)  in the domain.  
+These shapes can be solid or fluid or filled with fluid.  
+\cmd{Xproblem} takes care of filling the appropriate volume(s) with particles.   
+It has the added feature of taking care of the setup for floating and other moving 
+bodies that are handled through a dynamics library:  \cmd{Project Chrono}.  
+Further the initialization and copying of the particles to the GPU is built into Xproblem 
+(the \cmd{copy_to_array} method is not needed anymore).  
 
-\textbf{With classical boundary conditions:}\\
+\subsection{XProblem Examples}
 
-With DYNAMIC or LENNARD-JONES boundary conditions, the
-problem geometry and the filling with particles is done
-inside GPUSPH. An example of generation of arrays
-of cubes and spheres in the computational domain is given in
-\cmd{XProblemExample.cu}. 
-The geometrical objects can be added using functions like:
-\begin{ccode}
-addCube(GT_FIXED_BOUNDARY, FT_BORDER,
-             Point(X,Y,Z),cube_size);
-\end{ccode}
-The geometrical objects are defined in the \cmd{src/geometry} folder.
-They may be:
+There are four supplied XProblem examples in the src/problems directory:\\
 \begin{itemize}
-\item cubes
-\item spheres
-\item torus
-\item cylinders
-\item cones
+\item	\cmd{XBuoyancyTest.cu}
+\item	\cmd{XCompleteSaExample.cu}
+\item	\cmd{XDamBreak3D.cu}
+\item	\cmd{XProblemExample.cu}
 \end{itemize}
+Each of these examples can be run by typing \cmd{make problem=XBuoyancyTest}, 
+for example,  in the top level GPUSPH directory.  
+It is recommended that the user try them to ensure 
+everything checks out in terms of CUDA and GPUSPH. \\
 
-The XProblem class makes it possible to rotate or shift them after they were defined.
-They can be assigned a mass and a center of gravity.\\
+\cmd{XBuoyancyTest.cu} is the XProblem version of the example problem BuoyancyTest. 
+The advantage of the XBuoyancy.cu example is that it has 60\% less lines of code.
+The example includes a rectangular tank of still water with a submerged torus 
+(or by changing object_type, a cube or sphere) that is released when the problem begins.  
+As time advances, the torus rises through the water column as it has a 
+density half that of water and then it reaches the free surface and floats.  \\
 
-\textbf{With semi-analytical boundary conditions:}\\
+The output of \cmd{XBuoyancyTest} is written every 0.01 seconds into a file 
+in the directory tests designated by the Xproblem name and the date and time.  
+The files are in VTU format that can be read by Paraview.  
+Alternative formats, such as text, can be chosen by changing the writer in the \cmd{add_writer} command. \\
 
-The fluid initialization performed by CRIXUS and stored in the H5SPH 
-files is used by GPUSPH to start the simulation. 
-The specification of the file containing the fluid particles occurs with the following statement:
-\begin{ccode}
-addHDF5File(GT_FLUID, Point(0,0,0), 
-"./data_files/XCompleteSaExample/0.my_project.fluid.h5sph",
-NULL);
-\end{ccode}
-The specification of the file containing the special boundary particles  occurs with the following statement:\\
+\cmd{XProblemExample.cu} shows how a matrix of objects can easily be added to a problem.  
+The basic problem is a semi-infinite domain with a plane used as a floor (\cmd{addPlane}).  
+A 4 x 4 array of solid cubes is set-up using the addCube command multiple times.   
+The \cmd{GT_FIXED_BOUNDARY}  (GT=Geometry Type) means that the cubes are solid. 
+The cubes are also rotated 45 degrees by a rotate command. 
+Then a smaller array of spheres of fluid are defined.  
+\cmd{GT_FLUID} is used in the \cmd{addSphere} command.  
+Note for the fluid the \cmd{setDensityByMass} establishes the fluid density.  \\
 
-\begin{ccode}
-  // Main container
-  GeometryID container =
-  addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), 
-  "./data_files/MyProject/0.my_project.boundary.kent0.h5sph",
-  NULL);
-  disableCollisions(container);
-  
-  // Inflow boundary 
-  GeometryID inlet =
-  addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), 
-  "./data_files/MyProject/0.my_project.boundary.kent1.h5sph",
-  NULL);
-  disableCollisions(inlet);
-\end{ccode}
+\cmd{XDamBreak3D.cu} is a XProblem version of \cmd{DamBreak3D.cu}, 
+but in this case there are 40\%  less lines of code.   
+The problem domain is setup using \cmd{makeUniverseBox()}, 
+which has as its arguments two opposite corners of the 
+project domain—the first corner is the origin. 
+This command sets up the domain using analytical planes as boundaries. 
+These planes do not require the use of particles.  
+Water is added to the domain with the \cmd{addBox()} command -- 
+note that the fluid is denoted by  \cmd{GT_FLUID} (GT=GeometryType).  
+The fluid behind the dam is 0.4 m deep.  
+A variety of obstacles can be added in front of the dam.  
+As provided, there is just a single object, but by invoking the model with
+ \cmd{./GPUSPH -{}-num_obstacles 3}
+three obstacles will be in front of the dam.  
+These obstacles can be rotated from their original position 
+by \cmd{./GPUSPH -{}- num_obstacles 3 -{}-rotate_obstacle true}\\
 
-In order to specify whether the open boundary is pressure driven or velocity driven, the following lines
-are used:
-\begin{shellcode}
-setVelocityDriven(inlet, VELOCITY_DRIVEN);
-setVelocityDriven(inlet, PRESSURE_DRIVEN);
-\end{shellcode}
+Another run-time option includes \cmd{-{}-wet true or false}, 
+which puts a $0.1m$ layer of water around the obstacles (and in front of the dam).  
 
-\subsection{Setting the simulation parameters}
-There is a big amount of simulation parameters that have to be stated. 
-We could organize them in several types:
+
+\cmd{XCompleteSaExample.cu} is an example using the Semi-Analytical boundary conditions (SA). 
+This type of boundary condition was chosen in the  \cmd{SETUP_FRAMEWORK}, 
+which is a class that contains the various simulation choices. 
+For example it contains \cmd{boundary<SA_BOUNDARY>} as the choice.   
+This example consists of a tank with a free surface and a submerged inlet.  
+There is a floating cube as well.  
+The example requires data files that are available on the \url{www.gpusph.org} web site:\\
+\cmd{wget http://www.gpusph.org/downloads/data_files_XCompleteSaExample.tgz}\\
+
+or, in your browser,\\
+\cmd{www.gpusph.org/downloads/data_files_XCompleteSaExample.tgz}\\
+
+The file (\cmd{data_files_XCompleteSaExample.tgz}) is uncompressed 
+in the root gpusph directory.  
+It will create a directory \cmd{data_files}, containing four \cmd{.h5sph} 
+to set up the fluid and boundaries and one \cmd{.stl} file to define the cube.  
+(In addition there are five files that were used to generate the input files 
+using Crixus, an open source pre-processor).  
+The problem is large and will take some time as it involves the semi-analytical boundaries.  
+There are 122,642 particles in total, of which 56821 are fluid particles 
+and the rest are boundary and vertex particles.  
+
+\subsection{Generic XExample}
+
+To write your own example, you can use one of the examples as a template, 
+but they all have a similar format as XExample.  
+For example, looking at the text file, \cmd{XBuoyancyTest.cu} in the directory 
+\cmd{src/problems}, we see that, after the appropriate \cmd{includes}, 
+including \cmd{XBuoyancyTest.h}, the example is defined as a 
+child of the \cmd{XProblem} class.  
+Then the setup is done following the structure below.
+
+
 \subsubsection{Framework setup}
 
 The \cmd{SETUP_FRAMEWORK} function enables to change the
@@ -1053,7 +1099,8 @@ so setting this number to 300 would be a good choice.
 to potentiate diffusion dissipation (0 for no extra diffusion, 1 for the maximum)
 \item The next three functions are used to set the name, density, state equation and viscosity of the fluid
 \item \cmd{numOpenBoundaries} is the number of open boundaries in the simulation
-\item \cmd{m_size} and \cmd{m_origin} are the size and the origin of the domain defined in SALOME
+\item \cmd{m_size} and \cmd{m_origin} are the size and the origin of the domain 
+(defined in SALOME in case semi-analytical boundaries are used).
 \end{itemize}
 
 \subsubsection{SPH parameters}
@@ -1066,14 +1113,90 @@ to potentiate diffusion dissipation (0 for no extra diffusion, 1 for the maximum
 \end{itemize}
 
 \subsubsection{Physical parameters}
-Gravity specification
-
+ 
+The fluid density is set through the \cmd{add_fluid}) function,
+and the equation of state to be used by \cmd{set_equation_of_state}.
+The gravity field can also be specified at this point.
+   
 \subsubsection{Results parameters}
 
-Specify the file writing frequency (in terms of simulated seconds). 
-That is, in this case, we will have a VTU file every 0.1 simulated second. 
+The writer (for the output data) is chosen with the \cmd{add_writer}
+command (usually the VTK writer, which provides files to be read by Paraview).  
+The file writing frequency (in terms of simulated seconds) can also be specified. 
+That is, in this case, we will have a VTU file every 0.1 simulated second for example. 
 It is important to note that, since some simulations could become 
 too large, this frequency is essential in order to limit the size of the result files.
+
+
+\subsection{Building and initializing the particle system}
+
+\textbf{With classical boundary conditions:}\\
+
+With DYNAMIC or LENNARD-JONES boundary conditions, the
+problem geometry and the filling with particles is done
+inside GPUSPH. An example of generation of arrays
+of cubes and spheres in the computational domain is given in
+\cmd{XProblemExample.cu}. 
+The geometrical objects can be added using functions like:
+\begin{ccode}
+addCube(GT_FIXED_BOUNDARY, FT_BORDER,
+             Point(X,Y,Z),cube_size);
+\end{ccode}
+The geometrical objects are defined in the \cmd{src/geometry} folder.
+They may be:
+\begin{itemize}
+\item cubes
+\item spheres
+\item torus
+\item cylinders
+\item cones
+\end{itemize}
+
+The XProblem class makes it possible to rotate or shift them after they were defined.
+They can be assigned a mass and a center of gravity.\\
+
+GeometryType (GT) are fluid, fixed boundary, open boundary, 
+floating body, moving body, plane, and testpoint, eg. \cmd{GT_OPENBOUNDARY}. 
+They are enumerated in \cmd{XProblem.h}.
+
+
+\textbf{With semi-analytical boundary conditions:}\\
+
+The fluid initialization performed by CRIXUS and stored in the H5SPH 
+files is used by GPUSPH to start the simulation. 
+The specification of the file containing the fluid particles occurs with the following statement:
+\begin{ccode}
+addHDF5File(GT_FLUID, Point(0,0,0), 
+"./data_files/XCompleteSaExample/0.my_project.fluid.h5sph",
+NULL);
+\end{ccode}
+The specification of the file containing the special boundary particles  occurs with the following statement:\\
+
+\begin{ccode}
+  // Main container
+  GeometryID container =
+  addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), 
+  "./data_files/MyProject/0.my_project.boundary.kent0.h5sph",
+  NULL);
+  disableCollisions(container);
+  
+  // Inflow boundary 
+  GeometryID inlet =
+  addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), 
+  "./data_files/MyProject/0.my_project.boundary.kent1.h5sph",
+  NULL);
+  disableCollisions(inlet);
+\end{ccode}
+
+In order to specify whether the open boundary is pressure driven or velocity driven, the following lines
+are used:
+\begin{shellcode}
+setVelocityDriven(inlet, VELOCITY_DRIVEN);
+setVelocityDriven(inlet, PRESSURE_DRIVEN);
+\end{shellcode}
+
+Once again the GT (GeometryType) can be fluid, fixed boundary, open boundary, 
+floating body, moving body, plane, or testpoint, eg. \cmd{GT_OPENBOUNDARY}. 
 
 
 \section{Visualizing the results}
