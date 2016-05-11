@@ -239,7 +239,15 @@ so that the column of water, confined on three sides, collapses into the
 tank. In the tank there is a vertical rectangular object -- the
 collapsing water column impacts on the tank and then flows up the front
 face of the object and around the sides. Finally the water hits the back
-wall of the tank.
+wall of the tank. A screenshot of the simulation at time $0.6s$ is provided
+in the Figure \ref{fig:DamBreak3D}.
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.3, trim={100 100 100 100},clip]{fig/damBreak3D_screenshot.png}
+    \caption{Screenshot of the DamBreak3D simulation at time $0.6s$.}\label{fig:DamBreak3D}   
+  \end{center}
+\end{figure}
 
 \subsection{DamBreakGate}
 
@@ -259,6 +267,16 @@ The moving gate is created by defining its geometry with particles
 denoted as GATEPART particles and the \cmd{mb_callback} function, which
 is used for the \textbf{m}oving \textbf{b}oundaries.
 
+A screenshot of the simulation at time $0.8s$ is provided
+in the Figure \ref{fig:DamBreakGate}.
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.35, trim={100 100 100 100},clip]{fig/damBreakGate_screenshot.png}
+    \caption{Screenshot of the DamBreakGate simulation at time $0.8s$.}\label{fig:DamBreakGate}   
+  \end{center}
+\end{figure}
+
 \subsection{OpenChannel}
 
 This problem represents an instantaneous start up of a highly viscous
@@ -276,7 +294,14 @@ well. The key parameter in the problem statement is
 \cmd{m_simparams.periodicbound}, which can be set to any combination of
 \cmd{PERIODIC_X}, \cmd{PERIODIC_Y}, \cmd{PERIODIC_Z} to indicate
 peridocity along each of the axes.
-
+Figure \ref{fig:OpenChannel} shows the shape of the velocity field in 
+the channel after time convergence.
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.35, trim={0 100 0 0},clip]{fig/openChannel_screenshot.png}
+    \caption{Screenshot of the OpenChannel simulation after time convergence.}\label{fig:OpenChannel}
+  \end{center}
+\end{figure}
 
 \subsection{WaveTank}
 
@@ -292,6 +317,7 @@ surface ($S=0.1$m) are given in the variables \cmd{mb_omega} and
 \cmd{mb_amplitude}. To change the stroke and the frequency of the wave
 paddle, you must change these variables in the problem file,
 \cmd{WaveTank.cc}.
+Figure \ref{fig:WaveTank} shows a screenshot of the simulation at time $9s$.
 
 \iffalse
 \begin{figure}[h]
@@ -301,8 +327,15 @@ paddle, you must change these variables in the problem file,
 \caption{Schematic of the wave paddle for \cmd{WaveTank.cc}}
 \end{figure}
 \else
-\todo{paddle picture}
+%\todo{paddle picture}
 \fi
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.35, trim={0 200 0 200},clip]{fig/waveTank_screenshot.png}
+    \caption{Screenshot of the WaveTank simulation at time $9s$.}\label{fig:WaveTank}   
+  \end{center}
+\end{figure}
 
 \subsection{SolitaryWave}
 

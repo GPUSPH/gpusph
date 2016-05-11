@@ -161,6 +161,12 @@ This results in bad mesh quality.
 So when importing geometry on a STL format, a redesigning of it is necessary 
 in order to obtain a good mesh quality.\\
 
+Other very useful tools of SALOME are the boolean operations on solids.
+It is possible to fuse, intersect solid objets, use a solid object as a 
+cutting tool for another one, etc.
+It is also possible to perform operations like rotation, translation, etc. on
+the geometrical objects.\\
+
 \textbf{Generating the mesh}\\
 
 The complete SALOME documentation for the MESH module can be found here:\\
@@ -170,7 +176,7 @@ Once the geometry is defined, it can be meshed using SALOME.
 In order to access the meshing tools, change from the Geometry 
 module to the Mesh module.
 To create a mesh from a geometry element, click on \cmd{Create Mesh}, 
-and a window opens in which the following options are available:
+and a window opens (see Figure \ref{fig:salome_screenshot_1}) in which the following options are available:
 \begin{itemize}
 \item Name: the name of the mesh which is going to be created
 \item Geometry: the geometry element that we want to mesh
@@ -182,8 +188,24 @@ Netgen 1D-2D works well for shell meshing.
 \item Hypothesis: here we can specify the hypothesis to be used 
 by the algorithm method. Clicking on the first icon on the right, 
 we can specify the parameters of the algorithm. See the SALOME 
-documentation for more details about the options.
+documentation for more details about the options. 
+For example, for the Netgen 1D-2D algorithm, a window opens 
+with all the options shown in the Figure \ref{fig:salome_screenshot_2}.
 \end{itemize}
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.7, trim={1820 365 330 170},clip]{fig/salome_screenshot_1.png}
+    \caption{Screenshot of the mesh options window in SALOME.}\label{fig:salome_screenshot_1}   
+  \end{center}
+\end{figure}
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.7, trim={2215 308 50 180},clip]{fig/salome_screenshot_2.png}
+    \caption{Screenshot of the Netgen 1D-2D hypothesis window in SALOME.}\label{fig:salome_screenshot_2}   
+  \end{center}
+\end{figure}
 
 The most relevant mesh options with the Netgen 1D-2D algorithm 
 are Max Size and Minimum Size. 
@@ -716,12 +738,43 @@ up the \cmd{tests} directory.
 A tutorial to start using ParaView is available here:\\
 \url{http://www.paraview.org/Wiki/Beginning_ParaView}\\
 
-Below some useful filters of ParaView are listed:\\
+To open a file, click on the first upper icon on the left. 
+The VTU files are named as \cmd{PART_00025.vtu} where the number corresponds to
+the output files numbering. 
+PARAVIEW allows the user to visualize at the same time all the VTU files, 
+just clicking on VTUinp.pvd or selecting the all set of \cmd{PART_..vtu} files
+(see the Figure \ref{fig:paraview_screenshot_1}).
+The set of VTU files can be analyzed as a movie by clicking on 
+the play buttons at the top of the screen. 
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.65, trim={1680 335 190 155},clip]{fig/paraview_screenshot_1.png}
+    \caption{Screenshot of the window for file opening in PARAVIEW.}\label{fig:paraview_screenshot_1}   
+  \end{center}
+\end{figure}
+After selecting the \cmd{VTUinp.pvd} or the desired \cmd{PART} files, 
+a window appears at the bottom-left part of the screen. 
+Press \cmd{Apply} to confirm the file opening: the set of particles
+appears at the center of the screen.
+When pressing \cmd{Apply}, a window opens with three main sections: 
+\cmd{Properties}, \cmd{Display} and \cmd{Information}. 
+The second one enables the user to decide which field should be printed 
+(first tab of the section \cmd{Coloring}). 
+With the \cmd{Show} option, we can make the color legend appear, 
+and with the \cmd{Edit} one, we can customize it. 
+Below this section we find a set of options that enables us to manage the plotting as desired.
+The \cmd{Information} section provides information like the total size of the dataset.\\
+
+Below some useful filters of ParaView are listed. The filters are all available 
+through the \cmd{Filters} tab at the top of the screen, in the section
+\cmd{Alphabetical}, or through shortcuts in the main window.\\
 \begin{itemize} 
 \item \textbf{Find Data}\\
 Find data by scalar value makes it possible to select particles 
 on the basis of the value of their fields. When activating a filter
 a window opens. In order to select the particles we want, 
+in that window (see the Figure \ref{fig:paraview_screenshot_2}),
 we have to set the Find tab on Point in that window. 
 In the left tab we can choose the desired field, whereas in the right one 
 we can set the value (note that there are several conditions: >=, <=, =, between, etc.). 
@@ -730,24 +783,53 @@ will be able to see a table containing all the particles that match
 the imposed condition. 
 In addition; we will be able to see these particles on 
 the Layout, colored with the chosen Selection Color.
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.65, trim={1740 300 260 165},clip]{fig/paraview_screenshot_2.png}
+    \caption{Screenshot of the \cmd{Find Data} window in PARAVIEW.}\label{fig:paraview_screenshot_2}   
+  \end{center}
+\end{figure}
+
 \item \textbf{Clip} \\
 In order to visualize a section of the domain, 
-since the fields are discrete, we are obliged to perform a Clip. 
-By changing the Clip Type tab into Box, we are able to set the dimensions 
-and position of the box. It is important to click on the Inside Out button 
-to select the particles that are inside the box. Once we are ready, we click on 
-Apply and we get another object in the Pipeline Browser 
-that we can manipulate in the same conditions as the whole domain. 
-Note that the Slice option does not work because the flow fields are not continuous.
-\item \textbf{Save Data} \\
-We are able to get a table in CSV format containing the values of the 
-fields for each particle. If we click on , a windows appears where 
-we can set the name and other options for the resulting file. 
-There are many options for the format of the file, but the recommended 
-one is .csv, as we can visualize it on the Linux’ LibreOffice Calc 
-(which is the analogous for Windows’ Excel). In addition, 
-we can change the format of the file to .dat in order to open 
-it with Linux’ gedit. 
-\item \textbf{Threshold} \\
-\item \textbf{Calculator} \\
+since the fields are discrete, we are obliged to perform a \cmd{Clip}.
+The \cmd{Clip} window is shown in the Figure \ref{fig:paraview_screenshot_3}.  
+By changing the \cmd{Clip Type} tab into \cmd{Box}, it is possible to set the dimensions 
+and position of the box. It is important to click on the \cmd{Inside Out} button 
+to select the particles that are inside the box. Once ready, click on 
+\cmd{Apply} to get a new \cmd{Clip} object in the Pipeline Browser.
+You can manipulate it in the same way as the main dataset. You can
+also perform clips with planes. \\
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.65, trim={1490 160 820 330},clip]{fig/paraview_screenshot_3.png}
+    \caption{Screenshot of the \cmd{Clip} window in PARAVIEW.}\label{fig:paraview_screenshot_3}   
+  \end{center}
+\end{figure}
+\textbf{Remark}: the Slice option does not work because the flow fields are not continuous.
+To make a slice, we currently apply a thin box-type clip to the dataset.\\
+
+\item Other useful filters are the \textbf{Threshold}, \textbf{Calculator}, \textbf{Scatter Plot}, etc.
+
 \end{itemize}
+
+\textbf{Saving your results} \\
+
+\textbf{Save Data} \\
+You can generate a table in CSV format containing the values of the 
+fields for each particle for each PART file or filtered dataset. 
+If you click on \cmd{File/Save Data}, a window appears where 
+you can set the name and other options for the result file. 
+There are many options for the format of the file, but the recommended 
+one is .csv, as you can visualize it on the Linux LibreOffice Calc 
+or Windows Excel. In addition, 
+you can change the format of the file to .dat in order to open 
+it with a text editor. 
+
+\textbf{Save State} \\
+You can save your PARAVIEW postprocessing state in a file by
+clicking on \cmd{File/Save State}. The state file is in ascii
+format so you can edit it with a text editor.
+You can also apply it to other datasets than the original one, 
+which is very useful in order to avoid having to repeatedly
+perform the same filtering operations.
