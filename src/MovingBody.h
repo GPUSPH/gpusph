@@ -30,7 +30,7 @@
 #include "Object.h"
 
 enum MovingBodyType {
-	MB_ODE,
+	MB_FLOATING,
 	MB_FORCES_MOVING,
 	MB_MOVING
 };

@@ -144,7 +144,7 @@ int BuoyancyTest::fill_parts()
 	if (object_type != 2)
 		collide = false;
 	floating->BodyCreate(m_bodies_physical_system, dp, collide);
-	add_moving_body(floating, MB_ODE);
+	add_moving_body(floating, MB_FLOATING);
 	floating->BodyPrintInformation(collide);
 
 	PointVect & rbparts = get_mbdata(uint(0))->object->GetParts();
@@ -190,7 +190,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
-				case MB_ODE:
+				case MB_FLOATING:
 					ptype |= FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE;
 					break;
 				case MB_FORCES_MOVING:

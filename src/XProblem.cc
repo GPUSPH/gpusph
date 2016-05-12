@@ -1369,7 +1369,7 @@ int XProblem::fill_parts()
 
 		// tell Problem to add the proper type of body
 		if (m_geometries[g]->type == GT_FLOATING_BODY)
-			add_moving_body(m_geometries[g]->ptr, MB_ODE);
+			add_moving_body(m_geometries[g]->ptr, MB_FLOATING);
 		else
 		if (m_geometries[g]->type == GT_MOVING_BODY) {
 			if (m_geometries[g]->measure_forces)

@@ -155,7 +155,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	mbdata->kdata.avel = make_double3(0.0f);
 	mbdata->kdata.orientation = object->GetOrientation();
 	switch (mbdata->type) {
-		case MB_ODE : {
+		case MB_FLOATING : {
 #if USE_CHRONO == 1
 			::chrono::ChBody *body = object->GetBody();
 			::chrono::ChVector<> vec = body->GetPos();
@@ -234,7 +234,7 @@ Problem::get_forces_bodies_numparts(void)
 {
 	size_t total_parts = 0;
 	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
-		if ((*it)->type == MB_ODE || (*it)->type == MB_FORCES_MOVING)
+		if ((*it)->type == MB_FLOATING || (*it)->type == MB_FORCES_MOVING)
 			total_parts += (*it)->object->GetNumParts();
 	}
 	return total_parts;
@@ -374,7 +374,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		if (step == 2)
 			mbdata->kdata = m_bodies_storage[i];
 #if USE_CHRONO == 1
-		if (mbdata->type == MB_ODE) {
+		if (mbdata->type == MB_FLOATING) {
 			ode_bodies = true;
 			::chrono::ChBody *body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
@@ -419,7 +419,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 #if USE_CHRONO == 1
 		// In case of an ODE body, new center of rotation position, linear and angular velocity
 		// and new orientation have been computed by ODE
-		if (mbdata->type == MB_ODE) {
+		if (mbdata->type == MB_FLOATING) {
 			::chrono::ChBody *body = mbdata->object->GetBody();
 			::chrono::ChVector<> vec = body->GetPos();
 			const double3 new_crot = make_double3(vec.x, vec.y, vec.z);
@@ -437,7 +437,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 #endif
 		// Otherwise the user is providing linear and angular velocity trough a call back
 		// function
-		if (mbdata->type != MB_ODE) {
+		if (mbdata->type != MB_FLOATING) {
 			const uint index = mbdata->index;
 			// Get linear and angular velocities at t + dt/2.O for step 1 or t + dt for step 2
 			float3 force = make_float3(0.0f);
