@@ -65,8 +65,6 @@ class OdeObjects: public Problem {
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
 
-		void ODE_near_callback(void *, dGeomID, dGeomID);
-
 		void release_memory(void);
 };
 #endif	/* _ODEOBJECTS_H */

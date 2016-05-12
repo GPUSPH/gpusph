@@ -339,8 +339,6 @@ class XProblem: public Problem {
 
 		uint suggestedDynamicBoundaryLayers();
 
-		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
-
 		// will probably implement a smart, general purpose one
 		// void fillDeviceMap();
 };

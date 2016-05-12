@@ -181,26 +181,6 @@ int OdeObjects::fill_parts()
 }
 
 
-void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
-{
-	const int N = 10;
-	dContact contact[N];
-
-	int n = dCollide(o1, o2, N, &contact[0].geom, sizeof(dContact));
-	if ((o1 == cube.m_ODEGeom && o2 == sphere.m_ODEGeom) || (o2 == cube.m_ODEGeom && o1 == sphere.m_ODEGeom)) {
-		cout << "Collision between cube and obstacle " << n << "contact points\n";
-	}
-	for (int i = 0; i < n; i++) {
-		contact[i].surface.mode = dContactBounce;
-		contact[i].surface.mu   = dInfinity;
-		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
-		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
-		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
-		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
-	}
-}
-
-
 void OdeObjects::copy_to_array(BufferList &buffers)
 {
 	float4 *pos = buffers.getData<BUFFER_POS>();

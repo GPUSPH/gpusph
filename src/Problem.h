@@ -353,21 +353,6 @@ RESTORE_WARNINGS
 		virtual float3 g_callback(const float t) DEPRECATED;
 		virtual float3 g_callback(const double t);
 
-		// TODO for chrono merge: what is the equivalent in Chrono?
-		/* ODE callbacks */
-		/*
-		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
-		{
-			std::cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
-		}
-
-		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)
-		{
-			Problem* problem = (Problem *) data;
-			problem->ODE_near_callback(data, o1, o2);
-		}
-		*/
-
 		void allocate_bodies_storage();
 		void add_moving_body(Object *, const MovingBodyType);
 		const MovingBodiesVect& get_mbvect() const

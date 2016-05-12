@@ -18,7 +18,5 @@ class XBuoyancyTest: public XProblem {
 
 	public:
 		XBuoyancyTest(GlobalData *);
-
-		void ODE_near_callback(void *, dGeomID, dGeomID);
 };
 #endif /* XBUOYANCYTEST_H_ */

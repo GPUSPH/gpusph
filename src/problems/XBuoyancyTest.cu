@@ -87,19 +87,3 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XBuoyancyTest";
 }
-
-void XBuoyancyTest::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
-{
-	const int N = 10;
-	dContact contact[N];
-
-	int n = dCollide(o1, o2, N, &contact[0].geom, sizeof(dContact));
-	for (int i = 0; i < n; i++) {
-		contact[i].surface.mode = dContactBounce;
-		contact[i].surface.mu   = dInfinity;
-		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
-		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
-		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
-		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
-	}
-}
