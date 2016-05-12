@@ -362,7 +362,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	double t1 = t + dt1;
 
 	//#define _DEBUG_OBJ_FORCES_
-	bool ode_bodies = false;
+	bool chrono_bodies = false;
 	// For ODE bodies apply forces and torques
 	for (int i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
@@ -375,7 +375,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 			mbdata->kdata = m_bodies_storage[i];
 #if USE_CHRONO == 1
 		if (mbdata->type == MB_FLOATING) {
-			ode_bodies = true;
+			chrono_bodies = true;
 			::chrono::ChBody *body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
@@ -403,7 +403,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 #if USE_CHRONO == 1
 	// Call Chrono solver for floating bodies
-	if (ode_bodies) {
+	if (chrono_bodies) {
 		m_bodies_physical_system->DoStepDynamics(dt1);
 	}
 #endif
