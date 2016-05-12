@@ -79,10 +79,16 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 			sphere = Sphere(Point(lx/2.0, ly/2.0, H/2.0 - r/4.0), r);
 		case 2: // TORUS
 	*/
+	/*
 	double R = lx * 0.2;
 	double r = 4.0 * m_deltap;
 	GeometryID torus = addTorus(GT_FLOATING_BODY, FT_BORDER, Point(lx/2.0, ly/2.0, H/2.0), R, r);
 	setMassByDensity(torus, physparams()->rho0[0]*0.5);
+	*/
+	setPositioning(PP_CENTER);
+	const double SIDE = lx * 0.4;
+	GeometryID floating_cube = addCube(GT_FLOATING_BODY, FT_BORDER, Point(lx/2.0, ly/2.0, H/2.0), SIDE);
+	setMassByDensity(floating_cube, physparams()->rho0[0]*0.5);
 
 	// Name of problem used for directory creation
 	m_name = "XBuoyancyTest";
