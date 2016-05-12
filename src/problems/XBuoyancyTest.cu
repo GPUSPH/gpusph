@@ -15,7 +15,7 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	double lx = 1.0;
 	double ly = 1.0;
 	double lz = 1.0;
-	double H = 0.7;
+	double H = 0.6;
 
 	//m_size = make_double3(lx, ly, lz);
 	//m_origin = make_double3(0.0, 0.0, 0.0);
@@ -28,18 +28,17 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<DYN_BOUNDARY>
 	);
 
-	// let the number of layers be autocomputed
-	//setDynamicBoundariesLayers(4);
+	// reduce autocomputed number of layers
+	setDynamicBoundariesLayers(3);
 
 	// SPH parameters
-	set_deltap(0.02); //0.008
+	set_deltap(0.04); //0.008
 	simparams()->dt = 0.0003f;
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
-	simparams()->tend = 20.0f; //0.00036f
+	simparams()->tend = 5.0f; //0.00036f
 
 	// Physical parameters
-	H = 0.6f;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 	double g = length(physparams()->gravity);
 	add_fluid(1000.0);
@@ -53,20 +52,19 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
-	add_writer(VTKWRITER, 0.01);
+	add_writer(VTKWRITER, 0.1);
+
+	const double offs = m_deltap * getDynamicBoundariesLayers();
+	//addExtraWorldMargin(2*offs);
 
 	setPositioning(PP_CORNER);
 
-	const int layers = 4;
-
-	GeometryID cube = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0,0,0), lx, ly, lz);
+	// DYN fill is inwards, so when using a cube as a container must take care of offsets
+	GeometryID cube = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0,0,0),
+		lx + 2 * offs, ly + 2 * offs, lz + 2 * offs);
 	disableCollisions(cube);
 
-	const double offs = m_deltap * layers;
-	//addExtraWorldMargin(2*offs);
-
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, Point(offs, offs, offs),
-		lx - 2.0 * offs, ly - 2.0 * offs, H);
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, Point(offs, offs, offs), lx, ly, H);
 
 	// TODO
 	/*
@@ -87,7 +85,8 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	*/
 	setPositioning(PP_CENTER);
 	const double SIDE = lx * 0.4;
-	GeometryID floating_cube = addCube(GT_FLOATING_BODY, FT_BORDER, Point(lx/2.0, ly/2.0, H/2.0), SIDE);
+	GeometryID floating_cube = addCube(GT_FLOATING_BODY, FT_BORDER,
+		Point(offs + lx/2.0, offs + ly/2.0, offs + H/2.0), SIDE);
 	setMassByDensity(floating_cube, physparams()->rho0[0]*0.5);
 
 	// Name of problem used for directory creation
