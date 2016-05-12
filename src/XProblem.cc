@@ -1489,7 +1489,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	// We've already counted the objects in initialize(), but now we need incremental counters
 	// to compute the correct object_id according to the insertion order and body type.
-	// Specifically, object_ids are coherent with the insertion order but floating (ODE) bodies
+	// Specifically, object_ids are coherent with the insertion order but floating bodies
 	// are assigned first; then forces bodies; and finally moving bodies.
 	// Please note how they count one kind of body, not including the previous category, as
 	// opposite as the global counters (e.g. m_numForcesBodies includes m_numFloatingBodies,
