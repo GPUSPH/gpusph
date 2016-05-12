@@ -92,10 +92,6 @@ Problem::~Problem(void)
 	delete [] m_bodies_storage;
 	delete m_simframework;
 	delete m_physparams;
-#if USE_CHRONO == 1
-	if (m_bodies_physical_system)
-		delete m_bodies_physical_system;
-#endif
 }
 
 void
@@ -115,7 +111,8 @@ Problem::InitializeChrono()
 void Problem::FinalizeChrono(void)
 {
 #if USE_CHRONO == 1
-	delete m_bodies_physical_system;
+	if (m_bodies_physical_system)
+		delete m_bodies_physical_system;
 #else
 	throw runtime_error ("Problem::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
