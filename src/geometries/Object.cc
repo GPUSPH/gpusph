@@ -160,6 +160,20 @@ Object::SetInertia(const double* inertia)
 	m_inertia[2] = inertia[2];
 }
 
+/// Set the object principal moments of inertia
+/*! Directly set the object principal moments of inertia.
+ *	\param i11 : element 1,1  of the inertia matrix
+ *	\param i22 : element 2,2  of the inertia matrix
+ *	\param i33 : element 3,3  of the inertia matrix
+ */
+void
+Object::SetInertia(const double i11, const double i22, const double i33)
+{
+	m_inertia[0] = i11;
+	m_inertia[1] = i22;
+	m_inertia[2] = i33;
+}
+
 
 /// Retrieve the object inertial data
 /*! Respectively fill the parameters passed by reference with:
