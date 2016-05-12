@@ -1305,65 +1305,37 @@ int XProblem::fill_parts()
 		}
 #endif
 
-// TODO FIXME chronomerge
-#if 0
-		// ODE-related operations - only for floating bodies
+#if USE_CHRONO == 1
+		// Chrono-related operations - only for floating bodies
 		if (m_numFloatingBodies > 0 && (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions)) {
 
-			// We should not call both ODEBodyCreate() and ODEGeomCreate(), since the former
-			// calls the latter in a dummy way if no ODE space is passed and this messes
-			// up the position for the actual later ODEGeomCreate() call.
-			// Thus, special call if both are active, individual calls otherwise.
-			// TODO: check if in next 3 ODEBodyCreate() calls dx should be used instead of m_deltap
-			if (m_geometries[g]->handle_dynamics && m_geometries[g]->handle_collisions)
-				// both body and geom
-				m_geometries[g]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace);
-			else {
-				// only one is active
-				if (m_geometries[g]->handle_dynamics)
-					m_geometries[g]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
-				if (m_geometries[g]->handle_collisions)
-					m_geometries[g]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
-			}
-
-			// overwrite the computed inertia matrix if user set a custom one
+			// Overwrite the computed inertia matrix if user set a custom one
+			// NOTE: this must be done before body creation!
 			if (m_geometries[g]->handle_dynamics) {
-
 				// use custom inertia only if entirely finite (no partial overwrite)
-				if (isfinite(m_geometries[g]->custom_inertia[0]) &&
-					isfinite(m_geometries[g]->custom_inertia[1]) &&
-					isfinite(m_geometries[g]->custom_inertia[2]) ) {
-
-					// setting the main diagonal only...
-					m_geometries[g]->ptr->m_ODEMass.I[0] =  m_geometries[g]->custom_inertia[0];
-					m_geometries[g]->ptr->m_ODEMass.I[5] =  m_geometries[g]->custom_inertia[1];
-					m_geometries[g]->ptr->m_ODEMass.I[10] = m_geometries[g]->custom_inertia[2];
-
-					// ...thus resetting the rest
-					m_geometries[g]->ptr->m_ODEMass.I[1] = 0.0;
-					m_geometries[g]->ptr->m_ODEMass.I[2] = 0.0;
-					m_geometries[g]->ptr->m_ODEMass.I[3] = 0.0;
-					m_geometries[g]->ptr->m_ODEMass.I[4] = 0.0;
-					m_geometries[g]->ptr->m_ODEMass.I[6] = 0.0;
-					m_geometries[g]->ptr->m_ODEMass.I[7] = 0.0;
-					m_geometries[g]->ptr->m_ODEMass.I[8] = 0.0;
-					m_geometries[g]->ptr->m_ODEMass.I[9] = 0.0;
-					m_geometries[g]->ptr->m_ODEMass.I[11] = 0.0;
-
-					// tell ODE about the change
-					dBodySetMass(m_geometries[g]->ptr->m_ODEBody, &(m_geometries[g]->ptr->m_ODEMass));
-				} // if custom_inertia is not NAN
-
+				const double i11 = m_geometries[g]->custom_inertia[0];
+				const double i22 = m_geometries[g]->custom_inertia[1];
+				const double i33 = m_geometries[g]->custom_inertia[2];
+				if (isfinite(i11) && isfinite(i22) && isfinite(i33))
+					m_geometries[g]->ptr->SetInertia(i11, i22, i33);
+				else
+					// if no custom inertia has been set, call default Object::SetInertia()
+					m_geometries[g]->ptr->SetInertia(physparams()->r0);
 			} // if body has dynamics
 
-			// update ODE rotation matrix according to possible rotation - excl. planes!
-			if (m_geometries[g]->type != GT_PLANE)
-				m_geometries[g]->ptr->updateODERotMatrix();
+			// Generate the bodies. Note that BodyCreate calls GeomCreate if collisions are enable, so we check it out
+			// here. This should be changed.
+			if (m_geometries[g]->handle_dynamics)
+				m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
+			else
+			if (m_geometries[g]->handle_collisions)
+				// only collisions, no dynamics
+				m_geometries[g]->ptr->GeomCreate(m_deltap);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
-			// NOTE: ODEPrintInformation() should be plane-safe anyway
+			// NOTE: BodyPrintInformation() is plane-safe anyway
 			if (m_geometries[g]->type != GT_PLANE)
-				m_geometries[g]->ptr->ODEPrintInformation();
+				m_geometries[g]->ptr->BodyPrintInformation();
 		} // if m_numFloatingBodies > 0
 #endif
 
