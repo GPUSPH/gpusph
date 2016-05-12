@@ -129,8 +129,6 @@ bool XProblem::initialize()
 	Point globalMax = Point(-DBL_MAX, -DBL_MAX, -DBL_MAX);
 
 	// counters of floating objects and generic objects (floating + moving + open bounds)
-	// NOTE: there is already m_numRigidBodies, but we need a progressive count to
-	// initialize m_ODEobjectId map
 	uint bodies_counter = 0;
 	uint open_boundaries_counter = 0;
 
@@ -207,9 +205,8 @@ bool XProblem::initialize()
 		return false;
 	}
 
-	// do not store the number of floating objects (aka ODE bodies) in simparams:
-	// add_moving_body() will increment it and use it for the insertion in the vector
-	//simparams()->numODEbodies = bodies_counter; // == m_numFloatingBodies;
+	// do not store the number of floating objects in simparams: add_moving_body()
+	// will increment it and use it for the insertion in the vector
 
 	// store number of objects (floating + moving + I/O)
 	simparams()->numOpenBoundaries = open_boundaries_counter;
@@ -335,7 +332,7 @@ bool XProblem::initialize()
 		}
 	}
 
-	// only init ODE if m_numRigidBodies
+	// only init Chrono if there are floating bodies
 	if (m_numFloatingBodies)
 		initializeChrono();
 
@@ -471,8 +468,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			geomInfo->erase_operation = ET_ERASE_ALL;
 	}
 
-	// NOTE: we don't need to check handle_collisions at all, since if there are no bodies
-	// we don't need collisions nor ODE at all
+	// NOTE: we don't need to check handle_collisions at all if there are no bodies
 	if (geomInfo->handle_dynamics)
 		m_numFloatingBodies++;
 
@@ -899,6 +895,7 @@ void XProblem::setInertia(const GeometryID gid, const double* mainDiagonal)
 }
 
 // NOTE: GPUSPH uses ZXZ angles counterclockwise, while ODE XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
+// TODO FIXME chronomerge
 void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
 {
 	if (!validGeometry(gid)) return;
@@ -915,6 +912,7 @@ void XProblem::setOrientation(const GeometryID gid, const dQuaternion quat)
 
 void XProblem::rotate(const GeometryID gid, const dQuaternion quat)
 {
+// TODO FIXME chronomerge
 #if 0
 	if (!validGeometry(gid)) return;
 
@@ -936,6 +934,7 @@ void XProblem::rotate(const GeometryID gid, const dQuaternion quat)
 // NOTE: rotates X first, then Y, then Z
 void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
+// TODO FIXME chronomerge
 #if 0
 	if (!validGeometry(gid)) return;
 
@@ -1170,6 +1169,7 @@ int XProblem::fill_parts()
 {
 	// if for debug reason we need to test the position and verse of a plane, we can ask ODE to
 	// compute the distance of a probe point from a plane (positive if penetrated, negative out)
+	// TODO FIXME chronomerge
 	/*
 	double3 probe_point = make_double3 (0.5, 0.5, 0.5);
 	printf("Test: probe point is distant %g from the bottom plane.\n,
@@ -1305,6 +1305,7 @@ int XProblem::fill_parts()
 		}
 #endif
 
+// TODO FIXME chronomerge
 #if 0
 		// ODE-related operations - only for floating bodies
 		if (m_numFloatingBodies > 0 && (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions)) {
@@ -1566,7 +1567,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		uint current_geometry_num_boundary_parts = 0;
 		uint current_geometry_first_boundary_id = UINT_MAX;
 
-		// object id (GPUSPH, not ODE) that will be used in particleinfo
+		// object id (GPUSPH, not Chrono) that will be used in particleinfo
 		// TODO: will also be fluid_number for multifluid
 		// NOTE: see comments in the declaration of the counters, above
 		uint object_id = 0;

@@ -172,8 +172,8 @@ class XProblem: public Problem {
 
 		size_t m_numActiveGeometries;	// do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
 		size_t m_numForcesBodies;		// number of bodies with feedback enabled (includes floating)
-		size_t m_numFloatingBodies;		// number of floating bodies (handled with ODE)
-		size_t m_numPlanes;				// number of plane geometries (ODE and/or GPUSPH planes)
+		size_t m_numFloatingBodies;		// number of floating bodies (handled with Chrono)
+		size_t m_numPlanes;				// number of plane geometries (Chrono and/or GPUSPH planes)
 		size_t m_numOpenBoundaries;		// number of I/O geometries
 
 		// extra margin to be added to computed world size
@@ -328,7 +328,7 @@ class XProblem: public Problem {
 		XProblem(GlobalData *);
 		~XProblem(void);
 
-		// initialize world size, ODE if necessary; public, since GPUSPH will call it
+		// initialize world size, Chrono if necessary; public, since GPUSPH will call it
 		bool initialize();
 
 		int fill_parts();
