@@ -161,7 +161,7 @@ help-options}. All options (with the exception of \cmd{plain} and
 with \cmd{make option=value}, and subsequent executions of \cmd{make}
 will remember the \cmd{value} set.
 
-\todo{Describe \cmd{make} options}
+%\todo{Describe \cmd{make} options}
 The \cmd{make} options are listed below:
 \begin{itemize}
 \item \cmd{target_arch} - if set to 32, force compilation for 32 bit architecture
@@ -372,7 +372,7 @@ been shaking side to side at the resonant frequency of $0.638$s. The
 color coding is for the pressure in the fluid.}
 \end{figure}
 \else
-\todo{seiche picture}
+%\todo{seiche picture}
 \fi
 
 The variation of gravity with time (and any stop (\cmd{m_gtend}) and
@@ -388,7 +388,7 @@ A different DEM can be used, by either changing the name in the source
 \cmd{TestTopo.cc} file, or by providing the new name as argument to the
 \cmd{-{}-dem} command-line option to GPUSPH.
 
-\todo{TestTopo picture}
+%\todo{TestTopo picture}
 
 \section{GPUSPH Command Line Options}\label{options}
 
@@ -453,6 +453,10 @@ For this you need to register on the SALOME website.
 Then, follow the installation instructions from the SALOME website and the
 installer.
 
+\textbf{Remark}: SALOME is used for SA boundary pre-processing, to generate an
+STL mesh of the boundaries. You can of course use another mesher of your 
+choice for this step.
+
 \subsection{Installing CRIXUS}
 Crixus is a preprocessing tool for GPUSPH. \\
 
@@ -497,4 +501,4 @@ where \cmd{/your_path} is your path to the CRIXUS directory.
 
 \subsection{Installing PARAVIEW}
 
-\todo{PARAVIEW is available from the Linux packages.}
+PARAVIEW is directly available from the Linux packages.

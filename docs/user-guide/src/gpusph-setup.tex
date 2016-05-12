@@ -279,7 +279,25 @@ CRIXUS takes an INI file as an input.
 This is essentially a text file with \cmd{.ini} extension 
 where we specify all the necessary STL files and other parameters.
 The INI file follows the following structure:
-
+\begin{ccode}
+[mesh]
+  stlfile=salome_box_0.02_with_floating_box.stl
+  dr=0.017634
+  fshape=sa_box_fshape.stl
+[special_boundary_grids]
+  mesh1=sa_box_sbgrid_1.stl
+  mesh2=sa_box_sbgrid_2.stl
+[fill_0]
+  option=geometry
+  xseed=0.5
+  yseed=0.5
+  zseed=0.2
+  dr_wall=0.018
+[output]
+  format=h5sph
+  name=xcomplete_sa_example
+  split=yes
+\end{ccode}
 
 Every section of the file starts with the title \cmd{[XXX]} 
 and all following statements refer to that section.
@@ -309,7 +327,7 @@ In this section we tell CRIXUS how to fill the domain.
 There are two ways of doing that: we can fill the domain by boxes 
 (option=box) or by a seed point (option=geometry).  The first one 
 just fills the specified box with fluid, whereas the second 
-one starts filling the domain from the specified point 
+one starts filling the domain from the specified seed point 
 and only stops if it reaches a wall or the free surface. 
 We can call the filling algorithm as many times as wished, 
 even with different filling option. 
@@ -498,68 +516,177 @@ Then the setup is done following the structure below.
 
 The \cmd{SETUP_FRAMEWORK} function enables to change the
  general options of the simulation:
+\begin{ccode}
+  SETUP_FRAMEWORK(
+    kernel<WENDLAND>,
+    formulation<SPH_F1>,
+    viscosity<DYNAMICVISC>,
+    boundary<SA_BOUNDARY>,
+    periodicity<PERIODIC_NONE>,
+    add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM 
+        | ENABLE_MOVING_BODIES | ENABLE_FERRARI>
+  );
+\end{ccode}
+
 \begin{enumerate}
-\item The first parameter is in fact the viscosity model. There are 5 options for this term: \\
+\item The first item enables to choose the type of kernel:\\
+QUADRATIC\\
+CUBICSPLINE\\
+WENDLAND\\
+GAUSSIAN\\
+\item The second item enables to choose the type of SPH formulation:\\
+SPH\_F1\\
+SPH\_F2\\
+SPH\_GRENIER\\
+where SPH\_F1 is a WCSPH single-fluid formulation, SPH\_F2 is a WCSPH multifluid formulation and
+SPH\_GRENIER is another mutli-fluid formulation based on the Grenier formulation.
+\item The third parameter is the viscosity model. There are 5 options for this term: \\
 ARTVISC\\
 KINEMATICVISC\\
 DYNAMICVISC\\
 SPSVISC\\
 KEPSVISC\\
-\item The second parameter is the type of boundary. There are 3 options for this term:\\
+\item The fourth parameter is the type of boundary. There are 4 options for this term:\\
 LJ\_BOUNDARY\\
 MK\_BOUNDARY\\
+DYN\_BOUNDARY\\
 SA\_BOUNDARY\\
-\item The third term enables to choose the type of kernel:\\
-QUADRATIC\\
-CUBICSPLINE\\
-WENDLAND\\
+\item The fifth item makes it possible to enable periodicity:\\
+  PERIODIC\_NONE \\
+  PERIODIC\_X \\
+  PERIODIC\_Y \\
+  PERIODIC\_XY \\
+  PERIODIC_Z \\
+  PERIODIC_XZ \\
+  PERIODIC_YZ \\
+  PERIODIC_XYZ \\
 \item Finally, the \cmd{add_flags} term enables the implementation 
 of some extra functions in the simulation, such as the extra Ferrari diffusion term, 
 the in \& out boundaries or the waterdepth function, 
-which computes the flow depth at a given set of X, Y.
+which computes the flow depth at a given set of X, Y:\\
+ENABLE\_DTADAPT \\
+ENABLE\_XSPH \\
+ENABLE\_PLANES \\
+ENABLE\_DEM \\
+ENABLE\_MOVING\_BODIES \\
+ENABLE\_INLET\_OUTLET \\
+ENABLE\_WATER\_DEPTH \\
+ENABLE\_FERRARI \\
+ENABLE\_DENSITY\_DIFFUSION \\
+ENABLE\_DENSITY\_SUM \\
+ENABLE\_GAMMA\_QUADRATURE \\
+ENABLE\_INTERNAL\_ENERGY\\
 \end{enumerate}
 
 \subsubsection{Generic simulation parameters}
+
+\begin{ccode}
+// Initialization of simulation parameters
+m_name = "XCompleteSaExample";
+set_deltap(0.02f);
+physparams()->r0 = m_deltap;
+// Set world size and origin.
+// HDF5 file loading does not support bounding box 
+// detection yet
+const double MARGIN = 0.1;
+const double INLET_BOX_LENGTH = 0.25;
+// size of the main cube, excluding the 
+// inlet and any margin
+double box_l, box_w, box_h;
+box_l = box_w = box_h = 1.0;
+// world size
+double world_l = box_l + INLET_BOX_LENGTH 
+    + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box length)
+double world_w = box_w + 2 * MARGIN;
+double world_h = box_h + 2 * MARGIN;
+m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN,
+    - MARGIN, - MARGIN);
+m_size = make_double3(world_l, world_w ,world_h);
+// time parameters
+simparams()->tend = 40.0;
+simparams()->dt = 0.00004f;
+simparams()->dtadaptfactor = 0.3;
+// open boundary information
+simparams()->numOpenBoundaries=2;
+\end{ccode}
+
 \begin{itemize}
+\item \cmd{m_name} is the problem name.
+
 \item \cmd{deltap} is the distance between particles used in the current simulation. 
 For consistency reasons, it has to be the same that we have set in the INI file for CRIXUS.
+
+\item \cmd{m_size} and \cmd{m_origin} are the size and the origin of the domain 
+(defined in SALOME in case semi-analytical boundaries are used).
+
+\item \cmd{tend} is the time at which the simulation should stop.
+
+\item \cmd{dt} is the size of the first time-step or the time-step size if the ENABLE\_DTADAPT
+flag is not activated.
+
+\item \cmd{dtadaptfactor} is the CFL coefficient, usually taken as 0.3.
+
+\item \cmd{numOpenBoundaries} is the number of open boundaries in the simulation.
+\end{itemize}
+
+\subsubsection{SPH parameters}
+\begin{ccode}
+// Initialization of SPH parameters
+simparams()->maxneibsnum = 352;
+// buildneibs at every iteration
+simparams()->buildneibsfreq = 1;
+// Slightly extend kernel radius for gamma computation
+simparams()->nlexpansionfactor = 1.1;
+// ferrari correction
+simparams()->ferrari = 1.0;
+\end{ccode}
+\begin{itemize}
 \item \cmd{maxneibsnum} is simply a limit for the number of neighbors computed 
 in the SPH method. It allows the user control the amount of calculus 
 done for each particle at each iteration. If the mesh of the geometry 
 is coherent with \cmd{deltap}, the maximum neighbor number should not be over 280, 
 so setting this number to 300 would be a good choice.
-\item \cmd{tend} is the simulated time, in seconds
+\item \cmd{buildneibsfreq} is the neighbor counting frequency, 
+in terms of number of time steps.
+\item \cmd{nlexpansionfactor} is the factor increasing the area 
+where we count the neighbor particles
+for the computation of $\gamma$ with SA boundaries.
 \item \cmd{ferrari} is the Ferrari diffusion coefficient, which is used 
 to potentiate diffusion dissipation (0 for no extra diffusion, 1 for the maximum)
-\item The next three functions are used to set the name, density, state equation and viscosity of the fluid
-\item \cmd{numOpenBoundaries} is the number of open boundaries in the simulation
-\item \cmd{m_size} and \cmd{m_origin} are the size and the origin of the domain 
-(defined in SALOME in case semi-analytical boundaries are used).
-\end{itemize}
-
-\subsubsection{SPH parameters}
-
-\begin{itemize}
-\item \cmd{dt} is the first time step size
-\item \cmd{dtadaptfactor} is the CFL coefficient, usually taken as 0.3
-\item \cmd{buildneibsfreq} is the neighbor counting frequency, in terms of number of time steps
-\item \cmd{nlexpansionfactor} is the factor increasing the area where we count the neighbor particles
 \end{itemize}
 
 \subsubsection{Physical parameters}
- 
-The fluid density is set through the \cmd{add_fluid}) function,
-and the equation of state to be used by \cmd{set_equation_of_state}.
-The gravity field can also be specified at this point.
+\begin{ccode}
+physparams()->gravity = make_float3(0.0, 0.0, -9.81);
+size_t water = add_fluid(1000.0);
+set_kinematic_visc(0, 1.0e-2f);
+set_equation_of_state(water, 7.0f, 50.0f);
+\end{ccode} 
+This specifies the gravity field, the fluid density 
+(through the \cmd{add_fluid} function),
+and the equation of state to be used through \cmd{set_equation_of_state}.
+In this function, the first argument is the fluid considered,
+the second one is the exponent in the equation of state (usually 7),
+and the third one is the numerical speed of sound.
+The numerical speed of sound can alo be set by specifying reference
+velocity and water height:
+\begin{ccode}
+// Reference quantities for speed of sound computation
+setWaterLevel(0.5);
+setMaxParticleSpeed(7.0);
+\end{ccode} 
    
 \subsubsection{Results parameters}
-
+\begin{ccode}
+  // Drawing and saving times
+  add_writer(VTKWRITER, 1e-1f);
+\end{ccode} 
 The writer (for the output data) is chosen with the \cmd{add_writer}
 command (usually the VTK writer, which provides files to be read by Paraview).  
 The file writing frequency (in terms of simulated seconds) can also be specified. 
 That is, in this case, we will have a VTU file every 0.1 simulated second for example. 
 It is important to note that, since some simulations could become 
-too large, this frequency is essential in order to limit the size of the result files.
+too large, this frequency is essential in order to limit the size of the result files.\\
 
 
 \subsection{Building and initializing the particle system}
@@ -685,6 +812,7 @@ for additional flexibility.
 The fluid initialization performed by CRIXUS and stored in the H5SPH 
 files is used by GPUSPH to start the simulation. 
 The specification of the file containing the fluid particles occurs with the following statement:
+
 \begin{ccode}
 addHDF5File(GT_FLUID, Point(0,0,0), 
 "./data_files/XCompleteSaExample/0.my_project.fluid.h5sph",
@@ -693,19 +821,29 @@ NULL);
 The specification of the file containing the special boundary particles  occurs with the following statement:\\
 
 \begin{ccode}
-  // Main container
-  GeometryID container =
-  addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), 
+// Main container
+GeometryID container =
+addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), 
   "./data_files/MyProject/0.my_project.boundary.kent0.h5sph",
   NULL);
-  disableCollisions(container);
+disableCollisions(container);
   
-  // Inflow boundary 
-  GeometryID inlet =
+// Inflow boundary 
+GeometryID inlet =
   addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), 
   "./data_files/MyProject/0.my_project.boundary.kent1.h5sph",
   NULL);
-  disableCollisions(inlet);
+disableCollisions(inlet);
+
+GeometryID cube =
+  addHDF5File(GT_FLOATING_BODY, Point(0,0,0), 
+  "./data_files/MyProject/0.my_project.boundary.kent2.h5sph",
+  "./data_files/MyProject/MyProject_object_file.stl");
+// ouptut forces on the cube
+enableFeedback(cube);
+// set the cube density
+setMassByDensity(cube, 500);
+
 \end{ccode}
 
 In order to specify whether the open boundary is pressure driven or velocity driven, the following lines

@@ -232,9 +232,9 @@ numerically unstable. Thus, the preferred approach is to use a
 combination of a SPH first order derivative and a finite difference
 first order derivative.
 
-The goal of this section is to derive a discretization for $\vec{\nabla} f
-\nabla \otimes \vec{G}$. To approximate the interior gradient, a
-Taylor Series of $\vec{G}$ can be used as follows
+The goal of this section is to derive a discretization for $\vec{\nabla} \cdot (f
+\vec{\nabla} \otimes \vec{F})$. To approximate the interior gradient, a
+Taylor Series of $\vec{F}$ can be used as follows
 \begin{equation}
 \vec{F}_b = \vec{F}_a - (\vec{\nabla}_a \otimes \vec{F})^T \cdot
 \vec{r}_{ab} + \mathcal{O}(\vec{r}_{ab})
@@ -267,7 +267,7 @@ w_{ab}|
 The Divergence similar to the one given by Eq.
 \eqref{e:sph:div} but with a $+$ instead of the $-$ yields
 \begin{equation}
-\nabla \cdot (f \nabla \otimes \vec{F}) = \sumF V_b (f_b \vec{\nabla}
+\vec{\nabla} \cdot (f \nabla \otimes \vec{F}) = \sumF V_b (f_b \vec{\nabla}
 \otimes \vec{F} + f_a \vec{\nabla} \otimes \vec{F})
 \frac{\vec{r}_{ab}}{|\vec{r}_{ab}|} |\vec{\nabla} w_{ab}|
 \end{equation}
@@ -275,7 +275,7 @@ which, with Eqs. \eqref{e:sph:grad-finitediff},
 \eqref{e:sph:grad-finitediff-b} and \eqref{e:sph:rad-sym}, can be used to
 define the Laplacian
 \begin{equation}
-\Lap_a(f, \vec{F}) = \nabla \cdot (f \vec{\nabla} \otimes \vec{F}) = \sumF
+\Lap_a(f, \vec{F}) = \vec{\nabla} \cdot (f \vec{\nabla} \otimes \vec{F}) = \sumF
 V_b (f_b + f_a) \vec{F}_{ab} \frac{1}{|\vec{r}_{ab}|} |\vec{\nabla} w_{ab}|
 \label{e:sph:lap}
 \end{equation}
