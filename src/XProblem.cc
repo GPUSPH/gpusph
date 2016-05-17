@@ -44,6 +44,14 @@
 
 //#define USE_PLANES 0
 
+// TODO FIXME chronomerge
+#if 0
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChSystem.h"
+#endif
+#endif
+
 using namespace std;
 
 XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
@@ -903,86 +911,56 @@ void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
 	m_geometries[gid]->ptr->setEulerParameters(ep);
 }
 
-void XProblem::setOrientation(const GeometryID gid, const dQuaternion quat)
+// DEPRECATED until we'll have a GPUSPH Quaternion class
+void XProblem::rotate(const GeometryID gid, const EulerParameters ep)
 {
 	if (!validGeometry(gid)) return;
 
-	m_geometries[gid]->ptr->setEulerParameters( EulerParameters(quat) );
+	//m_geometries[gid]->ptr->setEulerParameters(ep * (*(m_geometries[gid]->ptr->getEulerParameters())) );
+	m_geometries[gid]->ptr->setEulerParameters(ep * m_geometries[gid]->ptr->getEulerParameters());
 }
-
-void XProblem::rotate(const GeometryID gid, const dQuaternion quat)
-{
-// TODO FIXME chronomerge
-#if 0
-	if (!validGeometry(gid)) return;
-
-	// will compute qNewOrientation as qCurrentOrientation + requested rotation (quat)
-	dQuaternion qCurrentOrientation, qNewOrientation;
-
-	// read current orientation
-	m_geometries[gid]->ptr->getEulerParameters()->ToODEQuaternion(qCurrentOrientation);
-
-	// add requested rotation
-	dQMultiply0(qNewOrientation, quat, qCurrentOrientation);
-
-	// set the new orientation
-	setOrientation( gid, qNewOrientation );
-#endif
-}
-
 
 // NOTE: rotates X first, then Y, then Z
 void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
 // TODO FIXME chronomerge
-#if 0
 	if (!validGeometry(gid)) return;
 
-	// multiple temporary variables to keep code readable
-	dQuaternion qX, qY, qZ, qXY, qXYZ;
-
 	// compute single-axes rotations
-	// NOTE: ODE uses clockwise angles for Euler, thus we invert them
-	// NOTE: ODE has abysmal precision, so we compute the quaternions ourselves:
+	double4 rotX, rotY, rotZ;
+	// TODO: check if Chrono uses clockwise (like ODE did) or counterclockwise angles for Euler
+	// NOTE: with ODE we computed the quaternions ourselves for accuracy reasons:
 	// for each rotation, the real part of the quaternion is cos(angle/2),
 	// and the imaginary part (which for rotations around principal axis
 	// is only 1, 2 or 3) is sin(angle/2); the rest of the components are 0.
-	qX[0] = cos(-Xrot/2); qX[1] = sin(-Xrot/2); qX[2] = qX[3] = 0;
-	qY[0] = cos(-Yrot/2); qY[2] = sin(-Yrot/2); qY[1] = qY[3] = 0;
-	qZ[0] = cos(-Zrot/2); qZ[3] = sin(-Zrot/2); qZ[1] = qZ[2] = 0;
+	// TODO: check if we need it with Chrono as well
+	rotX.x = cos(-Xrot/2); rotX.y = sin(-Xrot/2); rotX.z = rotX.w = 0;
+	rotY.x = cos(-Yrot/2); rotY.z = sin(-Yrot/2); rotY.y = rotY.w = 0;
+	rotZ.x = cos(-Zrot/2); rotZ.w = sin(-Zrot/2); rotZ.y = rotZ.z = 0;
 	// Problem: even with a “nice” angle such as M_PI we might end up
 	// with not-exactly-zero components, so we kill anything which is less
 	// than half the double-precision machine epsilon. If you REALLY care
 	// about angles that differ from quadrant angles by less than 2^-53,
 	// sorry, we don't have enough accuracy for you.
-	if (fabs(qX[0]) < DBL_EPSILON/2)
-		qX[0] = 0;
-	if (fabs(qX[1]) < DBL_EPSILON/2)
-		qX[1] = 0;
-	if (fabs(qY[0]) < DBL_EPSILON/2)
-		qY[0] = 0;
-	if (fabs(qY[2]) < DBL_EPSILON/2)
-		qY[2] = 0;
-	if (fabs(qZ[0]) < DBL_EPSILON/2)
-		qZ[0] = 0;
-	if (fabs(qZ[3]) < DBL_EPSILON/2)
-		qZ[3] = 0;
+	if (fabs(rotX.x) < DBL_EPSILON/2)
+		rotX.x = 0;
+	if (fabs(rotX.y) < DBL_EPSILON/2)
+		rotX.y = 0;
+	if (fabs(rotY.x) < DBL_EPSILON/2)
+		rotY.x = 0;
+	if (fabs(rotY.z) < DBL_EPSILON/2)
+		rotY.z = 0;
+	if (fabs(rotZ.x) < DBL_EPSILON/2)
+		rotZ.x = 0;
+	if (fabs(rotZ.w) < DBL_EPSILON/2)
+		rotZ.w = 0;
 
 	// concatenate rotations in order (X, Y, Z)
-	dQMultiply0(qXY, qY, qX);
-	dQMultiply0(qXYZ, qZ, qXY);
-
-	// NOTE: we could use the unified ODE method dRFromEulerAngles(); however, it
-	// is poorly documented and it is not clear what is the order of the rotations.
-	// It would have been:
-	// dMatrix3 Rotation;
-	// dRFromEulerAngles(Rotation, Xrot, Yrot, Zrot);
-	// dRtoQ(Rotation, qXYZ);
-	// rotate(gid, qXYZ);
+	EulerParameters rotXY = EulerParameters(rotY.x, rotY.y, rotY.z, rotY.w) * EulerParameters(rotX.x, rotX.y, rotX.z, rotX.w);
+	EulerParameters rotXYZ = EulerParameters(rotZ.x, rotZ.y, rotZ.z, rotZ.w) * rotXY;
 
 	// rotate with computed quaternion
-	rotate( gid, qXYZ );
-#endif
+	rotate( gid, rotXYZ );
 }
 
 void XProblem::shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset)

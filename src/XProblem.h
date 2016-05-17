@@ -38,10 +38,6 @@
 #include "HDF5SphReader.h"
 #include "XYZReader.h"
 
-// Temporary definition of dGeomID and dQuaternion for compile-only chrono merge
-typedef uint dGeomID;
-typedef EulerParameters dQuaternion;
-
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,
 					GT_OPENBOUNDARY,
@@ -260,8 +256,7 @@ class XProblem: public Problem {
 
 		// methods for rotating an existing object
 		void setOrientation(const GeometryID gid, const EulerParameters &ep);
-		void setOrientation(const GeometryID gid, const dQuaternion quat);
-		void rotate(const GeometryID gid, const dQuaternion quat);
+		void rotate(const GeometryID gid, const EulerParameters ep); // DEPRECATED until we'll have a GPUSPH Quaternion class
 		void rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
 
 		// method for shifting an existing object
