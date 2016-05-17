@@ -158,6 +158,7 @@ class EulerParameters {
 		friend EulerParameters operator+(const EulerParameters &, const EulerParameters &);
 		friend EulerParameters operator*(const EulerParameters &, const EulerParameters &);
 		friend EulerParameters operator*(const EulerParameters *, const EulerParameters &);
+		friend EulerParameters operator*(const EulerParameters &, const EulerParameters *);
 		friend EulerParameters operator*(const double, const EulerParameters &);
 		//@}
 

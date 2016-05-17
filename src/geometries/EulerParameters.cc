@@ -424,6 +424,22 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 	return res;
 }
 
+/*!
+ * \overload EulerParameters operator*(const EulerParameters & ep1, const EulerParameters * ep2)
+ */
+EulerParameters operator*(const EulerParameters & ep1, const EulerParameters * ep2)
+{
+	double temp[4];
+	temp[0] = ep1.m_ep[0]*ep2->m_ep[0] - ep1.m_ep[1]*ep2->m_ep[1] - ep1.m_ep[2]*ep2->m_ep[2] - ep1.m_ep[3]*ep2->m_ep[3];
+	temp[1] = ep1.m_ep[1]*ep2->m_ep[0] + ep1.m_ep[0]*ep2->m_ep[1] - ep1.m_ep[3]*ep2->m_ep[2] + ep1.m_ep[2]*ep2->m_ep[3];
+	temp[2] = ep1.m_ep[2]*ep2->m_ep[0] + ep1.m_ep[3]*ep2->m_ep[1] + ep1.m_ep[0]*ep2->m_ep[2] - ep1.m_ep[1]*ep2->m_ep[3];
+	temp[3] = ep1.m_ep[3]*ep2->m_ep[0] - ep1.m_ep[2]*ep2->m_ep[1] + ep1.m_ep[1]*ep2->m_ep[2] + ep1.m_ep[0]*ep2->m_ep[3];
+
+	EulerParameters res(temp);
+
+	return res;
+}
+
 
 /*!	Define the * operation between double and EulerParmeters.
  * 	Overload of the * operator between double and Euler parameters.
