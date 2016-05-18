@@ -1956,6 +1956,8 @@ void GPUSPH::updateArrayIndices() {
 	 * since its aim is just error checking. However, in presence of inlets every process should have the
 	 * updated number of active particles, at least for coherent status printing; thus, every process counts
 	 * the particles and only rank 0 checks for correctness. */
+	// WARNING: in case #parts changes with no open boundaries, devices with MPI rank different than 0 will keep a
+	// wrong newSimulationTotal. Is this wanted? Harmful?
 	if (gdata->mpi_rank == 0 || gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
 		uint newSimulationTotal = 0;
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
