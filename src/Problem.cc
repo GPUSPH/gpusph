@@ -58,7 +58,9 @@ Problem::Problem(GlobalData *_gdata) :
 	m_options(_gdata->clOptions),
 	m_bodies_storage(NULL)
 {
+#if USE_CHRONO == 1
 	m_bodies_physical_system = NULL;
+#endif
 }
 
 bool
