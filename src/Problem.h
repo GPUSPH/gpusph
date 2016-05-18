@@ -37,6 +37,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <cmath>
 
 #include "Options.h"
 #include "Writer.h"
