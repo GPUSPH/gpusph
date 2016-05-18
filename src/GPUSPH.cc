@@ -1958,13 +1958,24 @@ void GPUSPH::updateArrayIndices() {
 			// printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
 			gdata->totParticles = newSimulationTotal;
 		} else if (newSimulationTotal != gdata->totParticles && gdata->mpi_rank == 0) {
-			printf("WARNING: at iteration %lu the number of particles changed from %u to %u for no known reason!\n",
-				gdata->iterations, gdata->totParticles, newSimulationTotal);
 
-			// who is missing? if single-node, do a roll call
-			if (SINGLE_NODE) {
-				doCommand(DUMP, BUFFER_INFO | DBLBUFFER_READ);
-				rollCallParticles();
+			// Ideally, only warn and make a roll call if
+			// - total number of particles increased without inlets, or
+			// - total number of particles decreased without outlets and no-leak-warning option was not passed
+			// However, we use joint flag and counter for open boundaries (either in or out), so the actual logic
+			// is a little different: we warn and roll call if
+			// - total number of particles increased without inlets nor outlets, or
+			// - total number of particles decreased without inlets nor outlets and no-leak-warning option was not passed
+			if (newSimulationTotal > gdata->totParticles || !clOptions->no_leak_warning) {
+
+				printf("WARNING: at iteration %lu the number of particles changed from %u to %u for no known reason!\n",
+					gdata->iterations, gdata->totParticles, newSimulationTotal);
+
+				// who is missing? if single-node, do a roll call
+				if (SINGLE_NODE) {
+					doCommand(DUMP, BUFFER_INFO | DBLBUFFER_READ);
+					rollCallParticles();
+				}
 			}
 
 			// update totParticles to avoid dumping an outdated particle (and repeating the warning).

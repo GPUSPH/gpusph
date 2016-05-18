@@ -59,6 +59,7 @@ public:
 	bool	asyncNetworkTransfers; // enable asynchronous network transfers
 	unsigned int num_hosts; // number of physical hosts to which the processes are being assigned
 	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
+	bool no_leak_warning; // if true, do not warn if #parts decreased in simulations without outlets
 
 	Options(void) :
 		m_options(),
@@ -77,7 +78,8 @@ public:
 		striping(false),
 		asyncNetworkTransfers(false),
 		num_hosts(0),
-		byslot_scheduling(false)
+		byslot_scheduling(false),
+		no_leak_warning(false)
 	{};
 
 	// set an arbitrary option

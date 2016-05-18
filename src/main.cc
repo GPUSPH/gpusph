@@ -89,6 +89,7 @@ void print_usage() {
 	cout << " --asyncmpi : Enable asynchronous network transfers (requires GPUDirect and 1 process per device)\n";
 	cout << " --num-hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
 	cout << " --byslot-scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
+	cout << " --no-leak-warning : do not warn if #particles decreases without outlets (e.g. overtopping, leaking)\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
 	cout << " --debug : enable debug flags FLAGS\n";
@@ -191,6 +192,8 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			return 0;
 		} else if (!strcmp(arg, "--byslot-scheduling") || !strcmp(arg, "--byslot_scheduling")) {
 			_clOptions->byslot_scheduling = true;
+		} else if (!strcmp(arg, "--no-leak-warning") || !strcmp(arg, "--no_leak_warning")) {
+			_clOptions->no_leak_warning = true;
 #if 0 // options will be enabled later
 		} else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
