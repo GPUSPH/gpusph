@@ -1867,7 +1867,13 @@ void GPUSPH::printDeviceAccessibilityTable()
 // with compact particle filling (i.e. no holes in the ID space) and in simulations without open boundaries
 void GPUSPH::rollCallParticles()
 {
+	// everything's ok till now?
 	bool all_normal = true;
+	// warn the user about the first anomaly only
+	bool first_double_warned = false;
+	bool first_missing_warned = false;
+	// set this to true if we want to warn for every anomaly (for deep debugging)
+	const bool WARN_EVERY_TIME = false;
 
 	// reset bitmap and addrs
 	for (uint part_id = 0; part_id < gdata->processParticles[gdata->mpi_rank]; part_id++) {
@@ -1879,8 +1885,11 @@ void GPUSPH::rollCallParticles()
 	for (uint part_index = 0; part_index < gdata->processParticles[gdata->mpi_rank]; part_index++) {
 		uint part_id = id(gdata->s_hBuffers.getData<BUFFER_INFO>()[part_index]);
 		if (m_rcBitmap[part_id] && !m_rcNotified[part_id]) {
-			printf("WARNING: at iteration %lu, time %g particle ID %u is at indices %u and %u!\n",
+			if (WARN_EVERY_TIME || !first_double_warned) {
+				printf("WARNING: at iteration %lu, time %g particle ID %u is at indices %u and %u!\n",
 					gdata->iterations, gdata->t, part_id, m_rcAddrs[part_id], part_index);
+				first_double_warned = true;
+			}
 			// getchar(); // useful for debugging
 			// printf("Press ENTER to continue...\n");
 			all_normal = false;
@@ -1892,8 +1901,11 @@ void GPUSPH::rollCallParticles()
 	// now check if someone is missing
 	for (uint part_id = 0; part_id < gdata->processParticles[gdata->mpi_rank]; part_id++)
 		if (!m_rcBitmap[part_id] && !m_rcNotified[part_id]) {
-			printf("WARNING: at iteration %lu, time %g particle ID %u was not found!\n",
+			if (WARN_EVERY_TIME || !first_missing_warned) {
+				printf("WARNING: at iteration %lu, time %g particle ID %u was not found!\n",
 					gdata->iterations, gdata->t, part_id);
+				first_missing_warned = true;
+			}
 			// printf("Press ENTER to continue...\n");
 			// getchar(); // useful for debugging
 			m_rcNotified[part_id] = true;
