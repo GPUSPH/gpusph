@@ -601,8 +601,7 @@ Problem::density(float h, int i) const
 	float density = physparams()->rho0[i];
 
 	if (h > 0) {
-		//float g = length(physparams()->gravity);
-		float g = fabsf(physparams()->gravity.z);
+		float g = fabsf(length(physparams()->gravity));
 		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
 		density = physparams()->rho0[i]*pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
 				1/physparams()->gammacoeff[i]);
