@@ -876,21 +876,21 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 		float4 v2 = -(params.vertPos2[ndata.index].x*coord1 + params.vertPos2[ndata.index].y*coord2);
 		float4 vertexRelPos[3] = {v0, v1, v2};
 
-		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength, 
+		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength,
 				as_float3(ndata.relPos), vertexRelPos, as_float3(ndata.belem));
 		pout.gGam.x += nout.ggamAS*ndata.belem.x;
 		pout.gGam.y += nout.ggamAS*ndata.belem.y;
 		pout.gGam.z += nout.ggamAS*ndata.belem.z;
 
 		if (FP::simflags & ENABLE_GAMMA_QUADRATURE) {
-			// general formula (also used if particle is on 
+			// general formula (also used if particle is on
 			// vertex / edge to compute remaining edges)
 			const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
 			const float sx = fmax(x*8.0f - 1.0f,0.0f);
 			// smootherstep function
 			const float smooth = VERTEX(pdata.info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
 			const float gamAS = Gamma<FP::kerneltype>(params.slength, as_float3(ndata.relPos),
-					vertexRelPos, as_float3(ndata.belem), 
+					vertexRelPos, as_float3(ndata.belem),
 					as_float3(pdata.oldGGam), params.epsilon, params.deltap,
 					pdata.computeGamma, pout.minlRas);
 			pout.gGam.w -= (smooth > params.epsilon ? gamAS : 0.0f)*smooth;
