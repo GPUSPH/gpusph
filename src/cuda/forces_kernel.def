@@ -2371,7 +2371,7 @@ forcesDevice(
 
 			// We now check if the current particle interacts with the neighbor.
 			// We recycle the computes_stuff as boolean
-			if(BOUNDARY(neib_info))
+			if(boundarytype == SA_BOUNDARY && BOUNDARY(neib_info))
 				computes_stuff = (r < params.influenceradius+params.deltap);
 			else
 				computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
