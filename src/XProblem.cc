@@ -44,14 +44,6 @@
 
 //#define USE_PLANES 0
 
-// TODO FIXME chronomerge
-#if 0
-#include "chrono_select.opt"
-#if USE_CHRONO == 1
-#include "chrono/physics/ChSystem.h"
-#endif
-#endif
-
 using namespace std;
 
 XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
@@ -902,8 +894,8 @@ void XProblem::setInertia(const GeometryID gid, const double* mainDiagonal)
 	setInertia(gid, mainDiagonal[0], mainDiagonal[1], mainDiagonal[2]);
 }
 
-// NOTE: GPUSPH uses ZXZ angles counterclockwise, while ODE XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
-// TODO FIXME chronomerge
+// NOTE: GPUSPH uses ZXZ angles counterclockwise, ODE used XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
+// We should check what's used by Chrono
 void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
 {
 	if (!validGeometry(gid)) return;
@@ -923,7 +915,6 @@ void XProblem::rotate(const GeometryID gid, const EulerParameters ep)
 // NOTE: rotates X first, then Y, then Z
 void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
-// TODO FIXME chronomerge
 	if (!validGeometry(gid)) return;
 
 	// compute single-axes rotations
@@ -1298,6 +1289,9 @@ int XProblem::fill_parts()
 					m_geometries[g]->ptr->SetInertia(i11, i22, i33);
 				else
 					// if no custom inertia has been set, call default Object::SetInertia()
+					// NOTE: this overwrites default inertia set by Chrono for "easy" bodies
+					// (Box, Sphere, Cylinder), but it would be only necessary for non-primitive
+					// geometries (e.g. STL meshes)
 					m_geometries[g]->ptr->SetInertia(physparams()->r0);
 			} // if body has dynamics
 
