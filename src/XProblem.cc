@@ -1275,8 +1275,12 @@ int XProblem::fill_parts()
 #endif
 
 #if USE_CHRONO == 1
-		// Chrono-related operations - only for floating bodies
-		if (m_numFloatingBodies > 0 && (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions)) {
+		/* We need to create a Chrono body if
+		 * - Body is FLOATING; then handle_collisions is passed to Chrono (handle_dynamics must be true)
+		 * - Body is MOVING and handle_collisions is true (handle_dynamics must be false);
+		 * - Body is FIXED and handle_collisions is true (handle_dynamics must be false).
+		 */
+		if ( m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions) {
 
 			// Overwrite the computed inertia matrix if user set a custom one
 			// NOTE: this must be done before body creation!
@@ -1295,14 +1299,7 @@ int XProblem::fill_parts()
 					m_geometries[g]->ptr->SetInertia(physparams()->r0);
 			} // if body has dynamics
 
-			// Generate the bodies. Note that BodyCreate calls GeomCreate if collisions are enable, so we check it out
-			// here. This should be changed.
-			if (m_geometries[g]->handle_dynamics)
-				m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
-			else
-			if (m_geometries[g]->handle_collisions)
-				// only collisions, no dynamics
-				m_geometries[g]->ptr->GeomCreate(m_deltap);
+			m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
 			// NOTE: BodyPrintInformation() is plane-safe anyway

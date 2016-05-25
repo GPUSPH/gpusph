@@ -136,26 +136,17 @@ class Object {
 		//@{
 #if USE_CHRONO == 1
 		/// Create a Chrono body in the specified Chrono physical system
-		void BodyCreate(::chrono::ChSystem *, const double, const bool, const chrono::ChQuaternion<> &);
-		void BodyCreate(::chrono::ChSystem *, const double, const bool);
-		/// Create a Chrono collision model in the specified Chrono physical system
-		/*! \throws std::runtime_error if the method is not implemented
-		 */
-		virtual void GeomCreate(const double)
-		{ throw std::runtime_error("Object::GeomCreate not implemented !"); }
-		/// Return the ODE body ID associated with the Object
-		/*! \return the body ID associated with the object
-		 *	\throws std::runtime_error if the object has no associated ODE body
-		 */
+		virtual void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+			const chrono::ChQuaternion<> & orientation_diff);
+		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide);
 		::chrono::ChBody* GetBody(void)
 		{	if (!m_body)
-				throw std::runtime_error("Object::GetBody called but object not associated with a Chrono body !");
-			return m_body; }
+			throw std::runtime_error("Object::GetBody called but object not associated with a Chrono body !");
+			return m_body;
+		}
 #else
 		void BodyCreate(void *, const double, const bool)
 		{ throw std::runtime_error("Object::BodyCreate Trying to create a Chrono body without USE_CHRONO defined !\n"); }
-		virtual void GeomCreate(const double)
-		{ throw std::runtime_error("Object::GeomCreate called without USE_CHRONO defined !"); }
 		void * GetBody(void) { return m_body;}
 #endif
 		/// Print body-related information such as position, CG, geometry bounding box (if any), etc.

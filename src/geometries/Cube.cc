@@ -27,6 +27,8 @@
 #include <cstdlib>
 #include <iostream>
 
+#include "chrono/physics/ChBodyEasy.h"
+
 #include "Cube.h"
 #include "Rect.h"
 
@@ -693,18 +695,24 @@ ostream& operator<<(ostream& out, const Cube& cube) // output
 
 
 #if USE_CHRONO == 1
-/// Create a Chrono collision model
-/* Create a Chrono collsion model for the cube.
+/* Create a Chrono box body.
  *	\param dx : particle spacing
  */
 void
-Cube::GeomCreate(const double dx) {
-	m_body->GetCollisionModel()->ClearModel();
-	const double lx = (m_lx + dx)/2.;
-	const double ly = (m_ly + dx)/2.;
-	const double lz = (m_lz + dx)/2.;
-	m_body->GetCollisionModel()->AddBox(lx, ly, lz);
-	m_body->GetCollisionModel()->BuildModel();
-	m_body->SetCollide(true);
+Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+	const ::chrono::ChQuaternion<> & orientation_diff)
+{
+	// Check if the physical system is valid
+	if (!bodies_physical_system)
+		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
+
+	// Creating a new Chrono object
+	m_body = new ::chrono::ChBodyEasyBox(m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide);
+	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+
+	m_body->SetCollide(collide);
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(std::shared_ptr< ::chrono::ChBody >(m_body));
 }
 #endif

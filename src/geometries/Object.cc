@@ -411,16 +411,15 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
 
 #if USE_CHRONO == 1
 /// Create a Chrono body associated to the cube
-/* Create a cube Chrono body inside a specified Chrono physical system. If
- * collide his true this method calls GeomCreate to associate a collision model
- * to the object.
+/* Create a generic Chrono body inside a specified Chrono physical system.
  *	\param bodies_physical_system : Chrono physical system
  *	\param dx : particle spacing
  *	\param collide : add collision handling
+ *	\param orientation_diff: additional orientation
  */
 void
-Object::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx,
-		const bool collide, const ::chrono::ChQuaternion<> & orientation_diff)
+Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+			const chrono::ChQuaternion<> & orientation_diff)
 {
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
@@ -435,10 +434,7 @@ Object::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx,
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
-	if (collide)
-		GeomCreate(dx);
-	else
-		m_body->SetCollide(false);
+	m_body->SetCollide(collide);
 
 	// Add the body to the physical system
 	bodies_physical_system->AddBody(std::shared_ptr< ::chrono::ChBody >(m_body));

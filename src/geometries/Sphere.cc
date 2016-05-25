@@ -25,6 +25,8 @@
 
 #include <cstdlib>
 
+#include "chrono/physics/ChBodyEasy.h"
+
 #include "Sphere.h"
 
 
@@ -135,7 +137,6 @@ Sphere::Fill(PointVect& points, const double dx, const bool fill)
 	return nparts;
 }
 
-
 bool
 Sphere::IsInside(const Point& p, const double dx) const
 {
@@ -149,16 +150,24 @@ Sphere::IsInside(const Point& p, const double dx) const
 }
 
 #if USE_CHRONO == 1
-/// Create a Chrono collision model
-/* Create a Chrono collsion model for the cube.
+/* Create a Chrono box body.
  *	\param dx : particle spacing
  */
 void
-Sphere::GeomCreate(const double dx) {
-	m_body->GetCollisionModel()->ClearModel();
-	const double r = m_r + dx/2.;
-	m_body->GetCollisionModel()->AddSphere(r);
-	m_body->GetCollisionModel()->BuildModel();
-	m_body->SetCollide(true);
+Sphere::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+	const ::chrono::ChQuaternion<> & orientation_diff)
+{
+	// Check if the physical system is valid
+	if (!bodies_physical_system)
+		throw std::runtime_error("Sphere::BodyCreate Trying to create a body in an invalid physical system!\n");
+
+	// Creating a new Chrono object
+	m_body = new ::chrono::ChBodyEasySphere(m_r + dx/2.0, m_mass/Volume(dx), collide);
+	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+
+	m_body->SetCollide(collide);
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(std::shared_ptr< ::chrono::ChBody >(m_body));
 }
 #endif

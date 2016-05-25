@@ -122,10 +122,8 @@ class Cube: public Object {
 		/// \name Chrono related  functions
 		//@{
 #if USE_CHRONO == 1
-		void GeomCreate(const double);
-#else
-		void GeomCreate(const double p)
-		{ Object::GeomCreate(p); }
+		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+			const ::chrono::ChQuaternion<> & orientation_diff);
 #endif
 		//@}
 		friend std::ostream& operator<<(std::ostream&, const Cube&);
