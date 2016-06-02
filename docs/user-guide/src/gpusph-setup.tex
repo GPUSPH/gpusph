@@ -856,6 +856,20 @@ setVelocityDriven(inlet, PRESSURE_DRIVEN);
 Once again the GT (GeometryType) can be fluid, fixed boundary, open boundary, 
 floating body, moving body, plane, or testpoint, eg. \cmd{GT_OPENBOUNDARY}. 
 
+\section{Running your simulation}\label{sec:run}
+To run your simulation you first need to compile GPUSPH for your problem.
+To do so, in the GPUSPH folder, run:
+\begin{shellcode}
+make problem=MyProblem
+\end{shellcode}
+\textbf{Remark}:
+\begin{itemize}
+\item If you are running a multi-node simulation, do not forget to add the option
+\cmd{mpi=1}.
+\item If your are running a simulation with moving objects, do not forget to add the
+option \cmd{chrono=1}.
+\end{itemize}
+See the section \ref{sec:compileoptions} or run \cmd{make -{}-help} for the complete liste of compilation options.
 
 \section{Visualizing the results}\label{sec:postprocess}
 

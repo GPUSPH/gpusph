@@ -74,17 +74,59 @@ developing GPUSPH.\\
 
 
 
-\section{Installing the Open Dynamics Engine}
-\todo{Replace with CHRONO}
-The website for the Open Dynamics Engine is \url{http://www.ode.org},
-with links to the Source Forge repository to download the code. This
-needs to be installed to run GPUSPH. If you use moving rigid bodies in
-your problems, you will need the manual (available from the link above
-but here it is anyway:
-\url{http://ode-wiki.org/wiki/index.php?title=Manual:_Introduction}) to
-assist in the writing of your own problem.
+\section{Installing the CHRONO library}
 
-Please note that ODE should be compiled in single-precision mode.
+To install CHRONO you need \cmd{cmake} and \cmd{ccmake}.
+
+First, create a directory where to install chrono:
+\begin{shellcode}
+mkdir install_chrono 
+\end{shellcode}
+In that directory, clone the CHRONO repository from Github in a source directory:
+\begin{shellcode}
+cd install_chrono 
+git clone https://github.com/projectchrono/chrono.git source
+\end{shellcode}
+This command will download the CHRONO repository in a folder named \cmd{source}.
+
+Create a folder where to build CHRONO:
+\begin{shellcode}
+mkdir build 
+\end{shellcode}
+From the \cmd{build} repository, run \cmd{cmake}:
+\begin{shellcode}
+cmake ../source 
+\end{shellcode}
+Configure the compilation options with \cmd{ccmake}:
+\begin{shellcode}
+ccmake .
+\end{shellcode}
+set the following options to off:
+\begin{shellcode}
+ ENABLE_MODULE_CASCADE            OFF                                                                                                                
+ ENABLE_MODULE_COSIMULATION       OFF                                                                                                                
+ ENABLE_MODULE_FEA                OFF                                                                                                                
+ ENABLE_MODULE_FSI                OFF                                                                                                                
+ ENABLE_MODULE_IRRLICHT           OFF                                                                                                                
+ ENABLE_MODULE_MATLAB             OFF                                                                                                                
+ ENABLE_MODULE_MKL                OFF                                                                                                                
+ ENABLE_MODULE_OPENGL             OFF                                                                                                                
+ ENABLE_MODULE_PARALLEL           OFF                                                                                                                
+ ENABLE_MODULE_POSTPROCESS        OFF                                                                                                                
+ ENABLE_MODULE_PYTHON             OFF                                                                                                                
+ ENABLE_MODULE_VEHICLE            OFF                                                                                                                
+ ENABLE_OPENMP                    OFF
+\end{shellcode}
+
+Once this is done, you can compile the CHRONO project 
+(still from the \cmd{build} folder):
+\begin{shellcode}
+make
+\end{shellcode}
+and install the library (also from the \cmd{build} folder):
+\begin{shellcode}
+make install
+\end{shellcode}
 
 \todo{How to install relevant packages on common distributions
 (Debian/Ubuntu, Arch, Fedora/RedHat).}
@@ -145,7 +187,7 @@ After building, simply runnning \cmd{./GPUSPH} will run the program
 again.
 
 
-\subsection{Choosing the \cmd{Problem} and other options}
+\subsection{Choosing the \cmd{Problem} and other options}\label{sec:compileoptions}
 
 You can test a different problem by using:
 \begin{shellcode}
@@ -174,6 +216,7 @@ The \cmd{make} options are listed below:
 \item \cmd{verbose} - 0 quiet compiler, 1 ptx assembler, 2 all warnings
 \item \cmd{plain} - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
 \item \cmd{echo} - 0 silent, 1 show commands
+\item \cmd{chrono} - 0 do not use the CHRONO library, 1 use the CHRONO library
 \end{itemize}
 To view your current make options type \cmd{make show} instead of make.
 
