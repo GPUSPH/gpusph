@@ -74,70 +74,6 @@ developing GPUSPH.\\
 
 
 
-\section{Installing the CHRONO library}
-
-The CHRONO website provides information for how to install CHRONO:\\
-\url{http://api.chrono.projectchrono.org/tutorial_install_chrono.html}\\
-
-\textbf{Remark:} There is no need for the Irrlicht library with GPUSPH.\\
-
-In this section we summarize the steps for the CHRONO library installation.
-To install CHRONO, besides the GPUSPH requirements you need to have \cmd{cmake} installed 
-and a cmake interface like \cmd{ccmake} on Linux.
-
-First, create a directory where to install CHRONO:
-\begin{shellcode}
-mkdir install_chrono 
-\end{shellcode}
-In that directory, clone the CHRONO repository from Github in a source directory:
-\begin{shellcode}
-cd install_chrono 
-git clone https://github.com/projectchrono/chrono.git source
-\end{shellcode}
-This command will download the CHRONO repository in a folder named \cmd{source}.
-
-Create a folder where to build CHRONO:
-\begin{shellcode}
-mkdir build 
-\end{shellcode}
-From the \cmd{build} repository, run \cmd{cmake}:
-\begin{shellcode}
-cmake ../source 
-\end{shellcode}
-Configure the compilation options with \cmd{ccmake}:
-\begin{shellcode}
-ccmake .
-\end{shellcode}
-set the following options to off:
-\begin{shellcode}
- ENABLE_MODULE_CASCADE            OFF                                                                                                                
- ENABLE_MODULE_COSIMULATION       OFF                                                                                                                
- ENABLE_MODULE_FEA                OFF                                                                                                                
- ENABLE_MODULE_FSI                OFF                                                                                                                
- ENABLE_MODULE_IRRLICHT           OFF                                                                                                                
- ENABLE_MODULE_MATLAB             OFF                                                                                                                
- ENABLE_MODULE_MKL                OFF                                                                                                                
- ENABLE_MODULE_OPENGL             OFF                                                                                                                
- ENABLE_MODULE_PARALLEL           OFF                                                                                                                
- ENABLE_MODULE_POSTPROCESS        OFF                                                                                                                
- ENABLE_MODULE_PYTHON             OFF                                                                                                                
- ENABLE_MODULE_VEHICLE            OFF                                                                                                                
- ENABLE_OPENMP                    OFF
-\end{shellcode}
-
-Once this is done, you can compile the CHRONO project 
-(still from the \cmd{build} folder):
-\begin{shellcode}
-make
-\end{shellcode}
-and install the library (also from the \cmd{build} folder):
-\begin{shellcode}
-make install
-\end{shellcode}
-
-\todo{How to install relevant packages on common distributions
-(Debian/Ubuntu, Arch, Fedora/RedHat).}
-
 \section{Installing GPUSPH}
 
 The GPUSPH source code is hosted on \href{http://github.com}{GitHub}.
@@ -192,6 +128,70 @@ compiled binary. \cmd{make test} will also automatically run
 
 After building, simply runnning \cmd{./GPUSPH} will run the program
 again.
+
+\section{Installing the CHRONO library}
+
+The CHRONO website provides information for how to install CHRONO:\\
+\url{http://api.chrono.projectchrono.org/tutorial_install_chrono.html}\\
+
+\textbf{Remark:} There is no need for the Irrlicht library with GPUSPH.\\
+
+In this section we summarize the steps for the CHRONO library installation.
+To install CHRONO, besides the GPUSPH requirements you need to have \cmd{cmake} installed
+and a cmake interface like \cmd{ccmake} on Linux.
+
+First, create a directory where to install CHRONO:
+\begin{shellcode}
+mkdir install_chrono
+\end{shellcode}
+In that directory, clone the CHRONO repository from Github in a source directory:
+\begin{shellcode}
+cd install_chrono
+git clone https://github.com/projectchrono/chrono.git source
+\end{shellcode}
+This command will download the CHRONO repository in a folder named \cmd{source}.
+
+Create a folder where to build CHRONO:
+\begin{shellcode}
+mkdir build
+\end{shellcode}
+From the \cmd{build} repository, run \cmd{cmake}:
+\begin{shellcode}
+cmake ../source
+\end{shellcode}
+Configure the compilation options with \cmd{ccmake}:
+\begin{shellcode}
+ccmake .
+\end{shellcode}
+set the following options to off:
+\begin{shellcode}
+ ENABLE_MODULE_CASCADE            OFF
+ ENABLE_MODULE_COSIMULATION       OFF
+ ENABLE_MODULE_FEA                OFF
+ ENABLE_MODULE_FSI                OFF
+ ENABLE_MODULE_IRRLICHT           OFF
+ ENABLE_MODULE_MATLAB             OFF
+ ENABLE_MODULE_MKL                OFF
+ ENABLE_MODULE_OPENGL             OFF
+ ENABLE_MODULE_PARALLEL           OFF
+ ENABLE_MODULE_POSTPROCESS        OFF
+ ENABLE_MODULE_PYTHON             OFF
+ ENABLE_MODULE_VEHICLE            OFF
+ ENABLE_OPENMP                    OFF
+\end{shellcode}
+
+Once this is done, you can compile the CHRONO project
+(still from the \cmd{build} folder):
+\begin{shellcode}
+make
+\end{shellcode}
+and install the library (also from the \cmd{build} folder):
+\begin{shellcode}
+make install
+\end{shellcode}
+
+\todo{How to install relevant packages on common distributions
+(Debian/Ubuntu, Arch, Fedora/RedHat).}
 
 
 \subsection{Choosing the \cmd{Problem} and other options}\label{sec:compileoptions}
