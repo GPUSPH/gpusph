@@ -242,22 +242,6 @@ beyond what is shown in the sample problems. This flexibility should
 allow you to create very complex simulations by combining the objects
 appropriately.
 
-\iffalse
-GPUSPH has options for specified moving objects, which are used to make
-piston and paddle wavemakers and a moving gate. These objects are
-comprised of particles that are distinguished by identifying their type
-as GATEPART, PISTONPART, and PADDLEPART. (Water is distinguished by
-FLUIDPART and fixed boundary particles are of type BOUNDPART.) The
-distinction between GATEPART and PISTONPART is that the particles of the
-GATE are moved by providing an arbitrary (possibly time-varying)
-velocity vector in the problem's callback function and a PISTONPART
-particle is moved by providing a displacement for the vertical piston in
-(only the) x direction with time, again via the callback function.
-\else
-\todo{blurb about the various moving object types shold be moved
-elsewhere}
-\fi
-
 The number of particles used in the test problems is deliberately taken
 as a small number, simply to allow for fast execution times even on
 older hardware. One of the first tests to try is to increase the
