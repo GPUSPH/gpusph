@@ -57,24 +57,24 @@ f(\vec{r}) = \int f(\vec{r'}) \delta(\|\vec{r}-\vec{r'}\|) \td \vec{r'},
 where $\delta$ is the Dirac delta distribution. The continuous SPH
 approximation can be written as
 \be
-<f>(\vec{r}) = \int_\Omega f(\vec{r'}) W(\|\vec{r}-\vec{r'}\|,h) \td \vec{r'},
+<f>(\vec{r}) = \int_\Omega f(\vec{r'}) W(|\vec{r}-\vec{r'}|,h) \td \vec{r'},
 \label{e:sph:cint}
 \en
 where the Dirac delta function was replaced by a weight or kernel
 function $W$, $\Omega$ is the computational domain and $h$ is the
 smoothing length. 
-For this approximation to be consistent the following conditions are required:
+For this approximation to be consistent, two conditions are required:
 \begin{itemize}
-\item $W$ has a compact support
 \item $\underset{h\rightarrow 0}{\lim} W(.,h) = \delta(.)$, \ie the
 kernel function converges to the delta function,
 \item $\int W(\vec{r}-\vec{r}',h) \td \vec{r}' = 1$, \ie the kernel function has unitary
 integral.
 \end{itemize}
-In order to fulfill physical constraints additional properties are imposed to the SPH kernels :
+Additional constraints are imposed to the SPH kernels, in order to simplify the
+physical modelling:
 \begin{itemize}
-\item $W(\vec{r}-\vec{r}',h) = W(\| \vec{r}-\vec{r}' \|,h)$, \ie the kernel is symmetric and isotropic,
-\item  $W(\vec{r}-\vec{r}',h) \geq 0$, \ie the kernel is positive
+\item $W(\vec{r}-\vec{r}',h) = W(\vec{r}'-\vec{r},h)$, \ie the kernel is symmetric,
+\item the kernel has compact support.
 \end{itemize}
 From now one we will assume that the kernel fulfill this additional properties.
 
@@ -90,10 +90,11 @@ value of $f$ at the particle.\\
 Now that the space has been discretized we can apply the particle approximation to the
 kernel one : approximating Eq. \eqref{e:sph:cint} by the following sum
 \be
-<f>(\vec{r}) \approx [f](\vec{r}) = \underset{b \in \mathcal{F}}{\sum} {\frac{m_b}{\rho_b} f_b W(\| \vec{r}-\vec{r}'_b \|,h)}
+[f](\vec{r}_a) = \underset{b \in \mathcal{F}}{\sum} \frac{m_b}{\rho_b} f_b W_{ab},
 \label{e:sph:int}
 \en
-where $\mathcal{F}$ is the set of all particles, $m$ the mass of the particle. It should be noted that
+where $\mathcal{F}$ is the set of all particles, $m$ the mass and
+$W_{ab} = W(|\vec{r}_a - \vec{r}_b|/h, h)$. It should be noted that
 $[f] \neq f$.
 
 \section{SPH kernels}
@@ -101,7 +102,7 @@ $[f] \neq f$.
 Currently GPUSPH features four different kernels.
 \begin{itemize}
   \item \cmd{CUBICSPLINE}: the cubic spline kernel
-  \item \cmd{QUADRATIC}: the quadratic spline kernel
+  \item \cmd{QUADRATIC}: the quadratic splain kernel
   \item \cmd{WENDLAND}: the quintic Wendland kernel
   \item \cmd{GAUSSIAN}: the Gaussian kernel
 \end{itemize}
@@ -628,7 +629,7 @@ correction is given by
 where $\eta_{RC}$ governs the strength of this correction, but is
 usually equal to one.
 
-\todo{Add other diffusion stuff, artificial viscosity, sheppard etc.}
+%\todo{Add other diffusion stuff, artificial viscosity, sheppard etc.}
 
 \section{Turbulence modelling}
 
@@ -783,7 +784,7 @@ and
 \end{equation}
 where $\alpha_v$ is given according to Eq. \eqref{e:sa:alpha}.
 
-\todo{Add SPS}
+%\todo{Add SPS}
 
 \section{Open boundaries}
 GPUSPH currently implements two different types of open boundaries. One
