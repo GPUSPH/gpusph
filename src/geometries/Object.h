@@ -60,6 +60,7 @@ class Object {
 		double				m_mass;			///< Mass of the object
 		PointVect			m_parts;		///< Particles belonging to the object
 		uint				m_numParts;		///< Number of particles belonging to the object
+		bool				m_isFixed;		///< Is it fixed in space?
 #if USE_CHRONO == 1
 		::chrono::ChBody		*m_body;		///< Chrono body linked to the object
 #else
@@ -75,6 +76,7 @@ class Object {
 			m_mass = 0.0;
 			m_center = Point(0,0,0);
 			m_numParts = 0;
+			m_isFixed = false;
 			m_inertia[0] = NAN;
 			m_inertia[1] = NAN;
 			m_inertia[2] = NAN;
@@ -116,6 +118,9 @@ class Object {
 		EulerParameters GetOrientation(void) const;
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}
+
+		/// Set body as fixed in space
+		void SetFixed() { m_isFixed = true; }
 
 		/// Returns the particle vector associated with the object
 		PointVect& GetParts(void);

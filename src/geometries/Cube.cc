@@ -712,6 +712,8 @@ Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, c
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
 	m_body->SetCollide(collide);
+	m_body->SetBodyFixed(m_isFixed);
+
 	// Add the body to the physical system
 	bodies_physical_system->AddBody(std::shared_ptr< ::chrono::ChBody >(m_body));
 }
