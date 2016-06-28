@@ -1299,6 +1299,10 @@ int XProblem::fill_parts()
 					m_geometries[g]->ptr->SetInertia(physparams()->r0);
 			} // if body has dynamics
 
+			// Fix the geometry *before the creation of the Chrono body* if not moving nor floating.
+			// TODO: check if it holds for moving
+			if (m_geometries[g]->type == GT_FIXED_BOUNDARY)
+				m_geometries[g]->ptr->SetFixed();
 			m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
