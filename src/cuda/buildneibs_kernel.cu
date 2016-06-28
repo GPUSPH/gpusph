@@ -821,6 +821,11 @@ neibsInCell(
 		if (TESTPOINT(neib_info))
 			continue;
 
+		// LJ boundary particles should not have any boundary neighbor.
+		// If we are here is because a FLOATING LJ boundary needs neibs.
+		if (boundarytype == LJ_BOUNDARY && boundary && BOUNDARY(neib_info))
+			continue;
+
 		// With dynamic boundaries, boundary parts don't interact with other boundary parts
 		// except for Grenier's formulation, where the sigma computation needs all neighbors
 		// to be enumerated
