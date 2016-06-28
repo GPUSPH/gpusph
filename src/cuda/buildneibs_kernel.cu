@@ -771,7 +771,7 @@ void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_id, floa
  *	\tparam boundarytype : the boundary model used
  *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  *
- * First and last particle index for grid cells and particle's informations
+ * First and last particle index for grid cells and particle's information
  * are read through texture fetches.
  */
 template <SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound>
