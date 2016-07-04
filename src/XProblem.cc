@@ -1284,20 +1284,20 @@ int XProblem::fill_parts()
 
 			// Overwrite the computed inertia matrix if user set a custom one
 			// NOTE: this must be done before body creation!
-			if (m_geometries[g]->handle_dynamics) {
-				// use custom inertia only if entirely finite (no partial overwrite)
-				const double i11 = m_geometries[g]->custom_inertia[0];
-				const double i22 = m_geometries[g]->custom_inertia[1];
-				const double i33 = m_geometries[g]->custom_inertia[2];
-				if (isfinite(i11) && isfinite(i22) && isfinite(i33))
-					m_geometries[g]->ptr->SetInertia(i11, i22, i33);
-				else
-					// if no custom inertia has been set, call default Object::SetInertia()
-					// NOTE: this overwrites default inertia set by Chrono for "easy" bodies
-					// (Box, Sphere, Cylinder), but it would be only necessary for non-primitive
-					// geometries (e.g. STL meshes)
-					m_geometries[g]->ptr->SetInertia(physparams()->r0);
-			} // if body has dynamics
+			// NOTE: this is needed also if only handle_collision holds
+
+			// Use custom inertia only if entirely finite (no partial overwrite)
+			const double i11 = m_geometries[g]->custom_inertia[0];
+			const double i22 = m_geometries[g]->custom_inertia[1];
+			const double i33 = m_geometries[g]->custom_inertia[2];
+			if (isfinite(i11) && isfinite(i22) && isfinite(i33))
+				m_geometries[g]->ptr->SetInertia(i11, i22, i33);
+			else
+				// if no custom inertia has been set, call default Object::SetInertia()
+				// NOTE: this overwrites default inertia set by Chrono for "easy" bodies
+				// (Box, Sphere, Cylinder), but it would be only necessary for non-primitive
+				// geometries (e.g. STL meshes)
+				m_geometries[g]->ptr->SetInertia(physparams()->r0);
 
 			// Fix the geometry *before the creation of the Chrono body* if not moving nor floating.
 			// TODO: check if it holds for moving
