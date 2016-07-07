@@ -1,13 +1,16 @@
 The first step to run GPUSPH is to install the \nvidia\ company's CUDA
 compilers and libraries (directions given below). CUDA is an extension
-of the \cpp\ language to allow \cpp\ to talk to the graphics card.
+of the \cpp\ language to allow \cpp\ to talk to the graphics card.\\
 
-The second step is to install the open source software, Open Dynamics
-Engine, which simulates rigid body dynamics. This library is used for
+The second step is to install the open source software, CHRONO,
+which simulates rigid body dynamics. This library is used for
 any rigid objects that move, such as floating objects or objects moved
-by fluid flow.
+by fluid flow.\\
 
-The third step is to obtain, compile and run GPUSPH.
+The third step is to obtain, compile and run GPUSPH.\\
+
+\textbf{Remark:} to run multi-node simulations, you also need to
+install OpenMP (>= 1.8.4).
 
 \section{Installing CUDA}
 
@@ -21,26 +24,14 @@ nvidia-smi
 from the terminal. If CUDA is installed it will give you information
 on the current state of the NVIDIA graphics card(s) on the machine.\\
 
-\textbf{Caution}: At the present time, you must have a card with at least Compute
-Capability of 2.0 to run GPUSPH.
+\textbf{Note}: GPUSPH runs on cards with Compute Capabillity at least 2.0
 \\
 
-\textbf{Remark}: 
-Regarding the choice of the GPU, the more streaming 
-processors and the more video memory on the card, the better. 
-Also, the higher the Compute Capability, the more
-CUDA language features can be used on the card. 
-\todo{Update this}
-Currently the Kepler
-K40 has the most memory (12~GB), the most processors (${}>2600$), and
-the highest Compute Capability (3.5) for scientific work. High end
-gaming cards, such as the GTX Titan, have a similar numbers of
-processors and memory, but with less computational features, such as
-error-correcting memory. While they are not quite as robust for
-scientific work, they are cheaper. On a MacBook Pro laptop, circa 2012,
-the graphics card is a GeForce GT 650M, with 384 processors with 1024~MB
-of VRAM with a Compute Capability of 3.0; more than enough to do
-significant parallel computing.\\
+\textbf{Remark}: regarding the choice of the GPU, the more CUDA 
+cores and the more memory on the card, the better. Anyway a
+mid range mobile GPU's like GT750m/GT840 with 1 or 2GB of memory
+is sufficient to run significant simulations. A laptop with such a GPU will be
+a perfect mobile developing and testing platform.\\
 
 The GPU programming language CUDA can be obtained from the \nvidia\ website,
 CUDA Zone. The CUDA Toolkit and CUDA Software Development Kit (SDK)

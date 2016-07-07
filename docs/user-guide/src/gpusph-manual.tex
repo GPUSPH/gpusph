@@ -88,7 +88,7 @@
 
 \author{}
 
-\date{\currentver\ --- June 2014}
+\date{\currentver\ --- June 2016}
 
 \begin{document}
 
@@ -137,12 +137,12 @@ of magnitude) than using a CPU to compute SPH models. Speedups of 100
 can be achieved for parts of the code when compared to serial versions
 of the code.\\
 
-\todo{Recall what is the minimum required compute capability.}
-GPUSPH has been run on \nvidia's GeForce 8600 (32 processors), 8800
-(110), the Tesla family of cards (e.g., Tesla C2050 with 480 streaming
-processors and 3~GB of memory), and the latest generation of Kepler
-cards (with 2688 processors and 6~GB memory). It also runs on many of
-the \nvidia\ GTX cards.\\
+The first version of GPUSPH was running  on \nvidia's Compute Capability (CC) 1.x cards, 
+GeForce 8xxx cards. From this first version we tested GPUSPH on all \nvidia \  architectures
+(from Fermi CC 2.x to the latest Pascal CC 6.x). \nvidia \  dropped support for CC 1.x and will 
+soon do it for CC 2.x. So at the moment GPUSPH will run on any card with CC 2.x or higher
+(from Fermi up) but we expect to drop soon the support for CC 2.x. When done GPUSPH will
+run on any card with CC 3.x or higher (from Kelpler up).\\
 
 This guide is divided into several sections. 
 First, the installation and set-up of the GPUSPH code is explained and 
