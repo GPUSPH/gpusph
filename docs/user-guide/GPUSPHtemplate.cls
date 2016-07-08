@@ -70,6 +70,9 @@
 \setlength{\tindent}{\parindent}
 \setlength{\parindent}{0pt}
 
+% Appendix
+\RequirePackage[titletoc]{appendix}
+
 % common math shortcuts
 \newcommand{\be}{\begin{equation}}
 \newcommand{\en}{\end{equation}}
