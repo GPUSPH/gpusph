@@ -4,9 +4,9 @@ LTXFLAGS ?=
 # Command to convert an SVG to PDF
 SVG2PDF ?= inkscape $< --export-pdf=$@
 
-EXTRA_DEPS = $(patsubst %.svg, %.pdf, $(wildcard fig/*.svg))
+EXTRA_DEPS = $(patsubst %.svg, %.pdf, $(wildcard ../fig/*.svg))
 
-gpusph-manual.pdf:
+gpusph-theory.pdf:
 
 # Set of general pattern rules to produce final and intermediate results
 # during a compilation.
@@ -30,18 +30,18 @@ gpusph-manual.pdf:
 	$(LTX) $(LTXFLAGS) $< && \
 	while grep -Ei 'Warning.*Rerun' $(subst .tex,.log,$<) ; do $(LTX) $(LTXFLAGS) $< ; done
 
-%.aux: %.tex %.bib $(EXTRA_DEPS)
+%.aux: %.tex ../gpusph-manual.bib $(EXTRA_DEPS)
 	$(LTX) $(LTXFLAGS) $<
 
-%.bbl: %.aux %.bib
+%.bbl: %.aux ../gpusph-manual.bib
 	bibtex $<
 
-fig/%.pdf: fig/%.svg
+../fig/%.pdf: ../fig/%.svg
 	$(SVG2PDF)
 
-#gpusph-manual.pdf: gpusph-license.tex gpusph-reference.bib
+#gpusph-theory.pdf: gpusph-license.tex gpusph-reference.bib
 
 clean:
-	rm -rf *.aux *.bbl *.log *.out *.blg *.toc *.pdf fig/*pdf
+	rm -rf *.aux *.bbl *.log *.out *.blg *.toc *.pdf ../fig/*pdf
 
 .PHONY: clean

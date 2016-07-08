@@ -1,6 +1,19 @@
+\documentclass{../GPUSPHtemplate}
+
+\title{GPUSPH Theory Guide}
+
+\author{}
+
+\date{\currentver\ --- July 2016}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\clearpage
 \section{Introduction}
 
-In the present chapter the SPH formulations realized in GPUSPH will be
+In the present document the SPH formulations realized in GPUSPH will be
 described. While this section is as complete as necessary we recommend
 to read the cited literature in order to gain a full understanding of
 the respective methods.
@@ -88,7 +101,7 @@ $[f] \neq f$.
 Currently GPUSPH features four different kernels.
 \begin{itemize}
   \item \cmd{CUBICSPLINE}: the cubic spline kernel
-  \item \cmd{QUADRATIC}: the quadratic splain kernel
+  \item \cmd{QUADRATIC}: the quadratic spline kernel
   \item \cmd{WENDLAND}: the quintic Wendland kernel
   \item \cmd{GAUSSIAN}: the Gaussian kernel
 \end{itemize}
@@ -261,7 +274,7 @@ and
 \end{equation}
 respectively.
 
-\todo{Add different formulations SPH_F1 and SPH_F2, including theory}
+%\todo{Add different formulations SPH_F1 and SPH_F2, including theory}
 
 \subsection{Second-order derivatives}
 
@@ -428,7 +441,7 @@ repulsive forces are imposed between boundary particles and
 fluid particles (that move according to the SPH equations).
 The repulsive force employed derives from the Lennard-Jones potential
 (see \cite{Monaghan2005}).
-\todo{Write the force}
+%\todo{Write the force}
 
 This method is computationally cheap, but may lead to
 spurious behaviours of the particles close to the walls.
@@ -441,7 +454,8 @@ still near the walls in a hydrostatic case.
 
 \subsection{Dynamic boundaries}
 
-\todo{Write this section}
+Section under construction.
+%\todo{Write this section}
 
 \subsection{Semi-analytical boundaries}
 
@@ -455,7 +469,7 @@ While the accuracy of these boundary conditions is outstanding, one of
 their downsides is their comparably high computational cost.
 \begin{figure}[htb]
 \centering
-\includegraphics[width=0.48\textwidth]{fig/vertex_and_boundary_elements.pdf}
+\includegraphics[width=0.48\textwidth]{../fig/vertex_and_boundary_elements.pdf}
 \caption{Different particle types}
 \label{fig:sa:types}
 \end{figure}
@@ -509,7 +523,7 @@ where the laminar shear stress was used in the boundary term in \cite{ferrand_un
 \begin{equation}
 \rho_a = \frac{1}{\alpha_a}\sumF m_b W_{ab}
 \end{equation}
-\todo{hydrostatic correction}
+%\todo{hydrostatic correction}
 with
 \begin{equation}
 \alpha_a = \sumF V_b W_{ab}
@@ -598,7 +612,9 @@ set directly using the \cmd{ferrariLengthScale} variable.
 \subsection{Rhie and Chow}
 
 Similar to the Ferrari correction is the correction in the spirit of
-Rhie and Chow (\todo{Find the reference}). Again an additional term is added to the
+Rhie and Chow.
+%\todo{Find the reference}
+Again an additional term is added to the
 continuity equation. However, the density at time $n+1$ is computed
 first, denoted by $\widetilde{\rho}^{n+1}$, by solving the continuity
 equation and then a correction is applied to obatin $\rho^{n+1}$. This
@@ -1081,3 +1097,11 @@ Under construction
 All the floating bodies dynamics is solved using Chrono engine. Basically GPUSPH computes force and torque 
 on each body and feed them to Chrono engine that integrate the movement.\\
 Details under construction.
+
+\bibliography{../gpusph-manual.bib}
+
+\end{document}
+
+% missing:
+% gomez-gesteira:2004
+% Goring:1978 (solitary wave; wave tank)

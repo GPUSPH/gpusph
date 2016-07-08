@@ -1,3 +1,18 @@
+\documentclass{../GPUSPHtemplate}
+
+\title{GPUSPH User Guide}
+
+\author{}
+
+\date{\currentver\ --- July 2016}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+\section{Introduction}
+
 To run simulations with your own setup, you must create a new
 \cmd{Problem}. This is done by creating a new \cpp\ source file, with
 the associated header (e.g.\ \cmd{MyProject.cu} and \cmd{MyProject.h}),
@@ -195,14 +210,14 @@ with all the options shown in the Figure \ref{fig:salome_screenshot_2}.
 
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[scale=0.7, trim={1820 365 330 170},clip]{fig/salome_screenshot_1.png}
+    \includegraphics[scale=0.7, trim={1820 365 330 170},clip]{../fig/salome_screenshot_1.png}
     \caption{Screenshot of the mesh options window in SALOME.}\label{fig:salome_screenshot_1}   
   \end{center}
 \end{figure}
 
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[scale=0.7, trim={2215 308 50 180},clip]{fig/salome_screenshot_2.png}
+    \includegraphics[scale=0.7, trim={2215 308 50 180},clip]{../fig/salome_screenshot_2.png}
     \caption{Screenshot of the Netgen 1D-2D hypothesis window in SALOME.}\label{fig:salome_screenshot_2}   
   \end{center}
 \end{figure}
@@ -239,7 +254,7 @@ To compile TESTTRIANGLE, use this command in the \cmd{Crixus.git/scripts} direct
 gcc test-triangle-size.c -lm -o testTriangle
 \end{shellcode}
 It is recommended to add the path to the TESTTRIANGLE binary to your
-\cmd{$PATH} environment variable. Add this line in \cmd{~/.bashrc}:
+\cmd{$PATH} environment variable. Add this line in \cmd{\~/.bashrc}:
 \begin{shellcode}
 export PATH=/your_path/Crixus.git/scripts/testTriangle:$PATH
 \end{shellcode}
@@ -470,12 +485,12 @@ note that the fluid is denoted by  \cmd{GT_FLUID} (GT=GeometryType).
 The fluid behind the dam is 0.4 m deep.  
 A variety of obstacles can be added in front of the dam.  
 As provided, there is just a single object, but by invoking the model with
- \cmd{./GPUSPH -{}-num_obstacles 3}
+ \cmd{./GPUSPH --num_obstacles 3}
 three obstacles will be in front of the dam.  
 These obstacles can be rotated from their original position 
-by \cmd{./GPUSPH -{}-num_obstacles 3 -{}-rotate_obstacle true}\\
+by \cmd{./GPUSPH --num_obstacles 3 --rotate_obstacle true}\\
 
-Another run-time option includes \cmd{-{}-wet true or false}, 
+Another run-time option includes \cmd{--wet true or false}, 
 which puts a $0.1m$ layer of water around the obstacles (and in front of the dam).  
 
 
@@ -869,7 +884,7 @@ make problem=MyProblem
 \item If your are running a simulation with moving objects, do not forget to add the
 option \cmd{chrono=1}.
 \end{itemize}
-See the section \ref{sec:compileoptions} or run \cmd{make -{}-help} for the complete liste of compilation options.
+See the section \ref{sec:compileoptions} or run \cmd{make --help} for the complete liste of compilation options.
 
 \section{Visualizing the results}\label{sec:postprocess}
 
@@ -901,7 +916,7 @@ the play buttons at the top of the screen.
 
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[scale=0.65, trim={1680 335 190 155},clip]{fig/paraview_screenshot_1.png}
+    \includegraphics[scale=0.65, trim={1680 335 190 155},clip]{../fig/paraview_screenshot_1.png}
     \caption{Screenshot of the window for file opening in PARAVIEW.}\label{fig:paraview_screenshot_1}   
   \end{center}
 \end{figure}
@@ -937,7 +952,7 @@ In addition; we will be able to see these particles on
 the Layout, colored with the chosen Selection Color.
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[scale=0.65, trim={1740 300 260 165},clip]{fig/paraview_screenshot_2.png}
+    \includegraphics[scale=0.65, trim={1740 300 260 165},clip]{../fig/paraview_screenshot_2.png}
     \caption{Screenshot of the \cmd{Find Data} window in PARAVIEW.}\label{fig:paraview_screenshot_2}   
   \end{center}
 \end{figure}
@@ -954,7 +969,7 @@ You can manipulate it in the same way as the main dataset. You can
 also perform clips with planes. \\
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[scale=0.65, trim={1490 160 820 330},clip]{fig/paraview_screenshot_3.png}
+    \includegraphics[scale=0.65, trim={1490 160 820 330},clip]{../fig/paraview_screenshot_3.png}
     \caption{Screenshot of the \cmd{Clip} window in PARAVIEW.}\label{fig:paraview_screenshot_3}   
   \end{center}
 \end{figure}
@@ -985,3 +1000,7 @@ format so you can edit it with a text editor.
 You can also apply it to other datasets than the original one, 
 which is very useful in order to avoid having to repeatedly
 perform the same filtering operations.
+
+\bibliography{../gpusph-manual.bib}
+
+\end{document}
