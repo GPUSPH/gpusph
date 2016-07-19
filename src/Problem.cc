@@ -44,6 +44,13 @@
 // COORD1, COORD2, COORD3
 #include "linearization.h"
 
+// Enable to get/set envelop and margin (mainly debug)
+/*
+#if USE_CHRONO == 1
+#include "chrono/collision/ChCCollisionModel.h"
+#endif
+*/
+
 using namespace std;
 
 Problem::Problem(GlobalData *_gdata) :
@@ -105,6 +112,14 @@ Problem::InitializeChrono()
 		m_physparams->gravity.z));
 	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
 	m_bodies_physical_system->SetSolverType(::chrono::ChSystem::SOLVER_SOR);
+	// For debug purposes
+	/*
+	const double chronoSuggEnv = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedEnvelope();
+	const double chronoSuggMarg = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedMargin();
+	printf("Default envelop: %g, default margin: %g\n", chronoSuggEnv, chronoSuggMarg);
+	::chrono::collision::ChCollisionModel::SetDefaultSuggestedEnvelope(chronoSuggEnv / 10.0);
+	::chrono::collision::ChCollisionModel::SetDefaultSuggestedMargin(chronoSuggMarg / 10.0);
+	*/
 #else
 	throw runtime_error ("Problem::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
