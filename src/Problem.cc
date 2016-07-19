@@ -388,29 +388,27 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		if (step == 2)
 			mbdata->kdata = m_bodies_storage[i];
 #if USE_CHRONO == 1
-		if (mbdata->type == MB_FLOATING) {
-			chrono_bodies = true;
-			::chrono::ChBody *body = mbdata->object->GetBody();
-			// For step 2 restore cg, lvel and avel to the value at the beginning of
-			// the timestep
-			if (step == 2) {
-				body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
-				body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
-				body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
-				body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
-			}
+		chrono_bodies = true;
+		::chrono::ChBody *body = mbdata->object->GetBody();
+		// For step 2 restore cg, lvel and avel to the value at the beginning of
+		// the timestep
+		if (step == 2) {
+			body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
+			body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+			body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+			body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+		}
 
-			body->Empty_forces_accumulators();
-			body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
-			body->Accumulate_torque(::chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
+		body->Empty_forces_accumulators();
+		body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
+		body->Accumulate_torque(::chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
 
 
-			if (false) {
-				cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
-				//mbdata->object->ODEPrintInformation(false);
-				printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
-				printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
-			}
+		if (false) {
+			cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+			//mbdata->object->ODEPrintInformation(false);
+			printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
+			printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
 		}
 #endif
 	}
