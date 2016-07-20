@@ -27,7 +27,10 @@
 #include <cstdlib>
 #include <iostream>
 
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
+#endif
 
 #include "Cube.h"
 #include "Rect.h"
