@@ -113,7 +113,10 @@ void Cylinder::setEulerParameters(const EulerParameters &ep)
 	m_ep = ep;
 	m_ep.ComputeRot();
 
+	// Point mass is stored in the fourth component of m_center. Store and restore it after the rotation
+	const double point_mass = m_center(3);
 	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
+	m_center(3) = point_mass;
 }
 
 void Cylinder::getBoundingBox(Point &output_min, Point &output_max)

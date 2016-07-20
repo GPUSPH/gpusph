@@ -55,7 +55,7 @@
 class Object {
 	protected:
 		EulerParameters		m_ep;			///< Euler parameters associated with the object
-		Point				m_center;		///< Coordinates of center of gravity in the global reference frame
+		Point				m_center;		///< Coordinates of center of gravity in the global reference frame + particle mass (4th component)
 		double				m_inertia[3];	///< Inertia matrix in the principal axes of inertia frame
 		double				m_mass;			///< Mass of the object
 		PointVect			m_parts;		///< Particles belonging to the object

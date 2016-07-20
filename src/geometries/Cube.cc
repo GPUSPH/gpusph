@@ -667,8 +667,11 @@ void Cube::setEulerParameters(const EulerParameters &ep)
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
 	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
 
+	// Point mass is stored in the fourth component of m_center. Store and restore it after the rotation
+	const double point_mass = m_center(3);
 	// Computing the center of gravity of the cube
 	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
+	m_center(3) = point_mass;
 }
 
 // get the object bounding box
