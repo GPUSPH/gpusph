@@ -377,7 +377,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	double t1 = t + dt1;
 
 	//#define _DEBUG_OBJ_FORCES_
-	bool chrono_bodies = false;
+	bool there_is_at_least_one_chrono_body = false;
 	// For ODE bodies apply forces and torques
 	for (int i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
@@ -389,7 +389,6 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		if (step == 2)
 			mbdata->kdata = m_bodies_storage[i];
 #if USE_CHRONO == 1
-		chrono_bodies = true;
 		::chrono::ChBody *body = mbdata->object->GetBody();
 		// For step 2 restore cg, lvel and avel to the value at the beginning of
 		// the timestep
@@ -399,6 +398,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 			body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
 			body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
 		}
+		there_is_at_least_one_chrono_body = true;
 
 		body->Empty_forces_accumulators();
 		body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
@@ -416,7 +416,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 #if USE_CHRONO == 1
 	// Call Chrono solver for floating bodies
-	if (chrono_bodies) {
+	if (there_is_at_least_one_chrono_body) {
 		m_bodies_physical_system->DoStepDynamics(dt1);
 	}
 #endif
