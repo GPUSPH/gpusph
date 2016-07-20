@@ -378,7 +378,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 	//#define _DEBUG_OBJ_FORCES_
 	bool there_is_at_least_one_chrono_body = false;
-	// For ODE bodies apply forces and torques
+	// For Chrono bodies apply forces and torques
 	for (int i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
 		MovingBodyData* mbdata = m_bodies[i];
@@ -389,33 +389,37 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		if (step == 2)
 			mbdata->kdata = m_bodies_storage[i];
 #if USE_CHRONO == 1
-		::chrono::ChBody *body = mbdata->object->GetBody();
-		// For step 2 restore cg, lvel and avel to the value at the beginning of
-		// the timestep
-		if (step == 2) {
-			body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
-			body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
-			body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
-			body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
-		}
-		there_is_at_least_one_chrono_body = true;
+		// If current body has a Chrono body associated (no matter whether type moving or floating), we
+		// want to copy its parameters (velocities, position, etc.) from its kdata to Chrono
+		if (mbdata->object->GetBody()) {
+			there_is_at_least_one_chrono_body = true;
+			::chrono::ChBody *body = mbdata->object->GetBody();
+			// For step 2 restore cg, lvel and avel to the value at the beginning of
+			// the timestep
+			if (step == 2) {
+				body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
+				body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+				body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+				body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+			}
 
-		body->Empty_forces_accumulators();
-		body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
-		body->Accumulate_torque(::chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
+			body->Empty_forces_accumulators();
+			body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
+			body->Accumulate_torque(::chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
 
 
-		if (false) {
-			cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
-			//mbdata->object->ODEPrintInformation(false);
-			printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
-			printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
+			if (false) {
+				cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+				//mbdata->object->ODEPrintInformation(false);
+				printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
+				printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
+			}
 		}
 #endif
 	}
 
 #if USE_CHRONO == 1
-	// Call Chrono solver for floating bodies
+	// Call Chrono solver. Should it be called only if there are floating ones?
 	if (there_is_at_least_one_chrono_body) {
 		m_bodies_physical_system->DoStepDynamics(dt1);
 	}
@@ -430,8 +434,8 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		double3 new_trans = make_double3(0.0);
 		EulerParameters new_orientation, dr;
 #if USE_CHRONO == 1
-		// In case of an ODE body, new center of rotation position, linear and angular velocity
-		// and new orientation have been computed by ODE
+		// For floating bodies, new center of rotation position, linear and angular velocity
+		// and new orientation have been computed by Chrono. So let's read them and copy to kdata
 		if (mbdata->type == MB_FLOATING) {
 			::chrono::ChBody *body = mbdata->object->GetBody();
 			::chrono::ChVector<> vec = body->GetPos();
@@ -448,8 +452,8 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 			mbdata->kdata.orientation = new_orientation;
 		}
 #endif
-		// Otherwise the user is providing linear and angular velocity trough a call back
-		// function
+		// If the body is not floating, the user is probably providing linear and angular velocity trough a call back
+		// function.
 		if (mbdata->type != MB_FLOATING) {
 			const uint index = mbdata->index;
 			// Get linear and angular velocities at t + dt/2.O for step 1 or t + dt for step 2
