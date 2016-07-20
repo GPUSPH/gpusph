@@ -66,13 +66,8 @@ class Cylinder: public Object {
 		bool IsInside(const Point&, const double) const;
 
 #if USE_CHRONO == 1
-		void BodyCreate(::chrono::ChSystem *, const double, const bool);
-		void GeomCreate(const double);
-#else
-		void BodyCreate(void *p1, const double p2, const bool p3)
-		{ Object::BodyCreate(p1, p2, p3); }
-		void GeomCreate(const double p1)
-		{ Object::GeomCreate(p1); }
+		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+			const ::chrono::ChQuaternion<> & orientation_diff);
 #endif
 };
 #endif	/* _CYLINDER_H */

@@ -27,6 +27,11 @@
 #include <cstdlib>
 #include <iostream>
 
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChBodyEasy.h"
+#endif
+
 #include "Cylinder.h"
 
 Cylinder::Cylinder(void)
@@ -224,22 +229,22 @@ Cylinder::IsInside(const Point& p, const double dx) const
  *	\param collide : add collision handling
  */
 void
-Cylinder::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+Cylinder::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+	const ::chrono::ChQuaternion<> & orientation_diff)
 {
-	Object::BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(::chrono::CH_C_PI/2., ::chrono::VECT_X));
-}
+	// Check if the physical system is valid
+	if (!bodies_physical_system)
+		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
 
-/// Create a Chrono collision model
-/* Create a Chrono collsion model for the cube.
- *	\param dx : particle spacing
- */
-void
-Cylinder::GeomCreate(const double dx) {
-	m_body->GetCollisionModel()->ClearModel();
-	const double b = m_r + dx/2.;
-	const double h = m_h + dx;
-	m_body->GetCollisionModel()->AddCylinder(m_r, m_r, m_h/2.);
-	m_body->GetCollisionModel()->BuildModel();
-	m_body->SetCollide(true);
+	// Creating a new Chrono object
+	m_body = new ::chrono::ChBodyEasyCylinder(m_r + dx/2.0, m_h + dx, m_mass/Volume(dx), collide);
+	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+
+	m_body->SetCollide(collide);
+	m_body->SetBodyFixed(m_isFixed);
+
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(std::shared_ptr< ::chrono::ChBody >(m_body));
 }
 #endif
