@@ -139,6 +139,14 @@ void Problem::FinalizeChrono(void)
 #endif
 }
 
+// callback for initializing joints between Chrono bodies
+void Problem::initializeObjectJoints()
+{
+	// Default: do nothing
+
+	// See also: http://api.chrono.projectchrono.org/links.html
+}
+
 /// Allocate storage required for the integration of the kinematic data
 /// of moving bodies.
 void

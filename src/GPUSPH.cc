@@ -342,6 +342,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		resumed = true;
 	}
 
+	// Initialize potential joints if there are floating bodies
+	if (problem->simparams()->numbodies)
+		problem->initializeObjectJoints();
+
 	// Perform all those operations that require accessing the particles (e.g. find least obj id,
 	// count fluid parts per cell, etc.)
 	prepareProblem();

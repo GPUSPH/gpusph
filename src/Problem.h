@@ -382,6 +382,9 @@ RESTORE_WARNINGS
 		void InitializeChrono(void);
 		void FinalizeChrono(void);
 
+		// callback for initializing joints between Chrono bodies
+		virtual void initializeObjectJoints();
+
 		/* This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
 		 */
