@@ -426,7 +426,7 @@ Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 		throw std::runtime_error("Object::BodyCreate Trying to create a body in an invalid physical system !\n");
 
 	// Creating a new Chrono object
-	m_body = new ::chrono::ChBody();
+	m_body = std::make_shared< ::chrono::ChBody >();
 
 	// Assign cube mass and inertial data to the Chrono object
 	m_body->SetMass(m_mass);
@@ -438,7 +438,7 @@ Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 	m_body->SetBodyFixed(m_isFixed);
 
 	// Add the body to the physical system
-	bodies_physical_system->AddBody(std::shared_ptr< ::chrono::ChBody >(m_body));
+	bodies_physical_system->AddBody(m_body);
 }
 
 void
@@ -459,7 +459,7 @@ void Object::BodyPrintInformation(const bool print_geom)
 		double mass = m_body->GetMass();
 		const ::chrono::ChVector<> inertiaXX = m_body->GetInertiaXX();
 		const ::chrono::ChVector<> inertiaXY = m_body->GetInertiaXY();
-		printf("Chrono Body pointer: %p\n", m_body);
+		printf("Chrono Body pointer: %p\n", m_body.get());
 		printf("   Mass: %e\n", mass);
 		printf("   CG:   %e\t%e\t%e\n", cg.x, cg.y, cg.z);
 		printf("   I:    %e\t%e\t%e\n", inertiaXX.x, inertiaXY.x, inertiaXY.y);

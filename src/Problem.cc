@@ -33,6 +33,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+// shared_ptr
+#include <memory>
+
 #include "Problem.h"
 #include "vector_math.h"
 #include "vector_print.h"
@@ -172,7 +175,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	switch (mbdata->type) {
 		case MB_FLOATING : {
 #if USE_CHRONO == 1
-			::chrono::ChBody *body = object->GetBody();
+			std::shared_ptr< ::chrono::ChBody > body = object->GetBody();
 			::chrono::ChVector<> vec = body->GetPos();
 			mbdata->kdata.crot = make_double3(vec.x, vec.y, vec.z);
 			vec = body->GetPos_dt();
@@ -393,7 +396,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		// want to copy its parameters (velocities, position, etc.) from its kdata to Chrono
 		if (mbdata->object->GetBody()) {
 			there_is_at_least_one_chrono_body = true;
-			::chrono::ChBody *body = mbdata->object->GetBody();
+			std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
 			if (step == 2) {
@@ -437,7 +440,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		// For floating bodies, new center of rotation position, linear and angular velocity
 		// and new orientation have been computed by Chrono. So let's read them and copy to kdata
 		if (mbdata->type == MB_FLOATING) {
-			::chrono::ChBody *body = mbdata->object->GetBody();
+			std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 			::chrono::ChVector<> vec = body->GetPos();
 			const double3 new_crot = make_double3(vec.x, vec.y, vec.z);
 			new_trans = new_crot - mbdata->kdata.crot;

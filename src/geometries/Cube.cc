@@ -27,6 +27,9 @@
 #include <cstdlib>
 #include <iostream>
 
+// for smart pointers
+#include <memory>
+
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
@@ -713,7 +716,7 @@ Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, c
 		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = new ::chrono::ChBodyEasyBox(m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide);
+	m_body = std::make_shared< ::chrono::ChBodyEasyBox > ( m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
@@ -721,6 +724,6 @@ Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, c
 	m_body->SetBodyFixed(m_isFixed);
 
 	// Add the body to the physical system
-	bodies_physical_system->AddBody(std::shared_ptr< ::chrono::ChBody >(m_body));
+	bodies_physical_system->AddBody(m_body);
 }
 #endif

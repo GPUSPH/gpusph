@@ -62,7 +62,7 @@ class Object {
 		uint				m_numParts;		///< Number of particles belonging to the object
 		bool				m_isFixed;		///< Is it fixed in space?
 #if USE_CHRONO == 1
-		::chrono::ChBody		*m_body;		///< Chrono body linked to the object
+		std::shared_ptr< ::chrono::ChBody >		m_body;		///< Chrono body linked to the object
 #else
 		void				*m_body;
 #endif
@@ -72,7 +72,9 @@ class Object {
 			Point &origin, Vector v1, Vector v2, Vector v3);
 	public:
 		Object(void) {
+#if !(USE_CHRONO == 1)
 			m_body = NULL;
+#endif
 			m_mass = 0.0;
 			m_center = Point(0,0,0);
 			m_numParts = 0;
@@ -84,9 +86,6 @@ class Object {
 
 		virtual ~Object(void)
 		{
-#if USE_CHRONO == 1
-			if (m_body) delete m_body;
-#endif
 		};
 
 		/// \name Mass related functions
@@ -144,9 +143,9 @@ class Object {
 		virtual void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
 			const chrono::ChQuaternion<> & orientation_diff);
 		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide);
-		::chrono::ChBody* GetBody(void)
+		std::shared_ptr< ::chrono::ChBody > GetBody(void)
 		{	if (!m_body)
-			throw std::runtime_error("Object::GetBody called but object not associated with a Chrono body !");
+				throw std::runtime_error("Object::GetBody called but object not associated with a Chrono body !");
 			return m_body;
 		}
 #else
