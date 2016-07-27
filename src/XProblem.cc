@@ -688,6 +688,7 @@ GeometryID XProblem::addOBJMesh(const GeometryType otype, const FillType ftype, 
 {
 	STLMesh *stlmesh = new STLMesh();
 	stlmesh->setObjectFile(filename);
+	stlmesh->loadObjBounds(); // update bbox
 
 	double offsetX = 0, offsetY = 0, offsetZ = 0;
 
