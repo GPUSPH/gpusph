@@ -224,6 +224,8 @@ class XProblem: public Problem {
 			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff);
 		GeometryID addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 			const char *fname);
+		GeometryID addOBJMesh(const GeometryType otype, const FillType ftype, const Point &origin,
+			const char *fname);
 		GeometryID addHDF5File(const GeometryType otype, const Point &origin,
 			const char *fname_hdf5, const char *fname_stl = NULL);
 		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
