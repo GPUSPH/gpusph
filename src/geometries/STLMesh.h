@@ -158,6 +158,9 @@ public:
 
 	static STLMesh *load_stl(const char *fname);
 
+	// load OBJ file only to update bbox
+	void loadObjBounds();
+
 	void FillBorder(PointVect&, double);
 	int Fill(PointVect&, double, bool);
 	void Fill(PointVect&, const double);

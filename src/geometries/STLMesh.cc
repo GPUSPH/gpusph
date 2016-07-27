@@ -333,6 +333,39 @@ void STLMesh::FillBorder(PointVect& parts, double)
 	}
 }
 
+// load OBJ file only to update bbox
+void STLMesh::loadObjBounds()
+{
+	float cx, cy, cz;
+	FILE * file = fopen(m_objfile.c_str(), "r");
+	if( file == NULL )
+		throw runtime_error("STLMesh::Fill OBJ file unreadable!");
+	while( 1 ){
+		char lineHeader[128];
+		// read the first word of the line
+		int res = fscanf(file, "%s", lineHeader);
+		// file end?
+		if (res == EOF)
+			break;
+		if ( strcmp( lineHeader, "f" ) == 0 )
+			break;
+		if ( strcmp( lineHeader, "v" ) == 0 ){
+			fscanf(file, "%f %f %f\n", &cx, &cy, &cz );
+			// create point
+			Point p_in_global_coords = Point(cx, cy, cz, m_center(3)) + m_origin;
+			// rotate around m_center
+			Point rotated = m_ep.Rot(p_in_global_coords - m_center) + m_center;
+			// update bounds
+			expand_bounds( make_float4(rotated(0), rotated(1), rotated(2), 0) );
+		} else {
+			char ignore[1024];
+			fgets(ignore, sizeof(ignore), file);
+		}
+	} // while(1)
+	// update center
+	m_center = m_origin + Point(m_minbounds + (m_maxbounds - m_minbounds) / 2.0);
+}
+
 int STLMesh::Fill(PointVect&, double, bool)
 { throw runtime_error("STLMesh::Fill not implemented yet"); }
 
