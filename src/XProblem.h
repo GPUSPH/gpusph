@@ -97,7 +97,7 @@ struct GeometryInfo {
 	std::string xyz_filename;
 	XYZReader *xyz_reader;
 
-	bool has_stl_file; // ditto
+	bool has_mesh_file; // ditto
 	std::string stl_filename;
 
 	// user-set inertia
@@ -136,7 +136,7 @@ struct GeometryInfo {
 		xyz_filename = "";
 		xyz_reader = NULL;
 
-		has_stl_file = false;
+		has_mesh_file = false;
 		stl_filename = "";
 
 		custom_inertia[0] = NAN;

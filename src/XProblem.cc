@@ -157,7 +157,7 @@ bool XProblem::initialize()
 
 		// geometries loaded from HDF5 files but not featuring a STL file do not have a
 		// bounding box yet; let's compute it
-		if (m_geometries[g]->has_hdf5_file && !m_geometries[g]->has_stl_file) {
+		if (m_geometries[g]->has_hdf5_file && !m_geometries[g]->has_mesh_file) {
 
 			// initialize temp variables
 			currMin(0) = currMin(1) = currMin(2) = DBL_MAX;
@@ -396,7 +396,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	}
 	if (stl_fname) {
 		geomInfo->stl_filename = string(stl_fname);
-		geomInfo->has_stl_file = true;
+		geomInfo->has_mesh_file = true;
 	}
 	m_numActiveGeometries++;
 
@@ -1065,7 +1065,7 @@ double XProblem::setParticleMassByDensity(const GeometryID gid, const double den
 	if (!validGeometry(gid)) return NAN;
 
 	if ( (m_geometries[gid]->has_xyz_file || m_geometries[gid]->has_hdf5_file) &&
-		 !m_geometries[gid]->has_stl_file)
+		 !m_geometries[gid]->has_mesh_file)
 		printf("WARNING: setting the mass by density can't work with a point-based geometry without a mesh!\n");
 
 	const double dx = (m_geometries[gid]->type == GT_FLUID ? m_deltap : physparams()->r0);
