@@ -768,7 +768,31 @@ GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
 	if (fname_obj)
 		stlmesh->setObjectFile(fname_obj);
 
-	// TODO: handle positioning like in addSTLMesh()
+	double offsetX = 0, offsetY = 0, offsetZ = 0;
+
+	// handle positioning
+	if (m_positioning != PP_NONE) {
+
+		// Make the origin coincide with the lower corner of the mesh bbox.
+		// Now the positioning is PP_CORNER
+		stlmesh->shift( - stlmesh->get_minbounds() );
+
+		// NOTE: STLMesh::get_meshsize() returns #triangles instead
+		const double3 mesh_size = stlmesh->get_maxbounds() - stlmesh->get_minbounds();
+
+		if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER) {
+			offsetX = - mesh_size.x / 2.0;
+			offsetY = - mesh_size.y / 2.0;
+		}
+
+		if (m_positioning == PP_CENTER) {
+			offsetZ = - mesh_size.z / 2.0;
+		}
+
+	} // if positioning is PP_NONE
+
+	// shift STL origin to given point
+	stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
 
 	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts for that
 
