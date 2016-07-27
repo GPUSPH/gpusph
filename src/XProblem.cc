@@ -691,8 +691,6 @@ GeometryID XProblem::addOBJMesh(const GeometryType otype, const FillType ftype, 
 
 	double offsetX = 0, offsetY = 0, offsetZ = 0;
 
-	// TODO: until OBJ meshes will not support min/max bounds, can't set positioning
-	/*
 	// handle positioning
 	if (m_positioning != PP_NONE) {
 
@@ -713,7 +711,6 @@ GeometryID XProblem::addOBJMesh(const GeometryType otype, const FillType ftype, 
 		}
 
 	} // if positioning is PP_NONE
-	*/
 
 	// shift STL origin to given point
 	stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
