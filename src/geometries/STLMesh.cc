@@ -319,9 +319,11 @@ void STLMesh::FillBorder(PointVect& parts, double)
 			if ( strcmp( lineHeader, "v" ) == 0 ){
 				fscanf(file, "%f %f %f\n", &cx, &cy, &cz );
 				// create point
-				Point p_in_global_coords = Point(cx, cy, cz, m_center(3)) + m_origin;
+				Point p_in_global_coords = Point(cx, cy, cz) + m_origin;
 				// rotate around m_center
 				Point rotated = m_ep.Rot(p_in_global_coords - m_center) + m_center;
+				// reset point mass
+				rotated(3) = m_center(3);
 				// enqueue it
 				parts.push_back(rotated);
 				vcount++;
