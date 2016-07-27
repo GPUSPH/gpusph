@@ -349,8 +349,10 @@ void STLMesh::loadObjBounds()
 		// file end?
 		if (res == EOF)
 			break;
+		// faces section?
 		if ( strcmp( lineHeader, "f" ) == 0 )
 			break;
+		// vertex?
 		if ( strcmp( lineHeader, "v" ) == 0 ){
 			fscanf(file, "%f %f %f\n", &cx, &cy, &cz );
 			// create point
@@ -360,6 +362,7 @@ void STLMesh::loadObjBounds()
 			// update bounds
 			expand_bounds( make_float4(rotated(0), rotated(1), rotated(2), 0) );
 		} else {
+			// anything else? (vt, normals, etc.) ignore it
 			char ignore[1024];
 			fgets(ignore, sizeof(ignore), file);
 		}
