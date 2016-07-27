@@ -722,6 +722,7 @@ Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, c
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);
+	// mass is automatically set according to density
 
 	// Add the body to the physical system
 	bodies_physical_system->AddBody(m_body);
