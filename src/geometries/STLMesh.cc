@@ -34,6 +34,11 @@
 
 #include <stdexcept>
 
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChBodyEasy.h"
+#endif
+
 #include "STLMesh.h"
 
 using namespace std;
@@ -92,6 +97,8 @@ STLMesh::STLMesh(uint meshsize) :
 	m_center = Point(0,0,0);
 	m_ep.ComputeRot();
 	// TODO : default initialization of  chrono triangle mesh is needed. the function used to have m_ODETriMeshData = 0;
+
+	m_objfile = "";
 }
 
 STLMesh::~STLMesh(void)
@@ -356,4 +363,37 @@ void STLMesh::shift(const double3 &offset)
 	m_center += poff;
 	m_origin += poff;
 	// NOTE: not shifting m_barycenter, since it is in mesh coordinates
+}
+
+void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+{
+	if (m_objfile == "")
+		throw std::runtime_error("Object::BodyCreate called but no obj file specified in constructor!");
+
+	// TODO: update m_maxbounds, m_minbounds.x; list of triangles for filling
+	/* NOTE
+	 * m_maxbounds, m_minbounds are not updated while loading obj files (tip for future fixes: use
+	 * ChBody::GetTotalAABB). Therefore, Volume() cannot be computed. However, for primitive shapes
+	 * we use volume and mass to get the density and Chrono uses the density to set the mass. In
+	 * GPUSPH problems, who loads a mesh usually directly knows its mass. So we create the body with
+	 * a standard density value and after that we explicitly set the mass. Mass / density will be
+	 * inconsistent only between body creation and SetMass.
+	 */
+
+	// Creating a new Chrono object. Parames: filename, density, compute_mass, collide...)
+	m_body = std::make_shared< ::chrono::ChBodyEasyMesh > (m_objfile, 1000, false, collide);
+	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
+	//m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+
+	m_body->SetMass(m_mass);
+	// NOTE: if user does not provide a custom inertia, Chrono should have one automatically computed;
+	// however, it should be updated after setting the body mass. If we need this fix, we should
+	// look for a method in ChBodyEasyMesh to update the inertia.
+	m_body->SetInertiaXX(::chrono::ChVector<>(m_inertia[0], m_inertia[1], m_inertia[2]));
+
+	m_body->SetCollide(collide);
+	m_body->SetBodyFixed(m_isFixed);
+
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(m_body);
 }

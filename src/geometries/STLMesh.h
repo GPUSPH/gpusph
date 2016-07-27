@@ -32,6 +32,7 @@
 
 #include <vector>
 #include <map>
+#include <string>
 
 #include "Object.h"
 
@@ -95,6 +96,9 @@ private:
 	U4Vect m_triangles; // triangles
 	F4Vect m_normals; // normals
 
+	// obj filename for chrono
+	std::string m_objfile;
+
 	// insertion-time only
 	VertMap m_vmap; // vertex map for dedup
 
@@ -150,6 +154,8 @@ public:
 	double get_maxres(void) const
 	{ return m_maxres; }
 
+	void setObjectFile(std::string fname) {m_objfile = fname;}
+
 	static STLMesh *load_stl(const char *fname);
 
 	void FillBorder(PointVect&, double);
@@ -169,8 +175,7 @@ public:
 	void SetInertia(const double*);
 
 #if USE_CHRONO == 1
-		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
-		{ throw std::runtime_error("STLMesh::BodyCreate not implemented !"); }
+		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide);
 #else
 		void BodyCreate(void *p1, const double p2, const bool p3)
 		{ Object::BodyCreate(p1, p2, p3); }
