@@ -1350,6 +1350,7 @@ int XProblem::fill_parts()
 			// TODO: check if it holds for moving
 			if (m_geometries[g]->type == GT_FIXED_BOUNDARY)
 				m_geometries[g]->ptr->SetFixed();
+			// NOTE: could use SetNoSpeedNoAcceleration() for MOVING chrono bodies?
 			m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
