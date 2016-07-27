@@ -370,10 +370,8 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 	if (m_objfile == "")
 		throw std::runtime_error("Object::BodyCreate called but no obj file specified in constructor!");
 
-	// TODO: update m_maxbounds, m_minbounds.x; list of triangles for filling
 	/* NOTE
-	 * m_maxbounds, m_minbounds are not updated while loading obj files (tip for future fixes: use
-	 * ChBody::GetTotalAABB). Therefore, Volume() cannot be computed. However, for primitive shapes
+	 * Volume() computes the volume of the bounding box and not the actual one. for primitive shapes
 	 * we use volume and mass to get the density and Chrono uses the density to set the mass. In
 	 * GPUSPH problems, who loads a mesh usually directly knows its mass. So we create the body with
 	 * a standard density value and after that we explicitly set the mass. Mass / density will be
@@ -382,6 +380,13 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 
 	// Creating a new Chrono object. Parames: filename, density, compute_mass, collide...)
 	m_body = std::make_shared< ::chrono::ChBodyEasyMesh > (m_objfile, 1000, false, collide);
+
+	// retrieve the bounding box
+	::chrono::ChVector<> bbmin, bbmax;
+	m_body->GetTotalAABB(bbmin, bbmax);
+	expand_bounds( make_float4( bbmin.x, bbmin.y, bbmin.z, 0 ) );
+	expand_bounds( make_float4( bbmax.x, bbmax.y, bbmax.z, 0 ) );
+
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	//m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
