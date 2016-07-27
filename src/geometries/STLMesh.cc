@@ -34,6 +34,8 @@
 
 #include <stdexcept>
 
+#include <stdio.h>
+
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
@@ -285,18 +287,51 @@ void STLMesh::SetPartMass(const double mass)
 
 void STLMesh::FillBorder(PointVect& parts, double)
 {
-	// place a particle on each vertex
-	F4Vect::const_iterator f = m_vertices.begin();
-	F4Vect::const_iterator e = m_vertices.end();
-	for (; f != e; ++f) {
-		// translate from STL coords to GPUSPH ones
-		Point p_in_global_coords = Point(*f) + m_origin;
-		// rotate around m_center
-		Point rotated = m_ep.Rot(p_in_global_coords - m_center) + m_center;
-		parts.push_back(rotated);
+	// No OBJ file: a STL mesh was loaded. Iterate on triangles.
+	if (m_objfile == "") {
+		// place a particle on each vertex
+		F4Vect::const_iterator f = m_vertices.begin();
+		F4Vect::const_iterator e = m_vertices.end();
+		for (; f != e; ++f) {
+			// translate from STL coords to GPUSPH ones
+			Point p_in_global_coords = Point(*f) + m_origin;
+			// rotate around m_center
+			Point rotated = m_ep.Rot(p_in_global_coords - m_center) + m_center;
+			parts.push_back(rotated);
+		}
+	} else {
+		// OBJ file: reload the file, apparently easier than getting the list of triangles from Chrono
+		// Inspired to http://goo.gl/qcMOrZ
+		float cx, cy, cz;
+		uint vcount = 0;
+		FILE * file = fopen(m_objfile.c_str(), "r");
+		if( file == NULL )
+			throw runtime_error("STLMesh::Fill OBJ file unreadable!");
+		while( 1 ){
+			char lineHeader[128];
+			// read the first word of the line
+			int res = fscanf(file, "%s", lineHeader);
+			// file end?
+			if (res == EOF)
+				break;
+			if ( strcmp( lineHeader, "f" ) == 0 )
+				break;
+			if ( strcmp( lineHeader, "v" ) == 0 ){
+				fscanf(file, "%f %f %f\n", &cx, &cy, &cz );
+				// create point
+				Point p_in_global_coords = Point(cx, cy, cz, m_center(3)) + m_origin;
+				// rotate around m_center
+				Point rotated = m_ep.Rot(p_in_global_coords - m_center) + m_center;
+				// enqueue it
+				parts.push_back(rotated);
+				vcount++;
+			} else {
+				char ignore[1024];
+				fgets(ignore, sizeof(ignore), file);
+			}
+		} // while(1)
 	}
 }
-/* TODO */
 
 int STLMesh::Fill(PointVect&, double, bool)
 { throw runtime_error("STLMesh::Fill not implemented yet"); }
