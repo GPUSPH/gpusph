@@ -362,8 +362,6 @@ void STLMesh::loadObjBounds()
 			fgets(ignore, sizeof(ignore), file);
 		}
 	} // while(1)
-	// update center
-	m_center = m_origin + Point(m_minbounds + (m_maxbounds - m_minbounds) / 2.0);
 }
 
 int STLMesh::Fill(PointVect&, double, bool)
