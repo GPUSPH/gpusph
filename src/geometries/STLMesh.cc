@@ -460,10 +460,10 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
 	m_body->SetMass(m_mass);
-	// NOTE: if user does not provide a custom inertia, Chrono should have one automatically computed;
-	// however, it should be updated after setting the body mass. If we need this fix, we should
-	// look for a method in ChBodyEasyMesh to update the inertia.
-	m_body->SetInertiaXX(::chrono::ChVector<>(m_inertia[0], m_inertia[1], m_inertia[2]));
+	// Set custom inertia, if given. TODO: we should check if Chrono needs any explicit method call
+	// to update the inertia after SetMass has been called.
+	if (isfinite(m_inertia[0]) && isfinite(m_inertia[1]) && isfinite(m_inertia[2]))
+		m_body->SetInertiaXX(::chrono::ChVector<>(m_inertia[0], m_inertia[1], m_inertia[2]));
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);
