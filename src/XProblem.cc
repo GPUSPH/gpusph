@@ -759,12 +759,14 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 // To enable erase-like interaction we need to copy them to the global particle vectors, by passing an
 // existing vector to loadPointCloudFromXYZFile(). We can implement this if needed.
 GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
-			const char *fname_xyz, const char *fname_stl)
+			const char *fname_xyz, const char *fname_obj)
 {
 	// NOTE: fill type is FT_NOFILL since particles are read from file
 
-	// create an empty STLMesh if the STL filename is not given
-	STLMesh *stlmesh = ( fname_stl == NULL ? new STLMesh(0) : STLMesh::load_stl(fname_stl) );
+	// create an empty STLMesh if a mesh filename is not given
+	STLMesh *stlmesh = new STLMesh(0);
+	if (fname_obj)
+		stlmesh->setObjectFile(fname_obj);
 
 	// TODO: handle positioning like in addSTLMesh()
 
@@ -776,7 +778,7 @@ GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
 		stlmesh,
 		NULL,			// HDF5 filename
 		fname_xyz,		// XYZ filename
-		fname_stl		// STL filename
+		fname_obj		// STL filename
 	);
 }
 
