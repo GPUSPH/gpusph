@@ -731,17 +731,45 @@ GeometryID XProblem::addOBJMesh(const GeometryType otype, const FillType ftype, 
 // To enable erase-like interaction we need to copy them to the particle vectors, which
 // requires unnecessary memory allocation
 GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
-	const char *fname_hdf5, const char *fname_stl)
+	const char *fname_hdf5, const char *fname_obj)
 {
 	// NOTES about HDF5 files
 	// - fill type is FT_NOFILL since particles are read from file
 	// - may add a null STLMesh if the hdf5 file is given but not the mesh
 	// - should adding an HDF5 file of type GT_TESTPOINTS be forbidden?
 
-	// create an empty STLMesh if the STL filename is not given
-	STLMesh *stlmesh = ( fname_stl == NULL ? new STLMesh(0) : STLMesh::load_stl(fname_stl) );
+	// will create anyway an empty STLMesh if the STL filename is not given
+	STLMesh *stlmesh = new STLMesh();
+	if (fname_obj) {
+		stlmesh->setObjectFile(fname_obj);
+		stlmesh->loadObjBounds(); // update bbox
 
-	// TODO: handle positioning like in addSTLMesh()? Better, simply trust the hdf5 file
+		double offsetX = 0, offsetY = 0, offsetZ = 0;
+
+		// handle positioning
+		if (m_positioning != PP_NONE) {
+
+			// Make the origin coincide with the lower corner of the mesh bbox.
+			// Now the positioning is PP_CORNER
+			stlmesh->shift( - stlmesh->get_minbounds() );
+
+			// NOTE: STLMesh::get_meshsize() returns #triangles instead
+			const double3 mesh_size = stlmesh->get_maxbounds() - stlmesh->get_minbounds();
+
+			if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER) {
+				offsetX = - mesh_size.x / 2.0;
+				offsetY = - mesh_size.y / 2.0;
+			}
+
+			if (m_positioning == PP_CENTER) {
+				offsetZ = - mesh_size.z / 2.0;
+			}
+
+		} // if positioning is PP_NONE
+
+		// shift STL origin to given point
+		stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
+	}
 
 	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts in initialize() for that
 
@@ -749,9 +777,9 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 		otype,
 		FT_NOFILL,
 		stlmesh,
-		fname_hdf5,		// HDF5 filename
+		fname_hdf5,			// HDF5 filename
 		NULL,			// XYZ filename
-		fname_stl		// STL filename
+		fname_obj		// STL filename
 	);
 }
 
