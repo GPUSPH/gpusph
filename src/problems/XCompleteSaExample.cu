@@ -117,7 +117,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// GT_FLOATING_BODY for floating, GT_MOVING_BODY for force measurement only
 	GeometryID cube =
 		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent2.h5sph",
-			"./data_files/XCompleteSaExample/CompleteSaExample_cube_coarse.stl");
+			"./data_files/XCompleteSaExample/CompleteSaExample_cube_coarse.obj");
 
 	enableFeedback(cube);
 
