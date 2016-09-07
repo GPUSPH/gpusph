@@ -31,7 +31,7 @@
 // for memcpy
 #include <cstring>
 // for NAN
-#include <math.h>
+#include <cmath>
 
 // we use CUDA types and host/device specifications here
 #include <cuda_runtime.h>

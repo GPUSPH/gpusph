@@ -30,7 +30,7 @@
 
 #include <time.h>
 #include <exception>
-#include <math.h> // NAN
+#include <cmath> // NAN
 
 // clock_gettime() is not implemented on OSX, so we declare it here and
 // implement it in timing.cc
