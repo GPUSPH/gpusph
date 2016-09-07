@@ -225,7 +225,7 @@ int OffshorePile::fill_parts()
 	cyl.ODEGeomCreate(m_ODESpace, m_deltap);
 	dBodySetLinearVel(cyl.ODEGetBody(), 0.0, 0.0, 0.0);
 	dBodySetAngularVel(cyl.ODEGetBody(), 0.0, 0.0, 0.0);
-	add_moving_body(&cyl, MB_ODE);
+	add_moving_body(&cyl, MB_FLOATING);
 
 	joint = dJointCreateFixed(m_ODEWorld, 0);				// Create a fixed joint
 	dJointAttach(joint, cyl.ODEGetBody(), 0);				// Attach joint to cylinder and fixed frame
@@ -272,7 +272,7 @@ void OffshorePile::copy_to_array(BufferList &buffers)
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
-				case MB_ODE:
+				case MB_FLOATING:
 					ptype |= FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE;
 					break;
 				case MB_FORCES_MOVING:

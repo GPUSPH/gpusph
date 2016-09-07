@@ -319,7 +319,7 @@ void WaveTank::copy_to_array(BufferList &buffers)
 				vel[ij] = make_float4(0, 0, 0, rho);
 				uint ptype = (uint) PT_BOUNDARY;
 				switch (m_bodies[k]->type) {
-					case MB_ODE:
+					case MB_FLOATING:
 						ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
 						break;
 					case MB_FORCES_MOVING:
