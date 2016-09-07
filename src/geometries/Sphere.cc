@@ -28,7 +28,9 @@
 // for smart pointers
 #include <memory>
 
+#if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
+#endif
 
 #include "Sphere.h"
 

@@ -436,6 +436,7 @@ void STLMesh::shift(const double3 &offset)
 	// NOTE: not shifting m_barycenter, since it is in mesh coordinates
 }
 
+#if USE_CHRONO == 1
 void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide,
 			const ::chrono::ChQuaternion<> & orientation_diff)
 {
@@ -474,3 +475,4 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 	// Add the body to the physical system
 	bodies_physical_system->AddBody(m_body);
 }
+#endif

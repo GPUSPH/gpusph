@@ -216,8 +216,7 @@ Cone::IsInside(const Point& p, const double dx) const
 
 #if USE_CHRONO == 1
 /* Create a cube Chrono body inside a specified Chrono physical system. If
- * collide his true this method calls GeomCreate to associate a collision model
- * to the object.
+ * collide is true this method also enables collision detection in Chrono.
  * Here we have to specialize this function for the Cone because the Chrono cone
  * is by default in the Y direction and ours in the Z direction.
  *	\param bodies_physical_system : Chrono physical system
@@ -228,7 +227,10 @@ void
 Cone::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
 {
 	Object::BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(::chrono::CH_C_PI/2., ::chrono::VECT_X));
+	if (collide)
+		GeomCreate(dx);
 }
+#endif
 
 /// Create a Chrono collision model
 /* Create a Chrono collsion model for the cube.
@@ -236,6 +238,7 @@ Cone::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, co
  */
 void
 Cone::GeomCreate(const double dx) {
+#if USE_CHRONO == 1
 	m_body->GetCollisionModel()->ClearModel();
 	const double rb = m_rb + dx/2.;
 	const double rt = rt + dx/2.;
@@ -243,5 +246,7 @@ Cone::GeomCreate(const double dx) {
 	m_body->GetCollisionModel()->AddCone(m_rb, m_rt, m_h);
 	m_body->GetCollisionModel()->BuildModel();
 	m_body->SetCollide(true);
-}
+#else
+	throw std::runtime_error("Chrono not active, cannot create geometry for Cone");
 #endif
+}

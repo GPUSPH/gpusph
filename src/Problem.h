@@ -114,7 +114,9 @@ class Problem {
 		};
 
 #if USE_CHRONO == 1
-		::chrono::ChSystem 	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
+		::chrono::ChSystem	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
+#else
+		void *m_bodies_physical_system;
 #endif
 
 		double3	m_size;			// Size of computational domain

@@ -67,13 +67,11 @@ class Cone: public Object {
 
 #if USE_CHRONO == 1
 		void BodyCreate(::chrono::ChSystem *, const double, const bool);
-		void GeomCreate(const double);
 #else
 		void BodyCreate(void *p1, const double p2, const bool p3)
 		{ Object::BodyCreate(p1, p2, p3); }
-		void GeomCreate(const double p1)
-		{ Object::GeomCreate(p1); }
 #endif
+		void GeomCreate(const double dx);
 };
 
 #endif	/* _CONE_H */

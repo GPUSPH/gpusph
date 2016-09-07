@@ -223,9 +223,8 @@ Cylinder::IsInside(const Point& p, const double dx) const
 
 #if USE_CHRONO == 1
 /* Create a cube Chrono body inside a specified Chrono physical system. If
- * collide his true this method calls GeomCreate to associate a collision model
- * to the object.
- * Here we have to specialize this function for the Cone because the Chrono cone
+ * collide is true this method also enables collision detection in Chrono.
+ * Here we have to specialize this function for the Cylinder because the Chrono cylinder
  * is by default in the Y direction and ours in the Z direction.
  *	\param bodies_physical_system : Chrono physical system
  *	\param dx : particle spacing
