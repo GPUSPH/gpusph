@@ -615,6 +615,11 @@ endif
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
 
+# We also force C++11 mode, since we are no relying on C++11 features
+# TODO Check if any -std is present in CXXFLAGS (added by the user) and if
+# the specified value is not 11, warn before removing it
+CXXFLAGS += -std=c++11
+
 # HDF5 might require specific flags
 ifneq ($(USE_HDF5),0)
 	CXXFLAGS += $(HDF5_CXX)
