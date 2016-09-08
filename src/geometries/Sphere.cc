@@ -28,11 +28,11 @@
 // for smart pointers
 #include <memory>
 
+#include "Sphere.h"
+
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
 #endif
-
-#include "Sphere.h"
 
 
 Sphere::Sphere(void)
