@@ -540,14 +540,15 @@ else
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 endif
 
+# override: CHRONO_INCLUDE_PATH - where Chrono include are installed
+# override: CHRONO_LIB_PATH - where Chrono lib is installed
+# override:                     defaults /usr/local/include/chrono, /usr/local/lib
+# override:                     validity is checked by looking for bin/nvcc under it,
+# override:                     /usr is always tried as a last resort
+CHRONO_INCLUDE_PATH ?= /usr/local/include
+CHRONO_LIB_PATH ?= /usr/local/lib
+
 ifneq ($(USE_CHRONO),0)
-	# override: CHRONO_INCLUDE_PATH - where Chrono include are installed
-	# override: CHRONO_LIB_PATH - where Chrono lib is installed
-	# override:                     defaults /usr/local/include/chrono, /usr/local/lib
-	# override:                     validity is checked by looking for bin/nvcc under it,
-	# override:                     /usr is always tried as a last resort
-	CHRONO_INCLUDE_PATH ?= /usr/local/include
-	CHRONO_LIB_PATH ?= /usr/local/lib
 
 	# We check the validity of the Chrono include path by looking for ChChrono.h under it.
 	# if not found we finally abort
