@@ -19,14 +19,12 @@
 #define	SmallChannelFlowIOPer		8	// Small channel flow for debugging i/o with periodicty (<=> 2d poiseuille)
 #define	SmallChannelFlowIOKeps		9	// Small channel flow for debugging i/o with periodicty and keps
 #define	IOWithoutWalls				10	// I/O Debugging with periodicity and no walls
-#define LaPalisseSmallTest			11	// Small testcase for La Palisse (pressure in/out with free-surface)
 #define PeriodicWave				12	// Periodic wave with IO
 #define	SmallChannelFlowIOPerOpen	13	// Small channel flow for debugging i/o with periodicty and gravity
 #define SolitaryWave				14	// Solitary wave with IO
-#define LaPalisseSmallerTest		15	// Smaller testcase for La Palisse (pressure in/out with free-surface)
 //*******************************************************************************************************
 // Choose one of the problems above
-#define SPECIFIC_PROBLEM LaPalisseSmallerTest
+#define SPECIFIC_PROBLEM BoxCorner
 
 class InputProblem: public Problem {
 	private:
