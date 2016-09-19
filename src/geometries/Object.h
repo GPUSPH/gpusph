@@ -148,6 +148,8 @@ class Object {
 				throw std::runtime_error("Object::GetBody called but object not associated with a Chrono body !");
 			return m_body;
 		}
+		// just check, without throwing
+		bool HasBody() { return (!!m_body); }
 #else
 		void BodyCreate(void *, const double, const bool)
 		{ throw std::runtime_error("Object::BodyCreate Trying to create a Chrono body without USE_CHRONO defined !\n"); }
