@@ -191,6 +191,7 @@ void XObjects::fillDeviceMap()
 }
 
 void XObjects::initializeObjectJoints() {
+#if USE_CHRONO == 1
 	// Make a new ChLinkDistance
 	auto joint1 = std::make_shared< ::chrono::ChLinkDistance >();
 	auto a1 = getGeometryInfo(floating_obj_1)->ptr->GetBody();
@@ -200,4 +201,7 @@ void XObjects::initializeObjectJoints() {
 	joint1->Initialize(	a1, a2, false, a1->GetPos(), a2->GetPos(), true);
 	// Add the link to the physical system
 	m_bodies_physical_system->AddLink( joint1 );
+#else
+	throw runtime_error("Chrono disabled, no object joints available");
+#endif
 }
