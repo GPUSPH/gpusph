@@ -402,7 +402,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 #if USE_CHRONO == 1
 		// If current body has a Chrono body associated (no matter whether type moving or floating), we
 		// want to copy its parameters (velocities, position, etc.) from its kdata to Chrono
-		if (mbdata->object->GetBody()) {
+		if (mbdata->object->HasBody()) {
 			there_is_at_least_one_chrono_body = true;
 			std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
