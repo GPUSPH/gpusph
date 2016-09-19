@@ -26,20 +26,10 @@
 #ifndef _OFFSHOREPILE_H
 #define	_OFFSHOREPILE_H
 
-#include "Problem.h"
-#include "Point.h"
-#include "Cylinder.h"
-#include "Vector.h"
-#include "Cube.h"
+#include "XProblem.h"
 
-class OffshorePile: public Problem {
+class OffshorePile: public XProblem {
 	private:
-		PointVect	parts;
-		PointVect	boundary_parts;
-
-		Cylinder	cyl;
-		dJointID	joint;
-		Cube        piston;
 		double		piston_height, piston_width;
 		double		h_length, height, slope_length, beta;
 		double		H;		// still water level
@@ -50,21 +40,17 @@ class OffshorePile: public Problem {
 
 		// Moving boundary data
 		double		piston_amplitude, piston_omega;
-		double3     piston_origin;
+		double3   piston_origin;
 		double		piston_tstart, piston_tend;
 
 		int 		layers;		// Number of particles layers for dynamic boundaries
 	public:
 		OffshorePile(GlobalData *);
-		~OffshorePile(void);
-		int fill_parts(void);
+		virtual void moving_bodies_callback(const uint index, Object* object,
+				const double t0, const double t1,
+				const float3& force, const float3& torque,
+				const KinematicData& initial_kdata,
+				KinematicData& kdata, double3& dx, EulerParameters& dr);
 
-		void copy_to_array(BufferList &);
-
-		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
-									const float3&, const KinematicData &, KinematicData &,
-									double3&, EulerParameters&);
-
-		void release_memory(void);
 };
-#endif	/* _OffshorePile_H */
+#endif	/* _OFFSHOREPILE_H */
