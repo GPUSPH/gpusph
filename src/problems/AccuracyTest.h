@@ -26,26 +26,15 @@
 #ifndef _ACCURACYTEST_H
 #define	_ACCURACYTEST_H
 
-#include "Problem.h"
-#include "Point.h"
-#include "Cube.h"
+#include "XProblem.h"
 
-class AccuracyTest: public Problem {
+class AccuracyTest: public XProblem {
 	private:
-		Cube		experiment_box;
-		PointVect	parts;
-		PointVect	boundary_parts;
 		float		H;  // still water level
 		double		lx, ly, lz;		// dimension of experiment box
 
 	public:
 		AccuracyTest(GlobalData *);
-		virtual ~AccuracyTest(void);
-
-		int fill_parts(void);
-		void copy_to_array(BufferList &);
-
-		void release_memory(void);
 };
 #endif	/* _ACCURACYTEST_H */
 

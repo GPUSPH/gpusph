@@ -32,13 +32,8 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
+AccuracyTest::AccuracyTest(GlobalData *_gdata) : XProblem(_gdata)
 {
-	// Size and origin of the simulation domain
-	lx = 4.0;
-	ly = 0.7;
-	lz = 1.0;
-	H = 0.7;
 
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
@@ -46,6 +41,11 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 		add_flags<ENABLE_INTERNAL_ENERGY>
 	);
 
+	// Size and origin of the simulation domain
+	lx = 4.0;
+	ly = 0.7;
+	lz = 1.0;
+	H = 0.7;
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
@@ -68,7 +68,8 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	physparams()->dcoeff = 5.0f*g*H;
 	physparams()->r0 = m_deltap;
 
-	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
+	// BC when using MK boundary condition:
+	// Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
 	physparams()->MK_K = g*H;
 	physparams()->MK_d = 1.1*m_deltap/MK_par;
@@ -83,93 +84,37 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 
 	// Name of problem used for directory creation
 	m_name = "AccuracyTest";
-}
 
+	// set positioning policy to PP_CORNER:
+	// the given point will be the corner of the geometry
+	setPositioning(PP_CORNER);
 
-AccuracyTest::~AccuracyTest(void)
-{
-	release_memory();
-}
+	// Building the geometry
+	GeometryID side0 = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0),
+		lx, ly, 3*m_deltap);
+	disableCollisions(side0);
 
+	GeometryID side1 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(0, 0, 4.0*m_deltap),
+		3*m_deltap, ly, lz - 4*m_deltap);
+	disableCollisions(side1);
 
-void AccuracyTest::release_memory(void)
-{
-	parts.clear();
-	boundary_parts.clear();
-}
+	GeometryID side2 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(lx - 3.0*m_deltap, 0, 4.0*m_deltap),
+		3*m_deltap, ly, lz - 4*m_deltap);
+	disableCollisions(side2);
 
+	GeometryID side3 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(4.0*m_deltap, 0, 4.0*m_deltap),
+		lx - 8*m_deltap, 3*m_deltap, lz - 4*m_deltap);
+	disableCollisions(side3);
 
-int AccuracyTest::fill_parts()
-{
-	float r0 = physparams()->r0;
-	const float dp = m_deltap;
+	GeometryID side4 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(4.0*m_deltap, ly, 4.0*m_deltap),
+		lx - 8*m_deltap, 3*m_deltap, lz - 4*m_deltap);
+	disableCollisions(side4);
 
-	Cube fluid, fluid1;
-
-	experiment_box = Cube(Point(0, 0, 0), lx, ly, lz);
-
-	Cube side0 = Cube(Point(0, 0, 0), lx, ly, 3*dp);
-
-	Cube side1 = Cube(Point(0, 0, 4.0*dp), 3*dp, ly, lz - 4*dp);
-
-	Cube side2 = Cube(Point(lx - 3.0*dp, 0, 4.0*dp),
-		3*dp, ly, lz - 4*dp);
-
-	Cube side3 = Cube(Point(4.0*dp, 0, 4.0*dp),
-		lx - 8*dp, 3*dp, lz - 4*dp);
-
-	Cube side4 = Cube(Point(4.0*dp, ly, 4.0*dp),
-		lx - 8*dp, 3*dp, lz - 4*dp);
-
-	fluid = Cube(Point(4.0*dp, 4.0*dp, 4.0*dp), 0.4, ly - 8*dp, H);
-
-	boundary_parts.reserve(2000);
-	parts.reserve(14000);
-
-	side0.SetPartMass(dp, physparams()->rho0[0]);
-	side0.Fill(boundary_parts, dp, true);
-	side1.SetPartMass(dp, physparams()->rho0[0]);
-	side1.Fill(boundary_parts, dp, true);
-	side2.SetPartMass(dp, physparams()->rho0[0]);
-	side2.Fill(boundary_parts, dp, true);
-	side3.SetPartMass(dp, physparams()->rho0[0]);
-	side3.Fill(boundary_parts, dp, true);
-	side4.SetPartMass(dp, physparams()->rho0[0]);
-	side4.Fill(boundary_parts, dp, true);
-
-	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
-	fluid.Fill(parts, m_deltap, true);
-
-	return parts.size() + boundary_parts.size();
-}
-
-void AccuracyTest::copy_to_array(BufferList &buffers)
-{
-	const float rho0 = physparams()->rho0[0];
-
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	cout << "Boundary parts: " << boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-
-		vel[i] = make_float4(0, 0, 0, rho0);
-		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
-	}
-	int j = boundary_parts.size();
-	cout << "Boundary part mass:" << pos[j-1].w << "\n";
-
-	cout << "Fluid parts: " << parts.size() << "\n";
-	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
-
-		vel[i] = make_float4(0, 0, 0, rho0);
-		info[i] = make_particleinfo(PT_FLUID, 0, i);
-	}
-	j += parts.size();
-	cout << "Fluid part mass:" << pos[j-1].w << "\n";
-	flush(cout);
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
+		Point(4.0*m_deltap, 4.0*m_deltap, 4.0*m_deltap),
+		0.4, ly - 8*m_deltap, H);
 }
