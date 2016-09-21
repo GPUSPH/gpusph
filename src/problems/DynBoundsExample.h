@@ -26,12 +26,10 @@
 #ifndef _DYNBOUNDSEXAMPLE_H
 #define _DYNBOUNDSEXAMPLE_H
 
-#include "Problem.h"
+#include "XProblem.h"
 
-class DynBoundsExample: public Problem
+class DynBoundsExample: public XProblem
 {
-	PointVect	parts;
-	PointVect	boundary_parts;
 	float	H; // still water level
 	float	W; // 2D cell side
 	float	w; // boundary thickness
@@ -39,12 +37,7 @@ class DynBoundsExample: public Problem
 
 public:
 	DynBoundsExample(GlobalData *);
-	virtual ~DynBoundsExample(void);
-
-	int fill_parts(void);
-	void copy_to_array(BufferList &);
-
-	void release_memory(void);
+	virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 };
 
 #endif

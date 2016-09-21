@@ -38,7 +38,7 @@
 
 #include "Cube.h"
 
-DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
+DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 {
 	W = 1; // 2D cell side
 	H = 2*W; // still water height
@@ -50,6 +50,7 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 	);
 
 	set_deltap(W/64);
+	simparams()->maxneibsnum = 286;
 
 	w = m_deltap*4;
 
@@ -76,75 +77,45 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 	add_writer(VTKWRITER, 0.01);
 
 	m_name = "DynBoundsExample";
+
+	// Building the geometry
+	setPositioning(PP_CORNER);
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
+		m_origin + make_double3(m_deltap/2., m_deltap/2., w+m_deltap), W-m_deltap, W-m_deltap, H-2*m_deltap);
+
+	GeometryID bp1 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		m_origin, W, W, w);
+	disableCollisions(bp1);
+
+	GeometryID bp2 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		m_origin + make_double3(0, 0, H + w), W, W, w);
+	disableCollisions(bp2);
+
+	// Print information
+	float flowvel = H*H*fabs(physparams()->gravity.x)/(8*physparams()->kinematicvisc[0]);
+	printf("Expected maximum flow velocity: %f\n", flowvel);
 }
 
-DynBoundsExample::~DynBoundsExample(void)
+// Density initialization
+	void
+DynBoundsExample::initializeParticles(BufferList &buffers, const uint numParticles)
 {
-	release_memory();
-}
+	// Example usage
 
-void
-DynBoundsExample::release_memory(void)
-{
-	parts.clear();
-	boundary_parts.clear();
-}
+	// 1. warn the user if this is expected to take much time
+	printf("Initializing particles density...\n");
 
-int
-DynBoundsExample::fill_parts(void)
-{
-	Cube fluid = Cube(m_origin + make_double3(0, 0, w), W, W, H);
-	fluid.InnerFill(parts, m_deltap);
-
-	Cube *bp = new Cube(m_origin, W, W, w);
-	bp->InnerFill(boundary_parts, m_deltap);
-	delete bp;
-	bp = new Cube(m_origin + make_double3(0, 0, H + w), W, W, w);
-	bp->InnerFill(boundary_parts, m_deltap);
-	delete bp;
-
-	return parts.size() + boundary_parts.size();
-}
-
-void
-DynBoundsExample::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	// 2. grab the particle arrays from the buffer list
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
+	double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
 
-
-	cout << "Boundary parts: " << boundary_parts.size() << endl;
-	for (uint i = 0; i < boundary_parts.size(); ++i) {
-		float ht = m_origin.z + H+2*w - boundary_parts[i](2);
+	// 3. iterate on the particles
+	for (uint i = 0; i < numParticles; i++) {
+		// 5. set in loco the desired values
+		float ht = m_origin.z + H+2*w - pos[i].z;
 		ht *= cos(alpha);
-		float rho = density(ht, 0);
-		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-		pos[i].w = m_deltap*m_deltap*m_deltap*rho;
+		vel[i].w = density(ht, 0);
 	}
-	uint j = boundary_parts.size();
-
-	cout << "Fluid parts: " << parts.size() << endl;
-	for (uint i = 0; i < parts.size(); ++i) {
-		uint ij = i+j;
-		float ht = m_origin.z + H+2*w - parts[i](2);
-		ht *= cos(alpha);
-		float rho = density(ht, 0);
-		vel[ij] = make_float4(0, 0, 0, rho);
-		info[ij] = make_particleinfo(PT_FLUID, 0, ij);
-		calc_localpos_and_hash(parts[i], info[ij], pos[ij], hash[ij]);
-		pos[ij].w = m_deltap*m_deltap*m_deltap*rho;
-	}
-	j += parts.size();
-
-	cout << "Fluid part mass: " << pos[j-1].w << endl;
-
-	float flowvel = H*H*fabs(physparams()->gravity.x)/(8*physparams()->kinematicvisc[0]);
-	cout << "Expected maximum flow velocity: " << flowvel << endl;
-
-	flush(cout);
 }
 
