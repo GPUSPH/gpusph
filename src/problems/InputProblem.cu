@@ -6,11 +6,10 @@
 #include "cudasimframework.cu"
 #include "textures.cuh"
 #include "utils.h"
-#include "Problem.h"
 
 #define USE_PLANES 0
 
-InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
+InputProblem::InputProblem(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// Error catcher for SPECIFIC_PROBLEM definition
 	// If the value is not defined properly this will throw a compile error
@@ -19,13 +18,6 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//Box (Dambreak)
 	//*************************************************************************************
 #if SPECIFIC_PROBLEM == BoxCorner || SPECIFIC_PROBLEM == Box
-#if SPECIFIC_PROBLEM == BoxCorner
-			h5File.setFilename("./data_files/0.box_corner.h5sph");
-			//vtuFile.setFilename("./data_files/box_corner.vtu");
-#else
-			h5File.setFilename("./data_files/0.box_blend_16.h5sph");
-			//vtuFile.setFilename("./data_files/box_blend_16.vtu");
-#endif
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -51,12 +43,26 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		set_equation_of_state(water,  7.0f, 60.f);
 		set_kinematic_visc(water, 1.0e-2f);
 		addPostProcess(CALC_PRIVATE);
-	//*************************************************************************************
+		// Building the geometry
+#if SPECIFIC_PROBLEM == BoxCorner
+			addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.box_corner.fluid.h5sph", NULL);
+			addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.box_corner.boundary.kent0.h5sph", NULL);
+#else
+			addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.box_blend_16.fluid.h5sph", NULL);
+			addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.box_blend_16.boundary.kent0.h5sph", NULL);
+			// Add gage
+			add_gage(m_origin.x + 1.0 + 0.1, m_origin.y + 1.8 + 0.1, m_origin.z + 0.1);
+			// add testpoints and dump them separately
+			addPostProcess(TESTPOINTS);
+			addTestPoint(m_origin + make_double3(1.0, 2.0, 0.0) + make_double3(0.1, 0.1, 0.1));
+#endif
+	//**********************************************************************
 
 	//SmallChannelFlow (a small channel flow for debugging viscosity)
-	//*************************************************************************************
+	//**********************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlow
-		h5File.setFilename("./data_files/0.small_channel.h5sph");
+		addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.small_channel.fluid.h5sph", NULL);
+		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel.boundary.kent0.h5sph", NULL);
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -83,7 +89,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//SmallChannelFlowKEPS (a small channel flow for debugging the k-epsilon model)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS
-		h5File.setFilename("./data_files/0.small_channel_keps.h5sph");
+		addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.small_channel_keps.fluid.h5sph", NULL);
+		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_keps.boundary.kent0.h5sph", NULL);
 
 		SETUP_FRAMEWORK(
 			viscosity<KEPSVISC>,
@@ -98,7 +105,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		simparams()->tend = 100.0;
 		simparams()->ferrariLengthScale = 1.0f;
 
-		// turbulent (as in agnes' paper)
+		// turbulent (as in Leroy[2014], JCP)
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 200.0f);
 		set_kinematic_visc(water, 1.5625e-3f);
@@ -110,12 +117,24 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		l = 0.8; w = 0.8; h = 2.02;
 		m_origin = make_double3(-0.4, -0.4, -1.01);
 		physparams()->gravity = make_float3(1.0, 0.0, 0.0);
-	//*************************************************************************************
+
+		// Setting test points for channel flow keps test case
+		addPostProcess(TESTPOINTS);
+		// create test points at (0,0,.) with dp spacing from bottom to top
+		for(uint i=0; i<=40; i++)
+			addTestPoint(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
+
+	//**********************************************************************
 
 	//SmallChannelFlowIO (a small channel flow for debugging in/outflow)
-	//*************************************************************************************
+	//**********************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIO
-		h5File.setFilename("./data_files/0.small_channel_io_walls.h5sph");
+		GeometryID fluid = addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_walls.fluid.h5sph", NULL);
+		GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_walls.boundary.kent0.h5sph", NULL);
+		GeometryID inlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_walls.boundary.kent1.h5sph", NULL);
+		setVelocityDriven(inlet, VELOCITY_DRIVEN);
+		GeometryID outlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_walls.boundary.kent2.h5sph", NULL);
+		setVelocityDriven(outlet, PRESSURE_DRIVEN);
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -129,6 +148,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		simparams()->maxneibsnum = 220;
 		simparams()->tend = 100.0;
 		simparams()->ferrariLengthScale = 1.0f;
+		simparams()->numOpenBoundaries = 2;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -144,7 +164,16 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
       SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
-		h5File.setFilename("./data_files/0.small_channel_io_2d_per.h5sph");
+		GeometryID fluid = addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_2d_per.fluid.h5sph", NULL);
+		GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_2d_per.boundary.kent0.h5sph", NULL);
+		GeometryID inlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_2d_per.boundary.kent1.h5sph", NULL);
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+		setVelocityDriven(inlet, PRESSURE_DRIVEN);
+#else
+		setVelocityDriven(inlet, VELOCITY_DRIVEN);
+#endif
+		GeometryID outlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_2d_per.boundary.kent2.h5sph", NULL);
+		setVelocityDriven(outlet, PRESSURE_DRIVEN);
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -162,6 +191,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		set_deltap(0.05f);
 		simparams()->tend = 10.0;
 		simparams()->ferrari = 1.0f;
+		simparams()->numOpenBoundaries = 2;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -182,7 +212,12 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//SmallChannelFlowIOKeps (a small channel flow for debugging in/outflow with keps)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-		h5File.setFilename("./data_files/0.small_channel_io_2d_per.h5sph");
+		GeometryID fluid = addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_2d_per.fluid.h5sph", NULL);
+		GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_2d_per.boundary.kent0.h5sph", NULL);
+		GeometryID inlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_2d_per.boundary.kent1.h5sph", NULL);
+		setVelocityDriven(inlet, VELOCITY_DRIVEN);
+		GeometryID outlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.small_channel_io_2d_per.boundary.kent2.h5sph", NULL);
+		setVelocityDriven(outlet, PRESSURE_DRIVEN);
 
 		SETUP_FRAMEWORK(
 			viscosity<KEPSVISC>,
@@ -196,6 +231,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		set_deltap(0.05f);
 		simparams()->tend = 10.0;
 		simparams()->ferrariLengthScale = 1.0f;
+		simparams()->numOpenBoundaries = 2;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 200.0f);
@@ -205,12 +241,23 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		l = 1.1; w = 1.0; h = 2.1;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
 		physparams()->gravity = make_float3(0.0, 0.0, 0.0);
+
+		// Setting test points for channel flow keps test case
+		addPostProcess(TESTPOINTS);
+		// create test points at (0,0,.) with dp spacing from bottom to top
+		for(uint i=0; i<=40; i++)
+			addTestPoint(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
+
 	//*************************************************************************************
 
 	//IOWithoutWalls (i/o between two plates without walls)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-		h5File.setFilename("./data_files/0.io_without_walls.h5sph");
+		GeometryID fluid = addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.io_without_walls.fluid.h5sph", NULL);
+		GeometryID inlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.io_without_walls.boundary.kent0.h5sph", NULL);
+		setVelocityDriven(inlet, PRESSURE_DRIVEN);
+		GeometryID outlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.io_without_walls.boundary.kent1.h5sph", NULL);
+		setVelocityDriven(outlet, PRESSURE_DRIVEN);
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -223,6 +270,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		set_deltap(0.2f);
 		simparams()->tend = 100.0;
 		simparams()->ferrari = 1.0f;
+		simparams()->numOpenBoundaries = 2;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -236,8 +284,12 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	// Solitary Wave with IO
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SolitaryWave
-		//h5File.setFilename("./data_files/0.solitaryWave_small.h5sph");
-		h5File.setFilename("./data_files/0.solitaryWave.h5sph");
+		GeometryID fluid = addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.solitaryWave.fluid.h5sph", NULL);
+		GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.solitaryWave.boundary.kent0.h5sph", NULL);
+		GeometryID outlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.solitaryWave.boundary.kent1.h5sph", NULL);
+		setVelocityDriven(outlet, PRESSURE_DRIVEN);
+		GeometryID inlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.solitaryWave.boundary.kent2.h5sph", NULL);
+		setVelocityDriven(inlet, VELOCITY_DRIVEN);
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -252,6 +304,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		simparams()->maxneibsnum = 512;
 		simparams()->tend = 7.0;
 		simparams()->ferrari = 1.0f;
+		simparams()->numOpenBoundaries = 2;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 20.0f);
@@ -271,7 +324,12 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	//Periodic wave with IO
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == PeriodicWave
-		h5File.setFilename("./data_files/0.periodic_wave_0.02.h5sph");
+		GeometryID fluid = addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/InputProblem/0.periodic_wave_0.02.fluid.h5sph", NULL);
+		GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.pariodic_wave_0.02.boundary.kent0.h5sph", NULL);
+		GeometryID inlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.periodic_wave_0.02.boundary.kent1.h5sph", NULL);
+		setVelocityDriven(inlet, VELOCITY_DRIVEN);
+		GeometryID outlet = addHDF5File(GT_OPEN_BOUNDARY, Point(0,0,0), "./data_files/InputProblem/0.periodic_wave_0.02.boundary.kent2.h5sph", NULL);
+		setVelocityDriven(outlet, VELOCITY_DRIVEN);
 
 		SETUP_FRAMEWORK(
 			viscosity<DYNAMICVISC>,
@@ -286,6 +344,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		simparams()->maxneibsnum = 440;
 		simparams()->tend = 10.0;
 		simparams()->ferrari = 0.1f;
+		simparams()->numOpenBoundaries = 2;
 
 		addPostProcess(SURFACE_DETECTION);
 		addPostProcess(CALC_PRIVATE);
@@ -298,6 +357,10 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		l = 2.7; w = 0.5; h = 1.2;
 		m_origin = make_double3(-1.35, -0.25, -0.1);
 		physparams()->gravity = make_float3(0.0, 0.0, -9.81);
+
+		// Setting probe
+		add_gage(0.0, 0.0, 0.2);
+
 	//*************************************************************************************
 
 #endif
@@ -329,46 +392,18 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_name = "InputProblem";
 }
 
-
-int InputProblem::fill_parts()
+// Custom initialization
+	void
+InputProblem::initializeParticles(BufferList &buffers, const uint numParticles)
 {
-	// Setting probe for Box test case
-	//*******************************************************************
-#if SPECIFIC_PROBLEM == Box
-	add_gage(m_origin + make_double3(1.0, 1.8, 0.0) + make_double3(0.1, 0.1, 0.1));
-	if (simframework()->hasPostProcessEngine(TESTPOINTS)) {
-		test_points.push_back(m_origin + make_double3(1.0, 2.0, 0.0) + make_double3(0.1, 0.1, 0.1));
-	}
-	//*******************************************************************
-	// Setting probes for channel flow keps test cases (with and without io)
-	//*******************************************************************
-#elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS || SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-	if (simframework()->hasPostProcessEngine(TESTPOINTS)) {
-		// create test points at (0,0,.) with dp spacing from bottom to top
-		for(uint i=0; i<=40; i++)
-			test_points.push_back(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
-	}
-	//*******************************************************************
-	// Setting probes for PeriodicWave test case
-	//*******************************************************************
-#elif SPECIFIC_PROBLEM == PeriodicWave
-	add_gage(make_double3(0.0, 0.0, 0.2));
-	//*******************************************************************
-#endif
+	printf("Custom initialization...\n");
 
-	//vtuFile.getNParts();
-	return h5File.getNParts() + test_points.size();
-}
-
-void InputProblem::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
-	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
-	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
+	double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
 	float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
+	float *k = buffers.getData<BUFFER_TKE>();
+	float *epsilon = buffers.getData<BUFFER_EPSILON>();
 
 #if SPECIFIC_PROBLEM == PeriodicWave
 	// define some constants
@@ -381,40 +416,27 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	printf("Periodic Wave: Wave period: %e\n", 2.0f*M_PI/omega);
 #endif
 
-	h5File.read();
-
-	uint n_parts = 0;
-	uint n_vparts = 0;
-	uint n_bparts = 0;
-
-	for (uint i = 0; i<h5File.getNParts(); i++) {
-		switch(h5File.buf[i].ParticleType) {
-			case CRIXUS_FLUID:
-				n_parts++;
-				break;
-			case CRIXUS_VERTEX:
-				n_vparts++;
-				break;
-			case CRIXUS_BOUNDARY:
-				n_bparts++;
-				break;
+	// 3. iterate on the particles
+	for (uint i = 0; i < numParticles; i++) {
+		// Initialize turbulent quantities
+		const float k0 = 1.0f/sqrtf(0.09f);
+		if (k && epsilon) {
+		k[i] = k0;
+		epsilon[i] = 1.0f/0.41f/fmaxf(1.0f-fabsf(pos[i].z),0.5f*(float)m_deltap);
 		}
-	}
-
-	cout << "Fluid parts: " << n_parts << "\n";
-	for (uint i = 0; i < n_parts; i++) {
-		//float rho = density(H - h5File.buf[i].Coords_2, 0);
-		float rho = physparams()->rho0[0];
+		// Initialize fluid particles
+		if (FLUID(info[i])) {
+			float rho = physparams()->rho0[0];
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-			const float lvel = log(fmaxf(1.0f-fabsf(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+			SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
+			const float lvel = log(fmaxf(1.0f-fabsf(pos[i].z), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 			vel[i] = make_float4(lvel, 0, 0, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
-			const float lvel = 1.0f-h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
+			const float lvel = 1.0f-pos[i].z*pos[i].z;
 			vel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIO
-			const float y2 = h5File.buf[i].Coords_1*h5File.buf[i].Coords_1;
-			const float z2 = h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
+			const float y2 = pos[i].y*pos[i].y;
+			const float z2 = pos[i].z*pos[i].z;
 			const float y4 = y2*y2;
 			const float z4 = z2*z2;
 			const float y6 = y2*y4;
@@ -424,10 +446,10 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float lvel = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
 			vel[i] = make_float4(lvel, 0, 0, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-			vel[i] = make_float4(1.0f, 0.0f, 0.0f, (physparams()->rho0[0]+2.0f));//+1.0f-1.0f*h5File.buf[i].Coords_0));
+			vel[i] = make_float4(1.0f, 0.0f, 0.0f, (physparams()->rho0[0]+2.0f));//+1.0f-1.0f*pos[i].x));
 #elif SPECIFIC_PROBLEM == PeriodicWave
-			const float x = h5File.buf[i].Coords_0;
-			const float z = h5File.buf[i].Coords_2;
+			const float x = pos[i].x;
+			const float z = pos[i].z;
 			const float eta = A*cos(k*x+phi);
 			const float h = D + eta;
 			//const float p = rho*9.807f*(z-h) + cosh(k*z)/cosh(k*D)*rho*9.807f*eta;
@@ -437,171 +459,43 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float w = A*omega*sinh(k*z)/sinh(k*D)*sin(k*x+phi);
 			vel[i] = make_float4(u, 0, w, _rho);
 #elif SPECIFIC_PROBLEM == SolitaryWave
-			vel[i] = make_float4(0, 0, 0, powf(((0.58212-h5File.buf[i].Coords_2)*9.807f*physparams()->rho0[0])*7.0f/physparams()->sscoeff[0]/physparams()->sscoeff[0]/physparams()->rho0[0] + 1.0f,1.0f/7.0f)*physparams()->rho0[0]);
+			vel[i] = make_float4(0, 0, 0, powf(((0.58212-pos[i].z)*9.807f*physparams()->rho0[0])*7.0f/physparams()->sscoeff[0]/physparams()->sscoeff[0]/physparams()->rho0[0] + 1.0f,1.0f/7.0f)*physparams()->rho0[0]);
 #else
 			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
 #endif
-		// Fluid particles don't have a eulerian velocity
-		if (eulerVel)
-			eulerVel[i] = make_float4(0.0f);
-		info[i] = make_particleinfo(PT_FLUID, 0, i);
-		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
-	}
-	uint j = n_parts;
-	cout << "Fluid part mass: " << pos[j-1].w << "\n";
-
-	if(n_vparts) {
-		cout << "Vertex parts: " << n_vparts << "\n";
-		const float referenceVolume = m_deltap*m_deltap*m_deltap;
-		for (uint i = j; i < j + n_vparts; i++) {
-			float rho = density(H - h5File.buf[i].Coords_2, 0);
+			// Fluid particles don't have a eulerian velocity
+			if (eulerVel)
+				eulerVel[i] = make_float4(0.0f);
+			// Initialize vertex particles
+		} else if (VERTEX(info[i])) {
+			float rho = density(H - pos[i].z, 0);
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
-	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-				const float lvel = log(fmaxf(1.0f-fabsf(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-				vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
-				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
+			SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
+			const float lvel = log(fmaxf(1.0f-fabsf(pos[i].z), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+			vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
+			eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]+2.0f);
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]+2.0f);
 #else
-				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-				if (eulerVel)
-					eulerVel[i] = vel[i];
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
+			if (eulerVel)
+				eulerVel[i] = vel[i];
 #endif
-			int openBoundType = h5File.buf[i].KENT;
-			// count the number of different objects
-			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
-			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
-			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			simparams()->numOpenBoundaries = max(openBoundType, simparams()->numOpenBoundaries);
-			info[i] = make_particleinfo_by_ids(PT_VERTEX, 0, max(openBoundType-1,0), i);
-			// Define the type of open boundaries
-#if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
-    SPECIFIC_PROBLEM == IOWithoutWalls || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-				if (openBoundType == 1) {
-					// this vertex is part of an open boundary
-					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-					// open boundary imposes velocity
-#if SPECIFIC_PROBLEM != IOWithoutWalls && SPECIFIC_PROBLEM != SmallChannelFlowIOPerOpen
-					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
-#endif
-				} else if (openBoundType == 2) {
-					// this vertex is part of an open boundary
-					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-					// open boundary imposes pressure => FG_VELOCITY_DRIVEN not set
-				}
-#elif SPECIFIC_PROBLEM == PeriodicWave
-				// two pressure boundaries
-				if (openBoundType != 0) {
-					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
-				}
-#elif SPECIFIC_PROBLEM == SolitaryWave
-				if (openBoundType != 0)
-					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-				if (openBoundType == 2)
-					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
-#endif
-			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
-			// boundelm.w contains the reference mass of a vertex particle, actually only needed for IO_BOUNDARY
-			boundelm[i].w = h5File.buf[i].Volume/referenceVolume;
-		}
-		j += n_vparts;
-		cout << "Vertex part mass: " << pos[j-1].w << "\n";
-	}
-
-	if(n_bparts) {
-		cout << "Boundary parts: " << n_bparts << "\n";
-		for (uint i = j; i < j + n_bparts; i++) {
+			// Initialize boundary particles
+		} else if (BOUNDARY(info[i])) {
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
-	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-				const float lvel = log(fmaxf(1.0f-fabsf(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-				vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
-				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
+			SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
+			const float lvel = log(fmaxf(1.0f-fabsf(pos[i].z), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+			vel[i] = make_float4(0.0f, 0.0f, 0.0f, physparams()->rho0[0]);
+			eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, physparams()->rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]+2.0f);
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]+2.0f);
 #else
-				vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-				if (eulerVel)
-					eulerVel[i] = vel[i];
+			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
+			if (eulerVel)
+				eulerVel[i] = vel[i];
 #endif
-			int openBoundType = h5File.buf[i].KENT;
-			info[i] = make_particleinfo_by_ids(PT_BOUNDARY, 0, max(openBoundType-1, 0), i);
-			// Define the type of open boundaries
-#if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
-    SPECIFIC_PROBLEM == IOWithoutWalls || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-				if (openBoundType == 1) {
-					// this vertex is part of an open boundary
-					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-					// open boundary imposes velocity
-#if SPECIFIC_PROBLEM != IOWithoutWalls && SPECIFIC_PROBLEM != SmallChannelFlowIOPerOpen
-					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
-#endif
-				} else if (openBoundType == 2) {
-					// this vertex is part of an open boundary
-					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-					// open boundary imposes pressure => FG_VELOCITY_DRIVEN not set
-				}
-#elif SPECIFIC_PROBLEM == PeriodicWave
-				// two pressure boundaries
-				if (openBoundType != 0) {
-					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
-				}
-#elif SPECIFIC_PROBLEM == SolitaryWave
-				if (openBoundType != 0)
-					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-				if (openBoundType == 2)
-					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
-#endif
-			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
-			vertices[i].x = h5File.buf[i].VertexParticle1;
-			vertices[i].y = h5File.buf[i].VertexParticle2;
-			vertices[i].z = h5File.buf[i].VertexParticle3;
-			boundelm[i].x = h5File.buf[i].Normal_0;
-			boundelm[i].y = h5File.buf[i].Normal_1;
-			boundelm[i].z = h5File.buf[i].Normal_2;
-			boundelm[i].w = h5File.buf[i].Surface;
 		}
-		j += n_bparts;
-		cout << "Boundary part mass: " << pos[j-1].w << "\n";
-	}
-	// Make sure that fluid + vertex + boundaries are done in that order
-	// before adding any other items like testpoints, etc.
-
-	//Testpoints
-	if (test_points.size()) {
-		cout << "\nTest points: " << test_points.size() << "\n";
-		for (uint i = j; i < j+test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, 0.0);
-			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
-			calc_localpos_and_hash(test_points[i-j], info[i], pos[i], hash[i]);
-		}
-		j += test_points.size();
-		cout << "Test point mass:" << pos[j-1].w << "\n";
-	}
-
-	flush(cout);
-
-	h5File.empty();
-}
-
-void
-InputProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
-{
-	const float k0 = 1.0f/sqrtf(0.09f);
-
-	for (uint i = 0; i < numpart; i++) {
-		const unsigned int cellHash = cellHashFromParticleHash(hash[i]);
-		const float gridPosZ = float((cellHash % (m_gridsize.COORD2*m_gridsize.COORD1)) / m_gridsize.COORD1);
-		const float z = pos[i].z + m_origin.z + (gridPosZ + 0.5f)*m_cellsize.z;
-		k[i] = k0;
-		e[i] = 1.0f/0.41f/fmaxf(1.0f-fabsf(z),0.5f*(float)m_deltap);
 	}
 }
 

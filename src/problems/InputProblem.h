@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "HDF5SphReader.h"
 #include "VTUReader.h"
 
@@ -26,23 +26,19 @@
 // Choose one of the problems above
 #define SPECIFIC_PROBLEM BoxCorner
 
-class InputProblem: public Problem {
+#define	PRESSURE_DRIVEN			0
+#define	VELOCITY_DRIVEN			1
+
+class InputProblem: public XProblem {
 	private:
-		std::string			inputfile;
-		PointVect		test_points;
 		double			w, l, h;
 		double			H;				// water level (used to set D constant)
-		HDF5SphReader	h5File;
-		VTUReader		vtuFile;
-
 
 	public:
 		InputProblem(GlobalData *);
-		~InputProblem(void) {};
 
-		int fill_parts(void);
-		void copy_to_array(BufferList &);
-		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
+		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+
 		uint max_parts(uint);
 
 		void
@@ -54,8 +50,6 @@ class InputProblem: public Problem {
 			const	uint			numParticles,
 			const	uint			numOpenBoundaries,
 			const	uint			particleRangeEnd);
-
-		void release_memory(void) {};
 
 		void fillDeviceMap();
 
