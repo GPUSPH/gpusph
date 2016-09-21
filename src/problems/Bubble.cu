@@ -40,7 +40,7 @@
 
 
 
-Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
+Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	dyn_layers(0)
 {
 	// Size and origin of the simulation domain
@@ -108,54 +108,24 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 
 	// Name of problem used for directory creation
 	m_name = "Bubble";
-}
 
-
-Bubble::~Bubble(void)
-{
-	release_memory();
-}
-
-
-void Bubble::release_memory(void)
-{
-	fluid_parts.clear();
-	boundary_parts.clear();
-}
-
-
-int Bubble::fill_parts()
-{
+	// Building the geometry
 	float r0 = physparams()->r0;
 
-	experiment_box = Cube(Point(m_origin), m_size.x,
-		m_size.y, m_size.z);
+	setPositioning(PP_CORNER);
+	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(m_origin),
+		m_size.x,	m_size.y, m_size.z);
+	disableCollisions(experiment_box);
+	setMassByDensity(experiment_box, physparams()->rho0[1]);
 
-	fluid = Cube(Point(m_origin + extra_offset),
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
+		Point(m_origin + extra_offset),
 		lx, ly, H);
+	// the actual particle mass will be set during the
+	// initializeParticles routine
+	setMassByDensity(fluid, physparams()->rho0[0]);
 
-	experiment_box.SetPartMass(r0, physparams()->rho0[1]);
-
-#if !USE_PLANES
-	switch (simparams()->boundarytype) {
-	case LJ_BOUNDARY:
-	case MK_BOUNDARY:
-		experiment_box.FillBorder(boundary_parts, r0, false);
-		break;
-	case DYN_BOUNDARY:
-		experiment_box.FillIn(boundary_parts, m_deltap, dyn_layers);
-		break;
-	default:
-		throw runtime_error("unhandled boundary type in fill_parts");
-	}
-#endif
-
-	// the actual particle mass will be set during the copy_array
-	// routine
-	fluid.SetPartMass(m_deltap, 1);
-	fluid.Fill(fluid_parts, m_deltap, true);
-
-	return fluid_parts.size() + boundary_parts.size();
 }
 
 void Bubble::copy_planes(PlaneList &planes)
@@ -178,69 +148,63 @@ void Bubble::copy_planes(PlaneList &planes)
 
 
 // the bubble is initially located centered at 2R from the bottom.
-bool is_inside(double3 const& origin, float R, const Point &pt)
+bool is_inside(double3 const& origin, float R, double4 const& pt)
 {
 	return
-		(pt(0)*pt(0)) +
-		(pt(1)*pt(1)) +
-		(pt(2) - (origin.z+2*R))*(pt(2) - (origin.z+2*R)) < R*R;
+		(pt.x*pt.x) +
+		(pt.y*pt.y) +
+		(pt.z - (origin.z+2*R))*(pt.z - (origin.z+2*R)) < R*R;
 }
 
-void Bubble::copy_to_array(BufferList &buffers)
+// Mass and density initialization
+	void
+Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 {
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	// Example usage
+
+	// 1. warn the user if this is expected to take much time
+	printf("Initializing particles density and mass...\n");
+
+	// 2. grab the particle arrays from the buffer list
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
+	double4 *pos_global = buffers.getData<BUFFER_POS_GLOBAL>();
+	float4 *pos = buffers.getData<BUFFER_POS>();
 
-	cout << "Boundary parts: " << boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		info[i]= make_particleinfo(PT_BOUNDARY, 1, i);
-		double depth = H - boundary_parts[i](2) + m_origin.z;
-		vel[i] = make_float4(0, 0, 0, density(depth, 1));
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-	}
-
-	int j = boundary_parts.size();
-	cout << "Boundary part mass:" << pos[j-1].w << "\n";
-
-	cout << "Fluid parts: " << fluid_parts.size() << "\n";
-	int count[2] = {0, 0};
-	for (uint i = j; i < j + fluid_parts.size(); i++) {
-
-		Point &pt(fluid_parts[i-j]);
-		int fluid_idx = is_inside(m_origin, R, pt) ? 0 : 1;
-		double depth = H - pt(2) + m_origin.z;
-
-		// hydrostatic density: for the heavy fluid, this is simply computed
-		// as the density that gives pressure rho g h, with h depth
-		float rho = density(depth, fluid_idx);
-		// for the bubble, the hydrostatic density must be computed in a slightly
-		// more complex way:
-		if (fluid_idx == 0) {
-			// interface: depth of center of the bubble corrected by
-			// R^2 - horizontal offset squared
-			// note: no correction by m_origin.z because we are only
-			// interested in deltas
-			float z_intf = 2*R + sqrtf(R*R
-					- (pt(0))*(pt(0))
-					- (pt(1))*(pt(1))
-					);
-			// pressure at interface, from heavy fluid
-			float g = length(physparams()->gravity);
-			float P = physparams()->rho0[1]*(H - z_intf)*g;
-			// plus hydrostatic pressure from _our_ fluid
-			P += physparams()->rho0[0]*(z_intf - pt(2) + m_origin.z)*g;
-			rho = density_for_pressure(P, 0);
+	// 3. iterate on the particles
+	for (uint i = 0; i < numParticles; i++) {
+		float rho = 1;
+		double depth = H - pos_global[i].z + m_origin.z;
+		if (FLUID(info[i])) {
+			int fluid_idx = is_inside(m_origin, R, pos_global[i]) ? 0 : 1;
+			// hydrostatic density: for the heavy fluid, this is simply computed
+			// as the density that gives pressure rho g h, with h depth
+			rho = density(depth, fluid_idx);
+			// for the bubble, the hydrostatic density must be computed in a slightly
+			// more complex way:
+			if (fluid_idx == 0) {
+				// interface: depth of center of the bubble corrected by
+				// R^2 - horizontal offset squared
+				// note: no correction by m_origin.z because we are only
+				// interested in deltas
+				float z_intf = 2*R + sqrtf(R*R
+						- (pos_global[i].x)*(pos_global[i].x)
+						- (pos_global[i].y)*(pos_global[i].y)
+						);
+				// pressure at interface, from heavy fluid
+				float g = length(physparams()->gravity);
+				float P = physparams()->rho0[1]*(H - z_intf)*g;
+				// plus hydrostatic pressure from _our_ fluid
+				P += physparams()->rho0[0]*(z_intf - pos_global[i].z + m_origin.z)*g;
+				rho = density_for_pressure(P, 0);
+			}
+			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
+		} else if (BOUNDARY(info[i])) {
+			rho = density(depth, 1);
+			info[i]= make_particleinfo(PT_BOUNDARY, 1, i);
 		}
-		info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
-		vel[i] = make_float4(0, 0, 0, rho);
-		calc_localpos_and_hash(fluid_parts[i-j], info[i], pos[i], hash[i]);
 		pos[i].w *= rho;
-
-		++count[fluid_idx];
-		if (count[fluid_idx] == 1)
-			cout << "Fluid #" << fluid_idx << " part mass: " << pos[i].w << "\n";
+		vel[i].w = rho;
 	}
 }
 
