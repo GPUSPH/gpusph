@@ -100,8 +100,6 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 	void
 DynBoundsExample::initializeParticles(BufferList &buffers, const uint numParticles)
 {
-	// Example usage
-
 	// 1. warn the user if this is expected to take much time
 	printf("Initializing particles density...\n");
 
