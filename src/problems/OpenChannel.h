@@ -26,32 +26,22 @@
 #ifndef _OPENCHANNEL_H
 #define	_OPENCHANNEL_H
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "Point.h"
 #include "Rect.h"
 #include "Cube.h"
 
-class OpenChannel: public Problem {
+class OpenChannel: public XProblem {
 	private:
 		bool		use_side_walls; // use sidewalls or not
-		Rect		rect1, rect2, rect3;
-		Cube		experiment_box;
-		PointVect	parts;
-		PointVect	boundary_parts;
 		uint		dyn_layers;
 		double3		dyn_offset;
+		double3		margin;
 		double		a, h, l;  // experiment box dimension
 		double		H; // still water level
 
-
 	public:
 		OpenChannel(GlobalData *);
-		virtual ~OpenChannel(void);
-
-		int fill_parts(void);
-		void copy_to_array(BufferList &);
-
-		void release_memory(void);
 };
 
 
