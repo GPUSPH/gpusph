@@ -26,27 +26,17 @@
 #ifndef _WAVETANK_H
 #define	_WAVETANK_H
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "Point.h"
 #include "Cube.h"
-#include "Rect.h"
 #include "Cylinder.h"
+#include "Rect.h"
 #include "Vector.h"
-#include "Cone.h"
 
 
-class WaveTank: public Problem {
+class WaveTank: public XProblem {
 	private:
-		bool		use_cyl, use_cone, use_bottom_plane;
-		Cube		experiment_box;
-		Rect        bottom_rect;
-		PointVect	parts;
-		PointVect	boundary_parts;
-		PointVect	test_points;
-
-		Cylinder	cyl[11];
-		Cone		cone;
-		Rect        paddle;
+		bool		use_cyl, use_bottom_plane;
 		double		paddle_length;
 		double		paddle_width;
 		double		h_length, height, slope_length, beta;
@@ -58,21 +48,13 @@ class WaveTank: public Problem {
 		double3     paddle_origin;
 		double		paddle_tstart, paddle_tend;
 
-
-
 	public:
 		WaveTank(GlobalData *);
-		~WaveTank(void);
-		int fill_parts(void);
 		void copy_planes(PlaneList &);
-
-		void copy_to_array(BufferList &);
 
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
 									const float3&, const KinematicData &, KinematicData &,
 									double3&, EulerParameters&);
-
-		void release_memory(void);
 };
 #endif	/* _WAVETANK_H */
 

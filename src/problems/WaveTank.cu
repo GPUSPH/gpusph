@@ -34,13 +34,12 @@
 
 #define MK_par 2
 
-WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
+WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 9.0;
 	ly = 0.6;
 	lz = 1.0;
-
 
 	// Data for problem setup
 	slope_length = 8.5;
@@ -50,7 +49,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	// Add objects to the tank
 	use_cyl = false;
-	use_cone = false;
 
 	SETUP_FRAMEWORK(
 	    //viscosity<ARTVISC>,
@@ -63,7 +61,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0, 0, 0);
-	if (use_cyl || use_cone) {
+	if (use_cyl) {
 		m_origin.z -= 2.0*height;
 		m_size.z += 2.0*height;
 	}
@@ -137,92 +135,47 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
-}
 
-
-WaveTank::~WaveTank(void)
-{
-	release_memory();
-}
-
-
-void WaveTank::release_memory(void)
-{
-	parts.clear();
-	boundary_parts.clear();
-}
-
-void
-WaveTank::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
-			const float3& force, const float3& torque, const KinematicData& initial_kdata,
-			KinematicData& kdata, double3& dx, EulerParameters& dr)
-{
-
-    dx= make_double3(0.0);
-    kdata.lvel=make_double3(0.0f, 0.0f, 0.0f);
-    if (t1> paddle_tstart & t1 < paddle_tend){
-       kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
-       EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
-       dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
-       dr.Normalize();
-	   kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
-	   kdata.orientation.Normalize();
-	   }
-	else {
-	   kdata.avel = make_double3(0.0,0.0,0.0);
-	   kdata.orientation = kdata.orientation;
-	   dr.Identity();
-	}
-}
-
-
-int WaveTank::fill_parts()
-{
-	const float r0 = physparams()->r0;
+	// Building the geometry
 	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
+	setPositioning(PP_CORNER);
 
-	experiment_box = Cube(Point(0, 0, 0), h_length + slope_length,ly, height);
+	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+	Point(0, 0, 0), h_length + slope_length,ly, height);
+	disableCollisions(experiment_box);
 
-	boundary_parts.reserve(100);
-	parts.reserve(34000);
+  const float amplitude = -paddle_amplitude ;
+	GeometryID paddle = addBox(GT_MOVING_BODY, FT_BORDER,
+		Point(paddle_origin),	0, paddle_width, paddle_length);
+	rotate(paddle, 0,-amplitude, 0);
+	disableCollisions(paddle);
 
-    const float amplitude = -paddle_amplitude ;
-	paddle = Rect(Point(paddle_origin), Vector(0, paddle_width, 0),
-				Vector(paddle_length*sin(amplitude), 0, paddle_length*cos(amplitude)));
-    paddle.SetPartMass(m_deltap, physparams()->rho0[0]);
-	paddle.Fill(paddle.GetParts(), br, true);
-	add_moving_body(&paddle, MB_MOVING);
-	set_body_cg(&paddle, paddle_origin);
-
-	bottom_rect = Rect(Point(h_length, 0, 0), Vector(0, ly, 0),
-		//	Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
-		 Vector(0.0,0.0,paddle_length));
 	if (!use_bottom_plane) {
-	   bottom_rect.SetPartMass(m_deltap, physparams()->rho0[0]);
-	   bottom_rect.Fill(boundary_parts,br,true);
-	   }
+		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+				Point(h_length, 0, 0), 0, ly, paddle_length);
+		//	Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
+		disableCollisions(bottom);
+	}
 
-	Rect fluid;
+	GeometryID fluid;
 	float z = 0;
 	int n = 0;
 	while (z < H) {
 		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
 		float x = paddle_origin.x + (z - paddle_origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
-		fluid = Rect(Point(x,  r0, z),
-				Vector(0, ly-2.0*r0, 0), Vector(l, 0, 0));
-		fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
-		fluid.Fill(parts, m_deltap, true);
+		fluid = addRect(GT_FLUID, FT_SOLID, Point(x,  r0, z),
+				l, ly-2.0*r0);
 		n++;
 	 }
 
 	if (hasPostProcess(TESTPOINTS)) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
-		test_points.push_back(pos);
+		addTestPoint(pos);
 		pos = Point(0.5748, 0.2799, 0.2564, 0.0);
-		test_points.push_back(pos);
+		addTestPoint(pos);
 		pos = Point(1.5748, 0.2799, 0.2564, 0.0);
-		test_points.push_back(pos);
+		addTestPoint(pos);
 	}
 
 	if (use_cyl) {
@@ -240,21 +193,36 @@ int WaveTank::fill_parts()
 		p[10] = Point(h_length+ 4*slope_length/(cos(beta)*10), ly/2, 0);
 
 		for (int i = 0; i < 11; i++) {
-			cyl[i] = Cylinder(p[i], Vector(.025, 0, 0), Vector(0, 0, height));
-			cyl[i].SetPartMass(m_deltap, physparams()->rho0[0]);
-			cyl[i].FillBorder(boundary_parts, br, false, false);
-			cyl[i].Unfill(parts, br);
+			GeometryID cyl = addCylinder(GT_FIXED_BOUNDARY, FT_BORDER,
+				p[i], .025, height);
+			disableCollisions(cyl);
+			setEraseOperation(cyl, ET_ERASE_FLUID);
 		}
 	}
-	if (use_cone) {
-		Point p1 = Point(h_length + slope_length/(cos(beta)*10), ly/2, 0);
-		cone = Cone(p1,Vector(ly/4, 0.0, 0.0), Vector(ly/10, 0., 0.), Vector(0, 0, height));
-		cone.SetPartMass(m_deltap, physparams()->rho0[0]);
-		cone.FillBorder(boundary_parts, br, false, true);
-		cone.Unfill(parts, br);
-    }
+}
 
-	return  boundary_parts.size() + get_bodies_numparts() + parts.size() + test_points.size();
+
+void
+WaveTank::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+			const float3& force, const float3& torque, const KinematicData& initial_kdata,
+			KinematicData& kdata, double3& dx, EulerParameters& dr)
+{
+
+    dx= make_double3(0.0);
+    kdata.lvel=make_double3(0.0f, 0.0f, 0.0f);
+    if (t1> paddle_tstart && t1 < paddle_tend){
+       kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
+       EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
+       dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
+       dr.Normalize();
+	   kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
+	   kdata.orientation.Normalize();
+	   }
+	else {
+	   kdata.avel = make_double3(0.0,0.0,0.0);
+	   kdata.orientation = kdata.orientation;
+	   dr.Identity();
+	}
 }
 
 void WaveTank::copy_planes(PlaneList &planes)
@@ -272,88 +240,5 @@ void WaveTank::copy_planes(PlaneList &planes)
 		planes.push_back( implicit_plane(-sin(beta),0,cos(beta), h_length*sin(beta)) );  //sloping bottom starting at x=h_length
 	}
 }
-
-void WaveTank::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	int j = 0;
-
-	if (test_points.size()) {
-		//Testpoints
-		cout << "\nTest points: " << test_points.size() << "\n";
-		cout << "      " << j << "--" << test_points.size() << "\n";
-		for (uint i = 0; i < test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);  // first is type, object, 3rd id
-			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
-		}
-		j += test_points.size();
-		cout << "Test point mass:" << pos[j-1].w << "\n";
-	}
-
-	cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
-	cout << "      " << j  << "--" << boundary_parts.size() << "\n";
-	for (uint i = j; i < j + boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);  // first is type, object, 3rd id
-		calc_localpos_and_hash(boundary_parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += boundary_parts.size();
-	cout << "Boundary part mass:" << pos[j-1].w << "\n";
-
-	uint object_particle_counter = 0;
-	for (uint k = 0; k < m_bodies.size(); k++) {
-			PointVect & rbparts = m_bodies[k]->object->GetParts();
-			cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
-			for (uint i = 0; i < rbparts.size(); i++) {
-				uint ij = i + j;
-				float ht = H - rbparts[i](2);
-				if (ht < 0)
-					ht = 0.0;
-				float rho = density(ht, 0);
-				rho = physparams()->rho0[0];
-				vel[ij] = make_float4(0, 0, 0, rho);
-				uint ptype = (uint) PT_BOUNDARY;
-				switch (m_bodies[k]->type) {
-					case MB_FLOATING:
-						ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
-						break;
-					case MB_FORCES_MOVING:
-						ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
-						break;
-					case MB_MOVING:
-						ptype |= FG_MOVING_BOUNDARY;
-						break;
-				}
-				info[ij] = make_particleinfo(ptype, k, ij);
-				calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
-			}
-			if (k < simparams()->numforcesbodies) {
-				gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
-				gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
-				object_particle_counter += rbparts.size();
-			}
-			j += rbparts.size();
-			cout << ", part mass: " << pos[j-1].w << "\n";
-			cout << ", part type: " << type(info[j-1])<< "\n";
-	}
-
-	cout << "\nFluid parts: " << parts.size() << "\n";
-	cout << "      "<< j  << "--" << j + parts.size() << "\n";
-	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i]= make_particleinfo(PT_FLUID, 0, i);
-		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += parts.size();
-	cout << "Fluid part mass:" << pos[j-1].w << "\n";
-
-	cout << "Everything uploaded" <<"\n";
-}
-
 
 #undef MK_par
