@@ -33,33 +33,28 @@
 #ifndef SolitaryWave_H
 #define	SolitaryWave_H
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "Point.h"
 #include "Cube.h"
-#include "Rect.h"
 #include "Cylinder.h"
 #include "Vector.h"
-#include "Cone.h"
+#include "Rect.h"
+//#include "Cone.h"
 
-class SolitaryWave: public Problem {
+class SolitaryWave: public XProblem {
 	private:
-		int			icyl, icone, wmakertype;
-		Cube		experiment_box;
-		Rect		experiment_box1;
-		Rect		piston;
+		int			icyl, wmakertype; //icone
 		int			i_use_bottom_plane;
-		PointVect	parts;
-		PointVect	boundary_parts;
 
-		Cylinder	cyl[10];
-		Cone 		cone;
+		GeometryID	cyl[10];
+		//GeometryID	cone;
 
 		double 		lx, ly, lz;	// Dimension of the computational domain
 		double		h_length;	// Horizontal part of the experimental domain
 		double		slope_length;	// Length of the inclined plane
 		double		height;		// Still water (with z origin on the horizontal part)
 		double		beta;		// Angle of the inclined plane
-        double		H;		// still water level
+		double		H;		// still water level
 		double		Hbox;	// height of experiment box
 
 		// Moving boundary data
@@ -69,16 +64,12 @@ class SolitaryWave: public Problem {
 
 	public:
 		SolitaryWave(GlobalData *);
-		~SolitaryWave(void);
-		int fill_parts(void);
 		void copy_planes(PlaneList &);
 
-		void copy_to_array(BufferList &);
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
 			 	 	 	 	 	 	const float3&, const KinematicData &, KinematicData &,
 			 	 	 	 	 	 	double3&, EulerParameters&);
 
-		void release_memory(void);
 };
 #endif	/* _SolitaryWave_H */
 

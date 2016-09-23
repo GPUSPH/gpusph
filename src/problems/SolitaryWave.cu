@@ -33,7 +33,7 @@
 
 #define MK_par 2
 
-SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
+SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 9.0;
@@ -63,12 +63,11 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 
 	// Add objects to the tank
 	icyl = 1;	// icyl = 0 means no cylinders
-	icone = 0;	// icone = 0 means no cone
 
 	i_use_bottom_plane = 1; // 1 for real plane instead of boundary parts
 
 	// SPH parameters
-	set_deltap(0.04f);  //0.005f;
+	set_deltap(0.01f);  //0.005f;
 	simparams()->dt = 0.00013f;
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
@@ -122,21 +121,58 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 
 	// Name of problem used for directory creation
 	m_name = "SolitaryWave";
+
+	// Building the geometry
+	setPositioning(PP_CORNER);
+	const float width = ly;
+
+	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
+
+	GeometryID fluid;
+	float z = 0;
+	int n = 0;
+	while (z < H) {
+		z = n*m_deltap + 1.5*r0;
+		float x = piston_initial_crotx + r0;
+		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
+		fluid = addRect(GT_FLUID, FT_SOLID, Point(x, r0, z),
+				l, width-2.0*r0);
+		n++;
+	 }
+	GeometryID piston = addBox(GT_MOVING_BODY, FT_BORDER, Point(piston_initial_crotx, 0, 0), 0, width, height);
+	//piston.SetPartMass(m_deltap, physparams()->rho0[0]);
+	//piston.Fill(piston.GetParts(), br, true);
+	disableCollisions(piston);
+	if (i_use_bottom_plane == 0) {
+		GeometryID experiment_box1 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+				Point(h_length, 0, 0),
+				slope_length/cos(beta), width, slope_length*tan(beta));
+		disableCollisions(experiment_box1);
+	}
+
+	if (icyl == 1) {
+		Point p[10];
+		p[0] = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
+		p[1] = Point(h_length + slope_length/(cos(beta)*10), width/6,  -height);
+		p[2] = Point(h_length + slope_length/(cos(beta)*10), 5*width/6, -height);
+		p[3] = Point(h_length + slope_length/(cos(beta)*5), 0, -height);
+		p[4] = Point(h_length + slope_length/(cos(beta)*5),  width/3, -height);
+		p[5] = Point(h_length + slope_length/(cos(beta)*5), 2*width/3, -height);
+		p[6] = Point(h_length + slope_length/(cos(beta)*5),  width, -height);
+		p[7] = Point(h_length + 3*slope_length/(cos(beta)*10),  width/6, -height);
+		p[8] = Point(h_length + 3*slope_length/(cos(beta)*10),  width/2, -height);
+		p[9] = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6, -height);
+		//p[]  = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2, -height*.75);
+
+		for (int i = 0; i < 10; i++) {
+			double radius = 0.025;
+			if (i == 0)
+				radius = 0.05;
+			cyl[i] = addCylinder(GT_MOVING_BODY, FT_BORDER, p[i], radius, height);
+			disableCollisions(cyl[i]);
+		}
+	}
 }
-
-
-SolitaryWave::~SolitaryWave(void)
-{
-	release_memory();
-}
-
-
-void SolitaryWave::release_memory(void)
-{
-	parts.clear();
-	boundary_parts.clear();
-}
-
 
 void
 SolitaryWave::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
@@ -144,7 +180,7 @@ SolitaryWave::moving_bodies_callback(const uint index, Object* object, const dou
 			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
 	dx = make_double3(0.0);
-	if (object == &piston) {
+	if (index == 0) { // piston index
 		const double ti = min(piston_tend, max(piston_tstart, t0));
 		const double tf = min(piston_tend, max(piston_tstart, t1));
 
@@ -184,81 +220,6 @@ SolitaryWave::moving_bodies_callback(const uint index, Object* object, const dou
 	dr.Identity();
 }
 
-
-int SolitaryWave::fill_parts()
-{
-	const float r0 = physparams()->r0;
-	const float width = ly;
-
-	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
-
-	experiment_box = Cube(Point(0, 0, 0), h_length + slope_length, width, height);
-
-	boundary_parts.reserve(100);
-	parts.reserve(34000);
-
-	piston = Rect(Point(piston_initial_crotx, 0, 0), Vector(0, width, 0), Vector(0, 0, height));
-	piston.SetPartMass(m_deltap, physparams()->rho0[0]);
-	piston.Fill(piston.GetParts(), br, true);
-	add_moving_body(&piston, MB_MOVING);
-
-	if (i_use_bottom_plane == 0) {
-	   experiment_box1 = Rect(Point(h_length, 0, 0), Vector(0, width, 0),
-			Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
-	   experiment_box1.SetPartMass(m_deltap, physparams()->rho0[0]);
-	   experiment_box1.Fill(boundary_parts,br,true);
-	   cout << "bottom rectangle defined" <<"\n";
-	   }
-
-	if (icyl == 1) {
-		Point p[10];
-		p[0] = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
-		p[1] = Point(h_length + slope_length/(cos(beta)*10), width/6,  -height);
-		p[2] = Point(h_length + slope_length/(cos(beta)*10), 5*width/6, -height);
-		p[3] = Point(h_length + slope_length/(cos(beta)*5), 0, -height);
-		p[4] = Point(h_length + slope_length/(cos(beta)*5),  width/3, -height);
-		p[5] = Point(h_length + slope_length/(cos(beta)*5), 2*width/3, -height);
-		p[6] = Point(h_length + slope_length/(cos(beta)*5),  width, -height);
-		p[7] = Point(h_length + 3*slope_length/(cos(beta)*10),  width/6, -height);
-		p[8] = Point(h_length + 3*slope_length/(cos(beta)*10),  width/2, -height);
-		p[9] = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6, -height);
-		//p[]  = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2, -height*.75);
-
-		for (int i = 0; i < 10; i++) {
-			double radius = 0.025;
-			if (i == 0)
-				radius = 0.05;
-			cyl[i] = Cylinder(p[i], radius, height);
-		    cyl[i].SetPartMass(m_deltap, physparams()->rho0[0]);
-		    cyl[i].FillBorder(cyl[i].GetParts(), br, false, false);
-			add_moving_body(&(cyl[i]), MB_MOVING);
-		}
-	}
-	if (icone == 1) {
-		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
-		cone = Cone(p1, width/4, width/10, height);
-		cone.SetPartMass(m_deltap, physparams()->rho0[0]);
-		cone.FillBorder(cone.GetParts(), br, false, true);
-		add_moving_body(&cone, MB_MOVING);
-    }
-
-	Rect fluid;
-	float z = 0;
-	int n = 0;
-	while (z < H) {
-		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
-		float x = piston_initial_crotx + r0;
-		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
-		fluid = Rect(Point(x,  r0, z),
-				Vector(0, width-2.0*r0, 0), Vector(l, 0, 0));
-		fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
-		fluid.Fill(parts, m_deltap, true);
-		n++;
-	 }
-
-    return parts.size() + boundary_parts.size() + get_bodies_numparts();
-}
-
 void SolitaryWave::copy_planes(PlaneList &planes)
 {
 	const double w = m_size.y;
@@ -275,74 +236,4 @@ void SolitaryWave::copy_planes(PlaneList &planes)
 	}
 }
 
-
-void SolitaryWave::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
-		cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);  // first is type, object, 3rd id
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-	}
-	int j = boundary_parts.size();
-	cout << "Boundary part mass:" << pos[j-1].w << "\n";
-
-	uint object_particle_counter = 0;
-	for (uint k = 0; k < m_bodies.size(); k++) {
-		PointVect & rbparts = m_bodies[k]->object->GetParts();
-		cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
-		for (uint i = 0; i < rbparts.size(); i++) {
-			uint ij = i + j;
-			float ht = H - rbparts[i](2);
-			if (ht < 0)
-				ht = 0.0;
-			float rho = density(ht, 0);
-			rho = physparams()->rho0[0];
-			vel[ij] = make_float4(0, 0, 0, rho);
-			uint ptype = (uint) PT_BOUNDARY;
-			switch (m_bodies[k]->type) {
-				case MB_FLOATING:
-					ptype |= FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE;
-					break;
-				case MB_FORCES_MOVING:
-					ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
-					break;
-				case MB_MOVING:
-					ptype |= FG_MOVING_BOUNDARY;
-					break;
-			}
-			info[ij] = make_particleinfo(ptype, k, ij);
-			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
-		}
-		if (k < simparams()->numforcesbodies) {
-			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
-			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
-			object_particle_counter += rbparts.size();
-		}
-		j += rbparts.size();
-		cout << ", part mass: " << pos[j-1].w << "\n";
-		cout << ", part type: " << type(info[j-1])<< "\n";
-	}
-
-	cout << "\nFluid parts: " << parts.size() << "\n";
-	cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
-	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-	    info[i]= make_particleinfo(PT_FLUID,0,i);
-		calc_localpos_and_hash(parts[i - j], info[i], pos[i], hash[i]);
-		// initializing density
-		//       float rho = physparams()->rho0*pow(1.+g*(H-pos[i].z)/physparams()->bcoeff,1/physparams()->gammacoeff);
-		//        vel[i] = make_float4(0, 0, 0, rho);
-	}
-	j += parts.size();
-	cout << "Fluid part mass:" << pos[j-1].w << "\n";
-
-	cout << " Everything uploaded" <<"\n";
-}
 #undef MK_par
