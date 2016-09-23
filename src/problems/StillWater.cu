@@ -42,7 +42,7 @@
 #define OFFSET_Z 0
 #endif
 
-StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
+StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 {
 	m_usePlanes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
 	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations
@@ -56,7 +56,6 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<DYNAMICVISC>,
 		//viscosity<ARTVISC>,
 		boundary<DYN_BOUNDARY>
-		//boundary<SA_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
 	).select_options(
 		rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
@@ -126,65 +125,26 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 
 	// Name of problem used for directory creation
 	m_name = "StillWater";
-}
 
-
-StillWater::~StillWater(void)
-{
-	release_memory();
-}
-
-
-void StillWater::release_memory(void)
-{
-	parts.clear();
-	boundary_parts.clear();
-}
-
-
-int StillWater::fill_parts()
-{
+	// Building the geometry
+	setPositioning(PP_CORNER);
 	// distance between fluid box and wall
 	float wd = physparams()->r0;
 
-	parts.reserve(14000);
-
-	experiment_box = Cube(Point(m_origin), m_size.x, m_size.y, m_size.z);
-
-	experiment_box.SetPartMass(wd, physparams()->rho0[0]);
-
-	if (!m_usePlanes) {
-		switch (simparams()->boundarytype) {
-		case SA_BOUNDARY:
-			experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
-			break;
-		case DYN_BOUNDARY:
-			experiment_box.FillIn(boundary_parts, m_deltap, dyn_layers, false);
-			break;
-		default:
-			experiment_box.FillBorder(boundary_parts, wd, false);
-			break;
-		}
-	}
+	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(m_origin), m_size.x, m_size.y, m_size.z);
+	disableCollisions(experiment_box);
 
 	m_fluidOrigin = m_origin;
 	if (dyn_layers > 1) // shift by the extra offset of the experiment box
-		m_fluidOrigin += make_double3((dyn_layers-1)*m_deltap);
+		m_fluidOrigin += make_double3((dyn_layers)*m_deltap);
 	m_fluidOrigin += make_double3(wd); // one wd space from the boundary
-	Cube fluid = Cube(m_fluidOrigin, l-2*wd, w-2*wd, H-2*wd);
-	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
-	fluid.Fill(parts, m_deltap);
+	double shift = 2*wd;
+	if (dyn_layers > 1)
+		shift = (dyn_layers-1)*m_deltap*2;
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
+		m_fluidOrigin, l-shift, w-shift, H-shift);
 
-	//DEBUG: set only one fluid particle
-//	parts.clear();
-//	parts.push_back(Point(0.0, w/2.f, 0.0));
-//	for(int i=0; i < vertex_parts.size(); i++)
-//		if(	vertex_parts[i](2) == 0 &&
-//			vertex_parts[i](0) > 0.5*w && vertex_parts[i](0) < 0.5*w+2*m_deltap &&
-//			vertex_parts[i](1) > 0.5*w && vertex_parts[i](1) < 0.5*w+2*m_deltap)
-//			parts.push_back(Point(vertex_parts[i](0) + 0.5*m_deltap, vertex_parts[i](1) + 0.5*m_deltap, 0.0));
-
-	return parts.size() + boundary_parts.size() + vertex_parts.size();
 }
 
 void StillWater::copy_planes(PlaneList& planes)
@@ -198,77 +158,3 @@ void StillWater::copy_planes(PlaneList& planes)
 	planes.push_back( implicit_plane(-1.0, 0, 0, m_origin.y + l) );
 }
 
-
-void StillWater::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
-	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
-
-	cout << "Boundary parts: " << boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-#if 1
-		double water_column = m_fluidOrigin.z + H - boundary_parts[i](2);
-		if (water_column < 0)
-			water_column = 0;
-		float rho = density(water_column, 0);
-#else
-		float rho = physparams()->rho0[0];
-#endif
-		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-	}
-	int j = boundary_parts.size();
-	cout << "Boundary part mass: " << pos[j-1].w << "\n";
-
-	cout << "Fluid parts: " << parts.size() << "\n";
-	for (uint i = j; i < j + parts.size(); i++) {
-		double water_column = m_fluidOrigin.z + H - parts[i - j](2);
-		if (water_column < 0)
-			water_column = 0;
-		float rho = density(water_column, 0);
-		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(PT_FLUID, 0, i);
-		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += parts.size();
-	cout << "Fluid part mass: " << pos[j-1].w << "\n";
-
-	if (simparams()->boundarytype == SA_BOUNDARY) {
-			uint j = parts.size() + boundary_parts.size();
-
-			cout << "Vertex parts: " << vertex_parts.size() << "\n";
-		for (uint i = j; i < j + vertex_parts.size(); i++) {
-			float rho = density(H - vertex_parts[i-j](2), 0);
-			vel[i] = make_float4(0, 0, 0, rho);
-			info[i] = make_particleinfo(PT_VERTEX, 0, i);
-			calc_localpos_and_hash(vertex_parts[i-j], info[i], pos[i], hash[i]);
-		}
-		j += vertex_parts.size();
-		cout << "Vertex part mass: " << pos[j-1].w << "\n";
-
-		if(vertex_indexes.size() != boundary_parts.size()) {
-			cout << "ERROR! Incorrect connectivity array!\n";
-			exit(1);
-		}
-		if(boundary_elems.size() != boundary_parts.size()) {
-			cout << "ERROR! Incorrect boundary elements array!\n";
-			exit(1);
-		}
-
-		uint offset = parts.size() + boundary_parts.size();
-		for (uint i = 0; i < boundary_parts.size(); i++) {
-			vertex_indexes[i].x += offset;
-			vertex_indexes[i].y += offset;
-			vertex_indexes[i].z += offset;
-
-			vertices[i] = vertex_indexes[i];
-
-			boundelm[i] = make_float4(boundary_elems[i]);
-		}
-	}
-}
