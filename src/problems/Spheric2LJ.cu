@@ -45,7 +45,7 @@
 #define OFFSET_Z 0
 #endif
 
-Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : Problem(_gdata)
+Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 3.22;
@@ -53,7 +53,7 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : Problem(_gdata)
 	lz = 1.0;
 	H = 0.55;
 	wet = false;
-	m_usePlanes = get_option("use-planes", true);
+	m_usePlanes = get_option("use-planes", false);
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
@@ -112,58 +112,31 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : Problem(_gdata)
 
 	// Name of problem used for directory creation
 	m_name = "Spheric2LJ";
-}
 
-
-Spheric2LJ::~Spheric2LJ(void)
-{
-	release_memory();
-}
-
-
-void Spheric2LJ::release_memory(void)
-{
-	parts.clear();
-	obstacle_parts.clear();
-	boundary_parts.clear();
-}
-
-
-int Spheric2LJ::fill_parts()
-{
+	// Building the geometry
+	setPositioning(PP_CORNER);
 	float r0 = physparams()->r0;
 
-	Cube fluid, fluid1;
-
-	experiment_box = Cube(Point(m_origin), lx, ly, lz);
-
-	obstacle = Cube(Point(m_origin + make_double3(2.3955, 0.295, 0.0)), 0.161, 0.403, 0.161);
-
-
-	fluid = Cube(Point(m_origin + r0), 0.4, ly - 2*r0, H - r0);
-
-	if (wet) {
-		fluid1 = Cube(Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)),
-			lx - H - m_deltap - 2*r0, 0.67 - 2*r0, 0.1);
-	}
-
-	boundary_parts.reserve(2000);
-	parts.reserve(14000);
-
 	if (!m_usePlanes) {
-		experiment_box.SetPartMass(r0, physparams()->rho0[0]);
-		experiment_box.FillBorder(boundary_parts, r0, false);
+		GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+			Point(m_origin), lx, ly, lz);
+		disableCollisions(experiment_box);
 	}
 
-	obstacle.SetPartMass(r0, physparams()->rho0[0]);
-	obstacle.FillBorder(obstacle_parts, r0, true);
+	GeometryID obstacle = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(m_origin + make_double3(2.3955, 0.295, r0)), 0.161, 0.403, 0.161-r0);
+	disableCollisions(obstacle);
+	GeometryID unfill_obstacle = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
+		Point(m_origin + make_double3(2.3955+r0, 0.295+r0, r0)), 0.161-2*r0, 0.403-2*r0, 0.161-r0);
+	disableCollisions(unfill_obstacle);
+	setEraseOperation(unfill_obstacle, ET_ERASE_BOUNDARY);
 
-	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
-	fluid.Fill(parts, m_deltap, true);
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, Point(m_origin + r0), 0.4, ly - 2*r0, H - r0);
+
 	if (wet) {
-		fluid1.SetPartMass(m_deltap, physparams()->rho0[0]);
-		fluid1.Fill(parts, m_deltap, true);
-		obstacle.Unfill(parts, r0);
+		GeometryID fluid1 = addBox(GT_FLUID, FT_SOLID, Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)),
+			lx - H - m_deltap - 2*r0, 0.67 - 2*r0, 0.1);
+		setEraseOperation(obstacle, ET_ERASE_FLUID);
 	}
 
 	// Setting probes for Spheric2 test case
@@ -173,20 +146,18 @@ int Spheric2LJ::fill_parts()
 	add_gage(m_origin + make_double3(2.228, 0.5, 0.0));
 	add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
 	add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
+
 	// Pressure probes
-	if (hasPostProcess(TESTPOINTS)) {
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
-		test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
-	}
+	addTestPoint(m_origin + make_double3(2.3955, 0.529, 0.021));
+	addTestPoint(m_origin + make_double3(2.3955, 0.529, 0.061));
+	addTestPoint(m_origin + make_double3(2.3955, 0.529, 0.101));
+	addTestPoint(m_origin + make_double3(2.3955, 0.529, 0.141));
+	addTestPoint(m_origin + make_double3(2.4165, 0.471, 0.161));
+	addTestPoint(m_origin + make_double3(2.4565, 0.471, 0.161));
+	addTestPoint(m_origin + make_double3(2.4965, 0.471, 0.161));
+	addTestPoint(m_origin + make_double3(2.5365, 0.471, 0.161));
 	//*******************************************************************
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + test_points.size();
 }
 
 void Spheric2LJ::copy_planes(PlaneList& planes)
@@ -212,61 +183,3 @@ void Spheric2LJ::fillDeviceMap()
 	//fillDeviceMapByEquation();
 }
 
-void Spheric2LJ::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i]= make_particleinfo(PT_BOUNDARY,0,i);
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-	}
-	uint j = boundary_parts.size();
-	if (boundary_parts.size() > 0)
-		cout << "Boundary part mass:" << pos[j-1].w << "\n";
-	else
-		cout << "No boundary parts" << endl;
-
-	//Testpoints
-	if (test_points.size()) {
-		cout << "\nTest points: " << test_points.size() << "\n";
-		for (uint i = 0; i < test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
-			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
-		}
-		j += test_points.size();
-		cout << "Test point mass:" << pos[j-1].w << "\n";
-	}
-	else
-		cout << "No test points" << endl;
-
-	cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
-	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i]= make_particleinfo(PT_BOUNDARY,1,i);
-		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += obstacle_parts.size();
-	if (obstacle_parts.size() > 0)
-		cout << "Obstacle part mass:" << pos[j-1].w << "\n";
-	else
-		cout << "No obstacle parts" << endl;
-
-	cout << "Fluid parts: " << parts.size() << "\n";
-	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i]= make_particleinfo(PT_FLUID,0,i);
-		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += parts.size();
-	if (parts.size() > 0)
-		cout << "Fluid part mass:" << pos[j-1].w << "\n";
-	else
-		cout << "No fluid parts" << endl;
-
-	flush(cout);
-}

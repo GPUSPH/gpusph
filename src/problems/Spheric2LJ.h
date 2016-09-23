@@ -26,18 +26,12 @@
 #ifndef _SPHERIC2LJ_H
 #define	_SPHERIC2LJ_H
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "Point.h"
 #include "Cube.h"
 
-class Spheric2LJ: public Problem {
+class Spheric2LJ: public XProblem {
 	private:
-		Cube		experiment_box;
-		Cube		obstacle;
-		PointVect	parts;
-		PointVect	boundary_parts;
-		PointVect	test_points;
-		PointVect	obstacle_parts;
 		float		H;				// still water level
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
@@ -45,16 +39,11 @@ class Spheric2LJ: public Problem {
 
 	public:
 		Spheric2LJ(GlobalData *);
-		virtual ~Spheric2LJ(void);
-
-		int fill_parts(void);
-		void copy_to_array(BufferList &);
 		void copy_planes(PlaneList &);
 
 		// override standard split
 		void fillDeviceMap();
 
-		void release_memory(void);
 };
 #endif	/* _SPHERIC2LJ_H */
 
