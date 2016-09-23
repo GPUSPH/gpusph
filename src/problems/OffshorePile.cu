@@ -153,6 +153,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	setEraseOperation(unfill_top,ET_ERASE_FLUID);
 
 	// Rigid body: cylinder
+	setPositioning(PP_BOTTOM_CENTER);
   GeometryID cyl = addCylinder(GT_MOVING_BODY, FT_BORDER,
         make_double3(cyl_xpos, ly/2. + periodic_offset_y, 0),
         (cyl_diam - m_deltap)/2., cyl_height);

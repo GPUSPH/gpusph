@@ -151,6 +151,7 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 	}
 
 	if (icyl == 1) {
+		setPositioning(PP_BOTTOM_CENTER);
 		Point p[10];
 		p[0] = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
 		p[1] = Point(h_length + slope_length/(cos(beta)*10), width/6,  -height);

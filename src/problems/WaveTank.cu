@@ -179,6 +179,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 	}
 
 	if (use_cyl) {
+		setPositioning(PP_BOTTOM_CENTER);
 		Point p[10];
 		p[0] = Point(h_length + slope_length/(cos(beta)*10), ly/2., 0);
 		p[1] = Point(h_length + slope_length/(cos(beta)*10), ly/6.,  0);
