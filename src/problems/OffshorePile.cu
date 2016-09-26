@@ -163,6 +163,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	setUnfillRadius(cyl,m_deltap*0.8);
 	setEraseOperation(cyl,ET_ERASE_BOUNDARY);
 
+	setPositioning(PP_CORNER);
 	// Rigid body: piston
   GeometryID piston =
     addBox(GT_MOVING_BODY, FT_BORDER, piston_origin,
