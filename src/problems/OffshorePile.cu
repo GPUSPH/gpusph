@@ -149,14 +149,13 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	GeometryID unfill_top = addBox(GT_FLUID, FT_NOFILL,
         make_double3(h_length + m_deltap, periodic_offset_y, H + m_deltap/2.),
         lx - h_length, ly, H + hu);
-	disableCollisions(unfill_top);
 	setEraseOperation(unfill_top,ET_ERASE_FLUID);
 
 	// Rigid body: cylinder
 	setPositioning(PP_BOTTOM_CENTER);
   GeometryID cyl = addCylinder(GT_MOVING_BODY, FT_BORDER,
-        make_double3(cyl_xpos, ly/2. + periodic_offset_y, 0),
-        (cyl_diam - m_deltap)/2., cyl_height);
+        make_double3(cyl_xpos, ly/2., 0),
+        cyl_diam/2., cyl_height);
 	disableCollisions(cyl);
   enableFeedback(cyl);
 	setEraseOperation(cyl,ET_ERASE_FLUID);
@@ -193,6 +192,13 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	setUnfillRadius(far_wall,m_deltap*0.9);
 	setEraseOperation(far_wall,ET_ERASE_BOUNDARY);
 
+	setParticleMassByDensity(fluid1,1000);
+	setParticleMassByDensity(fluid2,1000);
+	setParticleMassByDensity(cyl,1000);
+	setParticleMassByDensity(piston,1000);
+	setParticleMassByDensity(bottom_flat,1000);
+	setParticleMassByDensity(bottom_slope,1000);
+	setParticleMassByDensity(far_wall,1000);
 }
 
 // Piston's motion
@@ -215,5 +221,3 @@ OffshorePile::moving_bodies_callback(const uint index, Object* object, const dou
 		}
 	}
 }
-
-#undef MK_par
