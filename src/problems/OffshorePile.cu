@@ -187,13 +187,6 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	setUnfillRadius(far_wall,m_deltap*0.9);
 	setEraseOperation(far_wall,ET_ERASE_BOUNDARY);
 
-	setParticleMassByDensity(fluid1,1000);
-	setParticleMassByDensity(fluid2,1000);
-	setParticleMassByDensity(cyl,1000);
-	setParticleMassByDensity(piston,1000);
-	setParticleMassByDensity(bottom_flat,1000);
-	setParticleMassByDensity(bottom_slope,1000);
-	setParticleMassByDensity(far_wall,1000);
 }
 
 // Piston's motion
