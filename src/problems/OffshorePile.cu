@@ -38,15 +38,9 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 
 	SETUP_FRAMEWORK(
 			kernel<WENDLAND>,
-			//viscosity<ARTVISC>,
 			viscosity<KINEMATICVISC>,
-			//viscosity<DYNAMICVISC>,
-			//viscosity<SPSVISC>,
-			//boundary<LJ_BOUNDARY>,
-			//boundary<MK_BOUNDARY>,
 			boundary<DYN_BOUNDARY>,
-			periodicity<PERIODIC_Y>,
-			add_flags<ENABLE_MOVING_BODIES | ENABLE_FERRARI>
+			periodicity<PERIODIC_Y>
 			);
 
   // Size and origin of the simulation domain
@@ -72,8 +66,8 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	m_size = make_double3(lx - x0 , ly + m_deltap, lz + 1.5*layers*m_deltap);
 	m_origin = make_double3(x0, 0., -1.5*layers*m_deltap);
 
-	// ferrari correction
-	simparams()->ferrari = 1.0f;
+	// Shepard filter
+	addFilter(SHEPARD_FILTER, 20);
 
 	addPostProcess(SURFACE_DETECTION);
 
@@ -156,7 +150,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	setPositioning(PP_BOTTOM_CENTER);
   GeometryID cyl = addCylinder(GT_MOVING_BODY, FT_BORDER,
         make_double3(cyl_xpos, ly/2., 0),
-        cyl_diam/2., cyl_height);
+        (cyl_diam - m_deltap)/2., cyl_height);
 	disableCollisions(cyl);
   enableFeedback(cyl);
 	setEraseOperation(cyl,ET_ERASE_FLUID);
