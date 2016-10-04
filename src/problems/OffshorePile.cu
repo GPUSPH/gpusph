@@ -90,6 +90,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 40.f);
 	set_kinematic_visc(0, 1.0e-6);
+	setWaterLevel(H);
 
 	simparams()->maxneibsnum = 256 + 64 + 32; // 352
 	simparams()->buildneibsfreq = 1;
