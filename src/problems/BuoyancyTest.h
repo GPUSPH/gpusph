@@ -5,32 +5,18 @@
  *      Author: alexisherault
  */
 
-#ifndef BUOYANCYTEST_H_
-#define BUOYANCYTEST_H_
+#ifndef XBUOYANCYTEST_H_
+#define XBUOYANCYTEST_H_
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "Point.h"
 #include "Cube.h"
 #include "Sphere.h"
 #include "Torus.h"
 
-class BuoyancyTest: public Problem {
-	private:
-		PointVect	parts;
-		PointVect	boundary_parts;
-		Cube		cube;
-		Sphere		sphere;
-		Torus 		torus;
-		float		H;  // still water level
-		double		lx, ly, lz;		// dimension of experiment box
+class XBuoyancyTest: public XProblem {
 
 	public:
-		BuoyancyTest(GlobalData *);
-		virtual ~BuoyancyTest(void);
-
-		int fill_parts(void);
-		void copy_to_array(BufferList &);
-
-		void release_memory(void);
+		XBuoyancyTest(GlobalData *);
 };
-#endif /* BUOYANCYTEST_H_ */
+#endif /* XBUOYANCYTEST_H_ */

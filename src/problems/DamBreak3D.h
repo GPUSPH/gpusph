@@ -22,46 +22,19 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
-/*
- * File:   DamBreak3D.h
- * Author: alexis
- *
- * Created on 28 janvier 2009, 00:44
- */
 
-#ifndef _DAMBREAK3D_H
-#define	_DAMBREAK3D_H
+#ifndef _XDAMBREAK3D_H
+#define	_XDAMBREAK3D_H
 
-#include "Problem.h"
-#include "Point.h"
-#include "Cube.h"
+#include "XProblem.h"
 
-class DamBreak3D: public Problem {
+class XDamBreak3D: public XProblem {
 	private:
-		Cube		experiment_box;
-		Cube		obstacle;
-		PointVect	parts;
-		PointVect	boundary_parts;
-		PointVect	obstacle_parts;
-		PointVect	test_points;
-		float		H;				// still water level
-		double		lx, ly, lz;		// dimension of experiment box
-		bool		wet;			// set wet to true have a wet bed experiment
-		uint		dyn_layers;		// layers of dynamic boundaries particles
-		bool		m_usePlanes;	// use planes or boundaries
-		double3		m_fluidOrigin;	// bottom level
-
 	public:
-		DamBreak3D(GlobalData *);
-		virtual ~DamBreak3D(void);
-
-		int fill_parts(void);
-		void copy_to_array(BufferList &);
-		void copy_planes(PlaneList &);
+		XDamBreak3D(GlobalData *);
+		//virtual ~XDamBreak3D(void);
 		// override standard split
 		void fillDeviceMap();
-
-		void release_memory(void);
 };
-#endif	/* _DAMBREAK3D_H */
+#endif	/* _XDAMBREAK3D_H */
 
