@@ -5,8 +5,8 @@
  *      Author: alexisherault
  */
 
-#ifndef XBUOYANCYTEST_H_
-#define XBUOYANCYTEST_H_
+#ifndef BUOYANCYTEST_H_
+#define BUOYANCYTEST_H_
 
 #include "XProblem.h"
 #include "Point.h"
@@ -14,9 +14,9 @@
 #include "Sphere.h"
 #include "Torus.h"
 
-class XBuoyancyTest: public XProblem {
+class BuoyancyTest: public XProblem {
 
 	public:
-		XBuoyancyTest(GlobalData *);
+		BuoyancyTest(GlobalData *);
 };
-#endif /* XBUOYANCYTEST_H_ */
+#endif /* BUOYANCYTEST_H_ */

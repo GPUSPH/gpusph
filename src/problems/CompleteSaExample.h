@@ -23,8 +23,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _XCOMPLETESAEXAMPLE_H
-#define	_XCOMPLETESAEXAMPLE_H
+#ifndef _COMPLETESAEXAMPLE_H
+#define	_COMPLETESAEXAMPLE_H
 
 #include "XProblem.h"
 
@@ -39,11 +39,11 @@
 #define INLET_VELOCITY			4.0
 #define INLET_VELOCITY_FADE		1.0
 
-class XCompleteSaExample: public XProblem {
+class CompleteSaExample: public XProblem {
 	private:
 	public:
-		XCompleteSaExample(GlobalData *);
-		//virtual ~XCompleteSaExample(void);
+		CompleteSaExample(GlobalData *);
+		//virtual ~CompleteSaExample(void);
 
 		uint max_parts(uint);
 
@@ -60,5 +60,5 @@ class XCompleteSaExample: public XProblem {
 		// override standard split
 		void fillDeviceMap();
 };
-#endif	/* _XCOMPLETESAEXAMPLE_H */
+#endif	/* _COMPLETESAEXAMPLE_H */
 

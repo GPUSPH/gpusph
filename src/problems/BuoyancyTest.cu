@@ -1,4 +1,4 @@
-#include "XBuoyancyTest.h"
+#include "BuoyancyTest.h"
 #include <iostream>
 
 #include "GlobalData.h"
@@ -9,7 +9,7 @@
 #include "Vector.h"
 
 
-XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
+BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// Size and origin of the simulation domain
 	double lx = 1.0;
@@ -90,5 +90,5 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	setMassByDensity(floating_cube, physparams()->rho0[0]*0.5);
 
 	// Name of problem used for directory creation
-	m_name = "XBuoyancyTest";
+	m_name = "BuoyancyTest";
 }

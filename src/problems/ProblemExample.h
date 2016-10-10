@@ -23,14 +23,14 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _XPROBLEMEXAMPLE_H
-#define	_XPROBLEMEXAMPLE_H
+#ifndef _PROBLEMEXAMPLE_H
+#define	_PROBLEMEXAMPLE_H
 
 #include "XProblem.h"
 
-class XProblemExample: public XProblem {
+class ProblemExample: public XProblem {
 	public:
-		XProblemExample(GlobalData *);
+		ProblemExample(GlobalData *);
 };
-#endif	/* _XPROBLEMEXAMPLE_H */
+#endif	/* _PROBLEMEXAMPLE_H */
 

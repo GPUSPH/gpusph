@@ -25,14 +25,14 @@
 
 #include <iostream>
 
-#include "XDamBreak3D.h"
+#include "DamBreak3D.h"
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
+DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// *** user parameters from command line
 	const bool WET = get_option("wet", false);
@@ -89,7 +89,7 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 0.005f);
-	m_name = "XDamBreak3D";
+	m_name = "DamBreak3D";
 
 	// *** Geometrical parameters, starting from the size of the domain
 	const double dimX = 1.6;
@@ -181,7 +181,7 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 }
 
 // since the fluid topology is roughly symmetric along Y through the whole simulation, prefer Y split
-void XDamBreak3D::fillDeviceMap()
+void DamBreak3D::fillDeviceMap()
 {
 	fillDeviceMapByAxis(Y_AXIS);
 }

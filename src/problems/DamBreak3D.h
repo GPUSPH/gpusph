@@ -23,18 +23,18 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _XDAMBREAK3D_H
-#define	_XDAMBREAK3D_H
+#ifndef _DAMBREAK3D_H
+#define	_DAMBREAK3D_H
 
 #include "XProblem.h"
 
-class XDamBreak3D: public XProblem {
+class DamBreak3D: public XProblem {
 	private:
 	public:
-		XDamBreak3D(GlobalData *);
-		//virtual ~XDamBreak3D(void);
+		DamBreak3D(GlobalData *);
+		//virtual ~DamBreak3D(void);
 		// override standard split
 		void fillDeviceMap();
 };
-#endif	/* _XDAMBREAK3D_H */
+#endif	/* _DAMBREAK3D_H */
 

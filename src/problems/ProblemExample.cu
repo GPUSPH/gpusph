@@ -25,14 +25,14 @@
 
 #include <iostream>
 
-#include "XProblemExample.h"
+#include "ProblemExample.h"
 /*#include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
 #include "GlobalData.h"*/
 #include "cudasimframework.cu"
 
-XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
+ProblemExample::ProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
@@ -58,7 +58,7 @@ XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-1f);
-	m_name = "XProblemExample";
+	m_name = "ProblemExample";
 
 	// domain size
 	const double dimX = 10;

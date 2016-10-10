@@ -25,14 +25,14 @@
 
 #include <iostream>
 
-#include "XCompleteSaExample.h"
+#include "CompleteSaExample.h"
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
+CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
@@ -58,7 +58,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
-	m_name = "XCompleteSaExample";
+	m_name = "CompleteSaExample";
 
 		m_origin = make_double3(-1, -1, -1);
 	m_size = make_double3(3, 3, 3);
@@ -97,16 +97,16 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// appropriate file radix (e.g. xcomplete_sa_example_nobox and do not add the "cube" geometry
 
 	// fluid
-	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.fluid.h5sph", NULL);
+	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/CompleteSaExample/0.xcomplete_sa_example.fluid.h5sph", NULL);
 
 	// main container
 	GeometryID container =
-		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent0.h5sph", NULL);
+		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/CompleteSaExample/0.xcomplete_sa_example.boundary.kent0.h5sph", NULL);
 	disableCollisions(container);
 
 	// Inflow square. Load it as GT_FIXED_BOUNDARY to disable it.
 	GeometryID inlet =
-		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
+		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/CompleteSaExample/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 
 	// set velocity or pressure driven (see define in header)
@@ -116,8 +116,8 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// Floating box, with STL mesh for collision detection
 	// GT_FLOATING_BODY for floating, GT_MOVING_BODY for force measurement only
 	GeometryID cube =
-		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./data_files/XCompleteSaExample/0.xcomplete_sa_example.boundary.kent2.h5sph",
-			"./data_files/XCompleteSaExample/CompleteSaExample_cube_coarse.obj");
+		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./data_files/CompleteSaExample/0.xcomplete_sa_example.boundary.kent2.h5sph",
+			"./data_files/CompleteSaExample/CompleteSaExample_cube_coarse.obj");
 
 	enableFeedback(cube);
 
@@ -127,7 +127,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 }
 
 /*
-void XCompleteSaExample::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
+void CompleteSaExample::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
 {
 	const float k0 = 1.0f/sqrtf(0.09f);
 
@@ -138,7 +138,7 @@ void XCompleteSaExample::init_keps(float* k, float* e, uint numpart, particleinf
 } // */
 
 /* TODO this routine is never called
-void XCompleteSaExample::imposeForcedMovingObjects(
+void CompleteSaExample::imposeForcedMovingObjects(
 			float3	&centerOfGravity,
 			float3	&translation,
 			float*	rotationMatrix,
@@ -159,24 +159,24 @@ void XCompleteSaExample::imposeForcedMovingObjects(
 }
 // */
 
-uint XCompleteSaExample::max_parts(uint numpart)
+uint CompleteSaExample::max_parts(uint numpart)
 {
 	return (uint)((float)numpart*2.0f);
 }
 
-void XCompleteSaExample::fillDeviceMap()
+void CompleteSaExample::fillDeviceMap()
 {
 	fillDeviceMapByAxis(Y_AXIS);
 }
 
-namespace cuXCompleteSaExample
+namespace cuCompleteSaExample
 {
 using namespace cuforces;
 using namespace cubounds;
 
 __device__
 void
-XCompleteSaExample_imposeBoundaryCondition(
+CompleteSaExample_imposeBoundaryCondition(
 	const	particleinfo	info,
 	const	float3			absPos,
 			float			waterdepth,
@@ -223,7 +223,7 @@ XCompleteSaExample_imposeBoundaryCondition(
 }
 
 __global__ void
-XCompleteSaExample_imposeBoundaryConditionDevice(
+CompleteSaExample_imposeBoundaryConditionDevice(
 			float4*		newVel,
 			float4*		newEulerVel,
 			float*		newTke,
@@ -266,7 +266,7 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 				waterdepth += d_worldOrigin.z; // now absolute z position
 			}
 			// this now calls the virtual function that is problem specific
-			XCompleteSaExample_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
+			CompleteSaExample_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
 			// copy values to arrays
 			newVel[index] = vel;
 			newEulerVel[index] = eulerVel;
@@ -278,10 +278,10 @@ XCompleteSaExample_imposeBoundaryConditionDevice(
 	}
 }
 
-} // end of cuXCompleteSaExample namespace
+} // end of cuCompleteSaExample namespace
 
 void
-XCompleteSaExample::imposeBoundaryConditionHost(
+CompleteSaExample::imposeBoundaryConditionHost(
 			MultiBufferList::iterator		bufwrite,
 			MultiBufferList::const_iterator	bufread,
 					uint*			IOwaterdepth,
@@ -310,7 +310,7 @@ XCompleteSaExample::imposeBoundaryConditionHost(
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	cuXCompleteSaExample::XCompleteSaExample_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
+	cuCompleteSaExample::CompleteSaExample_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
 		(newVel, newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, t, numParticles, particleHash);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));

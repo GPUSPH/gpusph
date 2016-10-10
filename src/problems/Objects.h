@@ -23,21 +23,21 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _XOBJECTS_H
-#define	_XOBJECTS_H
+#ifndef _OBJECTS_H
+#define	_OBJECTS_H
 
 #include "XProblem.h"
 
-class XObjects: public XProblem {
+class Objects: public XProblem {
 	private:
 		GeometryID floating_obj_1, floating_obj_2;
 	public:
-		XObjects(GlobalData *);
-		//virtual ~XObjects(void);
+		Objects(GlobalData *);
+		//virtual ~Objects(void);
 		// override standard split
 		void fillDeviceMap();
 		// callback to add joints
 		void initializeObjectJoints();
 };
-#endif	/* _XOBJECTS_H */
+#endif	/* _OBJECTS_H */
 
