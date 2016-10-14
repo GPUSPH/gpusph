@@ -58,7 +58,7 @@ to visualize and post-process the results.
 \section{Specific pre-processing for semi-analytical boundaries}\label{sec:preprocess_sa}
 
 Several types of boundary conditions are available in GPUSPH. 
-They are described in section \ref{sec:boundary_conditions}.
+They are described in the theory guide.
 With classical boundary conditions (Lennard-Jones, dynamic boundaries) the problem 
 geometries are defined and filled with particles by GPUSPH itself.
 For simulations involving complex objects and/or open boundaries, 
@@ -177,7 +177,7 @@ So when importing geometry on a STL format, a redesigning of it is necessary
 in order to obtain a good mesh quality.\\
 
 Other very useful tools of SALOME are the boolean operations on solids.
-It is possible to fuse, intersect solid objets, use a solid object as a 
+It is possible to fuse, intersect solid objects, use a solid object as a 
 cutting tool for another one, etc.
 It is also possible to perform operations like rotation, translation, etc. on
 the geometrical objects.\\
@@ -427,19 +427,19 @@ the readers write the .cu file in order to build their own simulation.
 
 Creating new problems in GPUSPH is done using the \cmd{XProblem} class.
 \cmd{XProblem} does much of the work of defining and placing objects of common shape 
-(cubes or parallelpipeds, spheres, etc)  in the domain. 
+(cubes or parallelepipeds, spheres, etc)  in the domain. 
 These shapes can be solid or fluid or filled with fluid.  
 \cmd{Xproblem} takes care of filling the appropriate volume(s) with particles.   
-It can also insert h5sph objects comming
+It can also insert h5sph objects coming
 from the Crixus preprocessing step. 
 It has the added feature of taking care of the setup for floating or moving 
 bodies that are handled through a dynamics library:  \cmd{Project Chrono}.  
 It also takes care of the open boundaries identification, and their type (pressure driven or velocity driven).
-Simple initializations can be automatically performed by \cmd{XProblem}, inparticular to prescribe an initial
+Simple initializations can be automatically performed by \cmd{XProblem}, in particular to prescribe an initial
 hydrostatic pressure or to change the mass of some objects.
 
 The prescription of the moving bodies velocities can be done in the function:\\
-\cmd{moving_bodies_cllback}\\
+\cmd{moving_bodies_callback}\\
 while an advanced user initialization can be coded in the function:\\
 \cmd{initializeParticles}.
 
@@ -505,7 +505,7 @@ As time advances, the torus rises through the water column as it has a
 density half that of water and then it reaches the free surface and floats.  \\
 The output of \cmd{BuoyancyTest} is written every 0.01 seconds into a file 
 in the directory tests designated by the problem name and the date and time.  
-The files are in VTU format that can be read by Paraview.  
+The files are in VTU format that can be read by ParaView.  
 Alternative formats, such as text, can be chosen by changing the writer in the \cmd{add_writer} command. \\
 
 \cmd{ProblemExample.cu} shows how a matrix of objects can easily be added to a problem.  
@@ -549,7 +549,7 @@ or, in your browser,\\
 \cmd{www.gpusph.org/downloads/data_files_XCompleteSaExample.tgz}\\
 
 The file (\cmd{data_files_XCompleteSaExample.tgz}) is uncompressed 
-in the root gpusph directory.  
+in the root GPUSPH directory.  
 It will create a directory \cmd{data_files}, containing four \cmd{.h5sph} 
 to set up the fluid and boundaries and one \cmd{.stl} file to define the cube.  
 (In addition there are five files that were used to generate the input files 
@@ -594,7 +594,7 @@ GAUSSIAN\\
 SPH\_F1\\
 SPH\_F2\\
 SPH\_GRENIER\\
-where SPH\_F1 is a WCSPH single-fluid formulation, SPH\_F2 is a WCSPH multifluid formulation and
+where SPH\_F1 is a WCSPH single-fluid formulation, SPH\_F2 is a WCSPH multi-fluid formulation and
 SPH\_GRENIER is another mutli-fluid formulation based on the Grenier formulation.
 \item The third parameter is the viscosity model. There are 5 options for this term: \\
 ARTVISC\\
@@ -618,7 +618,7 @@ SA\_BOUNDARY\\
   PERIODIC_XYZ \\
 \item Finally, the \cmd{add_flags} term enables the implementation 
 of some extra functions in the simulation, such as the extra Ferrari diffusion term, 
-the in \& out boundaries or the waterdepth function, 
+the in \& out boundaries or the water depth function, 
 which computes the flow depth at a given set of X, Y:\\
 ENABLE\_DTADAPT \\
 ENABLE\_XSPH \\
@@ -693,7 +693,7 @@ simparams()->maxneibsnum = 352;
 simparams()->buildneibsfreq = 1;
 // Slightly extend kernel radius for gamma computation
 simparams()->nlexpansionfactor = 1.1;
-// ferrari correction
+// Ferrari correction
 simparams()->ferrari = 1.0;
 \end{ccode}
 \begin{itemize}
@@ -725,7 +725,7 @@ and the equation of state to be used through \cmd{set_equation_of_state}.
 In this function, the first argument is the fluid considered,
 the second one is the exponent in the equation of state (usually 7),
 and the third one is the numerical speed of sound.
-The numerical speed of sound can alo be set by specifying reference
+The numerical speed of sound can also be set by specifying reference
 velocity and water height:
 \begin{ccode}
 // Reference quantities for speed of sound computation
@@ -747,7 +747,7 @@ m_hydrostaticFilling = false;
   add_writer(VTKWRITER, 1e-1f);
 \end{ccode} 
 The writer (for the output data) is chosen with the \cmd{add_writer}
-command (usually the VTK writer, which provides files to be read by Paraview).  
+command (usually the VTK writer, which provides files to be read by ParaView).  
 The file writing frequency (in terms of simulated seconds) can also be specified. 
 That is, in this case, we will have a VTU file every 0.1 simulated second for example. 
 It is important to note that, since some simulations could become 
@@ -796,7 +796,7 @@ three space coordinates, x,y, and z. Vector has a number of associated
 and useful functions, such as Vector.norm, for the length of the vector.
 
 
-The {\em Cube} object is really a parallelepiped, defined by an origin,
+The {\em Cube} object is really a parallelepipeds, defined by an origin,
 given by a Point object, and three vectors are used to define the size
 and orientation of the cube. For example, here is a box that delimits
 an experimental domain (taken from the DamBreak3D.cc example), called
@@ -904,7 +904,7 @@ GeometryID cube =
   addHDF5File(GT_FLOATING_BODY, Point(0,0,0), 
   "./data_files/MyProject/0.my_project.boundary.kent2.h5sph",
   "./data_files/MyProject/MyProject_object_file.stl");
-// ouptut forces on the cube
+// output forces on the cube
 enableFeedback(cube);
 // set the cube density
 setMassByDensity(cube, 500);
@@ -934,14 +934,14 @@ make problem=MyProblem
 \item If your are running a simulation with moving objects, do not forget to add the
 option \cmd{chrono=1}.
 \end{itemize}
-See the section \ref{sec:compileoptions} or run \cmd{make --help} for the complete liste of compilation options.
+See the installation guide or run \cmd{make --help} for the complete list of compilation options.
 
 \section{Visualizing the results}\label{sec:postprocess}
 
 The results of the simulation are stored in a directory under
 \cmd{tests}, named after the used Problem and the date of execution
 (e.g. \cmd{tests/DamBreak3D_2014-6-12T13h23}). Data files (found in a
-\cmd{data} subdirectory of the specific test directory) are normally
+\cmd{data} sub-directory of the specific test directory) are normally
 written in VTK Unstructured Grid format (\cmd{.vtu}) and can be
 visualized with ParaView.
 
