@@ -94,19 +94,19 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	//makeUniverseBox(m_origin, m_origin + m_size );
 
 	// To simulate with no floating cube: comment the special boundary in the ini file, rerun Crixus, use the
-	// appropriate file radix (e.g. xcomplete_sa_example_nobox and do not add the "cube" geometry
+	// appropriate file radix (e.g. complete_sa_example_nobox and do not add the "cube" geometry
 
 	// fluid
-	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/CompleteSaExample/0.xcomplete_sa_example.fluid.h5sph", NULL);
+	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/CompleteSaExample/0.complete_sa_example.fluid.h5sph", NULL);
 
 	// main container
 	GeometryID container =
-		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/CompleteSaExample/0.xcomplete_sa_example.boundary.kent0.h5sph", NULL);
+		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/CompleteSaExample/0.complete_sa_example.boundary.kent0.h5sph", NULL);
 	disableCollisions(container);
 
 	// Inflow square. Load it as GT_FIXED_BOUNDARY to disable it.
 	GeometryID inlet =
-		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/CompleteSaExample/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
+		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./data_files/CompleteSaExample/0.complete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 
 	// set velocity or pressure driven (see define in header)
@@ -116,7 +116,7 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// Floating box, with STL mesh for collision detection
 	// GT_FLOATING_BODY for floating, GT_MOVING_BODY for force measurement only
 	GeometryID cube =
-		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./data_files/CompleteSaExample/0.xcomplete_sa_example.boundary.kent2.h5sph",
+		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./data_files/CompleteSaExample/0.complete_sa_example.boundary.kent2.h5sph",
 			"./data_files/CompleteSaExample/CompleteSaExample_cube_coarse.obj");
 
 	enableFeedback(cube);
