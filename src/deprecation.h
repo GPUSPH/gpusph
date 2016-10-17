@@ -46,17 +46,9 @@
 #define DEPRECATED __attribute__((deprecated))
 
 /* Mark a function deprecated, explaining what to do instead,
- *
- * This syntax is only supported in GCC 4.6 or later though,
- * so for older compilers we alias it to the messageless one
  */
 
-#if (__GNUC__*100 + __GNUC_MINOR__) < 406
-#define DEPRECATED_MSG(str) __attribute__((deprecated))
-#else
 #define DEPRECATED_MSG(str) __attribute__((deprecated(str)))
-#endif
-
 
 /* For the functions that provide compatibility between the deprecated
  * and new APIs, we want to avoid getting deprecation warnings,
@@ -91,23 +83,10 @@ and_or_assigning_to = obsolete_variables;
 #define GCC_DIAG_PRAGMA(x) GCC_DIAG_DO_PRAGMA(GCC diagnostic x)
 #endif
 
-// NVCC before version 6.0 also doesn't like the GCC
-#if __clang__ < 1 && (((__GNUC__*100 + __GNUC_MINOR__) < 406) || (__NVCC__ > 0 && __NVCC_VERSION__ < 60))
-
-#pragma message("diagnostic mangling disabled")
-
-// no diagnostic mangling
-#define IGNORE_WARNINGS(str)
-#define RESTORE_WARNINGS
-
-#else
-
 // the macros we will use in the code: IGNORE_WARNINGS and RESTORE_WARNINGS
 #define IGNORE_WARNINGS(str) \
 	GCC_DIAG_PRAGMA(push) \
 	GCC_DIAG_PRAGMA(ignored GCC_DIAG_JOINSTR(-W, str))
 #define RESTORE_WARNINGS \
 	GCC_DIAG_PRAGMA(pop)
-#endif
-
 #endif
