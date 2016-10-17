@@ -192,51 +192,24 @@ versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
 CUDA_MINOR := $(lastword  $(versions_tmp))
 
-# Some paths depend on whether we are on CUDA 5 or higher.
-# CUDA_PRE_5 will be 0 if we are on CUDA 5 or higher, nonzero otherwise
-# (please only test against 0, I'm not sure it will be a specific nonzero value)
+# We only support CUDA 7 onwards, error out if this is an earlier version
 # NOTE: the test is reversed because test returns 0 for true (shell-like)
-CUDA_PRE_5=$(shell test $(CUDA_MAJOR) -ge 5; echo $$?)
+OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
+
+ifeq ($(OLD_CUDA),1)
+$(error CUDA version too old)
+endif
 
 # override: CUDA_SDK_PATH - location for the CUDA SDK samples
-# override:                 defaults to $(CUDA_INSTALL_PATH)/samples for CUDA 5 or higher,
-# override:                             /usr/local/cudasdk for older versions of CUDA.
-ifeq ($(CUDA_PRE_5), 0)
-	CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
-else
-	CUDA_SDK_PATH ?= /usr/local/cudasdk
-endif
+# override:                 defaults to $(CUDA_INSTALL_PATH)/samples
+CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
 
-# CXX is the host compiler. nvcc doesn't really allow you to use any compiler though:
-# it only supports gcc (on both Linux and Darwin). Since CUDA 5.5 it also
-# supports clang on Darwin 10.9, but only if the ccbin name actually contains the string
-# 'clang'.
-#
-# The solution to our problem is the following:
-# * we do not change anything, unless CXX is set to c++ (generic)
-# * if CXX is generic, we set it to g++, _unless_ we are on Darwin, the CUDA
-#   version is at least 5.5 and clang++ is executable, in which case we set it to /usr/bin/clang++
-# There are cases in which this might fail, but we'll fix it when we actually come across them
-WE_USE_CLANG=0
-
-# override: CXX - the host C++ compiler.
-# override:       defaults to g++, except on Darwin
-# override:       where clang++ is used if available
-ifeq ($(CXX),c++)
-	CXX = g++
-	ifeq ($(platform), Darwin)
-		versions_tmp:=$(shell [ -x /usr/bin/clang++ -a $(CUDA_MAJOR)$(CUDA_MINOR) -ge 55 ] ; echo $$?)
-		ifeq ($(versions_tmp),0)
-			CXX = /usr/bin/clang++
-			WE_USE_CLANG=1
-		endif
-	endif
-endif
-
-# Force nvcc to use the same host compiler that we selected
+ifneq ($(CXX),$(empty))
+# Force nvcc to use the host compiler selected by the user
 # Note that this requires the compiler to be supported by
 # nvcc.
 NVCC += -ccbin=$(CXX)
+endif
 
 
 # files to store last compile options: problem, dbg, compute, fastmath, MPI usage, Chrono
@@ -508,14 +481,15 @@ CC_INCPATH += -isystem $(CUDA_INSTALL_PATH)/include
 # LIBPATH
 LIBPATH += -L/usr/local/lib
 
+# On Darwin, make sure we link with the GNU C++ standard library
+# TODO make sure this is still needed
+ifeq ($(platform), Darwin)
+       LIBS += -lstdc++
+endif
+
+
 # CUDA libaries
 LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
-
-# On Darwin 10.9 with CUDA 5.5 using clang we want to link with the clang c++ stdlib.
-# This is exactly the conditions under which we set WE_USE_CLANG
-ifeq ($(WE_USE_CLANG),1)
-	LIBS += -lstdc++
-endif
 
 # link to the CUDA runtime library
 LIBS += -lcudart
@@ -533,7 +507,7 @@ ifneq ($(platform), Darwin)
 	LIBS += -lrt
 endif
 
-# search paths (for CUDA 5 and higher) are platform-specific
+# search paths are platform-specific
 ifeq ($(platform), Darwin)
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/
 else
@@ -549,7 +523,6 @@ CHRONO_INCLUDE_PATH ?= /usr/local/include
 CHRONO_LIB_PATH ?= /usr/local/lib
 
 ifneq ($(USE_CHRONO),0)
-
 	# We check the validity of the Chrono include path by looking for ChChrono.h under it.
 	# if not found we finally abort
 	ifeq ($(wildcard $(CHRONO_INCLUDE_PATH)/chrono/core/ChChrono.h),)
@@ -642,10 +615,9 @@ ifneq ($(COMPUTE),)
 	LDFLAGS += -arch=sm_$(COMPUTE)
 endif
 
-# generate line info on CUDA 5 or higher
-ifeq ($(CUDA_PRE_5),0)
-	CUFLAGS += --generate-line-info
-endif
+# generate line info
+# TODO this should only be done in debug mode
+CUFLAGS += --generate-line-info
 
 ifeq ($(FASTMATH),1)
 	CUFLAGS += --use_fast_math
@@ -661,8 +633,6 @@ ifeq ($(dbg), 1)
 else
 	CXXFLAGS += -O3
 endif
-# add -O3 anyway - workaround to fix a linking error when compiling with dbg=1, CUDA 5.0
-CXXFLAGS += -O3
 
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
 ifeq ($(verbose), 1)
