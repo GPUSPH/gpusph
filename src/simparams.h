@@ -32,7 +32,7 @@
 #include <stdexcept>
 #include "particledefine.h"
 #include "simflags.h"
-#include "deprecation.h"
+// #include "deprecation.h"
 
 typedef std::vector<double4> GageList;
 
@@ -129,22 +129,6 @@ typedef struct SimParams {
 		set_influenceradius();
 
 		return slength;
-	}
-
-	// DEPRECATED, use set_kernel_radius instead
-	inline double
-	set_kernel(KernelType kernel, double radius=0) DEPRECATED
-	{
-		if (kernel != kerneltype)
-			throw std::runtime_error("cannot change kernel type this way anymore");
-
-		// TODO currently all our kernels have radius 2,
-		// remember to adjust this when we have kernels
-		// with different radii
-		set_kernel_radius(radius ? radius :
-			kernel == GAUSSIAN ? 3.0 : 2.0);
-
-		return set_influenceradius();
 	}
 
 	inline void

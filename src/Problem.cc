@@ -724,26 +724,6 @@ Problem::create_problem_dir(void)
 	return m_problem_dir;
 }
 
-// timer tick, for compatibility with old timer-tick writer frequency API
-// remove when the old API is obsoleted
-static double deprecated_timer_tick;
-
-void
-Problem::set_timer_tick(double t)
-{
-	fputs("WARNING: set_timer_tick() is deprecated\n", stderr);
-	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
-	deprecated_timer_tick = t;
-}
-
-void
-Problem::add_writer(WriterType wt, int freq)
-{
-	fputs("WARNING: add_writer(WriterType, int) is deprecated\n", stderr);
-	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
-	add_writer(wt, freq*deprecated_timer_tick);
-}
-
 void
 Problem::add_writer(WriterType wt, double freq)
 {
@@ -782,29 +762,8 @@ Problem::finished(double t) const
 float3
 Problem::g_callback(const double t)
 {
-	/* If this was not overridden, it's likely that the caller overridden the deprecated
-	 * float version, passthrough */
-	static bool reminder_shown = false;
-	if (!reminder_shown) {
-		fprintf(stderr, "WARNING: g_callback(float) is deprecated, please switch to g_callback(double)\n");
-		reminder_shown = true;
-	}
-	IGNORE_WARNINGS(deprecated-declarations)
-	return g_callback(float(t));
-	RESTORE_WARNINGS
+	throw std::runtime_error("default g_callback invoked! did you forget to override g_callback(double)");
 }
-
-float3
-Problem::g_callback(const float t)
-{
-	static bool reminder_shown = false;
-	if (!reminder_shown) {
-		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
-		reminder_shown = true;
-	}
-	return make_float3(0.0);
-}
-
 
 
 // Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.

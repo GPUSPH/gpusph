@@ -34,7 +34,7 @@
 
 #include "particledefine.h"
 
-#include "deprecation.h"
+// #include "deprecation.h"
 
 class Problem;
 class XProblem;
@@ -100,12 +100,6 @@ typedef struct PhysParams {
 	float	epsartvisc;		/// coefficient used in the artificial viscosity expresison to avoid dividing by zero for very close particles
 	float	epsxsph;		// XSPH correction coefficient
 
-	// offset vector and limits for periodic boundaries:
-	// DEPRECATED
-	float3	dispvect DEPRECATED_MSG("dispvect is not needed anymore");
-	float3	maxlimit DEPRECATED_MSG("maxlimit is not needed anymore");
-	float3	minlimit DEPRECATED_MSG("minlimit is not needed anymore");
-
 	float	ewres;			// DEM east-west resolution
 	float	nsres;			// DEM north-south resolution
 	float	demdx;			// Used for normal compution: displcement in x direction range ]0, exres[
@@ -119,10 +113,6 @@ typedef struct PhysParams {
 	float	objectobjectdf;	// damping factor for object-object interaction
 	float	objectboundarydf;	// damping factor for object-boundary interaction
 
-	// We have three deprecated members, but we don't need
-	// to get a warning about them for the constructor, only
-	// when the users actually assign to them
-IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
 		artvisccoeff(0.3f),
 		partsurf(0),
@@ -140,7 +130,6 @@ IGNORE_WARNINGS(deprecated-declarations)
 		objectobjectdf(1.0f),
 		objectboundarydf(1.0f)
 	{};
-RESTORE_WARNINGS
 
 	// Problem, XProblem (but not their derivatives —luckily, friendship is not inherited)
 	// GPUWorker and GPUSPH should be the only ones
@@ -227,31 +216,6 @@ protected:
 		return kinematicvisc.at(fluid_idx);
 	}
 
-	/*! Set density parameters
-	  @param i	index in the array of materials
-	  @param rho	base density
-	  @param gamma	gamma coefficient
-	  @param c0	sound speed for density at rest
-
-	  The number of fluids is automatically increased if set_density()
-	  is called with consecutive indices
-	 */
-	void set_density(uint i, float rho, float gamma, float c0)
-	DEPRECATED_MSG("set_density() is deprecated, use add_fluid() + set_equation_of_state() instead")
-	{
-		if (i == rho0.size()) {
-			add_fluid(rho);
-			set_equation_of_state(i, gamma, c0);
-		}
-		else if (i < rho0.size()) {
-			std::cerr << "changing properties of fluid " << i << std::endl;
-			set_density(i, rho);
-			set_equation_of_state(i, gamma, c0);
-		} else {
-			std::cerr << "setting density for fluid index " << i << " > " << rho0.size() << std::endl;
-			throw std::runtime_error("fluid index is growing too fast");
-		}
-	}
 } PhysParams;
 
 #endif

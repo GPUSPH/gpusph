@@ -50,7 +50,7 @@
 
 #include "buffer.h"
 #include "simframework.h"
-#include "deprecation.h"
+// #include "deprecation.h"
 
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
@@ -209,13 +209,6 @@ class Problem {
 		double set_smoothing(const double smooth)
 		{ return simparams()->set_smoothing(smooth, m_deltap); }
 
-IGNORE_WARNINGS(deprecated-declarations)
-		/* set kernel type and radius */
-		// DEPRECATED, use set_kernel_radius instead
-		double set_kernel(KernelType kernel, double radius=0) DEPRECATED
-		{ return simparams()->set_kernel(kernel, radius); }
-RESTORE_WARNINGS
-
 		void set_kernel_radius(double radius)
 		{ simparams()->set_kernel_radius(radius); }
 
@@ -315,15 +308,6 @@ RESTORE_WARNINGS
 
 		plane_t make_plane(Point const& pt, Vector const& normal);
 
-		// set the timer tick
-		// DEPRECATED: use add_writer() with the frequency in seconds
-		void set_timer_tick(double t) DEPRECATED;
-
-		// add a new writer
-		// by passing as argument the product of freq and the timer tick
-		// DEPRECATED: use add_writer() with the frequency in seconds
-		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, double)");
-
 		// add a new writer, with the given write frequency in (fractions of) seconds
 		void add_writer(WriterType wt, double freq);
 
@@ -353,7 +337,6 @@ RESTORE_WARNINGS
 		virtual void copy_planes(PlaneList& planes);
 
 		/* moving boundary and gravity callbacks */
-		virtual float3 g_callback(const float t) DEPRECATED;
 		virtual float3 g_callback(const double t);
 
 		void allocate_bodies_storage();

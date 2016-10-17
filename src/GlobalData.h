@@ -71,6 +71,9 @@ class GPUWorker;
 #include "NetworkManager.h"
 
 
+// IGNORE_WARNINGS
+#include "deprecation.h"
+
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used.
 // A few explanations: DUMP requests to download pos, vel and info on shared arrays; DUMP_CELLS
 // requests to download cellStart and cellEnd
