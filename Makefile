@@ -1026,7 +1026,7 @@ docsclean:
 # target: tags - Create TAGS file
 tags: TAGS cscope.out
 TAGS: $(ALLSRCFILES)
-	$(CMDECHO)etags -R -h=.h.cuh.inc --langmap=c++:.cc.cuh.cu.def.h.inc src/ options/ scripts/
+	$(CMDECHO)ctags-exuberant -R -h=.h.cuh.inc --langmap=c++:.cc.cuh.cu.def.h.inc src/ options/ scripts/
 cscope.out: $(ALLSRCFILES)
 	$(CMDECHO)which cscope > /dev/null && cscope -b $(INCPATH) -R -ssrc/ -soptions/ || touch cscope.out
 
