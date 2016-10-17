@@ -38,10 +38,14 @@
 #include "problem_select.opt"
 
 /* Include all other opt file for show_version */
-#include "gpusph_version.opt"
-#include "fastmath_select.opt"
-#include "dbg_select.opt"
+#include "chrono_select.opt"
 #include "compute_select.opt"
+#include "dbg_select.opt"
+#include "fastmath_select.opt"
+#include "gpusph_version.opt"
+#include "hash_key_size_select.opt"
+#include "hdf5_select.opt"
+#include "mpi_select.opt"
 
 using namespace std;
 
@@ -59,6 +63,9 @@ void show_version()
 		dbg_or_rel,
 		FASTMATH ? "with" : "without",
 		COMPUTE/10, COMPUTE%10);
+	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
+	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
+	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
 	printf("Compiled for problem \"%s\"\n", QUOTED_PROBLEM);
 }
 
