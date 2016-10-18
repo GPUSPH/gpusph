@@ -36,6 +36,18 @@
 #include "hashkey.h"
 #include "linearization.h"
 
+/* The neighbor cell num ranges from 1 to 27 (included), so it fits in
+ * 5 bits, which we put in the upper 5 bits of the neibdata, which is
+ * 16-bit wide.
+ * TODO actually compute this from sizeof(neibdata)
+ */
+#define CELLNUM_SHIFT	11
+#define CELLNUM_ENCODED	(1U<<CELLNUM_SHIFT)
+#define NEIBINDEX_MASK	(CELLNUM_ENCODED-1)
+#define ENCODE_CELL(cell) ((cell + 1) << CELLNUM_SHIFT)
+#define DECODE_CELL(data) ((data >> CELLNUM_SHIFT) - 1)
+
+
 /** \addtogroup cellgrid Common cell/grid related device functions and variables/constants
  * 	\ingroup neibs
  * 	Device constant/variables and functions involved in computing particles hash, relative positions
@@ -211,14 +223,3 @@ getNeibIndex(	float4 const&	pos,					///< [in] current particle cell relative po
 }
 /** @} */
 /** @} */
-
-/* The neighbor cell num ranges from 1 to 27 (included), so it fits in
- * 5 bits, which we put in the upper 5 bits of the neibdata, which is
- * 16-bit wide.
- * TODO actually compute this from sizeof(neibdata)
- */
-#define CELLNUM_SHIFT	11
-#define CELLNUM_ENCODED	(1U<<CELLNUM_SHIFT)
-#define NEIBINDEX_MASK	(CELLNUM_ENCODED-1)
-#define ENCODE_CELL(cell) ((cell + 1) << CELLNUM_SHIFT)
-#define DECODE_CELL(data) ((data >> CELLNUM_SHIFT) - 1)
