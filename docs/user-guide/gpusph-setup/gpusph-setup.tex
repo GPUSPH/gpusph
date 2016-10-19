@@ -14,14 +14,14 @@
 \section{Introduction}
 
 To run simulations with your own setup, you must create a new
-\cmd{Problem}. This is done by creating a new \cpp\ source file, with
+\cmd{Problem}. This is done by creating a new \cu source file, with
 the associated header (e.g.\ \cmd{MyProject.cu} and \cmd{MyProject.h}),
-placing them under \cmd{src/problems}, running \cmd{make problem=MyProject} to
-build it, and finally \cmd{./GPUSPH} to run it. Beginners should use one
-of the provided sample files as a template for their project.
+placing them under \cmd{src/problems/user}. 
+Beginners should use one of the provided sample files in \cmd{src/problems} 
+as a template for their project.
 There are two main samples available in the \cmd{src/problems} directory: 
-\cmd{XProblemExample} (for Lennard-Jones or dynamic boundaries) 
-and \cmd{XCompleteSaExample} (for semi-analytical boundaries).\\
+\cmd{ProblemExample} (for Lennard-Jones or dynamic boundaries) 
+and \cmd{CompleteSaExample} (for semi-analytical boundaries).\\
 
 %\cmd{MyProject.cu} should define a new \cpp\ class by the same name
 %(\cmd{MyProject}), derived of the \cmd{XProblem} class. The constructor
@@ -42,7 +42,7 @@ Below are the steps required to build a new project and run it with GPUSPH:
 \item In case you use semi-analytical boundary conditions, follow the steps 
 described in section \ref{sec:preprocess_sa} for the pre-processing;
 \item Create \cmd{MyProject.cu} and \cmd{MyProject.h} files in 
-the \cmd{src/problems} directory
+the \cmd{src/problems/user} directory.
 \item In the GPUSPH folder, compile the code for your project:
 \begin{shellcode}
 make problem=MyProject
