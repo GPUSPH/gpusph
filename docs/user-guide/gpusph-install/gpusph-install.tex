@@ -543,6 +543,169 @@ Enable specified debug flags.
 Show the help and exit.
 \end{description}
 
+\section{Running multi-node simulations}
+
+GPUSPH can distribute the computation of a simulation on multiple 
+GPU devices attached to different nodes of a cluster in different ways.
+
+Say we want to launch a simulation on $N$ nodes, each with $D$ devices 
+(with CUDA device numbers ranging from $0$ to $D-1$); 
+the total number of devices in the simulation will be $N \times D$. We can run either:
+\begin{itemize}
+\item one process per node, $D$ GPUs per process
+\item $2$ processes per node, $D/2$ GPUs per process
+\item $4$ processes per node, $D/4$ GPUs per process
+\item etc.
+\end{itemize}
+
+Additionally, some MPI implementations have built-in support for CUDA, 
+which allows for faster communication between devices on different nodes. 
+Experimental support for this feature can be enabled in GPUSPH with the \cmd{--gpudirect} command-line option.
+
+The best decision on how to distribute the computation across nodes and devices depends on 
+the queue policy of the cluster, on the network topology, on simple a posteriori performance tests, 
+on the capabilities of the MPI implementation, etc.
+
+If we wanted to run the simulation on all the devices of one node, we would run in an interactive shell:
+
+\begin{shellcode}
+./GPUSPH --device 0,1,...D-1
+\end{shellcode}
+
+Running the same simulation on multiple nodes only requires to run 
+the same command within the reference MPI launcher (usually a script called \cmd{mpirun}); 
+GPUSPH will retrieve the necessary information about the launch environment 
+directly from the MPI runtime and will organize the node-to-node communication accordingly.
+
+\begin{shellcode}
+mpirun -np N ./GPUSPH --device 0,1,...D-1
+\end{shellcode}
+
+This command leaves to MPI the choice of which nodes to use in the network, 
+if more than N are available. 
+It is always safe to provide MPI a list of hostnames corresponding 
+to the nodes chosen to run the simulation. 
+If the file containing the list of hostnames is called “myhostsfile”, a typical syntax will be:
+
+\begin{shellcode}
+mpirun -np N -hostfile ./myhostsfile \
+./GPUSPH --device 0,1,...D-1
+\end{shellcode}
+
+Please note the syntax may vary from one MPI library to another. 
+For example, MVAPICH uses \cmd{-hostfile} while OpenMPI \cmd{--hostfile}.
+
+Let us now see the command line options needed to run the same simulation 
+with more processes (and thus on more nodes) and a smaller number of devices per process. 
+In this case we need to inform both the MPI runtime and GPUSPH. 
+For the former, we simply decrease the number of processes to start (with the \cmd{-np} option); 
+for the latter, we need to shorten appropriately the list of devices 
+passed with the \cmd{--device} option. 
+If our aim is to run $N*2$ processes each using $D/2$ devices, we then run:
+\begin{shellcode}
+mpirun -np N*2 -hostfile ./myhostsfile \
+./GPUSPH --device 0,1,...D/2-1
+\end{shellcode}
+
+Here we need to take care of a few important details. If the list of available 
+hosts contains at least $N*2$ hostnames, the MPI runtime will start every process 
+on a different physical node. But what happens if the list is shorter 
+(e.g. $N$ hosts only), or if we want anyway to use a smaller number of 
+nodes (for example because part of the cluster is already used by other processes)? 
+The MPI runtime will start multiple processes per node and the GPU device 
+numbers will be likely to conflict (i.e. two different processes might 
+try to use the same GPU device for different parts of the simulation domain, 
+causing a performance slowdown or a failure if the CUDA devices are set in “exclusive mode”). 
+In this case, we must inform GPUSPH that the number of physical hosts (i.e. nodes) 
+is smaller than the number of processes, so that it will shift the GPU device 
+numbers of the appropriate processes and no GPU device will be accessed by two processes. 
+The corresponding option is \cmd{--num-hosts}:
+
+\begin{shellcode}
+mpirun -np N*2 -hostfile ./myhostsfile \
+--num-hosts N ./GPUSPH --device 0,1,...D/2-1
+\end{shellcode}
+
+But there is another important detail. There are different ways the MPI 
+runtime can distribute the processes across the nodes. 
+Two very common policies are “by slot” (fill-first) and “by node” 
+(round robin). 
+The scheduling policy affects the association between the process ranks 
+and the CUDA device numbers, so GPUSPH must be informed about it to use 
+the appropriate offsets. GPUSPH assumes a round robin schedule is being used; 
+if this is not true, the \cmd{--byslot-scheduling} option must be passed:
+
+\begin{shellcode}
+mpirun -np N*2 -hostfile ./myhostsfile \
+--num-hosts N --byslot-scheduling \
+./GPUSPH --device 0,1,...D/2-1
+\end{shellcode}
+
+There is no optimal policy in general as its performance depends on the node 
+load and the node-to-node connection speed. It is worth trying both to check 
+whether one is more performant than the other. The default policy is usually 
+“by slot” (fill-first, usually preferred by non GPU-based softwares) but it 
+is always safer to explicitly set it for every run. 
+In OpenMPI the corresponding options are \cmd{--byslot} and \cmd{--bynode}.
+
+One final possibility is to run one process per device. This is the most 
+consuming option from the point of view of the host memory, since every process 
+will allocate on host the whole simulation scenario, but it might be useful if the 
+GPUDirect feature is being used but the MPI runtime does not support multiple 
+devices per process, or if the amount of data to be saved on file is large or 
+the saving frequency is very high, so that saving would benefit from a parallel 
+dump (every process saves its part of the simulation independently from the other processes).
+
+Finally, let’s see some practical examples. Suppose our cluster has 12 nodes, each equipped 
+with 4 GPU devices. We need to run a simulation on 12 devices. 
+To run 3 processes on 3 hosts, each using 4 devices, we will run:
+
+\begin{shellcode}
+mpirun -np 3 -hostfile ./myhostsfile ./GPUSPH --device 0,1,2,3
+\end{shellcode}
+
+To run 6 processes on 6 hosts, each using 2 devices, we will run:
+
+\begin{shellcode}
+mpirun -np 6 -hostfile ./myhostsfile ./GPUSPH --device 0,1
+\end{shellcode}
+
+Note that another simulation can be run simultaneously on the remaining 2 devices of the same nodes, with:
+\begin{shellcode}
+mpirun -np 6 -hostfile ./myhostsfile ./GPUSPH --device 2,3
+\end{shellcode}
+
+To run 6 processes on 3 hosts, each using 2 devices, we will run:
+
+\begin{shellcode}
+mpirun -np 6 -hostfile ./myhostsfile_with3hosts \
+--num-hosts 3 ./GPUSPH --device 0,1
+\end{shellcode}
+
+(--byslot-scheduling might also be necessary)
+
+To run 12 processes on 12 hosts, each using 1 device, we will run:
+
+\begin{shellcode}
+mpirun -np 12 -hostfile ./myhostsfile ./GPUSPH --device 0
+\end{shellcode}
+
+Note that another simulation can be run simultaneously on one of the free devices of each node (e.g. device number 3), with:
+
+\begin{shellcode}
+mpirun -np 12 -hostfile ./myhostsfile ./GPUSPH --device 3
+\end{shellcode}
+
+Please note the options for the MPI library always precede the GPUSPH executable name.
+If the MPI library supports it, we also suggest enabling the option to tag each 
+line of the output with the process rank that has generated it; 
+in OpenMPI, the option is called \cmd{--tag-output} while in MVAPICH \cmd{-prepend-rank}. 
+This will come very helpful when the logs need to be analyzed (tip: use grep to separate the logs if they are multiplexed).
+
+If you need to use any queue-management system, remember to inform it about the desired topology, 
+coherently with the options passed to GPUSPH. For example, with PBS you would set the \cmd{nodes} 
+and \cmd{ppn} parameters for the number of hosts and processes per host, respectively.
+
 
 \section{Installing pre/post processing tools}
 
