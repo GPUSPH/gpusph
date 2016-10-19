@@ -442,8 +442,9 @@ Figure \ref{fig:WaveTank} shows a screenshot of the simulation at time $9s$.
 SolitaryWave is similar in set up to the WaveTank example, except that a
 piston moving boundary is used. The motion of a vertical plate is
 determined by the method of \cite{goring_tsunamis_1979}, available in PDF format
-from \cmd{http://caltechkhr.library.caltech.edu/50/}. The full
-excursion (stroke) of the paddle is the variable \cmd{S}.
+from:\\ 
+\cmd{http://caltechkhr.library.caltech.edu/50/}\\
+The full excursion (stroke) of the paddle is the variable \cmd{S}.
 
 \subsection{Seiche}
 
@@ -452,10 +453,10 @@ rectangular container of size: $\ell = 0.707$m, $w = \ell/2$, and depth,
 $H = 0.5$m. The purpose of the example is to illustrate the ability to
 vary gravity in a problem. As the problem starts, there is water in the
 container. After $0.3$s, gravity is modified by adding a component in
-the $x$ direction, such that the total gravity vector is
+the $x$ direction, such that the total gravity vector is \\
 \cmd{m_physparams.gravity = make_float3(3.*sin(9.8*(t-m_gtstart)), 0.0,
--9.81f);}, which means that the container is shaken with a sinusoidal
-motion with angular frequency of $9.8\text{s}^-1$ (period${} = 0.64$s),
+-9.81f);}\\ which means that the container is shaken with a sinusoidal
+motion with angular frequency of $9.8s^{-1}$ (period${} = 0.64$s),
 with a magnitude of $3\text{m}/\text{s}^2$ until time \cmd{m_gtend=3.0}
 is reached, when the gravity vector once again returns to the vertical
 acceleration of gravity. After this time, the seiching motion starts to
