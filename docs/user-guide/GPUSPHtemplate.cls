@@ -103,6 +103,7 @@
 % text macros
 \newcommand{\nvidia}{\textsc{nvidia}}
 \newcommand{\cpp}{{\sffamily C\ttfamily++}}
+\newcommand{\cu}{{\sffamily cu}}
 
 % text emphasis
 \newcommand{\cmd}[1]{\lstinline[language=sh]{#1}}
