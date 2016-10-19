@@ -21,8 +21,8 @@ the respective methods.
 The basic premise is that GPUSPH approximates solutions to the
 Navier-Stokes equations which are given by
 \be
-\tdv{\uvec{v}}{t} = -\frac{1}{\rho}\vec{\nabla} p + \nabla \cdot (\nu
-\vec{\nabla} \otimes \vec{v}) + \vec{g},
+\tdv{\uvec{v}}{t} = -\frac{1}{\rho}\vec{\nabla} p + \nabla \cdot \left[\nu
+(\vec{\nabla} \vec{v} + \vec{\nabla} \vec{v}^T)\right] + \vec{g},
 \label{e:sph:ns}
 \en
 where $\vec{v}$ is the velocity, $\rho$ the density, $p$ the
@@ -51,7 +51,7 @@ in two steps: a kernel approximation followed by a particle approximation.
 \subsection{Kernel approximation}
 Let $f$ be a field then
 \be
-f(\vec{r}) = \int f(\vec{r'}) \delta(\|\vec{r}-\vec{r'}\|) \td \vec{r'},
+f(\vec{r}) = \int f(\vec{r'}) \delta(\|\vec{r}-\vec{r'}|) \td \vec{r'},
 \label{e:sph:delta}
 \en
 where $\delta$ is the Dirac delta distribution. The continuous SPH
@@ -214,7 +214,7 @@ theorem the last term in Eq. \eqref{e:sph:cint-intpart} can be rewritten
 as integral over the boundary of the computational domain, denoted by
 $\partial \Omega$ which yields
 \begin{equation}
-<\vec{\nabla} f>(\vec{r}) = \int_\Omega f(\vec{r'}) \vec{\nabla}_{\vec{r}} W(|\vec{r}-\vec{r'}\|,h) \td \vec{r'} -
+<\vec{\nabla} f>(\vec{r}) = \int_\Omega f(\vec{r'}) \vec{\nabla}_{\vec{r}} W(|\vec{r}-\vec{r'}|,h) \td \vec{r'} -
 \int_{\partial\Omega} (f(\vec{r'}) W(|\vec{r}-\vec{r'}|,h)) \vec{n}_{\vec{r'}} \td \vec{\Gamma}(\vec{r'})
 \label{e:sph:cint-stokes}
 \end{equation}
