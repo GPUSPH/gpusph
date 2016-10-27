@@ -1380,8 +1380,10 @@ int XProblem::fill_parts()
 		 * - Body is FLOATING; then handle_collisions is passed to Chrono (handle_dynamics must be true)
 		 * - Body is MOVING and handle_collisions is true (handle_dynamics must be false);
 		 * - Body is FIXED and handle_collisions is true (handle_dynamics must be false).
+		 * - Body is not a plane (they work on fluids only, we need big boxes in place of planes)
 		 */
-		if ( m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions) {
+		if ( (m_geometries[g]->type != GT_PLANE) &&
+			 (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions) ) {
 
 			// Overwrite the computed inertia matrix if user set a custom one
 			// NOTE: this must be done before body creation!
@@ -1408,9 +1410,8 @@ int XProblem::fill_parts()
 			m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
-			// NOTE: BodyPrintInformation() is plane-safe anyway
-			if (m_geometries[g]->type != GT_PLANE)
-				m_geometries[g]->ptr->BodyPrintInformation();
+			// NOTE: BodyPrintInformation() would be meaningless on planes (excluded above) but harmless anyway
+			m_geometries[g]->ptr->BodyPrintInformation();
 		} // if m_numFloatingBodies > 0
 #endif
 
