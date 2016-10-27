@@ -43,7 +43,6 @@
 #include "dbg_select.opt"
 #include "fastmath_select.opt"
 #include "gpusph_version.opt"
-#include "hash_key_size_select.opt"
 #include "hdf5_select.opt"
 #include "mpi_select.opt"
 

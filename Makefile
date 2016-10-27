@@ -520,7 +520,7 @@ endif
 # override:                     validity is checked by looking for bin/nvcc under it,
 # override:                     /usr is always tried as a last resort
 CHRONO_INCLUDE_PATH ?= /usr/local/include
-CHRONO_LIB_PATH ?= /usr/local/lib
+CHRONO_LIB_PATH ?= /usr/local/lib64
 
 ifneq ($(USE_CHRONO),0)
 	# We check the validity of the Chrono include path by looking for ChChrono.h under it.
