@@ -1377,12 +1377,15 @@ int XProblem::fill_parts()
 
 #if USE_CHRONO == 1
 		/* We need to create a Chrono body if
-		 * - Body is FLOATING; then handle_collisions is passed to Chrono (handle_dynamics must be true)
-		 * - Body is MOVING and handle_collisions is true (handle_dynamics must be false);
-		 * - Body is FIXED and handle_collisions is true (handle_dynamics must be false).
-		 * - Body is not a plane (they work on fluids only, we need big boxes in place of planes)
+		 * - There is at least one floating body in the simulation, AND
+		 * - Body is not a plane (they work on fluids only, we need big boxes in place of planes) AND
+		 * - One of the following holds:
+		 *   * Body is FLOATING; then handle_collisions is passed to Chrono (handle_dynamics must be true)
+		 *   * Body is MOVING and handle_collisions is true (handle_dynamics must be false);
+		 *   * Body is FIXED and handle_collisions is true (handle_dynamics must be false).
 		 */
-		if ( (m_geometries[g]->type != GT_PLANE) &&
+		if ( (m_numFloatingBodies) &&
+			 (m_geometries[g]->type != GT_PLANE) &&
 			 (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions) ) {
 
 			// Overwrite the computed inertia matrix if user set a custom one
