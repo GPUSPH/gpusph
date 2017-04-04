@@ -573,7 +573,19 @@ ifneq ($(USE_CHRONO),0)
 	   $(error Could not find Chrono configuration header. Include path: $(CHRONO_INCLUDE_PATH), Chrono path: $(CHRONO_PATH)) \
 	))/../)
 
-	INCPATH += -I$(CHRONO_CONFIG_PATH) -I$(CHRONO_INCLUDE_PATH) -I$(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
+	ifneq ($(CHRONO_CONFIG_PATH),/usr/include)
+		INCPATH += -isystem $(CHRONO_CONFIG_PATH)
+	endif
+
+	ifneq ($(CHRONO_INCLUDE_PATH),/usr/include)
+		INCPATH += -isystem $(CHRONO_INCLUDE_PATH)
+	endif
+
+	# This is needed because on some versions of Chrono, headers include each other without the chrono/ prefix 8-/
+	INCPATH += -isystem $(CHRONO_INCLUDE_PATH)/chrono
+
+	INCPATH += -isystem $(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
+
 	LIBPATH += -L$(CHRONO_LIB_PATH)
 	LIBS += -lChronoEngine
 endif
