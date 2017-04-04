@@ -1008,7 +1008,7 @@ $(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(CHRONO_SELECT_OPTFILE)
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
 		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
 		objfile="$${objfile%.*}.o" ; \
-		$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) \
+		OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) $(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) \
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
