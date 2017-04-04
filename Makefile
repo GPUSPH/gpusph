@@ -519,28 +519,61 @@ else
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 endif
 
+# override: CHRONO_PATH         - where Chrono is installed
+# override:                       defaults to /usr/local/, may be set to
+# override:                       the build directory of Chrono
+CHRONO_PATH ?= /usr/local
 # override: CHRONO_INCLUDE_PATH - where Chrono include are installed
-# override: CHRONO_LIB_PATH - where Chrono lib is installed
-# override:                     defaults /usr/local/include/chrono, /usr/local/lib
-# override:                     validity is checked by looking for bin/nvcc under it,
-# override:                     /usr is always tried as a last resort
-CHRONO_INCLUDE_PATH ?= /usr/local/include
-CHRONO_LIB_PATH ?= /usr/local/lib64
+# override:                       if unset, auto-detection will be attempted
+# override:                       from $(CHRONO_PATH) adding either include/ or src/
+# override: CHRONO_LIB_PATH     - where Chrono lib is installed
+# override:                       if unset, auto-detection will be attempted
+# override:                       from $(CHRONO_PATH) adding lib64/
+
+CHRONO_INCLUDE_PATH ?=
+CHRONO_LIB_PATH ?=
 
 ifneq ($(USE_CHRONO),0)
-	# We check the validity of the Chrono include path by looking for ChChrono.h under it.
-	# if not found we finally abort
-	ifeq ($(wildcard $(CHRONO_INCLUDE_PATH)/chrono/core/ChChrono.h),)
-		TMP := $(error Could not find Chrono include, please set CHRONO_INCLUDE_PATH)
+	ifeq ($(CHRONO_INCLUDE_PATH),$(empty))
+		# If CHRONO_INCLUDE_PATH is not set, look for chrono/core/ChChrono.h
+		# under $(CHRONO_PATH)/include and $(CHRONO_PATH)/src in sequence,
+		# and then build the include path by getting the up-up-up-dir
+		CHRONO_INCLUDE_PATH := $(realpath $(dir $(or \
+			$(wildcard $(CHRONO_PATH)/include/chrono/core/ChChrono.h), \
+			$(wildcard $(CHRONO_PATH)/src/chrono/core/ChChrono.h), \
+			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_INCLUDE_PATH) \
+		))/../../)
+	else
+		# otherwise, check that the user-specified path is correct
+		ifeq ($(wildcard $(CHRONO_INCLUDE_PATH)/chrono/core/ChChrono.h),$(empty))
+			TMP := $(error CHRONO_INCLUDE_PATH is set incorrectly, chrono/core/ChChrono.h not found)
+		endif
 	endif
 
-	# We check the validity of the Chrono lib path by looking for libChronoEngine under it.
-	# if not found we finally abort
-	ifeq ($(wildcard $(CHRONO_LIB_PATH)/libChronoEngine.*),)
-		TMP := $(error Could not find Chrono lib, please set CHRONO_LIB_PATH)
+	ifeq ($(CHRONO_LIB_PATH),$(empty))
+		# If CHRONO_LIB_PATH is not set, look for libChronoEngine.*
+		# under $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
+		CHRONO_LIB_PATH := $(dir $(or \
+			$(wildcard $(CHRONO_PATH)/lib64/libChronoEngine.so) \
+			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so), \
+			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_LIB_PATH) \
+			))
+	else
+		# otherwise, check that the user-specified path is correct
+		ifeq ($(wildcard $(CHRONO_LIB_PATH)/libChronoEngine.*),$(empty))
+			TMP := $(error CHRONO_LIB_PATH is set incorrectly, libChronoEngine not found)
+		endif
 	endif
 
-	INCPATH += -I$(CHRONO_INCLUDE_PATH) -I$(CHRONO_INCLUDE_PATH)/chrono -I$(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
+	# When using Chrono from the build directory, chrono/ChConfig.h is under the build dir,
+	# otherwise it's under the include directory
+	CHRONO_CONFIG_PATH=$(realpath $(dir $(or \
+	   $(wildcard $(CHRONO_INCLUDE_PATH)/chrono/ChConfig.h), \
+	   $(wildcard $(CHRONO_PATH)/build/chrono/ChConfig.h), \
+	   $(error Could not find Chrono configuration header. Include path: $(CHRONO_INCLUDE_PATH), Chrono path: $(CHRONO_PATH)) \
+	))/../)
+
+	INCPATH += -I$(CHRONO_CONFIG_PATH) -I$(CHRONO_INCLUDE_PATH) -I$(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
 	LIBPATH += -L$(CHRONO_LIB_PATH)
 	LIBS += -lChronoEngine
 endif
