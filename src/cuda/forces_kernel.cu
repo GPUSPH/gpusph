@@ -1320,6 +1320,7 @@ saVertexBoundaryConditions(
 				const	uint*			cellStart,
 				const	neibdata*		neibsList,
 				const	uint			numParticles,
+				const	uint			oldNumParticles,
 						uint*			newNumParticles,
 				const	float			dt,
 				const	int				step,
@@ -1329,7 +1330,8 @@ saVertexBoundaryConditions(
 				const	bool			initStep,
 				const	bool			resume,
 				const	uint			deviceId,
-				const	uint			numDevices)
+				const	uint			numDevices,
+				const	uint			totParticles)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1630,7 +1632,7 @@ saVertexBoundaryConditions(
 			massFluid -= refMass;
 			// Create new particle
 			particleinfo clone_info;
-			uint clone_idx = createNewFluidParticle(clone_info, info, numParticles, numDevices, newNumParticles);
+			uint clone_idx = createNewFluidParticle(clone_info, info, oldNumParticles, numDevices, newNumParticles, totParticles);
 
 			// Problem has already checked that there is enough memory for new particles
 			float4 clone_pos = pos; // new position is position of vertex particle

@@ -69,6 +69,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
 
 	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
+	m_deviceNum = gdata->GLOBAL_DEVICE_NUM(m_globalDeviceIdx);
 
 	printf("Thread 0x%zx global device id: %d (%d)\n", pthread_self(), m_globalDeviceIdx, gdata->totDevices);
 
@@ -1298,7 +1299,6 @@ void GPUWorker::downloadNewNumParticles()
 
 	uint activeParticles;
 	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles, sizeof(uint), cudaMemcpyDeviceToHost));
-
 	if (activeParticles > m_numAllocatedParticles) {
 		fprintf(stderr, "ERROR: Number of particles grew too much: %u > %u\n", activeParticles, m_numAllocatedParticles);
 		gdata->quit_request = true;
@@ -1309,19 +1309,6 @@ void GPUWorker::downloadNewNumParticles()
 	if (activeParticles != m_numParticles) {
 		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
 		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
-
-		// Increment the highest particle ID that will be used as offset by the particle creation function,
-		// checking for overflow
-		if (activeParticles > m_numParticles) {
-			uint id_delta = (activeParticles-m_numParticles)*gdata->totDevices;
-			if (UINT_MAX - id_delta < gdata->highestDevId[m_deviceIndex]) {
-				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n",
-					gdata->iterations, m_globalDeviceIdx);
-				gdata->quit_request = true;
-			}
-
-			gdata->highestDevId[m_deviceIndex] += id_delta;
-		}
 
 		m_numParticles = activeParticles;
 		// In multi-device simulations, m_numInternalParticles is updated in dropExternalParticles() and updateSegments();
@@ -1830,7 +1817,6 @@ void GPUWorker::kernel_calcHash()
 {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
-
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
 
@@ -2524,7 +2510,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
-	bcEngine->updateNewIDsOffset(gdata->highestDevId[m_deviceIndex]);
+	bcEngine->updateNewIDsOffset(gdata->deviceIdOffset[m_deviceNum]);
 
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
@@ -2560,7 +2546,9 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				initStep,
 				!gdata->clOptions->resume_fname.empty(),
 				m_globalDeviceIdx,
-				gdata->totDevices);
+				gdata->totDevices,
+				gdata->totParticles
+				);
 }
 
 void GPUWorker::kernel_saIdentifyCornerVertices()

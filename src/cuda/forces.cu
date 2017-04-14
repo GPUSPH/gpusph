@@ -1157,7 +1157,8 @@ saVertexBoundaryConditions(
 	const	bool			initStep,
 	const	bool			resume,
 	const	uint			deviceId,
-	const	uint			numDevices)
+	const	uint			numDevices,
+	const uint			totParticles)
 {
 	int dummy_shared = 0;
 
@@ -1174,7 +1175,8 @@ saVertexBoundaryConditions(
 	// execute the kernel
 	cuforces::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
 		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, contupd, vertices, vertPos[0], vertPos[1], vertPos[2], info, particleHash, cellStart, neibsList,
-		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
+		 particleRangeEnd, numParticles, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices, 
+		 totParticles);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

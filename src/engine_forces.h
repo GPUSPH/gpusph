@@ -216,7 +216,8 @@ saVertexBoundaryConditions(
 	const	bool			initStep,
 	const	bool			resume,
 	const	uint			deviceId,
-	const	uint			numDevices) = 0;
+	const	uint			numDevices,
+	const uint			totParticles) = 0;
 
 // initialisation of gamma
 virtual

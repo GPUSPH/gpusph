@@ -213,15 +213,28 @@ createNewFluidParticle(
 	/// [in] number of devices
 	const	uint			numDevices,
 	/// [in,out] number of particles including all the ones already created in this timestep
-			uint			*newNumParticles)
+			uint			*newNumParticles,
+	const uint			totParticles)
 {
 	const uint new_index = atomicAdd(newNumParticles, 1);
-	// number of new particles that were created on this device in this
-	// time step
+	// number of new particles that were created on this device
+	// in this time step
 	const uint newNumPartsOnDevice = new_index + 1 - numParticles;
-	// the i-th device can only allocate an id that satisfies id%n == i, where
-	// n = number of total devices
-	const uint new_id = newNumPartsOnDevice*numDevices + d_newIDsOffset;
+	if (UINT_MAX - newNumPartsOnDevice*numDevices < totParticles + d_newIDsOffset) {
+		printf(" FATAL: possible ID overflow in particle creation on device %d, your simulation may crash\n", d_newIDsOffset);
+	}
+	// ID of the new particle. Must be unique across all the GPUs: it is set
+	// as the total number of particles (N) + the chosen offset (ie the device global number, G)
+	// + the number of new particles on the device (k) times the total number of devices (D)
+	// New_id = N + G + kD
+	// Let's say for example that the simulation starts with 1M particles,
+	// and that there are 3 devices (so N=10^6 and D=3),
+	// with global device number G=0,1,2. Then the IDs created by each device would be:
+	// for device 0: 1M + 3, 1M + 6, 1M + 9, ...
+	// for device 1: 1M + 4, 1M + 7, 1M + 10, ...
+	// for device 2: 1M + 5, 1M + 8, 1M + 11, ...
+
+	const uint new_id = totParticles + newNumPartsOnDevice*numDevices + d_newIDsOffset;
 
 	new_info = make_particleinfo_by_ids(
 		PT_FLUID,
