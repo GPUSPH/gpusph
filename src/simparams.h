@@ -138,6 +138,14 @@ typedef struct SimParams {
 		set_influenceradius();
 	}
 
+	inline double
+	set_neiblist_expansion(double _nlfactor)
+	{
+		nlexpansionfactor = _nlfactor;
+		set_influenceradius();
+		return nlInfluenceRadius;
+	}
+
 
 	// internal: update the influence radius et al
 	inline double

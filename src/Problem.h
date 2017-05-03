@@ -209,6 +209,15 @@ class Problem {
 		double set_smoothing(const double smooth)
 		{ return simparams()->set_smoothing(smooth, m_deltap); }
 
+		/* set the expansion factor for the neighbor list search:
+		 * when building the neighbor list, particles will be
+		 * added to the list if they are within alpha*influenceRadius
+		 * rather than just influenceRadius
+		 * Returns the new neighbor search radius
+		 */
+		double set_neiblist_expansion(double alpha)
+		{ return simparams()->set_neiblist_expansion(alpha); }
+
 		void set_kernel_radius(double radius)
 		{ simparams()->set_kernel_radius(radius); }
 
