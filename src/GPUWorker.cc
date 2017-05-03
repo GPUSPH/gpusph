@@ -880,7 +880,12 @@ size_t GPUWorker::allocateHostBuffers() {
 		// ditto for network transfers
 		if (!gdata->clOptions->gpudirect)
 			resizeNetworkTransferBuffer(1024 * 1024);
+
+		cudaHostAlloc( &(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize, cudaHostAllocPortable );
+		cudaHostAlloc( &(gdata->s_dCellEnds[m_deviceIndex]), uintCellsSize, cudaHostAllocPortable );
+		allocated += 2*uintCellsSize;
 	}
+
 
 	m_hostMemory += allocated;
 	return allocated;
@@ -993,8 +998,12 @@ size_t GPUWorker::allocateDeviceBuffers() {
 }
 
 void GPUWorker::deallocateHostBuffers() {
-	if (MULTI_DEVICE)
+	if (MULTI_DEVICE) {
+		cudaFreeHost(gdata->s_dCellStarts[m_deviceIndex]);
+		cudaFreeHost(gdata->s_dCellEnds[m_deviceIndex]);
+		free(gdata->s_dSegmentsStart[m_deviceIndex]);
 		delete [] m_hCompactDeviceMap;
+	}
 
 	if (m_hPeerTransferBuffer)
 		cudaFreeHost(m_hPeerTransferBuffer);

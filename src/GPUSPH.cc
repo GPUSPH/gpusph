@@ -1136,27 +1136,18 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += sizeof(uint) * (gdata->gridSize.x + gdata->gridSize.y + gdata->gridSize.z);
 
 		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
-		// TODO: alloc pinned memory instead, with per-worker methods. See GPUWorker::asyncCellIndicesUpload()
+		// For cell starts and ends, the actual per-device components will be done by each GPUWorker,
+		// using cudaHostAlloc to allocate pinned memory
 		gdata->s_dCellStarts = (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dCellEnds =  (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dSegmentsStart = (uint**)calloc(gdata->devices, sizeof(uint*));
+		for (uint d=0; d < gdata->devices; d++)
+			gdata->s_dSegmentsStart[d] = (uint*)calloc(4, sizeof(uint));
+
 
 		// few bytes... but still count them
 		totCPUbytes += gdata->devices * sizeof(uint*) * 3;
-
-		for (uint d=0; d < gdata->devices; d++) {
-			// NOTE: not checking errors, similarly to the other allocations.
-			// Also cudaHostAllocWriteCombined flag was tested but led to ~0.1MIPPS performance loss, with and without streams.
-			cudaHostAlloc( &(gdata->s_dCellStarts[d]), numcells * sizeof(uint), cudaHostAllocPortable );
-			cudaHostAlloc( &(gdata->s_dCellEnds[d]), numcells * sizeof(uint), cudaHostAllocPortable );
-			// same on non-pinned memory
-			//gdata->s_dCellStarts[d] = (uint*)calloc(numcells, sizeof(uint));
-			//gdata->s_dCellEnds[d] =   (uint*)calloc(numcells, sizeof(uint));
-			totCPUbytes += uintCellSize * 2;
-
-			gdata->s_dSegmentsStart[d] = (uint*)calloc(4, sizeof(uint));
-			totCPUbytes += sizeof(uint) * 4;
-		}
+		totCPUbytes += gdata->devices * sizeof(uint) * 4;
 	}
 	return totCPUbytes;
 }
@@ -1196,15 +1187,6 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		delete[] gdata->s_hPartsPerSliceAlongX;
 		delete[] gdata->s_hPartsPerSliceAlongY;
 		delete[] gdata->s_hPartsPerSliceAlongZ;
-		// cells
-		for (uint d = 0; d < gdata->devices; d++) {
-			cudaFreeHost(gdata->s_dCellStarts[d]);
-			cudaFreeHost(gdata->s_dCellEnds[d]);
-			//delete[] gdata->s_dCellStarts[d];
-			//delete[] gdata->s_dCellEnds[d];
-			// same on non-pinned memory
-			free(gdata->s_dSegmentsStart[d]);
-		}
 		free(gdata->s_dCellEnds);
 		free(gdata->s_dCellStarts);
 		free(gdata->s_dSegmentsStart);
