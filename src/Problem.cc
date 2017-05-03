@@ -220,6 +220,25 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	simparams()->numbodies = m_bodies.size();
 }
 
+void
+Problem::restore_moving_body(uint index, const MovingBodyData & saved_mbdata)
+{
+	MovingBodyData *mbdata = get_mbdata(index);
+	mbdata->initial_kdata = saved_mbdata.initial_kdata;
+	mbdata->kdata = saved_mbdata.kdata;
+
+	if (mbdata->type == MB_FLOATING) {
+#if USE_CHRONO == 1
+		std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
+		body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
+		body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+		body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+#else
+		throw runtime_error ("Problem::restore_moving_body Cannot restore a floating body without CHRONO\n");
+#endif
+		}
+}
 
 MovingBodyData *
 Problem::get_mbdata(const uint index)

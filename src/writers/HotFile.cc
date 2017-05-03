@@ -30,10 +30,15 @@ overkill.
 */
 typedef struct {
 	uint	index;
-	float	gravity_center[3];
-	float	quaternion[4];
-	float	linvel[3];
-	float	angvel[3];
+	MovingBodyType type;
+	double	crot[3];
+	double	lvel[3];
+	double	avel[3];
+	double	orientation[4];
+	double	initial_crot[3];
+	double	initial_lvel[3];
+	double	initial_avel[3];
+	double	initial_orientation[4];
 	float	reserved[10];
 } encoded_body_t;
 
@@ -62,14 +67,10 @@ void HotFile::save() {
 		iter++;
 	}
 
-	// TODO FIXME for new moving/floating bodies treatment
-	/*const float3 *cgs = _gdata->problem->get_bodies_cg();
-	const dQuaternion *quats = _gdata->problem->get_bodies_quaternion();
-	const float3 *linvels = _gdata->problem->get_bodies_linearvel();
-	const float3 *angvels = _gdata->problem->get_bodies_angularvel();
-	for (int b = 0; b < _header.body_count; ++b)
-		writeBody(_fp.out, b, cgs + b, quats[b],
-			linvels + b, angvels + b, VERSION_1);*/
+	for (uint b = 0; b < _header.body_count; ++b) {
+		MovingBodyData *mbdata = _gdata->problem->get_mbdata(b);
+		writeBody(_fp.out, mbdata, VERSION_1);
+	}
 }
 
 // auxiliary method that checks that two values are the same, and throws an
@@ -230,32 +231,49 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 	}
 }
 
-void HotFile::writeBody(ofstream *fp, uint index, const float3 *cg, const EulerParameters & quaternion,
-	const float3 *linvel, const float3 *angvel, version_t version)
+void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, version_t version)
 {
 	switch (version) {
 	case VERSION_1:
 		encoded_body_t eb;
 		memset(&eb, 0, sizeof(eb));
 
-		eb.index = index;
+		eb.index = mbdata->index;
+		eb.type = mbdata->type;
 
-		eb.gravity_center[0] = cg->x;
-		eb.gravity_center[1] = cg->y;
-		eb.gravity_center[2] = cg->z;
+		eb.crot[0] = mbdata->kdata.crot.x;
+		eb.crot[1] = mbdata->kdata.crot.y;
+		eb.crot[2] = mbdata->kdata.crot.z;
 
-		eb.quaternion[0] = quaternion(0);
-		eb.quaternion[1] = quaternion(1);
-		eb.quaternion[2] = quaternion(2);
-		eb.quaternion[3] = quaternion(3);
+		eb.lvel[0] = mbdata->kdata.lvel.x;
+		eb.lvel[1] = mbdata->kdata.lvel.y;
+		eb.lvel[2] = mbdata->kdata.lvel.z;
 
-		eb.linvel[0] = linvel->x;
-		eb.linvel[1] = linvel->y;
-		eb.linvel[2] = linvel->z;
+		eb.avel[0] = mbdata->kdata.avel.x;
+		eb.avel[1] = mbdata->kdata.avel.y;
+		eb.avel[2] = mbdata->kdata.avel.z;
 
-		eb.angvel[0] = angvel->x;
-		eb.angvel[1] = angvel->y;
-		eb.angvel[2] = angvel->z;
+		eb.orientation[0] = mbdata->kdata.orientation(0);
+		eb.orientation[1] = mbdata->kdata.orientation(1);
+		eb.orientation[2] = mbdata->kdata.orientation(2);
+		eb.orientation[3] = mbdata->kdata.orientation(3);
+
+		eb.initial_crot[0] = mbdata->initial_kdata.crot.x;
+		eb.initial_crot[1] = mbdata->initial_kdata.crot.y;
+		eb.initial_crot[2] = mbdata->initial_kdata.crot.z;
+
+		eb.initial_lvel[0] = mbdata->initial_kdata.lvel.x;
+		eb.initial_lvel[1] = mbdata->initial_kdata.lvel.y;
+		eb.initial_lvel[2] = mbdata->initial_kdata.lvel.z;
+
+		eb.initial_avel[0] = mbdata->initial_kdata.avel.x;
+		eb.initial_avel[1] = mbdata->initial_kdata.avel.y;
+		eb.initial_avel[2] = mbdata->initial_kdata.avel.z;
+
+		eb.initial_orientation[0] = mbdata->kdata.orientation(0);
+		eb.initial_orientation[1] = mbdata->kdata.orientation(1);
+		eb.initial_orientation[2] = mbdata->kdata.orientation(2);
+		eb.initial_orientation[3] = mbdata->kdata.orientation(3);
 
 		fp->write((const char *)&eb, sizeof(eb));
 		break;
@@ -268,12 +286,52 @@ void HotFile::readBody(ifstream *fp, version_t version)
 {
 	switch (version) {
 	case VERSION_1:
-		encoded_body_t eb;
-		memset(&eb, 0, sizeof(eb));
-		fp->read((char *)&eb, sizeof(eb));
-		// TODO FIXME
-		//_gdata->problem->restore_ODE_body(eb.index, eb.gravity_center, eb.quaternion,
-		//	eb.linvel, eb.angvel);
+		for (uint b = 0; b < _header.body_count; ++b) {
+
+			encoded_body_t eb;
+			memset(&eb, 0, sizeof(eb));
+
+			MovingBodyData mbdata;
+
+			mbdata.index = eb.index;
+			mbdata.type = eb.type;
+
+			mbdata.kdata.crot.x = eb.crot[0];
+			mbdata.kdata.crot.y = eb.crot[1];
+			mbdata.kdata.crot.z = eb.crot[2];
+
+			mbdata.kdata.lvel.x = eb.lvel[0];
+			mbdata.kdata.lvel.y = eb.lvel[1];
+			mbdata.kdata.lvel.z = eb.lvel[2];
+
+			mbdata.kdata.avel.x = eb.avel[0];
+			mbdata.kdata.avel.y = eb.avel[1];
+			mbdata.kdata.avel.z = eb.avel[2];
+
+			mbdata.kdata.orientation(0) = eb.orientation[0];
+			mbdata.kdata.orientation(1) = eb.orientation[1];
+			mbdata.kdata.orientation(2) = eb.orientation[2];
+			mbdata.kdata.orientation(3) = eb.orientation[3];
+
+			mbdata.initial_kdata.crot.x = eb.initial_crot[0];
+			mbdata.initial_kdata.crot.y = eb.initial_crot[1];
+			mbdata.initial_kdata.crot.z = eb.initial_crot[2];
+
+			mbdata.initial_kdata.lvel.x = eb.initial_lvel[0];
+			mbdata.initial_kdata.lvel.y = eb.initial_lvel[1];
+			mbdata.initial_kdata.lvel.z = eb.initial_lvel[2];
+
+			mbdata.initial_kdata.avel.x = eb.initial_avel[0];
+			mbdata.initial_kdata.avel.y = eb.initial_avel[1];
+			mbdata.initial_kdata.avel.z = eb.initial_avel[2];
+
+			mbdata.initial_kdata.orientation(0) = eb.orientation[0];
+			mbdata.initial_kdata.orientation(1) = eb.orientation[1];
+			mbdata.initial_kdata.orientation(2) = eb.orientation[2];
+			mbdata.initial_kdata.orientation(3) = eb.orientation[3];
+
+			_gdata->problem->restore_moving_body(mbdata.index, mbdata);
+		}
 		break;
 	default:
 		unsupported_version(version);

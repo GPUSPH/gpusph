@@ -9,6 +9,7 @@ The file represents particle and other state.
 #include <fstream>
 
 #include "GlobalData.h"
+#include "MovingBody.h"
 
 typedef unsigned int uint;
 typedef unsigned long ulong;
@@ -59,8 +60,7 @@ private:
 	header_t			_header;
 
 	void writeBuffer(std::ofstream *fp, const AbstractBuffer *buffer, version_t version);
-	void writeBody(std::ofstream *fp, uint index, const float3 *cg, const EulerParameters & quaternion,
-		const float3 *linvel, const float3 *angvel, version_t version);
+	void writeBody(std::ofstream *fp, const MovingBodyData *mbdata, version_t version);
 	void writeHeader(std::ofstream *fp, version_t version);
 	void readBuffer(std::ifstream *fp, AbstractBuffer *buffer, version_t version);
 	void readBody(std::ifstream *fp, version_t version);
