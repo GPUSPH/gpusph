@@ -1147,10 +1147,19 @@ Problem::set_grid_params(void)
 		fprintf(stderr, "WARNING: problem is periodic in X, but Z world size %.9g is not a multiple of deltap (%.g)\n",
 			m_size.z, m_deltap);
 
-	double influenceRadius = simparams()->kernelradius*simparams()->slength;
+	const double influenceRadius = simparams()->influenceRadius;
+	const double nlInfluenceRadius = simparams()->nlInfluenceRadius;
+
+	if (nlInfluenceRadius < influenceRadius) {
+		stringstream ss;
+		ss << "neighbor search radius " << nlInfluenceRadius <<
+			" < kernel influence radius " << influenceRadius;
+		throw runtime_error(ss.str());
+	}
+
 	// with semi-analytical boundaries, we want a cell size which is
 	// deltap/2 + the usual influence radius
-	double cellSide = influenceRadius;
+	double cellSide = nlInfluenceRadius;
 	if (simparams()->boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap/2.0f;
 
@@ -1178,7 +1187,7 @@ Problem::set_grid_params(void)
 	printf("set_grid_params->t:\n");
 	printf("Domain size\t: (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
 	*/
-	printf("Influence radius / expected cell side\t: %g, %g\n", influenceRadius, cellSide);
+	printf("Influence radius / neighbor search radius / expected cell side\t: %g / %g / %g\n", influenceRadius, nlInfluenceRadius, cellSide);
 	/*
 	printf("Grid   size\t: (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
 	printf("Cell   size\t: (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
