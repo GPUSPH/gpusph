@@ -2031,7 +2031,7 @@ void GPUSPH::prepareProblem()
 	for (uint p = 0; p < gdata->totParticles; p++) {
 		// For DYN bounds, take into account also boundary parts; for other boundary types,
 		// only cound fluid parts
-		if ( problem->simparams()->boundarytype == DYN_BOUNDARY || FLUID(infos[p])) {
+		if ( problem->simparams()->boundarytype != LJ_BOUNDARY || FLUID(infos[p]) ) {
 			const uint cellHash = cellHashFromParticleHash( hashes[p] );
 			const uint3 cellCoords = gdata->calcGridPosFromCellHash( cellHash );
 			// NOTE: s_hPartsPerSliceAlong* are only allocated if MULTI_DEVICE holds.
