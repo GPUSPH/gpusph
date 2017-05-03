@@ -1048,7 +1048,7 @@ tags: TAGS cscope.out
 TAGS: $(ALLSRCFILES)
 	$(CMDECHO)ctags-exuberant -R -h=.h.cuh.inc --langmap=c++:.cc.cuh.cu.def.h.inc src/ options/ scripts/
 cscope.out: $(ALLSRCFILES)
-	$(CMDECHO)which cscope > /dev/null && cscope -b $(INCPATH) -R -ssrc/ -soptions/ || touch cscope.out
+	$(CMDECHO)which cscope > /dev/null && cscope -b $(subst -isystem$(space),-I,$(INCPATH)) -R -ssrc/ -soptions/ || touch cscope.out
 
 
 # target: test - Run GPUSPH with WaveTank. Compile it if needed
