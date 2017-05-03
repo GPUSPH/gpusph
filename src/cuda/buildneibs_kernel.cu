@@ -393,13 +393,14 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 			if (cellHash != CELL_HASH_MAX)
 				// If it isn't an inactive particle, it is also the start of the cell
 				cellStart[cellHash & CELLTYPE_BITMASK] = index;
-			else
-				*newNumParticles = index;
+			//else
+			//	*newNumParticles = index;
 
 			// If it isn't the first particle, it must also be the end of the previous cell
 			if (index > 0)
 				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
 		}
+		*newNumParticles = numParticles;
 
 		// If we are an inactive particle, we're done (short hash: compare with 32 bits max)
 		if (cellHash == CELL_HASH_MAX)
@@ -408,7 +409,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 		if (index == numParticles - 1) {
 			// Ditto
 			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
-			*newNumParticles = numParticles;
+			//*newNumParticles = numParticles;
 		}
 
 		if (segmentStart) {

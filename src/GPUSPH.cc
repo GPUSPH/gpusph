@@ -242,10 +242,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// allocate the particles of the *whole* simulation
 
-	// Determine the highest ID per device for unambiguous particle creation
-	for (uint d=0; d < gdata->devices; d++)
-		gdata->highestDevId[d] = gdata->totParticles + GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
+	// Determine the initial device offset for unique particle ID creation
+	for (uint d=0; d < gdata->devices; d++) {
+		devcount_t globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
+			devcount_t deviceNum = gdata->GLOBAL_DEVICE_NUM(globalDeviceIdx);
 
+		gdata->deviceIdOffset[deviceNum] = deviceNum;
+	}
 	// Allocate internal storage for moving bodies
 	problem->allocate_bodies_storage();
 

@@ -72,6 +72,7 @@ private:
 	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;
 	devcount_t m_globalDeviceIdx;
+	devcount_t m_deviceNum;
 	GlobalData* getGlobalData();
 	unsigned int getCUDADeviceNumber();
 	devcount_t getDeviceIndex();

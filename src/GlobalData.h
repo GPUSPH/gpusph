@@ -200,7 +200,7 @@ struct GlobalData {
 	devcount_t devices;
 	// array of cuda device numbers
 	unsigned int device[MAX_DEVICES_PER_NODE];
-	uint highestDevId[MAX_DEVICES_PER_NODE];
+	uint deviceIdOffset[MAX_DEVICES_PER_NODE];
 
 	// MPI vars
 	devcount_t mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)

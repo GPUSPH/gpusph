@@ -468,7 +468,8 @@ calculateIOboundaryCondition(
 			}
 		}
 		// remove normal component of imposed Eulerian velocity
-		as_float3(eulerVel) = as_float3(eulerVel) - dot(as_float3(eulerVel), normal)*normal;
+		//as_float3(eulerVel) = as_float3(eulerVel) - dot(as_float3(eulerVel), normal)*normal;
+		as_float3(eulerVel) = make_float3(0.0f);
 		// if the imposed pressure on the boundary is negative make sure that the flux is negative
 		// as well (outflow)
 		if (rhoExt < d_rho0[a])
@@ -953,11 +954,24 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		float4 eulerVel = make_float4(0.0f);
 		const vertexinfo verts = vertices[index];
+		float tke = 0.0f;
+		float eps = 0.0f;
 
 		// get the imposed quantities from the arrays which were set in the problem specific routines
-		if (IO_BOUNDARY(info))
-			eulerVel = oldEulerVel[index];
-
+		if (IO_BOUNDARY(info)) {
+			// for imposed velocity the velocity, tke and eps are required and only rho will be calculated
+			if (VEL_IO(info)) {
+				eulerVel = oldEulerVel[index];
+				eulerVel.w = 0.0f;
+				if (oldTKE)
+					tke = oldTKE[index];
+				if (oldEps)
+					eps = oldEps[index];
+			}
+			// for imposed density only eulerVel.w will be required, the rest will be computed
+			else
+				eulerVel = oldEulerVel[index];
+		}
 		// velocity for segment (for moving objects) taken as average from the vertices
 		float3 vel = make_float3(0.0f);
 		// gamma of segment (if not set) taken as average from the vertices
@@ -1071,7 +1085,14 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				sumvel /= alpha;
 				sump /= alpha;
 				oldVel[index].w = RHO(sump, fluid_num(info));
-				if (PRES_IO(info)) {
+				if (VEL_IO(info)) {
+					// for velocity imposed boundaries we impose k and epsilon
+					if (oldTKE)
+						oldTKE[index] = tke;
+					if (oldEps)
+						oldEps[index] = eps;
+				}
+				else {
 					oldEulerVel[index] = make_float4(0.0f);
 					// for pressure imposed boundaries we take dk/dn = 0
 					if (oldTKE)
@@ -1081,22 +1102,33 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						oldEps[index] = sumeps/alpha;
 				}
 
-				// compute Riemann invariants for open boundaries
-				const float unInt = dot(sumvel, as_float3(normal));
-				const float unExt = dot3(eulerVel, normal);
-				const float rhoInt = oldVel[index].w;
-				const float rhoExt = eulerVel.w;
-
-				calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, as_float3(normal));
-
-				oldEulerVel[index] = eulerVel;
 			}
 			else {
-				//if (oldTKE)
-				//	oldTKE[index] = 1e-6f;
-				//if (oldEps)
-				//	oldEps[index] = 1e-6f;
+				sump = 0.0f;
+				if (VEL_IO(info)) {
+					sumvel = as_float3(eulerVel);
+					oldVel[index].w = d_rho0[fluid_num(info)];
+				}
+				else {
+					sumvel = make_float3(0.0f);
+					oldVel[index].w = oldEulerVel[index].w;
+					oldEulerVel[index] = make_float4(0.0f, 0.0f, 0.0f, oldEulerVel[index].w);
+				}
+				if (oldTKE)
+					oldTKE[index] = 1e-6f;
+				if (oldEps)
+					oldEps[index] = 1e-6f;
 			}
+
+			// compute Riemann invariants for open boundaries
+			const float unInt = dot(sumvel, as_float3(normal));
+			const float unExt = dot3(eulerVel, normal);
+			const float rhoInt = oldVel[index].w;
+			const float rhoExt = eulerVel.w;
+
+			calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, as_float3(normal));
+
+			oldEulerVel[index] = eulerVel;
 			// the density of the particle is equal to the "eulerian density"
 			oldVel[index].w = eulerVel.w;
 
@@ -1288,6 +1320,7 @@ saVertexBoundaryConditions(
 				const	uint*			cellStart,
 				const	neibdata*		neibsList,
 				const	uint			numParticles,
+				const	uint			oldNumParticles,
 						uint*			newNumParticles,
 				const	float			dt,
 				const	int				step,
@@ -1297,7 +1330,8 @@ saVertexBoundaryConditions(
 				const	bool			initStep,
 				const	bool			resume,
 				const	uint			deviceId,
-				const	uint			numDevices)
+				const	uint			numDevices,
+				const	uint			totParticles)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1380,7 +1414,7 @@ saVertexBoundaryConditions(
 					// normal distance based on grad Gamma which approximates the normal of the domain
 					sumpWall += fmaxf(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 					// for all boundaries we have dk/dn = 0
-					if (IO_BOUNDARY(info)) {
+					if (IO_BOUNDARY(info) && !CORNER(info)) {
 						// for open boundaries compute dv/dn = 0
 						sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 						// for open boundaries compute pressure interior state
@@ -1503,7 +1537,7 @@ saVertexBoundaryConditions(
 	}
 
 	// normalize wall normal
-	if ((CORNER(info) || initStep) && length(wallNormal) > 1e-6f)
+	if (CORNER(info) || initStep)
 		wallNormal = normalize(wallNormal);
 
 	// update boundary conditions on array
@@ -1512,23 +1546,16 @@ saVertexBoundaryConditions(
 	else
 		alpha = fmaxf(alpha, 1e-5f);
 	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
-	if (!(IO_BOUNDARY(info) && VEL_IO(info) && !CORNER(info))) {
-		if (oldTKE)
-			oldTKE[index] = fmaxf(sumtke/numseg, 1e-6f);
-		if (oldEps)
-			oldEps[index] = fmaxf(sumeps/numseg, 1e-6f);
-	}
+	if (oldTKE)
+		oldTKE[index] = fmax(sumtke/numseg, 1e-6f);
+	if (oldEps)
+		oldEps[index] = fmax(sumeps/numseg, 1e-6f);
 	if (!initStep && oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
 		if (CORNER(info)) {
-			// the wallNormal can be equal to 0 as it is possible that a corner is only adjacent to open boundaries (in a |_ corner for example)
-			if(length(wallNormal) > 1e-6f)
-				// normal for corners is normal to the IO it belongs, so we use wallNormal which is normal
-				// to the solid wall it is adjacent to
-				as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), wallNormal)*wallNormal;
-			else
-				// if the corner is between open boundaries only, then we simply assume dv/dn = 0
-				as_float3(oldEulerVel[index]) = sumvel/alpha;
+			// normal for corners is normal to the IO it belongs, so we use wallNormal which is normal
+			// to the solid wall it is adjacent to
+			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), wallNormal)*wallNormal;
 		}
 		else if (!IO_BOUNDARY(info))
 			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), normal)*normal;
@@ -1545,6 +1572,12 @@ saVertexBoundaryConditions(
 			const float rhoExt = eulerVel.w;
 
 			calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, normal);
+		}
+		else {
+			if (VEL_IO(info))
+				eulerVel.w = d_rho0[fluid_num(info)];
+			else
+				eulerVel = make_float4(0.0f, 0.0f, 0.0f, eulerVel.w);
 		}
 		oldEulerVel[index] = eulerVel;
 		// the density of the particle is equal to the "eulerian density"
@@ -1599,7 +1632,7 @@ saVertexBoundaryConditions(
 			massFluid -= refMass;
 			// Create new particle
 			particleinfo clone_info;
-			uint clone_idx = createNewFluidParticle(clone_info, info, numParticles, numDevices, newNumParticles);
+			uint clone_idx = createNewFluidParticle(clone_info, info, oldNumParticles, numDevices, newNumParticles, totParticles);
 
 			// Problem has already checked that there is enough memory for new particles
 			float4 clone_pos = pos; // new position is position of vertex particle
