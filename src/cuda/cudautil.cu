@@ -25,16 +25,10 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 	else if (cudaDevNum > deviceCount - 1)
 		cudaDevNum = deviceCount - 1; */
 
+	CUDA_SAFE_CALL_NOSYNC(cudaSetDevice(cudaDevNum));
+
 	cudaDeviceProp deviceProp;
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceProperties(&deviceProp, cudaDevNum));
-
-	if (deviceProp.major < 1) {
-		fprintf(stderr, "device %d does not support CUDA!\n", cudaDevNum);
-		exit(1);
-	}
-
-	//printf("Using device %d: %s\n", cudaDevNum, deviceProp.name );
-	CUDA_SAFE_CALL(cudaSetDevice(cudaDevNum));
 
 	/* Check if we were compiled for the same compute capability as the device, and print
 	   warning/informational messages otherwise. */
@@ -64,7 +58,7 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 		cudaFuncCache cacheConfig = cudaFuncCachePreferL1;
 		if (deviceProp.major == 3)
 			cacheConfig = cudaFuncCachePreferShared;
-		CUDA_SAFE_CALL(cudaDeviceSetCacheConfig(cacheConfig));
+		CUDA_SAFE_CALL_NOSYNC(cudaDeviceSetCacheConfig(cacheConfig));
 	}
 
 	return deviceProp;
