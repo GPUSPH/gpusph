@@ -204,13 +204,10 @@ endif
 # override:                 defaults to $(CUDA_INSTALL_PATH)/samples
 CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
 
-ifneq ($(CXX),$(empty))
-# Force nvcc to use the host compiler selected by the user
-# Note that this requires the compiler to be supported by
-# nvcc.
+# Make sure nvcc uses the same host compile that we use for the host
+# code.
+# Note that this requires the compiler to be supported by nvcc.
 NVCC += -ccbin=$(CXX)
-endif
-
 
 # files to store last compile options: problem, dbg, compute, fastmath, MPI usage, Chrono
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
