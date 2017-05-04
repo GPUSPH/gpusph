@@ -30,6 +30,11 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 	cudaDeviceProp deviceProp;
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceProperties(&deviceProp, cudaDevNum));
 
+	printf("thread 0x%llx device idx %d: CUDA device %d, PCI device %04x:%02x:%02x.0: %s\n",
+		(unsigned long long)pthread_self(), devidx, cudaDevNum,
+		deviceProp.pciDomainID, deviceProp.pciBusID, deviceProp.pciDeviceID,
+		deviceProp.name);
+
 	/* Check if we were compiled for the same compute capability as the device, and print
 	   warning/informational messages otherwise. */
 	int device_cc = deviceProp.major*10 + deviceProp.minor;
