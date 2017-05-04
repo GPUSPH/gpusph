@@ -47,6 +47,11 @@
 // COORD1, COORD2, COORD3
 #include "linearization.h"
 
+#if USE_CHRONO
+#include "chrono/physics/ChSystemNSC.h"
+#include "chrono/solver/ChSolver.h"
+#endif
+
 // Enable to get/set envelop and margin (mainly debug)
 /*
 #include "chrono_select.opt"
@@ -111,11 +116,11 @@ void
 Problem::InitializeChrono()
 {
 #if USE_CHRONO == 1
-	m_bodies_physical_system = new ::chrono::ChSystem();
+	m_bodies_physical_system = new ::chrono::ChSystemNSC();
 	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
 		m_physparams->gravity.z));
 	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
-	m_bodies_physical_system->SetSolverType(::chrono::ChSystem::SOLVER_SOR);
+	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::SOR);
 	// For debug purposes
 	/*
 	const double chronoSuggEnv = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedEnvelope();
@@ -185,11 +190,11 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 #if USE_CHRONO == 1
 			std::shared_ptr< ::chrono::ChBody > body = object->GetBody();
 			::chrono::ChVector<> vec = body->GetPos();
-			mbdata->kdata.crot = make_double3(vec.x, vec.y, vec.z);
+			mbdata->kdata.crot = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetPos_dt();
-			mbdata->kdata.lvel = make_double3(vec.x, vec.y, vec.z);
+			mbdata->kdata.lvel = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWvel_par();
-			mbdata->kdata.avel = make_double3(vec.x, vec.y, vec.z);
+			mbdata->kdata.avel = make_double3(vec.x(), vec.y(), vec.z());
 			::chrono::ChQuaternion<> quat = body->GetRot();
 			m_bodies.insert(m_bodies.begin() + simparams()->numODEbodies, mbdata);
 			simparams()->numODEbodies++;
@@ -450,15 +455,15 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		if (mbdata->type == MB_FLOATING) {
 			std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 			::chrono::ChVector<> vec = body->GetPos();
-			const double3 new_crot = make_double3(vec.x, vec.y, vec.z);
+			const double3 new_crot = make_double3(vec.x(), vec.y(), vec.z());
 			new_trans = new_crot - mbdata->kdata.crot;
 			mbdata->kdata.crot = new_crot;
 			vec = body->GetPos_dt();
-			mbdata->kdata.lvel = make_double3(vec.x, vec.y, vec.z);
+			mbdata->kdata.lvel = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWvel_par();
-			mbdata->kdata.avel = make_double3(vec.x, vec.y, vec.z);
+			mbdata->kdata.avel = make_double3(vec.x(), vec.y(), vec.z());
 			::chrono::ChQuaternion<> quat = body->GetRot();
-			const EulerParameters new_orientation = EulerParameters(quat.e0, quat.e1, quat.e2, quat.e3);
+			const EulerParameters new_orientation = EulerParameters(quat.e0(), quat.e1(), quat.e2(), quat.e3());
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
 			mbdata->kdata.orientation = new_orientation;
 		}

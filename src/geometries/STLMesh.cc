@@ -457,8 +457,8 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 	// retrieve the bounding box
 	::chrono::ChVector<> bbmin, bbmax;
 	m_body->GetTotalAABB(bbmin, bbmax);
-	expand_bounds( make_float4( bbmin.x, bbmin.y, bbmin.z, 0 ) );
-	expand_bounds( make_float4( bbmax.x, bbmax.y, bbmax.z, 0 ) );
+	expand_bounds( make_float4( bbmin.x(), bbmin.y(), bbmin.z(), 0 ) );
+	expand_bounds( make_float4( bbmax.x(), bbmax.y(), bbmax.z(), 0 ) );
 
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());

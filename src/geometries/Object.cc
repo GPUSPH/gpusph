@@ -461,12 +461,12 @@ void Object::BodyPrintInformation(const bool print_geom)
 		const ::chrono::ChVector<> inertiaXY = m_body->GetInertiaXY();
 		printf("Chrono Body pointer: %p\n", m_body.get());
 		printf("   Mass: %e\n", mass);
-		printf("   CG:   %e\t%e\t%e\n", cg.x, cg.y, cg.z);
-		printf("   I:    %e\t%e\t%e\n", inertiaXX.x, inertiaXY.x, inertiaXY.y);
-		printf("         %e\t%e\t%e\n", inertiaXY.x, inertiaXX.y, inertiaXY.z);
-		printf("         %e\t%e\t%e\n", inertiaXY.y, inertiaXY.z, inertiaXX.z);
+		printf("   CG:   %e\t%e\t%e\n", cg.x(), cg.y(), cg.z());
+		printf("   I:    %e\t%e\t%e\n", inertiaXX.x(), inertiaXY.x(), inertiaXY.y());
+		printf("         %e\t%e\t%e\n", inertiaXY.x(), inertiaXX.y(), inertiaXY.z());
+		printf("         %e\t%e\t%e\n", inertiaXY.y(), inertiaXY.z(), inertiaXX.z());
 		const ::chrono::ChQuaternion<> quat = m_body->GetRot();
-		printf("   Q:    %e\t%e\t%e\t%e\n", quat.e0, quat.e1, quat.e2, quat.e3);
+		printf("   Q:    %e\t%e\t%e\t%e\n", quat.e0(), quat.e1(), quat.e2(), quat.e3());
 
 		// not only check if an ODE geometry is associated, but also it must not be a plane
 		if (print_geom && m_body->GetCollide()) {
@@ -474,9 +474,9 @@ void Object::BodyPrintInformation(const bool print_geom)
 			m_body->GetCollisionModel()->GetAABB(bbmin, bbmax);
 			printf("Chrono collision shape\n");
 			printf("   B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
-				bbmin.x, bbmax.x, bbmin.y, bbmax.y, bbmin.z, bbmax.z);
-			printf("   size:     X [%g] Y [%g] Z [%g]\n", bbmax.x - bbmin.x,
-					bbmax.y - bbmin.y, bbmax.z - bbmin.z);
+				bbmin.x(), bbmax.x(), bbmin.y(), bbmax.y(), bbmin.z(), bbmax.z());
+			printf("   size:     X [%g] Y [%g] Z [%g]\n", bbmax.x() - bbmin.x(),
+					bbmax.y() - bbmin.y(), bbmax.z() - bbmin.z());
 		}
 	}
 #else
