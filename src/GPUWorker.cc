@@ -329,7 +329,6 @@ void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int
 
 // Uploads cellStart and cellEnd from the shared arrays to the device memory.
 // Parameters: fromCell is inclusive, toCell is exclusive
-// NOTE/TODO: using async copies although gdata->s_dCellStarts[][] is not pinned yet
 void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 {
 	uint numCells = toCell - fromCell;
@@ -881,8 +880,8 @@ size_t GPUWorker::allocateHostBuffers() {
 		if (!gdata->clOptions->gpudirect)
 			resizeNetworkTransferBuffer(1024 * 1024);
 
-		cudaHostAlloc( &(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize, cudaHostAllocPortable );
-		cudaHostAlloc( &(gdata->s_dCellEnds[m_deviceIndex]), uintCellsSize, cudaHostAllocPortable );
+		cudaMallocHost(&(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize);
+		cudaMallocHost(&(gdata->s_dCellEnds[m_deviceIndex]), uintCellsSize);
 		allocated += 2*uintCellsSize;
 	}
 
