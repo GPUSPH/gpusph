@@ -8,30 +8,16 @@
 // command line options in main()).
 cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 {
-	int deviceCount;
-
-	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
-	if (deviceCount == 0) {
-		fprintf(stderr, "no CUDA device found!\n");
-		exit(1);
-	} else
-		if (devidx==0) printf("%d CUDA devices detected\n", deviceCount);
-
 	int cudaDevNum = gdata->device[devidx];
-
-	// it is a semantic error to correct here the validity of the device num.
-	// if a devnum is out of range, program should terminate, not try to "fix" it
-	/* if (cudaDevNum < 0) cudaDevNum = 0;
-	else if (cudaDevNum > deviceCount - 1)
-		cudaDevNum = deviceCount - 1; */
+	int deviceCount;
+	cudaDeviceProp deviceProp;
 
 	CUDA_SAFE_CALL_NOSYNC(cudaSetDevice(cudaDevNum));
-
-	cudaDeviceProp deviceProp;
+	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceProperties(&deviceProp, cudaDevNum));
 
-	printf("thread 0x%llx device idx %d: CUDA device %d, PCI device %04x:%02x:%02x.0: %s\n",
-		(unsigned long long)pthread_self(), devidx, cudaDevNum,
+	printf("thread 0x%llx device idx %d: CUDA device %d/%d, PCI device %04x:%02x:%02x.0: %s\n",
+		(unsigned long long)pthread_self(), devidx, cudaDevNum, deviceCount,
 		deviceProp.pciDomainID, deviceProp.pciBusID, deviceProp.pciDeviceID,
 		deviceProp.name);
 
