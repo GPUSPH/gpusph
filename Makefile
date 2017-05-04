@@ -476,10 +476,12 @@ INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(USER_PROBLEM_DIR
 # so that they can be skipped when generating dependencies. This must only be done for the host compiler,
 # because otherwise some nvcc version will complain about kernels not being allowed in system files
 # while compiling some thrust functions.
-# Note that we do this only if the include path is not /usr/include, since
-# otherwise GCC 6 will fail to find standard includes such as stdint.h
-CUDA_INCLUDE_PATH = $(CUDA_INSTALL_PATH)/include
-ifneq ($(CUDA_INCLUDE_PATH),/usr/include)
+# Note that we do this only if the include path is not already in the system
+# include path. This is particularly important in the case where CUDA_INCLUDE_PATH
+# is /usr/include, since otherwise GCC 6 (and later) will fail to find standard
+# includes such as stdint.h
+CUDA_INCLUDE_PATH = $(abspath $(CUDA_INSTALL_PATH)/include)
+ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
 	CC_INCPATH += -isystem $(CUDA_INCLUDE_PATH)
 endif
 
