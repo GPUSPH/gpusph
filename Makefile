@@ -209,6 +209,9 @@ CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
 # Note that this requires the compiler to be supported by nvcc.
 NVCC += -ccbin=$(CXX)
 
+# Get the include path(s) used by default by our compiler
+CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -Wp,-v - 2>&1 | grep '^ '))
+
 # files to store last compile options: problem, dbg, compute, fastmath, MPI usage, Chrono
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
@@ -913,6 +916,7 @@ show:
 	@echo "USE_MPI:         $(USE_MPI)"
 	@echo "USE_HDF5:        $(USE_HDF5)"
 	@echo "USE_CHRONO:      $(USE_CHRONO)"
+	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
 	@echo "LIBS:            $(LIBS)"
