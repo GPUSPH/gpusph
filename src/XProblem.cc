@@ -1224,12 +1224,12 @@ void XProblem::addExtraWorldMargin(const double margin)
 void XProblem::setDynamicBoundariesLayers(const uint numLayers)
 {
 	if (simparams()->boundarytype != DYN_BOUNDARY)
-		printf("WARNIG: setting number of layers for dynamic boundaries but not using DYN_BOUNDARY!\n");
+		printf("WARNING: setting number of layers for dynamic boundaries but not using DYN_BOUNDARY!\n");
 
 	// TODO: use autocomputed instead of 3
 	const uint suggestedNumLayers = suggestedDynamicBoundaryLayers();
 	if (numLayers > 0 && numLayers < suggestedNumLayers)
-		printf("WARNIG: number of layers for dynamic boundaries is low (%u), suggested number is %u\n",
+		printf("WARNING: number of layers for dynamic boundaries is low (%u), suggested number is %u\n",
 			numLayers, suggestedNumLayers);
 
 	m_numDynBoundLayers = numLayers;
