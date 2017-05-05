@@ -299,8 +299,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// particle info
 	if (info) {
-		scalar_array(fid, "UInt16", "Part type+flags", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
+		scalar_array(fid, "UInt8", "Part type", offset);
+		offset += sizeof(uchar)*numParts+sizeof(int);
+		scalar_array(fid, "UInt8", "Part flags", offset);
+		offset += sizeof(uchar)*numParts+sizeof(int);
+
 		// fluid number
 		if (write_fluid_num) {
 			// Limit to 256 fluids
@@ -519,17 +522,23 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// particle info
 	if (info) {
-		// type + flags
-		numbytes=sizeof(ushort)*numParts;
+		// type
+		numbytes=sizeof(uchar)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			ushort value = type(info[i]);
+			uchar value = PART_TYPE(info[i]);
+			write_var(fid, value);
+		}
+
+		// flag
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			uchar value = (PART_FLAGS(info[i]) >> PART_FLAG_SHIFT);
 			write_var(fid, value);
 		}
 
 		// fluid number
 		if (write_fluid_num) {
-			numbytes=sizeof(uchar)*numParts;
 			write_var(fid, numbytes);
 			for (uint i=node_offset; i < node_offset + numParts; i++) {
 				uchar value = fluid_num(info[i]);
