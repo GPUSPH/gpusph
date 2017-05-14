@@ -328,7 +328,7 @@ class XProblem: public Problem {
 		// initialize world size, Chrono if necessary; public, since GPUSPH will call it
 		bool initialize();
 
-		int fill_parts();
+		int fill_parts(bool fill = true);
 		void copy_planes(PlaneList &planes);
 
 		void copy_to_array(BufferList &buffers);

@@ -191,6 +191,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		// get number of particles from problem file
 		gdata->totParticles = problem->fill_parts();
 	} else {
+		gdata->totParticles = problem->fill_parts(false);
 		// get number of particles from hot file
 		struct stat statbuf;
 		ostringstream err_msg;

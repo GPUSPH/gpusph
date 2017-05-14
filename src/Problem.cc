@@ -320,6 +320,9 @@ Problem::get_bodies_cg(void)
 		calc_grid_and_local_pos(m_bodies[i]->kdata.crot,
 			gdata->s_hRbCgGridPos + i,
 			gdata->s_hRbCgPos + i);
+		cout << "Body: " << i << endl;
+		cout << "\t Cg grid pos: " << gdata->s_hRbCgGridPos[i].x << " " << gdata->s_hRbCgGridPos[i].y << " " << gdata->s_hRbCgGridPos[i].z << endl;
+		cout << "\t Cg pos: " << gdata->s_hRbCgPos[i].x << " " << gdata->s_hRbCgPos[i].y << " " << gdata->s_hRbCgPos[i].z << endl;
 	}
 }
 

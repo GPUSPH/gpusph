@@ -337,7 +337,7 @@ class Problem {
 		// is the simulation running at the given time?
 		virtual bool finished(double) const;
 
-		virtual int fill_parts(void) = 0;
+		virtual int fill_parts(bool fill = false) = 0;
 		// maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
 		virtual void copy_to_array(BufferList & ) = 0;

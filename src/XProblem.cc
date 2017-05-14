@@ -1235,7 +1235,7 @@ void XProblem::setDynamicBoundariesLayers(const uint numLayers)
 	m_numDynBoundLayers = numLayers;
 }
 
-int XProblem::fill_parts()
+int XProblem::fill_parts(bool fill)
 {
 	// if for debug reason we need to test the position and verse of a plane, we can ask ODE to
 	// compute the distance of a probe point from a plane (positive if penetrated, negative out)
@@ -1317,21 +1317,23 @@ int XProblem::fill_parts()
 		}
 
 		// after making some space, fill
-		switch (m_geometries[g]->fill_type) {
-			case FT_BORDER:
-				if (simparams()->boundarytype == DYN_BOUNDARY)
-					m_geometries[g]->ptr->FillIn(*parts_vector, dx, - m_numDynBoundLayers);
-				else
-					m_geometries[g]->ptr->FillBorder(*parts_vector, dx);
-				break;
-			case FT_SOLID:
-				m_geometries[g]->ptr->Fill(*parts_vector, dx);
-				break;
-			case FT_SOLID_BORDERLESS:
-				printf("WARNING: borderless not yet implemented; not filling\n");
-				break;
-			// case FT_NOFILL: ;
-			// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
+		if (fill) {
+			switch (m_geometries[g]->fill_type) {
+				case FT_BORDER:
+					if (simparams()->boundarytype == DYN_BOUNDARY)
+						m_geometries[g]->ptr->FillIn(*parts_vector, dx, - m_numDynBoundLayers);
+					else
+						m_geometries[g]->ptr->FillBorder(*parts_vector, dx);
+					break;
+				case FT_SOLID:
+					m_geometries[g]->ptr->Fill(*parts_vector, dx);
+					break;
+				case FT_SOLID_BORDERLESS:
+					printf("WARNING: borderless not yet implemented; not filling\n");
+					break;
+				// case FT_NOFILL: ;
+				// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
+			}
 		}
 
 		// floating and moving bodies fill in their local point vector; let's increase
