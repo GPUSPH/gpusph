@@ -270,10 +270,10 @@ void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, version_t ve
 		eb.initial_avel[1] = mbdata->initial_kdata.avel.y;
 		eb.initial_avel[2] = mbdata->initial_kdata.avel.z;
 
-		eb.initial_orientation[0] = mbdata->kdata.orientation(0);
-		eb.initial_orientation[1] = mbdata->kdata.orientation(1);
-		eb.initial_orientation[2] = mbdata->kdata.orientation(2);
-		eb.initial_orientation[3] = mbdata->kdata.orientation(3);
+		eb.initial_orientation[0] = mbdata->initial_kdata.orientation(0);
+		eb.initial_orientation[1] = mbdata->initial_kdata.orientation(1);
+		eb.initial_orientation[2] = mbdata->initial_kdata.orientation(2);
+		eb.initial_orientation[3] = mbdata->initial_kdata.orientation(3);
 
 		fp->write((const char *)&eb, sizeof(eb));
 		break;
@@ -286,10 +286,11 @@ void HotFile::readBody(ifstream *fp, version_t version)
 {
 	switch (version) {
 	case VERSION_1:
-		for (uint b = 0; b < _header.body_count; ++b) {
-
+			{
 			encoded_body_t eb;
 			memset(&eb, 0, sizeof(eb));
+
+			fp->read((char *)&eb, sizeof(eb));
 
 			MovingBodyData mbdata;
 
@@ -299,6 +300,8 @@ void HotFile::readBody(ifstream *fp, version_t version)
 			mbdata.kdata.crot.x = eb.crot[0];
 			mbdata.kdata.crot.y = eb.crot[1];
 			mbdata.kdata.crot.z = eb.crot[2];
+
+			cout << "hot crot restore cg " << eb.crot[0] << " " << eb.crot[1] << " "<< eb.crot[2] << "\n";
 
 			mbdata.kdata.lvel.x = eb.lvel[0];
 			mbdata.kdata.lvel.y = eb.lvel[1];
@@ -331,7 +334,7 @@ void HotFile::readBody(ifstream *fp, version_t version)
 			mbdata.initial_kdata.orientation(3) = eb.orientation[3];
 
 			_gdata->problem->restore_moving_body(mbdata.index, mbdata);
-		}
+			}
 		break;
 	default:
 		unsupported_version(version);
