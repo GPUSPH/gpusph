@@ -221,9 +221,10 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 }
 
 void
-Problem::restore_moving_body(uint index, const MovingBodyData & saved_mbdata)
+Problem::restore_moving_body(uint index, const MovingBodyData & saved_mbdata, const uint numparts)
 {
 	MovingBodyData *mbdata = get_mbdata(index);
+	m_bodies[index]->object->SetNumParts(numparts);
 	mbdata->initial_kdata = saved_mbdata.initial_kdata;
 	mbdata->kdata = saved_mbdata.kdata;
 

@@ -31,6 +31,7 @@ overkill.
 typedef struct {
 	uint	index;
 	MovingBodyType type;
+	uint	numparts;
 	double	crot[3];
 	double	lvel[3];
 	double	avel[3];
@@ -69,7 +70,8 @@ void HotFile::save() {
 
 	for (uint b = 0; b < _header.body_count; ++b) {
 		MovingBodyData *mbdata = _gdata->problem->get_mbdata(b);
-		writeBody(_fp.out, mbdata, VERSION_1);
+		const uint numparts = _gdata->problem->m_bodies[b]->object->GetNumParts();
+		writeBody(_fp.out, mbdata, numparts, VERSION_1);
 	}
 }
 
@@ -231,7 +233,7 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 	}
 }
 
-void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, version_t version)
+void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, uint numparts, version_t version)
 {
 	switch (version) {
 	case VERSION_1:
@@ -240,6 +242,7 @@ void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, version_t ve
 
 		eb.index = mbdata->index;
 		eb.type = mbdata->type;
+		eb.numparts = numparts;
 
 		eb.crot[0] = mbdata->kdata.crot.x;
 		eb.crot[1] = mbdata->kdata.crot.y;
@@ -333,7 +336,7 @@ void HotFile::readBody(ifstream *fp, version_t version)
 			mbdata.initial_kdata.orientation(2) = eb.orientation[2];
 			mbdata.initial_kdata.orientation(3) = eb.orientation[3];
 
-			_gdata->problem->restore_moving_body(mbdata.index, mbdata);
+			_gdata->problem->restore_moving_body(mbdata.index, mbdata, eb.numparts);
 			}
 		break;
 	default:

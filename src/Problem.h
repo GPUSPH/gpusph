@@ -350,7 +350,7 @@ class Problem {
 
 		void allocate_bodies_storage();
 		void add_moving_body(Object *, const MovingBodyType);
-		void restore_moving_body(uint, const MovingBodyData &);
+		void restore_moving_body(uint, const MovingBodyData &, const uint);
 		const MovingBodiesVect& get_mbvect() const
 		{ return m_bodies; };
 
