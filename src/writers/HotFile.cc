@@ -30,8 +30,11 @@ overkill.
 */
 typedef struct {
 	uint	index;
+	uint	id;
 	MovingBodyType type;
 	uint	numparts;
+	int		firstindex;
+	int		lastindex;
 	double	crot[3];
 	double	lvel[3];
 	double	avel[3];
@@ -68,9 +71,9 @@ void HotFile::save() {
 		iter++;
 	}
 
-	for (uint b = 0; b < _header.body_count; ++b) {
-		MovingBodyData *mbdata = _gdata->problem->get_mbdata(b);
-		const uint numparts = _gdata->problem->m_bodies[b]->object->GetNumParts();
+	for (uint id = 0; id < _header.body_count; ++id) {
+		MovingBodyData *mbdata = _gdata->problem->m_bodies[id];
+		const uint numparts = _gdata->problem->m_bodies[id]->object->GetNumParts();
 		writeBody(_fp.out, mbdata, numparts, VERSION_1);
 	}
 }
@@ -138,7 +141,6 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 		_header.version = 1;
 		_header.buffer_count = _gdata->s_hBuffers.size();
 		_header.particle_count = _particle_count;
-		//TODO FIXME
 		_header.body_count = _gdata->problem->simparams()->numbodies;
 		_header.numOpenBoundaries = _gdata->problem->simparams()->numOpenBoundaries;
 		_header.iterations = _gdata->iterations;
@@ -241,8 +243,13 @@ void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, uint numpart
 		memset(&eb, 0, sizeof(eb));
 
 		eb.index = mbdata->index;
+		eb.id = mbdata->id;
+
 		eb.type = mbdata->type;
 		eb.numparts = numparts;
+
+		eb.firstindex = _gdata->s_hRbFirstIndex[eb.id];
+		eb.lastindex = _gdata->s_hRbLastIndex[eb.id];
 
 		eb.crot[0] = mbdata->kdata.crot.x;
 		eb.crot[1] = mbdata->kdata.crot.y;
@@ -298,13 +305,12 @@ void HotFile::readBody(ifstream *fp, version_t version)
 			MovingBodyData mbdata;
 
 			mbdata.index = eb.index;
+			mbdata.id = eb.id;
 			mbdata.type = eb.type;
 
 			mbdata.kdata.crot.x = eb.crot[0];
 			mbdata.kdata.crot.y = eb.crot[1];
 			mbdata.kdata.crot.z = eb.crot[2];
-
-			cout << "hot crot restore cg " << eb.crot[0] << " " << eb.crot[1] << " "<< eb.crot[2] << "\n";
 
 			mbdata.kdata.lvel.x = eb.lvel[0];
 			mbdata.kdata.lvel.y = eb.lvel[1];
@@ -336,7 +342,7 @@ void HotFile::readBody(ifstream *fp, version_t version)
 			mbdata.initial_kdata.orientation(2) = eb.orientation[2];
 			mbdata.initial_kdata.orientation(3) = eb.orientation[3];
 
-			_gdata->problem->restore_moving_body(mbdata.index, mbdata, eb.numparts);
+			_gdata->problem->restore_moving_body(mbdata, eb.numparts, eb.firstindex, eb.lastindex);
 			}
 		break;
 	default:

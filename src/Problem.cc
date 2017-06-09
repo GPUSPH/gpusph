@@ -215,18 +215,25 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			break;
 	}
 
+	// Setting body id after insertion
+	for (uint id = 0; id < m_bodies.size(); id++)
+		m_bodies[id]->id = id;
+
 	mbdata->initial_kdata = mbdata->kdata;
 
 	simparams()->numbodies = m_bodies.size();
 }
 
 void
-Problem::restore_moving_body(uint index, const MovingBodyData & saved_mbdata, const uint numparts)
+Problem::restore_moving_body(const MovingBodyData & saved_mbdata, const uint numparts, const int firstindex, const int lastindex)
 {
-	MovingBodyData *mbdata = get_mbdata(index);
-	m_bodies[index]->object->SetNumParts(numparts);
+	const uint id = saved_mbdata.id;
+	MovingBodyData *mbdata = m_bodies[id];
+	mbdata->object->SetNumParts(numparts);
 	mbdata->initial_kdata = saved_mbdata.initial_kdata;
 	mbdata->kdata = saved_mbdata.kdata;
+	gdata->s_hRbFirstIndex[id] = firstindex;
+	gdata->s_hRbLastIndex[id] = lastindex;
 
 	if (mbdata->type == MB_FLOATING) {
 #if USE_CHRONO == 1

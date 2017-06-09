@@ -346,6 +346,15 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		resumed = true;
 	}
 
+	cout << "RB First/Last Index:\n";
+	for (int i = 0 ; i < problem->simparams()->numbodies; ++i) {
+			cout << "\t" << gdata->s_hRbFirstIndex[i] << "\t" << gdata->s_hRbLastIndex[i] << endl;
+	}
+	if (resumed) {
+			gdata->s_hRbFirstIndex[0] = -24280;
+			gdata->s_hRbLastIndex[0] = 1205;
+	}
+
 	// Initialize potential joints if there are floating bodies
 	if (problem->simparams()->numbodies)
 		problem->initializeObjectJoints();
