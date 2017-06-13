@@ -232,8 +232,10 @@ Problem::restore_moving_body(const MovingBodyData & saved_mbdata, const uint num
 	mbdata->object->SetNumParts(numparts);
 	mbdata->initial_kdata = saved_mbdata.initial_kdata;
 	mbdata->kdata = saved_mbdata.kdata;
-	gdata->s_hRbFirstIndex[id] = firstindex;
-	gdata->s_hRbLastIndex[id] = lastindex;
+	if (mbdata->type == MB_FORCES_MOVING || mbdata->type == MB_FLOATING) {
+		gdata->s_hRbFirstIndex[id] = firstindex;
+		gdata->s_hRbLastIndex[id] = lastindex;
+	}
 
 	if (mbdata->type == MB_FLOATING) {
 #if USE_CHRONO == 1

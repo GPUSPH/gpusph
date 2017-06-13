@@ -248,8 +248,14 @@ void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, uint numpart
 		eb.type = mbdata->type;
 		eb.numparts = numparts;
 
-		eb.firstindex = _gdata->s_hRbFirstIndex[eb.id];
-		eb.lastindex = _gdata->s_hRbLastIndex[eb.id];
+		if (eb.type == MB_FLOATING || eb.type == MB_FORCES_MOVING) {
+			eb.firstindex = _gdata->s_hRbFirstIndex[eb.id];
+			eb.lastindex = _gdata->s_hRbLastIndex[eb.id];
+		}
+		else {
+			eb.firstindex = 0;
+			eb.lastindex = 0;
+		}
 
 		eb.crot[0] = mbdata->kdata.crot.x;
 		eb.crot[1] = mbdata->kdata.crot.y;
