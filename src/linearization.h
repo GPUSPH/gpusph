@@ -35,6 +35,4 @@
  * thus eligible for a single burst transfer.
  * Cells with consecutive COORD1 are consecutive in their linearized index. */
 
-#define COORD1	y
-#define COORD2	z
-#define COORD3	x
+#include "linearization_select.opt"
