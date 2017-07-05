@@ -47,12 +47,6 @@ class AbstractNeibsEngine
 public:
 	virtual ~AbstractNeibsEngine() {}
 
-	/// Allocate/deallocate per-worker data (e.g. for sorting)
-	/// Default: do nothing
-	virtual void allocateWorkerData() {}
-	virtual void deallocateWorkerData() {}
-
-
 	virtual void
 	setconstants(const SimParams *simparams, const PhysParams *physparams,
 		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,

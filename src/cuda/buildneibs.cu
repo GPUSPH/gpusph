@@ -32,8 +32,6 @@
 #include <thrust/tuple.h>
 #include <thrust/iterator/zip_iterator.h>
 
-#include "thrust_custom_alloc.h"
-
 #include "define_buffers.h"
 #include "engine_neibs.h"
 #include "utils.h"
@@ -65,7 +63,6 @@
 
 #include "vector_math.h"
 
-static __thread cached_allocator *thrust_allocator = NULL;
 
 /// Neighbor engine class
 /*!	CUDANeibsEngine is an implementation of the abstract class AbstractNeibsEngine
@@ -85,19 +82,7 @@ static __thread cached_allocator *thrust_allocator = NULL;
 template<SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
-
 public:
-
-void allocateWorkerData()
-{
-	thrust_allocator = new cached_allocator;
-}
-
-void deallocateWorkerData()
-{
-	delete thrust_allocator;
-	thrust_allocator = NULL;
-}
 
 /** \name Constants upload/download and timing related function
  *  @{ */
@@ -391,7 +376,6 @@ sort(	MultiBufferList::const_iterator bufread,
 	// Sort of the particle indices by cell, fluid number and id
 	// There is no need for a stable sort due to the id sort
 	thrust::sort_by_key(
-		thrust::cuda::par(*thrust_allocator),
 		thrust::make_zip_iterator(thrust::make_tuple(particleHash, particleInfo)),
 		thrust::make_zip_iterator(thrust::make_tuple(
 			particleHash + numParticles,
