@@ -49,6 +49,7 @@
 #include "gpusph_version.opt"
 #include "hdf5_select.opt"
 #include "mpi_select.opt"
+#include "catalyst_select.opt"
 
 using namespace std;
 
@@ -66,9 +67,10 @@ void show_version()
 		dbg_or_rel,
 		FASTMATH ? "with" : "without",
 		COMPUTE/10, COMPUTE%10);
-	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
-	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
-	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
+	printf("Chrono   : %s\n", USE_CHRONO ? "enabled" : "disabled");
+	printf("HDF5     : %s\n", USE_HDF5 ? "enabled" : "disabled");
+	printf("MPI      : %s\n", USE_MPI ? "enabled" : "disabled");
+	printf("Catalyst : %s\n", USE_CATALYST ? "enabled" : "disabled");
 	printf("Compiled for problem \"%s\"\n", QUOTED_PROBLEM);
 }
 
@@ -81,6 +83,7 @@ void print_usage() {
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
+	cout << "\t       [--display [--display-every VAL] --display-script VAL]\n";
 	cout << "\t       [--debug FLAGS]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
@@ -102,6 +105,10 @@ void print_usage() {
 	cout << " --no-leak-warning : do not warn if #particles decreases without outlets (e.g. overtopping, leaking)\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
+	cout << " --display : Enable co-processing visulaization\n";
+	cout << " --display-every : Simulation data will be passed to visualization every VAL seconds\n";
+	cout << "                   of simulated time (VAL is cast to double, 0 or not defined - visualization for each iteration)\n";
+	cout << " --display-script : Path to co-processing Python script\n";
 	cout << " --debug : enable debug flags FLAGS\n";
 #include "describe-debugflags.h"
 	cout << " --help: Show this help and exit\n";
@@ -202,6 +209,17 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 #endif
+		} else if (!strcmp(arg, "--display")) {
+		        _clOptions->visualization = true;
+		} else if (!strcmp(arg, "--display-every")) {
+			/* read the next arg as a double */
+			sscanf(*argv, "%lf", &(_clOptions->visu_freq));
+			argv++;
+			argc--;
+		} else if (!strcmp(arg, "--display-script")) {
+			_clOptions->pipeline_fpath = string(*argv);
+			argv++;
+			argc--;
 		} else if (!strcmp(arg, "--debug")) {
 			gdata->debug = parse_debug_flags(*argv);
 			argv++;
@@ -233,6 +251,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		_clOptions->devices = get_default_devices();
 	}
 
+
 	for (auto dev : _clOptions->devices) {
 		if (gdata->devices == MAX_DEVICES_PER_NODE) {
 			printf("WARNING: devices exceeding number %u will be ignored\n",
@@ -242,6 +261,20 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		gdata->device[gdata->devices] = dev;
 		++gdata->devices;
 		++gdata->totDevices;
+	}
+
+	// Check if pipeline script path is defined and the file exists
+	if (_clOptions->visualization) {
+		std::string script_path = _clOptions->pipeline_fpath;
+
+		if (script_path.empty()) {
+			printf("WARNING: pipeline script is not defined, visualization will be disabled.\n");
+		} else {
+			ifstream f(script_path.c_str());
+			if (!f.good()) {
+				printf("WARNING: pipeline script could not be opened, visualization will be disabled.\n");
+			}
+		}
 	}
 
 	_clOptions->problem = string( QUOTED_PROBLEM );
