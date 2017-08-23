@@ -104,6 +104,20 @@ XProblem::~XProblem()
 		cleanupChrono();
 }
 
+// Default initialization for k and epsilon
+void
+XProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
+{
+	const float Lm = fmax(2*m_deltap, 1e-5f);
+	const float k0 = pow(0.002f*physparams()->sscoeff[0], 2);
+	const float e0 = 0.16f*pow(k0, 1.5f)/Lm;
+
+	for (uint i = 0; i < numpart; i++) {
+		k[i] = k0;
+		e[i] = e0;
+	}
+}
+
 bool XProblem::initialize()
 {
 	// setup the framework if the subclass did not do it; will have all defaults
@@ -2012,6 +2026,16 @@ void XProblem::copy_to_array(BufferList &buffers)
 	cout << "Testpoint: " << testpoint_parts << " parts\n";
 	cout << "Tot: " << tot_parts << " particles\n";
 	flush(cout);
+
+	// initialize values of k and e for k-e model
+	if (simparams()->visctype == KEPSVISC)
+		init_keps(
+			buffers.getData<BUFFER_TKE>(),
+			buffers.getData<BUFFER_EPSILON>(),
+			tot_parts,
+			info,
+			pos,
+			hash);
 
 	// call user-set initialization routine, if any
 	initializeParticles(buffers, tot_parts);

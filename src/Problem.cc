@@ -1292,19 +1292,6 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 	localpos.w = float(pos(3));
 }
 
-void
-Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
-{
-	const float Lm = fmax(2*m_deltap, 1e-5f);
-	const float k0 = pow(0.002f*physparams()->sscoeff[0], 2);
-	const float e0 = 0.16f*pow(k0, 1.5f)/Lm;
-
-	for (uint i = 0; i < numpart; i++) {
-		k[i] = k0;
-		e[i] = e0;
-	}
-}
-
 /* Initialize the particle volumes from their masses and densities. */
 void
 Problem::init_volume(BufferList &buffers, uint numParticles)

@@ -400,8 +400,6 @@ class Problem {
 							float3 * & trans, float * & steprot,
 							float3 * & linearvel, float3 * & angularvel);
 
-		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
-
 		/* Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);
 

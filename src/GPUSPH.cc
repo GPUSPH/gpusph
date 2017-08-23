@@ -384,16 +384,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->problem->get_bodies_cg();
 	}
 
-	// initialize values of k and e for k-e model
-	if (!resumed && _sp->visctype == KEPSVISC)
-		problem->init_keps(
-			gdata->s_hBuffers.getData<BUFFER_TKE>(),
-			gdata->s_hBuffers.getData<BUFFER_EPSILON>(),
-			gdata->totParticles,
-			gdata->s_hBuffers.getData<BUFFER_INFO>(),
-			gdata->s_hBuffers.getData<BUFFER_POS>(),
-			gdata->s_hBuffers.getData<BUFFER_HASH>());
-
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
 
