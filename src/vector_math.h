@@ -13,6 +13,10 @@
 #ifndef VECTOR_MATH_H
 #define VECTOR_MATH_H
 
+#ifndef __CUDACC__
+#include <cmath>
+#endif
+
 #include "cuda_runtime.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,7 +24,6 @@ typedef unsigned int uint;
 typedef unsigned short ushort;
 
 #ifndef __CUDACC__
-#include <math.h>
 
 inline __host__ __device__ int max(int a, int b)
 {
@@ -621,7 +624,7 @@ static __forceinline__ __host__ __device__ float3 rotate(const float3 &v, const 
 static __forceinline__ __host__ __device__ float hypot(const float3 &v)
 {
 	float p;
-	p = fmax(fmax(fabs(v.x), fabs(v.y)), fabs(v.z));
+	p = fmaxf(fmaxf(fabsf(v.x), fabsf(v.y)), fabsf(v.z));
 	if (!p)
 		return 0;
 
@@ -1179,7 +1182,7 @@ static __forceinline__ __host__ __device__ float4 fabs(const float4 &v)
 static __forceinline__ __host__ __device__ float hypot(const float4 &v)
 {
 	float p;
-	p = fmax(fmax(fabs(v.x), fabs(v.y)), fmax(fabs(v.z), fabs(v.w)));
+	p = fmaxf(fmaxf(fabsf(v.x), fabsf(v.y)), fmaxf(fabsf(v.z), fabsf(v.w)));
 	if (!p)
 		return 0;
 
@@ -1192,7 +1195,7 @@ static __forceinline__ __host__ __device__ float hypot(const float4 &v)
 static __forceinline__ __host__ __device__ float hypot3(const float4 &v)
 {
 	float p;
-	p = fmax(fmax(fabs(v.x), fabs(v.y)), fabs(v.z));
+	p = fmaxf(fmaxf(fabsf(v.x), fabsf(v.y)), fabsf(v.z));
 	if (!p)
 		return 0;
 
