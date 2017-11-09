@@ -1,5 +1,5 @@
-#ifndef _CUDAUTIL_CUH_
-#define _CUDAUTIL_CUH_
+#ifndef _CUDAUTIL_H_
+#define _CUDAUTIL_H_
 
 #include "GlobalData.h"
 #include "Options.h"

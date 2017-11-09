@@ -1,6 +1,6 @@
 #include <cstdio>
 
-#include "cudautil.cuh"
+#include "cudautil.h"
 #include "compute_select.opt"
 
 // TODO: errors should be thrown properly, the functions should not brutally terminate everything.

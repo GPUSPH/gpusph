@@ -29,6 +29,8 @@
 #include <cfloat>
 
 #include "GPUWorker.h"
+#include "cudautil.h"
+
 #include "Problem.h"
 
 #include "cudabuffer.h"

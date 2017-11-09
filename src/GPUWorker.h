@@ -32,8 +32,6 @@
 #include "common_types.h"
 #include "GlobalData.h"
 
-#include "cudautil.cuh"
-
 // for CUDA_SAFE_CALL & co.
 #include "cuda_call.h"
 

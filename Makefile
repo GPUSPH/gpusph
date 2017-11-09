@@ -138,10 +138,9 @@ CCFILES = $(filter-out $(PROBLEM_FILTER),\
 	  $(wildcard $(adir)/*.cc))))
 
 
-# GPU source files: we only directly compile the current problem (if it's CUDA)
-# and cudautil.cu, everything else gets in by nested includes
-CUFILES = $(SRCDIR)/cuda/cudautil.cu \
-	  $(filter %.cu,$(PROBLEM_SRCS))
+# GPU source files: we only directly compile the current problem (if it's CUDA),
+# everything else gets in by nested includes
+CUFILES = $(filter %.cu,$(PROBLEM_SRCS))
 
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
