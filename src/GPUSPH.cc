@@ -521,7 +521,7 @@ bool GPUSPH::runSimulation() {
 	// an empty set of PostProcessEngines, to be used when we want to save
 	// the particle system without running post-processing filters
 	// (e.g. when inspecting the particle system before each forces computation)
-	const PostProcessEngineSet noPostProcess;
+	const PostProcessEngineSet noPostProcess{};
 
 	// Run the actual simulation loop, by issuing the appropriate doCommand()s
 	// in sequence. keep_going will be set to false either by the loop itself
