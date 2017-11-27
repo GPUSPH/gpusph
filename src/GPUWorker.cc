@@ -73,7 +73,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
 	m_deviceNum = gdata->GLOBAL_DEVICE_NUM(m_globalDeviceIdx);
 
-	printf("Thread 0x%zx global device id: %d (%d)\n", pthread_self(), m_globalDeviceIdx, gdata->totDevices);
+	printf("Thread 0x%zx global device id: %d (%d)\n", thread_id.get_id(), m_globalDeviceIdx, gdata->totDevices);
 
 	// we know that GPUWorker is initialized when Problem was already
 	m_simparams = gdata->problem->simparams();
@@ -1462,14 +1462,14 @@ void GPUWorker::uploadCompactDeviceMap() {
 void GPUWorker::run_worker() {
 	// wrapper for pthread_create()
 	// NOTE: the dynamic instance of the GPUWorker is passed as parameter
-	pthread_create(&pthread_id, NULL, simulationThread, (void*)this);
+	thread_id = thread(&GPUWorker::simulationThread, this);
 }
 
 // Join the simulation thread (in pthreads' terminology)
 // WARNING: blocks the caller until the thread reaches pthread_exit. Be sure to call it after all barriers
 // have been reached or may result in deadlock!
 void GPUWorker::join_worker() {
-	pthread_join(pthread_id, NULL);
+	thread_id.join();
 }
 
 GlobalData* GPUWorker::getGlobalData() {
@@ -1537,22 +1537,19 @@ void GPUWorker::enablePeerAccess()
 }
 
 // Actual thread calling GPU-methods
-void* GPUWorker::simulationThread(void *ptr) {
+void GPUWorker::simulationThread() {
 	// INITIALIZATION PHASE
 
-	// take the pointer of the instance starting this thread
-	GPUWorker* instance = (GPUWorker*) ptr;
-
 	// retrieve GlobalData and device number (index in process array)
-	const GlobalData* gdata = instance->getGlobalData();
-	const unsigned int cudaDeviceNumber = instance->getCUDADeviceNumber();
-	const unsigned int deviceIndex = instance->getDeviceIndex();
+	const GlobalData* gdata = getGlobalData();
+	const unsigned int cudaDeviceNumber = getCUDADeviceNumber();
+	const unsigned int deviceIndex = getDeviceIndex();
 
 	try {
 
-		instance->setDeviceProperties( checkCUDA(gdata, deviceIndex) );
+		setDeviceProperties( checkCUDA(gdata, deviceIndex) );
 
-		instance->initialize();
+		initialize();
 
 		gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
@@ -1564,7 +1561,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 		// non-existent device number and failed to complete initialize()
 		// correctly), we shouldn't do anything. So check that keep_going is still true
 		if (gdata->keep_going)
-			instance->uploadSubdomain();
+			uploadSubdomain();
 
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
@@ -1579,155 +1576,155 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case SWAP_BUFFERS:
 				if (dbg_step_printf) printf(" T %d issuing SWAP_BUFFERS\n", deviceIndex);
-				instance->swapBuffers();
+				swapBuffers();
 				break;
 			case CALCHASH:
 				if (dbg_step_printf) printf(" T %d issuing HASH\n", deviceIndex);
-				instance->kernel_calcHash();
+				kernel_calcHash();
 				break;
 			case SORT:
 				if (dbg_step_printf) printf(" T %d issuing SORT\n", deviceIndex);
-				instance->kernel_sort();
+				kernel_sort();
 				break;
 			case CROP:
 				if (dbg_step_printf) printf(" T %d issuing CROP\n", deviceIndex);
-				instance->dropExternalParticles();
+				dropExternalParticles();
 				break;
 			case REORDER:
 				if (dbg_step_printf) printf(" T %d issuing REORDER\n", deviceIndex);
-				instance->kernel_reorderDataAndFindCellStart();
+				kernel_reorderDataAndFindCellStart();
 				break;
 			case BUILDNEIBS:
 				if (dbg_step_printf) printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
-				instance->kernel_buildNeibsList();
+				kernel_buildNeibsList();
 				break;
 			case FORCES_SYNC:
 				if (dbg_step_printf) printf(" T %d issuing FORCES_SYNC\n", deviceIndex);
-				instance->kernel_forces();
+				kernel_forces();
 				break;
 			case FORCES_ENQUEUE:
 				if (dbg_step_printf) printf(" T %d issuing FORCES_ENQUEUE\n", deviceIndex);
-				instance->kernel_forces_async_enqueue();
+				kernel_forces_async_enqueue();
 				break;
 			case FORCES_COMPLETE:
 				if (dbg_step_printf) printf(" T %d issuing FORCES_COMPLETE\n", deviceIndex);
-				instance->kernel_forces_async_complete();
+				kernel_forces_async_complete();
 				break;
 			case EULER:
 				if (dbg_step_printf) printf(" T %d issuing EULER\n", deviceIndex);
-				instance->kernel_euler();
+				kernel_euler();
 				break;
 			case DUMP:
 				if (dbg_step_printf) printf(" T %d issuing DUMP\n", deviceIndex);
-				instance->dumpBuffers();
+				dumpBuffers();
 				break;
 			case DUMP_CELLS:
 				if (dbg_step_printf) printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
-				instance->downloadCellsIndices();
+				downloadCellsIndices();
 				break;
 			case UPDATE_SEGMENTS:
 				if (dbg_step_printf) printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
-				instance->updateSegments();
+				updateSegments();
 				break;
 			case DOWNLOAD_IOWATERDEPTH:
 				if (dbg_step_printf) printf(" T %d issuing DOWNLOAD_IOWATERDEPTH\n", deviceIndex);
-				instance->kernel_download_iowaterdepth();
+				kernel_download_iowaterdepth();
 				break;
 			case UPLOAD_IOWATERDEPTH:
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_IOWATERDEPTH\n", deviceIndex);
-				instance->kernel_upload_iowaterdepth();
+				kernel_upload_iowaterdepth();
 				break;
 			case DOWNLOAD_NEWNUMPARTS:
 				if (dbg_step_printf) printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
-				instance->downloadNewNumParticles();
+				downloadNewNumParticles();
 				break;
 			case UPLOAD_NEWNUMPARTS:
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_NEWNUMPARTS\n", deviceIndex);
-				instance->uploadNewNumParticles();
+				uploadNewNumParticles();
 				break;
 			case APPEND_EXTERNAL:
 				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
-				instance->importExternalCells();
+				importExternalCells();
 				break;
 			case UPDATE_EXTERNAL:
 				if (dbg_step_printf) printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
-				instance->importExternalCells();
+				importExternalCells();
 				break;
 			case FILTER:
 				if (dbg_step_printf) printf(" T %d issuing FILTER\n", deviceIndex);
-				instance->kernel_filter();
+				kernel_filter();
 				break;
 			case POSTPROCESS:
 				if (dbg_step_printf) printf(" T %d issuing POSTPROCESS\n", deviceIndex);
-				instance->kernel_postprocess();
+				kernel_postprocess();
 				break;
 			case DISABLE_OUTGOING_PARTS:
 				if (dbg_step_printf) printf(" T %d issuing DISABLE_OUTGOING_PARTS:\n", deviceIndex);
-				instance->kernel_disableOutgoingParts();
+				kernel_disableOutgoingParts();
 				break;
 			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_SEGMENT_BOUNDARY_CONDITIONS\n", deviceIndex);
-				instance->kernel_saSegmentBoundaryConditions();
+				kernel_saSegmentBoundaryConditions();
 				break;
 			case SA_CALC_VERTEX_BOUNDARY_CONDITIONS:
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_VERTEX_BOUNDARY_CONDITIONS\n", deviceIndex);
-				instance->kernel_saVertexBoundaryConditions();
+				kernel_saVertexBoundaryConditions();
 				break;
 			case IDENTIFY_CORNER_VERTICES:
 				if (dbg_step_printf) printf(" T %d issuing IDENTIFY_CORNER_VERTICES\n", deviceIndex);
-				instance->kernel_saIdentifyCornerVertices();
+				kernel_saIdentifyCornerVertices();
 				break;
 			case COMPUTE_DENSITY:
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_DENSITY\n", deviceIndex);
-				instance->kernel_compute_density();
+				kernel_compute_density();
 				break;
 			case SPS:
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
-				instance->kernel_sps();
+				kernel_sps();
 				break;
 			case REDUCE_BODIES_FORCES:
 				if (dbg_step_printf) printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
-				instance->kernel_reduceRBForces();
+				kernel_reduceRBForces();
 				break;
 			case UPLOAD_GRAVITY:
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
-				instance->uploadGravity();
+				uploadGravity();
 				break;
 			case UPLOAD_PLANES:
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
-				instance->uploadPlanes();
+				uploadPlanes();
 				break;
 			case EULER_UPLOAD_OBJECTS_CG:
 				if (dbg_step_printf) printf(" T %d issuing EULER_UPLOAD_OBJECTS_CG\n", deviceIndex);
-				instance->uploadEulerBodiesCentersOfGravity();
+				uploadEulerBodiesCentersOfGravity();
 				break;
 			case FORCES_UPLOAD_OBJECTS_CG:
 				if (dbg_step_printf) printf(" T %d issuing FORCES_UPLOAD_OBJECTS_CG\n", deviceIndex);
-				instance->uploadForcesBodiesCentersOfGravity();
+				uploadForcesBodiesCentersOfGravity();
 				break;
 			case UPLOAD_OBJECTS_MATRICES:
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_MATRICES\n", deviceIndex);
-				instance->uploadBodiesTransRotMatrices();
+				uploadBodiesTransRotMatrices();
 				break;
 			case UPLOAD_OBJECTS_VELOCITIES:
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_VELOCITIES\n", deviceIndex);
-				instance->uploadBodiesVelocities();
+				uploadBodiesVelocities();
 				break;
 			case IMPOSE_OPEN_BOUNDARY_CONDITION:
 				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
-				instance->kernel_imposeBoundaryCondition();
+				kernel_imposeBoundaryCondition();
 				break;
 			case INIT_GAMMA:
 				if (dbg_step_printf) printf(" T %d issuing INIT_GAMMA\n", deviceIndex);
-				instance->kernel_initGamma();
+				kernel_initGamma();
 				break;
 			case INIT_IO_MASS_VERTEX_COUNT:
 				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS_VERTEX_COUNT\n", deviceIndex);
-				instance->kernel_initIOmass_vertexCount();
+				kernel_initIOmass_vertexCount();
 				break;
 			case INIT_IO_MASS:
 				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS\n", deviceIndex);
-				instance->kernel_initIOmass();
+				kernel_initIOmass();
 				break;
 			case QUIT:
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
@@ -1752,14 +1749,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 			}
 		}
 	} catch (exception &e) {
-		cerr << "Device " << deviceIndex << " thread " << pthread_self() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
+		cerr << "Device " << deviceIndex << " thread " << thread_id.get_id() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
 		const_cast<GlobalData*>(gdata)->keep_going = false;
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
 	try {
-		instance->finalize();
+		finalize();
 	} catch (exception &e) {
 		// if anything goes wrong here, there isn't much we can do,
 		// so just show the error and carry on
@@ -1768,7 +1765,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
 
-	pthread_exit(NULL);
 }
 
 void GPUWorker::initialize()
