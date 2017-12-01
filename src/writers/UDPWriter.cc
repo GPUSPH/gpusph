@@ -43,8 +43,7 @@
 
 using namespace std;
 
-void *UDPWriter::heartbeat_thread_main(void *user_data) {
-    UDPWriter *w = (UDPWriter*)user_data;
+void UDPWriter::heartbeat_thread_main() {
 
     /* option value */
     int optval = 1;
@@ -55,51 +54,52 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
     /* setup address */
     memset(&my_address, 0, sizeof(my_address));
     my_address.sin_family      = AF_INET;
-    my_address.sin_port        = htons(w->mPort);
-    if(w->mHost[0] == '\0') {
+    my_address.sin_port        = htons(mPort);
+    if(mHost[0] == '\0') {
         // for binding to all local addresses
         my_address.sin_addr.s_addr = INADDR_ANY;
     } else {
         // for binding to a specific address
-        inet_aton(w->mHost, &my_address.sin_addr);
+        inet_aton(mHost, &my_address.sin_addr);
     }
 
     /* create server socket */
-    if ((w->mHeartbeatSocketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))
+    if ((mHeartbeatSocketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))
         == -1) {
         perror("socket");
-        pthread_exit(NULL);
+        terminate();
     }
 
     /* reuse local address */
-    if (setsockopt(w->mHeartbeatSocketFd, SOL_SOCKET, SO_REUSEADDR, &optval,
+    if (setsockopt(mHeartbeatSocketFd, SOL_SOCKET, SO_REUSEADDR, &optval,
                   sizeof optval) == -1) {
         perror("setsockopt(SO_REUSEADDR)");
-        close(w->mHeartbeatSocketFd);
-        pthread_exit(NULL);
+        close(mHeartbeatSocketFd);
+        terminate();
     }
 
 #ifdef SET_BUFFER_SIZE
     int udp_buffer_size = sizeof(ptp_packet_t) * 1024;
-    if (setsockopt(w->mHeartbeatSocketFd, SOL_SOCKET, SO_SNDBUF,
+    if (setsockopt(mHeartbeatSocketFd, SOL_SOCKET, SO_SNDBUF,
         &udp_buffer_size, (socklen_t)(sizeof(int))) == -1) {
         perror("setsockopt(SO_SNDBUF)");
     }
 
-    if (setsockopt(w->mHeartbeatSocketFd, SOL_SOCKET, SO_RCVBUF,
+    if (setsockopt(mHeartbeatSocketFd, SOL_SOCKET, SO_RCVBUF,
         &udp_buffer_size, (socklen_t)(sizeof(int))) == -1) {
         perror("setsockopt(SO_RCVBUF)");
     }
 #endif
+
     /* bind to local address:port */
-    if (::bind(w->mHeartbeatSocketFd, (struct sockaddr *)&my_address,
+    if (::bind(mHeartbeatSocketFd, (struct sockaddr *)&my_address,
         sizeof(my_address)) == -1) {
         perror("bind");
-        pthread_exit(NULL);
+        terminate();
     }
 
     /* set non-blocking so we can manage timing */
-    fcntl(w->mHeartbeatSocketFd, F_SETFL, O_NONBLOCK);
+    fcntl(mHeartbeatSocketFd, F_SETFL, O_NONBLOCK);
 
     /* Loop until application asks us to exit */
     int done = 0;
@@ -116,7 +116,7 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
         ssize_t packet_length_bytes;
 
         /* receive a packet */
-        packet_length_bytes = recvfrom(w->mHeartbeatSocketFd, &packet,
+        packet_length_bytes = recvfrom(mHeartbeatSocketFd, &packet,
                                        sizeof(ptp_heartbeat_packet_t),
                                        0, (struct sockaddr*)&from, &fromlen);
         if(packet_length_bytes == 0) {
@@ -132,8 +132,8 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
         if (packet_length_bytes == sizeof(ptp_heartbeat_packet_t)) {
 
             // update internal client address information
-            w->mClientAddressLen = fromlen;
-            memcpy(&w->mClientAddress, &from, w->mClientAddressLen);
+            mClientAddressLen = fromlen;
+            memcpy(&mClientAddress, &from, mClientAddressLen);
             char str[INET6_ADDRSTRLEN];
             if(inet_ntop(AF_INET,
                 &from.sin_addr.s_addr,
@@ -148,12 +148,15 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
         time(&now);
         size_t d = difftime(now, last_heartbeat_received);
         if(d > (PTP_HEARTBEAT_TTL_S * 2)) {
-            w->mClientAddressLen = 0;
+            mClientAddressLen = 0;
         }
-        usleep(1);
+        if(gdata->keep_going){
+            usleep(1);
+        }
+        else {
+            done=1;
+        }
     }
-
-    return(NULL);
 }
 
 /* Print pthreads error user-defined and internal error message. */
@@ -176,17 +179,12 @@ UDPWriter::UDPWriter(const GlobalData *_gdata): Writer(_gdata) {
     if((p = getenv("UDPWRITER_PORT"))) {
         mPort = atoi(p);
     }
-    int err;
-    if ((err = pthread_create(&mHeartbeatThread, NULL, heartbeat_thread_main,
-        (void*)this))) {
-        PT_ERR_MSG("heartbeat pthread_create", err);
-    }
+    mHeartbeatThread = thread (&UDPWriter::heartbeat_thread_main,this);
     memset(&mClientAddress, 0, sizeof(mClientAddress));
     mClientAddressLen = 0;
-
     if ((mSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         perror("socket");
-        pthread_exit(NULL);
+        terminate();
     }
     int udp_buffer_size = sizeof(ptp_packet_t) * 1024 * 1024;
     if (setsockopt(mSocket, SOL_SOCKET, SO_SNDBUF,
@@ -196,6 +194,7 @@ UDPWriter::UDPWriter(const GlobalData *_gdata): Writer(_gdata) {
 }
 
 UDPWriter::~UDPWriter() {
+    mHeartbeatThread.join();
     close(mSocket);
 }
 
