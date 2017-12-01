@@ -16,8 +16,8 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceProperties(&deviceProp, cudaDevNum));
 
-	printf("thread 0x%llx device idx %d: CUDA device %d/%d, PCI device %04x:%02x:%02x.0: %s\n",
-		(unsigned long long)pthread_self(), devidx, cudaDevNum, deviceCount,
+	printf("thread 0x%zx device idx %d: CUDA device %d/%d, PCI device %04x:%02x:%02x.0: %s\n",
+		std::this_thread::get_id(), devidx, cudaDevNum, deviceCount,
 		deviceProp.pciDomainID, deviceProp.pciBusID, deviceProp.pciDeviceID,
 		deviceProp.name);
 
