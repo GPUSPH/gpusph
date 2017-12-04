@@ -516,7 +516,6 @@ bool GPUSPH::runSimulation() {
 	printStatus();
 
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
-	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
 	// an empty set of PostProcessEngines, to be used when we want to save
 	// the particle system without running post-processing filters
@@ -810,64 +809,7 @@ bool GPUSPH::runSimulation() {
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
 
-		// list of writers that need to write at this timestep
-		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
-
-		// we need to write if any writer is configured to write at this timestep
-		// i.e. if the writers list is not empty
-		const bool need_write = !writers.empty();
-
-		// do we want to write even if no writer is asking to?
-		const bool force_write =
-			// ask the problem if we want to write anyway
-			gdata->problem->need_write(gdata->t) ||
-			// always write if we're done with the simulation
-			we_are_done ||
-			// write if it was requested
-			gdata->save_request;
-
-		// reset save_request, we're going to satisfy it anyway
-		if (force_write)
-			gdata->save_request = false;
-
-		if (need_write || force_write) {
-			if (gdata->clOptions->nosave && !force_write) {
-				// we want to avoid writers insisting we need to save,
-				// so pretend we actually saved
-				Writer::FakeMarkWritten(writers, gdata->t);
-			} else {
-				saveParticles(enabledPostProcess, force_write ?
-					// if the write is forced, indicate it with a flag
-					// hinting that all integration steps have been completed
-					ALL_INTEGRATION_STEPS :
-					// otherwise, no special flag
-					NO_FLAGS);
-
-				// we generally want to print the current status and reset the
-				// interval performance counter when writing. However, when writing
-				// at every timestep, this can be very bothersome (lots and lots of
-				// output) so we do not print the status if the only writer(s) that
-				// have been writing have a frequency of 0 (write every timestep)
-				// TODO the logic here could be improved; for example, we are not
-				// considering the case of a single writer that writes at every timestep:
-				// when do we print the status then?
-				// TODO other enhancements would be to print who is writing (what)
-				// during the print status
-				double maxfreq = 0;
-				ConstWriterMap::iterator it(writers.begin());
-				ConstWriterMap::iterator end(writers.end());
-				while (it != end) {
-					double freq = it->second->get_write_freq();
-					if (freq > maxfreq)
-						maxfreq = freq;
-					++it;
-				}
-				if (force_write || maxfreq > 0) {
-					printStatus();
-					m_intervalPerformanceCounter->restart();
-				}
-			}
-		}
+		check_write(we_are_done);
 
 		if (we_are_done)
 			// NO doCommand() after keep_going has been unset!
@@ -2116,4 +2058,68 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
 		}
 	}
+}
+
+void GPUSPH::check_write(bool we_are_done)
+{
+		static PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+		// list of writers that need to write at this timestep
+		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
+
+		// we need to write if any writer is configured to write at this timestep
+		// i.e. if the writers list is not empty
+		const bool need_write = !writers.empty();
+
+		// do we want to write even if no writer is asking to?
+		const bool force_write =
+			// ask the problem if we want to write anyway
+			gdata->problem->need_write(gdata->t) ||
+			// always write if we're done with the simulation
+			we_are_done ||
+			// write if it was requested
+			gdata->save_request;
+
+		// reset save_request, we're going to satisfy it anyway
+		if (force_write)
+			gdata->save_request = false;
+
+		if (need_write || force_write) {
+			if (gdata->clOptions->nosave && !force_write) {
+				// we want to avoid writers insisting we need to save,
+				// so pretend we actually saved
+				Writer::FakeMarkWritten(writers, gdata->t);
+			} else {
+				saveParticles(enabledPostProcess, force_write ?
+					// if the write is forced, indicate it with a flag
+					// hinting that all integration steps have been completed
+					ALL_INTEGRATION_STEPS :
+					// otherwise, no special flag
+					NO_FLAGS);
+
+				// we generally want to print the current status and reset the
+				// interval performance counter when writing. However, when writing
+				// at every timestep, this can be very bothersome (lots and lots of
+				// output) so we do not print the status if the only writer(s) that
+				// have been writing have a frequency of 0 (write every timestep)
+				// TODO the logic here could be improved; for example, we are not
+				// considering the case of a single writer that writes at every timestep:
+				// when do we print the status then?
+				// TODO other enhancements would be to print who is writing (what)
+				// during the print status
+				double maxfreq = 0;
+				ConstWriterMap::iterator it(writers.begin());
+				ConstWriterMap::iterator end(writers.end());
+				while (it != end) {
+					double freq = it->second->get_write_freq();
+					if (freq > maxfreq)
+						maxfreq = freq;
+					++it;
+				}
+				if (force_write || maxfreq > 0) {
+					printStatus();
+					m_intervalPerformanceCounter->restart();
+				}
+			}
+		}
+
 }
