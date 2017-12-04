@@ -247,7 +247,7 @@ Writer::StartWriting(double t, flag_t write_flags)
 	}
 
 	if (common_special && !started.empty()) {
-		m_writers[COMMONWRITER]->mark_written(t);
+		m_writers[COMMONWRITER]->start_writing(t, write_flags);
 	}
 
 	return started;
