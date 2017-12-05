@@ -58,7 +58,7 @@ public:
 void
 updateNewIDsOffset(const uint &newIDsOffset)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuboundaryconditions::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
 }
 
 /// Disables particles that went through boundaries when open boundaries are used
@@ -75,7 +75,7 @@ disableOutgoingParts(		float4*			pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	//execute kernel
-	cuboundaryconditions::disableOutgoingPartsDevice<<<numBlocks, numThreads>>>
+	cubounds::disableOutgoingPartsDevice<<<numBlocks, numThreads>>>
 		(	pos,
 			vertices,
 			numParticles);
@@ -124,7 +124,7 @@ saSegmentBoundaryConditions(
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
-	cuboundaryconditions::saSegmentBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cubounds::saSegmentBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
 		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertIDToIndex, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, step, simflags & ENABLE_INLET_OUTLET);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
@@ -165,7 +165,7 @@ computeVertexNormal(
 	#endif
 
 	// execute the kernel
-	cuboundaryconditions::computeVertexNormal<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::computeVertexNormal<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		vertices,
 		vertIDToIndex,
@@ -216,7 +216,7 @@ initGamma(
 	#endif
 
 	// execute the kernel for fluid
-	cuboundaryconditions::initGamma<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::initGamma<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		oldPos,
 		boundelement,
@@ -234,7 +234,7 @@ initGamma(
 		particleRangeEnd);
 
 	// execute the kernel for and vertex
-	cuboundaryconditions::initGamma<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::initGamma<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		oldPos,
 		boundelement,
@@ -306,7 +306,7 @@ saVertexBoundaryConditions(
 	#endif
 
 	// execute the kernel
-	cuboundaryconditions::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cubounds::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
 		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, dgamdt, vertices, vertPos[0], vertPos[1], vertPos[2], vertIDToIndex, info, particleHash, cellStart, neibsList,
 		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
 
@@ -364,7 +364,7 @@ saIdentifyCornerVertices(
 	dummy_shared = 2560;
 	#endif
 	// execute the kernel
-	cuboundaryconditions::saIdentifyCornerVertices<<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::saIdentifyCornerVertices<<< numBlocks, numThreads, dummy_shared >>> (
 		oldPos,
 		info,
 		particleHash,

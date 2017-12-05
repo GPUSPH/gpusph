@@ -38,7 +38,7 @@
  *	- domain size, origin and cell grid properties and related functions
  *	- open boundaries properties and related functions
  */
-namespace cuboundaryconditions {
+namespace cubounds {
 
 using namespace cuneibs;
 using namespace cuphys;
