@@ -522,6 +522,16 @@ public:
 		throw std::runtime_error("invalid selector value");
 	}
 
+	/// Chained selectors (for multiple overrides)
+	template<typename E1, typename E2, typename SelO, typename Other>
+	SimFramework * select_options(bool s1, E1, bool s2, E2, SelO sel_o, Other)
+	{
+		if (s1)
+			return extend<E1>().select_options(s2, E2(), sel_o, Other());
+		return this->select_options(s2, E2(), sel_o, Other());
+	}
+
+
 };
 
 #endif
