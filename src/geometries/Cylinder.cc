@@ -202,8 +202,15 @@ Cylinder::FillIn(PointVect& points, const double dx, const int layers)
 
 
 void
-Cylinder::FillIn(PointVect& points, const double dx, const int layers, const bool fill_tops)
+Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bool fill_tops)
 {
+	// NOTE - TODO
+	// XProblem calls FillIn with negative number of layers to fill rects in the opposite
+	// direction as the normal. Cubes and other primitives do not support it. This is a
+	// temporary workaround until we decide a common policy for the filling of DYNAMIC
+	// boundary layers consistent for any geometry.
+	int layers = abs(_layers);
+
 	m_origin(3) = m_center(3);
 
 	for (uint l = 0; l < layers; l++) {

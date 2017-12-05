@@ -78,6 +78,7 @@ void XProblem::release_memory()
 {
 	m_fluidParts.clear();
 	m_boundaryParts.clear();
+	m_testpointParts.clear();
 	// also cleanup object parts
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		if (m_geometries[g]->enabled)
@@ -418,6 +419,8 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
 	const char *hdf5_fname, const char *xyz_fname, const char *stl_fname)
 {
+	// TODO: before even creating the new GeometryInfo we should check the compatibility of
+	// the combination of paramenters (e.g. no moving planes; no HDF5 testpoints)
 	GeometryInfo* geomInfo = new GeometryInfo();
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
@@ -476,24 +479,41 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
 			break;
+		case GT_TESTPOINTS:
+			geomInfo->handle_collisions = false;
+			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
+			break;
 	}
 
 	// --- Default intersection type
 	// It is IT_SUBTRACT by default, except for planes: they are usually used
 	// to delimit the boundaries of the domain, so we likely want to intersect
-	if (geomInfo->type == GT_PLANE)
-		geomInfo->intersection_type = IT_INTERSECT;
-	else
-		geomInfo->intersection_type = IT_SUBTRACT;
+	switch (geomInfo->type) {
+		case GT_PLANE:
+			geomInfo->intersection_type = IT_INTERSECT;
+			break;
+		case GT_TESTPOINTS:
+			geomInfo->intersection_type = IT_NONE;
+			break;
+		default:
+			geomInfo->intersection_type = IT_SUBTRACT;
+	}
 
 	// --- Default erase operation
 	// Upon intersection or subtraction we can choose to interact with fluid
 	// or boundaries. By default, water erases only other water, while boundaries
-	// erase water and other boundaries.
-	if (geomInfo->type == GT_FLUID)
-		geomInfo->erase_operation = ET_ERASE_FLUID;
-	else
-		geomInfo->erase_operation = ET_ERASE_ALL;
+	// erase water and other boundaries. Testpoints eras nothing.
+	switch (geomInfo->type) {
+		case GT_FLUID:
+			geomInfo->erase_operation = ET_ERASE_FLUID;
+			break;
+		case GT_TESTPOINTS:
+			geomInfo->erase_operation = ET_ERASE_NOTHING;
+			break;
+		default:
+			geomInfo->erase_operation = ET_ERASE_ALL;
+	}
 
 	// NOTE: we don't need to check handle_collisions at all, since if there are no bodies
 	// we don't need collisions nor ODE at all
@@ -715,6 +735,7 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 	// NOTES about HDF5 files
 	// - fill type is FT_NOFILL since particles are read from file
 	// - may add a null STLMesh if the hdf5 file is given but not the mesh
+	// - should adding an HDF5 file of type GT_TESTPOINTS be forbidden?
 
 	// create an empty STLMesh if the STL filename is not given
 	STLMesh *stlmesh = ( fname_stl == NULL ? new STLMesh(0) : STLMesh::load_stl(fname_stl) );
@@ -754,12 +775,28 @@ GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
 	);
 }
 
+// Add a single testpoint; returns the position of the testpoint in the vector of
+// testpoints, which will correspond to its particle id.
+// NOTE: testpoints should be assigned with consecutive particle ids starting from 0
+size_t XProblem::addTestPoint(const Point &coordinates)
+{
+	m_testpointParts.push_back(coordinates);
+	return (m_testpointParts.size() - 1);
+}
+
+// Simple overload
+size_t XProblem::addTestPoint(const double posx, const double posy, const double posz)
+{
+	return addTestPoint(Point(posx, posy, posz));
+}
+
 // request to invert normals while loading - only for HDF5 files
 void XProblem::flipNormals(const GeometryID gid, bool flip)
 {
 	if (!validGeometry(gid)) return;
 
 	// this makes sense only for geometries loading a HDF5 file
+	// TODO: also enable for planes?
 	if (!m_geometries[gid]->has_hdf5_file) {
 		printf("WARNING: trying to invert normals on a geometry without HDF5-files associated! Ignoring\n");
 		return;
@@ -854,7 +891,7 @@ void XProblem::enableFeedback(const GeometryID gid)
 	// ensure collisions are consistent with geometry type
 	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
 		m_geometries[gid]->type != GT_MOVING_BODY) {
-		printf("WARNING: collisions only available for floating or moving bodies! Ignoring\n");
+		printf("WARNING: feedback only available for floating or moving bodies! Ignoring\n");
 		return;
 	}
 
@@ -869,7 +906,7 @@ void XProblem::disableFeedback(const GeometryID gid)
 
 	// ensure no-dynamics is consistent with geometry type
 	if (m_geometries[gid]->type == GT_FLOATING_BODY) {
-		printf("WARNING: measuring forces is mandatory for floating bodies! Ignoring\n");
+		printf("WARNING: feedback is mandatory for floating bodies! Ignoring\n");
 		return;
 	}
 
@@ -981,6 +1018,18 @@ void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot
 
 	// rotate with computed quaternion
 	rotate( gid, qXYZ );
+}
+
+void XProblem::shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset)
+{
+	if (!validGeometry(gid)) return;
+
+	if (m_geometries[gid]->type == GT_PLANE) {
+		printf("WARNING: shift is not available for planes! Ignoring\n");
+		return;
+	}
+
+	m_geometries[gid]->ptr->shift(make_double3(Xoffset, Yoffset, Zoffset));
 }
 
 void XProblem::setIntersectionType(const GeometryID gid, IntersectionType i_type)
@@ -1164,17 +1213,23 @@ int XProblem::fill_parts()
 		if (!m_geometries[g]->enabled) continue;
 
 		// set dx and recipient vector according to geometry type
-		if (m_geometries[g]->type == GT_FLUID) {
-			parts_vector = &m_fluidParts;
-			dx = m_deltap;
-		} else
-		if (m_geometries[g]->type == GT_FLOATING_BODY ||
-			m_geometries[g]->type == GT_MOVING_BODY) {
-			parts_vector = &(m_geometries[g]->ptr->GetParts());
-			dx = physparams()->r0;
-		} else {
-			parts_vector = &m_boundaryParts;
-			dx = physparams()->r0;
+		switch (m_geometries[g]->type) {
+			case GT_FLUID:
+				parts_vector = &m_fluidParts;
+				dx = m_deltap;
+				break;
+			case GT_TESTPOINTS:
+				parts_vector = &m_testpointParts;
+				dx = physparams()->r0;
+				break;
+			case GT_FLOATING_BODY:
+			case GT_MOVING_BODY:
+				parts_vector = &(m_geometries[g]->ptr->GetParts());
+				dx = physparams()->r0;
+				break;
+			default:
+				parts_vector = &m_boundaryParts;
+				dx = physparams()->r0;
 		}
 
 		// Now will set the particle and object mass if still unset
@@ -1342,8 +1397,11 @@ int XProblem::fill_parts()
 
 	} // iterate on geometries
 
-	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter
-		+ hdf5file_parts_counter + xyzfile_parts_counter;
+	// call user-set filtering routine, if any
+	filterPoints(m_fluidParts, m_boundaryParts);
+
+	return m_fluidParts.size() + m_boundaryParts.size() + m_testpointParts.size() +
+		bodies_parts_counter + hdf5file_parts_counter + xyzfile_parts_counter;
 }
 
 void XProblem::copy_planes(PlaneList &planes)
@@ -1387,15 +1445,19 @@ void XProblem::copy_to_array(BufferList &buffers)
 	uint fluid_parts = 0;
 	uint boundary_parts = 0;
 	uint vertex_parts = 0;
+	uint testpoint_parts = 0;
 	// count #particles loaded from HDF5 files. Needed also to adjust connectivity afterward
 	uint hdf5_loaded_parts = 0;
 	// count #particles loaded from XYZ files. Only for information
 	uint xyz_loaded_parts = 0;
-	// Total number of filled parts, i.e. in GPUSPH array and ready to be uploaded. The following hold:
-	//   total = fluid_parts + boundary_parts + vertex_parts
+	// Total number of filled parts, i.e. in GPUSPH array and ready to be uploaded.
+	uint tot_parts = 0;
+	// The following hold:
+	//   total = fluid_parts + boundary_parts + vertex_parts + testpoint_parts
 	//   total >= hdf5_loaded_parts + xyz_loaded_parts
 	//   total >= object_parts
-	uint tot_parts = 0;
+	// NOTE: particles loaded from HDF5 or XYZ files are counted both in the respective
+	// *_loaded_parts counter and in the type counter (e.g. fluid_parts).
 
 	// store mass for each particle type
 	double fluid_part_mass = NAN;
@@ -1414,11 +1476,30 @@ void XProblem::copy_to_array(BufferList &buffers)
 			xyz_loaded_parts += m_geometries[g]->xyz_reader->getNParts();
 	}
 
+	// copy filled testpoint parts
+	// NOTE: filling testpoint parts first so that if they are a fixed number they will have
+	// the same particle id, independently from the deltap used
+	for (uint i = tot_parts; i < tot_parts + m_testpointParts.size(); i++) {
+		info[i] = make_particleinfo(PT_TESTPOINT, 0, i);
+		calc_localpos_and_hash(m_testpointParts[i - tot_parts], info[i], pos[i], hash[i]);
+		globalPos[i] = m_testpointParts[i - tot_parts].toDouble4();
+		// Compute density for hydrostatic filling. FIXME for multifluid
+		const float rho = (simparams()->boundarytype == DYN_BOUNDARY ?
+			density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, rho);
+		if (eulerVel)
+			eulerVel[i] = make_float4(0);
+		if (i == tot_parts)
+			boundary_part_mass = pos[i].w;
+	}
+	tot_parts += m_testpointParts.size();
+	testpoint_parts += m_testpointParts.size();
+
 	// copy filled fluid parts
 	for (uint i = tot_parts; i < tot_parts + m_fluidParts.size(); i++) {
 		info[i]= make_particleinfo(PT_FLUID,0,i);
-		calc_localpos_and_hash(m_fluidParts[i], info[i], pos[i], hash[i]);
-		globalPos[i] = m_fluidParts[i].toDouble4();
+		calc_localpos_and_hash(m_fluidParts[i - tot_parts], info[i], pos[i], hash[i]);
+		globalPos[i] = m_fluidParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
 		const float rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
@@ -1531,9 +1612,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// "i" is the particle index in GPUSPH host arrays, "bi" the one in current HDF5 file)
 				const uint bi = i - tot_parts;
-
-				// TODO: warning as follows? But should be printed only once
-				// if (hdf5Buffer[bi].ParticleType != 0) ... warning, filling with different particle type
 
 				// TODO: define an invalid/unknown particle type?
 				// NOTE: update particle counters here, since current_geometry_particles does not distinguish vertex/bound;
@@ -1670,6 +1748,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 				case GT_FIXED_BOUNDARY:
 					ptype = PT_BOUNDARY;
 					boundary_parts += current_geometry_particles;
+					break;
+				case GT_TESTPOINTS:
+					ptype = PT_TESTPOINT;
+					testpoint_parts += current_geometry_particles;
 					break;
 				case GT_MOVING_BODY:
 					pflags = FG_MOVING_BOUNDARY;
@@ -1884,11 +1966,23 @@ void XProblem::copy_to_array(BufferList &buffers)
 	std::cout << "Boundary: " << boundary_parts << " parts, mass " << boundary_part_mass << "\n";
 	if (simparams()->boundarytype == SA_BOUNDARY)
 		std::cout << "Vertices: " << vertex_parts << " parts, mass " << vertex_part_mass << "\n";
+	std::cout << "Testpoint: " << testpoint_parts << " parts\n";
 	std::cout << "Tot: " << tot_parts << " particles\n";
 	std::flush(std::cout);
 
 	// call user-set initialization routine, if any
 	initializeParticles(buffers, tot_parts);
+}
+
+// callback for filtering out points before they become particles (e.g. unfills/cuts)
+void XProblem::filterPoints(PointVect &fluidParts, PointVect &boundaryParts)
+{
+		// Default: do nothing
+
+	/*
+	// Example usage
+	// TODO
+	*/
 }
 
 // callback for initializing particles with custom values

@@ -43,7 +43,8 @@ enum GeometryType {	GT_FLUID,
 					GT_OPENBOUNDARY,
 					GT_FLOATING_BODY,
 					GT_MOVING_BODY,
-					GT_PLANE
+					GT_PLANE,
+					GT_TESTPOINTS
 };
 
 enum FillType {	FT_NOFILL,
@@ -52,7 +53,8 @@ enum FillType {	FT_NOFILL,
 				FT_BORDER
 };
 
-enum IntersectionType {	IT_INTERSECT,
+enum IntersectionType {	IT_NONE,
+						IT_INTERSECT,
 						IT_SUBTRACT
 };
 
@@ -156,6 +158,7 @@ class XProblem: public Problem {
 		GeometryVector m_geometries;
 		PointVect m_fluidParts;
 		PointVect m_boundaryParts;
+		PointVect m_testpointParts;
 		//PointVect m_vertexParts;
 
 		size_t m_numActiveGeometries;	// do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
@@ -218,6 +221,11 @@ class XProblem: public Problem {
 		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
 			const char *fname_xyz, const char *fname_stl = NULL);
 
+		// Method to add a single testpoint.
+		// NOTE: does not create a geometry since Point does not derive from Object
+		size_t addTestPoint(const Point &coordinates);
+		size_t addTestPoint(const double posx, const double posy, const double posz);
+
 		// request to invert normals while loading - only for HDF5 files
 		void flipNormals(const GeometryID gid, bool flip = true);
 
@@ -243,6 +251,9 @@ class XProblem: public Problem {
 		void setOrientation(const GeometryID gid, const dQuaternion quat);
 		void rotate(const GeometryID gid, const dQuaternion quat);
 		void rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
+
+		// method for shifting an existing object
+		void shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset);
 
 		// get and customize the unfilling policy
 		IntersectionType getIntersectionType(const GeometryID gid) { return m_geometries[gid]->intersection_type; }
@@ -289,6 +300,8 @@ class XProblem: public Problem {
 		// get current value (NOTE: not yet autocomputed in problem constructor)
 		uint getDynamicBoundariesLayers() { return m_numDynBoundLayers; }
 
+		// callback for filtering out points before they become particles
+		virtual void filterPoints(PointVect &fluidParts, PointVect &boundaryParts);
 		// callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 
