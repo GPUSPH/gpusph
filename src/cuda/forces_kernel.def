@@ -1170,10 +1170,10 @@ template<BoundaryType boundarytype,
 struct
 compute_density_diffusion<BREZZI, boundarytype, cptype, PT_FLUID>
 {
-	template<typename FP, typename P, typename N, typename ON>
+	template<typename FP, typename Pt, typename N, typename ON>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
+	with(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
 	{
 		// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
 		nout.DrDt += ((2.0/(pdata.vel.w + ndata.relVel.w))*
@@ -1188,10 +1188,10 @@ template<ParticleType cptype>
 struct
 compute_density_diffusion<BREZZI, SA_BOUNDARY, cptype, PT_BOUNDARY>
 {
-	template<typename FP, typename P, typename N, typename ON>
+	template<typename FP, typename Pt, typename N, typename ON>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
+	with(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
 	{
 		// for pressure inlets we need to compute a boundary term for the Rhie & Chow filter
 		// the term is essentially the same as the one for the fluid particle except that V_b w' -> |ggam|/r_{as}
