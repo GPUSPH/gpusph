@@ -1866,7 +1866,7 @@ visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& nda
 		(d_visccoeff[fluid_num(pdata.info)]+pdata.turbViscForViscTerm)*pdata.vel.w,
 		(d_visccoeff[fluid_num(ndata.info)]+ndata.turbViscForViscTerm)*ndata.relVel.w));
 	// call getRelEulerVel always with true as in keps we always have that value
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<true>::with(ndata));
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<FP::cptype != FP::nptype>::with(ndata));
 }
 
 // artificial viscosity
@@ -2002,9 +2002,10 @@ struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, nptype> : public generic
 		//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
 		//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
-		pout.dvx += (ndata.relVel.x+ndata.relEulerVel.x)*dvmul;
-		pout.dvy += (ndata.relVel.y+ndata.relEulerVel.y)*dvmul;
-		pout.dvz += (ndata.relVel.z+ndata.relEulerVel.z)*dvmul;
+		const float4 relEulerVel = getRelEulerVel<cptype != nptype>::with(ndata);
+		pout.dvx += (ndata.relVel.x+relEulerVel.x)*dvmul;
+		pout.dvy += (ndata.relVel.y+relEulerVel.y)*dvmul;
+		pout.dvz += (ndata.relVel.z+relEulerVel.z)*dvmul;
 	}
 };
 
