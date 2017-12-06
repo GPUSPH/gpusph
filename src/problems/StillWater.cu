@@ -49,19 +49,19 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations
 	const int ppH = get_option("ppH", 16); // --ppH N to change deltap to H/N
 
-	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
+	// density diffusion terms, see DensityDiffusionType
 	const int rhodiff = get_option("density-diffusion", 1);
 
 	SETUP_FRAMEWORK(
 		//viscosity<KINEMATICVISC>,
 		viscosity<DYNAMICVISC>,
 		//viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
+		boundary<DYN_BOUNDARY>
 		//boundary<SA_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
 	).select_options(
-		ferrari, densitydiffusion<FERRARI>(),
-		colagrossi, densitydiffusion<COLAGROSSI>(),
+		rhodiff == FERRARI, densitydiffusion<FERRARI>(),
+		rhodiff == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
 		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
