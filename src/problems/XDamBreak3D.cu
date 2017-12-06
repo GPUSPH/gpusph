@@ -41,7 +41,7 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	const uint NUM_OBSTACLES = get_option("num_obstacles", 1);
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
-	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
+	// density diffusion terms, see DensityDiffusionType
 	const int RHODIFF = get_option("density-diffusion", 1);
 
 	// ** framework setup
@@ -52,14 +52,15 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<ARTVISC>,
 		boundary<LJ_BOUNDARY>
 	).select_options(
-		RHODIFF, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
+		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
+		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
 	// diffusion is enabled or Ferrari correction is enabled, 10 otherwise
 	const int mlsIters = get_option("mls",
-		(simparams()->simflags & (ENABLE_DENSITY_DIFFUSION | ENABLE_FERRARI)) ? 0 : 10);
+		RHODIFF != 0 ? 0 : 10);
 
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
