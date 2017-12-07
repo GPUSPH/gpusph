@@ -29,6 +29,8 @@
 #ifndef _FORCES_KERNEL_AUX
 #define _FORCES_KERNEL_AUX
 
+#include <type_traits> // for std::is_base_of
+
 /// This file defines the heavy-duty forcesDevice kernel (at the end).
 /// The kernel itself is now quite streamlined, and it only contains sequences
 /// of calls to templatized functors that do the actual job according to their
@@ -746,24 +748,13 @@ struct sa_boundary_neib_data
 	{}
 };
 
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags,
-	ParticleType cptype,
-	ParticleType nptype>
 struct eulerVel_neib_data
 {
-	// we will get as arguments also the current particle data and forces_kernel params.
-	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> pdata_t;
-
 	const float4 relEulerVel;
 
+	template<typename Pt>
 	__device__ __forceinline__
-	eulerVel_neib_data(pdata_t const& pdata, const uint _index, const particleinfo _info) :
+	eulerVel_neib_data(Pt const& pdata, const uint _index, const particleinfo _info) :
 		relEulerVel(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
 	{}
 };
@@ -786,7 +777,7 @@ struct forces_neib_data :
 	// relative eulerian velocity
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
 			(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
-		eulerVel_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>),
+		eulerVel_neib_data),
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	// precalculated pressure
@@ -805,7 +796,7 @@ struct forces_neib_data :
 	typedef
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
 				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
-			eulerVel_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>)
+			eulerVel_neib_data)
 		_eulerVel_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
@@ -1736,24 +1727,27 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
 	}
 }
 
-// Functor that returns the relative Eulerian velocity for viscous computations
-template<bool eulerVelPresent>
-struct getRelEulerVel
-{
-	template<typename N>
-	__device__ __forceinline__
-	static float4
-	with(N const& ndata)
-	{ return make_float4(0.0f); }
-};
+// Function that returns the relative velocity to be used in viscous computation.
+// This is just relVel normally, but it's relVel + relEulerVel when the neighbor
+// has an associated eulerian velocity.
 
-template<>
 template<typename N>
-__device__ __forceinline__ float4
-getRelEulerVel<true>::with(N const& ndata)
-{
-	return ndata.relEulerVel;
-}
+using has_eulerVel = std::is_base_of<eulerVel_neib_data, N>;
+
+template<typename N, typename T>
+using enable_if_eulerVel = typename std::enable_if<has_eulerVel<N>::value, T>::type;
+template<typename N, typename T>
+using enable_if_not_eulerVel = typename std::enable_if<!has_eulerVel<N>::value, T>::type;
+
+template<typename N>
+__device__ __forceinline__
+enable_if_not_eulerVel<N, float4> get_viscous_relVel(N const& ndata)
+{ return ndata.relVel; } /* Standard case */
+
+template<typename N>
+__device__ __forceinline__
+enable_if_eulerVel<N, float4> get_viscous_relVel(N const& ndata)
+{ return ndata.relVel + ndata.relEulerVel; } /* eulerVel case */
 
 // auxiliary functor computing boundary contribution to the viscous term
 // note that these boundary contributions are specialized for SA_BOUNDARY.
@@ -1774,10 +1768,10 @@ visc_boundary_part<DYNAMICVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// velocity of fluid particle along the wall
-	const float3 vel_tau = as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)) -
+	const float3 vel_tau = as_float3(get_viscous_relVel(ndata)) -
 		(IO_BOUNDARY(ndata.info) ?
 		 make_float3(0.0f) :
-		 dot(as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)), ndata.normal_s)*ndata.normal_s
+		 dot(as_float3(get_viscous_relVel(ndata)), ndata.normal_s)*ndata.normal_s
 		);
 
 
@@ -1848,7 +1842,7 @@ visc_volumic_part<DYNAMICVISC>::with(FP const& params, P const& pdata, N const& 
 {
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 				d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w, d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w));
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata));
+	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
 template<>
@@ -1857,7 +1851,7 @@ __device__ __forceinline__ void
 visc_volumic_part<KINEMATICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f));
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata));
+	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
 // SPS viscosity is just kinematic + a contribution based on the strain rate
@@ -1892,7 +1886,7 @@ visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& nda
 		(d_visccoeff[fluid_num(pdata.info)]+pdata.turbViscForViscTerm)*pdata.vel.w,
 		(d_visccoeff[fluid_num(ndata.info)]+ndata.turbViscForViscTerm)*ndata.relVel.w));
 	// call getRelEulerVel always with true as in keps we always have that value
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<FP::cptype != FP::nptype>::with(ndata));
+	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
 // artificial viscosity
@@ -2027,10 +2021,10 @@ struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, nptype> : public generic
 		//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
 		//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
-		const float4 relEulerVel = getRelEulerVel<cptype != nptype>::with(ndata);
-		pout.dvx += (ndata.relVel.x+relEulerVel.x)*dvmul;
-		pout.dvy += (ndata.relVel.y+relEulerVel.y)*dvmul;
-		pout.dvz += (ndata.relVel.z+relEulerVel.z)*dvmul;
+		const float4 visc_relVel = get_viscous_relVel(ndata);
+		pout.dvx += visc_relVel.x*dvmul;
+		pout.dvy += visc_relVel.y*dvmul;
+		pout.dvz += visc_relVel.z*dvmul;
 	}
 };
 
