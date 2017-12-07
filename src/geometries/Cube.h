@@ -76,8 +76,7 @@ class Cube: public Object {
 		//@{
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters& = EulerParameters());
-		Cube(const Point&, const double, const double, const double, const dQuaternion);
-		Cube(const Point&, const Vector&, const Vector&, const Vector&) DEPRECATED;
+		Cube(const Point&, const Vector&, const Vector&, const Vector&) DEPRECATED_MSG("rotate a Cube(double, double, double) instead");
 		virtual ~Cube(void) {};
 		//@}
 
@@ -120,12 +119,13 @@ class Cube: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-		/// \name ODE related  functions
+		/// \name Chrono related  functions
 		//@{
-		void ODEBodyCreate(dWorldID, const double density = 1.0, dSpaceID ODESpace = 0);
-		void ODEGeomCreate(dSpaceID, const double);
+#if USE_CHRONO == 1
+		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+			const ::chrono::ChQuaternion<> & orientation_diff);
+#endif
 		//@}
-
 		friend std::ostream& operator<<(std::ostream&, const Cube&);
 };
 #endif	/* _CUBE_H */

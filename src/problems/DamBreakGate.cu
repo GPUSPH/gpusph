@@ -23,7 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <iostream>
 
 #include "DamBreakGate.h"
@@ -43,7 +42,7 @@
 #define ORIGIN_Z	(0)
 
 
-DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
+DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// Size and origin of the simulation domain
 	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);
@@ -51,7 +50,8 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,//DYNAMICVISC//SPSVISC
-		boundary<LJ_BOUNDARY>
+		boundary<LJ_BOUNDARY>,
+		add_flags<ENABLE_MOVING_BODIES>
 	);
 
 	//addFilter(MLS_FILTER, 10);
@@ -91,21 +91,51 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 
 	// Name of problem used for directory creation
 	m_name = "DamBreakGate";
-}
 
+	// Building the geometry
+	float r0 = physparams()->r0;
+	setPositioning(PP_CORNER);
 
-DamBreakGate::~DamBreakGate(void)
-{
-	release_memory();
-}
+	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
+	disableCollisions(experiment_box);
+	GeometryID unfill_top = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
+		Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z+0.4), 1.6, 0.67, 0.1);
+	disableCollisions(unfill_top);
+	setEraseOperation(unfill_top, ET_ERASE_BOUNDARY);
 
+	float3 gate_origin = make_float3(0.4 + 2*r0, r0, r0);
+	GeometryID gate = addBox(GT_MOVING_BODY, FT_BORDER,
+		Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 0, 0.67-2*r0, 0.4);
+	disableCollisions(gate);
 
-void DamBreakGate::release_memory(void)
-{
-	parts.clear();
-	gate_parts.clear();
-	obstacle_parts.clear();
-	boundary_parts.clear();
+	GeometryID obstacle = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, 0.4 - r0);
+	disableCollisions(obstacle);
+
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
+		Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), 0.4, 0.67 - 2*r0, 0.4 - r0);
+
+	bool wet = false;	// set wet to true have a wet bed experiment
+	if (wet) {
+
+		GeometryID fluid1 = addBox(GT_FLUID, FT_SOLID,
+			Point(0.4 + 3*r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.5 - 4*r0, 0.67 - 2*r0, 0.03);
+
+		GeometryID fluid2 = addBox(GT_FLUID, FT_SOLID,
+			Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.58 - 2*r0, 0.67 - 2*r0, 0.03);
+
+		GeometryID fluid3 = addBox(GT_FLUID, FT_SOLID,
+			Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.12, 0.24 - 2*r0, 0.03);
+
+		GeometryID fluid4 = addBox(GT_FLUID, FT_SOLID,
+			Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.12, 0.31 - 2*r0, 0.03);
+	}
+
 }
 
 void
@@ -137,138 +167,4 @@ DamBreakGate::moving_bodies_callback(const uint index, Object* object, const dou
 	dr.Identity();
 }
 
-
-int DamBreakGate::fill_parts()
-{
-	float r0 = physparams()->r0;
-
-	Cube fluid, fluid1, fluid2, fluid3, fluid4;
-
-	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
-
-	float3 gate_origin = make_float3(0.4 + 2*physparams()->r0, 0, 0);
-	gate = Rect (Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
-				Vector(0,0,0.4));
-
-	obstacle = Cube(Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, 0.4 - r0);
-
-	fluid = Cube(Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), 0.4, 0.67 - 2*r0, 0.4 - r0);
-
-	bool wet = false;	// set wet to true have a wet bed experiment
-	if (wet) {
-		fluid1 = Cube(Point(0.4 + m_deltap + r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
-			0.5 - m_deltap - 2*r0, 0.67 - 2*r0, 0.03);
-
-		fluid2 = Cube(Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
-			0.58 - 2*r0, 0.67 - 2*r0, 0.03);
-
-		fluid3 = Cube(Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
-			0.12, 0.24 - 2*r0, 0.03);
-
-		fluid4 = Cube(Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
-			0.12, 0.31 - 2*r0, 0.03);
-	}
-
-	boundary_parts.reserve(2000);
-	parts.reserve(14000);
-	gate_parts.reserve(2000);
-
-	experiment_box.SetPartMass(r0, physparams()->rho0[0]);
-	experiment_box.FillBorder(boundary_parts, r0, false);
-
-	gate.SetPartMass(r0, physparams()->rho0[0]);
-	gate.Fill(gate.GetParts(), r0, true);
-	add_moving_body(&gate, MB_MOVING);
-
-	obstacle.SetPartMass(r0, physparams()->rho0[0]);
-	obstacle.FillBorder(obstacle_parts, r0, true);
-
-	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
-	fluid.Fill(parts, m_deltap, true);
-
-	if (wet) {
-		fluid1.SetPartMass(m_deltap, physparams()->rho0[0]);
-		fluid1.Fill(parts, m_deltap, true);
-		fluid2.SetPartMass(m_deltap, physparams()->rho0[0]);
-		fluid2.Fill(parts, m_deltap, true);
-		fluid3.SetPartMass(m_deltap, physparams()->rho0[0]);
-		fluid3.Fill(parts, m_deltap, true);
-		fluid4.SetPartMass(m_deltap, physparams()->rho0[0]);
-		fluid4.Fill(parts, m_deltap, true);
-	}
-
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
-}
-
-void DamBreakGate::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-	}
-	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
-
-	uint object_particle_counter = 0;
-	for (uint k = 0; k < m_bodies.size(); k++) {
-		PointVect & rbparts = m_bodies[k]->object->GetParts();
-		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
-		for (uint i = 0; i < rbparts.size(); i++) {
-			uint ij = i + j;
-			float ht = H - rbparts[i](2);
-			if (ht < 0)
-				ht = 0.0;
-			float rho = density(ht, 0);
-			rho = physparams()->rho0[0];
-			vel[ij] = make_float4(0, 0, 0, rho);
-			uint ptype = (uint) PT_BOUNDARY;
-			switch (m_bodies[k]->type) {
-				case MB_ODE:
-					ptype |= FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE;
-					break;
-				case MB_FORCES_MOVING:
-					ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
-					break;
-				case MB_MOVING:
-					ptype |= FG_MOVING_BOUNDARY;
-					break;
-			}
-			info[ij] = make_particleinfo(ptype, k, ij);
-			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
-		}
-		if (k < simparams()->numforcesbodies) {
-			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
-			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
-			object_particle_counter += rbparts.size();
-		}
-		j += rbparts.size();
-		std::cout << ", part mass: " << pos[j-1].w << "\n";
-		std::cout << ", part type: " << type(info[j-1])<< "\n";
-	}
-
-	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
-	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i] = make_particleinfo(PT_BOUNDARY, 1, i);
-		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += obstacle_parts.size();
-	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
-
-	std::cout << "Fluid parts: " << parts.size() << "\n";
-	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i] = make_particleinfo(PT_FLUID, 0, i);
-		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
-}
 

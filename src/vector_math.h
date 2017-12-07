@@ -13,6 +13,10 @@
 #ifndef VECTOR_MATH_H
 #define VECTOR_MATH_H
 
+#ifndef __CUDACC__
+#include <cmath>
+#endif
+
 #include "cuda_runtime.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,14 +24,13 @@ typedef unsigned int uint;
 typedef unsigned short ushort;
 
 #ifndef __CUDACC__
-#include <cmath>
 
-inline int max(int a, int b)
+inline __host__ __device__ int max(int a, int b)
 {
 	return a > b ? a : b;
 }
 
-inline int min(int a, int b)
+inline __host__ __device__ int min(int a, int b)
 {
 	return a < b ? a : b;
 }
@@ -621,7 +624,7 @@ static __forceinline__ __host__ __device__ float3 rotate(const float3 &v, const 
 static __forceinline__ __host__ __device__ float hypot(const float3 &v)
 {
 	float p;
-	p = fmax(fmax(fabs(v.x), fabs(v.y)), fabs(v.z));
+	p = fmaxf(fmaxf(fabsf(v.x), fabsf(v.y)), fabsf(v.z));
 	if (!p)
 		return 0;
 
@@ -905,6 +908,13 @@ static __forceinline__ __host__ __device__ double dot3(const double4 &a, const d
 	return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+// dot product for double4 but act as if they were double3s
+static __forceinline__ __host__ __device__ double dot3(const double4 &a, const double3 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+
 // show a double4 as a double3
 static __forceinline__ __host__ __device__ double3& as_double3(const double4 &v)
 {
@@ -1172,7 +1182,7 @@ static __forceinline__ __host__ __device__ float4 fabs(const float4 &v)
 static __forceinline__ __host__ __device__ float hypot(const float4 &v)
 {
 	float p;
-	p = fmax(fmax(fabs(v.x), fabs(v.y)), fmax(fabs(v.z), fabs(v.w)));
+	p = fmaxf(fmaxf(fabsf(v.x), fabsf(v.y)), fmaxf(fabsf(v.z), fabsf(v.w)));
 	if (!p)
 		return 0;
 
@@ -1185,7 +1195,7 @@ static __forceinline__ __host__ __device__ float hypot(const float4 &v)
 static __forceinline__ __host__ __device__ float hypot3(const float4 &v)
 {
 	float p;
-	p = fmax(fmax(fabs(v.x), fabs(v.y)), fabs(v.z));
+	p = fmaxf(fmaxf(fabsf(v.x), fabsf(v.y)), fabsf(v.z));
 	if (!p)
 		return 0;
 

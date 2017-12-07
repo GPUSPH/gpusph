@@ -36,8 +36,6 @@
 #include "vector_math.h"
 #include "cuda_call.h"
 
-#include "ode/ode.h"
-
 #include "common_types.h"
 
 enum KernelType {
@@ -222,6 +220,7 @@ enum PostProcessType {
 	VORTICITY = FIRST_POSTPROC,
 	TESTPOINTS,
 	SURFACE_DETECTION,
+	FLUX_COMPUTATION,
 	CALC_PRIVATE,
 	INVALID_POSTPROC
 };
@@ -235,6 +234,7 @@ const char *PostProcessName[INVALID_POSTPROC+1]
 	"Vorticity",
 	"Testpoints",
 	"Surface detection",
+	"Flux computation",
 	"Private",
 	"(invalid)"
 }

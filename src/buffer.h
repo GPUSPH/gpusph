@@ -97,7 +97,7 @@ class GenericBuffer : public AbstractBuffer
 	T *m_bufs[N];
 
 	// initialization value for the arrays
-	// NOTE that this is an int, not a T, because initalization
+	// NOTE that this is an int, not a T, because initialization
 	// is done with a memset
 	int m_init;
 
@@ -238,7 +238,7 @@ class MultiBufferList;
  */
 class BufferList
 {
-	typedef map<flag_t, AbstractBuffer*> map_type;
+	typedef std::map<flag_t, AbstractBuffer*> map_type;
 
 	map_type m_map;
 

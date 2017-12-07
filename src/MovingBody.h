@@ -30,7 +30,7 @@
 #include "Object.h"
 
 enum MovingBodyType {
-	MB_ODE,
+	MB_FLOATING,
 	MB_FORCES_MOVING,
 	MB_MOVING
 };
@@ -65,13 +65,14 @@ typedef struct KinematicData {
 } KinematicData;
 
 typedef struct MovingBodyData {
-	uint				index; ///< Sequential insertion index (NOTE: NOT index in the array)
+	uint				index; 	///< Sequential insertion index (NOTE: NOT index in the array)
+	uint				id;		///< index in the moving bodies list
 	MovingBodyType		type;
 	Object				*object;
 	KinematicData		kdata;
 	KinematicData		initial_kdata;
 
-	MovingBodyData(): index(0), type(MB_MOVING), object(NULL), kdata(KinematicData()), initial_kdata(KinematicData()) {};
+	MovingBodyData(): index(0), id(0), type(MB_MOVING), object(NULL), kdata(KinematicData()), initial_kdata(KinematicData()) {};
 
 	MovingBodyData(const MovingBodyData& mbdata) {
 		index = mbdata.index;

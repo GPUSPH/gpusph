@@ -137,17 +137,17 @@ CCFILES = $(filter-out $(PROBLEM_FILTER),\
 	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
 	  $(wildcard $(adir)/*.cc))))
 
-# GPU source files: we only directly compile the current problem (if it's CUDA)
-# and cudautil.cu, everything else gets in by nested includes
-CUFILES = $(SRCDIR)/cuda/cudautil.cu \
-	  $(filter %.cu,$(PROBLEM_SRCS))
+
+# GPU source files: we only directly compile the current problem (if it's CUDA),
+# everything else gets in by nested includes
+CUFILES = $(filter %.cu,$(PROBLEM_SRCS))
 
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
 
 # object files via filename replacement
 MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
-CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES))
+CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES)) $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPPFILES))
 CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(CUFILES))
 
 OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
@@ -191,60 +191,35 @@ versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
 CUDA_MINOR := $(lastword  $(versions_tmp))
 
-# Some paths depend on whether we are on CUDA 5 or higher.
-# CUDA_PRE_5 will be 0 if we are on CUDA 5 or higher, nonzero otherwise
-# (please only test against 0, I'm not sure it will be a specific nonzero value)
+# We only support CUDA 7 onwards, error out if this is an earlier version
 # NOTE: the test is reversed because test returns 0 for true (shell-like)
-CUDA_PRE_5=$(shell test $(CUDA_MAJOR) -ge 5; echo $$?)
+OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
+
+ifeq ($(OLD_CUDA),1)
+$(error CUDA version too old)
+endif
 
 # override: CUDA_SDK_PATH - location for the CUDA SDK samples
-# override:                 defaults to $(CUDA_INSTALL_PATH)/samples for CUDA 5 or higher,
-# override:                             /usr/local/cudasdk for older versions of CUDA.
-ifeq ($(CUDA_PRE_5), 0)
-	CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
-else
-	CUDA_SDK_PATH ?= /usr/local/cudasdk
-endif
+# override:                 defaults to $(CUDA_INSTALL_PATH)/samples
+CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
 
-# CXX is the host compiler. nvcc doesn't really allow you to use any compiler though:
-# it only supports gcc (on both Linux and Darwin). Since CUDA 5.5 it also
-# supports clang on Darwin 10.9, but only if the ccbin name actually contains the string
-# 'clang'.
-#
-# The solution to our problem is the following:
-# * we do not change anything, unless CXX is set to c++ (generic)
-# * if CXX is generic, we set it to g++, _unless_ we are on Darwin, the CUDA
-#   version is at least 5.5 and clang++ is executable, in which case we set it to /usr/bin/clang++
-# There are cases in which this might fail, but we'll fix it when we actually come across them
-WE_USE_CLANG=0
-
-# override: CXX - the host C++ compiler.
-# override:       defaults to g++, except on Darwin
-# override:       where clang++ is used if available
-ifeq ($(CXX),c++)
-	CXX = g++
-	ifeq ($(platform), Darwin)
-		versions_tmp:=$(shell [ -x /usr/bin/clang++ -a $(CUDA_MAJOR)$(CUDA_MINOR) -ge 55 ] ; echo $$?)
-		ifeq ($(versions_tmp),0)
-			CXX = /usr/bin/clang++
-			WE_USE_CLANG=1
-		endif
-	endif
-endif
-
-# Force nvcc to use the same host compiler that we selected
-# Note that this requires the compiler to be supported by
-# nvcc.
+# Make sure nvcc uses the same host compile that we use for the host
+# code.
+# Note that this requires the compiler to be supported by nvcc.
 NVCC += -ccbin=$(CXX)
 
+# Get the include path(s) used by default by our compiler
+CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 | grep '^ ' | grep -v ' (framework directory)'))
 
-# files to store last compile options: problem, dbg, compute, fastmath, MPI usage
+# files to store last compile options: problem, dbg, compute, fastmath, MPI usage, Chrono, linearization preference
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
 MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
 HDF5_SELECT_OPTFILE=$(OPTSDIR)/hdf5_select.opt
+CHRONO_SELECT_OPTFILE=$(OPTSDIR)/chrono_select.opt
+LINEARIZATION_SELECT_OPTFILE=$(OPTSDIR)/linearization_select.opt
 
 # this is not really an option, but it follows the same mechanism
 GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
@@ -255,6 +230,8 @@ OPTFILES=$(PROBLEM_SELECT_OPTFILE) \
 		 $(FASTMATH_SELECT_OPTFILE) \
 		 $(MPI_SELECT_OPTFILE) \
 		 $(HDF5_SELECT_OPTFILE) \
+		 $(CHRONO_SELECT_OPTFILE) \
+		 $(LINEARIZATION_SELECT_OPTFILE) \
 		 $(GPUSPH_VERSION_OPTFILE)
 
 # Let make know that .opt and .i dependencies are to be looked for in $(OPTSDIR)
@@ -342,7 +319,7 @@ ifdef mpi
 endif
 
 # override: MPICXX - the MPI compiler
-MPICXX ?= $(shell which mpicxx)
+MPICXX ?= $(shell which mpicxx 2> /dev/null)
 
 ifeq ($(MPICXX),)
 	ifeq ($(USE_MPI),1)
@@ -444,6 +421,36 @@ else
 	endif
 endif
 
+# option: chrono - 0 do not use Chrono (no floating objects support), 1 use Chrono (enable floating object support). Default: 0
+ifdef chrono
+	# does it differ from last?
+	ifneq ($(USE_CHRONO),$(chrono))
+		TMP := $(shell test -e $(CHRONO_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(USE_CHRONO)/$(chrono)/' $(CHRONO_SELECT_OPTFILE) )
+		# user choice
+		USE_CHRONO=$(chrono)
+	endif
+else
+	USE_CHRONO ?= 0
+endif
+
+# option: linearization - something like xyz or yzx to indicate the order
+# option:                 of coordinates when linearizing cell indices,
+# option:                 from fastest to slowest growing coordinate
+ifdef linearization
+	ifneq ($(LINEARIZATION),$(linearization))
+		LINEARIZATION=$(linearization)
+		FORCE_MAKE_LINEARIZATION=FORCE
+	endif
+else
+	ifndef LINEARIZATION
+		FORCE_MAKE_LINEARIZATION=FORCE
+		LINEARIZATION=yzx
+	endif
+endif
+# split the linearization string into individual characters, space-separated
+LINEARIZATION_WORDS=$(shell echo $(LINEARIZATION) | sed 's/./\0 /g')
+
 # --- Includes and library section start ---
 
 LIB_PATH_SFX =
@@ -487,29 +494,30 @@ INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(USER_PROBLEM_DIR
 # so that they can be skipped when generating dependencies. This must only be done for the host compiler,
 # because otherwise some nvcc version will complain about kernels not being allowed in system files
 # while compiling some thrust functions.
-# Note that we do this only if the include path is not /usr/include, since
-# otherwise GCC 6 will fail to find standard includes such as stdint.h
-CUDA_INCLUDE_PATH = $(CUDA_INSTALL_PATH)/include
-ifneq ($(CUDA_INCLUDE_PATH),/usr/include)
+# Note that we do this only if the include path is not already in the system
+# include path. This is particularly important in the case where CUDA_INCLUDE_PATH
+# is /usr/include, since otherwise GCC 6 (and later) will fail to find standard
+# includes such as stdint.h
+CUDA_INCLUDE_PATH = $(abspath $(CUDA_INSTALL_PATH)/include)
+ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
 	CC_INCPATH += -isystem $(CUDA_INCLUDE_PATH)
 endif
 
 # LIBPATH
 LIBPATH += -L/usr/local/lib
 
+# On Darwin, make sure we link with the GNU C++ standard library
+# TODO make sure this is still needed
+ifeq ($(platform), Darwin)
+       LIBS += -lstdc++
+endif
+
+
 # CUDA libaries
 LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 
-# On Darwin 10.9 with CUDA 5.5 using clang we want to link with the clang c++ stdlib.
-# This is exactly the conditions under which we set WE_USE_CLANG
-ifeq ($(WE_USE_CLANG),1)
-	LIBS += -lstdc++
-endif
-
 # link to the CUDA runtime library
 LIBS += -lcudart
-# link to ODE for the objects
-LIBS += -lode
 
 ifneq ($(USE_HDF5),0)
 	# link to HDF5 for input reading
@@ -524,13 +532,83 @@ ifneq ($(platform), Darwin)
 	LIBS += -lrt
 endif
 
-# search paths (for CUDA 5 and higher) are platform-specific
+# search paths are platform-specific
 ifeq ($(platform), Darwin)
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/
 else
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 endif
 
+# override: CHRONO_PATH         - where Chrono is installed
+# override:                       defaults to /usr/local/, may be set to
+# override:                       the build directory of Chrono
+CHRONO_PATH ?= /usr/local
+# override: CHRONO_INCLUDE_PATH - where Chrono include are installed
+# override:                       if unset, auto-detection will be attempted
+# override:                       from $(CHRONO_PATH) adding either include/ or src/
+# override: CHRONO_LIB_PATH     - where Chrono lib is installed
+# override:                       if unset, auto-detection will be attempted
+# override:                       from $(CHRONO_PATH) adding lib64/
+
+CHRONO_INCLUDE_PATH ?=
+CHRONO_LIB_PATH ?=
+
+ifneq ($(USE_CHRONO),0)
+	ifeq ($(CHRONO_INCLUDE_PATH),$(empty))
+		# If CHRONO_INCLUDE_PATH is not set, look for chrono/core/ChChrono.h
+		# under $(CHRONO_PATH)/include and $(CHRONO_PATH)/src in sequence,
+		# and then build the include path by getting the up-up-up-dir
+		CHRONO_INCLUDE_PATH := $(realpath $(dir $(or \
+			$(wildcard $(CHRONO_PATH)/include/chrono/core/ChChrono.h), \
+			$(wildcard $(CHRONO_PATH)/src/chrono/core/ChChrono.h), \
+			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_INCLUDE_PATH) \
+		))/../../)
+	else
+		# otherwise, check that the user-specified path is correct
+		ifeq ($(wildcard $(CHRONO_INCLUDE_PATH)/chrono/core/ChChrono.h),$(empty))
+			TMP := $(error CHRONO_INCLUDE_PATH is set incorrectly, chrono/core/ChChrono.h not found)
+		endif
+	endif
+
+	ifeq ($(CHRONO_LIB_PATH),$(empty))
+		# If CHRONO_LIB_PATH is not set, look for libChronoEngine.*
+		# under $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
+		CHRONO_LIB_PATH := $(dir $(or \
+			$(wildcard $(CHRONO_PATH)/lib64/libChronoEngine.so) \
+			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so), \
+			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_LIB_PATH) \
+			))
+	else
+		# otherwise, check that the user-specified path is correct
+		ifeq ($(wildcard $(CHRONO_LIB_PATH)/libChronoEngine.*),$(empty))
+			TMP := $(error CHRONO_LIB_PATH is set incorrectly, libChronoEngine not found)
+		endif
+	endif
+
+	# When using Chrono from the build directory, chrono/ChConfig.h is under the build dir,
+	# otherwise it's under the include directory
+	CHRONO_CONFIG_PATH=$(realpath $(dir $(or \
+	   $(wildcard $(CHRONO_INCLUDE_PATH)/chrono/ChConfig.h), \
+	   $(wildcard $(CHRONO_PATH)/build/chrono/ChConfig.h), \
+	   $(error Could not find Chrono configuration header. Include path: $(CHRONO_INCLUDE_PATH), Chrono path: $(CHRONO_PATH)) \
+	))/../)
+
+	ifneq ($(CHRONO_CONFIG_PATH),/usr/include)
+		INCPATH += -isystem $(CHRONO_CONFIG_PATH)
+	endif
+
+	ifneq ($(CHRONO_INCLUDE_PATH),/usr/include)
+		INCPATH += -isystem $(CHRONO_INCLUDE_PATH)
+	endif
+
+	# This is needed because on some versions of Chrono, headers include each other without the chrono/ prefix 8-/
+	INCPATH += -isystem $(CHRONO_INCLUDE_PATH)/chrono
+
+	INCPATH += -isystem $(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
+
+	LIBPATH += -L$(CHRONO_LIB_PATH)
+	LIBS += -lChronoEngine
+endif
 LDFLAGS += $(LIBPATH)
 
 LDLIBS += $(LIBS)
@@ -561,6 +639,9 @@ CPPFLAGS += $(INCPATH)
 # Put their definition in the command line to ensure it precedes any
 # (direct or indirect) inclusion of stdint.h
 CPPFLAGS += -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS
+# Likewise, for some reasons some versions g++ (such as g++-5 on Ubuntu)
+# don't include functions such as isnan under std when including <cmath>
+CPPFLAGS += -D_GLIBCXX_USE_C99_MATH
 
 # Define USE_HDF5 according to the availability of the HDF5 library
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
@@ -577,11 +658,14 @@ else
 	CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
 endif
 
-# The ODE library link is in single precision mode
-CPPFLAGS += -DdSINGLE
 
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
+
+# We also force C++11 mode, since we are no relying on C++11 features
+# TODO Check if any -std is present in CXXFLAGS (added by the user) and if
+# the specified value is not 11, warn before removing it
+CXXFLAGS += -std=c++11
 
 # HDF5 might require specific flags
 ifneq ($(USE_HDF5),0)
@@ -604,10 +688,9 @@ ifneq ($(COMPUTE),)
 	LDFLAGS += -arch=sm_$(COMPUTE)
 endif
 
-# generate line info on CUDA 5 or higher
-ifeq ($(CUDA_PRE_5),0)
-	CUFLAGS += --generate-line-info
-endif
+# generate line info
+# TODO this should only be done in debug mode
+CUFLAGS += --generate-line-info
 
 ifeq ($(FASTMATH),1)
 	CUFLAGS += --use_fast_math
@@ -623,8 +706,6 @@ ifeq ($(dbg), 1)
 else
 	CXXFLAGS += -O3
 endif
-# add -O3 anyway - workaround to fix a linking error when compiling with dbg=1, CUDA 5.0
-CXXFLAGS += -O3
 
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
 ifeq ($(verbose), 1)
@@ -640,9 +721,10 @@ endif
 # CXXFLAGS += -pg
 # LDFLAGS += -pg
 
-# Finally, add CXXFLAGS to CUFLAGS
+# Finally, add CXXFLAGS to CUFLAGS, except for -std, which gets moved outside
 
-CUFLAGS += --compiler-options $(subst $(space),$(comma),$(strip $(CXXFLAGS)))
+CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
+	   $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
 
 # CFLAGS notes
 # * Architecture (sm_XX and compute_XX):
@@ -738,26 +820,35 @@ $(HDF5_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if we are using HDF5 or not. */" \
 		> $@
 	@echo "#define USE_HDF5 $(USE_HDF5)" >> $@
+$(CHRONO_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if Chrono is enabled. */" \
+		> $@
+	@echo "#define USE_CHRONO $(USE_CHRONO)" >> $@
+$(LINEARIZATION_SELECT_OPTFILE): $(FORCE_MAKE_LINEARIZATION) | $(OPTSDIR)
+	@echo "/* Linearization order */" > $@
+	@echo "#define LINEARIZATION \"$(LINEARIZATION)\"" >> $@
+	@echo "#define COORD1 $(word 1, $(LINEARIZATION_WORDS))" >> $@
+	@echo "#define COORD2 $(word 2, $(LINEARIZATION_WORDS))" >> $@
+	@echo "#define COORD3 $(word 3, $(LINEARIZATION_WORDS))" >> $@
 
 $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 	@echo "/* git version of GPUSPH. */" \
 		> $@
 	@echo "#define GPUSPH_VERSION \"$(GPUSPH_VERSION)\"" >> $@
 
-
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
+$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
-	$(CMDECHO)$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) $(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) | $(OBJSUBS)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
@@ -766,7 +857,7 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SE
 # and it being present twice causes complains from nvcc
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cc
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) -Wno-deprecated-gpu-targets $(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
 
 # create distdir
 $(DISTDIR):
@@ -833,6 +924,7 @@ show:
 	@echo "Current dir:     $(CURDIR)"
 	@echo "This Makefile:   $(MAKEFILE)"
 	@echo "Problem:         $(PROBLEM)"
+	@echo "Linearization:   $(LINEARIZATION)"
 #	@echo "   last:         $(LAST_PROBLEM)"
 	@echo "Snapshot file:   $(SNAPSHOT_FILE)"
 	@echo "Target binary:   $(TARGET)"
@@ -853,6 +945,8 @@ show:
 	@echo "Fastmath:        $(FASTMATH)"
 	@echo "USE_MPI:         $(USE_MPI)"
 	@echo "USE_HDF5:        $(USE_HDF5)"
+	@echo "USE_CHRONO:      $(USE_CHRONO)"
+	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
 	@echo "LIBS:            $(LIBS)"
@@ -912,6 +1006,10 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_HDF5 from OPTFILES
 	$(CMDECHO)grep "\#define USE_HDF5" $(HDF5_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of USE_CHRONO from OPTFILES
+	$(CMDECHO)grep "\#define USE_CHRONO" $(CHRONO_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of LINEARIZATION from OPTFILES
+	$(CMDECHO)grep "\#define LINEARIZATION" $(LINEARIZATION_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' | tr -d '"'>> $@
 
 # Dependecies are generated by the C++ compiler, since nvcc does not understand the
 # more sophisticated -MM and -MT dependency generation options.
@@ -937,7 +1035,7 @@ Makefile.conf: Makefile $(OPTFILES)
 # This is particularly important to ensure that `make compile-problems` works correctly.
 # Of course, Makefile.conf has to be stripped from the list of dependencies before passing them
 # to the loop that builds the deps.
-$(GPUDEPS): $(CUFILES) Makefile.conf
+$(GPUDEPS): $(CUFILES) Makefile.conf | $(CHRONO_SELECT_OPTFILE)
 	$(call show_stage,DEPS,GPU)
 	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
@@ -945,27 +1043,30 @@ $(GPUDEPS): $(CUFILES) Makefile.conf
 		objfile="$${objfile%.*}.o" ; \
 		$(CXX) -x c++ \
 			-D__CUDA_INTERNAL_COMPILATION__ $(CC_INCPATH) $(CPPFLAGS) \
-			$(filter -D%,$(CUFLAGS)) \
+			$(filter -D%,$(CUFLAGS)) $(CXXFLAGS) \
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
-$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf
+$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(CHRONO_SELECT_OPTFILE)
 	$(call show_stage,DEPS,CPU)
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
 		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
 		objfile="$${objfile%.*}.o" ; \
-		$(CXX) $(CC_INCPATH) $(CPPFLAGS) \
+		OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) $(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) \
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
 # target: docs - Generate Doxygen documentation in $(DOCSDIR);
 # target:        to produce refman.pdf, run "make pdf" in $(DOCSDIR)/latex/.
 docs: $(DOXYCONF) img/logo.png
-	$(CMDECHO)mkdir -p $(DOCSDIR)
-	@echo Running Doxygen...
-	$(CMDECHO)doxygen $(DOXYCONF) && \
-	echo Generated Doxygen documentation in $(DOCSDIR)
+	@printf "\r                                 \r"
+	@echo Generating developer documentation...
+	$(CMDECHO)doxygen $(DOXYCONF) > make_docs.log 2>&1 && \
+		echo "  developer documentation: $(DOCSDIR)/dev-guide/html/index.html"
+	@echo Generating user documentation...
+	$(CMDECHO)cd docs/user-guide && $(MAKE) >> make_docs.log && \
+		echo "  user documentation: $(DOCSDIR)/user-guide/gpusph-manual.pdf"
 
 img/logo.png:
 	$(CMDECHO)mkdir -p img && \
@@ -973,14 +1074,14 @@ img/logo.png:
 
 # target: docsclean - Remove $(DOCSDIR)
 docsclean:
-	$(CMDECHO)rm -rf $(DOCSDIR)
+	$(CMDECHO)rm -rf $(DOCSDIR)/dev-guide/html/ $(DOCSDIR)/user-guide/gpusph-manual.pdf
 
 # target: tags - Create TAGS file
 tags: TAGS cscope.out
 TAGS: $(ALLSRCFILES)
-	$(CMDECHO)etags -R -h=.h.cuh.inc --exclude=docs --langmap=c++:.cc.cuh.cu.def.h.inc
+	$(CMDECHO)ctags-exuberant -R -h=.h.cuh.inc --langmap=c++:.cc.cuh.cu.def.h.inc src/ options/ scripts/
 cscope.out: $(ALLSRCFILES)
-	$(CMDECHO)which cscope > /dev/null && cscope -b $(ALLSRCFILES) || touch cscope.out
+	$(CMDECHO)which cscope > /dev/null && cscope -b -k $(patsubst %,-I%,$(CXX_SYSTEM_INCLUDE_PATH)) $(subst -isystem$(space),-I,$(INCPATH)) -R -ssrc/ -soptions/ || touch cscope.out
 
 
 # target: test - Run GPUSPH with WaveTank. Compile it if needed
@@ -1036,6 +1137,11 @@ help-overrides:
 	@echo "by creating a Makefile.local that sets them:"
 	@grep -e "^# override:" $(MAKEFILE) | sed 's/^# override: /    /' # | sed 's/ - /\t/'
 
+# FORCE target: add it to the dependecy f another target to force-rebuild it
+# Used e.g. by the LINEARIZATION_SELECT_OPTFILE to remake it when the linearization
+# changes (note that we use this mechanism instead of the sed commands used in
+# other circumstances because it's more complex to rebuild
+FORCE:
 
 # "sinclude" instead of "include" tells make not to print errors if files are missing.
 # This is necessary because during the first processing of the makefile, make complains

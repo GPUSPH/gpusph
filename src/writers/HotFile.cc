@@ -6,6 +6,8 @@ The file represents particle and other state.
 #include <stdexcept>
 #include "HotFile.h"
 
+using namespace std;
+
 /**
 HotFile buffer encoding.
 */
@@ -28,10 +30,19 @@ overkill.
 */
 typedef struct {
 	uint	index;
-	float	gravity_center[3];
-	float	quaternion[4];
-	float	linvel[3];
-	float	angvel[3];
+	uint	id;
+	MovingBodyType type;
+	uint	numparts;
+	int		firstindex;
+	int		lastindex;
+	double	crot[3];
+	double	lvel[3];
+	double	avel[3];
+	double	orientation[4];
+	double	initial_crot[3];
+	double	initial_lvel[3];
+	double	initial_avel[3];
+	double	initial_orientation[4];
 	float	reserved[10];
 } encoded_body_t;
 
@@ -54,21 +65,17 @@ void HotFile::save() {
 	// write a header
 	writeHeader(_fp.out, VERSION_1);
 
-	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
 		writeBuffer(_fp.out, iter->second, VERSION_1);
 		iter++;
 	}
 
-	// TODO FIXME for new moving/floating bodies treatment
-	/*const float3 *cgs = _gdata->problem->get_bodies_cg();
-	const dQuaternion *quats = _gdata->problem->get_bodies_quaternion();
-	const float3 *linvels = _gdata->problem->get_bodies_linearvel();
-	const float3 *angvels = _gdata->problem->get_bodies_angularvel();
-	for (int b = 0; b < _header.body_count; ++b)
-		writeBody(_fp.out, b, cgs + b, quats[b],
-			linvels + b, angvels + b, VERSION_1);*/
+	for (uint id = 0; id < _header.body_count; ++id) {
+		MovingBodyData *mbdata = _gdata->problem->m_bodies[id];
+		const uint numparts = _gdata->problem->m_bodies[id]->object->GetNumParts();
+		writeBody(_fp.out, mbdata, numparts, VERSION_1);
+	}
 }
 
 // auxiliary method that checks that two values are the same, and throws an
@@ -89,8 +96,8 @@ check_counts_match(const char* what, size_t hf_count, size_t sim_count)
 void HotFile::load() {
 	// read header
 
-	// TODO FIXME multinode should take into account per-rank particles
-	check_counts_match("particle", _particle_count, _gdata->totParticles);
+	//// TODO FIXME multinode should take into account per-rank particles
+	//check_counts_match("particle", _particle_count, _gdata->totParticles);
 
 	// TODO FIXME would it be possible to restore from a situation with a
 	// different number of arrays?
@@ -101,7 +108,6 @@ void HotFile::load() {
 	// TODO FIXME/ should be num ODE bodies
 	check_counts_match("body", _header.body_count, _gdata->problem->simparams()->numbodies);
 
-	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
 		cout << "Will load buffer here..." << endl;
@@ -135,8 +141,8 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 		_header.version = 1;
 		_header.buffer_count = _gdata->s_hBuffers.size();
 		_header.particle_count = _particle_count;
-		//TODO FIXME
 		_header.body_count = _gdata->problem->simparams()->numbodies;
+		_header.numOpenBoundaries = _gdata->problem->simparams()->numOpenBoundaries;
 		_header.iterations = _gdata->iterations;
 		_header.dt = _gdata->dt;
 		_header.t = _gdata->t;
@@ -147,7 +153,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 	}
 }
 
-void HotFile::readHeader(uint &part_count) {
+void HotFile::readHeader(uint &part_count, uint &numOpenBoundaries) {
 	memset(&_header, 0, sizeof(_header));
 
 	// read and check version
@@ -159,7 +165,9 @@ void HotFile::readHeader(uint &part_count) {
 	_fp.in->seekg(0); // rewind
 	_fp.in->read((char*)&_header, sizeof(_header));
 	_particle_count = _header.particle_count;
-	part_count = _particle_count;
+	numOpenBoundaries = _header.numOpenBoundaries;
+	_node_offset = part_count;
+	part_count += _particle_count;
 }
 
 void HotFile::writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t version) {
@@ -183,7 +191,7 @@ void HotFile::writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t 
 		// may be 1 or 2 for the same buffer depending on whether the hotfile
 		// was saved after or before the introduction of the multibufferlist.
 		for(int i = 0; i < 1 /*buffer->get_array_count()*/; i++) {
-			const void *data = buffer->get_buffer(i);
+			const void *data = buffer->get_offset_buffer(i, _node_offset);
 			const size_t size = buffer->get_element_size()*_particle_count;
 			if(data == NULL) {
 				cerr << "NULL buffer " << i << " for " << buffer->get_buffer_name()
@@ -220,39 +228,68 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 		cout << "read buffer header: " << eb.name << endl;
 		if (strcmp(buffer->get_buffer_name(), eb.name))
 			bufname_mismatch(buffer->get_buffer_name(), eb.name);
-		fp->read((char*)buffer->get_buffer(), sz);
+		fp->read((char*)buffer->get_offset_buffer(0, _node_offset), sz);
 		break;
 	default:
 		unsupported_version(version);
 	}
 }
 
-void HotFile::writeBody(ofstream *fp, uint index, const float3 *cg, const dQuaternion quaternion,
-	const float3 *linvel, const float3 *angvel, version_t version)
+void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, uint numparts, version_t version)
 {
 	switch (version) {
 	case VERSION_1:
 		encoded_body_t eb;
 		memset(&eb, 0, sizeof(eb));
 
-		eb.index = index;
+		eb.index = mbdata->index;
+		eb.id = mbdata->id;
 
-		eb.gravity_center[0] = cg->x;
-		eb.gravity_center[1] = cg->y;
-		eb.gravity_center[2] = cg->z;
+		eb.type = mbdata->type;
+		eb.numparts = numparts;
 
-		eb.quaternion[0] = quaternion[0];
-		eb.quaternion[1] = quaternion[1];
-		eb.quaternion[2] = quaternion[2];
-		eb.quaternion[3] = quaternion[3];
+		if (eb.type == MB_FLOATING || eb.type == MB_FORCES_MOVING) {
+			eb.firstindex = _gdata->s_hRbFirstIndex[eb.id];
+			eb.lastindex = _gdata->s_hRbLastIndex[eb.id];
+		}
+		else {
+			eb.firstindex = 0;
+			eb.lastindex = 0;
+		}
 
-		eb.linvel[0] = linvel->x;
-		eb.linvel[1] = linvel->y;
-		eb.linvel[2] = linvel->z;
+		eb.crot[0] = mbdata->kdata.crot.x;
+		eb.crot[1] = mbdata->kdata.crot.y;
+		eb.crot[2] = mbdata->kdata.crot.z;
 
-		eb.angvel[0] = angvel->x;
-		eb.angvel[1] = angvel->y;
-		eb.angvel[2] = angvel->z;
+		eb.lvel[0] = mbdata->kdata.lvel.x;
+		eb.lvel[1] = mbdata->kdata.lvel.y;
+		eb.lvel[2] = mbdata->kdata.lvel.z;
+
+		eb.avel[0] = mbdata->kdata.avel.x;
+		eb.avel[1] = mbdata->kdata.avel.y;
+		eb.avel[2] = mbdata->kdata.avel.z;
+
+		eb.orientation[0] = mbdata->kdata.orientation(0);
+		eb.orientation[1] = mbdata->kdata.orientation(1);
+		eb.orientation[2] = mbdata->kdata.orientation(2);
+		eb.orientation[3] = mbdata->kdata.orientation(3);
+
+		eb.initial_crot[0] = mbdata->initial_kdata.crot.x;
+		eb.initial_crot[1] = mbdata->initial_kdata.crot.y;
+		eb.initial_crot[2] = mbdata->initial_kdata.crot.z;
+
+		eb.initial_lvel[0] = mbdata->initial_kdata.lvel.x;
+		eb.initial_lvel[1] = mbdata->initial_kdata.lvel.y;
+		eb.initial_lvel[2] = mbdata->initial_kdata.lvel.z;
+
+		eb.initial_avel[0] = mbdata->initial_kdata.avel.x;
+		eb.initial_avel[1] = mbdata->initial_kdata.avel.y;
+		eb.initial_avel[2] = mbdata->initial_kdata.avel.z;
+
+		eb.initial_orientation[0] = mbdata->initial_kdata.orientation(0);
+		eb.initial_orientation[1] = mbdata->initial_kdata.orientation(1);
+		eb.initial_orientation[2] = mbdata->initial_kdata.orientation(2);
+		eb.initial_orientation[3] = mbdata->initial_kdata.orientation(3);
 
 		fp->write((const char *)&eb, sizeof(eb));
 		break;
@@ -265,12 +302,54 @@ void HotFile::readBody(ifstream *fp, version_t version)
 {
 	switch (version) {
 	case VERSION_1:
-		encoded_body_t eb;
-		memset(&eb, 0, sizeof(eb));
-		fp->read((char *)&eb, sizeof(eb));
-		// TODO FIXME
-		//_gdata->problem->restore_ODE_body(eb.index, eb.gravity_center, eb.quaternion,
-		//	eb.linvel, eb.angvel);
+			{
+			encoded_body_t eb;
+			memset(&eb, 0, sizeof(eb));
+
+			fp->read((char *)&eb, sizeof(eb));
+
+			MovingBodyData mbdata;
+
+			mbdata.index = eb.index;
+			mbdata.id = eb.id;
+			mbdata.type = eb.type;
+
+			mbdata.kdata.crot.x = eb.crot[0];
+			mbdata.kdata.crot.y = eb.crot[1];
+			mbdata.kdata.crot.z = eb.crot[2];
+
+			mbdata.kdata.lvel.x = eb.lvel[0];
+			mbdata.kdata.lvel.y = eb.lvel[1];
+			mbdata.kdata.lvel.z = eb.lvel[2];
+
+			mbdata.kdata.avel.x = eb.avel[0];
+			mbdata.kdata.avel.y = eb.avel[1];
+			mbdata.kdata.avel.z = eb.avel[2];
+
+			mbdata.kdata.orientation(0) = eb.orientation[0];
+			mbdata.kdata.orientation(1) = eb.orientation[1];
+			mbdata.kdata.orientation(2) = eb.orientation[2];
+			mbdata.kdata.orientation(3) = eb.orientation[3];
+
+			mbdata.initial_kdata.crot.x = eb.initial_crot[0];
+			mbdata.initial_kdata.crot.y = eb.initial_crot[1];
+			mbdata.initial_kdata.crot.z = eb.initial_crot[2];
+
+			mbdata.initial_kdata.lvel.x = eb.initial_lvel[0];
+			mbdata.initial_kdata.lvel.y = eb.initial_lvel[1];
+			mbdata.initial_kdata.lvel.z = eb.initial_lvel[2];
+
+			mbdata.initial_kdata.avel.x = eb.initial_avel[0];
+			mbdata.initial_kdata.avel.y = eb.initial_avel[1];
+			mbdata.initial_kdata.avel.z = eb.initial_avel[2];
+
+			mbdata.initial_kdata.orientation(0) = eb.orientation[0];
+			mbdata.initial_kdata.orientation(1) = eb.orientation[1];
+			mbdata.initial_kdata.orientation(2) = eb.orientation[2];
+			mbdata.initial_kdata.orientation(3) = eb.orientation[3];
+
+			_gdata->problem->restore_moving_body(mbdata, eb.numparts, eb.firstindex, eb.lastindex);
+			}
 		break;
 	default:
 		unsupported_version(version);
@@ -278,8 +357,8 @@ void HotFile::readBody(ifstream *fp, version_t version)
 }
 
 
-std::ostream& operator<<(std::ostream &strm, const HotFile &h) {
+ostream& operator<<(ostream &strm, const HotFile &h) {
 	return strm << "HotFile( version=" << h._header.version << ", pc=" <<
-		h._header.particle_count << ", bc=" << h._header.body_count << ")";
+		h._header.particle_count << ", bc=" << h._header.body_count << ")" << endl;
 }
 

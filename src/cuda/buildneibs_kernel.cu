@@ -75,6 +75,8 @@ __constant__ idx_t d_neiblist_end;		///< maximum number of neighbors * number of
  *  @{ */
 __device__ int d_numInteractions;			///< Total number of interactions per type
 __device__ int d_maxNeibs[PT_TESTPOINT];	///< Computed maximum number of neighbors per particle per type
+__device__ int d_hasTooManyNeibs;		///< Index of a particle with more than d_maxneibsnum neighbors
+__device__ int d_hasMaxNeibs;			///< Number of neighbors of that particle
 /** @} */
 
 /*! \cond */
@@ -153,12 +155,7 @@ struct sa_boundary_niC_vars
 			),
 		// The second coordinate is the cross product between the normal and the first coordinate
 		coord2( cross3(boundElement, coord1) )
-		{
-			// Here local copy of part IDs of vertices are replaced by the correspondent part indices
-			vertices.x = bparams.vertIDToIndex[vertices.x];
-			vertices.y = bparams.vertIDToIndex[vertices.y];
-			vertices.z = bparams.vertIDToIndex[vertices.z];
-		}
+		{ }
 };
 
 
@@ -399,7 +396,7 @@ bool isCloseEnough<SA_BOUNDARY>(float3 const& relPos, particleinfo const& neib_i
  */
 template<BoundaryType boundarytype>
 __device__ __forceinline__
-void process_niC_segment(const uint index, const uint neib_index, float3 const& relPos,
+void process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
 	buildneibs_params<boundarytype> const& params,
 	niC_vars<boundarytype> const& var)
 { /* Do nothing by default */ }
@@ -409,16 +406,16 @@ void process_niC_segment(const uint index, const uint neib_index, float3 const& 
 /// \see process_niC_segment
 template<>
 __device__ __forceinline__
-void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_index, float3 const& relPos,
+void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_id, float3 const& relPos,
 	buildneibs_params<SA_BOUNDARY> const& params,
 	niC_vars<SA_BOUNDARY> const& var)
 {
 	int i = -1;
-	if (neib_index == var.vertices.x)
+	if (neib_id == var.vertices.x)
 		i = 0;
-	else if (neib_index == var.vertices.y)
+	else if (neib_id == var.vertices.y)
 		i = 1;
-	else if (neib_index == var.vertices.z)
+	else if (neib_id == var.vertices.z)
 		i = 2;
 	if (i>-1) {
 		// relPosProj is the projected relative position of the vertex to the segment.
@@ -459,7 +456,7 @@ void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_index, f
  *	\tparam boundarytype : the boundary model used
  *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  *
- * First and last particle index for grid cells and particle's informations
+ * First and last particle index for grid cells and particle's information
  * are read through texture fetches.
  */
 template <SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound>
@@ -485,7 +482,7 @@ neibsInCell(
 	niC_vars<boundarytype> var(gridPos, index, params);
 
 	// Return if the cell is empty
-	if (var.bucketStart == 0xffffffff)
+	if (var.bucketStart == CELL_EMPTY)
 		return;
 
 	// Substract gridOffset*cellsize to pos so we don't need to do it each time
@@ -514,6 +511,11 @@ neibsInCell(
 			encode_cell = true;
 		neib_type = PART_TYPE(neib_info);
 
+		// LJ boundary particles should not have any boundary neighbor.
+		// If we are here is because a FLOATING LJ boundary needs neibs.
+		if (boundarytype == LJ_BOUNDARY && boundary && BOUNDARY(neib_info))
+			continue;
+
 		// With dynamic boundaries, boundary parts don't interact with other boundary parts
 		// except for Grenier's formulation, where the sigma computation needs all neighbors
 		// to be enumerated
@@ -524,7 +526,7 @@ neibsInCell(
 
 		// Compute relative position between particle and potential neighbor
 		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
-		#if (__COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 neib_pos = params.posArray[neib_index];
 		#else
 		const float4 neib_pos = tex1Dfetch(posTex, neib_index);
@@ -553,7 +555,7 @@ neibsInCell(
 			neibs_num[neib_type]++;
 		}
 		if (segment) {
-			process_niC_segment(index, neib_index, relPos, params, var);
+			process_niC_segment(index, id(neib_info), relPos, params, var);
 		}
 
 	}
@@ -712,6 +714,7 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 										float4*			sortedPos,			///< [out] new sorted particle's positions
 										float4*			sortedVel,			///< [out] new sorted particle's velocities
 										float4*			sortedVol,			///< [out] new sorted particle's informations
+										float*			sortedEnergy,		// new sorted particle's internal energy (out)
 										float4*			sortedBoundElements,///< [out] new sorted boundary elements normals and surface
 										float4*			sortedGradGamma,	///< [out] new sorted gradient of gamma
 										vertexinfo*		sortedVertices,		///< [out] new sorted vertices
@@ -808,6 +811,10 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 			sortedVol[index] = tex1Dfetch(volTex, sortedIndex);
 		}
 
+		if (sortedEnergy) {
+			sortedEnergy[index] = tex1Dfetch(energyTex, sortedIndex);
+		}
+
 		if (sortedBoundElements) {
 			sortedBoundElements[index] = tex1Dfetch(boundTex, sortedIndex);
 		}
@@ -842,37 +849,6 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 		}
 
 	}
-}
-
-
-/// Update ID-to-particleIndex lookup table (BUFFER_VERTIDINDEX)
-/*! Update ID-to-particleIndex lookup table. This kernel should be
- * 	called after the reorder.
- * 	\todo apparently not needed anymore
- */
-__global__
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-/*! \endcond */
-void updateVertIDToIndexDevice(	const particleinfo*	particleInfo,	///< [in] particle's informations (in)
-								uint*			vertIDToIndex,		///< [out] vertex ID to index array (out)
-								const uint		numParticles		///< [in] total number of particles (in)
-								)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	// Handle the case when number of particles is not multiple of block size
-	if (index >= numParticles)
-		return;
-
-	// Assuming vertIDToIndex is allocated, since this kernel is called only with SA bounds
-	particleinfo info = particleInfo[index];
-
-	// Only vertex particles need to have this information, it should not be done
-	// for fluid particles as their id's can grow and cause buffer overflows
-	if(VERTEX(info))
-		// As the vertex particles never change their id (which is <= than the initial
-		// particle count), this buffer does not overflow
-		vertIDToIndex[ id(info) ] = index;
 }
 
 
@@ -944,7 +920,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 			break;
 
 		// Get particle position
-		#if (__COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 pos = params.posArray[index];
 		#else
 		const float4 pos = tex1Dfetch(posTex, index);
@@ -980,10 +956,20 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 	// particles for which the neighbor list is not built actually
 	// have an empty neighbor list. Otherwise, particles which are
 	// marked inactive will keep their old neighbor list.
-	/*if (index < params.numParticles) {
-		params.neibsList[neibs_num[PT_FLUID]*d_neiblist_stride + index] = 0xffff;
-		params.neibsList[(d_neibboundpos - neibs_num[PT_BOUNDARY])*d_neiblist_stride + index] = 0xffff;
-	}*/
+	// TODO FIXME merge splitneibs
+#if 0
+	if (index < params.numParticles && neibs_num < d_maxneibsnum) {
+		if (neibs_num < d_maxneibsnum) {
+			params.neibsList[neibs_num[PT_FLUID]*d_neiblist_stride + index] = NEIBS_END;
+			params.neibsList[(d_neibboundpos - neibs_num[PT_BOUNDARY])*d_neiblist_stride + index] = NEIBS_END;
+		} else {
+			const particleinfo info = tex1Dfetch(infoTex, index);
+			atomicCAS(&d_hasTooManyNeibs, -1, (int)id(info));
+			if(d_hasTooManyNeibs == id(info))
+				d_hasMaxNeibs = neibs_num;
+		}
+	}
+#endif
 
 	if (neibcount) {
 		// Shared memory reduction of per block maximum number of neighbors

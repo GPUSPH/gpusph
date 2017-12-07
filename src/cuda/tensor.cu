@@ -58,15 +58,15 @@ __spec
 float
 norm_inf(symtensor4 const& T)
 {
-	float m = fmax(T.xx, T.xy);
-	m = fmax(m, T.xz);
-	m = fmax(m, T.xw);
-	m = fmax(m, T.yy);
-	m = fmax(m, T.yz);
-	m = fmax(m, T.yw);
-	m = fmax(m, T.zz);
-	m = fmax(m, T.zw);
-	m = fmax(m, T.ww);
+	float m = fmaxf(T.xx, T.xy);
+	m = fmaxf(m, T.xz);
+	m = fmaxf(m, T.xw);
+	m = fmaxf(m, T.yy);
+	m = fmaxf(m, T.yz);
+	m = fmaxf(m, T.yw);
+	m = fmaxf(m, T.zz);
+	m = fmaxf(m, T.zw);
+	m = fmaxf(m, T.ww);
 	return m;
 }
 

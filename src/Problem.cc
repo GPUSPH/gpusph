@@ -29,10 +29,12 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <cmath>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+
+// shared_ptr
+#include <memory>
 
 #include "Problem.h"
 #include "vector_math.h"
@@ -45,20 +47,36 @@
 // COORD1, COORD2, COORD3
 #include "linearization.h"
 
+#if USE_CHRONO
+#include "chrono/physics/ChSystemNSC.h"
+#include "chrono/solver/ChSolver.h"
+#endif
+
+// Enable to get/set envelop and margin (mainly debug)
+/*
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/collision/ChCCollisionModel.h"
+#endif
+*/
+
 using namespace std;
 
 Problem::Problem(GlobalData *_gdata) :
 	m_problem_dir(_gdata->clOptions->dir),
 	m_dem(NULL),
+	m_physparams(new PhysParams()),
+	m_simframework(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_deltap(NAN),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
-	m_physparams(new PhysParams()),
-	m_simframework(NULL),
 	m_bodies_storage(NULL)
 {
+#if USE_CHRONO == 1
+	m_bodies_physical_system = NULL;
+#endif
 }
 
 bool
@@ -72,6 +90,13 @@ Problem::initialize()
 	check_dt();
 	check_neiblistsize();
 	calculateDensityDiffusionCoefficient();
+
+	/* Set ARTVISC epsilon to h^2/10 if not set by the user.
+	 * For simplicity, we do this regardless of the viscosity model used,
+	 * it'll just be ignored otherwise */
+	if (isnan(physparams()->epsartvisc))
+		physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+
 	create_problem_dir();
 
 	printf("Problem calling set grid params\n");
@@ -85,9 +110,47 @@ Problem::~Problem(void)
 	delete [] m_bodies_storage;
 	delete m_simframework;
 	delete m_physparams;
-
 }
 
+void
+Problem::InitializeChrono()
+{
+#if USE_CHRONO == 1
+	m_bodies_physical_system = new ::chrono::ChSystemNSC();
+	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+		m_physparams->gravity.z));
+	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
+	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::SOR);
+	// For debug purposes
+	/*
+	const double chronoSuggEnv = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedEnvelope();
+	const double chronoSuggMarg = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedMargin();
+	printf("Default envelop: %g, default margin: %g\n", chronoSuggEnv, chronoSuggMarg);
+	::chrono::collision::ChCollisionModel::SetDefaultSuggestedEnvelope(chronoSuggEnv / 10.0);
+	::chrono::collision::ChCollisionModel::SetDefaultSuggestedMargin(chronoSuggMarg / 10.0);
+	*/
+#else
+	throw runtime_error ("Problem::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
+#endif
+}
+
+void Problem::FinalizeChrono(void)
+{
+#if USE_CHRONO == 1
+	if (m_bodies_physical_system)
+		delete m_bodies_physical_system;
+#else
+	throw runtime_error ("Problem::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
+#endif
+}
+
+// callback for initializing joints between Chrono bodies
+void Problem::initializeObjectJoints()
+{
+	// Default: do nothing
+
+	// See also: http://api.chrono.projectchrono.org/links.html
+}
 
 /// Allocate storage required for the integration of the kinematic data
 /// of moving bodies.
@@ -113,7 +176,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	// force computing must have consecutive ids.
 	const uint index = m_bodies.size();
 	if (index >= MAX_BODIES)
-		throw runtime_error ("Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
+		throw runtime_error ("Problem::add_moving_body Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
 	MovingBodyData *mbdata = new MovingBodyData;
 	mbdata->index = index;
 	mbdata->type = mbtype;
@@ -123,14 +186,22 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	mbdata->kdata.avel = make_double3(0.0f);
 	mbdata->kdata.orientation = object->GetOrientation();
 	switch (mbdata->type) {
-		case MB_ODE : {
-			const dBodyID bodyid = object->m_ODEBody;
-			mbdata->kdata.crot = make_double3(dBodyGetPosition(bodyid));
-			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
-			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
+		case MB_FLOATING : {
+#if USE_CHRONO == 1
+			std::shared_ptr< ::chrono::ChBody > body = object->GetBody();
+			::chrono::ChVector<> vec = body->GetPos();
+			mbdata->kdata.crot = make_double3(vec.x(), vec.y(), vec.z());
+			vec = body->GetPos_dt();
+			mbdata->kdata.lvel = make_double3(vec.x(), vec.y(), vec.z());
+			vec = body->GetWvel_par();
+			mbdata->kdata.avel = make_double3(vec.x(), vec.y(), vec.z());
+			::chrono::ChQuaternion<> quat = body->GetRot();
 			m_bodies.insert(m_bodies.begin() + simparams()->numODEbodies, mbdata);
 			simparams()->numODEbodies++;
 			simparams()->numforcesbodies++;
+#else
+			throw runtime_error ("Problem::add_moving_body Cannot add a floating body without CHRONO\n");
+#endif
 			break;
 		}
 
@@ -144,11 +215,40 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			break;
 	}
 
+	// Setting body id after insertion
+	for (uint id = 0; id < m_bodies.size(); id++)
+		m_bodies[id]->id = id;
+
 	mbdata->initial_kdata = mbdata->kdata;
 
 	simparams()->numbodies = m_bodies.size();
 }
 
+void
+Problem::restore_moving_body(const MovingBodyData & saved_mbdata, const uint numparts, const int firstindex, const int lastindex)
+{
+	const uint id = saved_mbdata.id;
+	MovingBodyData *mbdata = m_bodies[id];
+	mbdata->object->SetNumParts(numparts);
+	mbdata->initial_kdata = saved_mbdata.initial_kdata;
+	mbdata->kdata = saved_mbdata.kdata;
+	if (mbdata->type == MB_FORCES_MOVING || mbdata->type == MB_FLOATING) {
+		gdata->s_hRbFirstIndex[id] = firstindex;
+		gdata->s_hRbLastIndex[id] = lastindex;
+	}
+
+	if (mbdata->type == MB_FLOATING) {
+#if USE_CHRONO == 1
+		std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
+		body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
+		body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+		body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+#else
+		throw runtime_error ("Problem::restore_moving_body Cannot restore a floating body without CHRONO\n");
+#endif
+		}
+}
 
 MovingBodyData *
 Problem::get_mbdata(const uint index)
@@ -194,7 +294,7 @@ Problem::get_forces_bodies_numparts(void)
 {
 	size_t total_parts = 0;
 	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
-		if ((*it)->type == MB_ODE || (*it)->type == MB_FORCES_MOVING)
+		if ((*it)->type == MB_FLOATING || (*it)->type == MB_FORCES_MOVING)
 			total_parts += (*it)->object->GetNumParts();
 	}
 	return total_parts;
@@ -214,46 +314,6 @@ Problem::get_body_numparts(const Object* object)
 	return get_mbdata(object)->object->GetNumParts();
 }
 
-/*void
-Problem::restore_ODE_body(const uint i, const float *gravity_center, const float *quaternion,
-	const float *linvel, const float *angvel)
-{
-	Object *obj = m_ODE_bodies[i];
-	dBodyID odeid = obj->m_ODEBody;
-
-	// re-set the position, rotation and velocities in ODE
-	dBodySetAngularVel(odeid, angvel[0], angvel[1], angvel[2]);
-	dBodySetLinearVel(odeid, linvel[0], linvel[1], linvel[2]);
-	dBodySetPosition(odeid, gravity_center[0], gravity_center[1], gravity_center[2]);
-
-	dBodySetQuaternion(odeid, quaternion);
-
-	// After setting the quaternion, ODE does a forced renormalization
-	// that will slightly change the value of the quaternion (except in some
-	// trivial cases). While the final result is within machine precision to
-	// the set value, the (small) difference will propagate through the
-	// simulation, resulting in differences. The following code can be used to
-	// check the amount of absolute and relative error in the set quaternion:
-#if 0
-	dQuaternion rec;
-	dQuaternion abs_err, rel_err;
-	dBodyCopyQuaternion(odeid, rec);
-	for (int i = 0; i < 4; ++i) {
-		abs_err[i] = fabs(rec[i] - quaternion[i]);
-		float normfactor = fabs(rec[i]+quaternion[i])/2;
-		rel_err[i] = normfactor == 0 ? abs_err[i] : abs_err[i]/normfactor;
-	}
-
-	printf("object %u quaternion: recovered (%g, %g, %g, %g), was (%g, %g, %g, %g),\n"
-		"\tdelta (%g, %g, %g, %g), rel err (%g, %g, %g, %g)\n",
-		i, rec[0], rec[1], rec[2], rec[3],
-		quaternion[0], quaternion[1], quaternion[2], quaternion[3],
-		abs_err[0], abs_err[1], abs_err[2], abs_err[3],
-		rel_err[0], rel_err[1], rel_err[2], rel_err[3]);
-#endif
-}*/
-
-
 void
 Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const
 {
@@ -270,6 +330,9 @@ Problem::get_bodies_cg(void)
 		calc_grid_and_local_pos(m_bodies[i]->kdata.crot,
 			gdata->s_hRbCgGridPos + i,
 			gdata->s_hRbCgPos + i);
+		cout << "Body: " << i << endl;
+		cout << "\t Cg grid pos: " << gdata->s_hRbCgGridPos[i].x << " " << gdata->s_hRbCgGridPos[i].y << " " << gdata->s_hRbCgGridPos[i].z << endl;
+		cout << "\t Cg pos: " << gdata->s_hRbCgPos[i].x << " " << gdata->s_hRbCgPos[i].y << " " << gdata->s_hRbCgPos[i].z << endl;
 	}
 }
 
@@ -277,7 +340,6 @@ Problem::get_bodies_cg(void)
 void
 Problem::set_body_cg(const double3& crot, MovingBodyData* mbdata) {
 	mbdata->kdata.crot = crot;
-
 }
 
 
@@ -296,7 +358,6 @@ Problem::set_body_cg(const Object *object, const double3& crot) {
 void
 Problem::set_body_linearvel(const double3& lvel, MovingBodyData* mbdata) {
 	mbdata->kdata.lvel = lvel;
-
 }
 
 
@@ -316,7 +377,6 @@ Problem::set_body_linearvel(const Object *object, const double3& lvel)
 void
 Problem::set_body_angularvel(const double3& avel, MovingBodyData* mbdata) {
 	mbdata->kdata.avel = avel;
-
 }
 
 void
@@ -365,8 +425,8 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	double t1 = t + dt1;
 
 	//#define _DEBUG_OBJ_FORCES_
-	bool ode_bodies = false;
-	// For ODE bodies apply forces and torques
+	bool there_is_at_least_one_chrono_body = false;
+	// For Chrono bodies apply forces and torques
 	for (int i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
 		MovingBodyData* mbdata = m_bodies[i];
@@ -376,42 +436,42 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		// Restore kinematic data from the value stored at the beginning of the time step
 		if (step == 2)
 			mbdata->kdata = m_bodies_storage[i];
-
-		if (mbdata->type == MB_ODE) {
-			ode_bodies = true;
-			const dBodyID bodyid = mbdata->object->m_ODEBody;
+#if USE_CHRONO == 1
+		// If current body has a Chrono body associated (no matter whether type moving or floating), we
+		// want to copy its parameters (velocities, position, etc.) from its kdata to Chrono
+		if (mbdata->object->HasBody()) {
+			there_is_at_least_one_chrono_body = true;
+			std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
 			if (step == 2) {
-				dBodySetPosition(bodyid, (dReal) mbdata->kdata.crot.x, (dReal) mbdata->kdata.crot.y,
-								(dReal) mbdata->kdata.crot.z);
-				dBodySetLinearVel(bodyid, (dReal) mbdata->kdata.lvel.x, (dReal) mbdata->kdata.lvel.y,
-								(dReal) mbdata->kdata.lvel.z);
-				dBodySetAngularVel(bodyid, (dReal) mbdata->kdata.avel.x, (dReal) mbdata->kdata.avel.y,
-								(dReal) mbdata->kdata.avel.z);
-				dQuaternion quat;
-				mbdata->kdata.orientation.ToODEQuaternion(quat);
-				dBodySetQuaternion(bodyid, quat);
+				body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
+				body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+				body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+				body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
 			}
-			dBodyAddForce(bodyid, forces[i].x, forces[i].y, forces[i].z);
-			dBodyAddTorque(bodyid, torques[i].x, torques[i].y, torques[i].z);
 
-			#ifdef _DEBUG_OBJ_FORCES_
-			cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
-			//mbdata->object->ODEPrintInformation(false);
-			printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
-			printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
-			#endif
+			body->Empty_forces_accumulators();
+			body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
+			body->Accumulate_torque(::chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
+
+
+			if (false) {
+				cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+				//mbdata->object->ODEPrintInformation(false);
+				printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
+				printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
+			}
 		}
+#endif
 	}
 
-	// Call ODE solver for ODE bodies
-	if (ode_bodies) {
-		dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
-		dWorldStep(m_ODEWorld, dt1);
-		if (m_ODEJointGroup)
-			dJointGroupEmpty(m_ODEJointGroup);
+#if USE_CHRONO == 1
+	// Call Chrono solver. Should it be called only if there are floating ones?
+	if (there_is_at_least_one_chrono_body) {
+		m_bodies_physical_system->DoStepDynamics(dt1);
 	}
+#endif
 
 	// Walk trough all moving bodies :
 	// updates bodies center of rotation, linear and angular velocity and orientation
@@ -421,22 +481,28 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		// New center of rotation, linear and angular velocity and orientation
 		double3 new_trans = make_double3(0.0);
 		EulerParameters new_orientation, dr;
-		// In case of an ODE body, new center of rotation position, linear and angular velocity
-		// and new orientation have been computed by ODE
-		if (mbdata->type == MB_ODE) {
-			const dBodyID bodyid = mbdata->object->m_ODEBody;
-			const double3 new_crot = make_double3(dBodyGetPosition(bodyid));
+#if USE_CHRONO == 1
+		// For floating bodies, new center of rotation position, linear and angular velocity
+		// and new orientation have been computed by Chrono. So let's read them and copy to kdata
+		if (mbdata->type == MB_FLOATING) {
+			std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
+			::chrono::ChVector<> vec = body->GetPos();
+			const double3 new_crot = make_double3(vec.x(), vec.y(), vec.z());
 			new_trans = new_crot - mbdata->kdata.crot;
 			mbdata->kdata.crot = new_crot;
-			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
-			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
-			const EulerParameters new_orientation = EulerParameters(dBodyGetQuaternion(bodyid));
+			vec = body->GetPos_dt();
+			mbdata->kdata.lvel = make_double3(vec.x(), vec.y(), vec.z());
+			vec = body->GetWvel_par();
+			mbdata->kdata.avel = make_double3(vec.x(), vec.y(), vec.z());
+			::chrono::ChQuaternion<> quat = body->GetRot();
+			const EulerParameters new_orientation = EulerParameters(quat.e0(), quat.e1(), quat.e2(), quat.e3());
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
 			mbdata->kdata.orientation = new_orientation;
 		}
-		// Otherwise the user is providing linear and angular velocity trough a call back
-		// function
-		else {
+#endif
+		// If the body is not floating, the user is probably providing linear and angular velocity trough a call back
+		// function.
+		if (mbdata->type != MB_FLOATING) {
 			const uint index = mbdata->index;
 			// Get linear and angular velocities at t + dt/2.O for step 1 or t + dt for step 2
 			float3 force = make_float3(0.0f);
@@ -460,24 +526,24 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		dr.ComputeRot();
 		dr.GetRotation(base_addr);
 
-		#ifdef _DEBUG_OBJ_FORCES_
-		if (i == 1 && trans[i].x != 0.0) {
-		cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
-		mbdata->object->ODEPrintInformation(false);
-		printf("   lvel: %e\t%e\t%e\n", linearvel[i].x, linearvel[i].y, linearvel[i].z);
-		printf("   avel: %e\t%e\t%e\n", angularvel[i].x, angularvel[i].y, angularvel[i].z);
-		printf("    pos: %g\t%g\t%g\n", mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z);
-		printf("   gpos: %d\t%d\t%d\n", cgGridPos[i].x, cgGridPos[i].y, cgGridPos[i].z);
-		printf("   lpos: %e\t%e\t%e\n", cgPos[i].x, cgPos[i].y, cgPos[i].z);
-		printf("   trans:%e\t%e\t%e\n", trans[i].x, trans[i].y, trans[i].z);
-		printf("   n_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0), mbdata->kdata.orientation(1),
-				mbdata->kdata.orientation(2), mbdata->kdata.orientation(3));
-		printf("   dr: %e\t%e\t%e\t%e\n", dr(0), dr(1),dr(2), dr(3));
-		printf("   SR:   %e\t%e\t%e\n", base_addr[0], base_addr[1], base_addr[2]);
-		printf("         %e\t%e\t%e\n", base_addr[3], base_addr[4], base_addr[5]);
-		printf("         %e\t%e\t%e\n\n", base_addr[6], base_addr[7], base_addr[8]);
+		if (false) {
+			if (i == 1 && trans[i].x != 0.0) {
+				cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+			mbdata->object->BodyPrintInformation(false);
+			printf("   lvel: %e\t%e\t%e\n", linearvel[i].x, linearvel[i].y, linearvel[i].z);
+			printf("   avel: %e\t%e\t%e\n", angularvel[i].x, angularvel[i].y, angularvel[i].z);
+			printf("    pos: %g\t%g\t%g\n", mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z);
+			printf("   gpos: %d\t%d\t%d\n", cgGridPos[i].x, cgGridPos[i].y, cgGridPos[i].z);
+			printf("   lpos: %e\t%e\t%e\n", cgPos[i].x, cgPos[i].y, cgPos[i].z);
+			printf("   trans:%e\t%e\t%e\n", trans[i].x, trans[i].y, trans[i].z);
+			printf("   n_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0), mbdata->kdata.orientation(1),
+					mbdata->kdata.orientation(2), mbdata->kdata.orientation(3));
+			printf("   dr: %e\t%e\t%e\t%e\n", dr(0), dr(1),dr(2), dr(3));
+			printf("   SR:   %e\t%e\t%e\n", base_addr[0], base_addr[1], base_addr[2]);
+			printf("         %e\t%e\t%e\n", base_addr[3], base_addr[4], base_addr[5]);
+			printf("         %e\t%e\t%e\n\n", base_addr[6], base_addr[7], base_addr[8]);
+			}
 		}
-		#endif
 	}
 }
 
@@ -617,8 +683,7 @@ Problem::density(float h, int i) const
 	float density = physparams()->rho0[i];
 
 	if (h > 0) {
-		//float g = length(physparams()->gravity);
-		float g = abs(physparams()->gravity.z);
+		float g = fabsf(length(physparams()->gravity));
 		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
 		density = physparams()->rho0[i]*pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
 				1/physparams()->gammacoeff[i]);
@@ -686,7 +751,7 @@ Problem::make_plane(Point const& pt, Vector const& normal)
 	return plane;
 }
 
-std::string const&
+string const&
 Problem::create_problem_dir(void)
 {
 	// if no data save directory was specified, default to a name
@@ -700,7 +765,7 @@ Problem::create_problem_dir(void)
 		time_str[17] = '\0';
 		// if "./tests/" doesn't exist yet...
 		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
-		m_problem_dir = "./tests/" + m_name + std::string(time_str);
+		m_problem_dir = "./tests/" + m_name + string(time_str);
 	}
 
 	// TODO it should be possible to specify a directory with %-like
@@ -710,26 +775,6 @@ Problem::create_problem_dir(void)
 	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
 	return m_problem_dir;
-}
-
-// timer tick, for compatibility with old timer-tick writer frequency API
-// remove when the old API is obsoleted
-static double deprecated_timer_tick;
-
-void
-Problem::set_timer_tick(double t)
-{
-	fputs("WARNING: set_timer_tick() is deprecated\n", stderr);
-	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
-	deprecated_timer_tick = t;
-}
-
-void
-Problem::add_writer(WriterType wt, int freq)
-{
-	fputs("WARNING: add_writer(WriterType, int) is deprecated\n", stderr);
-	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
-	add_writer(wt, freq*deprecated_timer_tick);
 }
 
 void
@@ -770,29 +815,8 @@ Problem::finished(double t) const
 float3
 Problem::g_callback(const double t)
 {
-	/* If this was not overridden, it's likely that the caller overridden the deprecated
-	 * float version, passthrough */
-	static bool reminder_shown = false;
-	if (!reminder_shown) {
-		fprintf(stderr, "WARNING: g_callback(float) is deprecated, please switch to g_callback(double)\n");
-		reminder_shown = true;
-	}
-	IGNORE_WARNINGS(deprecated-declarations)
-	return g_callback(float(t));
-	RESTORE_WARNINGS
+	throw std::runtime_error("default g_callback invoked! did you forget to override g_callback(double)");
 }
-
-float3
-Problem::g_callback(const float t)
-{
-	static bool reminder_shown = false;
-	if (!reminder_shown) {
-		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
-		reminder_shown = true;
-	}
-	return make_float3(0.0);
-}
-
 
 
 // Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
@@ -808,7 +832,7 @@ void Problem::fillDeviceMapByCellHash()
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
 		// guaranteed to fit in a devcount_t due to how it's computed
-		gdata->s_hDeviceMap[i] = devcount_t(min( i/cells_per_device, gdata->totDevices-1));
+		gdata->s_hDeviceMap[i] = devcount_t(min( int(i/cells_per_device), gdata->totDevices-1));
 }
 
 // partition by splitting along the specified axis
@@ -861,7 +885,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 				// everything is just a preparation for the following line
 				devcount_t dstDevice = devcount_t(axis_coordinate / cells_per_device_per_split_axis);
 				// handle the case when cells_per_split_axis multiplies cells_per_split_axis
-				dstDevice = (devcount_t)min(dstDevice, gdata->totDevices - 1);
+				dstDevice = (devcount_t)min(int(dstDevice), gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -1000,7 +1024,7 @@ void Problem::fillDeviceMapByEquation()
 				//dstDevice = distance_from_origin / radius_part;
 				// -- end of 2nd eq.
 				// handle special cases at the edge
-				dstDevice = min(dstDevice, gdata->totDevices - 1);
+				dstDevice = min(int(dstDevice), gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -1111,7 +1135,7 @@ Problem::max_parts(uint numParts)
 	// his own version of this function
 	double3 range = get_worldsize();
 	range /= m_deltap; // regular fill
-	uint wparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
+	uint wparts = max(range.x, double(1))*max(range.y, double(1))*max(range.z, double(1));
 	printf("  estimating %u particles to fill the world\n", wparts);
 
 	return wparts;
@@ -1185,10 +1209,43 @@ Problem::calculateDensityDiffusionCoefficient()
 void
 Problem::set_grid_params(void)
 {
-	double influenceRadius = simparams()->kernelradius*simparams()->slength;
+	/* When using periodicity, it's important that the world size in the periodic
+	 * direction is an exact multiple of the deltap: if this is not the case,
+	 * fluid filling might use an effective inter-particle distance which is
+	 * “significantly” different from deltap, which would lead particles near
+	 * periodic boundaries to have distance _exactly_ deltap across the boundary,
+	 * but “significantly” different on the same side. While this in general would not
+	 * be extremely important, it can have a noticeable effect at the beginning of the
+	 * simulation, when particles are distributed quite regularly and the difference
+	 * between effective (inner) distance and cross-particle distance can create
+	 * a rather annoying discontinuity.
+	 * So warn if m_size.{x,y,z} is not a multiple of deltap in case of periodicity.
+	 * TODO FIXME this would not be needed if filling was made taking into account
+	 * periodicity and spaced particles accordingly.
+	 */
+	if (simparams()->periodicbound & PERIODIC_X && !is_multiple(m_size.x, m_deltap))
+		fprintf(stderr, "WARNING: problem is periodic in X, but X world size %.9g is not a multiple of deltap (%.g)\n",
+			m_size.x, m_deltap);
+	if (simparams()->periodicbound & PERIODIC_Y && !is_multiple(m_size.y, m_deltap))
+		fprintf(stderr, "WARNING: problem is periodic in Y, but Y world size %.9g is not a multiple of deltap (%.g)\n",
+			m_size.y, m_deltap);
+	if (simparams()->periodicbound & PERIODIC_Z && !is_multiple(m_size.z, m_deltap))
+		fprintf(stderr, "WARNING: problem is periodic in X, but Z world size %.9g is not a multiple of deltap (%.g)\n",
+			m_size.z, m_deltap);
+
+	const double influenceRadius = simparams()->influenceRadius;
+	const double nlInfluenceRadius = simparams()->nlInfluenceRadius;
+
+	if (nlInfluenceRadius < influenceRadius) {
+		stringstream ss;
+		ss << "neighbor search radius " << nlInfluenceRadius <<
+			" < kernel influence radius " << influenceRadius;
+		throw runtime_error(ss.str());
+	}
+
 	// with semi-analytical boundaries, we want a cell size which is
 	// deltap/2 + the usual influence radius
-	double cellSide = influenceRadius;
+	double cellSide = nlInfluenceRadius;
 	if (simparams()->boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap/2.0f;
 
@@ -1216,7 +1273,7 @@ Problem::set_grid_params(void)
 	printf("set_grid_params->t:\n");
 	printf("Domain size\t: (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
 	*/
-	printf("Influence radius / expected cell side\t: %g, %g\n", influenceRadius, cellSide);
+	printf("Influence radius / neighbor search radius / expected cell side\t: %g / %g / %g\n", influenceRadius, nlInfluenceRadius, cellSide);
 	/*
 	printf("Grid   size\t: (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
 	printf("Cell   size\t: (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
@@ -1236,9 +1293,9 @@ Problem::calc_grid_pos(const Point& pos) const
 	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
 	gridPos.y = (int)floor((pos(1) - m_origin.y) / m_cellsize.y);
 	gridPos.z = (int)floor((pos(2) - m_origin.z) / m_cellsize.z);
-	gridPos.x = min(max(0, gridPos.x), m_gridsize.x-1);
-	gridPos.y = min(max(0, gridPos.y), m_gridsize.y-1);
-	gridPos.z = min(max(0, gridPos.z), m_gridsize.z-1);
+	gridPos.x = min(max(0, gridPos.x), int(m_gridsize.x-1));
+	gridPos.y = min(max(0, gridPos.y), int(m_gridsize.y-1));
+	gridPos.z = min(max(0, gridPos.z), int(m_gridsize.z-1));
 
 	return gridPos;
 }
@@ -1282,19 +1339,6 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);
 	localpos.z = float(pos(2) - m_origin.z - (gridPos.z + 0.5)*m_cellsize.z);
 	localpos.w = float(pos(3));
-}
-
-void
-Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
-{
-	const float Lm = fmax(2*m_deltap, 1e-5f);
-	const float k0 = pow(0.002f*physparams()->sscoeff[0], 2);
-	const float e0 = 0.16f*pow(k0, 1.5f)/Lm;
-
-	for (uint i = 0; i < numpart; i++) {
-		k[i] = k0;
-		e[i] = e0;
-	}
 }
 
 /* Initialize the particle volumes from their masses and densities. */

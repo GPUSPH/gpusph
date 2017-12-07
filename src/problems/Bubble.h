@@ -26,16 +26,12 @@
 #ifndef _BUBBLE_H
 #define	_BUBBLE_H
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "Point.h"
 #include "Cube.h"
 
-class Bubble: public Problem {
+class Bubble: public XProblem {
 	private:
-		Cube		experiment_box;
-		Cube		fluid;
-		PointVect	fluid_parts;
-		PointVect	boundary_parts;
 		uint		dyn_layers; // number of layers for DYN_BOUNDARY
 		double3		extra_offset; // offset caused by DYN_BOUNDARY
 		float		H;  // still water level
@@ -44,14 +40,9 @@ class Bubble: public Problem {
 
 	public:
 		Bubble(GlobalData *);
-		~Bubble(void);
-
-		int fill_parts(void);
 		void draw_boundary(float);
 		void copy_planes(PlaneList&);
-		void copy_to_array(BufferList &);
-
-		void release_memory(void);
+		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 };
 #endif	/* _BUBBLE_H */
 

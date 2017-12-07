@@ -97,7 +97,7 @@ struct GeometryInfo {
 	std::string xyz_filename;
 	XYZReader *xyz_reader;
 
-	bool has_stl_file; // ditto
+	bool has_mesh_file; // ditto
 	std::string stl_filename;
 
 	// user-set inertia
@@ -136,7 +136,7 @@ struct GeometryInfo {
 		xyz_filename = "";
 		xyz_reader = NULL;
 
-		has_stl_file = false;
+		has_mesh_file = false;
 		stl_filename = "";
 
 		custom_inertia[0] = NAN;
@@ -168,8 +168,8 @@ class XProblem: public Problem {
 
 		size_t m_numActiveGeometries;	// do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
 		size_t m_numForcesBodies;		// number of bodies with feedback enabled (includes floating)
-		size_t m_numFloatingBodies;		// number of floating bodies (handled with ODE)
-		size_t m_numPlanes;				// number of plane geometries (ODE and/or GPUSPH planes)
+		size_t m_numFloatingBodies;		// number of floating bodies (handled with Chrono)
+		size_t m_numPlanes;				// number of plane geometries (Chrono and/or GPUSPH planes)
 		size_t m_numOpenBoundaries;		// number of I/O geometries
 
 		// extra margin to be added to computed world size
@@ -177,10 +177,10 @@ class XProblem: public Problem {
 
 		PositioningPolicy m_positioning;
 
-		// initialize ODE
-		void initializeODE();
+		// initialize Chrono
+		void initializeChrono();
 		// guess what
-		void cleanupODE();
+		void cleanupChrono();
 
 		// wrapper with common operations for adding a geometry
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
@@ -224,6 +224,8 @@ class XProblem: public Problem {
 			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff);
 		GeometryID addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 			const char *fname);
+		GeometryID addOBJMesh(const GeometryType otype, const FillType ftype, const Point &origin,
+			const char *fname);
 		GeometryID addHDF5File(const GeometryType otype, const Point &origin,
 			const char *fname_hdf5, const char *fname_stl = NULL);
 		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
@@ -256,8 +258,7 @@ class XProblem: public Problem {
 
 		// methods for rotating an existing object
 		void setOrientation(const GeometryID gid, const EulerParameters &ep);
-		void setOrientation(const GeometryID gid, const dQuaternion quat);
-		void rotate(const GeometryID gid, const dQuaternion quat);
+		void rotate(const GeometryID gid, const EulerParameters ep); // DEPRECATED until we'll have a GPUSPH Quaternion class
 		void rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
 
 		// method for shifting an existing object
@@ -317,6 +318,9 @@ class XProblem: public Problem {
 
 		// callback for filtering out points before they become particles
 		virtual void filterPoints(PointVect &fluidParts, PointVect &boundaryParts);
+		// default initialization for k and espilon
+		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
+
 		// callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 
@@ -324,18 +328,16 @@ class XProblem: public Problem {
 		XProblem(GlobalData *);
 		~XProblem(void);
 
-		// initialize world size, ODE if necessary; public, since GPUSPH will call it
+		// initialize world size, Chrono if necessary; public, since GPUSPH will call it
 		bool initialize();
 
-		int fill_parts();
+		int fill_parts(bool fill = true);
 		void copy_planes(PlaneList &planes);
 
 		void copy_to_array(BufferList &buffers);
 		void release_memory();
 
 		uint suggestedDynamicBoundaryLayers();
-
-		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
 
 		// will probably implement a smart, general purpose one
 		// void fillDeviceMap();

@@ -23,14 +23,13 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <iostream>
 
 #include "OpenChannel.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
+OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 {
 	use_side_walls = get_option("sidewalls", true);
 
@@ -38,9 +37,9 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 		//viscosity<ARTVISC>,
 		viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>,
-		periodicity<PERIODIC_X>
+		periodicity<PERIODIC_XY>
 	).select_options(
-		use_side_walls, periodicity<PERIODIC_XY>()
+		use_side_walls, periodicity<PERIODIC_X>()
 	);
 
 	// SPH parameters
@@ -59,18 +58,20 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 		dyn_offset = dyn_layers*make_double3(0,
 			use_side_walls ? m_deltap : 0,
 			m_deltap);
+		margin = make_double3(0., use_side_walls ? 0.1 : 0, 0.1);
 	} else {
 		dyn_layers = 0;
 		dyn_offset = make_double3(0.0);
+		margin = make_double3(0.0);
 	}
 
 	// Size and origin of the simulation domain
-	a = 1.0;
-	h = H*1.4;
-	l = 15*simparams()->influenceRadius;
+	a = round_up(1.0, m_deltap);
+	h = round_up(H*1.4, m_deltap);
+	l = round_up(15*simparams()->influenceRadius, m_deltap);
 
-	m_size = make_double3(l, a, h) + 2*dyn_offset;
-	m_origin = make_double3(0.0, 0.0, 0.0) - dyn_offset;
+	m_size = make_double3(l, a, h) + 2*make_double3(margin.x, margin.y, margin.z);
+	m_origin = make_double3(0.0, 0.0, 0.0) - make_double3(margin.x, margin.y, margin.z);
 
 	// Physical parameters
 	const double angle = 4.5; // angle in degrees
@@ -93,105 +94,64 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 
 	// Name of problem used for directory creation
 	m_name = "OpenChannel";
-}
 
-
-OpenChannel::~OpenChannel(void)
-{
-	release_memory();
-}
-
-
-void OpenChannel::release_memory(void)
-{
-	parts.clear();
-	boundary_parts.clear();
-}
-
-
-int OpenChannel::fill_parts()
-{
+	// Building the geometry
+	setPositioning(PP_CORNER);
 	const float r0 = physparams()->r0;
 	// gap due to periodicity
 	const double3 periodicity_gap = make_double3(m_deltap/2,
 		use_side_walls ? 0 : m_deltap/2, 0);
 
-	experiment_box = Cube(m_origin, l, a, h);
+	if (use_side_walls) {
+		// side walls: shifted by dyn_offset, and with opposite orientation so that
+		// they "fill in" towards the outside
+		GeometryID sideWall1 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+			periodicity_gap + make_double3(0, a, 0),
+			l - r0, 4*margin.y, h - r0);
+		disableCollisions(sideWall1);
+
+		GeometryID sideWall2 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+			periodicity_gap + make_double3(0, -dyn_offset.y, 0),
+			l - r0, 1.5*margin.y, h - r0);
+		disableCollisions(sideWall2);
+
+		if (simparams()->boundarytype == DYN_BOUNDARY) {
+			GeometryID unfill_sideWall1 = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
+					periodicity_gap + make_double3(0, a + dyn_offset.y + r0, 0),
+					l - r0, 4*margin.y, h - r0);
+			disableCollisions(unfill_sideWall1);
+			setEraseOperation(unfill_sideWall1, ET_ERASE_BOUNDARY);
+			GeometryID unfill_sideWall2 = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
+					periodicity_gap + make_double3(0, r0, 0),
+					l - r0, 1.5*margin.y, h - r0);
+			disableCollisions(unfill_sideWall2);
+			setEraseOperation(unfill_sideWall2, ET_ERASE_BOUNDARY);
+		}
+	}
 
 	// bottom: it must cover the whole bottom floor, including under the walls,
 	// hence it must not be shifted by dyn_offset in the y direction. In the
 	// Y-periodic case (no side walls), the Y length must be decreased by
 	// a deltap to account for periodicity (start at deltap/2, end deltap/2 before the end)
-	rect1 = Rect(m_origin + make_double3(dyn_offset.x, 0, dyn_offset.z) + periodicity_gap,
-		Vector(0, m_size.y - (use_side_walls ? 0 : m_deltap), 0),
-		Vector(m_size.x - m_deltap, 0, 0));
-
-	if (use_side_walls) {
-		// side walls: shifted by dyn_offset, and with opposite orientation so that
-		// they "fill in" towards the outside
-		rect2 = Rect(m_origin + dyn_offset + periodicity_gap + make_double3(0, 0, r0),
-			Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
-		rect3 = Rect(m_origin + dyn_offset + periodicity_gap + make_double3(0, a, r0),
-			Vector(0, 0, h - r0), Vector(l - m_deltap, 0, 0));
-	}
-
-	Cube fluid = use_side_walls ?
-		Cube(m_origin + dyn_offset + periodicity_gap + make_double3(0, r0, r0),
-		l - m_deltap, a - 2*r0, H - r0) :
-		Cube(m_origin + dyn_offset + periodicity_gap + make_double3(0, 0, r0),
-		l - m_deltap, a - m_deltap, H - r0) ;
-
-	boundary_parts.reserve(2000);
-	parts.reserve(14000);
-
-	rect1.SetPartMass(r0, physparams()->rho0[0]);
-	if (use_side_walls) {
-		rect2.SetPartMass(r0, physparams()->rho0[0]);
-		rect3.SetPartMass(r0, physparams()->rho0[0]);
-	}
-
+	GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		periodicity_gap + make_double3(0, -dyn_offset.y, -2*dyn_offset.z),
+		l - r0, a + 2*dyn_offset.y, 2*dyn_offset.z);
+	disableCollisions(bottom);
 	if (simparams()->boundarytype == DYN_BOUNDARY) {
-		rect1.FillIn(boundary_parts, m_deltap, dyn_layers);
-		if (use_side_walls) {
-			rect2.FillIn(boundary_parts, m_deltap, dyn_layers);
-			rect3.FillIn(boundary_parts, m_deltap, dyn_layers);
-		}
+		GeometryID unfill_bottom = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
+				periodicity_gap + make_double3(0, -dyn_offset.y, -2*dyn_offset.z),
+				l - r0, a + 2*dyn_offset.y, dyn_offset.z);
+		disableCollisions(unfill_bottom);
+		setEraseOperation(unfill_bottom, ET_ERASE_BOUNDARY);
+	}
+
+	if (simparams()->periodicbound == PERIODIC_XY) {
+		addBox(GT_FLUID, FT_SOLID,
+				periodicity_gap + make_double3(0, 0, r0), l - r0, a - r0, H - r0) ;
 	} else {
-		rect1.Fill(boundary_parts, r0, true);
-		if (use_side_walls) {
-			rect2.Fill(boundary_parts, r0, true);
-			rect3.Fill(boundary_parts, r0, true);
-		}
+		addBox(GT_FLUID, FT_SOLID,
+				periodicity_gap + make_double3(0, r0, r0), l - r0, a - 2*r0, H - r0) ;
 	}
 
-	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
-	fluid.Fill(parts, m_deltap, true);
-
-	return parts.size() + boundary_parts.size();
 }
 
-void OpenChannel::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i]= make_particleinfo(PT_BOUNDARY,0,i);
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-	}
-	int j = boundary_parts.size();
-
-	std::cout << "Fluid parts: " << parts.size() << "\n";
-	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i]= make_particleinfo(PT_FLUID,0,i);
-		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
-	std::flush(std::cout);
-}

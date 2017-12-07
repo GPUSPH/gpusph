@@ -23,10 +23,17 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+
+// for smart pointers
+#include <memory>
+
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChBodyEasy.h"
+#endif
 
 #include "Cylinder.h"
 
@@ -114,12 +121,10 @@ void Cylinder::setEulerParameters(const EulerParameters &ep)
 	m_ep = ep;
 	m_ep.ComputeRot();
 
+	// Point mass is stored in the fourth component of m_center. Store and restore it after the rotation
+	const double point_mass = m_center(3);
 	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
-
-	dQuaternion q;
-	for (int i = 0; i < 4; i++)
-		q[i] = m_ep(i);
-	dQtoR(q, m_ODERot);
+	m_center(3) = point_mass;
 }
 
 void Cylinder::getBoundingBox(Point &output_min, Point &output_max)
@@ -134,35 +139,6 @@ void Cylinder::shift(const double3 &offset)
 	const Point poff = Point(offset);
 	m_origin += poff;
 	m_center += poff;
-}
-
-void
-Cylinder::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	m_ODEBody = dBodyCreate(ODEWorld);
-	dMassSetZero(&m_ODEMass);
-	dMassSetCylinderTotal(&m_ODEMass, m_mass, 3, m_r +dx/2.0, m_h + dx);
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dQuaternion q;
-	m_ep.ToODEQuaternion(q);
-	dBodySetQuaternion(m_ODEBody, q);
-	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx);
-}
-
-
-void
-Cylinder::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
-	m_ODEGeom = dCreateCylinder(ODESpace, m_r, m_h);
-	if (m_ODEBody)
-		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	else {
-		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
-		dQuaternion q;
-		m_ep.ToODEQuaternion(q);
-		dGeomSetQuaternion(m_ODEGeom, q);
-	}
 }
 
 
@@ -244,3 +220,34 @@ Cylinder::IsInside(const Point& p, const double dx) const
 
 	return inside;
 }
+
+#if USE_CHRONO == 1
+/* Create a cube Chrono body inside a specified Chrono physical system. If
+ * collide is true this method also enables collision detection in Chrono.
+ * Here we have to specialize this function for the Cylinder because the Chrono cylinder
+ * is by default in the Y direction and ours in the Z direction.
+ *	\param bodies_physical_system : Chrono physical system
+ *	\param dx : particle spacing
+ *	\param collide : add collision handling
+ */
+void
+Cylinder::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+	const ::chrono::ChQuaternion<> & orientation_diff)
+{
+	// Check if the physical system is valid
+	if (!bodies_physical_system)
+		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
+
+	// Creating a new Chrono object
+	m_body = std::make_shared< ::chrono::ChBodyEasyCylinder >( m_r + dx/2.0, m_h + dx, m_mass/Volume(dx), collide );
+	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+
+	m_body->SetCollide(collide);
+	m_body->SetBodyFixed(m_isFixed);
+	// mass is automatically set according to density
+
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(m_body);
+}
+#endif

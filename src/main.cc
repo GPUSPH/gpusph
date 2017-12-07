@@ -38,10 +38,15 @@
 #include "problem_select.opt"
 
 /* Include all other opt file for show_version */
-#include "gpusph_version.opt"
-#include "fastmath_select.opt"
-#include "dbg_select.opt"
+#include "chrono_select.opt"
 #include "compute_select.opt"
+#include "dbg_select.opt"
+#include "fastmath_select.opt"
+#include "gpusph_version.opt"
+#include "hdf5_select.opt"
+#include "mpi_select.opt"
+
+using namespace std;
 
 void show_version()
 {
@@ -57,6 +62,9 @@ void show_version()
 		dbg_or_rel,
 		FASTMATH ? "with" : "without",
 		COMPUTE/10, COMPUTE%10);
+	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
+	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
+	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
 	printf("Compiled for problem \"%s\"\n", QUOTED_PROBLEM);
 }
 
@@ -69,6 +77,7 @@ void print_usage() {
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
+	cout << "\t       [--debug FLAGS]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
 	cout << " --checkpoint-every : HotStart checkpoints will be created every VAL seconds\n";
@@ -84,10 +93,12 @@ void print_usage() {
 	cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
 	cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
 	cout << " --asyncmpi : Enable asynchronous network transfers (requires GPUDirect and 1 process per device)\n";
-	cout << " --num-hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
+	cout << " --num-hosts : Specify number of hosts. To be used if #processes > #hosts (VAL is cast to uint)\n";
 	cout << " --byslot-scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
+	cout << " --no-leak-warning : do not warn if #particles decreases without outlets (e.g. overtopping, leaking)\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
+	cout << " --debug : enable debug flags FLAGS\n";
 	cout << " --help: Show this help and exit\n";
 }
 
@@ -107,7 +118,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		argv++;
 		argc--;
 		if (!strcmp(arg, "--resume")) {
-			_clOptions->resume_fname = std::string(*argv);
+			_clOptions->resume_fname = string(*argv);
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--checkpoint-every")) {
@@ -162,11 +173,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--dem")) {
-			_clOptions->dem = std::string(*argv);
+			_clOptions->dem = string(*argv);
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--dir")) {
-			_clOptions->dir = std::string(*argv);
+			_clOptions->dir = string(*argv);
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--nosave")) {
@@ -187,6 +198,8 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			return 0;
 		} else if (!strcmp(arg, "--byslot-scheduling") || !strcmp(arg, "--byslot_scheduling")) {
 			_clOptions->byslot_scheduling = true;
+		} else if (!strcmp(arg, "--no-leak-warning") || !strcmp(arg, "--no_leak_warning")) {
+			_clOptions->no_leak_warning = true;
 #if 0 // options will be enabled later
 		} else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
@@ -196,6 +209,10 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 #endif
+		} else if (!strcmp(arg, "--debug")) {
+			gdata->debug = parse_debug_flags(*argv);
+			argv++;
+			argc--;
 		} else if (!strcmp(arg, "--help")) {
 			print_usage();
 			return 0;
@@ -211,7 +228,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 
 			// Left for future dynamic loading:
 			/*if (_clOptions->problem.empty()) {
-				_clOptions->problem = std::string(arg);
+				_clOptions->problem = string(arg);
 			} else {
 				cout << "Problem " << arg << " selected after problem " << _clOptions->problem << endl;
 			}*/
@@ -227,7 +244,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 	// only for single-gpu
 	_clOptions->device = gdata->device[0];
 
-	_clOptions->problem = std::string( QUOTED_PROBLEM );
+	_clOptions->problem = string( QUOTED_PROBLEM );
 
 	// Left for future dynamic loading:
 	/*if (_clOptions->problem.empty()) {
@@ -353,8 +370,8 @@ int main(int argc, char** argv) {
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(&gdata);
-	if (gdata.problem->m_simframework)
-		gdata.simframework = gdata.problem->m_simframework;
+	if (gdata.problem->simframework())
+		gdata.simframework = gdata.problem->simframework();
 	else
 		throw invalid_argument("no simulation framework defined in the problem!");
 	gdata.allocPolicy = gdata.simframework->getAllocPolicy();

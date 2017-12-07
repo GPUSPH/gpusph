@@ -27,7 +27,7 @@ timestep = vtp.TimestepValues
 
 # threshold on particle type 0 (fluid)
 fluid = Threshold(vtp)
-fluid.Scalars = 'Part type+flags'
+fluid.Scalars = 'Part type'
 fluid.ThresholdRange = [0, 0]
 
 print "#time,xmin,xmax,ymin,ymax,zmin,zmax,rhomin,rhomax"

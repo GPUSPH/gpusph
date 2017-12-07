@@ -33,30 +33,23 @@
 #ifndef SEICHE_H
 #define	SEICHE_H
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "Point.h"
 #include "Rect.h"
 #include "Cube.h"
 
-class Seiche: public Problem {
+class Seiche: public XProblem {
 	private:
-		Cube		experiment_box;
-		PointVect	parts;
-		PointVect	boundary_parts;
 		float		h, w, l;
 		float		H; // still water level
 		double		m_gtstart, m_gtend;
 
 	public:
 		Seiche(GlobalData *);
-		virtual ~Seiche(void);
 
-		int  fill_parts(void);
-		void copy_to_array(BufferList &);
 		void copy_planes(PlaneList &);
 		float3 g_callback(const double);
 
-		void release_memory(void);
 };
 #endif	/* SEICHE_H */
 

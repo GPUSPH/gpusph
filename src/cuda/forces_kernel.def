@@ -170,7 +170,7 @@ struct common_particle_data
 	const	int3	gridPos;
 
 	__device__ __forceinline__
-	common_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info, hashKey const* hash) :
+	common_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info, hashKey const* __restrict__ hash) :
 		index(_index),
 		info(_info),
 		pos(_pos),
@@ -332,7 +332,7 @@ struct keps_particle_data
 		keps_k(tex1Dfetch(keps_kTex, index)),
 		keps_e(tex1Dfetch(keps_eTex, index)),
 		turbVisc(0.09f*keps_k*keps_k/keps_e),
-		turbViscForViscTerm(FLUID(info) ? turbVisc : 0)
+		turbViscForViscTerm((FLUID(info) || (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info))) ? turbVisc : 0)
 	{}
 };
 
@@ -600,6 +600,15 @@ struct xsph_particle_output
 	{}
 };
 
+struct internal_energy_particle_output
+{
+	float DEDt; // derivative of the internal energy with respect to time
+
+	__device__ __forceinline__
+	internal_energy_particle_output() : DEDt(0.0f)
+	{}
+};
+
 template<BoundaryType _boundarytype,
 	ViscosityType _visctype,
 	flag_t _simflags>
@@ -610,7 +619,8 @@ struct forces_particle_output :
 	// When this is implemented, the || visctype == KEPSVISC should be removed
 	COND_STRUCT(_boundarytype == SA_BOUNDARY || _visctype == KEPSVISC, sa_boundary_particle_output),
 	COND_STRUCT(_visctype == KEPSVISC, keps_particle_output),
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_output)
+	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_output),
+	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)
 {
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
@@ -623,7 +633,8 @@ struct forces_particle_output :
 		// TODO FIXME see above
 		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output)(params, index),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)()
+		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)(),
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)()
 	{}
 };
 
@@ -1756,19 +1767,24 @@ struct visc_boundary_part {
 	{}
 };
 
-//template<>
-//template<typename FP, typename P, typename N, typename OP, typename ON>
-//__device__ __forceinline__ void
-//visc_boundary_part<DYNAMICVISC>::with
-//(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-//{
-//	// velocity of fluid particle along the wall
-//	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
-//
-//	nout.DvDt -= nout.ggamAS*
-//		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
-//		vel_tau/pdata.vel.w;
-//}
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+visc_boundary_part<DYNAMICVISC>::with
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	// velocity of fluid particle along the wall
+	const float3 vel_tau = as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)) -
+		(IO_BOUNDARY(ndata.info) ?
+		 make_float3(0.0f) :
+		 dot(as_float3(ndata.relVel + getRelEulerVel<FP::simflags & ENABLE_INLET_OUTLET>::with(ndata)), ndata.normal_s)*ndata.normal_s
+		);
+
+
+	nout.DvDt -= nout.ggamAS*
+		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
+		vel_tau/pdata.vel.w;
+}
 
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -1776,6 +1792,16 @@ __device__ __forceinline__ void
 visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	if (IO_BOUNDARY(ndata.info)) {
+		// velocity of fluid particle along the wall
+		const float3 vel_tau = as_float3(ndata.relVel + ndata.relEulerVel);
+
+		nout.DvDt -= nout.ggamAS*
+			(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
+			vel_tau/pdata.vel.w;
+		return;
+	}
+
 	// for boundary particles without neighbouring fluid particle k is 0 so skip
 	if(pdata.keps_k < params.epsilon)
 		return;
@@ -1928,8 +1954,7 @@ struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation, cptype, PT_BOUNDARY
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
-			visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
+		visc_boundary_part<FP::visctype>::with(params, pdata, ndata, pout, nout);
 	}
 };
 
@@ -2241,6 +2266,26 @@ compute_water_depth_at_outflow<SA_BOUNDARY, true>::with(FP const& params, P cons
 	atomicMax(&params.IOwaterdepth[object(pdata.info)], (uint)nZpos);
 }
 
+/// A functor that adds the internal energy contribution from a neighbor
+/// to the total one, if ENABLE_INTERNAL_ENERGY
+template<bool>
+struct add_internal_energy
+{
+	template<typename OP, typename N, typename ON>
+	__device__ __forceinline__
+	static void
+	with(OP &pout, N const& ndata, ON const& nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename OP, typename N, typename ON>
+__device__ __forceinline__ void
+add_internal_energy<true>::with(OP &pout, N const& ndata, ON const& nout)
+{
+	pout.DEDt -= dot3(nout.DvDt, ndata.relVel)/2;
+}
+
 
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
@@ -2306,6 +2351,24 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
 write_xsph<true>::with(FP const& params, P const& pdata, OP const& pout)
 { params.xsph[pdata.index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
+
+/// A functor that writes out the internal energy, if enabled
+template<bool>
+struct write_internal_energy
+{
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, OP const& pout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ void
+write_internal_energy<true>::with(FP const& params, P const& pdata, OP const& pout)
+{ params.DEDt[pdata.index] = pout.DEDt; }
+
 
 /// A functor that writes out turbvisc
 /// but only for KEPSVISC
@@ -2574,6 +2637,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+		// Summ all internal energy contributions from the neighbors
+		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 	}
 };
 
@@ -2614,6 +2679,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
+			// Summ all internal energy contributions from the neighbors
+			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 		}
 	}
 };
@@ -2637,6 +2704,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
+			// Summ all internal energy contributions from the neighbors
+			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 		}
 	}
 };
@@ -2663,6 +2732,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+		// Summ all internal energy contributions from the neighbors
+		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 	}
 };
 
@@ -2703,6 +2774,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
+			// Summ all internal energy contributions from the neighbors
+			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 		}
 	}
 };
@@ -2742,6 +2815,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+		// Summ all internal energy contributions from the neighbors
+		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 	}
 };
 
@@ -2761,7 +2836,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	{
 		// Compute gamma_as and |grad gamma_as| and add it to the respective values
 		// of the focal particle
-		compute_gamma<SA_BOUNDARY, PT_FLUID, simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, ndata, pout, nout);
+		compute_gamma<SA_BOUNDARY, PT_FLUID, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, ndata, pout, nout);
 
 		if (!(simflags & ENABLE_DENSITY_SUM)) {
 			// Computes d\rho/dt, including ferrari correction
@@ -2778,10 +2853,12 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
 		// Compute time derivative of gamma
-		compute_gamma_dot<simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, ndata, pout, nout);
+		compute_gamma_dot<USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, ndata, pout, nout);
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+		// Summ all internal energy contributions from the neighbors
+		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 	}
 };
 
@@ -2811,6 +2888,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
+			// Summ all internal energy contributions from the neighbors
+			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 		}*/
 	}
 };
@@ -2845,6 +2924,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+		// Summ all internal energy contributions from the neighbors
+		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 	}
 };
 
@@ -2863,7 +2944,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	{
 		// Compute gamma_as and |grad gamma_as| and add it to the respective values
 		// of the focal particle
-		compute_gamma<SA_BOUNDARY, PT_VERTEX, simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, ndata, pout, nout);
+		compute_gamma<SA_BOUNDARY, PT_VERTEX, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, ndata, pout, nout);
 	}
 };
 
@@ -2909,7 +2990,7 @@ forcesDevice(
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 pos = params.posArray[index];
 		#else
 		const float4 pos = tex1Dfetch(posTex, index);
@@ -2959,7 +3040,7 @@ forcesDevice(
 		while (cont) {
 			neibdata neib_data = params.neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == NEIBS_END) break;
 			i += (nptype == PT_BOUNDARY) ? -d_neiblist_stride : d_neiblist_stride;
 
 			const uint neib_index = getNeibIndex(pdata.pos, pos_corr, params.cellStart,
@@ -2967,7 +3048,7 @@ forcesDevice(
 
 			// Compute relative position vector and distance
 			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			#if( __COMPUTE__ >= 20)
+			#if PREFER_L1
 			const float4 relPos = pos_corr - params.posArray[neib_index];
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -3003,7 +3084,7 @@ forcesDevice(
 		} // End of loop over neighbors
 
 		// TODO: check what to do with gamma
-		write_gamma<boundarytype, nptype, simflags & ENABLE_DYNAMIC_GAMMA>::with(params, pdata, pout);
+		write_gamma<boundarytype, nptype, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, pout);
 
 		write_forces<boundarytype>::with(params, pdata, pout);
 
@@ -3012,10 +3093,13 @@ forcesDevice(
 			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
 
+		write_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, pout);
+
 	} while (0);
 }
 
 
+// TODO FIXME splitneibs merge: load partial internal energy and store final
 template<SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
@@ -3042,7 +3126,7 @@ finalizeforcesDevice(
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if( __COMPUTE__ >= 20)
+		#if PREFER_L1
 		const float4 pos = params.posArray[index];
 		#else
 		const float4 pos = tex1Dfetch(posTex, index);
@@ -3145,3 +3229,4 @@ finalizeforcesDevice(
 #endif
 
 /* vi:set ft=cuda: */
+

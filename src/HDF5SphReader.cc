@@ -8,11 +8,11 @@
 #include <hdf5.h>
 #else
 #include <stdexcept>
-#define NO_HDF5_ERR throw std::runtime_error("HDF5 support not compiled in")
+#define NO_HDF5_ERR throw runtime_error("HDF5 support not compiled in")
 #endif
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdlib>
+#include <cstdio>
 #include <fstream>
 #include <limits.h> // UINT_MAX
 
@@ -28,15 +28,7 @@
 // Dataset dimensions
 #define RANK 1
 
-HDF5SphReader::HDF5SphReader(void) {
-	filename = "";
-	npart = UINT_MAX;
-	buf = NULL;
-}
-
-HDF5SphReader::~HDF5SphReader() {
-	empty();
-}
+using namespace std;
 
 int
 HDF5SphReader::getNParts()
@@ -74,7 +66,7 @@ HDF5SphReader::read()
 	// read npart if it was yet uninitialized
 	if (npart == UINT_MAX)
 		getNParts();
-	std::cout << "Reading particle data from the input: " << filename << std::endl;
+	cout << "Reading particle data from the input: " << filename << endl;
 	if(buf == NULL)
 		buf = new ReadParticles[npart];
 	else{
@@ -116,13 +108,13 @@ HDF5SphReader::read()
 	file_space_id = H5Dget_space(dataset_id);
 	status = H5Sselect_hyperslab(file_space_id, H5S_SELECT_SET, offset, NULL, count, NULL);
 	if (status < 0) {
-		throw std::runtime_error("reading HDF5 hyperslab");
+		throw runtime_error("reading HDF5 hyperslab");
 	}
 
 	// read data independently
 	status = H5Dread(dataset_id, mem_type_id, mem_space_id, file_space_id, H5P_DEFAULT, buf);
 	if (status < 0) {
-		throw std::runtime_error("reading HDF5 data");
+		throw runtime_error("reading HDF5 data");
 	}
 
 	H5Dclose(dataset_id);
@@ -133,35 +125,4 @@ HDF5SphReader::read()
 #else
 	NO_HDF5_ERR;
 #endif
-}
-
-void
-HDF5SphReader::empty()
-{
-	if(buf != NULL){
-		delete [] buf;
-		buf = NULL;
-	}
-}
-
-void
-HDF5SphReader::reset()
-{
-	empty();
-	filename = "";
-	npart = UINT_MAX;
-}
-
-void
-HDF5SphReader::setFilename(std::string const& fn)
-{
-	// reset npart
-	npart = UINT_MAX;
-	// copy filename
-	filename = fn;
-	// check whether file exists
-	std::ifstream f(filename.c_str());
-	if(!f.good())
-		throw std::invalid_argument(std::string("could not open ") + fn);
-	f.close();
 }

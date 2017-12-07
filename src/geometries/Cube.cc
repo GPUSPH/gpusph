@@ -23,10 +23,17 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+
+// for smart pointers
+#include <memory>
+
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChBodyEasy.h"
+#endif
 
 #include "Cube.h"
 #include "Rect.h"
@@ -73,26 +80,6 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 	setEulerParameters(ep);
 }
 
-
-/// Constructor from edges length and orientation (ODE quaternion)
-/*! Construct a cube of given dimension with an orientation given by
- *  a quaternion in ODE format.
- *	lx, ly, lz parameters are the dimension of the cube along the X', Y'
- *	and Z' axis.
- *	\param origin : cube origin (bottom left corner)
- *	\param lx : length along X' axis
- *	\param ly : length along Y' axis
- *	\param lz : length along Z' axis
- *	\param quat : quaternion defining the orientation
- *
- *  Beware, particle mass should be set before any filling operation
- */
-Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const dQuaternion quat)
-{
-	Cube(origin, lx, ly, lz, EulerParameters(quat));
-}
-
-
 /// DEPRECATED Constructor from edge vectors
 /*! Construct a cube according to 3 vectors defining the edges along
  *  X', Y' and Z' axis.
@@ -110,9 +97,9 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector& vz)
 {
 	// Check if the three vectors are orthogonals in pairs
-	if (abs(vx*vy) > 1e-6*vx.norm()*vy.norm() || abs(vx*vz) > 1e-6*vx.norm()*vz.norm()
-		|| abs(vy*vz) > 1e-6*vy.norm()*vz.norm()) {
-		throw std::runtime_error("Trying to construct a cube with non perpendicular vectors\n");
+	if (fabs(vx*vy) > 1e-6*vx.norm()*vy.norm() || fabs(vx*vz) > 1e-6*vx.norm()*vz.norm()
+		|| fabs(vy*vz) > 1e-6*vy.norm()*vz.norm()) {
+		throw runtime_error("Trying to construct a cube with non perpendicular vectors\n");
 		exit(1);
 	}
 
@@ -267,11 +254,11 @@ Cube::SetInertia(const double dx)
  */
 void
 Cube::FillBorder(PointVect& bpoints, PointVect& belems, PointVect& vpoints,
-		std::vector<uint4>& vindexes, const double dx, const bool fill_top_face)
+		vector<uint4>& vindexes, const double dx, const bool fill_top_face)
 {
 	Point   rorigin;
 	Vector  rvx, rvy;
-	std::vector<uint> edgeparts[6][4];
+	vector<uint> edgeparts[6][4];
 	m_origin(3) = m_center(3);
 	int last_face = 6;
 
@@ -686,8 +673,11 @@ void Cube::setEulerParameters(const EulerParameters &ep)
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
 	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
 
+	// Point mass is stored in the fourth component of m_center. Store and restore it after the rotation
+	const double point_mass = m_center(3);
 	// Computing the center of gravity of the cube
 	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
+	m_center(3) = point_mass;
 }
 
 // get the object bounding box
@@ -704,62 +694,37 @@ void Cube::shift(const double3 &offset)
 	m_center += poff;
 }
 
-/// Create an ODE body associated to the cube
-/* Create a cube ODE body inside a specified ODE world. If
- * a space (used for handling collision detection) has been defined
- * this method calls ODEGeomCreate to associate a geometry to the cube.
- *	\param ODEWorld : ODE world ID
- *	\param dx : particle spacing
- *	\param ODESpace : ODE space ID
- */
-void
-Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	// Create an ODE body
-	m_ODEBody = dBodyCreate(ODEWorld);
-	// Compute mass and inertia of the cube and associate it to the ODE body
-	dMassSetZero(&m_ODEMass);
-	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	// Move an rotate the body to match current cube location and orientation
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dQuaternion q;
-	m_ep.ToODEQuaternion(q);
-	dBodySetQuaternion(m_ODEBody, q);
-	// If an ODE space has been defined create a geometry associated with the body
-	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx);
-}
 
-
-/// Create an ODE geometry associated to the cube
-/* Create an ODE geometry in the specified space associated
- * with the cube. If an ODE body is associated with cube, the
- * ODE geometry is associated to the ODE body.
- *	\param ODESpace : ODE space ID
- *	\param dx : particle spacing
- *	\param ODESpace : ODE space ID
- */
-void
-Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
-	// Create a cube geometry
-	m_ODEGeom = dCreateBox(ODESpace, m_lx + dx, m_ly + dx, m_lz + dx);
-	// If an ODE body has been defined, associate the geometry with the ODE body
-	if (m_ODEBody)
-		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	// Otherwise move and rotate the geometry to match current cube position and orientation
-	else {
-		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
-		dQuaternion q;
-		m_ep.ToODEQuaternion(q);
-		dGeomSetQuaternion(m_ODEGeom, q);
-	}
-}
-
-
-std::ostream& operator<<(std::ostream& out, const Cube& cube) // output
+ostream& operator<<(ostream& out, const Cube& cube) // output
 {
     out << "Cube size(" << cube.m_lx << ", " << cube.m_ly << ", " <<cube. m_lz
     		<< ") particles: " << cube.m_parts.size() << "\n";
     return out;
 }
+
+
+#if USE_CHRONO == 1
+/* Create a Chrono box body.
+ *	\param dx : particle spacing
+ */
+void
+Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+	const ::chrono::ChQuaternion<> & orientation_diff)
+{
+	// Check if the physical system is valid
+	if (!bodies_physical_system)
+		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
+
+	// Creating a new Chrono object
+	m_body = std::make_shared< ::chrono::ChBodyEasyBox > ( m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide );
+	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+
+	m_body->SetCollide(collide);
+	m_body->SetBodyFixed(m_isFixed);
+	// mass is automatically set according to density
+
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(m_body);
+}
+#endif

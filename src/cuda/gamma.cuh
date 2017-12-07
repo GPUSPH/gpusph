@@ -203,7 +203,6 @@ gradGamma(	const	float		slength,
 		const	float3		&ns);
 
 template<>
-
 __device__ __forceinline__ float
 gradGamma<WENDLAND>(
 		const	float		slength,
@@ -233,7 +232,6 @@ gradGamma<WENDLAND>(
 	float sumAngles = 0.f;
 
 	// loop over all three edges
-#pragma unroll
 	for (uint e = 0; e < 3; e++) {
 		sIdx[0] = e%3;
 		sIdx[1] = (e+1)%3;

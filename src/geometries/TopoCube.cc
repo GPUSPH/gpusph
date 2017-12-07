@@ -23,7 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <cstring> // memcpy
 
 #include <iostream>
@@ -80,10 +79,10 @@ void TopoCube::SetGeoLocation(double north, double south,
 /* Add wall planes to the planes array; the
  * given array should be able to hold at least 4 elements each
  */
-std::vector<double4> TopoCube::get_planes()
+vector<double4> TopoCube::get_planes()
 {
 
-	std::vector<double4> planes;
+	vector<double4> planes;
 	// north wall
 	planes.push_back( make_double4(0, 1.0, 0, 0) );
 	// south wall

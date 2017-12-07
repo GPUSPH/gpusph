@@ -167,14 +167,11 @@ typedef struct PhysParams {
 
 	/** \name Deprecated parameters
 	 * @{ */
-	float3	dispvect DEPRECATED_MSG("dispvect is not needed anymore");
-	float3	maxlimit DEPRECATED_MSG("maxlimit is not needed anymore");
-	float3	minlimit DEPRECATED_MSG("minlimit is not needed anymore");
-	float	objectobjectdf DEPRECATED_MSG("objectobjectdf is not needed anymore");
-	float	objectboundarydf DEPRECATED_MSG("objectboundarydf is not needed anymore");
+	float	objectobjectdf DEPRECATED_MSG("objectobjectdf is not needed anymore");	///< Damping factor for object-object interaction
+	float	objectboundarydf DEPRECATED_MSG("objectboundarydf is not needed anymore");	///< Damping factor for object-boundary interaction
 	/** @} */
 
-	// We have 5 deprecated members, but we don't need
+	// We have 2 deprecated members, but we don't need
 	// to get a warning about them for the constructor, only
 	// when the users actually assign to them
 IGNORE_WARNINGS(deprecated-declarations)
@@ -186,6 +183,7 @@ IGNORE_WARNINGS(deprecated-declarations)
 		r0(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
+		epsartvisc(NAN),
 		epsxsph(0.5f),
 		smagfactor(NAN),
 		kspsfactor(NAN),
@@ -194,7 +192,6 @@ IGNORE_WARNINGS(deprecated-declarations)
 		objectobjectdf(1.0f),
 		objectboundarydf(1.0f)
 	{};
-RESTORE_WARNINGS
 
 	// Problem, XProblem (but not their derivatives —luckily, friendship is not inherited)
 	// GPUWorker and GPUSPH should be the only ones
@@ -241,6 +238,18 @@ protected:
 		return rho0.size() - 1;
 	}
 
+	//! Change the density of the given fluid
+	void set_density(size_t fluid_idx, float _rho0)
+	{
+		rho0.at(fluid_idx) = _rho0;
+	}
+
+	//! Get the density of the given fluid
+	float get_density(size_t fluid_idx)
+	{
+		return rho0.at(fluid_idx);
+	}
+
 	/// Set the equation of state of a given fluid
 	/*! Set the parameters of the equation of state of a given fluid, specifying the adiabatic
 	 *  index and speed of sound. A non-finite speed of sound implies that it should be autocomputed
@@ -258,7 +267,6 @@ protected:
 		sscoeff[fluid_idx] = c0;
 		sspowercoeff[fluid_idx] = (gamma-1)/2;
 	}
-
 
 	/// Set density and equation of state of a given fluid
 	/*! \deprecated

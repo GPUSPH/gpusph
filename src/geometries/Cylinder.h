@@ -51,9 +51,6 @@ class Cylinder: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
-		void ODEGeomCreate(dSpaceID, const double);
-
 		void FillBorder(PointVect&, const double, const bool, const bool);
 		void FillBorder(PointVect& points, const double dx)
 		{
@@ -67,7 +64,10 @@ class Cylinder: public Object {
 		void FillIn(PointVect& points, const double dx, const int layers);
 
 		bool IsInside(const Point&, const double) const;
+
+#if USE_CHRONO == 1
+		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+			const ::chrono::ChQuaternion<> & orientation_diff);
+#endif
 };
-
 #endif	/* _CYLINDER_H */
-

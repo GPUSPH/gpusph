@@ -32,6 +32,7 @@
 
 #include <vector>
 #include <map>
+#include <string>
 
 #include "Object.h"
 
@@ -95,6 +96,9 @@ private:
 	U4Vect m_triangles; // triangles
 	F4Vect m_normals; // normals
 
+	// obj filename for chrono
+	std::string m_objfile;
+
 	// insertion-time only
 	VertMap m_vmap; // vertex map for dedup
 
@@ -114,8 +118,9 @@ private:
 	// minimum coordinates
 	double3	m_minbounds, m_maxbounds;
 
-	// ODE-related stuff
-	dTriMeshDataID m_ODETriMeshData;
+//	// ODE-related stuff
+//	dTriMeshDataID m_ODETriMeshData;
+	// TODO: Chrono triangle mesh need to be added here
 
 	// minimum and maximum distance between vertices
 	double m_minres, m_maxres;
@@ -149,7 +154,12 @@ public:
 	double get_maxres(void) const
 	{ return m_maxres; }
 
+	void setObjectFile(std::string fname) {m_objfile = fname;}
+
 	static STLMesh *load_stl(const char *fname);
+
+	// load OBJ file only to update bbox
+	void loadObjBounds();
 
 	void FillBorder(PointVect&, double);
 	int Fill(PointVect&, double, bool);
@@ -167,8 +177,13 @@ public:
 	void SetInertia(double);
 	void SetInertia(const double*);
 
-	void ODEGeomCreate(dSpaceID ODESpace, const double dx);
-	void ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace = 0);
+#if USE_CHRONO == 1
+		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide,
+			const ::chrono::ChQuaternion<> & orientation_diff);
+#else
+		void BodyCreate(void *p1, const double p2, const bool p3)
+		{ Object::BodyCreate(p1, p2, p3); }
+#endif
 };
 
 #endif // _STLMESH_H

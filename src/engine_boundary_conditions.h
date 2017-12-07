@@ -34,7 +34,6 @@ saSegmentBoundaryConditions(
 			float4*			oldEulerVel,
 			float4*			oldGGam,
 			vertexinfo*		vertices,
-	const	uint*			vertIDToIndex,
 	const	float2	* const vertPos[],
 	const	float4*			boundelement,
 	const	particleinfo*	info,
@@ -65,7 +64,6 @@ saVertexBoundaryConditions(
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
 	const	float2			* const vertPos[],
-	const	uint*			vertIDToIndex,
 			particleinfo*	info,
 			hashKey*		particleHash,
 	const	uint*			cellStart,
@@ -81,7 +79,8 @@ saVertexBoundaryConditions(
 	const	bool			initStep,
 	const	bool			resume,
 	const	uint			deviceId,
-	const	uint			numDevices) = 0;
+	const	uint			numDevices,
+	const uint			totParticles) = 0;
 
 // computes a normal for vertices in the initialization step
 virtual void
@@ -104,6 +103,27 @@ initGamma(
 	const	float			epsilon,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
+
+// counts vertices that belong to IO and same segment as other IO vertex
+virtual
+void
+initIOmass_vertexCount(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd) = 0;
+
+// modification of initial io vertex mass
+virtual
+void
+initIOmass(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd,
+	const	float			deltap) = 0;
 
 // disables particles that went through boundaries when open boundaries are used
 virtual void

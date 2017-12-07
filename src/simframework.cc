@@ -25,6 +25,8 @@
 
 #include "simframework.h"
 
+using namespace std;
+
 SimFramework::SimFramework() :
 	m_neibsEngine(NULL),
 	m_integrationEngine(NULL),
@@ -97,9 +99,9 @@ AbstractPostProcessEngine* SimFramework::addPostProcessEngine(PostProcessType pp
 	if (found == m_postProcessEngines.end()) {
 		m_postProcessEngines[pptype] = newPostProcessEngine(pptype, options);
 	} else {
-		std::cerr << "WARNING: tried to re-add post-process filter " <<
+		cerr << "WARNING: tried to re-add post-process filter " <<
 			PostProcessName[pptype < INVALID_POSTPROC ? pptype : INVALID_POSTPROC] <<
-			" (" << pptype << "), skipped!" << std::endl;
+			" (" << pptype << "), skipped!" << endl;
 	}
 	return flt;
 }

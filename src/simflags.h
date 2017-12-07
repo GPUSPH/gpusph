@@ -63,10 +63,17 @@
 // Summation density
 #define ENABLE_DENSITY_SUM		(ENABLE_WATER_DEPTH << 1)
 
-// Gamma computation from Dgamma/Dt
-#define ENABLE_DYNAMIC_GAMMA	(ENABLE_DENSITY_SUM << 1)
+// Compute gamma through Gauss quadrature formula. This is
+// alternative to the dynamic gamma computation
+// (gamma computed from from the continuity equation)
+// used by default.
+#define ENABLE_GAMMA_QUADRATURE		(ENABLE_DENSITY_SUM << 1)
+#define USING_DYNAMIC_GAMMA(flags)	(!((flags) & ENABLE_GAMMA_QUADRATURE))
 
-#define LAST_SIMFLAG			ENABLE_DYNAMIC_GAMMA
+// Compute internal energy
+#define ENABLE_INTERNAL_ENERGY (ENABLE_GAMMA_QUADRATURE << 1)
+
+#define LAST_SIMFLAG		ENABLE_INTERNAL_ENERGY
 
 // since flags are a bitmap, LAST_SIMFLAG - 1 sets all bits before
 // the LAST_SIMFLAG bit, and OR-ing with LAST_SIMFLAG gives us
@@ -78,6 +85,5 @@
 #define QUERY_ALL_FLAGS(field, flags)	(((field) & (flags)) == (flags))
 /// General query that identifies whether at least one flag in field is set
 #define QUERY_ANY_FLAGS(field, flags)	((field) & (flags))
-
 
 #endif

@@ -5,7 +5,6 @@
  * Created on 8 septembre 2011-2013, 18:52
  */
 
-#include <cmath>
 #include <cstdlib>
 
 #include "Torus.h"
@@ -70,16 +69,11 @@ Torus::SetInertia(const double dx)
 	m_inertia[2] = m_mass*(3.0/4.0*m_r*m_r + m_R*m_R);
 }
 
+
 void Torus::setEulerParameters(const EulerParameters &ep)
 {
 	m_ep = ep;
 	m_ep.ComputeRot();
-
-	dQuaternion q;
-	for (int i = 0; i < 4; i++)
-		q[i] = m_ep(i);
-
-	dQtoR(q, m_ODERot);
 }
 
 // TODO: now returning cubic container, should return minimum parallelepiped instead
@@ -165,20 +159,4 @@ Torus::IsInside(const Point& p, const double dx) const
 		return true;
 
 	return false;
-}
-
-
-void
-Torus::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	m_ODEBody = dBodyCreate(ODEWorld);
-	dMassSetZero(&m_ODEMass);
-	SetInertia(dx);
-	dMassSetParameters (&m_ODEMass, m_mass, 0.0, 0.0, 0.0,
-		m_inertia[0], m_inertia[1], m_inertia[2], 0.0, 0.0, 0.0);
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dQuaternion q;
-	m_ep.ToODEQuaternion(q);
-	dBodySetQuaternion(m_ODEBody, q);
 }

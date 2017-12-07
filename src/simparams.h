@@ -32,7 +32,7 @@
 #include <stdexcept>
 #include "particledefine.h"
 #include "simflags.h"
-#include "deprecation.h"
+// #include "deprecation.h"
 
 typedef std::vector<double4> GageList;
 
@@ -84,8 +84,6 @@ typedef struct SimParams {
 	/** \name Call back and post-processing related parameters
 	 * @{ */
 	bool			gcallback;				///< True if using a variable gravity set trough a callback function
-	bool			csvtestpoints;			///< True to dump the testpoints also in CSV files
-	bool			csvsimplegages;			///< True to dump the gages also in CSV files
 	bool			calc_energy;			///< True if we want to compute system energy at save time
 	GageList		gage;					///< Water gages list
 	/** @} */
@@ -147,8 +145,6 @@ typedef struct SimParams {
 		ferrariLengthScale(NAN),
 
 		gcallback(false),
-		csvtestpoints(false),
-		csvsimplegages(false),
 		calc_energy(true),
 		numforcesbodies(0),
 		numbodies(0),
@@ -181,30 +177,6 @@ typedef struct SimParams {
 	}
 
 	/// Set Kernel radius
-	/*! \deprecated This function set the radius of the currently used Kernel and update the
-	 *  related variables.
-	 *
-	 *  \return smoothing length \f$ h \f$
-	 */
-	inline double
-	set_kernel(
-			KernelType kernel, 	///< Kernel type
-			double radius=0		///< Kernel radius
-			)
-	/*! \cond */
-	DEPRECATED
-	/*! \endcond */
-	{
-		if (kernel != kerneltype)
-			throw std::runtime_error("cannot change kernel type this way anymore");
-
-		set_kernel_radius(radius ? radius :
-			kernel == GAUSSIAN ? 3.0 : 2.0);
-
-		return set_influenceradius();
-	}
-
-	/// Set Kernel radius
 	/*! This function set the radius of the currently used Kernel and update the
 	 *  related variables.
 	 */
@@ -215,6 +187,18 @@ typedef struct SimParams {
 	{
 		kernelradius = radius;
 		set_influenceradius();
+	}
+
+	/// Set neighbor list expansion factor
+	/*! This function set the expansion factor used to determine the influence radius used
+	 *  during neighbor search.
+	 */
+	inline double
+	set_neiblist_expansion(double _nlfactor)
+	{
+		nlexpansionfactor = _nlfactor;
+		set_influenceradius();
+		return nlInfluenceRadius;
 	}
 
 

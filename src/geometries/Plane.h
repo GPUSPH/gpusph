@@ -65,12 +65,15 @@ class Plane: public Object {
 		double getD() { return m_d; }
 		double getNorm() { return m_norm; }
 
-		/// \name ODE related  functions
+		/// \name Chrono related  functions
 		//@{
-		void ODEBodyCreate(dWorldID world, const double dx, dSpaceID ODESpace);
-		void ODEGeomCreate(dSpaceID space, const double dx);
+#if USE_CHRONO == 1
+		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+		{ throw std::runtime_error("Plane::BodyCreate not implemented !"); }
+#else
+		void BodyCreate(void *p1, const double p2, const bool p3)
+		{ Object::BodyCreate(p1, p2, p3); }
+#endif
 		//@}
 };
-
 #endif /* _PLANE_H */
-

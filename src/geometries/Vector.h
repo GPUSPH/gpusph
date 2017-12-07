@@ -35,7 +35,6 @@
 #define _GEOMVECTOR_H
 
 #include "Point.h"
-#include "ode/ode.h"
 
 class Point;
 
@@ -61,9 +60,6 @@ class Vector {
 		Vector(const float *);
 		Vector(const double *);
 		~Vector(void) {};
-
-		Vector Rot(const dMatrix3);
-		Vector TransposeRot(const dMatrix3);
 
 		/*! Return the norm of vector */
 		double norm(void) const;
@@ -112,7 +108,4 @@ double3 make_double3(const Vector &);
 float4 make_float4(const Vector &);
 double4 make_double4(const Vector &);
 
-void make_dvector3(const Vector &, dVector3);
-
-void make_dvector4(const Vector &, dVector4);
 #endif

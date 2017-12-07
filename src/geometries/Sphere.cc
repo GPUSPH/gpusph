@@ -23,10 +23,16 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <cmath>
 #include <cstdlib>
 
+// for smart pointers
+#include <memory>
+
 #include "Sphere.h"
+
+#if USE_CHRONO == 1
+#include "chrono/physics/ChBodyEasy.h"
+#endif
 
 
 Sphere::Sphere(void)
@@ -83,35 +89,6 @@ void Sphere::shift(const double3 &offset)
 	m_center += poff;
 }
 
-void
-Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	m_ODEBody = dBodyCreate(ODEWorld);
-	dMassSetZero(&m_ODEMass);
-	dMassSetSphereTotal(&m_ODEMass, m_mass, m_r + dx/2.0);
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dQuaternion q;
-	m_ep.ToODEQuaternion(q);
-	dBodySetQuaternion(m_ODEBody, q);
-	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx);
-}
-
-
-void
-Sphere::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
-	m_ODEGeom = dCreateSphere(ODESpace, m_r + dx/2.0);
-	if (m_ODEBody)
-		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	else {
-		dGeomSetPosition(m_ODEGeom,  m_center(0), m_center(1), m_center(2));
-		dQuaternion q;
-		m_ep.ToODEQuaternion(q);
-		dGeomSetQuaternion(m_ODEGeom, q);
-	}
-}
-
 
 void
 Sphere::FillBorder(PointVect& points, const double dx)
@@ -165,7 +142,6 @@ Sphere::Fill(PointVect& points, const double dx, const bool fill)
 	return nparts;
 }
 
-
 bool
 Sphere::IsInside(const Point& p, const double dx) const
 {
@@ -177,3 +153,29 @@ Sphere::IsInside(const Point& p, const double dx) const
 
 	return inside;
 }
+
+#if USE_CHRONO == 1
+/* Create a Chrono box body.
+ *	\param dx : particle spacing
+ */
+void
+Sphere::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
+	const ::chrono::ChQuaternion<> & orientation_diff)
+{
+	// Check if the physical system is valid
+	if (!bodies_physical_system)
+		throw std::runtime_error("Sphere::BodyCreate Trying to create a body in an invalid physical system!\n");
+
+	// Creating a new Chrono object
+	m_body = std::make_shared< ::chrono::ChBodyEasySphere > ( m_r + dx/2.0, m_mass/Volume(dx), collide );
+	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+
+	m_body->SetCollide(collide);
+	m_body->SetBodyFixed(m_isFixed);
+	// mass is automatically set according to density
+
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(m_body);
+}
+#endif

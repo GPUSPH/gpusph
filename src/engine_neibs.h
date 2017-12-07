@@ -89,11 +89,6 @@ public:
 			uint*			newNumParticles) = 0;
 
 	virtual void
-	updateVertIDToIndex(const particleinfo*	particleInfo,
-						uint*			vertIDToIndex,
-						const uint		numParticles) = 0;
-
-	virtual void
 	sort(	MultiBufferList::const_iterator bufread,
 			MultiBufferList::iterator bufwrite,
 			uint	numParticles) = 0;
@@ -105,7 +100,6 @@ public:
 					vertexinfo*			vertices,
 					const float4		*boundelem,
 					float2*				vertPos[],
-					const uint*			vertIDToIndex,
 					const hashKey*		particleHash,
 					const uint*			cellStart,
 					const uint*			cellEnd,

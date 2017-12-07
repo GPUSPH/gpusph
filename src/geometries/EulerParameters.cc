@@ -25,7 +25,7 @@
 */
 
 #include "EulerParameters.h"
-#include <cmath>
+
 
 /// Empty constructor
 /*!	Set the Euler parameters to
@@ -98,17 +98,6 @@ EulerParameters::EulerParameters(const EulerParameters &source)
 
 	for (int i = 0; i < 9; i++)
 		m_rot[i] = source.m_rot[i];
-}
-
-
-/// Constructor from ODE quaternion
-/*!
- *	\param[in] quat : ODE quaternion
- */
-EulerParameters::EulerParameters(const dQuaternion &quat)
-{
-	for (int i = 0; i < 4; i++)
-		m_ep[i] = quat[i];
 }
 
 
@@ -237,16 +226,17 @@ EulerParameters::ExtractEulerZXZ(double &psi, double &theta, double &phi) const
 }
 
 
+#if USE_CHRONO == 1
 /// Return associated ODE quaternion
 /*!
  *	\param[in/out] quat : ODE quaternion
  */
-void
-EulerParameters::ToODEQuaternion(dQuaternion & quat) const
+::chrono::ChQuaternion<>
+EulerParameters::ToChQuaternion(void) const
 {
-	for (int i = 0; i < 4; i++)
-		quat[i] = m_ep[i];
+	return ::chrono::ChQuaternion<>(m_ep[0], m_ep[1], m_ep[2], m_ep[3]);
 }
+#endif
 
 
 /// Set Euler parameters to identity: (1, 0, 0, 0)
@@ -428,6 +418,22 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 	temp[1] = ep1->m_ep[1]*ep2.m_ep[0] + ep1->m_ep[0]*ep2.m_ep[1] - ep1->m_ep[3]*ep2.m_ep[2] + ep1->m_ep[2]*ep2.m_ep[3];
 	temp[2] = ep1->m_ep[2]*ep2.m_ep[0] + ep1->m_ep[3]*ep2.m_ep[1] + ep1->m_ep[0]*ep2.m_ep[2] - ep1->m_ep[1]*ep2.m_ep[3];
 	temp[3] = ep1->m_ep[3]*ep2.m_ep[0] - ep1->m_ep[2]*ep2.m_ep[1] + ep1->m_ep[1]*ep2.m_ep[2] + ep1->m_ep[0]*ep2.m_ep[3];
+
+	EulerParameters res(temp);
+
+	return res;
+}
+
+/*!
+ * \overload EulerParameters operator*(const EulerParameters & ep1, const EulerParameters * ep2)
+ */
+EulerParameters operator*(const EulerParameters & ep1, const EulerParameters * ep2)
+{
+	double temp[4];
+	temp[0] = ep1.m_ep[0]*ep2->m_ep[0] - ep1.m_ep[1]*ep2->m_ep[1] - ep1.m_ep[2]*ep2->m_ep[2] - ep1.m_ep[3]*ep2->m_ep[3];
+	temp[1] = ep1.m_ep[1]*ep2->m_ep[0] + ep1.m_ep[0]*ep2->m_ep[1] - ep1.m_ep[3]*ep2->m_ep[2] + ep1.m_ep[2]*ep2->m_ep[3];
+	temp[2] = ep1.m_ep[2]*ep2->m_ep[0] + ep1.m_ep[3]*ep2->m_ep[1] + ep1.m_ep[0]*ep2->m_ep[2] - ep1.m_ep[1]*ep2->m_ep[3];
+	temp[3] = ep1.m_ep[3]*ep2->m_ep[0] - ep1.m_ep[2]*ep2->m_ep[1] + ep1.m_ep[1]*ep2->m_ep[2] + ep1.m_ep[0]*ep2->m_ep[3];
 
 	EulerParameters res(temp);
 
@@ -645,6 +651,13 @@ EulerParameters::operator()(int i) const
 	return m_ep[i];
 }
 
+/// Return a double4 of the 4 parameters
+double4
+EulerParameters::params() const
+{
+	return make_double4(m_ep[0], m_ep[1], m_ep[2], m_ep[3]);
+}
+
 
 // DEBUG
 #include <iostream>
@@ -666,10 +679,9 @@ void EulerParameters::printrot(void) const
 	return;
 }
 
-
 std::ostream& operator<<(std::ostream& out, const EulerParameters& ep) // output
 {
-    out << "Ep (" << ep.m_ep[0] << ", " << ep.m_ep[1] << ", " <<
-    		ep.m_ep[2] <<", " << ep.m_ep[3] << ")";
-    return out;
+	out << "Ep (" << ep.m_ep[0] << ", " << ep.m_ep[1] << ", "
+		<< ep.m_ep[2] <<", " << ep.m_ep[3] << ")";
+	return out;
 }

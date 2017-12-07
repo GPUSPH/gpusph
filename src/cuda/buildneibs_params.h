@@ -41,7 +41,7 @@
 struct common_buildneibs_params
 {
 			neibdata	*neibsList;				///< neighbor's list (out)
-#if (__COMPUTE__ >= 20)
+#if PREFER_L1
 	const	float4		*posArray;				///< particle's positions (in)
 #endif
 	const	hashKey		*particleHash;			///< particle's hashes (in)
@@ -55,7 +55,7 @@ struct common_buildneibs_params
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius) :
 		neibsList(_neibsList),
-#if (__COMPUTE__ >= 20)
+#if PREFER_L1
 		posArray(_pos),
 #endif
 		particleHash(_particleHash),
@@ -71,16 +71,13 @@ struct sa_boundary_buildneibs_params
 			float2	*vertPos1;				///< relative position of vertex to segment, second vertex
 			float2	*vertPos2;				///< relative position of vertex to segment, third vertex
 	const	float	boundNlSqInflRad;		///< neighbor search radius for PT_FLUID <-> PT_BOUNDARY interaction
-	const	uint	*vertIDToIndex;			///< vertex ID to particleIndex lookup table
 
 	sa_boundary_buildneibs_params(
 				float2	*_vertPos[],
-		const	uint	*_vertIDToIndex,
 		const	float	_boundNlSqInflRad) :
 		vertPos0(_vertPos[0]),
 		vertPos1(_vertPos[1]),
 		vertPos2(_vertPos[2]),
-		vertIDToIndex(_vertIDToIndex),
 		boundNlSqInflRad(_boundNlSqInflRad)
 	{}
 };
@@ -107,12 +104,11 @@ struct buildneibs_params :
 
 		// SA_BOUNDARY
 				float2	*_vertPos[],
-		const	uint	*_vertIDToIndex,
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(_neibsList, _pos, _particleHash,
 			_numParticles, _sqinfluenceradius),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
-			_vertPos, _vertIDToIndex, _boundNlSqInflRad)
+			_vertPos, _boundNlSqInflRad)
 	{}
 };
 /** @} */

@@ -139,8 +139,10 @@ enum ParticleFlag {
 #define SET_FLAG(info, flag) ((info).x |= (flag))
 /// Clear a specific flag
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
-/// Query a specific flag state
-#define QUERY_FLAG(info, flag) ((info).x & (flag))
+/// Query whether all flags are set in the particleinfo struct of a certain particle
+#define QUERY_ALL_PART_FLAG(info, flags) ((info).x & (flags) == (flags))
+/// Query whether at least one flag (out of flags) is set in the particleinfo struct of a certain particle
+#define QUERY_ANY_PART_FLAG(info, flags) ((info).x & (flags))
 /** @} */
 
 /** \name Bitmasks for particle type or flags selection
@@ -227,7 +229,7 @@ enum ParticleFlag {
  *	in the position/mass field. Specifically, a particle is marked inactive by setting its
  * mass to Not-a-Number.
  */
-#define ACTIVE(p)	(isfinite((p).w))
+#define ACTIVE(p)	(::isfinite((p).w))
 /// Check if particle is inactive
 /// \see ACTIVE
 #define INACTIVE(p)	(!ACTIVE(p))

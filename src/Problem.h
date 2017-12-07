@@ -37,6 +37,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <cmath>
 
 #include "Options.h"
 #include "Writer.h"
@@ -49,10 +50,14 @@
 
 #include "buffer.h"
 #include "simframework.h"
+// #include "deprecation.h"
 
-#include "deprecation.h"
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChSystem.h"
+#endif
 
-#include "ode/ode.h"
+//#include "math.h"
 
 #define BLOCK_SIZE_IOBOUND	256
 
@@ -65,47 +70,13 @@ class CallbackWriter;
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
 
-using namespace std;
-
 class Problem {
 	private:
-		string			m_problem_dir;
+		std::string			m_problem_dir;
 		WriterList		m_writers;
 
 		const float		*m_dem;
 		int				m_ncols, m_nrows;
-
-	public:
-		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
-		enum SplitAxis
-		{
-			LONGEST_AXIS,
-			X_AXIS,
-			Y_AXIS,
-			Z_AXIS
-		};
-
-		dWorldID		m_ODEWorld;
-		dSpaceID		m_ODESpace;
-		dJointGroupID	m_ODEJointGroup;
-
-		double3	m_size;			// Size of computational domain
-		double3	m_origin;		// Origin of computational domain
-		double3	m_cellsize;		// Size of grid cells
-		uint3	m_gridsize;		// Number of grid cells along each axis
-		double	m_deltap;		// Initial particle spacing
-
-		const float*	get_dem() const { return m_dem; }
-		int		get_dem_ncols() const { return m_ncols; }
-		int		get_dem_nrows() const { return m_nrows; }
-		void	set_dem(const float *dem, int ncols, int nrows) {
-			m_dem = dem; m_ncols = ncols; m_nrows = nrows;
-		}
-
-		string	m_name;
-
-		GlobalData	*gdata;
-		const Options		*m_options;					// commodity pointer to gdata->clOptions
 
 		PhysParams			*m_physparams;				//< Physical parameters
 
@@ -130,16 +101,41 @@ class Problem {
 			);
 		*/
 
-#define	SETUP_FRAMEWORK(...) m_simframework =  CUDASimFramework< __VA_ARGS__ >()
+#define	SETUP_FRAMEWORK(...) this->simframework() =  CUDASimFramework< __VA_ARGS__ >()
 
-		// add a filter (MLS, SHEPARD), with given frequency
-#define	addFilter(fltr, freq) m_simframework->addFilterEngine(fltr, freq)
+	public:
+		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
+		enum SplitAxis
+		{
+			LONGEST_AXIS,
+			X_AXIS,
+			Y_AXIS,
+			Z_AXIS
+		};
 
-		// add a post-processing filter, e.g.:
-		// addPostProcess(CALC_PRIVATE);
-		// addPostProcess(SURFACE_DETECTION); // simple surface detection
-		// addPostProcess(SURFACE_DETECTION, BUFFER_NORMALS); // save normals too
-#define	addPostProcess m_simframework->addPostProcessEngine
+#if USE_CHRONO == 1
+		::chrono::ChSystem	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
+#else
+		void *m_bodies_physical_system;
+#endif
+
+		double3	m_size;			// Size of computational domain
+		double3	m_origin;		// Origin of computational domain
+		double3	m_cellsize;		// Size of grid cells
+		uint3	m_gridsize;		// Number of grid cells along each axis
+		double	m_deltap;		// Initial particle spacing
+
+		const float*	get_dem() const { return m_dem; }
+		int		get_dem_ncols() const { return m_ncols; }
+		int		get_dem_nrows() const { return m_nrows; }
+		void	set_dem(const float *dem, int ncols, int nrows) {
+			m_dem = dem; m_ncols = ncols; m_nrows = nrows;
+		}
+
+		std::string	m_name;
+
+		GlobalData	*gdata;
+		const Options		*m_options;					// commodity pointer to gdata->clOptions
 
 		MovingBodiesVect	m_bodies;			// array of moving objects
 		KinematicData		*m_bodies_storage;				// kinematic data storage for bodie movement integration
@@ -160,11 +156,10 @@ class Problem {
 		 * just set it by default */
 		virtual void check_neiblistsize();
 
-		string const& create_problem_dir();
+		std::string const& create_problem_dir();
 
 		Options const& get_options(void) const
 		{ return *m_options; }
-
 
 		template <typename T>
 		T
@@ -182,7 +177,6 @@ class Problem {
 
 		uint3 const& get_gridsize(void) const
 		{ return m_gridsize; }
-
 		float density(float, int) const;
 		float density_for_pressure(float, int) const;
 
@@ -190,12 +184,12 @@ class Problem {
 
 		float soundspeed(float, int) const;
 
-		string const& get_dirname(void) const
+		std::string const& get_dirname(void) const
 		{ return m_problem_dir; }
 
 		double set_deltap(const double dflt)
 		{
-			if (isfinite((double) m_options->deltap))
+			if (std::isfinite(m_options->deltap))
 				m_deltap = m_options->deltap;
 			else
 				m_deltap = dflt;
@@ -215,12 +209,14 @@ class Problem {
 		double set_smoothing(const double smooth)
 		{ return simparams()->set_smoothing(smooth, m_deltap); }
 
-IGNORE_WARNINGS(deprecated-declarations)
-		/* set kernel type and radius */
-		// DEPRECATED, use set_kernel_radius instead
-		double set_kernel(KernelType kernel, double radius=0) DEPRECATED
-		{ return simparams()->set_kernel(kernel, radius); }
-RESTORE_WARNINGS
+		/* set the expansion factor for the neighbor list search:
+		 * when building the neighbor list, particles will be
+		 * added to the list if they are within alpha*influenceRadius
+		 * rather than just influenceRadius
+		 * Returns the new neighbor search radius
+		 */
+		double set_neiblist_expansion(double alpha)
+		{ return simparams()->set_neiblist_expansion(alpha); }
 
 		void set_kernel_radius(double radius)
 		{ simparams()->set_kernel_radius(radius); }
@@ -243,6 +239,33 @@ RESTORE_WARNINGS
 		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const;
 
 		inline
+		const SimFramework* simframework(void) const
+		{ return m_simframework; }
+
+		inline
+		SimFramework*& simframework(void)
+		{ return m_simframework; }
+
+		// add a filter (MLS, SHEPARD), with given frequency
+		inline AbstractFilterEngine*
+		addFilter(FilterType filtertype, int frequency)
+		{ return simframework()->addFilterEngine(filtertype, frequency); };
+
+		// add a post-processing filter, e.g.:
+		// addPostProcess(CALC_PRIVATE);
+		// addPostProcess(SURFACE_DETECTION); // simple surface detection
+		// addPostProcess(SURFACE_DETECTION, BUFFER_NORMALS); // save normals too
+		inline AbstractPostProcessEngine*
+		addPostProcess(PostProcessType pptype, flag_t options=NO_FLAGS)
+		{ return simframework()->addPostProcessEngine(pptype, options); }
+
+		// check if a post process engine is enabled
+		inline AbstractPostProcessEngine*
+		hasPostProcess(PostProcessType pptype)
+		{ return simframework()->hasPostProcessEngine(pptype); }
+
+
+		inline
 		const SimParams *simparams(void) const
 		{ return m_simframework->simparams(); }
 
@@ -260,6 +283,10 @@ RESTORE_WARNINGS
 		// wrappers for physparams functions
 		size_t add_fluid(float rho)
 		{ return m_physparams->add_fluid(rho); }
+		void set_density(size_t fluid_idx, float _rho0)
+		{ return m_physparams->set_density(fluid_idx, _rho0); }
+		float get_density(size_t fluid_idx)
+		{ return m_physparams->get_density(fluid_idx); }
 		void set_equation_of_state(size_t fluid_idx, float gamma, float c0)
 		{ return m_physparams->set_equation_of_state(fluid_idx, gamma, c0); }
 		void set_kinematic_visc(size_t fluid_idx, float nu)
@@ -290,15 +317,6 @@ RESTORE_WARNINGS
 
 		plane_t make_plane(Point const& pt, Vector const& normal);
 
-		// set the timer tick
-		// DEPRECATED: use add_writer() with the frequency in seconds
-		void set_timer_tick(double t) DEPRECATED;
-
-		// add a new writer
-		// by passing as argument the product of freq and the timer tick
-		// DEPRECATED: use add_writer() with the frequency in seconds
-		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, double)");
-
 		// add a new writer, with the given write frequency in (fractions of) seconds
 		void add_writer(WriterType wt, double freq);
 
@@ -319,7 +337,7 @@ RESTORE_WARNINGS
 		// is the simulation running at the given time?
 		virtual bool finished(double) const;
 
-		virtual int fill_parts(void) = 0;
+		virtual int fill_parts(bool fill = true) = 0;
 		// maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
 		virtual void copy_to_array(BufferList & ) = 0;
@@ -328,23 +346,11 @@ RESTORE_WARNINGS
 		virtual void copy_planes(PlaneList& planes);
 
 		/* moving boundary and gravity callbacks */
-		virtual float3 g_callback(const float t) DEPRECATED;
 		virtual float3 g_callback(const double t);
-
-		/* ODE callbacks */
-		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
-		{
-			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
-		}
-
-		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)
-		{
-			Problem* problem = (Problem *) data;
-			problem->ODE_near_callback(data, o1, o2);
-		}
 
 		void allocate_bodies_storage();
 		void add_moving_body(Object *, const MovingBodyType);
+		void restore_moving_body(const MovingBodyData &, const uint, const int, const int);
 		const MovingBodiesVect& get_mbvect() const
 		{ return m_bodies; };
 
@@ -368,6 +374,12 @@ RESTORE_WARNINGS
 		void set_body_angularvel(const uint, const double3&);
 		void set_body_angularvel(const Object*, const double3&);
 
+		void InitializeChrono(void);
+		void FinalizeChrono(void);
+
+		// callback for initializing joints between Chrono bodies
+		virtual void initializeObjectJoints();
+
 		/* This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
 		 */
@@ -387,11 +399,6 @@ RESTORE_WARNINGS
 							int3 * & cgGridPos, float3 * & cgPos,
 							float3 * & trans, float * & steprot,
 							float3 * & linearvel, float3 * & angularvel);
-
-		/*void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
-			const float *linvel, const float *angvel);*/
-
-		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 
 		/* Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);

@@ -40,6 +40,11 @@
 #include "boundary_conditions.cu"
 #include "euler.cu"
 #include "forces.cu"
+#include "post_process.cu"
+
+using namespace std;
+
+using namespace std;
 
 // This class holds the implementation and interface of CUDASimFramework,
 // the CUDA simulation framework for GPUPSH. (In fact, the only simulation
@@ -143,8 +148,9 @@ template<
 			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
 			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
 												// inlet outlet works only with the summation density
-			(_simflags & ENABLE_DENSITY_SUM && !(_simflags & ENABLE_DYNAMIC_GAMMA))
-												// when density sum is active dynamic gamma needs to be used
+			(_simflags & ENABLE_DENSITY_SUM && _simflags & ENABLE_GAMMA_QUADRATURE)
+												// enable density sum only works with the dynamic equation for gamma,
+												// so gamma quadrature must be disabled
 		)
 	)
 	||
@@ -203,6 +209,8 @@ protected:
 			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, simflags>(options);
 		case SURFACE_DETECTION:
 			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, simflags>(options);
+		case FLUX_COMPUTATION:
+			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, simflags>(options);
 		case CALC_PRIVATE:
 			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, simflags>(options);
 		case INVALID_POSTPROC:
@@ -495,7 +503,7 @@ public:
 		case 2:
 			return extend< typename Switch::C >();
 		}
-		throw std::runtime_error("invalid selector value");
+		throw runtime_error("invalid selector value");
 	}
 
 	/// Chained selectors (for multiple overrides)
@@ -519,7 +527,7 @@ public:
 		case 2:
 			return extend< typename Switch::C >().select_options(selector2, Other());
 		}
-		throw std::runtime_error("invalid selector value");
+		throw runtime_error("invalid selector value");
 	}
 
 	/// Chained selectors (for multiple overrides)

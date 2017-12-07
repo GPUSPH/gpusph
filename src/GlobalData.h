@@ -71,6 +71,9 @@ class GPUWorker;
 #include "NetworkManager.h"
 
 
+// IGNORE_WARNINGS
+#include "deprecation.h"
+
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used.
 // A few explanations: DUMP requests to download pos, vel and info on shared arrays; DUMP_CELLS
 // requests to download cellStart and cellEnd
@@ -122,8 +125,6 @@ enum CommandType {
 	FILTER,
 	/// Run post-processing filters (e.g. vorticity, testpoints)
 	POSTPROCESS,
-	/// SA_BOUNDARY only: update the vertex ID-to-index map
-	SA_UPDATE_VERTIDINDEX,
 	/// SA_BOUNDARY only: compute segment boundary conditions and identify fluid particles
 	/// that leave open boundaries
 	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,
@@ -170,6 +171,12 @@ enum CommandType {
 	DOWNLOAD_IOWATERDEPTH,
 	/// Upload (total)computed water depth from host to device
 	UPLOAD_IOWATERDEPTH,
+	/// Initialize gamma using a Gaussian quadrature rule
+	INIT_GAMMA,
+	/// Count vertices that belong to the same IO and the same segment as an IO vertex
+	INIT_IO_MASS_VERTEX_COUNT,
+	/// Modifiy initial mass of open boundaries
+	INIT_IO_MASS,
 	/// Quit the simulation cycle
 	QUIT
 };
@@ -185,17 +192,21 @@ class Writer;
 
 class Problem;
 
+#include "debugflags.h"
+
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
 struct GlobalData {
+	DebugFlags debug;
+
 	// # of GPUs running
 
 	// number of user-specified devices (# of GPUThreads). When multi-node, #device per node
 	devcount_t devices;
 	// array of cuda device numbers
 	unsigned int device[MAX_DEVICES_PER_NODE];
-	uint highestDevId[MAX_DEVICES_PER_NODE];
+	uint deviceIdOffset[MAX_DEVICES_PER_NODE];
 
 	// MPI vars
 	devcount_t mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
@@ -319,9 +330,6 @@ struct GlobalData {
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
 
-	// disable saving (for timing, or only for the last)
-	bool nosave;
-
 	// ODE objects
 	int* s_hRbFirstIndex; // first indices: so forces kernel knows where to write rigid body force
 	uint* s_hRbLastIndex; // last indices are the same for all workers
@@ -347,12 +355,13 @@ struct GlobalData {
 	float3*	s_hRbAngularVelocities;
 
 	// waterdepth at pressure outflows
-	uint	h_IOwaterdepth[MAX_DEVICES_PER_NODE][MAX_BODIES];
+	uint**	h_IOwaterdepth;
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
 	GlobalData(void):
+		debug(),
 		devices(0),
 		mpi_nodes(0),
 		mpi_rank(-1),
@@ -387,7 +396,6 @@ struct GlobalData {
 		commandFlags(NO_FLAGS),
 		extraCommandArg(NAN),
 		only_internal(false),
-		nosave(false),
 		s_hRbFirstIndex(NULL),
 		s_hRbLastIndex(NULL),
 		s_hRbDeviceTotalForce(NULL),
@@ -415,12 +423,18 @@ struct GlobalData {
 			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
 				s_hDeviceCanAccessPeer[d][p] = false;
 
-		// init h_IOwaterdepth
-		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) {
-			for (uint ob=0; ob < MAX_BODIES; ob++)
-				h_IOwaterdepth[d][ob] = 0;
-		}
 	};
+
+	// compute the global position from grid and local pos. note that the
+	// world origin needs to be added to this
+	template<typename T> // T should be uint3 or int3
+	double3 calcGlobalPosOffset(T const& gridPos, float3 const& pos) const {
+		double3 dpos;
+		dpos.x = ((double) this->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x;
+		dpos.y = ((double) this->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y;
+		dpos.z = ((double) this->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z;
+		return dpos;
+	}
 
 	// compute the coordinates of the cell which contains the particle located at pos
 	int3 calcGridPosHost(double px, double py, double pz) const {
@@ -438,9 +452,9 @@ struct GlobalData {
 	// compute the linearized hash of the cell located at gridPos
 	uint calcGridHashHost(int cellX, int cellY, int cellZ) const {
 		int3 trimmed;
-		trimmed.x = min( max(0, cellX), gridSize.x-1);
-		trimmed.y = min( max(0, cellY), gridSize.y-1);
-		trimmed.z = min( max(0, cellZ), gridSize.z-1);
+		trimmed.x = std::min( std::max(0, cellX), int(gridSize.x)-1);
+		trimmed.y = std::min( std::max(0, cellY), int(gridSize.y)-1);
+		trimmed.z = std::min( std::max(0, cellZ), int(gridSize.z)-1);
 		return ( (trimmed.COORD3 * gridSize.COORD2) * gridSize.COORD1 ) + (trimmed.COORD2 * gridSize.COORD1) + trimmed.COORD1;
 	}
 	// overloaded
@@ -484,7 +498,7 @@ struct GlobalData {
 	}
 
 	// pretty-print memory amounts
-	string memString(size_t memory) const {
+	std::string memString(size_t memory) const {
 		static const char *memSuffix[] = {
 			"B", "KiB", "MiB", "GiB", "TiB"
 		};
@@ -504,7 +518,7 @@ struct GlobalData {
 	}
 
 	// convert to string and add thousand separators
-	string addSeparators(long int number) const {
+	std::string addSeparators(long int number) const {
 		std::ostringstream oss;
 		ulong mod, div;
 		uchar separator = ',';
@@ -539,14 +553,14 @@ struct GlobalData {
 		return oss.str();
 	}
 
-	string to_string(uint number) const {
-		ostringstream ss;
+	std::string to_string(uint number) const {
+		std::ostringstream ss;
 		ss << number;
 		return ss.str();
 	}
 
 	// returns a string in the format "r.w" with r = process rank and w = world size
-	string rankString() const {
+	std::string rankString() const {
 		return to_string(mpi_rank) + "." + to_string(mpi_nodes);
 	}
 
@@ -585,7 +599,7 @@ struct GlobalData {
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
 	// set the correct fields; apply and enable visibility
-	void saveDeviceMapToFile(string prefix) const {
+	void saveDeviceMapToFile(std::string prefix) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
 		if (!prefix.empty())
@@ -609,7 +623,7 @@ struct GlobalData {
 
 	// Same as saveDeviceMapToFile() but saves the *compact* device map and, if multi-gpu, also appends the device number
 	// NOTE: values are shifted; CELLTYPE_*_CELL is written while CELLTYPE_*_CELL_SHIFTED is in memory
-	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) const {
+	void saveCompactDeviceMapToFile(std::string prefix, uint srcDev, uint *compactDeviceMap) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
 		if (!prefix.empty())

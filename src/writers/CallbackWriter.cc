@@ -86,7 +86,7 @@ CallbackWriter::write(uint numParts, BufferList const& buffers, uint node_offset
 }
 
 ofstream&
-CallbackWriter::open_data_file(const char* base, std::string const& num, std::string const& sfx, std::string *fname)
+CallbackWriter::open_data_file(const char* base, string const& num, string const& sfx, string *fname)
 {
 	m_streams.push_back(new ofstream());
 

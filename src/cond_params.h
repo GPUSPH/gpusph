@@ -43,16 +43,7 @@
    C++ revisions too.
 */
 
-#if __cplusplus <= 199711L
-template<bool B, typename T, typename F>
-struct conditional { typedef T type; };
-
-template<typename T, typename F>
-struct conditional<false, T, F> { typedef F type; };
-#else
-#include <type_traits>
-using std::conditional;
-#endif
+#include "cpp11_missing.h" // conditional<>
 
 /* The general idea is that each group of members of the structure is defined as
    a specific (non-template, usually) structure, and then the actual template
@@ -111,7 +102,7 @@ struct empty
 */
 
 #define COND_STRUCT(some_cond, ...) \
-	conditional<some_cond, __VA_ARGS__, empty< __VA_ARGS__ > >::type
+	conditional<bool(some_cond), __VA_ARGS__, empty< __VA_ARGS__ > >::type
 
 #endif // _COND_PARAMS_H
 

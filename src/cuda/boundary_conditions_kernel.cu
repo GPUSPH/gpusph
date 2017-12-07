@@ -80,15 +80,28 @@ createNewFluidParticle(
 	/// [in] number of devices
 	const	uint			numDevices,
 	/// [in,out] number of particles including all the ones already created in this timestep
-			uint			*newNumParticles)
+			uint			*newNumParticles,
+	const uint			totParticles)
 {
 	const uint new_index = atomicAdd(newNumParticles, 1);
-	// number of new particles that were created on this device in this
-	// time step
+	// number of new particles that were created on this device
+	// in this time step
 	const uint newNumPartsOnDevice = new_index + 1 - numParticles;
-	// the i-th device can only allocate an id that satisfies id%n == i, where
-	// n = number of total devices
-	const uint new_id = newNumPartsOnDevice*numDevices + d_newIDsOffset;
+	if (UINT_MAX - newNumPartsOnDevice*numDevices < totParticles + d_newIDsOffset) {
+		printf(" FATAL: possible ID overflow in particle creation on device %d, your simulation may crash\n", d_newIDsOffset);
+	}
+	// ID of the new particle. Must be unique across all the GPUs: it is set
+	// as the total number of particles (N) + the chosen offset (ie the device global number, G)
+	// + the number of new particles on the device (k) times the total number of devices (D)
+	// New_id = N + G + kD
+	// Let's say for example that the simulation starts with 1M particles,
+	// and that there are 3 devices (so N=10^6 and D=3),
+	// with global device number G=0,1,2. Then the IDs created by each device would be:
+	// for device 0: 1M + 3, 1M + 6, 1M + 9, ...
+	// for device 1: 1M + 4, 1M + 7, 1M + 10, ...
+	// for device 2: 1M + 5, 1M + 8, 1M + 11, ...
+
+	const uint new_id = totParticles + newNumPartsOnDevice*numDevices + d_newIDsOffset;
 
 	new_info = make_particleinfo_by_ids(
 		PT_FLUID,
@@ -145,9 +158,9 @@ calculateIOboundaryCondition(
 			flux = unInt + (rExt - rInt);
 			float lambda = flux + cExt;
 			if (lambda > lambdaInt) { // shock wave
-				flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
+				flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmaxf(unInt,1e-5f*d_sscoeff[a])) + unInt;
 				// check that unInt was not too small
-				if (fabs(flux) > d_sscoeff[a] * 0.1f)
+				if (fabsf(flux) > d_sscoeff[a] * 0.1f)
 					flux = unInt;
 				lambda = flux + cExt;
 				if (lambda <= lambdaInt) // contact discontinuity
@@ -155,9 +168,9 @@ calculateIOboundaryCondition(
 			}
 		}
 		else { // shock wave
-			flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
+			flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmaxf(unInt,1e-5f*d_sscoeff[a])) + unInt;
 			// check that unInt was not too small
-			if (fabs(flux) > d_sscoeff[a] * 0.1f)
+			if (fabsf(flux) > d_sscoeff[a] * 0.1f)
 				flux = unInt;
 			float lambda = flux + cExt;
 			if (lambda <= lambdaInt) { // expansion wave
@@ -169,11 +182,14 @@ calculateIOboundaryCondition(
 		}
 		// AM-TODO allow imposed tangential velocity (make sure normal component is zero)
 		// currently for inflow we assume that the tangential velocity is zero
+		// GB-TODO FIXME splitneibs merge
+        // remove normal component of imposed Eulerian velocity
+		//as_float3(eulerVel) = as_float3(eulerVel) - dot(as_float3(eulerVel), normal)*normal;
 		as_float3(eulerVel) = make_float3(0.0f);
 		// if the imposed pressure on the boundary is negative make sure that the flux is negative
 		// as well (outflow)
 		if (rhoExt < d_rho0[a])
-			flux = fmin(flux, 0.0f);
+			flux = fminf(flux, 0.0f);
 		// Outflow
 		if (flux < 0.0f)
 			// impose eulerVel according to dv/dn = 0
@@ -297,7 +313,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 										float4*		oldEulerVel,
 										float4*		oldGGam,
 										vertexinfo*	vertices,
-								const	uint*		vertIDToIndex,
 								const	float2*		vertPos0,
 								const	float2*		vertPos1,
 								const	float2*		vertPos2,
@@ -323,21 +338,19 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 	if (!BOUNDARY(info))
 		return;
 
+	// TODO FIXME splitneibs merge in master this is done differently, commented just to make it build
 	// compute an average gamma for the segment
 	float gam = oldGGam[index].w;
+#if 0
 	if (gam < 1e-5f) {
 		const vertexinfo verts = vertices[index];
-
-		// load the indices of the vertices
-		const uint vertXidx = vertIDToIndex[verts.x];
-		const uint vertYidx = vertIDToIndex[verts.y];
-		const uint vertZidx = vertIDToIndex[verts.z];
 
 		// average gamma from the vertices
 		float4 gGam = (oldGGam[vertXidx] + oldGGam[vertYidx] + oldGGam[vertZidx])/3.0f;
 		oldGGam[index] = gGam;
 		gam = fmax(gGam.w, 1e-5f);
 	}
+#endif
 
 	const float4 pos = oldPos[index];
 

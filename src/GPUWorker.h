@@ -32,8 +32,6 @@
 #include "common_types.h"
 #include "GlobalData.h"
 
-#include "cudautil.cuh"
-
 // for CUDA_SAFE_CALL & co.
 #include "cuda_call.h"
 
@@ -73,6 +71,7 @@ private:
 	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;
 	devcount_t m_globalDeviceIdx;
+	devcount_t m_deviceNum;
 	GlobalData* getGlobalData();
 	unsigned int getCUDADeviceNumber();
 	devcount_t getDeviceIndex();
@@ -247,7 +246,6 @@ private:
 	void kernel_sps();
 	void kernel_meanStrain();
 	void kernel_reduceRBForces();
-	void kernel_updateVertIdIndexBuffer();
 	void kernel_saSegmentBoundaryConditions();
 	void kernel_saVertexBoundaryConditions();
 	void kernel_saComputeVertexNormal();
@@ -256,13 +254,15 @@ private:
 	void kernel_updatePositions();
 	void kernel_disableOutgoingParts();
 	void kernel_imposeBoundaryCondition();
+	void kernel_initGamma();
+	void kernel_initIOmass_vertexCount();
+	void kernel_initIOmass();
 	void kernel_download_iowaterdepth();
 	void kernel_upload_iowaterdepth();
 	/*void uploadMbData();
 	void uploadGravity();*/
 
 	void checkPartValByIndex(const char* printID, const uint pindex);
-	void checkPartValById(const char* printID, const uint pid);
 
 	// asynchronous alternative to kernel_force
 	void kernel_forces_async_enqueue();

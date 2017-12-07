@@ -30,7 +30,12 @@
 
 #include "Point.h"
 #include "Vector.h"
-#include "ode/ode.h"
+
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/core/ChQuaternion.h"
+#endif
+
 
 /// Euler parameters class
 /*!
@@ -105,7 +110,6 @@ class EulerParameters {
 		EulerParameters(const float3);
 		EulerParameters(const Vector &, const double);
 		EulerParameters(const EulerParameters &);
-		EulerParameters(const dQuaternion &);
 		~EulerParameters(void) {};
 		//@}
 
@@ -130,7 +134,9 @@ class EulerParameters {
 		//@{
 		void Normalize(void);
 		void ExtractEulerZXZ(double &, double &, double &) const;
-		void ToODEQuaternion(dQuaternion &) const;
+#if USE_CHRONO == 1
+		::chrono::ChQuaternion<> ToChQuaternion(void) const;
+#endif
 		void ToIdentity(void);
 		//@}
 
@@ -138,6 +144,7 @@ class EulerParameters {
 		//@{
 		double & operator()(int);
 		double operator()(int) const;
+		double4 params() const;
 		//@}
 
 		/** \name Overloaded operators */
@@ -151,6 +158,7 @@ class EulerParameters {
 		friend EulerParameters operator+(const EulerParameters &, const EulerParameters &);
 		friend EulerParameters operator*(const EulerParameters &, const EulerParameters &);
 		friend EulerParameters operator*(const EulerParameters *, const EulerParameters &);
+		friend EulerParameters operator*(const EulerParameters &, const EulerParameters *);
 		friend EulerParameters operator*(const double, const EulerParameters &);
 		//@}
 

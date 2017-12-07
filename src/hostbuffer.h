@@ -23,8 +23,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _CUDA_BUFFER_H
-#define _CUDA_BUFFER_H
+#ifndef _HOST_BUFFER_H
+#define _HOST_BUFFER_H
 
 /* Specializations of the buffer class for host buffers */
 

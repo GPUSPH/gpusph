@@ -96,7 +96,6 @@ saSegmentBoundaryConditions(
 			float4*			oldEulerVel,
 			float4*			oldGGam,
 			vertexinfo*		vertices,
-	const	uint*			vertIDToIndex,
 	const	float2	* const vertPos[],
 	const	float4*			boundelement,
 	const	particleinfo*	info,
@@ -125,7 +124,7 @@ saSegmentBoundaryConditions(
 
 	// execute the kernel
 	cubounds::saSegmentBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertIDToIndex, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, step, simflags & ENABLE_INLET_OUTLET);
+		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, step, simflags & ENABLE_INLET_OUTLET);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
@@ -152,7 +151,6 @@ computeVertexNormal(
 
 	const float4 *boundelement = bufread->getData<BUFFER_BOUNDELEMENTS>();
 	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
-	const uint *vertIDToIndex = bufread->getData<BUFFER_VERTIDINDEX>();
 	const particleinfo *pinfo = bufread->getData<BUFFER_INFO>();
 	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
 	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
@@ -168,7 +166,6 @@ computeVertexNormal(
 	cubounds::computeVertexNormal<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		vertices,
-		vertIDToIndex,
 		pinfo,
 		particleHash,
 		cellStart,
@@ -275,7 +272,6 @@ saVertexBoundaryConditions(
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
 	const	float2			* const vertPos[],
-	const	uint*			vertIDToIndex,
 			particleinfo*	info,
 			hashKey*		particleHash,
 	const	uint*			cellStart,
@@ -291,7 +287,8 @@ saVertexBoundaryConditions(
 	const	bool			initStep,
 	const	bool			resume,
 	const	uint			deviceId,
-	const	uint			numDevices)
+	const	uint			numDevices,
+	const	uint			totParticles)
 {
 	int dummy_shared = 0;
 
@@ -307,7 +304,7 @@ saVertexBoundaryConditions(
 
 	// execute the kernel
 	cubounds::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, dgamdt, vertices, vertPos[0], vertPos[1], vertPos[2], vertIDToIndex, info, particleHash, cellStart, neibsList,
+		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, dgamdt, vertices, vertPos[0], vertPos[1], vertPos[2], info, particleHash, cellStart, neibsList,
 		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
 
 	// check if kernel invocation generated an error

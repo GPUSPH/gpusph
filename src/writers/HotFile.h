@@ -9,11 +9,10 @@ The file represents particle and other state.
 #include <fstream>
 
 #include "GlobalData.h"
+#include "MovingBody.h"
 
 typedef unsigned int uint;
 typedef unsigned long ulong;
-
-using namespace std;
 
 /**
 HotFile header encoding.
@@ -23,6 +22,7 @@ typedef struct {
 	uint	buffer_count;
 	uint	particle_count;
 	uint	body_count;
+	uint	numOpenBoundaries;
 	uint	reserved[12];
 	ulong	iterations;
 	double	t;
@@ -37,8 +37,8 @@ typedef enum {
 
 class HotFile {
 public:
-	HotFile(ifstream &fp, const GlobalData *gdata);
-	HotFile(ofstream &fp, const GlobalData *gdata, uint numParts,
+	HotFile(std::ifstream &fp, const GlobalData *gdata);
+	HotFile(std::ofstream &fp, const GlobalData *gdata, uint numParts,
 		uint node_offset, double t, const bool testpoints);
 	~HotFile();
 	ulong get_iterations() { return _header.iterations; }
@@ -46,11 +46,11 @@ public:
 	double get_t() { return _header.t; }
 	void save();
 	void load();
-	void readHeader(uint &part_count);
+	void readHeader(uint &part_count, uint &numOpenBoundaries);
 private:
 	union {
-		ifstream		*in;
-		ofstream		*out;
+		std::ifstream		*in;
+		std::ofstream		*out;
 	}					_fp;
 	uint				_particle_count;
 	uint				_node_offset;
@@ -59,12 +59,11 @@ private:
 	const GlobalData	*_gdata;
 	header_t			_header;
 
-	void writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t version);
-	void writeBody(ofstream *fp, uint index, const float3 *cg, const dQuaternion quaternion,
-		const float3 *linvel, const float3 *angvel, version_t version);
-	void writeHeader(ofstream *fp, version_t version);
-	void readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version);
-	void readBody(ifstream *fp, version_t version);
+	void writeBuffer(std::ofstream *fp, const AbstractBuffer *buffer, version_t version);
+	void writeBody(std::ofstream *fp, const MovingBodyData *mbdata, const uint numparts, version_t version);
+	void writeHeader(std::ofstream *fp, version_t version);
+	void readBuffer(std::ifstream *fp, AbstractBuffer *buffer, version_t version);
+	void readBody(std::ifstream *fp, version_t version);
 
 	friend std::ostream& operator<<(std::ostream&, const HotFile&);
 };

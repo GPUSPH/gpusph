@@ -1,0 +1,4 @@
+#!/bin/sh
+
+wget -N http://www.gpusph.org/downloads/data_files.tar.gz &&
+tar --keep-newer-files -vxzf data_files.tar.gz

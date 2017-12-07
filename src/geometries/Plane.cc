@@ -23,6 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <cstdio>
 #include "Plane.h"
 
 Plane::Plane(const double a, const double b, const double c, const double d)
@@ -94,15 +95,4 @@ void Plane::shift(const double3 &offset)
 	printf("m_d was %g, off %g %g %g\n", m_d, offset.x, offset.y, offset.z);
 	m_d += m_a * offset.x + m_b * offset.y + m_c * offset.z;
 	printf("m_d now is %g\n", m_d);
-}
-
-void Plane::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	throw std::runtime_error("Trying to instantiate an ODEBody for a plane!");
-}
-
-void Plane::ODEGeomCreate(dSpaceID ODESpace, const double dx)
-{
-	// NOTE: inverting m_d because ODE uses a+b+c=d
-	m_ODEGeom = dCreatePlane(ODESpace, m_a, m_b, m_c, -m_d);
 }

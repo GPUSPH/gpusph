@@ -24,7 +24,6 @@
 */
 
 
-#include <cmath>
 #include "Vector.h"
 #include "Point.h"
 
@@ -134,30 +133,6 @@ Vector::Vector(const float *xx)
 	x[1] = xx[1];
 	x[2] = xx[2];
 	x[3] = xx[3];
-}
-
-
-Vector
-Vector::Rot(const dMatrix3 rot)
-{
-	Vector res;
-	res(0) = rot[0]*x[0] + rot[1]*x[1] + rot[2]*x[2];
-	res(1) = rot[4]*x[0] + rot[5]*x[1] + rot[6]*x[2];
-	res(2) = rot[8]*x[0] + rot[9]*x[1] + rot[10]*x[2];
-
-	return res;
-}
-
-
-Vector
-Vector::TransposeRot(const dMatrix3 rot)
-{
-	Vector res;
-	res(0) = rot[0]*x[0] + rot[4]*x[1] + rot[8]*x[2];
-	res(1) = rot[1]*x[0] + rot[5]*x[1] + rot[9]*x[2];
-	res(2) = rot[2]*x[0] + rot[6]*x[1] + rot[10]*x[2];
-
-	return res;
 }
 
 
@@ -451,23 +426,6 @@ float4 make_float4(const Vector &v)
 double4 make_double4(const Vector &v)
 {
 	return make_double4(double(v(0)), double(v(1)), double(v(2)), double(v(3)));
-}
-
-
-void make_dvector3(const Vector &v, dVector3 vec)
-{
-	vec[0] = dReal(v(0));
-	vec[1] = dReal(v(1));
-	vec[2] = dReal(v(2));
-}
-
-
-void make_dvector4(const Vector &v, dVector4 vec)
-{
-	vec[0] = dReal(v(0));
-	vec[1] = dReal(v(1));
-	vec[2] = dReal(v(2));
-	vec[3] = dReal(v(3));
 }
 
 

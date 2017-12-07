@@ -33,8 +33,6 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-using namespace std;
-
 /*
 UDP packet writer.
 */

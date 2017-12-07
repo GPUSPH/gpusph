@@ -24,7 +24,6 @@
 */
 
 
-#include <cmath>
 #include <iostream>
 #include <stdexcept>
 
@@ -34,7 +33,7 @@
 #include "particledefine.h"
 #include "GlobalData.h"
 
-Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
+Seiche::Seiche(GlobalData *_gdata) : XProblem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>,
@@ -46,9 +45,9 @@ Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.015f);
 	H = .5f;
 	l = sqrt(2)*H; w = l/2; h = 1.5*H;
-	std::cout << "length= " << l<<"\n";
-	std::cout << "width= " << w <<"\n";
-	std::cout << "h = " << h <<"\n";
+	cout << "length= " << l<<"\n";
+	cout << "width= " << w <<"\n";
+	cout << "h = " << h <<"\n";
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
@@ -93,19 +92,15 @@ Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 
 	// Name of problem used for directory creation
 	m_name = "Seiche";
-}
 
+	// Building the geometry
+	setPositioning(PP_CORNER);
+	// distance between fluid box and wall
+	float wd = m_deltap; //Used to be divided by 2
 
-Seiche::~Seiche(void)
-{
-	release_memory();
-}
-
-
-void Seiche::release_memory(void)
-{
-	parts.clear();
-	boundary_parts.clear();
+	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), l, w, h);
+	disableCollisions(experiment_box);
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, Point(wd, wd, wd), l-2*wd, w-2*wd, H-2*wd);
 }
 
 float3 Seiche::g_callback(const double t)
@@ -117,28 +112,6 @@ float3 Seiche::g_callback(const double t)
 	return physparams()->gravity;
 }
 
-
-int Seiche::fill_parts()
-{
-	// distance between fluid box and wall
-	float wd = m_deltap; //Used to be divided by 2
-
-
-	parts.reserve(14000);
-
-	experiment_box = Cube(Point(0, 0, 0), l, w, h);
-	Cube fluid = Cube(Point(wd, wd, wd), l-2*wd, w-2*wd, H-2*wd);
-	fluid.SetPartMass(m_deltap, physparams()->rho0[0]);
-	// InnerFill puts particle in the center of boxes of step m_deltap, hence at
-	// m_deltap/2 from the sides, so the total distance between particles and walls
-	// is m_deltap = r0
-//	fluid.InnerFill(parts, m_deltap);
-	fluid.Fill(parts,m_deltap,true);// it used to be InnerFill
-
-
-	return parts.size() + boundary_parts.size();
-}
-
 void Seiche::copy_planes(PlaneList& planes)
 {
 	planes.push_back( implicit_plane(0, 0, 1, 0) );
@@ -147,33 +120,3 @@ void Seiche::copy_planes(PlaneList& planes)
 	planes.push_back( implicit_plane(1, 0, 0, 0) );
 	planes.push_back( implicit_plane(-1, 0, 0, l) );
 }
-
-
-void Seiche::copy_to_array(BufferList &buffers)
-{
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	hashKey *hash = buffers.getData<BUFFER_HASH>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
-		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
-	}
-	int j = boundary_parts.size();
-	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
-
-	std::cout << "Fluid parts: " << parts.size() << "\n";
-	for (uint i = j; i < j + parts.size(); i++) {
-	//	vel[i] = make_float4(0, 0, 0, rho);
-		vel[i] = make_float4(0, 0, 0, physparams()->rho0[0]);
-		info[i] = make_particleinfo(PT_FLUID, 0, i);
-		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
-	//	float rho = density(H - pos[i].z,0);
-	}
-	j += parts.size();
-	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
-}
-

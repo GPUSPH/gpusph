@@ -29,7 +29,8 @@
 #include <fstream>
 #include <string>
 #include <map>
-#include <stdlib.h>
+#include <cstdlib>
+#include <cmath>
 // TODO on Windows it's direct.h
 #include <sys/stat.h>
 
@@ -45,15 +46,13 @@
 #include "Object.h"
 
 // deprecation macros
-#include "deprecation.h"
+// #include "deprecation.h"
 
 // Forward declaration of GlobalData and Problem, instead of inclusion
 // of the respective headers, to avoid cross-include messes
 
 struct GlobalData;
 class Problem;
-
-using namespace std;
 
 // Writer types. Define new ones here and remember to include the corresponding
 // header in Writer.cc and the switch case in the implementation of Writer::Create
@@ -71,15 +70,15 @@ enum WriterType
 };
 
 // list of writer type, write freq pairs
-typedef vector<pair<WriterType, double> > WriterList;
+typedef std::vector<std::pair<WriterType, double> > WriterList;
 
 class Writer;
 
 // hash of WriterType, pointer to actual writer
-typedef map<WriterType, Writer*> WriterMap;
+typedef std::map<WriterType, Writer*> WriterMap;
 
 // ditto, const
-typedef map<WriterType, const Writer*> ConstWriterMap;
+typedef std::map<WriterType, const Writer*> ConstWriterMap;
 
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
@@ -91,11 +90,12 @@ class Writer
 	// list of actual writers
 	static WriterMap m_writers;
 
-	// should we be force saving regardless of timer ticks
-	// and frequencies?
-	// TODO FIXME might not be the most thread-safe way
-	// to handle this
-	static bool m_forced;
+	// Flags enabled for the current writing session
+	// NO_FLAGS indicate a standard write-out (saving
+	// at the normal frequency), other flags such as
+	// the current integration step are enabled during
+	// forced writes
+	static flag_t m_write_flags;
 
 public:
 	// maximum number of files
@@ -117,7 +117,7 @@ public:
 	// tell writers that we're starting to send write requests
 	// returns the list of writers that will be involved
 	static WriterMap
-	StartWriting(double t, bool force=false);
+	StartWriting(double t, flag_t write_flags);
 
 	// mark writers as done if they needed to save at the given time
 	static void
@@ -139,11 +139,19 @@ public:
 	static void
 	WriteObjects(WriterMap writers, double t);
 
+	// write energy data
+	static void
+	WriteEnergy(WriterMap writers, double t, double4 *energy);
+
 	// write object forces
 	static void
 	WriteObjectForces(WriterMap writers, double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques);
+
+	// write fluxes of open boundaries
+	static void
+	WriteFlux(WriterMap writers, double t, float* fluxes);
 
 	// delete writers and clear the list
 	static void
@@ -153,7 +161,7 @@ public:
 	{ return m_writefreq; }
 
 	/* return the last file number as string */
-	string last_filenum() const;
+	std::string last_filenum() const;
 
 protected:
 
@@ -165,12 +173,12 @@ protected:
 	// does this writer need special treatment?
 	// (This is only used for the COMMONWRITER presently.)
 	bool is_special() const
-	{ return isnan(m_writefreq); }
+	{ return std::isnan(m_writefreq); }
 
 	// Writers that need to do special things before starting to write
 	// should override this
 	virtual void
-	start_writing() {}
+	start_writing(double t, flag_t write_flags) {}
 
 	// finish writing. Writers that need to do special things when done
 	// can override this problem, but they should call Writer::mark_written
@@ -189,7 +197,7 @@ protected:
 	write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints) = 0;
 
 	virtual void
-	write_energy(double t, float4 *energy) {}
+	write_energy(double t, double4 *energy) {}
 
 	virtual void
 	write_WaveGage(double t, GageList const& gage) {}
@@ -202,10 +210,13 @@ protected:
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques) {}
 
+	virtual void
+	write_flux(double t, float *fluxes) {}
+
 	uint getFilenum() const;
 
 	// default suffix (extension) for data files)
-	string			m_fname_sfx;
+	std::string		m_fname_sfx;
 
 	/* open a data file on stream `out` assembling the file name from the provided
 	 * base, the current node (in case of multi-node simulaions), the provided sequence
@@ -213,16 +224,18 @@ protected:
 	 *
 	 * Returns the file name (without the directory part)
 	 */
-	string
-	open_data_file(ofstream &out, const char* base, string const& num, string const& sfx);
+	std::string
+	open_data_file(std::ofstream &out, const char* base,
+		std::string const& num, std::string const& sfx);
 
-	inline string
-	open_data_file(ofstream &out, const char* base, string const& num)
+	inline std::string
+	open_data_file(std::ofstream &out, const char* base,
+		std::string const& num)
 	{ return open_data_file(out, base, num, m_fname_sfx); }
 
-	inline string
-	open_data_file(ofstream &out, const char* base)
-	{ return open_data_file(out, base, string(), m_fname_sfx); }
+	inline std::string
+	open_data_file(std::ofstream &out, const char* base)
+	{ return open_data_file(out, base, std::string(), m_fname_sfx); }
 
 
 	// time of last write
@@ -232,12 +245,12 @@ protected:
 	// negative values means don't write (writer disabled)
 	double			m_writefreq;
 
-	string			m_dirname;
+	std::string		m_dirname;
 	uint			m_FileCounter;
-	ofstream		m_timefile;
+	std::ofstream	m_timefile;
 
 	const Problem	*m_problem;
-	string			current_filenum() const;
+	std::string		current_filenum() const;
 	const GlobalData*		gdata;
 };
 

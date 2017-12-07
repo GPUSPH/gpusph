@@ -30,7 +30,7 @@ idxsum="$idxsum+\$$col"
 cmd="$cmd, '' using 1:$col with lines title 'potential$fluid'"
 col=$(($col+1))
 idxsum="$idxsum+\$$col)"
-cmd="$cmd, '' using 1:$col with lines title 'elastic$fluid'"
+cmd="$cmd, '' using 1:$col with lines title 'internal$fluid'"
 cmd="$cmd, '' using 1:$idxsum with lines title 'total$fluid'"
 
 while test $col -lt $cols ; do
@@ -43,7 +43,7 @@ while test $col -lt $cols ; do
 	cmd="$cmd, '' using 1:$col with lines title 'potential$fluid'"
 	col=$(($col+1))
 	idxsum="$idxsum+\$$col)"
-	cmd="$cmd, '' using 1:$col with lines title 'elastic$fluid'"
+	cmd="$cmd, '' using 1:$col with lines title 'internal$fluid'"
 	cmd="$cmd, '' using 1:$idxsum with lines title 'total$fluid'"
 done
 

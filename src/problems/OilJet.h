@@ -27,26 +27,20 @@
 #ifndef OILJET_H_
 #define OILJET_H_
 
-#include "Problem.h"
+#include "XProblem.h"
 #include "Point.h"
 #include "Cylinder.h"
 #include "Vector.h"
 #include "Cube.h"
 
-class OilJet: public Problem {
+class OilJet: public XProblem {
 	private:
-		PointVect	parts_f1;
-		PointVect	parts_f2;
-		PointVect	boundary_parts_f1;
-		PointVect	boundary_parts_f2;
-
 		double		lx, ly, lz;		// dimension of water tank
 		double 		water_level;	// water level
 		double		inner_diam;		// pipe inner diameter
 		double		pipe_length;	// pipe length
 
 		// Moving boundary data
-		Cylinder	piston;
 		double		piston_amplitude, piston_omega;
 		double3     piston_origin;
 		double		piston_tstart, piston_tend;
@@ -55,16 +49,10 @@ class OilJet: public Problem {
 		int 		layers;		// Number of particles layers for dynamic boundaries
 	public:
 		OilJet(GlobalData *);
-		~OilJet(void);
-		int fill_parts(void);
-
-		void copy_to_array(BufferList &);
 
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
 									const float3&, const KinematicData &, KinematicData &,
 									double3&, EulerParameters&);
-
-		void release_memory(void);
 };
 
 

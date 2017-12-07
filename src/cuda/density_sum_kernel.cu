@@ -155,7 +155,7 @@ computeDensitySumVolumicTerms(
 	while (true) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) {
+		if (neib_data == NEIBS_END) {
 			if (fluid_done)
 				// if we hit this point loop over fluid and vertices has been completed
 				break;
@@ -177,6 +177,8 @@ computeDensitySumVolumicTerms(
 		const float4 posN_neib = oldPos[neib_index];
 
 		if (INACTIVE(posN_neib)) continue;
+
+		/* TODO FIXME splitneibs merge: the MOVING object support here was dropped in the splitneibs branch */
 
 		const float4 posNp1_neib = newPos[neib_index];
 
@@ -248,7 +250,7 @@ computeDensitySumBoundaryTerms(
 	for (idx_t i = d_neibboundpos*d_neiblist_stride; i > 0; i -= d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(posN, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);

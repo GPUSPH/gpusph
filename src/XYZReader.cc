@@ -59,8 +59,8 @@ int XYZReader::getNParts()
 
 	unsigned int numLines = 0;
 
-	std::string unused;
-	while ( std::getline(xyzFile, unused) )
+	string unused;
+	while ( getline(xyzFile, unused) )
 		++numLines;
 
 	return numLines;
@@ -89,7 +89,7 @@ void XYZReader::read(Point *bbox_min, Point *bbox_max)
 		// read point coordinates
 		xyzFile >> x >> y >> z;
 		// ignore the rest of the line (e.g. vertex normals might be given)
-		xyzFile.ignore ( std::numeric_limits<std::streamsize>::max(), '\n' );
+		xyzFile.ignore ( numeric_limits<streamsize>::max(), '\n' );
 		// we have a point, here
 		Point p = Point(x,y,z);
 		// update the bounding box ends, if given
@@ -114,7 +114,7 @@ void XYZReader::reset()
 	npart = UINT_MAX;
 }
 
-void XYZReader::setFilename(std::string const& fn)
+void XYZReader::setFilename(string const& fn)
 {
 	// reset npart
 	npart = UINT_MAX;
@@ -123,9 +123,9 @@ void XYZReader::setFilename(std::string const& fn)
 	filename = fn;
 
 	// check whether file exists
-	std::ifstream f(filename.c_str());
+	ifstream f(filename.c_str());
 
 	if(!f.good())
-		throw std::invalid_argument(std::string("could not open ") + fn);
+		throw invalid_argument(string("could not open ") + fn);
 	f.close();
 }
