@@ -40,7 +40,8 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<DYNAMICVISC>,
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
-		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES | ENABLE_FERRARI>
+		densitydiffusion<FERRARI>,
+		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES>
 	);
 
 	// *** Initialization of minimal physical parameters
@@ -49,7 +50,8 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 
 	// *** Initialization of minimal simulation parameters
-	simparams()->maxneibsnum = 256 + 64 + 32; // 352
+	simparams()->neiblistsize = 256 + 64 + 32; // 352
+	simparams()->neibboundpos = 256 + 64 - 1;
 	// ferrari correction
 	simparams()->ferrariLengthScale = 0.25f;
 
