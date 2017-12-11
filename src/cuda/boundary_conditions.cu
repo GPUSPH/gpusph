@@ -38,11 +38,11 @@
 
 #include "define_buffers.h"
 
-#include "boundary_conditions_kernel.cu"
-
 // TODO Rename and optimize
 #define BLOCK_SIZE_SA_BOUND		128
 #define MIN_BLOCKS_SA_BOUND		6
+
+#include "boundary_conditions_kernel.cu"
 
 /// Boundary conditions engines
 
@@ -314,6 +314,75 @@ initGamma(
 
 }
 
+// counts vertices that belong to IO and same segment as other IO vertex
+virtual
+void
+initIOmass_vertexCount(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd)
+{
+	uint numThreads = BLOCK_SIZE_SA_BOUND;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	int dummy_shared = 0;
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
+	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
+
+	// execute the kernel
+	cubounds::initIOmass_vertexCount<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+		(vertices, pHash, info, cellStart, neibsList, forces, particleRangeEnd);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
+/// Adjusts the initial mass of vertex particles on open boundaries
+void
+initIOmass(
+	MultiBufferList::iterator bufwrite,
+	MultiBufferList::const_iterator bufread,
+	const	uint			numParticles,
+	const	uint*			cellStart,
+	const	uint			particleRangeEnd,
+	const	float			deltap)
+{
+	uint numThreads = BLOCK_SIZE_SA_BOUND;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	int dummy_shared = 0;
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+
+	const float4 *oldPos = bufread->getData<BUFFER_POS>();
+	const float4 *forces = bufread->getData<BUFFER_FORCES>();
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
+
+	float4 *newPos = bufwrite->getData<BUFFER_POS>();
+
+	// execute the kernel
+	cubounds::initIOmass<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+		(oldPos, forces, vertices, pHash, info, cellStart, neibsList, newPos, particleRangeEnd, deltap);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
 // Downloads the per device waterdepth from the GPU
 void
 downloadIOwaterdepth(
@@ -323,6 +392,7 @@ downloadIOwaterdepth(
 {
 	CUDA_SAFE_CALL(cudaMemcpy(h_IOwaterdepth, d_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyDeviceToHost));
 }
+
 
 // Upload the global waterdepth to the GPU
 void

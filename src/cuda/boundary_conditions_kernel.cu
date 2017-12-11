@@ -623,6 +623,251 @@ initGamma(
 	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 }
 
+#define MAXNEIBVERTS 30
+
+/// Modifies the initial mass of vertices on open boundaries
+/*! This function computes the initial value of \f[\gamma\f] in the semi-analytical boundary case, using a Gauss quadrature formula.
+ *	\param[out] newGGam : pointer to the new value of (grad) gamma
+ *	\param[in,out] boundelement : normal of segments and of vertices (the latter is computed in this routine)
+ *	\param[in] oldPos : pointer to positions and masses; masses of vertex particles are updated
+ *	\param[in] oldGGam : pointer to (grad) gamma; used as an approximate normal to the boundary in the computation of gamma
+ *	\param[in] vertPos[0] : relative position of the vertex 0 with respect to the segment center
+ *	\param[in] vertPos[1] : relative position of the vertex 1 with respect to the segment center
+ *	\param[in] vertPos[2] : relative position of the vertex 2 with respect to the segment center
+ *	\param[in] pinfo : pointer to particle info; written only when cloning
+ *	\param[in] particleHash : pointer to particle hash; written only when cloning
+ *	\param[in] cellStart : pointer to indices of first particle in cells
+ *	\param[in] neibsList : neighbour list
+ *	\param[in] numParticles : number of particles
+ *	\param[in] slength : the smoothing length
+ *	\param[in] influenceradius : the kernel radius
+ */
+template<KernelType kerneltype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SA_BOUND, MIN_BLOCKS_SA_BOUND)
+initIOmass_vertexCount(
+				const	vertexinfo*		vertices,
+				const	hashKey*		particleHash,
+				const	particleinfo*	pinfo,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+						float4*			forces,
+				const	uint			numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	const particleinfo info = pinfo[index];
+	if (!(VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info)))
+		return;
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	uint vertexCount = 0;
+
+	const float4 pos = make_float4(0.0f); // we don't need pos, so let's just set it to 0
+	float3 pos_corr;
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	uint neibVertIds[MAXNEIBVERTS];
+	uint neibVertIdsCount=0;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == NEIBS_END) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		// only boundary neighbours as we need to count the vertices that belong to the same segment as our vertex particle
+		if (BOUNDARY(neib_info) && IO_BOUNDARY(neib_info)) {
+
+			// prepare ids of neib vertices
+			const vertexinfo neibVerts = vertices[neib_index];
+
+			// only check adjacent boundaries
+			if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
+				// check if we don't have the current vertex
+				if (id(info) != neibVerts.x) {
+					neibVertIds[neibVertIdsCount] = neibVerts.x;
+					neibVertIdsCount+=1;
+				}
+				if (id(info) != neibVerts.y) {
+					neibVertIds[neibVertIdsCount] = neibVerts.y;
+					neibVertIdsCount+=1;
+				}
+				if (id(info) != neibVerts.z) {
+					neibVertIds[neibVertIdsCount] = neibVerts.z;
+					neibVertIdsCount+=1;
+				}
+			}
+
+		}
+	}
+
+	neib_cellnum = 0;
+	neib_cell_base_index = 0;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == NEIBS_END) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		if (!VERTEX(neib_info))
+			continue;
+
+		for (uint j = 0; j<neibVertIdsCount; j++) {
+			if (id(neib_info) == neibVertIds[j] && !CORNER(neib_info))
+				vertexCount += 1;
+		}
+	}
+
+	forces[index].w = (float)(vertexCount);
+}
+
+template<KernelType kerneltype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SA_BOUND, MIN_BLOCKS_SA_BOUND)
+initIOmass(
+				const	float4*			oldPos,
+				const	float4*			forces,
+				const	vertexinfo*		vertices,
+				const	hashKey*		particleHash,
+				const	particleinfo*	pinfo,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+						float4*			newPos,
+				const	uint			numParticles,
+				const	float			deltap)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = pinfo[index];
+	const float4 pos = oldPos[index];
+	newPos[index] = pos;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	//const particleinfo info = pinfo[index];
+	if (!(VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info)))
+		return;
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// does this vertex get or donate mass; decided by the id of a vertex particle
+	const bool getMass = id(info)%2;
+	float massChange = 0.0f;
+
+	const float refMass = 0.5f*deltap*deltap*deltap*d_rho0[fluid_num(info)]; // half of the fluid mass
+
+	// difference between reference mass and actual mass of particle
+	const float massDiff = refMass - pos.w;
+	// number of vertices associated with the same boundary segment as this vertex (that are also IO)
+	const float vertexCount = forces[index].w;
+
+	uint neibVertIds[MAXNEIBVERTS];
+	uint neibVertIdsCount=0;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == NEIBS_END) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		// only boundary neighbours as we need to count the vertices that belong to the same segment as our vertex particle
+		if (BOUNDARY(neib_info) && IO_BOUNDARY(neib_info)) {
+
+			// prepare ids of neib vertices
+			const vertexinfo neibVerts = vertices[neib_index];
+
+			// only check adjacent boundaries
+			if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
+				// check if we don't have the current vertex
+				if (id(info) != neibVerts.x) {
+					neibVertIds[neibVertIdsCount] = neibVerts.x;
+					neibVertIdsCount+=1;
+				}
+				if (id(info) != neibVerts.y) {
+					neibVertIds[neibVertIdsCount] = neibVerts.y;
+					neibVertIdsCount+=1;
+				}
+				if (id(info) != neibVerts.z) {
+					neibVertIds[neibVertIdsCount] = neibVerts.z;
+					neibVertIdsCount+=1;
+				}
+			}
+
+		}
+	}
+
+	neib_cellnum = 0;
+	neib_cell_base_index = 0;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == NEIBS_END) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+
+		if (!VERTEX(neib_info))
+			continue;
+
+		for (uint j = 0; j<neibVertIdsCount; j++) {
+			if (id(neib_info) == neibVertIds[j]) {
+				const bool neib_getMass = id(neib_info)%2;
+				if (getMass != neib_getMass && !CORNER(neib_info)) { // if not both vertices get or donate mass
+					if (getMass) {// original vertex gets mass
+						if (massDiff > 0.0f)
+							massChange += massDiff/vertexCount; // get mass from all adjacent vertices equally
+					}
+					else {
+						const float neib_massDiff = refMass - oldPos[neib_index].w;
+						if (neib_massDiff > 0.0f) {
+							const float neib_vertexCount = forces[neib_index].w;
+							massChange -= neib_massDiff/neib_vertexCount; // get mass from this vertex
+						}
+					}
+				}
+			}
+		}
+	}
+
+	newPos[index].w += massChange;
+}
+
 /// Compute boundary conditions for vertex particles in the semi-analytical boundary case
 /*! This function determines the physical properties of vertex particles in the semi-analytical boundary case. The properties of fluid particles are used to compute the properties of the vertices. Due to this most arrays are read from (the fluid info) and written to (the vertex info) simultaneously inside this function. In the case of open boundaries the vertex mass is updated in this routine and new fluid particles are created on demand. Additionally, the mass of outgoing fluid particles is redistributed to vertex particles herein.
  *	\param[in,out] oldPos : pointer to positions and masses; masses of vertex particles are updated
