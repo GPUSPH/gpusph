@@ -133,6 +133,65 @@ saSegmentBoundaryConditions(
 	KERNEL_CHECK_ERROR;
 }
 
+/// Apply boundary conditions to vertex particles.
+// There is no need to use two velocity arrays (read and write) and swap them after.
+// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
+// Data is only read from fluid and segments and written only on vertices.
+void
+saVertexBoundaryConditions(
+			float4*			oldPos,
+			float4*			oldVel,
+			float*			oldTKE,
+			float*			oldEps,
+			float4*			oldGGam,
+			float4*			oldEulerVel,
+			float4*			forces,
+			float*			dgamdt,
+	const	float4*			boundelement,
+			vertexinfo*		vertices,
+	const	float2			* const vertPos[],
+			particleinfo*	info,
+			hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+			uint*			newNumParticles,
+	const	uint			particleRangeEnd,
+	const	float			dt,
+	const	int				step,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius,
+	const	bool			initStep,
+	const	bool			resume,
+	const	uint			deviceId,
+	const	uint			numDevices,
+	const	uint			totParticles)
+{
+	int dummy_shared = 0;
+
+	uint numThreads = BLOCK_SIZE_SA_BOUND;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+
+	// execute the kernel
+	cubounds::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, dgamdt, vertices, vertPos[0], vertPos[1], vertPos[2], info, particleHash, cellStart, neibsList,
+		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+
+}
+
 /// Compute normal for vertices in initialization step
 void
 computeVertexNormal(
@@ -247,65 +306,6 @@ initGamma(
 		deltap,
 		epsilon,
 		particleRangeEnd);
-
-	// check if kernel invocation generated an error
-	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
-}
-
-/// Apply boundary conditions to vertex particles.
-// There is no need to use two velocity arrays (read and write) and swap them after.
-// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
-// Data is only read from fluid and segments and written only on vertices.
-void
-saVertexBoundaryConditions(
-			float4*			oldPos,
-			float4*			oldVel,
-			float*			oldTKE,
-			float*			oldEps,
-			float4*			oldGGam,
-			float4*			oldEulerVel,
-			float4*			forces,
-			float*			dgamdt,
-	const	float4*			boundelement,
-			vertexinfo*		vertices,
-	const	float2			* const vertPos[],
-			particleinfo*	info,
-			hashKey*		particleHash,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
-	const	uint			numParticles,
-			uint*			newNumParticles,
-	const	uint			particleRangeEnd,
-	const	float			dt,
-	const	int				step,
-	const	float			deltap,
-	const	float			slength,
-	const	float			influenceradius,
-	const	bool			initStep,
-	const	bool			resume,
-	const	uint			deviceId,
-	const	uint			numDevices,
-	const	uint			totParticles)
-{
-	int dummy_shared = 0;
-
-	uint numThreads = BLOCK_SIZE_SA_BOUND;
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-
-	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
-	#if (__COMPUTE__ == 20)
-	dummy_shared = 2560;
-	#endif
-
-	// execute the kernel
-	cubounds::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, dgamdt, vertices, vertPos[0], vertPos[1], vertPos[2], info, particleHash, cellStart, neibsList,
-		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
