@@ -50,7 +50,7 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 	);
 
 	set_deltap(W/64);
-	simparams()->maxneibsnum = 286;
+	simparams()->neiblistsize = 128;
 
 	w = m_deltap*4;
 

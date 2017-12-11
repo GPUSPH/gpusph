@@ -54,14 +54,14 @@ class SlidingWedge: public Problem {
 	public:
 		SlidingWedge(GlobalData *);
 		~SlidingWedge(void);
-		int fill_parts(void);
+		int fill_parts(bool fill=true) override;
 
-		void copy_to_array(BufferList &);
+		void copy_to_array(BufferList &) override;
 
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
 									const float3&, const KinematicData &, KinematicData &,
-									double3&, EulerParameters&);
+									double3&, EulerParameters&) override;
 
-		void release_memory(void);
+		void release_memory(void) override;
 };
 #endif	/* _OffshorePile_H */

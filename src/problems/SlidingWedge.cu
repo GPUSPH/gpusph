@@ -77,17 +77,17 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->densityDiffCoeff = 1.0;
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(0.0f, 0.0f, -9.81f);
-	float g = length(m_physparams->gravity);
+	physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);
+	float g = length(physparams()->gravity);
 
 	add_fluid(1000.0);
 	set_equation_of_state(0, 7.0f, 30.f);
 	set_kinematic_visc(0, 1.0e-6);
 
-	m_physparams->artvisccoeff =  0.3;
-	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->artvisccoeff =  0.3;
+	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	//WaveGage
 	const double wg1x = 1.83, wg1y = 0;
@@ -148,21 +148,21 @@ SlidingWedge::moving_bodies_callback(const uint index, Object* object, const dou
 }
 
 
-int SlidingWedge::fill_parts()
+int SlidingWedge::fill_parts(bool fill)
 {
 	boundary_parts.reserve(55000);
 	parts.reserve(140000);
 
 	Cube water =  Cube(Point(-x0, -ly/2., - H), lx, ly, H);
-	water.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	water.SetPartMass(m_deltap, physparams()->rho0[0]);
 	water.InnerFill(parts, m_deltap);
 	Cube experiment_box =  Cube(Point(-x0, -ly/2., - H), lx, ly, lz);
-	experiment_box.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	experiment_box.SetPartMass(m_deltap, physparams()->rho0[0]);
 	PlaneCut(parts, 1, 0, 2, 0);
 	Cube slope = Cube(Point(2*H + layers*m_deltap, -ly/2., -H - m_deltap/2.),
 			(2*H + x0 + 2*layers*m_deltap)/cos(beta), ly, layers*m_deltap,
 			EulerParameters(Vector(0, 1, 0), M_PI + beta));
-	slope.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	slope.SetPartMass(m_deltap, physparams()->rho0[0]);
 	slope.InnerFill(boundary_parts, m_deltap);
 	PlaneCut(boundary_parts, 1, 0, 0, x0);
 	PlaneCut(boundary_parts, -1, 0, 0, 2*H);
@@ -173,7 +173,7 @@ int SlidingWedge::fill_parts()
 	const double ww = 0.455;
 	const double D = 0.1;
 	wedge = Cube(Point(D/tan_beta, -ww/2., - D - hw), lw, ww, hw);
-	wedge.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	wedge.SetPartMass(m_deltap, physparams()->rho0[0]);
 	wedge.FillIn(wedge.GetParts(), m_deltap, layers);
 	//PlaneCut(wedge.GetParts(), 1, 0, 2, 0);
 	add_moving_body(&wedge, MB_MOVING);
@@ -216,11 +216,11 @@ void SlidingWedge::copy_to_array(BufferList &buffers)
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
-			//rho = m_physparams->rho0[0];
+			//rho = physparams()->rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
-				case MB_ODE:
+				case MB_FLOATING:
 					ptype |= FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE;
 					break;
 				case MB_FORCES_MOVING:
