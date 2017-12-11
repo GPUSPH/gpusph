@@ -50,9 +50,6 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 	// density diffusion terms, see DensityDiffusionType
 	const int RHODIFF = get_option("density-diffusion", 1);
 
-	const int NUM_OBSTACLES = get_option("num-obstacles", 1);
-	const bool ROTATE_OBSTACLE = true;
-
 	// ** framework setup
 	// viscosities: ARTVISC*, KINEMATICVISC*, DYNAMICVISC*, SPSVISC, KEPSVISC
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
