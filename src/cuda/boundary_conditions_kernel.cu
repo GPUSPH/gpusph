@@ -428,7 +428,6 @@ __global__ void
 computeVertexNormal(
 						float4*			newGGam,
 				const	vertexinfo*		vertices,
-				const	uint*			vertIDToIndex,
 				const	particleinfo*	pinfo,
 				const	hashKey*		particleHash,
 				const	uint*			cellStart,
@@ -445,6 +444,8 @@ computeVertexNormal(
 	const particleinfo info = pinfo[index];
 	if (!VERTEX(info))
 		return;
+
+	const vertexinfo verts = vertices[index];
 
 	float4 pos = make_float4(0.0f);
 
@@ -468,24 +469,16 @@ computeVertexNormal(
 	while (true) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 		i -= d_neiblist_stride;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
-
-		// prepare indices of neib vertices
-		const vertexinfo neibVerts = vertices[neib_index];
-
-		// load the indices of the vertices
-		const uint neibVertXidx = vertIDToIndex[neibVerts.x];
-		const uint neibVertYidx = vertIDToIndex[neibVerts.y];
-		const uint neibVertZidx = vertIDToIndex[neibVerts.z];
-
 		const float4 boundElement = tex1Dfetch(boundTex, neib_index);
+		const particleinfo neib_info = pinfo[neib_index];
 
 		// check if vertex is associated with this segment
-		if (neibVertXidx == index || neibVertYidx == index || neibVertZidx == index) {
+		if (verts.x == id(neib_info) || verts.y == id(neib_info) || verts.z == id(neib_info)) {
 			// in the initial step we need to compute an approximate grad gamma direction
 			// for the computation of gamma, in general we need a sort of normal as well
 			// for open boundaries to decide whether or not particles are created at a
@@ -909,7 +902,6 @@ saVertexBoundaryConditions(
 				const	float2*			vertPos0,
 				const	float2*			vertPos1,
 				const	float2*			vertPos2,
-				const	uint*			vertIDToIndex,
 						particleinfo*	pinfo,
 						hashKey*		particleHash,
 				const	uint*			cellStart,
