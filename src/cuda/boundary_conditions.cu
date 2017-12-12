@@ -193,6 +193,12 @@ saVertexBoundaryConditions(
 }
 
 /// Compute normal for vertices in initialization step
+/*! This kernel updates BUFFER_BOUNDELEMENTS,
+ *  computing the normals for each vertex as the average of the normals
+ *  of the adjacent boundary elements, weighted by the respective surface.
+ *  Since we only write the vertex normals and only read the boundary normals,
+ *  the update can be done in-place
+ */
 void
 computeVertexNormal(
 	MultiBufferList::const_iterator	bufread,
@@ -206,15 +212,12 @@ computeVertexNormal(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+	float4 *boundelement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
-	const float4 *boundelement = bufread->getData<BUFFER_BOUNDELEMENTS>();
 	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
 	const particleinfo *pinfo = bufread->getData<BUFFER_INFO>();
 	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
 	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
@@ -223,7 +226,7 @@ computeVertexNormal(
 
 	// execute the kernel
 	cubounds::computeVertexNormal<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
-		newGGam,
+		boundelement,
 		vertices,
 		pinfo,
 		particleHash,
@@ -233,9 +236,6 @@ computeVertexNormal(
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
 
 

@@ -91,6 +91,9 @@ SET_BUFFER_TRAITS(BUFFER_NORMALS, float4, 1, "Normals");
  *
  * For each boundary particle, this holds the normal to the corresponding boundary element
  * (in .x, .y, .z) and the boundary element surface (in .w)
+ * For each vertex particle, this holds the surface-weighted average of the normals of the adjacent
+ * boundary elements of the same IO type (i.e. IO boundary elements for IO vertices, and non-IO
+ * boundary elements for non-IO vertices).
  */
 #define BUFFER_BOUNDELEMENTS	(BUFFER_NORMALS << 1)
 SET_BUFFER_TRAITS(BUFFER_BOUNDELEMENTS, float4, 1, "Boundary Elements");

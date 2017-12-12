@@ -2044,18 +2044,21 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		throw runtime_error("no boundary conditions engine loaded");
 
 	if (cFlag & INITIALIZATION_STEP) {
-		doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 
 		// if no restart
 		if (clOptions->resume_fname.empty()) {
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
+
 			// compute normal for vertices
 			doCommand(SA_COMPUTE_VERTEX_NORMAL);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
 			// compute initial value of gamma for fluid and vertices
 			doCommand(SA_INIT_GAMMA);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
 		}
 
 		// identify all the corner vertex particles
@@ -2078,6 +2081,9 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(SWAP_BUFFERS, BUFFER_POS);
 		}
 
+		// the common part of saBoundaryConditions assumes that the relevant buffers are in the WRITE position,
+		// but the INITIALIZATION_STEP is called with the relevant buffers in the READ position, hence the need
+		// to swap here, and then again at the end of saBoundaryConditions
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 	}
 
@@ -2133,7 +2139,9 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	}
 
 	if (cFlag & INITIALIZATION_STEP) {
-		// swap changed buffers back so that read contains the new data
+		// During the simulation, saBoundaryConditions operates on the WRITE buffers, because it's invoked before the post-compute buffer swap,
+		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is 
+		// finished they are expected to be in the READ position, so swap them again:
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 	}
 }

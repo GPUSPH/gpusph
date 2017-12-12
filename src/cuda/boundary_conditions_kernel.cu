@@ -426,7 +426,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 template<KernelType kerneltype>
 __global__ void
 computeVertexNormal(
-						float4*			newGGam,
+						float4*			boundelement,
 				const	vertexinfo*		vertices,
 				const	particleinfo*	pinfo,
 				const	hashKey*		particleHash,
@@ -445,11 +445,10 @@ computeVertexNormal(
 	if (!VERTEX(info))
 		return;
 
-	const vertexinfo verts = vertices[index];
-
 	float4 pos = make_float4(0.0f);
+	uint our_id = id(info);
 
-	// Average norm used in the intial step to compute grad gamma for vertex particles
+	// Average norm used in the initial step to compute grad gamma for vertex particles
 	// During the simulation this is used for open boundaries to determine whether particles are created
 	// For all other boundaries in the keps case this is the average normal of all non-open boundaries used to ensure that the
 	// Eulerian velocity is only normal to the fixed wall
@@ -463,9 +462,8 @@ computeVertexNormal(
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 
-	idx_t i = d_neibboundpos *d_neiblist_stride;
-
-	// Loop over all the neighbors
+	// Loop over all BOUNDARY neighbors
+	idx_t i = d_neibboundpos*d_neiblist_stride;
 	while (true) {
 		neibdata neib_data = neibsList[i + index];
 
@@ -474,11 +472,11 @@ computeVertexNormal(
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
-		const float4 boundElement = tex1Dfetch(boundTex, neib_index);
-		const particleinfo neib_info = pinfo[neib_index];
+		const vertexinfo neib_verts = vertices[neib_index];
+		const float4 boundElement = boundelement[neib_index];
 
 		// check if vertex is associated with this segment
-		if (verts.x == id(neib_info) || verts.y == id(neib_info) || verts.z == id(neib_info)) {
+		if (neib_verts.x == our_id || neib_verts.y == our_id || neib_verts.z == our_id) {
 			// in the initial step we need to compute an approximate grad gamma direction
 			// for the computation of gamma, in general we need a sort of normal as well
 			// for open boundaries to decide whether or not particles are created at a
@@ -488,13 +486,8 @@ computeVertexNormal(
 		}
 	}
 
-	// normalize average norm
-	avgNorm = normalize(avgNorm);
-
-	newGGam[index].x = avgNorm.x;
-	newGGam[index].y = avgNorm.y;
-	newGGam[index].z = avgNorm.z;
-	newGGam[index].w = 0.0f;
+	// normalize average norm. The .w component for vertices is not used
+	boundelement[index] = make_float4(normalize(avgNorm), NAN);
 }
 
 /// Initializes gamma using quadrature formula
