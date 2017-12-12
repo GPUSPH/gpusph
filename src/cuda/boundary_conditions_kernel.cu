@@ -472,6 +472,17 @@ computeVertexNormal(
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
+		const particleinfo neib_info = pinfo[neib_index];
+
+		// Skip this neighboring boundary element if it's not in the same boundary
+		// classification as us, i.e. if it's an IO boundary element and we are not
+		// an IO vertex, or if the boundary element is not IO and we are an IO vertex.
+		// The check is done by negating IO_BOUNDARY because IO_BOUNDARY returns
+		// the combination of FG_INLET and FG_OUTLET pertaining to the particle,
+		// and we don't care about that aspect, we only care about IO vs non-IO
+		if (!IO_BOUNDARY(info) != !IO_BOUNDARY(neib_info))
+			continue;
+
 		const vertexinfo neib_verts = vertices[neib_index];
 		const float4 boundElement = boundelement[neib_index];
 
