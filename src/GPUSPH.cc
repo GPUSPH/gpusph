@@ -2052,12 +2052,10 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(SA_COMPUTE_VERTEX_NORMAL);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-			// compute gamma for fluid and vertices if dynamic gamma is used
-			if (USING_DYNAMIC_GAMMA(problem->simparams()->simflags)) {
-				doCommand(SA_INIT_GAMMA);
-				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-			}
+			// compute initial value of gamma for fluid and vertices
+			doCommand(SA_INIT_GAMMA);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		}
 
 		// identify all the corner vertex particles
@@ -2137,14 +2135,5 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (cFlag & INITIALIZATION_STEP) {
 		// swap changed buffers back so that read contains the new data
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
-		if (clOptions->resume_fname.empty()) {
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-			// initialise gamma using a Gauss quadrature formula
-			doCommand(INIT_GAMMA);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-			// swap GRADGAMMA buffer back so that read contains the new data
-			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
-		}
 	}
 }

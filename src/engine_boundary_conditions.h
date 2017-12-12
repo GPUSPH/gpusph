@@ -91,9 +91,9 @@ computeVertexNormal(
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
 
-// initialize gamma in the case of dynamic gamma
+// initialize gamma
 virtual void
-initGamma(
+saInitGamma(
 	MultiBufferList::const_iterator	bufread,
 	MultiBufferList::iterator		bufwrite,
 	const	uint*			cellStart,

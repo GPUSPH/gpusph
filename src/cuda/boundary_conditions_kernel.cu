@@ -497,10 +497,10 @@ computeVertexNormal(
 	newGGam[index].w = 0.0f;
 }
 
-/// Initializes gamma for the dynamic gamma case
+/// Initializes gamma using quadrature formula
 /*! In the dynamic gamma case gamma is computed using a transport equation. Thus an initial value needs
  *	to be computed. In this kernel this value is determined using a numerical integration. As this integration
- *	has it's problem when particles are close to the wall it's not useful with open boundaries, but at the
+ *	has its problem when particles are close to the wall, it's not useful with open boundaries, but at the
  *	initial time-step particles should be far enough away.
  *	\param[out] newGGam : vertex normal vector is computed
  *	\param[in] oldPos : particle positions
@@ -515,8 +515,7 @@ computeVertexNormal(
  *	\param[in] epsilon : numerical epsilon
  *	\param[in] numParticles : number of particles
  */
-template<KernelType kerneltype,
-		ParticleType cptype>
+template<KernelType kerneltype, ParticleType cptype>
 __global__ void
 initGamma(
 						float4*			newGGam,
@@ -561,13 +560,13 @@ initGamma(
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 
-	idx_t i = d_neibboundpos *d_neiblist_stride;
+	// Iterate over all BOUNDARY neighbors
+	idx_t i = d_neibboundpos*d_neiblist_stride;
 
-	// Loop over all the neighbors
 	while (true) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 		i -= d_neiblist_stride;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
@@ -583,9 +582,9 @@ initGamma(
 		// local coordinate system for relative positions to vertices
 		uint j = 0;
 		// Get index j for which n_s is minimal
-		if (fabs(normal.x) > fabs(normal.y))
+		if (fabsf(normal.x) > fabsf(normal.y))
 			j = 1;
-		if ((1-j)*fabs(normal.x) + j*fabs(normal.y) > fabs(normal.z))
+		if ((1-j)*fabsf(normal.x) + j*fabsf(normal.y) > fabsf(normal.z))
 			j = 2;
 
 		// compute the first coordinate which is a 2-D rotated version of the normal

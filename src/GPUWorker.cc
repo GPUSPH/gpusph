@@ -1729,10 +1729,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
 				instance->kernel_imposeBoundaryCondition();
 				break;
-			case INIT_GAMMA:
-				if (dbg_step_printf) printf(" T %d issuing INIT_GAMMA\n", deviceIndex);
-				instance->kernel_initGamma();
-				break;
 			case INIT_IO_MASS_VERTEX_COUNT:
 				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS_VERTEX_COUNT\n", deviceIndex);
 				instance->kernel_initIOmass_vertexCount();
@@ -2328,29 +2324,6 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 
 }
 
-void GPUWorker::kernel_initGamma()
-{
-	uint numPartsToElaborate = m_numParticles;
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	bcEngine->initGamma(
-		m_dBuffers.getReadBufferList(),
-		m_dBuffers.getWriteBufferList(),
-		m_dCellStart,
-		m_simparams->slength,
-		m_simparams->influenceRadius,
-		gdata->problem->m_deltap,
-		m_simparams->epsilon,
-		m_numParticles,
-		numPartsToElaborate);
-
-}
-
 void GPUWorker::kernel_initIOmass_vertexCount()
 {
 	uint numPartsToElaborate = m_numParticles;
@@ -2627,7 +2600,7 @@ void GPUWorker::kernel_saInitGamma()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	bcEngine->initGamma(
+	bcEngine->saInitGamma(
 				m_dBuffers.getReadBufferList(),
 				m_dBuffers.getWriteBufferList(),
 				m_dCellStart,

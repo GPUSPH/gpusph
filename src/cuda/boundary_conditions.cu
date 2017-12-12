@@ -239,9 +239,9 @@ computeVertexNormal(
 }
 
 
-/// Initialize gamma in the case of dynamic gamma
+/// Initialize gamma
 void
-initGamma(
+saInitGamma(
 	MultiBufferList::const_iterator	bufread,
 	MultiBufferList::iterator		bufwrite,
 	const	uint*			cellStart,
@@ -271,7 +271,7 @@ initGamma(
 	dummy_shared = 2560;
 	#endif
 
-	// execute the kernel for fluid
+	// execute the kernel for fluid particles
 	cubounds::initGamma<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		oldPos,
@@ -289,7 +289,7 @@ initGamma(
 		epsilon,
 		particleRangeEnd);
 
-	// execute the kernel for and vertex
+	// execute the kernel for vertex particles
 	cubounds::initGamma<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		oldPos,
