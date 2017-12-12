@@ -87,12 +87,37 @@ SET_BUFFER_TRAITS(BUFFER_VORTICITY, float3, 1, "Vorticity");
 #define BUFFER_NORMALS		(BUFFER_VORTICITY << 1)
 SET_BUFFER_TRAITS(BUFFER_NORMALS, float4, 1, "Normals");
 
+/** Boundary elements buffer.
+ *
+ * For each boundary particle, this holds the normal to the corresponding boundary element
+ * (in .x, .y, .z) and the boundary element surface (in .w)
+ */
 #define BUFFER_BOUNDELEMENTS	(BUFFER_NORMALS << 1)
 SET_BUFFER_TRAITS(BUFFER_BOUNDELEMENTS, float4, 1, "Boundary Elements");
+
+/** Gradient of gamma (in .x, .y, .z) and gamma itself (in .w);
+ *
+ * For boundary particles this is averaged from the neighboring vertex particles,
+ * for vertex and fluid particles this is computed either via quadrature or via
+ * a transport equation (see simflag ENABLE_GAMMA_QUADRATURE and the check USING_DYNAMIC_GAMMA())
+ */
 #define BUFFER_GRADGAMMA		(BUFFER_BOUNDELEMENTS << 1)
 SET_BUFFER_TRAITS(BUFFER_GRADGAMMA, float4, 1, "Gamma Gradient");
+
+/** Connectivity between boundary particles and vertices.
+ *
+ * For boundary particles this is the list of the IDs of the adjacent vertex particles.
+ * For fluid particles, this is only used in the open boundary case, to hold the nearest vertices
+ * when a fluid particles moves out of the domain through an open boundary.
+ */
 #define BUFFER_VERTICES			(BUFFER_GRADGAMMA << 1)
 SET_BUFFER_TRAITS(BUFFER_VERTICES, vertexinfo, 1, "Vertices");
+
+/** Relative positions of vertices to boundary elements
+ *
+ * For each boundary element, this holds the local planar offset (hence float2) of each vertex to the boundary
+ * element (hence 3 copies of the buffer, one per vertex).
+ */
 #define BUFFER_VERTPOS			(BUFFER_VERTICES << 1)
 SET_BUFFER_TRAITS(BUFFER_VERTPOS, float2, 3, "Vertex positions relative to s");
 

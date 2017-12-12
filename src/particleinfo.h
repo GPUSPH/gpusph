@@ -82,9 +82,9 @@ typedef ushort4 particleinfo;
  * 	SA boundary requires connectivity information for the boundary elements:
  * 	we need to know the vertices indices for each boundary element.
  * 	This information is stored in a uint4 with:
- *		- .x: index of vertex number 0
- *		- .y: index of vertex number 1
- *		- .z: index of vertex number 2
+ *		- .x: id of vertex number 0
+ *		- .y: id of vertex number 1
+ *		- .z: id of vertex number 2
  *		- .w: unused
  *
  *	\note the ordering of vertices is not random, when filling the connectivity
