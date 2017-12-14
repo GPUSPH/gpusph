@@ -218,6 +218,22 @@ class Problem {
 		double set_neiblist_expansion(double alpha)
 		{ return simparams()->set_neiblist_expansion(alpha); }
 
+		/// Resize the neighbors list
+		/*! Sets the per-particle neighbors list size so that it has
+		 * nonvertex elements for fluid and boundary neighbors, and vertex elements
+		 * for vertex neighbors. Due to the end-of-list markers, the effective
+		 * number of nonvertex and vertex elements that can be stored is effectively
+		 * reduced by 1 compare to the values set here.
+		 */
+		void resize_neiblist
+			( int nonvertex ///< size of the non-vertex area of the neighbor list
+			, int vertex = 0 ///< size of the vertex area of the neighbor list
+			)
+		{
+			simparams()->neibboundpos = nonvertex - 1;
+			simparams()->neiblistsize = vertex + nonvertex;
+		}
+
 		void set_kernel_radius(double radius)
 		{ simparams()->set_kernel_radius(radius); }
 
