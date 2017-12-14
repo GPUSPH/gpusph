@@ -84,6 +84,10 @@ __device__ int d_hasMaxNeibs[PT_TESTPOINT];	///< Number of neighbors of that par
 #include "cellgrid.cuh"
 /*! \endcond */
 
+/*! \cond */
+#include "neibs_iteration.cuh"
+/*! \endcond */
+
 /** \addtogroup neibs_device_functions_params Neighbor list device function variables
  * 	\ingroup neibs
  *  Templatized structures holding variables used by neibsInCell device function
