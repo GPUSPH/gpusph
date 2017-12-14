@@ -71,8 +71,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// Explicitly set number of layers. Also, prevent having undefined number of layers before the constructor ends.
 	setDynamicBoundariesLayers(3);
 
-	simparams()->neiblistsize = 128;
-	simparams()->neibboundpos = simparams()->neiblistsize - 1;
+	resize_neiblist(128);
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);

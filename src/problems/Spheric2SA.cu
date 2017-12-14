@@ -34,8 +34,7 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 	l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 	m_origin = make_double3(-0.01, -0.01, -0.01);
 	simparams()->ferrariLengthScale = 0.161f;
-	simparams()->neiblistsize = 128 + 64 + 32;
-	simparams()->neibboundpos = 128 + 64 - 1;
+	resize_neiblist(128+64, 32);
 
 	// SPH parameters
 	simparams()->dt = 0.00004f;

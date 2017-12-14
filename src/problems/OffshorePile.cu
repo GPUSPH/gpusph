@@ -86,8 +86,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	set_kinematic_visc(0, 1.0e-6);
 	setWaterLevel(H);
 
-	simparams()->neiblistsize = 256 + 64 + 32; // 352
-	simparams()->neibboundpos = 256 + 64 - 1;
+	resize_neiblist(256 + 64, 32); // 352
 	simparams()->buildneibsfreq = 1;
 
 	//Wave piston definition:  location, start & stop times, stroke and frequency (2 \pi/period)

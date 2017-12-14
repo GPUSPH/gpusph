@@ -98,7 +98,7 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 
 	simparams()->tend = 100.0;
 	if (simparams()->boundarytype == SA_BOUNDARY) {
-		simparams()->neiblistsize = 256; // needed during gamma initialization phase
+		resize_neiblist(128, 128);
 	};
 
 	// Physical parameters

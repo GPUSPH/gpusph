@@ -90,8 +90,7 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->tend=2.0f;
 
 	// *** Initialization of minimal simulation parameters
-	simparams()->neiblistsize = 256 + 64;
-	simparams()->neibboundpos = 255;
+	resize_neiblist(256, 64);
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 0.01f);

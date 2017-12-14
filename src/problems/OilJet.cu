@@ -58,7 +58,8 @@ OilJet::OilJet(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 2.; //seconds
-	simparams()->neiblistsize = 512;
+
+	resize_neiblist(512);
 
 	// Physical parameters
 	physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);

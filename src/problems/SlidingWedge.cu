@@ -68,7 +68,7 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(-x0 - layers*m_deltap, - ly/2. - layers*m_deltap, -H);
 
 	// SPH parameters
-	simparams()->neiblistsize = 128;
+	resize_neiblist(128);
 	simparams()->dt = 0.00013;
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->buildneibsfreq = 10;
