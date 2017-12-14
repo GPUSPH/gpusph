@@ -54,15 +54,15 @@ typedef struct TimingInfo {
 	// current number of particles
 	//uint	numParticles;
 
-	// total current maximum number of neibs
-	uint	maxNeibs;
-	// maximum number of neibs for each type
-	uint	maxNeibsPerType[PT_TESTPOINT];
+	// maximum number of fluid+boundary neibs
+	uint	maxFluidBoundaryNeibs;
+	// maximum number of vertex neibs
+	uint	maxVertexNeibs;
 	// index of a particle with too many neibs
 	int	hasTooManyNeibs;
 	// number of neibs of that particle
+	int	hasMaxNeibs[PT_TESTPOINT];
 
-	int	hasMaxNeibs;
 	// iterations done so far
 	//ulong	iterations;
 	// number of particle-particle interactions with current neiblist
@@ -100,10 +100,8 @@ typedef struct TimingInfo {
 	{}
 	*/
 
-	TimingInfo(void) : maxNeibs(0), numInteractions(0) {
-		for (int i = 0; i < PT_TESTPOINT; i++)
-			maxNeibsPerType[i] = 0;
-	}
+	TimingInfo(void) : maxFluidBoundaryNeibs(0), maxVertexNeibs(0), numInteractions(0)
+	{ }
 
 } TimingInfo;
 

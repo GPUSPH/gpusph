@@ -73,18 +73,16 @@ __constant__ idx_t d_neiblist_end;		///< maximum number of neighbors * number of
  * 	\ingroup neibs
  *  Device variables used in neighbor list construction
  *  @{ */
-__device__ int d_numInteractions;			///< Total number of interactions per type
-__device__ int d_maxNeibs[PT_TESTPOINT];	///< Computed maximum number of neighbors per particle per type
-__device__ int d_hasTooManyNeibs;		///< Index of a particle with more than d_maxneibsnum neighbors
-__device__ int d_hasMaxNeibs;			///< Number of neighbors of that particle
+__device__ int d_numInteractions;			///< Total number of interactions
+__device__ int d_maxFluidBoundaryNeibs;		///< Computed maximum number of fluid + boundary neighbors across particles
+__device__ int d_maxVertexNeibs;			///< Computed maximum number of vertex neighbors across particles
+__device__ int d_hasTooManyNeibs;			///< id of a particle with too many neighbors
+__device__ int d_hasMaxNeibs[PT_TESTPOINT];	///< Number of neighbors of that particle
 /** @} */
 
 /*! \cond */
 #include "cellgrid.cuh"
 /*! \endcond */
-
-//TODO: Giuseppe write a REAL documentation COMPLYING with Doxygen
-// standards and with OUR DOCUMENTING CONVENTIONS !!!! (Alexis).
 
 /** \addtogroup neibs_device_functions_params Neighbor list device function variables
  * 	\ingroup neibs
@@ -435,6 +433,54 @@ void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_id, floa
 	}
 }
 
+/// Offset location of the nth neighbor of type neib_type
+__device__ __forceinline__
+constexpr uint neibListOffset(uint neib_num, ParticleType neib_type)
+{
+	return	(neib_type == PT_FLUID) ? neib_num :
+			(neib_type == PT_BOUNDARY) ? d_neibboundpos - neib_num :
+			/* neib_type == PT_VERTEX */ neib_num + d_neibboundpos + 1;
+}
+
+/// Same as above, picking the neighbor index from the type-indexed neibs_num array
+__device__ __forceinline__
+uint neibListOffset(uint* neibs_num, ParticleType neib_type)
+{
+	return	neibListOffset(neibs_num[neib_type], neib_type);
+}
+
+/// Check if we have too many neighbors of the given type
+/*! Since PT_FLUID neighbors go from 0 upwards, while PT_BOUNDARY go from d_neibboundpos
+ * downwards, the sum number of neighbors in the two must be strictly less than d_neibboundpos
+ * (leaving room for 1 NEIBS_END marker separating the lists).
+ * PT_VERTEX neighbors go from d_neibboundpos + 1 upwards, so there can be at most
+ * d_neiblistsize - d_neibboundpos - 1 neighbors.
+ * If we also want to enforce there being a NEIBS_END marker at the end (for
+ * consistency with the other particle types, and thus simplifying loops over
+ * neighbors), the effective number must be strictly less than that limit.
+ */
+__device__ __forceinline__
+bool too_many_neibs(const uint* neibs_num, ParticleType neib_type)
+{
+	switch (neib_type) {
+	case PT_FLUID:
+		/* We give priority to the PT_FLUID particles, so we consider an overflow
+		 * for them withount considering the number of boundary particles.
+		 * Full checks will find the overflow anyway from the PT_BOUNDARY check.
+		 */
+		return !(neibs_num[PT_FLUID] < d_neibboundpos);
+	case PT_BOUNDARY:
+		return !(neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] < d_neibboundpos);
+	case PT_VERTEX:
+		// TODO : possible optimization: there's no need to check for PT_VERTEX if not SA
+		return !(neibs_num[PT_VERTEX] < d_neiblistsize - d_neibboundpos - 1);
+	default:
+		// should never happen
+		return true;
+	}
+}
+
+
 
 /// Find neighbors in a given cell
 /*! This function look for neighbors of the current particle in
@@ -492,7 +538,7 @@ neibsInCell(
 	// Iterate over all particles in the cell
 	bool encode_cell = true;
 
-	uint neib_type = PT_FLUID;
+	ParticleType neib_type = PT_FLUID;
 	for (uint neib_index = var.bucketStart; neib_index < var.bucketEnd; neib_index++) {
 
 		// Prevent self-interaction
@@ -543,16 +589,20 @@ neibsInCell(
 		bool close_enough = isCloseEnough(relPos, neib_info, params);
 
 		if (close_enough) {
-			// TODO : optimize for SA and not
-			if (neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] < d_neibboundpos && neibs_num[PT_VERTEX] < d_neiblistsize - d_neibboundpos) {
-				const uint offset = (neib_type == PT_FLUID) ? neibs_num[PT_FLUID] :
-						( (neib_type == PT_BOUNDARY) ? d_neibboundpos - neibs_num[PT_BOUNDARY]:
-								d_neibboundpos + neibs_num[PT_VERTEX] + 1);
+			/* The previous number of neighbors is the index of the current neighbor,
+			 * use it to get the offset where it will be placed in the list */
+			const uint offset = neibListOffset(neibs_num, neib_type);
+			neibs_num[neib_type]++;
+
+			/* Store the neighbor, if there's room. End-of-list markers and overflow
+			 * counts will be managed after the list has been built */
+			if (!too_many_neibs(neibs_num, neib_type)) {
+				int neib_bucket_offset = neib_index - var.bucketStart;
+				int encode_offset = encode_cell ? ENCODE_CELL(cell) : 0;
 				params.neibsList[offset*d_neiblist_stride + index] =
-						neib_index - var.bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
+					neib_bucket_offset + encode_offset;
 				encode_cell = false;
 			}
-			neibs_num[neib_type]++;
 		}
 		if (segment) {
 			process_niC_segment(index, id(neib_info), relPos, params, var);
@@ -877,7 +927,11 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
  *	TODO: finish implementation for SA_BOUNDARY (include PT_VERTEX)
  */
 template<SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound,
-	bool neibcount>
+	bool neibcount,
+	/* Number of shared arrays for the maximum number of neighbors:
+	 * this is 1 (counting fluid + boundary) for all boundary types, except
+	 * SA which also has another one for vertices */
+	int num_sm_neibs_max = (1 + (boundarytype == SA_BOUNDARY))>
 __global__ void
 /*! \cond */
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
@@ -898,16 +952,16 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		// Read particle info from texture
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
-		// The way the neighbor's list it's construct depends on
+		// The way the neighbors list is constructed depends on
 		// the boundary type used in the simulation.
 		// 	* For Lennard-Johnes boundaries :
-		//		we construct a neighbor's list for fluid, test points
+		//		we construct a neighbors list for fluid, test points
 		//		and particles belonging to a floating body or a moving
 		//		boundary on which we want to compute forces.
 		//	* For SA boundaries :
 		//		same as Lennard-Johnes plus vertice and boundary particles
 		//	* For dynamic boundaries :
-		//		we construct a neighbor's for all particles.
+		//		we construct a neighbors list for all particles.
 		//TODO: optimze test. (Alexis).
 		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info);
 		if (boundarytype == SA_BOUNDARY)
@@ -952,56 +1006,86 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		}
 	} while (0);
 
-	// Setting the end marker. Must be done here so that
-	// particles for which the neighbor list is not built actually
-	// have an empty neighbor list. Otherwise, particles which are
-	// marked inactive will keep their old neighbor list.
-	// TODO FIXME merge splitneibs
-#if 0
-	if (index < params.numParticles && neibs_num < d_maxneibsnum) {
-		if (neibs_num < d_maxneibsnum) {
-			params.neibsList[neibs_num[PT_FLUID]*d_neiblist_stride + index] = NEIBS_END;
-			params.neibsList[(d_neibboundpos - neibs_num[PT_BOUNDARY])*d_neiblist_stride + index] = NEIBS_END;
-		} else {
+	// Each of the sections of the neighbor list is terminated by a NEIBS_END. This allow
+	// iterating over all neighbors of a given type by a simple while (true) conditionally
+	// breaking on neib_data being NEIBS_END. This is particularly important when no neighbors
+	// of a given type were encountered, or when too many neighbors were found, to avoid overflowing.
+	// In the latter case, we truncate the list at the last useful place, and record one of the particles
+	// so that diagnostic information can be printed about it.
+	if (index < params.numParticles) {
+		bool overflow = too_many_neibs(neibs_num, PT_FLUID);
+
+		/* If PT_FLUID neighbors overflowed, we put the marker at the last position, which
+		 * means no PT_BOUNDARY neighbors will be registered
+		 */
+		int marker_pos = overflow ? d_neibboundpos : neibs_num[PT_FLUID];
+		params.neibsList[marker_pos*d_neiblist_stride + index] = NEIBS_END;
+
+		overflow |= too_many_neibs(neibs_num, PT_BOUNDARY);
+		/* A marker here is needed only if we didn't overflow, since otherwise the PT_FLUID marker will work
+		 * for PT_BOUNDARY too */
+		if (!overflow)
+			params.neibsList[neibListOffset(neibs_num, PT_BOUNDARY)*d_neiblist_stride + index] = NEIBS_END;
+
+		if (boundarytype == SA_BOUNDARY) {
+			overflow |= too_many_neibs(neibs_num, PT_VERTEX);
+			marker_pos = overflow ? d_neiblistsize - 1 : d_neibboundpos + 1 + neibs_num[PT_VERTEX];
+			params.neibsList[marker_pos*d_neiblist_stride + index] = NEIBS_END;
+		}
+
+		if (overflow) {
 			const particleinfo info = tex1Dfetch(infoTex, index);
 			atomicCAS(&d_hasTooManyNeibs, -1, (int)id(info));
-			if(d_hasTooManyNeibs == id(info))
-				d_hasMaxNeibs = neibs_num;
+			if (d_hasTooManyNeibs == id(info)) {
+				d_hasMaxNeibs[PT_FLUID] = neibs_num[PT_FLUID];
+				d_hasMaxNeibs[PT_BOUNDARY] = neibs_num[PT_BOUNDARY];
+				d_hasMaxNeibs[PT_VERTEX] = neibs_num[PT_VERTEX];
+			}
 		}
 	}
-#endif
 
 	if (neibcount) {
 		// Shared memory reduction of per block maximum number of neighbors
+		// We count both the total number of neighbors (and hence the overall number of _interactions_)
+		// and the max number of neighbors of each type
 		__shared__ volatile uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
-		__shared__ volatile uint sm_fluidbound_neibs_max[BLOCK_SIZE_BUILDNEIBS];
+		__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS*num_sm_neibs_max];
 
-		if (boundarytype == SA_BOUNDARY) {
-			sm_fluidbound_neibs_max[threadIdx.x] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] + neibs_num[PT_VERTEX];
-			sm_total_neibs_num[threadIdx.x] = neibs_num[PT_FLUID] +  neibs_num[PT_BOUNDARY] + neibs_num[PT_VERTEX];
-		}
-		else {
-			sm_fluidbound_neibs_max[threadIdx.x] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY];
-			sm_total_neibs_num[threadIdx.x] = neibs_num[PT_FLUID] +  neibs_num[PT_BOUNDARY];
-		}
-		__syncthreads();
+		uint neibs_max[num_sm_neibs_max];
+		neibs_max[0] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY];
+		if (boundarytype == SA_BOUNDARY)
+			neibs_max[1] = neibs_num[PT_VERTEX];
+		uint total_neibs_num = neibs_max[0] + neibs_num[PT_VERTEX];
+
+		sm_total_neibs_num[threadIdx.x] = total_neibs_num;
+
+		sm_neibs_max[threadIdx.x] = neibs_max[0];
+		if (boundarytype == SA_BOUNDARY)
+			sm_neibs_max[threadIdx.x + blockDim.x] = neibs_max[1];
 
 		uint i = blockDim.x/2;
 		while (i != 0) {
-			if (threadIdx.x < i) {
-				sm_total_neibs_num[threadIdx.x] += sm_total_neibs_num[threadIdx.x + i];
-				const uint n1 = sm_fluidbound_neibs_max[threadIdx.x];
-				const uint n2 = sm_fluidbound_neibs_max[threadIdx.x + i];
-				if (n2 > n1)
-					sm_fluidbound_neibs_max[threadIdx.x] = n2;
-			}
 			__syncthreads();
+			if (threadIdx.x < i) {
+				total_neibs_num += sm_total_neibs_num[threadIdx.x + i];
+				sm_total_neibs_num[threadIdx.x] = total_neibs_num;
+
+#pragma unroll
+				for (int o = 0; o < num_sm_neibs_max; ++o) {
+					const uint n2 = sm_neibs_max[threadIdx.x + i + o*blockDim.x];
+					if (n2 > neibs_max[o]) {
+						sm_neibs_max[threadIdx.x + o*blockDim.x] = neibs_max[o] = n2;
+					}
+				}
+			}
 			i /= 2;
 		}
 
 		if (!threadIdx.x) {
-			atomicMax(&d_maxNeibs[0], sm_fluidbound_neibs_max[0]);
-			atomicAdd(&d_numInteractions, sm_total_neibs_num[0]);
+			atomicMax(&d_maxFluidBoundaryNeibs, neibs_max[0]);
+			if (boundarytype == SA_BOUNDARY)
+				atomicMax(&d_maxVertexNeibs, neibs_max[1]);
+			atomicAdd(&d_numInteractions, total_neibs_num);
 		}
 	}
 	return;

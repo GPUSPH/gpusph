@@ -679,7 +679,7 @@ densityGrenierDevice(
 
 	if (boundarytype == DYN_BOUNDARY && NOT_FLUID(info) && !has_fluid_neibs) {
 		// TODO OPTIMIZE
-		const float typical_sigma = 3*(cuneibs::d_maxNeibs[PT_FLUID] + cuneibs::d_maxNeibs[PT_BOUNDARY])/
+		const float typical_sigma = 3*(cuneibs::d_maxFluidBoundaryNeibs)/
 			(4*M_PIf*influenceradius*influenceradius*influenceradius);
 		sigma = typical_sigma;
 	}

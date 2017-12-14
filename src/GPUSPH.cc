@@ -1752,20 +1752,26 @@ void GPUSPH::buildNeibList()
 		doCommand(UPDATE_EXTERNAL, BUFFER_VERTPOS);
 
 	// scan and check the peak number of neighbors and the estimated number of interactions
-	const uint maxPossibleNeibs = gdata->problem->simparams()->neiblistsize - 1;
-	// TODO: it's minus 2 for SA
-	gdata->lastGlobalPeakNeibsNum = 0;
+	static const uint maxPossibleFluidBoundaryNeibs = problem->simparams()->neibboundpos;
+	static const uint maxPossibleVertexNeibs = problem->simparams()->neiblistsize - problem->simparams()->neibboundpos - 2;
 	for (uint d = 0; d < gdata->devices; d++) {
-		const uint currDevMaxNeibs = gdata->timingInfo[d].maxNeibs;
+		const uint currDevMaxFluidBoundaryNeibs = gdata->timingInfo[d].maxFluidBoundaryNeibs;
+		const uint currDevMaxVertexNeibs = gdata->timingInfo[d].maxVertexNeibs;
 
-		if (currDevMaxNeibs > maxPossibleNeibs) {
-			printf("WARNING: current max. neighbors numbers %u greather than max possible neibs (%u) at iteration %lu\n",
-				currDevMaxNeibs, maxPossibleNeibs, gdata->iterations);
-			printf("\tpossible culprit: %d (neibs: %d)\n", gdata->timingInfo[d].hasTooManyNeibs, gdata->timingInfo[d].hasMaxNeibs);
+		if (currDevMaxFluidBoundaryNeibs > maxPossibleFluidBoundaryNeibs ||
+			currDevMaxVertexNeibs > maxPossibleVertexNeibs) {
+			printf("WARNING: current max. neighbors numbers (%u | %u) greather than max possible neibs (%u | %u) at iteration %lu\n",
+				currDevMaxFluidBoundaryNeibs, currDevMaxVertexNeibs, maxPossibleFluidBoundaryNeibs, maxPossibleVertexNeibs, gdata->iterations);
+			printf("\tpossible culprit: %d (neibs: %d + %d | %d)\n", gdata->timingInfo[d].hasTooManyNeibs,
+				gdata->timingInfo[d].hasMaxNeibs[PT_FLUID],
+				gdata->timingInfo[d].hasMaxNeibs[PT_BOUNDARY],
+				gdata->timingInfo[d].hasMaxNeibs[PT_VERTEX]);
 		}
 
-		if (currDevMaxNeibs > gdata->lastGlobalPeakNeibsNum)
-			gdata->lastGlobalPeakNeibsNum = currDevMaxNeibs;
+		if (currDevMaxFluidBoundaryNeibs > gdata->lastGlobalPeakFluidBoundaryNeibsNum)
+			gdata->lastGlobalPeakFluidBoundaryNeibsNum = currDevMaxFluidBoundaryNeibs;
+		if (currDevMaxVertexNeibs > gdata->lastGlobalPeakVertexNeibsNum)
+			gdata->lastGlobalPeakVertexNeibsNum = currDevMaxVertexNeibs;
 
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
@@ -1782,14 +1788,15 @@ void GPUSPH::doCallBacks()
 void GPUSPH::printStatus(FILE *out)
 {
 //#define ti timingInfo
-	fprintf(out, "Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u\n",
+	fprintf(out, "Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
 			gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
 			m_totalPerformanceCounter->getMIPPS(),
-			gdata->lastGlobalPeakNeibsNum
+			gdata->lastGlobalPeakFluidBoundaryNeibsNum,
+			gdata->lastGlobalPeakVertexNeibsNum
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			//ti.meanTimeNeibsList,

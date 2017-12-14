@@ -314,7 +314,8 @@ struct GlobalData {
 
 	// One TimingInfo per worker, currently used for statistics about neibs and interactions
 	TimingInfo timingInfo[MAX_DEVICES_PER_NODE];
-	uint lastGlobalPeakNeibsNum;
+	uint lastGlobalPeakFluidBoundaryNeibsNum;
+	uint lastGlobalPeakVertexNeibsNum;
 	uint lastGlobalNumInteractions;
 
 	// next command to be executed by workers
@@ -388,7 +389,8 @@ struct GlobalData {
 		iterations(0),
 		t(0.0),
 		dt(0.0f),
-		lastGlobalPeakNeibsNum(0),
+		lastGlobalPeakFluidBoundaryNeibsNum(0),
+		lastGlobalPeakVertexNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
 		commandFlags(NO_FLAGS),

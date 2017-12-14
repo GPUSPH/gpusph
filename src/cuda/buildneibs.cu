@@ -130,14 +130,14 @@ getconstants(	SimParams *simparams,	// pointer to simulation parameters structur
 void
 resetinfo(void)
 {
-	int temp1 = 0;
-	int temp2[PT_TESTPOINT] = {0};
+	int temp = 0;
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp1, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxNeibs, &temp2, sizeof(int)*PT_TESTPOINT));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasMaxNeibs, &temp1, sizeof(int)));
-	temp1 = -1;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyNeibs, &temp1, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxFluidBoundaryNeibs, &temp, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxVertexNeibs, &temp, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasMaxNeibs, &temp, sizeof(int)));
+	temp = -1;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyNeibs, &temp, sizeof(int)));
 }
 
 
@@ -152,12 +152,10 @@ void
 getinfo(TimingInfo & timingInfo)	// timing info (in, out)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxNeibsPerType, cuneibs::d_maxNeibs, sizeof(int)*PT_TESTPOINT, 0));
-	timingInfo.maxNeibs = 0;
-	for (int i = 0; i < PT_TESTPOINT; i++)
-		timingInfo.maxNeibs += timingInfo.maxNeibsPerType[i];
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxFluidBoundaryNeibs, cuneibs::d_maxFluidBoundaryNeibs, sizeof(int), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxVertexNeibs, cuneibs::d_maxVertexNeibs, sizeof(int), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyNeibs, cuneibs::d_hasTooManyNeibs, sizeof(int), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasMaxNeibs, cuneibs::d_hasMaxNeibs, sizeof(int), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(timingInfo.hasMaxNeibs, cuneibs::d_hasMaxNeibs, sizeof(int)*PT_TESTPOINT, 0));
 }
 
 /** @} */
