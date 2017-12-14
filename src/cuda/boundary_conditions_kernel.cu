@@ -303,22 +303,25 @@ getMassRepartitionFactor(	const	float3	*vertexRelPos,
  this function detects when a fluid particle crosses the open boundary and it identifies which segment it
  crossed. The vertices of this segment are then used to identify how the mass of this fluid particle is
  split.
+ \note updates are made in-place because we only read from fluids and vertex particles and only write
+ boundary particles data, and no conflict can thus occurr.
+ \todo templatize inputs and variables to avoid k-eps and IO inputs and variables when not needed
 */
 template<KernelType kerneltype>
 __global__ void
-saSegmentBoundaryConditions(			float4*		oldPos,
-										float4*		oldVel,
-										float*		oldTKE,
-										float*		oldEps,
-										float4*		oldEulerVel,
-										float4*		oldGGam,
-										vertexinfo*	vertices,
-								const	float2*		vertPos0,
-								const	float2*		vertPos1,
-								const	float2*		vertPos2,
-								const	hashKey*	particleHash,
-								const	uint*		cellStart,
-								const	neibdata*	neibsList,
+saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
+										float4*		__restrict__ oldVel,
+										float*		__restrict__ oldTKE,
+										float*		__restrict__ oldEps,
+										float4*		__restrict__ oldEulerVel,
+										float4*		__restrict__ oldGGam,
+										vertexinfo*	__restrict__ vertices,
+								const	float2*		__restrict__ vertPos0,
+								const	float2*		__restrict__ vertPos1,
+								const	float2*		__restrict__ vertPos2,
+								const	hashKey*	__restrict__ particleHash,
+								const	uint*		__restrict__ cellStart,
+								const	neibdata*	__restrict__ neibsList,
 								const	uint		numParticles,
 								const	float		deltap,
 								const	float		slength,
@@ -338,44 +341,122 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 	if (!BOUNDARY(info))
 		return;
 
-	// TODO FIXME splitneibs merge in master this is done differently, commented just to make it build
-	// compute an average gamma for the segment
-	float gam = oldGGam[index].w;
-#if 0
-	if (gam < 1e-5f) {
-		const vertexinfo verts = vertices[index];
+	float4 eulerVel = make_float4(0.0f);
+	const vertexinfo verts = vertices[index];
+	float tke = 0.0f;
+	float eps = 0.0f;
 
-		// average gamma from the vertices
-		float4 gGam = (oldGGam[vertXidx] + oldGGam[vertYidx] + oldGGam[vertZidx])/3.0f;
-		oldGGam[index] = gGam;
-		gam = fmax(gGam.w, 1e-5f);
-	}
-#endif
-
-	const float4 pos = oldPos[index];
-
-	// note that all sums below run only over fluid particles (including the Shepard filter)
+	// These summations will only run over fluid particles
 	float sumpWall = 0.0f; // summation for computing the density
+	float sump = 0.0f; // summation for computing the pressure
+	float3 sumvel = make_float3(0.0f); // summation to compute the internal velocity for open boundaries
+	float sumtke = 0.0f; // summation for computing tke (k-epsilon model)
+	float sumeps = 0.0f; // summation for computing epsilon (k-epsilon model)
 	float alpha  = 0.0f;  // the shepard filter
 
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	// get the imposed quantities from the arrays which were set in the problem specific routines
+	if (IO_BOUNDARY(info)) {
+		// for imposed velocity the velocity, tke and eps are required and only rho will be calculated
+		if (VEL_IO(info)) {
+			eulerVel = oldEulerVel[index];
+			eulerVel.w = 0.0f;
+			if (oldTKE)
+				tke = oldTKE[index];
+			if (oldEps)
+				eps = oldEps[index];
+		}
+		// for imposed density only eulerVel.w will be required, the rest will be computed
+		else
+			eulerVel = oldEulerVel[index];
+	}
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
+	// velocity for segment (for moving objects) taken as average from the vertices
+	float4 vel = make_float4(0.0f);
+	// gamma of segment (if not set) taken as average from the vertices
+	float4 gGam = make_float4(0.0f, 0.0f, 0.0f, oldGGam[index].w);
+
+	const bool calcGam = gGam.w < 1e-5f;
 
 	// Square of sound speed. Would need modification for multifluid
 	const float sqC0 = d_sqC0[fluid_num(info)];
 
 	const float4 normal = tex1Dfetch(boundTex, index);
 
-	// Loop over all the neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+
+	const float4 pos = oldPos[index];
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum;
+	uint neib_cell_base_index;
+	float3 pos_corr;
+	idx_t i;
+
+	// Loop over VERTEX neighbors.
+	// TODO this is only needed
+	// (1) to compute gamma
+	// (2) to compute the velocity for boundary of moving objects
+	// (3) to compute the eulerian velocity for non-IO boundaries in the KEPS case
+	neib_cellnum = 0;
+	neib_cell_base_index = 0;
+	i = (d_neibboundpos + 1)*d_neiblist_stride;
+	while (true) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
+		i += d_neiblist_stride;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = pos_corr - oldPos[neib_index];
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		if (verts.x == id(neib_info) || verts.y == id(neib_info) || verts.z == id(neib_info)) {
+			if (MOVING(info)) {
+				const float4 neib_vel = oldVel[neib_index];
+				vel.x = neib_vel.x;
+				vel.y = neib_vel.y;
+				vel.z = neib_vel.z;
+			}
+			if (calcGam)
+				gGam += oldGGam[neib_index];
+			if (!IO_BOUNDARY(info) && oldTKE)
+				eulerVel += oldEulerVel[neib_index];
+		}
+	}
+
+	// finalize gamma computation and store it
+	if (calcGam) {
+		gGam /= 3;
+		oldGGam[index] = gGam;
+		gGam.w = fmaxf(gGam.w, 1e-5f);
+	}
+	// finalize velocity computation. we only store it later though, because the rest of this
+	// kernel may compute vel.w
+	vel.x /= 3;
+	vel.y /= 3;
+	vel.z /= 3;
+
+
+	// Loop over FLUID neighbors
+	neib_cellnum = 0;
+	neib_cell_base_index = 0;
+	i = 0;
+	while (true) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == NEIBS_END) break;
+		i += d_neiblist_stride;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -391,24 +472,125 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		const float r = length(as_float3(relPos));
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && FLUID(neib_info)){
-			const float neib_rho = oldVel[neib_index].w;
-			const float neib_pres = P(neib_rho, fluid_num(neib_info));
+		if ( !(r < influenceradius && dot3(normal, relPos) < 0.0f) )
+			continue;
 
-			// kernel value times volume
-			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
-			// normal distance based on grad Gamma which approximates the normal of the domain
-			const float normDist = fmax(fabs(dot3(normal,relPos)), deltap);
-			sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
-			// for all boundaries we have dk/dn = 0
-			alpha += w;
+		const float neib_rho = oldVel[neib_index].w;
+		const float neib_pres = P(neib_rho, fluid_num(neib_info));
+
+		const float neib_vel = length(make_float3(oldVel[neib_index]));
+		const float neib_k = oldTKE ? oldTKE[neib_index] : NAN;
+		const float neib_eps = oldEps ? oldEps[neib_index] : NAN;
+
+		// kernel value times volume
+		const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
+
+		// normal distance based on grad Gamma which approximates the normal of the domain
+		const float normDist = fmax(fabs(dot3(normal,relPos)), deltap);
+
+		sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
+
+		// for all boundaries we have dk/dn = 0
+		sumtke += w*neib_k;
+
+		if (IO_BOUNDARY(info)) {
+			sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
+			// for open boundaries compute pressure interior state
+			//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+			sump += w*fmaxf(0.0f, neib_pres);
+			// and de/dn = 0
+			sumeps += w*neib_eps;
+		} else {
+			// for solid boundaries we have de/dn = c_mu^(3/4)*4*k^(3/2)/(\kappa r)
+			// the constant is coming from 4*powf(0.09,0.75)/0.41
+			sumeps += w*(neib_eps + 1.603090412f*powf(neib_k,1.5f)/normDist);
 		}
+
+		alpha += w;
 	}
 
-	alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
-	// density condition
-	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
+	if (IO_BOUNDARY(info)) {
+		if (alpha > 0.1f*gGam.w) { // note: defaults are set in the place where bcs are imposed
+			sumvel /= alpha;
+			sump /= alpha;
+			vel.w = RHO(sump, fluid_num(info));
+			// TODO simplify branching
+			if (VEL_IO(info)) {
+				// for velocity imposed boundaries we impose k and epsilon
+				if (oldTKE)
+					oldTKE[index] = tke;
+				if (oldEps)
+					oldEps[index] = eps;
+			} else {
+				oldEulerVel[index] = make_float4(0.0f);
+				// for pressure imposed boundaries we take dk/dn = 0
+				if (oldTKE)
+					oldTKE[index] = sumtke/alpha;
+				// for pressure imposed boundaries we have de/dn = 0
+				if (oldEps)
+					oldEps[index] = sumeps/alpha;
+			}
+		} else {
+			sump = 0.0f;
+			if (VEL_IO(info)) {
+				sumvel = as_float3(eulerVel);
+				vel.w = d_rho0[fluid_num(info)];
+			} else {
+				sumvel = make_float3(0.0f);
+				// TODO FIXME this is the logic in master, but there's something odd about this,
+				// cfr assignments below [*]
+				vel.w = oldEulerVel[index].w;
+				oldEulerVel[index] = make_float4(0.0f, 0.0f, 0.0f, vel.w);
+			}
+			if (oldTKE)
+				oldTKE[index] = 1e-6f;
+			if (oldEps)
+				oldEps[index] = 1e-6f;
+		}
 
+		// compute Riemann invariants for open boundaries
+		const float unInt = dot(sumvel, as_float3(normal));
+		const float unExt = dot3(eulerVel, normal);
+		const float rhoInt = oldVel[index].w;
+		const float rhoExt = eulerVel.w;
+
+		calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, as_float3(normal));
+
+		// TODO FIXME cfr assignes above [*]
+		oldEulerVel[index] = eulerVel;
+		// the density of the particle is equal to the "eulerian density"
+		vel.w = eulerVel.w;
+
+	} else {
+		// non-open boundaries
+		alpha = fmaxf(alpha, 0.1f*gGam.w); // avoid division by 0
+		// density condition
+		vel.w = RHO(sumpWall/alpha,fluid_num(info));
+		// k-epsilon boundary conditions
+		if (oldTKE) {
+			// k condition
+			oldTKE[index] = sumtke/alpha;
+			// average eulerian velocity on the wall (from associated vertices)
+			eulerVel /= 3.0f;
+			// ensure that velocity is normal to segment normal
+			eulerVel -= dot3(eulerVel,normal)*normal;
+			oldEulerVel[index] = eulerVel;
+		}
+		// if k-epsilon is not used but oldEulerVel is present (for open boundaries) set it to 0
+		else if (oldEulerVel)
+			oldEulerVel[index] = make_float4(0.0f);
+		// epsilon condition
+		if (oldEps)
+			// for solid boundaries we have de/dn = 4 0.09^0.075 k^1.5/(0.41 r)
+			oldEps[index] = fmaxf(sumeps/alpha,1e-5f); // eps should never be 0
+	}
+
+
+	// store recomputed velocity + pressure
+	oldVel[index] = vel;
+
+	// TODO FIXME splitneibs merge: master here had the code for FLUID particles moving through IO
+	// segments
 }
 
 /// Normal computation for vertices in the initialization phase
