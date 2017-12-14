@@ -480,10 +480,12 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	float3 pos_corr;
 
 	// loop over all the neighbors
+	// TODO FIXME splitneibs : correctly iterate over all particle types OR
+	// filter based on particle type (only FLUID, BOUNDARY only for DYN?)
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = params.neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, params.cellStart,
 				neib_data, gridPos, neib_cellnum, neib_cell_base_index);
@@ -632,10 +634,12 @@ densityGrenierDevice(
 	bool has_fluid_neibs = false;
 
 	// Loop over all neighbors
+	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on BOUNDARY
+	// particles, with the latter only in the DYN case.
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 			neib_cellnum, neib_cell_base_index);
@@ -765,6 +769,8 @@ shepardDevice(	const float4*	posArray,
 	float3 pos_corr;
 
 	// Loop over all the neighbors
+	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on BOUNDARY
+	// particles, with the latter only in the DYN case.
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
@@ -871,6 +877,8 @@ MlsDevice(	const float4*	posArray,
 	float3 pos_corr;
 
 	// First loop over all neighbors
+	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on BOUNDARY
+	// particles, with the latter only in the DYN case.
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
@@ -974,6 +982,8 @@ MlsDevice(	const float4*	posArray,
 	vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
 
 	// Loop over all the neighbors (Second loop)
+	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on BOUNDARY
+	// particles, with the latter only in the DYN case.
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 

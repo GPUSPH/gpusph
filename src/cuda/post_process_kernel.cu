@@ -90,27 +90,19 @@ calcVortDevice(	const	float4*		posArray,
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
-	// First loop over all neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	// First loop over all FLUID neighbors
+	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-		const float4 relPos = pos_corr - posArray[neib_index];
+			posArray[neib_index]
 		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			tex1Dfetch(posTex, neib_index)
 		#endif
+			);
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -124,7 +116,7 @@ calcVortDevice(	const	float4*		posArray,
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// Compute vorticity
-		if (r < influenceradius && FLUID(neib_info)) {
+		if (r < influenceradius) {
 			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// ∂Wij/∂r*Vj
 			// vxij = vxi - vxj and same for vyij and vzij
 			vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
@@ -184,6 +176,8 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	float3 pos_corr;
 
 	// First loop over all neighbors
+	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on VERTEX
+	// particles, with the latter only in the SA case.
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
@@ -303,6 +297,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	float3 pos_corr;
 
 	// First loop over all neighbors
+	// TODO FIXME splitneibs : correctly iterate over all particle types
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
@@ -358,6 +353,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	neib_cell_base_index = 0;
 
 	// loop over all the neighbors (Second loop)
+	// TODO FIXME splitneibs : correctly iterate over all particle types
 	int nc = 0;
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
@@ -415,6 +411,8 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 //! Compute a private variable
 /*!
  This function computes an arbitrary passive array. It can be used for debugging purposes or passive scalars
+
+ \todo this should be defined by the problem, not here
 */
 __global__ void
 calcPrivateDevice(	const	float4*		pos_array,
@@ -448,6 +446,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 		priv[index] = 0;
 
 		// Loop over all the neighbors
+		// TODO FIXME splitneibs : correctly iterate over all particle types
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 

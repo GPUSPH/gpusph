@@ -389,31 +389,17 @@ saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum;
-	uint neib_cell_base_index;
-	float3 pos_corr;
-	idx_t i;
 
 	// Loop over VERTEX neighbors.
 	// TODO this is only needed
 	// (1) to compute gamma
 	// (2) to compute the velocity for boundary of moving objects
 	// (3) to compute the eulerian velocity for non-IO boundaries in the KEPS case
-	neib_cellnum = 0;
-	neib_cell_base_index = 0;
-	i = (d_neibboundpos + 1)*d_neiblist_stride;
-	while (true) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-		i += d_neiblist_stride;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	for_each_neib(PT_VERTEX, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = pos_corr - oldPos[neib_index];
+		const float4 relPos = neib_iter.relPos(oldPos[neib_index]);
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -441,6 +427,7 @@ saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
 		oldGGam[index] = gGam;
 		gGam.w = fmaxf(gGam.w, 1e-5f);
 	}
+
 	// finalize velocity computation. we only store it later though, because the rest of this
 	// kernel may compute vel.w
 	vel.x /= 3;
@@ -449,21 +436,12 @@ saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
 
 
 	// Loop over FLUID neighbors
-	neib_cellnum = 0;
-	neib_cell_base_index = 0;
-	i = 0;
-	while (true) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-		i += d_neiblist_stride;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = pos_corr - oldPos[neib_index];
+		const float4 relPos = neib_iter.relPos(oldPos[neib_index]);
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -639,21 +617,9 @@ computeVertexNormal(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
 	// Loop over all BOUNDARY neighbors
-	idx_t i = d_neibboundpos*d_neiblist_stride;
-	while (true) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-		i -= d_neiblist_stride;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 		const particleinfo neib_info = pinfo[neib_index];
 
 		// Skip this neighboring boundary element if it's not in the same boundary
@@ -741,24 +707,11 @@ initGamma(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
 	// Iterate over all BOUNDARY neighbors
-	idx_t i = d_neibboundpos*d_neiblist_stride;
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
-	while (true) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-		i -= d_neiblist_stride;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
-
-		const float3 relPos = pos_corr - as_float3(oldPos[neib_index]);
+		const float3 relPos = as_float3(neib_iter.relPos(oldPos[neib_index]));
 
 		if (length(relPos) > influenceradius + deltap*0.5f)
 			continue;
@@ -844,30 +797,22 @@ initIOmass_vertexCount(
 		return;
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
 	uint vertexCount = 0;
 
 	const float4 pos = make_float4(0.0f); // we don't need pos, so let's just set it to 0
-	float3 pos_corr;
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	uint neibVertIds[MAXNEIBVERTS];
 	uint neibVertIdsCount=0;
 
-	// Loop over all the neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	// Loop over all BOUNDARY neighbors
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
 		const particleinfo neib_info = pinfo[neib_index];
 
-		// only boundary neighbours as we need to count the vertices that belong to the same segment as our vertex particle
-		if (BOUNDARY(neib_info) && IO_BOUNDARY(neib_info)) {
+		// only IO boundary neighbours as we need to count the vertices that belong to the same segment as our vertex particle
+		if (IO_BOUNDARY(neib_info)) {
 
 			// prepare ids of neib vertices
 			const vertexinfo neibVerts = vertices[neib_index];
@@ -892,22 +837,11 @@ initIOmass_vertexCount(
 		}
 	}
 
-	neib_cellnum = 0;
-	neib_cell_base_index = 0;
-
-	// Loop over all the neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	// Loop over all VERTEX neighbors
+	for_each_neib(PT_VERTEX, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
 		const particleinfo neib_info = pinfo[neib_index];
-
-		if (!VERTEX(neib_info))
-			continue;
 
 		for (uint j = 0; j<neibVertIdsCount; j++) {
 			if (id(neib_info) == neibVertIds[j] && !CORNER(neib_info))
@@ -948,11 +882,6 @@ initIOmass(
 	if (!(VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info)))
 		return;
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	// does this vertex get or donate mass; decided by the id of a vertex particle
@@ -969,59 +898,42 @@ initIOmass(
 	uint neibVertIds[MAXNEIBVERTS];
 	uint neibVertIdsCount=0;
 
-	// Loop over all the neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	// Loop over all BOUNDARY neighbors
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
 		const particleinfo neib_info = pinfo[neib_index];
 
-		// only boundary neighbours as we need to count the vertices that belong to the same segment as our vertex particle
-		if (BOUNDARY(neib_info) && IO_BOUNDARY(neib_info)) {
+		// only IO boundary neighbours as we need to count the vertices that belong to the same segment as our vertex particle
+		if (!IO_BOUNDARY(neib_info))
+			continue;
 
-			// prepare ids of neib vertices
-			const vertexinfo neibVerts = vertices[neib_index];
+		// prepare ids of neib vertices
+		const vertexinfo neibVerts = vertices[neib_index];
 
-			// only check adjacent boundaries
-			if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
-				// check if we don't have the current vertex
-				if (id(info) != neibVerts.x) {
-					neibVertIds[neibVertIdsCount] = neibVerts.x;
-					neibVertIdsCount+=1;
-				}
-				if (id(info) != neibVerts.y) {
-					neibVertIds[neibVertIdsCount] = neibVerts.y;
-					neibVertIdsCount+=1;
-				}
-				if (id(info) != neibVerts.z) {
-					neibVertIds[neibVertIdsCount] = neibVerts.z;
-					neibVertIdsCount+=1;
-				}
+		// only check adjacent boundaries
+		if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
+			// check if we don't have the current vertex
+			if (id(info) != neibVerts.x) {
+				neibVertIds[neibVertIdsCount] = neibVerts.x;
+				neibVertIdsCount+=1;
 			}
-
+			if (id(info) != neibVerts.y) {
+				neibVertIds[neibVertIdsCount] = neibVerts.y;
+				neibVertIdsCount+=1;
+			}
+			if (id(info) != neibVerts.z) {
+				neibVertIds[neibVertIdsCount] = neibVerts.z;
+				neibVertIdsCount+=1;
+			}
 		}
 	}
 
-	neib_cellnum = 0;
-	neib_cell_base_index = 0;
-
-	// Loop over all the neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	// Loop over all VERTEX neighbors
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
 		const particleinfo neib_info = pinfo[neib_index];
-
-		if (!VERTEX(neib_info))
-			continue;
 
 		for (uint j = 0; j<neibVertIdsCount; j++) {
 			if (id(neib_info) == neibVertIds[j]) {
@@ -1134,6 +1046,7 @@ saVertexBoundaryConditions(
 	idx_t i = 0;
 
 	// Loop over all the neighbors
+	// TODO FIXME splitneibs merge : check logic against master
 	while (true) {
 		neibdata neib_data = neibsList[i + index];
 
@@ -1200,27 +1113,17 @@ saIdentifyCornerVertices(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
 	const uint vid = id(info);
 
-	// Loop over all the neighbors
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == 0xffff) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	// Loop over all BOUNDARY neighbors
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
 		const particleinfo neib_info = pinfo[neib_index];
 		const uint neib_obj = object(neib_info);
 
 		// loop only over boundary elements that are not of the same open boundary
-		if (BOUNDARY(neib_info) && !(obj == neib_obj && IO_BOUNDARY(neib_info))) {
+		if (!(obj == neib_obj && IO_BOUNDARY(neib_info))) {
 			// check if the current vertex is part of the vertices of the segment
 			if (vertices[neib_index].x == vid ||
 				vertices[neib_index].y == vid ||

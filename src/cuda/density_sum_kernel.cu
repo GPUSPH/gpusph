@@ -241,19 +241,9 @@ computeDensitySumBoundaryTerms(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
-	// Loop over boundary neighbors
-	for (idx_t i = d_neibboundpos*d_neiblist_stride; i > 0; i -= d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(posN, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	// Loop over BOUNDARY neighbors
+	for_each_neib(PT_BOUNDARY, index, posN, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 		const particleinfo neib_info = pinfo[neib_index];
 
 		const float4 posN_neib = oldPos[neib_index];
@@ -263,9 +253,9 @@ computeDensitySumBoundaryTerms(
 		const float4 posNp1_neib = newPos[neib_index];
 
 		// vector r_{ab} at time N
-		const float4 qN = (pos_corr - posN_neib)/slength;
+		const float4 qN = neib_iter.relPos(posN_neib)/slength;
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-		const float4 qNp1 = (make_float4(pos_corr) + posNp1 - posN - posNp1_neib)/slength;
+		const float4 qNp1 = (neib_iter.relPos(posN) + posNp1 - posNp1_neib)/slength;
 
 		// normal of segment
 		const float3 ns = as_float3(boundElement[neib_index]);

@@ -3003,21 +3003,12 @@ forcesDevice(
 
 		/* And finally the neighbors list traversal support */
 
-		// Persistent variables across getNeibData calls
-		char neib_cellnum = 0;
-		uint neib_cell_base_index = 0;
-		float3 pos_corr;
-
 		// Under some conditions, some particles might want to skip the
 		// neighbor list traversal. This is checked by the check() function of
 		// the skip_neiblist struct. Any action that needs to be done then is
 		// done by the prepare() function in the same struct.
-		// Setting the neib list iterator counter i to d_neiblist_end to
-		// actually skip the neib list traversal is done in here rather than
-		// in the prepare() function.
 
 		skip_neiblist<boundarytype, cptype, nptype> skip;
-		idx_t i = 0;
 
 		bool cont = true;
 		if (skip.check(params, pdata)) {
@@ -3025,28 +3016,19 @@ forcesDevice(
 			cont = false; // Skip neighbors loop
 		}
 
-		// Loop over all neighbors
-		if (nptype == PT_BOUNDARY)
-			i = d_neibboundpos *d_neiblist_stride;
-		else if (nptype == PT_VERTEX)
-			i = (d_neibboundpos + 1)*d_neiblist_stride;
-
-		while (cont) {
-			neibdata neib_data = params.neibsList[i + index];
-
-			if (neib_data == NEIBS_END) break;
-			i += (nptype == PT_BOUNDARY) ? -d_neiblist_stride : d_neiblist_stride;
-
-			const uint neib_index = getNeibIndex(pdata.pos, pos_corr, params.cellStart,
-				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
+		// Loop over all neighbors of type nptype
+		if (cont) for_each_neib(nptype, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
 			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
 			#if PREFER_L1
-			const float4 relPos = pos_corr - params.posArray[neib_index];
+				params.posArray[neib_index]
 			#else
-			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+				tex1Dfetch(posTex, neib_index)
 			#endif
+				);
 
 			// Skip inactive particles
 			if (INACTIVE(relPos))
