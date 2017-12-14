@@ -108,3 +108,14 @@ public:
 		i(neib_list_start<ptype>())
 	{}
 };
+
+/// A practical macro to iterate over all neighbours of a given type
+/*! This instantiates a neiblist_iterator of the proper type, called neib_iter,
+ *  in the scope of a for () that terminates when there are no more neighbors of the
+ *  given type.
+ */
+#define for_each_neib(ptype, index, pos, gridPos, cellStart, neibsList) \
+	for ( \
+		neiblist_iterator<ptype> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
+		neib_iter.next() ; \
+	)
