@@ -1753,7 +1753,7 @@ void GPUSPH::buildNeibList()
 
 	// scan and check the peak number of neighbors and the estimated number of interactions
 	static const uint maxPossibleFluidBoundaryNeibs = problem->simparams()->neibboundpos;
-	static const uint maxPossibleVertexNeibs = problem->simparams()->neiblistsize - problem->simparams()->neibboundpos - 2;
+	static const uint maxPossibleVertexNeibs = problem->simparams()->boundarytype == SA_BOUNDARY ? problem->simparams()->neiblistsize - problem->simparams()->neibboundpos - 2 : 0;
 	for (uint d = 0; d < gdata->devices; d++) {
 		const uint currDevMaxFluidBoundaryNeibs = gdata->timingInfo[d].maxFluidBoundaryNeibs;
 		const uint currDevMaxVertexNeibs = gdata->timingInfo[d].maxVertexNeibs;
