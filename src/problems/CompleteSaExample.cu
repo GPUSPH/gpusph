@@ -50,7 +50,7 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 
 	// *** Initialization of minimal simulation parameters
-	resize_neiblist(256 + 64, 32); // 352
+	resize_neiblist(256 + 64, 128); // 352
 	// ferrari correction
 	simparams()->ferrariLengthScale = 0.25f;
 
