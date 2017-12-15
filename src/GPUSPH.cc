@@ -2060,12 +2060,13 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(SA_COMPUTE_VERTEX_NORMAL);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+
 			// compute initial value of gamma for fluid and vertices
 			doCommand(SA_INIT_GAMMA);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
+			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 		}
 
 		// identify all the corner vertex particles
