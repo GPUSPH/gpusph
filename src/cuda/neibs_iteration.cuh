@@ -26,6 +26,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <tuple>
+
 /** \addtogroup neibs_iteration Neighbor list iteration functions
  *  \ingroup neibs
  *  Templatized functions to iterate over neighbors of a given kind.
@@ -58,6 +60,10 @@ constexpr idx_t neib_list_step() {
 	return ptype == PT_BOUNDARY ? -d_neiblist_stride : d_neiblist_stride;
 }
 
+/// Base neighbor list traversal class
+/*! This class holds the variables and methods common to all
+ *  neighbor list traversal iterator classes
+ */
 class neiblist_iterator_core
 {
 protected:
@@ -74,7 +80,7 @@ protected:
 	float3 pos_corr;
 	idx_t i;
 
-	uint _neib_index;
+	uint _neib_index; ///< index of the current neighbor
 
 	__device__ __forceinline__
 	void update_neib_index(neibdata neib_data)
@@ -90,6 +96,10 @@ public:
 		return _neib_index;
 	}
 
+	/// Compute the relative distance to a neighbor with the given local position
+	/*! The neighbor position should be local to the current neighbor cell being
+	 *  traversed.
+	 */
 	__device__ __forceinline__
 	float4 relPos(float4 const& neibPos) const {
 		return pos_corr - neibPos;
@@ -106,12 +116,17 @@ public:
 	{}
 };
 
-template<ParticleType ptype>
-class neiblist_iterator_base :
+/// Iterator class to traverse the neighbor list for a specific type
+template<ParticleType _ptype>
+class neiblist_iterator :
+	// Note the _virtual_ dependency from the core: this will allow
+	// multiple neiblist_iterators to be subclassed together, sharing
+	// a single core
 	virtual public neiblist_iterator_core
 {
 protected:
 	using core = neiblist_iterator_core;
+	static constexpr ParticleType ptype = _ptype;
 
 public:
 	__device__ __forceinline__
@@ -130,27 +145,85 @@ public:
 	}
 
 	__device__ __forceinline__
-	neiblist_iterator_base(uint _index, float4 const& _pos, int3 const& _gridPos,
+	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
 		const uint *_cellStart, const neibdata *_neibsList) :
 		core(_index, _pos, _gridPos, _cellStart, _neibsList)
-	{}
+	{ reset(); }
 };
 
-template<ParticleType ptype>
-class neiblist_iterator :
-	public neiblist_iterator_base<ptype>
+/// Iterator class to traverse the neighbor list for more than one type.
+/*! The type-specific sections of the neighbor list are traversed
+ *  in the given order. e.g. neiblist_iterators<PT_FLUID, PT_BOUNDARY>
+ *  would first go through all fluid neighbors, and then through
+ *  all PT_BOUNDARY neighbors
+ */
+template<ParticleType ...ptypes>
+class neiblist_iterators :
+	// Subclass all relevant single-type neighbor list iterators.
+	// Due to the virtual subclassing of core, we'll only get
+	// a single shared core.
+	public neiblist_iterator<ptypes>...
 {
-	using base = neiblist_iterator_base<ptype>;
-	using core = typename base::core;
+	// A tuple of our base classes, allowing us to access
+	// individual type iterartos by positional index
+	using iterators = std::tuple<neiblist_iterator<ptypes>...>;
+	template<int i>
+	using iterator = typename std::tuple_element<i, iterators>::type;
+	using core = typename iterator<0>::core;
+
+	// Number of types
+	enum { size = sizeof...(ptypes) };
+
+	// Current type
+	ParticleType current_type;
+
+	// Switch to next type:
+	// this selects the next type and resets the corresponding
+	// iterator
+	template<ParticleType _next, ParticleType ...other_types>
+	__device__ __forceinline__
+	void next_type()
+	{
+		current_type = _next;
+		neiblist_iterator<_next>::reset();
+	}
+
+	// Get the next neighbor of the current type.
+	// If not found, switch to the next type and try again.
+	template<ParticleType try_type, ParticleType ...other_types>
+	__device__ __forceinline__
+	bool try_next(ParticleType current) {
+		if (try_type == current) {
+			if (neiblist_iterator<try_type>::next())
+				return true;
+			next_type<other_types...>();
+		}
+		return try_next<other_types...>(current);
+	}
+
+	// For the last type, just return whatever the next neighbor is
+	// (or none if we're done)
+	template<ParticleType try_type>
+	__device__ __forceinline__
+	bool try_next(ParticleType current) {
+		return neiblist_iterator<try_type>::next();
+	}
+
 
 public:
 	__device__ __forceinline__
-	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
+	bool next() {
+		return try_next<ptypes...>(current_type);
+	}
+
+	__device__ __forceinline__
+	neiblist_iterators(uint _index, float4 const& _pos, int3 const& _gridPos,
 		const uint *_cellStart, const neibdata *_neibsList) :
 		core(_index, _pos, _gridPos, _cellStart, _neibsList),
-		base(_index, _pos, _gridPos, _cellStart, _neibsList)
+		neiblist_iterator<ptypes>(_index, _pos, _gridPos, _cellStart, _neibsList)...,
+		current_type(iterator<0>::ptype)
 	{
-		this->reset();
+		iterator<0>::reset();
 	}
 };
 
@@ -164,5 +237,21 @@ public:
 		neiblist_iterator<ptype> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
 		neib_iter.next() ; \
 	)
+
+#define for_each_neib2(ptype1, ptype2, index, pos, gridPos, cellStart, neibsList) \
+	for ( \
+		neiblist_iterators<ptype1, ptype2> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
+		neib_iter.next() ; \
+	)
+
+#define for_each_neib3(ptype1, ptype2, ptype3, index, pos, gridPos, cellStart, neibsList) \
+	for ( \
+		neiblist_iterators<ptype1, ptype2, ptype3> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
+		neib_iter.next() ; \
+	)
+
+/// Specialization of for_each_neib3 in 'standard order' (FLUID, BOUNDARY, VERTEX)
+#define for_every_neib(index, pos, gridPos, cellStart, neibsList) \
+	for_each_neib3(PT_FLUID, PT_BOUNDARY, PT_VERTEX)
 
 /* vim: set ft=cuda: */
