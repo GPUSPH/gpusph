@@ -468,3 +468,5 @@ Gamma<WENDLAND, PT_VERTEX>(
 	gamma_as = gamma_vs + gamma_as;
 	return gamma_as;
 }
+
+/* vim: set ft=cuda: */

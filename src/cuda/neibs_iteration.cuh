@@ -119,3 +119,5 @@ public:
 		neiblist_iterator<ptype> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
 		neib_iter.next() ; \
 	)
+
+/* vim: set ft=cuda: */
