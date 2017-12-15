@@ -2069,15 +2069,15 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 		}
 
-		// identify all the corner vertex particles
-		doCommand(SWAP_BUFFERS, BUFFER_INFO);
-		doCommand(IDENTIFY_CORNER_VERTICES);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
-		doCommand(SWAP_BUFFERS, BUFFER_INFO);
-
 		// modify particle mass on open boundaries
 		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+			// identify all the corner vertex particles
+			doCommand(SWAP_BUFFERS, BUFFER_INFO);
+			doCommand(IDENTIFY_CORNER_VERTICES);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
+			doCommand(SWAP_BUFFERS, BUFFER_INFO);
+
 			// first step: count the vertices that belong to IO and the same segment as each IO vertex
 			doCommand(INIT_IO_MASS_VERTEX_COUNT);
 			if (MULTI_DEVICE)
