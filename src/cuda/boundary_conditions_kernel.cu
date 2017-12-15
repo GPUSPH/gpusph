@@ -392,7 +392,7 @@ saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
 
 	// Loop over VERTEX neighbors.
 	// TODO this is only needed
-	// (1) to compute gamma
+	// (1) to compute gamma (i.e. init step or moving objects if they get too close)
 	// (2) to compute the velocity for boundary of moving objects
 	// (3) to compute the eulerian velocity for non-IO boundaries in the KEPS case
 	for_each_neib(PT_VERTEX, index, pos, gridPos, cellStart, neibsList) {
@@ -410,9 +410,9 @@ saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
 		if (verts.x == id(neib_info) || verts.y == id(neib_info) || verts.z == id(neib_info)) {
 			if (MOVING(info)) {
 				const float4 neib_vel = oldVel[neib_index];
-				vel.x = neib_vel.x;
-				vel.y = neib_vel.y;
-				vel.z = neib_vel.z;
+				vel.x += neib_vel.x;
+				vel.y += neib_vel.y;
+				vel.z += neib_vel.z;
 			}
 			if (calcGam)
 				gGam += oldGGam[neib_index];
@@ -436,6 +436,10 @@ saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
 
 
 	// Loop over FLUID neighbors
+	// TODO this is only needed
+	// (0) sumPwall _always_
+	// (1) k-epsilon in TKE case
+	// (2) in IO case, to compute velocity and pressure against wall
 	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
