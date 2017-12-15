@@ -407,7 +407,7 @@ saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
 
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (verts.x == id(neib_info) || verts.y == id(neib_info) || verts.z == id(neib_info)) {
+		if (has_vertex(verts, id(neib_info))) {
 			if (MOVING(info)) {
 				const float4 neib_vel = oldVel[neib_index];
 				vel.x += neib_vel.x;
@@ -639,7 +639,7 @@ computeVertexNormal(
 		const float4 boundElement = boundelement[neib_index];
 
 		// check if vertex is associated with this segment
-		if (neib_verts.x == our_id || neib_verts.y == our_id || neib_verts.z == our_id) {
+		if (has_vertex(neib_verts, our_id)) {
 			// in the initial step we need to compute an approximate grad gamma direction
 			// for the computation of gamma, in general we need a sort of normal as well
 			// for open boundaries to decide whether or not particles are created at a
@@ -822,7 +822,7 @@ initIOmass_vertexCount(
 			const vertexinfo neibVerts = vertices[neib_index];
 
 			// only check adjacent boundaries
-			if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
+			if (has_vertex(neibVerts, id(info))) {
 				// check if we don't have the current vertex
 				if (id(info) != neibVerts.x) {
 					neibVertIds[neibVertIdsCount] = neibVerts.x;
@@ -916,7 +916,7 @@ initIOmass(
 		const vertexinfo neibVerts = vertices[neib_index];
 
 		// only check adjacent boundaries
-		if (neibVerts.x == id(info) || neibVerts.y == id(info) || neibVerts.z == id(info)) {
+		if (has_vertex(neibVerts, id(info))) {
 			// check if we don't have the current vertex
 			if (id(info) != neibVerts.x) {
 				neibVertIds[neibVertIdsCount] = neibVerts.x;
@@ -1117,8 +1117,6 @@ saIdentifyCornerVertices(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	const uint vid = id(info);
-
 	// Loop over all BOUNDARY neighbors
 	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
 		const uint neib_index = neib_iter.neib_index();
@@ -1129,9 +1127,7 @@ saIdentifyCornerVertices(
 		// loop only over boundary elements that are not of the same open boundary
 		if (!(obj == neib_obj && IO_BOUNDARY(neib_info))) {
 			// check if the current vertex is part of the vertices of the segment
-			if (vertices[neib_index].x == vid ||
-				vertices[neib_index].y == vid ||
-				vertices[neib_index].z == vid) {
+			if (has_vertex(vertices[neib_index], id(info))) {
 				SET_FLAG(info, FG_CORNER);
 				pinfo[index] = info;
 				break;
