@@ -97,6 +97,29 @@ typedef uint4 vertexinfo;
 /// Definition of the shortcut make_vertexinfo
 #define make_vertexinfo make_uint4
 
+/// Check if a given ID can be found in the given vertex info
+constexpr __host__ __device__ __forceinline__ __attribute__((pure))
+bool has_vertex(
+	vertexinfo const& verts, ///< vertexinfo holding list of vertices
+	uint id			 ///< id of the particles to be checked
+	)
+{
+	return verts.x == id || verts.y == id || verts.z == id;
+}
+
+/// Return the index (0, 1 or 2) of the ID in the vertex list
+/** -1 is returned if the vertex is not in the list
+ */
+constexpr __host__ __device__ __forceinline__ __attribute__((pure))
+int local_vertex_index(
+	vertexinfo const& verts, ///< vertexinfo holding list of vertices
+	uint id			 ///< id of the particles to be checked
+	)
+{
+	return	verts.x == id ? 0 :
+		verts.y == id ? 1 :
+		verts.z == id ? 2 : -1;
+}
 
 /// Particle types
 /**	Enumeration defining the 4 basic particle types.
