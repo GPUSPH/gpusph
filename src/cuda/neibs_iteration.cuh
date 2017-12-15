@@ -58,8 +58,10 @@ constexpr idx_t neib_list_step() {
 	return ptype == PT_BOUNDARY ? -d_neiblist_stride : d_neiblist_stride;
 }
 
-template<ParticleType ptype>
-class neiblist_iterator {
+class neiblist_iterator_core
+{
+protected:
+
 	const	uint	index;		///< current particle index
 	float4	const&	pos;		///< current particle cell-relative position
 	int3	const&	gridPos;	///< current particle cell index
@@ -73,6 +75,14 @@ class neiblist_iterator {
 	idx_t i;
 
 	uint _neib_index;
+
+	__device__ __forceinline__
+	void update_neib_index(neibdata neib_data)
+	{
+		_neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+			neib_cellnum, neib_cell_base_index);
+	}
+
 public:
 
 	__device__ __forceinline__
@@ -86,27 +96,62 @@ public:
 	}
 
 	__device__ __forceinline__
+	neiblist_iterator_core(uint _index, float4 const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList) :
+		index(_index), pos(_pos), gridPos(_gridPos),
+		cellStart(_cellStart), neibsList(_neibsList),
+		neib_cellnum(0),
+		neib_cell_base_index(0),
+		pos_corr(make_float3(0.0f))
+	{}
+};
+
+template<ParticleType ptype>
+class neiblist_iterator_base :
+	virtual public neiblist_iterator_core
+{
+protected:
+	using core = neiblist_iterator_core;
+
+public:
+	__device__ __forceinline__
+	void reset()
+	{ i = neib_list_start<ptype>(); }
+
+	__device__ __forceinline__
 	bool next()
 	{
 		neibdata neib_data = neibsList[i + index];
 		if (neib_data == NEIBS_END) return false;
 		i += neib_list_step<ptype>();
 
-		_neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-			neib_cellnum, neib_cell_base_index);
+		update_neib_index(neib_data);
 		return true;
 	}
 
 	__device__ __forceinline__
+	neiblist_iterator_base(uint _index, float4 const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList) :
+		core(_index, _pos, _gridPos, _cellStart, _neibsList)
+	{}
+};
+
+template<ParticleType ptype>
+class neiblist_iterator :
+	public neiblist_iterator_base<ptype>
+{
+	using base = neiblist_iterator_base<ptype>;
+	using core = typename base::core;
+
+public:
+	__device__ __forceinline__
 	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
 		const uint *_cellStart, const neibdata *_neibsList) :
-		index(_index), pos(_pos), gridPos(_gridPos),
-		cellStart(_cellStart), neibsList(_neibsList),
-		neib_cellnum(0),
-		neib_cell_base_index(0),
-		pos_corr(make_float3(0.0f)),
-		i(neib_list_start<ptype>())
-	{}
+		core(_index, _pos, _gridPos, _cellStart, _neibsList),
+		base(_index, _pos, _gridPos, _cellStart, _neibsList)
+	{
+		this->reset();
+	}
 };
 
 /// A practical macro to iterate over all neighbours of a given type
