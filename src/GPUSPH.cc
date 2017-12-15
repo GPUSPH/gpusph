@@ -2127,7 +2127,8 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	gdata->only_internal = true;
 
-	doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
+	if (!(cFlag & INITIALIZATION_STEP))
+		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
 
 	// compute boundary conditions on segments and detect outgoing particles at open boundaries
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
