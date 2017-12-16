@@ -143,35 +143,9 @@ computeDensitySumVolumicTerms(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
-	idx_t i = 0;
-	bool fluid_done = false;
-
 	// Loop over fluid and vertex neighbors
-	while (true) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) {
-			if (fluid_done)
-				// if we hit this point loop over fluid and vertices has been completed
-				break;
-			else {
-				// finished loop over fluid particles
-				fluid_done = true;
-				// continue with vertex particles
-				i = (d_neibboundpos + 1)*d_neiblist_stride;
-				continue;
-			}
-		}
-
-		i += d_neiblist_stride;
-
-		const uint neib_index = getNeibIndex(posN, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+	for_each_neib2(PT_FLUID, PT_VERTEX, index, posN, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 		const particleinfo neib_info = pinfo[neib_index];
 
 		const float4 posN_neib = oldPos[neib_index];
@@ -183,9 +157,9 @@ computeDensitySumVolumicTerms(
 		const float4 posNp1_neib = newPos[neib_index];
 
 		// vector r_{ab} at time N
-		const float4 relPosN = pos_corr - posN_neib;
+		const float4 relPosN = neib_iter.relPos(posN_neib);
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-		const float4 relPosNp1 = make_float4(pos_corr) + posNp1 - posN - posNp1_neib;
+		const float4 relPosNp1 = neib_iter.relPos(posN) + posNp1 - posNp1_neib;
 
 		// -sum_{P\V_{io}} m^n w^n
 		if (!IO_BOUNDARY(neib_info)) {
