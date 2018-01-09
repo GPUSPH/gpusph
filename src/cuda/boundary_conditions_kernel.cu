@@ -653,6 +653,67 @@ computeVertexNormal(
 	boundelement[index] = make_float4(normalize(avgNorm), NAN);
 }
 
+/// Variables needed by both gradGamma() and Gamma() during gamma initialization
+struct InitGammaVars {
+	bool skip;
+	float3 normal; /* neighbor normal */
+	float3 q_vb[3]; /* normalized relative positions of vertices with respect to segment */
+	float3 q;
+
+	/// Prepare the variables needed by both gradGamma() and Gamma() during gamma initialization
+	template<typename NeibListIterator>
+	__device__
+	InitGammaVars(
+		NeibListIterator const& neib_iter,
+		const	float4*	oldPos,
+		const	float4*	boundElement,
+		const	float2*	vertPos0,
+		const	float2*	vertPos1,
+		const	float2*	vertPos2,
+		const	float	slength,
+		const	float	influenceradius,
+		const	float	deltap) :
+		skip(false)
+	{
+		const uint neib_index = neib_iter.neib_index();
+
+		const float3 relPos = as_float3(neib_iter.relPos(oldPos[neib_index]));
+
+		if (length(relPos) > influenceradius + deltap*0.5f) {
+			skip = true;
+			return;
+		}
+
+		normal = as_float3(boundElement[neib_index]);
+
+		// local coordinate system for relative positions to vertices
+		uint j = 0;
+		// Get index j for which n_s is minimal
+		if (fabsf(normal.x) > fabsf(normal.y))
+			j = 1;
+		if ((1-j)*fabsf(normal.x) + j*fabsf(normal.y) > fabsf(normal.z))
+			j = 2;
+
+		// compute the first coordinate which is a 2-D rotated version of the normal
+		const float3 coord1 = normalize(make_float3(
+					// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+					-((j==1)*normal.z) +  (j == 2)*normal.y , // -z if j == 1, y if j == 2
+					(j==0)*normal.z  - ((j == 2)*normal.x), // z if j == 0, -x if j == 2
+					-((j==0)*normal.y) +  (j == 1)*normal.x // -y if j == 0, x if j == 1
+					));
+		// the second coordinate is the cross product between the normal and the first coordinate
+		const float3 coord2 = cross(normal, coord1);
+
+		// relative positions of vertices with respect to the segment
+		q_vb[0] = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
+		q_vb[1] = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2)/slength;
+		q_vb[2] = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2)/slength;
+		q = relPos/slength;
+	}
+};
+
+
+
 /// Initializes gamma using quadrature formula
 /*! In the dynamic gamma case gamma is computed using a transport equation. Thus an initial value needs
  *	to be computed. In this kernel this value is determined using a numerical integration. As this integration
@@ -711,52 +772,42 @@ initGamma(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// the Gamma function needs the direction of the Gamma gradient, but we're
-	// computing the Gamma gradient in this same loop, so it's not available yet;
-	// we can use the vertex normal as initial approximation
-	const float3 gradGammaDir = make_float3(boundElement[index]);
+	// We compute both Gamma and gradGamma, but Gamma needs the direction of gradGamma,
+	// so we need to first compute gradGamma fully, and then compute Gamma.
+	// This requires two cycles over the neighbors, but since this function is only called
+	// once during initialization, the overall performance impact on the whole simulation
+	// is low.
+	// The only real downside is that the body of the two loops over the neighbors
+	// is nearly exactly the same, with only the final two lines being slightly different.
+	// The preparation is thus refactored in the constructor of the structure that holds
+	// the common variables.
 
-	// Iterate over all BOUNDARY neighbors
+
+	// Iterate over all BOUNDARY neighbors to compute the gamma gradient
 	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
-		const uint neib_index = neib_iter.neib_index();
-
-		const float3 relPos = as_float3(neib_iter.relPos(oldPos[neib_index]));
-
-		if (length(relPos) > influenceradius + deltap*0.5f)
+		const InitGammaVars gVar(neib_iter, oldPos, boundElement,
+			vertPos0, vertPos1, vertPos2,
+			slength, influenceradius, deltap);
+		if (gVar.skip)
 			continue;
 
-		const float3 normal = as_float3(boundElement[neib_index]);
+		const float ggamma_as = gradGamma<kerneltype>(slength, gVar.q, gVar.q_vb, gVar.normal);
+		gGam += ggamma_as*gVar.normal;
+	}
 
-		// local coordinate system for relative positions to vertices
-		uint j = 0;
-		// Get index j for which n_s is minimal
-		if (fabsf(normal.x) > fabsf(normal.y))
-			j = 1;
-		if ((1-j)*fabsf(normal.x) + j*fabsf(normal.y) > fabsf(normal.z))
-			j = 2;
+	// Iterate over all BOUNDARY neighbors to compute gamma
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+		const InitGammaVars gVar(neib_iter, oldPos, boundElement,
+			vertPos0, vertPos1, vertPos2,
+			slength, influenceradius, deltap);
+		if (gVar.skip)
+			continue;
 
-		// compute the first coordinate which is a 2-D rotated version of the normal
-		const float3 coord1 = normalize(make_float3(
-					// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-					-((j==1)*normal.z) +  (j == 2)*normal.y , // -z if j == 1, y if j == 2
-					(j==0)*normal.z  - ((j == 2)*normal.x), // z if j == 0, -x if j == 2
-					-((j==0)*normal.y) +  (j == 1)*normal.x // -y if j == 0, x if j == 1
-					));
-		// the second coordinate is the cross product between the normal and the first coordinate
-		const float3 coord2 = cross(normal, coord1);
+		/* these need to be mutable for gamma */
+		float3 q_vb[3] = { gVar.q_vb[0], gVar.q_vb[1], gVar.q_vb[2] };
 
-		// relative positions of vertices with respect to the segment
-		const float3 qva = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
-		const float3 qvb = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2)/slength;
-		const float3 qvc = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2)/slength;
-		float3 q_vb[3] = {qva, qvb, qvc};
-		const float3 q = relPos/slength;
-
-		const float ggamma_as = gradGamma<kerneltype>(slength, q, q_vb, normal);
-		gGam += ggamma_as*normal;
-
-		const float gamma_as = Gamma<kerneltype, cptype>(slength, q, q_vb, normal,
-					gradGammaDir, epsilon);
+		const float gamma_as = Gamma<kerneltype, cptype>(slength, gVar.q, q_vb, gVar.normal,
+					gGam, epsilon);
 		gam -= gamma_as;
 	}
 
