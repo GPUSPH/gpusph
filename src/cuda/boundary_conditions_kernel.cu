@@ -711,6 +711,11 @@ initGamma(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
+	// the Gamma function needs the direction of the Gamma gradient, but we're
+	// computing the Gamma gradient in this same loop, so it's not available yet;
+	// we can use the vertex normal as initial approximation
+	const float3 gradGammaDir = make_float3(boundElement[index]);
+
 	// Iterate over all BOUNDARY neighbors
 	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
 		const uint neib_index = neib_iter.neib_index();
@@ -751,7 +756,7 @@ initGamma(
 		gGam += ggamma_as*normal;
 
 		const float gamma_as = Gamma<kerneltype, cptype>(slength, q, q_vb, normal,
-					as_float3(newGGam[index]), epsilon);
+					gradGammaDir, epsilon);
 		gam -= gamma_as;
 	}
 
