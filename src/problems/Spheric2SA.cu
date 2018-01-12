@@ -37,7 +37,6 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 	resize_neiblist(128+64, 64);
 
 	// SPH parameters
-	simparams()->dt = 0.00004f;
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 1;
 	simparams()->nlexpansionfactor = 1.1;
