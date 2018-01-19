@@ -853,11 +853,13 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SE
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
 # compile program to list compute capabilities of installed devices.
-# Filter out -arch=sm_$(COMPUTE) from LDFLAGS becaus we already have it in CUFLAGS
-# and it being present twice causes complains from nvcc
+# Filter out all architecture specification flags (-arch=sm_*), since they
+# can cause the compiler to error out when the architecture is not supported
+# (for example too recent architectures on older compilers, or obsolete architectures
+# not supported in the most recent version of the SDK)
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cc
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) -Wno-deprecated-gpu-targets $(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) -Wno-deprecated-gpu-targets $(filter-out -arch=sm_%,$(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS)))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
 
 # create distdir
 $(DISTDIR):
