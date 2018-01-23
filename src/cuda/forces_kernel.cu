@@ -763,46 +763,35 @@ shepardDevice(	const float4*	posArray,
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
+	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
+	// DYN_BOUNDARY
+	// TODO: check with SA
+	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
+			index, pos, gridPos, cellStart, neibsList) {
 
-	// Loop over all the neighbors
-	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on BOUNDARY
-	// particles, with the latter only in the DYN case.
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-		const float4 relPos = pos_corr - posArray[neib_index];
+			posArray[neib_index]
 		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			tex1Dfetch(posTex, neib_index)
 		#endif
-
+			);
 
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// Skip inactive neighbors
-		if (INACTIVE(relPos)) {
+		if (INACTIVE(relPos))
 			continue;
-		}
 
 		const float r = length(as_float3(relPos));
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 
-		// Add neib contribution only if it's a fluid one
-		// TODO: check with SA
-		if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
-				&& r < influenceradius ) {
+		if (r < influenceradius ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
@@ -871,29 +860,24 @@ MlsDevice(	const float4*	posArray,
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
+	// First loop over neighbors
+	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
+	// DYN_BOUNDARY
+	// TODO: check with SA
+	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
+			index, pos, gridPos, cellStart, neibsList) {
 
-	// First loop over all neighbors
-	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on BOUNDARY
-	// particles, with the latter only in the DYN case.
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-		const float4 relPos = pos_corr - posArray[neib_index];
+			posArray[neib_index]
 		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			tex1Dfetch(posTex, neib_index)
 		#endif
+			);
 
 		// Skip inactive particles
 		if (INACTIVE(relPos))
@@ -905,8 +889,7 @@ MlsDevice(	const float4*	posArray,
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// Add neib contribution only if it's a fluid one
-		// TODO: check with SA
-		if (r < influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
+		if (r < influenceradius) {
 			neibs_num ++;
 			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
 
@@ -914,10 +897,6 @@ MlsDevice(	const float4*	posArray,
 			MlsMatrixContrib(mls, relPos/slength, w);
 		}
 	} // end of first loop trough neighbors
-
-	// Resetting persistent variables across getNeibData
-	neib_cellnum = 0;
-	neib_cell_base_index = 0;
 
 	// We want to compute B solution of M B = E where E =(1, 0, 0, 0) and
 	// M is our MLS matrix. M is symmetric, positive (semi)definite. Since we
@@ -981,24 +960,24 @@ MlsDevice(	const float4*	posArray,
 	// Taking into account self contribution in density summation
 	vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
 
-	// Loop over all the neighbors (Second loop)
-	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on BOUNDARY
-	// particles, with the latter only in the DYN case.
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
+	// Second loop over neighbors
+	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
+	// DYN_BOUNDARY
+	// TODO: check with SA
+	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
+			index, pos, gridPos, cellStart, neibsList) {
 
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-			neib_cellnum, neib_cell_base_index);
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-#if PREFER_L1
-		const float4 relPos = pos_corr - posArray[neib_index];
-#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-#endif
+		const float4 relPos = neib_iter.relPos(
+		#if PREFER_L1
+			posArray[neib_index]
+		#else
+			tex1Dfetch(posTex, neib_index)
+		#endif
+			);
 
 		// Skip inactive particles
 		if (INACTIVE(relPos))
