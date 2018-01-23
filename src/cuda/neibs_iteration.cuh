@@ -151,6 +151,30 @@ public:
 	{ reset(); }
 };
 
+/// Specialization for the PT_NONE case, used to skip iterating on neighbors
+/// in specific cases
+template<>
+class neiblist_iterator<PT_NONE> :
+	virtual public neiblist_iterator_core
+{
+protected:
+	using core = neiblist_iterator_core;
+	static constexpr ParticleType ptype = PT_NONE;
+
+public:
+	__device__ __forceinline__
+	void reset() {}
+
+	__device__ __forceinline__
+	bool next()
+	{ return false; }
+
+	__device__ __forceinline__
+	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList) :
+		core(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+};
+
 /// Iterator class to traverse the neighbor list for more than one type.
 /*! The type-specific sections of the neighbor list are traversed
  *  in the given order. e.g. neiblist_iterators<PT_FLUID, PT_BOUNDARY>

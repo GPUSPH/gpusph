@@ -131,7 +131,8 @@ enum ParticleType {
 	PT_FLUID = 0,	///< particle is a fluid one
 	PT_BOUNDARY,	///< particle belongs to a boundary
 	PT_VERTEX,		///< particle is a vertex
-	PT_TESTPOINT	///< particle is a testpoint
+	PT_TESTPOINT,	///< particle is a testpoint
+	PT_NONE			///< ficticious particle type used for optional termination of the neighbors list traversal
 };
 
 
