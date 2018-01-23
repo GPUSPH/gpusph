@@ -117,10 +117,6 @@ public:
 };
 
 /// Iterator class to traverse the neighbor list for a single type
-/*! This should be used whenever iterating on a single type,
- *  since the implementation has less state variables, which should help
- *  the compiler produce better code and use less registers.
- */
 template<ParticleType _ptype>
 class neiblist_iterator_simple :
 	// Note the _virtual_ dependency from the core: this will allow
@@ -256,6 +252,57 @@ public:
 	}
 };
 
+/// Specialization of neiblist_iterator for a single type
+/*! In this case we don't need anything else than what neiblist_iterator_simple provides,
+ *  so just depend directly from it.
+ */
+template<ParticleType ptype>
+class neiblist_iterator<ptype> : public neiblist_iterator_simple<ptype>
+{
+public:
+	using base = neiblist_iterator_simple<ptype>;
+	using core = typename base::core;
+
+	__device__ __forceinline__
+	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList) :
+		core(_index, _pos, _gridPos, _cellStart, _neibsList),
+		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+};
+
+/// Specialization of neiblist_iterator for a single type followed by PT_NONE
+/*! In this case too we can just depend directly on neiblist_iterator_simple
+ *  with no extra machinery.
+ */
+template<ParticleType ptype>
+class neiblist_iterator<ptype, PT_NONE> : public neiblist_iterator_simple<ptype>
+{
+public:
+	using base = neiblist_iterator_simple<ptype>;
+	using core = typename base::core;
+
+	__device__ __forceinline__
+	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList) :
+		core(_index, _pos, _gridPos, _cellStart, _neibsList),
+		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+};
+
+/// Specialization of neiblist_iterator to discard a final PT_NONE
+template<ParticleType ptype1, ParticleType ptype2>
+class neiblist_iterator<ptype1, ptype2, PT_NONE> : public neiblist_iterator<ptype1, ptype2>
+{
+public:
+	using base = neiblist_iterator<ptype1, ptype2>;
+	using core = typename base::core;
+
+	__device__ __forceinline__
+	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList) :
+		core(_index, _pos, _gridPos, _cellStart, _neibsList),
+		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+};
+
 /// A practical macro to iterate over all neighbours of a given type
 /*! This instantiates a neiblist_iterator of the proper type, called neib_iter,
  *  in the scope of a for () that terminates when there are no more neighbors of the
@@ -263,7 +310,7 @@ public:
  */
 #define for_each_neib(ptype, index, pos, gridPos, cellStart, neibsList) \
 	for ( \
-		neiblist_iterator_simple<ptype> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
+		neiblist_iterator<ptype> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
 		neib_iter.next() ; \
 	)
 
