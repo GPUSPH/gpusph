@@ -281,6 +281,6 @@ public:
 
 /// Specialization of for_each_neib3 in 'standard order' (FLUID, BOUNDARY, VERTEX)
 #define for_every_neib(index, pos, gridPos, cellStart, neibsList) \
-	for_each_neib3(PT_FLUID, PT_BOUNDARY, PT_VERTEX)
+	for_each_neib3(PT_FLUID, PT_BOUNDARY, PT_VERTEX, index, pos, gridPos, cellStart, neibsList)
 
 /* vim: set ft=cuda: */

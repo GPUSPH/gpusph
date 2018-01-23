@@ -622,10 +622,6 @@ densityGrenierDevice(
 	float mass_corr = pos.w*corr;
 
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
 
 	// For DYN_BOUNDARY particles, we compute sigma in the same way as fluid particles,
 	// except that if the boundary particle has no fluid neighbors we set its
@@ -633,26 +629,29 @@ densityGrenierDevice(
 	// the typical number of neighbors divided by the volume of the influence sphere
 	bool has_fluid_neibs = false;
 
-	// Loop over all neighbors
-	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on BOUNDARY
-	// particles, with the latter only in the DYN case.
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
+	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
+	// DYN_BOUNDARY
+	// TODO: check with SA
+	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
+			index, pos, gridPos, cellStart, neibsList) {
 
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-			neib_cellnum, neib_cell_base_index);
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
+		#if PREFER_L1
+			posArray[neib_index]
+		#else
+			tex1Dfetch(posTex, neib_index)
+		#endif
+			);
 
 		const particleinfo neib_info = infoArray[neib_index];
-		const float4 relPos = pos_corr - posArray[neib_index];
 		float r = length(as_float3(relPos));
 
 		/* Contributions only come from active particles within the influence radius
 		   that are fluid particles (or also non-fluid in DYN_BOUNDARY case).
-		   TODO check what to do with SA
 		   Sigma calculations uses all such particles, whereas smoothed mass
 		   only uses same-fluid particles.
 		   Note that this requires PT_BOUNDARY neighbors to be in the list for
@@ -662,8 +661,7 @@ densityGrenierDevice(
 		   the sigma from the closest fluid particle, but that would require
 		   two runs, one for fluid and one for neighbor particles.
 		 */
-		if (INACTIVE(relPos) || r >= influenceradius ||
-			((boundarytype != DYN_BOUNDARY) && NOT_FLUID(neib_info)))
+		if (INACTIVE(relPos) || r >= influenceradius)
 			continue;
 
 		const float w = W<kerneltype>(r, slength);

@@ -130,7 +130,8 @@ calcVortDevice(	const	float4*		posArray,
 
 
 //! Compute the values of velocity, density, k and epsilon at test points
-template<KernelType kerneltype>
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
 __global__ void
 calcTestpointsVelocityDevice(	const float4*	oldPos,
 								float4*			newVel,
@@ -170,39 +171,27 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	// Compute grid position of current particle
 	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
+	// First loop over FLUID and VERTEX neighbors (VERTEX only in SA case)
+	for_each_neib2(PT_FLUID, (boundarytype == SA_BOUNDARY ? PT_VERTEX : PT_NONE),
+			index, pos, gridPos, cellStart, neibsList) {
 
-	// First loop over all neighbors
-	// TODO FIXME splitneibs : this should be two loops, one on FLUID and one on VERTEX
-	// particles, with the latter only in the SA case.
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-		const float4 relPos = pos_corr - oldPos[neib_index];
+			posArray[neib_index]
 		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			tex1Dfetch(posTex, neib_index)
 		#endif
-
-		// skip inactive particles
-		if (INACTIVE(relPos))
-			continue;
+			);
 
 		const float r = length(as_float3(relPos));
 
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && (FLUID(neib_info) || VERTEX(neib_info))) {
+		if (r < influenceradius) {
 			const float4 neib_vel = tex1Dfetch(velTex, neib_index);
 			const float w = W<kerneltype>(r, slength)*relPos.w/neib_vel.w;	// Wij*mj
 			//Velocity
@@ -291,28 +280,20 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// self contribution to normalization: W(0)*vol
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w/tex1Dfetch(velTex, index).w;
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
 	// First loop over all neighbors
-	// TODO FIXME splitneibs : correctly iterate over all particle types
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
+	for_every_neib(index, pos, gridPos, cellStart, neibsList) {
 
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-		const float4 relPos = pos_corr - posArray[neib_index];
+			posArray[neib_index]
 		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			tex1Dfetch(posTex, neib_index)
 		#endif
+			);
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -346,30 +327,22 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 	const float normal_length = length3(normal);
 
-	// Second loop over all neighbors
-
-	// Resetting persistent variables across getNeibData
-	neib_cellnum = 0;
-	neib_cell_base_index = 0;
-
-	// loop over all the neighbors (Second loop)
-	// TODO FIXME splitneibs : correctly iterate over all particle types
 	int nc = 0;
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == NEIBS_END) break;
+	// Second loop over all neighbors
+	for_every_neib(index, pos, gridPos, cellStart, neibsList) {
 
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-		const float4 relPos = pos_corr - posArray[neib_index];
+			posArray[neib_index]
 		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			tex1Dfetch(posTex, neib_index)
 		#endif
+			);
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -438,31 +411,23 @@ calcPrivateDevice(	const	float4*		pos_array,
 		// Compute grid position of current particle
 		const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-		// Persistent variables across getNeibData calls
-		char neib_cellnum = 0;
-		uint neib_cell_base_index = 0;
-		float3 pos_corr;
-
 		priv[index] = 0;
 
 		// Loop over all the neighbors
-		// TODO FIXME splitneibs : correctly iterate over all particle types
-		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-			neibdata neib_data = neibsList[i + index];
+		for_every_neib(index, pos, gridPos, cellStart, neibsList) {
 
-			if (neib_data == NEIBS_END) break;
-
-			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-						neib_cellnum, neib_cell_base_index);
+			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
 			#if PREFER_L1
-			const float4 relPos = pos_corr - pos_array[neib_index];
+				posArray[neib_index]
 			#else
-			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+				tex1Dfetch(posTex, neib_index)
 			#endif
+				);
+
 			float r = length(as_float3(relPos));
 			if (r < inflRadius)
 				priv[index] += 1;

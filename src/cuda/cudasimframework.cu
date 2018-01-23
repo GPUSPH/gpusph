@@ -204,15 +204,15 @@ protected:
 	{
 		switch (pptype) {
 		case VORTICITY:
-			return new CUDAPostProcessEngine<VORTICITY, kerneltype, simflags>(options);
+			return new CUDAPostProcessEngine<VORTICITY, kerneltype, boundarytype, simflags>(options);
 		case TESTPOINTS:
-			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, simflags>(options);
+			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, simflags>(options);
 		case SURFACE_DETECTION:
-			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, simflags>(options);
+			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
 		case FLUX_COMPUTATION:
-			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, simflags>(options);
+			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>(options);
 		case CALC_PRIVATE:
-			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, simflags>(options);
+			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, boundarytype, simflags>(options);
 		case INVALID_POSTPROC:
 			throw runtime_error("Invalid filter type");
 		}
