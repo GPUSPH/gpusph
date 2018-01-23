@@ -181,7 +181,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 		// Now relPos is a float4 and neib mass is stored in relPos.w
 		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-			posArray[neib_index]
+			oldPos[neib_index]
 		#else
 			tex1Dfetch(posTex, neib_index)
 		#endif
@@ -388,7 +388,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
  \todo this should be defined by the problem, not here
 */
 __global__ void
-calcPrivateDevice(	const	float4*		pos_array,
+calcPrivateDevice(	const	float4*		posArray,
 							float*		priv,
 					const	hashKey*	particleHash,
 					const	uint*		cellStart,
@@ -401,7 +401,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 
 	if(index < numParticles) {
 		#if PREFER_L1
-		float4 pos = pos_array[index];
+		float4 pos = posArray[index];
 		#else
 		float4 pos = tex1Dfetch(posTex, index);
 		#endif
