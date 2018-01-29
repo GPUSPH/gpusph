@@ -130,8 +130,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simparams->simflags & ENABLE_DTADAPT) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
-		if (m_simparams->simflags & ENABLE_DENSITY_SUM)
-			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_DS>();
+		if (USING_DYNAMIC_GAMMA(m_simparams->simflags))
+			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
 		if (m_simparams->visctype == KEPSVISC)
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_KEPS>();
@@ -2018,7 +2018,7 @@ float GPUWorker::forces_dt_reduce()
 		sspeed_cfl,
 		max_kinematic,
 		bufwrite.getData<BUFFER_CFL>(),
-		bufwrite.getData<BUFFER_CFL_DS>(),
+		bufwrite.getData<BUFFER_CFL_GAMMA>(),
 		bufwrite.getData<BUFFER_CFL_KEPS>(),
 		bufwrite.getData<BUFFER_CFL_TEMP>(),
 		m_forcesKernelTotalNumBlocks);

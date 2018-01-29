@@ -550,7 +550,7 @@ dtreduce(	float	slength,
 			float	sspeed_cfl,
 			float	max_kinematic,
 			float	*cfl_forces,
-			float	*cfl_densitysum,
+			float	*cfl_gamma,
 			float	*cfl_keps,
 			float	*tempCfl,
 			uint	numBlocks)
@@ -560,8 +560,8 @@ dtreduce(	float	slength,
 	float maxcfl = cflmax(numBlocks, cfl_forces, tempCfl);
 	float dt = dtadaptfactor*fminf(sqrtf(slength/maxcfl), slength/sspeed_cfl);
 
-	if(simflags & ENABLE_DENSITY_SUM) {
-		maxcfl = fmaxf(cflmax(numBlocks, cfl_densitysum, tempCfl), 1e-5f/dt);
+	if (USING_DYNAMIC_GAMMA(simflags)) {
+		maxcfl = fmaxf(cflmax(numBlocks, cfl_gamma, tempCfl), 1e-5f/dt);
 		const float dt_gam = 0.001f/maxcfl;
 		if (dt_gam < dt)
 			dt = dt_gam;
@@ -645,7 +645,7 @@ basicstep(
 
 	float3 *keps_dkde = bufwrite->getData<BUFFER_DKDE>();
 	float *cfl_forces = bufwrite->getData<BUFFER_CFL>();
-	float *cfl_densitysum = bufwrite->getData<BUFFER_CFL_DS>();
+	float *cfl_gamma = bufwrite->getData<BUFFER_CFL_GAMMA>();
 	float *cfl_keps = bufwrite->getData<BUFFER_CFL_KEPS>();
 	float *tempCfl = bufwrite->getData<BUFFER_CFL_TEMP>();
 	float *DEDt = bufwrite->getData<BUFFER_INTERNAL_ENERGY_UPD>();
@@ -654,11 +654,10 @@ basicstep(
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemset(dgamdt + fromParticle, 0, numParticlesInRange*sizeof(float)));
-	//if (boundarytype == SA_BOUNDARY) {
-	//	thrust::device_ptr<float4> dev_ptr(newGGam);
-	//	thrust::fill(dev_ptr + fromParticle, dev_ptr + toParticle, make_float4(0, 0, 0, 1));
-	//}
+	if (dgamdt)
+		CUDA_SAFE_CALL(cudaMemset(dgamdt + fromParticle, 0, numParticlesInRange*sizeof(float)));
+	if (cfl_gamma)
+		CUDA_SAFE_CALL(cudaMemset(cfl_gamma + fromParticle, 0, numParticlesInRange*sizeof(float)));
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
@@ -678,7 +677,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, dgamdt, vertPos, epsilon,
+			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc,
 			DEDt);
@@ -690,7 +689,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, dgamdt, vertPos, epsilon,
+			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc,
 			DEDt);
@@ -703,7 +702,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, dgamdt, vertPos, epsilon,
+			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc,
 			DEDt);
@@ -721,7 +720,7 @@ basicstep(
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
-				newGGam, dgamdt, vertPos, epsilon,
+				newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc,
 				DEDt);
@@ -736,7 +735,7 @@ basicstep(
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
-				newGGam, dgamdt, vertPos, epsilon,
+				newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc,
 				DEDt);
@@ -761,7 +760,7 @@ basicstep(
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
 			forces, rbforces, rbtorques,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
-			cfl_forces, cfl_densitysum, cfl_keps, cflOffset,
+			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, oldGGam, dgamdt,
 			IOwaterdepth,

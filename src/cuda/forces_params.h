@@ -156,12 +156,12 @@ struct common_finalize_forces_params
 struct dyndt_finalize_forces_params
 {
 	float	* __restrict__ cfl_forces;
-	float	* __restrict__ cfl_densitysum;
+	float	* __restrict__ cfl_gamma;
 	float	* __restrict__ cfl_keps;
 	uint	cflOffset;
 
-	dyndt_finalize_forces_params(float * __restrict__ _cfl_forces, float * __restrict__ _cfl_densitysum, float * __restrict__ _cfl_keps, uint _cflOffset) :
-		cfl_forces(_cfl_forces), cfl_densitysum(_cfl_densitysum), cfl_keps(_cfl_keps), cflOffset(_cflOffset)
+	dyndt_finalize_forces_params(float * __restrict__ _cfl_forces, float * __restrict__ _cfl_gamma, float * __restrict__ _cfl_keps, uint _cflOffset) :
+		cfl_forces(_cfl_forces), cfl_gamma(_cfl_gamma), cfl_keps(_cfl_keps), cflOffset(_cflOffset)
 	{}
 };
 
@@ -206,6 +206,7 @@ struct sa_boundary_forces_params
 {
 			float4	* __restrict__ newGGam;
 			float	* __restrict__ dgamdt;
+			float	* __restrict__ cfl_gamma;
 	const	float2	* __restrict__ vertPos0;
 	const	float2	* __restrict__ vertPos1;
 	const	float2	* __restrict__ vertPos2;
@@ -215,10 +216,12 @@ struct sa_boundary_forces_params
 	sa_boundary_forces_params(
 				float4	* __restrict__ _newGGam,
 				float	* __restrict__ _dgamdt,
+				float	* __restrict__ _cfl_gamma,
 		const	float2	* __restrict__  const _vertPos[],
 		const	float	_epsilon) :
 		newGGam(_newGGam),
 		dgamdt(_dgamdt),
+		cfl_gamma(_cfl_gamma),
 		epsilon(_epsilon)
 	{
 		if (_vertPos) {
@@ -351,6 +354,7 @@ struct forces_params :
 		// SA_BOUNDARY
 				float4	* __restrict__ _newGGam,
 				float	* __restrict__ _dgamdt,
+				float	* __restrict__ _cfl_gamma,
 		const	float2	* __restrict__ const _vertPos[],
 		const	float	_epsilon,
 
@@ -374,7 +378,7 @@ struct forces_params :
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype == PT_FLUID && nptype == PT_FLUID, sa_forces_params)
 			(_dgamdt),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_forces_params)
-			(_newGGam, _dgamdt, _vertPos, _epsilon),
+			(_newGGam, _dgamdt, _cfl_gamma, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
@@ -420,7 +424,7 @@ struct finalize_forces_params :
 		const 	float 	_slength,
 		// dyndt
 				float	*_cfl_forces,
-				float	*_cfl_densitysum,
+				float	*_cfl_gamma,
 				float	*_cfl_keps,
 				uint	_cflOffset,
 
@@ -445,7 +449,7 @@ struct finalize_forces_params :
 			_posArray, _velArray, _particleHash, _cellStart,
 			 _fromParticle, _toParticle, _slength),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params)
-			(_cfl_forces, _cfl_densitysum, _cfl_keps, _cflOffset),
+			(_cfl_forces, _cfl_gamma, _cfl_keps, _cflOffset),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam, _oldGGam, _dgamdt),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
