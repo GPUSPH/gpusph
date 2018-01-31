@@ -1488,7 +1488,15 @@ __device__ __forceinline__ void
 compute_gamma_cfl<true, false>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
-	pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fabs(dot3(ndata.belem, ndata.relVel)) );
+	pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fmax(
+			// n . (v_a - v_s)
+			fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+			// n . (v_a - u_s)
+			fabs(dot3(ndata.belem, pdata.vel)),
+			// n . (v_s + u_s)
+			fabs(dot3(ndata.belem, pdata.vel - ndata.relVel))
+			))
+		);
 }
 
 // Specialization of compute_gamma_cfl in the case of dynamic gamma and IO
