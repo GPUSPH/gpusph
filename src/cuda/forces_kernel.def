@@ -880,13 +880,11 @@ struct sa_boundary_neib_output
 	// ggamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
 	float	ggamAS;
 	float	DgamDt;
-	float	contDiff;
 
 	__device__ __forceinline__
 	sa_boundary_neib_output() :
 		ggamAS(0.0f),
-		DgamDt(0.0f),
-		contDiff(0.0f)
+		DgamDt(0.0f)
 	{ }
 };
 
@@ -1294,7 +1292,6 @@ compute_density_diffusion<FERRARI, SA_BOUNDARY, cptype, PT_BOUNDARY>
 			(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r :
 			0.0f;
 		// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-		//nout.contDiff -= 2.0f*d_densityDiffCoeff*ferraricor*nout.ggamAS;
 		nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
 	}
 };
