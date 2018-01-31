@@ -1078,6 +1078,103 @@ struct compute_gamma<SA_BOUNDARY, cptype, false> {
 	}
 };
 
+// A functor to compute the gamma CFL
+template<bool needs_cfl, bool ioBoundary>
+struct compute_gamma_cfl {
+	template<typename FP, typename OP, typename P, typename N, typename ON>
+	__device__ __forceinline__
+	static void with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+// Specialization of compute_gamma_cfl in the case of dynamic gamma and no IO
+template<>
+template<typename FP, typename OP, typename P, typename N, typename ON>
+__device__ __forceinline__ void
+compute_gamma_cfl<true, false>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
+	pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fmax(
+			// n . (v_a - v_s)
+			fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+			// n . (v_a - u_s)
+			fabs(dot3(ndata.belem, pdata.vel)),
+			// n . (v_s + u_s)
+			fabs(dot3(ndata.belem, pdata.vel - ndata.relVel))
+			))
+		);
+}
+
+// Specialization of compute_gamma_cfl in the case of dynamic gamma and IO
+template<>
+template<typename FP, typename OP, typename P, typename N, typename ON>
+__device__ __forceinline__
+void compute_gamma_cfl<true, true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	// non-IO contribution
+	compute_gamma_cfl<true, false>::with(params, pdata, ndata, pout, nout);
+
+	// IO contribution, taking relEulerVel into account
+	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
+	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
+		// n . (v_a - u_s)
+		fabs(dot3(ndata.belem, pdata.vel+ndata.relEulerVel)),
+		// n . (v_s + u_s)
+		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
+}
+
+
+// A functor that helps to compute the influence of eulerian velocities onto the governing equations
+template<bool inoutBoundaries>
+struct compute_gamma_dot_io {
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_gamma_dot_io<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	nout.DgamDt -= nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
+}
+
+// A functor that computes D gamma / Dt
+template<bool dynamic_gamma>
+struct
+compute_gamma_dot
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+	{ /* do nothing */ }
+};
+
+// Compute D gamma / Dt in the case of dynamic gamma
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+void
+compute_gamma_dot<true>::with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	// boundary term of div(v)
+	nout.DgamDt += dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+
+	compute_gamma_dot_io<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
+
+	compute_gamma_cfl<
+		has_gammaCfl<OP>::value, /* needs_cfl */
+		(FP::simflags & ENABLE_INLET_OUTLET) /* ioBoundary */
+		>::with(params, pdata, ndata, pout, nout);
+
+	pout.dgamdt += nout.DgamDt;
+}
+
+
 /// A functor that helps to compute the influence of eulerian velocities onto the governing equations
 template<bool inoutBoundaries>
 struct compute_euler_contributions {
@@ -1348,307 +1445,6 @@ template<DensityDiffusionType densitydiffusiontype,
 		ParticleType nptype>
 struct compute_density_derivative : public generic_compute_density_derivative
 {};
-
-/*
-/// A functor that computes the time derivative of rho
-template<BoundaryType boundarytype,
-	ParticleType cptype,
-	ParticleType nptype>
-struct compute_density_derivative {
-
-	// Ferrari updates nout.contDiff in the SA case, and nout.DrDt otherwise,
-	// so we need a boundary-type templatized selector
-	template<typename ON>
-	__device__ __forceinline__
-	static float&
-	ferrari_updates(ON &nout)
-	{ return nout.DrDt; }
-
-	// common volumic Ferrari diffusion term
-	// TODO the Ferrari correction should be handled based on its own template
-	// parameter (use_ferrari or whatever).
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	ferrari_correction(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		const int fType =  fluid_num(pdata.info);
-		// gravity correction for free-surface flows
-		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
-		// actual diffusion term
-		// TODO should use pdata.sspeed, ndata.sspeed, which should therefore be defined when use_ferrari is enabled
-		const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
-			max(pdata.sspeed, ndata.sspeed)*
-			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
-			make_float3(0.0f);
-		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-		ferrari_updates(nout) += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
-	}
-
-	// density diffusion term following Molteni & Colagrossi 2009
-	template<typename FP, typename P_t, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	density_diffusion(FP const& params, P_t const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		const int fType = fluid_num(pdata.info);
-		// only applies to same-fluid particles
-		if (fType != fluid_num(ndata.info))
-			return;
-
-		// only apply diffusion for large density ratios, specifically
-		// when ∆P < ρgh
-		if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
-			fabs(dot3(d_gravity, ndata.relPos)*pdata.vel.w))
-			return;
-
-		// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
-		// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
-		// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
-		// 2(vol_i/vol_j - 1) F_ij
-		// For us rhodiffcoeff = \xi*h*2
-		// Additionally, when the density evolution formulation is NOT based on
-		// volumes, we need to multiply by the neighbor mass
-
-		const bool has_volume = (FP::sph_formulation == SPH_GRENIER &&
-			FP::simflags & ENABLE_DENSITY_DIFFUSION);
-		const float diff_term = d_rhodiffcoeff*d_sscoeff[fType]*
-			(volume_ratio<has_volume>::with(pdata, ndata) - 1)*
-			ndata.f*(has_volume ? -1 : ndata.relPos.w);
-
-		// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
-
-		nout.DrDt -= diff_term;
-	}
-
-	// auxiliary function
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	common_with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		// this should be divided by the neib density (ndata.relVel.w),
-		// but would be multiplied by the same quantity in SPH_F1 formulation,
-		// so we delegate the division to the caller, when needed
-		// TODO this should be handled more intelligently, might require some
-		// restructuring
-		nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
-	}
-
-	// update force.w
-	template<typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	update_drho_dt(OP &pout, ON const& nout)
-	{ pout.force.w += nout.DrDt; }
-
-	// actual method
-	template<typename FP, typename PD, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		if (FP::sph_formulation == SPH_GRENIER) {
-			// for Grenier's formulation, DrDt is actually DJ/Dt, which needs to be divided
-			// by the particle sigma, which will be done at the end of the cycle
-			nout.DrDt -= ndata.vel_dot_pos*ndata.f;
-			// TODO Ferrari correction
-		} else {
-			// SPH_F1 or SPH_F2
-			common_with(params, pdata, ndata, pout, nout);
-			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
-			if (FP::simflags & ENABLE_FERRARI && FLUID(ndata.info))
-				ferrari_correction(params, pdata, ndata, pout, nout);
-		}
-		// Density diffusion term according to Colagrossi & Molteni 2009, CPC
-		if (FP::simflags & ENABLE_DENSITY_DIFFUSION && FLUID(ndata.info))
-			density_diffusion(params, pdata, ndata, pout, nout);
-		// The second formulation takes into consideration the density ratio
-		if (FP::sph_formulation == SPH_F2)
-			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
-
-		// Add contribution to density derivative
-		update_drho_dt(pout, nout);
-	}
-};*/
-
-// A functor to compute the gamma CFL
-template<bool needs_cfl, bool ioBoundary>
-struct compute_gamma_cfl {
-	template<typename FP, typename OP, typename P, typename N, typename ON>
-	__device__ __forceinline__
-	static void with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
-
-// Specialization of compute_gamma_cfl in the case of dynamic gamma and no IO
-template<>
-template<typename FP, typename OP, typename P, typename N, typename ON>
-__device__ __forceinline__ void
-compute_gamma_cfl<true, false>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
-	pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fmax(
-			// n . (v_a - v_s)
-			fabs(dot3(ndata.belem, ndata.relVel)), fmax(
-			// n . (v_a - u_s)
-			fabs(dot3(ndata.belem, pdata.vel)),
-			// n . (v_s + u_s)
-			fabs(dot3(ndata.belem, pdata.vel - ndata.relVel))
-			))
-		);
-}
-
-// Specialization of compute_gamma_cfl in the case of dynamic gamma and IO
-template<>
-template<typename FP, typename OP, typename P, typename N, typename ON>
-__device__ __forceinline__
-void compute_gamma_cfl<true, true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	// non-IO contribution
-	compute_gamma_cfl<true, false>::with(params, pdata, ndata, pout, nout);
-
-	// IO contribution, taking relEulerVel into account
-	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
-	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
-		// n . (v_a - u_s)
-		fabs(dot3(ndata.belem, pdata.vel+ndata.relEulerVel)),
-		// n . (v_s + u_s)
-		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
-}
-
-
-// A functor that helps to compute the influence of eulerian velocities onto the governing equations
-template<bool inoutBoundaries>
-struct compute_gamma_dot_io {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
-
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_gamma_dot_io<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	nout.DgamDt -= nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
-}
-
-// A functor that computes D gamma / Dt
-template<bool dynamic_gamma>
-struct
-compute_gamma_dot
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{ /* do nothing */ }
-};
-
-// Compute D gamma / Dt in the case of dynamic gamma
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-void
-compute_gamma_dot<true>::with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-{
-	// boundary term of div(v)
-	nout.DgamDt += dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
-
-	compute_gamma_dot_io<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
-
-	compute_gamma_cfl<
-		has_gammaCfl<OP>::value, /* needs_cfl */
-		(FP::simflags & ENABLE_INLET_OUTLET) /* ioBoundary */
-		>::with(params, pdata, ndata, pout, nout);
-
-	pout.dgamdt += nout.DgamDt;
-}
-
-
-/// Specialization in the SA_BOUNDARY case
-// Now replaced with partial specilization on particle types
-/*template<ParticleType cptype,
-		ParticleType nptype>
-template<typename FP, typename PD, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_density_derivative<SA_BOUNDARY, cptype, nptype>::with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	/// TODO FIXME SPH_GRENIER support
-	if (FP::simflags & ENABLE_DENSITY_SUM) {
-		// TODO corners?
-		if ((ndata.ntype == PT_VERTEX && !IO_BOUNDARY(ndata.info)) || ndata.ntype == PT_FLUID) {
-			// compute sum_{P\V^{io}} m_b (-w_{ab})
-			nout.DrDt = -ndata.relPos.w*ndata.w;
-			// Rhie & Chow type volume diffusion
-			if (ndata.ntype == PT_FLUID) {
-				// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
-				nout.contDiff = ((2.0/(pdata.vel.w + ndata.relVel.w))*
-								  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
-								 - dot(d_gravity, as_float3(ndata.relPos))
-								)*ndata.relPos.w/ndata.relVel.w*ndata.f;
-			}
-		}
-		else if (ndata.ntype == PT_BOUNDARY && IO_BOUNDARY(ndata.info)) {
-			// compute sum_{S^{io}} gradGamma_{as} \cdot u_s^{n}
-			// plus gamma CFL condition
-			compute_relEulerVel_continuity_contribution<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
-			// compute sum_{S^{io}} gradGamma_{as} \cdot (-v_s^{n})
-			nout.DgamDt += nout.ggamAS*dot3(ndata.belem, ndata.relVel-pdata.vel);
-			// for pressure inlets we need to compute a boundary term for the Rhie & Chow filter
-			// the term is essentially the same as the one for the fluid particle except that V_b w' -> |ggam|/r_{as}
-			if (PRES_IO(ndata.info)) {
-				nout.contDiff = -((2.0/(pdata.vel.w + ndata.relVel.w))*
-								  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
-								 - dot(d_gravity, as_float3(ndata.relPos))
-								)*nout.ggamAS/ndata.r_as;
-			}
-		}
-	}
-	else {
-		if (ndata.ntype == PT_BOUNDARY) {
-			// boundary term of div(v)
-			nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
-			// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
-			pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fabs(dot3(ndata.belem, ndata.relVel)) );
-			if (IO_BOUNDARY(ndata.info))
-				compute_euler_contributions<FP::simflags & ENABLE_INLET_OUTLET>::boundary_term(params, pdata, ndata, pout, nout);
-			// D\rho/Dn is not zero near a boundary where pressure is imposed so the volume diffusion formula gains a term
-			if ((FP::simflags & ENABLE_FERRARI) && (FP::simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info)) {
-				const int fType =  fluid_num(pdata.info);
-				// gravity correction for free-surface flows
-				const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
-				// actual diffusion term
-				const float ferraricor = (ndata.r > 1e-4f*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r : 0.0f;
-				// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-				//nout.contDiff -= 2.0f*d_ferrari*ferraricor*nout.ggamAS;
-				//nout.contDiff -= d_ferrari*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
-			}
-			if (FP::sph_formulation == SPH_F1) {
-				nout.DrDt *= ndata.relVel.w;
-			}
-		} else {
-			// volumic term of div(v)
-			common_with(params, pdata, ndata, pout, nout);
-			if (FP::simflags & ENABLE_INLET_OUTLET && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info) && !CORNER(ndata.info))
-				compute_euler_contributions<FP::simflags & ENABLE_INLET_OUTLET>::volumic_term(params, pdata, ndata, pout, nout);
-			//if (simflags & ENABLE_FERRARI && !(ndata.ntype==PT_VERTEX && IO_BOUNDARY(ndata.info))) {
-			if (FP::simflags & ENABLE_FERRARI && ndata.ntype==PT_FLUID) {
-				// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
-				ferrari_correction(params, pdata, ndata, pout, nout);
-			}
-			// The second formulation takes into consideration the density ratio
-			if (FP::sph_formulation == SPH_F2)
-				nout.DrDt *= pdata.vel.w/ndata.relVel.w;
-		}
-	}
-
-	// Add contribution to density derivative
-	update_drho_dt(pout, nout);
-}*/
 
 // Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_FLUID or PT_VERTEX
 template<DensityDiffusionType densitydiffusiontype,
