@@ -1308,7 +1308,7 @@ compute_density_diffusion<BREZZI, boundarytype, cptype, PT_FLUID>
 	with(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
 	{
 		// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
-		nout.DrDt += ((2.0/(pdata.vel.w + ndata.relVel.w))*
+		nout.DrDt += d_densityDiffCoeff*((2.0f/(pdata.vel.w + ndata.relVel.w))*
 					  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
 					  - dot(d_gravity, as_float3(ndata.relPos))
 					 )*ndata.relPos.w/ndata.relVel.w*ndata.f*params.dt*2.0f*pdata.vel.w;
