@@ -159,7 +159,7 @@ computeDensitySumVolumicTerms(
 		// vector r_{ab} at time N
 		const float4 relPosN = neib_iter.relPos(posN_neib);
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-		const float4 relPosNp1 = neib_iter.relPos(posN) + posNp1 - posNp1_neib;
+		const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + (posNp1 - posN);
 
 		// -sum_{P\V_{io}} m^n w^n
 		if (!IO_BOUNDARY(neib_info)) {
