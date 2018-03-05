@@ -638,6 +638,14 @@ bool GPUSPH::runSimulation() {
 
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+
+			// when using density sum, density diffusion is applied _after_ the density sum
+			if (problem->simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
+				doCommand(DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
+
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			}
 		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
@@ -724,6 +732,14 @@ bool GPUSPH::runSimulation() {
 
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+
+			// when using density sum, density diffusion is applied _after_ the density sum
+			if (problem->simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
+				doCommand(DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
+
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			}
 		}
 
 		// Euler needs always cg(n)

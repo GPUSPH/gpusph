@@ -109,6 +109,19 @@ public:
 		float slength,
 		float influenceradius) = 0;
 
+	// Compute density diffusion term
+	virtual void
+	compute_density_diffusion(
+		MultiBufferList::const_iterator bufread,
+			float4	*forces,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceRadius,
+		const	float	dt) = 0;
+
 	// basic forces step. returns the number of blocks launched
 	// (which is the number of blocks to launch dtreduce on
 	virtual uint

@@ -172,6 +172,29 @@ density_sum(
 }
 
 void
+apply_density_diffusion(
+	MultiBufferList::iterator bufwrite,
+	const	uint	*cellStart,
+	const	uint	numParticles,
+	const	uint	particleRangeEnd,
+	const	float	dt)
+{
+	// thread per particle
+	uint numThreads = BLOCK_SIZE_INTEGRATE;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	// This is a trivial integration of the density in position write
+	cueuler::updateDensityDevice<<<numBlocks, numThreads>>>(
+		bufwrite->getData<BUFFER_INFO>(),
+		bufwrite->getData<BUFFER_VEL>(), bufwrite->getData<BUFFER_FORCES>(),
+		numParticles, particleRangeEnd, dt);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
+
+void
 basicstep(
 		MultiBufferList::const_iterator bufread,
 		MultiBufferList::iterator bufreadUpdate,

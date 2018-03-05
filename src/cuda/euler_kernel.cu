@@ -109,5 +109,30 @@ applyrot2(float* rot, float3 & pos, const float3 & cg)
 
 #include "euler_kernel.def"
 
+// Trivial kernel to update the density of fluid particles
+__global__ void
+updateDensityDevice(
+	const	particleinfo * __restrict__ pinfo,
+			float4 * __restrict__ vel,
+	const	float4 * __restrict__ forces,
+			uint numParticles,
+			uint particleRangeEnd,
+			float dt)
+{
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	if (index >= particleRangeEnd)
+		return;
+
+	particleinfo info = pinfo[index];
+	if (!FLUID(info))
+		return;
+
+	float rho = vel[index].w;
+	float delta = forces[index].w*dt;
+
+	vel[index].w = rho + delta;
+}
+
+
 }
 #endif

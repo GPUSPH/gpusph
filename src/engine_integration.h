@@ -79,8 +79,15 @@ public:
 		const	int		step,
 		const	float	t,
 		const	float	slength,
-		const	float	influenceRadius)
-	= 0;
+		const	float	influenceRadius) = 0;
+
+	virtual void
+	apply_density_diffusion(
+		MultiBufferList::iterator bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt) = 0;
 
 	/// Single integration 
 	// TODO will probably need to be made more generic for other

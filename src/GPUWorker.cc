@@ -1621,6 +1621,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing DENSITY_SUM\n", deviceIndex);
 				instance->kernel_density_sum();
 				break;
+			case DENSITY_DIFFUSION:
+				if (dbg_step_printf) printf(" T %d issuing DENSITY_DIFFUSION\n", deviceIndex);
+				instance->kernel_density_diffusion();
+				break;
 			case DUMP:
 				if (dbg_step_printf) printf(" T %d issuing DUMP\n", deviceIndex);
 				instance->dumpBuffers();
@@ -2273,6 +2277,42 @@ void GPUWorker::kernel_density_sum()
 		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
 		m_simparams->slength,
 		m_simparams->influenceRadius);
+}
+
+void GPUWorker::kernel_density_diffusion()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	const bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+
+	const float dt = (firstStep ? gdata->dt/2.0f : gdata->dt);
+
+	forcesEngine->compute_density_diffusion(
+		// The density diffusion is computed from the NEW position and density, so we pass
+		// the WRITE buffer list, even though it will be used read-only
+		m_dBuffers.getWriteBufferList(),
+		// the .w component of the forces will be updated with the density increment
+		// TODO should be consider having a buffer with a SINGLE component to improve coalescence
+		// on write in these cases?
+		m_dBuffers.getWriteBufferList()->getData<BUFFER_FORCES>(),
+		m_dCellStart,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->influenceRadius,
+		dt);
+
+	integrationEngine->apply_density_diffusion(
+		// We will update the density in-place
+		m_dBuffers.getWriteBufferList(),
+		m_dCellStart,
+		m_numParticles,
+		numPartsToElaborate,
+		dt);
 }
 
 void GPUWorker::kernel_download_iowaterdepth()

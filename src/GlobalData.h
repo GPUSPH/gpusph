@@ -107,6 +107,8 @@ enum CommandType {
 	EULER,
 	/// Integration of the density using an integral formulation
 	DENSITY_SUM,
+	/// Apply density diffusion term in the case of density sum:
+	DENSITY_DIFFUSION,
 	/// Dump (device) particle data arrays into shared host arrays
 	DUMP,
 	/// Dump (device) cellStart and cellEnd into shared host arrays

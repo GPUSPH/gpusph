@@ -44,6 +44,7 @@
 #include "define_buffers.h"
 
 #include "forces_params.h"
+#include "density_diffusion_params.h"
 
 /* Important notes on block sizes:
 	- a parallel reduction for adaptive dt is done inside forces, block
@@ -600,6 +601,51 @@ compute_density(MultiBufferList::const_iterator bufread,
 		bufwrite, cellStart, numParticles, slength, influenceradius);
 	return;
 }
+
+void
+compute_density_diffusion(
+	MultiBufferList::const_iterator bufread,
+		float4	*forces,
+	const	uint	*cellStart,
+	const	uint	numParticles,
+	const	uint	particleRangeEnd,
+	const	float	deltap,
+	const	float	slength,
+	const	float	influenceRadius,
+	const	float	dt)
+{
+	uint numThreads = BLOCK_SIZE_FORCES;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	if (boundarytype == SA_BOUNDARY)
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread->getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
+
+	auto params = density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, PT_FLUID>(
+			forces,
+			bufread->getData<BUFFER_POS>(),
+			bufread->getData<BUFFER_VEL>(),
+			bufread->getData<BUFFER_INFO>(),
+			bufread->getData<BUFFER_HASH>(),
+			cellStart,
+			bufread->getData<BUFFER_NEIBSLIST>(),
+			bufread->getData<BUFFER_GRADGAMMA>(),
+			bufread->getRawPtr<BUFFER_VERTPOS>(),
+			particleRangeEnd,
+			deltap, slength, influenceRadius, dt);
+
+	cuforces::computeDensityDiffusionDevice
+		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype,
+		 visctype, simflags, PT_FLUID>
+		<<<numBlocks, numThreads>>>(params);
+
+	// check if last kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+
+	if (boundarytype == SA_BOUNDARY)
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+
+}
+
 
 // Returns numBlock for delayed dt reduction in case of striping
 uint

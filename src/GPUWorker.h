@@ -240,6 +240,7 @@ private:
 	void kernel_forces();
 	void kernel_euler();
 	void kernel_density_sum();
+	void kernel_density_diffusion();
 	void kernel_filter();
 	void kernel_postprocess();
 	void kernel_compute_density();

@@ -225,6 +225,13 @@ struct vel_particle_data
 		vel(tex1Dfetch(velTex, _index)),
 		sspeed(soundSpeed(vel.w, fluid_num(_info)))
 	{}
+
+	template<typename FP> /* templatized over the kernel input params */
+	__device__ __forceinline__
+	vel_particle_data(FP const& params, const uint _index, particleinfo const& _info) :
+		vel(params.velArray[_index]),
+		sspeed(soundSpeed(vel.w, fluid_num(_info)))
+	{}
 };
 
 struct eulerVel_particle_data
@@ -273,7 +280,6 @@ struct grenier_finalize_particle_data
 };
 
 // data used for SA_BOUNDARY
-template<ViscosityType visctype, flag_t simflags>
 struct sa_boundary_particle_data
 {
 	// does this particle want to (re)compute gamma? see logic below
@@ -434,7 +440,7 @@ struct forces_particle_data :
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype,
-		sa_boundary_particle_data<_visctype, _simflags>),
+		sa_boundary_particle_data),
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
 	COND_STRUCT(_visctype == KEPSVISC,
 		keps_particle_data),
@@ -478,7 +484,7 @@ struct forces_particle_data :
 				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 			eulerVel_particle_data)(_index),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
-			sa_boundary_particle_data<visctype, simflags>)(_index, _info, params),
+			sa_boundary_particle_data)(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
 			keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC,
@@ -707,22 +713,48 @@ struct finalize_particle_output :
 
 // Just like for particle data, we collect neib data into appropriate structures
 
+/* We may fetch velocity either from the kernel params (if there is a velArray),
+   or from the velTex texture (otherwise). We abstract this selection in the following pair
+   of specialized functions. We use the C++17 bool_constant alias */
+
+#if __cplusplus >= 201703L
+using std::bool_constant;
+#else
+template<bool B>
+using bool_constant = std::integral_constant<bool, B>;
+#endif
+
+/* By default, assume the velArray member is not present. We will specialize this in the true case
+ * by playing on the second, implicit parameter */
+template<typename FP, typename = std::true_type> struct has_velArray : std::false_type {};
+/* Specialization that due to SFINAE will only be triggered when FP::velArray is a valid expression */
+template<typename FP> struct has_velArray<FP, bool_constant<sizeof(FP::velArray)>> : std::true_type {};
+
+template<typename FP, typename T>
+using enable_with_velArray = typename std::enable_if<has_velArray<FP>::value, T>::type;
+template<typename FP, typename T>
+using enable_without_velArray = typename std::enable_if<!has_velArray<FP>::value, T>::type;
+
+template<typename FP>
+__device__ __forceinline__
+enable_with_velArray<FP, float4>
+fetchVel(FP params, uint index)
+{
+	return params.velArray[index];
+}
+
+template<typename FP>
+__device__ __forceinline__
+enable_without_velArray<FP, float4>
+fetchVel(FP params, uint index)
+{
+	return tex1Dfetch(velTex, index);
+}
+
+
 // data used fo all neibs
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags,
-	ParticleType cptype,
-	ParticleType nptype>
 struct common_neib_data
 {
-	// we will get as arguments also the current particle data and forces_kernel params.
-	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> pdata_t;
-	typedef forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> params_t;
-
 	particleinfo	const& info;
 	// relPos holds the distance vector in .xyz and the neib mass in .w
 	float4	const&	relPos;
@@ -738,35 +770,24 @@ struct common_neib_data
 	// local speed of sound
 	const	float sspeed;
 
+	/* The constructor is templatized on the particle data type and on the
+	   kernel params type */
+	template<typename Pt, typename FP>
 	__device__ __forceinline__
-	common_neib_data(pdata_t const& pdata, params_t const& params,
+	common_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
 		info(_info), relPos(_relPos), r(_r),
-		relVel(as_float3(pdata.vel) - tex1Dfetch(velTex, _index)),
+		relVel(as_float3(pdata.vel) - fetchVel(params, _index)),
 		vel_dot_pos(dot3(relVel, relPos)),
-		f(F<kerneltype>(r, params.slength)),
-		w(W<kerneltype>(r, params.slength)),
+		f(F<FP::kerneltype>(r, params.slength)),
+		w(W<FP::kerneltype>(r, params.slength)),
 		sspeed(soundSpeed(relVel.w, fluid_num(_info)))
 	{}
 };
 
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags,
-	ParticleType cptype,
-	ParticleType nptype>
 struct sa_boundary_neib_data
 {
-	// we will get as arguments also the current particle data and forces_kernel params.
-	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> pdata_t;
-	typedef forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> params_t;
-	typedef forces_particle_output<SA_BOUNDARY, visctype, simflags, cptype, nptype> pout_t;
-
 	const uint index;
 
 	const	float4	belem;
@@ -774,8 +795,9 @@ struct sa_boundary_neib_data
 	// distance of particle to boundary element along the normal
 	const	float	r_as; // r_as as used by ptype == PT_FLUID, r_es as used by ptype == PT_VERTEX
 
+	template<typename Pt, typename FP>
 	__device__ __forceinline__
-	sa_boundary_neib_data(pdata_t const& pdata,  params_t const& params,
+	sa_boundary_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, float4 const& _relPos) :
 		index(_index),
 		belem(tex1Dfetch(boundTex, index)),
@@ -804,12 +826,12 @@ template<KernelType kerneltype,
 	ParticleType cptype,
 	ParticleType nptype>
 struct forces_neib_data :
-	common_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>,
+	common_neib_data,
 	COND_STRUCT(sph_formulation == SPH_GRENIER &&
 		(densitydiffusiontype == COLAGROSSI), volume_particle_data),
 	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
-		sa_boundary_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>),
+		sa_boundary_neib_data),
 	// relative eulerian velocity
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
 			(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
@@ -824,26 +846,26 @@ struct forces_neib_data :
 	COND_STRUCT(visctype == SPSVISC, sps_particle_data)
 {
 	// shortcut typedefs
-	typedef common_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> _common_neib_data;
 	typedef
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
-			sa_boundary_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>)
+			sa_boundary_neib_data)
 		_sa_boundary_neib_data;
 	typedef
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
 				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 			eulerVel_neib_data)
 		_eulerVel_neib_data;
-	typedef typename _common_neib_data::pdata_t pdata_t;
-	typedef typename _common_neib_data::params_t params_t;
 
 	ParticleType	ntype;
 
+	/* The constructor is templatized on the particle data type and on the
+	   kernel params type */
+	template<typename Pt, typename FP>
 	__device__ __forceinline__
-	forces_neib_data(pdata_t const& pdata, params_t const& params,
+	forces_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
-		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
+		common_neib_data(pdata, params, _index, _info, _relPos, _r),
 		COND_STRUCT(sph_formulation == SPH_GRENIER &&
 			(densitydiffusiontype == COLAGROSSI), volume_particle_data)
 			(_index, params),
@@ -875,15 +897,24 @@ struct common_neib_output
 	{}
 };
 
-struct sa_boundary_neib_output
+struct ggam_neib_output
 {
 	// ggamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
 	float	ggamAS;
+
+	__device__ __forceinline__
+	ggam_neib_output() :
+		ggamAS(0.0f)
+	{ }
+};
+
+struct sa_boundary_neib_output : ggam_neib_output
+{
 	float	DgamDt;
 
 	__device__ __forceinline__
 	sa_boundary_neib_output() :
-		ggamAS(0.0f),
+		ggam_neib_output(),
 		DgamDt(0.0f)
 	{ }
 };
@@ -986,14 +1017,12 @@ struct compute_gamma {
 
 template<ParticleType cptype>
 struct compute_gamma<SA_BOUNDARY, cptype, true> {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
+	// compute the contribution to the gamma gradient from a single neighbor
+	template<typename FP, typename P, typename N>
 	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	static float
+	gradient(FP const& params, P const& pdata, N const& ndata)
 	{
-		if (!pdata.computeGamma && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
-			return;
-
 		// local coordinate system for relative positions to vertices
 		uint j = 0;
 		// Get index j for which n_s is minimal
@@ -1019,7 +1048,20 @@ struct compute_gamma<SA_BOUNDARY, cptype, true> {
 		float3 q_vb[3] = {qva, qvb, qvc};
 		const float3 q = as_float3(ndata.relPos)/params.slength;
 
-		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
+		return gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
+	}
+
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		if (!pdata.computeGamma && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
+			return;
+
+		// compute nout.ggamAS
+		nout.ggamAS = gradient(params, pdata, ndata);
+
 		// TODO: we need to output grad gamma only when using olgGGam (that is grad gamma from the previous step).
 		// Check when olgGGam is REALLY necessary.
 		pout.gGam.x += nout.ggamAS*ndata.belem.x;
@@ -3070,7 +3112,197 @@ finalizeforcesDevice(
 
 	shared.reduce(params);
 }
-/************************************************************************************************************/
+
+//***********************************************************************************************************
+// Structures and kernels for the computation of the density diffusion, used in the ENABLE_DENSITY_SUM case.
+// This relies on the compute_density_diffusion functor (shared with forcesDevice) for the actual computation,
+// after defining its own set of particle_data and particle_output structures.
+//***********************************************************************************************************
+
+struct gamma_particle_data
+{
+	const float4 ggam;
+
+	template<typename FP> /* templatized over the kernel input params */
+	__device__ __forceinline__
+	gamma_particle_data(FP const& params, const uint _index) :
+		ggam(params.ggam[_index])
+	{}
+};
+
+template<BoundaryType boundarytype>
+struct density_diffusion_particle_data :
+	common_particle_data,
+	vel_particle_data,
+	COND_STRUCT(boundarytype == SA_BOUNDARY, gamma_particle_data)
+{
+	template<typename FP> /* templatized over the kernel input params */
+	__device__ __forceinline__
+	density_diffusion_particle_data(FP const& params, const uint _index, float4 const& _pos, particleinfo const& _info) :
+		common_particle_data(_index, _pos, _info, params.particleHash),
+		vel_particle_data(params, _index, _info),
+		gamma_particle_data(params, _index)
+	{}
+};
+
+template<BoundaryType boundarytype>
+struct density_diffusion_neib_data :
+	common_neib_data,
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data)
+{
+	/* TODO */
+	template<typename Pt, typename FP>
+	__device__ __forceinline__
+	density_diffusion_neib_data(Pt const& pdata, FP const& params,
+		const uint _index, particleinfo const& _info,
+		float4 const& _relPos, const float _r) :
+		common_neib_data(pdata, params, _index, _info, _relPos, _r),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data)(pdata, params, _index, _relPos)
+	{}
+};
+
+struct common_density_diffusion_neib_output
+{
+	float DrDt;
+
+	__device__ __forceinline__
+	common_density_diffusion_neib_output() : DrDt(0.0f) {}
+};
+
+struct sa_boundary_density_diffusion_neib_output
+{
+	const float ggamAS;
+
+	template<typename FP, typename P, typename N>
+	__device__ __forceinline__
+	sa_boundary_density_diffusion_neib_output
+	(FP const& params, P const& pdata, N const& ndata) :
+		ggamAS(compute_gamma
+			<FP::boundarytype, FP::cptype, true>::gradient
+			(params, pdata, ndata))
+	{}
+};
+
+template<BoundaryType boundarytype>
+struct density_diffusion_neib_output :
+	common_density_diffusion_neib_output,
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_density_diffusion_neib_output)
+{
+	template<typename FP, typename P, typename N>
+	__device__ __forceinline__
+	density_diffusion_neib_output
+	(FP const& params, P const& pdata, N const& ndata) :
+		common_density_diffusion_neib_output(),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_density_diffusion_neib_output)
+		(params, pdata, ndata)
+	{}
+};
+
+/* Return the contribution to the density diffusion from all neighbors of type nptype.
+ * Note that there is no contribution from the VERTEX particles except in the SA_BOUNDARY case;
+ * this is handled by the enable_if
+ */
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	flag_t simflags,
+	ParticleType cptype,
+	ParticleType nptype>
+__device__ __forceinline__
+typename std::enable_if<nptype != PT_VERTEX || boundarytype == SA_BOUNDARY, void>::type
+density_diffusion_interaction(
+	density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, cptype> const& params,
+	density_diffusion_particle_data<boundarytype> const& pdata,
+	float& DrDt)
+{
+	for_each_neib(nptype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		const uint neib_index = neib_iter.neib_index();
+		const float4 relPos = neib_iter.relPos(params.posArray[neib_index]);
+		const float r = length3(relPos);
+		const particleinfo neib_info = params.infoArray[neib_index];
+
+		if (INACTIVE(relPos)) continue;
+		if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
+			if (r >= params.influenceradius + params.deltap)
+				continue;
+		} else {
+			if (r >= params.influenceradius)
+				continue;
+		}
+
+		const density_diffusion_neib_data<boundarytype> ndata(pdata, params, neib_index, neib_info, relPos, r);
+
+		density_diffusion_neib_output<boundarytype> nout(params, pdata, ndata);
+
+		compute_density_diffusion<densitydiffusiontype, boundarytype, cptype, nptype>::with(params, pdata, ndata, nout);
+
+		DrDt += nout.DrDt;
+	}
+}
+
+/* The "no contribution” case, i.e. nptype == PT_VERTEX && boundarytype != SA_BOUNDARY */
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	flag_t simflags,
+	ParticleType cptype,
+	ParticleType nptype>
+__device__ __forceinline__
+typename std::enable_if<nptype == PT_VERTEX && boundarytype != SA_BOUNDARY, void>::type
+density_diffusion_interaction(
+	density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, cptype> const& params,
+	density_diffusion_particle_data<boundarytype> const& pdata,
+	float &DrDt)
+{ /* do nothing */ }
+
+
+/* Compute density diffusion ONLY (used in the ENABLE_DENSITY_SUM case) */
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	DensityDiffusionType densitydiffusiontype,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	flag_t simflags,
+	ParticleType cptype>
+__global__ void
+computeDensityDiffusionDevice(density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, cptype> params)
+{
+	// Global particle index
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.particleRangeEnd) return;
+
+	// Particle info struct, always stored in a texture
+	const particleinfo info = params.infoArray[index];
+
+	// Skip if the current particle is not of the type for which we are computing interactions
+	if (PART_TYPE(info) != cptype) return;
+
+	const float4 pos = params.posArray[index];
+
+	// Nothing to do if the particle is inactive
+	if (INACTIVE(pos)) return;
+
+	const density_diffusion_particle_data<boundarytype> pdata(params, index, pos, info);
+
+	float DrDt = 0;
+
+	density_diffusion_interaction
+		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
+		cptype, PT_FLUID>(params, pdata, DrDt);
+	density_diffusion_interaction
+		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
+		cptype, PT_VERTEX>(params, pdata, DrDt);
+	density_diffusion_interaction
+		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
+		cptype, PT_BOUNDARY>(params, pdata, DrDt);
+
+	params.forces[index].w = DrDt;
+}
 
 #endif
 
