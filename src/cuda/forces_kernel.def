@@ -3183,17 +3183,18 @@ struct sa_boundary_density_diffusion_neib_output
 	{}
 };
 
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, ParticleType nptype,
+	bool needs_ggam = (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY)>
 struct density_diffusion_neib_output :
 	common_density_diffusion_neib_output,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_density_diffusion_neib_output)
+	COND_STRUCT(needs_ggam, sa_boundary_density_diffusion_neib_output)
 {
 	template<typename FP, typename P, typename N>
 	__device__ __forceinline__
 	density_diffusion_neib_output
 	(FP const& params, P const& pdata, N const& ndata) :
 		common_density_diffusion_neib_output(),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_density_diffusion_neib_output)
+		COND_STRUCT(needs_ggam, sa_boundary_density_diffusion_neib_output)
 		(params, pdata, ndata)
 	{}
 };
@@ -3234,7 +3235,7 @@ density_diffusion_interaction(
 
 		const density_diffusion_neib_data<boundarytype> ndata(pdata, params, neib_index, neib_info, relPos, r);
 
-		density_diffusion_neib_output<boundarytype> nout(params, pdata, ndata);
+		density_diffusion_neib_output<boundarytype, nptype> nout(params, pdata, ndata);
 
 		compute_density_diffusion<densitydiffusiontype, boundarytype, cptype, nptype>::with(params, pdata, ndata, nout);
 
