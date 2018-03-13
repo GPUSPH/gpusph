@@ -1179,7 +1179,7 @@ Problem::calculateDensityDiffusionCoefficient()
 			fprintf(stderr, "WARNING: Brezzi density diffusion enabled, but no coefficient given!\n");
 			break;
 		}
-		printf("Brezzi diffusion coefficient = %d\n", simparams()->densityDiffCoeff);
+		printf("Brezzi diffusion coefficient = %e\n", simparams()->densityDiffCoeff);
 		break;
 	case COLAGROSSI:
 		if (isnan(simparams()->densityDiffCoeff)) {
@@ -1188,7 +1188,7 @@ Problem::calculateDensityDiffusionCoefficient()
 			fprintf(stderr, "WARNING: Colagrossi density diffusion enabled, but no coefficient given!\n");
 		}
 		else
-			printf("Colagrossi diffusion coefficient ξ = %d\n", simparams()->densityDiffCoeff);
+			printf("Colagrossi diffusion coefficient ξ = %e\n", simparams()->densityDiffCoeff);
 		// pre-multiply xi with 2*h
 		simparams()->densityDiffCoeff *= 2.0f*simparams()->slength;
 		break;
