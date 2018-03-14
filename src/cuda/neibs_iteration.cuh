@@ -69,8 +69,8 @@ class neiblist_iterator_core
 protected:
 
 	const	uint	index;		///< current particle index
-	float4	const&	pos;		///< current particle cell-relative position
-	int3	const&	gridPos;	///< current particle cell index
+	float4	const	pos;		///< current particle cell-relative position
+	int3	const	gridPos;	///< current particle cell index
 	const	uint*	cellStart;	///< cells first particle index
 	const	neibdata* neibsList; ///< neighbors list
 
