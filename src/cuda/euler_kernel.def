@@ -232,44 +232,6 @@ continuity_integration<INTEGRATE_VOLUME>::with(EP const& params, P &pdata, int i
 	pdata.vol.y += dt*pdata.force.w;
 }
 
-/*
-//specialization for SA Boundary
-template<>
-template<typename EP, typename P>
-__device__ __forceinline__ void
-continuity_integration<INTEGRATE_SA>::with(EP const& params, P &pdata, int index, float dt)
-{
-	sa_integrate_continuity_equation<EP::simflags & ENABLE_DENSITY_SUM>::template with<EP::kerneltype>(
-			params.newVel[index].w,
-			pdata.vel.w,
-			index,
-			pdata.pos,
-			pdata.velc,
-			params.oldgGam[index],
-			params.newgGam[index],
-			params.oldPos,
-			params.oldVelRW,
-			params.oldEulerVel,
-			params.forces,
-			params.info,
-			params.newBoundElement,
-			params.vertPos0,
-			params.vertPos1,
-			params.vertPos2,
-			params.particleHash,
-			params.cellStart,
-			params.neibsList,
-			params.numParticles,
-			params.contupd[index],
-			pdata.force.w,
-			dt,
-			params.full_dt,
-			params.half_dt,
-			params.slength,
-			params.influenceradius,
-			params.step);
-}
-*/
 // A functor that helps to integrate when k-e model is enabled
 template<bool k_e_Enabled>
 struct k_e_integration {
@@ -569,18 +531,11 @@ eulerDevice(
 
 				// Grenier evolves the volume, not the density,
 				// all other evolve the density directly.
-				// AM-TODO in the density sum case this only updates the density
-				// with the diffusion term, so we would need it only in step == 1
 				continuity_integration<
 					boundarytype == SA_BOUNDARY ? INTEGRATE_SA :
 					(sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
 					INTEGRATE_DENSITY)
 				>::with(params, pdata, index, dt);
-
-				// AM-TODO if step would be a template parameter we could avoid this if
-				// The old density is updated with the diffusion term
-				if (simflags & ENABLE_DENSITY_SUM && params.step == 1)
-					params.oldVel[index].w = pdata.vel.w;
 
 				// Update gamma
 				// In the density sum case this is done in the respective kernel. The
