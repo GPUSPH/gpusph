@@ -1549,10 +1549,11 @@ void GPUSPH::doWrite(flag_t write_flags)
 		double4 dpos = make_double4(
 			gdata->calcGlobalPosOffset(gridPos, as_float3(pos)) + wo,
 			pos.w);
+		const particleinfo pinfo = info[i];
 
 		if (!warned_nan_pos && !(isfinite(dpos.x) && isfinite(dpos.y) && isfinite(dpos.z))) {
-			fprintf(stderr, "WARNING: particle %u (id %u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g) at iteration %lu, time %g\n",
-				i, id(info[i]),
+			fprintf(stderr, "WARNING: particle %u (id %u, type %u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g) at iteration %lu, time %g\n",
+				i, id(pinfo), PART_TYPE(pinfo),
 				pos.x, pos.y, pos.z,
 				gridPos.x, gridPos.y, gridPos.z,
 				dpos.x, dpos.y, dpos.z,
