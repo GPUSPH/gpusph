@@ -113,7 +113,7 @@ public:
 	virtual void
 	compute_density_diffusion(
 		MultiBufferList::const_iterator bufread,
-			float4	*forces,
+		MultiBufferList::iterator bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,

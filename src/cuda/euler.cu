@@ -173,6 +173,7 @@ density_sum(
 
 void
 apply_density_diffusion(
+	MultiBufferList::const_iterator bufread,
 	MultiBufferList::iterator bufwrite,
 	const	uint	*cellStart,
 	const	uint	numParticles,
@@ -185,7 +186,7 @@ apply_density_diffusion(
 
 	// This is a trivial integration of the density in position write
 	cueuler::updateDensityDevice<<<numBlocks, numThreads>>>(
-		bufwrite->getData<BUFFER_INFO>(),
+		bufread->getData<BUFFER_INFO>(),
 		bufwrite->getData<BUFFER_VEL>(), bufwrite->getData<BUFFER_FORCES>(),
 		numParticles, particleRangeEnd, dt);
 

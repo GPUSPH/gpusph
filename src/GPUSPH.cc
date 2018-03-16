@@ -641,10 +641,20 @@ bool GPUSPH::runSimulation() {
 
 			// when using density sum, density diffusion is applied _after_ the density sum
 			if (problem->simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
-				doCommand(DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
+				/* Put the new data into the READ position: this will be used to
+				 * compute the density diffusion based on the new data
+				 */
+				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
+				doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
+				/* Swap back the arrays that'll get updated in-place */
+				doCommand(SWAP_BUFFERS, BUFFER_VEL);
+				doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
 
 				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+					doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
+
+				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
+				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
 			}
 		}
 
@@ -735,10 +745,20 @@ bool GPUSPH::runSimulation() {
 
 			// when using density sum, density diffusion is applied _after_ the density sum
 			if (problem->simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
-				doCommand(DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
+				/* Put the new data into the READ position: this will be used to
+				 * compute the density diffusion based on the new data
+				 */
+				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
+				doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
+				/* Swap back the arrays that'll get updated in-place */
+				doCommand(SWAP_BUFFERS, BUFFER_VEL);
+				doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
 
 				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+					doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
+
+				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
+				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
 			}
 		}
 

@@ -605,7 +605,7 @@ compute_density(MultiBufferList::const_iterator bufread,
 void
 compute_density_diffusion(
 	MultiBufferList::const_iterator bufread,
-		float4	*forces,
+	MultiBufferList::iterator bufwrite,
 	const	uint	*cellStart,
 	const	uint	numParticles,
 	const	uint	particleRangeEnd,
@@ -621,7 +621,7 @@ compute_density_diffusion(
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread->getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 
 	auto params = density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, PT_FLUID>(
-			forces,
+			bufwrite->getData<BUFFER_FORCES>(),
 			bufread->getData<BUFFER_POS>(),
 			bufread->getData<BUFFER_VEL>(),
 			bufread->getData<BUFFER_INFO>(),

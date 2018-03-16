@@ -83,6 +83,7 @@ public:
 
 	virtual void
 	apply_density_diffusion(
+		MultiBufferList::const_iterator bufread,
 		MultiBufferList::iterator bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,
