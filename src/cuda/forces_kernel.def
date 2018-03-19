@@ -2102,25 +2102,43 @@ struct gamma_fixup
 	static void
 	with(FP const& params, P const& pdata, OP &pout)
 	{ /* do nothing */ }
+
+	/* Fixup for the density diffusion term computed in computeDensityDiffusionDevice */
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	for_density_diffusion(FP const& params, P const& pdata, OP &pout)
+	{ /* do nothing */ }
 };
 
 template<>
-template<typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
+struct gamma_fixup<SA_BOUNDARY>
 {
-	// in case of density sum we compute gamma in euler so it's
-	// already available here
-	// TODO avoid computation before
-	//if(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f)
-	//	pout.gGam = pdata.oldGGam;
-	pout.force.x /= pdata.gGam.w;
-	pout.force.y /= pdata.gGam.w;
-	pout.force.z /= pdata.gGam.w;
-	pout.force.w /= pdata.gGam.w;
-	if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
-		pout.force.w *= pdata.vel.w;
-}
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, OP &pout)
+	{
+		// in case of density sum we compute gamma in euler so it's
+		// already available here
+		// TODO avoid computation before
+		//if(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f)
+		//	pout.gGam = pdata.oldGGam;
+		pout.force.x /= pdata.gGam.w;
+		pout.force.y /= pdata.gGam.w;
+		pout.force.z /= pdata.gGam.w;
+		pout.force.w /= pdata.gGam.w;
+		if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
+			pout.force.w *= pdata.vel.w;
+	}
+
+	/* Fixup for the density diffusion term computed in computeDensityDiffusionDevice */
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	for_density_diffusion(FP const& params, P const& pdata, OP &pout)
+	{ pout /= pdata.gGam.w; }
+};
 
 /// A functor that computes the force acting on a boundary element
 /// but only for SA_BOUNDARY
@@ -3122,12 +3140,12 @@ finalizeforcesDevice(
 
 struct gamma_particle_data
 {
-	const float4 ggam;
+	const float4 gGam;
 
 	template<typename FP> /* templatized over the kernel input params */
 	__device__ __forceinline__
 	gamma_particle_data(FP const& params, const uint _index) :
-		ggam(params.ggam[_index])
+		gGam(params.ggam[_index])
 	{}
 };
 
@@ -3309,6 +3327,8 @@ computeDensityDiffusionDevice(density_diffusion_params<kerneltype, densitydiffus
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
 		cptype, PT_BOUNDARY>(params, pdata, DrDt);
 #endif
+
+	gamma_fixup<boundarytype>::for_density_diffusion(params, pdata, DrDt);
 
 	params.forces[index].w = DrDt;
 }
