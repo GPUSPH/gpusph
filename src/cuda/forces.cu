@@ -646,6 +646,33 @@ compute_density_diffusion(
 
 }
 
+// Clear the CFL buffers
+// TODO maybe we should clear forces and dgamdt here too?
+void clear_cfl(MultiBufferList::iterator bufwrite, uint numAllocatedParticles)
+{
+	const uint fmaxElements = getFmaxElements(numAllocatedParticles);
+	const uint tempCflEls = getFmaxTempElements(fmaxElements);
+	const size_t fmax_size = fmaxElements*sizeof(float);
+	const size_t tempCfl_size = tempCflEls*sizeof(float);
+
+	float *cfl_forces = bufwrite->getData<BUFFER_CFL>();
+	float *cfl_gamma = bufwrite->getData<BUFFER_CFL_GAMMA>();
+	float *cfl_keps = bufwrite->getData<BUFFER_CFL_KEPS>();
+	float *tempCfl = bufwrite->getData<BUFFER_CFL_TEMP>();
+
+	// Clear the CFL buffers by setting all bits to 1 (i.e. NAN)
+	int val = ~0;
+
+	// these are always here
+	CUDA_SAFE_CALL(cudaMemset(cfl_forces, val, fmax_size));
+	CUDA_SAFE_CALL(cudaMemset(tempCfl, val, tempCfl_size));
+
+	if (cfl_gamma) // TODO FIXME this is currently sized differently from the others
+		CUDA_SAFE_CALL(cudaMemset(cfl_gamma, val, numAllocatedParticles*sizeof(float)));
+	if (cfl_keps)
+		CUDA_SAFE_CALL(cudaMemset(cfl_keps, val, fmax_size));
+}
+
 
 // Returns numBlock for delayed dt reduction in case of striping
 uint
@@ -702,8 +729,6 @@ basicstep(
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
 	if (dgamdt)
 		CUDA_SAFE_CALL(cudaMemset(dgamdt + fromParticle, 0, numParticlesInRange*sizeof(float)));
-	if (cfl_gamma)
-		CUDA_SAFE_CALL(cudaMemset(cfl_gamma + fromParticle, 0, numParticlesInRange*sizeof(float)));
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;

@@ -85,6 +85,10 @@ public:
 		uint	numParticles) = 0;
 
 	virtual void
+	clear_cfl(MultiBufferList::iterator bufwrite,
+		uint	numAllocatedParticles) = 0;
+
+	virtual void
 	unbind_textures() = 0;
 
 	// TODO set/unsetDEM should be moved to the BC engine,

@@ -271,9 +271,10 @@ private:
 
 	// aux methods for forces kernel striping
 	uint enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset);
-	void bind_textures_forces();
-	void unbind_textures_forces();
-	float forces_dt_reduce();
+	// steps to do before launching a (set of) forces kernels: binding textures, resetting CFL, etc
+	void pre_forces();
+	// steps to do after launching a (set of) forces kernels: unbinding textures, get, adaptive dt, etc
+	float post_forces();
 
 	// aux method to warp signed cell coordinates when periodicity is enabled
 	void periodicityWarp(int &cx, int &cy, int &cz);

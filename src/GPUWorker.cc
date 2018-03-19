@@ -1985,23 +1985,25 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		(m_simparams->numforcesbodies > 0) ? true : false);
 }
 
-// Bind the textures needed by forces kernel
-void GPUWorker::bind_textures_forces()
+/// Run the steps necessary for forces execution
+/** This includes things such as binding textures and clearing the CFL buffers
+ */
+void GPUWorker::pre_forces()
 {
 	forcesEngine->bind_textures(m_dBuffers.getReadBufferList(),
 		m_numParticles);
+
+	forcesEngine->clear_cfl(m_dBuffers.getWriteBufferList(), m_numAllocatedParticles);
 }
 
-// Unbind the textures needed by forces kernel
-void GPUWorker::unbind_textures_forces()
+/// Run the steps necessary to cleanup and complete forces execution
+/** This includes things such as ubinding textures and getting the
+ * maximum allowed time-step
+ */
+float GPUWorker::post_forces()
 {
 	forcesEngine->unbind_textures();
-}
 
-// Reduce array of maximum dt after forces, but only for adaptive timesteps
-// Otherwise, just return the current (fixed) timestep
-float GPUWorker::forces_dt_reduce()
-{
 	// no reduction for fixed timestep
 	if (!(m_simparams->simflags & ENABLE_DTADAPT))
 		return m_simparams->dt;
@@ -2139,8 +2141,8 @@ void GPUWorker::kernel_forces_async_enqueue()
 
 	if (numPartsToElaborate > 0 ) {
 
-		// bind textures
-		bind_textures_forces();
+		// setup for forces execution
+		pre_forces();
 
 		// enqueue the first kernel call (on the particles in edging cells)
 		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
@@ -2173,10 +2175,7 @@ void GPUWorker::kernel_forces_async_complete()
 		cudaDeviceSynchronize();
 
 		// unbind the textures
-		unbind_textures_forces();
-
-		// reduce dt
-		returned_dt = forces_dt_reduce();
+		returned_dt = post_forces();
 	}
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
@@ -2216,17 +2215,14 @@ void GPUWorker::kernel_forces()
 
 	if (numPartsToElaborate > 0 ) {
 
-		// bind textures
-		bind_textures_forces();
+		// setup for forces execution
+		pre_forces();
 
 		// enqueue the kernel call
 		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(fromParticle, toParticle, 0);
 
-		// unbind the textures
-		unbind_textures_forces();
-
-		// reduce dt
-		returned_dt = forces_dt_reduce();
+		// cleanup post forces and get dt
+		returned_dt = post_forces();
 	}
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
