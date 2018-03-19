@@ -1019,41 +1019,54 @@ MlsDevice(	const float4*	posArray,
 /************************************************************************************************************/
 /*					   CFL max kernel																		*/
 /************************************************************************************************************/
-//! Computes the max of a float across several threads
+//! Computes the max of an array of floats
+/** 
+ * Each thread reads 4 elements at a time, computing the max of these four elements (hence why
+ * the input type is float4 and not float).
+ * The launch grid “slides” over the entire input array, which is compused by numquarts float4s.
+ * Each block reduces the per-thread reductions in shared memory, and then writes out a single float.
+ */
 template <unsigned int blockSize>
 __global__ void
-fmaxDevice(float *g_idata, float *g_odata, const uint n)
+fmaxDevice(
+	float * __restrict__ output, //< output array,
+	const float4 * __restrict__ input, //< input array
+	const uint numquarts)
 {
-	extern __shared__ float sdata[];
+	__shared__ float sdata[blockSize];
 
-	// perform first level of reduction,
-	// reading from global memory, writing to shared memory
-	unsigned int tid = threadIdx.x;
-	unsigned int i = blockIdx.x*blockSize*2 + threadIdx.x;
-	unsigned int gridSize = blockSize*2*gridDim.x;
+	/* Step #1: reduction from global memory into a private register */
 
+	// Size of the sliding window
+	const unsigned int stride = blockSize*gridDim.x;
+
+	unsigned int i = blockIdx.x*blockSize + threadIdx.x;
+
+	// Accumulator
 	float myMax = 0;
 
 	// we reduce multiple elements per thread.  The number is determined by the
 	// number of active thread blocks (via gridDim).  More blocks will result
 	// in a larger gridSize and therefore fewer elements per thread
-	while (i < n)
+	while (i < numquarts)
 	{
-		myMax = max(myMax, g_idata[i]);
-		// ensure we don't read out of bounds
-		if (i + blockSize < n)
-			myMax = max(myMax, g_idata[i + blockSize]);
-		i += gridSize;
+		float4 in = input[i];
+		myMax = fmaxf(myMax, fmaxf(
+				fmaxf(in.x, in.y),
+				fmaxf(in.z, in.w)));
+		i += stride;
 	}
 
 	// each thread puts its local sum into shared memory
+	const unsigned int tid = threadIdx.x;
+
 	sdata[tid] = myMax;
 	__syncthreads();
 
 	// do reduction in shared mem
-	if (blockSize >= 512) { if (tid < 256) { sdata[tid] = myMax = max(myMax,sdata[tid + 256]); } __syncthreads(); }
-	if (blockSize >= 256) { if (tid < 128) { sdata[tid] = myMax = max(myMax,sdata[tid + 128]); } __syncthreads(); }
-	if (blockSize >= 128) { if (tid <  64) { sdata[tid] = myMax = max(myMax,sdata[tid +  64]); } __syncthreads(); }
+	if (blockSize >= 512) { if (tid < 256) { sdata[tid] = myMax = fmaxf(myMax,sdata[tid + 256]); } __syncthreads(); }
+	if (blockSize >= 256) { if (tid < 128) { sdata[tid] = myMax = fmaxf(myMax,sdata[tid + 128]); } __syncthreads(); }
+	if (blockSize >= 128) { if (tid <  64) { sdata[tid] = myMax = fmaxf(myMax,sdata[tid +  64]); } __syncthreads(); }
 
 	// now that we are using warp-synchronous programming (below)
 	// we need to declare our shared memory volatile so that the compiler
@@ -1061,17 +1074,17 @@ fmaxDevice(float *g_idata, float *g_odata, const uint n)
 	if (tid < 32)
 	{
 		volatile float* smem = sdata;
-		if (blockSize >=  64) { smem[tid] = myMax = max(myMax, smem[tid + 32]); }
-		if (blockSize >=  32) { smem[tid] = myMax = max(myMax, smem[tid + 16]); }
-		if (blockSize >=  16) { smem[tid] = myMax = max(myMax, smem[tid +  8]); }
-		if (blockSize >=   8) { smem[tid] = myMax = max(myMax, smem[tid +  4]); }
-		if (blockSize >=   4) { smem[tid] = myMax = max(myMax, smem[tid +  2]); }
-		if (blockSize >=   2) { smem[tid] = myMax = max(myMax, smem[tid +  1]); }
+		if (blockSize >=  64) { smem[tid] = myMax = fmaxf(myMax, smem[tid + 32]); }
+		if (blockSize >=  32) { smem[tid] = myMax = fmaxf(myMax, smem[tid + 16]); }
+		if (blockSize >=  16) { smem[tid] = myMax = fmaxf(myMax, smem[tid +  8]); }
+		if (blockSize >=   8) { smem[tid] = myMax = fmaxf(myMax, smem[tid +  4]); }
+		if (blockSize >=   4) { smem[tid] = myMax = fmaxf(myMax, smem[tid +  2]); }
+		if (blockSize >=   2) { smem[tid] = myMax = fmaxf(myMax, smem[tid +  1]); }
 	}
 
 	// write result for this block to global mem
 	if (tid == 0)
-		g_odata[blockIdx.x] = sdata[0];
+		output[blockIdx.x] = myMax;
 }
 /************************************************************************************************************/
 

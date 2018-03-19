@@ -80,6 +80,11 @@
 	#define MAX_BLOCKS_FMAX			64
 #endif
 
+// We want to always have at least two warps per block in the reductions
+#if BLOCK_SIZE_FMAX <= 32
+#error "BLOCK_SIZE_FMAX must be larger than 32"
+#endif
+
 
 cudaArray*  dDem = NULL;
 
@@ -92,45 +97,44 @@ void*	reduce_buffer = NULL;
 
 #include "forces_kernel.cu"
 
-/// static inline methods for fmax reduction
-
-static inline void
-reducefmax(	const int	size,
-			const int	threads,
-			const int	blocks,
-			float		*d_idata,
-			float		*d_odata)
+/// Run a single reduction step
+/** \return the number of blocks used to reduce the given elements
+ * If the function is invoked with NULL input, no reduction is used. This can be used
+ * to compute the number of blocks without doing an actual reduction
+ */
+static inline int
+reducefmax(
+			float	*output,
+	const	float	*input,
+			int		nels)
 {
-	dim3 dimBlock(threads, 1, 1);
-	dim3 dimGrid(blocks, 1, 1);
-
-	// when there is only one warp per block, we need to allocate two warps
-	// worth of shared memory so that we don't index shared memory out of bounds
-	int smemSize = (threads <= 32) ? 2 * threads * sizeof(float) : threads * sizeof(float);
-
-	switch (threads)
-	{
-		case 512:
-			cuforces::fmaxDevice<512><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 256:
-			cuforces::fmaxDevice<256><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 128:
-			cuforces::fmaxDevice<128><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 64:
-			cuforces::fmaxDevice<64><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 32:
-			cuforces::fmaxDevice<32><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 16:
-			cuforces::fmaxDevice<16><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case  8:
-			cuforces::fmaxDevice<8><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case  4:
-			cuforces::fmaxDevice<4><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case  2:
-			cuforces::fmaxDevice<2><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case  1:
-			cuforces::fmaxDevice<1><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+	if (nels & 3) {
+		std::cerr << nels << std::endl;
+		throw std::runtime_error("number of elements to reduce is not a multiple of 4");
 	}
+
+	int numquarts = nels/4;
+
+	uint numBlocks = div_up(numquarts, BLOCK_SIZE_FMAX);
+	// we want to be able to complete the reduction in at most two steps. This means that:
+	// * we must be able to feed the output back to this function as input; since we produce
+	//   an output value per block, we need the number of blocks to be a multiple of 4
+	//   (unless it's 1);
+	// * the second time this function is invoked, we must produce a single result,
+	//   so on the first run we must not produce more than BLOCK_SIZE_FMAX*4 elements;
+	if (numBlocks > 1) {
+		numBlocks = round_up(numBlocks, 4U);
+		numBlocks = min(numBlocks, BLOCK_SIZE_FMAX*4);
+	}
+
+	// Only run the actual reduction if there's anything to reduce
+	if (input) {
+		const float4 *input4 = reinterpret_cast<const float4*>(input);
+
+		cuforces::fmaxDevice<BLOCK_SIZE_FMAX><<<numBlocks, BLOCK_SIZE_FMAX>>>(output, input4, numquarts);
+	}
+
+	return numBlocks;
 }
 
 
@@ -145,48 +149,25 @@ static inline uint nextPow2(uint x )
     return ++x;
 }
 
-
-#define MIN(x,y) ((x < y) ? x : y)
-static inline void
-getNumBlocksAndThreads(	const uint	n,
-						const uint	maxBlocks,
-						const uint	maxThreads,
-						uint		&blocks,
-						uint		&threads)
-{
-	threads = (n < maxThreads*2) ? nextPow2((n + 1)/ 2) : maxThreads;
-	blocks = (n + (threads * 2 - 1)) / (threads * 2);
-	blocks = MIN(maxBlocks, blocks);
-}
-
 static inline float
 cflmax( const uint	n,
 		float*		cfl,
 		float*		tempCfl)
 {
-	uint numBlocks = 0;
-	uint numThreads = 0;
-	float max = 0.0f;
-
-	getNumBlocksAndThreads(n, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, numBlocks, numThreads);
-
-	// execute the kernel
-	reducefmax(n, numThreads, numBlocks, cfl, tempCfl);
+	const int numBlocks = reducefmax(tempCfl, cfl, n);
+	float max = NAN;
 
 	// check if kernel execution generated an error
 	KERNEL_CHECK_ERROR;
 
-	// TODO this can be done in just two calls
-	uint s = numBlocks;
-	while(s > 1)
-	{
-		uint threads = 0, blocks = 0;
-		getNumBlocksAndThreads(s, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, blocks, threads);
-
-		reducefmax(s, threads, blocks, tempCfl, tempCfl);
+	// Second reduction step, if necessary
+	if (numBlocks > 1) {
+		const int numBlocks2 = reducefmax(tempCfl, tempCfl, numBlocks);
 		KERNEL_CHECK_ERROR;
-
-		s = (s + (threads*2-1)) / (threads*2);
+		// The second run should have produced a single result, if it didn't
+		// we busted something in the logic
+		if (numBlocks2 > 1)
+			throw std::runtime_error("reduction numBlocks error!");
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(&max, tempCfl, sizeof(float), cudaMemcpyDeviceToHost));
@@ -531,16 +512,16 @@ unbind_textures()
 uint
 getFmaxElements(const uint n)
 {
-	return div_up<uint>(n, BLOCK_SIZE_FORCES);
+	return round_up(div_up<uint>(n, BLOCK_SIZE_FORCES), 4U);
 }
 
 
+// returns the number of elements in the intermediate reduction step, assuming n
+// elements in the original array
 uint
 getFmaxTempElements(const uint n)
 {
-	uint numBlocks, numThreads;
-	getNumBlocksAndThreads(n, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, numBlocks, numThreads);
-	return numBlocks;
+	return reducefmax(NULL, NULL, n);
 }
 
 
@@ -554,7 +535,8 @@ dtreduce(	float	slength,
 			float	*cfl_gamma,
 			float	*cfl_keps,
 			float	*tempCfl,
-			uint	numBlocks)
+			uint	numBlocks,
+			uint	numAllocatedParticles)
 {
 	// cfl holds one value per block in the forces kernel call,
 	// so it holds numBlocks elements
@@ -562,7 +544,7 @@ dtreduce(	float	slength,
 	float dt = dtadaptfactor*fminf(sqrtf(slength/maxcfl), slength/sspeed_cfl);
 
 	if (USING_DYNAMIC_GAMMA(simflags)) {
-		maxcfl = fmaxf(cflmax(numBlocks, cfl_gamma, tempCfl), 1e-5f/dt);
+		maxcfl = fmaxf(cflmax(numAllocatedParticles, cfl_gamma, tempCfl), 1e-5f/dt);
 		const float dt_gam = 0.001f/maxcfl;
 		if (dt_gam < dt)
 			dt = dt_gam;
@@ -732,7 +714,8 @@ basicstep(
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
-	uint numBlocks = div_up(numParticlesInRange, numThreads);
+	// number of blocks, rounded up to next multiple of 4 to improve reductions
+	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
 	#if (__COMPUTE__ == 20)
 	int dtadapt = !!(simflags & ENABLE_DTADAPT);
 	if (visctype == SPSVISC)

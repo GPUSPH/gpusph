@@ -284,7 +284,8 @@ void GPUWorker::computeAndSetAllocableParticles()
 
 	freeMemory -= memPerCells;
 
-	uint numAllocableParticles = (freeMemory / computeMemoryPerParticle());
+	// keep num allocable particles rounded to the next multiple of 4, to improve reductions' performances
+	uint numAllocableParticles = round_up<uint>(freeMemory / computeMemoryPerParticle(), 4);
 
 	if (numAllocableParticles < gdata->allocatedParticles)
 		printf("NOTE: device %u can allocate %u particles, while the whole simulation might require %u\n",
@@ -2035,7 +2036,8 @@ float GPUWorker::post_forces()
 		bufwrite.getData<BUFFER_CFL_GAMMA>(),
 		bufwrite.getData<BUFFER_CFL_KEPS>(),
 		bufwrite.getData<BUFFER_CFL_TEMP>(),
-		m_forcesKernelTotalNumBlocks);
+		m_forcesKernelTotalNumBlocks,
+		m_numAllocatedParticles);
 }
 
 // Aux method to warp signed cell coordinates if periodicity is enabled.

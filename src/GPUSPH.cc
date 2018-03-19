@@ -43,6 +43,9 @@
 // GPUWorker
 #include "GPUWorker.h"
 
+// div_up
+#include "utils.h"
+
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
@@ -168,12 +171,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
 	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
 	printf(" - Grid size:    %u x %u x %u (%s cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->addSeparators(gdata->nGridCells).c_str());
-#define STR(macro) #macro
-#define COORD_NAME(coord) STR(coord)
-	printf(" - Cell linearizazion: %s,%s,%s\n", COORD_NAME(COORD1), COORD_NAME(COORD2),
-		COORD_NAME(COORD3));
-#undef COORD_NAME
-#undef STR
+	printf(" - Cell linearizazion: %s,%s,%s\n", STR(COORD1), STR(COORD2), STR(COORD3));
 	printf(" - Dp:   %g\n", gdata->problem->m_deltap);
 	printf(" - R0:   %g\n", gdata->problem->physparams()->r0);
 
@@ -255,7 +253,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// the number of allocated particles will be bigger, to be sure it can contain particles being created
 	// WARNING: particle creation in inlets also relies on this, do not disable if using inlets
-	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
+	// round up to multiple of 4 to improve reductions' performances
+	gdata->allocatedParticles = round_up(problem->max_parts(gdata->totParticles), 4U);
 
 	// generate planes
 	problem->copy_planes(gdata->s_hPlanes);
