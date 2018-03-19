@@ -918,8 +918,12 @@ size_t GPUWorker::allocateDeviceBuffers() {
 			nels *= m_simparams->neiblistsize; // number of particles times neib list size
 		else if (key == BUFFER_CFL_TEMP)
 			nels = tempCflEls;
-		else if (key == BUFFERS_CFL) // other CFL buffers
-			nels = fmaxElements;
+		else if (key & BUFFERS_CFL) { // other CFL buffers
+			// TODO presently CFL_GAMMA has one entry per particle instead of one block
+			// this should be improved
+			if (key != BUFFER_CFL_GAMMA)
+				nels = fmaxElements;
+		}
 
 		allocated += m_dBuffers.alloc(key, nels);
 		++iter;
