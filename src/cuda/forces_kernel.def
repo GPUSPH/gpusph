@@ -1340,9 +1340,10 @@ compute_density_diffusion<FERRARI, SA_BOUNDARY, cptype, PT_BOUNDARY>
 
 /// Diffusion term for Brezzi for fluid neighbours
 template<BoundaryType boundarytype,
-		ParticleType cptype>
+		ParticleType cptype,
+		ParticleType nptype>
 struct
-compute_density_diffusion<BREZZI, boundarytype, cptype, PT_FLUID>
+compute_density_diffusion<BREZZI, boundarytype, cptype, nptype>
 {
 	template<typename FP, typename Pt, typename N, typename ON>
 	__device__ __forceinline__
