@@ -3161,7 +3161,7 @@ struct density_diffusion_particle_data :
 	density_diffusion_particle_data(FP const& params, const uint _index, float4 const& _pos, particleinfo const& _info) :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		vel_particle_data(params, _index, _info),
-		gamma_particle_data(params, _index)
+		COND_STRUCT(boundarytype == SA_BOUNDARY, gamma_particle_data)(params, _index)
 	{}
 };
 
