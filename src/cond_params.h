@@ -61,34 +61,9 @@ struct empty
 	__host__ __device__ __forceinline__
 	empty() {}
 
-	template<typename T1>
+	template<typename ...T1>
 	__host__ __device__ __forceinline__
-	empty(T1) {}
-
-	template<typename T1, typename T2>
-	__host__ __device__ __forceinline__
-	empty(T1, T2) {}
-
-	template<typename T1, typename T2, typename T3>
-	__host__ __device__ __forceinline__
-	empty(T1, T2, T3) {}
-
-	template<typename T1, typename T2, typename T3, typename T4>
-	__host__ __device__ __forceinline__
-	empty(T1, T2, T3, T4) {}
-
-	template<typename T1, typename T2, typename T3, typename T4, typename T5>
-	__host__ __device__ __forceinline__
-	empty(T1, T2, T3, T4, T5) {}
-
-	template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
-	__host__ __device__ __forceinline__
-	empty(T1, T2, T3, T4, T5, T6) {}
-
-	template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6,
-		typename T7, typename T8, typename T9, typename T10, typename T11, typename T12>
-	__host__ __device__ __forceinline__
-	empty(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12) {}
+	empty(T1...) {}
 };
 
 
