@@ -461,11 +461,6 @@ densitySumBoundaryDevice(
 
 	// generate new density based on previously computed values
 	pout.rho = (imposedGam*pdata.vel.w + params.forces[index].w)/pout.gGamNp1.w;
-#if 0
-	if (id(params.info[index]) == 1189708) {
-		printf("rho %g %g | %g %g\n", params.oldVel[index].w, params.newVel[index].w, pdata.vel.w, pout.rho);
-	}
-#endif
 
 	// clipping of new gamma
 	// this needs to happen after the density update because otherwise density jumps can occur
