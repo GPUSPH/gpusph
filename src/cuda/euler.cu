@@ -133,7 +133,6 @@ density_sum(
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
 
 	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
-	const float *dgamdt = bufread->getData<BUFFER_DGAMDT>();
 	const float3 *keps_dkde = bufread->getData<BUFFER_DKDE>();
 	const float4 *xsph = bufread->getData<BUFFER_XSPH>();
 
@@ -155,14 +154,14 @@ density_sum(
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
 	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
 			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
-			dgamdt, particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
+			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
 			slength, influenceradius, neibsList, cellStart, NULL, NULL);
 
 	cudensity_sum::densitySumVolumicDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
 
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
 			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
-			dgamdt, particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
+			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
 			slength, influenceradius, neibsList, cellStart, newBoundElement, vertPos);
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);

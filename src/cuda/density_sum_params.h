@@ -65,7 +65,6 @@ struct common_density_sum_params
 			float4	*newgGam;
 	const	float4	*oldEulerVel;
 			float4	*newEulerVel;
-	const	float	*dgamdt;
 	const	hashKey	*particleHash;		///< particle's hash (in)
 	const	particleinfo	*info;		///< particle's information
 			float4	*forces;			///< derivative of particle's velocity and density (in/out)
@@ -89,7 +88,6 @@ struct common_density_sum_params
 				float4		*_newgGam,
 		const	float4		*_oldEulerVel,
 				float4		*_newEulerVel,
-		const	float		*_dgamdt,
 		const	hashKey		*_particleHash,
 		const	particleinfo	*_info,
 				float4		*_forces,
@@ -110,7 +108,6 @@ struct common_density_sum_params
 		newgGam(_newgGam),
 		oldEulerVel(_oldEulerVel),
 		newEulerVel(_newEulerVel),
-		dgamdt(_dgamdt),
 		particleHash(_particleHash),
 		info(_info),
 		forces(_forces),
@@ -171,7 +168,6 @@ struct density_sum_params :
 				float4		*_newgGam,
 		const	float4		*_oldEulerVel,
 				float4		*_newEulerVel,
-		const	float		*_dgamdt,
 		const	hashKey		*_particleHash,
 		const	particleinfo	*_info,
 				float4		*_forces,
@@ -189,7 +185,7 @@ struct density_sum_params :
 				float4*		_newBoundElement,
 		const	float2*		const _vertPos[]) :
 
-		common_density_sum_params(_oldPos, _newPos, _oldVel, _newVel, _oldgGam, _newgGam, _oldEulerVel, _newEulerVel, _dgamdt,
+		common_density_sum_params(_oldPos, _newPos, _oldVel, _newVel, _oldgGam, _newgGam, _oldEulerVel, _newEulerVel,
 			_particleHash, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step, _slength, _influenceradius, _neibsList, _cellStart),
 		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
 			(_newBoundElement, _vertPos)

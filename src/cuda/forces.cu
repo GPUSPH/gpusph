@@ -629,7 +629,7 @@ compute_density_diffusion(
 }
 
 // Clear the CFL buffers
-// TODO maybe we should clear forces and dgamdt here too?
+// TODO maybe we should clear forces here too?
 void clear_cfl(MultiBufferList::iterator bufwrite, uint numAllocatedParticles)
 {
 	const uint fmaxElements = getFmaxElements(numAllocatedParticles);
@@ -690,7 +690,6 @@ basicstep(
 
 	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
 	float4 *xsph = bufwrite->getData<BUFFER_XSPH>();
-	float *dgamdt = bufwrite->getData<BUFFER_DGAMDT>();
 	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
 
 	const float *turbvisc = const_cast<float*>(bufread->getData<BUFFER_TURBVISC>());
@@ -710,8 +709,6 @@ basicstep(
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
-	if (dgamdt)
-		CUDA_SAFE_CALL(cudaMemset(dgamdt + fromParticle, 0, numParticlesInRange*sizeof(float)));
 	if (tau) {
 		// KEPS buffers need to be cleared too, as they will be built progressively
 		CUDA_SAFE_CALL(cudaMemset(keps_dkde + fromParticle, 0, numParticlesInRange*sizeof(float3)));
@@ -740,7 +737,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
+			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
 			DEDt);
@@ -752,7 +749,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
+			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
 			DEDt);
@@ -765,7 +762,7 @@ basicstep(
 			xsph,
 			bufread->getData<BUFFER_VOLUME>(),
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
+			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
 			DEDt);
@@ -783,7 +780,7 @@ basicstep(
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
-				newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
+				newGGam, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
 				DEDt);
@@ -798,7 +795,7 @@ basicstep(
 				xsph,
 				bufread->getData<BUFFER_VOLUME>(),
 				bufread->getData<BUFFER_SIGMA>(),
-				newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
+				newGGam, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
 				DEDt);
@@ -825,7 +822,7 @@ basicstep(
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, oldGGam, dgamdt,
+			newGGam, oldGGam,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau, DEDt);
 

@@ -1007,7 +1007,6 @@ initIOmass(
  *	\param[in,out] oldGGam : pointer to (grad) gamma; used only for cloning (i.e. creating a new particle)
  *	\param[in,out] oldEulerVel : pointer to Eulerian velocity & density; imposed values are set and the other is computed here
  *	\param[in,out] forces : pointer to forces; used only for cloning
- *	\param[in,out] dgamdt : pointer to dgamdt; used only for cloning
  *	\param[in,out] vertices : pointer to associated vertices; fluid particles have this information if they are passing through a boundary and are going to be deleted
  *	\param[in] vertIDToIndex : pointer that associated a vertex id with an array index
  *	\param[in,out] pinfo : pointer to particle info; written only when cloning
@@ -1034,7 +1033,6 @@ saVertexBoundaryConditions(
 						float4*			oldGGam,
 						float4*			oldEulerVel,
 						float4*			forces,
-						float*			dgamdt,
 						vertexinfo*		vertices,
 				const	float2*			vertPos0,
 				const	float2*			vertPos1,

@@ -353,7 +353,6 @@ computeDensitySumBoundaryTerms(
  *	\param[in] oldEps : previous values of e, for k-e model
  *	\param[in] particleInfo : particle's information
  *	\param[in] forces : derivative of particle's velocity and density
- *	\param[in] dgamdt : time derivative of gamma
  *	\param[in] keps_dkde : derivative of ??? <- TODO
  *	\param[in] xsph : SPH mean of velocities used for xsph correction
  *	\param[out] newPos : updated particle's position

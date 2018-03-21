@@ -111,7 +111,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_VEL>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_INFO>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>();
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_DGAMDT>();
 
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_HASH>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
@@ -2632,7 +2631,6 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				bufwrite.getData<BUFFER_GRADGAMMA>(),
 				bufwrite.getData<BUFFER_EULERVEL>(),
 				bufwrite.getData<BUFFER_FORCES>(),
-				bufwrite.getData<BUFFER_DGAMDT>(),
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufwrite.getData<BUFFER_VERTICES>(),
 				bufread.getRawPtr<BUFFER_VERTPOS>(),

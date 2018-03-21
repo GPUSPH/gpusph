@@ -568,15 +568,13 @@ struct common_particle_output
 struct sa_boundary_particle_output
 {
 	// x,y,z contains the gradient of gamma, w gamma itself
+	// During forces we compute the new gradient of g
 	float4	gGam;
-	// time derivative of gamma
-	float	dgamdt;
 
 	template<typename FP>
 	__device__ __forceinline__
 	sa_boundary_particle_output(FP const& params, const uint index) :
-		gGam(make_float4(0, 0, 0, 1)),
-		dgamdt(params.dgamdt[index])
+		gGam(make_float4(0, 0, 0, 1))
 	{}
 };
 
@@ -705,22 +703,9 @@ struct forces_particle_output :
 	{}
 };
 
-// SA_BOUNDARY
-struct sa_finalize_particle_output
-{
-	float	dgamdt;
-
-	template<typename FP>
-	__device__ __forceinline__
-	sa_finalize_particle_output(FP const& params, const uint index) :
-		dgamdt(params.dgamdt[index])
-	{}
-};
-
 template<BoundaryType _boundarytype, ViscosityType visctype, flag_t _simflags>
 struct finalize_particle_output :
 	common_particle_output,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_output),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
 		gamma_cfl_particle_output),
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_output)
@@ -729,7 +714,6 @@ struct finalize_particle_output :
 	__device__ __forceinline__
 	finalize_particle_output(FP const& params, const uint index) :
 		common_particle_output(params, index),
-		COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_output)(params, index),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
 			gamma_cfl_particle_output)(params, index),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(params, index)
@@ -921,26 +905,15 @@ struct ggam_neib_output
 	{ }
 };
 
-struct sa_boundary_neib_output : ggam_neib_output
-{
-	float	DgamDt;
-
-	__device__ __forceinline__
-	sa_boundary_neib_output() :
-		ggam_neib_output(),
-		DgamDt(0.0f)
-	{ }
-};
-
 template<BoundaryType boundarytype>
 struct forces_neib_output :
 	common_neib_output,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_output)
+	COND_STRUCT(boundarytype == SA_BOUNDARY, ggam_neib_output)
 {
 	__device__ __forceinline__
 	forces_neib_output() :
 		common_neib_output(),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_output)()
+		COND_STRUCT(boundarytype == SA_BOUNDARY, ggam_neib_output)()
 	{}
 };
 
@@ -1138,58 +1111,6 @@ void compute_gamma_cfl<true, true>::with(FP const& params, P const& pdata, N con
 		// n . (v_s + u_s)
 		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
 }
-
-
-// A functor that helps to compute the influence of eulerian velocities onto the governing equations
-template<bool inoutBoundaries>
-struct compute_gamma_dot_io {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
-
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_gamma_dot_io<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	nout.DgamDt -= nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
-}
-
-// A functor that computes D gamma / Dt
-template<bool dynamic_gamma>
-struct
-compute_gamma_dot
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{ /* do nothing */ }
-};
-
-// Compute D gamma / Dt in the case of dynamic gamma
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-void
-compute_gamma_dot<true>::with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-{
-	// boundary term of div(v)
-	nout.DgamDt += dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
-
-	compute_gamma_dot_io<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
-
-	compute_gamma_cfl<
-		has_gammaCfl<OP>(), /* needs_cfl */
-		(FP::simflags & ENABLE_INLET_OUTLET) /* ioBoundary */
-		>::with(params, pdata, ndata, pout, nout);
-
-	pout.dgamdt += nout.DgamDt;
-}
-
 
 /// A functor that helps to compute the influence of eulerian velocities onto the governing equations
 template<bool inoutBoundaries>
@@ -2300,31 +2221,25 @@ __device__ __forceinline__ void
 write_internal_energy<true>::with(FP const& params, P const& pdata, OP const& pout)
 { params.DEDt[pdata.index] = pout.DEDt; }
 
-/// A functor that writes out forces
-template<BoundaryType boundarytype>
-struct write_forces
+
+/// A functor that writes out turbvisc
+/// but only for KEPSVISC
+template<ViscosityType>
+struct write_turbvisc
 {
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, OP const& pout)
-	{
-		params.forces[pdata.index] = pout.force;
-	}
+	{ /* do nothing */ }
 };
 
 template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__
-void
-write_forces<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout)
-{
-	params.forces[pdata.index].x = pout.force.x;
-	params.forces[pdata.index].y = pout.force.y;
-	params.forces[pdata.index].z = pout.force.z;
-	params.forces[pdata.index].w = pout.force.w;
-	params.dgamdt[pdata.index] = pout.dgamdt;
-}
+__device__ __forceinline__ void
+write_turbvisc<KEPSVISC>::with(FP const& params, P const& pdata, OP const& pout)
+{ params.turbvisc[pdata.index] = pdata.turbVisc; }
+
 
 /*
  * Global variables
@@ -2748,8 +2663,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
 		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
-		// Compute time derivative of gamma
-		compute_gamma_dot<USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, ndata, pout, nout);
+		// Compute gamma CFL
+		compute_gamma_cfl<(simflags & ENABLE_DTADAPT) && USING_DYNAMIC_GAMMA(simflags), (simflags & ENABLE_INLET_OUTLET)>::with(params, pdata, ndata, pout, nout);
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
@@ -2965,7 +2880,7 @@ forcesDevice(
 		write_gamma<boundarytype, nptype, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, pout);
 		write_gamma_cfl(params, pdata, pout);
 
-		write_forces<boundarytype>::with(params, pdata, pout);
+		params.forces[pdata.index] = pout.force;
 
 		if (nptype == PT_FLUID && cptype == PT_FLUID) {
 			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
@@ -3096,7 +3011,7 @@ finalizeforcesDevice(
 
 		}
 
-		write_forces<boundarytype>::with(params, pdata, pout);
+		params.forces[index] = pout.force;
 		write_keps(params, pdata, pout);
 
 	} while (0);
