@@ -602,7 +602,7 @@ compute_density_diffusion(
 	if (boundarytype == SA_BOUNDARY)
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread->getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 
-	auto params = density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, PT_FLUID>(
+	auto params = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, PT_FLUID>(
 			bufwrite->getData<BUFFER_FORCES>(),
 			bufread->getData<BUFFER_POS>(),
 			bufread->getData<BUFFER_VEL>(),

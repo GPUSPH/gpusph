@@ -3234,7 +3234,7 @@ template<KernelType kerneltype,
 __device__ __forceinline__
 typename std::enable_if<nptype != PT_VERTEX || boundarytype == SA_BOUNDARY, void>::type
 density_diffusion_interaction(
-	density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, cptype> const& params,
+	density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> const& params,
 	density_diffusion_particle_data<boundarytype> const& pdata,
 	float& DrDt)
 {
@@ -3275,7 +3275,7 @@ template<KernelType kerneltype,
 __device__ __forceinline__
 typename std::enable_if<nptype == PT_VERTEX && boundarytype != SA_BOUNDARY, void>::type
 density_diffusion_interaction(
-	density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, cptype> const& params,
+	density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> const& params,
 	density_diffusion_particle_data<boundarytype> const& pdata,
 	float &DrDt)
 { /* do nothing */ }
@@ -3290,7 +3290,7 @@ template<KernelType kerneltype,
 	flag_t simflags,
 	ParticleType cptype>
 __global__ void
-computeDensityDiffusionDevice(density_diffusion_params<kerneltype, densitydiffusiontype, boundarytype, cptype> params)
+computeDensityDiffusionDevice(density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;

@@ -93,6 +93,7 @@ struct sa_boundary_density_diffusion_params
 
 template<
 	KernelType _kerneltype,
+	SPHFormulation _sph_formulation,
 	DensityDiffusionType _densitydiffusiontype,
 	BoundaryType _boundarytype,
 	ParticleType _cptype>
@@ -101,6 +102,7 @@ struct density_diffusion_params :
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_density_diffusion_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr SPHFormulation sph_formulation = _sph_formulation;
 	static constexpr DensityDiffusionType densitydiffusiontype = _densitydiffusiontype;
 	static constexpr BoundaryType boundarytype = _boundarytype;
 	static constexpr ParticleType cptype = _cptype;
