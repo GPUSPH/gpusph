@@ -413,7 +413,17 @@ densitySumBoundaryDevice(
 
 	// continuity equation based on particle positions
 	// sum_{S^{io}} (gradGam^n).delta r
+	/* GB TODO FIXME this is spurious when not using IO, and definitely needs
+	 * some thought about IO too, particularly when using density summation.
+	 * As a provisional splitneibs-merge fix, set it to zero, we'll re-evaluate
+	 * it when reintroduing open boundaries.
+	 */
+#if 0
 	const float sumSgamN = dt*params.dgamdt[index];
+#else
+	const float sumSgamN = 0;
+#endif
+
 	// sum_{S^{io}} (gradGam(r + delta r)).delta r
 	float sumSgamDelta = 0.0f;
 	// sum_{S} (gradGam^{n+1} + gradGam^n)/2 . (r^{n+1} - r^{n})
