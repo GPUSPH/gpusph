@@ -1145,11 +1145,32 @@ static __forceinline__ __host__ __device__ float length3(const float4 &v)
 	return sqrtf(sqlength3(v));
 }
 
-// cross product
+// cross product, ignoring the fourth4 component
 static __forceinline__ __host__ __device__ float4 cross3(const float4 &a, const float4 &b)
 {
 	return make_float4(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x, 0.0f);
 }
+
+// cross product of a float3 and the .xyz of a float4
+static __forceinline__ __host__ __device__ float3 cross3(const float3 &a, const float4 &b)
+{
+	return make_float3(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x);
+}
+
+// cross product of the .xyz of a float4 and a float3
+static __forceinline__ __host__ __device__ float3 cross3(const float4 &a, const float3 &b)
+{
+	return make_float3(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x);
+}
+
+// cross product of float3s. same as cross(float3, float3), but using the cross3 name
+// so that cross3() can be when the type of the arguments isn't known
+static __forceinline__ __host__ __device__ float3 cross3(const float3 &a, const float3 &b)
+{
+	return cross(a, b);
+}
+
+
 
 // normalize
 static __forceinline__ __host__ __device__ float4 normalize(const float4 &v)
