@@ -234,26 +234,9 @@ computeDensitySumBoundaryTerms(
 		// normal of segment
 		const float3 ns = as_float3(boundElement[neib_index]);
 
-		// vectors r_{v_i,s}
-		uint j = 0;
-		// Get index j for which n_s is minimal
-		if (fabs(ns.x) > fabs(ns.y))
-			j = 1;
-		if ((1-j)*fabs(ns.x) + j*fabs(ns.y) > fabs(ns.z))
-			j = 2;
-		// compute the first coordinate which is a 2-D rotated version of the normal
-		const float3 coord1 = normalize(make_float3(
-			// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-			-((j==1)*ns.z) +  (j == 2)*ns.y ,  // -z if j == 1, y if j == 2
-			  (j==0)*ns.z  - ((j == 2)*ns.x),  // z if j == 0, -x if j == 2
-			-((j==0)*ns.y) +  (j == 1)*ns.x ));// -y if j == 0, x if j == 1
-		// the second coordinate is the cross product between the normal and the first coordinate
-		const float3 coord2 = cross(ns, coord1);
-		// relative positions of vertices with respect to the segment
 		// TODO vertexRelPos does not account for movement of the object atm
-		const float3 vertexRelPos[3] = { -(vPos0[neib_index].x*coord1 + vPos0[neib_index].y*coord2)/slength, // e.g. v0 = r_{v0} - r_s
-										 -(vPos1[neib_index].x*coord1 + vPos1[neib_index].y*coord2)/slength,
-										 -(vPos2[neib_index].x*coord1 + vPos2[neib_index].y*coord2)/slength };
+		float3 vertexRelPos[3];
+		calcVertexRelPos(vertexRelPos, ns, vPos0[neib_index], vPos1[neib_index], vPos2[neib_index], slength);
 
 		// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
 		const float3 gGamN   = gradGamma<kerneltype>(slength, as_float3(qN),   vertexRelPos, ns)*ns;

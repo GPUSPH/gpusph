@@ -183,6 +183,39 @@ gaussQuadratureO14(	const	float3	vPos0,
 	return val*vol;
 }
 
+/// Compute the relative position of vertices to element barycenter
+template<typename NormalT>
+__device__ __forceinline__ void
+calcVertexRelPos(
+	float3 q_vb[3], /// Array where the results will be written
+	const NormalT ns, /// normal of the segment (float3) or segment (float4, with normal in .xyz)
+	const float2 vPos0,
+	const float2 vPos1,
+	const float2 vPos2,
+	float slength)
+{
+	// local coordinate system for relative positions to vertices
+	// vectors r_{v_i,s}
+	uint j = 0;
+	// Get index j for which n_s is minimal
+	if (fabs(ns.x) > fabs(ns.y))
+		j = 1;
+	if ((1-j)*fabs(ns.x) + j*fabs(ns.y) > fabs(ns.z))
+		j = 2;
+	// compute the first coordinate which is a 2-D rotated version of the normal
+	const float3 coord1 = normalize(make_float3(
+			// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+			-((j==1)*ns.z) +  (j == 2)*ns.y ,  // -z if j == 1, y if j == 2
+			(j==0)*ns.z  - ((j == 2)*ns.x),  // z if j == 0, -x if j == 2
+			-((j==0)*ns.y) +  (j == 1)*ns.x ));// -y if j == 0, x if j == 1
+	// the second coordinate is the cross product between the normal and the first coordinate
+	const float3 coord2 = cross3(ns, coord1);
+	// relative positions of vertices with respect to the segment
+	q_vb[0] = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
+	q_vb[1] = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
+	q_vb[2] = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
+}
+
 
 /// Computes \f$ ||\nabla \gamma_{as}|| \f$
 /*! Computes \f$ ||\nabla \gamma_{as}|| based on an analytical formula.

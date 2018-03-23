@@ -685,30 +685,10 @@ struct InitGammaVars {
 		}
 
 		normal = as_float3(boundElement[neib_index]);
-
-		// local coordinate system for relative positions to vertices
-		uint j = 0;
-		// Get index j for which n_s is minimal
-		if (fabsf(normal.x) > fabsf(normal.y))
-			j = 1;
-		if ((1-j)*fabsf(normal.x) + j*fabsf(normal.y) > fabsf(normal.z))
-			j = 2;
-
-		// compute the first coordinate which is a 2-D rotated version of the normal
-		const float3 coord1 = normalize(make_float3(
-					// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-					-((j==1)*normal.z) +  (j == 2)*normal.y , // -z if j == 1, y if j == 2
-					(j==0)*normal.z  - ((j == 2)*normal.x), // z if j == 0, -x if j == 2
-					-((j==0)*normal.y) +  (j == 1)*normal.x // -y if j == 0, x if j == 1
-					));
-		// the second coordinate is the cross product between the normal and the first coordinate
-		const float3 coord2 = cross(normal, coord1);
-
-		// relative positions of vertices with respect to the segment
-		q_vb[0] = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
-		q_vb[1] = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2)/slength;
-		q_vb[2] = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2)/slength;
 		q = relPos/slength;
+
+		calcVertexRelPos(q_vb, normal,
+			vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], slength);
 	}
 };
 
