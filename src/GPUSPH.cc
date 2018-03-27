@@ -655,6 +655,11 @@ bool GPUSPH::runSimulation() {
 				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
 				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
 			}
+		} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+			// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
+			// but we still need to integrate gamma, which needs the new position and thus
+			// needs to be done after EULER
+			doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_1);
 		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
@@ -759,6 +764,11 @@ bool GPUSPH::runSimulation() {
 				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
 				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
 			}
+		} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+			// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
+			// but we still need to integrate gamma, which needs the new position and thus
+			// needs to be done after EULER
+			doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_2);
 		}
 
 		// Euler needs always cg(n)

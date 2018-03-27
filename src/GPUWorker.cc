@@ -1626,6 +1626,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing DENSITY_SUM\n", deviceIndex);
 				instance->kernel_density_sum();
 				break;
+			case INTEGRATE_GAMMA:
+				if (dbg_step_printf) printf(" T %d issuing INTEGRATE_GAMMA\n", deviceIndex);
+				instance->kernel_integrate_gamma();
+				break;
 			case CALC_DENSITY_DIFFUSION:
 				if (dbg_step_printf) printf(" T %d issuing CALC_DENSITY_DIFFUSION\n", deviceIndex);
 				instance->kernel_calc_density_diffusion();
@@ -2273,6 +2277,29 @@ void GPUWorker::kernel_density_sum()
 	integrationEngine->density_sum(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
 		m_dBuffers.getReadBufferList(),	// the read array but it will be written to in certain cases (densitySum)
+		m_dBuffers.getWriteBufferList(),
+		m_dCellStart,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->dt, // m_dt,
+		gdata->dt/2.0f, // m_dt/2.0,
+		firstStep ? 1 : 2,
+		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+}
+
+void GPUWorker::kernel_integrate_gamma()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+
+	integrationEngine->integrate_gamma(
+		m_dBuffers.getReadBufferList(),	// this is the read only arrays
 		m_dBuffers.getWriteBufferList(),
 		m_dCellStart,
 		m_numParticles,

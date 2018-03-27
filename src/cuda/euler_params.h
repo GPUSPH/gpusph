@@ -111,9 +111,6 @@ struct xsph_euler_params
 /// Additional parameters passed only to kernels with SA_BOUNDARY
 struct sa_boundary_euler_params
 {
-			float4	*oldgGam;
-			float4	*newgGam;
-	const	float	*dgamdt;
 			float4	*newEulerVel;
 			float4	*newBoundElement;
 	const	float2	*vertPos0;
@@ -127,9 +124,6 @@ struct sa_boundary_euler_params
 
 	// Constructor / initializer
 	sa_boundary_euler_params(
-				float4	*_oldgGam,
-				float4	*_newgGam,
-		const	float	*_dgamdt,
 				float4	*_newEulerVel,
 				float4	*_newBoundElement,
 		const	float2	* const _vertPos[],
@@ -138,9 +132,6 @@ struct sa_boundary_euler_params
 		const	float	_influenceradius,
 		const	neibdata	*_neibsList,
 		const	uint	*_cellStart) :
-		oldgGam(_oldgGam),
-		newgGam(_newgGam),
-		dgamdt(_dgamdt),
 		newEulerVel(_newEulerVel),
 		newBoundElement(_newBoundElement),
 		vertPos0(_vertPos[0]),
@@ -256,9 +247,6 @@ struct euler_params :
 		const	float4	*_xsph,
 
 		// SA_BOUNDARY
-				float4	*_oldgGam,
-				float4	*_newgGam,
-		const	float	*_dgamdt,
 				float4	*_newEulerVel,
 				float4	*_newBoundElement,
 		const	float2	* const _vertPos[],
@@ -288,7 +276,7 @@ struct euler_params :
 			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_euler_params)
-			(_oldgGam, _newgGam, _dgamdt, _newEulerVel, _newBoundElement,
+			(_newEulerVel, _newBoundElement,
 			_vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_euler_params)(_newTKE, _newEps,  _oldTKE, _oldEps, _keps_dkde),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol),

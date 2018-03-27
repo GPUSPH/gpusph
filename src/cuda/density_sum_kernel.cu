@@ -182,7 +182,99 @@ computeDensitySumVolumicTerms(
 	}
 }
 
-template<KernelType kerneltype>
+struct common_gamma_sum_terms {
+	// collects sum_{S} (gradGam^{n+1} + gradGam^n)/2 . (r^{n+1} - r^{n})
+	float gGamDotR;
+	// gradGam
+	float3 gGam;
+
+	__device__ __forceinline__
+	common_gamma_sum_terms() :
+		gGamDotR(0.0f),
+		gGam(make_float3(0.0f))
+	{}
+};
+
+/// Gamma summation terms in case of I/O
+struct io_gamma_sum_terms {
+	// sum_{S^{io}} (gradGam(r + delta r)).delta r
+	float sumSgamDelta;
+
+	__device__ __forceinline__
+	io_gamma_sum_terms() :
+		sumSgamDelta(0.0f)
+	{}
+};
+
+template<KernelType _kerneltype, flag_t simflags>
+struct gamma_sum_terms :
+	common_gamma_sum_terms,
+	COND_STRUCT(simflags & ENABLE_INLET_OUTLET, io_gamma_sum_terms)
+{
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr bool has_io = simflags & ENABLE_INLET_OUTLET;
+};
+
+template<typename GammaTermT, typename OutputT>
+using enable_if_IO = typename std::enable_if<GammaTermT::has_io, OutputT>::type;
+template<typename GammaTermT, typename OutputT>
+using enable_if_not_IO = typename std::enable_if<!GammaTermT::has_io, OutputT>::type;
+
+/* contribution to grad gamma integration from I/O,
+ * only if I/O is active
+ */
+template<typename GammaTermT>
+__device__ __forceinline__
+enable_if_not_IO<GammaTermT, void>
+io_gamma_contrib(GammaTermT& sumGam, ...)
+{ /* default case, nothing to do */ };
+
+template<typename GammaTermT>
+__device__ __forceinline__
+enable_if_IO<GammaTermT, void>
+io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_info,
+	float4 * __restrict__ eulerVel,
+	float4 * __restrict__ oldVel,
+	float3 const qN,
+	float3 const ns,
+	float3 * vertexRelPos,
+	float dt,
+	float slength)
+{
+		if (IO_BOUNDARY(neib_info)) {
+			// sum_{S^{io}} (gradGam(r + delta r)).delta r
+			const float3 deltaR = dt*as_float3(eulerVel[neib_index] - oldVel[neib_index]);
+			const float3 qDelta = qN + deltaR/slength;
+			const float3 gGamDelta = gradGamma<GammaTermT::kerneltype>(slength, qDelta, vertexRelPos, ns)*ns;
+			sumGam.sumSgamDelta += dot(deltaR, gGamDelta);
+		}
+};
+
+// Compute the imposedGamma for densitySumBoundaryDevice, depending on IO conditions
+template<typename GammaTermT>
+__device__ __forceinline__
+enable_if_not_IO<GammaTermT, float>
+compute_imposed_gamma(float oldGam, GammaTermT const& sumGam, float sumSgamN)
+{
+	return oldGam;
+}
+template<typename GammaTermT>
+__device__ __forceinline__
+enable_if_IO<GammaTermT, float>
+compute_imposed_gamma(float oldGam, GammaTermT const& sumGam, float sumSgamN)
+{
+	float imposed = oldGam + (sumGam.sumSgamDelta + sumSgamN)/2.0f;
+	// clipping of the imposed gamma
+	if (imposed > 1.0f)
+		imposed = 1.0f;
+	else if (imposed < 0.1f)
+		imposed = 0.1f;
+
+	return imposed;
+}
+
+// TODO use more structs to collect params
+template<KernelType kerneltype, flag_t simflags>
 __device__ __forceinline__
 static void
 computeDensitySumBoundaryTerms(
@@ -197,7 +289,6 @@ computeDensitySumBoundaryTerms(
 	const	float4			*newPos,
 	const	float4			*oldVel,
 	const	float4			*eulerVel,
-	const	float4			*forces,
 	const	particleinfo	*pinfo,
 	const	float4			*boundElement,
 	const	float2			*vPos0,
@@ -208,9 +299,7 @@ computeDensitySumBoundaryTerms(
 	const	neibdata*		neibsList,
 	const	uint			numParticles,
 	const	int				step,
-			float			&sumSgamDelta,
-			float			&gGamDotR,
-			float3			&gGam)
+	gamma_sum_terms<kerneltype, simflags> &sumGam)
 {
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -241,18 +330,13 @@ computeDensitySumBoundaryTerms(
 		// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
 		const float3 gGamN   = gradGamma<kerneltype>(slength, as_float3(qN),   vertexRelPos, ns)*ns;
 		const float3 gGamNp1 = gradGamma<kerneltype>(slength, as_float3(qNp1), vertexRelPos, ns)*ns;
-		gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(qNp1 - qN));
-		gGam += gGamNp1;
+		sumGam.gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(qNp1 - qN));
+		sumGam.gGam += gGamNp1;
 
-		if (IO_BOUNDARY(neib_info)) {
-			// sum_{S^{io}} (gradGam(r + delta r)).delta r
-			const float3 deltaR = dt*as_float3(eulerVel[neib_index] - oldVel[neib_index]);
-			const float3 qDelta = as_float3(qN) + deltaR/slength;
-			const float3 gGamDelta = gradGamma<kerneltype>(slength, qDelta, vertexRelPos, ns)*ns;
-			sumSgamDelta += dot(deltaR, gGamDelta);
-		}
+		io_gamma_contrib(sumGam, neib_index, neib_info,
+			eulerVel, oldVel, make_float3(qN), ns, vertexRelPos, dt, slength);
 	}
-	gGamDotR *= slength;
+	sumGam.gGamDotR *= slength;
 }
 
 /// Computes the density based on an integral formulation of the continuity equation
@@ -407,12 +491,9 @@ densitySumBoundaryDevice(
 	const float sumSgamN = 0;
 #endif
 
-	// sum_{S^{io}} (gradGam(r + delta r)).delta r
-	float sumSgamDelta = 0.0f;
-	// sum_{S} (gradGam^{n+1} + gradGam^n)/2 . (r^{n+1} - r^{n})
-	float gGamDotR = 0.0f;
+	gamma_sum_terms<kerneltype, simflags> sumGam;
 
-	computeDensitySumBoundaryTerms<kerneltype>(
+	computeDensitySumBoundaryTerms(
 		pdata.posN,
 		pdata.posNp1,
 		index,
@@ -424,7 +505,6 @@ densitySumBoundaryDevice(
 		params.newPos,
 		params.oldVel,
 		params.oldEulerVel,
-		params.forces,
 		params.info,
 		params.newBoundElement,
 		params.vertPos0,
@@ -435,22 +515,19 @@ densitySumBoundaryDevice(
 		params.neibsList,
 		params.numParticles,
 		params.step,
-		sumSgamDelta,
-		gGamDotR,
-		as_float3(pout.gGamNp1));
+		sumGam);
+
+	pout.gGamNp1.x = sumGam.gGam.x;
+	pout.gGamNp1.y = sumGam.gGam.y;
+	pout.gGamNp1.z = sumGam.gGam.z;
 
 	// gamma terms
 	// AM-TODO what about this term to remove 1/2 dgamdt?
 	//const float4 gGamN = pdata.newgGam;// - (step-1.0)*make_float4(0.0f, 0.0f, 0.0f, gGamDotR/2.0f);
-	pout.gGamNp1.w = pdata.gGamN.w + gGamDotR;
+	pout.gGamNp1.w = pdata.gGamN.w + sumGam.gGamDotR;
 
 	// now compute a new gamma based on the eulerian velocity of the boundary
-	float imposedGam = pdata.gGamN.w + (sumSgamDelta + sumSgamN)/2.0f;
-	// clipping of the imposed gamma
-	if (imposedGam > 1.0f)
-		imposedGam = 1.0f;
-	else if (imposedGam < 0.1f)
-		imposedGam = 0.1f;
+	float imposedGam = compute_imposed_gamma(pdata.gGamN.w, sumGam, sumSgamN);
 
 	// generate new density based on previously computed values
 	pout.rho = (imposedGam*pdata.vel.w + params.forces[index].w)/pout.gGamNp1.w;
@@ -467,6 +544,63 @@ densitySumBoundaryDevice(
 	params.newVel[index].w = pout.rho;
 	// gamma
 	params.newgGam[index] = pout.gGamNp1;
+}
+
+/// Integrate gamma
+/** Gamma is always integrated using a “density sum” approach,
+ * from the difference of the particle distribution at step n
+ * and at step n+1 (hence why the kernel is here in
+ * the density sum namespace)
+*/
+template<KernelType kerneltype, flag_t simflags>
+__global__ void
+integrateGammaDevice(
+	const	float4	* __restrict__ gGamN, ///< previous gamma and its gradient
+			float4	* __restrict__ gGamNp1, ///< [out] new gamma and its gradient
+	const	float4	* __restrict__ posN, ///< positions at step n
+	const	float4	* __restrict__ posNp1, ///< positions at step n+1
+	const	float4	* __restrict__ velN, ///< velocities at step n
+	const	float4	* __restrict__ velNp1, ///< velocities at step n+1
+	const	hashKey	* __restrict__ particleHash, ///< particle hash
+	const	particleinfo * __restrict__ info, ///< particle info
+	const	float4	* __restrict__ boundElementN, ///< boundary elements at step n
+	const	float4	* __restrict__ boundElementNp1, ///< boundary elements at step n+1
+	const	float2	* __restrict__ vPos0,
+	const	float2	* __restrict__ vPos1,
+	const	float2	* __restrict__ vPos2,
+	const	neibdata *__restrict__ neibsList,
+	const	uint	* __restrict__ cellStart,
+	const	uint	particleRangeEnd, ///< max number of particles
+	const	float	full_dt, ///< time step (dt)
+	const	float	half_dt, ///< half of time step (dt/2)
+	const	float	t, ///< simulation time
+	const	uint	step, ///< integrator step
+	const	float	slength,
+	const	float	influenceradius)
+{
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	// only perform density integration for fluid particles
+	if (index >= particleRangeEnd || !FLUID(info[index]))
+		return;
+
+	// We use dt/2 on the first step, the actual dt on the second step
+	const float dt = (step == 1) ? half_dt : full_dt;
+
+	gamma_sum_terms<kerneltype, simflags> sumGam;
+
+	computeDensitySumBoundaryTerms(
+		posN[index], posNp1[index], index,
+		dt, half_dt, influenceradius, slength,
+		posN, posNp1, velN, NULL /* TODO oldEulerVel, only for I/O */,
+		info,
+		boundElementNp1, vPos0, vPos1, vPos2,
+		particleHash, cellStart, neibsList, particleRangeEnd,
+		step, sumGam);
+
+
+	gGamNp1[index] = make_float4(
+		sumGam.gGam, gGamN[index].w + sumGam.gGamDotR);
 }
 
 } // end of namespace cudensity_sum

@@ -105,6 +105,8 @@ enum CommandType {
 	FORCES_COMPLETE,
 	/// Integration (runs the Euler kernel)
 	EULER,
+	/// Integration of SABOUNDARY's gamma
+	INTEGRATE_GAMMA,
 	/// Integration of the density using an integral formulation
 	DENSITY_SUM,
 	/// Compute the density diffusion term in the case of density sum:

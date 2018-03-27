@@ -81,6 +81,21 @@ public:
 		const	float	slength,
 		const	float	influenceRadius) = 0;
 
+	/// Gamma integration from particle distribution
+	virtual void
+	integrate_gamma(
+		MultiBufferList::const_iterator bufread,	// particle system at state n
+		MultiBufferList::iterator bufreadUpdate,	// particle system at state n+1
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt,
+		const	float	dt2,
+		const	int		step,
+		const	float	t,
+		const	float	slength,
+		const	float	influenceRadius) = 0;
+
 	virtual void
 	apply_density_diffusion(
 		MultiBufferList::const_iterator bufread,

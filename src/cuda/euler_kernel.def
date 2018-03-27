@@ -186,32 +186,6 @@ enum continuity_integration_type {
 	INTEGRATE_DENSITY
 };
 
-template<bool dynamic_gamma>
-struct gamma_integration {
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index, float dt)
-	{ /* do nothing */ }
-};
-
-// integrate gamma
-template<>
-template<typename EP, typename P>
-__device__ __forceinline__ void
-gamma_integration<true>::with(EP const& params, P &pdata, int index, float dt)
-{
-	// calculation of new gamma (gamma^{n+1} = gamma^n + dt*<v,grad gamma>)
-	float newGam = params.oldgGam[index].w + dt*params.dgamdt[index];
-	// clipping of new gamma
-	if (newGam > 1.0f || length3(params.oldgGam[index])*params.slength < 1e-10f)
-		newGam = 1.0f;
-	else if (newGam < 0.1f)
-		newGam = 0.1f;
-	// writing of new gamma
-	params.newgGam[index].w = newGam;
-}
-
 template<enum continuity_integration_type>
 struct continuity_integration {
 	template<typename EP, typename P>
@@ -297,25 +271,6 @@ integrate_eulerian_velocity_ke<SA_BOUNDARY, KEPSVISC>::with(EP const& params, P 
 		// this is for k-eps only. Normally forces are going to be zero
 		pdata.eulerVel += dt*pdata.force;
 	}
-}
-
-template<BoundaryType boundarytype>
-struct write_gamma_of_boundary {
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata)
-	{ /* do nothing*/ }
-};
-
-
-template<>
-template<typename EP, typename P>
-__device__ __forceinline__ void
-write_gamma_of_boundary<SA_BOUNDARY>::with(EP const& params, P &pdata)
-{
-	if (BOUNDARY(pdata.info))
-		params.newgGam[pdata.index] = params.oldgGam[pdata.index];
 }
 
 // A functor that helps to writes volume output, if using GRENIER formulation
@@ -455,18 +410,15 @@ write_viscosity_coeff<KEPSVISC>::with(EP const& params, P &pdata, int index)
  *	\param[in] hashKey : particle's hash
  *	\param[in] oldVel : previous particle's velocity
  *	\param[in] oldEulerVel : previous eulerian velocities for ??? <- TODO
- *	\param[in] oldGam : previous values of gradient of gamma
  *	\param[in] okdTKE : previous values of k, for k-e model
  *	\param[in] oldEps : previous values of e, for k-e model
  *	\param[in] particleInfo : particle's information
  *	\param[in] forces : derivative of particle's velocity and density
- *	\param[in] dgamdt : time derivative of gamma
  *	\param[in] keps_dkde : derivative of ??? <- TODO
  *	\param[in] xsph : SPH mean of velocities used for xsph correction
  *	\param[out] newPos : updated particle's position
  *	\param[out] newVel : updated particle's  velocity
  *	\param[out] newEulerVel : updated eulerian velocities for ??? <- TODO
- *	\param[out] newgGam : updated values of gradient of gamma
  *	\param[out] newTKE : updated values of k, for k-e model
  *	\param[out] newEps : updated values of e, for k-e model
  *	\param[in,out] newBoundElement : ??? <- TODO
@@ -537,12 +489,6 @@ eulerDevice(
 					INTEGRATE_DENSITY)
 				>::with(params, pdata, index, dt);
 
-				// Update gamma
-				// In the density sum case this is done in the respective kernel. The
-				// reason being that density jumps can occur if gamma is not computed
-				// properly
-				gamma_integration<boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && !(simflags & ENABLE_DENSITY_SUM)>::with(params, pdata, index, dt);
-
 				as_float3(pdata.vel) += dt*as_float3(pdata.force);
 
 				// updating internal energy
@@ -558,9 +504,6 @@ eulerDevice(
 		   case)
 		 */
 		case PT_VERTEX:
-			// only difference is that vertex needs the gamma to be updated in the dynamic case
-			gamma_integration<boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, index, dt);
-
 		case PT_BOUNDARY:
 
 			// integration pos and vel for moving objects
@@ -626,7 +569,6 @@ eulerDevice(
 	write_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, index);
 	write_eulerVel<boundarytype, visctype==KEPSVISC || simflags & ENABLE_INLET_OUTLET>::with(params, pdata, index);
 	write_viscosity_coeff<visctype>::with(params, pdata, index);
-	write_gamma_of_boundary<boundarytype>::with(params, pdata);
 }
 
 /* vi:set ft=cuda: */
