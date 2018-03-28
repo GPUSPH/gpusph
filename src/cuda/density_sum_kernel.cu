@@ -206,13 +206,13 @@ struct io_gamma_sum_terms {
 	{}
 };
 
-template<KernelType _kerneltype, flag_t simflags>
+template<KernelType _kerneltype, flag_t simflags, bool _has_io = !!(simflags & ENABLE_INLET_OUTLET)>
 struct gamma_sum_terms :
 	common_gamma_sum_terms,
-	COND_STRUCT(simflags & ENABLE_INLET_OUTLET, io_gamma_sum_terms)
+	COND_STRUCT(_has_io, io_gamma_sum_terms)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
-	static constexpr bool has_io = simflags & ENABLE_INLET_OUTLET;
+	static constexpr bool has_io = _has_io;
 };
 
 template<typename GammaTermT, typename OutputT>
@@ -226,18 +226,25 @@ using enable_if_not_IO = typename std::enable_if<!GammaTermT::has_io, OutputT>::
 template<typename GammaTermT>
 __device__ __forceinline__
 enable_if_not_IO<GammaTermT, void>
-io_gamma_contrib(GammaTermT& sumGam, ...)
+io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_info,
+	const float4 * __restrict__ eulerVel,
+	const float4 * __restrict__ oldVel,
+	const float3 qN,
+	const float3 ns,
+	const float3 * vertexRelPos,
+	float dt,
+	float slength)
 { /* default case, nothing to do */ };
 
 template<typename GammaTermT>
 __device__ __forceinline__
 enable_if_IO<GammaTermT, void>
 io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_info,
-	float4 * __restrict__ eulerVel,
-	float4 * __restrict__ oldVel,
-	float3 const qN,
-	float3 const ns,
-	float3 * vertexRelPos,
+	const float4 * __restrict__ eulerVel,
+	const float4 * __restrict__ oldVel,
+	const float3 qN,
+	const float3 ns,
+	const float3 * vertexRelPos,
 	float dt,
 	float slength)
 {
@@ -285,15 +292,15 @@ computeDensitySumBoundaryTerms(
 	const	float			half_dt,
 	const	float			influenceradius,
 	const	float			slength,
-	const	float4			*oldPos,
-	const	float4			*newPos,
-	const	float4			*oldVel,
-	const	float4			*eulerVel,
-	const	particleinfo	*pinfo,
-	const	float4			*boundElement,
-	const	float2			*vPos0,
-	const	float2			*vPos1,
-	const	float2			*vPos2,
+	const	float4			* __restrict__ oldPos,
+	const	float4			* __restrict__ newPos,
+	const	float4			* __restrict__ oldVel,
+	const	float4			* __restrict__ eulerVel,
+	const	particleinfo	* __restrict__ pinfo,
+	const	float4			* __restrict__ boundElement,
+	const	float2			* __restrict__ vPos0,
+	const	float2			* __restrict__ vPos1,
+	const	float2			* __restrict__ vPos2,
 	const	hashKey*		particleHash,
 	const	uint*			cellStart,
 	const	neibdata*		neibsList,
