@@ -1066,7 +1066,7 @@ struct compute_gamma<SA_BOUNDARY, cptype, false> {
 		float3 q_vb[3];
 		calcVertexRelPos(q_vb, ndata.belem,
 			params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
-			params.slegnth);
+			params.slength);
 
 		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
 		// TODO: we need to output grad gamma only when using olgGGam (that is grad gamma from the previous step).
