@@ -31,6 +31,8 @@
 
 #include <type_traits> // for std::is_base_of
 
+#include "has_member.h"
+
 /// This file defines the heavy-duty forcesDevice kernel (at the end).
 /// The kernel itself is now quite streamlined, and it only contains sequences
 /// of calls to templatized functors that do the actual job according to their
@@ -593,14 +595,9 @@ struct gamma_cfl_particle_output
 	{}
 };
 
-template<typename OP>
-using has_gammaCfl = typename std::is_base_of<gamma_cfl_particle_output, OP>;
-
-template<typename OP, typename T=void>
-using enable_if_gammaCfl = typename std::enable_if<has_gammaCfl<OP>::value, T>::type;
-template<typename OP, typename T=void>
-using enable_if_not_gammaCfl = typename std::enable_if<!has_gammaCfl<OP>::value, T>::type;
-
+template<typename OP, bool ret = std::is_base_of<gamma_cfl_particle_output, OP>::value>
+__device__ __forceinline__
+constexpr bool has_gammaCfl() { return ret; }
 
 // KEPSVISC
 struct keps_particle_output
@@ -715,38 +712,22 @@ struct finalize_particle_output :
 
 /* We may fetch velocity either from the kernel params (if there is a velArray),
    or from the velTex texture (otherwise). We abstract this selection in the following pair
-   of specialized functions. We use the C++17 bool_constant alias */
+   of specialized functions. */
 
-#if __cplusplus >= 201703L
-using std::bool_constant;
-#else
-template<bool B>
-using bool_constant = std::integral_constant<bool, B>;
-#endif
-
-/* By default, assume the velArray member is not present. We will specialize this in the true case
- * by playing on the second, implicit parameter */
-template<typename FP, typename = std::true_type> struct has_velArray : std::false_type {};
-/* Specialization that due to SFINAE will only be triggered when FP::velArray is a valid expression */
-template<typename FP> struct has_velArray<FP, bool_constant<sizeof(FP::velArray)>> : std::true_type {};
-
-template<typename FP, typename T>
-using enable_with_velArray = typename std::enable_if<has_velArray<FP>::value, T>::type;
-template<typename FP, typename T>
-using enable_without_velArray = typename std::enable_if<!has_velArray<FP>::value, T>::type;
+DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
 
 template<typename FP>
 __device__ __forceinline__
-enable_with_velArray<FP, float4>
-fetchVel(FP params, uint index)
+enable_if_t<has_velArray<FP>(), float4>
+fetchVel(FP const& params, uint index)
 {
 	return params.velArray[index];
 }
 
 template<typename FP>
 __device__ __forceinline__
-enable_without_velArray<FP, float4>
-fetchVel(FP params, uint index)
+enable_if_t<!has_velArray<FP>(), float4>
+fetchVel(FP const& params, uint index)
 {
 	return tex1Dfetch(velTex, index);
 }
@@ -1170,7 +1151,7 @@ compute_gamma_dot<true>::with(FP const& params, P const& pdata, N const & ndata,
 	compute_gamma_dot_io<FP::simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
 
 	compute_gamma_cfl<
-		has_gammaCfl<OP>::value, /* needs_cfl */
+		has_gammaCfl<OP>(), /* needs_cfl */
 		(FP::simflags & ENABLE_INLET_OUTLET) /* ioBoundary */
 		>::with(params, pdata, ndata, pout, nout);
 
@@ -1605,22 +1586,20 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
 // This is just relVel normally, but it's relVel + relEulerVel when the neighbor
 // has an associated eulerian velocity.
 
-template<typename N>
-using has_eulerVel = std::is_base_of<eulerVel_neib_data, N>;
-
-template<typename N, typename T>
-using enable_if_eulerVel = typename std::enable_if<has_eulerVel<N>::value, T>::type;
-template<typename N, typename T>
-using enable_if_not_eulerVel = typename std::enable_if<!has_eulerVel<N>::value, T>::type;
+template<typename N, bool ret = std::is_base_of<eulerVel_neib_data, N>::value>
+__device__ __forceinline__
+constexpr bool has_eulerVel() { return ret; }
 
 template<typename N>
 __device__ __forceinline__
-enable_if_not_eulerVel<N, float4> get_viscous_relVel(N const& ndata)
+enable_if_t<!has_eulerVel<N>(), float4>
+get_viscous_relVel(N const& ndata)
 { return ndata.relVel; } /* Standard case */
 
 template<typename N>
 __device__ __forceinline__
-enable_if_eulerVel<N, float4> get_viscous_relVel(N const& ndata)
+enable_if_t<has_eulerVel<N>(), float4>
+get_viscous_relVel(N const& ndata)
 { return ndata.relVel + ndata.relEulerVel; } /* eulerVel case */
 
 // auxiliary functor computing boundary contribution to the viscous term
@@ -2223,7 +2202,7 @@ write_gamma<SA_BOUNDARY, PT_BOUNDARY, true>::with(FP const& params, P const& pda
 /// A funcion that writes out gammaCfl, if present
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_gammaCfl<OP>
+enable_if_t<has_gammaCfl<OP>()>
 write_gamma_cfl(FP const& params, P const& pdata, OP& pout)
 {
 	params.cfl_gamma[pdata.index] = pout.gammaCfl;
@@ -2232,7 +2211,7 @@ write_gamma_cfl(FP const& params, P const& pdata, OP& pout)
 /// write_gamma_cfl is there is no gammaCfl
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_not_gammaCfl<OP>
+enable_if_t<!has_gammaCfl<OP>()>
 write_gamma_cfl(FP const& params, P const& pdata, OP& pout)
 { /* do nothing */ }
 
@@ -3195,7 +3174,7 @@ template<KernelType kerneltype,
 	ParticleType cptype,
 	ParticleType nptype>
 __device__ __forceinline__
-typename std::enable_if<nptype != PT_VERTEX || boundarytype == SA_BOUNDARY, void>::type
+enable_if_t<nptype != PT_VERTEX || boundarytype == SA_BOUNDARY>
 density_diffusion_interaction(
 	density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> const& params,
 	density_diffusion_particle_data<boundarytype> const& pdata,
@@ -3236,7 +3215,7 @@ template<KernelType kerneltype,
 	ParticleType cptype,
 	ParticleType nptype>
 __device__ __forceinline__
-typename std::enable_if<nptype == PT_VERTEX && boundarytype != SA_BOUNDARY, void>::type
+enable_if_t<nptype == PT_VERTEX && boundarytype != SA_BOUNDARY>
 density_diffusion_interaction(
 	density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> const& params,
 	density_diffusion_particle_data<boundarytype> const& pdata,

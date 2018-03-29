@@ -95,10 +95,9 @@ inline vector_fmt_options set_vector_fmt(const char *sep)
  * knowing how many there are.
  */
 template<typename V>
-typename enable_if<
+enable_if_t<
 	(vector_traits<V>::components > 0),
-	std::ostream
->::type&
+	std::ostream>&
 operator<<
 (std::ostream& out, V const& val)
 {

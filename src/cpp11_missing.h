@@ -71,4 +71,22 @@ using std::enable_if;
 
 #endif
 
+#if __cplusplus < 201402L
+
+template<bool B, typename T=void>
+using enable_if_t = typename enable_if<B, T>::type;
+
+#else
+using std::enable_if_t;
+
+#endif
+
+#if __cplusplus >= 201703L
+using std::void_t;
+#else
+template<typename ...>
+using void_t = void;
+#endif
+
+
 #endif

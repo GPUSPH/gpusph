@@ -215,17 +215,12 @@ struct gamma_sum_terms :
 	static constexpr bool has_io = _has_io;
 };
 
-template<typename GammaTermT, typename OutputT>
-using enable_if_IO = typename std::enable_if<GammaTermT::has_io, OutputT>::type;
-template<typename GammaTermT, typename OutputT>
-using enable_if_not_IO = typename std::enable_if<!GammaTermT::has_io, OutputT>::type;
-
 /* contribution to grad gamma integration from I/O,
  * only if I/O is active
  */
 template<typename GammaTermT>
 __device__ __forceinline__
-enable_if_not_IO<GammaTermT, void>
+enable_if_t<!GammaTermT::has_io>
 io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_info,
 	const float4 * __restrict__ eulerVel,
 	const float4 * __restrict__ oldVel,
@@ -234,11 +229,11 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 	const float3 * vertexRelPos,
 	float dt,
 	float slength)
-{ /* default case, nothing to do */ };
+{ /* default case (no I/O), nothing to do */ };
 
 template<typename GammaTermT>
 __device__ __forceinline__
-enable_if_IO<GammaTermT, void>
+enable_if_t<GammaTermT::has_io>
 io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_info,
 	const float4 * __restrict__ eulerVel,
 	const float4 * __restrict__ oldVel,
@@ -260,14 +255,14 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 // Compute the imposedGamma for densitySumBoundaryDevice, depending on IO conditions
 template<typename GammaTermT>
 __device__ __forceinline__
-enable_if_not_IO<GammaTermT, float>
+enable_if_t<!GammaTermT::has_io, float>
 compute_imposed_gamma(float oldGam, GammaTermT const& sumGam, float sumSgamN)
 {
 	return oldGam;
 }
 template<typename GammaTermT>
 __device__ __forceinline__
-enable_if_IO<GammaTermT, float>
+enable_if_t<GammaTermT::has_io, float>
 compute_imposed_gamma(float oldGam, GammaTermT const& sumGam, float sumSgamN)
 {
 	float imposed = oldGam + (sumGam.sumSgamDelta + sumSgamN)/2.0f;

@@ -1,0 +1,71 @@
+/*  Copyright 2018 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Conservatoire National des Arts et Metiers, Paris, France
+
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+	This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#ifndef HAS_MEMBER_H
+#define HAS_MEMBER_H
+
+#include "cpp11_missing.h"
+
+/* From time to time we need to specialize our function templates
+ * based on presence or absence of a particular member
+ * (for example, fetch the velocity array from velArray if present,
+ * or using the texture otherwise).
+ *
+ * We can achieve using SFINAE to define a structure template
+ * that maps to std::false_type or std::true_type depending on whether the
+ * member is present or not.
+ *
+ * To simplify creation of new detect, we wrap the creation of the structures
+ * in a macro.
+ */
+
+#define DECLARE_MEMBER_DETECTOR(member, detector) \
+/* Default: false */ \
+template<typename T, typename = void_t<> > struct _##detector : std::false_type {}; \
+/* Specialization that due to SFINAE will only be triggered when \
+ * FP::velArray is a valid expression */ \
+template<typename T> struct _##detector<T, void_t<decltype(T::member)>> : std::true_type {}; \
+/* Constexpr function that returns true or false */ \
+template<typename T, bool ret = _##detector<T>::value> \
+__host__ __device__ __forceinline__ \
+constexpr bool detector() { return ret; } \
+template<typename T, bool ret = _##detector<T>::value> \
+__host__ __device__ __forceinline__ \
+constexpr bool detector(T const&) { return ret; }
+
+/* Example usage:
+
+   DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
+
+   template<FP> enable_if_t<has_velArray<FP>(), float4> func() { ... }
+   template<FP> enable_if_t<!has_velArray<FP>(), float4> func() { ... }
+
+ */
+
+
+#endif
