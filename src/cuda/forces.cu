@@ -693,10 +693,12 @@ basicstep(
 	float *dgamdt = bufwrite->getData<BUFFER_DGAMDT>();
 	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
 
-	// TODO FIXME TURBVISC, TKE, EPSILON are in/out, but they are taken from the READ position
+	// TODO FIXME TURBVISC, iis in/out, but is taken from the READ position
+	// TODO FIXME it should be computed in euler
 	float *turbvisc = const_cast<float*>(bufread->getData<BUFFER_TURBVISC>());
-	float *keps_tke = const_cast<float*>(bufread->getData<BUFFER_TKE>());
-	float *keps_eps = const_cast<float*>(bufread->getData<BUFFER_EPSILON>());
+	// TODO FIXME temporary k-eps needs TAU only for temporary storage
+	// across the split kernel calls in forces
+	float2 **tau = bufwrite->getRawPtr<BUFFER_TAU>();
 
 	float3 *keps_dkde = bufwrite->getData<BUFFER_DKDE>();
 	float *cfl_forces = bufwrite->getData<BUFFER_CFL>();
@@ -711,6 +713,14 @@ basicstep(
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
 	if (dgamdt)
 		CUDA_SAFE_CALL(cudaMemset(dgamdt + fromParticle, 0, numParticlesInRange*sizeof(float)));
+	if (tau) {
+		// KEPS buffers need to be cleared too, as they will be built progressively
+		CUDA_SAFE_CALL(cudaMemset(keps_dkde + fromParticle, 0, numParticlesInRange*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemset(tau[0] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
+		CUDA_SAFE_CALL(cudaMemset(tau[1] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
+		CUDA_SAFE_CALL(cudaMemset(tau[2] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
+	}
+
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
@@ -733,7 +743,7 @@ basicstep(
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
-			keps_dkde, turbvisc,
+			keps_dkde, turbvisc, tau,
 			DEDt);
 
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
@@ -745,7 +755,7 @@ basicstep(
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
-			keps_dkde, turbvisc,
+			keps_dkde, turbvisc, tau,
 			DEDt);
 
 
@@ -758,7 +768,7 @@ basicstep(
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
-			keps_dkde, turbvisc,
+			keps_dkde, turbvisc, tau,
 			DEDt);
 
 
@@ -776,7 +786,7 @@ basicstep(
 				bufread->getData<BUFFER_SIGMA>(),
 				newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
-				keps_dkde, turbvisc,
+				keps_dkde, turbvisc, tau,
 				DEDt);
 
 		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
@@ -791,7 +801,7 @@ basicstep(
 				bufread->getData<BUFFER_SIGMA>(),
 				newGGam, dgamdt, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
-				keps_dkde, turbvisc,
+				keps_dkde, turbvisc, tau,
 				DEDt);
 
 		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
@@ -818,7 +828,7 @@ basicstep(
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, oldGGam, dgamdt,
 			IOwaterdepth,
-			keps_dkde, turbvisc, DEDt);
+			keps_dkde, turbvisc, tau, DEDt);
 
 	cuforces::finalizeforcesDevice<sph_formulation, boundarytype, visctype, simflags>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);

@@ -524,8 +524,9 @@ struct finalize_forces_particle_data :
 	// the next is only needed for PT_OBJECT, which in fact need no other data
 	rb_particle_data,
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_particle_data),
-	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data)
-	{
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data),
+	COND_STRUCT(_visctype == KEPSVISC, keps_particle_data)
+{
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
@@ -543,7 +544,8 @@ struct finalize_forces_particle_data :
 		common_finalize_particle_data(_index, _pos, params.velArray[_index], _info, params.particleHash),
 		rb_particle_data(_info),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params)
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params),
+		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info)
 		{}
 };
 
@@ -602,20 +604,47 @@ constexpr bool has_gammaCfl() { return ret; }
 // KEPSVISC
 struct keps_particle_output
 {
-	float3	dvx;
-	float3	dvy;
-	float3	dvz;
+	symtensor3 tau;
 
 	float	diff_term_k;
 	float	diff_term_e;
 	float	ce2yap;
 
+	// tau will be used to store the strain rate tensor
+	// (not exactly though: since we'll need to multiply by two later,
+	// the off-diagonal elements will be stored premultiplied)
+	__device__ __forceinline__
+	void add_strain_rate(float4 const& relVel, float3 const& mul)
+	{
+		float3 dvx = relVel.x*mul;
+		float3 dvy = relVel.y*mul;
+		float3 dvz = relVel.z*mul;
+
+		tau.xx += dvx.x;
+		tau.xy += dvx.y + dvy.x;
+		tau.xz += dvx.z + dvz.x;
+		tau.yy += dvy.y;
+		tau.yz += dvy.z + dvz.y;
+		tau.zz += dvz.z;
+	}
+
 	__device__ __forceinline__
 	keps_particle_output()
 	{
-		dvx = dvy = dvz = make_float3(0.0f);
+		clear(tau);
 		diff_term_k = diff_term_e = 0;
 		ce2yap = 1.92f;
+	}
+
+	template<typename FP>
+	__device__ __forceinline__
+	keps_particle_output(FP const& params, uint index)
+	{
+		float3 dkde = params.keps_dkde[index];
+		tau = fetchTau(index, params.tau0, params.tau1, params.tau2);
+		diff_term_k = dkde.x;
+		diff_term_e = dkde.y;
+		ce2yap = dkde.z;
 	}
 };
 
@@ -687,12 +716,13 @@ struct sa_finalize_particle_output
 	{}
 };
 
-template<BoundaryType _boundarytype, flag_t _simflags>
+template<BoundaryType _boundarytype, ViscosityType visctype, flag_t _simflags>
 struct finalize_particle_output :
 	common_particle_output,
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_output),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
-		gamma_cfl_particle_output)
+		gamma_cfl_particle_output),
+	COND_STRUCT(visctype == KEPSVISC, keps_particle_output)
 {
 	template<typename FP>
 	__device__ __forceinline__
@@ -700,7 +730,8 @@ struct finalize_particle_output :
 		common_particle_output(params, index),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_output)(params, index),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
-			gamma_cfl_particle_output)(params, index)
+			gamma_cfl_particle_output)(params, index),
+		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(params, index)
 	{}
 };
 
@@ -1874,10 +1905,7 @@ struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, nptype> : public generic
 		//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
 		//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
-		const float4 visc_relVel = get_viscous_relVel(ndata);
-		pout.dvx += visc_relVel.x*dvmul;
-		pout.dvy += visc_relVel.y*dvmul;
-		pout.dvz += visc_relVel.z*dvmul;
+		pout.add_strain_rate(get_viscous_relVel(ndata), dvmul);
 	}
 };
 
@@ -1909,9 +1937,7 @@ struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, PT_BOUNDARY> : public ge
 		//	dvy = ∑ρs vyas ∇γas
 		//	dvz = ∑ρs vzas ∇γas
 
-		pout.dvx += (ndata.relVel.x+ndata.relEulerVel.x)*dvmul;
-		pout.dvy += (ndata.relVel.y+ndata.relEulerVel.y)*dvmul;
-		pout.dvz += (ndata.relVel.z+ndata.relEulerVel.z)*dvmul;
+		pout.add_strain_rate(get_viscous_relVel(ndata), dvmul);
 	}
 };
 
@@ -1967,37 +1993,44 @@ __device__ __forceinline__ float
 viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 {
 	// final division for diff and dv{x,y,z} terms
-	const float rhoGam = pdata.vel.w*pout.gGam.w;
+	const float rhoGam = pdata.vel.w*pdata.gGam.w;
+
 	// finalize diffusion terms
 	pout.diff_term_k /= rhoGam;
 	pout.diff_term_e /= rhoGam;
-	// finalize velocity gradients
+
+	// velocity gradients should be divided by rhoGam as well,
+	// but since we're also going to do a bunch of multiplications and
+	// then a square root, we'll just divide afterwards instead.
+	// In fact, the square norm of the Sij tensor will be divided
+	// even after the norm itself
+#if 0
 	pout.dvx /= rhoGam;	// dvx = -1/γa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
 	pout.dvy /= rhoGam;	// dvy = -1/γa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
 	pout.dvz /= rhoGam;	// dvz = -1/γa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+#endif
+
 	// Calculate norm of the mean strain rate tensor
-	float SijSij_bytwo = 2.0f*(pout.dvx.x*pout.dvx.x +
-		pout.dvy.y*pout.dvy.y +
-		pout.dvz.z*pout.dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-	float temp = pout.dvx.y + pout.dvy.x;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-	temp = pout.dvx.z + pout.dvz.x;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-	temp = pout.dvy.z + pout.dvz.y;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+	float SijSij_bytwo =
+		2.0f*(pout.tau.xx*pout.tau.xx +
+			  pout.tau.yy*pout.tau.yy +
+			  pout.tau.zz*pout.tau.zz)+ // 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
+		pout.tau.xy*pout.tau.xy +		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
+		pout.tau.xz*pout.tau.xz +		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
+		pout.tau.yz*pout.tau.yz;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+
 	// Strain rate
-	const float S = sqrtf(SijSij_bytwo);
+	const float S = sqrtf(SijSij_bytwo)/rhoGam;
+	// don't forget to divide SijSij_bytwo = S^2 too:
+	SijSij_bytwo /= rhoGam*rhoGam;
+
 	// production of turbulent kinetic energy (TKE)
 	const float Pturb = fmin(pdata.turbVisc*SijSij_bytwo, 0.3f*pdata.keps_k*S);
 	//const float Pturb = fmin(0.3f, 0.09f*pdata.keps_k/pdata.keps_e*S)*pdata.keps_k*S;
 
 	// Variation terms for Dk/Dt and De/Dt for the partially implicit time integration in euler
-	const float dkdt = Pturb + pout.diff_term_k;
-	const float dedt = pdata.keps_e*1.44f*Pturb/pdata.keps_k + pout.diff_term_e;
-
-	params.keps_dkde[pdata.index].x = dkdt;
-	params.keps_dkde[pdata.index].y = dedt;
-	params.keps_dkde[pdata.index].z = pout.ce2yap;
+	pout.diff_term_k += Pturb;
+	pout.diff_term_e += pdata.keps_e*1.44f*Pturb/pdata.keps_k;
 
 	return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w;
 }
@@ -2151,6 +2184,23 @@ add_internal_energy<true>::with(OP &pout, N const& ndata, ON const& nout)
 	pout.DEDt -= dot3(nout.DvDt, ndata.relVel)/2;
 }
 
+/// Write out keps data after particle-particle interaction
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::visctype == KEPSVISC>
+write_keps(FP const& params, P const& pdata, OP& pout)
+{
+	params.tau0[pdata.index] = make_float2(pout.tau.xx, pout.tau.xy);
+	params.tau1[pdata.index] = make_float2(pout.tau.xz, pout.tau.yy);
+	params.tau2[pdata.index] = make_float2(pout.tau.yz, pout.tau.zz);
+	params.keps_dkde[pdata.index] = make_float3(pout.diff_term_k, pout.diff_term_e, pout.ce2yap);
+}
+
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::visctype != KEPSVISC>
+write_keps(FP const& params, P const& pdata, OP& pout)
+{ /* nothing to do */ }
 
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
@@ -2932,7 +2982,7 @@ forcesDevice(
 
 		} // End of loop over neighbors
 
-		// TODO: check what to do with gamma
+		write_keps(params, pdata, pout);
 		write_gamma<boundarytype, nptype, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, pout);
 		write_gamma_cfl(params, pdata, pout);
 
@@ -2991,7 +3041,7 @@ finalizeforcesDevice(
 			pdata(index, pos, info, params);
 
 		// Preparing particle output variables
-		finalize_particle_output<boundarytype, simflags> pout(params, index);
+		finalize_particle_output<boundarytype, visctype, simflags> pout(params, index);
 
 		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 		if (boundarytype == SA_BOUNDARY && FLUID(pdata.info))
@@ -3069,6 +3119,7 @@ finalizeforcesDevice(
 		}
 
 		write_forces<boundarytype>::with(params, pdata, pout);
+		write_keps(params, pdata, pout);
 
 	} while (0);
 

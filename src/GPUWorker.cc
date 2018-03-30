@@ -120,7 +120,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simparams->simflags & ENABLE_XSPH)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>();
 
-	if (m_simparams->visctype == SPSVISC)
+	// TODO FIXME temporary: k-eps needs TAU only for temporary storage
+	// across the split kernel calls in forces
+	if (m_simparams->visctype == SPSVISC || m_simparams->visctype == KEPSVISC)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TAU>();
 
 	if (m_simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))

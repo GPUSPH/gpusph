@@ -277,9 +277,16 @@ struct kepsvisc_forces_params
 {
 	float3	* __restrict__ keps_dkde;
 	float	* __restrict__ turbvisc;
-	kepsvisc_forces_params(float3 * __restrict__ _keps_dkde, float * __restrict__ _turbvisc) :
+	float2	* __restrict__ tau0;
+	float2	* __restrict__ tau1;
+	float2	* __restrict__ tau2;
+	kepsvisc_forces_params(float3 * __restrict__ _keps_dkde, float * __restrict__ _turbvisc,
+		float2 **tau) :
 		keps_dkde(_keps_dkde),
-		turbvisc(_turbvisc)
+		turbvisc(_turbvisc),
+		tau0(tau[0]),
+		tau1(tau[1]),
+		tau2(tau[2])
 	{}
 };
 
@@ -364,6 +371,7 @@ struct forces_params :
 		// KEPSVISC
 				float3	* __restrict__ _keps_dkde,
 				float	* __restrict__ _turbvisc,
+				float2	** tau,
 		// ENABLE_INTERNAL_ENERGY
 				float	* __restrict__ _DEDt
 		) :
@@ -380,7 +388,7 @@ struct forces_params :
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_forces_params)
 			(_newGGam, _dgamdt, _cfl_gamma, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc),
+		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
 	{}
 };
@@ -442,6 +450,7 @@ struct finalize_forces_params :
 		// KEPSVISC
 				float3	*_keps_dkde,
 				float	*_turbvisc,
+				float2	**tau,
 		// ENABLE_INTERNAL_ENERGY
 				float	* __restrict__ _DEDt
 		) :
@@ -453,7 +462,7 @@ struct finalize_forces_params :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam, _oldGGam, _dgamdt),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc),
+		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
 	{}
 };
