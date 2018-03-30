@@ -3,6 +3,24 @@
 #include <math_functions.h>
 #define __spec __device__ __forceinline__
 
+__spec
+void
+clear(symtensor3& T)
+{
+	T.xx = T.xy = T.xz =
+		T.yy = T.yz = T.zz = 0.0f;
+}
+
+__spec
+void
+clear(symtensor4& T)
+{
+	T.xx = T.xy = T.xz = T.xw =
+		T.yy = T.yz = T.yw =
+		T.zz = T.zw = T.ww = 0.0f;
+}
+
+
 // determinant of a 3x3 symmetric tensor
 __spec
 float
