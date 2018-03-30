@@ -151,6 +151,7 @@ struct kepsvisc_euler_params
 {
 	float			*newTKE;	///< updated values of k, for k-e model (out)
 	float			*newEps;	///< updated values of e, for k-e model (out)
+	float			*newTurbVisc; ///< updated value of the eddy viscosity (out)
 	const	float	*oldTKE;		///< previous values of k, for k-e model (in)
 	const	float	*oldEps;		///< previous values of e, for k-e model
 	const	float3	*keps_dkde;	///< derivative of ??? (in)
@@ -159,11 +160,13 @@ struct kepsvisc_euler_params
 	kepsvisc_euler_params(
 			float		*_newTKE,
 			float		*_newEps,
+			float		*_newTurbVisc,
 			const float	*_oldTKE,
 			const float	*_oldEps,
 			const float3	*_keps_dkde):
 			newTKE(_newTKE),
 			newEps(_newEps),
+			newTurbVisc(_newTurbVisc),
 			oldTKE(_oldTKE),
 			oldEps(_oldEps),
 			keps_dkde(_keps_dkde)
@@ -259,6 +262,7 @@ struct euler_params :
 		// KEPSVISC
 				float	*_newTKE,
 				float	*_newEps,
+				float	*_newTurbVisc,
 		const	float	*_oldTKE,
 		const	float	*_oldEps,
 		const	float3	*_keps_dkde,
@@ -278,7 +282,7 @@ struct euler_params :
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_euler_params)
 			(_newEulerVel, _newBoundElement,
 			_vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_euler_params)(_newTKE, _newEps,  _oldTKE, _oldEps, _keps_dkde),
+		COND_STRUCT(visctype == KEPSVISC, kepsvisc_euler_params)(_newTKE, _newEps, _newTurbVisc, _oldTKE, _oldEps, _keps_dkde),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(_newEnergy, _oldEnergy, _DEDt)
 

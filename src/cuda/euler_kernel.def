@@ -352,6 +352,7 @@ write_viscosity_coeff<KEPSVISC>::with(EP const& params, P &pdata, int index)
 {
 	params.newTKE[index] = pdata.keps_k;
 	params.newEps[index] = pdata.keps_e;
+	params.newTurbVisc[index] = 0.9f*pdata.keps_k*pdata.keps_k/pdata.keps_e;
 }
 
 /* Euler kernel definitions */

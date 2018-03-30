@@ -337,11 +337,12 @@ struct keps_particle_data
 	// this is 0 for vertex particles
 	const	float	turbViscForViscTerm;
 
+	template<typename FP>
 	__device__ __forceinline__
-	keps_particle_data(const uint index, particleinfo const& info) :
+	keps_particle_data(const uint index, particleinfo const& info, FP const& params) :
 		keps_k(tex1Dfetch(keps_kTex, index)),
 		keps_e(tex1Dfetch(keps_eTex, index)),
-		turbVisc(0.09f*keps_k*keps_k/keps_e),
+		turbVisc(params.turbvisc[index]),
 		turbViscForViscTerm((FLUID(info) || (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info))) ? turbVisc : 0)
 	{}
 };
@@ -488,7 +489,7 @@ struct forces_particle_data :
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
 			sa_boundary_particle_data)(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
-			keps_particle_data)(_index, _info),
+			keps_particle_data)(_index, _info, params),
 		COND_STRUCT(visctype == SPSVISC,
 			sps_particle_data)(_index),
 		p_precalc_particle_data<sph_formulation,
@@ -545,7 +546,7 @@ struct finalize_forces_particle_data :
 		rb_particle_data(_info),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params),
-		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info)
+		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info, params)
 		{}
 };
 
@@ -884,7 +885,7 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
-		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info),
+		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info, params),
 		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
 		p_precalc_particle_data<sph_formulation,
 			typename conditional<sph_formulation == SPH_GRENIER,
@@ -2299,26 +2300,6 @@ __device__ __forceinline__ void
 write_internal_energy<true>::with(FP const& params, P const& pdata, OP const& pout)
 { params.DEDt[pdata.index] = pout.DEDt; }
 
-
-/// A functor that writes out turbvisc
-/// but only for KEPSVISC
-template<ViscosityType>
-struct write_turbvisc
-{
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP const& pout)
-	{ /* do nothing */ }
-};
-
-template<>
-template<typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-write_turbvisc<KEPSVISC>::with(FP const& params, P const& pdata, OP const& pout)
-{ params.turbvisc[pdata.index] = pdata.turbVisc; }
-
-
 /// A functor that writes out forces
 template<BoundaryType boundarytype>
 struct write_forces
@@ -2988,7 +2969,6 @@ forcesDevice(
 
 		if (nptype == PT_FLUID && cptype == PT_FLUID) {
 			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
-			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
 
 		write_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, pout);

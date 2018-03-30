@@ -283,6 +283,7 @@ basicstep(
 	float4 *newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
 	float *newTKE = bufwrite->getData<BUFFER_TKE>();
 	float *newEps = bufwrite->getData<BUFFER_EPSILON>();
+	float *newTurbVisc = bufwrite->getData<BUFFER_TURBVISC>();
 	// boundary elements are updated in-place; only used for rotation in the second step
 	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
@@ -290,7 +291,7 @@ basicstep(
 			newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t, step,
 			xsph,
 			newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
-			newTKE, newEps, oldTKE, oldEps, keps_dkde,
+			newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
 			newVol, oldVol,
 			newEnergy, oldEnergy, DEDt);
 

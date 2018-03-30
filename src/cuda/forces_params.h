@@ -276,11 +276,11 @@ struct water_depth_forces_params
 struct kepsvisc_forces_params
 {
 	float3	* __restrict__ keps_dkde;
-	float	* __restrict__ turbvisc;
+	const float	* __restrict__ turbvisc;
 	float2	* __restrict__ tau0;
 	float2	* __restrict__ tau1;
 	float2	* __restrict__ tau2;
-	kepsvisc_forces_params(float3 * __restrict__ _keps_dkde, float * __restrict__ _turbvisc,
+	kepsvisc_forces_params(float3 * __restrict__ _keps_dkde, const float * __restrict__ _turbvisc,
 		float2 **tau) :
 		keps_dkde(_keps_dkde),
 		turbvisc(_turbvisc),
@@ -370,7 +370,7 @@ struct forces_params :
 
 		// KEPSVISC
 				float3	* __restrict__ _keps_dkde,
-				float	* __restrict__ _turbvisc,
+		const	float	* __restrict__ _turbvisc,
 				float2	** tau,
 		// ENABLE_INTERNAL_ENERGY
 				float	* __restrict__ _DEDt
@@ -449,7 +449,7 @@ struct finalize_forces_params :
 
 		// KEPSVISC
 				float3	*_keps_dkde,
-				float	*_turbvisc,
+		const	float	*_turbvisc,
 				float2	**tau,
 		// ENABLE_INTERNAL_ENERGY
 				float	* __restrict__ _DEDt

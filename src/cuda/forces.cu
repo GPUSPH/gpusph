@@ -693,9 +693,8 @@ basicstep(
 	float *dgamdt = bufwrite->getData<BUFFER_DGAMDT>();
 	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
 
-	// TODO FIXME TURBVISC, iis in/out, but is taken from the READ position
-	// TODO FIXME it should be computed in euler
-	float *turbvisc = const_cast<float*>(bufread->getData<BUFFER_TURBVISC>());
+	const float *turbvisc = const_cast<float*>(bufread->getData<BUFFER_TURBVISC>());
+
 	// TODO FIXME temporary k-eps needs TAU only for temporary storage
 	// across the split kernel calls in forces
 	float2 **tau = bufwrite->getRawPtr<BUFFER_TAU>();
