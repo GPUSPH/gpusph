@@ -344,19 +344,16 @@ struct write_sps_tau
 	template<typename FP>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, const uint index, const float2& tau0, const float2& tau1, const float2& tau2)
+	with(FP const& params, const uint index, symtensor3 const& tau)
 	{ /* do nothing */ }
 };
 
 template<>
 template<typename FP>
 __device__ __forceinline__ void
-write_sps_tau<true>::with(FP const& params, const uint index, const float2& tau0,
-							const float2& tau1, const float2& tau2)
+write_sps_tau<true>::with(FP const& params, const uint index, symtensor3 const& tau)
 {
-	params.tau0[index] = tau0;
-	params.tau1[index] = tau1;
-	params.tau2[index] = tau2;
+	storeTau(tau, index, params.tau0, params.tau1, params.tau2);
 }
 
 /************************************************************************************************************/
@@ -437,6 +434,18 @@ symtensor3 fetchTau(uint i,
 	tau.yz = temp.x;
 	tau.zz = temp.y;
 	return tau;
+}
+
+//! Store tau tensor to split arrays
+__device__
+void storeTau(symtensor3 const& tau, uint i,
+	float2 *__restrict__ tau0,
+	float2 *__restrict__ tau1,
+	float2 *__restrict__ tau2)
+{
+	tau0[i] = make_float2(tau.xx, tau.xy);
+	tau1[i] = make_float2(tau.xz, tau.yy);
+	tau2[i] = make_float2(tau.yz, tau.zz);
 }
 
 
@@ -584,8 +593,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 		tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
 		tau.zz /= vel.w;
 
-		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, make_float2(tau.xx, tau.xy),
-				make_float2(tau.xz, tau.yy), make_float2(tau.yz, tau.zz));
+		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, tau);
 	}
 }
 /************************************************************************************************************/

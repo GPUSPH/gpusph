@@ -2190,9 +2190,7 @@ __device__ __forceinline__
 enable_if_t<FP::visctype == KEPSVISC>
 write_keps(FP const& params, P const& pdata, OP& pout)
 {
-	params.tau0[pdata.index] = make_float2(pout.tau.xx, pout.tau.xy);
-	params.tau1[pdata.index] = make_float2(pout.tau.xz, pout.tau.yy);
-	params.tau2[pdata.index] = make_float2(pout.tau.yz, pout.tau.zz);
+	storeTau(pout.tau, pdata.index, params.tau0, params.tau1, params.tau2);
 	params.keps_dkde[pdata.index] = make_float3(pout.diff_term_k, pout.diff_term_e, pout.ce2yap);
 }
 
