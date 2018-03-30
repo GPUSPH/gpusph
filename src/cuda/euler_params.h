@@ -57,13 +57,13 @@
 /// Parameters common to all forces kernel specializations
 struct common_euler_params
 {
-			float4	*newPos;		///< updated particle's position (out)
-			float4	*newVel;			///< updated particle's velocity (out)
-	const	float4	*oldPos;			///< previous particle's position (in)
-	const	hashKey	*particleHash;	///< particle's hash (in)
-	const	float4	*oldVel;			///< previous particle's velocity (in/out)
-	const	particleinfo	*info;		///< particle's information
-	const	float4	*forces;			///< derivative of particle's velocity and density (in)
+			float4	* __restrict__ newPos;		///< updated particle's position (out)
+			float4	* __restrict__ newVel;			///< updated particle's velocity (out)
+	const	float4	* __restrict__ oldPos;			///< previous particle's position (in)
+	const	hashKey	* __restrict__ particleHash;	///< particle's hash (in)
+	const	float4	* __restrict__ oldVel;			///< previous particle's velocity (in/out)
+	const	particleinfo	* __restrict__ info;		///< particle's information
+	const	float4	* __restrict__ forces;			///< derivative of particle's velocity and density (in)
 	const	uint	numParticles;			///< total number of particles
 	const	float	full_dt;			///< time step (dt)
 	const	float	half_dt;			///< half of time step (dt/2)
@@ -72,13 +72,13 @@ struct common_euler_params
 
 	// Constructor / initializer
 	common_euler_params(
-				float4		*_newPos,
-				float4		*_newVel,
-		const	float4		*_oldPos,
-		const	hashKey		*_particleHash,
-		const	float4		*_oldVel,
-		const	particleinfo	*_info,
-		const	float4		*_forces,
+				float4		* __restrict__ _newPos,
+				float4		* __restrict__ _newVel,
+		const	float4		* __restrict__ _oldPos,
+		const	hashKey		* __restrict__ _particleHash,
+		const	float4		* __restrict__ _oldVel,
+		const	particleinfo	* __restrict__ _info,
+		const	float4		* __restrict__ _forces,
 		const	uint			_numParticles,
 		const	float		_full_dt,
 		const	float		_half_dt,
@@ -102,8 +102,8 @@ struct common_euler_params
 /// Additional parameters passed only to kernels with XSPH enabled
 struct xsph_euler_params
 {
-	const	float4	*xsph;
-	xsph_euler_params(const	float4 *_xsph) :
+	const	float4	* __restrict__ xsph;
+	xsph_euler_params(const	float4 * __restrict__ _xsph) :
 		xsph(_xsph)
 	{}
 };
@@ -111,27 +111,27 @@ struct xsph_euler_params
 /// Additional parameters passed only to kernels with SA_BOUNDARY
 struct sa_boundary_euler_params
 {
-			float4	*newEulerVel;
-			float4	*newBoundElement;
-	const	float2	*vertPos0;
-	const	float2	*vertPos1;
-	const	float2	*vertPos2;
-	const	float4	*oldEulerVel;
+			float4	* __restrict__ newEulerVel;
+			float4	* __restrict__ newBoundElement;
+	const	float2	* __restrict__ vertPos0;
+	const	float2	* __restrict__ vertPos1;
+	const	float2	* __restrict__ vertPos2;
+	const	float4	* __restrict__ oldEulerVel;
 	const	float	slength;
 	const	float	influenceradius;
-	const	neibdata	*neibsList;
-	const	uint	*cellStart;
+	const	neibdata	* __restrict__ neibsList;
+	const	uint	* __restrict__ cellStart;
 
 	// Constructor / initializer
 	sa_boundary_euler_params(
-				float4	*_newEulerVel,
-				float4	*_newBoundElement,
-		const	float2	* const _vertPos[],
-		const	float4	*_oldEulerVel,
+				float4	* __restrict__ _newEulerVel,
+				float4	* __restrict__ _newBoundElement,
+		const	float2	* __restrict__  const _vertPos[],
+		const	float4	* __restrict__ _oldEulerVel,
 		const	float	_slength,
 		const	float	_influenceradius,
-		const	neibdata	*_neibsList,
-		const	uint	*_cellStart) :
+		const	neibdata	* __restrict__ _neibsList,
+		const	uint	* __restrict__ _cellStart) :
 		newEulerVel(_newEulerVel),
 		newBoundElement(_newBoundElement),
 		vertPos0(_vertPos[0]),
@@ -149,21 +149,21 @@ struct sa_boundary_euler_params
 /// Additional parameters passed only to kernels with KEPSVISC
 struct kepsvisc_euler_params
 {
-	float			*newTKE;	///< updated values of k, for k-e model (out)
-	float			*newEps;	///< updated values of e, for k-e model (out)
-	float			*newTurbVisc; ///< updated value of the eddy viscosity (out)
-	const	float	*oldTKE;		///< previous values of k, for k-e model (in)
-	const	float	*oldEps;		///< previous values of e, for k-e model
-	const	float3	*keps_dkde;	///< derivative of ??? (in)
+	float			* __restrict__ newTKE;	///< updated values of k, for k-e model (out)
+	float			* __restrict__ newEps;	///< updated values of e, for k-e model (out)
+	float			* __restrict__ newTurbVisc; ///< updated value of the eddy viscosity (out)
+	const	float	* __restrict__ oldTKE;		///< previous values of k, for k-e model (in)
+	const	float	* __restrict__ oldEps;		///< previous values of e, for k-e model
+	const	float3	* __restrict__ keps_dkde;	///< derivative of ??? (in)
 
 	// Constructor / initializer
 	kepsvisc_euler_params(
-			float		*_newTKE,
-			float		*_newEps,
-			float		*_newTurbVisc,
-			const float	*_oldTKE,
-			const float	*_oldEps,
-			const float3	*_keps_dkde):
+			float		* __restrict__ _newTKE,
+			float		* __restrict__ _newEps,
+			float		* __restrict__ _newTurbVisc,
+			const float	* __restrict__ _oldTKE,
+			const float	* __restrict__ _oldEps,
+			const float3	* __restrict__ _keps_dkde):
 			newTKE(_newTKE),
 			newEps(_newEps),
 			newTurbVisc(_newTurbVisc),
@@ -177,13 +177,13 @@ struct kepsvisc_euler_params
 /// Additional parameters passed only to kernels with SPH_GRENIER formulation
 struct grenier_euler_params
 {
-			float4	*newVol;			///< updated particle's voume (out)
-	const	float4	*oldVol;			///< previous particle's volume (in)
+			float4	* __restrict__ newVol;			///< updated particle's voume (out)
+	const	float4	* __restrict__ oldVol;			///< previous particle's volume (in)
 
 	// Constructor / initializer
 	grenier_euler_params(
-				float4 *_newVol,
-			const float4 *_oldVol) :
+				float4 * __restrict__ _newVol,
+			const float4 * __restrict__ _oldVol) :
 			newVol(_newVol),
 			oldVol(_oldVol)
 	{}
@@ -192,15 +192,15 @@ struct grenier_euler_params
 /// Additional parameters passed only to kernels with ENABLE_INTERNAL_ENERGY
 struct energy_euler_params
 {
-			float	*newEnergy;			///< updated particle's internal energy (out)
-	const	float	*oldEnergy;			///< previous particle's internal energy (in)
-	const	float	*DEDt;				///< internal energy derivative with respect to time (in)
+			float	* __restrict__ newEnergy;			///< updated particle's internal energy (out)
+	const	float	* __restrict__ oldEnergy;			///< previous particle's internal energy (in)
+	const	float	* __restrict__ DEDt;				///< internal energy derivative with respect to time (in)
 
 	// Constructor / initializer
 	energy_euler_params(
-				float *_newEnergy,
-		const	float *_oldEnergy,
-		const	float *_DEDt) :
+				float * __restrict__ _newEnergy,
+		const	float * __restrict__ _oldEnergy,
+		const	float * __restrict__ _DEDt) :
 			newEnergy(_newEnergy),
 			oldEnergy(_oldEnergy),
 			DEDt(_DEDt)
@@ -233,13 +233,13 @@ struct euler_params :
 	// structs it derives from, in the correct order
 	euler_params(
 		// common
-				float4		*_newPos,
-				float4		*_newVel,
-		const	float4		*_oldPos,
-		const	hashKey		*_particleHash,
-		const	float4		*_oldVel,
-		const	particleinfo	*_info,
-		const	float4		*_forces,
+				float4		* __restrict__ _newPos,
+				float4		* __restrict__ _newVel,
+		const	float4		* __restrict__ _oldPos,
+		const	hashKey		* __restrict__ _particleHash,
+		const	float4		* __restrict__ _oldVel,
+		const	particleinfo	* __restrict__ _info,
+		const	float4		* __restrict__ _forces,
 		const	uint			_numParticles,
 		const	float		_full_dt,
 		const	float		_half_dt,
@@ -247,34 +247,34 @@ struct euler_params :
 		const	uint			_step,
 
 		// XSPH
-		const	float4	*_xsph,
+		const	float4	* __restrict__ _xsph,
 
 		// SA_BOUNDARY
-				float4	*_newEulerVel,
-				float4	*_newBoundElement,
-		const	float2	* const _vertPos[],
-		const	float4	*_oldEulerVel,
+				float4	* __restrict__ _newEulerVel,
+				float4	* __restrict__ _newBoundElement,
+		const	float2	* __restrict__  const _vertPos[],
+		const	float4	* __restrict__ _oldEulerVel,
 		const	float	_slength,
 		const	float	_influenceradius,
-		const	neibdata	*_neibsList,
-		const	uint	*_cellStart,
+		const	neibdata	* __restrict__ _neibsList,
+		const	uint	* __restrict__ _cellStart,
 
 		// KEPSVISC
-				float	*_newTKE,
-				float	*_newEps,
-				float	*_newTurbVisc,
-		const	float	*_oldTKE,
-		const	float	*_oldEps,
-		const	float3	*_keps_dkde,
+				float	* __restrict__ _newTKE,
+				float	* __restrict__ _newEps,
+				float	* __restrict__ _newTurbVisc,
+		const	float	* __restrict__ _oldTKE,
+		const	float	* __restrict__ _oldEps,
+		const	float3	* __restrict__ _keps_dkde,
 
 		// SPH_GRENIER
-				float4	*_newVol,
-		const	float4	*_oldVol,
+				float4	* __restrict__ _newVol,
+		const	float4	* __restrict__ _oldVol,
 
 		// ENABLE_INTERNAL_ENERGY
-				float	*_newEnergy,
-		const	float	*_oldEnergy,
-		const	float	*_DEDt) :
+				float	* __restrict__ _newEnergy,
+		const	float	* __restrict__ _oldEnergy,
+		const	float	* __restrict__ _DEDt) :
 
 		common_euler_params(_newPos, _newVel, _oldPos, _particleHash,
 			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step),
