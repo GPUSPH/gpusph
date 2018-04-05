@@ -1112,45 +1112,6 @@ void compute_gamma_cfl<true, true>::with(FP const& params, P const& pdata, N con
 		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
 }
 
-/// A functor that helps to compute the influence of eulerian velocities onto the governing equations
-template<bool inoutBoundaries>
-struct compute_euler_contributions {
-	// boundary term
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	boundary_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-
-	// volumic term
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	volumic_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
-
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_euler_contributions<true>::boundary_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	nout.DrDt -= dot3(ndata.relEulerVel, ndata.belem)*nout.ggamAS;
-}
-
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	// this should be divided by the neib density (ndata.relVel.w),
-	// but would be multiplied by the same quantity in SPH_F1 formulation,
-	// so we delegate the division to the caller, when needed
-	// TODO this should be handled more intelligently, might require some
-	// restructuring
-	nout.DrDt += ndata.relPos.w*dot3(ndata.relEulerVel, ndata.relPos)*ndata.f;
-}
-
 /// A functor that computes the ratio of the volumes of two particles
 /// either as rho_N/rho_P (if the volume is not available) or as vol_P/vol_N
 /// (if the volume is available, e.g. with SPH_GRENIER)
