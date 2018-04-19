@@ -126,7 +126,8 @@ template<
 
 		// TODO extend to include all unsupported/untested combinations for other boundary conditions
 
-		_boundarytype == SA_BOUNDARY && (
+		(_visctype == KEPSVISC && _boundarytype != SA_BOUNDARY) || // k-epsilon only supported in SA currently
+		(_boundarytype == SA_BOUNDARY && (
 			// viscosity
 			_visctype == KINEMATICVISC		||	// untested
 			_visctype == SPSVISC			||	// untested
@@ -151,7 +152,7 @@ template<
 												// however the code in this branch is only written for the quadrature case,
 												// so error out if gamma quadrature is disabled
 												// (TODO FIXME this will be fixed by the merge with splitneibs)
-		)
+		))
 	)
 >
 class CUDASimFrameworkImpl : public SimFramework,
