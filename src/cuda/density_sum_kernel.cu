@@ -60,13 +60,13 @@ struct common_density_sum_particle_data
 	const	ParticleType	ptype;
 	const	float4	force;
 	const	int3	gridPos;
-	float4	posN;
-	float4	posNp1;
-	float4	vel;
+	const	float4	posN;
+	const	float4	posNp1;
+	const	float4	vel;
 	const	float4	gGamN;
 
 	__device__ __forceinline__
-	common_density_sum_particle_data(const uint _index, common_density_sum_params params) :
+	common_density_sum_particle_data(const uint _index, common_density_sum_params const& params) :
 		index(_index),
 		info(params.info[index]),
 		ptype(static_cast<ParticleType>(PART_TYPE(info))),
@@ -81,10 +81,10 @@ struct common_density_sum_particle_data
 
 struct open_boundary_particle_data
 {
-	float4	eulerVel;
+	const	float4	eulerVel;
 
 	__device__ __forceinline__
-	open_boundary_particle_data(const uint index, common_density_sum_params params) :
+	open_boundary_particle_data(const uint index, common_density_sum_params const& params) :
 		eulerVel(params.oldEulerVel[index])
 	{}
 };
@@ -119,7 +119,7 @@ __device__ __forceinline__
 static void
 computeDensitySumVolumicTerms(
 	const	float4			posN,
-			float4			posNp1,
+	const	float4			posNp1,
 	const	int				index,
 	const	float			dt,
 	const	float			half_dt,
@@ -281,7 +281,7 @@ __device__ __forceinline__
 static void
 computeDensitySumBoundaryTerms(
 	const	float4			posN,
-			float4			posNp1,
+	const	float4			posNp1,
 	const	int				index,
 	const	float			dt,
 	const	float			half_dt,
