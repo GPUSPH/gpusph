@@ -190,24 +190,28 @@ integrate_gamma(
 
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
 
-	// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
-	// of the kernel
-	cudensity_sum::integrateGammaDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(
-		bufread->getData<BUFFER_GRADGAMMA>(), // gamma at step n
-		bufwrite->getData<BUFFER_GRADGAMMA>(), // gamma at step n+1 (output)
+	integrate_gamma_params<simflags> params(
 		bufread->getData<BUFFER_POS>(), // pos at step n
 		bufwrite->getData<BUFFER_POS>(), // pos at step n+1
 		bufread->getData<BUFFER_VEL>(), // vel at step n
 		bufwrite->getData<BUFFER_VEL>(), // vel at step n+1
-		bufread->getData<BUFFER_HASH>(), // particle hash
 		bufread->getData<BUFFER_INFO>(), // particle info
+		bufread->getData<BUFFER_HASH>(), // particle hash
+		bufread->getData<BUFFER_GRADGAMMA>(), // gamma at step n
+		bufwrite->getData<BUFFER_GRADGAMMA>(), // gamma at step n+1 (output)
 		bufread->getData<BUFFER_BOUNDELEMENTS>(), // boundary elements at step n
 		bufwrite->getData<BUFFER_BOUNDELEMENTS>(), // boundary elements at step n+1 (in case of moving boundaries)
-		vertPos[0], vertPos[1], vertPos[2],
+		bufread->getData<BUFFER_EULERVEL>(), // eulerian vel at step n
+		bufwrite->getData<BUFFER_EULERVEL>(), // eulerian vel at step n+1
+		vertPos,
 		bufread->getData<BUFFER_NEIBSLIST>(),
 		cellStart,
 		particleRangeEnd,
 		dt, dt2, t, step, slength, influenceradius);
+
+	// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
+	// of the kernel
+	cudensity_sum::integrateGammaDevice<kerneltype><<< numBlocks, numThreads >>>(params);
 
 	KERNEL_CHECK_ERROR;
 }

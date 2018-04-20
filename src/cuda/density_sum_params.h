@@ -126,10 +126,10 @@ struct common_density_sum_params
 /// Additional parameters passed only to the kernel with BOUNDARY neighbors
 struct boundary_density_sum_params
 {
-			float4	*newBoundElement;
-	const	float2	*vertPos0;
-	const	float2	*vertPos1;
-	const	float2	*vertPos2;
+			float4	* __restrict__ newBoundElement;
+	const	float2	* __restrict__ vertPos0;
+	const	float2	* __restrict__ vertPos1;
+	const	float2	* __restrict__ vertPos2;
 
 	// Constructor / initializer
 	boundary_density_sum_params(
@@ -189,6 +189,134 @@ struct density_sum_params :
 			_particleHash, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step, _slength, _influenceradius, _neibsList, _cellStart),
 		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
 			(_newBoundElement, _vertPos)
+	{}
+};
+
+/// Common params for integrateGammaDevice
+struct common_integrate_gamma_params
+{
+	const	float4	* __restrict__ oldPos; ///< positions at step n
+	const	float4	* __restrict__ newPos; ///< positions at step n+1
+	const	float4	* __restrict__ oldVel; ///< velocities at step n
+	const	float4	* __restrict__ newVel; ///< velocities at step n+1
+	const	particleinfo * __restrict__ info; ///< particle info
+	const	hashKey	* __restrict__ particleHash; ///< particle hash
+	const	float4	* __restrict__ oldgGam; ///< previous gamma and its gradient
+			float4	* __restrict__ newgGam; ///< [out] new gamma and its gradient
+	const	float4	* __restrict__ oldBoundElement; ///< boundary elements at step n
+	const	float4	* __restrict__ newBoundElement; ///< boundary elements at step n+1
+	const	float2	* __restrict__ vertPos0;
+	const	float2	* __restrict__ vertPos1;
+	const	float2	* __restrict__ vertPos2;
+	const	neibdata *__restrict__ neibsList;
+	const	uint	* __restrict__ cellStart;
+	const	uint	particleRangeEnd; ///< max number of particles
+	const	float	full_dt; ///< time step (dt)
+	const	float	half_dt; ///< half of time step (dt/2)
+	const	float	t; ///< simulation time
+	const	uint	step; ///< integrator step
+	const	float	slength;
+	const	float	influenceradius;
+
+	common_integrate_gamma_params(
+		const	float4	* __restrict__ _oldPos, ///< positions at step n
+		const	float4	* __restrict__ _newPos, ///< positions at step n+1
+		const	float4	* __restrict__ _oldVel, ///< velocities at step n
+		const	float4	* __restrict__ _newVel, ///< velocities at step n+1
+		const	particleinfo * __restrict__ _info, ///< particle info
+		const	hashKey	* __restrict__ _particleHash, ///< particle hash
+		const	float4	* __restrict__ _oldgGam, ///< previous gamma and its gradient
+				float4	* __restrict__ _newgGam, ///< [out] new gamma and its gradient
+		const	float4	* __restrict__ _oldBoundElement, ///< boundary elements at step n
+		const	float4	* __restrict__ _newBoundElement, ///< boundary elements at step n+1
+		const	float2	* const _vertPos[],
+		const	neibdata *__restrict__ _neibsList,
+		const	uint	* __restrict__ _cellStart,
+		const	uint	_particleRangeEnd, ///< max number of particles
+		const	float	_full_dt, ///< time step (dt)
+		const	float	_half_dt, ///< half of time step (dt/2)
+		const	float	_t, ///< simulation time
+		const	uint	_step, ///< integrator step
+		const	float	_slength,
+		const	float	_influenceradius)
+	:
+		oldPos(_oldPos),
+		newPos(_newPos),
+		oldVel(_oldVel),
+		newVel(_newVel),
+		info(_info),
+		particleHash(_particleHash),
+		oldgGam(_oldgGam),
+		newgGam(_newgGam),
+		oldBoundElement(_oldBoundElement),
+		newBoundElement(_newBoundElement),
+		vertPos0(_vertPos[0]),
+		vertPos1(_vertPos[1]),
+		vertPos2(_vertPos[2]),
+		neibsList(_neibsList),
+		cellStart(_cellStart),
+		particleRangeEnd(_particleRangeEnd),
+		full_dt(_full_dt), half_dt(_half_dt), t(_t), step(_step),
+		slength(_slength), influenceradius(_influenceradius)
+	{}
+};
+
+/// integrateGammaDevice parameters specific for I/O
+struct io_integrate_gamma_params
+{
+	const float4 * __restrict__ oldEulerVel;
+	const float4 * __restrict__ newEulerVel;
+
+	io_integrate_gamma_params(
+		const float4 * __restrict__ _oldEulerVel,
+		const float4 * __restrict__ _newEulerVel)
+	:
+		oldEulerVel(_oldEulerVel),
+		newEulerVel(_newEulerVel)
+	{}
+};
+
+template<flag_t _simflags>
+struct integrate_gamma_params :
+	common_integrate_gamma_params,
+	COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_integrate_gamma_params)
+{
+	static constexpr flag_t simflags = _simflags;
+
+	integrate_gamma_params(
+		const	float4	* __restrict__ _oldPos, ///< positions at step n
+		const	float4	* __restrict__ _newPos, ///< positions at step n+1
+		const	float4	* __restrict__ _oldVel, ///< velocities at step n
+		const	float4	* __restrict__ _newVel, ///< velocities at step n+1
+		const	particleinfo * __restrict__ _info, ///< particle info
+		const	hashKey	* __restrict__ _particleHash, ///< particle hash
+		const	float4	* __restrict__ _oldgGam, ///< previous gamma and its gradient
+				float4	* __restrict__ _newgGam, ///< [out] new gamma and its gradient
+		const	float4	* __restrict__ _oldBoundElement, ///< boundary elements at step n
+		const	float4	* __restrict__ _newBoundElement, ///< boundary elements at step n+1
+		const	float4	* __restrict__ _oldEulerVel,
+		const	float4	* __restrict__ _newEulerVel,
+		const	float2	* const _vertPos[],
+		const	neibdata *__restrict__ _neibsList,
+		const	uint	* __restrict__ _cellStart,
+		const	uint	_particleRangeEnd, ///< max number of particles
+		const	float	_full_dt, ///< time step (dt)
+		const	float	_half_dt, ///< half of time step (dt/2)
+		const	float	_t, ///< simulation time
+		const	uint	_step, ///< integrator step
+		const	float	_slength,
+		const	float	_influenceradius)
+	:
+		common_integrate_gamma_params(
+				_oldPos, _newPos, _oldVel, _newVel,
+				_info, _particleHash,
+				_oldgGam, _newgGam, _oldBoundElement, _newBoundElement,
+				_vertPos,
+				_neibsList, _cellStart,
+				_particleRangeEnd,
+				_full_dt, _half_dt, _t, _step,
+				_slength, _influenceradius),
+		COND_STRUCT(simflags & ENABLE_INLET_OUTLET, io_integrate_gamma_params)(_oldEulerVel, _newEulerVel)
 	{}
 };
 
