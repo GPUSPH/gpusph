@@ -47,6 +47,8 @@ DebugFlags parse_debug_flags(string const& str)
 			ret.forces = 1;
 		else if (flag == "inspect_preforce")
 			ret.inspect_preforce = 1;
+		else if (flag == "inspect_pregamma")
+			ret.inspect_pregamma = 1;
 		else
 			throw invalid_argument("unknown debug flag '" + flag + "'");
 	}

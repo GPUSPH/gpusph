@@ -36,8 +36,10 @@ struct DebugFlags {
 	unsigned neibs : 1;
 	/// debug forces on host
 	unsigned forces : 1;
-	/// inspect pre-force particle status on
+	/// inspect pre-force particle status
 	unsigned inspect_preforce : 1;
+	/// inspect pre-gamma integration particle status
+	unsigned inspect_pregamma : 1;
 };
 
 /// Get a DebugFlag from a comma-separated list
