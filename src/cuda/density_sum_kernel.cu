@@ -114,70 +114,58 @@ struct density_sum_particle_data :
 	{}
 };
 
-template<KernelType kerneltype>
+template<class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
 static void
 computeDensitySumVolumicTerms(
-	const	float4			posN,
-	const	float4			posNp1,
-	const	int				index,
+	Params			const&	params,
+	ParticleData	const&	pdata,
 	const	float			dt,
-	const	float			half_dt,
-	const	float			influenceradius,
-	const	float			slength,
-	const	float4			*oldPos,
-	const	float4			*newPos,
-	const	float4			*oldVel,
-	const	float4			*eulerVel,
-	const	float4			*forces,
-	const	particleinfo	*pinfo,
-	const	hashKey*		particleHash,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
-	const	uint			numParticles,
-	const	int				step,
 			float			&sumPmwN,
 			float			&sumPmwNp1,
 			float			&sumVmwDelta)
 {
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[ pdata.index] );
+
+	// (r_b^{N+1} - r_b^N)
+	const float4 posDelta = pdata.posNp1 - pdata.posN;
 
 	// Loop over fluid and vertex neighbors
-	for_each_neib2(PT_FLUID, PT_VERTEX, index, posN, gridPos, cellStart, neibsList) {
+	for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
-		const particleinfo neib_info = pinfo[neib_index];
+		const particleinfo neib_info = params.info[neib_index];
 
-		const float4 posN_neib = oldPos[neib_index];
+		const float4 posN_neib = params.oldPos[neib_index];
 
 		if (INACTIVE(posN_neib)) continue;
 
 		/* TODO FIXME splitneibs merge: the MOVING object support here was dropped in the splitneibs branch */
 
-		const float4 posNp1_neib = newPos[neib_index];
+		const float4 posNp1_neib = params.newPos[neib_index];
 
 		// vector r_{ab} at time N
 		const float4 relPosN = neib_iter.relPos(posN_neib);
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-		const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + (posNp1 - posN);
+		const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
 
 		// -sum_{P\V_{io}} m^n w^n
 		if (!IO_BOUNDARY(neib_info)) {
 			const float rN = length3(relPosN);
-			sumPmwN -= relPosN.w*W<kerneltype>(rN, slength);
+			sumPmwN -= relPosN.w*W<kerneltype>(rN, params.slength);
 		}
 
 		// sum_{P} m^n w^{n+1}
 		const float rNp1 = length3(relPosNp1);
-		if (rNp1 < influenceradius)
-			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, slength);
+		if (rNp1 < params.influenceradius)
+			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
 
 		if (IO_BOUNDARY(neib_info)) {
 			// compute - sum_{V^{io}} m^n w(r + delta r)
-			const float4 deltaR = dt*(eulerVel[neib_index] - oldVel[neib_index]);
+			const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
 			const float newDist = length3(relPosN + deltaR);
-			if (newDist < influenceradius)
-				sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, slength);
+			if (newDist < params.influenceradius)
+				sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, params.slength);
 		}
 	}
 }
@@ -401,28 +389,9 @@ densitySumVolumicDevice(
 	// - sum_{V^{io}} m^n w(r + delta r)
 	float sumVmwDelta = 0.0f;
 	// compute new terms based on r^{n+1} and \delta r
-	computeDensitySumVolumicTerms<kerneltype>(
-		pdata.posN,
-		pdata.posNp1,
-		index,
-		dt,
-		params.half_dt,
-		params.influenceradius,
-		params.slength,
-		params.oldPos,
-		params.newPos,
-		params.oldVel,
-		params.oldEulerVel,
-		params.forces,
-		params.info,
-		params.particleHash,
-		params.cellStart,
-		params.neibsList,
-		params.numParticles,
-		params.step,
-		sumPmwN,
-		sumPmwNp1,
-		sumVmwDelta);
+	computeDensitySumVolumicTerms(
+		params, pdata, dt,
+		sumPmwN, sumPmwNp1, sumVmwDelta);
 
 	params.forces[index].w = sumPmwNp1 + sumPmwN + sumVmwDelta;
 }
