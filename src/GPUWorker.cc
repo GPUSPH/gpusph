@@ -1999,7 +1999,8 @@ void GPUWorker::pre_forces()
 	forcesEngine->bind_textures(m_dBuffers.getReadBufferList(),
 		m_numParticles);
 
-	forcesEngine->clear_cfl(m_dBuffers.getWriteBufferList(), m_numAllocatedParticles);
+	if (m_simparams->simflags & ENABLE_DTADAPT)
+		forcesEngine->clear_cfl(m_dBuffers.getWriteBufferList(), m_numAllocatedParticles);
 }
 
 /// Run the steps necessary to cleanup and complete forces execution
