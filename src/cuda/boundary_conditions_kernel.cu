@@ -533,7 +533,7 @@ saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
 		// compute Riemann invariants for open boundaries
 		const float unInt = dot(sumvel, as_float3(normal));
 		const float unExt = dot3(eulerVel, normal);
-		const float rhoInt = oldVel[index].w;
+		const float rhoInt = vel.w;
 		const float rhoExt = eulerVel.w;
 
 		calculateIOboundaryCondition(eulerVel, info, rhoInt, rhoExt, sumvel, unInt, unExt, as_float3(normal));
