@@ -38,6 +38,8 @@
 
 #include "define_buffers.h"
 
+#include "sa_segment_bc_params.h"
+
 // TODO Rename and optimize
 #define BLOCK_SIZE_SA_BOUND		128
 #define MIN_BLOCKS_SA_BOUND		6
@@ -105,18 +107,18 @@ saSegmentBoundaryConditions(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	// TODO we take pos from bufwrite, but it's actually read-only for us
-	const	float4			*oldPos(bufwrite.getData<BUFFER_POS>());
+	const	float4			*pos(bufwrite.getData<BUFFER_POS>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 
-	float4	*oldVel(bufwrite.getData<BUFFER_VEL>());
-	float	*oldTKE(bufwrite.getData<BUFFER_TKE>());
-	float	*oldEps(bufwrite.getData<BUFFER_EPSILON>());
-	float4	*oldEulerVel(bufwrite.getData<BUFFER_EULERVEL>());
-	float4  *oldGGam(bufwrite.getData<BUFFER_GRADGAMMA>());
+	float4	*vel(bufwrite.getData<BUFFER_VEL>());
+	float	*tke(bufwrite.getData<BUFFER_TKE>());
+	float	*eps(bufwrite.getData<BUFFER_EPSILON>());
+	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
+	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
 	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
 
 	int dummy_shared = 0;
@@ -128,10 +130,23 @@ saSegmentBoundaryConditions(
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
+	sa_segment_bc_params<visctype, simflags> params(
+		pos, vel, particleHash, cellStart, neibsList,
+		gGam, vertices, vertPos,
+		eulerVel, tke, eps,
+		particleRangeEnd, deltap, slength, influenceradius);
+
 	// execute the kernel
-	cubounds::saSegmentBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius,
-		 step == 0, step, simflags & ENABLE_INLET_OUTLET);
+#define SA_SEGMENT_BC_STEP(step) case step: \
+	cubounds::saSegmentBoundaryConditionsDevice<kerneltype, step><<< numBlocks, numThreads, dummy_shared >>>(params); break
+
+	switch (step) {
+		SA_SEGMENT_BC_STEP(0);
+		SA_SEGMENT_BC_STEP(1);
+		SA_SEGMENT_BC_STEP(2);
+	default:
+		throw std::runtime_error("unsupported step");
+	}
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
