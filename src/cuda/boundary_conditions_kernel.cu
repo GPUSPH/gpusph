@@ -309,7 +309,7 @@ getMassRepartitionFactor(	const	float3	*vertexRelPos,
 */
 template<KernelType kerneltype>
 __global__ void
-saSegmentBoundaryConditions(			float4*		__restrict__ oldPos,
+saSegmentBoundaryConditions(	const	float4*		__restrict__ oldPos,
 										float4*		__restrict__ oldVel,
 										float*		__restrict__ oldTKE,
 										float*		__restrict__ oldEps,

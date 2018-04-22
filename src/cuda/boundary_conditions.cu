@@ -89,29 +89,35 @@ disableOutgoingParts(		float4*			pos,
 /// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 void
 saSegmentBoundaryConditions(
-			float4*			oldPos,
-			float4*			oldVel,
-			float*			oldTKE,
-			float*			oldEps,
-			float4*			oldEulerVel,
-			float4*			oldGGam,
-			vertexinfo*		vertices,
-	const	float2	* const vertPos[],
-	const	float4*			boundelement,
-	const	particleinfo*	info,
-	const	hashKey*		particleHash,
+	BufferList &bufwrite,
+	BufferList const& bufread,
 	const	uint*			cellStart,
-	const	neibdata*		neibsList,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	bool			initStep,
+	// step will be 0 for the initialization step,
+	// and 1 or 2 for the first and second step during integration
 	const	uint			step)
 {
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	// TODO we take pos from bufwrite, but it's actually read-only for us
+	const	float4			*oldPos(bufwrite.getData<BUFFER_POS>());
+	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
+	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
+	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
+	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
+	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+
+	float4	*oldVel(bufwrite.getData<BUFFER_VEL>());
+	float	*oldTKE(bufwrite.getData<BUFFER_TKE>());
+	float	*oldEps(bufwrite.getData<BUFFER_EPSILON>());
+	float4	*oldEulerVel(bufwrite.getData<BUFFER_EULERVEL>());
+	float4  *oldGGam(bufwrite.getData<BUFFER_GRADGAMMA>());
+	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
 
 	int dummy_shared = 0;
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
@@ -124,7 +130,8 @@ saSegmentBoundaryConditions(
 
 	// execute the kernel
 	cubounds::saSegmentBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, step, simflags & ENABLE_INLET_OUTLET);
+		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius,
+		 step == 0, step, simflags & ENABLE_INLET_OUTLET);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));

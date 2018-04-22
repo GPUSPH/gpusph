@@ -27,25 +27,16 @@ updateNewIDsOffset(const uint &newIDsOffset) = 0;
 // Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 virtual void
 saSegmentBoundaryConditions(
-			float4*			oldPos,
-			float4*			oldVel,
-			float*			oldTKE,
-			float*			oldEps,
-			float4*			oldEulerVel,
-			float4*			oldGGam,
-			vertexinfo*		vertices,
-	const	float2	* const vertPos[],
-	const	float4*			boundelement,
-	const	particleinfo*	info,
-	const	hashKey*		particleHash,
+	BufferList &bufwrite,
+	BufferList const& bufread,
 	const	uint*			cellStart,
-	const	neibdata*		neibsList,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	bool			initStep,
+	// step will be 0 for the initialization step,
+	// and 1 or 2 for the first and second step during integration
 	const	uint			step) = 0;
 
 // There is no need to use two velocity arrays (read and write) and swap them after.

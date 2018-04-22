@@ -2578,33 +2578,21 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	const bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
+	const bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
 
 	bcEngine->saSegmentBoundaryConditions(
-				bufwrite.getData<BUFFER_POS>(),
-				bufwrite.getData<BUFFER_VEL>(),
-				bufwrite.getData<BUFFER_TKE>(),
-				bufwrite.getData<BUFFER_EPSILON>(),
-				bufwrite.getData<BUFFER_EULERVEL>(),
-				bufwrite.getData<BUFFER_GRADGAMMA>(),
-				bufwrite.getData<BUFFER_VERTICES>(),
-				bufread.getRawPtr<BUFFER_VERTPOS>(),
-				bufread.getData<BUFFER_BOUNDELEMENTS>(),
-				bufread.getData<BUFFER_INFO>(),
-				bufread.getData<BUFFER_HASH>(),
+		bufwrite, bufread,
 				m_dCellStart,
-				bufread.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
-				initStep,
-				firstStep ? 1 : 2);
+				initStep ? 0 : (firstStep ? 1 : 2));
 }
 
 void GPUWorker::kernel_saVertexBoundaryConditions()
