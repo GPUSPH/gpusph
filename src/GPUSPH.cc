@@ -852,7 +852,7 @@ bool GPUSPH::runSimulation() {
 		}
 
 		// check that dt is not too small (absolute)
-		if (!gdata->t) {
+		if (!gdata->dt) {
 			throw DtZeroException(gdata->t, gdata->dt);
 		} else if (gdata->dt < FLT_EPSILON) {
 			fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
