@@ -166,8 +166,7 @@ public:
 				float	*cfl_gamma,
 				float	*cfl_keps,
 				float	*tempCfl,
-				uint	numBlocks,
-				uint	numAllocatedParticles) = 0;
+				uint	numBlocks) = 0;
 
 };
 #endif

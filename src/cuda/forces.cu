@@ -535,8 +535,7 @@ dtreduce(	float	slength,
 			float	*cfl_gamma,
 			float	*cfl_keps,
 			float	*tempCfl,
-			uint	numBlocks,
-			uint	numAllocatedParticles)
+			uint	numBlocks)
 {
 	// cfl holds one value per block in the forces kernel call,
 	// so it holds numBlocks elements
@@ -544,7 +543,11 @@ dtreduce(	float	slength,
 	float dt = dtadaptfactor*fminf(sqrtf(slength/maxcfl), slength/sspeed_cfl);
 
 	if (USING_DYNAMIC_GAMMA(simflags)) {
-		maxcfl = fmaxf(cflmax(numAllocatedParticles, cfl_gamma, tempCfl), 1e-5f/dt);
+		// TODO FIXME while cfl_gamma is allocated with numAllocatedParticles elements,
+		// the elements that we want to reduce are actually less than that, because
+		// the finalizeforcesDevice call actually does a preliminary reduction of it
+		// (just like with the other cfl arrays)
+		maxcfl = fmaxf(cflmax(numBlocks, cfl_gamma, tempCfl), 1e-5f/dt);
 		const float dt_gam = 0.001f/maxcfl;
 		if (dt_gam < dt)
 			dt = dt_gam;

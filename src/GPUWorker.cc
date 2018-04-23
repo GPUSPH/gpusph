@@ -2042,8 +2042,7 @@ float GPUWorker::post_forces()
 		bufwrite.getData<BUFFER_CFL_GAMMA>(),
 		bufwrite.getData<BUFFER_CFL_KEPS>(),
 		bufwrite.getData<BUFFER_CFL_TEMP>(),
-		m_forcesKernelTotalNumBlocks,
-		m_numAllocatedParticles);
+		m_forcesKernelTotalNumBlocks);
 }
 
 // Aux method to warp signed cell coordinates if periodicity is enabled.
