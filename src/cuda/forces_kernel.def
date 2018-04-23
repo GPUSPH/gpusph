@@ -596,9 +596,12 @@ struct gamma_cfl_particle_output
 	{}
 };
 
-template<typename OP, bool ret = std::is_base_of<gamma_cfl_particle_output, OP>::value>
+template<typename OP>
 __device__ __forceinline__
-constexpr bool has_gammaCfl() { return ret; }
+constexpr bool has_gammaCfl()
+{
+	return std::is_base_of<gamma_cfl_particle_output, OP>::value;
+}
 
 // KEPSVISC
 struct keps_particle_output
