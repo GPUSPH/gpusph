@@ -38,7 +38,7 @@
 
 #include "define_buffers.h"
 
-#include "sa_segment_bc_params.h"
+#include "sa_bc_params.h"
 
 // TODO Rename and optimize
 #define BLOCK_SIZE_SA_BOUND		128
@@ -215,7 +215,7 @@ saVertexBoundaryConditions(
 	#endif
 
 	// execute the kernel
-	cubounds::saVertexBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cubounds::saVertexBoundaryConditionsDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
 		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, vertices, vertPos[0], vertPos[1], vertPos[2], info, particleHash, cellStart, neibsList,
 		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
 

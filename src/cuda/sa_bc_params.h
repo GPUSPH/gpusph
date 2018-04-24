@@ -29,7 +29,9 @@
 #include "particledefine.h"
 #include "simflags.h"
 
-/* Templatized parameters structure for the saSegmentBoundaryConditions kernel. */
+/* Templatized parameters structure for the SA_BOUNDARY boundary conditions kernels
+ * (saSegmentBoundaryConditionsDevice, saVertexBoundaryConditionsDevice
+ */
 
 #include "cond_params.h"
 

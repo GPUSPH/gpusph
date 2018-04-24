@@ -298,8 +298,10 @@ getMassRepartitionFactor(
 #define VERTEX3 (VERTEX2 << 1)
 #define ALLVERTICES ((flag_t)(VERTEX1 | VERTEX2 | VERTEX3))
 
-//! Auxiliary structures and functions for saSegmentBoundaryConditionsDevice
-namespace sa_segment_bc
+//! Auxiliary structures and functions for SA_BOUNDARY boundary conditions kernels
+/** \ref saSegmentBoundaryConditionsDevice, \ref saVertexBoundaryConditionsDevice
+ */
+namespace sa_bc
 {
 
 //! Particle data
@@ -330,7 +332,7 @@ struct pdata
 };
 
 /*! \struct pout
-    \brief Particle output for saSegmentBoundaryConditionsDevice
+    \brief Particle output for \ref saSegmentBoundaryConditionsDevice
 
   All sum* members in the substructures compute the sum over
   fluid particles, with Shepard filtering
@@ -815,7 +817,7 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
 }
 
 
-} // namespace sa_segment_bc
+} // namespace sa_bc
 
 //! Computes the boundary condition on segments for SA boundaries
 /*!
@@ -833,7 +835,7 @@ __global__ void
 saSegmentBoundaryConditionsDevice(Params params)
 {
 
-	using namespace sa_segment_bc;
+	using namespace sa_bc;
 
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -846,8 +848,8 @@ saSegmentBoundaryConditionsDevice(Params params)
 	if (!BOUNDARY(info))
 		return;
 
-	const sa_segment_bc::pdata	pdata(params, index, info);
-	sa_segment_bc::pout<Params>	pout(params, index, info);
+	const sa_bc::pdata	pdata(params, index, info);
+	sa_bc::pout<Params>	pout(params, index, info);
 
 	// Loop over VERTEX neighbors.
 	// TODO this is only needed
@@ -1505,7 +1507,7 @@ initIOmass(
  */
 template<KernelType kerneltype>
 __global__ void
-saVertexBoundaryConditions(
+saVertexBoundaryConditionsDevice(
 						float4*			oldPos,
 						float4*			oldVel,
 						float*			oldTKE,
