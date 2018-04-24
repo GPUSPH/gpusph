@@ -326,10 +326,14 @@ struct pdata
 	{}
 };
 
-//! Particle output for saSegmentBoundaryConditions
-/** All sum* members in the substructures compute the sum over
- * fluid particles, with Shepard filtering
+/*! \struct pout
+    \brief Particle output for saSegmentBoundaryConditions
+
+  All sum* members in the substructures compute the sum over
+  fluid particles, with Shepard filtering
  */
+
+//! Common components for \ref pout (members which are always present
 struct common_pout
 {
 	float sumpWall; // summation to compute the density
@@ -351,6 +355,7 @@ struct common_pout
 
 };
 
+//! \ref pout components which are only needed for I/O (open boundaries)
 struct io_pout
 {
 	float sump; // summation to compute the pressure
@@ -363,6 +368,9 @@ struct io_pout
 	{}
 };
 
+//! Eulerian velocity \ref pout component
+/** This is needed for open boundaries and k-epsilon viscosity
+ */
 struct eulervel_pout
 {
 	float4 eulerVel;
@@ -384,6 +392,7 @@ struct eulervel_pout
 	}
 };
 
+//! \ref pout components for k-epsilon viscosity
 struct keps_pout
 {
 	// summation to compute TKE and epsilon (k-epsilon model)
@@ -408,6 +417,12 @@ struct keps_pout
 	}
 };
 
+/**
+ * The pout structure is assembled from \ref common_pout and a combination of
+ * \ref eulervel_pout, \ref keps_pout, \ref io_pout depending on simulation
+ * flags and viscous model (which are derived from Params, which is a specialization
+ * of the \ref sa_segment_bc_params parameters structure
+ */
 template<typename Params,
 	bool has_io = (Params::has_io),
 	bool has_keps = (Params::has_keps),
@@ -431,6 +446,46 @@ struct pout :
 		eulervel_struct(params, index,info),
 		keps_struct(params, index, info),
 		io_struct()
+	{}
+};
+
+
+// Neighbor data (only used in case of k-epsilon
+// TODO full-fledged ndata structure
+
+//! fluid neighbor data used for k-epsilon
+struct keps_ndata
+{
+	float tke;
+	float eps;
+	// normal distance based on grad Gamma which approximates the normal of the domain
+	float norm_dist;
+
+	template<typename Params, typename PData>
+	__device__ __forceinline__
+	keps_ndata(Params const& params, PData const& pdata,
+		float4 const& relPos, uint neib_index)
+	:
+		tke(params.tke[neib_index]),
+		eps(params.eps[neib_index]),
+		norm_dist(fmax(fabs(dot3(pdata.normal, relPos)), params.deltap))
+	{}
+};
+
+// TODO use a real ndata structure
+template<typename Params, //!< \ref sa_segment_bc_params specialization
+	bool has_keps = Params::has_keps, //!< is k-epsilon enabled?
+	typename keps_struct = //!< optional components if \ref has_keps
+		typename COND_STRUCT(has_keps, keps_ndata)
+	>
+struct cond_keps_ndata :
+	keps_struct
+{
+	template<typename PData>
+	__device__ __forceinline__
+	cond_keps_ndata(Params const& params, PData const& pdata,
+		float4 const& relPos, uint neib_index) :
+		keps_struct(params, pdata, relPos, neib_index)
 	{}
 };
 
@@ -484,41 +539,7 @@ enable_if_t<!Params::has_moving>
 moving_vertex_contrib(Params const& params, PData const& pdata, POut &pout, uint neib_index)
 { /* do nothing */ }
 
-//! Fluid neighbor contributions for saSegmentBoundaryConditionsDevice
-struct keps_ndata
-{
-	float tke;
-	float eps;
-	// normal distance based on grad Gamma which approximates the normal of the domain
-	float norm_dist;
-
-	template<typename Params, typename PData>
-	__device__ __forceinline__
-	keps_ndata(Params const& params, PData const& pdata,
-		float4 const& relPos, uint neib_index)
-	:
-		tke(params.tke[neib_index]),
-		eps(params.eps[neib_index]),
-		norm_dist(fmax(fabs(dot3(pdata.normal, relPos)), params.deltap))
-	{}
-};
-
-template<typename Params, bool has_keps = Params::has_keps,
-	typename keps_struct =
-		typename COND_STRUCT(has_keps, keps_ndata)>
-struct cond_keps_ndata :
-	keps_struct
-{
-	template<typename PData>
-	__device__ __forceinline__
-	cond_keps_ndata(Params const& params, PData const& pdata,
-		float4 const& relPos, uint neib_index) :
-		keps_struct(params, pdata, relPos, neib_index)
-	{}
-};
-
 //! keps_fluid_contrib : keps contribution from fluid neighbors
-
 template<typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<!Params::has_keps>
@@ -759,11 +780,14 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
  split.
  \note updates are made in-place because we only read from fluids and vertex particles and only write
  boundary particles data, and no conflict can thus occurr.
- \todo templatize inputs and variables to avoid k-eps and IO inputs and variables when not needed
 */
 template<KernelType kerneltype, int step, typename Params,
+	// TODO FIXME initStep seems to be unused presently, but may be used to
+	// determine if calcGamma is needed or not (initStep || moving bodies || open boundaries)
 	bool initStep = (step == 0),
-	bool lastStep = (step == 2) // TODO this will be used when detecting outgoing particles
+	// TODO lastStep is only used to detect outgoing particles, which is currently
+	// not implemented in this branch
+	bool lastStep = (step == 2)
 >
 __global__ void
 saSegmentBoundaryConditionsDevice(Params params)
@@ -790,34 +814,37 @@ saSegmentBoundaryConditionsDevice(Params params)
 	// (1) to compute gamma (i.e. init step or moving objects if they get too close)
 	// (2) to compute the velocity for boundary of moving objects
 	// (3) to compute the eulerian velocity for non-IO boundaries in the KEPS case
-	for_each_neib(PT_VERTEX, index, pdata.pos, pdata.gridPos,
-		params.cellStart, params.neibsList) {
-		const uint neib_index = neib_iter.neib_index();
+	// TODO skip this whole block (loop + calcGam update) when not needed, if possible
+	// at compile time
+	{
+		for_each_neib(PT_VERTEX, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+			const uint neib_index = neib_iter.neib_index();
 
-		// Compute relative position vector and distance
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+			// Compute relative position vector and distance
+			const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
 
-		// skip inactive particles
-		if (INACTIVE(relPos))
-			continue;
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (has_vertex(pdata.verts, id(neib_info))) {
-			moving_vertex_contrib(params, pdata, pout, neib_index);
+			if (has_vertex(pdata.verts, id(neib_info))) {
+				moving_vertex_contrib(params, pdata, pout, neib_index);
 
-			if (pout.calcGam)
-				pout.gGam += params.gGam[neib_index];
+				if (pout.calcGam)
+					pout.gGam += params.gGam[neib_index];
 
-			keps_vertex_contrib(params, pdata, pout, neib_index);
+				keps_vertex_contrib(params, pdata, pout, neib_index);
+			}
 		}
-	}
 
-	// finalize gamma computation and store it
-	if (pout.calcGam) {
-		pout.gGam /= 3;
-		params.gGam[index] = pout.gGam;
-		pout.gGam.w = fmaxf(pout.gGam.w, 1e-5f);
+		// finalize gamma computation and store it
+		if (pout.calcGam) {
+			pout.gGam /= 3;
+			params.gGam[index] = pout.gGam;
+			pout.gGam.w = fmaxf(pout.gGam.w, 1e-5f);
+		}
 	}
 
 	// finalize velocity computation. we only store it later though, because the rest of this
@@ -827,10 +854,11 @@ saSegmentBoundaryConditionsDevice(Params params)
 	pout.vel.z /= 3;
 
 	// Loop over FLUID neighbors
-	// TODO this is only needed
-	// (0) sumPwall _always_
+	// This is needed:
+	// (0) to compute sumPwall _always_
 	// (1) k-epsilon in TKE case
 	// (2) in IO case, to compute velocity and pressure against wall
+	// The contributions are factored out and enabled only when needed
 	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos,
 		params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
