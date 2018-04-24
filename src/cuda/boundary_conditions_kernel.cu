@@ -376,9 +376,25 @@ struct eulervel_pout
 {
 	float4 eulerVel;
 
+	//! Constructor for the non-IO case
+	/** Start with null eulerVel */
 	template<typename Params>
 	__device__ __forceinline__
-	eulervel_pout(Params const& params, uint index, particleinfo const& info) :
+	eulervel_pout(Params const& params, uint index, particleinfo const& info,
+		// dummy argument to only select this in the non-IO case
+		enable_if_t<!Params::has_io, int> _sfinae = 0)
+	:
+		eulerVel(make_float4(0))
+	{}
+
+	//! Constructor in the IO case
+	/** In this case we fetch eulerVel for open boundary segments */
+	template<typename Params, typename = enable_if_t<Params::has_io> >
+	__device__ __forceinline__
+	eulervel_pout(Params const& params, uint index, particleinfo const& info,
+		// dummy argument to only select this in the IO case
+		enable_if_t<Params::has_io, int> _sfinae = 0)
+	:
 		eulerVel(make_float4(0))
 	{
 		// For IO boundary, fetch the data that was set in the problem-specific routine
