@@ -296,10 +296,11 @@ getMassRepartitionFactor(	const	float3	*vertexRelPos,
 #define VERTEX3 (VERTEX2 << 1)
 #define ALLVERTICES ((flag_t)(VERTEX1 | VERTEX2 | VERTEX3))
 
+//! Auxiliary structures and functions for saSegmentBoundaryConditionsDevice
 namespace sa_segment_bc
 {
 
-//! Particle data for saSegmentBoundaryConditions
+//! Particle data
 struct pdata
 {
 	uint index;
@@ -327,7 +328,7 @@ struct pdata
 };
 
 /*! \struct pout
-    \brief Particle output for saSegmentBoundaryConditions
+    \brief Particle output for saSegmentBoundaryConditionsDevice
 
   All sum* members in the substructures compute the sum over
   fluid particles, with Shepard filtering
@@ -449,9 +450,34 @@ struct pout :
 	{}
 };
 
+/*! \struct ndata
+  \brief Neighbor data for saSegmentBoundaryConditionsDevice
+ */
 
-// Neighbor data (only used in case of k-epsilon
-// TODO full-fledged ndata structure
+
+//! Common fluid neighbor data
+struct common_ndata
+{
+	uint index;
+	particleinfo info;
+	float4 relPos;
+	float4 vel;
+	float r;
+	float press;
+
+	template<typename Params>
+	__device__ __forceinline__
+	common_ndata(Params const& params, uint _index, float4 const& _relPos)
+	:
+		index(_index),
+		info(tex1Dfetch(infoTex, index)),
+		relPos(_relPos),
+		vel(params.vel[index]),
+		r(length3(relPos)),
+		press(P(vel.w, fluid_num(info)))
+	{
+	}
+};
 
 //! fluid neighbor data used for k-epsilon
 struct keps_ndata
@@ -464,7 +490,7 @@ struct keps_ndata
 	template<typename Params, typename PData>
 	__device__ __forceinline__
 	keps_ndata(Params const& params, PData const& pdata,
-		float4 const& relPos, uint neib_index)
+		uint neib_index, float4 const& relPos)
 	:
 		tke(params.tke[neib_index]),
 		eps(params.eps[neib_index]),
@@ -472,20 +498,21 @@ struct keps_ndata
 	{}
 };
 
-// TODO use a real ndata structure
 template<typename Params, //!< \ref sa_segment_bc_params specialization
 	bool has_keps = Params::has_keps, //!< is k-epsilon enabled?
 	typename keps_struct = //!< optional components if \ref has_keps
 		typename COND_STRUCT(has_keps, keps_ndata)
 	>
-struct cond_keps_ndata :
+struct ndata :
+	common_ndata,
 	keps_struct
 {
 	template<typename PData>
 	__device__ __forceinline__
-	cond_keps_ndata(Params const& params, PData const& pdata,
-		float4 const& relPos, uint neib_index) :
-		keps_struct(params, pdata, relPos, neib_index)
+	ndata(Params const& params, PData const& pdata,
+		uint neib_index, float4 const& relPos) :
+		common_ndata(params, neib_index, relPos),
+		keps_struct(params, pdata, neib_index, relPos)
 	{}
 };
 
@@ -584,24 +611,24 @@ keps_fluid_contrib(Params const& params, PData const& pdata,
 }
 
 //! io_fluid_contrib: contribution from fluid neighbors to open boundaries
-template<typename Params, typename PData, typename POut>
+template<typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<!Params::has_io>
 io_fluid_contrib(Params const& params, PData const& pdata,
-	float w, float neib_index, float neib_pres, POut &pout)
+	NData const& ndata, float w, POut &pout)
 { /* do nothing */ }
 
-template<typename Params, typename PData, typename POut>
+template<typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<Params::has_io>
 io_fluid_contrib(Params const& params, PData const& pdata,
-	float w, uint neib_index, float neib_pres, POut &pout)
+	NData const& ndata, float w, POut &pout)
 {
 	if (IO_BOUNDARY(pdata.info)) {
-		pout.sumvel += w*as_float3(params.vel[neib_index] + params.eulerVel[neib_index]);
+		pout.sumvel += w*as_float3(ndata.vel + params.eulerVel[ndata.index]);
 		// for open boundaries compute pressure interior state
 		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-		pout.sump += w*fmaxf(0.0f, neib_pres);
+		pout.sump += w*fmaxf(0.0f, ndata.press);
 	}
 }
 
@@ -871,27 +898,19 @@ saSegmentBoundaryConditionsDevice(Params params)
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const ndata<Params> ndata(params, pdata, neib_index, relPos);
 
-		if ( !(r < params.influenceradius && dot3(pdata.normal, relPos) < 0.0f) )
+		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, relPos) < 0.0f) )
 			continue;
 
-		const float neib_rho = params.vel[neib_index].w;
-		const float neib_pres = P(neib_rho, fluid_num(neib_info));
-
-		const float neib_vel = length(make_float3(params.vel[neib_index]));
-
-		const cond_keps_ndata<Params> keps_ndata(params, pdata, relPos, neib_index);
-
 		// kernel value times volume
-		const float w = W<kerneltype>(r, params.slength)*relPos.w/neib_rho;
+		const float w = W<kerneltype>(ndata.r, params.slength)*relPos.w/ndata.vel.w;
 
-		pout.sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
+		pout.sumpWall += fmax(ndata.press + ndata.vel.w*dot3(d_gravity, relPos), 0.0f)*w;
 
-		keps_fluid_contrib(params, pdata, keps_ndata, w, pout);
+		keps_fluid_contrib(params, pdata, ndata, w, pout);
 
-		io_fluid_contrib(params, pdata, w, neib_index, neib_pres, pout);
+		io_fluid_contrib(params, pdata, ndata, w, pout);
 
 		pout.shepard_div += w;
 	}
