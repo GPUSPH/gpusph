@@ -112,7 +112,7 @@ struct keps_sa_segment_bc_params
 	{}
 };
 
-template<ViscosityType _visctype, flag_t _simflags,
+template<KernelType _kerneltype, ViscosityType _visctype, flag_t _simflags,
 	bool _has_io = (_simflags & ENABLE_INLET_OUTLET),
 	bool _has_keps = (_visctype == KEPSVISC),
 	bool _has_moving = (_simflags & ENABLE_MOVING_BODIES),
@@ -127,6 +127,7 @@ struct sa_segment_bc_params :
 	eulervel_struct,
 	keps_struct
 {
+	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr ViscosityType visctype = _visctype;
 	static constexpr flag_t simflags = _simflags;
 	static constexpr bool has_io = _has_io;

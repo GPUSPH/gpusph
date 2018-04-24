@@ -481,6 +481,7 @@ struct common_ndata
 	float4 relPos;
 	float4 vel;
 	float r;
+	float w; // kernel value times volume
 	float press;
 
 	template<typename Params>
@@ -492,9 +493,9 @@ struct common_ndata
 		relPos(_relPos),
 		vel(params.vel[index]),
 		r(length3(relPos)),
+		w(W<Params::kerneltype>(r, params.slength)*relPos.w/vel.w),
 		press(P(vel.w, fluid_num(info)))
-	{
-	}
+	{}
 };
 
 //! fluid neighbor data used for k-epsilon
@@ -589,16 +590,16 @@ template<typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<!Params::has_keps>
 keps_fluid_contrib(Params const& params, PData const& pdata,
-	NData const& ndata, float w, POut &pout)
+	NData const& ndata, POut &pout)
 { /* do nothing */ }
 
 template<typename NData>
 __device__ __forceinline__
-float de_dn_solid(NData const& ndata, float w)
+float de_dn_solid(NData const& ndata)
 {
 	// for solid boundaries we have de/dn = c_mu^(3/4)*4*k^(3/2)/(\kappa r)
 	// the constant is coming from 4*powf(0.09,0.75)/0.41
-	return w*(ndata.eps + 1.603090412f*powf(ndata.tke,1.5f)/ndata.norm_dist);
+	return ndata.w*(ndata.eps + 1.603090412f*powf(ndata.tke,1.5f)/ndata.norm_dist);
 }
 
 // Standard contribution
@@ -606,26 +607,26 @@ template<typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<Params::has_keps && !Params::has_io>
 keps_fluid_contrib(Params const& params, PData const& pdata,
-	NData const& ndata, float w, POut &pout)
+	NData const& ndata, POut &pout)
 {
 	// for all boundaries we have dk/dn = 0
-	pout.sumtke += w*ndata.tke;
-	pout.sumeps += de_dn_solid(ndata, w);
+	pout.sumtke += ndata.w*ndata.tke;
+	pout.sumeps += de_dn_solid(ndata);
 }
 
 template<typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<Params:: has_keps && Params::has_io>
 keps_fluid_contrib(Params const& params, PData const& pdata,
-	NData const& ndata, float w, POut &pout)
+	NData const& ndata, POut &pout)
 {
 	// for all boundaries we have dk/dn = 0
-	pout.sumtke += w*ndata.tke;
+	pout.sumtke += ndata.w*ndata.tke;
 	if (IO_BOUNDARY(pdata.info))
 		// and de/dn = 0
-		pout.sumeps += w*ndata.eps;
+		pout.sumeps += ndata.w*ndata.eps;
 	else
-		pout.sumeps += de_dn_solid(ndata, w);
+		pout.sumeps += de_dn_solid(ndata);
 }
 
 //! io_fluid_contrib: contribution from fluid neighbors to open boundaries
@@ -633,20 +634,20 @@ template<typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<!Params::has_io>
 io_fluid_contrib(Params const& params, PData const& pdata,
-	NData const& ndata, float w, POut &pout)
+	NData const& ndata, POut &pout)
 { /* do nothing */ }
 
 template<typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<Params::has_io>
 io_fluid_contrib(Params const& params, PData const& pdata,
-	NData const& ndata, float w, POut &pout)
+	NData const& ndata, POut &pout)
 {
 	if (IO_BOUNDARY(pdata.info)) {
-		pout.sumvel += w*as_float3(ndata.vel + params.eulerVel[ndata.index]);
+		pout.sumvel += ndata.w*as_float3(ndata.vel + params.eulerVel[ndata.index]);
 		// for open boundaries compute pressure interior state
 		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-		pout.sump += w*fmaxf(0.0f, ndata.press);
+		pout.sump += ndata.w*fmaxf(0.0f, ndata.press);
 	}
 }
 
@@ -823,7 +824,7 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
  \note updates are made in-place because we only read from fluids and vertex particles and only write
  boundary particles data, and no conflict can thus occurr.
 */
-template<KernelType kerneltype, int step, typename Params,
+template<int step, typename Params,
 	// TODO FIXME initStep seems to be unused presently, but may be used to
 	// determine if calcGamma is needed or not (initStep || moving bodies || open boundaries)
 	bool initStep = (step == 0)
@@ -915,16 +916,13 @@ saSegmentBoundaryConditionsDevice(Params params)
 		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, relPos) < 0.0f) )
 			continue;
 
-		// kernel value times volume
-		const float w = W<kerneltype>(ndata.r, params.slength)*relPos.w/ndata.vel.w;
+		pout.sumpWall += fmax(ndata.press + ndata.vel.w*dot3(d_gravity, relPos), 0.0f)*ndata.w;
 
-		pout.sumpWall += fmax(ndata.press + ndata.vel.w*dot3(d_gravity, relPos), 0.0f)*w;
+		keps_fluid_contrib(params, pdata, ndata, pout);
 
-		keps_fluid_contrib(params, pdata, ndata, w, pout);
+		io_fluid_contrib(params, pdata, ndata, pout);
 
-		io_fluid_contrib(params, pdata, ndata, w, pout);
-
-		pout.shepard_div += w;
+		pout.shepard_div += ndata.w;
 	}
 
 	impose_io_bc(params, pdata, pout);
