@@ -1555,30 +1555,17 @@ saVertexBoundaryConditions(
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
 	const float gam = oldGGam[index].w;
 	const float sqC0 = d_sqC0[fluid_num(info)];
 
-	idx_t i = 0;
-
 	// Loop over all the neighbors
 	// TODO FIXME splitneibs merge : check logic against master
-	while (true) {
-		neibdata neib_data = neibsList[i + index];
+	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
+		const uint neib_index = neib_iter.neib_index();
 
-		if (neib_data == 0xffff) break;
-		i += d_neiblist_stride;
+		const float4 relPos = neib_iter.relPos(oldPos[neib_index]);
 
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
-
-		const float4 relPos = pos_corr - oldPos[neib_index];
-
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 		if (r < influenceradius){
 			const particleinfo neib_info = pinfo[neib_index];
 			const float neib_rho = oldVel[neib_index].w;
