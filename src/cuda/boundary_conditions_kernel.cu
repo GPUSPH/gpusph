@@ -1481,98 +1481,60 @@ initIOmass(
 }
 
 /// Compute boundary conditions for vertex particles in the semi-analytical boundary case
-/*! This function determines the physical properties of vertex particles in the semi-analytical boundary case. The properties of fluid particles are used to compute the properties of the vertices. Due to this most arrays are read from (the fluid info) and written to (the vertex info) simultaneously inside this function. In the case of open boundaries the vertex mass is updated in this routine and new fluid particles are created on demand. Additionally, the mass of outgoing fluid particles is redistributed to vertex particles herein.
- *	\param[in,out] oldPos : pointer to positions and masses; masses of vertex particles are updated
- *	\param[in,out] oldVel : pointer to velocities and density; densities of vertex particles are updated
- *	\param[in,out] oldTKE : pointer to turbulent kinetic energy
- *	\param[in,out] oldEps : pointer to turbulent dissipation
- *	\param[in,out] oldGGam : pointer to (grad) gamma; used only for cloning (i.e. creating a new particle)
- *	\param[in,out] oldEulerVel : pointer to Eulerian velocity & density; imposed values are set and the other is computed here
- *	\param[in,out] forces : pointer to forces; used only for cloning
- *	\param[in,out] vertices : pointer to associated vertices; fluid particles have this information if they are passing through a boundary and are going to be deleted
- *	\param[in] vertIDToIndex : pointer that associated a vertex id with an array index
- *	\param[in,out] pinfo : pointer to particle info; written only when cloning
- *	\param[in,out] particleHash : pointer to particle hash; written only when cloning
- *	\param[in] cellStart : pointer to indices of first particle in cells
- *	\param[in] neibsList : neighbour list
- *	\param[in] numParticles : number of particles
- *	\param[out] newNumParticles : number of particles after creation of new fluid particles due to open boundaries
- *	\param[in] dt : time-step size
- *	\param[in] step : the step in the time integrator
- *	\param[in] deltap : the particle size
- *	\param[in] slength : the smoothing length
- *	\param[in] influenceradius : the kernel radius
- *	\param[in] deviceId : current device identifier
- *	\param[in] numDevices : total number of devices; used for id generation of new fluid particles
+/*! This function determines the physical properties of vertex particles in the
+ * semi-analytical boundary case. The properties of fluid particles are used to
+ * compute the properties of the vertices. Due to this most arrays are read
+ * from (the fluid info) and written to (the vertex info) simultaneously inside
+ * this function. In the case of open boundaries the vertex mass is updated in
+ * this routine and new fluid particles are created on demand. Additionally,
+ * the mass of outgoing fluid particles is redistributed to vertex particles
+ * herein.
  */
-template<KernelType kerneltype>
+template<int step, typename Params,
+	bool initStep = (step == 0),
+	bool lastStep = (step == 2)
+>
 __global__ void
-saVertexBoundaryConditionsDevice(
-						float4*			oldPos,
-						float4*			oldVel,
-						float*			oldTKE,
-						float*			oldEps,
-						float4*			oldGGam,
-						float4*			oldEulerVel,
-						float4*			forces,
-						vertexinfo*		vertices,
-				const	float2*			vertPos0,
-				const	float2*			vertPos1,
-				const	float2*			vertPos2,
-						particleinfo*	pinfo,
-						hashKey*		particleHash,
-				const	uint*			cellStart,
-				const	neibdata*		neibsList,
-				const	uint			numParticles,
-						uint*			newNumParticles,
-				const	float			dt,
-				const	int				step,
-				const	float			deltap,
-				const	float			slength,
-				const	float			influenceradius,
-				const	bool			initStep,
-				const	bool			resume,
-				const	uint			deviceId,
-				const	uint			numDevices)
+saVertexBoundaryConditionsDevice(Params params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
-	const particleinfo info = pinfo[index];
+	const particleinfo info = tex1Dfetch(infoTex, index);
 	if (!VERTEX(info))
 		return;
 
-	float4 pos = oldPos[index];
+	const float4 pos = params.pos[index];
 
 	// these are taken as the sum over all adjacent segments
 	float sumpWall = 0.0f; // summation for computing the density
 	float alpha = 0.0f; // summation of normalization for IO boundaries
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
-	const float gam = oldGGam[index].w;
+	const float gam = params.gGam[index].w;
 	const float sqC0 = d_sqC0[fluid_num(info)];
 
 	// Loop over all the neighbors
 	// TODO FIXME splitneibs merge : check logic against master
-	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
+	for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = neib_iter.relPos(oldPos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
 
 		const float r = length3(relPos);
-		if (r < influenceradius){
-			const particleinfo neib_info = pinfo[neib_index];
-			const float neib_rho = oldVel[neib_index].w;
+		if (r < params.influenceradius){
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const float neib_rho = params.vel[neib_index].w;
 			const float neib_pres = P(neib_rho, fluid_num(neib_info));
 
 			// kernel value times volume
-			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
+			const float w = W<Params::kerneltype>(r, params.slength)*relPos.w/neib_rho;
 			sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
 			alpha += w;
 		}
@@ -1582,7 +1544,7 @@ saVertexBoundaryConditionsDevice(
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
 	alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
-	oldVel[index].w = RHO(sumpWall/alpha,fluid_num(info));
+	params.vel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 }
 
 //! Identify corner vertices on open boundaries

@@ -44,33 +44,24 @@ saSegmentBoundaryConditions(
 // Data is only read from fluid and segments and written only on vertices.
 virtual void
 saVertexBoundaryConditions(
-			float4*			oldPos,
-			float4*			oldVel,
-			float*			oldTKE,
-			float*			oldEps,
-			float4*			oldGGam,
-			float4*			oldEulerVel,
-			float4*			forces,
-	const	float4*			boundelement,
-			vertexinfo*		vertices,
-	const	float2			* const vertPos[],
-			particleinfo*	info,
-			hashKey*		particleHash,
+	BufferList &bufwrite,
+	BufferList const& bufread,
 	const	uint*			cellStart,
-	const	neibdata*		neibsList,
 	const	uint			numParticles,
-			uint*			newNumParticles,
 	const	uint			particleRangeEnd,
-	const	float			dt,
-	const	int				step,
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	bool			initStep,
-	const	bool			resume,
+	// step will be 0 for the initialization step,
+	// and 1 or 2 for the first and second step during integration
+	const	uint			step,
+	const	bool			resume, // TODO FIXME splitneibs-merge check if still needed
+	const	float			dt, // for open boundaries
+	// These are the cloning-related members
+			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
-	const uint			totParticles) = 0;
+	const	uint			totParticles) = 0;
 
 // computes a normal for vertices in the initialization step
 virtual void

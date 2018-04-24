@@ -2612,38 +2612,20 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
 
 	bcEngine->saVertexBoundaryConditions(
-				bufwrite.getData<BUFFER_POS>(),
-				bufwrite.getData<BUFFER_VEL>(),
-				bufwrite.getData<BUFFER_TKE>(),
-				bufwrite.getData<BUFFER_EPSILON>(),
-				bufwrite.getData<BUFFER_GRADGAMMA>(),
-				bufwrite.getData<BUFFER_EULERVEL>(),
-				bufwrite.getData<BUFFER_FORCES>(),
-				bufread.getData<BUFFER_BOUNDELEMENTS>(),
-				bufwrite.getData<BUFFER_VERTICES>(),
-				bufread.getRawPtr<BUFFER_VERTPOS>(),
-
-				// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position
-				// (updated in-place for generated particles)
-				(particleinfo*)bufread.getData<BUFFER_INFO>(),
-				(hashKey*)bufread.getData<BUFFER_HASH>(),
-
+		bufwrite, bufread,
 				m_dCellStart,
-				bufread.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
-				(firstStep ? NULL : m_dNewNumParticles),	// no m_dNewNumParticles at first step
 				numPartsToElaborate,
-				firstStep ? gdata->dt / 2.0f : gdata->dt,
-				initStep ? 0 : (firstStep ? 1 : 2),
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
-				initStep,
+				initStep ? 0 : (firstStep ? 1 : 2),
 				!gdata->clOptions->resume_fname.empty(),
+				firstStep ? gdata->dt / 2.0f : gdata->dt,
+				m_dNewNumParticles,
 				m_globalDeviceIdx,
 				gdata->totDevices,
-				gdata->totParticles
-				);
+				gdata->totParticles);
 }
 
 void GPUWorker::kernel_saComputeVertexNormal()

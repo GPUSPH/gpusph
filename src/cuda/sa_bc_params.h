@@ -190,22 +190,25 @@ struct sa_cloning_params
 	// vel, gGam, eulerVel, tke and eps are already writeable
 	float4 * __restrict__ clonePos; //! Writable pos array
 	float4 * __restrict__ cloneForces; //! Writable forces array
-	float4 * __restrict__ cloneInfo; //! Writable info array
+	particleinfo * __restrict__ cloneInfo; //! Writable info array
 	vertexinfo * __restrict__ cloneVertices; //! Writable vertices array
 	hashKey * __restrict__ cloneParticleHash; //! Writable particleHash array
 	uint * __restrict__ newNumParticles; //! New number of particles
 	const uint deviceId; //! ID of the device the kernel is running on
 	const uint numDevices; //! number of devices used for the simulation
 
+	const float dt; //! ∆t for this (half) time-step
+
 	sa_cloning_params(
 		float4 * __restrict__ _clonePos,
 		float4 * __restrict__ _cloneForces,
-		float4 * __restrict__ _cloneInfo,
+		particleinfo * __restrict__ _cloneInfo,
 		vertexinfo * __restrict__ _cloneVertices,
 		hashKey * __restrict__ _cloneParticleHash,
 		uint * __restrict__ _newNumParticles,
 		const uint _deviceId,
-		const uint _numDevices)
+		const uint _numDevices,
+		const uint _dt)
 	:
 		clonePos(_clonePos),
 		cloneForces(_cloneForces),
@@ -214,7 +217,8 @@ struct sa_cloning_params
 		cloneParticleHash(_cloneParticleHash),
 		newNumParticles(_newNumParticles),
 		deviceId(_deviceId),
-		numDevices(_numDevices)
+		numDevices(_numDevices),
+		dt(_dt)
 	{}
 };
 
@@ -268,7 +272,8 @@ struct sa_vertex_bc_params :
 		const	float	_slength,
 		const	float	_influenceradius,
 		const	uint	_deviceId,
-		const	uint	_numDevices)
+		const	uint	_numDevices,
+		const	float	_dt)
 	:
 		common_sa_bc_params(
 			_pos, _vel, _particleHash, _cellStart, _neibsList,
@@ -277,7 +282,7 @@ struct sa_vertex_bc_params :
 		eulervel_struct(_eulerVel),
 		keps_struct(_tke, _eps),
 		io_struct(_pos, _forces, _info, _vertices, _particleHash,
-			_newNumParticles, _deviceId, _numDevices)
+			_newNumParticles, _deviceId, _numDevices, _dt)
 	{}
 };
 

@@ -161,8 +161,8 @@ saSegmentBoundaryConditions(
 			particleHash, cellStart, neibsList,
 			particleRangeEnd, influenceradius);
 
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -174,54 +174,83 @@ saSegmentBoundaryConditions(
 // Data is only read from fluid and segments and written only on vertices.
 void
 saVertexBoundaryConditions(
-			float4*			oldPos,
-			float4*			oldVel,
-			float*			oldTKE,
-			float*			oldEps,
-			float4*			oldGGam,
-			float4*			oldEulerVel,
-			float4*			forces,
-	const	float4*			boundelement,
-			vertexinfo*		vertices,
-	const	float2			* const vertPos[],
-			particleinfo*	info,
-			hashKey*		particleHash,
+	BufferList &bufwrite,
+	BufferList const& bufread,
 	const	uint*			cellStart,
-	const	neibdata*		neibsList,
 	const	uint			numParticles,
-			uint*			newNumParticles,
 	const	uint			particleRangeEnd,
-	const	float			dt,
-	const	int				step,
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	bool			initStep,
-	const	bool			resume,
+	// step will be 0 for the initialization step,
+	// and 1 or 2 for the first and second step during integration
+	const	uint			step,
+	const	bool			resume, // TODO FIXME check if still needed
+	const	float			dt, // for open boundaries
+	// These are the cloning-related members
+			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
 	const	uint			totParticles)
 {
+	float4	*forces(bufwrite.getData<BUFFER_FORCES>());
+	float4	*pos(bufwrite.getData<BUFFER_POS>());
+	float4	*vel(bufwrite.getData<BUFFER_VEL>());
+	float	*tke(bufwrite.getData<BUFFER_TKE>());
+	float	*eps(bufwrite.getData<BUFFER_EPSILON>());
+	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
+	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
+	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
+
+
+	// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position
+	// (updated in-place for generated particles)
+
+	particleinfo	*info(const_cast<particleinfo*>(bufread.getData<BUFFER_INFO>()));
+	hashKey			*particleHash(const_cast<hashKey*>(bufread.getData<BUFFER_HASH>()));
+
+	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
+	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
+	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+
+
 	int dummy_shared = 0;
 
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
 
-	// execute the kernel
-	cubounds::saVertexBoundaryConditionsDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, vertices, vertPos[0], vertPos[1], vertPos[2], info, particleHash, cellStart, neibsList,
-		 particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep, resume, deviceId, numDevices);
+	sa_vertex_bc_params<kerneltype, visctype, simflags> params(
+		pos, vel, info, particleHash, cellStart, neibsList,
+		gGam, vertices, vertPos,
+		eulerVel, tke, eps,
+		forces,
+		numParticles, newNumParticles,
+		deltap, slength, influenceradius,
+		deviceId, numDevices, dt);
 
+	// execute the kernel
+#define SA_VERTEX_BC_STEP(step) case step: \
+	cubounds::saVertexBoundaryConditionsDevice<step><<< numBlocks, numThreads, dummy_shared >>>(params); break
+
+	switch (step) {
+		SA_VERTEX_BC_STEP(0);
+		SA_VERTEX_BC_STEP(1);
+		SA_VERTEX_BC_STEP(2);
+	default:
+		throw std::runtime_error("unsupported step");
+	}
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 }
