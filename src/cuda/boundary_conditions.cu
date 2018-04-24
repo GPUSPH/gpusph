@@ -88,7 +88,12 @@ disableOutgoingParts(		float4*			pos,
 	KERNEL_CHECK_ERROR;
 }
 
-/// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
+/// Computes the boundary conditions on segments using the information from the fluid
+/** For solid walls this is used to impose Neuman boundary conditions.
+ *  For open boundaries it imposes the appropriate inflow velocity solving the associated
+ *  Riemann problem.
+ *  Additionaly, during the second step, outgoing particles are detected and marked for mass redistribution.
+ */
 void
 saSegmentBoundaryConditions(
 	BufferList &bufwrite,
@@ -147,6 +152,14 @@ saSegmentBoundaryConditions(
 	default:
 		throw std::runtime_error("unsupported step");
 	}
+
+
+	if ( (simflags & ENABLE_INLET_OUTLET) && (step == 2))
+		cubounds::findOutgoingSegmentDevice<kerneltype><<<numBlocks, numThreads>>>(
+			pos, vel, vertices, gGam,
+			vertPos[0], vertPos[1], vertPos[2],
+			particleHash, cellStart, neibsList,
+			particleRangeEnd, influenceradius);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
