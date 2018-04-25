@@ -364,12 +364,26 @@ struct vertex_pdata :
   fluid particles, with Shepard filtering
  */
 
-//! Common components for \ref pout (members which are always present
+//! Common components for \ref pout structures
+/**! This structure holds the component needed by both segment and vertex
+ *   boundary conditions kernels, regardless of template specialization
+ */
 struct common_pout
 {
 	float sumpWall; // summation to compute the density
 	float shepard_div; // Shepard filter divisor
 
+	template<typename Params>
+	__device__ __forceinline__
+	common_pout(Params const& params, uint index, particleinfo const& info) :
+		sumpWall(0), shepard_div(0)
+	{}
+
+};
+
+//! \ref pout components needed by all segment (but not vertex) pout specializations
+struct common_segment_pout
+{
 	float4 gGam; // new gamma and its gradient
 	float4 vel; // velocity to impose Neumann conditions
 
@@ -377,8 +391,7 @@ struct common_pout
 
 	template<typename Params>
 	__device__ __forceinline__
-	common_pout(Params const& params, uint index, particleinfo const& info) :
-		sumpWall(0), shepard_div(0),
+	common_segment_pout(Params const& params, uint index, particleinfo const& info) :
 		gGam(make_float4(0, 0, 0, params.gGam[index].w)),
 		vel(make_float4(0)),
 		calcGam(gGam.w < 1e-5f)
@@ -465,10 +478,11 @@ struct keps_pout
 };
 
 /**
- * The pout structure is assembled from \ref common_pout and a combination of
- * \ref eulervel_pout, \ref keps_pout, \ref io_pout depending on simulation
- * flags and viscous model (which are derived from Params, which is a specialization
- * of the \ref sa_segment_bc_params parameters structure
+ * The segment_pout structure is assembled from \ref common_pout, \ref common_segment_pout
+ * and a combination of \ref eulervel_pout, \ref keps_pout, \ref io_pout
+ * depending on simulation flags and viscous model (which are derived from
+ * Params, which is a specialization of the \ref sa_segment_bc_params
+ * parameters structure.
  */
 template<typename Params,
 	bool has_io = (Params::has_io),
@@ -481,20 +495,59 @@ template<typename Params,
 	typename io_struct =
 		typename COND_STRUCT(has_io, io_pout)
 	>
-struct pout :
+struct segment_pout :
+	common_pout,
+	common_segment_pout,
+	eulervel_struct,
+	keps_struct,
+	io_struct
+{
+	__device__ __forceinline__
+	segment_pout(Params const& params, uint index, particleinfo const& info) :
+		common_pout(params, index, info),
+		common_segment_pout(params, index, info),
+		eulervel_struct(params, index,info),
+		keps_struct(params, index, info),
+		io_struct()
+	{}
+};
+
+/**
+ * The vertex_pout structure is assembled from \ref common_pout,
+ * and a combination of \ref eulervel_pout, \ref keps_pout, \ref io_pout
+ * depending on simulation flags and viscous model (which are derived from
+ * Params, which is a specialization of the \ref sa_segment_bc_params
+ * parameters structure.
+ * TODO FIXME splitneibs-merge we're only handling non-IO, non-keps
+ * in saVertexBoundaryConditionsDevice, but we're more or less aware
+ * of what we'll need.
+ */
+template<typename Params,
+	bool has_io = (Params::has_io),
+	bool has_keps = (Params::has_keps),
+	bool has_eulerVel = (has_io || has_keps),
+	typename eulervel_struct =
+		typename COND_STRUCT(has_eulerVel, eulervel_pout),
+	typename keps_struct =
+		typename COND_STRUCT(has_keps, keps_pout),
+	typename io_struct =
+		typename COND_STRUCT(has_io, io_pout)
+	>
+struct vertex_pout :
 	common_pout,
 	eulervel_struct,
 	keps_struct,
 	io_struct
 {
 	__device__ __forceinline__
-	pout(Params const& params, uint index, particleinfo const& info) :
+	vertex_pout(Params const& params, uint index, particleinfo const& info) :
 		common_pout(params, index, info),
 		eulervel_struct(params, index,info),
 		keps_struct(params, index, info),
 		io_struct()
 	{}
 };
+
 
 /*! \struct ndata
   \brief Neighbor data for saSegmentBoundaryConditionsDevice
@@ -875,7 +928,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 		return;
 
 	const sa_bc::segment_pdata	pdata(params, index, info);
-	sa_bc::pout<Params>	pout(params, index, info);
+	sa_bc::segment_pout<Params>	pout(params, index, info);
 
 	// Loop over VERTEX neighbors.
 	// TODO this is only needed
@@ -1535,10 +1588,7 @@ saVertexBoundaryConditionsDevice(Params params)
 		return;
 
 	const sa_bc::vertex_pdata pdata(params, index, info);
-
-	// these are taken as the sum over all adjacent segments
-	float sumpWall = 0.0f; // summation for computing the density
-	float alpha = 0.0f; // summation of normalization for IO boundaries
+	sa_bc::vertex_pout<Params>	pout(params, index, info);
 
 	// Loop over all the neighbors
 	// TODO FIXME splitneibs merge : check logic against master
@@ -1555,16 +1605,16 @@ saVertexBoundaryConditionsDevice(Params params)
 
 			// kernel value times volume
 			const float w = W<Params::kerneltype>(r, params.slength)*relPos.w/neib_rho;
-			sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
-			alpha += w;
+			pout.sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
+			pout.shepard_div += w;
 		}
 
 	}
 
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
-	alpha = fmax(alpha, 0.1f*pdata.gam); // avoid division by 0
-	params.vel[index].w = RHO(sumpWall/alpha,fluid_num(info));
+	pout.shepard_div = fmax(pout.shepard_div, 0.1f*pdata.gam); // avoid division by 0
+	params.vel[index].w = RHO(pout.sumpWall/pout.shepard_div,fluid_num(info));
 }
 
 //! Identify corner vertices on open boundaries
