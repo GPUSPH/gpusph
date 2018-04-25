@@ -440,11 +440,16 @@ struct vertex_io_pout :
 	float massFluid = 0.0f; // mass obtained from a outgoing - mass of a new fluid
 	bool foundFluid = false; // check if a vertex particle has a fluid particle in its support
 
+	// wall normal:
+	// for corner vertices the wall normal is equal to the normal of the associated segments that belong to a solid wall
+	float3 wallNormal;
+
 	__device__ __forceinline__
 	vertex_io_pout() :
 		sumMdot(0.0f),
 		massFluid(0.0f),
-		foundFluid(false)
+		foundFluid(false),
+		wallNormal(make_float3(0.0f))
 	{}
 };
 
@@ -649,10 +654,9 @@ struct common_keps_ndata
 	float tke;
 	float eps;
 
-	template<typename Params, typename PData>
+	template<typename Params>
 	__device__ __forceinline__
-	common_keps_ndata(Params const& params, PData const& pdata,
-		uint neib_index, float4 const& relPos)
+	common_keps_ndata(Params const& params, uint neib_index)
 	:
 		tke(params.tke[neib_index]),
 		eps(params.eps[neib_index])
@@ -670,7 +674,7 @@ struct segment_keps_ndata :
 	segment_keps_ndata(Params const& params, PData const& pdata,
 		uint neib_index, float4 const& relPos)
 	:
-		common_keps_ndata(params, pdata, neib_index, relPos),
+		common_keps_ndata(params, neib_index),
 		norm_dist(fmax(fabs(dot3(pdata.normal, relPos)), params.deltap))
 	{}
 };
@@ -693,21 +697,39 @@ struct segment_ndata :
 	{}
 };
 
+struct vertex_fluid_ndata :
+	common_ndata
+{
+	template<typename Params>
+	__device__ __forceinline__
+	vertex_fluid_ndata(Params const& params, uint neib_index, float4 const& relPos) :
+		common_ndata(params, neib_index, relPos)
+	{}
+};
+
 template<typename Params, //!< \ref sa_segment_bc_params specialization
 	bool has_keps = Params::has_keps, //!< is k-epsilon enabled?
 	typename keps_struct = //!< optional components if \ref has_keps
 		typename COND_STRUCT(has_keps, common_keps_ndata)
 	>
-struct vertex_ndata :
-	common_ndata,
+struct vertex_boundary_ndata :
 	keps_struct
 {
-	template<typename PData>
+	// TODO further split common_ndata and use index and info from there
+	uint index;
+	particleinfo info;
+
+	const vertexinfo vertices;
+	const float4 normal;
+
 	__device__ __forceinline__
-	vertex_ndata(Params const& params, PData const& pdata,
-		uint neib_index, float4 const& relPos) :
-		common_ndata(params, neib_index, relPos),
-		keps_struct(params, pdata, neib_index, relPos)
+	vertex_boundary_ndata(Params const& params, int neib_index)
+	:
+		keps_struct(params, neib_index),
+		index(neib_index),
+		info(tex1Dfetch(infoTex, neib_index)),
+		vertices(params.vertices[neib_index]),
+		normal(tex1Dfetch(boundTex, neib_index))
 	{}
 };
 
@@ -870,6 +892,120 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 		}
 	}
 }
+
+//! k-epsilon contribution from boundary element to adjacent vertex
+template<typename Params, typename PData, typename NData, typename POut>
+__device__ __forceinline__
+enable_if_t<!Params::has_keps>
+keps_boundary_contrib(Params const& params, PData const& pdata,
+	NData const& ndata, POut &pout)
+{ /* do nothing */ }
+
+template<typename Params, typename PData, typename NData, typename POut>
+__device__ __forceinline__
+enable_if_t<Params::has_keps>
+keps_boundary_contrib(Params const& params, PData const& pdata,
+	NData const& ndata, POut &pout)
+{
+	pout.sumtke += ndata.tke;
+	pout.sumeps += ndata.eps;
+	pout.numseg += 1;
+}
+
+//! open boundary contribution from boundary element to adjacent vertex
+template<typename Params, typename PData, typename NData, typename POut>
+__device__ __forceinline__
+enable_if_t<!Params::has_io>
+io_boundary_contrib(Params const& params, PData const& pdata,
+	NData const& ndata, POut &pout)
+{ /* do nothing */ }
+
+template<typename Params, typename PData, typename NData, typename POut>
+__device__ __forceinline__
+enable_if_t<Params::has_io>
+io_boundary_contrib(Params const& params, PData const& pdata,
+	NData const& ndata, POut &pout)
+{
+	if (pdata.corner) {
+		// corner vertices only interact with solid wall segments,
+		// to compute the wallNormal
+		if (!IO_BOUNDARY(ndata.info))
+			pout.wallNormal += make_float3(ndata.normal)*ndata.normal.w;
+		// nothing else to do
+		return;
+	}
+	// non-corner vertex: compute mass evolution contribution from
+	// open boundary segments
+	if (!IO_BOUNDARY(ndata.info))
+		return;
+
+	/* The following would increase the output of particles close to an edge
+	 * But it is not used for the following reason: If only 1/3 of each segment is taken into account
+	 * it lowers the effective inflow area. This is ok, as part of the area of a segment that is associated
+	 * with a corner "belongs" to a corner vertex.
+	// number of vertices associated to a segment that are of the same object type
+	float numOutVerts = 2.0f;
+	if (neibVerts.w == ALLVERTICES) // all vertices are of the same object type
+	numOutVerts = 3.0f;
+	else if (neibVerts.w & ~VERTEX1 == 0 || neibVerts.w & ~VERTEX2 == 0 || neibVerts.w & ~VERTEX3 == 0) // only one vertex
+	numOutVerts = 1.0f;
+	*/
+	/*
+	// Distribute mass flux evenly among vertex particles of a segment
+	float numOutVerts = 3.0f;
+	*/
+
+	// Relative position of vertices with respect to the segment, normalized
+	float3 vx[3];
+	calcVertexRelPos(vx, ndata.normal,
+		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], -1);
+
+	float3 vertexWeights;
+	getMassRepartitionFactor(vx, make_float3(ndata.normal), vertexWeights);
+	const int my_id = id(pdata.info);
+	const float weight =
+		ndata.vertices.x == my_id ? vertexWeights.x :
+		ndata.vertices.y == my_id ? vertexWeights.y :
+		ndata.vertices.z == my_id ? vertexWeights.z :
+		0.0f;
+	pout.sumMdot += params.vel[ndata.index].w*ndata.normal.w*weight*
+		dot3(params.eulerVel[ndata.index], ndata.normal); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
+}
+
+
+
+
+//! Compute contribution from adjacent BOUNDARY particles to a VERTEX boundary conditions
+/**! This is the loop over PT_BOUNDARY particles for saVertexBoundaryConditionsDevice,
+ * which is only needed with k-epsilon viscous model or with open boundaries
+ */
+template<typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<!(Params::has_keps || Params::has_io)>
+vertex_boundary_loop(Params const& params, PData const& pdata, POut &pout)
+{ /* do nothing */ }
+
+template<typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<Params::has_keps || Params::has_io>
+vertex_boundary_loop(Params const& params, PData const& pdata, POut &pout)
+{
+	for_each_neib(PT_BOUNDARY, pdata.index, pdata.pos, pdata.gridPos,
+		params.cellStart, params.neibsList)
+	{
+		const uint neib_index = neib_iter.neib_index();
+		const sa_bc::vertex_boundary_ndata<Params> ndata(params, neib_index);
+
+		// skip non-adjacent boundaries
+		if (!has_vertex(ndata.vertices, id(pdata.info)))
+			continue;
+
+		keps_boundary_contrib(params, pdata, ndata, pout);
+		io_boundary_contrib(params, pdata, ndata, pout);
+	}
+}
+
+
 
 
 //! impose_solid_keps_bc: impose k-epsilon boundary conditions on solid walls
@@ -1732,8 +1868,7 @@ saVertexBoundaryConditionsDevice(Params params)
 	const sa_bc::vertex_pdata<Params> pdata(params, index, info);
 	sa_bc::vertex_pout<Params>	pout(params, index, info);
 
-	// Loop over all the neighbors
-	// TODO FIXME splitneibs merge : check logic against master
+	// Loop over all FLUID neighbors
 	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
@@ -1742,7 +1877,7 @@ saVertexBoundaryConditionsDevice(Params params)
 		if (INACTIVE(relPos))
 			continue;
 
-		const sa_bc::vertex_ndata<Params> ndata(params, pdata, neib_index, relPos);
+		const sa_bc::vertex_fluid_ndata ndata(params, neib_index, relPos);
 
 		if (ndata.r < params.influenceradius) {
 			pout.sumpWall += fmax(ndata.press + ndata.vel.w*dot3(d_gravity, relPos), 0.0f)*ndata.w;
@@ -1752,6 +1887,11 @@ saVertexBoundaryConditionsDevice(Params params)
 		}
 
 	}
+
+	// Loop over all BOUNDARY neighbors, if necessary
+	vertex_boundary_loop(params, pdata, pout);
+
+	// TODO FIXME splitneibs merge : check logic against master
 
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
