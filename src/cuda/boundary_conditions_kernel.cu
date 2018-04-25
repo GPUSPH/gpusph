@@ -1671,7 +1671,7 @@ initIOmass(
 	}
 
 	// Loop over all VERTEX neighbors
-	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+	for_each_neib(PT_VERTEX, index, pos, gridPos, cellStart, neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
 		const particleinfo neib_info = pinfo[neib_index];
