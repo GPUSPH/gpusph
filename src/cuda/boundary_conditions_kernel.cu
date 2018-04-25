@@ -343,16 +343,35 @@ struct segment_pdata :
 	{}
 };
 
-//! Particle data used by \ref saVertexBoundaryConditionsDevice
-struct vertex_pdata :
-	common_pdata
+
+//! Particle data used for vertices with open boundaries
+struct vertex_io_pdata
 {
-	float gam;
+	bool corner; // is this a corner vertex?
 
 	template<typename Params>
 	__device__ __forceinline__
+	vertex_io_pdata(Params const& params, uint _index, particleinfo const& _info) :
+		corner(CORNER(_info))
+	{}
+};
+
+//! Particle data used by \ref saVertexBoundaryConditionsDevice
+template<typename Params,
+	bool has_io = Params::has_io,
+	typename io_struct =
+		typename COND_STRUCT(has_io, vertex_io_pdata)
+	>
+struct vertex_pdata :
+	common_pdata,
+	io_struct
+{
+	float gam;
+
+	__device__ __forceinline__
 	vertex_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		common_pdata(params, _index, _info),
+		io_struct(params, _index, _info),
 		gam(params.gGam[index].w)
 	{}
 };
@@ -399,16 +418,33 @@ struct common_segment_pout
 
 };
 
-//! \ref pout components which are only needed for I/O (open boundaries)
-struct io_pout
+//! \ref pout components which are only needed for I/O (open boundaries), for both
+//! segments and vertices
+struct common_io_pout
 {
 	float sump; // summation to compute the pressure
 	float3 sumvel; // summation to compute internal velocity for open boundaries
 
 	__device__ __forceinline__
-	io_pout() :
+	common_io_pout() :
 		sump(0),
 		sumvel(make_float3(0.0f))
+	{}
+};
+
+//! Open boundaries \ref pout components only needed by vertices
+struct vertex_io_pout :
+	common_io_pout
+{
+	float sumMdot = 0.0f; // summation for computing the mass variance based on in/outflow
+	float massFluid = 0.0f; // mass obtained from a outgoing - mass of a new fluid
+	bool foundFluid = false; // check if a vertex particle has a fluid particle in its support
+
+	__device__ __forceinline__
+	vertex_io_pout() :
+		sumMdot(0.0f),
+		massFluid(0.0f),
+		foundFluid(false)
 	{}
 };
 
@@ -453,19 +489,29 @@ struct eulervel_pout
 };
 
 //! \ref pout components for k-epsilon viscosity
-struct keps_pout
+struct common_keps_pout
 {
 	// summation to compute TKE and epsilon (k-epsilon model)
 	float sumtke;
 	float sumeps;
 
+	__device__ __forceinline__
+	common_keps_pout() :
+		sumtke(0),
+		sumeps(0)
+	{}
+};
+
+struct segment_keps_pout :
+	common_keps_pout
+{
 	float tke;
 	float eps;
 
 	template<typename Params>
 	__device__ __forceinline__
-	keps_pout(Params const& params, uint index, particleinfo const& info) :
-		sumtke(0), sumeps(0),
+	segment_keps_pout(Params const& params, uint index, particleinfo const& info) :
+		common_keps_pout(),
 		tke(0), eps(0)
 	{
 		// For IO boundary with imposed velocity,
@@ -475,6 +521,19 @@ struct keps_pout
 			eps = params.eps[index];
 		}
 	}
+};
+
+struct vertex_keps_pout :
+	common_keps_pout
+{
+	int numseg; // number of segments adjacent this vertex
+
+	template<typename Params>
+	__device__ __forceinline__
+	vertex_keps_pout(Params const& params, uint index, particleinfo const& info) :
+		common_keps_pout(),
+		numseg(0)
+	{}
 };
 
 /**
@@ -491,9 +550,9 @@ template<typename Params,
 	typename eulervel_struct =
 		typename COND_STRUCT(has_eulerVel, eulervel_pout),
 	typename keps_struct =
-		typename COND_STRUCT(has_keps, keps_pout),
+		typename COND_STRUCT(has_keps, segment_keps_pout),
 	typename io_struct =
-		typename COND_STRUCT(has_io, io_pout)
+		typename COND_STRUCT(has_io, common_io_pout)
 	>
 struct segment_pout :
 	common_pout,
@@ -525,13 +584,18 @@ struct segment_pout :
 template<typename Params,
 	bool has_io = (Params::has_io),
 	bool has_keps = (Params::has_keps),
-	bool has_eulerVel = (has_io || has_keps),
+	// note that we don't have the eulerVel in pout with keps,
+	// in contrast to most other circumstances
+	// (we will adjust the eulerVel to be tangential to the wall,
+	// but we'll do that “in place” getting the array directly
+	// in the relevant function
+	bool has_eulerVel = has_io,
 	typename eulervel_struct =
 		typename COND_STRUCT(has_eulerVel, eulervel_pout),
 	typename keps_struct =
-		typename COND_STRUCT(has_keps, keps_pout),
+		typename COND_STRUCT(has_keps, vertex_keps_pout),
 	typename io_struct =
-		typename COND_STRUCT(has_io, io_pout)
+		typename COND_STRUCT(has_io, vertex_io_pout)
 	>
 struct vertex_pout :
 	common_pout,
@@ -1618,7 +1682,7 @@ saVertexBoundaryConditionsDevice(Params params)
 	if (!VERTEX(info))
 		return;
 
-	const sa_bc::vertex_pdata pdata(params, index, info);
+	const sa_bc::vertex_pdata<Params> pdata(params, index, info);
 	sa_bc::vertex_pout<Params>	pout(params, index, info);
 
 	// Loop over all the neighbors
