@@ -580,20 +580,33 @@ struct common_ndata
 };
 
 //! fluid neighbor data used for k-epsilon
-struct keps_ndata
+struct common_keps_ndata
 {
 	float tke;
 	float eps;
-	// normal distance based on grad Gamma which approximates the normal of the domain
+
+	template<typename Params, typename PData>
+	__device__ __forceinline__
+	common_keps_ndata(Params const& params, PData const& pdata,
+		uint neib_index, float4 const& relPos)
+	:
+		tke(params.tke[neib_index]),
+		eps(params.eps[neib_index])
+	{}
+};
+
+struct segment_keps_ndata :
+	common_keps_ndata
+{
+	// normal distance based on grad Gamma which approximates the normal of the element
 	float norm_dist;
 
 	template<typename Params, typename PData>
 	__device__ __forceinline__
-	keps_ndata(Params const& params, PData const& pdata,
+	segment_keps_ndata(Params const& params, PData const& pdata,
 		uint neib_index, float4 const& relPos)
 	:
-		tke(params.tke[neib_index]),
-		eps(params.eps[neib_index]),
+		common_keps_ndata(params, pdata, neib_index, relPos),
 		norm_dist(fmax(fabs(dot3(pdata.normal, relPos)), params.deltap))
 	{}
 };
@@ -601,15 +614,33 @@ struct keps_ndata
 template<typename Params, //!< \ref sa_segment_bc_params specialization
 	bool has_keps = Params::has_keps, //!< is k-epsilon enabled?
 	typename keps_struct = //!< optional components if \ref has_keps
-		typename COND_STRUCT(has_keps, keps_ndata)
+		typename COND_STRUCT(has_keps, segment_keps_ndata)
 	>
-struct ndata :
+struct segment_ndata :
 	common_ndata,
 	keps_struct
 {
 	template<typename PData>
 	__device__ __forceinline__
-	ndata(Params const& params, PData const& pdata,
+	segment_ndata(Params const& params, PData const& pdata,
+		uint neib_index, float4 const& relPos) :
+		common_ndata(params, neib_index, relPos),
+		keps_struct(params, pdata, neib_index, relPos)
+	{}
+};
+
+template<typename Params, //!< \ref sa_segment_bc_params specialization
+	bool has_keps = Params::has_keps, //!< is k-epsilon enabled?
+	typename keps_struct = //!< optional components if \ref has_keps
+		typename COND_STRUCT(has_keps, common_keps_ndata)
+	>
+struct vertex_ndata :
+	common_ndata,
+	keps_struct
+{
+	template<typename PData>
+	__device__ __forceinline__
+	vertex_ndata(Params const& params, PData const& pdata,
 		uint neib_index, float4 const& relPos) :
 		common_ndata(params, neib_index, relPos),
 		keps_struct(params, pdata, neib_index, relPos)
@@ -992,7 +1023,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 		if (INACTIVE(relPos))
 			continue;
 
-		const ndata<Params> ndata(params, pdata, neib_index, relPos);
+		const segment_ndata<Params> ndata(params, pdata, neib_index, relPos);
 
 		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, relPos) < 0.0f) )
 			continue;
@@ -1597,16 +1628,14 @@ saVertexBoundaryConditionsDevice(Params params)
 
 		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
 
-		const float r = length3(relPos);
-		if (r < params.influenceradius){
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-			const float neib_rho = params.vel[neib_index].w;
-			const float neib_pres = P(neib_rho, fluid_num(neib_info));
+		if (INACTIVE(relPos))
+			continue;
 
-			// kernel value times volume
-			const float w = W<Params::kerneltype>(r, params.slength)*relPos.w/neib_rho;
-			pout.sumpWall += fmax(neib_pres + neib_rho*dot(d_gravity, as_float3(relPos)), 0.0f)*w;
-			pout.shepard_div += w;
+		const sa_bc::vertex_ndata<Params> ndata(params, pdata, neib_index, relPos);
+
+		if (ndata.r < params.influenceradius) {
+			pout.sumpWall += fmax(ndata.press + ndata.vel.w*dot3(d_gravity, relPos), 0.0f)*ndata.w;
+			pout.shepard_div += ndata.w;
 		}
 
 	}
