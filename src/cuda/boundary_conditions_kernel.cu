@@ -806,16 +806,19 @@ keps_fluid_contrib(Params const& params, PData const& pdata,
 }
 
 //! io_fluid_contrib: contribution from fluid neighbors to open boundaries
-template<typename Params, typename PData, typename NData, typename POut>
+template<int step,
+	typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
 enable_if_t<!Params::has_io>
 io_fluid_contrib(Params const& params, PData const& pdata,
 	NData const& ndata, POut &pout)
 { /* do nothing */ }
 
-template<typename Params, typename PData, typename NData, typename POut>
+//! specialization for saSegmentBoundaryConditionsDevice
+template<int step,
+	typename Params, typename PData, typename NData, typename POut>
 __device__ __forceinline__
-enable_if_t<Params::has_io>
+enable_if_t<Params::has_io && Params::cptype == PT_BOUNDARY>
 io_fluid_contrib(Params const& params, PData const& pdata,
 	NData const& ndata, POut &pout)
 {
@@ -826,6 +829,48 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 		pout.sump += ndata.w*fmaxf(0.0f, ndata.press);
 	}
 }
+
+//! specialization for saVertexBoundaryConditionsDevice
+template<int step,
+	typename Params, typename PData, typename NData, typename POut>
+__device__ __forceinline__
+enable_if_t<Params::has_io && Params::cptype == PT_VERTEX>
+io_fluid_contrib(Params const& params, PData const& pdata,
+	NData const& ndata, POut &pout)
+{
+	if (!IO_BOUNDARY(pdata.info))
+		return;
+
+	pout.foundFluid = true;
+
+	// contributions to the velocity and pressure sums are the same
+	// as for segments (see other specialization)
+	if (!pdata.corner) {
+		pout.sumvel += ndata.w*as_float3(ndata.vel + params.eulerVel[ndata.index]);
+		// for open boundaries compute pressure interior state
+		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+		pout.sump += ndata.w*fmaxf(0.0f, ndata.press);
+	}
+
+	if (step == 2) {
+		// check if this fluid paricle is marked for deletion
+		// (which happens if any vertex is non-zero)
+		const vertexinfo neibVerts = params.vertices[ndata.index];
+		if (neibVerts.x | neibVerts.y != 0) {
+			// gradient gamma was abused to store the vertex weights
+			// and the original particle mass
+			const float4 vertexWeights = params.gGam[ndata.index];
+			const int my_id = id(pdata.info);
+			const float weight = (
+				neibVerts.x == my_id ? vertexWeights.x :
+				neibVerts.y == my_id ? vertexWeights.y :
+				neibVerts.z == my_id ? vertexWeights.z :
+				0.0f);
+			pout.massFluid += weight*vertexWeights.w;
+		}
+	}
+}
+
 
 //! impose_solid_keps_bc: impose k-epsilon boundary conditions on solid walls
 /** These will only be called for non-open boundaries, so they don't need
@@ -1096,7 +1141,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 
 		keps_fluid_contrib(params, pdata, ndata, pout);
 
-		io_fluid_contrib(params, pdata, ndata, pout);
+		io_fluid_contrib<step>(params, pdata, ndata, pout);
 
 		pout.shepard_div += ndata.w;
 	}
@@ -1671,6 +1716,8 @@ template<int step, typename Params,
 __global__ void
 saVertexBoundaryConditionsDevice(Params params)
 {
+	using namespace sa_bc;
+
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= params.numParticles)
@@ -1700,6 +1747,8 @@ saVertexBoundaryConditionsDevice(Params params)
 		if (ndata.r < params.influenceradius) {
 			pout.sumpWall += fmax(ndata.press + ndata.vel.w*dot3(d_gravity, relPos), 0.0f)*ndata.w;
 			pout.shepard_div += ndata.w;
+
+			io_fluid_contrib<step>(params, pdata, ndata, pout);
 		}
 
 	}

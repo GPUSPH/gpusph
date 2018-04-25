@@ -155,6 +155,11 @@ struct sa_segment_bc_params :
 	static constexpr bool has_keps = _has_keps; //! Using the k-epsilon viscous model?
 	static constexpr bool has_moving = _has_moving; //! Do we have moving objects?
 
+	// TODO FIXME instead of using sa_segment_bc_params
+	// versus sa_vertex_bc_params, consider using sa_bc_params<PT_BOUNDARY>
+	// versus sa_bc_params<PT_VERTEX>
+	static constexpr ParticleType cptype = PT_BOUNDARY;
+
 	sa_segment_bc_params(
 		const	float4	* __restrict__ _pos,
 				float4	* __restrict__ _vel,
@@ -247,6 +252,11 @@ struct sa_vertex_bc_params :
 	static constexpr bool has_io = _has_io; //! Open boundaries enabled?
 	static constexpr bool has_keps = _has_keps; //! Using the k-epsilon viscous model?
 	static constexpr bool has_moving = _has_moving; //! Do we have moving objects?
+
+	// TODO FIXME instead of using sa_segment_bc_params
+	// versus sa_vertex_bc_params, consider using sa_bc_params<PT_BOUNDARY>
+	// versus sa_bc_params<PT_VERTEX>
+	static constexpr ParticleType cptype = PT_VERTEX;
 
 	sa_vertex_bc_params(
 				float4	* __restrict__ _pos,
