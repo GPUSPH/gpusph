@@ -304,15 +304,13 @@ getMassRepartitionFactor(
 namespace sa_bc
 {
 
-//! Particle data
-struct pdata
+//! Particle data used by both
+//! \ref saSegmentBoundaryConditionsDevice and \ref saVertexBoundaryConditionsDevice
+struct common_pdata
 {
 	uint index;
 	particleinfo info;
-	vertexinfo verts;
-
 	float4 pos;
-	float4 normal;
 	int3 gridPos;
 
 	// Square of sound speed. Would need modification for multifluid
@@ -320,14 +318,42 @@ struct pdata
 
 	template<typename Params>
 	__device__ __forceinline__
-	pdata(Params const& params, uint _index, particleinfo const& _info) :
+	common_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		index(_index),
 		info(_info),
-		verts(params.vertices[index]),
 		pos(params.pos[index]),
 		gridPos(calcGridPosFromParticleHash( params.particleHash[index] )),
-		normal(tex1Dfetch(boundTex, index)),
 		sqC0(d_sqC0[fluid_num(info)])
+	{}
+};
+
+//! Particle data used by \ref saSegmentBoundaryConditionsDevice
+struct segment_pdata :
+	common_pdata
+{
+	vertexinfo verts;
+	float4 normal;
+
+	template<typename Params>
+	__device__ __forceinline__
+	segment_pdata(Params const& params, uint _index, particleinfo const& _info) :
+		common_pdata(params, _index, _info),
+		verts(params.vertices[index]),
+		normal(tex1Dfetch(boundTex, index))
+	{}
+};
+
+//! Particle data used by \ref saVertexBoundaryConditionsDevice
+struct vertex_pdata :
+	common_pdata
+{
+	float gam;
+
+	template<typename Params>
+	__device__ __forceinline__
+	vertex_pdata(Params const& params, uint _index, particleinfo const& _info) :
+		common_pdata(params, _index, _info),
+		gam(params.gGam[index].w)
 	{}
 };
 
@@ -848,7 +874,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 	if (!BOUNDARY(info))
 		return;
 
-	const sa_bc::pdata	pdata(params, index, info);
+	const sa_bc::segment_pdata	pdata(params, index, info);
 	sa_bc::pout<Params>	pout(params, index, info);
 
 	// Loop over VERTEX neighbors.
@@ -1508,21 +1534,15 @@ saVertexBoundaryConditionsDevice(Params params)
 	if (!VERTEX(info))
 		return;
 
-	const float4 pos = params.pos[index];
+	const sa_bc::vertex_pdata pdata(params, index, info);
 
 	// these are taken as the sum over all adjacent segments
 	float sumpWall = 0.0f; // summation for computing the density
 	float alpha = 0.0f; // summation of normalization for IO boundaries
 
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
-	const float gam = params.gGam[index].w;
-	const float sqC0 = d_sqC0[fluid_num(info)];
-
 	// Loop over all the neighbors
 	// TODO FIXME splitneibs merge : check logic against master
-	for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
+	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
 		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
@@ -1543,7 +1563,7 @@ saVertexBoundaryConditionsDevice(Params params)
 
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
-	alpha = fmax(alpha, 0.1f*gam); // avoid division by 0
+	alpha = fmax(alpha, 0.1f*pdata.gam); // avoid division by 0
 	params.vel[index].w = RHO(sumpWall/alpha,fluid_num(info));
 }
 
