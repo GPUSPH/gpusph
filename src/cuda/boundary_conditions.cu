@@ -232,7 +232,7 @@ saVertexBoundaryConditions(
 		gGam, vertices, vertPos,
 		eulerVel, tke, eps,
 		forces,
-		numParticles, newNumParticles,
+		numParticles, newNumParticles, totParticles,
 		deltap, slength, influenceradius,
 		deviceId, numDevices, dt);
 

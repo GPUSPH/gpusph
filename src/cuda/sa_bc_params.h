@@ -199,6 +199,7 @@ struct sa_cloning_params
 	vertexinfo * __restrict__ cloneVertices; //! Writable vertices array
 	hashKey * __restrict__ cloneParticleHash; //! Writable particleHash array
 	uint * __restrict__ newNumParticles; //! New number of particles
+	const uint totParticles; //! Maximum number of particles allowed in the simulation
 	const uint deviceId; //! ID of the device the kernel is running on
 	const uint numDevices; //! number of devices used for the simulation
 
@@ -211,6 +212,7 @@ struct sa_cloning_params
 		vertexinfo * __restrict__ _cloneVertices,
 		hashKey * __restrict__ _cloneParticleHash,
 		uint * __restrict__ _newNumParticles,
+		const uint _totParticles,
 		const uint _deviceId,
 		const uint _numDevices,
 		const uint _dt)
@@ -221,6 +223,7 @@ struct sa_cloning_params
 		cloneVertices(_cloneVertices),
 		cloneParticleHash(_cloneParticleHash),
 		newNumParticles(_newNumParticles),
+		totParticles(_totParticles),
 		deviceId(_deviceId),
 		numDevices(_numDevices),
 		dt(_dt)
@@ -278,6 +281,7 @@ struct sa_vertex_bc_params :
 
 		const	uint	_numParticles,
 				uint	* __restrict__ _newNumParticles,
+		const	uint	_totParticles,
 		const	float	_deltap,
 		const	float	_slength,
 		const	float	_influenceradius,
@@ -292,7 +296,7 @@ struct sa_vertex_bc_params :
 		eulervel_struct(_eulerVel),
 		keps_struct(_tke, _eps),
 		io_struct(_pos, _forces, _info, _vertices, _particleHash,
-			_newNumParticles, _deviceId, _numDevices, _dt)
+			_newNumParticles, _totParticles, _deviceId, _numDevices, _dt)
 	{}
 };
 

@@ -348,11 +348,13 @@ struct segment_pdata :
 struct vertex_io_pdata
 {
 	bool corner; // is this a corner vertex?
+	const float4 normal;
 
 	template<typename Params>
 	__device__ __forceinline__
 	vertex_io_pdata(Params const& params, uint _index, particleinfo const& _info) :
-		corner(CORNER(_info))
+		corner(CORNER(_info)),
+		normal(tex1Dfetch(boundTex, _index))
 	{}
 };
 
@@ -1005,6 +1007,207 @@ vertex_boundary_loop(Params const& params, PData const& pdata, POut &pout)
 	}
 }
 
+//! Determines the wall normal to use
+/**! For anything but corner vertices, this is just the normal;
+ * for corner vertices it's the wallNormal computed during the loop
+ */
+template<typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<!Params::has_io, float3>
+wall_normal(Params const& params, PData const& pdata, POut const& pout)
+{
+	return pdata.normal;
+}
+template<typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<Params::has_io, float3>
+wall_normal(Params const& params, PData const& pdata, POut const& pout)
+{
+	if (pdata.corner)
+		return normalize(pout.wallNormal);
+	else
+		return pdata.normal;
+}
+
+//! impose k-epsilon boundary conditions on vertices
+template<typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<!Params::has_keps>
+impose_vertex_keps_bc(Params const& params, PData const& pdata, POut &pout)
+{ /* do nothing */ }
+
+template<typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<Params::has_keps>
+impose_vertex_keps_bc(Params const& params, PData const& pdata, POut &pout)
+{
+	params.tke[pdata.index] = fmax(pout.sumtke/pout.numseg, 1e-6f);
+	params.eps[pdata.index] = fmax(pout.sumeps/pout.numseg, 1e-6f);
+
+	// adjust Eulerian velocity so that it is tangential to the fixed wall
+	// This is only done for vertices that do NOT belong to an open boundary
+	// with imposed velocity
+	// TODO FIXME in master this is only done in the k-epsilon case (if oldTKE)
+	// --why?
+	if (VEL_IO(pdata.info))
+		return;
+	const float3 normal = wall_normal(params, pdata, pout);
+	float4 eulerVel = params.eulerVel[pdata.index];
+	eulerVel -= make_float4(
+		dot3(eulerVel, normal)*normal,
+		0.0f);
+	params.eulerVel[pdata.index] = eulerVel;
+}
+
+//! Copy keps data from a vertex to the fluid particle it generated
+/**! Only if k-epsilon is enabled */
+template<typename Params, typename PData>
+__device__ __forceinline__
+enable_if_t<!Params::has_keps>
+clone_vertex_keps(Params const& params, PData const& pdata, int clone_idx)
+{ /* do nothing */ }
+
+template<typename Params, typename PData>
+__device__ __forceinline__
+enable_if_t<Params::has_keps>
+clone_vertex_keps(Params const& params, PData const& pdata, int clone_idx)
+{
+	params.tke[clone_idx] = params.tke[pdata.index];
+	params.eps[clone_idx] = params.eps[pdata.index];
+}
+
+
+//! impose boundary conditions on open boundary vertex
+/**! This includs solving the Riemann problem to compute the appropriate
+ * boundary conditions for velocity and pressure, as well as generating
+ * new particles and absorb the ones that have gone through an open boundary
+ */
+template<int step, typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<!Params::has_io>
+impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
+{ /* do nothing */ }
+
+template<int step, typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<Params::has_io>
+impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
+{
+	/* only open boundary vertex that are not corners participate */
+	if (pdata.corner || !IO_BOUNDARY(pdata.info))
+		return;
+
+	// reference mass:
+	const float rho0 = d_rho0[fluid_num(pdata.info)];
+	const float refMass = params.deltap*params.deltap*params.deltap*rho0;
+
+	// TODO in the k-epsilon case wel'll be re-fetching what we wrote
+	// during impose_vertex_keps_bc, see if it's possible to avoid this
+	// (or if the compiler/hardware are smart enough to keep everything
+	// cached as appropriate)
+	float4 eulerVel = params.eulerVel[pdata.index];
+
+	// note: defaults are set in the place where bcs are imposed
+	if (pout.shepard_div > 0.1f*pdata.gam) {
+		pout.sumvel /= pout.shepard_div;
+		pout.sump /= pout.shepard_div;
+		const float unInt = dot3(pout.sumvel, pdata.normal);
+		const float unExt = dot3(eulerVel, pdata.normal);
+		const float rhoInt = RHO(pout.sump, fluid_num(pdata.info));
+		const float rhoExt = eulerVel.w;
+
+		calculateIOboundaryCondition(eulerVel, pdata.info,
+			rhoInt, rhoExt, pout.sumvel,
+			unInt, unExt, make_float3(pdata.normal));
+	} else {
+		if (VEL_IO(pdata.info))
+			eulerVel.w = rho0;
+		else
+			eulerVel = make_float4(0.0f, 0.0f, 0.0f, eulerVel.w);
+	}
+	params.eulerVel[pdata.index] = eulerVel;
+	// the density of the particle is equal to the "eulerian density"
+	params.vel[pdata.index].w = eulerVel.w;
+
+	float4 pos = pdata.pos;
+
+	// time stepping
+	pos.w += params.dt*pout.sumMdot;
+	// if a vertex has no fluid particles around and its mass flux is negative then set its mass to 0
+	if (pout.shepard_div < 0.1*pdata.gam && pout.sumMdot < 0.0f) // sphynx version
+		//if (!pout.foundFluid && pout.sumMdot < 0.0f)
+		pos.w = 0.0f;
+
+	// clip to +/- 2 refMass all the time
+	pos.w = fmaxf(-2.0f*refMass, fminf(2.0f*refMass, pos.w));
+
+	// clip to +/- originalVertexMass if we have outflow
+	// or if the normal eulerian velocity is less or equal to 0
+	if (pout.sumMdot < 0.0f ||
+		dot3(pdata.normal, eulerVel) < 1e-5f*d_sscoeff[fluid_num(pdata.info)])
+	{
+		const float weightedMass = refMass*pdata.normal.w;
+		pos.w = fmaxf(-weightedMass, fminf(weightedMass, pos.w));
+	}
+
+	// TODO FIXME splitneibs-merge: in master the following was here
+	// as an else branch with a conditiona if (!initStep) that began with
+	// the time stepping comment above. Check if it needs to go in the
+	// initIOmass kernels
+#if 0
+	// particles that have an initial density less than the reference density have their mass set to 0
+	// or if their velocity is initially 0
+	else if (!resume &&
+		( (PRES_IO(info) && eulerVel.w - rho0 <= 1e-10f*rho0) ||
+		  (VEL_IO(info) && length3(eulerVel) < 1e-10f*d_sscoeff[fluid_num(info)])) )
+		pos.w = 0.0f;
+#endif
+
+	if (step == 2) {
+		// during the second step, check whether new particles need to be created
+
+		if (
+			// create new particle if the mass of the vertex is large enough
+			pos.w > refMass*0.5f &&
+			// if mass flux > 0
+			pout.sumMdot > 0 &&
+			// if imposed velocity is greater 0
+			dot3(pdata.normal, eulerVel) > 1e-5f &&
+			// pressure inlets need p > 0 to create particles
+			(VEL_IO(pdata.info) || eulerVel.w-rho0 > rho0*1e-5f)
+		   ) {
+			pout.massFluid -= refMass;
+			// Create new particle
+			particleinfo clone_info;
+			uint clone_idx = createNewFluidParticle(clone_info,
+				pdata.info, params.numParticles, params.numDevices,
+				params.newNumParticles, params.totParticles);
+
+			// Problem has already checked that there is enough memory for new particles
+			float4 clone_pos = pos; // new position is position of vertex particle
+			clone_pos.w = refMass; // new fluid particle has reference mass
+			int3 clone_gridPos = pdata.gridPos; // as the position is the same so is the grid position
+
+			// assign new values to array
+			params.clonePos[clone_idx] = clone_pos;
+			params.cloneInfo[clone_idx] = clone_info;
+			params.cloneParticleHash[clone_idx] = calcGridHash(clone_gridPos);
+			// the new velocity of the fluid particle is the eulerian velocity of the vertex
+			params.vel[clone_idx] = eulerVel;
+			params.cloneForces[clone_idx] = make_float4(0.0f);
+
+			// the eulerian velocity of fluid particles is always 0
+			params.eulerVel[clone_idx] = make_float4(0.0f);
+			params.gGam[clone_idx] = params.gGam[pdata.index];
+			params.cloneVertices[clone_idx] = make_vertexinfo(0, 0, 0, 0);
+			clone_vertex_keps(params, pdata, clone_idx);
+		}
+	}
+
+	pos.w += pout.massFluid;
+	params.clonePos[pdata.index] = pos;
+
+}
 
 
 
@@ -1891,12 +2094,21 @@ saVertexBoundaryConditionsDevice(Params params)
 	// Loop over all BOUNDARY neighbors, if necessary
 	vertex_boundary_loop(params, pdata, pout);
 
-	// TODO FIXME splitneibs merge : check logic against master
-
-	// update boundary conditions on array
-	// note that numseg should never be zero otherwise you found a bug
 	pout.shepard_div = fmax(pout.shepard_div, 0.1f*pdata.gam); // avoid division by 0
+
+	// standard boundary condition. For open boundaries, this may get overwritten
+	// further down in impose_vertex_io_bc
+	// TODO compute, and only write once
 	params.vel[index].w = RHO(pout.sumpWall/pout.shepard_div,fluid_num(info));
+
+	// impose the k-epsilon boundary conditions, if any
+	impose_vertex_keps_bc(params, pdata, pout);
+
+	// impose boundary conditions on open boundary vertex, if appropriate,
+	// including generation of new fluid particles and destruction of fluid
+	// particles that have been marked by the preceding findOutgoingSegmentDevice
+	// invokation
+	impose_vertex_io_bc<step>(params, pdata, pout);
 }
 
 //! Identify corner vertices on open boundaries
