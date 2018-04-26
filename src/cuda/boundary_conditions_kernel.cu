@@ -1016,7 +1016,7 @@ __device__ __forceinline__
 enable_if_t<!Params::has_io, float3>
 wall_normal(Params const& params, PData const& pdata, POut const& pout)
 {
-	return pdata.normal;
+	return make_float3(tex1Dfetch(boundTex, pdata.index));
 }
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
