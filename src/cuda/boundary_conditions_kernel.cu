@@ -438,9 +438,9 @@ struct common_io_pout
 struct vertex_io_pout :
 	common_io_pout
 {
-	float sumMdot = 0.0f; // summation for computing the mass variance based on in/outflow
-	float massFluid = 0.0f; // mass obtained from a outgoing - mass of a new fluid
-	bool foundFluid = false; // check if a vertex particle has a fluid particle in its support
+	float sumMdot; // summation for computing the mass variance based on in/outflow
+	float massFluid; // mass obtained from a outgoing - mass of a new fluid
+	bool foundFluid; // check if a vertex particle has a fluid particle in its support
 
 	// wall normal:
 	// for corner vertices the wall normal is equal to the normal of the associated segments that belong to a solid wall
