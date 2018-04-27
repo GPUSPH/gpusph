@@ -727,6 +727,10 @@ bool GPUSPH::runSimulation() {
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
+		// swap back the gamma buffer that now contains the correct gradient of gamma
+		if (USING_DYNAMIC_GAMMA(problem->simparams()->simflags))
+			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
+
 		// swap read and writes again because the write contains the variables at time n
 		// boundelements is swapped because the normals are updated in the moving objects case
 		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_INTERNAL_ENERGY | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
