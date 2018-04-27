@@ -1779,7 +1779,7 @@ initGamma(
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
 	const particleinfo info = pinfo[index];
-	if (type(info) != cptype)
+	if (PART_TYPE(info) != cptype)
 		return;
 
 	float4 pos = oldPos[index];
