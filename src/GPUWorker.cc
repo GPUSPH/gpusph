@@ -1583,7 +1583,17 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case IDLE:
 				break;
 			case SWAP_BUFFERS:
-				if (dbg_step_printf) printf(" T %d issuing SWAP_BUFFERS\n", deviceIndex);
+				if (dbg_step_printf) {
+					printf(" T %d issuing SWAP_BUFFERS", deviceIndex);
+					char sep = ' ';
+					for (auto key : instance->m_dBuffers.get_keys()) {
+						if (key & gdata->commandFlags) {
+							printf(" %c %s", sep, instance->getBuffer(0, key)->get_buffer_name());
+							sep = '|';
+						}
+					}
+					puts("");
+				}
 				instance->swapBuffers();
 				break;
 			case CALCHASH:
