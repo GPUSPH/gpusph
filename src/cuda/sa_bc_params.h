@@ -215,7 +215,7 @@ struct sa_cloning_params
 		const uint _totParticles,
 		const uint _deviceId,
 		const uint _numDevices,
-		const uint _dt)
+		const float _dt)
 	:
 		clonePos(_clonePos),
 		cloneForces(_cloneForces),
