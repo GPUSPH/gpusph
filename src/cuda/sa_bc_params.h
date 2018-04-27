@@ -183,7 +183,7 @@ struct sa_segment_bc_params :
 		common_sa_bc_params(
 			_pos, _vel, _particleHash, _cellStart, _neibsList,
 			_gGam, _vertices, _vertPos,
-			_numParticles, -deltap, _slength, _influenceradius),
+			_numParticles, _deltap, _slength, _influenceradius),
 		eulervel_struct(_eulerVel),
 		keps_struct(_tke, _eps)
 	{}
@@ -292,7 +292,7 @@ struct sa_vertex_bc_params :
 		common_sa_bc_params(
 			_pos, _vel, _particleHash, _cellStart, _neibsList,
 			_gGam, _vertices, _vertPos,
-			_numParticles, -deltap, _slength, _influenceradius),
+			_numParticles, _deltap, _slength, _influenceradius),
 		eulervel_struct(_eulerVel),
 		keps_struct(_tke, _eps),
 		io_struct(_pos, _forces, _info, _vertices, _particleHash,
