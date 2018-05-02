@@ -3187,7 +3187,7 @@ computeDensityDiffusionDevice(density_diffusion_params<kerneltype, sph_formulati
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
 		cptype, PT_VERTEX>(params, pdata, DrDt);
 	/* According to Ferrand et al. CPC 2017, boundary contribution to the laplacian is NOT
-	 * take into consideration during the density correction (formula (14))
+	 * taken into consideration during the density correction (formula (14))
 	 * TODO FIXME this may be dependent on the density correction being used, as well as
 	 * on the boundary model in use
 	 */
