@@ -3087,9 +3087,20 @@ struct density_diffusion_neib_output :
 	{}
 };
 
-/* Return the contribution to the density diffusion from all neighbors of type nptype.
- * Note that there is no contribution from the VERTEX particles except in the SA_BOUNDARY case;
- * this is handled by the enable_if
+/// Density diffusion contribution from neighbors of a given type
+/**! Return in DrDt the contribution to the density diffusion from all neighbors of type nptype.
+ * The logic is the same for all neighbors type, with the following exceptions;
+ *
+ * VERTEX particles only contribue in the SA_BOUNDARY case,
+ * since they are not defined otherwise.
+ *
+ * Per Ferrand et al. (CPC 2017), (solid wall) BOUNDARY particles do not contribute.
+ * TODO FIXME check if this is the case for all boundary models, or only for SA,
+ * and for all diffusion terms, or only for Brezzi.
+ * TODO FIXME in master there are contributions from BOUNDARY particles belonging to
+ * open boundaries with prescribed pressure.
+ *
+ * The exceptions are handled via enable_if.
  */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
@@ -3100,7 +3111,10 @@ template<KernelType kerneltype,
 	ParticleType cptype,
 	ParticleType nptype>
 __device__ __forceinline__
-enable_if_t<nptype != PT_VERTEX || boundarytype == SA_BOUNDARY>
+enable_if_t<
+(nptype != PT_VERTEX || boundarytype == SA_BOUNDARY) &&
+(nptype != PT_BOUNDARY || (simflags & ENABLE_INLET_OUTLET))
+>
 density_diffusion_interaction(
 	density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> const& params,
 	density_diffusion_particle_data<boundarytype> const& pdata,
@@ -3131,7 +3145,10 @@ density_diffusion_interaction(
 	}
 }
 
-/* The "no contribution” case, i.e. nptype == PT_VERTEX && boundarytype != SA_BOUNDARY */
+/* The "no contribution” case, i.e.:
+ * VERTEX particles with a boundary model different from SA_BOUNDARY,
+ * BOUNDARY particles when there are no open boundaries
+ */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
@@ -3141,7 +3158,10 @@ template<KernelType kerneltype,
 	ParticleType cptype,
 	ParticleType nptype>
 __device__ __forceinline__
-enable_if_t<nptype == PT_VERTEX && boundarytype != SA_BOUNDARY>
+enable_if_t<
+(nptype == PT_VERTEX && boundarytype != SA_BOUNDARY) ||
+(nptype == PT_BOUNDARY && !(simflags & ENABLE_INLET_OUTLET))
+>
 density_diffusion_interaction(
 	density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> const& params,
 	density_diffusion_particle_data<boundarytype> const& pdata,
@@ -3186,16 +3206,9 @@ computeDensityDiffusionDevice(density_diffusion_params<kerneltype, sph_formulati
 	density_diffusion_interaction
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
 		cptype, PT_VERTEX>(params, pdata, DrDt);
-	/* According to Ferrand et al. CPC 2017, boundary contribution to the laplacian is NOT
-	 * taken into consideration during the density correction (formula (14))
-	 * TODO FIXME this may be dependent on the density correction being used, as well as
-	 * on the boundary model in use
-	 */
-#if 0
 	density_diffusion_interaction
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
 		cptype, PT_BOUNDARY>(params, pdata, DrDt);
-#endif
 
 	gamma_fixup<boundarytype>::for_density_diffusion(params, pdata, DrDt);
 
