@@ -2023,25 +2023,41 @@ compute_boundary_force<SA_BOUNDARY>::with(FP const& params, PD const& pdata, OP 
 	pout.force.w = 0.0f;
 }
 
-/// A functor that computes the water depth at an outflow
-template<BoundaryType, bool use_water_depth>
-struct compute_water_depth_at_outflow
+/// Statically determine if water depth computation is needed
+/**! water depth is only computed by vertex particles from fluid particles,
+ *   and only if there are open boundaries and water depth computation
+ *   is enabled. Of course SA_BOUNDARY must be enabled too
+ */
+template<typename FP>
+__device__ __forceinline__
+constexpr bool needs_waterdepth()
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
+	return
+		QUERY_ALL_FLAGS(FP::simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH) &&
+		FP::boundarytype == SA_BOUNDARY &&
+		FP::cptype == PT_VERTEX &&
+		FP::nptype == PT_FLUID;
+}
 
-template<>
+/// A function that computes the water depth at an outflow, if enabled
 template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_water_depth_at_outflow<SA_BOUNDARY, true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+__device__ __forceinline__
+enable_if_t<!needs_waterdepth<FP>()>
+compute_water_depth_at_outflow(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<needs_waterdepth<FP>()>
+compute_water_depth_at_outflow(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// note all computations here are done assuming that the gravity vector points in z direction only
-	// if the fluid particle is higher than the vertex particle then don't continue (saves a few atomics)
-	if (ndata.ntype != PT_FLUID || ndata.relPos.z < 0.0f)
+
+	// Only run on IO_BOUNDARY
+	if (!IO_BOUNDARY(pdata.info))
+		return;
+	// Skip if the fluid particle is higher than the vertex particle then don't continue (saves a few atomics)
+	if (ndata.relPos.z < 0.0f)
 		return;
 	// z position of fluid particle with respect to world_origin
 	float nZpos = pdata.pos.z - ndata.relPos.z + pdata.gridPos.z*d_cellSize.z + 0.5f*d_cellSize.z;
@@ -2666,6 +2682,8 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 			// Summ all internal energy contributions from the neighbors
 			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
 		}*/
+
+		compute_water_depth_at_outflow(params, pdata, ndata, pout, nout);
 	}
 };
 

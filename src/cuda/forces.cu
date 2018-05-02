@@ -805,6 +805,23 @@ basicstep(
 
 		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
 			<<< numBlocks, numThreads, dummy_shared >>>(params_vb);
+
+		if (QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
+			forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vb(
+				forces, rbforces, rbtorques,
+				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+				deltap, slength, influenceradius, step, dt,
+				xsph,
+				bufread->getData<BUFFER_VOLUME>(),
+				bufread->getData<BUFFER_SIGMA>(),
+				newGGam, cfl_gamma, vertPos, epsilon,
+				IOwaterdepth,
+				keps_dkde, turbvisc, tau,
+				DEDt);
+
+			cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID>
+				<<< numBlocks, numThreads, dummy_shared >>>(params_vb);
+		}
 	}
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
