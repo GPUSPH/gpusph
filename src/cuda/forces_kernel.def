@@ -3203,9 +3203,13 @@ computeDensityDiffusionDevice(density_diffusion_params<kerneltype, sph_formulati
 	density_diffusion_interaction
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
 		cptype, PT_FLUID>(params, pdata, DrDt);
+	// No contribution to density diffusion from vertex particles even in the SA case
+	// (ref: ask Agnès and Antoine)
+#if 0
 	density_diffusion_interaction
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
 		cptype, PT_VERTEX>(params, pdata, DrDt);
+#endif
 	density_diffusion_interaction
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
 		cptype, PT_BOUNDARY>(params, pdata, DrDt);
