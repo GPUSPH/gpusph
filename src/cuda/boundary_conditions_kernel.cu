@@ -1133,29 +1133,30 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 
 	float4 pos = pdata.pos;
 
-	// time stepping
-	pos.w += params.dt*pout.sumMdot;
-	// if a vertex has no fluid particles around and its mass flux is negative then set its mass to 0
-	if (pout.shepard_div < 0.1*pdata.gam && pout.sumMdot < 0.0f) // sphynx version
-		//if (!pout.foundFluid && pout.sumMdot < 0.0f)
-		pos.w = 0.0f;
+	if (step != 0) {
+		// time stepping
+		pos.w += params.dt*pout.sumMdot;
+		// if a vertex has no fluid particles around and its mass flux is negative then set its mass to 0
+		if (pout.shepard_div < 0.1*pdata.gam && pout.sumMdot < 0.0f) // sphynx version
+			//if (!pout.foundFluid && pout.sumMdot < 0.0f)
+			pos.w = 0.0f;
 
-	// clip to +/- 2 refMass all the time
-	pos.w = fmaxf(-2.0f*refMass, fminf(2.0f*refMass, pos.w));
+		// clip to +/- 2 refMass all the time
+		pos.w = fmaxf(-2.0f*refMass, fminf(2.0f*refMass, pos.w));
 
-	// clip to +/- originalVertexMass if we have outflow
-	// or if the normal eulerian velocity is less or equal to 0
-	if (pout.sumMdot < 0.0f ||
-		dot3(pdata.normal, eulerVel) < 1e-5f*d_sscoeff[fluid_num(pdata.info)])
-	{
-		const float weightedMass = refMass*pdata.normal.w;
-		pos.w = fmaxf(-weightedMass, fminf(weightedMass, pos.w));
+		// clip to +/- originalVertexMass if we have outflow
+		// or if the normal eulerian velocity is less or equal to 0
+		if (pout.sumMdot < 0.0f ||
+			dot3(pdata.normal, eulerVel) < 1e-5f*d_sscoeff[fluid_num(pdata.info)])
+		{
+			const float weightedMass = refMass*pdata.normal.w;
+			pos.w = fmaxf(-weightedMass, fminf(weightedMass, pos.w));
+		}
 	}
-
 	// TODO FIXME splitneibs-merge: in master the following was here
 	// as an else branch with a conditiona if (!initStep) that began with
 	// the time stepping comment above. Check if it needs to go in the
-	// initIOmass kernels
+	// initIOmass kernels or have a different condition
 #if 0
 	// particles that have an initial density less than the reference density have their mass set to 0
 	// or if their velocity is initially 0
