@@ -865,6 +865,7 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 	if (!IO_BOUNDARY(pdata.info))
 		return;
 
+	// TODO this is most likely not needed anymore
 	pout.foundFluid = true;
 
 	// contributions to the velocity and pressure sums are the same
@@ -890,7 +891,8 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 				neibVerts.y == my_id ? vertexWeights.y :
 				neibVerts.z == my_id ? vertexWeights.z :
 				0.0f);
-			pout.massFluid += weight*vertexWeights.w;
+			if (weight > 0)
+				pout.massFluid += weight*vertexWeights.w;
 		}
 	}
 }
