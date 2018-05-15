@@ -44,17 +44,42 @@ class AbstractBuffer
 {
 	void **m_ptr;
 
+	enum Validity {
+		BUFFER_VALID, //<! Buffer contains valid data
+		BUFFER_DIRTY, //<! Buffer contains valid data, but has been updated and needs resync in multi-device
+		BUFFER_INVALID, //<! Buffer contains invalid data
+	};
+
+	Validity m_validity;
+
 protected:
 	// constructor that aliases m_ptr to some array of pointers
-	AbstractBuffer(void *bufs[]) { m_ptr = bufs; }
+	AbstractBuffer(void *bufs[]) :
+		m_ptr(bufs),
+		m_validity(BUFFER_INVALID)
+	{}
 
 public:
 
 	// default constructor: just ensure ptr is null
-	AbstractBuffer() : m_ptr(NULL) {}
+	AbstractBuffer() :
+		m_ptr(NULL),
+		m_validity(BUFFER_VALID)
+	{}
 
 	// destructor must be virtual
 	virtual ~AbstractBuffer() {}
+
+	// access buffer validity
+	inline bool is_valid() const { return m_validity == BUFFER_INVALID; }
+	inline bool is_dirty() const { return m_validity == BUFFER_DIRTY; }
+	inline bool is_invalid() const { return m_validity == BUFFER_INVALID; }
+	inline Validity validity() const  { return m_validity; }
+
+	// modify buffer validity
+	inline void mark_valid(Validity validity = BUFFER_VALID) { m_validity = validity; }
+	inline void mark_dirty() { mark_valid(BUFFER_DIRTY); }
+	inline void mark_invalid() { mark_valid(BUFFER_INVALID); }
 
 	// element size of the arrays
 	// overloaded in subclasses
