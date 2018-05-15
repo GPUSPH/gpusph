@@ -1581,9 +1581,11 @@ void GPUSPH::doWrite(flag_t write_flags)
 	// max particle speed only for this node only at time t
 	float local_max_part_speed = 0;
 
+	const hashKey* hash = gdata->s_hBuffers.getData<BUFFER_HASH>();
+
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
-		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
+		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(hash[i]) );
 		// double-precision absolute position, without using world offset (useful for computing the potential energy)
 		double4 dpos = make_double4(
 			gdata->calcGlobalPosOffset(gridPos, as_float3(pos)) + wo,
@@ -1636,7 +1638,7 @@ void GPUSPH::doWrite(flag_t write_flags)
 		gpos[i] = dpos;
 
 		// track peak speed
-		local_max_part_speed = fmax(local_max_part_speed, length( as_float3(gdata->s_hBuffers.getData<BUFFER_VEL>()[i]) ));
+		local_max_part_speed = fmax(local_max_part_speed, length( as_float3(vel[i]) ));
 	}
 
 	// max speed: read simulation global for multi-node
