@@ -49,13 +49,15 @@
  */
 class AbstractBuffer
 {
-	void **m_ptr;
-
+public:
 	enum Validity {
 		BUFFER_VALID, //<! Buffer contains valid data
 		BUFFER_DIRTY, //<! Buffer contains valid data, but has been updated and needs resync in multi-device
 		BUFFER_INVALID, //<! Buffer contains invalid data
 	};
+
+private:
+	void **m_ptr;
 
 	Validity m_validity;
 
@@ -339,6 +341,24 @@ public:
 			++buf;
 		}
 		m_map.clear();
+	}
+
+	// modify validity of all buffers
+	inline void mark_valid(AbstractBuffer::Validity validity = AbstractBuffer::BUFFER_VALID) {
+		for (auto& iter : m_map)
+			iter.second->mark_valid(validity);
+	}
+	inline void mark_dirty() { mark_valid(AbstractBuffer::BUFFER_DIRTY); }
+	inline void mark_invalid() { mark_valid(AbstractBuffer::BUFFER_INVALID); }
+
+	// change state of all buffers
+	inline void set_state(std::string const& state) {
+		for (auto& iter : m_map)
+			iter.second->set_state(state);
+	}
+	inline void add_state(std::string const& state) {
+		for (auto& iter : m_map)
+			iter.second->add_state(state);
 	}
 
 	/* Read-only [] accessor. Insertion of buffers should be done via the
