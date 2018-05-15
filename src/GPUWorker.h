@@ -206,6 +206,10 @@ private:
 	// in the command flags
 	MultiBufferList::iterator getBufferListByCommandFlags(flag_t flags);
 
+	// setting or adding to buffer states
+	void setBufferState();
+	void addBufferState();
+
 	void uploadSubdomain();
 	void dumpBuffers();
 	void swapBuffers();

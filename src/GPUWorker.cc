@@ -1087,6 +1087,43 @@ GPUWorker::getBufferListByCommandFlags(flag_t flags)
 		m_dBuffers.getWriteBufferList() : m_dBuffers.getBufferList(0));
 }
 
+// Set the state of the given buffers
+void GPUWorker::setBufferState()
+{
+	const flag_t flags = gdata->commandFlags;
+
+	// get the bufferlist to set the data for
+	BufferList& buflist = *getBufferListByCommandFlags(flags);
+
+	for (auto& iter : buflist) {
+		flag_t buf_to_get = iter.first;
+		if (!(buf_to_get & flags))
+			continue;
+
+		AbstractBuffer *buf = iter.second;
+		buf->set_state(gdata->extraCommandArg.string);
+	}
+}
+
+// Add to the state of the given buffers
+void GPUWorker::addBufferState()
+{
+	const flag_t flags = gdata->commandFlags;
+
+	// get the bufferlist to set the data for
+	BufferList& buflist = *getBufferListByCommandFlags(flags);
+
+	for (auto& iter : buflist) {
+		flag_t buf_to_get = iter.first;
+		if (!(buf_to_get & flags))
+			continue;
+
+		AbstractBuffer *buf = iter.second;
+		buf->add_state(gdata->extraCommandArg.string);
+	}
+}
+
+
 // upload subdomain, just allocated and sorted by main thread
 void GPUWorker::uploadSubdomain() {
 	// indices
@@ -1596,6 +1633,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 					puts("");
 				}
 				instance->swapBuffers();
+				break;
+			case SET_BUFFER_STATE:
+				if (dbg_step_printf) printf(" T %d issuing SET_BUFFER_STATE\n", deviceIndex);
+				instance->setBufferState();
+				break;
+			case ADD_BUFFER_STATE:
+				if (dbg_step_printf) printf(" T %d issuing ADD_BUFFER_STATE\n", deviceIndex);
+				instance->addBufferState();
 				break;
 			case CALCHASH:
 				if (dbg_step_printf) printf(" T %d issuing HASH\n", deviceIndex);
