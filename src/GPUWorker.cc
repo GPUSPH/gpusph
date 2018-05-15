@@ -2461,7 +2461,7 @@ void GPUWorker::kernel_filter()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	FilterType filtertype = FilterType(gdata->extraCommandArg);
+	FilterType filtertype = FilterType(gdata->extraCommandArg.flag);
 	FilterEngineSet::const_iterator filterpair(filterEngines.find(filtertype));
 	// make sure we're going to call an instantiated filter
 	if (filterpair == filterEngines.end()) {
@@ -2492,7 +2492,7 @@ void GPUWorker::kernel_postprocess()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	PostProcessType proctype = PostProcessType(gdata->extraCommandArg);
+	PostProcessType proctype = PostProcessType(gdata->extraCommandArg.flag);
 	PostProcessEngineSet::const_iterator procpair(postProcEngines.find(proctype));
 	// make sure we're going to call an instantiated filter
 	if (procpair == postProcEngines.end()) {

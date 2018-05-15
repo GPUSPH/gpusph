@@ -548,7 +548,7 @@ bool GPUSPH::runSimulation() {
 				uint freq = flt->second; // known to be > 0
 				if (gdata->iterations % freq == 0) {
 					gdata->only_internal = true;
-					doCommand(FILTER, NO_FLAGS, float(filter));
+					doCommand(FILTER, NO_FLAGS, filter);
 					// update before swapping, since UPDATE_EXTERNAL works on write buffers
 					if (MULTI_DEVICE)
 						doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
@@ -1438,7 +1438,7 @@ void GPUSPH::particleSwap(uint idx1, uint idx2)
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
+void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 {
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {
@@ -1451,13 +1451,33 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 
 	gdata->nextCommand = cmd;
 	gdata->commandFlags = flags;
-	gdata->extraCommandArg = arg;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 
 	if (!gdata->keep_going)
 		throw runtime_error("GPUSPH aborted by worker thread");
 }
+
+// set the extra arg for the next command
+void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
+{
+	gdata->extraCommandArg.fp32 = arg;
+	doCommand(cmd, flags);
+}
+
+template<typename T> enable_if_t<std::is_integral<T>::value>
+GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
+{
+	gdata->extraCommandArg.flag = arg;
+	doCommand(cmd, flags);
+}
+
+void GPUSPH::doCommand(CommandType cmd, flag_t flags, std::string const& arg)
+{
+	gdata->extraCommandArg.string = arg;
+	doCommand(cmd, flags);
+}
+
 
 void GPUSPH::setViscosityCoefficient()
 {
@@ -1718,7 +1738,7 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_
 		flt != enabledPostProcess.end(); ++flt) {
 		PostProcessType filter = flt->first;
 		gdata->only_internal = true;
-		doCommand(POSTPROCESS, NO_FLAGS, float(filter));
+		doCommand(POSTPROCESS, NO_FLAGS, filter);
 
 		flt->second->hostProcess(gdata);
 

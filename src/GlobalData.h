@@ -330,7 +330,19 @@ struct GlobalData {
 	// command flags, i.e. parameter for the command
 	flag_t commandFlags;
 	// additional argument to be passed to the command
-	float extraCommandArg;
+	// since the union includes types with non-trivial constructors
+	// and destructors (string), we must provide our own constructor
+	// and destructor. Note that we assume the string is automatically
+	// cleared after use, so we do nothing. FIXME this should be a tagged
+	// union so that we know if we need to destruct the string.
+	union ExtraCommandArg {
+		std::string string;
+		flag_t flag;
+		float  fp32;
+		ExtraCommandArg() : fp32(NAN) {}
+		~ExtraCommandArg() {}
+	};
+	ExtraCommandArg extraCommandArg;
 	// set to true if next kernel has to be run only on internal particles
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
@@ -400,7 +412,7 @@ struct GlobalData {
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
 		commandFlags(NO_FLAGS),
-		extraCommandArg(NAN),
+		extraCommandArg(),
 		only_internal(false),
 		s_hRbFirstIndex(NULL),
 		s_hRbLastIndex(NULL),

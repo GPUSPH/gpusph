@@ -27,10 +27,12 @@
 #define GPUSPH_H_
 
 #include <cstdio>
+#include <type_traits>
 
 #include "Options.h"
 #include "GlobalData.h"
 #include "Problem.h"
+#include "cpp11_missing.h"
 
 // IPPSCounter
 #include "timing.h"
@@ -96,7 +98,11 @@ private:
 	void prepareProblem();
 
 	// set nextCommand, unlock the threads and wait for them to complete
-	void doCommand(CommandType cmd, flag_t flags=NO_FLAGS, float arg=NAN);
+	void doCommand(CommandType cmd, flag_t flags=NO_FLAGS);
+	void doCommand(CommandType cmd, flag_t flags, float extra_arg);
+	void doCommand(CommandType cmd, flag_t flags, std::string const& extra_arg);
+	template<typename T> enable_if_t<std::is_integral<T>::value>
+	doCommand(CommandType cmd, flag_t flags, T extra_arg);
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();
