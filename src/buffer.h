@@ -52,11 +52,14 @@ class AbstractBuffer
 
 	Validity m_validity;
 
+	std::string m_state;
+
 protected:
 	// constructor that aliases m_ptr to some array of pointers
 	AbstractBuffer(void *bufs[]) :
 		m_ptr(bufs),
-		m_validity(BUFFER_INVALID)
+		m_validity(BUFFER_INVALID),
+		m_state()
 	{}
 
 public:
@@ -64,7 +67,8 @@ public:
 	// default constructor: just ensure ptr is null
 	AbstractBuffer() :
 		m_ptr(NULL),
-		m_validity(BUFFER_VALID)
+		m_validity(BUFFER_VALID),
+		m_state()
 	{}
 
 	// destructor must be virtual
@@ -80,6 +84,17 @@ public:
 	inline void mark_valid(Validity validity = BUFFER_VALID) { m_validity = validity; }
 	inline void mark_dirty() { mark_valid(BUFFER_DIRTY); }
 	inline void mark_invalid() { mark_valid(BUFFER_INVALID); }
+
+	// get buffer state
+	inline std::string state() const { return m_state; }
+
+	// change buffer state
+	inline void set_state(std::string const& state) { m_state = state; }
+	inline void add_state(std::string const& state) {
+		if (m_state.size() > 0)
+			m_state += ", ";
+		m_state += state;
+	}
 
 	// element size of the arrays
 	// overloaded in subclasses
@@ -110,6 +125,19 @@ public:
 
 	// swap elements at positions idx1, idx2 of buffer _buf
 	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) = 0;
+
+	inline std::string inspect() const {
+		std::string _desc;
+
+		_desc  = get_buffer_name();
+		_desc += ", validity ";
+		_desc +=	std::to_string(m_validity);
+		_desc += ", state: ";
+		_desc += state();
+
+		return _desc;
+	}
+
 };
 
 /* This class encapsulates type-specific arrays of buffers.
