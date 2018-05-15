@@ -36,6 +36,13 @@
 #include "buffer_traits.h"
 #include "buffer_alloc_policy.h"
 
+#define DEBUG_INSPECT_BUFFER 1
+
+#if DEBUG_INSPECT_BUFFER
+#include <iostream>
+#endif
+
+
 /* Base class for the Buffer template class.
  * The base pointer is a pointer to pointer to allow easy management
  * of double-(or more)-buffered arrays.
@@ -381,16 +388,24 @@ public:
 	template<flag_t Key>
 	DATA_TYPE(Key) *getData(uint num=0) {
 		map_type::iterator exists = m_map.find(Key);
-		if (exists != m_map.end())
+		if (exists != m_map.end()) {
+#if DEBUG_INSPECT_BUFFER
+			std::cout << "\t" << exists->second->inspect() << " [non-const]" << std::endl;
+#endif
 			return static_cast<DATA_TYPE(Key)*>(exists->second->get_buffer(num));
+		}
 		else return NULL;
 	}
 	// const version
 	template<flag_t Key>
 	const DATA_TYPE(Key) *getData(uint num=0) const {
 		map_type::const_iterator exists = m_map.find(Key);
-		if (exists != m_map.end())
+		if (exists != m_map.end()) {
+#if DEBUG_INSPECT_BUFFER
+			std::cout << "\t" << exists->second->inspect() << " [const]" << std::endl;
+#endif
 			return static_cast<const DATA_TYPE(Key)*>(exists->second->get_buffer(num));
+		}
 		else return NULL;
 	}
 
@@ -403,16 +418,24 @@ public:
 	template<flag_t Key>
 	DATA_TYPE(Key) **getRawPtr() {
 		Buffer<Key> *exists = this->get<Key>();
-		if (exists)
+		if (exists) {
+#if DEBUG_INSPECT_BUFFER
+			std::cout << "\t" << exists->inspect() << " [non-const raw ptr]" << std::endl;
+#endif
 			return exists->get_raw_ptr();
+		}
 		else return NULL;
 	}
 	// const version
 	template<flag_t Key>
 	const DATA_TYPE(Key)* const* getRawPtr() const {
 		const Buffer<Key> *exists = this->get<Key>();
-		if (exists)
+		if (exists) {
+#if DEBUG_INSPECT_BUFFER
+			std::cout << "\t" << exists->inspect() << " [const raw ptr]" << std::endl;
+#endif
 			return exists->get_raw_ptr();
+		}
 		else return NULL;
 	}
 
