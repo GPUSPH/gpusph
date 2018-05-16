@@ -2015,8 +2015,10 @@ void GPUWorker::kernel_buildNeibsList()
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
 
+	neibdata* neibsList = bufwrite.getData<BUFFER_NEIBSLIST>();
+
 	// reset the neighbor list
-	CUDA_SAFE_CALL(cudaMemset(bufwrite.getData<BUFFER_NEIBSLIST>(),
+	CUDA_SAFE_CALL(cudaMemset(neibsList,
 		0xff, numPartsToElaborate * sizeof(neibdata) * m_simparams->neiblistsize));
 
 	// this is the square the distance used for neighboursearching of boundaries
@@ -2025,7 +2027,7 @@ void GPUWorker::kernel_buildNeibsList()
 	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
 	neibsEngine->buildNeibsList(
-					bufwrite.getData<BUFFER_NEIBSLIST>(),
+					neibsList,
 					bufread.getData<BUFFER_POS>(),
 					bufread.getData<BUFFER_INFO>(),
 			// TODO FIXME VERTICES is in/out, but it's taken on the READ position
