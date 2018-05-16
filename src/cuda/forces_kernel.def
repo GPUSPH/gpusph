@@ -2105,7 +2105,7 @@ write_keps(FP const& params, P const& pdata, OP& pout)
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
 template<BoundaryType boundarytype,
-		ParticleType cptype,
+		ParticleType nptype,
 		bool dynamic_gamma>
 struct write_gamma
 {
