@@ -42,6 +42,8 @@
 #include <iostream>
 #endif
 
+#include "cpp11_missing.h"
+
 
 /* Base class for the Buffer template class.
  * The base pointer is a pointer to pointer to allow easy management
@@ -408,25 +410,37 @@ public:
 	template<flag_t Key>
 	DATA_TYPE(Key) *getData(uint num=0) {
 		map_type::iterator exists = m_map.find(Key);
-		if (exists != m_map.end()) {
+		if (exists == m_map.end())
+			return NULL;
+
+		auto buf(exists->second);
 #if DEBUG_INSPECT_BUFFER
-			std::cout << "\t" << exists->second->inspect() << " [non-const]" << std::endl;
+		std::cout << "\t" << buf->inspect() << " [non-const]" << std::endl;
 #endif
-			return static_cast<DATA_TYPE(Key)*>(exists->second->get_buffer(num));
-		}
-		else return NULL;
+		buf->mark_dirty();
+		return static_cast<DATA_TYPE(Key)*>(buf->get_buffer(num));
 	}
+
 	// const version
 	template<flag_t Key>
 	const DATA_TYPE(Key) *getData(uint num=0) const {
 		map_type::const_iterator exists = m_map.find(Key);
-		if (exists != m_map.end()) {
+		if (exists == m_map.end())
+			return NULL;
+
+		auto buf(exists->second);
 #if DEBUG_INSPECT_BUFFER
-			std::cout << "\t" << exists->second->inspect() << " [const]" << std::endl;
+		std::cout << "\t" << buf->inspect() << " [const]" << std::endl;
+		if (buf->is_invalid())
+			std::cout << "\t\t(trying to read invalid data)" << std::endl;
 #endif
-			return static_cast<const DATA_TYPE(Key)*>(exists->second->get_buffer(num));
-		}
-		else return NULL;
+		return static_cast<const DATA_TYPE(Key)*>(buf->get_buffer(num));
+	}
+
+	// const access from writeable list
+	template<flag_t Key>
+	const DATA_TYPE(Key) *getConstData(uint num=0) {
+		return as_const(*this).getData<Key>(num);
 	}
 
 	/* In a few cases, the user may want to access the base pointer to
@@ -437,28 +451,37 @@ public:
 	 */
 	template<flag_t Key>
 	DATA_TYPE(Key) **getRawPtr() {
-		Buffer<Key> *exists = this->get<Key>();
-		if (exists) {
+		Buffer<Key> *buf = this->get<Key>();
+		if (!buf)
+			return NULL;
+
 #if DEBUG_INSPECT_BUFFER
-			std::cout << "\t" << exists->inspect() << " [non-const raw ptr]" << std::endl;
+		std::cout << "\t" << buf->inspect() << " [non-const raw ptr]" << std::endl;
 #endif
-			return exists->get_raw_ptr();
-		}
-		else return NULL;
+		buf->mark_dirty();
+		return buf->get_raw_ptr();
 	}
+
 	// const version
 	template<flag_t Key>
 	const DATA_TYPE(Key)* const* getRawPtr() const {
-		const Buffer<Key> *exists = this->get<Key>();
-		if (exists) {
+		const Buffer<Key> *buf = this->get<Key>();
+		if (!buf)
+			return NULL;
+
 #if DEBUG_INSPECT_BUFFER
-			std::cout << "\t" << exists->inspect() << " [const raw ptr]" << std::endl;
+		std::cout << "\t" << buf->inspect() << " [const raw ptr]" << std::endl;
+		if (buf->is_invalid())
+			std::cout << "\t\t(trying to read invalid data)" << std::endl;
 #endif
-			return exists->get_raw_ptr();
-		}
-		else return NULL;
+		return buf->get_raw_ptr();
 	}
 
+	// const accessor from writeable list
+	template<flag_t Key>
+	const DATA_TYPE(Key)* const* getConstRawPtr() {
+		return as_const(*this).getRawPtr<Key>();
+	}
 
 	/* Add a new buffer of the given BufferClass for position Key, with the provided
 	 * initialization value as initializer. The position is automatically deduced by
