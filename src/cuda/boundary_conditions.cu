@@ -225,15 +225,19 @@ saVertexBoundaryConditions(
 	const	uint			numDevices,
 	const	uint			totParticles)
 {
+	// only needed (and updated) in case of particle creation
 	float4	*forces(bufwrite.getData<BUFFER_FORCES>());
+	// only updated in case of particle creation
 	float4	*pos(bufwrite.getData<BUFFER_POS>());
+	// only updated in case of particle creation
+	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
+	// only updated in case of particle creation
+	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
+
 	float4	*vel(bufwrite.getData<BUFFER_VEL>());
 	float	*tke(bufwrite.getData<BUFFER_TKE>());
 	float	*eps(bufwrite.getData<BUFFER_EPSILON>());
 	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
-	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
-
 
 	// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position
 	// (updated in-place for generated particles)
