@@ -528,7 +528,7 @@ public:
 		if (!buf)
 			return NULL;
 
-		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [raw ptr " << std::endl);
+		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [raw ptr ");
 		switch (m_has_pending_state) {
 		case NOT_PENDING:
 			DEBUG_INSPECT_BUFFER("no pending state");
