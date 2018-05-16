@@ -98,6 +98,9 @@ public:
 				cudaMemcpyHostToDevice));
 	}
 
+
+	virtual const char* get_buffer_class() const
+	{ return "CUDABuffer"; }
 };
 
 #endif

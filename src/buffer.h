@@ -116,6 +116,8 @@ public:
 	virtual uint get_array_count() const = 0;
 
 	virtual const char* get_buffer_name() const = 0;
+	virtual const char* get_buffer_class() const
+	{ return "AbstractBuffer"; }
 
 	// allocate buffer and return total amount of memory allocated
 	virtual size_t alloc(size_t elems) = 0;
@@ -140,7 +142,9 @@ public:
 	inline std::string inspect() const {
 		std::string _desc;
 
-		_desc  = get_buffer_name();
+		_desc += get_buffer_class();
+		_desc += " ";
+		_desc += get_buffer_name();
 		_desc += ", validity ";
 		_desc +=	std::to_string(m_validity);
 		_desc += ", state: ";
@@ -221,6 +225,9 @@ public:
 
 	virtual uint get_array_count() const
 	{ return array_count; }
+
+	virtual const char* get_buffer_class() const
+	{ return "GenericBuffer"; }
 };
 
 /* We access buffers mostly by key (BUFFER_POS etc), so our actual Buffer class is templatized on
@@ -264,6 +271,9 @@ public:
 	{
 		return BufferTraits<Key>::name;
 	}
+
+	virtual const char* get_buffer_class() const
+	{ return "Buffer"; }
 };
 
 // Forward declaration of the MultiBufferList, which we want to make friend

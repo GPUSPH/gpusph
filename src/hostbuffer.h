@@ -84,6 +84,8 @@ public:
 		std::swap(buf[idx1], buf[idx2]);
 	}
 
+	virtual const char* get_buffer_class() const
+	{ return "HostBuffer"; }
 };
 
 #endif
