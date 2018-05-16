@@ -92,7 +92,6 @@ disableOutgoingParts(		float4*			pos,
 /** For solid walls this is used to impose Neuman boundary conditions.
  *  For open boundaries it imposes the appropriate inflow velocity solving the associated
  *  Riemann problem.
- *  Additionaly, during the second step, outgoing particles are detected and marked for mass redistribution.
  */
 void
 saSegmentBoundaryConditions(
@@ -159,6 +158,7 @@ saSegmentBoundaryConditions(
 	KERNEL_CHECK_ERROR;
 }
 
+/// Detect particles that cross an open boundary and find the boundary element they have crossed
 void
 findOutgoingSegment(
 	BufferList &bufwrite,
