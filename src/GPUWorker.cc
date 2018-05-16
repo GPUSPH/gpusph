@@ -2596,6 +2596,8 @@ void GPUWorker::kernel_filter()
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
+	bufwrite.add_state_on_write(string("filter ") + FilterName[filtertype]);
+
 	filterpair->second->process(
 		bufread.getData<BUFFER_POS>(),
 		bufread.getData<BUFFER_VEL>(),
@@ -2608,6 +2610,8 @@ void GPUWorker::kernel_filter()
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_postprocess()
@@ -2624,6 +2628,8 @@ void GPUWorker::kernel_postprocess()
 		throw invalid_argument("non-existing postprocess filter invoked");
 	}
 
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write(string("postprocess ") + PostProcessName[proctype]);
 
 	procpair->second->process(
 		m_dBuffers.getReadBufferList(),
@@ -2633,6 +2639,8 @@ void GPUWorker::kernel_postprocess()
 		numPartsToElaborate,
 		m_deviceIndex,
 		gdata);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_compute_density()
@@ -2644,12 +2652,15 @@ void GPUWorker::kernel_compute_density()
 
 	const BufferList& bufread = m_dBuffers.getReadBufferList();
 	BufferList& bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("compute density");
 
 	forcesEngine->compute_density(bufread, bufwrite,
 		m_dCellStart,
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
 }
 
 
@@ -2663,6 +2674,7 @@ void GPUWorker::kernel_sps()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("SPS");
 
 	viscEngine->process(bufwrite.getRawPtr<BUFFER_TAU>(),
 		bufwrite.getData<BUFFER_SPS_TURBVISC>(),
@@ -2676,6 +2688,8 @@ void GPUWorker::kernel_sps()
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_reduceRBForces()
@@ -2712,11 +2726,11 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
-	const bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	const int step = get_step_number(gdata->commandFlags);
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("saSegmentBoundaryConditions" + to_string(step));
 
 	bcEngine->saSegmentBoundaryConditions(
 		bufwrite, bufread,
@@ -2726,7 +2740,9 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
-				initStep ? 0 : (firstStep ? 1 : 2));
+				step);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_saVertexBoundaryConditions()
@@ -2736,15 +2752,16 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
+	const int step = get_step_number(gdata->commandFlags);
+
 	// pos, vel, tke, eps are read from current*Read, except
 	// on the second step, whe they are read from current*Write
-	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	bcEngine->updateNewIDsOffset(gdata->deviceIdOffset[m_deviceNum]);
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("saVertexBoundaryConditions" + to_string(step));
 
 	bcEngine->saVertexBoundaryConditions(
 		bufwrite, bufread,
@@ -2754,13 +2771,15 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
-				initStep ? 0 : (firstStep ? 1 : 2),
+				step,
 				!gdata->clOptions->resume_fname.empty(),
-				firstStep ? gdata->dt / 2.0f : gdata->dt,
+				(step == 1) ? gdata->dt / 2.0f : gdata->dt,
 				m_dNewNumParticles,
 				m_globalDeviceIdx,
 				gdata->totDevices,
 				gdata->totParticles);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_saComputeVertexNormal()
@@ -2770,12 +2789,17 @@ void GPUWorker::kernel_saComputeVertexNormal()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("saComputeVertexNormal");
+
 	bcEngine->computeVertexNormal(
 				m_dBuffers.getReadBufferList(),
-				m_dBuffers.getWriteBufferList(),
+				bufwrite,
 				m_dCellStart,
 				m_numParticles,
 				numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_saInitGamma()
@@ -2785,9 +2809,12 @@ void GPUWorker::kernel_saInitGamma()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("saInitGamma");
+
 	bcEngine->saInitGamma(
 				m_dBuffers.getReadBufferList(),
-				m_dBuffers.getWriteBufferList(),
+				bufwrite,
 				m_dCellStart,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
@@ -2795,6 +2822,8 @@ void GPUWorker::kernel_saInitGamma()
 				m_simparams->epsilon,
 				m_numParticles,
 				numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_saIdentifyCornerVertices()
@@ -2806,6 +2835,7 @@ void GPUWorker::kernel_saIdentifyCornerVertices()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("saIdentifyCornerVertices");
 
 	bcEngine->saIdentifyCornerVertices(
 				bufread.getData<BUFFER_POS>(),
@@ -2819,6 +2849,8 @@ void GPUWorker::kernel_saIdentifyCornerVertices()
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
 				m_simparams->epsilon);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_disableOutgoingParts()
@@ -2830,6 +2862,7 @@ void GPUWorker::kernel_disableOutgoingParts()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("disableOutgoingParts");
 
 	bcEngine->disableOutgoingParts(
 				bufwrite.getData<BUFFER_POS>(),
@@ -2837,6 +2870,8 @@ void GPUWorker::kernel_disableOutgoingParts()
 				bufread.getData<BUFFER_INFO>(),
 				m_numParticles,
 				numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::uploadConstants()
