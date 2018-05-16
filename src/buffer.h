@@ -36,10 +36,13 @@
 #include "buffer_traits.h"
 #include "buffer_alloc_policy.h"
 
-#define DEBUG_INSPECT_BUFFER 1
+#define DEBUG_BUFFER_ACCESS 1
 
-#if DEBUG_INSPECT_BUFFER
+#if DEBUG_BUFFER_ACCESS
 #include <iostream>
+#define DEBUG_INSPECT_BUFFER(...) std::cout << __VA_ARGS__
+#else
+#define DEBUG_INSPECT_BUFFER(...) do {} while (0)
 #endif
 
 #include "cpp11_missing.h"
@@ -316,6 +319,15 @@ class BufferList
 
 	map_type m_map;
 
+	enum {
+		NOT_PENDING,
+		PENDING_SET,
+		PENDING_ADD,
+	} m_has_pending_state;
+
+	std::string m_pending_state;
+	flag_t m_updated_buffers;
+
 protected:
 	void addExistingBuffer(flag_t Key, AbstractBuffer* buf)
 	{ m_map[Key] = buf; }
@@ -339,9 +351,15 @@ protected:
 
 	friend class MultiBufferList;
 public:
-	BufferList() : m_map() {};
+	BufferList() :
+		m_map(),
+		m_has_pending_state(NOT_PENDING),
+		m_pending_state(),
+		m_updated_buffers(0)
+	{};
 
 	~BufferList() {
+		clear_pending_state();
 		clear();
 	}
 
@@ -353,6 +371,12 @@ public:
 			++buf;
 		}
 		m_map.clear();
+	}
+
+	void clear_pending_state() {
+		m_has_pending_state = NOT_PENDING;
+		m_pending_state.clear();
+		m_updated_buffers = 0;
 	}
 
 	// modify validity of all buffers
@@ -372,6 +396,26 @@ public:
 		for (auto& iter : m_map)
 			iter.second->add_state(state);
 	}
+	// set state only for buffers that get accessed for writing
+	void set_state_on_write(std::string const& state)
+	{
+		if (m_has_pending_state > NOT_PENDING)
+			std::cerr << "setting pending state without previous reset!" << std::endl;
+		m_has_pending_state = PENDING_SET;
+		m_pending_state = state;
+	}
+	// add state only for buffers that get accessed for writing
+	void add_state_on_write(std::string const& state)
+	{
+		if (m_has_pending_state > NOT_PENDING)
+			std::cerr << "setting pending state addition without previous reset!" << std::endl;
+		m_has_pending_state = PENDING_ADD;
+		m_pending_state = state;
+	}
+	// get the list of buffers that were updated
+	flag_t get_updated_buffers() const
+	{ return m_updated_buffers; }
+
 
 	/* Read-only [] accessor. Insertion of buffers should be done via the
 	 * addBuffer<>() method template.
@@ -424,10 +468,27 @@ public:
 			return NULL;
 
 		auto buf(exists->second);
-#if DEBUG_INSPECT_BUFFER
-		std::cout << "\t" << buf->inspect() << " [non-const]" << std::endl;
-#endif
+
+		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [");
+
+		switch (m_has_pending_state) {
+		case NOT_PENDING:
+			DEBUG_INSPECT_BUFFER("no pending state");
+			break;
+		case PENDING_SET:
+			DEBUG_INSPECT_BUFFER("state set " << m_pending_state);
+			buf->set_state(m_pending_state);
+			break;
+		case PENDING_ADD:
+			DEBUG_INSPECT_BUFFER("state add " << m_pending_state);
+			buf->add_state(m_pending_state);
+			break;
+		}
+		DEBUG_INSPECT_BUFFER("]" << std::endl);
+
+		m_updated_buffers |= Key;
 		buf->mark_dirty();
+
 		return static_cast<DATA_TYPE(Key)*>(buf->get_buffer(num));
 	}
 
@@ -439,11 +500,13 @@ public:
 			return NULL;
 
 		auto buf(exists->second);
-#if DEBUG_INSPECT_BUFFER
-		std::cout << "\t" << buf->inspect() << " [const]" << std::endl;
-		if (buf->is_invalid())
-			std::cout << "\t\t(trying to read invalid data)" << std::endl;
-#endif
+		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [const]" << std::endl);
+		if (buf->is_invalid()) {
+			if (DEBUG_BUFFER_ACCESS)
+				DEBUG_INSPECT_BUFFER("\t\t(trying to read invalid data)" << std::endl);
+			else
+				throw std::invalid_argument("trying to read invalid data");
+		}
 		return static_cast<const DATA_TYPE(Key)*>(buf->get_buffer(num));
 	}
 
@@ -465,10 +528,26 @@ public:
 		if (!buf)
 			return NULL;
 
-#if DEBUG_INSPECT_BUFFER
-		std::cout << "\t" << buf->inspect() << " [non-const raw ptr]" << std::endl;
-#endif
+		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [raw ptr " << std::endl);
+		switch (m_has_pending_state) {
+		case NOT_PENDING:
+			DEBUG_INSPECT_BUFFER("no pending state");
+			break;
+		case PENDING_SET:
+			DEBUG_INSPECT_BUFFER("state set " << m_pending_state);
+			buf->set_state(m_pending_state);
+			break;
+		case PENDING_ADD:
+			DEBUG_INSPECT_BUFFER("state add " << m_pending_state);
+			buf->add_state(m_pending_state);
+			break;
+		}
+
+		DEBUG_INSPECT_BUFFER("]" << std::endl);
+
+		m_updated_buffers |= Key;
 		buf->mark_dirty();
+
 		return buf->get_raw_ptr();
 	}
 
@@ -479,11 +558,13 @@ public:
 		if (!buf)
 			return NULL;
 
-#if DEBUG_INSPECT_BUFFER
-		std::cout << "\t" << buf->inspect() << " [const raw ptr]" << std::endl;
-		if (buf->is_invalid())
-			std::cout << "\t\t(trying to read invalid data)" << std::endl;
-#endif
+		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [const raw ptr]" << std::endl);
+		if (buf->is_invalid()) {
+			if (DEBUG_BUFFER_ACCESS)
+				DEBUG_INSPECT_BUFFER("\t\t(trying to read invalid data)" << std::endl);
+			else
+				throw std::invalid_argument("trying to read invalid data");
+		}
 		return buf->get_raw_ptr();
 	}
 
