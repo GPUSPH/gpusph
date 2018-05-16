@@ -2755,6 +2755,20 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				step);
 
 	bufwrite.clear_pending_state();
+
+	if ( (m_simparams->simflags & ENABLE_INLET_OUTLET) && (step == 2)) {
+		bufwrite.add_state_on_write("findOutgoingSegment");
+		bcEngine->findOutgoingSegment(
+			bufwrite, bufread,
+				m_dCellStart,
+				m_numParticles,
+				numPartsToElaborate,
+				gdata->problem->m_deltap,
+				m_simparams->slength,
+				m_simparams->influenceRadius);
+
+		bufwrite.clear_pending_state();
+	}
 }
 
 void GPUWorker::kernel_saVertexBoundaryConditions()

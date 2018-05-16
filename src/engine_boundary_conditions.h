@@ -39,6 +39,18 @@ saSegmentBoundaryConditions(
 	// and 1 or 2 for the first and second step during integration
 	const	uint			step) = 0;
 
+/// Detect particles that cross an open boundary and find the boundary element they have crossed
+virtual void
+findOutgoingSegment(
+	BufferList &bufwrite,
+	BufferList const& bufread,
+	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius) = 0;
+
 // There is no need to use two velocity arrays (read and write) and swap them after.
 // Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
 // Data is only read from fluid and segments and written only on vertices.

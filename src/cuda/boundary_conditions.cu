@@ -152,13 +152,46 @@ saSegmentBoundaryConditions(
 		throw std::runtime_error("unsupported step");
 	}
 
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
-	if ( (simflags & ENABLE_INLET_OUTLET) && (step == 2))
-		cubounds::findOutgoingSegmentDevice<kerneltype><<<numBlocks, numThreads>>>(
-			pos, vel, vertices, gGam,
-			vertPos[0], vertPos[1], vertPos[2],
-			particleHash, cellStart, neibsList,
-			particleRangeEnd, influenceradius);
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
+void
+findOutgoingSegment(
+	BufferList &bufwrite,
+	BufferList const& bufread,
+	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius) override
+{
+	uint numThreads = BLOCK_SIZE_SA_BOUND;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
+	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
+	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
+	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
+	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
+	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+
+	float4	*vel(bufwrite.getData<BUFFER_VEL>());
+	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
+	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	cubounds::findOutgoingSegmentDevice<kerneltype><<<numBlocks, numThreads>>>(
+		pos, vel, vertices, gGam,
+		vertPos[0], vertPos[1], vertPos[2],
+		particleHash, cellStart, neibsList,
+		particleRangeEnd, influenceradius);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
