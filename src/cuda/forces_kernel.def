@@ -2122,14 +2122,6 @@ __device__ __forceinline__ void
 write_gamma<SA_BOUNDARY, PT_BOUNDARY, false>::with(FP const& params, P const& pdata, OP& pout)
 {
 	params.newGGam[pdata.index] = pout.gGam;
-	//if ((FP::simflags & ENABLE_INLET_OUTLET && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) ||
-	//	(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f && (params.step==1 || pdata.ptype != PT_FLUID)))
-	//	params.newGGam[pdata.index] = pdata.oldGGam;
-	//else if (!((FP::simflags & ENABLE_DENSITY_SUM) && params.step==2)) {
-	//	// Gamma clipping (was previously in gamma_fixup)
-	//	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon), 1.0f);
-	//	params.newGGam[pdata.index] = pout.gGam;
-	//}
 }
 
 template<>
@@ -2139,14 +2131,6 @@ write_gamma<SA_BOUNDARY, PT_BOUNDARY, true>::with(FP const& params, P const& pda
 {
 	// only update gradient of gamma
 	as_float3(params.newGGam[pdata.index]) = as_float3(pout.gGam);
-	//if ((FP::simflags & ENABLE_INLET_OUTLET && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) ||
-	//	(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f && (params.step==1 || pdata.ptype != PT_FLUID)))
-	//	params.newGGam[pdata.index] = pdata.oldGGam;
-	//else if (!((FP::simflags & ENABLE_DENSITY_SUM) && params.step==2)) {
-	//	// Gamma clipping (was previously in gamma_fixup)
-	//	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon), 1.0f);
-	//	params.newGGam[pdata.index] = pout.gGam;
-	//}
 }
 
 /// A funcion that writes out gammaCfl, if present
