@@ -242,8 +242,8 @@ saVertexBoundaryConditions(
 	// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position
 	// (updated in-place for generated particles)
 
-	particleinfo	*info(const_cast<particleinfo*>(bufread.getData<BUFFER_INFO>()));
-	hashKey			*particleHash(const_cast<hashKey*>(bufread.getData<BUFFER_HASH>()));
+	particleinfo	*info(const_cast<BufferList&>(bufread).getData<BUFFER_INFO>());
+	hashKey			*particleHash(const_cast<BufferList&>(bufread).getData<BUFFER_HASH>());
 
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
