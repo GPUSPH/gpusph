@@ -2072,7 +2072,7 @@ void GPUWorker::kernel_buildNeibsList()
 					bufread.getData<BUFFER_VERTICES>(),
 					bufread.getData<BUFFER_BOUNDELEMENTS>(),
 					bufwrite.getRawPtr<BUFFER_VERTPOS>(),
-					bufwrite.getData<BUFFER_HASH>(),
+					bufwrite.getConstData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
 					m_numParticles,
