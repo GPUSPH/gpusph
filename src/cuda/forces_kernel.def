@@ -575,7 +575,14 @@ struct sa_boundary_particle_output
 	__device__ __forceinline__
 	sa_boundary_particle_output(FP const& params, const uint index) :
 		gGam(make_float4(0, 0, 0, 1))
-	{}
+	{
+		/* When using dynamic gamma, we only compute the new gradient,
+		 * so load the old value of gamma
+		 */
+		if (USING_DYNAMIC_GAMMA(FP::simflags)) {
+			gGam.w = tex1Dfetch(gamTex, index).w;
+		}
+	}
 };
 
 // CFL condition for gamma integration when using SA_BOUNDARY
