@@ -97,7 +97,7 @@ public:
 	buildNeibsList(	neibdata*			neibsList,
 					const float4*		pos,
 					const particleinfo*	info,
-					vertexinfo*			vertices,
+					const vertexinfo*	vertices,
 					const float4		*boundelem,
 					float2*				vertPos[],
 					const hashKey*		particleHash,

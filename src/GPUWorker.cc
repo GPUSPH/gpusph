@@ -2030,8 +2030,7 @@ void GPUWorker::kernel_buildNeibsList()
 					neibsList,
 					bufread.getData<BUFFER_POS>(),
 					bufread.getData<BUFFER_INFO>(),
-			// TODO FIXME VERTICES is in/out, but it's taken on the READ position
-					(vertexinfo*)bufread.getData<BUFFER_VERTICES>(),
+					bufread.getData<BUFFER_VERTICES>(),
 					bufread.getData<BUFFER_BOUNDELEMENTS>(),
 					bufwrite.getRawPtr<BUFFER_VERTPOS>(),
 					bufwrite.getData<BUFFER_HASH>(),
