@@ -1129,6 +1129,25 @@ void GPUWorker::addBufferState()
 	addBufferState(gdata->commandFlags, gdata->extraCommandArg.string);
 }
 
+void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
+{
+	// get the bufferlist to set the data for
+	BufferList& buflist = *getBufferListByCommandFlags(flags);
+
+	for (auto& iter : buflist) {
+		flag_t buf_to_get = iter.first;
+		if (!(buf_to_get & flags))
+			continue;
+
+		AbstractBuffer *buf = iter.second;
+		buf->mark_valid(validity);
+	}
+}
+
+void GPUWorker::setBufferValidity()
+{
+	setBufferValidity(gdata->commandFlags, BufferValidity(gdata->extraCommandArg.flag));
+}
 
 // upload subdomain, just allocated and sorted by main thread
 void GPUWorker::uploadSubdomain() {

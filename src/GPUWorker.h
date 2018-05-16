@@ -212,6 +212,10 @@ private:
 	void addBufferState(const flag_t flags, std::string const& state);
 	void addBufferState(); // addBufferState() from commandFlags and extraCommandArg
 
+	// setting buffer validity
+	void setBufferValidity(const flag_t flags, BufferValidity validity);
+	void setBufferValidity(); // setBufferValidity() from commandFlags and extraCommandArg
+
 	void uploadSubdomain();
 	void dumpBuffers();
 	void swapBuffers();
