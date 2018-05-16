@@ -1238,6 +1238,7 @@ void GPUWorker::dumpBuffers() {
 			continue;
 
 		const AbstractBuffer *buf = buflist[buf_to_get];
+		auto *hostbuf(onhost->second);
 		size_t _size = howManyParticles * buf->get_element_size();
 		if (buf_to_get == BUFFER_NEIBSLIST)
 			_size *= gdata->problem->simparams()->neiblistsize;
@@ -1247,9 +1248,11 @@ void GPUWorker::dumpBuffers() {
 		// and VERTPOS) have no host counterpart)
 		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
 			const void *srcptr = buf->get_buffer(ai);
-			void *dstptr = onhost->second->get_offset_buffer(ai, firstInnerParticle);
+			void *dstptr = hostbuf->get_offset_buffer(ai, firstInnerParticle);
 			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyDeviceToHost));
 		}
+		hostbuf->set_state(buf->state());
+		hostbuf->mark_valid();
 	}
 }
 
