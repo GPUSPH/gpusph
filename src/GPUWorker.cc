@@ -2022,9 +2022,9 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dSegmentStart,
 
 							// hash
-							sorted.getData<BUFFER_HASH>(),
+							sorted.getConstData<BUFFER_HASH>(),
 							// sorted particle indices
-							sorted.getData<BUFFER_PARTINDEX>(),
+							sorted.getConstData<BUFFER_PARTINDEX>(),
 
 							// output: sorted buffers
 							sorted,
