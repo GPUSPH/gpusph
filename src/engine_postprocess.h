@@ -68,8 +68,8 @@ public:
 	//< Main processing routine
 	virtual void
 	process(
-		MultiBufferList::const_iterator	bufread,
-		MultiBufferList::iterator		bufwrite,
+		const BufferList&	bufread,
+		BufferList&		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,

@@ -420,8 +420,8 @@ class Problem {
 		virtual void init_volume(BufferList &, uint numParticles);
 
 		virtual void imposeBoundaryConditionHost(
-			MultiBufferList::iterator		bufwrite,
-			MultiBufferList::const_iterator	bufread,
+			BufferList&		bufwrite,
+			const BufferList&	bufread,
 					uint*			IOwaterdepth,
 			const	float			t,
 			const	uint			numParticles,

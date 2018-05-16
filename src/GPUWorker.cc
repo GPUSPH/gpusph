@@ -737,21 +737,22 @@ void GPUWorker::transferBurstsSizes()
 // Iterate on the list and send/receive bursts of particles across different nodes
 void GPUWorker::transferBursts()
 {
-	// The buffer list that we want to access depends on the double-buffer selection.
-	// The MultiBufferList::iterator works like a BufferList* , with the
-	// advantage that we can get the index of the BufferList by subtracting the
-	// iterator returned by getting the first BufferList
-	MultiBufferList::iterator buflist = getBufferListByCommandFlags(gdata->commandFlags);
-
-	// actual index of the buffer list in the multibufferlist (used to get the same
-	// buffer list from the peer)
-	const size_t buflist_idx = buflist - m_dBuffers.getBufferList(0);
-
 	// Sanity check: if any of the buffers to transfer is double-buffered, then
 	// which of the copies needs to be transferred _must_ have been specified
 	const flag_t need_dbl_buffer_specified = gdata->allocPolicy->get_multi_buffered(gdata->commandFlags);
 	// was it specified?
 	const bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
+
+	// The buffer list that we want to access depends on the double-buffer selection.
+	// The BufferList& works like a BufferList* , with the
+	// advantage that we can get the index of the BufferList by subtracting the
+	// iterator returned by getting the first BufferList
+	BufferList& buflist = getBufferListByCommandFlags(gdata->commandFlags);
+
+	// actual index of the buffer list in the multibufferlist (used to get the same
+	// buffer list from the peer)
+	// TODO FIXME buffer-state
+	const size_t buflist_idx = &buflist - &m_dBuffers.getBufferList(0);
 
 	// burst id counter, needed to correctly pair asynchronous network messages
 	uint bid[MAX_DEVICES_PER_CLUSTER];
@@ -786,8 +787,8 @@ void GPUWorker::transferBursts()
 			// with the ordering set by the key, in our case the unsigned integer type flag_t,
 			// so we have guarantee that the map will always be traversed in the same order
 			// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
-			BufferList::iterator bufset = buflist->begin();
-			const BufferList::iterator stop = buflist->end();
+			BufferList::iterator bufset = buflist.begin();
+			const BufferList::iterator stop = buflist.end();
 			for ( ; bufset != stop ; ++bufset) {
 				flag_t bufkey = bufset->first;
 				if (!(gdata->commandFlags & bufkey))
@@ -1080,7 +1081,7 @@ void GPUWorker::printAllocatedMemory()
 			gdata->addSeparators(m_numParticles).c_str(), gdata->addSeparators(m_numAllocatedParticles).c_str());
 }
 
-MultiBufferList::iterator
+BufferList&
 GPUWorker::getBufferListByCommandFlags(flag_t flags)
 {
 	return (flags & DBLBUFFER_READ ?
@@ -1091,7 +1092,7 @@ GPUWorker::getBufferListByCommandFlags(flag_t flags)
 void GPUWorker::setBufferState(const flag_t flags, std::string const& state)
 {
 	// get the bufferlist to set the data for
-	BufferList& buflist = *getBufferListByCommandFlags(flags);
+	BufferList& buflist = getBufferListByCommandFlags(flags);
 
 	for (auto& iter : buflist) {
 		flag_t buf_to_get = iter.first;
@@ -1112,7 +1113,7 @@ void GPUWorker::setBufferState()
 void GPUWorker::addBufferState(const flag_t flags, std::string const& state)
 {
 	// get the bufferlist to set the data for
-	BufferList& buflist = *getBufferListByCommandFlags(flags);
+	BufferList& buflist = getBufferListByCommandFlags(flags);
 
 	for (auto& iter : buflist) {
 		flag_t buf_to_get = iter.first;
@@ -1133,7 +1134,7 @@ void GPUWorker::addBufferState()
 void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
 {
 	// get the bufferlist to set the data for
-	BufferList& buflist = *getBufferListByCommandFlags(flags);
+	BufferList& buflist = getBufferListByCommandFlags(flags);
 
 	for (auto& iter : buflist) {
 		flag_t buf_to_get = iter.first;
@@ -1167,7 +1168,7 @@ void GPUWorker::uploadSubdomain() {
 		BUFFER_NORMALS | BUFFER_VORTICITY;
 
 	// we upload data to the READ buffers
-	BufferList& buflist = *m_dBuffers.getReadBufferList();
+	BufferList& buflist = m_dBuffers.getReadBufferList();
 
 	// iterate over each array in the _host_ buffer list, and upload data
 	// to the (first) read buffer
@@ -1215,7 +1216,7 @@ void GPUWorker::dumpBuffers() {
 	const flag_t flags = gdata->commandFlags;
 
 	// get the bufferlist to download data from
-	const BufferList& buflist = *getBufferListByCommandFlags(flags);
+	const BufferList& buflist = getBufferListByCommandFlags(flags);
 
 	// iterate over each array in the _host_ buffer list, and download data
 	// if it was requested
@@ -1572,7 +1573,7 @@ size_t GPUWorker::getDeviceMemory() {
 
 const AbstractBuffer* GPUWorker::getBuffer(size_t list_idx, flag_t key) const
 {
-	return (*m_dBuffers.getBufferList(list_idx))[key];
+	return m_dBuffers.getBufferList(list_idx)[key];
 }
 
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
@@ -1937,8 +1938,8 @@ void GPUWorker::kernel_calcHash()
 {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	// calcHashDevice() should use CPU-computed hashes at iteration 0, or some particles
 	// might be lost (if a GPU computes a different hash and does not recognize the particles
@@ -1967,7 +1968,7 @@ void GPUWorker::kernel_calcHash()
 					m_dCompactDeviceMap,
 					m_numParticles);
 
-	bufwrite.clear_pending();
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_sort()
@@ -1977,15 +1978,15 @@ void GPUWorker::kernel_sort()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	MultiBufferList::iterator bufwrite(m_dBuffers.getWriteBufferList());
-	bufwrite->set_state_on_write("sorted");
+	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
+	bufwrite.set_state_on_write("sorted");
 
 	neibsEngine->sort(
 			m_dBuffers.getReadBufferList(),
 			bufwrite,
 			numPartsToElaborate);
 
-	bufwrite->clear_pending();
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_reorderDataAndFindCellStart()
@@ -1996,10 +1997,10 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	MultiBufferList::const_iterator unsorted = m_dBuffers.getReadBufferList();
-	MultiBufferList::iterator sorted = m_dBuffers.getWriteBufferList();
+	const BufferList& unsorted = m_dBuffers.getReadBufferList();
+	BufferList& sorted = m_dBuffers.getWriteBufferList();
 
-	sorted->set_state_on_write("sorted");
+	sorted.set_state_on_write("sorted");
 
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	neibsEngine->reorderDataAndFindCellStart(
@@ -2008,9 +2009,9 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dSegmentStart,
 
 							// hash
-							sorted->getData<BUFFER_HASH>(),
+							sorted.getData<BUFFER_HASH>(),
 							// sorted particle indices
-							sorted->getData<BUFFER_PARTINDEX>(),
+							sorted.getData<BUFFER_PARTINDEX>(),
 
 							// output: sorted buffers
 							sorted,
@@ -2019,11 +2020,11 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_numParticles,
 							m_dNewNumParticles);
 
-	flag_t sorted_buffers = sorted->get_updated_buffers();
+	flag_t sorted_buffers = sorted.get_updated_buffers();
 	setBufferState(sorted_buffers | DBLBUFFER_READ, "");
 	setBufferValidity(sorted_buffers | DBLBUFFER_READ, BUFFER_INVALID);
 
-	sorted->clear_pending();
+	sorted.clear_pending_state();
 }
 
 void GPUWorker::kernel_buildNeibsList()
@@ -2035,8 +2036,8 @@ void GPUWorker::kernel_buildNeibsList()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	bufwrite.set_state_on_write("neibslist");
 
@@ -2070,7 +2071,7 @@ void GPUWorker::kernel_buildNeibsList()
 	// download the peak number of neighbors and the estimated number of interactions
 	neibsEngine->getinfo( gdata->timingInfo[m_deviceIndex] );
 
-	bufwrite.clear_pending();
+	bufwrite.clear_pending_state();
 }
 
 // returns numBlocks as computed by forces()
@@ -2123,7 +2124,7 @@ float GPUWorker::post_forces()
 	if (!(m_simparams->simflags & ENABLE_DTADAPT))
 		return m_simparams->dt;
 
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	// TODO multifluid: dtreduce needs the maximum viscosity. We compute it
 	// here and pass it over. This is inefficient as we compute it every time,
@@ -2499,8 +2500,8 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	gdata->problem->imposeBoundaryConditionHost(
 		m_dBuffers.getWriteBufferList(),
@@ -2520,8 +2521,8 @@ void GPUWorker::kernel_initIOmass_vertexCount()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	bcEngine->initIOmass_vertexCount(
 		m_dBuffers.getWriteBufferList(),
@@ -2539,8 +2540,8 @@ void GPUWorker::kernel_initIOmass()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	bcEngine->initIOmass(
 		m_dBuffers.getWriteBufferList(),
@@ -2566,8 +2567,8 @@ void GPUWorker::kernel_filter()
 		throw invalid_argument("non-existing filter invoked");
 	}
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	filterpair->second->process(
 		bufread.getData<BUFFER_POS>(),
@@ -2615,8 +2616,8 @@ void GPUWorker::kernel_compute_density()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	MultiBufferList::const_iterator bufread = m_dBuffers.getReadBufferList();
-	MultiBufferList::iterator bufwrite = m_dBuffers.getWriteBufferList();
+	const BufferList& bufread = m_dBuffers.getReadBufferList();
+	BufferList& bufwrite = m_dBuffers.getWriteBufferList();
 
 	forcesEngine->compute_density(bufread, bufwrite,
 		m_dCellStart,
@@ -2634,8 +2635,8 @@ void GPUWorker::kernel_sps()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	viscEngine->process(bufwrite.getRawPtr<BUFFER_TAU>(),
 		bufwrite.getData<BUFFER_SPS_TURBVISC>(),
@@ -2688,8 +2689,8 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 	const bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 	const bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	bcEngine->saSegmentBoundaryConditions(
 		bufwrite, bufread,
@@ -2716,8 +2717,8 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 
 	bcEngine->updateNewIDsOffset(gdata->deviceIdOffset[m_deviceNum]);
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	bcEngine->saVertexBoundaryConditions(
 		bufwrite, bufread,
@@ -2777,8 +2778,8 @@ void GPUWorker::kernel_saIdentifyCornerVertices()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	bcEngine->saIdentifyCornerVertices(
 				bufread.getData<BUFFER_POS>(),
@@ -2801,8 +2802,8 @@ void GPUWorker::kernel_disableOutgoingParts()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	bcEngine->disableOutgoingParts(
 				bufwrite.getData<BUFFER_POS>(),
@@ -2842,8 +2843,8 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
 	// if (m_deviceIndex == 1) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	// get particle info
 	particleinfo pinfo;

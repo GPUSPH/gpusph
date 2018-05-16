@@ -204,7 +204,7 @@ private:
 
 	// select a BufferList based on the DBLBUFFER_* specification
 	// in the command flags
-	MultiBufferList::iterator getBufferListByCommandFlags(flag_t flags);
+	BufferList& getBufferListByCommandFlags(flag_t flags);
 
 	// setting or adding to buffer states
 	void setBufferState(const flag_t flags, std::string const& state);

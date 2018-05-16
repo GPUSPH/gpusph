@@ -68,9 +68,9 @@ public:
 	/// Integral formulation of continuity equation
 	virtual void
 	density_sum(
-		MultiBufferList::const_iterator bufread,	// this is the read only arrays
-		MultiBufferList::iterator bufreadUpdate,	// the read array but it will be written to in certain cases (densitySum)
-		MultiBufferList::iterator bufwrite,
+		const BufferList& bufread,	// this is the read only arrays
+		BufferList& bufreadUpdate,	// the read array but it will be written to in certain cases (densitySum)
+		BufferList& bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
@@ -84,8 +84,8 @@ public:
 	/// Gamma integration from particle distribution
 	virtual void
 	integrate_gamma(
-		MultiBufferList::const_iterator bufread,	// particle system at state n
-		MultiBufferList::iterator bufreadUpdate,	// particle system at state n+1
+		const BufferList& bufread,	// particle system at state n
+		BufferList& bufreadUpdate,	// particle system at state n+1
 		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
@@ -98,8 +98,8 @@ public:
 
 	virtual void
 	apply_density_diffusion(
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
+		const BufferList& bufread,
+		BufferList& bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
@@ -110,9 +110,9 @@ public:
 	// integration schemes
 	virtual void
 	basicstep(
-		MultiBufferList::const_iterator bufread,	// this is the read only arrays
-		MultiBufferList::iterator bufreadUpdate,	// the read array but it will be written to in certain cases (densitySum)
-		MultiBufferList::iterator bufwrite,
+		const BufferList& bufread,	// this is the read only arrays
+		BufferList& bufreadUpdate,	// the read array but it will be written to in certain cases (densitySum)
+		BufferList& bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,

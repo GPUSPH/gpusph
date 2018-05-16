@@ -49,8 +49,8 @@ class CompleteSaExample: public XProblem {
 
 		void
 		imposeBoundaryConditionHost(
-			MultiBufferList::iterator		bufwrite,
-			MultiBufferList::const_iterator	bufread,
+			BufferList&		bufwrite,
+			BufferList const&	bufread,
 					uint*			IOwaterdepth,
 			const	float			t,
 			const	uint			numParticles,

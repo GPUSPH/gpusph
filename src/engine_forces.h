@@ -81,11 +81,11 @@ public:
 	// called separately because the kernel might be split into inner/outer calls, and
 	// the pre-/post- calls have to do before the first and after the last
 	virtual void
-	bind_textures(MultiBufferList::const_iterator bufread,
+	bind_textures(const BufferList& bufread,
 		uint	numParticles) = 0;
 
 	virtual void
-	clear_cfl(MultiBufferList::iterator bufwrite,
+	clear_cfl(BufferList& bufwrite,
 		uint	numAllocatedParticles) = 0;
 
 	virtual void
@@ -106,8 +106,8 @@ public:
 
 	// Compute particle density
 	virtual void
-	compute_density(MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
+	compute_density(const BufferList& bufread,
+		BufferList& bufwrite,
 		const uint *cellStart,
 		uint numParticles,
 		float slength,
@@ -116,8 +116,8 @@ public:
 	// Compute density diffusion term
 	virtual void
 	compute_density_diffusion(
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
+		const BufferList& bufread,
+		BufferList& bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
@@ -130,8 +130,8 @@ public:
 	// (which is the number of blocks to launch dtreduce on
 	virtual uint
 	basicstep(
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
+		const BufferList& bufread,
+		BufferList& bufwrite,
 				float4	*rbforces,
 				float4	*rbtorques,
 		const	uint	*cellStart,

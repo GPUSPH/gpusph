@@ -26,7 +26,7 @@
 #ifndef _BUFFER_H
 #define _BUFFER_H
 
-#include <vector>
+#include <array>
 #include <map>
 #include <set>
 
@@ -620,6 +620,8 @@ public:
  * object to determine which ones need multiple copies and which ones
  * do not.
  *
+ * TODO FIXME the code currently assumes that buffers are _at most_ double-buffered.
+ * This whole thing will soon be removed by the ParticleSystem::State mechanism.
  */
 class MultiBufferList
 {
@@ -627,24 +629,20 @@ public:
 	// buffer allocation policy
 	const BufferAllocPolicy *m_policy;
 
-	// list of BufferLists
-	std::vector<BufferList> m_lists;
-
-	// iterators are returned by the getters
-	typedef std::vector<BufferList>::iterator iterator;
-	typedef std::vector<BufferList>::const_iterator const_iterator;
-
-	// Keys of Buffers added so far
-	// It's a set instead of a single flag_t to allow iteration on it
-	// without bit-shuffling. Might change.
-	std::set<flag_t> m_buffer_keys;
-
 	// TODO FIXME this is for double-buffered lists only
 	// In general we would have N writable list (N=1 usually)
 	// and M read-only lists (M >= 1), with the number of each
 	// determined by the BufferAllocPolicy.
 #define READ_LIST 1
 #define WRITE_LIST 0
+
+	// list of BufferLists
+	std::array<BufferList, 2> m_lists;
+
+	// Keys of Buffers added so far
+	// It's a set instead of a single flag_t to allow iteration on it
+	// without bit-shuffling. Might change.
+	std::set<flag_t> m_buffer_keys;
 
 public:
 
@@ -680,13 +678,16 @@ public:
 			// from the lists, in order to avoid double deletions
 			AbstractBuffer *buf = m_lists[0][key];
 
-			iterator list = m_lists.begin();
-			for ( ; list != m_lists.end(); ++list)
-				list->removeBuffer(key);
+			for (auto& list : m_lists)
+				list.removeBuffer(key);
 			delete buf;
 		}
+
 		// now clear the lists
-		m_lists.clear();
+		// TODO would have made sense for > 2 copies,
+		// in which case m_lists would have been an std::vector
+		//m_lists.clear();
+
 		// and purge the list of keys too
 		m_buffer_keys.clear();
 	}
@@ -698,7 +699,9 @@ public:
 		m_policy = _policy;
 
 		// add as many BufferLists as needed at most
-		m_lists.resize(m_policy->get_max_buffer_count());
+		// TODO would have made sense for > 2 copies,
+		// in which case m_lists would have been an std::vector
+		//m_lists.resize(m_policy->get_max_buffer_count());
 	}
 
 	/* Add a new buffer of the given BufferClass for position Key, with the provided
@@ -726,20 +729,14 @@ public:
 			if (count != m_lists.size())
 				throw std::runtime_error("buffer count less than max but bigger than 1 not supported");
 			// multi-buffered, allocate one instance in each buffer list
-			iterator it(m_lists.begin());
-			while (it != m_lists.end()) {
-				it->addBuffer<BufferClass, Key>(_init);
-				++it;
-			}
+			for (auto& list : m_lists)
+				list.addBuffer<BufferClass, Key>(_init);
 		} else {
 			// single-buffered, allocate once and put in all lists
 			AbstractBuffer *buff = new BufferClass<Key>;
 
-			iterator it(m_lists.begin());
-			while (it != m_lists.end()) {
-				it->addExistingBuffer(Key, buff);
-				++it;
-			}
+			for (auto& list : m_lists)
+				list.addExistingBuffer(Key, buff);
 		}
 	}
 
@@ -800,39 +797,35 @@ public:
 	}
 
 	/* Get a specific buffer list */
-	iterator getBufferList(size_t idx)
+	BufferList& getBufferList(size_t idx)
 	{
 		if (idx > m_lists.size())
 			throw std::runtime_error("asked for non-existing buffer list");
-		return m_lists.begin() + idx;
+		return m_lists[idx];
 	}
 
 	/* Get a specific buffer list (const) */
-	const_iterator getBufferList(size_t idx) const
+	const BufferList& getBufferList(size_t idx) const
 	{
 		if (idx > m_lists.size())
 			throw std::runtime_error("asked for non-existing buffer list");
-		return m_lists.begin() + idx;
+		return m_lists[idx];
 	}
 
-	/* Get the ith read-only buffer list */
-	iterator getReadBufferList(size_t i = 0)
-	{ return getBufferList(READ_LIST + i); }
-	const_iterator getReadBufferList(size_t i = 0) const
-	{ return getBufferList(READ_LIST + i); }
+	/* Get the read-only buffer list */
+	BufferList& getReadBufferList()
+	{ return getBufferList(READ_LIST); }
+	const BufferList& getReadBufferList() const
+	{ return getBufferList(READ_LIST); }
 
-	/* Get the ith read-write buffer list */
-	iterator getWriteBufferList(size_t i = 0)
+	/* Get the read-write buffer list */
+	BufferList& getWriteBufferList()
 	{
-		if (i >= READ_LIST - WRITE_LIST)
-			throw std::runtime_error("no such writeable buffer");
-		return getBufferList(WRITE_LIST + i);
+		return getBufferList(WRITE_LIST);
 	}
-	const_iterator getWriteBufferList(size_t i = 0) const
+	const BufferList& getWriteBufferList() const
 	{
-		if (i >= READ_LIST - WRITE_LIST)
-			throw std::runtime_error("no such writeable buffer");
-		return getBufferList(WRITE_LIST + i);
+		return getBufferList(WRITE_LIST);
 	}
 
 #undef READ_LIST

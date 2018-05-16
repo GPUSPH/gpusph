@@ -264,8 +264,8 @@ saVertexBoundaryConditions(
  */
 void
 computeVertexNormal(
-	MultiBufferList::const_iterator	bufread,
-	MultiBufferList::iterator		bufwrite,
+	BufferList const&	bufread,
+	BufferList&		bufwrite,
 	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd)
@@ -275,12 +275,12 @@ computeVertexNormal(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	float4 *boundelement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
+	float4 *boundelement = bufwrite.getData<BUFFER_BOUNDELEMENTS>();
 
-	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
-	const particleinfo *pinfo = bufread->getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
-	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
+	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
@@ -305,8 +305,8 @@ computeVertexNormal(
 /// Initialize gamma
 void
 saInitGamma(
-	MultiBufferList::const_iterator	bufread,
-	MultiBufferList::iterator		bufwrite,
+	BufferList const&	bufread,
+	BufferList&		bufwrite,
 	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
@@ -320,14 +320,14 @@ saInitGamma(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+	float4 *newGGam = bufwrite.getData<BUFFER_GRADGAMMA>();
 
-	const float4 *oldPos = bufread->getData<BUFFER_POS>();
-	const float4 *boundelement = bufread->getData<BUFFER_BOUNDELEMENTS>();
-	const particleinfo *pinfo = bufread->getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
-	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
-	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
+	const float4 *oldPos = bufread.getData<BUFFER_POS>();
+	const float4 *boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
+	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
@@ -381,8 +381,8 @@ saInitGamma(
 virtual
 void
 initIOmass_vertexCount(
-	MultiBufferList::iterator bufwrite,
-	MultiBufferList::const_iterator bufread,
+	BufferList& bufwrite,
+	BufferList const& bufread,
 	const	uint			numParticles,
 	const	uint*			cellStart,
 	const	uint			particleRangeEnd)
@@ -396,11 +396,11 @@ initIOmass_vertexCount(
 	dummy_shared = 2560;
 	#endif
 
-	const particleinfo *info = bufread->getData<BUFFER_INFO>();
-	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
-	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
-	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
-	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
+	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
 
 	// execute the kernel
 	cubounds::initIOmass_vertexCount<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
@@ -413,8 +413,8 @@ initIOmass_vertexCount(
 /// Adjusts the initial mass of vertex particles on open boundaries
 void
 initIOmass(
-	MultiBufferList::iterator bufwrite,
-	MultiBufferList::const_iterator bufread,
+	BufferList& bufwrite,
+	BufferList const& bufread,
 	const	uint			numParticles,
 	const	uint*			cellStart,
 	const	uint			particleRangeEnd,
@@ -429,14 +429,14 @@ initIOmass(
 	dummy_shared = 2560;
 	#endif
 
-	const float4 *oldPos = bufread->getData<BUFFER_POS>();
-	const float4 *forces = bufread->getData<BUFFER_FORCES>();
-	const particleinfo *info = bufread->getData<BUFFER_INFO>();
-	const hashKey *pHash = bufread->getData<BUFFER_HASH>();
-	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
-	const vertexinfo *vertices = bufread->getData<BUFFER_VERTICES>();
+	const float4 *oldPos = bufread.getData<BUFFER_POS>();
+	const float4 *forces = bufread.getData<BUFFER_FORCES>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 
-	float4 *newPos = bufwrite->getData<BUFFER_POS>();
+	float4 *newPos = bufwrite.getData<BUFFER_POS>();
 
 	// execute the kernel
 	cubounds::initIOmass<kerneltype><<< numBlocks, numThreads, dummy_shared >>>

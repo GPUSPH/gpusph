@@ -197,8 +197,8 @@ template<
 	BoundaryType boundarytype>
 struct CUDADensityHelper {
 	static void
-	process(MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
+	process(BufferList const& bufread,
+		BufferList& bufwrite,
 		const uint *cellStart,
 		const uint numParticles,
 		float slength,
@@ -212,8 +212,8 @@ template<
 	BoundaryType boundarytype>
 struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 	static void
-	process(MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
+	process(BufferList const& bufread,
+		BufferList& bufwrite,
 		const uint *cellStart,
 		const uint numParticles,
 		float slength,
@@ -222,15 +222,15 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		uint numThreads = BLOCK_SIZE_FORCES;
 		uint numBlocks = div_up(numParticles, numThreads);
 
-		const float4 *pos = bufread->getData<BUFFER_POS>();
-		const float4 *vol = bufread->getData<BUFFER_VOLUME>();
-		const particleinfo *info = bufread->getData<BUFFER_INFO>();
-		const hashKey *pHash = bufread->getData<BUFFER_HASH>();
-		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vol = bufread.getData<BUFFER_VOLUME>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* Update WRITE vel in place, caller should do a swap before and after */
-		float4 *vel = bufwrite->getData<BUFFER_VEL>();
-		float *sigma = bufwrite->getData<BUFFER_SIGMA>();
+		float4 *vel = bufwrite.getData<BUFFER_VEL>();
+		float *sigma = bufwrite.getData<BUFFER_SIGMA>();
 
 		cuforces::densityGrenierDevice<kerneltype, boundarytype>
 			<<<numBlocks, numThreads>>>(sigma, pos, vel, info, pHash, vol, cellStart, neibsList, numParticles, slength, influenceradius);
@@ -442,17 +442,17 @@ setrbstart(const int* rbfirstindex, int numbodies)
 
 void
 bind_textures(
-	MultiBufferList::const_iterator bufread,
+	BufferList const& bufread,
 	uint	numParticles)
 {
 	// bind textures to read all particles, not only internal ones
 	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread->getData<BUFFER_POS>(), numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread.getData<BUFFER_POS>(), numParticles*sizeof(float4)));
 	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, bufread->getData<BUFFER_VEL>(), numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, bufread->getData<BUFFER_INFO>(), numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, bufread.getData<BUFFER_VEL>(), numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, bufread.getData<BUFFER_INFO>(), numParticles*sizeof(particleinfo)));
 
-	const float4 *eulerVel = bufread->getData<BUFFER_EULERVEL>();
+	const float4 *eulerVel = bufread.getData<BUFFER_EULERVEL>();
 	if (needs_eulerVel) {
 		if (!eulerVel)
 			throw std::invalid_argument("eulerVel not set but needed");
@@ -463,13 +463,13 @@ bind_textures(
 	}
 
 	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, bufread->getData<BUFFER_GRADGAMMA>(), numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread->getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, bufread.getData<BUFFER_GRADGAMMA>(), numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 	}
 
 	if (visctype == KEPSVISC) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread->getData<BUFFER_TKE>(), numParticles*sizeof(float)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread->getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread.getData<BUFFER_TKE>(), numParticles*sizeof(float)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread.getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
 	}
 }
 
@@ -575,8 +575,8 @@ dtreduce(	float	slength,
 }
 
 void
-compute_density(MultiBufferList::const_iterator bufread,
-	MultiBufferList::iterator bufwrite,
+compute_density(BufferList const& bufread,
+	BufferList& bufwrite,
 	const uint *cellStart,
 	uint numParticles,
 	float slength,
@@ -589,8 +589,8 @@ compute_density(MultiBufferList::const_iterator bufread,
 
 void
 compute_density_diffusion(
-	MultiBufferList::const_iterator bufread,
-	MultiBufferList::iterator bufwrite,
+	BufferList const& bufread,
+	BufferList& bufwrite,
 	const	uint	*cellStart,
 	const	uint	numParticles,
 	const	uint	particleRangeEnd,
@@ -603,18 +603,18 @@ compute_density_diffusion(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	if (boundarytype == SA_BOUNDARY)
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread->getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 
 	auto params = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, PT_FLUID>(
-			bufwrite->getData<BUFFER_FORCES>(),
-			bufread->getData<BUFFER_POS>(),
-			bufread->getData<BUFFER_VEL>(),
-			bufread->getData<BUFFER_INFO>(),
-			bufread->getData<BUFFER_HASH>(),
+			bufwrite.getData<BUFFER_FORCES>(),
+			bufread.getData<BUFFER_POS>(),
+			bufread.getData<BUFFER_VEL>(),
+			bufread.getData<BUFFER_INFO>(),
+			bufread.getData<BUFFER_HASH>(),
 			cellStart,
-			bufread->getData<BUFFER_NEIBSLIST>(),
-			bufread->getData<BUFFER_GRADGAMMA>(),
-			bufread->getRawPtr<BUFFER_VERTPOS>(),
+			bufread.getData<BUFFER_NEIBSLIST>(),
+			bufread.getData<BUFFER_GRADGAMMA>(),
+			bufread.getRawPtr<BUFFER_VERTPOS>(),
 			particleRangeEnd,
 			deltap, slength, influenceRadius, dt);
 
@@ -633,17 +633,17 @@ compute_density_diffusion(
 
 // Clear the CFL buffers
 // TODO maybe we should clear forces here too?
-void clear_cfl(MultiBufferList::iterator bufwrite, uint numAllocatedParticles)
+void clear_cfl(BufferList& bufwrite, uint numAllocatedParticles)
 {
 	const uint fmaxElements = getFmaxElements(numAllocatedParticles);
 	const uint tempCflEls = getFmaxTempElements(fmaxElements);
 	const size_t fmax_size = fmaxElements*sizeof(float);
 	const size_t tempCfl_size = tempCflEls*sizeof(float);
 
-	float *cfl_forces = bufwrite->getData<BUFFER_CFL>();
-	float *cfl_gamma = bufwrite->getData<BUFFER_CFL_GAMMA>();
-	float *cfl_keps = bufwrite->getData<BUFFER_CFL_KEPS>();
-	float *tempCfl = bufwrite->getData<BUFFER_CFL_TEMP>();
+	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
+	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
+	float *cfl_keps = bufwrite.getData<BUFFER_CFL_KEPS>();
+	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
 
 	// Clear the CFL buffers by setting all bits to 1 (i.e. NAN)
 	int val = ~0;
@@ -662,8 +662,8 @@ void clear_cfl(MultiBufferList::iterator bufwrite, uint numAllocatedParticles)
 // Returns numBlock for delayed dt reduction in case of striping
 uint
 basicstep(
-	MultiBufferList::const_iterator bufread,
-	MultiBufferList::iterator bufwrite,
+	BufferList const& bufread,
+	BufferList& bufwrite,
 	float4	*rbforces,
 	float4	*rbtorques,
 	const	uint	*cellStart,
@@ -681,32 +681,32 @@ basicstep(
 	const	float	dt,
 	const	bool compute_object_forces)
 {
-	const float4 *pos = bufread->getData<BUFFER_POS>();
-	const float4 *vel = bufread->getData<BUFFER_VEL>();
-	const particleinfo *info = bufread->getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
-	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const float4 *vel = bufread.getData<BUFFER_VEL>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
-	const float4 *oldGGam = bufread->getData<BUFFER_GRADGAMMA>();
-	const float4 *boundelem = bufread->getData<BUFFER_BOUNDELEMENTS>();
+	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
+	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
 
-	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
-	float4 *xsph = bufwrite->getData<BUFFER_XSPH>();
-	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
+	float4 *xsph = bufwrite.getData<BUFFER_XSPH>();
+	float4 *newGGam = bufwrite.getData<BUFFER_GRADGAMMA>();
 
-	const float *turbvisc = const_cast<float*>(bufread->getData<BUFFER_TURBVISC>());
+	const float *turbvisc = const_cast<float*>(bufread.getData<BUFFER_TURBVISC>());
 
 	// TODO FIXME temporary k-eps needs TAU only for temporary storage
 	// across the split kernel calls in forces
-	float2 **tau = bufwrite->getRawPtr<BUFFER_TAU>();
+	float2 **tau = bufwrite.getRawPtr<BUFFER_TAU>();
 
-	float3 *keps_dkde = bufwrite->getData<BUFFER_DKDE>();
-	float *cfl_forces = bufwrite->getData<BUFFER_CFL>();
-	float *cfl_gamma = bufwrite->getData<BUFFER_CFL_GAMMA>();
-	float *cfl_keps = bufwrite->getData<BUFFER_CFL_KEPS>();
-	float *tempCfl = bufwrite->getData<BUFFER_CFL_TEMP>();
-	float *DEDt = bufwrite->getData<BUFFER_INTERNAL_ENERGY_UPD>();
+	float3 *keps_dkde = bufwrite.getData<BUFFER_DKDE>();
+	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
+	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
+	float *cfl_keps = bufwrite.getData<BUFFER_CFL_KEPS>();
+	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
+	float *DEDt = bufwrite.getData<BUFFER_INTERNAL_ENERGY_UPD>();
 
 	int dummy_shared = 0;
 
@@ -738,8 +738,8 @@ basicstep(
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			xsph,
-			bufread->getData<BUFFER_VOLUME>(),
-			bufread->getData<BUFFER_SIGMA>(),
+			bufread.getData<BUFFER_VOLUME>(),
+			bufread.getData<BUFFER_SIGMA>(),
 			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
@@ -750,8 +750,8 @@ basicstep(
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			xsph,
-			bufread->getData<BUFFER_VOLUME>(),
-			bufread->getData<BUFFER_SIGMA>(),
+			bufread.getData<BUFFER_VOLUME>(),
+			bufread.getData<BUFFER_SIGMA>(),
 			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
@@ -763,8 +763,8 @@ basicstep(
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			xsph,
-			bufread->getData<BUFFER_VOLUME>(),
-			bufread->getData<BUFFER_SIGMA>(),
+			bufread.getData<BUFFER_VOLUME>(),
+			bufread.getData<BUFFER_SIGMA>(),
 			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
@@ -781,8 +781,8 @@ basicstep(
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 				deltap, slength, influenceradius, step, dt,
 				xsph,
-				bufread->getData<BUFFER_VOLUME>(),
-				bufread->getData<BUFFER_SIGMA>(),
+				bufread.getData<BUFFER_VOLUME>(),
+				bufread.getData<BUFFER_SIGMA>(),
 				newGGam, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
@@ -796,8 +796,8 @@ basicstep(
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 				deltap, slength, influenceradius, step, dt,
 				xsph,
-				bufread->getData<BUFFER_VOLUME>(),
-				bufread->getData<BUFFER_SIGMA>(),
+				bufread.getData<BUFFER_VOLUME>(),
+				bufread.getData<BUFFER_SIGMA>(),
 				newGGam, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
@@ -812,8 +812,8 @@ basicstep(
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 				deltap, slength, influenceradius, step, dt,
 				xsph,
-				bufread->getData<BUFFER_VOLUME>(),
-				bufread->getData<BUFFER_SIGMA>(),
+				bufread.getData<BUFFER_VOLUME>(),
+				bufread.getData<BUFFER_SIGMA>(),
 				newGGam, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
@@ -841,7 +841,7 @@ basicstep(
 			forces, rbforces, rbtorques,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
-			bufread->getData<BUFFER_SIGMA>(),
+			bufread.getData<BUFFER_SIGMA>(),
 			newGGam, oldGGam,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau, DEDt);

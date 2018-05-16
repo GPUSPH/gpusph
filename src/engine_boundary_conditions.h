@@ -66,8 +66,8 @@ saVertexBoundaryConditions(
 // computes a normal for vertices in the initialization step
 virtual void
 computeVertexNormal(
-	MultiBufferList::const_iterator	bufread,
-	MultiBufferList::iterator		bufwrite,
+	const BufferList&	bufread,
+	BufferList&		bufwrite,
 	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
@@ -75,8 +75,8 @@ computeVertexNormal(
 // initialize gamma
 virtual void
 saInitGamma(
-	MultiBufferList::const_iterator	bufread,
-	MultiBufferList::iterator		bufwrite,
+	const BufferList&	bufread,
+	BufferList&		bufwrite,
 	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
@@ -89,8 +89,8 @@ saInitGamma(
 virtual
 void
 initIOmass_vertexCount(
-	MultiBufferList::iterator bufwrite,
-	MultiBufferList::const_iterator bufread,
+	BufferList& bufwrite,
+	const BufferList& bufread,
 	const	uint			numParticles,
 	const	uint*			cellStart,
 	const	uint			particleRangeEnd) = 0;
@@ -99,8 +99,8 @@ initIOmass_vertexCount(
 virtual
 void
 initIOmass(
-	MultiBufferList::iterator bufwrite,
-	MultiBufferList::const_iterator bufread,
+	BufferList& bufwrite,
+	const BufferList& bufread,
 	const	uint			numParticles,
 	const	uint*			cellStart,
 	const	uint			particleRangeEnd,

@@ -237,8 +237,8 @@ reorderDataAndFindCellStart(
 		uint*				segmentStart,		// TODO
 		const hashKey*		particleHash,		// sorted particle hashes (in)
 		const uint*			particleIndex,		// sorted particle indices (in)
-		MultiBufferList::iterator sorted_buffers,			// list of sorted buffers (out)
-		MultiBufferList::const_iterator unsorted_buffers,	// list of buffers to sort (in)
+		BufferList& sorted_buffers,			// list of sorted buffers (out)
+		BufferList const& unsorted_buffers,	// list of buffers to sort (in)
 		const uint			numParticles,		// total number of particles in input buffers (in)
 		uint*				newNumParticles)	// device pointer to number of active particles found (out)
 {
@@ -246,59 +246,59 @@ reorderDataAndFindCellStart(
 	const uint numBlocks = div_up(numParticles, numThreads);
 
 	// TODO find a smarter way to do this
-	const float4 *oldPos = unsorted_buffers->getData<BUFFER_POS>();
-	float4 *newPos = sorted_buffers->getData<BUFFER_POS>();
+	const float4 *oldPos = unsorted_buffers.getData<BUFFER_POS>();
+	float4 *newPos = sorted_buffers.getData<BUFFER_POS>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 
-	const float4 *oldVel = unsorted_buffers->getData<BUFFER_VEL>();
-	float4 *newVel = sorted_buffers->getData<BUFFER_VEL>();
+	const float4 *oldVel = unsorted_buffers.getData<BUFFER_VEL>();
+	float4 *newVel = sorted_buffers.getData<BUFFER_VEL>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 
-	const float4 *oldVol = unsorted_buffers->getData<BUFFER_VOLUME>();
-	float4 *newVol = sorted_buffers->getData<BUFFER_VOLUME>();
+	const float4 *oldVol = unsorted_buffers.getData<BUFFER_VOLUME>();
+	float4 *newVol = sorted_buffers.getData<BUFFER_VOLUME>();
 	if (oldVol)
 		CUDA_SAFE_CALL(cudaBindTexture(0, volTex, oldVol, numParticles*sizeof(float4)));
 
-	const float *oldEnergy = unsorted_buffers->getData<BUFFER_INTERNAL_ENERGY>();
-	float *newEnergy = sorted_buffers->getData<BUFFER_INTERNAL_ENERGY>();
+	const float *oldEnergy = unsorted_buffers.getData<BUFFER_INTERNAL_ENERGY>();
+	float *newEnergy = sorted_buffers.getData<BUFFER_INTERNAL_ENERGY>();
 	if (oldEnergy)
 		CUDA_SAFE_CALL(cudaBindTexture(0, energyTex, oldEnergy, numParticles*sizeof(float)));
 
 	// sorted already
-	const particleinfo *particleInfo = sorted_buffers->getData<BUFFER_INFO>();
+	const particleinfo *particleInfo = sorted_buffers.getData<BUFFER_INFO>();
 
-	const float4 *oldBoundElement = unsorted_buffers->getData<BUFFER_BOUNDELEMENTS>();
-	float4 *newBoundElement = sorted_buffers->getData<BUFFER_BOUNDELEMENTS>();
+	const float4 *oldBoundElement = unsorted_buffers.getData<BUFFER_BOUNDELEMENTS>();
+	float4 *newBoundElement = sorted_buffers.getData<BUFFER_BOUNDELEMENTS>();
 	if (oldBoundElement)
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, oldBoundElement, numParticles*sizeof(float4)));
 
-	const float4 *oldGradGamma = unsorted_buffers->getData<BUFFER_GRADGAMMA>();
-	float4 *newGradGamma = sorted_buffers->getData<BUFFER_GRADGAMMA>();
+	const float4 *oldGradGamma = unsorted_buffers.getData<BUFFER_GRADGAMMA>();
+	float4 *newGradGamma = sorted_buffers.getData<BUFFER_GRADGAMMA>();
 	if (oldGradGamma)
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
 
-	const vertexinfo *oldVertices = unsorted_buffers->getData<BUFFER_VERTICES>();
-	vertexinfo *newVertices = sorted_buffers->getData<BUFFER_VERTICES>();
+	const vertexinfo *oldVertices = unsorted_buffers.getData<BUFFER_VERTICES>();
+	vertexinfo *newVertices = sorted_buffers.getData<BUFFER_VERTICES>();
 	if (oldVertices)
 		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
 
-	const float *oldTKE = unsorted_buffers->getData<BUFFER_TKE>();
-	float *newTKE = sorted_buffers->getData<BUFFER_TKE>();
+	const float *oldTKE = unsorted_buffers.getData<BUFFER_TKE>();
+	float *newTKE = sorted_buffers.getData<BUFFER_TKE>();
 	if (oldTKE)
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, oldTKE, numParticles*sizeof(float)));
 
-	const float *oldEps = unsorted_buffers->getData<BUFFER_EPSILON>();
-	float *newEps = sorted_buffers->getData<BUFFER_EPSILON>();
+	const float *oldEps = unsorted_buffers.getData<BUFFER_EPSILON>();
+	float *newEps = sorted_buffers.getData<BUFFER_EPSILON>();
 	if (oldEps)
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
 
-	const float *oldTurbVisc = unsorted_buffers->getData<BUFFER_TURBVISC>();
-	float *newTurbVisc = sorted_buffers->getData<BUFFER_TURBVISC>();
+	const float *oldTurbVisc = unsorted_buffers.getData<BUFFER_TURBVISC>();
+	float *newTurbVisc = sorted_buffers.getData<BUFFER_TURBVISC>();
 	if (oldTurbVisc)
 		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
 
-	const float4 *oldEulerVel = unsorted_buffers->getData<BUFFER_EULERVEL>();
-	float4 *newEulerVel = sorted_buffers->getData<BUFFER_EULERVEL>();
+	const float4 *oldEulerVel = unsorted_buffers.getData<BUFFER_EULERVEL>();
+	float4 *newEulerVel = sorted_buffers.getData<BUFFER_EULERVEL>();
 	if (oldEulerVel)
 		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, oldEulerVel, numParticles*sizeof(float4)));
 
@@ -364,16 +364,16 @@ struct ptype_hash_compare :
 };
 
 void
-sort(	MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
+sort(	BufferList const& bufread,
+		BufferList& bufwrite,
 		uint	numParticles)
 {
 	thrust::device_ptr<particleinfo> particleInfo =
-		thrust::device_pointer_cast(bufwrite->getData<BUFFER_INFO>());
+		thrust::device_pointer_cast(bufwrite.getData<BUFFER_INFO>());
 	thrust::device_ptr<hashKey> particleHash =
-		thrust::device_pointer_cast(bufwrite->getData<BUFFER_HASH>());
+		thrust::device_pointer_cast(bufwrite.getData<BUFFER_HASH>());
 	thrust::device_ptr<uint> particleIndex =
-		thrust::device_pointer_cast(bufwrite->getData<BUFFER_PARTINDEX>());
+		thrust::device_pointer_cast(bufwrite.getData<BUFFER_PARTINDEX>());
 
 	ptype_hash_compare comp;
 

@@ -1365,8 +1365,8 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 
 void
 Problem::imposeBoundaryConditionHost(
-			MultiBufferList::iterator		bufwrite,
-			MultiBufferList::const_iterator	bufread,
+			BufferList&		bufwrite,
+			BufferList const&	bufread,
 					uint*			IOwaterdepth,
 			const	float			t,
 			const	uint			numParticles,

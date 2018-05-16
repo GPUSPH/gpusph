@@ -79,8 +79,8 @@ struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 {
 	static void process(
 				flag_t					options,
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator		bufwrite,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -97,8 +97,8 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, simflags
 
 	static void process(
 				flag_t					options,
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator		bufwrite,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -109,13 +109,13 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, simflags
 		uint numThreads = BLOCK_SIZE_CALCVORT;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const float4 *pos = bufread->getData<BUFFER_POS>();
-		const float4 *vel = bufread->getData<BUFFER_VEL>();
-		const particleinfo *info = bufread->getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
-		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-		float3 *vort = bufwrite->getData<BUFFER_VORTICITY>();
+		float3 *vort = bufwrite.getData<BUFFER_VORTICITY>();
 
 		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -154,8 +154,8 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, simflag
 
 	static void process(
 				flag_t					options,
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator		bufwrite,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -166,15 +166,15 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, simflag
 		uint numThreads = BLOCK_SIZE_CALCTEST;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const float4 *pos = bufread->getData<BUFFER_POS>();
-		const particleinfo *info = bufread->getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
-		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* in-place update! */
-		float4 *newVel = const_cast<float4*>(bufread->getData<BUFFER_VEL>());
-		float *newTke = const_cast<float*>(bufread->getData<BUFFER_TKE>());
-		float *newEpsilon = const_cast<float*>(bufread->getData<BUFFER_EPSILON>());
+		float4 *newVel = const_cast<float4*>(bufread.getData<BUFFER_VEL>());
+		float *newTke = const_cast<float*>(bufread.getData<BUFFER_TKE>());
+		float *newEpsilon = const_cast<float*>(bufread.getData<BUFFER_EPSILON>());
 
 		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -225,8 +225,8 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 
 	static void process(
 				flag_t					options,
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator		bufwrite,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -237,14 +237,14 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 		uint numThreads = BLOCK_SIZE_CALCTEST;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const float4 *pos = bufread->getData<BUFFER_POS>();
-		const float4 *vel = bufread->getData<BUFFER_VEL>();
-		const particleinfo *info = bufread->getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
-		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-		particleinfo *newInfo = bufwrite->getData<BUFFER_INFO>();
-		float4 *normals = bufwrite->getData<BUFFER_NORMALS>();
+		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO>();
+		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
 
 		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -300,8 +300,8 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, s
 
 	static void process(
 				flag_t					options,
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator		bufwrite,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -312,9 +312,9 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, s
 		uint numThreads = BLOCK_SIZE_CALCTEST;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const particleinfo *info = bufread->getData<BUFFER_INFO>();
-		const float4 *eulerVel = bufread->getData<BUFFER_EULERVEL>();
-		const float4 *boundElement = bufread->getData<BUFFER_BOUNDELEMENTS>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const float4 *eulerVel = bufread.getData<BUFFER_EULERVEL>();
+		const float4 *boundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
 
 		float *d_IOflux;
 
@@ -387,8 +387,8 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, simfl
 
 	static void process(
 				flag_t					options,
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator		bufwrite,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
@@ -399,13 +399,13 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, simfl
 		uint numThreads = BLOCK_SIZE_CALCTEST;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const float4 *pos = bufread->getData<BUFFER_POS>();
-		const float4 *vel = bufread->getData<BUFFER_VEL>();
-		const particleinfo *info = bufread->getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
-		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-		float *priv = bufwrite->getData<BUFFER_PRIVATE>();
+		float *priv = bufwrite.getData<BUFFER_PRIVATE>();
 
 		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -461,8 +461,8 @@ public:
 	{ return Helper::get_updated_buffers(m_options); }
 
 	void process(
-		MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator		bufwrite,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
 		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,

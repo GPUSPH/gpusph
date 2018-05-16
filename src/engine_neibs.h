@@ -83,14 +83,14 @@ public:
 			uint*		segmentStart,
 			const hashKey*	particleHash,
 			const uint*	particleIndex,
-			MultiBufferList::iterator sorted_buffers,
-			MultiBufferList::const_iterator unsorted_buffers,
+			BufferList& sorted_buffers,
+			const BufferList& unsorted_buffers,
 			const uint		numParticles,
 			uint*			newNumParticles) = 0;
 
 	virtual void
-	sort(	MultiBufferList::const_iterator bufread,
-			MultiBufferList::iterator bufwrite,
+	sort(	const BufferList& bufread,
+			BufferList& bufwrite,
 			uint	numParticles) = 0;
 
 	virtual void
