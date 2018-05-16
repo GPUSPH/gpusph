@@ -122,43 +122,43 @@ density_sum(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	const float4  *oldPos = bufread.getData<BUFFER_POS>();
+	const float4 *newPos = bufwrite.getConstData<BUFFER_POS>();
+
 	const float4  *oldVel = bufread.getData<BUFFER_VEL>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const float4  *oldVol = bufread.getData<BUFFER_VOLUME>();
+	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
+
 	const float4 *oldgGam = bufread.getData<BUFFER_GRADGAMMA>();
-	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
-	const float *oldTKE = bufread.getData<BUFFER_TKE>();
-	const float *oldEps = bufread.getData<BUFFER_EPSILON>();
+	float4 *newgGam = bufwrite.getData<BUFFER_GRADGAMMA>();
+
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-	const float3 *keps_dkde = bufread.getData<BUFFER_DKDE>();
-	const float4 *xsph = bufread.getData<BUFFER_XSPH>();
 
-	float4 *newPos = bufwrite.getData<BUFFER_POS>();
-	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-	float4 *newVol = bufwrite.getData<BUFFER_VOLUME>();
-	float4 *newEulerVel = bufwrite.getData<BUFFER_EULERVEL>();
-	float4 *newgGam = bufwrite.getData<BUFFER_GRADGAMMA>();
-	float *newTKE = bufwrite.getData<BUFFER_TKE>();
-	float *newEps = bufwrite.getData<BUFFER_EPSILON>();
-	// boundary elements are updated in-place; only used for rotation in the second step
-	float4 *newBoundElement = bufwrite.getData<BUFFER_BOUNDELEMENTS>();
+	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
+	const float4 *newEulerVel = bufwrite.getData<BUFFER_EULERVEL>();
+
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+	const float4 *newBoundElement = bufwrite.getData<BUFFER_BOUNDELEMENTS>();
+	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
 	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
-			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
+			oldPos, newPos, oldVel, newVel, oldgGam, newgGam,
 			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
-			slength, influenceradius, neibsList, cellStart, NULL, NULL);
+			slength, influenceradius, neibsList, cellStart,
+			oldEulerVel, newEulerVel,
+			NULL, NULL);
 
 	cudensity_sum::densitySumVolumicDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
 
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
-			oldPos, newPos, oldVel, newVel, oldgGam, newgGam, oldEulerVel, newEulerVel,
+			oldPos, newPos, oldVel, newVel, oldgGam, newgGam,
 			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
-			slength, influenceradius, neibsList, cellStart, newBoundElement, vertPos);
+			slength, influenceradius, neibsList, cellStart,
+			oldEulerVel, newEulerVel,
+			newBoundElement, vertPos);
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 

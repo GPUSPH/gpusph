@@ -63,8 +63,6 @@ struct common_density_sum_params
 			float4	*newVel;			///< updated particle's velocity (out)
 	const	float4	*oldgGam;
 			float4	*newgGam;
-	const	float4	*oldEulerVel;
-			float4	*newEulerVel;
 	const	hashKey	*particleHash;		///< particle's hash (in)
 	const	particleinfo	*info;		///< particle's information
 			float4	*forces;			///< derivative of particle's velocity and density (in/out)
@@ -86,8 +84,6 @@ struct common_density_sum_params
 				float4		*_newVel,
 		const	float4		*_oldgGam,
 				float4		*_newgGam,
-		const	float4		*_oldEulerVel,
-				float4		*_newEulerVel,
 		const	hashKey		*_particleHash,
 		const	particleinfo	*_info,
 				float4		*_forces,
@@ -106,8 +102,6 @@ struct common_density_sum_params
 		newVel(_newVel),
 		oldgGam(_oldgGam),
 		newgGam(_newgGam),
-		oldEulerVel(_oldEulerVel),
-		newEulerVel(_newEulerVel),
 		particleHash(_particleHash),
 		info(_info),
 		forces(_forces),
@@ -123,17 +117,32 @@ struct common_density_sum_params
 	{}
 };
 
+/// Additional parameters passed only to the kernel with open boundaries neighbors
+struct io_density_sum_params
+{
+	const float4 * __restrict__ oldEulerVel;
+	const float4 * __restrict__ newEulerVel;
+
+	io_density_sum_params(
+		const float4 * __restrict__ _oldEulerVel,
+		const float4 * __restrict__ _newEulerVel)
+	:
+		oldEulerVel(_oldEulerVel),
+		newEulerVel(_newEulerVel)
+	{}
+};
+
 /// Additional parameters passed only to the kernel with BOUNDARY neighbors
 struct boundary_density_sum_params
 {
-			float4	* __restrict__ newBoundElement;
+	const	float4	* __restrict__ newBoundElement;
 	const	float2	* __restrict__ vertPos0;
 	const	float2	* __restrict__ vertPos1;
 	const	float2	* __restrict__ vertPos2;
 
 	// Constructor / initializer
 	boundary_density_sum_params(
-				float4	*_newBoundElement,
+		const	float4	*_newBoundElement,
 		const	float2	* const _vertPos[]) :
 		newBoundElement(_newBoundElement),
 		vertPos0(_vertPos[0]),
@@ -148,6 +157,7 @@ template<KernelType _kerneltype,
 	flag_t _simflags>
 struct density_sum_params :
 	common_density_sum_params,
+	COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_density_sum_params),
 	COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -166,8 +176,6 @@ struct density_sum_params :
 				float4		*_newVel,
 		const	float4		*_oldgGam,
 				float4		*_newgGam,
-		const	float4		*_oldEulerVel,
-				float4		*_newEulerVel,
 		const	hashKey		*_particleHash,
 		const	particleinfo	*_info,
 				float4		*_forces,
@@ -181,12 +189,18 @@ struct density_sum_params :
 		const	neibdata	*_neibsList,
 		const	uint		*_cellStart,
 
+		// ENABLE_INLET_OUTLET
+		const float4 * __restrict__ _oldEulerVel,
+		const float4 * __restrict__ _newEulerVel,
+
 		// SA_BOUNDARY
-				float4*		_newBoundElement,
+		const	float4*		_newBoundElement,
 		const	float2*		const _vertPos[]) :
 
-		common_density_sum_params(_oldPos, _newPos, _oldVel, _newVel, _oldgGam, _newgGam, _oldEulerVel, _newEulerVel,
+		common_density_sum_params(_oldPos, _newPos, _oldVel, _newVel, _oldgGam, _newgGam,
 			_particleHash, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step, _slength, _influenceradius, _neibsList, _cellStart),
+		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_density_sum_params)
+			(_oldEulerVel, _newEulerVel),
 		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
 			(_newBoundElement, _vertPos)
 	{}

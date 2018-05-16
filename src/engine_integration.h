@@ -66,6 +66,7 @@ public:
 	setrbangularvel(const float3* angularvel, int numbodies) = 0;
 
 	/// Integral formulation of continuity equation
+	/*! Integrates density and gamma */
 	virtual void
 	density_sum(
 		const BufferList& bufread,	// this is the read only arrays
