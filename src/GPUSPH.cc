@@ -327,8 +327,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->t = hf[0]->get_t();
 		for (uint i = 0; i < hot_nrank; i++) {
 			hf[i]->load();
+#if 0
+			// for debugging, enable this and inspect contents
 			float4 *pos = gdata->s_hBuffers.getData<BUFFER_POS>();
 			particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
+#endif
 			hot_in[i].close();
 			cerr << "Successfully restored hot start file " << i+1 << " / " << hot_nrank << endl;
 			cerr << *hf[i];
