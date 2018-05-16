@@ -106,7 +106,6 @@ setrbsteprot(const float* rot, int numbodies)
 void
 density_sum(
 		BufferList const& bufread,
-		BufferList& bufreadUpdate,
 		BufferList& bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,
@@ -123,8 +122,10 @@ density_sum(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	const float4  *oldPos = bufread.getData<BUFFER_POS>();
+	const float4  *oldVel = bufread.getData<BUFFER_VEL>();
 	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
 	const float4  *oldVol = bufread.getData<BUFFER_VOLUME>();
+	const float4 *oldgGam = bufread.getData<BUFFER_GRADGAMMA>();
 	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
 	const float *oldTKE = bufread.getData<BUFFER_TKE>();
 	const float *oldEps = bufread.getData<BUFFER_EPSILON>();
@@ -135,11 +136,6 @@ density_sum(
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
 	const float3 *keps_dkde = bufread.getData<BUFFER_DKDE>();
 	const float4 *xsph = bufread.getData<BUFFER_XSPH>();
-
-	// The following two arrays are update in case ENABLE_DENSITY_SUM is set
-	// so they are taken from the non-const bufreadUpdate
-	float4  *oldVel = bufreadUpdate.getData<BUFFER_VEL>();
-	float4 *oldgGam = bufreadUpdate.getData<BUFFER_GRADGAMMA>();
 
 	float4 *newPos = bufwrite.getData<BUFFER_POS>();
 	float4 *newVel = bufwrite.getData<BUFFER_VEL>();

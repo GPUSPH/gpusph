@@ -69,7 +69,6 @@ public:
 	virtual void
 	density_sum(
 		const BufferList& bufread,	// this is the read only arrays
-		BufferList& bufreadUpdate,	// the read array but it will be written to in certain cases (densitySum)
 		BufferList& bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,

@@ -2421,7 +2421,6 @@ void GPUWorker::kernel_density_sum()
 
 	integrationEngine->density_sum(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
-		m_dBuffers.getReadBufferList(),	// the read array but it will be written to in certain cases (densitySum)
 		m_dBuffers.getWriteBufferList(),
 		m_dCellStart,
 		m_numParticles,
