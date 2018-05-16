@@ -2722,7 +2722,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	}
 };
 
-/// Specialization of particle-particle interaction for fluid-boundary with SA boundaries
+/// Specialization of particle-particle interaction for vertex-boundary with SA boundaries
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
