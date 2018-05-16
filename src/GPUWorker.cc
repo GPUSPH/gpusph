@@ -2395,7 +2395,6 @@ void GPUWorker::kernel_euler()
 
 	integrationEngine->basicstep(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
-		m_dBuffers.getReadBufferList(),	// the read array but it will be written to in certain cases (densitySum)
 		bufwrite,
 		m_dCellStart,
 		m_numParticles,

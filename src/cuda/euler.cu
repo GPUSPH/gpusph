@@ -243,7 +243,6 @@ apply_density_diffusion(
 void
 basicstep(
 		BufferList const& bufread,
-		BufferList& bufreadUpdate,
 		BufferList& bufwrite,
 		const	uint	*cellStart,
 		const	uint	numParticles,
@@ -277,7 +276,7 @@ basicstep(
 
 	// The following two arrays are update in case ENABLE_DENSITY_SUM is set
 	// so they are taken from the non-const bufreadUpdate
-	float4  *oldVel = bufreadUpdate.getData<BUFFER_VEL>();
+	const float4  *oldVel = bufread.getData<BUFFER_VEL>();
 
 	float4 *newPos = bufwrite.getData<BUFFER_POS>();
 	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
@@ -288,6 +287,7 @@ basicstep(
 	float *newEps = bufwrite.getData<BUFFER_EPSILON>();
 	float *newTurbVisc = bufwrite.getData<BUFFER_TURBVISC>();
 	// boundary elements are updated in-place; only used for rotation in the second step
+	// TODO splitneibs-merge for moving body integration
 	float4 *newBoundElement = bufwrite.getData<BUFFER_BOUNDELEMENTS>();
 
 	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
