@@ -207,8 +207,10 @@ private:
 	MultiBufferList::iterator getBufferListByCommandFlags(flag_t flags);
 
 	// setting or adding to buffer states
-	void setBufferState();
-	void addBufferState();
+	void setBufferState(const flag_t flags, std::string const& state);
+	void setBufferState(); // setBufferState() from commandFlags and extraCommandArg
+	void addBufferState(const flag_t flags, std::string const& state);
+	void addBufferState(); // addBufferState() from commandFlags and extraCommandArg
 
 	void uploadSubdomain();
 	void dumpBuffers();

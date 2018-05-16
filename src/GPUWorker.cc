@@ -1087,11 +1087,8 @@ GPUWorker::getBufferListByCommandFlags(flag_t flags)
 		m_dBuffers.getWriteBufferList() : m_dBuffers.getBufferList(0));
 }
 
-// Set the state of the given buffers
-void GPUWorker::setBufferState()
+void GPUWorker::setBufferState(const flag_t flags, std::string const& state)
 {
-	const flag_t flags = gdata->commandFlags;
-
 	// get the bufferlist to set the data for
 	BufferList& buflist = *getBufferListByCommandFlags(flags);
 
@@ -1101,26 +1098,35 @@ void GPUWorker::setBufferState()
 			continue;
 
 		AbstractBuffer *buf = iter.second;
-		buf->set_state(gdata->extraCommandArg.string);
+		buf->set_state(state);
+	}
+}
+
+// Set the state of the given buffers
+void GPUWorker::setBufferState()
+{
+	setBufferState(gdata->commandFlags, gdata->extraCommandArg.string);
+}
+
+void GPUWorker::addBufferState(const flag_t flags, std::string const& state)
+{
+	// get the bufferlist to set the data for
+	BufferList& buflist = *getBufferListByCommandFlags(flags);
+
+	for (auto& iter : buflist) {
+		flag_t buf_to_get = iter.first;
+		if (!(buf_to_get & flags))
+			continue;
+
+		AbstractBuffer *buf = iter.second;
+		buf->add_state(state);
 	}
 }
 
 // Add to the state of the given buffers
 void GPUWorker::addBufferState()
 {
-	const flag_t flags = gdata->commandFlags;
-
-	// get the bufferlist to set the data for
-	BufferList& buflist = *getBufferListByCommandFlags(flags);
-
-	for (auto& iter : buflist) {
-		flag_t buf_to_get = iter.first;
-		if (!(buf_to_get & flags))
-			continue;
-
-		AbstractBuffer *buf = iter.second;
-		buf->add_state(gdata->extraCommandArg.string);
-	}
+	addBufferState(gdata->commandFlags, gdata->extraCommandArg.string);
 }
 
 
