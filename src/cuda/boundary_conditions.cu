@@ -111,20 +111,19 @@ saSegmentBoundaryConditions(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	// TODO we take pos from bufwrite, but it's actually read-only for us
-	const	float4			*pos(bufwrite.getData<BUFFER_POS>());
+	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+	const	vertexinfo	*vertices(bufwrite.getConstData<BUFFER_VERTICES>());
 
 	float4	*vel(bufwrite.getData<BUFFER_VEL>());
 	float	*tke(bufwrite.getData<BUFFER_TKE>());
 	float	*eps(bufwrite.getData<BUFFER_EPSILON>());
 	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
 	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
 
 	int dummy_shared = 0;
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
