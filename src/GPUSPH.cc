@@ -594,11 +594,6 @@ bool GPUSPH::runSimulation() {
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
-		// the read buffer of gamma becomes the write one in case of dynamic gamma as forces
-		// writes the gradient of gamma at time n
-		if (USING_DYNAMIC_GAMMA(problem->simparams()->simflags))
-			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
-
 		if (gdata->debug.inspect_preforce)
 			saveParticles(noPostProcess, INTEGRATOR_STEP_1);
 
