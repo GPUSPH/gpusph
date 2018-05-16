@@ -43,6 +43,16 @@
 
 using namespace std;
 
+// Auxiliary function to turn a commandFlag INTEGRATOR_STEP_* into a step
+// number (0 = init, 1 = step 1, 2 = step 2, etc)
+int get_step_number(flag_t flags)
+{
+	if (flags & INITIALIZATION_STEP) return 0;
+	if (flags & INTEGRATOR_STEP_1) return 1;
+	if (flags & INTEGRATOR_STEP_2) return 2;
+	return -1;
+}
+
 GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	gdata(_gdata),
 	neibsEngine(gdata->simframework->getNeibsEngine()),
@@ -2077,11 +2087,15 @@ void GPUWorker::kernel_buildNeibsList()
 // returns numBlocks as computed by forces()
 uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset)
 {
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	const int step = get_step_number(gdata->commandFlags);
+	const bool firstStep = (step == 1);
 
-	return forcesEngine->basicstep(
+	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
+	bufwrite.add_state_on_write("forces" + to_string(step));
+
+	auto ret = forcesEngine->basicstep(
 		m_dBuffers.getReadBufferList(),
-		m_dBuffers.getWriteBufferList(),
+		bufwrite,
 		m_dRbForces,
 		m_dRbTorques,
 		m_dCellStart,
@@ -2095,9 +2109,12 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		m_simparams->epsilon,
 		m_dIOwaterdepth,
 		cflOffset,
-		firstStep ? 1 : 2,
+		step,
 		(firstStep ? 0.5f : 1.0f)*gdata->dt,
 		(m_simparams->numforcesbodies > 0) ? true : false);
+
+	bufwrite.clear_pending_state();
+	return ret;
 }
 
 /// Run the steps necessary for forces execution
@@ -2108,8 +2125,13 @@ void GPUWorker::pre_forces()
 	forcesEngine->bind_textures(m_dBuffers.getReadBufferList(),
 		m_numParticles);
 
-	if (m_simparams->simflags & ENABLE_DTADAPT)
-		forcesEngine->clear_cfl(m_dBuffers.getWriteBufferList(), m_numAllocatedParticles);
+	if (m_simparams->simflags & ENABLE_DTADAPT) {
+		BufferList& bufwrite(m_dBuffers.getWriteBufferList());
+		bufwrite.add_state_on_write("pre-forces");
+
+		forcesEngine->clear_cfl(bufwrite, m_numAllocatedParticles);
+		bufwrite.clear_pending_state();
+	}
 }
 
 /// Run the steps necessary to cleanup and complete forces execution
@@ -2125,6 +2147,7 @@ float GPUWorker::post_forces()
 		return m_simparams->dt;
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("post-forces");
 
 	// TODO multifluid: dtreduce needs the maximum viscosity. We compute it
 	// here and pass it over. This is inefficient as we compute it every time,
@@ -2142,7 +2165,7 @@ float GPUWorker::post_forces()
 		sspeed_cfl = fmaxf(sspeed_cfl, m_physparams->sscoeff[f]);
 	sspeed_cfl *= 1.1;
 
-	return forcesEngine->dtreduce(
+	auto ret = forcesEngine->dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
 		sspeed_cfl,
@@ -2152,6 +2175,9 @@ float GPUWorker::post_forces()
 		bufwrite.getData<BUFFER_CFL_KEPS>(),
 		bufwrite.getData<BUFFER_CFL_TEMP>(),
 		m_forcesKernelTotalNumBlocks);
+
+	bufwrite.clear_pending_state();
+	return ret;
 }
 
 // Aux method to warp signed cell coordinates if periodicity is enabled.
