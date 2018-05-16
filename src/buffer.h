@@ -44,6 +44,12 @@
 
 #include "cpp11_missing.h"
 
+enum BufferValidity {
+	BUFFER_VALID, //<! Buffer contains valid data
+	BUFFER_DIRTY, //<! Buffer contains valid data, but has been updated and needs resync in multi-device
+	BUFFER_INVALID, //<! Buffer contains invalid data
+};
+
 
 /* Base class for the Buffer template class.
  * The base pointer is a pointer to pointer to allow easy management
@@ -52,16 +58,10 @@
 class AbstractBuffer
 {
 public:
-	enum Validity {
-		BUFFER_VALID, //<! Buffer contains valid data
-		BUFFER_DIRTY, //<! Buffer contains valid data, but has been updated and needs resync in multi-device
-		BUFFER_INVALID, //<! Buffer contains invalid data
-	};
-
 private:
 	void **m_ptr;
 
-	Validity m_validity;
+	BufferValidity m_validity;
 
 	std::string m_state;
 
@@ -89,10 +89,10 @@ public:
 	inline bool is_valid() const { return m_validity == BUFFER_INVALID; }
 	inline bool is_dirty() const { return m_validity == BUFFER_DIRTY; }
 	inline bool is_invalid() const { return m_validity == BUFFER_INVALID; }
-	inline Validity validity() const  { return m_validity; }
+	inline BufferValidity validity() const  { return m_validity; }
 
 	// modify buffer validity
-	inline void mark_valid(Validity validity = BUFFER_VALID) { m_validity = validity; }
+	inline void mark_valid(BufferValidity validity = BUFFER_VALID) { m_validity = validity; }
 	inline void mark_dirty() { mark_valid(BUFFER_DIRTY); }
 	inline void mark_invalid() { mark_valid(BUFFER_INVALID); }
 
@@ -346,12 +346,12 @@ public:
 	}
 
 	// modify validity of all buffers
-	inline void mark_valid(AbstractBuffer::Validity validity = AbstractBuffer::BUFFER_VALID) {
+	inline void mark_valid(BufferValidity validity = BUFFER_VALID) {
 		for (auto& iter : m_map)
 			iter.second->mark_valid(validity);
 	}
-	inline void mark_dirty() { mark_valid(AbstractBuffer::BUFFER_DIRTY); }
-	inline void mark_invalid() { mark_valid(AbstractBuffer::BUFFER_INVALID); }
+	inline void mark_dirty() { mark_valid(BUFFER_DIRTY); }
+	inline void mark_invalid() { mark_valid(BUFFER_INVALID); }
 
 	// change state of all buffers
 	inline void set_state(std::string const& state) {
