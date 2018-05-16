@@ -2109,36 +2109,31 @@ enable_if_t<FP::visctype != KEPSVISC>
 write_keps(FP const& params, P const& pdata, OP& pout)
 { /* nothing to do */ }
 
-/// A functor that writes out gamma,
-/// but only for SA_BOUNDARY
-template<BoundaryType boundarytype,
-		ParticleType nptype,
-		bool dynamic_gamma>
-struct write_gamma
-{
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP& pout)
-	{ /* do nothing */ }
-};
 
-template<>
+/// Write out the new value of gamma
+/*! This is only used in the SA_BOUNDARY case,
+ * after looping over PT_BOUNDARY neighbors
+ */
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-write_gamma<SA_BOUNDARY, PT_BOUNDARY, false>::with(FP const& params, P const& pdata, OP& pout)
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::nptype == PT_BOUNDARY
+>
+write_gamma(FP const& params, P const& pdata, OP& pout)
 {
 	params.newGGam[pdata.index] = pout.gGam;
 }
 
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-write_gamma<SA_BOUNDARY, PT_BOUNDARY, true>::with(FP const& params, P const& pdata, OP& pout)
-{
-	// only update gradient of gamma
-	as_float3(params.newGGam[pdata.index]) = as_float3(pout.gGam);
-}
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype != SA_BOUNDARY ||
+	FP::nptype != PT_BOUNDARY
+>
+write_gamma(FP const& params, P const& pdata, OP& pout)
+{ /* nothing to do */ }
+
 
 /// A funcion that writes out gammaCfl, if present
 template<typename FP, typename P, typename OP>
@@ -2729,6 +2724,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		// Compute gamma_as and |grad gamma_as| and add it to the respective values
 		// of the focal particle
 		compute_gamma<SA_BOUNDARY, PT_VERTEX, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, ndata, pout, nout);
+		write_gamma(params, pdata, pout);
 	}
 };
 
@@ -2850,7 +2846,7 @@ forcesDevice(
 		} // End of loop over neighbors
 
 		write_keps(params, pdata, pout);
-		write_gamma<boundarytype, nptype, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, pout);
+		write_gamma(params, pdata, pout);
 		write_gamma_cfl(params, pdata, pout);
 
 		params.forces[pdata.index] = pout.force;
