@@ -708,6 +708,9 @@ basicstep(
 	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
 	float *DEDt = bufwrite.getData<BUFFER_INTERNAL_ENERGY_UPD>();
 
+	const float4 *volume = bufread.getData<BUFFER_VOLUME>();
+	const float *sigma = bufread.getData<BUFFER_SIGMA>();
+
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
@@ -738,8 +741,7 @@ basicstep(
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			xsph,
-			bufread.getData<BUFFER_VOLUME>(),
-			bufread.getData<BUFFER_SIGMA>(),
+			volume, sigma,
 			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
@@ -750,8 +752,7 @@ basicstep(
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			xsph,
-			bufread.getData<BUFFER_VOLUME>(),
-			bufread.getData<BUFFER_SIGMA>(),
+			volume, sigma,
 			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
@@ -763,8 +764,7 @@ basicstep(
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			xsph,
-			bufread.getData<BUFFER_VOLUME>(),
-			bufread.getData<BUFFER_SIGMA>(),
+			volume, sigma,
 			newGGam, cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
@@ -781,8 +781,7 @@ basicstep(
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 				deltap, slength, influenceradius, step, dt,
 				xsph,
-				bufread.getData<BUFFER_VOLUME>(),
-				bufread.getData<BUFFER_SIGMA>(),
+				volume, sigma,
 				newGGam, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
@@ -796,8 +795,7 @@ basicstep(
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 				deltap, slength, influenceradius, step, dt,
 				xsph,
-				bufread.getData<BUFFER_VOLUME>(),
-				bufread.getData<BUFFER_SIGMA>(),
+				volume, sigma,
 				newGGam, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
@@ -812,8 +810,7 @@ basicstep(
 				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 				deltap, slength, influenceradius, step, dt,
 				xsph,
-				bufread.getData<BUFFER_VOLUME>(),
-				bufread.getData<BUFFER_SIGMA>(),
+				volume, sigma,
 				newGGam, cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
@@ -841,7 +838,7 @@ basicstep(
 			forces, rbforces, rbtorques,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
-			bufread.getData<BUFFER_SIGMA>(),
+			sigma,
 			newGGam, oldGGam,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau, DEDt);
