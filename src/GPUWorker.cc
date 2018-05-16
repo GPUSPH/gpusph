@@ -2417,7 +2417,11 @@ void GPUWorker::kernel_density_sum()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	const int step = get_step_number(gdata->commandFlags);
+	const bool firstStep = (step == 1);
+
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("densitySum" + to_string(step));
 
 	integrationEngine->density_sum(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
@@ -2427,10 +2431,12 @@ void GPUWorker::kernel_density_sum()
 		numPartsToElaborate,
 		gdata->dt, // m_dt,
 		gdata->dt/2.0f, // m_dt/2.0,
-		firstStep ? 1 : 2,
+		step,
 		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
 		m_simparams->slength,
 		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_integrate_gamma()
