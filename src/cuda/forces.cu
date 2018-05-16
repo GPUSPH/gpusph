@@ -695,7 +695,7 @@ basicstep(
 	float4 *xsph = bufwrite.getData<BUFFER_XSPH>();
 	float4 *newGGam = bufwrite.getData<BUFFER_GRADGAMMA>();
 
-	const float *turbvisc = const_cast<float*>(bufread.getData<BUFFER_TURBVISC>());
+	const float *turbvisc = bufread.getData<BUFFER_TURBVISC>();
 
 	// TODO FIXME temporary k-eps needs TAU only for temporary storage
 	// across the split kernel calls in forces
