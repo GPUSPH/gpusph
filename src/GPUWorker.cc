@@ -2531,6 +2531,7 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("imposeBC");
 
 	gdata->problem->imposeBoundaryConditionHost(
 		m_dBuffers.getWriteBufferList(),
@@ -2540,6 +2541,8 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 		m_numParticles,
 		m_simparams->numOpenBoundaries,
 		numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
 
 }
 
@@ -2552,6 +2555,7 @@ void GPUWorker::kernel_initIOmass_vertexCount()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("initIOmass vertex count");
 
 	bcEngine->initIOmass_vertexCount(
 		m_dBuffers.getWriteBufferList(),
@@ -2559,6 +2563,8 @@ void GPUWorker::kernel_initIOmass_vertexCount()
 		m_numParticles,
 		m_dCellStart,
 		numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
 
 }
 
@@ -2571,6 +2577,7 @@ void GPUWorker::kernel_initIOmass()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("initIOmass");
 
 	bcEngine->initIOmass(
 		m_dBuffers.getWriteBufferList(),
@@ -2579,6 +2586,8 @@ void GPUWorker::kernel_initIOmass()
 		m_dCellStart,
 		numPartsToElaborate,
 		gdata->problem->m_deltap);
+
+	bufwrite.clear_pending_state();
 
 }
 
