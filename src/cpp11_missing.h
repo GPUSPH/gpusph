@@ -30,6 +30,8 @@
 #ifndef _CPP11_MISSING_H
 #define _CPP11_MISSING_H
 
+#include <type_traits>
+
 #if __cplusplus < 201103L
 
 /* decltype is only avaialable on C++11, but both gcc and clang support
@@ -65,7 +67,6 @@ struct enable_if<true, T>
 
 #else
 
-#include <type_traits>
 using std::conditional;
 using std::enable_if;
 
@@ -87,6 +88,19 @@ using std::void_t;
 template<typename ...>
 using void_t = void;
 #endif
+
+#if __cplusplus >= 201703L
+using std::as_const();
+#else
+template <class T>
+constexpr typename std::add_const<T>::type& as_const(T& t) noexcept
+{
+	return t;
+}
+template <class T>
+void as_const(const T&&) = delete;
+#endif
+
 
 
 #endif
