@@ -2446,20 +2446,26 @@ void GPUWorker::kernel_integrate_gamma()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	const int step = get_step_number(gdata->commandFlags);
+	const bool firstStep = (step == 1);
+
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("integrateGamma" + to_string(step));
 
 	integrationEngine->integrate_gamma(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
-		m_dBuffers.getWriteBufferList(),
+		bufwrite,
 		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		gdata->dt, // m_dt,
 		gdata->dt/2.0f, // m_dt/2.0,
-		firstStep ? 1 : 2,
+		step,
 		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
 		m_simparams->slength,
 		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_calc_density_diffusion()
@@ -2469,13 +2475,17 @@ void GPUWorker::kernel_calc_density_diffusion()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	const int step = get_step_number(gdata->commandFlags);
+	const bool firstStep = (step == 1);
+
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("calcDensityDiffusion" + to_string(step));
 
 	const float dt = (firstStep ? gdata->dt/2.0f : gdata->dt);
 
 	forcesEngine->compute_density_diffusion(
 		m_dBuffers.getReadBufferList(),
-		m_dBuffers.getWriteBufferList(),
+		bufwrite,
 		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
@@ -2483,6 +2493,8 @@ void GPUWorker::kernel_calc_density_diffusion()
 		m_simparams->slength,
 		m_simparams->influenceRadius,
 		dt);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_apply_density_diffusion()
@@ -2492,17 +2504,23 @@ void GPUWorker::kernel_apply_density_diffusion()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	const int step = get_step_number(gdata->commandFlags);
+	const bool firstStep = (step == 1);
+
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("applyDensityDiffusion" + to_string(step));
 
 	const float dt = (firstStep ? gdata->dt/2.0f : gdata->dt);
 
 	integrationEngine->apply_density_diffusion(
 		m_dBuffers.getReadBufferList(),
-		m_dBuffers.getWriteBufferList(),
+		bufwrite,
 		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		dt);
+
+	bufwrite.clear_pending_state();
 }
 
 void GPUWorker::kernel_download_iowaterdepth()
