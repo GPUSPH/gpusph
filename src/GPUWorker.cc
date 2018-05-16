@@ -827,6 +827,7 @@ void GPUWorker::transferBursts()
 					}
 				}
 
+				buf->mark_valid();
 			} // for each buffer type
 
 		} // iterate on bursts
@@ -1193,6 +1194,9 @@ void GPUWorker::uploadSubdomain() {
 			const void *srcptr = onhost->second->get_offset_buffer(ai, firstInnerParticle);
 			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
 		}
+
+		buf->set_state("initial upload");
+		buf->mark_valid();
 	}
 }
 
@@ -1943,7 +1947,11 @@ void GPUWorker::kernel_calcHash()
 	// This is required only in MULTI_DEVICE simulations but it holds also on single-device
 	// ones to keep numerical consistency.
 
-	if (gdata->iterations == 0)
+	const bool run_fix = (gdata->iterations == 0);
+
+	bufwrite.add_state_on_write(run_fix ? "fixHash" : "calcHash");
+
+	if (run_fix)
 		neibsEngine->fixHash(
 					bufwrite.getData<BUFFER_HASH>(),
 					bufwrite.getData<BUFFER_PARTINDEX>(),
@@ -1958,6 +1966,8 @@ void GPUWorker::kernel_calcHash()
 					bufread.getData<BUFFER_INFO>(),
 					m_dCompactDeviceMap,
 					m_numParticles);
+
+	bufwrite.clear_pending();
 }
 
 void GPUWorker::kernel_sort()
@@ -1967,10 +1977,15 @@ void GPUWorker::kernel_sort()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
+	MultiBufferList::iterator bufwrite(m_dBuffers.getWriteBufferList());
+	bufwrite->set_state_on_write("sorted");
+
 	neibsEngine->sort(
 			m_dBuffers.getReadBufferList(),
-			m_dBuffers.getWriteBufferList(),
+			bufwrite,
 			numPartsToElaborate);
+
+	bufwrite->clear_pending();
 }
 
 void GPUWorker::kernel_reorderDataAndFindCellStart()
@@ -1983,6 +1998,8 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 
 	MultiBufferList::const_iterator unsorted = m_dBuffers.getReadBufferList();
 	MultiBufferList::iterator sorted = m_dBuffers.getWriteBufferList();
+
+	sorted->set_state_on_write("sorted");
 
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	neibsEngine->reorderDataAndFindCellStart(
@@ -2001,6 +2018,12 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							unsorted,
 							m_numParticles,
 							m_dNewNumParticles);
+
+	flag_t sorted_buffers = sorted->get_updated_buffers();
+	setBufferState(sorted_buffers | DBLBUFFER_READ, "");
+	setBufferValidity(sorted_buffers | DBLBUFFER_READ, BUFFER_INVALID);
+
+	sorted->clear_pending();
 }
 
 void GPUWorker::kernel_buildNeibsList()
@@ -2014,6 +2037,8 @@ void GPUWorker::kernel_buildNeibsList()
 
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+
+	bufwrite.set_state_on_write("neibslist");
 
 	neibdata* neibsList = bufwrite.getData<BUFFER_NEIBSLIST>();
 
@@ -2044,6 +2069,8 @@ void GPUWorker::kernel_buildNeibsList()
 
 	// download the peak number of neighbors and the estimated number of interactions
 	neibsEngine->getinfo( gdata->timingInfo[m_deviceIndex] );
+
+	bufwrite.clear_pending();
 }
 
 // returns numBlocks as computed by forces()
