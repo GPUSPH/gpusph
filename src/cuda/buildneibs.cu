@@ -265,7 +265,7 @@ reorderDataAndFindCellStart(
 		CUDA_SAFE_CALL(cudaBindTexture(0, energyTex, oldEnergy, numParticles*sizeof(float)));
 
 	// sorted already
-	const particleinfo *particleInfo = sorted_buffers.getData<BUFFER_INFO>();
+	const particleinfo *particleInfo = sorted_buffers.getConstData<BUFFER_INFO>();
 
 	const float4 *oldBoundElement = unsorted_buffers.getData<BUFFER_BOUNDELEMENTS>();
 	float4 *newBoundElement = sorted_buffers.getData<BUFFER_BOUNDELEMENTS>();
