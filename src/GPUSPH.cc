@@ -321,6 +321,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf("---\n");
 		problem->copy_to_array(gdata->s_hBuffers);
 		printf("---\n");
+		gdata->s_hBuffers.set_state("problem init");
 	} else {
 		gdata->iterations = hf[0]->get_iterations();
 		gdata->dt = hf[0]->get_dt();
@@ -346,6 +347,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		delete[] hf;
 		delete[] hot_in;
 		resumed = true;
+		gdata->s_hBuffers.set_state("resumed");
 	}
 
 	cout << "RB First/Last Index:\n";
