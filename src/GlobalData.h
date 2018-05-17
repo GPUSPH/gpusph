@@ -333,18 +333,13 @@ struct GlobalData {
 	// step parameter, e.g. for predictor/corrector scheme
 	// command flags, i.e. parameter for the command
 	flag_t commandFlags;
-	// additional argument to be passed to the command
-	// since the union includes types with non-trivial constructors
-	// and destructors (string), we must provide our own constructor
-	// and destructor. Note that we assume the string is automatically
-	// cleared after use, so we do nothing. FIXME this should be a tagged
-	// union so that we know if we need to destruct the string.
-	union ExtraCommandArg {
+	// additional argument to be passed to the command.
+	// TODO FIXME a union won't cut it, because of std::string
+	struct ExtraCommandArg {
 		std::string string;
 		flag_t flag;
 		float  fp32;
 		ExtraCommandArg() : fp32(NAN) {}
-		~ExtraCommandArg() {}
 	};
 	ExtraCommandArg extraCommandArg;
 	// set to true if next kernel has to be run only on internal particles
