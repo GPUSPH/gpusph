@@ -640,7 +640,11 @@ bool GPUSPH::runSimulation() {
 				 * compute the density diffusion based on the new data
 				 */
 				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
+				if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+					doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+
 				doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
+
 				/* Swap back the arrays that'll get updated in-place */
 				doCommand(SWAP_BUFFERS, BUFFER_VEL);
 				doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
@@ -648,8 +652,11 @@ bool GPUSPH::runSimulation() {
 				if (MULTI_DEVICE)
 					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
 
-				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
+				/* Swap back POS and GRADGAMMA (and BOUNDELEMENTS if needed) too,
+				 * to restore the overall situation */
 				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
+				if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+					doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 			}
 		} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 			// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
@@ -750,7 +757,11 @@ bool GPUSPH::runSimulation() {
 				 * compute the density diffusion based on the new data
 				 */
 				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
+				if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+					doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+
 				doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
+
 				/* Swap back the arrays that'll get updated in-place */
 				doCommand(SWAP_BUFFERS, BUFFER_VEL);
 				doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
@@ -760,6 +771,8 @@ bool GPUSPH::runSimulation() {
 
 				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
 				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
+				if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+					doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 			}
 		} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 			// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
