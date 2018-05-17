@@ -2208,8 +2208,14 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	gdata->only_internal = true;
 
-	if (!(cFlag & INITIALIZATION_STEP))
+	if (!(cFlag & INITIALIZATION_STEP)) {
 		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
+		/* SA_CALC_SEGMENT_BOUNDARY_CONDITIONS and SA_CALC_VERTEX_BOUNDARY_CONDITIONS
+		 * get their normals from the READ position, but if we have moving bodies,
+		 * the new normals are in the WRITE position, so swap them */
+		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+	}
 
 	// compute boundary conditions on segments and detect outgoing particles at open boundaries
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
@@ -2220,6 +2226,12 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+
+	if (!(cFlag & INITIALIZATION_STEP)) {
+		/* Restore normals */
+		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+	}
 
 	// check if we need to delete some particles which passed through open boundaries
 	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET && (cFlag & INTEGRATOR_STEP_2)) {
