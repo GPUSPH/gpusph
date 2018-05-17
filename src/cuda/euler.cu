@@ -121,7 +121,7 @@ density_sum(
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const float4  *oldPos = bufread.getData<BUFFER_POS>();
+	const float4 *oldPos = bufread.getData<BUFFER_POS>();
 	const float4 *newPos = bufwrite.getConstData<BUFFER_POS>();
 
 	const float4  *oldVel = bufread.getData<BUFFER_VEL>();
@@ -136,11 +136,11 @@ density_sum(
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
 
 	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
-	const float4 *newEulerVel = bufwrite.getData<BUFFER_EULERVEL>();
+	const float4 *newEulerVel = bufwrite.getConstData<BUFFER_EULERVEL>();
 
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-	const float4 *newBoundElement = bufwrite.getData<BUFFER_BOUNDELEMENTS>();
+	const float4 *newBoundElement = bufwrite.getConstData<BUFFER_BOUNDELEMENTS>();
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
