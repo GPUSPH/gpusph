@@ -289,14 +289,19 @@ basicstep(
 	float *newTKE = bufwrite.getData<BUFFER_TKE>();
 	float *newEps = bufwrite.getData<BUFFER_EPSILON>();
 	float *newTurbVisc = bufwrite.getData<BUFFER_TURBVISC>();
-	// boundary elements are updated in-place; only used for rotation in the second step
-	// TODO splitneibs-merge for moving body integration
-	float4 *newBoundElement = bufwrite.getData<BUFFER_BOUNDELEMENTS>();
+
+	const bool has_moving = (simflags & ENABLE_MOVING_BODIES);
+	const float4 *oldBoundElement = has_moving ?
+		bufread.getData<BUFFER_BOUNDELEMENTS>() :
+		NULL;
+	float4 *newBoundElement = has_moving ?
+		bufwrite.getData<BUFFER_BOUNDELEMENTS>() :
+		NULL;
 
 	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
 			newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t, step,
 			xsph,
-			newEulerVel, newBoundElement, vertPos, oldEulerVel, slength, influenceradius, neibsList, cellStart,
+			newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
 			newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
 			newVol, oldVol,
 			newEnergy, oldEnergy, DEDt);

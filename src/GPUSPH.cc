@@ -642,7 +642,7 @@ bool GPUSPH::runSimulation() {
 				/* Put the new data into the READ position: this will be used to
 				 * compute the density diffusion based on the new data
 				 */
-				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
+				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
 				doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
 				/* Swap back the arrays that'll get updated in-place */
 				doCommand(SWAP_BUFFERS, BUFFER_VEL);
@@ -652,7 +652,7 @@ bool GPUSPH::runSimulation() {
 					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
 
 				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
-				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
+				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
 			}
 		} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 			// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
@@ -662,8 +662,6 @@ bool GPUSPH::runSimulation() {
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		}
-
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// variable gravity
 		if (problem->simparams()->gcallback) {
@@ -678,6 +676,8 @@ bool GPUSPH::runSimulation() {
 			saBoundaryConditions(INTEGRATOR_STEP_1);
 
 		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
+		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// Here the first part of our time integration scheme is complete. All updated values
 		// are now in the read buffers again.
@@ -752,7 +752,7 @@ bool GPUSPH::runSimulation() {
 				/* Put the new data into the READ position: this will be used to
 				 * compute the density diffusion based on the new data
 				 */
-				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
+				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
 				doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
 				/* Swap back the arrays that'll get updated in-place */
 				doCommand(SWAP_BUFFERS, BUFFER_VEL);
@@ -762,7 +762,7 @@ bool GPUSPH::runSimulation() {
 					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
 
 				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
-				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
+				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
 			}
 		} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 			// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
@@ -776,8 +776,6 @@ bool GPUSPH::runSimulation() {
 		// Euler needs always cg(n)
 		if (problem->simparams()->numbodies > 0)
 			doCommand(EULER_UPLOAD_OBJECTS_CG);
-
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// semi-analytical boundary conditions
 		if (problem->simparams()->boundarytype == SA_BOUNDARY)
@@ -822,6 +820,8 @@ bool GPUSPH::runSimulation() {
 		}
 
 		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
+		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// Here the second part of our time integration scheme is complete, i.e. the time-step is
 		// fully computed. All updated values are now in the read buffers again.

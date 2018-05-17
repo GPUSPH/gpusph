@@ -229,27 +229,31 @@ k_e_integration<true>::with(EP const& params, P &pdata, int index, float dt)
 	pdata.keps_e = (pdata.keps_e + dt*dkde.y)/(1.0f + dt*pdata.keps_e/oldK*dkde.z);
 }
 
+/// Update the boundary elements normals, when using SA_BOUNDARY and moving bodies
 // A functor that helps to update normal of boundary element, if using SA_BOUNDARY
-template<BoundaryType boundarytype>
-struct update_normals_SA {
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index)
-	{ /* do nothing*/ }
-};
-
-
-template<>
 template<typename EP, typename P>
-__device__ __forceinline__ void
-update_normals_SA<SA_BOUNDARY>::with(EP const& params, P &pdata, int index)
+__device__ __forceinline__
+enable_if_t<(
+	(EP::boundarytype == SA_BOUNDARY) &&
+	(EP::simflags & ENABLE_MOVING_BODIES)
+)>
+update_normals_SA(EP const& params, P &pdata, int index)
 {
+	float4 normal = params.oldBoundElement[index];
 	if (BOUNDARY(pdata.info) || VERTEX(pdata.info)) {
-		const float3 normal = as_float3(params.newBoundElement[index]);
-		applyrot(&d_rbsteprot[9*object(pdata.info)], normal, params.newBoundElement[index]);
+		applyrot(&d_rbsteprot[9*object(pdata.info)], make_float3(normal), normal);
 	}
+	params.newBoundElement[index] = normal;
 }
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<not (
+	(EP::boundarytype == SA_BOUNDARY) &&
+	(EP::simflags & ENABLE_MOVING_BODIES)
+)>
+update_normals_SA(EP const& params, P &pdata, int index)
+{ /* do nothing */ }
 
 // A functor that helps to integrate Eulerian velocity for k-eps, if using SA_BOUNDARY
 template<BoundaryType boundarytype, ViscosityType visctype>
@@ -539,9 +543,6 @@ eulerDevice(
 				// Computing particles velocity
 				// V(P) = V(Cg) + PCg^omega
 				as_float3(pdata.vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
-
-				// update normal of boundary element, if using SA_BOUNDARY
-				update_normals_SA<boundarytype>::with(params, pdata, index);
 			}
 
 			// DYN_BOUNDARY: integrate density and internal energy
@@ -574,6 +575,9 @@ eulerDevice(
 	// TODO FIXME
 	write_eulerVel<boundarytype, visctype==KEPSVISC || simflags & ENABLE_INLET_OUTLET>::with(params, pdata, index);
 	write_viscosity_coeff<visctype>::with(params, pdata, index);
+
+	// update normal of boundary element, if using SA_BOUNDARY and we have moving bodies
+	update_normals_SA(params, pdata, index);
 }
 
 /* vi:set ft=cuda: */

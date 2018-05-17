@@ -112,7 +112,6 @@ struct xsph_euler_params
 struct sa_boundary_euler_params
 {
 			float4	* __restrict__ newEulerVel;
-			float4	* __restrict__ newBoundElement;
 	const	float2	* __restrict__ vertPos0;
 	const	float2	* __restrict__ vertPos1;
 	const	float2	* __restrict__ vertPos2;
@@ -125,7 +124,6 @@ struct sa_boundary_euler_params
 	// Constructor / initializer
 	sa_boundary_euler_params(
 				float4	* __restrict__ _newEulerVel,
-				float4	* __restrict__ _newBoundElement,
 		const	float2	* __restrict__  const _vertPos[],
 		const	float4	* __restrict__ _oldEulerVel,
 		const	float	_slength,
@@ -133,7 +131,6 @@ struct sa_boundary_euler_params
 		const	neibdata	* __restrict__ _neibsList,
 		const	uint	* __restrict__ _cellStart) :
 		newEulerVel(_newEulerVel),
-		newBoundElement(_newBoundElement),
 		vertPos0(_vertPos[0]),
 		vertPos1(_vertPos[1]),
 		vertPos2(_vertPos[2]),
@@ -142,6 +139,21 @@ struct sa_boundary_euler_params
 		influenceradius(_influenceradius),
 		neibsList(_neibsList),
 		cellStart(_cellStart)
+	{}
+};
+
+/// Additional parameters passed only to kernels with SA_BOUNDARY and moving objects
+struct sa_boundary_moving_euler_params
+{
+			float4	* __restrict__ newBoundElement;
+	const	float4	* __restrict__ oldBoundElement;
+
+	sa_boundary_moving_euler_params(
+				float4	* __restrict__ _newBoundElement,
+		const	float4	* __restrict__ _oldBoundElement)
+	:
+		newBoundElement(_newBoundElement),
+		oldBoundElement(_oldBoundElement)
 	{}
 };
 
@@ -217,15 +229,16 @@ struct euler_params :
 	common_euler_params,
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_euler_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_euler_params),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params),
 	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_euler_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_euler_params),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)
 {
-	static const KernelType kerneltype = _kerneltype;
-	static const SPHFormulation sph_formulation = _sph_formulation;
-	static const BoundaryType boundarytype = _boundarytype;
-	static const ViscosityType visctype = _visctype;
-	static const flag_t simflags = _simflags;
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr SPHFormulation sph_formulation = _sph_formulation;
+	static constexpr BoundaryType boundarytype = _boundarytype;
+	static constexpr ViscosityType visctype = _visctype;
+	static constexpr flag_t simflags = _simflags;
 
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the euler kernel.
@@ -254,6 +267,7 @@ struct euler_params :
 				float4	* __restrict__ _newBoundElement,
 		const	float2	* __restrict__  const _vertPos[],
 		const	float4	* __restrict__ _oldEulerVel,
+		const	float4	* __restrict__ _oldBoundElement,
 		const	float	_slength,
 		const	float	_influenceradius,
 		const	neibdata	* __restrict__ _neibsList,
@@ -280,8 +294,9 @@ struct euler_params :
 			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_euler_params)
-			(_newEulerVel, _newBoundElement,
-			_vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
+			(_newEulerVel, _vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
+		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params)
+			(_newBoundElement, _oldBoundElement),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_euler_params)(_newTKE, _newEps, _newTurbVisc, _oldTKE, _oldEps, _keps_dkde),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(_newEnergy, _oldEnergy, _DEDt)
