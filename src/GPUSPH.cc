@@ -649,7 +649,7 @@ bool GPUSPH::runSimulation() {
 				doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
 
 				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
+					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
 
 				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
 				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
@@ -659,6 +659,8 @@ bool GPUSPH::runSimulation() {
 			// but we still need to integrate gamma, which needs the new position and thus
 			// needs to be done after EULER
 			doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_1);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
@@ -757,7 +759,7 @@ bool GPUSPH::runSimulation() {
 				doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
 
 				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
+					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
 
 				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
 				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
@@ -767,6 +769,8 @@ bool GPUSPH::runSimulation() {
 			// but we still need to integrate gamma, which needs the new position and thus
 			// needs to be done after EULER
 			doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_2);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		}
 
 		// Euler needs always cg(n)
