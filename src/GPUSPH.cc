@@ -738,8 +738,10 @@ bool GPUSPH::runSimulation() {
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
 		// swap read and writes again because the write contains the variables at time n
+		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_INTERNAL_ENERGY | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON);
 		// boundelements is swapped because the normals are updated in the moving objects case
-		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_INTERNAL_ENERGY | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
+		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
