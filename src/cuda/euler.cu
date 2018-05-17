@@ -190,19 +190,26 @@ integrate_gamma(
 
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
+	// boundary elements at step n
+	const float4 *oldBoundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
+	// boundary elements at step n+1, different only if ENABLE_MOVING_BODIES
+	const float4 *newBoundElement = (simflags & ENABLE_MOVING_BODIES) ?
+		bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
+		oldBoundElement;
+
 	integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
 		bufread.getData<BUFFER_POS>(), // pos at step n
-		bufwrite.getData<BUFFER_POS>(), // pos at step n+1
+		bufwrite.getConstData<BUFFER_POS>(), // pos at step n+1
 		bufread.getData<BUFFER_VEL>(), // vel at step n
-		bufwrite.getData<BUFFER_VEL>(), // vel at step n+1
+		bufwrite.getConstData<BUFFER_VEL>(), // vel at step n+1
 		bufread.getData<BUFFER_INFO>(), // particle info
 		bufread.getData<BUFFER_HASH>(), // particle hash
 		bufread.getData<BUFFER_GRADGAMMA>(), // gamma at step n
 		bufwrite.getData<BUFFER_GRADGAMMA>(), // gamma at step n+1 (output)
-		bufread.getData<BUFFER_BOUNDELEMENTS>(), // boundary elements at step n
-		bufwrite.getData<BUFFER_BOUNDELEMENTS>(), // boundary elements at step n+1 (in case of moving boundaries)
+		oldBoundElement,
+		newBoundElement,
 		bufread.getData<BUFFER_EULERVEL>(), // eulerian vel at step n
-		bufwrite.getData<BUFFER_EULERVEL>(), // eulerian vel at step n+1
+		bufwrite.getConstData<BUFFER_EULERVEL>(), // eulerian vel at step n+1
 		vertPos,
 		bufread.getData<BUFFER_NEIBSLIST>(),
 		cellStart,
