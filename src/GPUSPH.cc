@@ -685,6 +685,18 @@ bool GPUSPH::runSimulation() {
 
 		// Here the first part of our time integration scheme is complete. All updated values
 		// are now in the read buffers again.
+		/* TODO mark buffer validity */
+		doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, "n*");
+		doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, "n");
+
+		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
+			doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, "n");
+		} else {
+			doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, "n");
+		}
+
+		/* TODO mark buffer validity */
+		doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
 
 		// for Grenier formulation, compute sigma and smoothed density
 		if (problem->simparams()->sph_formulation == SPH_GRENIER) {
