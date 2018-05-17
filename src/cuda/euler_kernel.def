@@ -568,6 +568,10 @@ eulerDevice(
 	params.newVel[index] = pdata.vel;
 	write_volume<sph_formulation>::with(params, pdata, index);
 	write_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, index);
+	// the condition should just be “if the euler velocity is there”,
+	// which is currently for KEPSVISC or open boundaries, but we don't have an easy way
+	// to check for struct membership, so let's do it by enumerating the cases
+	// TODO FIXME
 	write_eulerVel<boundarytype, visctype==KEPSVISC || simflags & ENABLE_INLET_OUTLET>::with(params, pdata, index);
 	write_viscosity_coeff<visctype>::with(params, pdata, index);
 }
