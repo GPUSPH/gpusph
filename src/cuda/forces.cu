@@ -693,7 +693,6 @@ basicstep(
 
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
 	float4 *xsph = bufwrite.getData<BUFFER_XSPH>();
-	float4 *newGGam = bufwrite.getData<BUFFER_GRADGAMMA>();
 
 	const float *turbvisc = bufread.getData<BUFFER_TURBVISC>();
 
@@ -742,7 +741,7 @@ basicstep(
 			deltap, slength, influenceradius, step, dt,
 			xsph,
 			volume, sigma,
-			newGGam, cfl_gamma, vertPos, epsilon,
+			cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
 			DEDt);
@@ -753,7 +752,7 @@ basicstep(
 			deltap, slength, influenceradius, step, dt,
 			xsph,
 			volume, sigma,
-			newGGam, cfl_gamma, vertPos, epsilon,
+			cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
 			DEDt);
@@ -765,7 +764,7 @@ basicstep(
 			deltap, slength, influenceradius, step, dt,
 			xsph,
 			volume, sigma,
-			newGGam, cfl_gamma, vertPos, epsilon,
+			cfl_gamma, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau,
 			DEDt);
@@ -782,7 +781,7 @@ basicstep(
 				deltap, slength, influenceradius, step, dt,
 				xsph,
 				volume, sigma,
-				newGGam, cfl_gamma, vertPos, epsilon,
+				cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
 				DEDt);
@@ -796,7 +795,7 @@ basicstep(
 				deltap, slength, influenceradius, step, dt,
 				xsph,
 				volume, sigma,
-				newGGam, cfl_gamma, vertPos, epsilon,
+				cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
 				DEDt);
@@ -811,7 +810,7 @@ basicstep(
 				deltap, slength, influenceradius, step, dt,
 				xsph,
 				volume, sigma,
-				newGGam, cfl_gamma, vertPos, epsilon,
+				cfl_gamma, vertPos, epsilon,
 				IOwaterdepth,
 				keps_dkde, turbvisc, tau,
 				DEDt);
@@ -839,7 +838,7 @@ basicstep(
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
 			sigma,
-			newGGam, oldGGam,
+			oldGGam,
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau, DEDt);
 

@@ -206,8 +206,8 @@ struct density_sum_params :
 	{}
 };
 
-/// Common params for integrateGammaDevice
-struct common_integrate_gamma_params
+/// Common params for integrateGammaDevice in the dynamic gamma case
+struct common_dynamic_integrate_gamma_params
 {
 	const	float4	* __restrict__ oldPos; ///< positions at step n
 	const	float4	* __restrict__ newPos; ///< positions at step n+1
@@ -232,7 +232,7 @@ struct common_integrate_gamma_params
 	const	float	slength;
 	const	float	influenceradius;
 
-	common_integrate_gamma_params(
+	common_dynamic_integrate_gamma_params(
 		const	float4	* __restrict__ _oldPos, ///< positions at step n
 		const	float4	* __restrict__ _newPos, ///< positions at step n+1
 		const	float4	* __restrict__ _oldVel, ///< velocities at step n
@@ -273,6 +273,8 @@ struct common_integrate_gamma_params
 		full_dt(_full_dt), half_dt(_half_dt), t(_t), step(_step),
 		slength(_slength), influenceradius(_influenceradius)
 	{}
+
+	common_dynamic_integrate_gamma_params(common_dynamic_integrate_gamma_params const&) = default;
 };
 
 /// integrateGammaDevice parameters specific for I/O
@@ -288,13 +290,83 @@ struct io_integrate_gamma_params
 		oldEulerVel(_oldEulerVel),
 		newEulerVel(_newEulerVel)
 	{}
+
+	io_integrate_gamma_params(io_integrate_gamma_params const&) = default;
 };
 
-template<flag_t _simflags>
-struct integrate_gamma_params :
-	common_integrate_gamma_params,
-	COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_integrate_gamma_params)
+/// integrateGammaDevice parameters specific for !USING_DYNAMIC_GAMMA
+/* TODO merge common elements betwene common_dynamic_integrate_gamma_params
+ * and quadrature_gamma_params */
+struct quadrature_gamma_params
 {
+	const	float4	* __restrict__ newPos; ///< positions at step n+1
+	const	particleinfo * __restrict__ info; ///< particle info
+	const	hashKey	* __restrict__ particleHash; ///< particle hash
+	const	float4	* __restrict__ oldgGam; ///< previous gamma and its gradient
+			float4	* __restrict__ newgGam; ///< [out] new gamma and its gradient
+	const	float4	* __restrict__ newBoundElement; ///< boundary elements at step n+1
+	const	float2	* __restrict__ vertPos0;
+	const	float2	* __restrict__ vertPos1;
+	const	float2	* __restrict__ vertPos2;
+	const	neibdata *__restrict__ neibsList;
+	const	uint	* __restrict__ cellStart;
+	const	uint	particleRangeEnd; ///< max number of particles
+	const	float	epsilon;
+	const	float	slength;
+	const	float	influenceradius;
+
+	quadrature_gamma_params(
+		const	float4	* __restrict__ _newPos, ///< positions at step n+1
+		const	particleinfo * __restrict__ _info, ///< particle info
+		const	hashKey	* __restrict__ _particleHash, ///< particle hash
+		const	float4	* __restrict__ _oldgGam, ///< previous gamma and its gradient
+				float4	* __restrict__ _newgGam, ///< [out] new gamma and its gradient
+		const	float4	* __restrict__ _newBoundElement, ///< boundary elements at step n+1
+		const	float2	* const *_vertPos,
+		const	neibdata *__restrict__ _neibsList,
+		const	uint	* __restrict__ _cellStart,
+		const	uint	_particleRangeEnd, ///< max number of particles
+		const	float	_epsilon,
+		const	float	_slength,
+		const	float	_influenceradius) :
+		newPos(_newPos),
+		info(_info),
+		particleHash(_particleHash),
+		oldgGam(_oldgGam),
+		newgGam(_newgGam),
+		newBoundElement(_newBoundElement),
+		vertPos0(_vertPos[0]),
+		vertPos1(_vertPos[1]),
+		vertPos2(_vertPos[2]),
+		neibsList(_neibsList),
+		cellStart(_cellStart),
+		particleRangeEnd(_particleRangeEnd),
+		epsilon(_epsilon),
+		slength(_slength),
+		influenceradius(_influenceradius)
+	{}
+
+	/* Constructor from an quadrature_gamma_params with different cptype */
+	quadrature_gamma_params(quadrature_gamma_params const&) = default;
+};
+
+
+template<ParticleType _cptype, KernelType _kerneltype, flag_t _simflags,
+	bool dynamic = USING_DYNAMIC_GAMMA(_simflags),
+	typename dynamic_gamma_params = typename
+		COND_STRUCT(dynamic, common_dynamic_integrate_gamma_params),
+	typename dynamic_io_gamma_params = typename
+		COND_STRUCT(dynamic && (_simflags & ENABLE_INLET_OUTLET), io_integrate_gamma_params),
+	typename quadrature_params = typename
+		COND_STRUCT(!dynamic, quadrature_gamma_params)
+	>
+struct integrate_gamma_params :
+	dynamic_gamma_params,
+	dynamic_io_gamma_params,
+	quadrature_params
+{
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr ParticleType cptype = _cptype;
 	static constexpr flag_t simflags = _simflags;
 
 	integrate_gamma_params(
@@ -318,10 +390,11 @@ struct integrate_gamma_params :
 		const	float	_half_dt, ///< half of time step (dt/2)
 		const	float	_t, ///< simulation time
 		const	uint	_step, ///< integrator step
+		const	float	_epsilon, ///< epsilon for gamma tolerance
 		const	float	_slength,
 		const	float	_influenceradius)
 	:
-		common_integrate_gamma_params(
+		dynamic_gamma_params(
 				_oldPos, _newPos, _oldVel, _newVel,
 				_info, _particleHash,
 				_oldgGam, _newgGam, _oldBoundElement, _newBoundElement,
@@ -330,7 +403,18 @@ struct integrate_gamma_params :
 				_particleRangeEnd,
 				_full_dt, _half_dt, _t, _step,
 				_slength, _influenceradius),
-		COND_STRUCT(simflags & ENABLE_INLET_OUTLET, io_integrate_gamma_params)(_oldEulerVel, _newEulerVel)
+		dynamic_io_gamma_params(_oldEulerVel, _newEulerVel),
+		quadrature_params(_newPos, _info, _particleHash,
+			_oldgGam, _newgGam, _newBoundElement, _vertPos,
+			_neibsList, _cellStart, _particleRangeEnd, _epsilon, _slength, _influenceradius)
+	{}
+
+	/* Constructor from an integrate_gamma_params with different cptype */
+	template<typename OtherParams>
+	integrate_gamma_params(OtherParams const& p) :
+		dynamic_gamma_params(p),
+		dynamic_io_gamma_params(p),
+		quadrature_params(p)
 	{}
 };
 

@@ -93,6 +93,7 @@ public:
 		const	float	dt2,
 		const	int		step,
 		const	float	t,
+		const	float	epsilon,
 		const	float	slength,
 		const	float	influenceRadius) = 0;
 

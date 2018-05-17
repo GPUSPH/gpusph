@@ -615,11 +615,6 @@ bool GPUSPH::runSimulation() {
 		// boundelements is swapped because the normals are updated in the moving objects case
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
-		// swap back the gamma buffer that now contains the correct gradient of gamma
-		if (USING_DYNAMIC_GAMMA(problem->simparams()->simflags))
-			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
-
-
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(1);
@@ -707,10 +702,6 @@ bool GPUSPH::runSimulation() {
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
-		// swap grad gamma buffer so that gamma^{n+1/2} is in the write buffer
-		if (USING_DYNAMIC_GAMMA(problem->simparams()->simflags))
-			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
-
 		if (gdata->debug.inspect_preforce)
 			saveParticles(noPostProcess, INTEGRATOR_STEP_2);
 
@@ -727,10 +718,6 @@ bool GPUSPH::runSimulation() {
 		// if striping was active, now we want the kernels to complete
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
-
-		// swap back the gamma buffer that now contains the correct gradient of gamma
-		if (USING_DYNAMIC_GAMMA(problem->simparams()->simflags))
-			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 
 		// swap read and writes again because the write contains the variables at time n
 		// boundelements is swapped because the normals are updated in the moving objects case

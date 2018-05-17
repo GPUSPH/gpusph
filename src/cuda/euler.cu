@@ -177,6 +177,7 @@ integrate_gamma(
 		const	float	dt2,
 		const	int		step,
 		const	float	t,
+		const	float	epsilon,
 		const	float	slength,
 		const	float	influenceradius)
 {
@@ -186,7 +187,7 @@ integrate_gamma(
 
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
-	integrate_gamma_params<simflags> params(
+	integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
 		bufread.getData<BUFFER_POS>(), // pos at step n
 		bufwrite.getData<BUFFER_POS>(), // pos at step n+1
 		bufread.getData<BUFFER_VEL>(), // vel at step n
@@ -203,11 +204,17 @@ integrate_gamma(
 		bufread.getData<BUFFER_NEIBSLIST>(),
 		cellStart,
 		particleRangeEnd,
-		dt, dt2, t, step, slength, influenceradius);
+		dt, dt2, t, step,
+		epsilon, slength, influenceradius);
 
 	// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
 	// of the kernel
-	cudensity_sum::integrateGammaDevice<kerneltype><<< numBlocks, numThreads >>>(params);
+	cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(fluid_params);
+
+	if (simflags & ENABLE_MOVING_BODIES) {
+		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
+		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
+	}
 
 	KERNEL_CHECK_ERROR;
 }

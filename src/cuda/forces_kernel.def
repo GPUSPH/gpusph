@@ -505,13 +505,11 @@ struct sa_finalize_particle_data
 {
 	// x,y,z contains the gradient of gamma, w gamma itself
 	const float4	gGam;
-	const float4	oldGGam;
 
 	__device__ __forceinline__
 	sa_finalize_particle_data(const uint index,
 			sa_finalize_forces_params const& params) :
-		gGam(params.gGam[index]),
-		oldGGam(params.oldGGam[index])
+		gGam(params.gGam[index])
 	{}
 };
 
@@ -562,27 +560,6 @@ struct common_particle_output
 	common_particle_output(FP const& params, const uint index) :
 		force(params.forces[index])
 	{}
-};
-
-// SA_BOUNDARY
-struct sa_boundary_particle_output
-{
-	// x,y,z contains the gradient of gamma, w gamma itself
-	// During forces we compute the new gradient of g
-	float4	gGam;
-
-	template<typename FP>
-	__device__ __forceinline__
-	sa_boundary_particle_output(FP const& params, const uint index) :
-		gGam(make_float4(0, 0, 0, 1))
-	{
-		/* When using dynamic gamma, we only compute the new gradient,
-		 * so load the old value of gamma
-		 */
-		if (USING_DYNAMIC_GAMMA(FP::simflags)) {
-			gGam.w = tex1Dfetch(gamTex, index).w;
-		}
-	}
 };
 
 // CFL condition for gamma integration when using SA_BOUNDARY
@@ -683,10 +660,6 @@ template<BoundaryType _boundarytype,
 	ParticleType nptype>
 struct forces_particle_output :
 	common_particle_output,
-	// TODO FIXME KEPSVISC currently depends on SA_BOUNDARY (see .e.g viscous_fixup<KEPSVISC>),
-	// but there is no way to prevent it from being selected with other boundary conditions.
-	// When this is implemented, the || visctype == KEPSVISC should be removed
-	COND_STRUCT(_boundarytype == SA_BOUNDARY || _visctype == KEPSVISC, sa_boundary_particle_output),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT) &&
 		cptype == PT_FLUID && nptype == PT_BOUNDARY,
 		gamma_cfl_particle_output),
@@ -702,8 +675,6 @@ struct forces_particle_output :
 	__device__ __forceinline__
 	forces_particle_output(FP const& params, const uint index) :
 		common_particle_output(params, index),
-		// TODO FIXME see above
-		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output)(params, index),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && (simflags & ENABLE_DTADAPT) &&
 			cptype == PT_FLUID && nptype == PT_BOUNDARY,
 			gamma_cfl_particle_output)(),
@@ -982,9 +953,7 @@ struct skip_neiblist<SA_BOUNDARY, PT_VERTEX, nptype>
 	__device__ __forceinline__
 	void prepare(P const& pdata, OP &pout)
 	{
-		// FIXME currently we can expect it to be a vertex particle, and this is what
-		// we need to do, but in the future there might be other cases too
-		pout.gGam = pdata.oldGGam;
+		/* nothing, presently */
 	}
 };
 
@@ -1000,82 +969,45 @@ struct skip_neiblist<SA_BOUNDARY, PT_VERTEX, nptype>
  * for the method.
  */
 
-/// A functor that computes the new gamma. Obviously does something
-/// only in the case of SA_BOUNDARY
-template<BoundaryType, ParticleType cptype, bool usedynamicgamma>
-struct compute_gamma {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
+/// A functor that computes the neighbor contribution to the gradient of gamma
+template<typename FP, typename P, typename N>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID,
+	float
+>
+compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata)
+{
+	const float3 q = as_float3(ndata.relPos)/params.slength;
+	// relative positions of vertices with respect to the segment
+	float3 q_vb[3];
+	calcVertexRelPos(q_vb, ndata.belem,
+		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
+		params.slength);
+
+	return gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
 };
 
-template<ParticleType cptype>
-struct compute_gamma<SA_BOUNDARY, cptype, true> {
-	// compute the contribution to the gamma gradient from a single neighbor
-	template<typename FP, typename P, typename N>
-	__device__ __forceinline__
-	static float
-	gradient(FP const& params, P const& pdata, N const& ndata)
-	{
-		const float3 q = as_float3(ndata.relPos)/params.slength;
-		// relative positions of vertices with respect to the segment
-		float3 q_vb[3];
-		calcVertexRelPos(q_vb, ndata.belem,
-			params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
-			params.slength);
-
-		return gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
-	}
-
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		if (!pdata.computeGamma && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
-			return;
-
-		// compute nout.ggamAS
-		nout.ggamAS = gradient(params, pdata, ndata);
-
-		// TODO: we need to output grad gamma only when using olgGGam (that is grad gamma from the previous step).
-		// Check when olgGGam is REALLY necessary.
-		pout.gGam.x += nout.ggamAS*ndata.belem.x;
-		pout.gGam.y += nout.ggamAS*ndata.belem.y;
-		pout.gGam.z += nout.ggamAS*ndata.belem.z;
-	}
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID
+>
+compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	nout.ggamAS = compute_gamma_gradient(params, pdata, ndata);
 };
 
-template<ParticleType cptype>
-struct compute_gamma<SA_BOUNDARY, cptype, false> {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		if (!pdata.computeGamma && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
-			return;
-
-		const float3 q = as_float3(ndata.relPos)/params.slength;
-		float3 q_vb[3];
-		calcVertexRelPos(q_vb, ndata.belem,
-			params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
-			params.slength);
-
-		nout.ggamAS = gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
-		// TODO: we need to output grad gamma only when using olgGGam (that is grad gamma from the previous step).
-		// Check when olgGGam is REALLY necessary.
-		pout.gGam.x += nout.ggamAS*ndata.belem.x;
-		pout.gGam.y += nout.ggamAS*ndata.belem.y;
-		pout.gGam.z += nout.ggamAS*ndata.belem.z;
-
-		const float gamma_as = Gamma<FP::kerneltype, cptype>(params.slength, q, q_vb, as_float3(ndata.belem),
-					as_float3(pdata.oldGGam), params.epsilon);
-		pout.gGam.w -= gamma_as;
-	}
-};
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype != SA_BOUNDARY ||
+	FP::cptype != PT_FLUID
+>
+compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
 
 // A functor to compute the gamma CFL
 template<bool needs_cfl, bool ioBoundary>
@@ -2110,31 +2042,6 @@ write_keps(FP const& params, P const& pdata, OP& pout)
 { /* nothing to do */ }
 
 
-/// Write out the new value of gamma
-/*! This is only used in the SA_BOUNDARY case,
- * after looping over PT_BOUNDARY neighbors
- */
-template<typename FP, typename P, typename OP>
-__device__ __forceinline__
-enable_if_t<
-	FP::boundarytype == SA_BOUNDARY &&
-	FP::nptype == PT_BOUNDARY
->
-write_gamma(FP const& params, P const& pdata, OP& pout)
-{
-	params.newGGam[pdata.index] = pout.gGam;
-}
-
-template<typename FP, typename P, typename OP>
-__device__ __forceinline__
-enable_if_t<
-	FP::boundarytype != SA_BOUNDARY ||
-	FP::nptype != PT_BOUNDARY
->
-write_gamma(FP const& params, P const& pdata, OP& pout)
-{ /* nothing to do */ }
-
-
 /// A funcion that writes out gammaCfl, if present
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
@@ -2613,7 +2520,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	{
 		// Compute gamma_as and |grad gamma_as| and add it to the respective values
 		// of the focal particle
-		compute_gamma<SA_BOUNDARY, PT_FLUID, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, ndata, pout, nout);
+		compute_gamma_gradient(params, pdata, ndata, pout, nout);
 
 		if (!(simflags & ENABLE_DENSITY_SUM)) {
 			// Computes d\rho/dt, including ferrari correction
@@ -2721,10 +2628,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		// Compute gamma_as and |grad gamma_as| and add it to the respective values
-		// of the focal particle
-		compute_gamma<SA_BOUNDARY, PT_VERTEX, USING_DYNAMIC_GAMMA(simflags)>::with(params, pdata, ndata, pout, nout);
-		write_gamma(params, pdata, pout);
+		// TODO FIXME this was used to compute gamma on the vertex particles,
+		// but this is now done in INTEGRATE_GAMMA or DENSITY_SUM
+		compute_gamma_gradient(params, pdata, ndata, pout, nout);
 	}
 };
 
@@ -2846,7 +2752,6 @@ forcesDevice(
 		} // End of loop over neighbors
 
 		write_keps(params, pdata, pout);
-		write_gamma(params, pdata, pout);
 		write_gamma_cfl(params, pdata, pout);
 
 		params.forces[pdata.index] = pout.force;
@@ -3052,9 +2957,7 @@ struct sa_boundary_density_diffusion_neib_output
 	__device__ __forceinline__
 	sa_boundary_density_diffusion_neib_output
 	(FP const& params, P const& pdata, N const& ndata) :
-		ggamAS(compute_gamma
-			<FP::boundarytype, FP::cptype, true>::gradient
-			(params, pdata, ndata))
+		ggamAS(compute_gamma_gradient(params, pdata, ndata))
 	{}
 };
 

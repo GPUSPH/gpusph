@@ -116,6 +116,41 @@ struct density_sum_particle_data :
 
 template<class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
+enable_if_t<Params::simflags & ENABLE_INLET_OUTLET>
+densitySumOpenBoundaryContribution(
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+			float&	sumVmwDelta)
+{
+	if (IO_BOUNDARY(neib_info)) {
+		// compute - sum_{V^{io}} m^n w(r + delta r)
+		const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+		const float newDist = length3(relPosN + deltaR);
+		if (newDist < params.influenceradius)
+			sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, params.slength);
+	}
+}
+
+template<class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
+__device__ __forceinline__
+enable_if_t<!(Params::simflags & ENABLE_INLET_OUTLET)>
+densitySumOpenBoundaryContribution(
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+			float&	sumVmwDelta)
+{ /* do nothing */ }
+
+
+template<class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
+__device__ __forceinline__
 static void
 computeDensitySumVolumicTerms(
 	Params			const&	params,
@@ -160,13 +195,8 @@ computeDensitySumVolumicTerms(
 		if (rNp1 < params.influenceradius)
 			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
 
-		if (IO_BOUNDARY(neib_info)) {
-			// compute - sum_{V^{io}} m^n w(r + delta r)
-			const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
-			const float newDist = length3(relPosN + deltaR);
-			if (newDist < params.influenceradius)
-				sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, params.slength);
-		}
+		densitySumOpenBoundaryContribution(params, pdata, dt,
+			neib_index, neib_info, relPosN, sumVmwDelta);
 	}
 }
 
@@ -494,31 +524,135 @@ densitySumBoundaryDevice(
 }
 
 /// Integrate gamma
-/** Gamma is always integrated using a “density sum” approach,
- * from the difference of the particle distribution at step n
- * and at step n+1 (hence why the kernel is here in
- * the density sum namespace)
-*/
-template<KernelType kerneltype, typename Params, flag_t simflags=Params::simflags>
-__global__ void
-integrateGammaDevice(Params params)
+/** We need two specializations of this kernel, one for gamma quadrature case,
+ * and one for the dynamic gamma case. Since we can't use enable_if to select
+ * the case, we refactor the specialization into an integrateGammaDeviceFunc
+ * called by the kernel directly.
+ *
+ * The dynamic gamma case uses the same approach as the density sum,
+ * computing gamma from the difference of the particle distribution at step n
+ * and at step n+1 (hence why the kernel is here in the density sum namespace).
+ *
+ * The quadrature case computes gamma from the quadrature formula directly.
+ */
+template<typename Params>
+__device__ __forceinline__
+enable_if_t<USING_DYNAMIC_GAMMA(Params::simflags)>
+integrateGammaDeviceFunc(Params params, uint index)
 {
-	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	// only perform density integration for fluid particles
-	if (index >= params.particleRangeEnd || !FLUID(params.info[index]))
-		return;
-
 	// We use dt/2 on the first step, the actual dt on the second step
 	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
 
 	integrate_gamma_particle_data pdata(index, params);
 
-	gamma_sum_terms<kerneltype, simflags> sumGam;
+	gamma_sum_terms<Params::kerneltype, Params::simflags> sumGam;
 
 	computeDensitySumBoundaryTerms(params, pdata, dt, sumGam);
 
 	params.newgGam[index] = make_float4(sumGam.gGam, params.oldgGam[index].w + sumGam.gGamDotR);
+}
+
+struct quadrature_gamma_particle_data
+{
+	const float4	oldGGam;
+	const float4	pos;
+	const int3	gridPos;
+
+	template<typename FP>
+	__device__ __forceinline__
+	quadrature_gamma_particle_data(FP const& params, uint index) :
+		oldGGam(params.oldgGam[index]),
+		pos(params.newPos[index]),
+		gridPos(calcGridPosFromParticleHash(params.particleHash[index]))
+	{}
+};
+
+struct quadrature_gamma_particle_output
+{
+	float4 gGam;
+
+	__device__ __forceinline__
+	quadrature_gamma_particle_output() :
+		gGam(make_float4(0, 0, 0, 1))
+	{}
+};
+
+struct quadrature_gamma_neib_data
+{
+	const uint index;
+	const float4 relPos;
+	const float4 belem;
+
+	template<typename FP, typename Iterator>
+	__device__ __forceinline__
+	quadrature_gamma_neib_data(FP const& params, Iterator const& iter) :
+		index(iter.neib_index()),
+		relPos(iter.relPos(params.newPos[index])),
+		belem(params.newBoundElement[index])
+	{}
+
+};
+
+/// Contribution to gamma and gamma gradient from a single neighbor, in the case of gamma quadrature
+template<typename FP, typename P, typename N, typename OP>
+__device__ __forceinline__
+void
+gamma_quadrature_contrib(FP const& params, P const& pdata, N const& ndata, OP &pout)
+{
+	const float3 q = as_float3(ndata.relPos)/params.slength;
+	float3 q_vb[3];
+	calcVertexRelPos(q_vb, ndata.belem,
+		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
+		params.slength);
+
+	float ggamAS = gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
+	pout.gGam.x += ggamAS*ndata.belem.x;
+	pout.gGam.y += ggamAS*ndata.belem.y;
+	pout.gGam.z += ggamAS*ndata.belem.z;
+
+	const float gamma_as = Gamma<FP::kerneltype, FP::cptype>(params.slength, q, q_vb, as_float3(ndata.belem),
+		as_float3(pdata.oldGGam), params.epsilon);
+	pout.gGam.w -= gamma_as;
+}
+
+/// Integrate gamma using gamma quadrature
+template<typename Params>
+__device__ __forceinline__
+enable_if_t<!USING_DYNAMIC_GAMMA(Params::simflags)>
+integrateGammaDeviceFunc(Params params, const uint index)
+{
+	const quadrature_gamma_particle_data pdata(params, index);
+	quadrature_gamma_particle_output pout;
+
+	for_each_neib(PT_BOUNDARY, index, pdata.pos, pdata.gridPos,
+		params.cellStart, params.neibsList)
+	{
+		const quadrature_gamma_neib_data ndata(params, neib_iter);
+
+		gamma_quadrature_contrib(params, pdata, ndata, pout);
+	}
+
+	params.newgGam[index] = pout.gGam;
+}
+
+template<typename Params>
+__global__ void
+integrateGammaDevice(Params params)
+{
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.particleRangeEnd)
+		return;
+
+	const particleinfo pinfo = params.info[index];
+
+	/* We only need to integrate gamma on fluid and vertex particles */
+	/* And actually vertex particles should only be considered in the case
+	 * of moving bodies or open boundaries */
+	if (PART_TYPE(pinfo) != Params::cptype)
+		return;
+
+	integrateGammaDeviceFunc(params, index);
 }
 
 } // end of namespace cudensity_sum

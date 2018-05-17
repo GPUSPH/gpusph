@@ -204,7 +204,6 @@ struct volume_forces_params
 /// in case of of a fluid/boudary interaction
 struct sa_boundary_forces_params
 {
-			float4	* __restrict__ newGGam;
 			float	* __restrict__ cfl_gamma;
 	const	float2	* __restrict__ vertPos0;
 	const	float2	* __restrict__ vertPos1;
@@ -213,11 +212,9 @@ struct sa_boundary_forces_params
 
 	// Constructor / initializer
 	sa_boundary_forces_params(
-				float4	* __restrict__ _newGGam,
 				float	* __restrict__ _cfl_gamma,
 		const	float2	* __restrict__  const _vertPos[],
 		const	float	_epsilon) :
-		newGGam(_newGGam),
 		cfl_gamma(_cfl_gamma),
 		epsilon(_epsilon)
 	{
@@ -235,14 +232,10 @@ struct sa_boundary_forces_params
 struct sa_finalize_forces_params
 {
 	const	float4	*gGam;
-	const	float4	*oldGGam;
 
 	// Constructor / initializer
-	sa_finalize_forces_params(
-		const	float4	*_gGam,
-		const	float4	*_oldGGam) :
-		gGam(_gGam),
-		oldGGam(_oldGGam)
+	sa_finalize_forces_params(const	float4	*_gGam) :
+		gGam(_gGam)
 	{}
 };
 
@@ -341,7 +334,6 @@ struct forces_params :
 		const	float	* __restrict__ _sigmaArray,
 
 		// SA_BOUNDARY
-				float4	* __restrict__ _newGGam,
 				float	* __restrict__ _cfl_gamma,
 		const	float2	* __restrict__ const _vertPos[],
 		const	float	_epsilon,
@@ -365,7 +357,7 @@ struct forces_params :
 			densitydiffusiontype == COLAGROSSI, volume_forces_params)(_volArray),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_forces_params)
-			(_newGGam, _cfl_gamma, _vertPos, _epsilon),
+			(_cfl_gamma, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
@@ -420,7 +412,6 @@ struct finalize_forces_params :
 
 		// SA_BOUNDARY
 		const	float4	*_gGam,
-		const	float4	*_oldGGam,
 
 		// ENABLE_WATER_DEPTH
 				uint	*_IOwaterdepth,
@@ -438,7 +429,7 @@ struct finalize_forces_params :
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params)
 			(_cfl_forces, _cfl_gamma, _cfl_keps, _cflOffset),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam, _oldGGam),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
