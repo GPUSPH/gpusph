@@ -612,9 +612,6 @@ bool GPUSPH::runSimulation() {
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
 
-		// boundelements is swapped because the normals are updated in the moving objects case
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(1);
