@@ -756,7 +756,7 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = true;
 
 		if (gdata->debug.inspect_pregamma)
-			saveParticles(noPostProcess, INTEGRATOR_STEP_1);
+			saveParticles(noPostProcess, INTEGRATOR_STEP_2);
 
 		if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
 			// compute density based on an integral formulation
