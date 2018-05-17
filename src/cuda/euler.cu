@@ -140,7 +140,10 @@ density_sum(
 
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-	const float4 *newBoundElement = bufwrite.getConstData<BUFFER_BOUNDELEMENTS>();
+	const float4 *oldBoundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
+	const float4 *newBoundElement = (simflags & ENABLE_MOVING_BODIES) ?
+		bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
+		oldBoundElement;
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
@@ -149,7 +152,7 @@ density_sum(
 			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
 			slength, influenceradius, neibsList, cellStart,
 			oldEulerVel, newEulerVel,
-			NULL, NULL);
+			NULL, NULL, NULL);
 
 	cudensity_sum::densitySumVolumicDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
 
@@ -158,7 +161,7 @@ density_sum(
 			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
 			slength, influenceradius, neibsList, cellStart,
 			oldEulerVel, newEulerVel,
-			newBoundElement, vertPos);
+			oldBoundElement, newBoundElement, vertPos);
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 

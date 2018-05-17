@@ -135,6 +135,7 @@ struct io_density_sum_params
 /// Additional parameters passed only to the kernel with BOUNDARY neighbors
 struct boundary_density_sum_params
 {
+	const	float4	* __restrict__ oldBoundElement;
 	const	float4	* __restrict__ newBoundElement;
 	const	float2	* __restrict__ vertPos0;
 	const	float2	* __restrict__ vertPos1;
@@ -142,8 +143,10 @@ struct boundary_density_sum_params
 
 	// Constructor / initializer
 	boundary_density_sum_params(
+		const	float4	*_oldBoundElement,
 		const	float4	*_newBoundElement,
 		const	float2	* const _vertPos[]) :
+		oldBoundElement(_oldBoundElement),
 		newBoundElement(_newBoundElement),
 		vertPos0(_vertPos[0]),
 		vertPos1(_vertPos[1]),
@@ -194,6 +197,7 @@ struct density_sum_params :
 		const float4 * __restrict__ _newEulerVel,
 
 		// SA_BOUNDARY
+		const	float4*		_oldBoundElement,
 		const	float4*		_newBoundElement,
 		const	float2*		const _vertPos[]) :
 
@@ -202,7 +206,7 @@ struct density_sum_params :
 		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_density_sum_params)
 			(_oldEulerVel, _newEulerVel),
 		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
-			(_newBoundElement, _vertPos)
+			(_oldBoundElement, _newBoundElement, _vertPos)
 	{}
 };
 

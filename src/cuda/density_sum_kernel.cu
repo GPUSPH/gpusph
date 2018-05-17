@@ -322,23 +322,34 @@ computeDensitySumBoundaryTerms(
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
 		const float4 qNp1 = (neib_iter.relPos(posNp1_neib) + posDelta)/params.slength;
 
-		// normal of segment
-		const float3 ns = as_float3(params.newBoundElement[neib_index]);
-
-		// TODO vertexRelPos does not account for movement of the object atm
 		float3 vertexRelPos[3];
-		calcVertexRelPos(vertexRelPos, ns,
+
+		// normal of segment
+		const float3 nsN = make_float3(params.oldBoundElement[neib_index]);
+		calcVertexRelPos(vertexRelPos, nsN,
 			params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
 			params.slength);
+		const float3 gGamN   = gradGamma<kerneltype>(params.slength, as_float3(qN),   vertexRelPos, nsN)*nsN;
+
+		const float3 nsNp1 = make_float3(params.newBoundElement[neib_index]);
+		/* We only need to recompute calcVertexRelPos wrt to the new normal if there are moving bodies,
+		 * since otherwise the new normal is the same as the old normal */
+		if (simflags & ENABLE_MOVING_BODIES)
+			calcVertexRelPos(vertexRelPos, nsNp1,
+				params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
+				params.slength);
+		/* But we still need to reocmpute grad gamma, because q changed anyway */
+		const float3 gGamNp1 = gradGamma<kerneltype>(params.slength, as_float3(qNp1), vertexRelPos, nsNp1)*nsNp1;
 
 		// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
-		const float3 gGamN   = gradGamma<kerneltype>(params.slength, as_float3(qN),   vertexRelPos, ns)*ns;
-		const float3 gGamNp1 = gradGamma<kerneltype>(params.slength, as_float3(qNp1), vertexRelPos, ns)*ns;
 		sumGam.gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(qNp1 - qN));
 		sumGam.gGam += gGamNp1;
 
+		/* TODO check if we need the old or the new normal here, in case of
+		 * moving open boundaries (for fixed open boundaries, it makes no difference)
+		 */
 		io_gamma_contrib(sumGam, neib_index, neib_info, params,
-			make_float3(qN), ns, vertexRelPos, dt);
+			make_float3(qN), nsN, vertexRelPos, dt);
 	}
 	sumGam.gGamDotR *= params.slength;
 }
