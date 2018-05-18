@@ -881,7 +881,7 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 		// check if this fluid paricle is marked for deletion
 		// (which happens if any vertex is non-zero)
 		const vertexinfo neibVerts = params.vertices[ndata.index];
-		if (neibVerts.x | neibVerts.y != 0) {
+		if ((neibVerts.x | neibVerts.y) != 0) {
 			// gradient gamma was abused to store the vertex weights
 			// and the original particle mass
 			const float4 vertexWeights = params.gGam[ndata.index];
@@ -2190,7 +2190,7 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 			float4 pos = oldPos[index];
 			if (ACTIVE(pos)) {
 				vertexinfo vertices = oldVertices[index];
-				if (vertices.x | vertices.y != 0) {
+				if ((vertices.x | vertices.y) != 0) {
 					disable_particle(pos);
 					vertices.x = 0;
 					vertices.y = 0;
