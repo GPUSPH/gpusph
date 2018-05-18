@@ -476,6 +476,56 @@ bool GPUSPH::finalize() {
 	return true;
 }
 
+// set nextCommand, unlock the threads and wait for them to complete
+void GPUSPH::doCommand(CommandType cmd, flag_t flags)
+{
+	// resetting the host buffers is useful to check if the arrays are completely filled
+	/*/ if (cmd==DUMP) {
+	 const uint float4Size = sizeof(float4) * gdata->totParticles;
+	 const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
+	 memset(gdata->s_hPos, 0, float4Size);
+	 memset(gdata->s_hVel, 0, float4Size);
+	 memset(gdata->s_hInfo, 0, infoSize);
+	 } */
+
+	gdata->nextCommand = cmd;
+	gdata->commandFlags = flags;
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
+	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
+
+	if (!gdata->keep_going)
+		throw runtime_error("GPUSPH aborted by worker thread");
+}
+
+
+// set the extra arg for the next command
+template<typename T>
+void
+GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
+{
+	if (std::is_integral<T>::value || std::is_enum<T>::value)
+		gdata->extraCommandArg.flag = arg;
+	else
+		gdata->extraCommandArg.fp32 = arg;
+	doCommand(cmd, flags);
+}
+
+template<>
+void GPUSPH::doCommand(CommandType cmd, flag_t flags, const char *arg)
+{
+	gdata->extraCommandArg.string = arg;
+	doCommand(cmd, flags);
+}
+
+template<>
+void GPUSPH::doCommand(CommandType cmd, flag_t flags, std::string const& arg)
+{
+	gdata->extraCommandArg.string = arg;
+	doCommand(cmd, flags);
+}
+
+
+
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
@@ -1453,48 +1503,6 @@ void GPUSPH::particleSwap(uint idx1, uint idx2)
 		++iter;
 	}
 }
-
-// set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandType cmd, flag_t flags)
-{
-	// resetting the host buffers is useful to check if the arrays are completely filled
-	/*/ if (cmd==DUMP) {
-	 const uint float4Size = sizeof(float4) * gdata->totParticles;
-	 const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
-	 memset(gdata->s_hPos, 0, float4Size);
-	 memset(gdata->s_hVel, 0, float4Size);
-	 memset(gdata->s_hInfo, 0, infoSize);
-	 } */
-
-	gdata->nextCommand = cmd;
-	gdata->commandFlags = flags;
-	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
-	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
-
-	if (!gdata->keep_going)
-		throw runtime_error("GPUSPH aborted by worker thread");
-}
-
-// set the extra arg for the next command
-void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
-{
-	gdata->extraCommandArg.fp32 = arg;
-	doCommand(cmd, flags);
-}
-
-template<typename T> enable_if_t<std::is_integral<T>::value>
-GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
-{
-	gdata->extraCommandArg.flag = arg;
-	doCommand(cmd, flags);
-}
-
-void GPUSPH::doCommand(CommandType cmd, flag_t flags, std::string const& arg)
-{
-	gdata->extraCommandArg.string = arg;
-	doCommand(cmd, flags);
-}
-
 
 void GPUSPH::setViscosityCoefficient()
 {
