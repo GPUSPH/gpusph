@@ -174,13 +174,13 @@ findOutgoingSegment(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
+	const	float4			*vel(bufwrite.getConstData<BUFFER_VEL>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 
-	float4	*vel(bufwrite.getData<BUFFER_VEL>());
 	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
 	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
 
