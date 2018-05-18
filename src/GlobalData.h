@@ -82,14 +82,14 @@ class GPUWorker;
  * List of possible commands that GPUSPH can issue to workers via doCommand() calls
  */
 enum CommandType {
+	/// Dummy cycle (do nothing)
+	IDLE,
 	/// Set the state of the given buffers to the given string
 	SET_BUFFER_STATE,
 	/// Add the given state string to the state of the given buffers
 	ADD_BUFFER_STATE,
 	/// Set the validity of the given buffers
 	SET_BUFFER_VALIDITY,
-	/// Dummy cycle (do nothing)
-	IDLE,
 	/// Swap double-buffered buffers
 	SWAP_BUFFERS,
 	/// Compute particle hashes
