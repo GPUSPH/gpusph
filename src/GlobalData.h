@@ -86,6 +86,8 @@ enum CommandType {
 	SET_BUFFER_STATE,
 	/// Add the given state string to the state of the given buffers
 	ADD_BUFFER_STATE,
+	/// Set the validity of the given buffers
+	SET_BUFFER_VALIDITY,
 	/// Dummy cycle (do nothing)
 	IDLE,
 	/// Swap double-buffered buffers

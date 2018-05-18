@@ -1685,6 +1685,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing ADD_BUFFER_STATE\n", deviceIndex);
 				instance->addBufferState();
 				break;
+			case SET_BUFFER_VALIDITY:
+				if (dbg_step_printf) printf(" T %d issuing SET_BUFFER_VALIDITY\n", deviceIndex);
+				instance->setBufferValidity();
+				break;
 			case CALCHASH:
 				if (dbg_step_printf) printf(" T %d issuing HASH\n", deviceIndex);
 				instance->kernel_calcHash();
