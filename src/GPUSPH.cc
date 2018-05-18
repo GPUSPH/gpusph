@@ -331,8 +331,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			hf[i]->load();
 #if 0
 			// for debugging, enable this and inspect contents
-			float4 *pos = gdata->s_hBuffers.getData<BUFFER_POS>();
-			particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
+			const float4 *pos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
+			const particleinfo *info = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
 #endif
 			hot_in[i].close();
 			cerr << "Successfully restored hot start file " << i+1 << " / " << hot_nrank << endl;
@@ -1298,10 +1298,11 @@ void GPUSPH::sortParticlesByHash() {
 	devcount_t* m_hParticleKeys = new devcount_t[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers) and increase counters
+	const hashKey *particleHash = gdata->s_hBuffers.getConstData<BUFFER_HASH>();
 	for (uint p = 0; p < gdata->totParticles; p++) {
 
 		// compute containing device according to the particle's hash
-		uint cellHash = cellHashFromParticleHash( gdata->s_hBuffers.getData<BUFFER_HASH>()[p] );
+		uint cellHash = cellHashFromParticleHash( particleHash[p] );
 		devcount_t whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
 
 		// that's the key!
@@ -1414,9 +1415,9 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		hcount[d] = 0;
 	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
-		devcount_t cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
+		devcount_t cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[p]) ];
 		devcount_t pdev;
-		if (p > 0) pdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p-1]) ];
+		if (p > 0) pdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[p-1]) ];
 		if (p > 0 && cdev < pdev ) {
 			printf(" -- sorting error: array[%d] has device n%dd%u, array[%d] has device n%dd%u (skipping next errors)\n",
 				p-1, gdata->RANK(pdev), gdata->	DEVICE(pdev), p, gdata->RANK(cdev), gdata->	DEVICE(cdev) );
@@ -1583,21 +1584,20 @@ void GPUSPH::doWrite(flag_t write_flags)
 
 	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
 	double3 const& wo = problem->get_worldorigin();
-	const float4 *lpos = gdata->s_hBuffers.getData<BUFFER_POS>();
-	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
+	const float4 *lpos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
+	const hashKey* hash = gdata->s_hBuffers.getConstData<BUFFER_HASH>();
+	const particleinfo *info = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
 	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
 
-	const float *intEnergy = gdata->s_hBuffers.getData<BUFFER_INTERNAL_ENERGY>();
+	const float *intEnergy = gdata->s_hBuffers.getConstData<BUFFER_INTERNAL_ENERGY>();
 	/* vel is only used to compute kinetic energy */
-	const float4 *vel = gdata->s_hBuffers.getData<BUFFER_VEL>();
+	const float4 *vel = gdata->s_hBuffers.getConstData<BUFFER_VEL>();
 	const double3 gravity = make_double3(gdata->problem->physparams()->gravity);
 
 	bool warned_nan_pos = false;
 
 	// max particle speed only for this node only at time t
 	float local_max_part_speed = 0;
-
-	const hashKey* hash = gdata->s_hBuffers.getData<BUFFER_HASH>();
 
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
@@ -1986,8 +1986,9 @@ void GPUSPH::rollCallParticles()
 	}
 
 	// fill out the bitmap and check for duplicates
+	const particleinfo *particleInfo = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
 	for (uint part_index = 0; part_index < gdata->processParticles[gdata->mpi_rank]; part_index++) {
-		uint part_id = id(gdata->s_hBuffers.getData<BUFFER_INFO>()[part_index]);
+		uint part_id = id(particleInfo[part_index]);
 		if (m_rcBitmap[part_id] && !m_rcNotified[part_id]) {
 			if (WARN_EVERY_TIME || !first_double_warned) {
 				printf("WARNING: at iteration %lu, time %g particle ID %u is at indices %u and %u!\n",
@@ -2114,8 +2115,8 @@ void GPUSPH::updateArrayIndices() {
 // perform post-filling operations
 void GPUSPH::prepareProblem()
 {
-	const particleinfo *infos = gdata->s_hBuffers.getData<BUFFER_INFO>();
-	const hashKey *hashes = gdata->s_hBuffers.getData<BUFFER_HASH>();
+	const particleinfo *infos = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
+	const hashKey *hashes = gdata->s_hBuffers.getConstData<BUFFER_HASH>();
 
 	//nGridCells
 
