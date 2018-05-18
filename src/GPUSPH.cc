@@ -788,7 +788,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
 		// swap read and writes again because the write contains the variables at time n
-		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_INTERNAL_ENERGY | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON);
+		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
 		// boundelements is swapped because the normals are updated in the moving objects case
 		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
@@ -800,7 +800,7 @@ bool GPUSPH::runSimulation() {
 		// integrate also the externals
 		gdata->only_internal = false;
 
-		// perform the euler integration step
+		// perform the euler integration step, update n* to n+1
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
 		gdata->only_internal = true;
@@ -2231,8 +2231,10 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	gdata->only_internal = true;
 
-	if (!(cFlag & INITIALIZATION_STEP)) {
+	if (cFlag & INTEGRATOR_STEP_1)
 		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
+
+	if (!(cFlag & INITIALIZATION_STEP)) {
 		/* SA_CALC_SEGMENT_BOUNDARY_CONDITIONS and SA_CALC_VERTEX_BOUNDARY_CONDITIONS
 		 * get their normals from the READ position, but if we have moving bodies,
 		 * the new normals are in the WRITE position, so swap them */
