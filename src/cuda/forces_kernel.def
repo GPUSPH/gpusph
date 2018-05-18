@@ -2058,60 +2058,56 @@ enable_if_t<!has_gammaCfl<OP>()>
 write_gamma_cfl(FP const& params, P const& pdata, OP& pout)
 { /* do nothing */ }
 
-
-/// A functor that writes out the mean vel,
-/// but only for XSPH
-template<bool>
-struct write_xsph
+/// Write out the mean velocity for XSPH
+/*! With XSPH, fluid velocity also considers a weighted contribution
+ * from the mean fluid velocity in its neighborhood.
+ */
+template<typename FP>
+constexpr bool
+writes_XSPH()
 {
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP const& pout)
-	{ /* do nothing */ }
-};
+	return (FP::simflags & ENABLE_XSPH) &&
+		(FP::cptype == PT_FLUID) &&
+		(FP::nptype == PT_FLUID);
+}
 
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-write_xsph<true>::with(FP const& params, P const& pdata, OP const& pout)
+__device__ __forceinline__
+enable_if_t<writes_XSPH<FP>()>
+write_xsph(FP const& params, P const& pdata, OP const& pout)
 { params.xsph[pdata.index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
 
-/// A functor that writes out the internal energy, if enabled
-template<bool>
-struct write_internal_energy
-{
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP const& pout)
-	{ /* do nothing */ }
-};
-
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-write_internal_energy<true>::with(FP const& params, P const& pdata, OP const& pout)
+__device__ __forceinline__
+enable_if_t<not writes_XSPH<FP>()>
+write_xsph(FP const& params, P const& pdata, OP const& pout)
+{ /* do nothing */ }
+
+/// Write out internal energy, if enabled
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<(FP::simflags & ENABLE_INTERNAL_ENERGY)>
+write_internal_energy(FP const& params, P const& pdata, OP const& pout)
 { params.DEDt[pdata.index] = pout.DEDt; }
 
-
-/// A functor that writes out turbvisc
-/// but only for KEPSVISC
-template<ViscosityType>
-struct write_turbvisc
-{
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP const& pout)
-	{ /* do nothing */ }
-};
-
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-write_turbvisc<KEPSVISC>::with(FP const& params, P const& pdata, OP const& pout)
+__device__ __forceinline__
+enable_if_t<!(FP::simflags & ENABLE_INTERNAL_ENERGY)>
+write_internal_energy(FP const& params, P const& pdata, OP const& pout)
+{ /* do nothing */ }
+
+/// Write out turbulent viscosity for KEPSVISC
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::visctype == KEPSVISC>
+write_turbvisc(FP const& params, P const& pdata, OP const& pout)
 { params.turbvisc[pdata.index] = pdata.turbVisc; }
+
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::visctype != KEPSVISC>
+write_turbvisc(FP const& params, P const& pdata, OP const& pout)
+{ /* do nothing */ }
 
 
 /*
@@ -2753,14 +2749,11 @@ forcesDevice(
 
 		write_keps(params, pdata, pout);
 		write_gamma_cfl(params, pdata, pout);
+		write_xsph(params, pdata, pout);
+		write_internal_energy(params, pdata, pout);
 
 		params.forces[pdata.index] = pout.force;
 
-		if (nptype == PT_FLUID && cptype == PT_FLUID) {
-			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
-		}
-
-		write_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, pout);
 
 	} while (0);
 }
