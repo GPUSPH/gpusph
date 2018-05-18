@@ -217,10 +217,13 @@ struct common_gamma_sum_terms {
 struct io_gamma_sum_terms {
 	// sum_{S^{io}} (gradGam(r + delta r)).delta r
 	float sumSgamDelta;
+	// sum_{S^{io}} (gradGam(r)).delta r
+	float sumSgamN;
 
 	__device__ __forceinline__
 	io_gamma_sum_terms() :
-		sumSgamDelta(0.0f)
+		sumSgamDelta(0.0f),
+		sumSgamN(0.0f)
 	{}
 };
 
@@ -244,7 +247,8 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 	const float3 qN,
 	const float3 ns,
 	const float3 * vertexRelPos,
-	float dt)
+	float dt,
+	const float3	gGamN)
 { /* default case (no I/O), nothing to do */ };
 
 template<typename Params, typename GammaTermT>
@@ -255,7 +259,8 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 	const float3 qN,
 	const float3 ns,
 	const float3 * vertexRelPos,
-	float dt)
+	float dt,
+	const float3	gGamN)
 {
 		if (IO_BOUNDARY(neib_info)) {
 			// sum_{S^{io}} (gradGam(r + delta r)).delta r
@@ -263,6 +268,7 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 			const float3 qDelta = qN + deltaR/params.slength;
 			const float3 gGamDelta = gradGamma<GammaTermT::kerneltype>(params.slength, qDelta, vertexRelPos, ns)*ns;
 			sumGam.sumSgamDelta += dot(deltaR, gGamDelta);
+			sumGam.sumSgamN += dot(deltaR, gGamN);
 		}
 };
 
@@ -270,16 +276,16 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 template<typename GammaTermT>
 __device__ __forceinline__
 enable_if_t<!GammaTermT::has_io, float>
-compute_imposed_gamma(float oldGam, GammaTermT const& sumGam, float sumSgamN)
+compute_imposed_gamma(float oldGam, GammaTermT const& sumGam)
 {
 	return oldGam;
 }
 template<typename GammaTermT>
 __device__ __forceinline__
 enable_if_t<GammaTermT::has_io, float>
-compute_imposed_gamma(float oldGam, GammaTermT const& sumGam, float sumSgamN)
+compute_imposed_gamma(float oldGam, GammaTermT const& sumGam)
 {
-	float imposed = oldGam + (sumGam.sumSgamDelta + sumSgamN)/2.0f;
+	float imposed = oldGam + (sumGam.sumSgamDelta + sumGam.sumSgamN)/2.0f;
 	// clipping of the imposed gamma
 	if (imposed > 1.0f)
 		imposed = 1.0f;
@@ -349,7 +355,7 @@ computeDensitySumBoundaryTerms(
 		 * moving open boundaries (for fixed open boundaries, it makes no difference)
 		 */
 		io_gamma_contrib(sumGam, neib_index, neib_info, params,
-			make_float3(qN), nsN, vertexRelPos, dt);
+			make_float3(qN), nsN, vertexRelPos, dt, gGamN);
 	}
 	sumGam.gGamDotR *= params.slength;
 }
@@ -489,17 +495,6 @@ densitySumBoundaryDevice(
 	density_sum_particle_output pout;
 
 	// continuity equation based on particle positions
-	// sum_{S^{io}} (gradGam^n).delta r
-	/* GB TODO FIXME this is spurious when not using IO, and definitely needs
-	 * some thought about IO too, particularly when using density summation.
-	 * As a provisional splitneibs-merge fix, set it to zero, we'll re-evaluate
-	 * it when reintroduing open boundaries.
-	 */
-#if 0
-	const float sumSgamN = dt*params.dgamdt[index];
-#else
-	const float sumSgamN = 0;
-#endif
 
 	gamma_sum_terms<kerneltype, simflags> sumGam;
 
@@ -515,7 +510,7 @@ densitySumBoundaryDevice(
 	pout.gGamNp1.w = pdata.gGamN.w + sumGam.gGamDotR;
 
 	// now compute a new gamma based on the eulerian velocity of the boundary
-	float imposedGam = compute_imposed_gamma(pdata.gGamN.w, sumGam, sumSgamN);
+	float imposedGam = compute_imposed_gamma(pdata.gGamN.w, sumGam);
 
 	// generate new density based on previously computed values
 	pout.rho = (imposedGam*pdata.vel.w + params.forces[index].w)/pout.gGamNp1.w;
