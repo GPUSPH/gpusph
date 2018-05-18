@@ -747,6 +747,8 @@ bool GPUSPH::runSimulation() {
 
 		/* TODO mark buffer validity */
 		doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
+		// Here the read has been marked as being step n* and the write as being step n,
+		// we can now start the corrector step
 
 		// for Grenier formulation, compute sigma and smoothed density
 		if (problem->simparams()->sph_formulation == SPH_GRENIER) {
@@ -899,6 +901,20 @@ bool GPUSPH::runSimulation() {
 
 		// Here the second part of our time integration scheme is complete, i.e. the time-step is
 		// fully computed. All updated values are now in the read buffers again.
+		/* TODO mark buffer validity */
+		doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, "n+1");
+		doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, "n");
+
+		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
+			doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, "n");
+		} else {
+			doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, "n");
+		}
+
+		/* TODO mark buffer validity */
+		doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
+		// Here the read has been marked as being step n+1 and the write as being step n,
+		// we have completed our full timestep
 
 		// increase counters
 		gdata->iterations++;
