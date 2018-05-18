@@ -40,6 +40,12 @@ struct DebugFlags {
 	unsigned inspect_preforce : 1;
 	/// inspect pre-gamma integration particle status
 	unsigned inspect_pregamma : 1;
+	/// inspect buffer access
+	/*! \note This needs compile-time support,
+	 * #define DEBUG_BUFFER_ACCESS 1
+	 * in src/buffer.h
+	 */
+	unsigned inspect_buffer_access : 1;
 };
 
 /// Get a DebugFlag from a comma-separated list

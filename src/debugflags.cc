@@ -23,13 +23,29 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "buffer.h" // for DEBUG_BUFFER_ACCESS
 #include "debugflags.h"
 
 #include <sstream>
+#include <iostream>
 
 #include <stdexcept>
 
 using namespace std;
+
+#if DEBUG_BUFFER_ACCESS
+bool debug_inspect_buffer;
+#endif
+
+void enable_inspect_buffer(DebugFlags const& ret)
+{
+#if DEBUG_BUFFER_ACCESS
+	debug_inspect_buffer = ret.inspect_buffer_access;
+#else
+	std::cerr << "WARNING: buffer access inspection requested, "
+		"but support not compiled in" << std::endl;
+#endif
+}
 
 DebugFlags parse_debug_flags(string const& str)
 {
@@ -49,9 +65,13 @@ DebugFlags parse_debug_flags(string const& str)
 			ret.inspect_preforce = 1;
 		else if (flag == "inspect_pregamma")
 			ret.inspect_pregamma = 1;
+		else if (flag == "inspect_buffer_access")
+			ret.inspect_buffer_access = 1;
 		else
 			throw invalid_argument("unknown debug flag '" + flag + "'");
 	}
+
+	enable_inspect_buffer(ret);
 
 	return ret;
 }

@@ -40,7 +40,8 @@
 
 #if DEBUG_BUFFER_ACCESS
 #include <iostream>
-#define DEBUG_INSPECT_BUFFER(...) std::cout << __VA_ARGS__
+extern bool debug_inspect_buffer;
+#define DEBUG_INSPECT_BUFFER(...) if (debug_inspect_buffer) std::cout << __VA_ARGS__
 #else
 #define DEBUG_INSPECT_BUFFER(...) do {} while (0)
 #endif
@@ -400,7 +401,7 @@ public:
 	void set_state_on_write(std::string const& state)
 	{
 		if (m_has_pending_state > NOT_PENDING)
-			std::cerr << "setting pending state without previous reset!" << std::endl;
+			DEBUG_INSPECT_BUFFER("setting pending state without previous reset!" << std::endl);
 		m_has_pending_state = PENDING_SET;
 		m_pending_state = state;
 	}
@@ -408,7 +409,7 @@ public:
 	void add_state_on_write(std::string const& state)
 	{
 		if (m_has_pending_state > NOT_PENDING)
-			std::cerr << "setting pending state addition without previous reset!" << std::endl;
+			DEBUG_INSPECT_BUFFER("setting pending state addition without previous reset!" << std::endl);
 		m_has_pending_state = PENDING_ADD;
 		m_pending_state = state;
 	}
@@ -502,10 +503,11 @@ public:
 		auto buf(exists->second);
 		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [const]" << std::endl);
 		if (buf->is_invalid()) {
-			if (DEBUG_BUFFER_ACCESS)
+			if (DEBUG_BUFFER_ACCESS) {
 				DEBUG_INSPECT_BUFFER("\t\t(trying to read invalid data)" << std::endl);
-			else
+			} else {
 				throw std::invalid_argument("trying to read invalid data");
+			}
 		}
 		return static_cast<const DATA_TYPE(Key)*>(buf->get_buffer(num));
 	}
