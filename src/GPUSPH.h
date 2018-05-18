@@ -130,6 +130,12 @@ private:
 	// setting of boundary conditions for the semi-analytical boundaries
 	void saBoundaryConditions(flag_t cFlag);
 
+	// mark the beginning/end of a step, setting the state and validity
+	// of READ and WRITE buffers
+	void markIntegrationStep(
+		std::string const& read_state, BufferValidity read_valid,
+		std::string const& write_state, BufferValidity write_valid);
+
 	// print information about the status of the simulation
 	void printStatus(FILE *out = stdout);
 

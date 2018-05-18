@@ -597,6 +597,8 @@ bool GPUSPH::runSimulation() {
 			buildNeibList();
 		}
 
+		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
+
 		// run enabled filters
 		if (gdata->iterations > 0) {
 			FilterFreqList::const_iterator flt(enabledFilters.begin());
@@ -736,21 +738,10 @@ bool GPUSPH::runSimulation() {
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// Here the first part of our time integration scheme is complete. All updated values
-		// are now in the read buffers again.
-		/* TODO mark buffer validity */
-		doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, "n*");
-		doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, "n");
-
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
-			doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, "n");
-		} else {
-			doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, "n");
-		}
-
-		/* TODO mark buffer validity */
-		doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
-		// Here the read has been marked as being step n* and the write as being step n,
-		// we can now start the corrector step
+		// are now in the read buffers again: mark the READ buffers as valid n*,
+		// and the WRITE buffers as valid n
+		markIntegrationStep("n*", BUFFER_VALID, "n", BUFFER_VALID);
+		// End of predictor step, start corrector step
 
 		// for Grenier formulation, compute sigma and smoothed density
 		if (problem->simparams()->sph_formulation == SPH_GRENIER) {
@@ -902,21 +893,10 @@ bool GPUSPH::runSimulation() {
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// Here the second part of our time integration scheme is complete, i.e. the time-step is
-		// fully computed. All updated values are now in the read buffers again.
-		/* TODO mark buffer validity */
-		doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, "n+1");
-		doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, "n");
-
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
-			doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, "n");
-		} else {
-			doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, "n");
-		}
-
-		/* TODO mark buffer validity */
-		doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
-		// Here the read has been marked as being step n+1 and the write as being step n,
-		// we have completed our full timestep
+		// fully computed. All updated values are now in the read buffers again:
+		// mark the READ buffers as valid n+1, and the WRITE buffers as valid n
+		markIntegrationStep("n+1", BUFFER_VALID, "n", BUFFER_VALID);
+		// End of corrector step, finish iteration
 
 		// increase counters
 		gdata->iterations++;
@@ -2289,4 +2269,23 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		// finished they are expected to be in the READ position, so swap them again:
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 	}
+}
+
+void GPUSPH::markIntegrationStep(
+	std::string const& read_state, BufferValidity read_valid,
+	std::string const& write_state, BufferValidity write_valid)
+{
+	/* TODO mark buffer validity */
+	doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, read_state);
+	doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, write_state);
+
+	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
+		doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_state);
+	} else {
+		doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, write_state);
+	}
+
+	// CFL and forces buffer are reset, and are always invalid at the end of the step
+	/* TODO mark buffer validity */
+	doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
 }
