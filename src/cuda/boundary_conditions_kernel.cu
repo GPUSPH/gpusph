@@ -1308,15 +1308,15 @@ impose_io_keps_bc(Params const& params, PData const& pdata, POut &pout)
 			// for velocity imposed boundaries we impose k and epsilon
 			// TODO my impression is that these are read, and then
 			// written back as-is
-			params.tke[index] = pout.tke;
-			params.eps[index] = pout.eps;
+			params.tke[pdata.index] = pout.tke;
+			params.eps[pdata.index] = pout.eps;
 		} else {
 			// for pressure imposed boundaries we take dk/dn = de/dn = 0
-			params.tke[index] = pout.sumtke/pout.shepard_div;
-			params.eps[index] = pout.sumeps/pout.shepard_div;
+			params.tke[pdata.index] = pout.sumtke/pout.shepard_div;
+			params.eps[pdata.index] = pout.sumeps/pout.shepard_div;
 		}
 	} else {
-		params.tke[index] = params.eps[index] = 1e-6f;
+		params.tke[pdata.index] = params.eps[pdata.index] = 1e-6f;
 	}
 }
 
