@@ -216,7 +216,8 @@ class neiblist_iterator :
 	// If not found, switch to the next type and try again.
 	template<ParticleType try_type, ParticleType ...other_types>
 	__device__ __forceinline__
-	bool try_next(ParticleType current) {
+	enable_if_t<sizeof...(other_types) != 0, bool>
+	try_next(ParticleType current) {
 		if (try_type == current) {
 			if (neiblist_iterator_simple<try_type>::next())
 				return true;
