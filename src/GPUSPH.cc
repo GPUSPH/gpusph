@@ -497,34 +497,36 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 		throw runtime_error("GPUSPH aborted by worker thread");
 }
 
+// Auxiliary template selector for setExtraCommandArg
+template<typename T>
+using CanBeStoredInFlag = typename std::integral_constant<bool,
+	std::is_integral<T>::value || std::is_enum<T>::value>;
+
+// Function to specializa the setting of extraCommandArg
+void setExtraCommandArg(GlobalData *gdata, const char *arg)
+{ gdata->extraCommandArg.string = arg; }
+
+void setExtraCommandArg(GlobalData *gdata, std::string const& arg)
+{ gdata->extraCommandArg.string = arg; }
+
+template<typename T>
+enable_if_t<CanBeStoredInFlag<T>::value>
+setExtraCommandArg(GlobalData *gdata, T arg)
+{ gdata->extraCommandArg.flag = arg; }
+
+template<typename T>
+enable_if_t<std::is_floating_point<T>::value>
+setExtraCommandArg(GlobalData *gdata, T arg)
+{ gdata->extraCommandArg.fp32 = arg; }
 
 // set the extra arg for the next command
 template<typename T>
 void
 GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
 {
-	if (std::is_integral<T>::value || std::is_enum<T>::value)
-		gdata->extraCommandArg.flag = arg;
-	else
-		gdata->extraCommandArg.fp32 = arg;
+	setExtraCommandArg(gdata, arg);
 	doCommand(cmd, flags);
 }
-
-template<>
-void GPUSPH::doCommand(CommandType cmd, flag_t flags, const char *arg)
-{
-	gdata->extraCommandArg.string = arg;
-	doCommand(cmd, flags);
-}
-
-template<>
-void GPUSPH::doCommand(CommandType cmd, flag_t flags, std::string const& arg)
-{
-	gdata->extraCommandArg.string = arg;
-	doCommand(cmd, flags);
-}
-
-
 
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
