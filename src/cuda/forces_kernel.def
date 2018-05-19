@@ -1156,6 +1156,9 @@ void compute_gamma_cfl
  * kernel, whose params structure does not have an nptype field (since all nptypes are
  * processed in a single kernel call); therefore, all compute_density_diffusion overloads
  * must have an additional optional template parameter ParticleType nptype = FP::nptype.
+ *
+ * TODO: the density diffusion terms are designed for the standard continuity equation,
+ * they are not compatible with Grenier's formulation without additional thoughts.
  */
 
 /// Compute ratio of particle volumes (central to neighbor)
@@ -1325,105 +1328,122 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	nout.DrDt -= diff_term;
 }
 
-struct generic_compute_density_derivative {
-	// auxiliary function
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	common_with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		// this should be divided by the neib density (ndata.relVel.w),
-		// but would be multiplied by the same quantity in SPH_F1 formulation,
-		// so we delegate the division to the caller, when needed
-		// TODO this should be handled more intelligently, might require some
-		// restructuring
-		nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
-	}
+/*
+ * Mass continuity contribution
+ *
+ * These function templates compute the neighbor contribution to the mass
+ * continuity equation. This is typically the time derivative of the density,
+ * although for some formulations (e.g. SPH_GRENIER), this is actually
+ * the time derivative of the volume.
+ *
+ * The mass continuity always has the same form: there's a term
+ * coming from the divergence of the velocity, a density diffusion term,
+ * and finally (in some cases) a weight correction.
+ *
+ * We assemble the actuall compute_mass_continuity from function templates
+ * for each of these parts.
+ */
 
-	// update force.w
-	template<typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	update_drho_dt(OP &pout, ON const& nout)
-	{ pout.force.w += nout.DrDt; }
-
-	// actual method
-	template<typename FP, typename PD, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		if (FP::sph_formulation == SPH_GRENIER) {
-			// for Grenier's formulation, DrDt is actually DJ/Dt, which needs to be divided
-			// by the particle sigma, which will be done at the end of the cycle
-			nout.DrDt -= ndata.vel_dot_pos*ndata.f;
-			// TODO Ferrari correction
-		} else {
-			// SPH_F1 or SPH_F2
-			common_with(params, pdata, ndata, pout, nout);
-		}
-		// Density diffusion
-		compute_density_diffusion(params, pdata, ndata, nout);
-		/* The second formulation takes into consideration the density ratio */
-		if (FP::sph_formulation == SPH_F2)
-			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
-
-		/* Add contribution to density derivative */
-		update_drho_dt(pout, nout);
-	}
-};
-
-/// Generic version, no overrides
-template<DensityDiffusionType densitydiffusiontype,
-		BoundaryType boundarytype,
-		ParticleType cptype,
-		ParticleType nptype>
-struct compute_density_derivative : public generic_compute_density_derivative
-{};
-
-// Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_FLUID or PT_VERTEX
-template<DensityDiffusionType densitydiffusiontype,
-		ParticleType nptype>
-struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, nptype> : generic_compute_density_derivative
+/// Mass continuity: divergence of velocity term
+/*! Grenier's formulation is different from most, as the mass continuity
+ * actually computes DJ/Dt instead of DrDt
+ */
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation == SPH_GRENIER>
+mass_continuity_div_vel_term
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	template<typename FP, typename PD, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		common_with(params, pdata, ndata, pout, nout);
+	// for Grenier's formulation, DrDt is actually DJ/Dt.
+	// The division by sigma needed by the formulation will be handled
+	// in the fixup at the end of the neighbor loop cycle
+	nout.DrDt -= ndata.vel_dot_pos*ndata.f;
+}
 
-		// Density diffusion
-		compute_density_diffusion(params, pdata, ndata, nout);
-
-		/* The second formulation takes into consideration the density ratio */
-		if (FP::sph_formulation == SPH_F2)
-			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
-
-		/* Add contribution to density derivative */
-		update_drho_dt(pout, nout);
-	}
-};
-
-// Specialization of compute_density_derivative for SA_BOUNDARY when neib is PT_BOUNDARY
-template<DensityDiffusionType densitydiffusiontype>
-struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, PT_BOUNDARY> : generic_compute_density_derivative
+/// Mass continuity: divergence of velocity term
+/*! With semi-analytical boundary conditions, the contribution from
+ * boundary neighbors also has its own form.
+ *
+ * TODO FIXME: this contribution is most likely not correct for SPH_F2
+ */
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY && FP::nptype == PT_BOUNDARY
+>
+mass_continuity_div_vel_term
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	template<typename FP, typename PD, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		// Boundary term for div(v)
-		nout.DrDt -= pdata.vel.w*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+	nout.DrDt -= pdata.vel.w*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+}
 
-		// Density diffusion
-		compute_density_diffusion(params, pdata, ndata, nout);
+/// Mass continuity: divergence of velocity term
+/*! Standard formulation
+ *
+ * Note that this would require a division by the neighbor density,
+ * and then a multiplication by this particle density..
+ * With SPH_F1 we assume the particle density to be essentially constant,
+ * so the contributions cancel out. With SPH_F2, the density ratio
+ * contribution will be considered after the density diffusion term.
+ */
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation != SPH_GRENIER &&
+	!(FP::boundarytype == SA_BOUNDARY && FP::nptype == PT_BOUNDARY)
+>
+mass_continuity_div_vel_term
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{
+	nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
+}
 
-		/* Add contribution to density derivative */
-		update_drho_dt(pout, nout);
-	}
-};
+/// Density ratio contribution
+/*! SPH_F2 takes into account differences in the density ratios,
+ * which are handled by this template function, which will do
+ * nothing for other formulations
+ */
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation == SPH_F2>
+mass_continuity_density_ratio
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{
+	nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+}
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation != SPH_F2>
+mass_continuity_density_ratio
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{ /* do nothing */ }
+
+/// Neighbor contribution to mass continuity equation
+/*! This is the function template that gathers all contributions
+ * to the mass continuity equation.
+ *
+ * It will be skipped if we are using density summation instead.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<!(FP::simflags & ENABLE_DENSITY_SUM)>
+compute_density_derivative
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	mass_continuity_div_vel_term(params, pdata, ndata, nout);
+	compute_density_diffusion(params, pdata, ndata, nout);
+	mass_continuity_density_ratio(params, pdata, ndata, nout);
+
+	pout.force.w += nout.DrDt;
+}
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<(FP::simflags & ENABLE_DENSITY_SUM)>
+compute_density_derivative
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
+
+
 
 /// Functor to compute the pressure contribution to the particle acceleration.
 /// The results should be stored in nout.DvDt
@@ -2384,10 +2404,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		if (!(simflags & ENABLE_DENSITY_SUM)) { // AM-TODO: this if can be probably removed
-			// Computes d\rho/dt, including density diffusion
-			compute_density_derivative<densitydiffusiontype, boundarytype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
-		}
+		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// Compute pressure part of acceleration
 		compute_pressure_contrib<boundarytype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
@@ -2521,10 +2538,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		if (!(simflags & ENABLE_DENSITY_SUM)) {
-			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<densitydiffusiontype, DYN_BOUNDARY, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
-		}
+		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// We need to compute force on boundary particles only when we have floating bodies or force feedback
 		if (COMPUTE_FORCE(pdata.info)) {
@@ -2564,10 +2578,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		if (!(simflags & ENABLE_DENSITY_SUM)) {
-			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<densitydiffusiontype, DYN_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
-		}
+		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// Compute pressure part of acceleration
 		compute_pressure_contrib<DYN_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
@@ -2604,10 +2615,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		// of the focal particle
 		compute_gamma_gradient(params, pdata, ndata, pout, nout);
 
-		if (!(simflags & ENABLE_DENSITY_SUM)) {
-			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
-		}
+		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// Compute pressure part of acceleration
 		compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
@@ -2676,10 +2684,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 	static void
 	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 	{
-		if (!(simflags & ENABLE_DENSITY_SUM)) {
-			// Computes d\rho/dt, including ferrari correction
-			compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
-		}
+		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// Compute pressure part of acceleration
 		compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
