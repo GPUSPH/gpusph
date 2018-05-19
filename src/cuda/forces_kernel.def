@@ -1151,6 +1151,11 @@ void compute_gamma_cfl
  *
  * The following function templates implement the three supported
  * density diffusion models: Ferrari, Brezzi and Colagrossi.
+ *
+ * Note that these function templates are also used by the computeDensityDiffusionDevice
+ * kernel, whose params structure does not have an nptype field (since all nptypes are
+ * processed in a single kernel call); therefore, all compute_density_diffusion overloads
+ * must have an additional optional template parameter ParticleType nptype = FP::nptype.
  */
 
 /// Compute ratio of particle volumes (central to neighbor)
@@ -1158,7 +1163,7 @@ void compute_gamma_cfl
  * available (e.g. when using the SPH_GRENIER formulation), and as
  * the inverse ratio of densities when the volume is not available.
  *
- * Used e.g. to compute Colagrossi's density diffusion.
+ * Used e.g. to compute Molteni & Colagrossi's density diffusion.
  */
 template<typename P, typename N>
 __device__ __forceinline__
@@ -1171,148 +1176,154 @@ enable_if_t<not has_volume<P>(), float>
 volume_ratio(P const& pdata, N const& ndata)
 { return ndata.relVel.w/pdata.vel.w; }
 
-/// A functor that computes a density diffusion term.
-/// There are three different options implemented at the moment, Ferrari, Brezzi and Colagrossi
-template<DensityDiffusionType densitydiffusiontype,
-		BoundaryType boundarytype,
-		ParticleType cptype,
-		ParticleType nptype>
-struct compute_density_diffusion {
-	template<typename FP, typename P, typename N, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
-	{ /* do nothing */ }
-};
+/// Cases when there is no density contribution
+template<typename FP, typename P, typename N, typename ON,
+	ParticleType nptype = FP::nptype>
+__device__ __forceinline__
+enable_if_t<
+	(FP::densitydiffusiontype == DENSITY_DIFFUSION_NONE) || // duh
+	nptype == PT_VERTEX || // even for SA_BOUNDARY, vertices don't contribute
+	// TODO verify if boundary neighbors should contribute in non-SA case,
+	// and how
+	(nptype == PT_BOUNDARY && FP::boundarytype != SA_BOUNDARY)
+>
+compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{ /* do nothing */ }
 
-/// Diffusion term for Ferrari for fluid neighbours
-/// according to Mayrhofer et al. 2013, CPC
-template<BoundaryType boundarytype,
-		ParticleType cptype>
-struct compute_density_diffusion<FERRARI, boundarytype, cptype, PT_FLUID>
+/* Ferrari density diffusion
+ * Reference: Mayrhofer et al. 2013, CPC
+ */
+
+/// Contribution from fluid neighbors for Ferrari density diffusion
+template<typename FP, typename P, typename N, typename ON,
+	ParticleType nptype = FP::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::densitydiffusiontype == FERRARI &&
+	nptype == PT_FLUID
+>
+compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	template<typename FP, typename P, typename N, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
-	{
-		const uint fType =  fluid_num(pdata.info);
-		// gravity correction for free-surface flows
-		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
-		// actual diffusion term
-		const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
-			max(pdata.sspeed, ndata.sspeed)*
-			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
-			make_float3(0.0f);
-		// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-		nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
-	}
-};
+	const uint fType =  fluid_num(pdata.info);
+	// gravity correction for free-surface flows
+	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
+	// actual diffusion term
+	const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
+		max(pdata.sspeed, ndata.sspeed)*
+		(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
+		make_float3(0.0f);
+	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
+	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+}
 
-/// Diffusion term for Ferrari for boundary neighbours in the case of semi-analytical boundaries
-/// according to Mayrhofer et al. 2013, CPC
-template<ParticleType cptype>
-struct
-compute_density_diffusion<FERRARI, SA_BOUNDARY, cptype, PT_BOUNDARY>
+/// Contribution from boundary neighbors for Ferrari density diffusion,
+/// in the semi-analytical boundary model
+template<typename FP, typename P, typename N, typename ON,
+	ParticleType nptype = FP::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::densitydiffusiontype == FERRARI &&
+	FP::boundarytype == SA_BOUNDARY &&
+	nptype == PT_BOUNDARY
+>
+compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	template<typename FP, typename P, typename N, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, ON &nout)
-	{
-		const int fType =  fluid_num(pdata.info);
-		// gravity correction for free-surface flows
-		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
-		// actual diffusion term
-		const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
-			max(pdata.sspeed, ndata.sspeed)*
-			(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r :
-			0.0f;
-		// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-		nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
-	}
-};
+	const int fType =  fluid_num(pdata.info);
+	// gravity correction for free-surface flows
+	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
+	// actual diffusion term
+	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
+		max(pdata.sspeed, ndata.sspeed)*
+		(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r :
+		0.0f;
+	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
+	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
+}
 
-/// Diffusion term for Brezzi for fluid neighbours
-template<BoundaryType boundarytype,
-		ParticleType cptype,
-		ParticleType nptype>
-struct
-compute_density_diffusion<BREZZI, boundarytype, cptype, nptype>
+/* Brezzi density diffusion
+ * Reference: Ferrand et al. 2017 CPC
+ */
+
+/// Brezzi density diffusion term from fluid neighbors
+template<typename FP, typename Pt, typename N, typename ON,
+	ParticleType nptype = FP::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::densitydiffusiontype == BREZZI &&
+	nptype == PT_FLUID
+>
+compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
 {
-	template<typename FP, typename Pt, typename N, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
-	{
-		// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
-		nout.DrDt += d_densityDiffCoeff*((2.0f/(pdata.vel.w + ndata.relVel.w))*
-					  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
-					  - dot(d_gravity, as_float3(ndata.relPos))
-					 )*ndata.relPos.w/ndata.relVel.w*ndata.f*params.dt*2.0f*pdata.vel.w;
-	}
-};
+	// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
+	nout.DrDt += d_densityDiffCoeff*((2.0f/(pdata.vel.w + ndata.relVel.w))*
+		(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+		- dot(d_gravity, as_float3(ndata.relPos))
+		)*ndata.relPos.w/ndata.relVel.w*ndata.f*params.dt*2.0f*pdata.vel.w;
+}
 
-/// Diffusion term for Brezzi for boundary neighbours in the case of semi-analytical boundaries
-template<ParticleType cptype>
-struct
-compute_density_diffusion<BREZZI, SA_BOUNDARY, cptype, PT_BOUNDARY>
+/// Brezzi density diffusion term from boundary neighbors
+/*! From boundary neighbors in the semi-analytical formulation
+ */
+template<typename FP, typename Pt, typename N, typename ON,
+	ParticleType nptype = FP::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::densitydiffusiontype == BREZZI &&
+	FP::boundarytype == SA_BOUNDARY &&
+	nptype == PT_BOUNDARY
+>
+compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
 {
-	template<typename FP, typename Pt, typename N, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
-	{
-		// for pressure inlets we need to compute a boundary term for the Rhie & Chow filter
-		// the term is essentially the same as the one for the fluid particle except that V_b w' -> |ggam|/r_{as}
-		if (IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info))
-			nout.DrDt -= ((2.0/(pdata.vel.w + ndata.relVel.w))*
-						  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
-						  - dot(d_gravity, as_float3(ndata.relPos))
-						 )*nout.ggamAS/ndata.r_as*params.dt*2.0f*pdata.vel.w;
-	}
-};
+	// for pressure inlets we need to compute a boundary term for the Rhie & Chow filter
+	// the term is essentially the same as the one for the fluid particle except that V_b w' -> |ggam|/r_{as}
+	if (IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info))
+		nout.DrDt -= ((2.0/(pdata.vel.w + ndata.relVel.w))*
+			(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+			- dot(d_gravity, as_float3(ndata.relPos))
+			)*nout.ggamAS/ndata.r_as*params.dt*2.0f*pdata.vel.w;
+}
 
-/// Diffusion term for Colagrossi for fluid neighbours
-/// following Molteni & Colagrossi 2009
-template<BoundaryType boundarytype,
-		ParticleType cptype>
-struct
-compute_density_diffusion<COLAGROSSI, boundarytype, cptype, PT_FLUID>
+/* Molteni & Colagrossi density diffusion
+ * Reference: Molteni & Colagrossi, 2009
+ */
+
+/// Molteni & Colagrossi density diffusion term
+template<typename FP, typename Pt, typename N, typename ON,
+	ParticleType nptype = FP::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::densitydiffusiontype == COLAGROSSI &&
+	nptype == PT_FLUID
+>
+compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
 {
-	template<typename FP, typename Pt, typename N, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
-	{
-		const int fType = fluid_num(pdata.info);
-		/* only applies to same-fluid particles */
-		if (fType != fluid_num(ndata.info))
-			return;
+	const int fType = fluid_num(pdata.info);
+	/* only applies to same-fluid particles */
+	if (fType != fluid_num(ndata.info))
+		return;
 
-		// only apply diffusion for large density ratios, specifically
-		// when DeltaP < rhogh
-		if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
-			fabs(dot3(d_gravity, ndata.relPos)*pdata.vel.w))
-			return;
+	// only apply diffusion for large density ratios, specifically
+	// when DeltaP > rhogh
+	if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
+		fabs(dot3(d_gravity, ndata.relPos)*pdata.vel.w))
+		return;
 
-		// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
-		// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
-		// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
-		// 2(vol_i/vol_j - 1) F_ij
-		// For us rhodiffcoeff = \xi*h*2
-		// Additionally, when the density evolution formulation is NOT based on
-		// volumes, we need to multiply by the neighbor mass
+	// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
+	// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
+	// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
+	// 2(vol_i/vol_j - 1) F_ij
+	// For us rhodiffcoeff = \xi*h*2
+	// Additionally, when the density evolution formulation is NOT based on
+	// volumes, we need to multiply by the neighbor mass
 
-		const float diff_term = d_densityDiffCoeff*d_sscoeff[fType]*
-			(volume_ratio(pdata, ndata) - 1)*
-			ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
+	const float diff_term = d_densityDiffCoeff*d_sscoeff[fType]*
+		(volume_ratio(pdata, ndata) - 1)*
+		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
 
-		// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
+	// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
 
-		nout.DrDt -= diff_term;
-	}
-};
+	nout.DrDt -= diff_term;
+}
 
 struct generic_compute_density_derivative {
 	// auxiliary function
@@ -1336,15 +1347,6 @@ struct generic_compute_density_derivative {
 	update_drho_dt(OP &pout, ON const& nout)
 	{ pout.force.w += nout.DrDt; }
 
-	// update force.w
-	template<typename FP, typename PD, typename N, typename ON>
-	__device__ __forceinline__
-	static void
-	generic_compute_density_diffusion(FP const& params, PD const& pdata, N const& ndata, ON &nout)
-	{
-		compute_density_diffusion<FP::densitydiffusiontype, FP::boundarytype, FP::cptype, FP::nptype>::with(params, pdata, ndata, nout);
-	}
-
 	// actual method
 	template<typename FP, typename PD, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -1361,7 +1363,7 @@ struct generic_compute_density_derivative {
 			common_with(params, pdata, ndata, pout, nout);
 		}
 		// Density diffusion
-		generic_compute_density_diffusion(params, pdata, ndata, nout);
+		compute_density_diffusion(params, pdata, ndata, nout);
 		/* The second formulation takes into consideration the density ratio */
 		if (FP::sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
@@ -1392,7 +1394,7 @@ struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, n
 		common_with(params, pdata, ndata, pout, nout);
 
 		// Density diffusion
-		generic_compute_density_diffusion(params, pdata, ndata, nout);
+		compute_density_diffusion(params, pdata, ndata, nout);
 
 		/* The second formulation takes into consideration the density ratio */
 		if (FP::sph_formulation == SPH_F2)
@@ -1416,7 +1418,7 @@ struct compute_density_derivative<densitydiffusiontype, SA_BOUNDARY, PT_FLUID, P
 		nout.DrDt -= pdata.vel.w*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
 
 		// Density diffusion
-		generic_compute_density_diffusion(params, pdata, ndata, nout);
+		compute_density_diffusion(params, pdata, ndata, nout);
 
 		/* Add contribution to density derivative */
 		update_drho_dt(pout, nout);
@@ -2965,8 +2967,8 @@ finalizeforcesDevice(
 
 //***********************************************************************************************************
 // Structures and kernels for the computation of the density diffusion, used in the ENABLE_DENSITY_SUM case.
-// This relies on the compute_density_diffusion functor (shared with forcesDevice) for the actual computation,
-// after defining its own set of particle_data and particle_output structures.
+// This relies on the compute_density_diffusion function templates (shared with forcesDevice) for the actual
+// computation, after defining its own set of particle_data and particle_output structures.
 //***********************************************************************************************************
 
 struct gamma_particle_data
@@ -3069,16 +3071,16 @@ template<KernelType kerneltype,
 	ViscosityType visctype,
 	flag_t simflags,
 	ParticleType cptype,
-	ParticleType nptype>
+	ParticleType nptype,
+	typename KP = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype>,
+	typename P = density_diffusion_particle_data<boundarytype>
+>
 __device__ __forceinline__
 enable_if_t<
 (nptype != PT_VERTEX || boundarytype == SA_BOUNDARY) &&
 (nptype != PT_BOUNDARY || (simflags & ENABLE_INLET_OUTLET))
 >
-density_diffusion_interaction(
-	density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> const& params,
-	density_diffusion_particle_data<boundarytype> const& pdata,
-	float& DrDt)
+density_diffusion_interaction(KP const& params, P const& pdata, float& DrDt)
 {
 	for_each_neib(nptype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
@@ -3099,7 +3101,9 @@ density_diffusion_interaction(
 
 		density_diffusion_neib_output<boundarytype, nptype> nout(params, pdata, ndata);
 
-		compute_density_diffusion<densitydiffusiontype, boundarytype, cptype, nptype>::with(params, pdata, ndata, nout);
+		compute_density_diffusion<
+			KP, P, decltype(ndata), decltype(nout),
+			nptype>(params, pdata, ndata, nout);
 
 		DrDt += nout.DrDt;
 	}
