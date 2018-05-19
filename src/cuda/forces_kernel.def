@@ -907,9 +907,21 @@ struct forces_neib_output :
 };
 
 /*
- * A lot of parts of the forces kernel behave very differently based on some template parameters.
- * We isolate this behavior in template functions defined (and specialized) here.
- * TODO FIXME the syntax of these functors could be OH SO MUCH CLEANER if we could use C++11 ...
+ * The behavior of the forces kernel, and in particular of the particle-particle
+ * interaction that constitutes the most significant part of it, vary
+ * significantly depending on the framework options.
+ * This variability is factored out in a number of template functions and
+ * functors that implement individual logical fragments of the formulas (e.g.
+ * pressure computation, viscous contribution computation, etc) and are
+ * specialized based on framework options.
+ * When possible, we use template functions and SFINAE, which frequently turns
+ * down to a pair of function definition, one that implements the actual work
+ * if a specific condition is met (e.g. the visctype is KEPSVISC), and the other
+ * that does nothing. (Sadly, I have not found a way to make this shorter
+ * without using C++17 if constexpr, which is obviously not yet supported in CUDA.)
+ * In a few cases the complexity of the logic and/or the repeated subexpression
+ * are better expressed with template structures that gather multiple related
+ * methods.
  */
 
 /// The next set of functions check  if the given particle (pdata) should skip
