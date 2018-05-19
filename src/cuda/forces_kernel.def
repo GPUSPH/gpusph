@@ -83,6 +83,7 @@
  */
 
 DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
+DECLARE_MEMBER_DETECTOR(volume, has_volume)
 
 /*
  * Auxiliary functions, needed to initialize const members in one go
@@ -1073,27 +1074,20 @@ void compute_gamma_cfl<true, true>::with(FP const& params, P const& pdata, N con
 		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
 }
 
-/// A functor that computes the ratio of the volumes of two particles
+/// A function that computes the ratio of the volumes of two particles
 /// either as rho_N/rho_P (if the volume is not available) or as vol_P/vol_N
 /// (if the volume is available, e.g. with SPH_GRENIER)
-template<bool has_volume>
-struct volume_ratio {
-	template<typename P, typename N>
-	__device__ __forceinline__
-	static float
-	with(P const& pdata, N const& ndata) {
-		return ndata.relVel.w/pdata.vel.w;
-	}
-};
-
-/* With Grenier we  use the volume directly */
-template<>
 template<typename P, typename N>
 __device__ __forceinline__
-float
-volume_ratio<true>::with(P const& pdata, N const& ndata) {
-	return pdata.volume/ndata.volume;
-}
+enable_if_t<not has_volume<P>(), float>
+volume_ratio(P const& pdata, N const& ndata)
+{ return ndata.relVel.w/pdata.vel.w; }
+
+template<typename P, typename N>
+__device__ __forceinline__
+enable_if_t<has_volume<P>(), float>
+volume_ratio(P const& pdata, N const& ndata)
+{ return pdata.volume/ndata.volume; }
 
 /// A functor that computes a density diffusion term.
 /// There are three different options implemented at the moment, Ferrari, Brezzi and Colagrossi
@@ -1228,11 +1222,9 @@ compute_density_diffusion<COLAGROSSI, boundarytype, cptype, PT_FLUID>
 		// Additionally, when the density evolution formulation is NOT based on
 		// volumes, we need to multiply by the neighbor mass
 
-		// TODO templetize on sph_formulation
-		const bool has_volume = (FP::sph_formulation == SPH_GRENIER);
 		const float diff_term = d_densityDiffCoeff*d_sscoeff[fType]*
-			(volume_ratio<has_volume>::with(pdata, ndata) - 1)*
-			ndata.f*(has_volume ? -1 : ndata.relPos.w);
+			(volume_ratio(pdata, ndata) - 1)*
+			ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
 
 		// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
 
