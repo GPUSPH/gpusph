@@ -924,55 +924,64 @@ struct forces_neib_output :
  * methods.
  */
 
-/// The next set of functions check  if the given particle (pdata) should skip
-/// traversing the neib list, and define the actions to be taken when skipping.
-/// Since we need partial specialization, they cannot be actual functions.
-template<BoundaryType boundarytype,
-	ParticleType cptype,
-	ParticleType nptype>
-struct skip_neiblist
+/// skip_neiblist: determine if neighbor list traversal should be skipped for this particle
+/*! Currently, the only case when the neighbors list is skipped is
+ * for PT_VERTEX particles in the SA_BOUNDARY model, except
+ * when using k-epsilon viscosity, or for open boundaries
+ * with prescribed pressure.
+ *
+ * Part of this should be handled at kernel launch time (i.e. the kernel should
+ * not be launched at all when the conditions are purely based on framework options),
+ * but at least for the open boundary case we can only check at runtime, for
+ * each specific particle.
+ *
+ * \returns true if the neighbor iteration should be skipped,
+ * false otherwise.
+ */
+template<typename FP, typename P>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY && // when using semi-analytical boundary conditions
+	FP::visctype != KEPSVISC && // and we're not using the k-epsilon turbulence model
+	!(FP::simflags & ENABLE_INLET_OUTLET) && // and there are no open boundaries
+	FP::cptype == PT_VERTEX, // when this is a vertex particle
+	bool
+>
+skip_neiblist(FP const& params, P const& pdata)
 {
-	/// check if the given particle must skip the neiblist traversal
-	template<typename FP, typename P>
-	__device__ __forceinline__
-	bool check(FP const& params, P const& pdata)
-	{
-		return false; // default, don't skip
-	}
+	return true; // skip the neighbor list
+}
 
-	/// do anything that is needed to actually skip the neiblist traversal
-	template<typename P, typename OP>
-	__device__ __forceinline__
-	void prepare(P const& pdata, OP &pout)
-	{ /* do nothing by default */ }
-
-};
-
-template<ParticleType nptype>
-struct skip_neiblist<SA_BOUNDARY, PT_VERTEX, nptype>
+/// Specialization of skip_neiblist for conditions where we never skip
+template<typename FP, typename P>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype != SA_BOUNDARY || // not using semi-analytical boundaries
+	FP::visctype == KEPSVISC || // or we're using k-epsilon
+	FP::cptype != PT_VERTEX, // or this is not a vertex particle
+	bool
+>
+skip_neiblist(FP const& params, P const& pdata)
 {
-	template<typename FP, typename P>
-	__device__ __forceinline__
-	bool check(FP const& params, P const& pdata)
-	{
-		// in case of k-epsilon we need to compute the viscous force acting on the vertex
-		if (FP::visctype == KEPSVISC)
-			return false;
-		// in case of IO and pressure outlet we need to compute the water level
-		else if (FP::simflags & ENABLE_INLET_OUTLET && IO_BOUNDARY(pdata.info) && PRES_IO(pdata.info))
-			return false;
-		// if none of the above matches, then we can skip the neighbour loop
-		else
-			return true;
-	}
+	return false; // don't skip the neighbor list
+}
 
-	template<typename P, typename OP>
-	__device__ __forceinline__
-	void prepare(P const& pdata, OP &pout)
-	{
-		/* nothing, presently */
-	}
-};
+/// Specialization of skip_neiblist with runtime selection
+template<typename FP, typename P>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY && // when using semi-analytical boundary conditions
+	FP::visctype != KEPSVISC && // and we're not using the k-epsilon turbulence model
+	(FP::simflags & ENABLE_INLET_OUTLET) && // and there are open boundaries
+	FP::cptype == PT_VERTEX, // when this is a vertex particle
+	bool
+>
+skip_neiblist(FP const& params, P const& pdata)
+{
+	// skip if this is NOT an open boundary with imposed pressure
+	return !(IO_BOUNDARY(pdata.info) && PRES_IO(pdata.info));
+}
+
 
 /*
  * Functors to compute neighbor contributions. Template structs with a single
@@ -2691,20 +2700,13 @@ forcesDevice(
 		/* And finally the neighbors list traversal support */
 
 		// Under some conditions, some particles might want to skip the
-		// neighbor list traversal. This is checked by the check() function of
-		// the skip_neiblist struct. Any action that needs to be done then is
-		// done by the prepare() function in the same struct.
+		// neighbor list traversal. This is checked by the skip_neiblist()
+		// function
 
-		skip_neiblist<boundarytype, cptype, nptype> skip;
-
-		bool cont = true;
-		if (skip.check(params, pdata)) {
-			skip.prepare(pdata, pout);
-			cont = false; // Skip neighbors loop
-		}
+		const bool skip = skip_neiblist(params, pdata);
 
 		// Loop over all neighbors of type nptype
-		if (cont) for_each_neib(nptype, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		if (!skip) for_each_neib(nptype, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
