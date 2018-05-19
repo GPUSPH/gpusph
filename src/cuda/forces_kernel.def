@@ -33,35 +33,56 @@
 
 #include "has_member.h"
 
-/// This file defines the heavy-duty forcesDevice kernel (at the end).
-/// The kernel itself is now quite streamlined, and it only contains sequences
-/// of calls to templatized functors that do the actual job according to their
-/// specialization (based on SPH formulation, boundary type, viscosity type, etc).
-/// The functors themselves operate on sets of data structures which are also
-/// templatized based on the same parameters, and that include only the
-/// variables actually needed for each specialization.
+/// This file defines the heavy-duty forcesDevice kernel (at the end). The
+/// kernel itself is now quite streamlined, and it only contains sequences of
+/// calls to function templates and functors template that do the actual job
+/// according to their specialization (based on SPH formulation, boundary type,
+/// viscosity type, etc).
+
+/// The template functions operate on sets of data structures (kernel params,
+/// particle data, neighbor data, neighbor output, particle output) which are
+/// templates themselves, in order to only have the variables that are
+/// actually needed for each specialization.
 
 /// Some hints:
 /// * const-ify everything that can be made const
 /// * if the initialization of a would-be const member is complex, define an
 ///   auxiliary function for it
-/// * functors use the 'with' operator. Both the functors and their operators
-///   may be templatized, as a way to circumvent the limits on partial template
-///   specializations imposed by C++
-/// * the kernel params, particle data, neighbor data etc are also complex templatized
-///   structures; you can work around this when having to declare the arguments to
+/// * the kernel params, particle data, neighbor data etc are also complex structure
+///   templates; you can work around this when having to declare the arguments to
 ///   the functor operators by using generic typenames FP, P, N, OP, ON
 ///   (for Forces Params, Particle, Neighbor, Output for Particle, Output from Neighbor)
+/// * when we first introduced the functor structures, we worked around the limitations
+///   of partial function template specialization in C++ by putting the relevant code
+///   into a static 'with' function template, and then specializing the outer structure
+/// * a better approach that is gradually being introduced is to use SFINAE
+///   (Substitution Failure Is Not An Error): the forces parameters structure template
+///   holds static constexpr members matching the template parameters, so it's possible
+///   to write function templates that inspect FP::simparams, FP::boundarytype etc
+///   to decide what to do, and write multiple “specializations” (actualy overloads)
+///   using enable_if;
+/// * when the conditions for the specification are complex, it is recommended
+///   to write separate constexpr functions or 'using' template specifications,
+///   and then using those in the enable_if_t<condition<parameter>()>, for better
+///   readability.
 
 /// The file is thus structured:
+/// * a set of auxiliary functions and 'using' specifications
+///   to make the SFINAE specifications more readable;
 /// * a set of auxiliary functions, which are used later on to initialize
 ///   const members of structures in one go; these are needed
 /// * particle data structures and output variables
 /// * neighbor data structures and output variables
-/// * functors for the computation of forces contributions
-/// * functors for post-processing and saving
+/// * functions and functors for the computation of forces contributions
+/// * functions and functors for post-processing and saving
 /// * global (shared) variables and their functors
 /// * the actual forcesDevice kernel
+
+/*
+ * SFINAE helpers
+ */
+
+DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
 
 /*
  * Auxiliary functions, needed to initialize const members in one go
@@ -710,8 +731,6 @@ struct finalize_particle_output :
 /* We may fetch velocity either from the kernel params (if there is a velArray),
    or from the velTex texture (otherwise). We abstract this selection in the following pair
    of specialized functions. */
-
-DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
 
 template<typename FP>
 __device__ __forceinline__
