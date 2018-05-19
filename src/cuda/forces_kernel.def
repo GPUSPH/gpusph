@@ -1031,6 +1031,10 @@ skip_neiblist(FP const& params, P const& pdata)
  * for the method.
  */
 
+/*
+ * Gamma gradient
+ */
+
 /// A functor that computes the neighbor contribution to the gradient of gamma
 template<typename FP, typename P, typename N>
 __device__ __forceinline__
@@ -1071,6 +1075,9 @@ enable_if_t<
 compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
+/*
+ * Gamma CFL condition
+ */
 
 /// Compute CFL condition for gamma evolution
 /*! When using the continuity equation to evolve gamma in semi-analytical
@@ -1139,20 +1146,30 @@ void compute_gamma_cfl
 	compute_gamma_cfl_open_boundary(params, pdata, ndata, pout, nout);
 };
 
-/// A function that computes the ratio of the volumes of two particles
-/// either as rho_N/rho_P (if the volume is not available) or as vol_P/vol_N
-/// (if the volume is available, e.g. with SPH_GRENIER)
-template<typename P, typename N>
-__device__ __forceinline__
-enable_if_t<not has_volume<P>(), float>
-volume_ratio(P const& pdata, N const& ndata)
-{ return ndata.relVel.w/pdata.vel.w; }
+/*
+ * Density diffusion function templates
+ *
+ * The following function templates implement the three supported
+ * density diffusion models: Ferrari, Brezzi and Colagrossi.
+ */
 
+/// Compute ratio of particle volumes (central to neighbor)
+/*! This is computed as the the ratio of volumes when the particle volume is
+ * available (e.g. when using the SPH_GRENIER formulation), and as
+ * the inverse ratio of densities when the volume is not available.
+ *
+ * Used e.g. to compute Colagrossi's density diffusion.
+ */
 template<typename P, typename N>
 __device__ __forceinline__
 enable_if_t<has_volume<P>(), float>
 volume_ratio(P const& pdata, N const& ndata)
 { return pdata.volume/ndata.volume; }
+template<typename P, typename N>
+__device__ __forceinline__
+enable_if_t<not has_volume<P>(), float>
+volume_ratio(P const& pdata, N const& ndata)
+{ return ndata.relVel.w/pdata.vel.w; }
 
 /// A functor that computes a density diffusion term.
 /// There are three different options implemented at the moment, Ferrari, Brezzi and Colagrossi
