@@ -1410,24 +1410,19 @@ public generic_compute_pressure_contrib
 	}
 };
 
-/// A functor that computes the mean velocity (XSPH)
-template<bool usexsph>
-struct compute_mean_vel
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
-
-template<>
+/// Compute mean neighborhood velocity for XSPH
 template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_mean_vel<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+__device__ __forceinline__
+enable_if_t<FP::simflags & ENABLE_XSPH>
+compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
 }
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<not (FP::simflags & ENABLE_XSPH)>
+compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
 
 
 /// A function that computes simple fluid/boundary forces (LJ, MK)
@@ -2324,7 +2319,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_keps_term<boundarytype, visctype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
 
 		// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
-		compute_mean_vel<simflags & ENABLE_XSPH>::with(params, pdata, ndata, pout, nout);
+		compute_mean_vel(params, pdata, ndata, pout, nout);
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
