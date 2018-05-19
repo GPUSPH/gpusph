@@ -984,14 +984,27 @@ skip_neiblist(FP const& params, P const& pdata)
 
 
 /*
- * Functors to compute neighbor contributions. Template structs with a single
- * static method (`with`) which takes params, pdata, ndata as const& input,
- * and pout, nout as & output. The method may also return something.
- * The method should be a template method based on the typenames of its arguments
- * (which would otherwise be too complex to specify, and it's not even necessary
- *  since template functions auto-match their arguments), so any specialization
- * based on the struct template parameter(s) will have two template<> specifications:
- * the first one for the struct, and the second (unchanged from the declaration)
+ * Function template and functor templates to compute neighbor contributions.
+ * The functor templates should only be used when SFINAE on function templates
+ * is not enough, to work around the fact that in C++ it's not possible to
+ * do a partial function overload.
+ * Keep in mind that the functors we use are not really the standard C++11 functors;
+ * instead, thye are struct templates with a single static method (`with`).
+ *
+ * Both the function templates and the static with method in functor templates
+ * take params, pdata, ndata as const& input, and pout, nout as & output.
+ * Return types are typically void, but some of them do return something.
+ *
+ * All compile-time framework options and the central/neighbor particle types
+ * are statically available from kernel params (FP::simflags, FP::boundarytype,
+ * etc; FP::cptype, FP::nptype).
+ *
+ * When using functor templates with static with, the static with method
+ * be a template based on the typenames of its arguments (which would otherwise
+ * be too complex to specify, and it's not even necessary since template
+ * functions auto-match their arguments), so any specialization based on the
+ * struct template parameter(s) will have two template<> specifications: the
+ * first one for the struct, and the second (unchanged from the declaration)
  * for the method.
  */
 
