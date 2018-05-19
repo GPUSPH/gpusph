@@ -309,10 +309,6 @@ struct grenier_finalize_particle_data
 // data used for SA_BOUNDARY
 struct sa_boundary_particle_data
 {
-	// does this particle want to (re)compute gamma? see logic below
-	// this is used by vertex particles only
-	bool	computeGamma;
-
 	// oldGGam would hold the previous value of gamma (in .w) and its gradient (in .xyz).
 	// oldGGam is used in case of vertex particles to compute the solid angle of vertex particles.
 	// For fluid particles it is used in case the particle is too close to a wall
@@ -330,11 +326,7 @@ struct sa_boundary_particle_data
 	__device__ __forceinline__
 	sa_boundary_particle_data(const uint index, particleinfo const& info,
 		sa_boundary_forces_params const& params) :
-		computeGamma(true),
-		// the actual oldGGam loading: this will also set computeGamma true if
-		// it was false but .w was < epsilon
-		oldGGam(fetchOldGamma(index, params.epsilon, computeGamma)),
-		//oldGGam(make_float4(0.0)),
+		oldGGam(tex1Dfetch(gamTex, index)),
 		belem(BOUNDARY(info) ? tex1Dfetch(boundTex, index) : make_float4(0.0f))
 	{}
 };
@@ -951,11 +943,8 @@ struct skip_neiblist<SA_BOUNDARY, PT_VERTEX, nptype>
 	__device__ __forceinline__
 	bool check(FP const& params, P const& pdata)
 	{
-		// if the vertex needs to compute gamma, then we can't skip
-		if (pdata.computeGamma)
-			return false;
 		// in case of k-epsilon we need to compute the viscous force acting on the vertex
-		else if (FP::visctype == KEPSVISC)
+		if (FP::visctype == KEPSVISC)
 			return false;
 		// in case of IO and pressure outlet we need to compute the water level
 		else if (FP::simflags & ENABLE_INLET_OUTLET && IO_BOUNDARY(pdata.info) && PRES_IO(pdata.info))

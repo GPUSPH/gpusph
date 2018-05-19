@@ -60,22 +60,6 @@ __constant__ float GQ_O14_points[10][3] = {
 //! Gaussian quadrature 14th order: multiplicity of each quadrature point
 __constant__ int GQ_O14_mult[10] = {1,3,3,3,3,3,6,6,6,6};
 
-//! Obtains old (grad)gamma value
-/*
- Load old gamma value.
- If computeGamma was false, it means the caller wants us to check gam.w against epsilon
- to see if the new gamma is to be computed
-*/
-__device__ __forceinline__
-float4
-fetchOldGamma(const uint index, const float epsilon, bool &computeGamma)
-{
-	float4 gam = tex1Dfetch(gamTex, index);
-	if (!computeGamma)
-		computeGamma = (gam.w < epsilon);
-	return gam;
-}
-
 //! This function returns the function value of the integrated wendland kernel
 __device__ __forceinline__
 float
