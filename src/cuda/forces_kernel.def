@@ -84,6 +84,9 @@
 
 DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
 DECLARE_MEMBER_DETECTOR(volume, has_volume)
+DECLARE_MEMBER_DETECTOR(gammaCfl, has_gammaCfl)
+DECLARE_MEMBER_DETECTOR(eulerVel, has_eulerVel)
+DECLARE_MEMBER_DETECTOR(relEulerVel, has_relEulerVel)
 
 /*
  * Auxiliary functions, needed to initialize const members in one go
@@ -601,13 +604,6 @@ struct gamma_cfl_particle_output
 		gammaCfl(params.cfl_gamma[index])
 	{}
 };
-
-template<typename OP>
-__device__ __forceinline__
-constexpr bool has_gammaCfl()
-{
-	return std::is_base_of<gamma_cfl_particle_output, OP>::value;
-}
 
 // KEPSVISC
 struct keps_particle_output
@@ -1448,19 +1444,15 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
 // This is just relVel normally, but it's relVel + relEulerVel when the neighbor
 // has an associated eulerian velocity.
 
-template<typename N, bool ret = std::is_base_of<eulerVel_neib_data, N>::value>
-__device__ __forceinline__
-constexpr bool has_eulerVel() { return ret; }
-
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!has_eulerVel<N>(), float4>
+enable_if_t<!has_relEulerVel<N>(), float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel; } /* Standard case */
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<has_eulerVel<N>(), float4>
+enable_if_t<has_relEulerVel<N>(), float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel + ndata.relEulerVel; } /* eulerVel case */
 
