@@ -88,6 +88,29 @@ DECLARE_MEMBER_DETECTOR(gammaCfl, has_gammaCfl)
 DECLARE_MEMBER_DETECTOR(eulerVel, has_eulerVel)
 DECLARE_MEMBER_DETECTOR(relEulerVel, has_relEulerVel)
 
+/// Selector to check if we need a CFL condition for gamma
+template<typename FP>
+__device__ __forceinline__
+constexpr bool
+needs_gamma_cfl()
+{
+	return
+		USING_DYNAMIC_GAMMA(FP::simflags) && // only needed when using dynamic gamma
+		(FP::simflags & ENABLE_DTADAPT); // with adaptive time-stepping
+}
+
+/// Selecor to check if we need a CFL condition for gamma,
+/// taking open boundaries into consideration
+template<typename FP>
+__device__ __forceinline__
+constexpr bool
+needs_io_gamma_cfl()
+{
+	return needs_gamma_cfl<FP>() && (FP::simflags & ENABLE_INLET_OUTLET);
+}
+
+
+
 /*
  * Auxiliary functions, needed to initialize const members in one go
  */
@@ -1048,20 +1071,17 @@ enable_if_t<
 compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
-// A functor to compute the gamma CFL
-template<bool needs_cfl, bool ioBoundary>
-struct compute_gamma_cfl {
-	template<typename FP, typename OP, typename P, typename N, typename ON>
-	__device__ __forceinline__
-	static void with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
 
-// Specialization of compute_gamma_cfl in the case of dynamic gamma and no IO
-template<>
+/// Compute CFL condition for gamma evolution
+/*! When using the continuity equation to evolve gamma in semi-analytical
+ * boundary conditions, a CFL-like condition can be computed based on the
+ * relative normal velocity of the fluid to the boundary.
+ */
 template<typename FP, typename OP, typename P, typename N, typename ON>
-__device__ __forceinline__ void
-compute_gamma_cfl<true, false>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+__device__ __forceinline__
+enable_if_t<needs_gamma_cfl<FP>()>
+compute_gamma_cfl_solid_wall
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
 	pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fmax(
@@ -1074,16 +1094,23 @@ compute_gamma_cfl<true, false>::with(FP const& params, P const& pdata, N const& 
 			))
 		);
 }
-
-// Specialization of compute_gamma_cfl in the case of dynamic gamma and IO
-template<>
 template<typename FP, typename OP, typename P, typename N, typename ON>
 __device__ __forceinline__
-void compute_gamma_cfl<true, true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	// non-IO contribution
-	compute_gamma_cfl<true, false>::with(params, pdata, ndata, pout, nout);
+enable_if_t<not needs_gamma_cfl<FP>()>
+compute_gamma_cfl_solid_wall
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
 
+/// Open boundary contribution for gamma CFL condition
+/*! Open boundaries also consider the eulerian velocity when computing
+ * the gamma CFL condition.
+ */
+template<typename FP, typename OP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<needs_io_gamma_cfl<FP>()>
+compute_gamma_cfl_open_boundary
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
 	// IO contribution, taking relEulerVel into account
 	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
 	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
@@ -1092,6 +1119,25 @@ void compute_gamma_cfl<true, true>::with(FP const& params, P const& pdata, N con
 		// n . (v_s + u_s)
 		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
 }
+
+template<typename FP, typename OP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<not needs_io_gamma_cfl<FP>()>
+compute_gamma_cfl_open_boundary
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
+
+/// Compute gamma CFL
+/*! Consider both the solid wall and open boundary contributions, as needed
+ */
+template<typename FP, typename OP, typename P, typename N, typename ON>
+__device__ __forceinline__
+void compute_gamma_cfl
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	compute_gamma_cfl_solid_wall(params, pdata, ndata, pout, nout);
+	compute_gamma_cfl_open_boundary(params, pdata, ndata, pout, nout);
+};
 
 /// A function that computes the ratio of the volumes of two particles
 /// either as rho_N/rho_P (if the volume is not available) or as vol_P/vol_N
@@ -2554,7 +2600,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
 
 		// Compute gamma CFL
-		compute_gamma_cfl<(simflags & ENABLE_DTADAPT) && USING_DYNAMIC_GAMMA(simflags), (simflags & ENABLE_INLET_OUTLET)>::with(params, pdata, ndata, pout, nout);
+		compute_gamma_cfl(params, pdata, ndata, pout, nout);
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
