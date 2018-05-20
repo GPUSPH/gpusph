@@ -155,6 +155,20 @@ wants_volumic_visc_term()
 		FP::boundarytype == DYN_BOUNDARY;
 }
 
+/// Selector for k-epsilon differential equations terms
+/*! Presently KEPSVISC is only supported with semi-analytical boundary conditions,
+ * but in the future this restriction may be lifted
+ */
+template<typename FP>
+__device__ __forceinline__
+constexpr bool
+computes_keps_term()
+{
+	return
+		FP::visctype == KEPSVISC &&
+		FP::boundarytype == SA_BOUNDARY &&
+		FP::cptype == PT_FLUID;
+}
 
 /*
  * Auxiliary functions, needed to initialize const members in one go
@@ -1898,92 +1912,97 @@ compute_viscous_contrib
 	}
 }
 
+/*
+ * Contribution to the differential terms for k-epsilon evolution
+ *
+ * With the KEPSVISC viscous model, k and epsilon evolve following
+ * a differential equation. The following functions implement
+ * their discretization for the SA_BOUNDARY model.
+ *
+ * The equations are only integrated for fluid particles, so
+ * there is no contribution if this particle is not a fluid particle
+ *
+ * TODO support KEPSVISC with other models
+ */
 
-/// Functor to compute the KEPS diffusion and velocity gradient terms
-struct generic_compute_keps_term
+/// (missing) k-epsilon differential term
+/*! This is the specialization of compute_keps_term when
+ * the contribution does not need to be computed (i.e. if using a different
+ * viscous model, or if not using the semi-analytical boundary condition,
+ * or if the central particle is not a fluid particle)
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<not computes_keps_term<FP>()>
+compute_keps_term
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
+
+/// k-epsilon differential equation, volumic term
+/*! This is the contribution from fluid and vertex neighbors
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	computes_keps_term<FP>() &&
+	(FP::nptype == PT_FLUID || FP::nptype == PT_VERTEX)
+>
+compute_keps_term
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
+	// volume contribution for k and epsilon diffusion terms
+	pout.diff_term_k += ndata.relPos.w*(
+		pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc)
+		)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
+	pout.diff_term_e += ndata.relPos.w*(
+		pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc/1.3f)
+		)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
 
-template<BoundaryType boundarytype,
-		ViscosityType visctype,
-		ParticleType cptype,
-		ParticleType nptype>
-struct compute_keps_term : public generic_compute_keps_term
+	// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
+	const float3 dvmul = -ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ;
+
+	// velocity gradient
+	// From fluid/vertex:
+	//	dvx = -∑mb vxab ∇(ra - rb)/r ∂Wab/∂r
+	//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
+	//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
+
+	pout.add_strain_rate(get_viscous_relVel(ndata), dvmul);
+}
+
+/// k-epsilon differential equation, boundary term
+/*! This is the contribution from boundary neighbors
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	computes_keps_term<FP>() &&
+	(FP::nptype == PT_BOUNDARY)
+>
+compute_keps_term
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
+	// Yap correction
+	// constant is 0.09^0.75/0.41
+	const float lyap = 0.400772603f*powf(pdata.keps_k,1.5f)/(pdata.keps_e*ndata.r_as);
+	if (lyap > 1.0f)
+		pout.ce2yap = fmin(pout.ce2yap, fmax(1.92f - 0.83f*(lyap-1.0f)*lyap*lyap, 0.0f));
 
-//k-e computation for SA and PT_FLUID <= PT_FLUID or PT_VERTEX
-template<ParticleType cptype,
-		ParticleType nptype>
-struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, nptype> : public generic_compute_keps_term
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		// volume contribution for k and epsilon diffusion terms
-		pout.diff_term_k += ndata.relPos.w*(
-			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc)
-			)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
-		pout.diff_term_e += ndata.relPos.w*(
-			pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc/1.3f)
-			)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
+	// boundary contribution to epsilon diffusion term
+	// the constant factor is 4.0f*0.09/1.3 where 0.09 = C_\mu and 1.3 = \sigma_\epsilon
+	pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.ggamAS;
 
-		// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
-		const float3 dvmul = -ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ;
+	// multiplication for velocity gradient terms (gradGam_as*rho_s)
+	const float3 dvmul = nout.ggamAS*ndata.normal_s*ndata.relVel.w;
 
-		// velocity gradient
-		// From fluid/vertex:
-		//	dvx = -∑mb vxab ∇(ra - rb)/r ∂Wab/∂r
-		//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
-		//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
+	// velocity gradient
+	// From boundary:
+	//	dvx = ∑ρs vxas ∇γas
+	//	dvy = ∑ρs vyas ∇γas
+	//	dvz = ∑ρs vzas ∇γas
 
-		pout.add_strain_rate(get_viscous_relVel(ndata), dvmul);
-	}
-};
-
-//k-e computation for SA and PT_FLUID <= PT_BOUNDARY
-template<ParticleType cptype>
-struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, PT_BOUNDARY> : public generic_compute_keps_term
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		// Yap correction
-		// constant is 0.09^0.75/0.41
-		const float lyap = 0.400772603f*powf(pdata.keps_k,1.5f)/(pdata.keps_e*ndata.r_as);
-		if (lyap > 1.0f)
-			pout.ce2yap = fmin(pout.ce2yap, fmax(1.92f - 0.83f*(lyap-1.0f)*lyap*lyap, 0.0f));
-
-		// boundary contribution to epsilon diffusion term
-		// the constant factor is 4.0f*0.09/1.3 where 0.09 = C_\mu and 1.3 = \sigma_\epsilon
-		pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.ggamAS;
-
-		// multiplication for velocity gradient terms (gradGam_as*rho_s)
-		const float3 dvmul = nout.ggamAS*ndata.normal_s*ndata.relVel.w;
-
-		// velocity gradient
-		// From boundary:
-		//	dvx = ∑ρs vxas ∇γas
-		//	dvy = ∑ρs vyas ∇γas
-		//	dvz = ∑ρs vzas ∇γas
-
-		pout.add_strain_rate(get_viscous_relVel(ndata), dvmul);
-	}
-};
+	pout.add_strain_rate(get_viscous_relVel(ndata), dvmul);
+}
 
 /*
  * Additional contributions to momentum equation and velocity evolution in general
@@ -2564,7 +2583,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		compute_keps_term<boundarytype, visctype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+		compute_keps_term(params, pdata, ndata, pout, nout);
 
 		// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 		compute_mean_vel(params, pdata, ndata, pout, nout);
@@ -2700,7 +2719,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 			compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
 			// Compute diffusion terms for k-epsilon and the strain rate tensor
-			compute_keps_term<DYN_BOUNDARY, visctype, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+			compute_keps_term(params, pdata, ndata, pout, nout);
 			// TODO : implement keps for dynamic boundaries
 
 			// Sum all contributions from the neighbors in the force array
@@ -2738,7 +2757,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		compute_keps_term<DYN_BOUNDARY, visctype, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		compute_keps_term(params, pdata, ndata, pout, nout);
 		// TODO : implement keps for dynamic boundaries
 
 		// Sum all contributions from the neighbors in the force array
@@ -2775,7 +2794,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		compute_keps_term(params, pdata, ndata, pout, nout);
 
 		// Compute gamma CFL
 		compute_gamma_cfl(params, pdata, ndata, pout, nout);
@@ -2844,7 +2863,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
 		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		compute_keps_term<SA_BOUNDARY, visctype, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
+		compute_keps_term(params, pdata, ndata, pout, nout);
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
