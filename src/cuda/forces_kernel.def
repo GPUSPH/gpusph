@@ -510,8 +510,6 @@ struct forces_particle_data :
 	// shorthand for the type of the forces params
 	typedef forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> params_t;
 
-	ParticleType	ptype;
-
 	// determine specialization automatically based on info and params
 	__device__ __forceinline__
 	forces_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info,
@@ -536,8 +534,7 @@ struct forces_particle_data :
 			typename conditional<sph_formulation == SPH_GRENIER,
 			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
 		>::type >(vel.w, _info, *this),
-		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, fluid_num(_info), *this),
-		ptype(PART_TYPE(_info))
+		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, fluid_num(_info), *this)
 	{}
 };
 
@@ -866,7 +863,6 @@ struct forces_neib_data :
 		_eulerVel_neib_data;
 
 	static constexpr ParticleType	nptype = _nptype;
-	ParticleType	ntype;
 
 	/* The constructor is templatized on the particle data type and on the
 	   kernel params type */
@@ -887,8 +883,7 @@ struct forces_neib_data :
 		p_precalc_particle_data<sph_formulation,
 			typename conditional<sph_formulation == SPH_GRENIER,
 			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
-		>::type >(this->relVel.w, _info, *this),
-		ntype(PART_TYPE(_info))
+		>::type >(this->relVel.w, _info, *this)
 	{}
 };
 
@@ -1156,7 +1151,7 @@ void compute_gamma_cfl
  * Note that these function templates are also used by the computeDensityDiffusionDevice
  * kernel, whose params structure does not have an nptype field (since all nptypes are
  * processed in a single kernel call), therefore we take the neighbor type
- * from the ntype field of the N class (which holds the neib_data).
+ * from the nptype field of the N class (which holds the neib_data).
  *
  * TODO: the density diffusion terms are designed for the standard continuity equation,
  * they are not compatible with Grenier's formulation without additional thoughts.
