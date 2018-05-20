@@ -99,7 +99,7 @@ needs_gamma_cfl()
 		(FP::simflags & ENABLE_DTADAPT); // with adaptive time-stepping
 }
 
-/// Selecor to check if we need a CFL condition for gamma,
+/// Selector to check if we need a CFL condition for gamma,
 /// taking open boundaries into consideration
 template<typename FP>
 __device__ __forceinline__
@@ -107,6 +107,25 @@ constexpr bool
 needs_io_gamma_cfl()
 {
 	return needs_gamma_cfl<FP>() && (FP::simflags & ENABLE_INLET_OUTLET);
+}
+/// Selector to check if the simplified surface tension correction should be applied
+/*! TODO Currently this is only used in the case of Grenier's formulation
+ * (in which case it can only be disabled by setting the coefficient to zero),
+ * but it should be possible to add it to other formulations as well, and
+ * from what I can see only the SPH_F2 case would need a slightly different
+ * form.
+ * When this is done, the check for whether to use the term or not
+ * should depend on an appropriate simflag instead of the sph_formulation.
+ */
+template<typename FP>
+__device__ __forceinline__
+constexpr bool
+has_pseudo_surface_tension()
+{
+	return
+		FP::sph_formulation == SPH_GRENIER &&
+		FP::cptype == PT_FLUID &&
+		FP::nptype == PT_FLUID;
 }
 
 
@@ -1439,76 +1458,140 @@ compute_density_derivative
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
+/*
+ * Momentum equation function templates
+ *
+ * The momentum equation is assembled from a contribution taking into account
+ * the pressure gradient, a viscous term and external forces. Each of them
+ * are handled separately.
+ */
 
 
-/// Functor to compute the pressure contribution to the particle acceleration.
-/// The results should be stored in nout.DvDt
-struct generic_compute_pressure_contrib
+/*
+ * Pressure contribution
+ *
+ * The pressure contribution is obtained weighting a gradient term.
+ * The gradient term itself is computed based on chosen formulation (SPH_F1, SPH_F2
+ * or SPH_GRENIER), while the weighting depends also on the boundary formulation.
+ *
+ * Additionally, a simplified surface tension correction may be applied. This is
+ * currently only done for SPH_GRENIER, but it could actually be used with other
+ * formulations as well (TODO: make a simflag to manage it)
+ */
+
+/// Simplified surface tension contribution
+/*! This is a correcting term for the pressure gradient which is only
+ * applied between fluids particles belonging to different fluids.
+ * The purpose is to avoid spurious (noisy) infiltration of one fluid type
+ * into the other. The present formulation is based on Grenier's formulation,
+ * and it should probably work for SPH_F1 as well, but it
+ * will have to be adapted for SPH_F2 (TODO)
+ */
+template<typename FP, typename Pt, typename N>
+__device__ __forceinline__
+enable_if_t<
+	has_pseudo_surface_tension<FP>(),
+	float
+>
+apply_pseudo_surface_tension(FP const& params, Pt const& pdata, N const& ndata, float pGradTerm)
 {
-	// auxiliary function, which is used as fallback also in the SA_BOUNDARY case
-	// responsible for the volumic term, note that p_precalc can contain 2/3 \rho k if KEPSVISC is chosen
-	template<typename FP, typename P_t, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static float
-	common_with(FP const& params, P_t const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		float pGradTerm = 0.0f;
-		switch (FP::sph_formulation) {
-		case SPH_F1:
-			pGradTerm = pdata.p_precalc + ndata.p_precalc;
-			break;
-		case SPH_F2:
-			pGradTerm = (pdata.p_precalc + ndata.p_precalc)/(pdata.vel.w*ndata.relVel.w);
-			break;
-		case SPH_GRENIER:
-			pGradTerm = pdata.p_precalc + ndata.p_precalc;
-			// simplified surface tension correction, applied if neighbor is FLUID
-			// of different type
-			// (TODO optimization: the FLUID check is needed in DYN_BOUNDARY case only)
-			if (FLUID(ndata.info) && fluid_num(pdata.info) != fluid_num(ndata.info))
-				pGradTerm += d_epsinterface*(fabs(pdata.p_precalc) + fabs(ndata.p_precalc));
-			break;
-		}
-		return pGradTerm;
-	}
+	const bool same_fluid = ( fluid_num(pdata.info) == fluid_num(ndata.info) );
 
-	// actual method to compute the full pressure gradient in the non SA_BOUNDARY case
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		const float pGradTerm(common_with(params, pdata, ndata, pout, nout));
-		if (FP::sph_formulation == SPH_GRENIER) {
-			nout.DvDt -= pGradTerm*ndata.f*as_float3(ndata.relPos);
-		} else {
-			nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*as_float3(ndata.relPos);
-		}
-	}
-};
+	if (!same_fluid)
+		pGradTerm += d_epsinterface*(fabs(pdata.p_precalc) + fabs(ndata.p_precalc));
 
-/// Generic version, no overrides
-template<BoundaryType boundarytype,
-		ParticleType cptype,
-		ParticleType nptype>
-struct compute_pressure_contrib : public generic_compute_pressure_contrib
-{};
-
-template<>
-struct compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY> :
-public generic_compute_pressure_contrib
+	return pGradTerm;
+}
+template<typename FP, typename Pt, typename N>
+__device__ __forceinline__
+enable_if_t<
+	not has_pseudo_surface_tension<FP>(),
+	float
+>
+apply_pseudo_surface_tension(FP const& params, Pt const& pdata, N const& ndata, float pGradTerm)
 {
-	// actual method: will need specializations depending on the particle types, so here it is just declared
-	template<typename FP, typename PD, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, PD const& pdata, N const& ndata, OP &pout, ON &nout)
-	{
-		// general pressure term
-		const float pGradTerm(common_with(params, pdata, ndata, pout, nout));
-		nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
-	}
-};
+	return pGradTerm;
+}
+
+/// Pressure gradient term
+/*! Specialization for SPH_F2, which computes (P_a + P_b)/(r_a r_b)
+ */
+template<typename FP, typename Pt, typename N>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation == SPH_F2, float>
+pressure_gradient_term
+(FP const& params, Pt const& pdata, N const& ndata)
+{
+	return (pdata.p_precalc + ndata.p_precalc)/(pdata.vel.w*ndata.relVel.w);
+}
+
+/// Pressure gradient term
+/*! All formulations except for SPH_F2 simply compute (P_a + P_b), the weighting
+ * by the particle density is handled in the caller
+ */
+template<typename FP, typename Pt, typename N>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation != SPH_F2, float>
+pressure_gradient_term
+(FP const& params, Pt const& pdata, N const& ndata)
+{
+	return pdata.p_precalc + ndata.p_precalc;
+}
+
+/// Pressure gradient term, considering simplified surface tension contribution too
+template<typename FP, typename Pt, typename N>
+__device__ __forceinline__
+float full_pressure_gradient_term
+(FP const& params, Pt const& pdata, N const& ndata)
+{
+	const float pGradTerm = pressure_gradient_term(params, pdata, ndata);
+	return apply_pseudo_surface_tension(params, pdata, ndata, pGradTerm);
+}
+
+/// Pressure contribution, Grenier formulation
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation == SPH_GRENIER>
+compute_pressure_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
+	nout.DvDt -= pGradTerm*ndata.f*as_float3(ndata.relPos);
+}
+
+/// Pressure contribution from boundary particles in SA_BOUNDARY case
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID &&
+	FP::nptype == PT_BOUNDARY
+>
+compute_pressure_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
+	nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
+}
+
+/// Pressure contribution, general formulation
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation != SPH_GRENIER && not (
+		FP::boundarytype == SA_BOUNDARY &&
+		FP::cptype == PT_FLUID &&
+		FP::nptype == PT_BOUNDARY
+	)
+>
+compute_pressure_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
+	nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*as_float3(ndata.relPos);
+}
+
+
 
 /// Compute mean neighborhood velocity for XSPH
 template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -2403,7 +2486,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// Compute pressure part of acceleration
-		compute_pressure_contrib<boundarytype, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+		compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
 		compute_viscous_contrib<boundarytype, sph_formulation, PT_FLUID, PT_FLUID>::with(params, pdata, ndata, pout, nout);
@@ -2539,7 +2622,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		// We need to compute force on boundary particles only when we have floating bodies or force feedback
 		if (COMPUTE_FORCE(pdata.info)) {
 			// Compute pressure part of acceleration
-			compute_pressure_contrib<DYN_BOUNDARY, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
+			compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
 			// Compute viscous forces
 			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation, PT_BOUNDARY, PT_FLUID>::with(params, pdata, ndata, pout, nout);
@@ -2577,7 +2660,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// Compute pressure part of acceleration
-		compute_pressure_contrib<DYN_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
 		compute_viscous_contrib<DYN_BOUNDARY, sph_formulation, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
@@ -2614,7 +2697,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// Compute pressure part of acceleration
-		compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+		compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
 		compute_viscous_contrib<SA_BOUNDARY, sph_formulation, PT_FLUID, PT_BOUNDARY>::with(params, pdata, ndata, pout, nout);
@@ -2651,7 +2734,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		// We need to compute force on boundary particles only when we have floating bodies or force feedback
 		/*if (COMPUTE_FORCE(pdata.info)) {
 			// Compute pressure part of acceleration
-			compute_pressure_contrib<DYN_BOUNDARY>::with(params, pdata, ndata, pout, nout);
+			compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
 			// Compute viscous forces
 			compute_viscous_contrib<DYN_BOUNDARY, sph_formulation>::with(params, pdata, ndata, pout, nout);
@@ -2683,7 +2766,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		compute_density_derivative(params, pdata, ndata, pout, nout);
 
 		// Compute pressure part of acceleration
-		compute_pressure_contrib<SA_BOUNDARY, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
+		compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
 		// Compute viscous forces
 		compute_viscous_contrib<SA_BOUNDARY, sph_formulation, PT_FLUID, PT_VERTEX>::with(params, pdata, ndata, pout, nout);
