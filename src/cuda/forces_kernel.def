@@ -59,7 +59,7 @@
 ///   (Substitution Failure Is Not An Error): the forces parameters structure template
 ///   holds static constexpr members matching the template parameters, so it's possible
 ///   to write function templates that inspect FP::simparams, FP::boundarytype etc
-///   to decide what to do, and write multiple “specializations” (actualy overloads)
+///   to decide what to do, and write multiple “specializations” (actually overloads)
 ///   using enable_if;
 /// * when the conditions for the specification are complex, it is recommended
 ///   to write separate constexpr functions or 'using' template specifications,
@@ -393,9 +393,9 @@ struct keps_particle_data
 // (2) the initialization depends on SPH formulation and viscosity type
 // (3) with KEPSVISC and SPH_GRENIER it needs one additional parameter
 // (4) the value passed to the additional parameter only exists in the KEPSVISC/SPH_GRENIER case
-// so the caller must be able to feed the last parameter correctly if it exsists,
+// so the caller must be able to feed the last parameter correctly if it exists,
 // but not even try to provide it otherwise.
-// The solution is to make this a templatized structure based on
+// The solution is to make this structure template structure based on
 // SPH formulation, plus the typename of an additional parameter, which
 // will be the structure containing keps_k in the case of KEPSVISC.
 // Suggestions for a better solution are welcome
@@ -1008,7 +1008,7 @@ skip_neiblist(FP const& params, P const& pdata)
  * is not enough, to work around the fact that in C++ it's not possible to
  * do a partial function overload.
  * Keep in mind that the functors we use are not really the standard C++11 functors;
- * instead, thye are struct templates with a single static method (`with`).
+ * instead, they are struct templates with a single static method (`with`).
  *
  * Both the function templates and the static with method in functor templates
  * take params, pdata, ndata as const& input, and pout, nout as & output.
@@ -1158,7 +1158,7 @@ void compute_gamma_cfl
  */
 
 /// Compute ratio of particle volumes (central to neighbor)
-/*! This is computed as the the ratio of volumes when the particle volume is
+/*! This is computed as the ratio of volumes when the particle volume is
  * available (e.g. when using the SPH_GRENIER formulation), and as
  * the inverse ratio of densities when the volume is not available.
  *
@@ -1336,7 +1336,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
  * coming from the divergence of the velocity, a density diffusion term,
  * and finally (in some cases) a weight correction.
  *
- * We assemble the actuall compute_mass_continuity from function templates
+ * We assemble the actual compute_density_derivative from function templates
  * for each of these parts.
  */
 
@@ -1377,7 +1377,7 @@ mass_continuity_div_vel_term
 /*! Standard formulation
  *
  * Note that this would require a division by the neighbor density,
- * and then a multiplication by this particle density..
+ * and then a multiplication by this particle density.
  * With SPH_F1 we assume the particle density to be essentially constant,
  * so the contributions cancel out. With SPH_F2, the density ratio
  * contribution will be considered after the density diffusion term.
