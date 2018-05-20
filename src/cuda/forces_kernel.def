@@ -1591,21 +1591,40 @@ compute_pressure_contrib
 	nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*as_float3(ndata.relPos);
 }
 
-// Function that returns the relative velocity to be used in viscous computation.
-// This is just relVel normally, but it's relVel + relEulerVel when the neighbor
-// has an associated eulerian velocity.
+/*
+ * Neighbor contributions to the viscous term
+ *
+ * The viscous contribution can be split into a volumic term (which takes into account
+ * neighboring fluid particles) and a boundary term (which takes into account
+ * neighboring boundary particles).
+ * In most boundary models, the boundary term is either missing (e.g. Lennard-Jones,
+ * Monaghan-Kajtar) or is equal to the volumic term (e.g. dynamic and dummy boundary
+ * models). For the semi-analytical boundary model, the boundary term is
+ * rather different, due to the gamma weighting.
+ *
+ * For most expressions of both the volumic and boundary terms, the viscous
+ * contribution is related to the velocity gradient, whose computation in SPH
+ * requires the relative velocity, which will be computed taking also the
+ * eulerian particle velocity, if necessary.
+ */
 
-template<typename N>
-__device__ __forceinline__
-enable_if_t<!has_relEulerVel<N>(), float4>
-get_viscous_relVel(N const& ndata)
-{ return ndata.relVel; } /* Standard case */
-
+/// Relative velocity used in for viscous computation
+/*! When an eulerian velocity is defined (e.g. k-epsilon viscous model,
+ * open boundaries), the relative velocity between the central and neighbor particle
+ * (used to compute the velocity gradient for viscosity) should be computed by
+ * considering both the lagrangian and eulerian velocities, making it
+ * relVel + relEulerVel. When no eulerian velocity is defined, simply relVel will do.
+ */
 template<typename N>
 __device__ __forceinline__
 enable_if_t<has_relEulerVel<N>(), float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel + ndata.relEulerVel; } /* eulerVel case */
+template<typename N>
+__device__ __forceinline__
+enable_if_t<not has_relEulerVel<N>(), float4>
+get_viscous_relVel(N const& ndata)
+{ return ndata.relVel; } /* Standard case */
 
 // auxiliary functor computing boundary contribution to the viscous term
 // note that these boundary contributions are specialized for SA_BOUNDARY.
