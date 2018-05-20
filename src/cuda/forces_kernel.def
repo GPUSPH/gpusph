@@ -833,16 +833,16 @@ template<KernelType kerneltype,
 	ViscosityType visctype,
 	flag_t simflags,
 	ParticleType cptype,
-	ParticleType nptype>
+	ParticleType _nptype>
 struct forces_neib_data :
 	common_neib_data,
 	COND_STRUCT(sph_formulation == SPH_GRENIER &&
 		(densitydiffusiontype == COLAGROSSI), volume_particle_data),
 	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
-	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
+	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
 		sa_boundary_neib_data),
 	// relative eulerian velocity
-	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
+	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 		eulerVel_neib_data),
 	// these are the same as the particle data
@@ -856,15 +856,16 @@ struct forces_neib_data :
 {
 	// shortcut typedefs
 	typedef
-		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
 			sa_boundary_neib_data)
 		_sa_boundary_neib_data;
 	typedef
-		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 			eulerVel_neib_data)
 		_eulerVel_neib_data;
 
+	static constexpr ParticleType	nptype = _nptype;
 	ParticleType	ntype;
 
 	/* The constructor is templatized on the particle data type and on the
@@ -1154,8 +1155,8 @@ void compute_gamma_cfl
  *
  * Note that these function templates are also used by the computeDensityDiffusionDevice
  * kernel, whose params structure does not have an nptype field (since all nptypes are
- * processed in a single kernel call); therefore, all compute_density_diffusion overloads
- * must have an additional optional template parameter ParticleType nptype = FP::nptype.
+ * processed in a single kernel call), therefore we take the neighbor type
+ * from the ntype field of the N class (which holds the neib_data).
  *
  * TODO: the density diffusion terms are designed for the standard continuity equation,
  * they are not compatible with Grenier's formulation without additional thoughts.
@@ -1181,7 +1182,7 @@ volume_ratio(P const& pdata, N const& ndata)
 
 /// Cases when there is no density contribution
 template<typename FP, typename P, typename N, typename ON,
-	ParticleType nptype = FP::nptype>
+	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
 	(FP::densitydiffusiontype == DENSITY_DIFFUSION_NONE) || // duh
@@ -1199,7 +1200,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 
 /// Contribution from fluid neighbors for Ferrari density diffusion
 template<typename FP, typename P, typename N, typename ON,
-	ParticleType nptype = FP::nptype>
+	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
 	FP::densitydiffusiontype == FERRARI &&
@@ -1222,7 +1223,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 /// Contribution from boundary neighbors for Ferrari density diffusion,
 /// in the semi-analytical boundary model
 template<typename FP, typename P, typename N, typename ON,
-	ParticleType nptype = FP::nptype>
+	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
 	FP::densitydiffusiontype == FERRARI &&
@@ -1249,7 +1250,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 
 /// Brezzi density diffusion term from fluid neighbors
 template<typename FP, typename Pt, typename N, typename ON,
-	ParticleType nptype = FP::nptype>
+	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
 	FP::densitydiffusiontype == BREZZI &&
@@ -1268,7 +1269,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 /*! From boundary neighbors in the semi-analytical formulation
  */
 template<typename FP, typename Pt, typename N, typename ON,
-	ParticleType nptype = FP::nptype>
+	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
 	FP::densitydiffusiontype == BREZZI &&
@@ -1292,7 +1293,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 
 /// Molteni & Colagrossi density diffusion term
 template<typename FP, typename Pt, typename N, typename ON,
-	ParticleType nptype = FP::nptype>
+	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
 	FP::densitydiffusiontype == COLAGROSSI &&
@@ -3002,11 +3003,13 @@ struct density_diffusion_particle_data :
 	{}
 };
 
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, ParticleType _nptype>
 struct density_diffusion_neib_data :
 	common_neib_data,
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data)
 {
+	static constexpr ParticleType nptype = _nptype;
+
 	/* TODO */
 	template<typename Pt, typename FP>
 	__device__ __forceinline__
@@ -3102,13 +3105,11 @@ density_diffusion_interaction(KP const& params, P const& pdata, float& DrDt)
 				continue;
 		}
 
-		const density_diffusion_neib_data<boundarytype> ndata(pdata, params, neib_index, neib_info, relPos, r);
+		const density_diffusion_neib_data<boundarytype, nptype> ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 		density_diffusion_neib_output<boundarytype, nptype> nout(params, pdata, ndata);
 
-		compute_density_diffusion<
-			KP, P, decltype(ndata), decltype(nout),
-			nptype>(params, pdata, ndata, nout);
+		compute_density_diffusion(params, pdata, ndata, nout);
 
 		DrDt += nout.DrDt;
 	}
