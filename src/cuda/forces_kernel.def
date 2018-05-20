@@ -1591,42 +1591,6 @@ compute_pressure_contrib
 	nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*as_float3(ndata.relPos);
 }
 
-
-
-/// Compute mean neighborhood velocity for XSPH
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-enable_if_t<FP::simflags & ENABLE_XSPH>
-compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
-}
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-enable_if_t<not (FP::simflags & ENABLE_XSPH)>
-compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{ /* do nothing */ }
-
-
-/// A function that computes simple fluid/boundary forces (LJ, MK)
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
-	OP &pout, ON &nout)
-{
-	switch (FP::boundarytype) {
-	case LJ_BOUNDARY:
-		nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
-		break;
-	case MK_BOUNDARY:
-		nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w)*as_float3(ndata.relPos);
-		break;
-	default:
-		/* do nothing */
-		break;
-	}
-}
-
 // Function that returns the relative velocity to be used in viscous computation.
 // This is just relVel normally, but it's relVel + relEulerVel when the neighbor
 // has an associated eulerian velocity.
@@ -1952,9 +1916,47 @@ struct compute_keps_term<SA_BOUNDARY, KEPSVISC, cptype, PT_BOUNDARY> : public ge
 };
 
 /*
- * Post-processing and saving
+ * Additional contributions to momentum equation and velocity evolution in general
  */
 
+/// Compute mean neighborhood velocity for XSPH
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::simflags & ENABLE_XSPH>
+compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
+}
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<not (FP::simflags & ENABLE_XSPH)>
+compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
+
+
+/// A function that computes simple fluid/boundary forces (LJ, MK)
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
+	OP &pout, ON &nout)
+{
+	switch (FP::boundarytype) {
+	case LJ_BOUNDARY:
+		nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
+		break;
+	case MK_BOUNDARY:
+		nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w)*as_float3(ndata.relPos);
+		break;
+	default:
+		/* do nothing */
+		break;
+	}
+}
+
+
+/*
+ * Post-processing and saving
+ */
 
 /// The next set of functors post-process the particle forces and write them to
 /// the appropriate given arrays
