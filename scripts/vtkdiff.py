@@ -12,7 +12,7 @@ def tuplediff(t1, t2):
         return tuple(a - b for a, b in zip(t1, t2))
 
 def tuplereldiff(t1, t2):
-        return tuple((a - b)/(a+b) for a, b in zip(t1, t2))
+        return tuple(((a - b)/(a+b) if a+b != 0 else a - b) for a, b in zip(t1, t2))
 
 def checkdiff(desc, i, id1, t1, t2):
     if t1 != t2:
