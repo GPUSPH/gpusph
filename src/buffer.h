@@ -187,7 +187,7 @@ public:
 	typedef T element_type;
 
 	// constructor: ensure all buffers are NULL, set the init value
-	GenericBuffer(int _init = 0) : AbstractBuffer((void**)m_bufs) {
+	GenericBuffer(int _init=-1) : AbstractBuffer((void**)m_bufs) {
 		m_init = _init;
 		for (int i = 0; i < N; ++i)
 			m_bufs[i] = NULL;
@@ -262,7 +262,7 @@ class Buffer : public GenericBuffer<DATA_TYPE(Key), BufferTraits<Key>::num_buffe
 public:
 
 	// constructor, specifying the memset initializer
-	Buffer(int _init=0) : baseclass(_init) {}
+	Buffer(int _init=-1) : baseclass(_init) {}
 
 	virtual ~Buffer() {
 #if _DEBUG_
@@ -298,7 +298,7 @@ class MultiBufferList;
  * The first template parameter is the (template) class of the Buffer
  * to add (e.g. HostBuffer, CUDABuffer, etc), the second is the key.
  * An optional initializer value for the array can be specified as
- * argument to the function (default to 0).
+ * argument to the function (default to -1).
  *
  * Three getters are defined, to work around the limitations of C++
  * overloading and subclassing:
@@ -581,7 +581,7 @@ public:
 	 * the Key of the buffer.
 	 */
 	template<template<flag_t> class BufferClass, flag_t Key>
-	BufferList& addBuffer(int _init=0)
+	BufferList& addBuffer(int _init=-1)
 	{
 		map_type::iterator exists = m_map.find(Key);
 		if (exists != m_map.end()) {
@@ -710,7 +710,7 @@ public:
 	 * initialization value as initializer.
 	 */
 	template<template<flag_t> class BufferClass, flag_t Key>
-	void addBuffer(int _init=0)
+	void addBuffer(int _init=-1)
 	{
 		if (m_policy == NULL)
 			throw std::runtime_error("trying to add buffers before setting policy");

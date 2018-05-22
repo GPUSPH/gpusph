@@ -48,7 +48,7 @@ public:
 	typedef typename baseclass::element_type element_type;
 
 	// constructor: nothing to do
-	HostBuffer(int _init = 0) : Buffer<Key>(_init) {}
+	HostBuffer(int _init=-1) : Buffer<Key>(_init) {}
 
 	// destructor: free allocated memory
 	virtual ~HostBuffer() {
