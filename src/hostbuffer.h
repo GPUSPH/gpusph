@@ -65,9 +65,19 @@ public:
 		}
 	}
 
+	virtual void clobber() {
+		const size_t bufmem = AbstractBuffer::get_allocated_elements()*sizeof(element_type);
+		const int N = baseclass::array_count;
+		element_type **bufs = baseclass::get_raw_ptr();
+		for (int i = 0; i < N; ++i) {
+			memset(bufs[i], baseclass::get_init_value(), bufmem);
+		}
+	}
+
 	// allocate and clear buffer on device
 	virtual size_t alloc(size_t elems) {
-		size_t bufmem = elems*sizeof(element_type);
+		AbstractBuffer::set_allocated_elements(elems);
+		const size_t bufmem = elems*sizeof(element_type);
 		const int N = baseclass::array_count; // see NOTE for this class
 		element_type **bufs = baseclass::get_raw_ptr();
 		for (int i = 0; i < N; ++i) {

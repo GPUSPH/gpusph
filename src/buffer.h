@@ -65,6 +65,8 @@ public:
 private:
 	void **m_ptr;
 
+	size_t m_allocated_elements;
+
 	BufferValidity m_validity;
 
 	std::string m_state;
@@ -73,9 +75,16 @@ protected:
 	// constructor that aliases m_ptr to some array of pointers
 	AbstractBuffer(void *bufs[]) :
 		m_ptr(bufs),
+		m_allocated_elements(0),
 		m_validity(BUFFER_INVALID),
 		m_state()
 	{}
+
+	size_t set_allocated_elements(size_t allocs)
+	{
+		m_allocated_elements = allocs;
+		return allocs;
+	}
 
 public:
 
@@ -88,6 +97,9 @@ public:
 
 	// destructor must be virtual
 	virtual ~AbstractBuffer() {}
+
+	// reset the buffer content to its initial value
+	virtual void clobber() = 0;
 
 	// access buffer validity
 	inline bool is_valid() const { return m_validity == BUFFER_INVALID; }
@@ -114,6 +126,10 @@ public:
 	// element size of the arrays
 	// overloaded in subclasses
 	virtual size_t get_element_size() const = 0;
+
+	// number of elements allocated
+	inline size_t get_allocated_elements() const
+	{ return m_allocated_elements; }
 
 	// number of arrays
 	// overloaded in subclasses
