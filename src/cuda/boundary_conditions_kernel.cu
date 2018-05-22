@@ -406,8 +406,17 @@ struct common_segment_pout
 	common_segment_pout(Params const& params, uint index, particleinfo const& info) :
 		gGam(make_float4(0, 0, 0, params.gGam[index].w)),
 		vel(make_float4(0)),
-		calcGam(gGam.w < 1e-5f)
-	{}
+		calcGam(!isfinite(gGam.w))
+	{
+		if (calcGam)
+			gGam.w = 0;
+#if 0
+		else if (gGam.w < 1.e-5f)
+			printf("%d (%d %d %d) gamma %g too low\n",
+				index, id(info), PART_TYPE(info), PART_FLAGS(info),
+				gGam.w);
+#endif
+	}
 
 };
 
