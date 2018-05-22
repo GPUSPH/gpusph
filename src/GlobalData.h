@@ -216,7 +216,6 @@ struct GlobalData {
 	devcount_t devices;
 	// array of cuda device numbers
 	unsigned int device[MAX_DEVICES_PER_NODE];
-	uint deviceIdOffset[MAX_DEVICES_PER_NODE];
 
 	// MPI vars
 	devcount_t mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
@@ -252,6 +251,11 @@ struct GlobalData {
 
 	// global number of particles - whole simulation
 	uint totParticles;
+	/// global number of open-boundary vertices in the whole simulation
+	/*! This is computed once at the beginning of the simulation, and
+	 * used by the devices to compute the next ID when genering new particles
+	 */
+	uint numOpenVertices;
 	// number of particles of each process
 	uint processParticles[MAX_NODES_PER_CLUSTER];
 	// number of allocated particles *in the process*
@@ -390,6 +394,7 @@ struct GlobalData {
 		threadSynchronizer(NULL),
 		networkManager(NULL),
 		totParticles(0),
+		numOpenVertices(0),
 		allocatedParticles(0),
 		nGridCells(0),
 		s_hDeviceMap(NULL),

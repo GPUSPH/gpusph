@@ -133,7 +133,20 @@ SET_BUFFER_TRAITS(BUFFER_DKDE, float3, 1, "[k]-[e] derivatives");
 #define BUFFER_EULERVEL			(BUFFER_DKDE << 1)
 SET_BUFFER_TRAITS(BUFFER_EULERVEL, float4, 1, "Eulerian velocity");
 
-#define BUFFER_CFL			(BUFFER_EULERVEL << 1)
+/** Next ID of generated particle
+ *
+ * All open-boundary vertices will have this set to the next ID they can
+ * assign to a particle they generate. This is initially set (on host)
+ * as N + i where N is the highest ID found in the setup, and i is
+ * a sequential open-boundary vertex number.
+ *
+ * Each time the vertex generates a particle, it will increment this value
+ * by the total number of open-boundary vertices present in the simulation.
+ */
+#define BUFFER_NEXTID			(BUFFER_EULERVEL << 1)
+SET_BUFFER_TRAITS(BUFFER_NEXTID, uint, 1, "Next generated ID");
+
+#define BUFFER_CFL			(BUFFER_NEXTID << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL, float, 1, "CFL array");
 #define BUFFER_CFL_GAMMA		(BUFFER_CFL << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL_GAMMA, float, 1, "CFL gamma array");

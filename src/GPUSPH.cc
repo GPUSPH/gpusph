@@ -241,13 +241,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// allocate the particles of the *whole* simulation
 
-	// Determine the initial device offset for unique particle ID creation
-	for (uint d=0; d < gdata->devices; d++) {
-		devcount_t globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
-			devcount_t deviceNum = gdata->GLOBAL_DEVICE_NUM(globalDeviceIdx);
-
-		gdata->deviceIdOffset[deviceNum] = deviceNum;
-	}
 	// Allocate internal storage for moving bodies
 	problem->allocate_bodies_storage();
 
@@ -391,6 +384,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
+
+	/* When starting a simulation with open boundaries, we need to
+	 * initialize the array of the next ID for generated particles,
+	 * and count the total number of open boundary vertices.
+	 */
+	if (_sp->simflags & ENABLE_INLET_OUTLET)
+		gdata->numOpenVertices = initializeNextIDs(resumed);
 
 	if (MULTI_DEVICE) {
 		printf("Sorting the particles per device...\n");
@@ -1150,6 +1150,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		problem->simparams()->visctype == KEPSVISC))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EULERVEL>();
 
+	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEXTID>();
+
 	if (problem->simparams()->visctype == SPSVISC)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SPS_TURBVISC>();
 
@@ -1323,6 +1326,61 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		free(gdata->s_dSegmentsStart);
 	}
 
+}
+
+/// Initialize the array holding the IDs of the next generated particles
+/*! Each open boundary vertex, when generating a new particle, will assign it
+ * its nextID value, and update the nextID by adding the total count of open
+ * boundary vertices present in the simulation.
+ *
+ * \return the number of open boundary vertices that have been found
+ */
+uint GPUSPH::initializeNextIDs(bool resumed)
+{
+	gdata->s_hBuffers.set_state_on_write("init next id");
+	const particleinfo *particleInfo(gdata->s_hBuffers.getConstData<BUFFER_INFO>());
+	uint *nextID(gdata->s_hBuffers.getData<BUFFER_NEXTID>());
+	// TODO we should skip CORNER vertices, but we do CORNER vertex detection on device
+	// later. Consider doing it during this pass
+	uint numOpenVertices = 0;
+	/* next nextID to be assigned —ASSUME the max id at the beginning is (at most) totParticles - 1,
+	 * we'll check and throw if it's not */
+	uint runningNextID = gdata->totParticles;
+	for (uint p = 0; p < gdata->totParticles; ++p)
+	{
+		const particleinfo pinfo(particleInfo[p]);
+		const uint this_id = id(pinfo);
+
+		if (!resumed && this_id >= gdata->totParticles)
+			throw runtime_error(
+				"found id " + std::to_string(this_id) +
+				" ≥ " + std::to_string(gdata->totParticles));
+
+		// We only set nextID for open boundary vertices
+		/* TODO this is currently designed for SA_BOUNDARY, for different boundary conditions
+		 * it should be adapted to initialize the nextIDs of whichever particles generate fluid.
+		 */
+		const bool produces_particles = (VERTEX(pinfo) && IO_BOUNDARY(pinfo));
+		if (!produces_particles)
+			continue;
+
+		++numOpenVertices;
+
+		if (!resumed) {
+			// OK, set the next ID
+			nextID[p] = runningNextID;
+
+#if 0 // DEBUG
+			printf("\tassigned next ID %u to vertex %u (index %u)\n",
+				nextID[p], this_id, p);
+#endif
+
+			++runningNextID;
+		}
+
+	}
+	gdata->s_hBuffers.clear_pending_state();
+	return numOpenVertices;
 }
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
@@ -1756,6 +1814,15 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_
 	if (simparams->simflags & ENABLE_INLET_OUTLET ||
 		simparams->visctype == KEPSVISC)
 		which_buffers |= BUFFER_EULERVEL;
+
+	// get nextIDs
+	// this must always be done, not just for debugging, because
+	// it is needed for propert restart. If the data is deemed
+	// unnecessary under normal condition and needs to be fenced
+	// behind a debug.inspect_nextid, the check for it must be
+	// done in the writers themselves, not here
+	if (simparams->simflags & ENABLE_INLET_OUTLET)
+		which_buffers |= BUFFER_NEXTID;
 
 	// run post-process filters and dump their arrays
 	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
@@ -2246,9 +2313,13 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 	// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
+	// this updates the nextID buffer if particles get generated,
+	// so let's put it in the write position, and then swap back afterwards
+	doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+	doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
 
 	if (!(cFlag & INITIALIZATION_STEP)) {
 		/* Restore normals */

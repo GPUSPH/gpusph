@@ -776,6 +776,8 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 										float*			sortedEps,			///< [out] new sorted e
 										float*			sortedTurbVisc,		///< [out] new sorted eddy viscosity
 										float4*			sortedEulerVel,		///< [out] new sorted IO/k-e boundary velocity (used in SA only)
+								const	uint*			unsortedNextIDs,	///< [in] old (unsorted) next ID for particle generators
+										uint*			sortedNextIDs,		///< [out] new sorted next ID for particle generators
 										const particleinfo*	particleInfo,	///< [in] previously sorted particle's informations
 										const hashKey*	particleHash,		///< [in] previously sorted particle's hashes
 										const uint*		particleIndex,		///< [in] previously sorted particle's indexes
@@ -900,6 +902,10 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 
 		if (sortedEulerVel) {
 			sortedEulerVel[index] = tex1Dfetch(eulerVelTex, sortedIndex);
+		}
+
+		if (sortedNextIDs) {
+			sortedNextIDs[index] = unsortedNextIDs[sortedIndex];
 		}
 
 	}

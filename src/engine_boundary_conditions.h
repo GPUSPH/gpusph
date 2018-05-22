@@ -20,9 +20,9 @@ class AbstractBoundaryConditionsEngine
 public:
 	virtual ~AbstractBoundaryConditionsEngine() {}
 
-/// Update the ID offset for new particle generation
+// Set the number of vertices present in the whole simulation
 virtual void
-updateNewIDsOffset(const uint &newIDsOffset) = 0;
+uploadNumOpenVertices(const uint &numOpenVertices) = 0;
 
 // Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 virtual void

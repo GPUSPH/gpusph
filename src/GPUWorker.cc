@@ -81,7 +81,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
 
 	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
-	m_deviceNum = gdata->GLOBAL_DEVICE_NUM(m_globalDeviceIdx);
 
 	printf("Thread 0x%zx global device id: %d (%d)\n", pthread_self(), m_globalDeviceIdx, gdata->totDevices);
 
@@ -169,6 +168,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simparams->boundarytype == SA_BOUNDARY &&
 		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->visctype == KEPSVISC))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
+
+	if (m_simparams->simflags & ENABLE_INLET_OUTLET)
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEXTID>();
 
 	if (m_simparams->sph_formulation == SPH_GRENIER) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VOLUME>();
@@ -1439,6 +1441,10 @@ void GPUWorker::uploadNewNumParticles()
 	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
+void GPUWorker::uploadNumOpenVertices() {
+	bcEngine->uploadNumOpenVertices(gdata->numOpenVertices);
+}
+
 
 // upload gravity (possibily called many times)
 void GPUWorker::uploadGravity()
@@ -1651,6 +1657,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 		// correctly), we shouldn't do anything. So check that keep_going is still true
 		if (gdata->keep_going)
 			instance->uploadSubdomain();
+
+		instance->uploadNumOpenVertices();
 
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
@@ -2816,8 +2824,6 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 
 	// pos, vel, tke, eps are read from current*Read, except
 	// on the second step, whe they are read from current*Write
-
-	bcEngine->updateNewIDsOffset(gdata->deviceIdOffset[m_deviceNum]);
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();

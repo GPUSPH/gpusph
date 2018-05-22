@@ -47,11 +47,12 @@ using namespace cusph;
 /// \name Device constants
 /// @{
 
-/// Number of open boundaries (both inlets and outlets)
-__constant__ uint d_numOpenBoundaries;
-
-// host-computed id offset used for id generation
-__constant__ uint	d_newIDsOffset;
+/// Number of vertices in the whole simulation
+/*! When a new particle is generated, its ID will be taken from
+ * the generating vertex' newID, which then gets incremented by
+ * d_numVertices to prepare the ID of the next generation
+ */
+__constant__ uint	d_numOpenVertices;
 
 /// @}
 
@@ -77,36 +78,26 @@ createNewFluidParticle(
 	const	particleinfo	&info,
 	/// [in] number of particles at the start of the current timestep
 	const	uint			numParticles,
-	/// [in] number of devices
-	const	uint			numDevices,
 	/// [in,out] number of particles including all the ones already created in this timestep
 			uint			*newNumParticles,
-	const uint			totParticles)
+	/// [in,out] next ID for generated particles
+			uint			*nextID,
+	const	uint			totParticles)
 {
 	const uint new_index = atomicAdd(newNumParticles, 1);
-	// number of new particles that were created on this device
-	// in this time step
-	const uint newNumPartsOnDevice = new_index + 1 - numParticles;
-	if (UINT_MAX - newNumPartsOnDevice*numDevices < totParticles + d_newIDsOffset) {
-		printf(" FATAL: possible ID overflow in particle creation on device %d, your simulation may crash\n", d_newIDsOffset);
-	}
-	// ID of the new particle. Must be unique across all the GPUs: it is set
-	// as the total number of particles (N) + the chosen offset (ie the device global number, G)
-	// + the number of new particles on the device (k) times the total number of devices (D)
-	// New_id = N + G + kD
-	// Let's say for example that the simulation starts with 1M particles,
-	// and that there are 3 devices (so N=10^6 and D=3),
-	// with global device number G=0,1,2. Then the IDs created by each device would be:
-	// for device 0: 1M + 3, 1M + 6, 1M + 9, ...
-	// for device 1: 1M + 4, 1M + 7, 1M + 10, ...
-	// for device 2: 1M + 5, 1M + 8, 1M + 11, ...
 
-	const uint new_id = totParticles + newNumPartsOnDevice*numDevices + d_newIDsOffset;
+	const uint new_id = *nextID;
+	if (new_id > UINT_MAX - d_numOpenVertices)
+		printf( " WARNING: generator %u running out of IDs: %u + %u > %u\n",
+			id(info), new_id, d_numOpenVertices, UINT_MAX);
+
+	*nextID = new_id + d_numOpenVertices;
 
 	new_info = make_particleinfo_by_ids(
 		PT_FLUID,
 		fluid_num(info), 0, // copy the fluid number, not the object number
 		new_id);
+
 	return new_index;
 }
 
@@ -1182,9 +1173,11 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 			pout.massFluid -= refMass;
 			// Create new particle
 			particleinfo clone_info;
-			uint clone_idx = createNewFluidParticle(clone_info,
-				pdata.info, params.numParticles, params.numDevices,
-				params.newNumParticles, params.totParticles);
+			uint clone_idx = createNewFluidParticle(
+				clone_info, pdata.info,
+				params.numParticles, params.newNumParticles,
+				params.nextIDs + pdata.index,
+				params.totParticles);
 
 			// Problem has already checked that there is enough memory for new particles
 			float4 clone_pos = pos; // new position is position of vertex particle

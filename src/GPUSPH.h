@@ -86,6 +86,10 @@ private:
 	size_t allocateGlobalHostBuffers();
 	void deallocateGlobalHostBuffers();
 
+	// compute initial values for the IDs of the next generated particles,
+	// and return the number of open boundary vertices
+	uint initializeNextIDs(bool resumed);
+
 	// sort particles by device before uploading
 	void sortParticlesByHash();
 	// aux function for sorting; swaps particles in s_hPos, s_hVel, s_hInfo

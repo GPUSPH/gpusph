@@ -57,10 +57,15 @@ class CUDABoundaryConditionsEngine : public AbstractBoundaryConditionsEngine
 {
 public:
 
-void
-updateNewIDsOffset(const uint &newIDsOffset)
+/// Set the number of open-boundary vertices present in the whole simulation
+/*! This value is computed on host once (at the beginning of the simulation)
+ * and it is then uploaded to all devices, which will use it to compute the
+ * new IDs.
+ */
+virtual void
+uploadNumOpenVertices(const uint &numOpenVertices)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_numOpenVertices, &numOpenVertices, sizeof(uint)));
 }
 
 /// Disables particles that went through boundaries when open boundaries are used
@@ -233,6 +238,8 @@ saVertexBoundaryConditions(
 	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
 	// only updated in case of particle creation
 	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
+	// only updated in case of particle creation
+	uint *nextIDs(bufwrite.getData<BUFFER_NEXTID>());
 
 	float4	*vel(bufwrite.getData<BUFFER_VEL>());
 	float	*tke(bufwrite.getData<BUFFER_TKE>());
@@ -268,7 +275,7 @@ saVertexBoundaryConditions(
 		gGam, vertices, vertPos,
 		eulerVel, tke, eps,
 		forces,
-		numParticles, newNumParticles, totParticles,
+		numParticles, newNumParticles, nextIDs, totParticles,
 		deltap, slength, influenceradius,
 		deviceId, numDevices, dt);
 

@@ -183,6 +183,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	const neibdata *neibslist = buffers.getData<BUFFER_NEIBSLIST>();
 
+	// TODO debugging
+	const uint *nextIDs = buffers.getData<BUFFER_NEXTID>();
+
 	ushort *neibsnum = new ushort[numParts];
 
 	// TODO FIXME splitneibs merge : this needs to be adapted to the new split neibs list
@@ -233,6 +236,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	if (neibslist) {
 		scalar_array(fid, "UInt16", "Neibs", offset);
 		offset += sizeof(ushort)*numParts+sizeof(int);
+	}
+	if (nextIDs) {
+		scalar_array(fid, "UInt32", "NextID", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
 	if (intEnergy) {
@@ -419,6 +426,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		numbytes = sizeof(ushort)*numParts;
 		write_var(fid, numbytes);
 		write_arr(fid, neibsnum, numParts);
+	}
+
+	if (nextIDs) {
+		numbytes = sizeof(uint)*numParts;
+		write_var(fid, numbytes);
+		write_arr(fid, nextIDs, numParts);
 	}
 
 	if (intEnergy) {

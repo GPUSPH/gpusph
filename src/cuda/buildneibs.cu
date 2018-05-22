@@ -302,10 +302,15 @@ reorderDataAndFindCellStart(
 	if (oldEulerVel)
 		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, oldEulerVel, numParticles*sizeof(float4)));
 
+	const uint *oldNextIDs = unsorted_buffers.getData<BUFFER_NEXTID>();
+	uint *newNextIDs = sorted_buffers.getData<BUFFER_NEXTID>();
+
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newVol, newEnergy, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
-		newEulerVel, particleInfo, particleHash, particleIndex, numParticles, newNumParticles);
+		newEulerVel,
+		oldNextIDs, newNextIDs,
+		particleInfo, particleHash, particleIndex, numParticles, newNumParticles);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
