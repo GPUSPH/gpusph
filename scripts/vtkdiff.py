@@ -15,6 +15,8 @@ def tuplereldiff(t1, t2):
         return tuple(((a - b)/(a+b) if a+b != 0 else a - b) for a, b in zip(t1, t2))
 
 def checkdiff(desc, i, id1, t1, t2):
+    if all(math.isnan(x) for x in t1) and all(math.isnan(x) for x in t2):
+        return
     if t1 != t2:
         print "{} differ @ {} id {}".format(desc, i, id1)
         print "\t\t{}".format(t1)
