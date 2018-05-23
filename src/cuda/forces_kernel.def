@@ -185,6 +185,22 @@ computes_xsph()
 		(FP::nptype == PT_FLUID);
 }
 
+/// Selector to determine if water depth computation is needed
+/**! water depth is only computed by vertex particles from fluid particles,
+ *   and only if there are open boundaries and water depth computation
+ *   is enabled. Of course SA_BOUNDARY must be enabled too
+ */
+template<typename FP>
+__device__ __forceinline__
+constexpr bool needs_waterdepth()
+{
+	return
+		QUERY_ALL_FLAGS(FP::simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH) &&
+		FP::boundarytype == SA_BOUNDARY &&
+		FP::cptype == PT_VERTEX &&
+		FP::nptype == PT_FLUID;
+}
+
 
 /*
  * Auxiliary functions, needed to initialize const members in one go
@@ -2214,26 +2230,14 @@ enable_if_t<FP::boundarytype != SA_BOUNDARY>
 compute_boundary_force(FP const& params, PD const& pdata, OP &pout)
 { /* do nothing */ }
 
-/// Statically determine if water depth computation is needed
-/**! water depth is only computed by vertex particles from fluid particles,
- *   and only if there are open boundaries and water depth computation
- *   is enabled. Of course SA_BOUNDARY must be enabled too
+/*
+ * Water depth computation
  */
-template<typename FP>
-__device__ __forceinline__
-constexpr bool needs_waterdepth()
-{
-	return
-		QUERY_ALL_FLAGS(FP::simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH) &&
-		FP::boundarytype == SA_BOUNDARY &&
-		FP::cptype == PT_VERTEX &&
-		FP::nptype == PT_FLUID;
-}
 
 /// A function that computes the water depth at an outflow, if enabled
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<!needs_waterdepth<FP>()>
+enable_if_t<not needs_waterdepth<FP>()>
 compute_water_depth_at_outflow(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
