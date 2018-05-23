@@ -35,15 +35,18 @@ using namespace std;
 
 #if DEBUG_BUFFER_ACCESS
 bool debug_inspect_buffer;
+bool debug_clobber_invalid_buffers;
 #endif
 
-void enable_inspect_buffer(DebugFlags const& ret)
+void enable_buffer_debug_options(DebugFlags const& ret)
 {
 #if DEBUG_BUFFER_ACCESS
 	debug_inspect_buffer = ret.inspect_buffer_access;
+	debug_clobber_invalid_buffers = ret.clobber_invalid_buffers;
 #else
-	std::cerr << "WARNING: buffer access inspection requested, "
-		"but support not compiled in" << std::endl;
+	if (ret.inspect_buffer_access || ret.clobber_invalid_buffers)
+		std::cerr << "WARNING: buffer access inspection requested, "
+			"but support not compiled in" << std::endl;
 #endif
 }
 
@@ -67,11 +70,13 @@ DebugFlags parse_debug_flags(string const& str)
 			ret.inspect_pregamma = 1;
 		else if (flag == "inspect_buffer_access")
 			ret.inspect_buffer_access = 1;
+		else if (flag == "clobber_invalid_buffers")
+			ret.clobber_invalid_buffers = 1;
 		else
 			throw invalid_argument("unknown debug flag '" + flag + "'");
 	}
 
-	enable_inspect_buffer(ret);
+	enable_buffer_debug_options(ret);
 
 	return ret;
 }

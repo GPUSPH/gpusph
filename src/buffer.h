@@ -41,9 +41,12 @@
 #if DEBUG_BUFFER_ACCESS
 #include <iostream>
 extern bool debug_inspect_buffer;
+extern bool debug_clobber_invalid_buffers;
 #define DEBUG_INSPECT_BUFFER(...) if (debug_inspect_buffer) std::cout << __VA_ARGS__
+#define CLOBBER_INVALID if (debug_clobber_invalid_buffers) clobber()
 #else
 #define DEBUG_INSPECT_BUFFER(...) do {} while (0)
+#define CLOBBER_INVALID do {} while (0)
 #endif
 
 #include "cpp11_missing.h"
@@ -108,7 +111,12 @@ public:
 	inline BufferValidity validity() const  { return m_validity; }
 
 	// modify buffer validity
-	inline void mark_valid(BufferValidity validity = BUFFER_VALID) { m_validity = validity; }
+	inline void mark_valid(BufferValidity validity = BUFFER_VALID) {
+		m_validity = validity;
+		if (m_validity == BUFFER_INVALID)
+			CLOBBER_INVALID;
+	}
+
 	inline void mark_dirty() { mark_valid(BUFFER_DIRTY); }
 	inline void mark_invalid() { mark_valid(BUFFER_INVALID); }
 

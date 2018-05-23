@@ -46,6 +46,19 @@ struct DebugFlags {
 	 * in src/buffer.h
 	 */
 	unsigned inspect_buffer_access : 1;
+	/// clobber invalid buffers
+	/*! When this is true, every time a buffer is marked invalid,
+	 * its content will be clobbered (reset to the initial value,
+	 * typically NAN or equivalent).
+	 *
+	 * Useful to check that stale data is not being used.
+	 *
+	 * \note This needs compile-time support,
+	 * #define DEBUG_BUFFER_ACCESS 1
+	 * in src/buffer.h
+	 */
+	unsigned clobber_invalid_buffers : 1;
+
 };
 
 /// Get a DebugFlag from a comma-separated list
