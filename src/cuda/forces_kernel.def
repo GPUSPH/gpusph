@@ -2261,25 +2261,31 @@ compute_water_depth_at_outflow(FP const& params, P const& pdata, N const& ndata,
 	atomicMax(&params.IOwaterdepth[object(pdata.info)], (uint)nZpos);
 }
 
-/// A functor that adds the internal energy contribution from a neighbor
-/// to the total one, if ENABLE_INTERNAL_ENERGY
-template<bool>
-struct add_internal_energy
-{
-	template<typename OP, typename N, typename ON>
-	__device__ __forceinline__
-	static void
-	with(OP &pout, N const& ndata, ON const& nout)
-	{ /* do nothing */ }
-};
+/*
+ * Internal energy
+ */
 
-template<>
-template<typename OP, typename N, typename ON>
-__device__ __forceinline__ void
-add_internal_energy<true>::with(OP &pout, N const& ndata, ON const& nout)
+/// Neighbor contribution for the iternal energy evolution
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::simflags & ENABLE_INTERNAL_ENERGY>
+add_internal_energy(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	pout.DEDt -= dot3(nout.DvDt, ndata.relVel)/2;
 }
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<not (FP::simflags & ENABLE_INTERNAL_ENERGY)>
+add_internal_energy(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
+
+/*
+ * Write back data to global memory
+ *
+ * The next collection of SFINAE functions simply store the computed
+ * values to global memory. Of course they are only enabled when there
+ * is anything to write
+ */
 
 /// Write out keps data after particle-particle interaction
 template<typename FP, typename P, typename OP>
@@ -2557,8 +2563,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+
 		// Summ all internal energy contributions from the neighbors
-		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
 };
 
@@ -2599,8 +2606,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
+
 			// Summ all internal energy contributions from the neighbors
-			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+			add_internal_energy(params, pdata, ndata, pout, nout);
 		}
 	}
 };
@@ -2624,8 +2632,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
+
 			// Summ all internal energy contributions from the neighbors
-			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+			add_internal_energy(params, pdata, ndata, pout, nout);
 		}
 	}
 };
@@ -2652,8 +2661,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+
 		// Summ all internal energy contributions from the neighbors
-		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
 };
 
@@ -2691,8 +2701,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
+
 			// Summ all internal energy contributions from the neighbors
-			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+			add_internal_energy(params, pdata, ndata, pout, nout);
 		}
 	}
 };
@@ -2729,8 +2740,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+
 		// Summ all internal energy contributions from the neighbors
-		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
 };
 
@@ -2768,8 +2780,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+
 		// Summ all internal energy contributions from the neighbors
-		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
 };
 
@@ -2800,7 +2813,7 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
 			// Summ all internal energy contributions from the neighbors
-			add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+			add_internal_energy(params, pdata, ndata, pout, nout);
 		}*/
 
 		compute_water_depth_at_outflow(params, pdata, ndata, pout, nout);
@@ -2834,8 +2847,9 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 
 		// Sum all contributions from the neighbors in the force array
 		as_float3(pout.force) += nout.DvDt;
+
 		// Summ all internal energy contributions from the neighbors
-		add_internal_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(pout, ndata, nout);
+		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
 };
 
