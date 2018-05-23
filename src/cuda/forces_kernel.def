@@ -2063,51 +2063,43 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
  * Post-processing and saving
  */
 
-/// The next set of functors post-process the particle forces and write them to
-/// the appropriate given arrays
-
-
-/// A functor that does viscosity-related post-processing, and returns a
-/// viscous coefficient to be used with DEMs and planes
-template<ViscosityType>
-struct viscous_fixup
-{
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static float
-	with(FP const& params, P const& pdata, OP &pout);
-};
+/*
+ * The first set of post-processing functions relate to the viscosity.
+ * viscous_fixup is a functin template that applies any necessary fixups
+ * to the forces, and return a viscous coefficient to be used with planes and
+ * DEMs
+ */
 
 /// Specializations
 
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ float
-viscous_fixup<DYNAMICVISC>::with(FP const& params, P const& pdata, OP &pout)
+__device__ __forceinline__
+enable_if_t< FP::visctype == DYNAMICVISC, float >
+viscous_fixup(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w; }
 
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ float
-viscous_fixup<KINEMATICVISC>::with(FP const& params, P const& pdata, OP &pout)
+__device__ __forceinline__
+enable_if_t< FP::visctype == KINEMATICVISC, float >
+viscous_fixup(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check?
 
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ float
-viscous_fixup<SPSVISC>::with(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check?
+__device__ __forceinline__
+enable_if_t< FP::visctype == SPSVISC, float >
+viscous_fixup(FP const& params, P const& pdata, OP &pout)
+{ return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check? should be the same as KINEMATICVISC, probably
 
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ float
-viscous_fixup<ARTVISC>::with(FP const& params, P const& pdata, OP &pout)
+__device__ __forceinline__
+enable_if_t< FP::visctype == ARTVISC, float >
+viscous_fixup(FP const& params, P const& pdata, OP &pout)
 { return 0; } // assumes free-slip
 
-template<>
 template<typename FP, typename P, typename OP>
-__device__ __forceinline__ float
-viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
+__device__ __forceinline__
+enable_if_t< FP::visctype == KEPSVISC && FP::boundarytype == SA_BOUNDARY, float >
+viscous_fixup(FP const& params, P const& pdata, OP &pout)
 {
 	// final division for diff and dv{x,y,z} terms
 	const float rhoGam = pdata.vel.w*pdata.gGam.w;
@@ -2128,6 +2120,7 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 #endif
 
 	// Calculate norm of the mean strain rate tensor
+	// TODO GB: unify strain rate tensor computation, it's needed by KEPS, SPS and non-Newtonian rheologies
 	float SijSij_bytwo =
 		2.0f*(pout.tau.xx*pout.tau.xx +
 			  pout.tau.yy*pout.tau.yy +
@@ -3073,7 +3066,7 @@ finalizeforcesDevice(
 			// to be used with planes/DEM
 
 			// For KEPS: finalizes computation of strain rate & computes de/dt and dk/dt
-			const float dynvisc = viscous_fixup<visctype>::with(params, pdata, pout);
+			const float dynvisc = viscous_fixup(params, pdata, pout);
 
 			// Adding gravity
 			as_float3(pout.force) += d_gravity;
