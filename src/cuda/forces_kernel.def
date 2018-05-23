@@ -170,6 +170,22 @@ computes_keps_term()
 		FP::cptype == PT_FLUID;
 }
 
+/// Selector to determine if XSPH should be computed
+/*! With XSPH, fluid velocity also considers a weighted contribution
+ * from the mean fluid velocity in its neighborhood. Therefore,
+ * the selector checks for the ENABLE_XSPH flag, and that both the central and
+ * neighbor particles are PT_FLUID.
+ */
+template<typename FP>
+constexpr bool
+computes_xsph()
+{
+	return (FP::simflags & ENABLE_XSPH) &&
+		(FP::cptype == PT_FLUID) &&
+		(FP::nptype == PT_FLUID);
+}
+
+
 /*
  * Auxiliary functions, needed to initialize const members in one go
  */
@@ -2011,14 +2027,14 @@ compute_keps_term
 /// Compute mean neighborhood velocity for XSPH
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<FP::simflags & ENABLE_XSPH>
+enable_if_t<computes_xsph<FP>()>
 compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
 }
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<not (FP::simflags & ENABLE_XSPH)>
+enable_if_t<not computes_xsph<FP>()>
 compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
@@ -2334,28 +2350,15 @@ enable_if_t<!has_gammaCfl<OP>()>
 write_gamma_cfl(FP const& params, P const& pdata, OP& pout)
 { /* do nothing */ }
 
-/// Write out the mean velocity for XSPH
-/*! With XSPH, fluid velocity also considers a weighted contribution
- * from the mean fluid velocity in its neighborhood.
- */
-template<typename FP>
-constexpr bool
-writes_XSPH()
-{
-	return (FP::simflags & ENABLE_XSPH) &&
-		(FP::cptype == PT_FLUID) &&
-		(FP::nptype == PT_FLUID);
-}
-
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<writes_XSPH<FP>()>
+enable_if_t<computes_xsph<FP>()>
 write_xsph(FP const& params, P const& pdata, OP const& pout)
 { params.xsph[pdata.index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<not writes_XSPH<FP>()>
+enable_if_t<not computes_xsph<FP>()>
 write_xsph(FP const& params, P const& pdata, OP const& pout)
 { /* do nothing */ }
 
