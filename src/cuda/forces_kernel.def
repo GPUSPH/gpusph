@@ -2145,85 +2145,50 @@ viscous_fixup(FP const& params, P const& pdata, OP &pout)
 	return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w;
 }
 
-/// A functor to do global corrections of particle forces, such as multiplication
-/// or division by a common factor
-template<SPHFormulation sph_formulation>
-struct forces_fixup
-{
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP &pout)
-	{ /* do nothing */ }
-};
+/*
+ * The next set of post-processing functions are used to apply a general fixup
+ * to the particle forces (typically, a multiplication or division by a common factor)
+ */
+
+/// Specializations
 
 /// In Grenier, we compute DJ/Dt without the 1/sigma factor in front,
 /// and DvDt without the 1/\rho factor in front. Do the division in forces_fixup
-template<>
-struct forces_fixup<SPH_GRENIER>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation == SPH_GRENIER>
+forces_fixup(FP const& params, P const& pdata, OP &pout)
 {
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP &pout)
-	{
-		pout.force.x /= pdata.vel.w;
-		pout.force.y /= pdata.vel.w;
-		pout.force.z /= pdata.vel.w;
-		pout.force.w /= pdata.sigma;
-	}
-};
+	pout.force.x /= pdata.vel.w;
+	pout.force.y /= pdata.vel.w;
+	pout.force.z /= pdata.vel.w;
+	pout.force.w /= pdata.sigma;
+}
 
-
-
-
-/// A functor that clamps gamma and divides force by it,
-/// but only for SA_BOUNDARY
-template<BoundaryType>
-struct gamma_fixup
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::boundarytype == SA_BOUNDARY>
+forces_fixup(FP const& params, P const& pdata, OP &pout)
 {
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP &pout)
-	{ /* do nothing */ }
+	/* Only applies to fluid particles */
+	if (!FLUID(pdata.info))
+		return;
 
-	/* Fixup for the density diffusion term computed in computeDensityDiffusionDevice */
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	for_density_diffusion(FP const& params, P const& pdata, OP &pout)
-	{ /* do nothing */ }
-};
+	pout.force.x /= pdata.gGam.w;
+	pout.force.y /= pdata.gGam.w;
+	pout.force.z /= pdata.gGam.w;
+	pout.force.w /= pdata.gGam.w;
 
-template<>
-struct gamma_fixup<SA_BOUNDARY>
-{
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, OP &pout)
-	{
-		// in case of density sum we compute gamma in euler so it's
-		// already available here
-		// TODO avoid computation before
-		//if(FP::simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f)
-		//	pout.gGam = pdata.oldGGam;
-		pout.force.x /= pdata.gGam.w;
-		pout.force.y /= pdata.gGam.w;
-		pout.force.z /= pdata.gGam.w;
-		pout.force.w /= pdata.gGam.w;
-		if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
-			pout.force.w *= pdata.vel.w;
-	}
+	// TODO FIXME GB: double-check, this doesn't look right to me
+	if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
+		pout.force.w *= pdata.vel.w;
+}
 
-	/* Fixup for the density diffusion term computed in computeDensityDiffusionDevice */
-	template<typename FP, typename P, typename OP>
-	__device__ __forceinline__
-	static void
-	for_density_diffusion(FP const& params, P const& pdata, OP &pout)
-	{ pout /= pdata.gGam.w; }
-};
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation != SPH_GRENIER && FP::boundarytype != SA_BOUNDARY>
+forces_fixup(FP const& params, P const& pdata, OP &pout)
+{ /* do nothing */ }
 
 /// A functor that computes the force acting on a boundary element
 /// but only for SA_BOUNDARY
@@ -3053,12 +3018,8 @@ finalizeforcesDevice(
 		// Preparing particle output variables
 		finalize_particle_output<boundarytype, visctype, simflags> pout(params, index);
 
-		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
-		if (boundarytype == SA_BOUNDARY && FLUID(pdata.info))
-			gamma_fixup<boundarytype>::with(params, pdata, pout);
-
 		// common division or multiplication
-		forces_fixup<sph_formulation>::with(params, pdata, pout);
+		forces_fixup(params, pdata, pout);
 
 		// External forces
 		if (FLUID(pdata.info)) {
@@ -3304,6 +3265,20 @@ density_diffusion_interaction(
 { /* do nothing */ }
 
 
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::boundarytype == SA_BOUNDARY>
+density_diffusion_fixup(FP const& params, P const& pdata, OP &pout)
+{
+	pout /= pdata.gGam.w;
+}
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::boundarytype != SA_BOUNDARY>
+density_diffusion_fixup(FP const& params, P const& pdata, OP &pout)
+{ /* do nothing */ }
+
+
 /* Compute density diffusion ONLY (used in the ENABLE_DENSITY_SUM case) */
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
@@ -3349,7 +3324,7 @@ computeDensityDiffusionDevice(density_diffusion_params<kerneltype, sph_formulati
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags,
 		cptype, PT_BOUNDARY>(params, pdata, DrDt);
 
-	gamma_fixup<boundarytype>::for_density_diffusion(params, pdata, DrDt);
+	density_diffusion_fixup(params, pdata, DrDt);
 
 	params.forces[index].w = DrDt;
 }
