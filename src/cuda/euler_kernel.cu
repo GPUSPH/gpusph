@@ -133,6 +133,25 @@ updateDensityDevice(
 	vel[index].w = rho + delta;
 }
 
+// Trivial kernel to copy the value of a buffer for particles of a given type
+template<ParticleType cptype, typename DataType>
+__global__ void
+copyTypeDataDevice(
+	const	particleinfo * __restrict__ pinfo,
+	const	DataType * __restrict__ oldVal,
+			DataType * __restrict__ newVal,
+			uint particleRangeEnd)
+{
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	if (index >= particleRangeEnd)
+		return;
+
+	particleinfo info = pinfo[index];
+	if (PART_TYPE(info) != cptype)
+		return;
+
+	newVal[index] = oldVal[index];
+}
 
 }
 #endif

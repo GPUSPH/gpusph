@@ -165,6 +165,14 @@ density_sum(
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 
+	if (simflags & ENABLE_MOVING_BODIES) {
+		// TODO FIXME splitneibs-merge update VERTEX gamma for moving bodies with density sum
+		printf("TODO FIXME density sum + moving bodies");
+	} else {
+		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
+			info, oldgGam, newgGam, particleRangeEnd);
+	}
+
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 }
@@ -190,6 +198,8 @@ integrate_gamma(
 
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
+	const particleinfo * info = bufread.getData<BUFFER_INFO>();
+
 	// boundary elements at step n
 	const float4 *oldBoundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
 	// boundary elements at step n+1, different only if ENABLE_MOVING_BODIES
@@ -197,15 +207,20 @@ integrate_gamma(
 		bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
 		oldBoundElement;
 
+	// gamma at step n
+	const float4 *oldgGam = bufread.getData<BUFFER_GRADGAMMA>();
+	// gamma at step n+1 (output)
+	float4 *newgGam = bufwrite.getData<BUFFER_GRADGAMMA>();
+
 	integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
 		bufread.getData<BUFFER_POS>(), // pos at step n
 		bufwrite.getConstData<BUFFER_POS>(), // pos at step n+1
 		bufread.getData<BUFFER_VEL>(), // vel at step n
 		bufwrite.getConstData<BUFFER_VEL>(), // vel at step n+1
-		bufread.getData<BUFFER_INFO>(), // particle info
+		info, // particle info
 		bufread.getData<BUFFER_HASH>(), // particle hash
-		bufread.getData<BUFFER_GRADGAMMA>(), // gamma at step n
-		bufwrite.getData<BUFFER_GRADGAMMA>(), // gamma at step n+1 (output)
+		oldgGam,
+		newgGam,
 		oldBoundElement,
 		newBoundElement,
 		bufread.getData<BUFFER_EULERVEL>(), // eulerian vel at step n
@@ -224,6 +239,9 @@ integrate_gamma(
 	if (simflags & ENABLE_MOVING_BODIES) {
 		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
 		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
+	} else {
+		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
+			info, oldgGam, newgGam, particleRangeEnd);
 	}
 
 	KERNEL_CHECK_ERROR;
