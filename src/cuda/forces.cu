@@ -714,9 +714,11 @@ basicstep(
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
-	if (tau) {
+	if (keps_dkde) {
 		// KEPS buffers need to be cleared too, as they will be built progressively
 		CUDA_SAFE_CALL(cudaMemset(keps_dkde + fromParticle, 0, numParticlesInRange*sizeof(float3)));
+		// TODO tau currently is reset in KEPSVISC, but must NOT be reset if SPSVISC
+		// ideally tau should be computed in its own kernel in the KEPSVISC case too
 		CUDA_SAFE_CALL(cudaMemset(tau[0] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaMemset(tau[1] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaMemset(tau[2] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
