@@ -136,22 +136,24 @@ typedef struct SimParams {
 		nlexpansionfactor(1.0f),
 		nlInfluenceRadius(0),
 		nlSqInfluenceRadius(0),
+		buildneibsfreq(10),
+		neiblistsize(0),
+		neibboundpos(0),
+
 		dt(0),
 		tend(0),
 		dtadaptfactor(0.3f),
-		buildneibsfreq(10),
 
 		densityDiffCoeff(NAN),
 		ferrariLengthScale(NAN),
 
 		gcallback(false),
 		calc_energy(true),
+		numODEbodies(0),
 		numforcesbodies(0),
 		numbodies(0),
-		neiblistsize(0),
-		neibboundpos(0),
-		epsilon(5e-5f),
-		numOpenBoundaries(0)
+		numOpenBoundaries(0),
+		epsilon(5e-5f)
 	{};
 
 	/** \name Kernel parameters related methods
