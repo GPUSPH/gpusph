@@ -2578,8 +2578,8 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 	bufwrite.add_state_on_write("imposeBC");
 
 	gdata->problem->imposeBoundaryConditionHost(
-		m_dBuffers.getWriteBufferList(),
-		m_dBuffers.getReadBufferList(),
+		bufwrite,
+		bufread,
 		(m_simparams->simflags & ENABLE_WATER_DEPTH) ? m_dIOwaterdepth : NULL,
 		gdata->t,
 		m_numParticles,
@@ -2602,8 +2602,8 @@ void GPUWorker::kernel_initIOmass_vertexCount()
 	bufwrite.add_state_on_write("initIOmass vertex count");
 
 	bcEngine->initIOmass_vertexCount(
-		m_dBuffers.getWriteBufferList(),
-		m_dBuffers.getReadBufferList(),
+		bufwrite,
+		bufread,
 		m_numParticles,
 		m_dCellStart,
 		numPartsToElaborate);
@@ -2624,8 +2624,8 @@ void GPUWorker::kernel_initIOmass()
 	bufwrite.add_state_on_write("initIOmass");
 
 	bcEngine->initIOmass(
-		m_dBuffers.getWriteBufferList(),
-		m_dBuffers.getReadBufferList(),
+		bufwrite,
+		bufread,
 		m_numParticles,
 		m_dCellStart,
 		numPartsToElaborate,
