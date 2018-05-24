@@ -710,9 +710,8 @@ public:
 		}
 
 		// now clear the lists
-		// TODO would have made sense for > 2 copies,
-		// in which case m_lists would have been an std::vector
-		//m_lists.clear();
+		for (auto& list : m_lists)
+			list.clear();
 
 		// and purge the list of keys too
 		m_buffer_keys.clear();
