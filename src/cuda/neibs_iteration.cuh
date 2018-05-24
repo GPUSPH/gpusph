@@ -194,7 +194,6 @@ class neiblist_iterator :
 	using iterators = std::tuple<neiblist_iterator_simple<ptypes>...>;
 	template<int i>
 	using iterator = typename std::tuple_element<i, iterators>::type;
-	using core = typename iterator<0>::core;
 
 	// Number of types
 	enum { size = sizeof...(ptypes) };
@@ -236,6 +235,8 @@ class neiblist_iterator :
 
 
 public:
+	using core = typename iterator<0>::core;
+
 	__device__ __forceinline__
 	bool next() {
 		return try_next<ptypes...>(current_type);
@@ -303,6 +304,27 @@ public:
 		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
 };
 
+/// Iterator over all types allowed by the given formulation
+/*! This iterates over all PT_FLUID and PT_BOUNDARY types,
+ * and over all PT_VERTEX types if the boundarytype is SA_BOUNDARY
+ */
+template<BoundaryType boundarytype, typename
+	_base = neiblist_iterator<PT_FLUID, PT_BOUNDARY,
+		boundarytype == SA_BOUNDARY ? PT_VERTEX : PT_NONE>
+>
+class allneibs_iterator : public _base
+{
+public:
+	using base = _base;
+	using core = typename base::core;
+
+	__device__ __forceinline__
+	allneibs_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList) :
+		core(_index, _pos, _gridPos, _cellStart, _neibsList),
+		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+};
+
 /// A practical macro to iterate over all neighbours of a given type
 /*! This instantiates a neiblist_iterator of the proper type, called neib_iter,
  *  in the scope of a for () that terminates when there are no more neighbors of the
@@ -326,8 +348,11 @@ public:
 		neib_iter.next() ; \
 	)
 
-/// Specialization of for_each_neib3 in 'standard order' (FLUID, BOUNDARY, VERTEX)
-#define for_every_neib(index, pos, gridPos, cellStart, neibsList) \
-	for_each_neib3(PT_FLUID, PT_BOUNDARY, PT_VERTEX, index, pos, gridPos, cellStart, neibsList)
+/// A practical macro to iterate over all neighbors of all types allowed by the formulation
+#define for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) \
+	for ( \
+		allneibs_iterator<boundarytype> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
+		neib_iter.next() ; \
+	)
 
 /* vim: set ft=cuda: */

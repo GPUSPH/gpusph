@@ -239,7 +239,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 
 //! Identifies particles which form the free-surface
-template<KernelType kerneltype, flag_t simflags, bool savenormals>
+template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals>
 __global__ void
 calcSurfaceparticleDevice(	const	float4*			posArray,
 									float4*			normals,
@@ -281,7 +281,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w/tex1Dfetch(velTex, index).w;
 
 	// First loop over all neighbors
-	for_every_neib(index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
@@ -330,7 +330,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	int nc = 0;
 
 	// Second loop over all neighbors
-	for_every_neib(index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
@@ -387,6 +387,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
  \todo this should be defined by the problem, not here
 */
+template<BoundaryType boundarytype>
 __global__ void
 calcPrivateDevice(	const	float4*		posArray,
 							float*		priv,
@@ -414,7 +415,7 @@ calcPrivateDevice(	const	float4*		posArray,
 		priv[index] = 0;
 
 		// Loop over all the neighbors
-		for_every_neib(index, pos, gridPos, cellStart, neibsList) {
+		for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
 
 			const uint neib_index = neib_iter.neib_index();
 

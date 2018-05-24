@@ -254,7 +254,7 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 
 		// execute the kernel
 		if (options & BUFFER_NORMALS) {
-			cupostprocess::calcSurfaceparticleDevice<kerneltype, simflags, true><<< numBlocks, numThreads >>>
+			cupostprocess::calcSurfaceparticleDevice<kerneltype, boundarytype, simflags, true><<< numBlocks, numThreads >>>
 				(	pos,
 					normals,
 					newInfo,
@@ -265,7 +265,7 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 					gdata->problem->simparams()->slength,
 					gdata->problem->simparams()->influenceRadius);
 		} else {
-			cupostprocess::calcSurfaceparticleDevice<kerneltype, simflags, false><<< numBlocks, numThreads >>>
+			cupostprocess::calcSurfaceparticleDevice<kerneltype, boundarytype, simflags, false><<< numBlocks, numThreads >>>
 				(	pos,
 					normals,
 					newInfo,
@@ -414,7 +414,7 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, simfl
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 
 		//execute kernel
-		cupostprocess::calcPrivateDevice<<<numBlocks, numThreads>>>
+		cupostprocess::calcPrivateDevice<boundarytype><<<numBlocks, numThreads>>>
 			(	pos,
 				priv,
 				particleHash,
