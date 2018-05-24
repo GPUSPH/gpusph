@@ -1950,7 +1950,8 @@ void GPUWorker::initialize()
 void GPUWorker::finalize()
 {
 	// destroy streams
-	destroyEventsAndStreams();
+	if (MULTI_DEVICE)
+		destroyEventsAndStreams();
 
 	// deallocate buffers
 	deallocateHostBuffers();
