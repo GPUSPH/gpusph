@@ -177,18 +177,26 @@ typedef struct PhysParams {
 IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
 		artvisccoeff(0.3f),
-		partsurf(0),
-		gravity(make_float3(0, 0, -9.81)),
-		epsinterface(NAN),
+		epsartvisc(NAN),
+
 		r0(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
-		epsartvisc(NAN),
+
+		partsurf(0),
+
 		epsxsph(0.5f),
+
 		smagfactor(NAN),
 		kspsfactor(NAN),
+
+		epsinterface(NAN),
+
 		cosconeanglefluid(0.86f),
 		cosconeanglenonfluid(0.5f),
+
+		gravity(make_float3(0, 0, -9.81)),
+
 		objectobjectdf(1.0f),
 		objectboundarydf(1.0f)
 	{};
