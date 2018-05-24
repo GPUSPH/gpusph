@@ -90,6 +90,13 @@ using void_t = void;
 #endif
 
 #if __cplusplus >= 201703L
+using std::bool_constant;
+#else
+template<bool B>
+using bool_constant = std::integral_constant<bool, B>;
+#endif
+
+#if __cplusplus >= 201703L
 using std::as_const();
 #else
 template <class T>

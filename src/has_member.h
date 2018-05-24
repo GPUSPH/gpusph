@@ -46,10 +46,10 @@
 
 #define DECLARE_MEMBER_DETECTOR(member, detector) \
 /* Default: false */ \
-template<typename T, typename = void_t<> > struct _##detector : std::false_type {}; \
+template<typename T, typename = std::false_type > struct _##detector : std::false_type {}; \
 /* Specialization that due to SFINAE will only be triggered when \
  * FP::velArray is a valid expression */ \
-template<typename T> struct _##detector<T, void_t<decltype(T::member)>> : std::true_type {}; \
+template<typename T> struct _##detector<T, bool_constant<!sizeof(decltype(T::member))>> : std::true_type {}; \
 /* Constexpr function that returns true or false */ \
 template<typename T, bool ret = _##detector<T>::value> \
 __host__ __device__ __forceinline__ \
