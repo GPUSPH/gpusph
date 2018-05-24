@@ -12,7 +12,7 @@
 
 using namespace std;
 
-int
+size_t
 VTUReader::getNParts()
 {
 	pugi::xml_document vtuFile;

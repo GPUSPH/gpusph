@@ -4,11 +4,11 @@
 
 #include "Reader.h"
 
-Reader::Reader(void) {
-	filename = "";
-	npart = UINT_MAX;
-	buf = NULL;
-}
+Reader::Reader(void) :
+	filename(),
+	npart(SIZE_MAX),
+	buf(NULL)
+{}
 
 Reader::~Reader(void) {
 	empty();
@@ -17,7 +17,7 @@ Reader::~Reader(void) {
 void
 Reader::empty()
 {
-	if(buf != NULL){
+	if (buf != NULL){
 		delete [] buf;
 		buf = NULL;
 	}

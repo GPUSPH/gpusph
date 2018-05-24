@@ -12,7 +12,7 @@
 class VTUReader : public Reader{
 public:
 	// returns the number of particles in the vtu file
-	int getNParts(void);
+	size_t getNParts(void) override;
 
 	// allocates the buffer and reads the data from the vtu file
 	void read(void);

@@ -15,7 +15,7 @@
 class HDF5SphReader : public Reader{
 public:
 	// returns the number of particles in the h5sph file
-	int getNParts(void);
+	size_t getNParts(void) override;
 
 	// allocates the buffer and reads the data from the h5sph file
 	void read(void);

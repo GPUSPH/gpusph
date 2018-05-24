@@ -178,7 +178,7 @@ bool XProblem::initialize()
 			currMax(0) = currMax(1) = currMax(2) = -DBL_MAX;
 
 			// iterate on particles - could printf something if long...
-			for (uint p = 0; p < m_geometries[g]->hdf5_reader->getNParts(); p++) {
+			for (size_t p = 0; p < m_geometries[g]->hdf5_reader->getNParts(); p++) {
 				// utility pointer & var
 				ReadParticles *part = &(m_geometries[g]->hdf5_reader->buf[p]);
 				Point currPoint(part->Coords_0, part->Coords_1, part->Coords_2);

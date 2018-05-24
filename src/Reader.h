@@ -31,13 +31,13 @@ class Reader
 {
 protected:
 	std::string		filename;
-	unsigned int	npart;
+	size_t	npart;
 public:
 	Reader(void);
-	~Reader(void);
+	virtual ~Reader(void);
 
 	// returns the number of particles in the input file
-	virtual int getNParts(void) = 0;
+	virtual size_t getNParts(void) = 0;
 
 	// allocates the buffer and reads the data from the input file
 	virtual void read(void) = 0;

@@ -30,7 +30,7 @@
 
 using namespace std;
 
-int
+size_t
 HDF5SphReader::getNParts()
 {
 #if USE_HDF5
