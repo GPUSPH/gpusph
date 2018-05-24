@@ -586,10 +586,11 @@ public:
 
 		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [const raw ptr]" << std::endl);
 		if (buf->is_invalid()) {
-			if (DEBUG_BUFFER_ACCESS)
+			if (DEBUG_BUFFER_ACCESS) {
 				DEBUG_INSPECT_BUFFER("\t\t(trying to read invalid data)" << std::endl);
-			else
+			} else {
 				throw std::invalid_argument("trying to read invalid data");
+			}
 		}
 		return buf->get_raw_ptr();
 	}
