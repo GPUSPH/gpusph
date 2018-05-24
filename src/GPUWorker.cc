@@ -1658,7 +1658,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 		if (gdata->keep_going)
 			instance->uploadSubdomain();
 
-		instance->uploadNumOpenVertices();
+		if (gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET)
+			instance->uploadNumOpenVertices();
 
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
