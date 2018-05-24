@@ -994,7 +994,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		int offset = 0;
 		for (uint i = 0; i < m_simparams->numforcesbodies; i++) {
 			// set rbnum for each object particle; it is the key for the reduction
-			for (int j = 0; j < gdata->problem->get_body_numparts(i); j++)
+			for (size_t j = 0; j < gdata->problem->get_body_numparts(i); j++)
 				rbnum[offset + j] = i;
 			offset += gdata->problem->get_body_numparts(i);
 		}

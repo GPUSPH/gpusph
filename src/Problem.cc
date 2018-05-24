@@ -427,7 +427,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	//#define _DEBUG_OBJ_FORCES_
 	bool there_is_at_least_one_chrono_body = false;
 	// For Chrono bodies apply forces and torques
-	for (int i = 0; i < m_bodies.size(); i++) {
+	for (size_t i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
 		MovingBodyData* mbdata = m_bodies[i];
 		// Store kinematic data at the beginning of the time step
@@ -475,7 +475,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 	// Walk trough all moving bodies :
 	// updates bodies center of rotation, linear and angular velocity and orientation
-	for (int i = 0; i < m_bodies.size(); i++) {
+	for (size_t i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to MovingBodyData
 		MovingBodyData* mbdata = m_bodies[i];
 		// New center of rotation, linear and angular velocity and orientation
