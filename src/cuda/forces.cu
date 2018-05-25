@@ -388,8 +388,8 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 void
 getconstants(PhysParams *physparams)
 {
-	int numFluids = -1;
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&numFluids, cuforces::d_numfluids, sizeof(int)));
+	uint numFluids = UINT_MAX;
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&numFluids, cuforces::d_numfluids, sizeof(uint)));
 	if (numFluids != physparams->numFluids())
 		throw std::runtime_error("wrong number of fluids");
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visccoeff[0], cuforces::d_visccoeff, numFluids*sizeof(float), 0));

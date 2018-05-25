@@ -174,8 +174,8 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--maxiter")) {
-			/* read the next arg as a int */
-			sscanf(*argv, "%d", &(_clOptions->maxiter));
+			/* read the next arg as an unsigned long */
+			sscanf(*argv, "%lu", &(_clOptions->maxiter));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--dem")) {

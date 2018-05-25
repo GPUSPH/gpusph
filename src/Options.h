@@ -50,7 +50,7 @@ public:
 	std::string	dir; // directory where data will be saved
 	double	deltap; // deltap
 	float	tend; // simulation end
-	int		maxiter; // maximum number of iterations to run
+	unsigned long maxiter; // maximum number of iterations to run
 	float	checkpoint_freq; // frequency of hotstart checkpoints (in simulated seconds)
 	int		checkpoints; // number of hotstart checkpoints to keep
 	bool	nosave; // disable saving
