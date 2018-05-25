@@ -181,8 +181,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	printf("Generating problem particles...\n");
 
-	ifstream *hot_in;
-	HotFile **hf;
+	ifstream *hot_in = NULL;
+	HotFile **hf = NULL;
 	uint hot_nrank = 1;
 
 	if (clOptions->resume_fname.empty()) {
@@ -345,7 +345,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->s_hBuffers.clear_pending_state();
 
 	cout << "RB First/Last Index:\n";
-	for (int i = 0 ; i < problem->simparams()->numforcesbodies; ++i) {
+	for (uint i = 0 ; i < problem->simparams()->numforcesbodies; ++i) {
 			cout << "\t" << gdata->s_hRbFirstIndex[i] << "\t" << gdata->s_hRbLastIndex[i] << endl;
 	}
 
