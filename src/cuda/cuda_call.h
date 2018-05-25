@@ -1,7 +1,7 @@
 #ifndef _CUDA_SAFE_CALL_
 #define _CUDA_SAFE_CALL_
 
-#include <pthread.h>
+#include <thread>
 #include <stdexcept>
 #include <sstream>
 
@@ -20,7 +20,7 @@ inline void __cudaSafeCallNoSync(cudaError err,
 	if (cudaSuccess != err) {
 		std::stringstream errmsg;
 		errmsg	<< file << "(" << line << ") : in " << func
-			<< "() @ thread 0x" << pthread_self() << " : " << method << "()";
+			<< "() @ thread 0x" << std::this_thread::get_id() << " : " << method << "()";
 		if (message)
 			errmsg << " - " << message << " -";
 		errmsg << " runtime API error " << err << " : " <<  cudaGetErrorString(err);

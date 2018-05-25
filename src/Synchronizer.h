@@ -8,18 +8,18 @@
 #ifndef SYNCHRONIZER_H_
 #define SYNCHRONIZER_H_
 
-#include <pthread.h>
+#include <mutex>
+#include <condition_variable>
 
 class Synchronizer {
 private:
 	unsigned int m_nThreads;
 	unsigned int m_reached;
-	pthread_mutex_t m_syncMutex;
-	pthread_cond_t m_syncCondition;
+	std::mutex m_syncMutex;
+	std::condition_variable m_syncCondition;
 	bool m_forcesUnlockOccurred;
 public:
 	Synchronizer(unsigned int numThreads);
-	~Synchronizer();
 	void barrier();
 	void forceUnlock();
 	unsigned int queryReachedThreads();

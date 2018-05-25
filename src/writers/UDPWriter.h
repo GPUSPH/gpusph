@@ -31,7 +31,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <pthread.h>
+#include <thread>
 
 /*
 UDP packet writer.
@@ -48,14 +48,14 @@ public:
 protected:
     double3     mWorldOrigin,
                 mWorldSize;
-    pthread_t   mHeartbeatThread;
+    std::thread	mHeartbeatThread;
 
     /** buffer for composing packet */
     char        mBuf[UDP_PACKET_SIZE];
     struct      sockaddr_in mRemoteClientAddress;
     socklen_t   mRemoteClientAddressLen;
 
-    static void *heartbeat_thread_main(void *user_data);
+    void heartbeat_thread_main();
 
     /** server address */
     struct sockaddr_in mServerAddress;

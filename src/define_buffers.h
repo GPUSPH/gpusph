@@ -182,7 +182,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 
 // elegant way to set to 1 all bits in between the first and the last buffers
 // NOTE: READ or WRITE specification must be added for double buffers
-#define ALL_DEFINED_BUFFERS		((FIRST_DEFINED_BUFFER-1) ^ (LAST_DEFINED_BUFFER-1) | LAST_DEFINED_BUFFER )
+#define ALL_DEFINED_BUFFERS		(((FIRST_DEFINED_BUFFER-1) ^ (LAST_DEFINED_BUFFER-1)) | LAST_DEFINED_BUFFER )
 
 // all particle-based buffers
 #define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & ~(BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))

@@ -126,13 +126,13 @@ template<
 	Periodicity _periodicbound,
 	flag_t _simflags,
 	bool invalid_combination =
-	(
 		// Currently, we consider invalid only the case
 		// of SA_BOUNDARY
 
 		// TODO extend to include all unsupported/untested combinations for other boundary conditions
 
-		_boundarytype == SA_BOUNDARY && (
+		(_visctype == KEPSVISC && _boundarytype != SA_BOUNDARY) || // k-epsilon only supported in SA currently
+		(_boundarytype == SA_BOUNDARY && (
 			// viscosity
 			_visctype == KINEMATICVISC		||	// untested
 			_visctype == SPSVISC			||	// untested

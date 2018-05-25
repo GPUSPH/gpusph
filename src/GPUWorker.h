@@ -26,7 +26,7 @@
 #ifndef GPUWORKER_H_
 #define GPUWORKER_H_
 
-#include <pthread.h>
+#include <thread>
 
 #include "vector_types.h"
 #include "common_types.h"
@@ -65,8 +65,8 @@ private:
 	FilterEngineSet const& filterEngines;
 	PostProcessEngineSet const& postProcEngines;
 
-	pthread_t pthread_id;
-	static void* simulationThread(void *ptr);
+	std::thread thread_id;
+	void simulationThread();
 
 	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;
