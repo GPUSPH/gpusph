@@ -265,6 +265,10 @@ bool check_short_length() {
 	return (sizeof(uint) == 2*sizeof(short));
 }
 
+// static pointer to the instance of GlobalData allocated in the main. Its aim is to make
+// variables such as quit_request and save_request accessible by the signal handlers
+static GlobalData *gdata_static_pointer = NULL;
+
 // SIGINT handler: issues a quit_request
 void sigint_handler(int signum) {
 	// if issued the second time, brutally terminate everything
