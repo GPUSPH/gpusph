@@ -270,7 +270,7 @@ CommonWriter::write_objectforces(double t, uint numobjects,
 	if (m_objectforcesfile) {
 		const MovingBodiesVect & mbvect = m_problem->get_mbvect();
 		m_objectforcesfile << t;
-		for (int i=0; i < numobjects; i++) {
+		for (uint i=0; i < numobjects; i++) {
 			m_objectforcesfile << "\t" << mbvect[i]->index;
 			m_objectforcesfile << "\t" << computedforces[i];
 			m_objectforcesfile << "\t" << computedtorques[i];

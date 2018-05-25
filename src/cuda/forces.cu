@@ -300,8 +300,8 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	kernelcoeff *= 2/h2;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_fcoeff_gaussian, &kernelcoeff, sizeof(float)));
 
-	const int numFluids = physparams->numFluids();
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_numfluids, &numFluids, sizeof(int)));
+	const uint numFluids = physparams->numFluids();
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_numfluids, &numFluids, sizeof(uint)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_rho0, &physparams->rho0[0], numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_bcoeff, &physparams->bcoeff[0], numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_gammacoeff, &physparams->gammacoeff[0], numFluids*sizeof(float)));

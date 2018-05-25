@@ -1,5 +1,5 @@
 namespace cuphys {
-__constant__ int	d_numfluids;			///< number of different fluids
+__constant__ uint	d_numfluids;			///< number of different fluids
 
 __constant__ float	d_sqC0[MAX_FLUID_TYPES];	///< square of sound speed for at-rest density for each fluid
 

@@ -185,7 +185,7 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 	// direction as the normal. Cubes and other primitives do not support it. This is a
 	// temporary workaround until we decide a common policy for the filling of DYNAMIC
 	// boundary layers consistent for any geometry.
-	int layers = abs(_layers);
+	uint layers = abs(_layers);
 
 	m_origin(3) = m_center(3);
 

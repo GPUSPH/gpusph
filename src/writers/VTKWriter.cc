@@ -195,10 +195,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		const idx_t stride = numParts;
 		const idx_t maxneibsnum = gdata->problem->simparams()->neiblistsize;
 		const id_t listend = maxneibsnum*stride;
-		for (int i = 0; i < numParts; ++i) {
+		for (uint i = 0; i < numParts; ++i) {
 			neibsnum[i] = maxneibsnum;
 			neibs << i << "\t" << id(info[i]) << "\t";
-			for (int index = i; index < listend; index += stride) {
+			for (uint index = i; index < listend; index += stride) {
 				neibdata neib = neibslist[index];
 				neibs << neib << "\t";
 				if (neib == USHRT_MAX) {
@@ -1010,7 +1010,7 @@ VTKWriter::save_planes()
 	for (vector<CoordList>::const_iterator pl(all_intersections.begin());
 		pl < all_intersections.end(); ++pl) {
 		CoordList const& pts = *pl;
-		for (int i = 0; i < pts.size(); ++i) {
+		for (size_t i = 0; i < pts.size(); ++i) {
 			fp << " " << offset + i;
 		}
 		offset += pts.size();
@@ -1019,13 +1019,13 @@ VTKWriter::save_planes()
 	fp << "</DataArray>" << endl;
 	fp << "<DataArray type='Int32' Name='offsets'>" << endl;
 	offset = 0;
-	for (int i = 0; i < planes.size(); ++i) {
+	for (size_t i = 0; i < planes.size(); ++i) {
 		offset += all_intersections[i].size();
 		fp << offset << endl;
 	}
 	fp << "</DataArray>" << endl;
 	fp << "<DataArray type='Int32' Name='types'>" << endl;
-	for (int i = 0; i < planes.size(); ++i) {
+	for (size_t i = 0; i < planes.size(); ++i) {
 		fp << 7 << " "; // POLYGON
 	}
 	fp << endl;
