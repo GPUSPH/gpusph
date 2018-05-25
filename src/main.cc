@@ -375,21 +375,24 @@ int main(int argc, char** argv) {
 	}
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
-	gdata.problem = new PROBLEM(&gdata);
-	if (gdata.problem->simframework())
-		gdata.simframework = gdata.problem->simframework();
-	else
-		throw invalid_argument("no simulation framework defined in the problem!");
-	gdata.allocPolicy = gdata.simframework->getAllocPolicy();
+	try {
+		gdata.problem = new PROBLEM(&gdata);
+		if (gdata.problem->simframework())
+			gdata.simframework = gdata.problem->simframework();
+		else
+			throw invalid_argument("no simulation framework defined in the problem!");
+		gdata.allocPolicy = gdata.simframework->getAllocPolicy();
 
 
-	// get - and actually instantiate - the existing instance of GPUSPH
-	GPUSPH *Simulator = GPUSPH::getInstance();
+		// get - and actually instantiate - the existing instance of GPUSPH
+		GPUSPH *Simulator = GPUSPH::getInstance();
 
-	// initialize CUDA, start workers, allocate CPU and GPU buffers
-	bool initialized  = Simulator->initialize(&gdata);
+		// initialize CUDA, start workers, allocate CPU and GPU buffers
+		bool initialized  = Simulator->initialize(&gdata);
 
-	if (initialized) {
+		if (!initialized)
+			throw runtime_error("GPUSPH: problem during initialization");
+
 		printf("GPUSPH: initialized\n");
 
 		// run the simulation until a quit request is triggered or an exception is thrown (TODO)
@@ -397,14 +400,15 @@ int main(int argc, char** argv) {
 
 		// finalize everything
 		Simulator->finalize();
-	} else
-		printf("GPUSPH: problem during initialization, aborting...\n");
+	} catch (exception &e) {
+		cerr << e.what() << endl;
+		gdata.ret = 1;
+	}
 
-	// same consideration as above
-	delete gdata.problem;
-
-	// finalize MPI
+	// The next three steps should go in GlobalData's destructor
 	gdata.networkManager->finalizeNetwork();
+
+	delete gdata.problem;
 
 	delete gdata.networkManager;
 
