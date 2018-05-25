@@ -141,7 +141,7 @@ class Object {
 #if USE_CHRONO == 1
 		/// Create a Chrono body in the specified Chrono physical system
 		virtual void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const chrono::ChQuaternion<> & orientation_diff);
+			const ::chrono::ChQuaternion<> & orientation_diff);
 		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide);
 		std::shared_ptr< ::chrono::ChBody > GetBody(void)
 		{	if (!m_body)
