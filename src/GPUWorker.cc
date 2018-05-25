@@ -308,11 +308,15 @@ void GPUWorker::computeAndSetAllocableParticles()
 	m_numAllocatedParticles = min( numAllocableParticles, gdata->allocatedParticles );
 
 	if (m_numAllocatedParticles < m_numParticles) {
-		fprintf(stderr, "FATAL: thread %u needs %u particles, but we can only store %u in %s available of %s total with %s safety margin\n",
-			m_deviceIndex, m_numParticles, m_numAllocatedParticles,
+		fprintf(stderr, "FATAL: thread %u needs %u (and up to %u) particles, but we can only store %u in %s available of %s total with %s safety margin\n",
+			m_deviceIndex, m_numParticles, gdata->allocatedParticles, m_numAllocatedParticles,
 			gdata->memString(freeMemory).c_str(), gdata->memString(totMemory).c_str(),
 			gdata->memString(safetyMargin).c_str());
+#if 1
 		exit(1);
+#else
+		fputs("expect failures\n", stderr);
+#endif
 	}
 }
 
