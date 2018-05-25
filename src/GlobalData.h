@@ -208,6 +208,9 @@ class Problem;
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
 struct GlobalData {
+	// Return value for the application
+	int ret;
+
 	DebugFlags debug;
 
 	// # of GPUs running
@@ -383,6 +386,7 @@ struct GlobalData {
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
 	GlobalData(void):
+		ret(0),
 		debug(),
 		devices(0),
 		mpi_nodes(0),

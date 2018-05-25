@@ -1890,7 +1890,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 		}
 	} catch (exception &e) {
 		cerr << "Device " << deviceIndex << " thread " << pthread_self() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
+		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
+		const_cast<GlobalData*>(gdata)->ret |= 1;
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
@@ -1901,6 +1903,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 		// if anything goes wrong here, there isn't much we can do,
 		// so just show the error and carry on
 		cerr << e.what() << endl;
+		const_cast<GlobalData*>(gdata)->ret |= 1;
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***

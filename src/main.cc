@@ -102,12 +102,18 @@ void print_usage() {
 	cout << " --help: Show this help and exit\n";
 }
 
-// if some option needs to be passed to GlobalData, remember to set it in GPUSPH::initialize()
+/// Parse command line options
+/*!
+ * We return the opposite of the error value if there were errors parsing the
+ * command-line options,
+ * 0 if the user asked for usage or version, and
+ * 1 if the simulation can go on.
+ */
 int parse_options(int argc, char **argv, GlobalData *gdata)
 {
 	const char *arg(NULL);
 
-	if (!gdata) return -1;
+	if (!gdata) return -ENOMEM;
 	Options* _clOptions = gdata->clOptions;
 
 	// skip arg 0 (program name)
@@ -153,7 +159,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			}
 			if (gdata->devices<1) {
 				fprintf(stderr, "ERROR: --device option given, but no device specified\n");
-				return -1;
+				return -EINVAL;
 			}
 			argv++;
 			argc--;
@@ -224,7 +230,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else {
 			cerr << "Fatal: Unknown option: " << arg << endl;
-			return -1;
+			return -EINVAL;
 
 			// Left for future dynamic loading:
 			/*if (_clOptions->problem.empty()) {
@@ -306,9 +312,9 @@ int main(int argc, char** argv) {
 	sigaction(SIGUSR1, &usr1_action, NULL);
 
 	// parse command-line options
-	int ret = parse_options(argc, argv, &gdata);
-	if (ret <= 0)
-		exit(ret);
+	int opt_ret = parse_options(argc, argv, &gdata);
+	if (opt_ret <= 0)
+		exit(-opt_ret);
 
 	show_version();
 
@@ -402,6 +408,6 @@ int main(int argc, char** argv) {
 
 	delete gdata.networkManager;
 
-	return 0;
+	return gdata.ret;
 }
 
