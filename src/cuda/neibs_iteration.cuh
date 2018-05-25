@@ -68,17 +68,17 @@ class neiblist_iterator_core
 {
 protected:
 
-	const	uint	index;		///< current particle index
-	float4	const	pos;		///< current particle cell-relative position
-	int3	const	gridPos;	///< current particle cell index
 	const	uint*	cellStart;	///< cells first particle index
 	const	neibdata* neibsList; ///< neighbors list
+	float4	const	pos;		///< current particle cell-relative position
+	int3	const	gridPos;	///< current particle cell index
+	const	uint	index;		///< current particle index
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum;
-	uint neib_cell_base_index;
 	float3 pos_corr;
 	idx_t i;
+	uint neib_cell_base_index;
+	char neib_cellnum;
 
 	uint _neib_index; ///< index of the current neighbor
 
@@ -108,11 +108,11 @@ public:
 	__device__ __forceinline__
 	neiblist_iterator_core(uint _index, float4 const& _pos, int3 const& _gridPos,
 		const uint *_cellStart, const neibdata *_neibsList) :
-		index(_index), pos(_pos), gridPos(_gridPos),
 		cellStart(_cellStart), neibsList(_neibsList),
-		neib_cellnum(0),
+		pos(_pos), gridPos(_gridPos), index(_index),
+		pos_corr(make_float3(0.0f)),
 		neib_cell_base_index(0),
-		pos_corr(make_float3(0.0f))
+		neib_cellnum(0)
 	{}
 };
 
