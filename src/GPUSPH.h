@@ -157,6 +157,8 @@ private:
 
 	double Wendland2D(const double, const double);
 
+	void check_write(const bool);
+
 public:
 	// destructor
 	~GPUSPH();
