@@ -531,6 +531,265 @@ GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
 	doCommand(cmd, flags);
 }
 
+void GPUSPH::predictorStep(const FilterFreqList& enabledFilters,
+		const PostProcessEngineSet& noPostProcess) {
+	// run enabled filters
+	if (gdata->iterations > 0) {
+		FilterFreqList::const_iterator flt(enabledFilters.begin());
+		FilterFreqList::const_iterator flt_end(enabledFilters.end());
+		while (flt != flt_end) {
+			FilterType filter = flt->first;
+			uint freq = flt->second; // known to be > 0
+			if (gdata->iterations % freq == 0) {
+				gdata->only_internal = true;
+				doCommand(FILTER, NO_FLAGS, filter);
+				// update before swapping, since UPDATE_EXTERNAL works on write buffers
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
+
+				doCommand(SWAP_BUFFERS, BUFFER_VEL);
+			}
+			++flt;
+		}
+	}
+	// variable gravity
+	if (problem->simparams()->gcallback) {
+		// ask the Problem to update gravity, one per process
+		doCallBacks();
+		// upload on the GPU, one per device
+		doCommand(UPLOAD_GRAVITY);
+	}
+	// for Grenier formulation, compute sigma and smoothed density
+	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
+		// put READ vel in WRITE buffer
+		doCommand(SWAP_BUFFERS, BUFFER_VEL);
+		gdata->only_internal = true;
+		// compute density and sigma, updating WRITE vel in-place
+		doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_1);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL,
+					BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
+
+		// restore vel buffer into READ position
+		doCommand(SWAP_BUFFERS, BUFFER_VEL);
+	}
+	// for SPS viscosity, compute first array of tau and exchange with neighbors
+	if (problem->simparams()->visctype == SPSVISC) {
+		gdata->only_internal = true;
+		doCommand(SPS, INTEGRATOR_STEP_1);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
+	}
+	if (gdata->debug.inspect_preforce)
+		saveParticles(noPostProcess, INTEGRATOR_STEP_1);
+
+	// compute forces only on internal particles
+	gdata->only_internal = true;
+	if (gdata->clOptions->striping && MULTI_DEVICE)
+		doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_1);
+	else
+		doCommand(FORCES_SYNC, INTEGRATOR_STEP_1);
+
+	// update forces of external particles
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL,
+				POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+
+	// if striping was active, now we want the kernels to complete
+	if (gdata->clOptions->striping && MULTI_DEVICE)
+		doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
+
+	// Take care of moving bodies
+	// TODO: use INTEGRATOR_STEP
+	move_bodies(1);
+	// integrate also the externals
+	gdata->only_internal = false;
+	// perform the euler integration step
+	doCommand(EULER, INTEGRATOR_STEP_1);
+	gdata->only_internal = true;
+	if (gdata->debug.inspect_pregamma)
+		saveParticles(noPostProcess, INTEGRATOR_STEP_1);
+
+	if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
+		// compute density based on an integral formulation
+		doCommand(DENSITY_SUM, INTEGRATOR_STEP_1);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL,
+					BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+
+		// when using density sum, density diffusion is applied _after_ the density sum
+		if (problem->simparams()->densitydiffusiontype
+				!= DENSITY_DIFFUSION_NONE) {
+			/* Put the new data into the READ position: this will be used to
+			 * compute the density diffusion based on the new data
+			 */
+			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
+			if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+				doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+
+			doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
+			/* Swap back the arrays that'll get updated in-place */
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
+			doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
+
+			/* Swap back POS and GRADGAMMA (and BOUNDELEMENTS if needed) too,
+			 * to restore the overall situation */
+			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
+			if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+				doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+		}
+	} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
+		// but we still need to integrate gamma, which needs the new position and thus
+		// needs to be done after EULER
+		doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_1);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+	}
+
+	// variable gravity
+	if (problem->simparams()->gcallback) {
+		// ask the Problem to update gravity, one per process
+		doCallBacks();
+		// upload on the GPU, one per device
+		doCommand(UPLOAD_GRAVITY);
+	}
+	// semi-analytical boundary conditions
+	if (problem->simparams()->boundarytype == SA_BOUNDARY)
+		saBoundaryConditions(INTEGRATOR_STEP_1);
+
+	doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
+	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+}
+
+void GPUSPH::correctorStep(const PostProcessEngineSet& noPostProcess) {
+	// for Grenier formulation, compute sigma and smoothed density
+	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
+		// put READ vel in WRITE buffer
+		doCommand(SWAP_BUFFERS, BUFFER_VEL);
+		gdata->only_internal = true;
+		// compute density and sigma, updating WRITE vel in-place
+		doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_2);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL,
+					BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
+
+		// restore vel buffer into READ position
+		doCommand(SWAP_BUFFERS, BUFFER_VEL);
+	}
+	// for SPS viscosity, compute first array of tau and exchange with neighbors
+	if (problem->simparams()->visctype == SPSVISC) {
+		gdata->only_internal = true;
+		doCommand(SPS, INTEGRATOR_STEP_2);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
+	}
+	if (gdata->debug.inspect_preforce)
+		saveParticles(noPostProcess, INTEGRATOR_STEP_2);
+
+	gdata->only_internal = true;
+	if (gdata->clOptions->striping && MULTI_DEVICE)
+		doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_2);
+	else
+		doCommand(FORCES_SYNC, INTEGRATOR_STEP_2);
+
+	// update forces of external particles
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL,
+				POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+
+	// if striping was active, now we want the kernels to complete
+	if (gdata->clOptions->striping && MULTI_DEVICE)
+		doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
+
+	// swap read and writes again because the write contains the variables at time n
+	doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
+	// boundelements is swapped because the normals are updated in the moving objects case
+	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+
+	// Take care of moving bodies
+	// TODO: use INTEGRATOR_STEP
+	move_bodies(2);
+	// integrate also the externals
+	gdata->only_internal = false;
+	// perform the euler integration step, update n* to n+1
+	doCommand(EULER, INTEGRATOR_STEP_2);
+	gdata->only_internal = true;
+	if (gdata->debug.inspect_pregamma)
+		saveParticles(noPostProcess, INTEGRATOR_STEP_2);
+
+	if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
+		// compute density based on an integral formulation
+		doCommand(DENSITY_SUM, INTEGRATOR_STEP_2);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL,
+					BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+
+		// when using density sum, density diffusion is applied _after_ the density sum
+		if (problem->simparams()->densitydiffusiontype
+				!= DENSITY_DIFFUSION_NONE) {
+			/* Put the new data into the READ position: this will be used to
+			 * compute the density diffusion based on the new data
+			 */
+			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
+			if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+				doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+
+			doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
+			/* Swap back the arrays that'll get updated in-place */
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
+			doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
+
+			/* Swap back POS and GRADGAMMA too, to restore the overall situation */
+			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
+			if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+				doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+		}
+	} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
+		// but we still need to integrate gamma, which needs the new position and thus
+		// needs to be done after EULER
+		doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_2);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+	}
+
+	// Euler needs always cg(n)
+	if (problem->simparams()->numbodies > 0)
+		doCommand(EULER_UPLOAD_OBJECTS_CG);
+
+	// semi-analytical boundary conditions
+	if (problem->simparams()->boundarytype == SA_BOUNDARY)
+		saBoundaryConditions(INTEGRATOR_STEP_2);
+
+	// update inlet/outlet changes only after step 2
+	// and check if a forced buildneibs is required (i.e. if particles were created)
+	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+		doCommand(DOWNLOAD_NEWNUMPARTS);
+		gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
+		for (uint d = 1; d < gdata->devices; d++)
+			gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
+		// if runnign multinode, should also find the network minimum
+		if (MULTI_NODE)
+			gdata->networkManager->networkBoolReduction(
+					&(gdata->particlesCreated), 1);
+
+		// update the it counter if new particles are created
+		if (gdata->particlesCreated) {
+			gdata->createdParticlesIterations++;
+		}
+	}
+	doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
+	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+}
+
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
@@ -601,299 +860,14 @@ bool GPUSPH::runSimulation() {
 
 		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
 
-		// run enabled filters
-		if (gdata->iterations > 0) {
-			FilterFreqList::const_iterator flt(enabledFilters.begin());
-			FilterFreqList::const_iterator flt_end(enabledFilters.end());
-			while (flt != flt_end) {
-				FilterType filter = flt->first;
-				uint freq = flt->second; // known to be > 0
-				if (gdata->iterations % freq == 0) {
-					gdata->only_internal = true;
-					doCommand(FILTER, NO_FLAGS, filter);
-					// update before swapping, since UPDATE_EXTERNAL works on write buffers
-					if (MULTI_DEVICE)
-						doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-					doCommand(SWAP_BUFFERS, BUFFER_VEL);
-				}
-				++flt;
-			}
-		}
-
-		// variable gravity
-		if (problem->simparams()->gcallback) {
-			// ask the Problem to update gravity, one per process
-			doCallBacks();
-			// upload on the GPU, one per device
-			doCommand(UPLOAD_GRAVITY);
-		}
-
-		// for Grenier formulation, compute sigma and smoothed density
-		if (problem->simparams()->sph_formulation == SPH_GRENIER) {
-			// put READ vel in WRITE buffer
-			doCommand(SWAP_BUFFERS, BUFFER_VEL);
-			gdata->only_internal = true;
-
-			// compute density and sigma, updating WRITE vel in-place
-			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
-			// restore vel buffer into READ position
-			doCommand(SWAP_BUFFERS, BUFFER_VEL);
-		}
-
-		// for SPS viscosity, compute first array of tau and exchange with neighbors
-		if (problem->simparams()->visctype == SPSVISC) {
-			gdata->only_internal = true;
-			doCommand(SPS, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
-		}
-
-		if (gdata->debug.inspect_preforce)
-			saveParticles(noPostProcess, INTEGRATOR_STEP_1);
-
-		// compute forces only on internal particles
-		gdata->only_internal = true;
-		if (gdata->clOptions->striping && MULTI_DEVICE)
-			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_1);
-		else
-			doCommand(FORCES_SYNC, INTEGRATOR_STEP_1);
-
-		// update forces of external particles
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-		// if striping was active, now we want the kernels to complete
-		if (gdata->clOptions->striping && MULTI_DEVICE)
-			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
-
-		// Take care of moving bodies
-		// TODO: use INTEGRATOR_STEP
-		move_bodies(1);
-
-		// integrate also the externals
-		gdata->only_internal = false;
-
-		// perform the euler integration step
-		doCommand(EULER, INTEGRATOR_STEP_1);
-
-		gdata->only_internal = true;
-
-		if (gdata->debug.inspect_pregamma)
-			saveParticles(noPostProcess, INTEGRATOR_STEP_1);
-
-		if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
-			// compute density based on an integral formulation
-			doCommand(DENSITY_SUM, INTEGRATOR_STEP_1);
-
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-
-			// when using density sum, density diffusion is applied _after_ the density sum
-			if (problem->simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
-				/* Put the new data into the READ position: this will be used to
-				 * compute the density diffusion based on the new data
-				 */
-				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
-				if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-					doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
-				doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
-
-				/* Swap back the arrays that'll get updated in-place */
-				doCommand(SWAP_BUFFERS, BUFFER_VEL);
-				doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_1);
-
-				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-
-				/* Swap back POS and GRADGAMMA (and BOUNDELEMENTS if needed) too,
-				 * to restore the overall situation */
-				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
-				if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-					doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-			}
-		} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-			// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
-			// but we still need to integrate gamma, which needs the new position and thus
-			// needs to be done after EULER
-			doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-		}
-
-		// variable gravity
-		if (problem->simparams()->gcallback) {
-			// ask the Problem to update gravity, one per process
-			doCallBacks();
-			// upload on the GPU, one per device
-			doCommand(UPLOAD_GRAVITY);
-		}
-
-		// semi-analytical boundary conditions
-		if (problem->simparams()->boundarytype == SA_BOUNDARY)
-			saBoundaryConditions(INTEGRATOR_STEP_1);
-
-		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
+		predictorStep(enabledFilters, noPostProcess);
 		// Here the first part of our time integration scheme is complete. All updated values
 		// are now in the read buffers again: mark the READ buffers as valid n*,
 		// and the WRITE buffers as valid n
 		markIntegrationStep("n*", BUFFER_VALID, "n", BUFFER_VALID);
 		// End of predictor step, start corrector step
 
-		// for Grenier formulation, compute sigma and smoothed density
-		if (problem->simparams()->sph_formulation == SPH_GRENIER) {
-			// put READ vel in WRITE buffer
-			doCommand(SWAP_BUFFERS, BUFFER_VEL);
-			gdata->only_internal = true;
-
-			// compute density and sigma, updating WRITE vel in-place
-			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_2);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
-			// restore vel buffer into READ position
-			doCommand(SWAP_BUFFERS, BUFFER_VEL);
-		}
-
-		// for SPS viscosity, compute first array of tau and exchange with neighbors
-		if (problem->simparams()->visctype == SPSVISC) {
-			gdata->only_internal = true;
-			doCommand(SPS, INTEGRATOR_STEP_2);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
-		}
-
-		if (gdata->debug.inspect_preforce)
-			saveParticles(noPostProcess, INTEGRATOR_STEP_2);
-
-		gdata->only_internal = true;
-		if (gdata->clOptions->striping && MULTI_DEVICE)
-			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_2);
-		else
-			doCommand(FORCES_SYNC, INTEGRATOR_STEP_2);
-
-		// update forces of external particles
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-		// if striping was active, now we want the kernels to complete
-		if (gdata->clOptions->striping && MULTI_DEVICE)
-			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
-
-		// swap read and writes again because the write contains the variables at time n
-		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
-		// boundelements is swapped because the normals are updated in the moving objects case
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
-		// Take care of moving bodies
-		// TODO: use INTEGRATOR_STEP
-		move_bodies(2);
-
-		// integrate also the externals
-		gdata->only_internal = false;
-
-		// perform the euler integration step, update n* to n+1
-		doCommand(EULER, INTEGRATOR_STEP_2);
-
-		gdata->only_internal = true;
-
-		if (gdata->debug.inspect_pregamma)
-			saveParticles(noPostProcess, INTEGRATOR_STEP_2);
-
-		if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
-			// compute density based on an integral formulation
-			doCommand(DENSITY_SUM, INTEGRATOR_STEP_2);
-
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-
-			// when using density sum, density diffusion is applied _after_ the density sum
-			if (problem->simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
-				/* Put the new data into the READ position: this will be used to
-				 * compute the density diffusion based on the new data
-				 */
-				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
-				if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-					doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
-				doCommand(CALC_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
-
-				/* Swap back the arrays that'll get updated in-place */
-				doCommand(SWAP_BUFFERS, BUFFER_VEL);
-				doCommand(APPLY_DENSITY_DIFFUSION, INTEGRATOR_STEP_2);
-
-				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-
-				/* Swap back POS and GRADGAMMA too, to restore the overall situation */
-				doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
-				if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-					doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-			}
-		} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-			// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
-			// but we still need to integrate gamma, which needs the new position and thus
-			// needs to be done after EULER
-			doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_2);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-		}
-
-		// Euler needs always cg(n)
-		if (problem->simparams()->numbodies > 0)
-			doCommand(EULER_UPLOAD_OBJECTS_CG);
-
-		// semi-analytical boundary conditions
-		if (problem->simparams()->boundarytype == SA_BOUNDARY)
-			saBoundaryConditions(INTEGRATOR_STEP_2);
-
-		// update inlet/outlet changes only after step 2
-		// and check if a forced buildneibs is required (i.e. if particles were created)
-		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET){
-			doCommand(DOWNLOAD_NEWNUMPARTS);
-
-			gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
-			for (uint d = 1; d < gdata->devices; d++)
-				gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
-			// if runnign multinode, should also find the network minimum
-			if (MULTI_NODE)
-				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
-
-			// update the it counter if new particles are created
-			if (gdata->particlesCreated) {
-				gdata->createdParticlesIterations++;
-
-				/*** IMPORTANT: updateArrayIndices() is only useful to be able to dump
-				 * the newly generated particles on the upcoming (if any) save. HOWEVER,
-				 * it introduces significant issued when used in multi-GPU, due
-				 * to the fact that generated particles are appended after the externals.
-				 * A method to handle this better needs to be devised (at worst enabling
-				 * this only as a debug feature in single-GPU mode). For the time being
-				 * the code section is disabled.
-				 */
-#if 0
-				// we also update the array indices, so that e.g. when saving
-				// the newly created particles are visible
-				// TODO this doesn't seem to impact performance noticeably
-				// in single-GPU. If it is found to be too expensive on
-				// multi-GPU (or especially multi-node) it might be necessary
-				// to only do it when saving. It does not affect the simulation
-				// anyway, since it will be done during the next buildNeibList()
-				// call
-				updateArrayIndices();
-#endif
-			}
-		}
-
-		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
+		correctorStep(noPostProcess);
 		// Here the second part of our time integration scheme is complete, i.e. the time-step is
 		// fully computed. All updated values are now in the read buffers again:
 		// mark the READ buffers as valid n+1, and the WRITE buffers as valid n

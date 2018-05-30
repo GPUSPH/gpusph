@@ -159,6 +159,11 @@ private:
 
 	void check_write(const bool);
 
+	// refactored code splitting the two integrator steps
+	void predictorStep(const FilterFreqList& enabledFilters,
+			const PostProcessEngineSet& noPostProcess);
+	void correctorStep(const PostProcessEngineSet& noPostProcess);
+
 public:
 	// destructor
 	~GPUSPH();
