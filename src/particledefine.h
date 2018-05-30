@@ -116,6 +116,7 @@ enum SPHFormulation {
 	SPH_F1 = 1,
 	SPH_F2,
 	SPH_GRENIER,
+	SPH_HA,
 	SPH_INVALID
 } ;
 
@@ -130,6 +131,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
 	"F1",
 	"F2",
 	"Grenier",
+	"Hu and Adams",
 	"(invalid)"
 }
 #endif

@@ -455,6 +455,19 @@ precalc_pressure(Pt const& pdata)
 	return pressure_for_precalc(pdata)/pdata.sigma;
 }
 
+/// Precompute pressure contribution to momentum equation
+/*! SPH_HA specialization: \f$P\f$
+ */
+template<
+	typename Pt /// particle data type (pdata or ndata)
+>
+__device__ __forceinline__
+enable_if_t<Pt::sph_formulation == SPH_HA, float>
+precalc_pressure(Pt const& pdata)
+{
+	return pressure_for_precalc(pdata);
+}
+
 //}@
 
 /*
@@ -1489,6 +1502,47 @@ void compute_gamma_cfl
 	compute_gamma_cfl_open_boundary(params, pdata, ndata, pout, nout);
 };
 
+// A functor that computes the volumes fraction of a particle
+// that appears explicitely in the operators when using SPH_HA & SA_BOUNDARY.
+// The volume fraction theta allows to link the actual volume of VERTEX and BOUNDARY
+// to the reference volume: volume = theta*reference_volume
+template<BoundaryType boundarytype, ParticleType cptype>
+struct volume_fraction {
+	//template<typename P, typename FP>
+	__device__ __forceinline__
+	static float
+	//with(P const& pdata, FP const& params) {
+	with(const float volume, const float deltap) {
+	return 1.;
+	}
+};
+
+// Specialisation for PT_FLUID: volume_fraction = 1
+template<>
+__device__ __forceinline__
+float
+volume_fraction<SA_BOUNDARY, PT_FLUID>::with(const float volume, const float deltap) {
+	return 1.;
+}
+
+// Specialisation for PT_VERTEX:
+// volume_fraction = (mass/rho)/deltap^3
+template<>
+__device__ __forceinline__
+float
+volume_fraction<SA_BOUNDARY, PT_VERTEX>::with(const float volume, const float deltap) {
+	return volume/(deltap*deltap*deltap);
+}
+
+/// Specialisation for PT_BOUNDARY: volume_fraction = 0.5
+template<>
+__device__ __forceinline__
+float volume_fraction<SA_BOUNDARY, PT_BOUNDARY>::with(const float volume, const float deltap) {
+	return 0.5;
+}
+
+
+
 /*
  * Density diffusion function templates
  *
@@ -1716,6 +1770,50 @@ mass_continuity_div_vel_term
 }
 
 /// Mass continuity: divergence of velocity term
+/*! Hu & Adams' formulation is different from the standard formulation,
+ * as the neighbour mass is substituted by the particle's mass.
+ * Here's the specialization when SA_BOUNDARY are not used.
+ */
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::boundarytype != SA_BOUNDARY
+>
+mass_continuity_div_vel_term
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{
+	// for Hu and Adams' formulation, DrDt = mass Ʃ relVel.∇w 
+	nout.DrDt += pdata.pos.w*ndata.vel_dot_pos*ndata.f;
+}
+
+/// Mass continuity: divergence of velocity term
+/*! Hu & Adams' formulation is different from the standard formulation,
+ * as the neighbour mass is substituted by the particle's mass.
+ * Here's the volumic term when SA_BOUNDARY are used.
+ */
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::boundarytype == SA_BOUNDARY && 
+	!(FP::nptype == PT_BOUNDARY)
+>
+mass_continuity_div_vel_term
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{
+	// Initial volumes
+	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
+	const float n_volume0 = ndata.relPos.w/d_rho0[fluid_num(ndata.info)];
+	// Thetas
+	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+	const float n_theta = volume_fraction<SA_BOUNDARY, FP::nptype>::with(n_volume0, params.deltap);
+
+	// DrDt = mass/p_theta Ʃ n_theta*relVel.∇w 
+	nout.DrDt = pdata.pos.w/p_theta*n_theta*ndata.vel_dot_pos*ndata.f;
+}
+
+/// Mass continuity: divergence of velocity term
 /*! With semi-analytical boundary conditions, the contribution from
  * boundary neighbors also has its own form.
  *
@@ -1724,12 +1822,52 @@ mass_continuity_div_vel_term
 template<typename FP, typename P, typename N, typename ON>
 __device__ __forceinline__
 enable_if_t<
+	FP::sph_formulation != SPH_HA &&
 	FP::boundarytype == SA_BOUNDARY && FP::nptype == PT_BOUNDARY
 >
 mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
 	nout.DrDt -= physical_density(pdata)*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+}
+
+
+/// Mass continuity: divergence of velocity term
+/*! With semi-analytical boundary conditions, the contribution from
+ * boundary neighbors also has its own form.
+ * Here's the sepcializarion for Hu & Adams' formulation.
+ *
+ */
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::boundarytype == SA_BOUNDARY && FP::nptype == PT_BOUNDARY
+>
+mass_continuity_div_vel_term
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{
+	// Particle initial volume
+	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
+	// Thetas
+	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+	/* Actual volume should be calculated from the actual (interpolated) density
+	* and the mass. But boundary elements do not have mass. To get their actual 
+	* interpolated volume, we use the fact that:
+	*
+	* 	 n_ref_volume/n_ref_volume0 = n_rho0/n_rho
+	* 	 ==> n_ref_volume = n_ref_volume0*n_rho0/n_rho 
+	* 
+	* with n_ref_volume0 = deltap^3. Note that we are computing the reference volume
+	* here which is defined by:
+	*
+	* 	n_ref_volume = n_volume/n_theta
+	*/
+	const float n_ref_volume0 = params.deltap*params.deltap*params.deltap;
+	const float n_ref_volume = n_ref_volume0*d_rho0[fluid_num(ndata.info)]/physical_density(ndata);
+	// DrDt -= p_mass/p_theta Ʃ 1./n_ref_volume*relVel.∇ɤ
+	nout.DrDt -= pdata.pos.w/p_theta/n_ref_volume*
+			dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
 }
 
 /// Mass continuity: divergence of velocity term
@@ -1745,6 +1883,7 @@ template<typename FP, typename P, typename N, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::sph_formulation != SPH_GRENIER &&
+	FP::sph_formulation != SPH_HA &&
 	!(FP::boundarytype == SA_BOUNDARY && FP::nptype == PT_BOUNDARY)
 >
 mass_continuity_div_vel_term
@@ -1869,12 +2008,104 @@ pressure_gradient_term
 }
 
 /// Pressure gradient term
-/*! All formulations except for SPH_F2 simply compute (P_a + P_b), the weighting
+/*! Specialization for SPH_HA, when SA_BOUNDARY are not used
+ * which computes (P_a*V_a^2 + P_b*V_b^2)
+ */
+template<typename FP, typename Pt, typename N>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::boundarytype != SA_BOUNDARY
+, float>
+pressure_gradient_term
+(FP const& params, Pt const& pdata, N const& ndata)
+{
+	const float p_volume = pdata.pos.w/physical_density(pdata);
+	const float n_volume = ndata.relPos.w/physical_density(ndata);
+
+	return pdata.p_precalc*p_volume*p_volume
+			+ ndata.p_precalc*n_volume*n_volume;
+}
+
+/// Pressure gradient term
+/*! Specialization for the boundary term with SPH_HA, when SA_BOUNDARY are used
+ * which computes (P_a*V_a^2*theta_b/theta_a + P_b*V_b^2*theta_a/theta_b)
+ */
+template<typename FP, typename Pt, typename N>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::nptype == PT_BOUNDARY
+, float>
+pressure_gradient_term
+(FP const& params, Pt const& pdata, N const& ndata)
+{
+	// Particle initial volume
+	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
+	// Thetas
+	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+	// Actual particle reference volume
+	const float p_ref_volume = pdata.pos.w/physical_density(pdata)/p_theta;
+	
+	/* Actual volume should be calculated from the actual (interpolated) density
+	* and the mass. But boundary elements do not have mass. To get their actual 
+	* interpolated volume, we use the fact that:
+	*
+	* 	 n_ref_volume/n_ref_volume0 = n_rho0/n_rho
+	* 	 ==> n_ref_volume = n_ref_volume0*n_rho0/n_rho 
+	* 
+	* with n_ref_volume0 = deltap^3. Note that we are computing the reference volume
+	* here which is defined by:
+	*
+	* 	n_ref_volume = n_volume/n_theta
+	*/
+	const float n_ref_volume0 = params.deltap*params.deltap*params.deltap;
+	const float n_ref_volume = n_ref_volume0*d_rho0[fluid_num(ndata.info)]/physical_density(ndata);
+
+	return (pdata.p_precalc*p_ref_volume*p_ref_volume +
+			ndata.p_precalc*n_ref_volume*n_ref_volume)/n_ref_volume;
+
+			
+}
+/// Pressure gradient term
+/*! Specialization for the volumic term with SPH_HA, when SA_BOUNDARY are used
+ * which computes (P_a*V_a^2*theta_b/theta_a + P_b*V_b^2*theta_a/theta_b)
+ */
+template<typename FP, typename Pt, typename N>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::nptype != PT_BOUNDARY
+, float>
+pressure_gradient_term
+(FP const& params, Pt const& pdata, N const& ndata)
+{
+	// Initial volumes (used to compute the thetas)
+	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
+	const float n_volume0 = ndata.relPos.w/d_rho0[fluid_num(ndata.info)];
+	// Actual volumes (used in the pressure gradient term)
+	const float p_volume = pdata.pos.w/physical_density(pdata);
+	const float n_volume = ndata.relPos.w/physical_density(ndata);
+	// Thetas
+	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume, params.deltap);
+	const float n_theta = volume_fraction<SA_BOUNDARY, FP::nptype>::with(n_volume, params.deltap);
+
+	return pdata.p_precalc*p_volume*p_volume*n_theta/p_theta +
+			ndata.p_precalc*n_volume*n_volume*p_theta/n_theta;			
+}
+
+/// Pressure gradient term
+/*! All formulations except for SPH_F2 and SPH_HA simply compute (P_a + P_b), the weighting
  * by the particle density is handled in the caller
  */
 template<typename FP, typename Pt, typename N>
 __device__ __forceinline__
-enable_if_t<FP::sph_formulation != SPH_F2, float>
+enable_if_t<
+	FP::sph_formulation != SPH_F2 &&
+	FP::sph_formulation != SPH_HA
+, float>
 pressure_gradient_term
 (FP const& params, Pt const& pdata, N const& ndata)
 {
@@ -1902,10 +2133,31 @@ compute_pressure_contrib
 	nout.DvDt -= pGradTerm*ndata.f*as_float3(ndata.relPos);
 }
 
+
+/// Pressure contribution from boundary particles in SA_BOUNDARY case & SPH_HA
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID &&
+	FP::nptype == PT_BOUNDARY
+>
+compute_pressure_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
+	// DvDt = -∇p/rho += 1/rho*(1/ref_V Σ 1/neib_ref_V(p*ref_V^2 + neib_p*neib_ref_V^2) ∇ɤ)
+	nout.DvDt += pGradTerm/pdata.pos.w*nout.ggamAS*ndata.normal_s;
+	// DEBUG
+	//nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
+}
+
 /// Pressure contribution from boundary particles in SA_BOUNDARY case
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
+	FP::sph_formulation != SPH_HA &&
 	FP::boundarytype == SA_BOUNDARY &&
 	FP::cptype == PT_FLUID &&
 	FP::nptype == PT_BOUNDARY
@@ -1917,11 +2169,32 @@ compute_pressure_contrib
 	nout.DvDt += pGradTerm*physical_density(ndata)*nout.ggamAS*ndata.normal_s;
 }
 
+
+/// Pressure contribution to the volumic term, Hu & Adams' formulation 
+/// with/without SA_BOUNDARY
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	!(FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID &&
+	FP::nptype == PT_BOUNDARY)
+>
+compute_pressure_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
+	// DvDt = -∇p/rho = -1/rho*(1/V Σ (p*V^2 + neibP*neibV^2) ∇w)
+	nout.DvDt -= pGradTerm/pdata.pos.w*ndata.f*as_float3(ndata.relPos);
+}
+
+
 /// Pressure contribution, general formulation
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::sph_formulation != SPH_GRENIER && not (
+	FP::sph_formulation != SPH_GRENIER &&
+	FP::sph_formulation != SPH_HA && not (
 		FP::boundarytype == SA_BOUNDARY &&
 		FP::cptype == PT_FLUID &&
 		FP::nptype == PT_BOUNDARY
