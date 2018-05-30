@@ -159,10 +159,13 @@ private:
 
 	void check_write(const bool);
 
-	// refactored code splitting the two integrator steps
-	void predictorStep(const FilterFreqList& enabledFilters,
+	// refactored code by splitting the two integrator steps
+	void runIntegratorStep(const flag_t integrator_step,
+				const PostProcessEngineSet& noPostProcess);
+	void runPredictorStep(const FilterFreqList& enabledFilters,
 			const PostProcessEngineSet& noPostProcess);
-	void correctorStep(const PostProcessEngineSet& noPostProcess);
+	void runCorrectorStep(const PostProcessEngineSet& noPostProcess);
+	void runEnabledFilters(const FilterFreqList& enabledFilters);
 
 public:
 	// destructor
