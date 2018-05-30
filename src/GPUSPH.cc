@@ -598,7 +598,10 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step,
 	// -----------------------------------------
 
 	// Take care of moving bodies
-	move_bodies(integrator_step); // TODO: use INTEGRATOR_STEP (DONE)
+	// TODO: use INTEGRATOR_STEP
+	if (integrator_step == INTEGRATOR_STEP_1) move_bodies(1);
+	if (integrator_step == INTEGRATOR_STEP_2) move_bodies(2);
+
 	// integrate also the externals
 	gdata->only_internal = false;
 	// perform the euler integration step
