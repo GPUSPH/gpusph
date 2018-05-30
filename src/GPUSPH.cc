@@ -716,22 +716,6 @@ void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 	}
 }
 
-void GPUSPH::runPredictorStep(const FilterFreqList& enabledFilters,
-		const PostProcessEngineSet& noPostProcess) {
-	// run enabled filters
-	if (gdata->iterations > 0) {
-		runEnabledFilters(enabledFilters);
-	}
-
-	// run predictor step (INTEGRATOR_STEP_1)
-	runIntegratorStep(INTEGRATOR_STEP_1, noPostProcess);
-}
-
-void GPUSPH::runCorrectorStep(const PostProcessEngineSet& noPostProcess) {
-	// run corrector step (INTEGRATOR_STEP_2)
-	runIntegratorStep(INTEGRATOR_STEP_2, noPostProcess);
-}
-
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
@@ -802,14 +786,23 @@ bool GPUSPH::runSimulation() {
 
 		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
 
-		runPredictorStep(enabledFilters, noPostProcess);
+		// run enabled filters
+		if (gdata->iterations > 0) {
+			runEnabledFilters(enabledFilters);
+		}
+
+		// run PREDICTOR step (INTEGRATOR_STEP_1)
+		runIntegratorStep(INTEGRATOR_STEP_1, noPostProcess);
+
 		// Here the first part of our time integration scheme is complete. All updated values
 		// are now in the read buffers again: mark the READ buffers as valid n*,
 		// and the WRITE buffers as valid n
 		markIntegrationStep("n*", BUFFER_VALID, "n", BUFFER_VALID);
 		// End of predictor step, start corrector step
 
-		runCorrectorStep(noPostProcess);
+		// run CORRECTOR step (INTEGRATOR_STEP_2)
+		runIntegratorStep(INTEGRATOR_STEP_2, noPostProcess);
+
 		// Here the second part of our time integration scheme is complete, i.e. the time-step is
 		// fully computed. All updated values are now in the read buffers again:
 		// mark the READ buffers as valid n+1, and the WRITE buffers as valid n
