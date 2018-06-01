@@ -58,22 +58,8 @@ DebugFlags parse_debug_flags(string const& str)
 	string flag;
 
 	while (getline(in, flag, ',')) {
-		if (flag == "print_step")
-			ret.print_step = 1;
-		else if (flag == "neibs")
-			ret.neibs = 1;
-		else if (flag == "forces")
-			ret.forces = 1;
-		else if (flag == "inspect_preforce")
-			ret.inspect_preforce = 1;
-		else if (flag == "inspect_pregamma")
-			ret.inspect_pregamma = 1;
-		else if (flag == "inspect_buffer_access")
-			ret.inspect_buffer_access = 1;
-		else if (flag == "clobber_invalid_buffers")
-			ret.clobber_invalid_buffers = 1;
-		else
-			throw invalid_argument("unknown debug flag '" + flag + "'");
+#include "parse-debugflags.h"
+		throw invalid_argument("unknown debug flag '" + flag + "'");
 	}
 
 	enable_buffer_debug_options(ret);

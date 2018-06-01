@@ -99,6 +99,7 @@ void print_usage() {
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
 	cout << " --debug : enable debug flags FLAGS\n";
+#include "describe-debugflags.h"
 	cout << " --help: Show this help and exit\n";
 }
 
