@@ -1137,7 +1137,7 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 		// time stepping
 		pos.w += params.dt*pout.sumMdot;
 		// if a vertex has no fluid particles around and its mass flux is negative then set its mass to 0
-		if (pout.shepard_div < 0.1*pdata.gam && pout.sumMdot < 0.0f) // sphynx version
+		if (pout.shepard_div < 0.1f*pdata.gam && pout.sumMdot < 0.0f) // sphynx version
 			//if (!pout.foundFluid && pout.sumMdot < 0.0f)
 			pos.w = 0.0f;
 
