@@ -20,6 +20,12 @@ maxiter="$3"
 rm -rf tests/*_${sfx}
 
 for problem in $(make list-problems) ; do
+	case $problem in
+	CompleteSaExample)
+		echo "Skipping ${problem}, known non-reproducible"
+		continue
+		;;
+	esac
 	echo "Testing ${problem} ..."
 	outdir="tests/${problem}_${sfx}"
 	refdir="tests/${problem}_${ref}"
