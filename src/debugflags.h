@@ -30,35 +30,7 @@
 
 /// Bitfield of things to debug
 struct DebugFlags {
-	/// print each step as it is being executed
-	unsigned print_step : 1;
-	/// debug the neighbors list on host
-	unsigned neibs : 1;
-	/// debug forces on host
-	unsigned forces : 1;
-	/// inspect pre-force particle status
-	unsigned inspect_preforce : 1;
-	/// inspect pre-gamma integration particle status
-	unsigned inspect_pregamma : 1;
-	/// inspect buffer access
-	/*! \note This needs compile-time support,
-	 * #define DEBUG_BUFFER_ACCESS 1
-	 * in src/buffer.h
-	 */
-	unsigned inspect_buffer_access : 1;
-	/// clobber invalid buffers
-	/*! When this is true, every time a buffer is marked invalid,
-	 * its content will be clobbered (reset to the initial value,
-	 * typically NAN or equivalent).
-	 *
-	 * Useful to check that stale data is not being used.
-	 *
-	 * \note This needs compile-time support,
-	 * #define DEBUG_BUFFER_ACCESS 1
-	 * in src/buffer.h
-	 */
-	unsigned clobber_invalid_buffers : 1;
-
+#include "debugflags.def"
 };
 
 /// Get a DebugFlag from a comma-separated list
