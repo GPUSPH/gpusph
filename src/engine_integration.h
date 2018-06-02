@@ -88,6 +88,7 @@ public:
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
+		const	float	deltap,
 		const	float	slength,
 		const	float	influenceRadius) = 0;
 

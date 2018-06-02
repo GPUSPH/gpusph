@@ -114,9 +114,9 @@ struct density_sum_particle_data :
 	{}
 };
 
-template<class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
+template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<(Params::simflags & ENABLE_INLET_OUTLET)>
+enable_if_t<sph_formulation != SPH_HA & Params::simflags & ENABLE_INLET_OUTLET>
 densitySumOpenBoundaryContribution(
 	Params			const&	params,
 	ParticleData	const&	pdata,
@@ -135,6 +135,32 @@ densitySumOpenBoundaryContribution(
 	}
 }
 
+// Partial specialization for SPH_HA:
+// the only difference is that the current fluid particle mass
+// is used instead of the neib mass. This comes from the fact that we use:
+// rho_i = mi ∑ wij   instead of    rho_i = ∑ mj.wij
+template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
+__device__ __forceinline__
+enable_if_t<sph_formulation == SPH_HA & Params::simflags & ENABLE_INLET_OUTLET>
+densitySumOpenBoundaryContribution
+	(
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+			float&	sumVmwDelta)
+{
+	if (IO_BOUNDARY(neib_info)) {
+		// compute - sum_{V^{io}} m^n w(r + delta r)
+		const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+		const float newDist = length3(relPosN + deltaR);
+		if (newDist < params.influenceradius)
+			sumVmwDelta -= pdata.pos.w*W<kerneltype>(newDist, params.slength);
+	}
+}
+
 template<class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
 enable_if_t<!(Params::simflags & ENABLE_INLET_OUTLET)>
@@ -149,9 +175,10 @@ densitySumOpenBoundaryContribution(
 { /* do nothing */ }
 
 
-template<class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
+template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-static void
+static
+enable_if_t<sph_formulation != SPH_HA>
 computeDensitySumVolumicTerms(
 	Params			const&	params,
 	ParticleData	const&	pdata,
@@ -200,6 +227,82 @@ computeDensitySumVolumicTerms(
 				neib_index, neib_info, relPosN, sumVmwDelta);
 	}
 }
+
+// Partial specialization for SPH_HA
+// the only difference is that the current fluid particle mass
+// is used instead of the neib mass. This comes from the fact that we use:
+// rho_i = mi/theta_i ∑ theta_j.wij   instead of    rho_i = ∑ mj.wij
+template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
+__device__ __forceinline__
+static
+enable_if_t<sph_formulation == SPH_HA>
+computeDensitySumVolumicTerms(
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float			dt,
+			float			&sumPmwN,
+			float			&sumPmwNp1,
+			float			&sumVmwDelta)
+{
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[ pdata.index] );
+
+	// (r_b^{N+1} - r_b^N)
+	const float4 posDelta = pdata.posNp1 - pdata.posN;
+
+	// Get particleinfo of the current particle
+	const particleinfo p_info = params.info[ pdata.index ];
+	// Get the fluid number of the current particle
+	const uint p_fluid_num = fluid_num(p_info);
+
+	// Loop over fluid and vertex neighbors
+	for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
+		const uint neib_index = neib_iter.neib_index();
+		const particleinfo neib_info = params.info[neib_index];
+
+		// Get the fluid number of neib particle
+		const uint neib_fluid_num = fluid_num(neib_info);
+
+		const float4 posN_neib = params.oldPos[neib_index];
+		//const float4 velN_neib = params.oldVel[neib_index];
+
+		if (INACTIVE(posN_neib)) continue;
+
+		/* TODO FIXME splitneibs merge: the MOVING object support here was dropped in the splitneibs branch */
+
+		const float4 posNp1_neib = params.newPos[neib_index];
+
+		// vector r_{ab} at time N
+		const float4 relPosN = neib_iter.relPos(posN_neib);
+		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
+		const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
+
+		const float volume = pdata.posN.w/d_rho0[p_fluid_num];
+		const float neib_volume = relPosN.w/d_rho0[neib_fluid_num];
+		const float theta = volume/(params.deltap*params.deltap*params.deltap);
+		const float neib_theta = neib_volume/(params.deltap*params.deltap*params.deltap);
+
+		if (abs(pdata.posN.w/theta*neib_theta-relPosN.w)>0.01) {
+			printf("mi/theta_i.theta_j = %f\tmj = %f\n", pdata.posN.w/theta*neib_theta, relPosN.w);
+		}
+		// -sum_{P\V_{io}} m^n w^n
+		if (!IO_BOUNDARY(neib_info)) {
+			const float rN = length3(relPosN);
+			sumPmwN -= pdata.posN.w/theta*neib_theta*W<kerneltype>(rN, params.slength);
+		}
+
+		// sum_{P} m^n w^{n+1}
+		// ##HERE
+		const float rNp1 = length3(relPosNp1);
+		if (rNp1 < params.influenceradius) {
+			sumPmwNp1 += pdata.posN.w/theta*neib_theta*W<kerneltype>(rNp1, params.slength);
+		}
+
+		densitySumOpenBoundaryContribution(params, pdata, dt,
+			neib_index, neib_info, relPosN, sumVmwDelta);
+	}
+}
+
 
 struct common_gamma_sum_terms {
 	// collects sum_{S} (gradGam^{n+1} + gradGam^n)/2 . (r^{n+1} - r^{n})
@@ -395,7 +498,8 @@ computeDensitySumBoundaryTerms(
  *	\tparam simflags : simulation flags
  */
 //TODO templatize vars like other kernels
-template<KernelType kerneltype,
+template<SPHFormulation sph_formulation,
+	KernelType kerneltype,
 	flag_t simflags>
 __global__ void
 densitySumVolumicDevice(
@@ -423,7 +527,7 @@ densitySumVolumicDevice(
 	// - sum_{V^{io}} m^n w(r + delta r)
 	float sumVmwDelta = 0.0f;
 	// compute new terms based on r^{n+1} and \delta r
-	computeDensitySumVolumicTerms(
+	computeDensitySumVolumicTerms<sph_formulation>(
 		params, pdata, dt,
 		sumPmwN, sumPmwNp1, sumVmwDelta);
 

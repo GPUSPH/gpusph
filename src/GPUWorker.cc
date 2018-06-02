@@ -2285,6 +2285,7 @@ void GPUWorker::runCommand<DENSITY_SUM>(CommandStruct const& cmd)
 		step,
 		gdata->t + dt,
 		m_simparams->epsilon,
+		gdata->problem->m_deltap,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
 

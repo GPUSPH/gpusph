@@ -118,6 +118,7 @@ density_sum_impl(
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
+		const	float	deltap,
 		const	float	slength,
 		const	float	influenceradius)
 {
@@ -127,12 +128,12 @@ density_sum_impl(
 
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
 	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
-		bufread, bufwrite, particleRangeEnd, dt, t, step, slength, influenceradius);
+		bufread, bufwrite, particleRangeEnd, dt, t, step, deltap, slength, influenceradius);
 
-	cudensity_sum::densitySumVolumicDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
+	cudensity_sum::densitySumVolumicDevice<sph_formulation, kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
 
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
-		bufread, bufwrite, particleRangeEnd, dt, t, step, slength, influenceradius);
+		bufread, bufwrite, particleRangeEnd, dt, t, step, deltap, slength, influenceradius);
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 
@@ -170,6 +171,7 @@ density_sum_impl(
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
+		const	float	deltap,
 		const	float	slength,
 		const	float	influenceradius)
 {
@@ -186,12 +188,13 @@ density_sum(
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
+		const	float	deltap,
 		const	float	slength,
 		const	float	influenceradius)
 {
 	density_sum_impl<boundarytype>(bufread, bufwrite,
 		numParticles, particleRangeEnd,
-		dt, step, t, epsilon, slength, influenceradius);
+		dt, step, t, epsilon, deltap, slength, influenceradius);
 }
 
 // SFINAE implementation of integrate_gamma
