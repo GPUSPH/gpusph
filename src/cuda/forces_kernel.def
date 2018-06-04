@@ -1018,11 +1018,11 @@ struct forces_neib_output :
 
 /*
  * The behavior of the forces kernel, and in particular of the particle-particle
- * interaction that constitutes the most significant part of it, vary
+ * interaction that constitutes the most significant part of it, varies
  * significantly depending on the framework options.
- * This variability is factored out in a number of template functions and
- * functors that implement individual logical fragments of the formulas (e.g.
- * pressure computation, viscous contribution computation, etc) and are
+ * This variability is factored out in a number of template functions that
+ * implement individual logical fragments of the formulas (e.g. pressure
+ * computation, viscous contribution computation, etc) and are
  * specialized based on framework options.
  * When possible, we use template functions and SFINAE, which frequently turns
  * down to a pair of function definition, one that implements the actual work
@@ -1094,28 +1094,16 @@ skip_neiblist(FP const& params, P const& pdata)
 
 
 /*
- * Function template and functor templates to compute neighbor contributions.
- * The functor templates should only be used when SFINAE on function templates
- * is not enough, to work around the fact that in C++ it's not possible to
- * do a partial function overload.
- * Keep in mind that the functors we use are not really the standard C++11 functors;
- * instead, they are struct templates with a single static method (`with`).
+ * Function templates to compute neighbor contributions.
  *
- * Both the function templates and the static with method in functor templates
- * take params, pdata, ndata as const& input, and pout, nout as & output.
+ * The function templates take params, pdata, ndata as const& input,
+ * and pout, nout as & output.
+ *
  * Return types are typically void, but some of them do return something.
  *
  * All compile-time framework options and the central/neighbor particle types
  * are statically available from kernel params (FP::simflags, FP::boundarytype,
  * etc; FP::cptype, FP::nptype).
- *
- * When using functor templates with static with, the static with method
- * be a template based on the typenames of its arguments (which would otherwise
- * be too complex to specify, and it's not even necessary since template
- * functions auto-match their arguments), so any specialization based on the
- * struct template parameter(s) will have two template<> specifications: the
- * first one for the struct, and the second (unchanged from the declaration)
- * for the method.
  */
 
 /*
