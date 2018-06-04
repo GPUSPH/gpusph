@@ -12,11 +12,6 @@ import inspect
 
 from paraview.simple import *
 
-def match(t1, t2):
-    if all(math.isnan(x) for x in t1) and all(math.isnan(x) for x in t2):
-        return True
-    return t1 == t2
-
 def scriptfilter(self, inputs, output, request):
     #print self
     #print inputs
@@ -119,9 +114,6 @@ file3 = sys.argv[3]
 # Open the index file
 datafile1 = OpenDataFile(file1)
 datafile2 = OpenDataFile(file2)
-
-datafile1.UpdatePipeline()
-datafile2.UpdatePipeline()
 
 datafile1.UpdatePipeline()
 datafile2.UpdatePipeline()
