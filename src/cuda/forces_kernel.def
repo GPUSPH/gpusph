@@ -2499,151 +2499,64 @@ struct forces_shared_data :
 /************************************************************************************************************/
 /*		   Particle-particle interaction											                        */
 /************************************************************************************************************/
-/// A functor that computes particle-particle interaction
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags,
-	ParticleType cptype,
-	ParticleType nptype>
-struct compute_pp_interaction
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{ /* do nothing */ }
-};
 
-/// Specialization of particle-particle interaction for the fluid-fluid case
-/* When both the central particle and their neighbors are fluid the interaction
- * is the same regardless of the boundary type and is computed in this specialized
- * functor.
+/* This section holds all the SFINAE specializations of compute_pp_interaction,
+ * the function that computes all of the contributions from a neighbor to the central particle
  */
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
+
+/*
+ * Fluid central, fluid neighbors
+ */
+
+/// Particle-particle interaction
+/** Specialization in case of fluid neighbors to fluid particles
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::cptype == PT_FLUID && FP::nptype == PT_FLUID>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		compute_density_derivative(params, pdata, ndata, pout, nout);
+	compute_density_derivative(params, pdata, ndata, pout, nout);
 
-		// Compute pressure part of acceleration
-		compute_pressure_contrib(params, pdata, ndata, pout, nout);
+	// Compute pressure part of acceleration
+	compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
-		// Compute viscous forces
-		compute_viscous_contrib(params, pdata, ndata, pout, nout);
+	// Compute viscous forces
+	compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
-		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		compute_keps_term(params, pdata, ndata, pout, nout);
+	// Compute diffusion terms for k-epsilon and the strain rate tensor
+	compute_keps_term(params, pdata, ndata, pout, nout);
 
-		// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
-		compute_mean_vel(params, pdata, ndata, pout, nout);
+	// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
+	compute_mean_vel(params, pdata, ndata, pout, nout);
 
-		// Sum all contributions from the neighbors in the force array
-		as_float3(pout.force) += nout.DvDt;
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
 
-		// Summ all internal energy contributions from the neighbors
-		add_internal_energy(params, pdata, ndata, pout, nout);
-	}
-};
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy(params, pdata, ndata, pout, nout);
+}
 
+/*
+ * Boundary central, fluid neighbors
+ *
+ * Specializations depend on the boundary model
+ */
 
-/// Generic specialization of particle-particle interaction for boundary-fluid
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+/// Particle-particle interaction
+/** Specialization in case of fluid neighbors to boundary particles,
+ * with repulsive particles models (LJ and MK)
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == LJ_BOUNDARY || FP::boundarytype == MK_BOUNDARY) &&
+	FP::cptype == PT_BOUNDARY && FP::nptype == PT_FLUID
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{ /* do nothing */ }
-};
-
-
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, LJ_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		// We need to compute force on boundary particles only when we have floating bodies or force feedback
-		if (COMPUTE_FORCE(pdata.info)) {
-			// Compute repulsive force from boundary particle
-			compute_repulsive_force(params, pdata, ndata, pout, nout);
-
-			// Sum all contributions from the neighbors in the force array
-			as_float3(pout.force) += nout.DvDt;
-
-			// Summ all internal energy contributions from the neighbors
-			add_internal_energy(params, pdata, ndata, pout, nout);
-		}
-	}
-};
-
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, MK_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		// We need to compute force on boundary particles only when we have floating bodies or force feedback
-		if (COMPUTE_FORCE(pdata.info)) {
-			// Compute repulsive force from boundary particle
-			compute_repulsive_force(params, pdata, ndata, pout, nout);
-
-			// Sum all contributions from the neighbors in the force array
-			as_float3(pout.force) += nout.DvDt;
-
-			// Summ all internal energy contributions from the neighbors
-			add_internal_energy(params, pdata, ndata, pout, nout);
-		}
-	}
-};
-
-/// Generic specialization of particle-particle interaction for fluid-boundary
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		if (boundarytype != LJ_BOUNDARY && boundarytype != MK_BOUNDARY)
-			return;
-
+	// We need to compute force on boundary particles only when we have floating bodies or force feedback
+	if (COMPUTE_FORCE(pdata.info)) {
 		// Compute repulsive force from boundary particle
 		compute_repulsive_force(params, pdata, ndata, pout, nout);
 
@@ -2653,69 +2566,26 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		// Summ all internal energy contributions from the neighbors
 		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
-};
+}
 
-
-/// Specialization of particle-particle interaction for boundary-fluid with dynamic boundaries
-/* When using dynamic boundaries the boundary-fluid interaction consist in the density derivative
- * computation for boundary particles and a full force computation if we need to compute the
- * force on a boundary.
+/// Particle-particle interaction
+/** Specialization in case of fluid neighbors to boundary particles,
+ * with DYN_BOUNDARY model. In this case we always evolve the particle
+ * density, and in the case of force feedback we also compute the
+ * momentum equation contributions
  */
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, DYN_BOUNDARY, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == DYN_BOUNDARY) &&
+	FP::cptype == PT_BOUNDARY && FP::nptype == PT_FLUID
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		compute_density_derivative(params, pdata, ndata, pout, nout);
+	compute_density_derivative(params, pdata, ndata, pout, nout);
 
-		// We need to compute force on boundary particles only when we have floating bodies or force feedback
-		if (COMPUTE_FORCE(pdata.info)) {
-			// Compute pressure part of acceleration
-			compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-			// Compute viscous forces
-			compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-			// Compute diffusion terms for k-epsilon and the strain rate tensor
-			compute_keps_term(params, pdata, ndata, pout, nout);
-			// TODO : implement keps for dynamic boundaries
-
-			// Sum all contributions from the neighbors in the force array
-			as_float3(pout.force) += nout.DvDt;
-
-			// Summ all internal energy contributions from the neighbors
-			add_internal_energy(params, pdata, ndata, pout, nout);
-		}
-	}
-};
-
-
-/// Specialization of particle-particle interaction for fluid-boundary with dynamic boundaries
-/* When using dynamic boundaries the fluid-boundary interaction is the same as the fluid-fluid
- * except for the mean velocity with XSPH.
- * TODO: check if we need to compute the mean vel for XSPH including the boundary particles
- */
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, DYN_BOUNDARY, visctype, simflags, PT_FLUID, PT_BOUNDARY>
-{
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		compute_density_derivative(params, pdata, ndata, pout, nout);
-
+	// We need to compute force on boundary particles only when we have floating bodies or force feedback
+	if (COMPUTE_FORCE(pdata.info)) {
 		// Compute pressure part of acceleration
 		compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
@@ -2732,133 +2602,176 @@ struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype,
 		// Summ all internal energy contributions from the neighbors
 		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
-};
+}
 
 
-/// Specialization of particle-particle interaction for fluid-boundary with SA boundaries
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, SA_BOUNDARY, visctype, simflags, PT_FLUID, PT_BOUNDARY>
+/*
+ * Fluid central, boundary neighbors
+ *
+ * Specializations depend on the boundary model
+ */
+
+/// Particle-particle interaction
+/** Specialization in case of boundary neighbors to fluid particles,
+ * with repulsive particles models (LJ and MK)
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == LJ_BOUNDARY || FP::boundarytype == MK_BOUNDARY) &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		// Compute gamma_as and |grad gamma_as| and add it to the respective values
-		// of the focal particle
-		compute_gamma_gradient(params, pdata, ndata, pout, nout);
+	// Compute repulsive force from boundary particle
+	compute_repulsive_force(params, pdata, ndata, pout, nout);
 
-		compute_density_derivative(params, pdata, ndata, pout, nout);
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
 
-		// Compute pressure part of acceleration
-		compute_pressure_contrib(params, pdata, ndata, pout, nout);
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy(params, pdata, ndata, pout, nout);
+}
 
-		// Compute viscous forces
-		compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		compute_keps_term(params, pdata, ndata, pout, nout);
-
-		// Compute gamma CFL
-		compute_gamma_cfl(params, pdata, ndata, pout, nout);
-
-		// Sum all contributions from the neighbors in the force array
-		as_float3(pout.force) += nout.DvDt;
-
-		// Summ all internal energy contributions from the neighbors
-		add_internal_energy(params, pdata, ndata, pout, nout);
-	}
-};
-
-/// Specialization of particle-particle interaction for vertex-fluid with SA boundaries
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, SA_BOUNDARY, visctype, simflags, PT_VERTEX, PT_FLUID>
+/// Particle-particle interaction
+/** Specialization in case of boundary neighbors to fluid particles,
+ * with DYN_BOUNDARY model. In this case the interaction is the same
+ * as fluid/fluid, except that XSPH contribution is not considered.
+ * TODO: check if we need to compute the mean vel for XSPH including the boundary particles
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == DYN_BOUNDARY) &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		// TODO: viscous contrib PT_VERTEX <= PT_FLUID
+	compute_density_derivative(params, pdata, ndata, pout, nout);
 
-		// TODO: check what we need to do in that case
-		// We need to compute force on boundary particles only when we have floating bodies or force feedback
-		/*if (COMPUTE_FORCE(pdata.info)) {
-			// Compute pressure part of acceleration
-			compute_pressure_contrib(params, pdata, ndata, pout, nout);
+	// Compute pressure part of acceleration
+	compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
-			// Compute viscous forces
-			compute_viscous_contrib(params, pdata, ndata, pout, nout);
+	// Compute viscous forces
+	compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
-			// Sum all contributions from the neighbors in the force array
-			as_float3(pout.force) += nout.DvDt;
-			// Summ all internal energy contributions from the neighbors
-			add_internal_energy(params, pdata, ndata, pout, nout);
-		}*/
+	// Compute diffusion terms for k-epsilon and the strain rate tensor
+	compute_keps_term(params, pdata, ndata, pout, nout);
+	// TODO : implement keps for dynamic boundaries
 
-		compute_water_depth_at_outflow(params, pdata, ndata, pout, nout);
-	}
-};
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
 
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy(params, pdata, ndata, pout, nout);
+}
 
-/// Specialization of particle-particle interaction for fluid-vertex with SA boundaries
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, SA_BOUNDARY, visctype, simflags, PT_FLUID, PT_VERTEX>
+/// Particle-particle interaction
+/** Specialization in case of boundary neighbors to fluid particles,
+ * with SA_BOUNDARY model.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == SA_BOUNDARY) &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		compute_density_derivative(params, pdata, ndata, pout, nout);
+	// Compute gamma_as and |grad gamma_as| and add it to the respective values
+	// of the focal particle
+	compute_gamma_gradient(params, pdata, ndata, pout, nout);
 
-		// Compute pressure part of acceleration
-		compute_pressure_contrib(params, pdata, ndata, pout, nout);
+	compute_density_derivative(params, pdata, ndata, pout, nout);
 
-		// Compute viscous forces
-		compute_viscous_contrib(params, pdata, ndata, pout, nout);
+	// Compute pressure part of acceleration
+	compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
-		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		compute_keps_term(params, pdata, ndata, pout, nout);
+	// Compute viscous forces
+	compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
-		// Sum all contributions from the neighbors in the force array
-		as_float3(pout.force) += nout.DvDt;
+	// Compute diffusion terms for k-epsilon and the strain rate tensor
+	compute_keps_term(params, pdata, ndata, pout, nout);
 
-		// Summ all internal energy contributions from the neighbors
-		add_internal_energy(params, pdata, ndata, pout, nout);
-	}
-};
+	// Compute gamma CFL
+	compute_gamma_cfl(params, pdata, ndata, pout, nout);
 
-/// Specialization of particle-particle interaction for vertex-boundary with SA boundaries
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	flag_t simflags>
-struct compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, SA_BOUNDARY, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy(params, pdata, ndata, pout, nout);
+}
+
+/*
+ * Vertex central, fluid neighbor
+ */
+
+/// Particle-particle interaction
+/** Specialization in case of fluid neighbors to vertex particles,
+ * with SA_BOUNDARY model.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == SA_BOUNDARY) &&
+	FP::cptype == PT_VERTEX && FP::nptype == PT_FLUID
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-	{
-		// TODO FIXME this was used to compute gamma on the vertex particles,
-		// but this is now done in INTEGRATE_GAMMA or DENSITY_SUM
-		compute_gamma_gradient(params, pdata, ndata, pout, nout);
-	}
-};
+	// TODO: viscous contrib PT_VERTEX <= PT_FLUID
+
+	// TODO: check what we need to do in that case
+	// We need to compute force on boundary particles only when we have floating bodies or force feedback
+	/*if (COMPUTE_FORCE(pdata.info)) {
+	// Compute pressure part of acceleration
+	compute_pressure_contrib(params, pdata, ndata, pout, nout);
+
+	// Compute viscous forces
+	compute_viscous_contrib(params, pdata, ndata, pout, nout);
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy(params, pdata, ndata, pout, nout);
+	}*/
+
+	compute_water_depth_at_outflow(params, pdata, ndata, pout, nout);
+}
+
+/*
+ * Fluid central, vertex neighbor
+ */
+
+/// Particle-particle interaction
+/** Specialization in case of vertex neighbors to fluid particles,
+ * with SA_BOUNDARY model.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == SA_BOUNDARY) &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_VERTEX
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	compute_density_derivative(params, pdata, ndata, pout, nout);
+
+	// Compute pressure part of acceleration
+	compute_pressure_contrib(params, pdata, ndata, pout, nout);
+
+	// Compute viscous forces
+	compute_viscous_contrib(params, pdata, ndata, pout, nout);
+
+	// Compute diffusion terms for k-epsilon and the strain rate tensor
+	compute_keps_term(params, pdata, ndata, pout, nout);
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy(params, pdata, ndata, pout, nout);
+}
 
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
@@ -2965,8 +2878,7 @@ forcesDevice(
 			forces_neib_output<boundarytype> nout;
 
 			// Now compute the interactions based on pdata.info and ndata.info
-			compute_pp_interaction<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype>::
-				with(params, pdata, ndata, pout, nout);
+			compute_pp_interaction(params, pdata, ndata, pout, nout);
 
 		} // End of loop over neighbors
 
