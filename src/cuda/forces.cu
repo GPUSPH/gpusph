@@ -666,6 +666,57 @@ void clear_cfl(BufferList& bufwrite, uint numAllocatedParticles)
 		CUDA_SAFE_CALL(cudaMemset(cfl_keps, val, fmax_size));
 }
 
+/* forcesDevice kernel calls that involve vertex particles
+ * are factored out here in this separate member function, that
+ * does nothing in the non-SA_BOUNDARY case
+ */
+template<
+	typename FluidVertexParams,
+	typename VertexFluidParams>
+enable_if_t<FluidVertexParams::boundarytype == SA_BOUNDARY>
+vertex_forces(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	FluidVertexParams const& params_fv,
+	VertexFluidParams const& params_vf)
+{
+	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
+		<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+
+	if (QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
+		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID>
+			<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
+	}
+}
+template<
+	typename FluidVertexParams,
+	typename VertexFluidParams>
+enable_if_t<FluidVertexParams::boundarytype != SA_BOUNDARY>
+vertex_forces(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	FluidVertexParams const& params_fv,
+	VertexFluidParams const& params_vf)
+{ /* do nothing */ }
+
+/* forcesDevice kernel calls where the central type is boundary
+ * are factored out here in this separate member function, that
+ * does nothing in the SA_BOUNDARY case
+ */
+template<typename BoundaryFluidParams>
+enable_if_t<BoundaryFluidParams::boundarytype == SA_BOUNDARY>
+boundary_forces(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	BoundaryFluidParams const& params_bf)
+{ /* do nothing */ }
+template<typename BoundaryFluidParams>
+enable_if_t<BoundaryFluidParams::boundarytype != SA_BOUNDARY>
+boundary_forces(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	BoundaryFluidParams const& params_bf)
+{
+	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
+		<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
+}
+
 
 // Returns numBlock for delayed dt reduction in case of striping
 uint
@@ -783,65 +834,38 @@ basicstep(
 	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
-	// TODO if !SA_BOUNDARY these kernels are still compiled. Is there some template if that avoids this?
-	if (boundarytype == SA_BOUNDARY) {
+	{
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
-				forces, rbforces, rbtorques,
-				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, step, dt,
-				xsph,
-				volume, sigma,
-				cfl_gamma, vertPos, epsilon,
-				IOwaterdepth,
-				keps_dkde, turbvisc, tau,
-				DEDt);
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			xsph,
+			volume, sigma,
+			cfl_gamma, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc, tau,
+			DEDt);
 
-		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
-			<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vf(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			xsph,
+			volume, sigma,
+			cfl_gamma, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc, tau,
+			DEDt);
 
-		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY> params_vb(
-				forces, rbforces, rbtorques,
-				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, step, dt,
-				xsph,
-				volume, sigma,
-				cfl_gamma, vertPos, epsilon,
-				IOwaterdepth,
-				keps_dkde, turbvisc, tau,
-				DEDt);
-
-		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_BOUNDARY>
-			<<< numBlocks, numThreads, dummy_shared >>>(params_vb);
-
-		if (QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
-			forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vb(
-				forces, rbforces, rbtorques,
-				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, step, dt,
-				xsph,
-				volume, sigma,
-				cfl_gamma, vertPos, epsilon,
-				IOwaterdepth,
-				keps_dkde, turbvisc, tau,
-				DEDt);
-
-			cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID>
-				<<< numBlocks, numThreads, dummy_shared >>>(params_vb);
-		}
+		vertex_forces(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
 	}
 
 	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
 		<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
-	// TODO: check when this case is needed
-	/*if (boundarytype == SA_BOUNDARY)
-		cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID>
-			<<< numBlocks, numThreads, dummy_shared >>>(params_vf);*/
 
-	// TODO: for SA_BOUNDARY check when this case is needed
-	if ( boundarytype != SA_BOUNDARY && compute_object_forces)
-		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
-			<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
+	if (compute_object_forces && (boundarytype != SA_BOUNDARY))
+		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
 
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
 			forces, rbforces, rbtorques,
