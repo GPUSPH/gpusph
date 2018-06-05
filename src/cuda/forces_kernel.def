@@ -2776,17 +2776,17 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
 /************************************************************************************************************/
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	DensityDiffusionType densitydiffusiontype,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags,
-	ParticleType cptype,
-	ParticleType nptype>
+template<typename FP, /* forces_params<kerneltype, sph_formulation, etc> */
+	KernelType kerneltype = FP::kerneltype,
+	SPHFormulation sph_formulation = FP::sph_formulation,
+	DensityDiffusionType densitydiffusiontype = FP::densitydiffusiontype,
+	BoundaryType boundarytype = FP::boundarytype,
+	ViscosityType visctype = FP::visctype,
+	flag_t simflags = FP::simflags,
+	ParticleType cptype = FP::cptype,
+	ParticleType nptype = FP::nptype>
 __global__ void
-forcesDevice(
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> params)
+forcesDevice(FP params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;

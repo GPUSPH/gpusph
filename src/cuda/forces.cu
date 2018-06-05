@@ -679,12 +679,10 @@ vertex_forces(
 	FluidVertexParams const& params_fv,
 	VertexFluidParams const& params_vf)
 {
-	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX>
-		<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
 
 	if (QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
-		cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID>
-			<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
+		cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
 	}
 }
 template<
@@ -713,8 +711,7 @@ boundary_forces(
 	uint numBlocks, uint numThreads, int dummy_shared,
 	BoundaryFluidParams const& params_bf)
 {
-	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID>
-		<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
+	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
 }
 
 
@@ -831,8 +828,7 @@ basicstep(
 			DEDt);
 
 
-	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID>
-		<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
 	{
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
@@ -860,8 +856,7 @@ basicstep(
 		vertex_forces(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
 	}
 
-	cuforces::forcesDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY>
-		<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
 
 	if (compute_object_forces || (boundarytype == DYN_BOUNDARY))
