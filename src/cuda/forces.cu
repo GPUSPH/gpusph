@@ -864,7 +864,7 @@ basicstep(
 		<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
 
-	if (compute_object_forces && (boundarytype != SA_BOUNDARY))
+	if (compute_object_forces || (boundarytype == DYN_BOUNDARY))
 		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
 
 	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
