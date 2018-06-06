@@ -1345,8 +1345,8 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 void
 Problem::init_volume(BufferList &buffers, uint numParticles)
 {
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	float4 *vel = buffers.getData<BUFFER_VEL>();
+	const float4 *pos = buffers.getConstData<BUFFER_POS>();
+	const float4 *vel = buffers.getConstData<BUFFER_VEL>();
 	float4 *vol = buffers.getData<BUFFER_VOLUME>();
 
 	for (uint i = 0; i < numParticles; ++i) {
