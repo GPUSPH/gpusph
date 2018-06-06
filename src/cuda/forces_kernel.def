@@ -2720,7 +2720,12 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	// TODO: viscous contrib PT_VERTEX <= PT_FLUID
+	// Viscous contribution of fluid neighbors to vertex particles
+	// should only be computed in the KEPS case. We check because
+	// the kernel may also be called with a different viscous model
+	// to compute water depth
+	if (FP::visctype == KEPSVISC)
+		compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
 	// TODO: check what we need to do in that case
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback

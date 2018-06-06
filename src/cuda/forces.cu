@@ -681,7 +681,12 @@ vertex_forces(
 {
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
 
-	if (QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
+	// Fluid contributions to vertices is only needed to compute water depth
+	// and for turbulent viscosity with the k-epsilon model
+	const bool waterdepth =
+		QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH);
+	const bool keps = (visctype == KEPSVISC);
+	if (waterdepth || keps) {
 		cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
 	}
 }
