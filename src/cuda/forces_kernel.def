@@ -1733,8 +1733,13 @@ enable_if_t<
 compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
-				d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w, d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w));
+	const float our_rho = pdata.vel.w;
+	const float neib_rho = ndata.relVel.w;
+	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
+	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
+
+	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
+			our_visc*our_rho, neib_visc*neib_rho));
 	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
@@ -1775,12 +1780,15 @@ enable_if_t<
 compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
+	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
+
 	if (IO_BOUNDARY(ndata.info)) {
 		// velocity of fluid particle along the wall
 		const float3 vel_tau = as_float3(ndata.relVel + ndata.relEulerVel);
 
 		nout.DvDt -= nout.ggamAS*
-			(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
+			(our_visc*pdata.vel.w + neib_visc*ndata.relVel.w)/ndata.r_as*
 			vel_tau/pdata.vel.w;
 		return;
 	}
@@ -1796,16 +1804,16 @@ compute_viscous_contrib
 	float u_star = 0.0f;
 	// the constant is equal to 0.09^0.25
 	const float uk = 0.547722558f*sqrt(pdata.keps_k);
-	float y_plus = ndata.r_as/d_visccoeff[fluid_num(pdata.info)]*uk;
+	float y_plus = ndata.r_as/our_visc*uk;
 	// constant is equal to 1/0.41
 	if(y_plus < 2.43902439f) // viscous sublayer
 		u_star = abs_u_t/y_plus;
 	else{ // log law
 		// constant is equal to exp(-5.2*0.41)
-		float utau = 0.118599857f*d_visccoeff[fluid_num(ndata.info)]/ndata.r_as;
+		float utau = 0.118599857f*neib_visc/ndata.r_as;
 		for (int i=0; i<10; i++) {
 			// constant is equal to 1/0.41
-			y_plus = fmax(ndata.r_as*utau/d_visccoeff[fluid_num(ndata.info)], 2.43902439f);
+			y_plus = fmax(ndata.r_as*utau/neib_visc, 2.43902439f);
 			// constant is equal to 5.2*0.41+1
 			utau = (0.41f*abs_u_t + utau)/(log(y_plus) + 3.132f);
 		}
@@ -1828,10 +1836,13 @@ enable_if_t<
 compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
-		(d_visccoeff[fluid_num(pdata.info)]+pdata.turbViscForViscTerm)*pdata.vel.w,
-		(d_visccoeff[fluid_num(ndata.info)]+ndata.turbViscForViscTerm)*ndata.relVel.w));
-	// call getRelEulerVel always with true as in keps we always have that value
+	const float our_rho = pdata.vel.w;
+	const float neib_rho = ndata.relVel.w;
+	const float our_visc = d_visccoeff[fluid_num(pdata.info)]+pdata.turbViscForViscTerm;
+	const float neib_visc = d_visccoeff[fluid_num(ndata.info)]+ndata.turbViscForViscTerm;
+
+	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
+		our_visc*our_rho, neib_visc*neib_rho));
 	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
