@@ -136,91 +136,77 @@ struct euler_particle_data :
 	{}
 };
 
-
-
-// A functor that helps to compute the velocity of particles when xsph is enabled
-template<bool xsphEnabled>
-struct compute_corrected_velocity {
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata)
-	{
-		 pdata.velc = pdata.vel + (params.step - 1)*pdata.force*params.half_dt;
-	}
-};
-
-template<>
+/// Compute corrected velocity
+/*! Takes into account the mean velocity in the XSPH case
+ */
 template<typename EP, typename P>
-__device__ __forceinline__ void
-compute_corrected_velocity<true>::with(EP const& params, P &pdata)
+__device__ __forceinline__
+void
+standard_corrected_velocity(EP const& params, P &pdata)
 {
 	pdata.velc = pdata.vel + (params.step - 1)*pdata.force*params.half_dt;
+}
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<not (EP::simflags & ENABLE_XSPH)>
+compute_corrected_velocity(EP const& params, P &pdata)
+{
+	standard_corrected_velocity(params, pdata);
+}
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::simflags & ENABLE_XSPH>
+compute_corrected_velocity(EP const& params, P &pdata)
+{
+	standard_corrected_velocity(params, pdata);
+	/* XSPH correction */
 	pdata.velc.x += d_epsxsph*pdata.xsph.x;
 	pdata.velc.y += d_epsxsph*pdata.xsph.y;
 	pdata.velc.z += d_epsxsph*pdata.xsph.z;
 }
 
-/// A funcor that integrates internal energy, if enabled
-template<bool energyEnabled>
-struct integrate_energy {
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index, float dt)
-	{ /* do nothing */ }
-};
-
-template<>
+/// Integrate energy
+/*! When internal energy integration is enabled
+ */
 template<typename EP, typename P>
-__device__ __forceinline__ void
-integrate_energy<true>::with(EP const& params, P &pdata, int index, float dt)
+__device__ __forceinline__
+enable_if_t<EP::simflags & ENABLE_INTERNAL_ENERGY>
+integrate_energy(EP const& params, P &pdata, int index, float dt)
 {
 	pdata.energy += dt*params.DEDt[pdata.index];
 }
-
-// A functor that helps to integrate density or volume
-enum continuity_integration_type {
-	INTEGRATE_VOLUME,
-	INTEGRATE_SA,
-	INTEGRATE_DENSITY
-};
-
-template<enum continuity_integration_type>
-struct continuity_integration {
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index, float dt)
-	{
-		pdata.vel.w += dt*pdata.force.w;
-	}
-};
-
-//specialization for GRENIER formulation
-template<>
 template<typename EP, typename P>
-__device__ __forceinline__ void
-continuity_integration<INTEGRATE_VOLUME>::with(EP const& params, P &pdata, int index, float dt)
+__device__ __forceinline__
+enable_if_t<not (EP::simflags & ENABLE_INTERNAL_ENERGY)>
+integrate_energy(EP const& params, P &pdata, int index, float dt)
+{ /* do nothing */ }
+
+
+/// Integrate the continuity equation
+/*! In all formulations except for Grenier, this integrates the density.
+ * For SPH_GRENIER it integrates the volume
+ */
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::sph_formulation != SPH_GRENIER>
+continuity_integration(EP const& params, P &pdata, int index, float dt)
+{
+	pdata.vel.w += dt*pdata.force.w;
+}
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::sph_formulation == SPH_GRENIER>
+continuity_integration(EP const& params, P &pdata, int index, float dt)
 {
 	pdata.vol.y += dt*pdata.force.w;
 }
 
-// A functor that helps to integrate when k-e model is enabled
-template<bool k_e_Enabled>
-struct k_e_integration {
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index, float dt)
-	{ /* do nothing*/ }
-};
 
-
-template<>
+/// Integrate k and e in the \f$\kappa-\epsilon\f$ model
 template<typename EP, typename P>
-__device__ __forceinline__ void
-k_e_integration<true>::with(EP const& params, P &pdata, int index, float dt)
+__device__ __forceinline__
+enable_if_t<EP::visctype == KEPSVISC>
+integrate_k_e(EP const& params, P &pdata, int index, float dt)
 {
 	const float3 dkde = params.keps_dkde[index];
 	const float oldK = pdata.keps_k;
@@ -228,16 +214,20 @@ k_e_integration<true>::with(EP const& params, P &pdata, int index, float dt)
 	pdata.keps_k = (oldK + dt*dkde.x)/(1.0f + dt*pdata.keps_e/oldK);
 	pdata.keps_e = (pdata.keps_e + dt*dkde.y)/(1.0f + dt*pdata.keps_e/oldK*dkde.z);
 }
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::visctype != KEPSVISC>
+integrate_k_e(EP const& params, P &pdata, int index, float dt)
+{ /* do nothing*/ }
 
 /// Update the boundary elements normals, when using SA_BOUNDARY and moving bodies
-// A functor that helps to update normal of boundary element, if using SA_BOUNDARY
 template<typename EP, typename P>
 __device__ __forceinline__
 enable_if_t<(
 	(EP::boundarytype == SA_BOUNDARY) &&
 	(EP::simflags & ENABLE_MOVING_BODIES)
 )>
-update_normals_SA(EP const& params, P &pdata, int index)
+update_normals(EP const& params, P &pdata, int index)
 {
 	float4 normal = params.oldBoundElement[index];
 	if (BOUNDARY(pdata.info) || VERTEX(pdata.info)) {
@@ -245,119 +235,107 @@ update_normals_SA(EP const& params, P &pdata, int index)
 	}
 	params.newBoundElement[index] = normal;
 }
-
 template<typename EP, typename P>
 __device__ __forceinline__
 enable_if_t<not (
 	(EP::boundarytype == SA_BOUNDARY) &&
 	(EP::simflags & ENABLE_MOVING_BODIES)
 )>
-update_normals_SA(EP const& params, P &pdata, int index)
+update_normals(EP const& params, P &pdata, int index)
 { /* do nothing */ }
 
-// A functor that helps to integrate Eulerian velocity for k-eps, if using SA_BOUNDARY
-template<BoundaryType boundarytype, ViscosityType visctype>
-struct integrate_eulerian_velocity_ke {
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, float dt)
-	{ /* do nothing*/ }
-};
-
-
-template<>
+/// Integrate the boundary and vertex eulerian velocity in the k-epsilon case
 template<typename EP, typename P>
-__device__ __forceinline__ void
-integrate_eulerian_velocity_ke<SA_BOUNDARY, KEPSVISC>::with(EP const& params, P &pdata, float dt)
+__device__ __forceinline__
+enable_if_t<EP::visctype == KEPSVISC>
+integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
 {
 	if (!IO_BOUNDARY(pdata.info) || (VERTEX(pdata.info) && CORNER(pdata.info))) {
 		// this is for k-eps only. Normally forces are going to be zero
 		pdata.eulerVel += dt*pdata.force;
 	}
 }
-
-// A functor that helps to writes volume output, if using GRENIER formulation
-template<SPHFormulation sph_formulation>
-struct write_volume{
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index)
-	{ /* do nothing*/ }
-};
-
-
-template<>
 template<typename EP, typename P>
-__device__ __forceinline__ void
-write_volume<SPH_GRENIER>::with(EP const& params, P &pdata, int index)
+__device__ __forceinline__
+enable_if_t<EP::visctype != KEPSVISC>
+integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
+{ /* do nothing*/ }
+
+/// Write volume (when present)
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::sph_formulation == SPH_GRENIER>
+write_volume(EP const& params, P &pdata, int index)
 {
 	pdata.vol.w = expf(pdata.vol.y)*pdata.vol.x;
 	params.newVol[index] = pdata.vol;
 }
-
-/// A functor that helps to write internal energy output, if enabled
-template<bool energyEnabled>
-struct write_energy
-{
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index)
-	{ /* do nothing*/ }
-};
-
-template<>
 template<typename EP, typename P>
-__device__ __forceinline__ void
-write_energy<true>::with(EP const& params, P &pdata, int index)
+__device__ __forceinline__
+enable_if_t<EP::sph_formulation != SPH_GRENIER>
+write_volume(EP const& params, P &pdata, int index)
+{ /* do nothing*/ }
+
+/// Write internal energy, if enabled
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<(EP::simflags & ENABLE_INTERNAL_ENERGY)>
+write_energy(EP const& params, P &pdata, int index)
 {
 	params.newEnergy[index] = pdata.energy;
 }
-
-// Writes out the eulerian velocity for SA boundaries
-// this variable needs to be written if:
-// 1.) k-eps turbulence (as vertices have a dv/dt for eulerVel
-// 2.) open boundaries (as this sets eulerVel = 0 for fluid)
-template<BoundaryType boundarytype, bool updateRequired>
-struct write_eulerVel{
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index)
-	{ /* do nothing*/ }
-};
-
-
-template<>
 template<typename EP, typename P>
-__device__ __forceinline__ void
-write_eulerVel<SA_BOUNDARY, true>::with(EP const& params, P &pdata, int index)
+__device__ __forceinline__
+enable_if_t<not (EP::simflags & ENABLE_INTERNAL_ENERGY)>
+write_energy(EP const& params, P &pdata, int index)
+{ /* do nothing*/ }
+
+
+/// Writes out the eulerian velocity for SA boundaries
+/*! this variable needs to be written if:
+ * 1.) k-eps turbulence (as vertices have a dv/dt for eulerVel), or
+ * 2.) open boundaries (as this sets eulerVel = 0 for fluid)
+ */
+template<typename EP>
+constexpr bool needs_eulerVel()
+{
+	return EP::visctype == KEPSVISC ||
+		(EP::boundarytype == SA_BOUNDARY &&
+		 (EP::simflags & ENABLE_INLET_OUTLET));
+}
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<needs_eulerVel<EP>()>
+write_eulerVel(EP const& params, P &pdata, int index)
 {
 	params.newEulerVel[index] = pdata.eulerVel;
 }
-
-// A functor that helps to writes viscosity coefficient, if using KEPSVISC
-template<ViscosityType visctype>
-struct write_viscosity_coeff{
-	template<typename EP, typename P>
-	__device__ __forceinline__
-	static void
-	with(EP const& params, P &pdata, int index)
-	{ /* do nothing*/ }
-};
-
-
-template<>
 template<typename EP, typename P>
-__device__ __forceinline__ void
-write_viscosity_coeff<KEPSVISC>::with(EP const& params, P &pdata, int index)
+__device__ __forceinline__
+enable_if_t<not needs_eulerVel<EP>()>
+write_eulerVel(EP const& params, P &pdata, int index)
+{ /* do nothing*/ }
+
+
+/// A functor that helps to writes viscosity coefficient
+/*! This is currently enabled only for KEPSVISC, to write out k, e
+ * and the turbulent viscosity
+ */
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::visctype == KEPSVISC>
+write_viscosity_coeff(EP const& params, P &pdata, int index)
 {
 	params.newTKE[index] = pdata.keps_k;
 	params.newEps[index] = pdata.keps_e;
 	params.newTurbVisc[index] = 0.9f*pdata.keps_k*pdata.keps_k/pdata.keps_e;
 }
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::visctype != KEPSVISC>
+write_viscosity_coeff(EP const& params, P &pdata, int index)
+{ /* do nothing*/ }
 
 /* Euler kernel definitions */
 // Predictor Corrector time integration
@@ -471,7 +449,7 @@ eulerDevice(
 		// velc = vel if step == 1, but
 		// velc = vel + forces[index]*dt/2.0f if step == 2
 		// in the XSPH case we also add the mean velocity (pdata.xsph)
-		compute_corrected_velocity<simflags & ENABLE_XSPH>::with(params, pdata);
+		compute_corrected_velocity(params, pdata);
 
 		// Object index
 		const int obj = object(pdata.info);
@@ -488,19 +466,15 @@ eulerDevice(
 
 				// Grenier evolves the volume, not the density,
 				// all other evolve the density directly.
-				continuity_integration<
-					boundarytype == SA_BOUNDARY ? INTEGRATE_SA :
-					(sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
-					INTEGRATE_DENSITY)
-				>::with(params, pdata, index, dt);
+				continuity_integration(params, pdata, index, dt);
 
 				as_float3(pdata.vel) += dt*as_float3(pdata.force);
 
 				// updating internal energy
-				integrate_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, index, dt);
+				integrate_energy(params, pdata, index, dt);
 
 				// Updating k and e for k-e model
-				k_e_integration<visctype == KEPSVISC>::with(params, pdata, index, dt);
+				integrate_k_e(params, pdata, index, dt);
 
 				break;
 
@@ -547,15 +521,12 @@ eulerDevice(
 
 			// DYN_BOUNDARY: integrate density and internal energy
 			if (boundarytype == DYN_BOUNDARY) {
-				continuity_integration<
-					sph_formulation == SPH_GRENIER ? INTEGRATE_VOLUME :
-					INTEGRATE_DENSITY
-				>::with(params, pdata, index, dt);
-				integrate_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, index, dt);
+				continuity_integration(params, pdata, index, dt);
+				integrate_energy(params, pdata, index, dt);
 			}
 
-			// SA_BOUNDARY: integrate Eulerian velocity for k-eps
-			integrate_eulerian_velocity_ke<boundarytype, visctype>::with(params, pdata, dt);
+			// integrate Eulerian velocity (for k-eps)
+			integrate_eulerian_velocity(params, pdata, dt);
 
 			break;
 
@@ -567,17 +538,17 @@ eulerDevice(
 
 	params.newPos[index] = pdata.pos;
 	params.newVel[index] = pdata.vel;
-	write_volume<sph_formulation>::with(params, pdata, index);
-	write_energy<simflags & ENABLE_INTERNAL_ENERGY>::with(params, pdata, index);
+	write_volume(params, pdata, index);
+	write_energy(params, pdata, index);
 	// the condition should just be “if the euler velocity is there”,
 	// which is currently for KEPSVISC or open boundaries, but we don't have an easy way
 	// to check for struct membership, so let's do it by enumerating the cases
 	// TODO FIXME
-	write_eulerVel<boundarytype, visctype==KEPSVISC || simflags & ENABLE_INLET_OUTLET>::with(params, pdata, index);
-	write_viscosity_coeff<visctype>::with(params, pdata, index);
+	write_eulerVel(params, pdata, index);
+	write_viscosity_coeff(params, pdata, index);
 
 	// update normal of boundary element, if using SA_BOUNDARY and we have moving bodies
-	update_normals_SA(params, pdata, index);
+	update_normals(params, pdata, index);
 }
 
 /* vi:set ft=cuda: */
