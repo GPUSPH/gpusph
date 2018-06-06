@@ -87,6 +87,7 @@ DECLARE_MEMBER_DETECTOR(volume, has_volume)
 DECLARE_MEMBER_DETECTOR(gammaCfl, has_gammaCfl)
 DECLARE_MEMBER_DETECTOR(eulerVel, has_eulerVel)
 DECLARE_MEMBER_DETECTOR(relEulerVel, has_relEulerVel)
+DECLARE_MEMBER_DETECTOR(relVel, has_relVel)
 
 /// Selector to check if we need a CFL condition for gamma
 template<typename FP>
@@ -206,92 +207,119 @@ constexpr bool needs_waterdepth()
  * Auxiliary functions, needed to initialize const members in one go
  */
 
+/// Fetch the particle density
+/*! This is either pdata.vel.w or ndata.relVel.w, depending on whether we're
+ * doing it for the central particle or the neighbor. Let's a function that
+ * handles the difference
+ */
+template<typename N>
+__device__ __forceinline__
+enable_if_t<has_relVel<N>(), float>
+particle_density(N const& ndata)
+{
+	/* has relVel, so it's neighbor data */
+	return ndata.relVel.w;
+}
+
+template<typename P>
+__device__ __forceinline__
+enable_if_t<not has_relVel<P>(), float>
+particle_density(P const& pdata)
+{
+	/* no relVel, assume it's central particle data */
+	return pdata.vel.w;
+}
+
+
 /// Precompute pressure contribution to the momentum equation.
-/// Two versions are available, one in the KEPS viscosity case,
-/// and a generic one
+/** This depends on the SPH formulation used, but also on whether or not
+ * k-epsilon is in used.
+ * For SPH_F1, the value we precalc is P/rho^2, for SPH_GRENIER it's P/sigma,
+ * and for SPH_F2 it's just P.
+ * In the k-epsilon case, P is the pressure of the particle, corrected with a keps term,
+ * whereas without k-epsilon P is just the pressure of the particle.
+ * @{
+ */
+
+
+/// Compute particle pressure
+template<
+	typename Pt /// particle data type (pdata or ndata)
+>
+__device__ __forceinline__
+float
+particle_pressure(Pt const& pdata)
+{
+	return P(particle_density(pdata), fluid_num(pdata.info));
+}
+
+/// Pressure used in the pressure precalc term
+/*! KEPSVISC case: standard particle pressure, corrected with a \f$\kappa - \epsilon\f$ term
+ * \f$\frac{2}{3} \frac{\kappa}{\rho}\f$.
+ */
+template<
+	typename Pt /// particle data type (pdata or ndata)
+>
+__device__ __forceinline__
+enable_if_t<Pt::visctype == KEPSVISC, float>
+pressure_for_precalc(Pt const& pdata)
+{
+	return particle_pressure(pdata) + 2.0f*pdata.keps_k/particle_density(pdata)/3.0f;
+}
+
+/// Pressure used in the pressure precalc term
+/*! Without k-epsilon, we just use the particle pressure.
+ */
+template<
+	typename Pt /// particle data type (pdata or ndata)
+>
+__device__ __forceinline__
+enable_if_t<Pt::visctype != KEPSVISC, float>
+pressure_for_precalc(Pt const& pdata)
+{
+	return particle_pressure(pdata);
+}
 
 /// Precompute pressure contribution to momentum equation
-/*! This function precomputes the pressure contribution to the
- * 	momentum equation according to the chosen SPH formulation.
- *
- * 	\tparam sph_formulation : SPH formulation used
- *
- *	\return : pressure contribution
+/*! SPH_F1 specialization: \f$\frac{P}{\rho^2}\f$
  */
- //@{
-template<SPHFormulation sph_formulation>
+template<
+	typename Pt /// particle data type (pdata or ndata)
+>
 __device__ __forceinline__
-float
-precalc_pressure(const float rho, 	/// [in] particle density \f$\rho/f$
-		particleinfo const& info, 	/// [in] particle info (used for fluid number)
-		const float keps_k);		/// [in] particle \f$\kappaf$
-
-/// <tt>SPH1</tt> specialisation of the #precalc_pressure with \f$\kappa - \epsilon\f$
-/*! When using SPH formulation 1 with \f$\kappa - \epsilon\f$, the precomputed pressure
-* contribution for the current particle is \f$\frac{P}{\rho^2} + \frac{2}{3} \frac{\kappa}{\rho}\f$.
-*/
-template<>
-__device__ __forceinline__
-float
-precalc_pressure<SPH_F1>(const float rho, particleinfo const& info, const float keps_k)
+enable_if_t<Pt::sph_formulation == SPH_F1, float>
+precalc_pressure(Pt const& pdata)
 {
-	return (P(rho, fluid_num(info)) + 2.0f*keps_k/rho/3.0f)/(rho*rho);
+	const float rho = particle_density(pdata);
+	return pressure_for_precalc(pdata)/(rho*rho);
 }
 
-/// <tt>SPH2</tt> specialisation of the #precalc_pressure with \f$ \kappa - \epsilon \f$
-/*! When using SPH formulation 2 with \f$ \kappa - \epsilon \f$, the precomputed pressure
-* contribution for the current particle is \f$ \frac{P} + \frac{2}{3} \kappa \rho \f$.
-*/
-template<>
+/// Precompute pressure contribution to momentum equation
+/*! SPH_F2 specialization: \f$P\f$
+ */
+template<
+	typename Pt /// particle data type (pdata or ndata)
+>
 __device__ __forceinline__
-float
-precalc_pressure<SPH_F2>(const float rho, particleinfo const& info, const float keps_k)
+enable_if_t<Pt::sph_formulation == SPH_F2, float>
+precalc_pressure(Pt const& pdata)
 {
-	return P(rho, fluid_num(info)) + 2.0f*keps_k/rho/3.0f;
+	return pressure_for_precalc(pdata);
 }
 
-template<SPHFormulation sph_formulation>
+/// Precompute pressure contribution to momentum equation
+/*! SPH_GRENIER specialization: \f$\frac{P}{\sigma}\f$
+ */
+template<
+	typename Pt /// particle data type (pdata or ndata)
+>
 __device__ __forceinline__
-float
-precalc_pressure(const float rho,
-		particleinfo const& info);
-
-/// <tt>SPH1</tt> specialisation of #precalc_pressure
-/*! When using SPH formulation 1, the precomputed pressure contribution
-*   for the current particle is \f$ \frac{P}{\rho^2} \f$.
-*/
-template<>
-__device__ __forceinline__
-float
-precalc_pressure<SPH_F1>(const float rho, particleinfo const& info)
+enable_if_t<Pt::sph_formulation == SPH_GRENIER, float>
+precalc_pressure(Pt const& pdata)
 {
-	return P(rho, fluid_num(info))/(rho*rho);
+	return pressure_for_precalc(pdata)/pdata.sigma;
 }
 
-/// <tt>SPH2</tt> specialisation of the #precalc_pressure template
-/*! When using SPH formulation 2, the precomputed pressure contribution
-*   for the current particle is just \f$ P \f$.
-*/
-template<>
-__device__ __forceinline__
-float
-precalc_pressure<SPH_F2>(const float rho, particleinfo const& info)
-{
-	return P(rho, fluid_num(info));
-}
-
-/// <tt>SPH_GRENIER</tt> specialisation of the #precalc_pressure template
-/*! When using Grenier's SPH formulation, the precomputed pressure contribution
-*   for the current particle is \f$ \frac{P}{\sigma} \f$. The division by \f$ \sigma \f$
-*   will be done in p_precalc_particle_data
-*/
-template<>
-__device__ __forceinline__
-float
-precalc_pressure<SPH_GRENIER>(const float rho, particleinfo const& info)
-{
-	return P(rho, fluid_num(info));
-}
 //}@
 
 /*
@@ -486,44 +514,17 @@ struct keps_particle_data
 // (4) the value passed to the additional parameter only exists in the KEPSVISC/SPH_GRENIER case
 // so the caller must be able to feed the last parameter correctly if it exists,
 // but not even try to provide it otherwise.
-// The solution is to make this structure template structure based on
-// SPH formulation, plus the typename of an additional parameter, which
-// will be the structure containing keps_k in the case of KEPSVISC.
-// Suggestions for a better solution are welcome
-template<SPHFormulation sph_formulation, typename T>
 struct p_precalc_particle_data
 {
 	const	float	p_precalc;
 
 	// default initializer, extra param is ignored
+	template<
+		typename Pt /// particle data type (pdata or ndata)
+	>
 	__device__ __forceinline__
-	p_precalc_particle_data(const float rho, particleinfo const& info, T const&) :
-		p_precalc(precalc_pressure<sph_formulation>(rho, info))
-	{}
-};
-
-// Specialization for SPH_GRENIER formulation
-// TODO check compatibility between SPH_GRENIER and KEPSVISC
-template<>
-struct p_precalc_particle_data<SPH_GRENIER, grenier_particle_data>
-{
-	const	float	p_precalc;
-
-	__device__ __forceinline__
-	p_precalc_particle_data(const float rho, particleinfo const& info, grenier_particle_data const& pdata) :
-		p_precalc(precalc_pressure<SPH_GRENIER>(rho, info)/pdata.sigma)
-	{}
-};
-
-// specialize the initializer
-template<SPHFormulation sph_formulation>
-struct p_precalc_particle_data<sph_formulation, keps_particle_data>
-{
-	const	float	p_precalc;
-
-	__device__ __forceinline__
-	p_precalc_particle_data(const float rho, particleinfo const& info, keps_particle_data const& ke) :
-		p_precalc(precalc_pressure<sph_formulation>(rho, info, ke.keps_k))
+	p_precalc_particle_data(Pt const& pdata) :
+		p_precalc(precalc_pressure(pdata))
 	{}
 };
 
@@ -581,11 +582,7 @@ struct forces_particle_data :
 	// everything else is just for PT_FLUID
 	COND_STRUCT(_visctype == SPSVISC,
 		sps_particle_data),
-	// to see why this is so messy, see definition of p_precalc_particle_data
-	p_precalc_particle_data<_sph_formulation,
-		typename conditional<_sph_formulation == SPH_GRENIER,
-		grenier_particle_data, typename COND_STRUCT(_visctype == KEPSVISC, keps_particle_data)
-	>::type >,
+	p_precalc_particle_data,
 	COND_STRUCT(_visctype == KEPSVISC,
 		keps_precalc_particle_data)
 {
@@ -621,10 +618,7 @@ struct forces_particle_data :
 			keps_particle_data)(_index, _info, params),
 		COND_STRUCT(visctype == SPSVISC,
 			sps_particle_data)(_index),
-		p_precalc_particle_data<sph_formulation,
-			typename conditional<sph_formulation == SPH_GRENIER,
-			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
-		>::type >(vel.w, _info, *this),
+		p_precalc_particle_data(*this),
 		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, fluid_num(_info), *this)
 	{}
 };
@@ -915,33 +909,34 @@ struct eulerVel_neib_data
 };
 
 template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
+	SPHFormulation _sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
 	BoundaryType boundarytype,
-	ViscosityType visctype,
+	ViscosityType _visctype,
 	flag_t simflags,
 	ParticleType cptype,
 	ParticleType _nptype>
 struct forces_neib_data :
 	common_neib_data,
-	COND_STRUCT(sph_formulation == SPH_GRENIER &&
+	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 		(densitydiffusiontype == COLAGROSSI), volume_particle_data),
-	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
 		sa_boundary_neib_data),
 	// relative eulerian velocity
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
-			(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
+			(_visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 		eulerVel_neib_data),
 	// these are the same as the particle data
-	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
+	COND_STRUCT(_visctype == KEPSVISC, keps_particle_data),
 	// precalculated pressure
-	p_precalc_particle_data<sph_formulation,
-		typename conditional<sph_formulation == SPH_GRENIER,
-		grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
-	>::type >,
-	COND_STRUCT(visctype == SPSVISC, sps_particle_data)
+	p_precalc_particle_data,
+	COND_STRUCT(_visctype == SPSVISC, sps_particle_data)
 {
+	static constexpr SPHFormulation sph_formulation = _sph_formulation;
+	static constexpr ViscosityType visctype = _visctype;
+	static constexpr ParticleType	nptype = _nptype;
+
 	// shortcut typedefs
 	typedef
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
@@ -952,8 +947,6 @@ struct forces_neib_data :
 				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 			eulerVel_neib_data)
 		_eulerVel_neib_data;
-
-	static constexpr ParticleType	nptype = _nptype;
 
 	/* The constructor is templatized on the particle data type and on the
 	   kernel params type */
@@ -971,10 +964,7 @@ struct forces_neib_data :
 		_eulerVel_neib_data(pdata, _index, _info),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info, params),
 		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
-		p_precalc_particle_data<sph_formulation,
-			typename conditional<sph_formulation == SPH_GRENIER,
-			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
-		>::type >(this->relVel.w, _info, *this)
+		p_precalc_particle_data(*this)
 	{}
 };
 
