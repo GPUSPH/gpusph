@@ -2895,13 +2895,13 @@ forcesDevice(FP params)
 
 
 // TODO FIXME splitneibs merge: load partial internal energy and store final
-template<SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
+template<typename FP, /* finalize_forces_params<...> */
+	SPHFormulation sph_formulation = FP::sph_formulation,
+	BoundaryType boundarytype = FP::boundarytype,
+	ViscosityType visctype = FP::visctype,
+	flag_t simflags = FP::simflags>
 __global__ void
-finalizeforcesDevice(
-	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params)
+finalizeforcesDevice(FP params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;

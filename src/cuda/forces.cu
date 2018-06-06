@@ -871,8 +871,7 @@ basicstep(
 			IOwaterdepth,
 			keps_dkde, turbvisc, tau, DEDt);
 
-	cuforces::finalizeforcesDevice<sph_formulation, boundarytype, visctype, simflags>
-		<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
+	cuforces::finalizeforcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
 
 	return numBlocks;
 }
