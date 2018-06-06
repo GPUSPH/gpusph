@@ -385,6 +385,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
 
+	if (!resumed && _sp->visctype == KEPSVISC)
+		problem->init_turbvisc(gdata->s_hBuffers, gdata->totParticles);
+
 	/* When starting a simulation with open boundaries, we need to
 	 * initialize the array of the next ID for generated particles,
 	 * and count the total number of open boundary vertices.

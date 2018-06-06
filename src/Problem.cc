@@ -1380,6 +1380,22 @@ Problem::init_keps(BufferList &buffers, uint numParticles)
 	}
 }
 
+/* Initialize eddy viscosity from k and epsilon */
+void
+Problem::init_turbvisc(BufferList &buffers, uint numParticles)
+{
+	const float *k = buffers.getConstData<BUFFER_TKE>();
+	const float *e = buffers.getConstData<BUFFER_EPSILON>();
+	float *turbVisc = buffers.getData<BUFFER_TURBVISC>();
+
+	for (uint i = 0; i < numParticles; ++i) {
+		float ki = k[i];
+		float ei = e[i];
+		turbVisc[i] = 0.9*ki*ki/ei;
+	}
+
+}
+
 
 void
 Problem::imposeBoundaryConditionHost(

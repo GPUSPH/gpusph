@@ -422,6 +422,9 @@ class Problem {
 		/* Initialize k and epsilon */
 		virtual void init_keps(BufferList &, uint numParticles);
 
+		/* Initialize eddy viscosity */
+		virtual void init_turbvisc(BufferList &, uint numParticles);
+
 		virtual void imposeBoundaryConditionHost(
 			BufferList&		bufwrite,
 			const BufferList&	bufread,
