@@ -318,8 +318,6 @@ class XProblem: public Problem {
 
 		// callback for filtering out points before they become particles
 		virtual void filterPoints(PointVect &fluidParts, PointVect &boundaryParts);
-		// default initialization for k and espilon
-		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 
 		// callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);

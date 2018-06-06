@@ -419,6 +419,9 @@ class Problem {
 		/* Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);
 
+		/* Initialize k and epsilon */
+		virtual void init_keps(BufferList &, uint numParticles);
+
 		virtual void imposeBoundaryConditionHost(
 			BufferList&		bufwrite,
 			const BufferList&	bufread,

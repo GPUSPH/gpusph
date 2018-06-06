@@ -1363,6 +1363,24 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 	}
 }
 
+/* Default initialization for k and epsilon  */
+void
+Problem::init_keps(BufferList &buffers, uint numParticles)
+{
+	float *k = buffers.getData<BUFFER_TKE>();
+	float *e = buffers.getData<BUFFER_EPSILON>();
+
+	const float Lm = fmax(2*m_deltap, 1e-5f);
+	const float k0 = pow(0.002f*physparams()->sscoeff[0], 2);
+	const float e0 = 0.16f*pow(k0, 1.5f)/Lm;
+
+	for (uint i = 0; i < numParticles; i++) {
+		k[i] = k0;
+		e[i] = e0;
+	}
+}
+
+
 void
 Problem::imposeBoundaryConditionHost(
 			BufferList&		bufwrite,
