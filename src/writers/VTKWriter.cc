@@ -120,14 +120,14 @@ static float zeroes[4];
 
 /* auxiliary functions to write data array entrypoints */
 inline void
-scalar_array(ofstream &out, const char *type, const char *name, size_t offset)
+scalar_array_header(ofstream &out, const char *type, const char *name, size_t offset)
 {
 	out << "	<DataArray type='" << type << "' Name='" << name
 		<< "' format='appended' offset='" << offset << "'/>" << endl;
 }
 
 inline void
-vector_array(ofstream &out, const char *type, const char *name, uint dim, size_t offset)
+vector_array_header(ofstream &out, const char *type, const char *name, uint dim, size_t offset)
 {
 	out << "	<DataArray type='" << type << "' Name='" << name
 		<< "' NumberOfComponents='" << dim
@@ -135,7 +135,7 @@ vector_array(ofstream &out, const char *type, const char *name, uint dim, size_t
 }
 
 inline void
-vector_array(ofstream &out, const char *type, uint dim, size_t offset)
+vector_array_header(ofstream &out, const char *type, uint dim, size_t offset)
 {
 	out << "	<DataArray type='" << type
 		<< "' NumberOfComponents='" << dim
@@ -234,65 +234,65 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// neibs
 	if (neibslist) {
-		scalar_array(fid, "UInt16", "Neibs", offset);
+		scalar_array_header(fid, "UInt16", "Neibs", offset);
 		offset += sizeof(ushort)*numParts+sizeof(int);
 	}
 	if (nextIDs) {
-		scalar_array(fid, "UInt32", "NextID", offset);
+		scalar_array_header(fid, "UInt32", "NextID", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
 	if (intEnergy) {
-		scalar_array(fid, "Float32", "Internal Energy", offset);
+		scalar_array_header(fid, "Float32", "Internal Energy", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	if (forces) {
-		vector_array(fid, "Float32", "Spatial acceleration", 3, offset);
+		vector_array_header(fid, "Float32", "Spatial acceleration", 3, offset);
 		offset += sizeof(float)*3*numParts+sizeof(int);
-		scalar_array(fid, "Float32", "Continuity derivative", offset);
+		scalar_array_header(fid, "Float32", "Continuity derivative", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// pressure
-	scalar_array(fid, "Float32", "Pressure", offset);
+	scalar_array_header(fid, "Float32", "Pressure", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
 	// density
-	scalar_array(fid, "Float32", "Density", offset);
+	scalar_array_header(fid, "Float32", "Density", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
 	// mass
-	scalar_array(fid, "Float32", "Mass", offset);
+	scalar_array_header(fid, "Float32", "Mass", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
 	// gamma
 	if (gradGamma) {
-		scalar_array(fid, "Float32", "Gamma", offset);
+		scalar_array_header(fid, "Float32", "Gamma", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// turbulent kinetic energy
 	if (tke) {
-		scalar_array(fid, "Float32", "TKE", offset);
+		scalar_array_header(fid, "Float32", "TKE", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// turbulent epsilon
 	if (eps) {
-		scalar_array(fid, "Float32", "Epsilon", offset);
+		scalar_array_header(fid, "Float32", "Epsilon", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// eddy viscosity
 	if (turbvisc) {
-		scalar_array(fid, "Float32", "Eddy viscosity", offset);
+		scalar_array_header(fid, "Float32", "Eddy viscosity", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// SPS eddy viscosity
 	if (spsturbvisc) {
-		scalar_array(fid, "Float32", "SPS turbulent viscosity", offset);
+		scalar_array_header(fid, "Float32", "SPS turbulent viscosity", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
@@ -307,92 +307,92 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// particle info
 	if (info) {
-		scalar_array(fid, "UInt8", "Part type", offset);
+		scalar_array_header(fid, "UInt8", "Part type", offset);
 		offset += sizeof(uchar)*numParts+sizeof(int);
-		scalar_array(fid, "UInt8", "Part flags", offset);
+		scalar_array_header(fid, "UInt8", "Part flags", offset);
 		offset += sizeof(uchar)*numParts+sizeof(int);
 
 		// fluid number
 		if (write_fluid_num) {
 			// Limit to 256 fluids
-			scalar_array(fid, "UInt8", "Fluid number", offset);
+			scalar_array_header(fid, "UInt8", "Fluid number", offset);
 			offset += sizeof(uchar)*numParts+sizeof(int);
 		}
 		// object number
 		if (write_part_obj) {
 			// TODO UInt16 or UInt8 based on number of objects
-			scalar_array(fid, "UInt16", "Part object", offset);
+			scalar_array_header(fid, "UInt16", "Part object", offset);
 			offset += sizeof(ushort)*numParts+sizeof(int);
 		}
-		scalar_array(fid, "UInt32", "Part id", offset);
+		scalar_array_header(fid, "UInt32", "Part id", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
 	if (vertices) {
-		vector_array(fid, "UInt32", "Vertices", 4, offset);
+		vector_array_header(fid, "UInt32", "Vertices", 4, offset);
 		offset += sizeof(uint)*4*numParts+sizeof(int);
 	}
 
 	// device index
 	if (MULTI_DEVICE) {
-		scalar_array(fid, dev_idx_str, "DeviceIndex", offset);
+		scalar_array_header(fid, dev_idx_str, "DeviceIndex", offset);
 		offset += sizeof(dev_idx_t)*numParts+sizeof(int);
 	}
 
 	// cell index
-	scalar_array(fid, "UInt32", "CellIndex", offset);
+	scalar_array_header(fid, "UInt32", "CellIndex", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
 
 	// velocity
-	vector_array(fid, "Float32", "Velocity", 3, offset);
+	vector_array_header(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
 
 	if (eulervel) {
 		// Eulerian velocity
-		vector_array(fid, "Float32", "Eulerian velocity", 3, offset);
+		vector_array_header(fid, "Float32", "Eulerian velocity", 3, offset);
 		offset += sizeof(float)*3*numParts+sizeof(int);
 
 		// Eulerian density
-		scalar_array(fid, "Float32", "Eulerian density", offset);
+		scalar_array_header(fid, "Float32", "Eulerian density", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// gradient gamma
 	if (gradGamma) {
-		vector_array(fid, "Float32", "Gradient Gamma", 3, offset);
+		vector_array_header(fid, "Float32", "Gradient Gamma", 3, offset);
 		offset += sizeof(float)*3*numParts+sizeof(int);
 	}
 
 	// vorticity
 	if (vort) {
-		vector_array(fid, "Float32", "Vorticity", 3, offset);
+		vector_array_header(fid, "Float32", "Vorticity", 3, offset);
 		offset += sizeof(float)*3*numParts+sizeof(int);
 	}
 
 	// normals
 	if (normals) {
-		vector_array(fid, "Float32", "Normals", 3, offset);
+		vector_array_header(fid, "Float32", "Normals", 3, offset);
 		offset += sizeof(float)*3*numParts+sizeof(int);
 
-		scalar_array(fid, "Float32", "Criteria", offset);
+		scalar_array_header(fid, "Float32", "Criteria", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// private
 	if (priv) {
-		scalar_array(fid, "Float32", "Private", offset);
+		scalar_array_header(fid, "Float32", "Private", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	// volume
 	if (vol) {
-		vector_array(fid, "Float32", "Volume", 4, offset);
+		vector_array_header(fid, "Float32", "Volume", 4, offset);
 		offset += sizeof(float)*4*numParts+sizeof(int);
 	}
 
 	// sigma
 	if (sigma) {
-		scalar_array(fid, "Float32", "Sigma", offset);
+		scalar_array_header(fid, "Float32", "Sigma", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
@@ -400,17 +400,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// position
 	fid << "   <Points>" << endl;
-	vector_array(fid, "Float64", 3, offset);
+	vector_array_header(fid, "Float64", 3, offset);
 	offset += sizeof(double)*3*numParts+sizeof(int);
 	fid << "   </Points>" << endl;
 
 	// Cells data
 	fid << "   <Cells>" << endl;
-	scalar_array(fid, "Int32", "connectivity", offset);
+	scalar_array_header(fid, "Int32", "connectivity", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
-	scalar_array(fid, "Int32", "offsets", offset);
+	scalar_array_header(fid, "Int32", "offsets", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
-	scalar_array(fid, "UInt8", "types", offset);
+	scalar_array_header(fid, "UInt8", "types", offset);
 	offset += sizeof(uchar)*numParts+sizeof(int);
 	fid << "   </Cells>" << endl;
 	fid << "  </Piece>" << endl;
