@@ -133,12 +133,12 @@ struct common_finalize_forces_params
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_posArray,
-		const 	float4	*_velArray,
+		const	float4	*_velArray,
 		const	hashKey *_particleHash,
 		const	uint	*_cellStart,
 		const	uint	_fromParticle,
 		const	uint	_toParticle,
-		const 	float	_slength) :
+		const	float	_slength) :
 		forces(_forces),
 		rbforces(_rbforces),
 		rbtorques(_rbtorques),
@@ -201,7 +201,7 @@ struct volume_forces_params
 };
 
 /// Additional parameters passed only to kernels with SA_BOUNDARY
-/// in case of of a fluid/boudary interaction
+/// in case of of a fluid/boundary interaction
 struct sa_boundary_forces_params
 {
 			float	* __restrict__ cfl_gamma;
@@ -439,10 +439,10 @@ struct finalize_forces_params :
 /// Parameters common to all SPS kernel specializations
 struct common_sps_params
 {
-	const float4* __restrict__ 	pos;
-	const hashKey* __restrict__ 	particleHash;
-	const uint* __restrict__ 		cellStart;
-	const neibdata* __restrict__ 	neibsList;
+	const float4* __restrict__		pos;
+	const hashKey* __restrict__		particleHash;
+	const uint* __restrict__		cellStart;
+	const neibdata* __restrict__	neibsList;
 	const uint		numParticles;
 	const float		slength;
 	const float		influenceradius;
