@@ -2199,24 +2199,28 @@ forces_fixup(FP const& params, P const& pdata, OP &pout)
  * Forces acting on moving bodies
  */
 
-/// compute_boundary_force is used to compute the force exerted on a boundary particle
-/*! TODO FIXME splitneibs-merge
- * this is currently only used in (a commmented part of) finalizeDevice for
- * SA_BOUNDARY and for floating bodies. Check exactly how this should be handled
+/// Compute pressure force on a boundary element
+/*! This is only used in the SA_BOUNDARY case to compute the force acting on
+ * the boundary elements of COMPUTE_FORCE bodies (floating bodies and force-feedback
+ * bodies).
+ * (One would be tempted to add an ENABLE_MOVING_BODIES check for the enable_if_t,
+ * but we might have fixed objects which still want to measure the force, so let's
+ * not do that.)
  */
 template<typename FP, typename PD, typename OP>
 __device__ __forceinline__
 enable_if_t<FP::boundarytype == SA_BOUNDARY>
-compute_boundary_force(FP const& params, PD const& pdata, OP &pout)
+compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 {
+	const float4 belem = tex1Dfetch(boundTex, pdata.index);
 	// Force = -Pressure*SurfaceArea*NormalOutsideVector
-	pout.force = -P(pdata.vel.w, fluid_num(pdata.info))*pdata.belem.w*pdata.belem;
+	pout.force = -P(pdata.vel.w, fluid_num(pdata.info))*belem.w*belem;
 	pout.force.w = 0.0f;
 }
 template<typename FP, typename PD, typename OP>
 __device__ __forceinline__
 enable_if_t<FP::boundarytype != SA_BOUNDARY>
-compute_boundary_force(FP const& params, PD const& pdata, OP &pout)
+compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 { /* do nothing */ }
 
 /*
@@ -2983,14 +2987,12 @@ finalizeforcesDevice(FP params)
 
 			shared.store(params, pdata, pout);
 		}
-#if 0
 		else
-		if (boundarytype == SA_BOUNDARY && FLOATING(pdata.info) && BOUNDARY(pdata.info)) {
-			// For SA_BOUNDARY: compute force acting on boundary
-			compute_boundary_force(params, pdata, pout);
+		if (BOUNDARY(pdata.info) && COMPUTE_FORCE(pdata.info)) {
+			// For SA_BOUNDARY moving objects: compute force acting on boundary, as the
+			// pressure exerted by the fluid
+			compute_boundary_pressure_force(params, pdata, pout);
 		}
-#endif
-
 
 		// Writing out the results
 		// NOTE: with SA bounds only boundary elements compute and write object forces, not vertices.
