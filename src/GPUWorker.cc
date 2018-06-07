@@ -2450,6 +2450,7 @@ void GPUWorker::kernel_density_sum()
 		gdata->dt/2.0f, // m_dt/2.0,
 		step,
 		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+		m_simparams->epsilon,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
 

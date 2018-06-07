@@ -114,6 +114,7 @@ density_sum(
 		const	float	dt2,
 		const	int		step,
 		const	float	t,
+		const	float	epsilon,
 		const	float	slength,
 		const	float	influenceradius)
 {
@@ -166,8 +167,27 @@ density_sum(
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 
 	if (simflags & ENABLE_MOVING_BODIES) {
-		// TODO FIXME splitneibs-merge update VERTEX gamma for moving bodies with density sum
-		printf("TODO FIXME density sum + moving bodies\n");
+		// VERTEX gamma is always integrated directly
+		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(
+			oldPos, // pos at step n
+			newPos, // pos at step n+1
+			oldVel, // vel at step n
+			newVel, // vel at step n+1
+			info, // particle info
+			particleHash, // particle hash
+			oldgGam,
+			newgGam,
+			oldBoundElement,
+			newBoundElement,
+			oldEulerVel, // eulerian vel at step n
+			newEulerVel, // eulerian vel at step n+1
+			vertPos,
+			neibsList,
+			cellStart,
+			particleRangeEnd,
+			dt, dt2, t, step,
+			epsilon, slength, influenceradius);
+		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
 	} else {
 		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);

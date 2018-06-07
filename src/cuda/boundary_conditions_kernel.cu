@@ -406,7 +406,9 @@ struct common_segment_pout
 	common_segment_pout(Params const& params, uint index, particleinfo const& info) :
 		gGam(make_float4(0, 0, 0, params.gGam[index].w)),
 		vel(make_float4(0)),
-		calcGam(!isfinite(gGam.w))
+		// Gamma always needs to be recomputed when moving bodies are enabled.
+		// If not, we only need to compute if it wasn't defined
+		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || !isfinite(gGam.w))
 	{
 		if (calcGam)
 			gGam.w = 0;
