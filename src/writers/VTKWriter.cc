@@ -201,20 +201,25 @@ array_header(ofstream &out, size_t &offset, size_t numParts, T const* data,
 	}
 }
 
-// Binary dump a single variable of a given type
-template<typename T>
+// Binary dump of (part of) a variable
+template<typename T,
+	typename traits = vector_traits<T>,
+	typename S = typename traits::component_type,
+	size_t N0 = traits::components,
+	size_t N = (N0 > 0 ? N0 : 1)
+	>
 inline void
-write_var(ofstream &out, T const& var)
+write_var(ofstream &out, T const& var, size_t components = N)
 {
-	out.write(reinterpret_cast<const char *>(&var), sizeof(T));
+	out.write(reinterpret_cast<const char *>(&var), sizeof(S)*components);
 }
 
-// Binary dump an array of variables of given type and size
+// Binary dump of an array of nels variables
 template<typename T>
 inline void
-write_arr(ofstream &out, T const *var, size_t len)
+write_array(ofstream &out, T const *var, size_t nels)
 {
-	out.write(reinterpret_cast<const char *>(var), sizeof(T)*len);
+	out.write(reinterpret_cast<const char *>(var), sizeof(T)*nels);
 }
 
 void
@@ -446,52 +451,49 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	int numbytes;
 
-	numbytes=sizeof(double)*3*numParts;
-
 	// position
+	numbytes=sizeof(double)*3*numParts;
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		double *value = (double*)(pos + i);
-		write_arr(fid, value, 3);
+		write_var(fid, pos[i], 3);
 	}
 
 	// neibs
 	if (neibslist) {
 		numbytes = sizeof(ushort)*numParts;
 		write_var(fid, numbytes);
-		write_arr(fid, neibsnum, numParts);
+		write_array(fid, neibsnum, numParts);
 	}
 
 	if (nextIDs) {
 		numbytes = sizeof(uint)*numParts;
 		write_var(fid, numbytes);
-		write_arr(fid, nextIDs, numParts);
+		write_array(fid, nextIDs + node_offset, numParts);
 	}
 
 	if (intEnergy) {
 		numbytes = sizeof(float)*numParts;
 		write_var(fid, numbytes);
-		write_arr(fid, intEnergy, numParts);
+		write_array(fid, intEnergy + node_offset, numParts);
 	}
 
 	if (forces) {
-		numbytes=sizeof(float)*numParts*3;
 		// write spatial acceleration
+		numbytes=sizeof(float)*numParts*3;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			const float *value = (float*)(forces + i);
-			write_arr(fid, value, 3);
+			write_var(fid, forces[i], 3);
 		}
+		// write continuity derivative
 		numbytes=sizeof(float)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			const float value = forces[i].w;
-			write_var(fid, value);
+			write_var(fid, forces[i].w);
 		}
 	}
 
-	numbytes=sizeof(float)*numParts;
 	// pressure
+	numbytes=sizeof(float)*numParts;
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
@@ -502,33 +504,26 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, value);
 	}
 
+	// velocity
 	numbytes=sizeof(float)*3*numParts;
-
-	// velocity and density
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		float *value = zeroes;
-		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
-			value = (float*)(vel + i);
-		write_arr(fid, value, 3);
+		write_var(fid, vel[i], 3);
 	}
 
+	// density
 	numbytes = sizeof(float)*numParts;
-
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		float value = 0.0;
-		if (TESTPOINT(info[i]))
-			// TODO FIXME: Testpoints compute pressure only
-			// In the future we would like to have a density here
-			// but this needs to be done correctly for multifluids
-			value = NAN;
-		else
-			value = vel[i].w;
+		// TODO FIXME: Testpoints compute pressure only
+		// In the future we would like to have a density here
+		// but this needs to be done correctly for multifluids
+		float value = TESTPOINT(info[i]) ? NAN : vel[i].w;
 		write_var(fid, value);
 	}
 
 	// mass
+	numbytes = sizeof(float)*numParts;
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = pos[i].w;
@@ -540,52 +535,41 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		numbytes = sizeof(float)*3*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float *value = zeroes;
-			value = (float*)(gradGamma + i);
-			write_arr(fid, value, 3);
+			write_var(fid, gradGamma[i], 3);
 		}
 		numbytes = sizeof(float)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float value = gradGamma[i].w;
-			write_var(fid, value);
+			write_var(fid, gradGamma[i].w);
 		}
 	}
 
 	// turbulent kinetic energy
 	if (tke) {
+		numbytes = sizeof(float)*numParts;
 		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float value = tke[i];
-			write_var(fid, value);
-		}
+		write_array(fid, tke + node_offset, numParts);
 	}
 
 	// turbulent epsilon
 	if (eps) {
+		numbytes = sizeof(float)*numParts;
 		write_var(fid, numbytes);
-		for (uint i=0; i < numParts; i++) {
-			float value = eps[i];
-			write_var(fid, value);
-		}
+		write_array(fid, eps + node_offset, numParts);
 	}
 
 	// eddy viscosity
 	if (turbvisc) {
+		numbytes = sizeof(float)*numParts;
 		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float value = turbvisc[i];
-			write_var(fid, value);
-		}
+		write_array(fid, turbvisc + node_offset, numParts);
 	}
 
 	// SPS turbulent viscosity
 	if (spsturbvisc) {
+		numbytes = sizeof(float)*numParts;
 		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float value = spsturbvisc[i];
-			write_var(fid, value);
-		}
+		write_array(fid, spsturbvisc + node_offset, numParts);
 	}
 
 	// particle info
@@ -594,22 +578,24 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		numbytes=sizeof(uchar)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uchar value = PART_TYPE(info[i]);
+			const uchar value = PART_TYPE(info[i]);
 			write_var(fid, value);
 		}
 
 		// flag
+		numbytes=sizeof(uchar)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uchar value = (PART_FLAGS(info[i]) >> PART_FLAG_SHIFT);
+			const uchar value = (PART_FLAGS(info[i]) >> PART_FLAG_SHIFT);
 			write_var(fid, value);
 		}
 
 		// fluid number
 		if (write_fluid_num) {
+			numbytes=sizeof(uchar)*numParts;
 			write_var(fid, numbytes);
 			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				uchar value = fluid_num(info[i]);
+				const uchar value = fluid_num(info[i]);
 				write_var(fid, value);
 			}
 		}
@@ -618,7 +604,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			numbytes=sizeof(ushort)*numParts;
 			write_var(fid, numbytes);
 			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				ushort value = object(info[i]);
+				const ushort value = object(info[i]);
 				write_var(fid, value);
 			}
 		}
@@ -627,7 +613,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		numbytes=sizeof(uint)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uint value = id(info[i]);
+			const uint value = id(info[i]);
 			write_var(fid, value);
 		}
 	}
@@ -636,10 +622,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	if (vertices) {
 		numbytes = sizeof(uint)*4*numParts;
 		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uint *value = (uint*)(vertices + i);
-			write_arr(fid, value, 4);
-		}
+		write_array(fid, vertices + node_offset, numParts);
 	}
 
 	// device index
@@ -682,48 +665,43 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	}
 
 	if (eulervel) {
-		// Eulerian velocity and density
+		// Eulerian velocity
 		numbytes=3*sizeof(float)*numParts;
-
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float *value = zeroes;
-			value = (float*)(eulervel + i);
-			write_arr(fid, value, 3);
+			write_var(fid, eulervel[i], 3);
 		}
 
+		// Eulerian density
 		numbytes=sizeof(float)*numParts;
-
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float value = eulervel[i].w;
-			write_var(fid, value);
+			write_var(fid, eulervel[i].w);
 		}
-
-		numbytes=sizeof(float)*3*numParts;
 	}
 
 	// vorticity
 	if (vort) {
+		numbytes=3*sizeof(float)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(vort + i);
 			}
-			write_arr(fid, value, 3);
+			write_array(fid, value, 3);
 		}
 	}
 
 	// normals
 	if (normals) {
+		numbytes=3*sizeof(float)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = zeroes;
-			if (FLUID(info[i])) {
+			if (FLUID(info[i]))
 				value = (float*)(normals + i);
-			}
-			write_arr(fid, value, 3);
+			write_array(fid, value, 3);
 		}
 
 		numbytes=sizeof(float)*numParts;
@@ -737,37 +715,25 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		}
 	}
 
-	numbytes=sizeof(float)*numParts;
-
 	// private
 	if (priv) {
+		numbytes=sizeof(float)*numParts;
 		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float value = priv[i];
-			write_var(fid, value);
-		}
+		write_array(fid, priv + node_offset, numParts);
 	}
-
-	numbytes=sizeof(float)*numParts*4;
 
 	// volume
 	if (vol) {
+		numbytes=sizeof(float)*numParts*4;
 		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float *value = (float*)(vol + i);
-			write_arr(fid, value, 4);
-		}
+		write_array(fid, vol + node_offset, numParts);
 	}
-
-	numbytes=sizeof(float)*numParts;
 
 	// sigma
 	if (sigma) {
+		numbytes=sizeof(float)*numParts;
 		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float value = sigma[i];
-			write_var(fid, value);
-		}
+		write_array(fid, sigma + node_offset, numParts);
 	}
 
 	numbytes=sizeof(int)*numParts;
