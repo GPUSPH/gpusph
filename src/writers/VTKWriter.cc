@@ -219,17 +219,20 @@ struct VTKAppender
 {
 	ofstream &out;
 	particleinfo const* info;
+	GlobalData const* gdata;
 	size_t node_offset;
 	size_t numParts;
 
 	VTKAppender(
 		ofstream& _out,
 		particleinfo const* _info,
+		GlobalData const* _gdata,
 		size_t _node_offset,
 		size_t _numParts)
 	:
 		out(_out),
 		info(_info),
+		gdata(_gdata),
 		node_offset(_node_offset),
 		numParts(_numParts)
 	{}
@@ -245,20 +248,66 @@ struct VTKAppender
 		write_array(out, var, numParts);
 	}
 
-	// Write appended data for VTK, without any transformation
-	// The array is assumed to be global to the whole simulation, and node_offset will
-	// be appended to the pointer
-	template<typename T>
+	template<typename T, typename Ret>
+	using DataTransformFull = Ret (*)(T const&, particleinfo const&, GlobalData const*);
+	template<typename T, typename Ret>
+	using DataTransformInfo = Ret (*)(T const&, particleinfo const&);
+	template<typename T, typename Ret>
+	using DataTransform = Ret (*)(T const&);
+	template<typename Ret>
+	using IndexTransform = Ret (*)(size_t i);
+
+	// Write appended data for VTK, transforming an array of T into an array of Ret
+	template<typename T, typename Ret>
 	inline void
-	append_data(T const* var, const char *name)
+	append_local_data(T const* var, const char *name, DataTransformFull<T, Ret> func)
 	{
-		append_local_data(var + node_offset, name);
+		uint numbytes = sizeof(Ret)*numParts;
+		write_var(out, numbytes);
+		for (size_t i = 0; i < numParts; ++i) {
+			Ret value = func(var[i], info[i + node_offset], gdata);
+			write_var(out, value);
+		}
+	}
+	template<typename T, typename Ret>
+	inline void
+	append_local_data(T const* var, const char *name, DataTransformInfo<T, Ret> func)
+	{
+		uint numbytes = sizeof(Ret)*numParts;
+		write_var(out, numbytes);
+		for (size_t i = 0; i < numParts; ++i) {
+			Ret value = func(var[i], info[i + node_offset]);
+			write_var(out, value);
+		}
+	}
+	template<typename T, typename Ret>
+	inline void
+	append_local_data(T const* var, const char *name, DataTransform<T, Ret> func)
+	{
+		uint numbytes = sizeof(Ret)*numParts;
+		write_var(out, numbytes);
+		for (size_t i = 0; i < numParts; ++i) {
+			Ret value = func(var[i]);
+			write_var(out, value);
+		}
+	}
+	// Write appended data for VTK, mapping the index to some arbitrary value
+	template<typename Ret>
+	inline void
+	append_local_data(const char *name, IndexTransform<Ret> func)
+	{
+		uint numbytes = sizeof(Ret)*numParts;
+		write_var(out, numbytes);
+		for (size_t i = 0; i < numParts; ++i) {
+			Ret value = func(i);
+			write_var(out, value);
+		}
 	}
 
 	// Write a (local) split array to a VTK
 	template<typename T>
 	inline
-	enable_if<vector_traits<T>::components == 4>
+	enable_if_t<vector_traits<T>::components == 4>
 	append_local_data(T const* data, const char *name_xyz, const char *name_w)
 	{
 		if (name_xyz) {
@@ -274,18 +323,49 @@ struct VTKAppender
 				write_var(out, data[i].w);
 		}
 	}
-	template<typename T>
-	inline
-	enable_if<vector_traits<T>::components == 4>
-	append_data(T const* data, const char *name_xyz, const char *name_w)
+
+	// Write appended data for VTK, without any transformation
+	// The array is assumed to be global to the whole simulation, and node_offset will
+	// be appended to the pointer
+	template<typename T, typename ...Args>
+	inline void
+	append_data(T const* var, Args...args)
 	{
-		append_local_data(data + node_offset, name_xyz, name_w);
+		append_local_data(var + node_offset, args...);
 	}
 };
 
+float get_pressure(float4 const& pvel, particleinfo const& pinfo, GlobalData const* gdata)
+{
+	return TESTPOINT(pinfo) ? pvel.w : gdata->problem->pressure(pvel.w, fluid_num(pinfo));
+}
 
+float get_density(float4 const& pvel, particleinfo const& pinfo)
+{
+	// TODO FIXME: Testpoints compute pressure only
+	// In the future we would like to have a density here but this needs to be
+	// done correctly for multifluids
+	return TESTPOINT(pinfo) ? NAN : pvel.w;
+}
 
+// Return the last component of a double4, demoted to a float
+float demote_w(double4 const& data)
+{ return data.w; }
 
+uchar get_part_type(particleinfo const& pinfo)
+{ return PART_TYPE(pinfo); }
+
+uchar get_part_flags(particleinfo const& pinfo)
+{ return PART_FLAGS(pinfo) >> PART_FLAG_SHIFT; }
+
+uchar get_fluid_num(particleinfo const& pinfo)
+{ return fluid_num(pinfo); }
+
+ushort get_object(particleinfo const& pinfo)
+{ return object(pinfo); }
+
+uint get_cellindex(hashKey const& phash)
+{ return cellHashFromParticleHash(phash); }
 
 void
 VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
@@ -515,10 +595,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	int numbytes;
 
-	VTKAppender appender(fid, info, node_offset, numParts);
+	VTKAppender appender(fid, info, gdata, node_offset, numParts);
 
 	// position
-	appender.append_data(pos, "Position", NULL);
+	appender.append_data(pos, "Position", nullptr);
 
 	// neibs
 	if (neibslist) {
@@ -539,42 +619,16 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	}
 
 	// pressure
-	numbytes=sizeof(float)*numParts;
-	write_var(fid, numbytes);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		float value = 0.0;
-		if (TESTPOINT(info[i]))
-			value = vel[i].w;
-		else
-			value = m_problem->pressure(vel[i].w, fluid_num(info[i]));
-		write_var(fid, value);
-	}
+	appender.append_data(vel, "Pressure", get_pressure);
 
 	// velocity
-	numbytes=sizeof(float)*3*numParts;
-	write_var(fid, numbytes);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		write_var(fid, vel[i], 3);
-	}
+	appender.append_data(vel, "Velocity", nullptr);
 
 	// density
-	numbytes = sizeof(float)*numParts;
-	write_var(fid, numbytes);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		// TODO FIXME: Testpoints compute pressure only
-		// In the future we would like to have a density here
-		// but this needs to be done correctly for multifluids
-		float value = TESTPOINT(info[i]) ? NAN : vel[i].w;
-		write_var(fid, value);
-	}
+	appender.append_data(vel, "Density", get_density);
 
 	// mass
-	numbytes = sizeof(float)*numParts;
-	write_var(fid, numbytes);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		float value = pos[i].w;
-		write_var(fid, value);
-	}
+	appender.append_data(pos, "Mass", demote_w);
 
 	// gamma and its gradient
 	if (gradGamma) {
@@ -604,47 +658,23 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// particle info
 	if (info) {
 		// type
-		numbytes=sizeof(uchar)*numParts;
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			const uchar value = PART_TYPE(info[i]);
-			write_var(fid, value);
-		}
+		appender.append_data(info, "Part type", get_part_type);
 
 		// flag
-		numbytes=sizeof(uchar)*numParts;
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			const uchar value = (PART_FLAGS(info[i]) >> PART_FLAG_SHIFT);
-			write_var(fid, value);
-		}
+		appender.append_data(info, "Part flags", get_part_flags);
 
 		// fluid number
 		if (write_fluid_num) {
-			numbytes=sizeof(uchar)*numParts;
-			write_var(fid, numbytes);
-			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				const uchar value = fluid_num(info[i]);
-				write_var(fid, value);
-			}
+			appender.append_data(info, "Fluid number", get_fluid_num);
 		}
 
+		// object number
 		if (write_part_obj) {
-			numbytes=sizeof(ushort)*numParts;
-			write_var(fid, numbytes);
-			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				const ushort value = object(info[i]);
-				write_var(fid, value);
-			}
+			appender.append_data(info, "Part object", get_object);
 		}
 
 		// id
-		numbytes=sizeof(uint)*numParts;
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			const uint value = id(info[i]);
-			write_var(fid, value);
-		}
+		appender.append_data(info, "Part id", id);
 	}
 
 	// vertices
@@ -684,12 +714,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	}
 
 	// linearized cell index (NOTE: particles might be slightly off the belonging cell)
-	numbytes = sizeof(uint)*numParts;
-	write_var(fid, numbytes);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		uint value = cellHashFromParticleHash( particleHash[i] );
-		write_var(fid, value);
-	}
+	appender.append_data(particleHash, "CellIndex", get_cellindex);
 
 	if (eulervel) {
 		// Eulerian velocity and density
@@ -746,27 +771,18 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		appender.append_data(sigma, "Sigma");
 	}
 
-	numbytes=sizeof(int)*numParts;
+	/* Note the trick: lambdas don't match function parameters that are 
+	 * function pointers, even though they can implicitly convert. So we
+	 * force an arithmetic context by prefixing the lambda with a + sign,
+	 * which forces the lambda to convert to pointer (to function), and
+	 * thus match
+	 */
 	// connectivity
-	write_var(fid, numbytes);
-	for (uint i=0; i < numParts; i++) {
-		uint value = i;
-		write_var(fid, value);
-	}
+	appender.append_data("connectivity", +[](size_t i)->uint { return i; });
 	// offsets
-	write_var(fid, numbytes);
-	for (uint i=0; i < numParts; i++) {
-		uint value = i+1;
-		write_var(fid, value);
-	}
-
+	appender.append_data("offsets", +[](size_t i)->uint { return i+1; });
 	// types (currently all cells type=1, single vertex, the particle)
-	numbytes=sizeof(uchar)*numParts;
-	write_var(fid, numbytes);
-	for (uint i=0; i < numParts; i++) {
-		uchar value = 1;
-		write_var(fid, value);
-	}
+	appender.append_data("types", +[](size_t i)->uchar { return 1; });
 
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
