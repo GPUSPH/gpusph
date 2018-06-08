@@ -152,14 +152,6 @@ vector_array_header(ofstream &out, const char *type, const char *name, uint dim,
 		<< "' format='appended' offset='" << offset << "'/>" << endl;
 }
 
-inline void
-vector_array_header(ofstream &out, const char *type, uint dim, size_t offset)
-{
-	out << "	<DataArray type='" << type
-		<< "' NumberOfComponents='" << dim
-		<< "' format='appended' offset='" << offset << "'/>" << endl;
-}
-
 template<typename T>
 inline void
 array_header(ofstream &out, size_t &offset, size_t numParts, T const* data, const char *name)
@@ -296,8 +288,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// position
 	fid << "   <Points>" << endl;
-	vector_array_header(fid, "Float64", 3, offset);
-	offset += sizeof(double)*3*numParts+sizeof(int);
+	array_header(fid, offset, numParts, pos, "Position", NULL);
 	fid << "   </Points>" << endl;
 
 	fid << "   <PointData Scalars='" << (neibslist ? "Neibs" : "Pressure") << "' Vectors='Velocity'>" << endl;
