@@ -39,11 +39,29 @@
 
 using namespace std;
 
+template<typename T>
+const char *vtk_type_name(T const*);
+
+template<>
+const char *vtk_type_name<uchar>(uchar const*)
+{ return "UInt8"; }
+template<>
+const char *vtk_type_name<ushort>(ushort const*)
+{ return "UInt16"; }
+template<>
+const char *vtk_type_name<uint>(uint const*)
+{ return "UInt32"; }
+template<>
+const char *vtk_type_name<float>(float const*)
+{ return "Float32"; }
+template<>
+const char *vtk_type_name<double>(double const*)
+{ return "Float64"; }
+
 // TODO for the time being, we assume no more than 256 devices
 // upgrade to UInt16 / ushort if it's ever needed
 
 typedef unsigned char dev_idx_t;
-static const char dev_idx_str[] = "UInt8";
 
 VTKWriter::VTKWriter(const GlobalData *_gdata)
   : Writer(_gdata),
@@ -142,6 +160,47 @@ vector_array_header(ofstream &out, const char *type, uint dim, size_t offset)
 		<< "' format='appended' offset='" << offset << "'/>" << endl;
 }
 
+template<typename T>
+inline void
+array_header(ofstream &out, size_t &offset, size_t numParts, T const* data, const char *name)
+{
+	using traits = vector_traits<T>;
+	using S = typename traits::component_type;
+	using Sptr = S const*;
+	/* Non-vector types have components == 0, but for us they count as having 1 component */
+	constexpr auto N0 = vector_traits<T>::components;
+	constexpr auto N = N0 > 0 ? N0 : 1;
+
+	if (N == 1) {
+		scalar_array_header(out, vtk_type_name(data), name, offset);
+	} else {
+		Sptr dummy(nullptr);
+		vector_array_header(out, vtk_type_name(dummy), name, 4, offset);
+	}
+	offset += N*sizeof(S)*numParts + sizeof(uint);
+}
+
+template< typename T >
+inline
+enable_if_t<vector_traits<T>::components == 4>
+array_header(ofstream &out, size_t &offset, size_t numParts, T const* data,
+	const char *name_xyz, const char *name_w)
+{
+	using traits = vector_traits<T>;
+	using S = typename traits::component_type;
+	using Sptr = S const*;
+	Sptr dummy(nullptr);
+
+	if (name_xyz) {
+		vector_array_header(out, vtk_type_name(dummy), name_xyz, 3, offset);
+		offset += 3*sizeof(S)*numParts + sizeof(uint);
+	}
+	if (name_w) {
+		scalar_array_header(out, vtk_type_name(dummy), name_w, offset);
+		offset += sizeof(S)*numParts + sizeof(uint);
+	}
+}
+
 // Binary dump a single variable of a given type
 template<typename T>
 inline void
@@ -157,7 +216,6 @@ write_arr(ofstream &out, T const *var, size_t len)
 {
 	out.write(reinterpret_cast<const char *>(var), sizeof(T)*len);
 }
-
 
 void
 VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
@@ -228,72 +286,69 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		endianness[*(char*)&endian_int & 1] << "'>" << endl;
 	fid << " <UnstructuredGrid>" << endl;
 	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfCells='" << numParts << "'>" << endl;
-	fid << "   <PointData Scalars='" << (neibslist ? "Neibs" : "Pressure") << "' Vectors='Velocity'>" << endl;
 
 	size_t offset = 0;
 
+	// position
+	fid << "   <Points>" << endl;
+	vector_array_header(fid, "Float64", 3, offset);
+	offset += sizeof(double)*3*numParts+sizeof(int);
+	fid << "   </Points>" << endl;
+
+	fid << "   <PointData Scalars='" << (neibslist ? "Neibs" : "Pressure") << "' Vectors='Velocity'>" << endl;
+
 	// neibs
 	if (neibslist) {
-		scalar_array_header(fid, "UInt16", "Neibs", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, neibsnum, "Neibs");
 	}
+
 	if (nextIDs) {
-		scalar_array_header(fid, "UInt32", "NextID", offset);
-		offset += sizeof(uint)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, nextIDs, "NextID");
 	}
 
 	if (intEnergy) {
-		scalar_array_header(fid, "Float32", "Internal Energy", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, intEnergy, "Internal Energy");
 	}
 
 	if (forces) {
-		vector_array_header(fid, "Float32", "Spatial acceleration", 3, offset);
-		offset += sizeof(float)*3*numParts+sizeof(int);
-		scalar_array_header(fid, "Float32", "Continuity derivative", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, forces,
+			"Spatial acceleration", "Continuity derivative");
 	}
 
 	// pressure
 	scalar_array_header(fid, "Float32", "Pressure", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
-	// density
-	scalar_array_header(fid, "Float32", "Density", offset);
-	offset += sizeof(float)*numParts+sizeof(int);
+	// velocity and density
+	array_header(fid, offset, numParts, vel, "Velocity", "Density");
 
 	// mass
 	scalar_array_header(fid, "Float32", "Mass", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
-	// gamma
+	// gamma and its gradient
 	if (gradGamma) {
-		scalar_array_header(fid, "Float32", "Gamma", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, gradGamma, "Gradient Gamma", "Gamma");
 	}
 
 	// turbulent kinetic energy
 	if (tke) {
-		scalar_array_header(fid, "Float32", "TKE", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, tke, "TKE");
 	}
 
 	// turbulent epsilon
 	if (eps) {
-		scalar_array_header(fid, "Float32", "Epsilon", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, eps, "Epsilon");
 	}
 
 	// eddy viscosity
 	if (turbvisc) {
-		scalar_array_header(fid, "Float32", "Eddy viscosity", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, turbvisc, "Eddy viscosity");
 	}
 
 	// SPS eddy viscosity
 	if (spsturbvisc) {
-		scalar_array_header(fid, "Float32", "SPS turbulent viscosity", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, spsturbvisc, "SPS turbulent viscosity");
 	}
 
 	/* Fluid number is only included if there are more than 1 */
@@ -329,13 +384,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	}
 
 	if (vertices) {
-		vector_array_header(fid, "UInt32", "Vertices", 4, offset);
-		offset += sizeof(uint)*4*numParts+sizeof(int);
+		array_header(fid, offset, numParts, vertices, "Vertices");
 	}
 
 	// device index
 	if (MULTI_DEVICE) {
-		scalar_array_header(fid, dev_idx_str, "DeviceIndex", offset);
+		scalar_array_header(fid, vtk_type_name((dev_idx_t*)(nullptr)), "DeviceIndex", offset);
 		offset += sizeof(dev_idx_t)*numParts+sizeof(int);
 	}
 
@@ -343,66 +397,37 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	scalar_array_header(fid, "UInt32", "CellIndex", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
 
-	// velocity
-	vector_array_header(fid, "Float32", "Velocity", 3, offset);
-	offset += sizeof(float)*3*numParts+sizeof(int);
-
 	if (eulervel) {
-		// Eulerian velocity
-		vector_array_header(fid, "Float32", "Eulerian velocity", 3, offset);
-		offset += sizeof(float)*3*numParts+sizeof(int);
-
-		// Eulerian density
-		scalar_array_header(fid, "Float32", "Eulerian density", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
-	}
-
-	// gradient gamma
-	if (gradGamma) {
-		vector_array_header(fid, "Float32", "Gradient Gamma", 3, offset);
-		offset += sizeof(float)*3*numParts+sizeof(int);
+		// Eulerian velocity and density
+		array_header(fid, offset, numParts, eulervel, "Eulerian velocity", "Eulerian density");
 	}
 
 	// vorticity
 	if (vort) {
-		vector_array_header(fid, "Float32", "Vorticity", 3, offset);
-		offset += sizeof(float)*3*numParts+sizeof(int);
+		array_header(fid, offset, numParts, vort, "Vorticity");
 	}
 
 	// normals
 	if (normals) {
-		vector_array_header(fid, "Float32", "Normals", 3, offset);
-		offset += sizeof(float)*3*numParts+sizeof(int);
-
-		scalar_array_header(fid, "Float32", "Criteria", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, normals, "Normals", "Criteria");
 	}
 
 	// private
 	if (priv) {
-		scalar_array_header(fid, "Float32", "Private", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, priv, "Private");
 	}
 
 	// volume
 	if (vol) {
-		vector_array_header(fid, "Float32", "Volume", 4, offset);
-		offset += sizeof(float)*4*numParts+sizeof(int);
+		array_header(fid, offset, numParts, vol, "Volume");
 	}
 
 	// sigma
 	if (sigma) {
-		scalar_array_header(fid, "Float32", "Sigma", offset);
-		offset += sizeof(float)*numParts+sizeof(int);
+		array_header(fid, offset, numParts, sigma, "Sigma");
 	}
 
 	fid << "   </PointData>" << endl;
-
-	// position
-	fid << "   <Points>" << endl;
-	vector_array_header(fid, "Float64", 3, offset);
-	offset += sizeof(double)*3*numParts+sizeof(int);
-	fid << "   </Points>" << endl;
 
 	// Cells data
 	fid << "   <Cells>" << endl;
@@ -420,6 +445,15 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	//====================================================================================
 
 	int numbytes;
+
+	numbytes=sizeof(double)*3*numParts;
+
+	// position
+	write_var(fid, numbytes);
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
+		double *value = (double*)(pos + i);
+		write_arr(fid, value, 3);
+	}
 
 	// neibs
 	if (neibslist) {
@@ -468,7 +502,19 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, value);
 	}
 
-	// density
+	numbytes=sizeof(float)*3*numParts;
+
+	// velocity and density
+	write_var(fid, numbytes);
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
+		float *value = zeroes;
+		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
+			value = (float*)(vel + i);
+		write_arr(fid, value, 3);
+	}
+
+	numbytes = sizeof(float)*numParts;
+
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
@@ -489,8 +535,16 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, value);
 	}
 
-	// gamma
+	// gamma and its gradient
 	if (gradGamma) {
+		numbytes = sizeof(float)*3*numParts;
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float *value = zeroes;
+			value = (float*)(gradGamma + i);
+			write_arr(fid, value, 3);
+		}
+		numbytes = sizeof(float)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = gradGamma[i].w;
@@ -627,18 +681,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, value);
 	}
 
-	numbytes=sizeof(float)*3*numParts;
-
-	// velocity
-	write_var(fid, numbytes);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		float *value = zeroes;
-		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
-			value = (float*)(vel + i);
-		write_arr(fid, value, 3);
-	}
-
 	if (eulervel) {
+		// Eulerian velocity and density
+		numbytes=3*sizeof(float)*numParts;
+
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = zeroes;
@@ -655,16 +701,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		}
 
 		numbytes=sizeof(float)*3*numParts;
-	}
-
-	// gradient gamma
-	if (gradGamma) {
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float *value = zeroes;
-			value = (float*)(gradGamma + i);
-			write_arr(fid, value, 3);
-		}
 	}
 
 	// vorticity
@@ -732,15 +768,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			float value = sigma[i];
 			write_var(fid, value);
 		}
-	}
-
-	numbytes=sizeof(double)*3*numParts;
-
-	// position
-	write_var(fid, numbytes);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		double *value = (double*)(pos + i);
-		write_arr(fid, value, 3);
 	}
 
 	numbytes=sizeof(int)*numParts;
