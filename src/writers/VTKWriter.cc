@@ -214,35 +214,75 @@ write_array(ofstream &out, T const *var, size_t nels)
 	out.write(reinterpret_cast<const char *>(var), sizeof(T)*nels);
 }
 
+// A structure to manage appending data at the end of a VTK file
+struct VTKAppender
+{
+	ofstream &out;
+	particleinfo const* info;
+	size_t node_offset;
+	size_t numParts;
 
-// Write appended data for VTK, without any transformation
-template<typename T>
-inline void
-append_data(ofstream &out, size_t numParts, T const* var, const char *name)
-{
-	uint numbytes = sizeof(T)*numParts;
-	write_var(out, numbytes);
-	write_array(out, var, numParts);
-}
-template< typename T >
-inline
-enable_if<vector_traits<T>::components == 4>
-append_data(ofstream &out, size_t numParts, T const* data,
-	const char *name_xyz, const char *name_w)
-{
-	if (name_xyz) {
-		uint numbytes = 3*sizeof(T)*numParts;
-		write_var(out, numbytes);
-		for (size_t i = 0; i < numParts; ++i)
-			write_var(out, data[i], 3);
-	}
-	if (name_w) {
+	VTKAppender(
+		ofstream& _out,
+		particleinfo const* _info,
+		size_t _node_offset,
+		size_t _numParts)
+	:
+		out(_out),
+		info(_info),
+		node_offset(_node_offset),
+		numParts(_numParts)
+	{}
+
+	// Write appended data for VTK, without any transformation
+	// The array is assumed to be local to the node, and node_offset will not be considered
+	template<typename T>
+	inline void
+	append_local_data(T const* var, const char *name)
+	{
 		uint numbytes = sizeof(T)*numParts;
 		write_var(out, numbytes);
-		for (size_t i = 0; i < numParts; ++i)
-			write_var(out, data[i].w);
+		write_array(out, var, numParts);
 	}
-}
+
+	// Write appended data for VTK, without any transformation
+	// The array is assumed to be global to the whole simulation, and node_offset will
+	// be appended to the pointer
+	template<typename T>
+	inline void
+	append_data(T const* var, const char *name)
+	{
+		append_local_data(var + node_offset, name);
+	}
+
+	// Write a (local) split array to a VTK
+	template<typename T>
+	inline
+	enable_if<vector_traits<T>::components == 4>
+	append_local_data(T const* data, const char *name_xyz, const char *name_w)
+	{
+		if (name_xyz) {
+			uint numbytes = 3*sizeof(T)*numParts;
+			write_var(out, numbytes);
+			for (size_t i = 0; i < numParts; ++i)
+				write_var(out, data[i], 3);
+		}
+		if (name_w) {
+			uint numbytes = sizeof(T)*numParts;
+			write_var(out, numbytes);
+			for (size_t i = 0; i < numParts; ++i)
+				write_var(out, data[i].w);
+		}
+	}
+	template<typename T>
+	inline
+	enable_if<vector_traits<T>::components == 4>
+	append_data(T const* data, const char *name_xyz, const char *name_w)
+	{
+		append_local_data(data + node_offset, name_xyz, name_w);
+	}
+};
+
 
 
 
@@ -475,24 +515,26 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	int numbytes;
 
+	VTKAppender appender(fid, info, node_offset, numParts);
+
 	// position
-	append_data(fid, numParts, pos + node_offset, "Position", NULL);
+	appender.append_data(pos, "Position", NULL);
 
 	// neibs
 	if (neibslist) {
-		append_data(fid, numParts, neibsnum, "Neibs");
+		appender.append_local_data(neibsnum, "Neibs");
 	}
 
 	if (nextIDs) {
-		append_data(fid, numParts, nextIDs + node_offset, "NextID");
+		appender.append_data(nextIDs, "NextID");
 	}
 
 	if (intEnergy) {
-		append_data(fid, numParts, intEnergy + node_offset, "Internal Energy");
+		appender.append_data(intEnergy, "Internal Energy");
 	}
 
 	if (forces) {
-		append_data(fid, numParts, forces + node_offset,
+		appender.append_data(forces,
 			"Spatial acceleration", "Continuity derivative");
 	}
 
@@ -536,27 +578,27 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// gamma and its gradient
 	if (gradGamma) {
-		append_data(fid, numParts, gradGamma + node_offset, "Gradient Gamma", "Gamma");
+		appender.append_data(gradGamma, "Gradient Gamma", "Gamma");
 	}
 
 	// turbulent kinetic energy
 	if (tke) {
-		append_data(fid, numParts + node_offset, tke, "TKE");
+		appender.append_data(tke, "TKE");
 	}
 
 	// turbulent epsilon
 	if (eps) {
-		append_data(fid, numParts, eps + node_offset, "Epsilon");
+		appender.append_data(eps, "Epsilon");
 	}
 
 	// eddy viscosity
 	if (turbvisc) {
-		append_data(fid, numParts, turbvisc + node_offset, "Eddy viscosity");
+		appender.append_data(turbvisc, "Eddy viscosity");
 	}
 
 	// SPS turbulent viscosity
 	if (spsturbvisc) {
-		append_data(fid, numParts, spsturbvisc + node_offset, "SPS turbulent viscosity");
+		appender.append_data(spsturbvisc, "SPS turbulent viscosity");
 	}
 
 	// particle info
@@ -607,7 +649,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// vertices
 	if (vertices) {
-		append_data(fid, numParts, vertices + node_offset, "Vertices");
+		appender.append_data(vertices, "Vertices");
 	}
 
 	// device index
@@ -651,7 +693,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	if (eulervel) {
 		// Eulerian velocity and density
-		append_data(fid, numParts, eulervel + node_offset, "Eulerian velocity", "Eulerian density");
+		appender.append_data(eulervel, "Eulerian velocity", "Eulerian density");
 	}
 
 	// vorticity
@@ -691,17 +733,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// private
 	if (priv) {
-		append_data(fid, numParts, priv + node_offset, "Private");
+		appender.append_data(priv, "Private");
 	}
 
 	// volume
 	if (vol) {
-		append_data(fid, numParts, vol + node_offset, "Volume");
+		appender.append_data(vol, "Volume");
 	}
 
 	// sigma
 	if (sigma) {
-		append_data(fid, numParts, sigma + node_offset, "Sigma");
+		appender.append_data(sigma, "Sigma");
 	}
 
 	numbytes=sizeof(int)*numParts;
