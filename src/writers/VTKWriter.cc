@@ -167,7 +167,7 @@ array_header(ofstream &out, size_t &offset, size_t numParts, T const* data, cons
 		scalar_array_header(out, vtk_type_name(data), name, offset);
 	} else {
 		Sptr dummy(nullptr);
-		vector_array_header(out, vtk_type_name(dummy), name, 4, offset);
+		vector_array_header(out, vtk_type_name(dummy), name, N, offset);
 	}
 	offset += N*sizeof(S)*numParts + sizeof(uint);
 }
