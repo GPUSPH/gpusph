@@ -26,6 +26,7 @@
 #include <sstream>
 #include <fstream>
 #include <stdexcept>
+#include <functional>
 
 #include "VTKWriter.h"
 // GlobalData is required for writing the device index. With some order
@@ -152,68 +153,6 @@ vector_array_header(ofstream &out, const char *type, const char *name, uint dim,
 		<< "' format='appended' offset='" << offset << "'/>" << endl;
 }
 
-template<typename T>
-inline void
-array_header(ofstream &out, size_t &offset, size_t numParts, T const* data, const char *name)
-{
-	using traits = vector_traits<T>;
-	using S = typename traits::component_type;
-	using Sptr = S const*;
-	/* Non-vector types have components == 0, but for us they count as having 1 component */
-	constexpr auto N0 = vector_traits<T>::components;
-	constexpr auto N = N0 > 0 ? N0 : 1;
-
-	if (N == 1) {
-		scalar_array_header(out, vtk_type_name(data), name, offset);
-	} else {
-		Sptr dummy(nullptr);
-		vector_array_header(out, vtk_type_name(dummy), name, N, offset);
-	}
-	offset += N*sizeof(S)*numParts + sizeof(uint);
-}
-
-template< typename T >
-inline
-enable_if_t<vector_traits<T>::components == 4>
-array_header(ofstream &out, size_t &offset, size_t numParts, T const* data,
-	const char *name_xyz, const char *name_w)
-{
-	using traits = vector_traits<T>;
-	using S = typename traits::component_type;
-	using Sptr = S const*;
-	Sptr dummy(nullptr);
-
-	if (name_xyz) {
-		vector_array_header(out, vtk_type_name(dummy), name_xyz, 3, offset);
-		offset += 3*sizeof(S)*numParts + sizeof(uint);
-	}
-	if (name_w) {
-		scalar_array_header(out, vtk_type_name(dummy), name_w, offset);
-		offset += sizeof(S)*numParts + sizeof(uint);
-	}
-}
-
-// Binary dump of (part of) a variable
-template<typename T,
-	typename traits = vector_traits<T>,
-	typename S = typename traits::component_type,
-	size_t N0 = traits::components,
-	size_t N = (N0 > 0 ? N0 : 1)
-	>
-inline void
-write_var(ofstream &out, T const& var, size_t components = N)
-{
-	out.write(reinterpret_cast<const char *>(&var), sizeof(S)*components);
-}
-
-// Binary dump of an array of nels variables
-template<typename T>
-inline void
-write_array(ofstream &out, T const *var, size_t nels)
-{
-	out.write(reinterpret_cast<const char *>(var), sizeof(T)*nels);
-}
-
 // A structure to manage appending data at the end of a VTK file
 struct VTKAppender
 {
@@ -222,6 +161,9 @@ struct VTKAppender
 	GlobalData const* gdata;
 	size_t node_offset;
 	size_t numParts;
+	size_t data_offset;
+
+	vector<function<void(void)>> data_filler;
 
 	VTKAppender(
 		ofstream& _out,
@@ -234,18 +176,94 @@ struct VTKAppender
 		info(_info),
 		gdata(_gdata),
 		node_offset(_node_offset),
-		numParts(_numParts)
+		numParts(_numParts),
+		data_offset(0)
 	{}
 
-	// Write appended data for VTK, without any transformation
-	// The array is assumed to be local to the node, and node_offset will not be considered
+private:
+
+	/// Create the metadata for array data, named name
 	template<typename T>
 	inline void
-	append_local_data(T const* var, const char *name)
+	array_header(T const* data, const char *name)
 	{
-		uint numbytes = sizeof(T)*numParts;
-		write_var(out, numbytes);
-		write_array(out, var, numParts);
+		using traits = vector_traits<T>;
+		using S = typename traits::component_type;
+		using Sptr = S const*;
+
+		/* Non-vector types have components == 0, but for us they count as having 1 component */
+		constexpr auto N0 = vector_traits<T>::components;
+		constexpr auto N = N0 > 0 ? N0 : 1;
+
+		if (N == 1) {
+			scalar_array_header(out, vtk_type_name(data), name, data_offset);
+		} else {
+			Sptr dummy(nullptr);
+			vector_array_header(out, vtk_type_name(dummy), name, N, data_offset);
+		}
+		data_offset += N*sizeof(S)*numParts + sizeof(uint);
+	}
+
+	/// Create the metadata for a split array, with a name for the xyz part,
+	/// and a name for the w part
+	template< typename T >
+	inline
+	enable_if_t<vector_traits<T>::components == 4>
+	array_header(T const* data, const char *name_xyz, const char *name_w)
+	{
+		using traits = vector_traits<T>;
+		using S = typename traits::component_type;
+		using Sptr = S const*;
+		Sptr dummy(nullptr);
+
+		if (name_xyz) {
+			vector_array_header(out, vtk_type_name(dummy), name_xyz, 3, data_offset);
+			data_offset += 3*sizeof(S)*numParts + sizeof(uint);
+		}
+		if (name_w) {
+			scalar_array_header(out, vtk_type_name(dummy), name_w, data_offset);
+			data_offset += sizeof(S)*numParts + sizeof(uint);
+		}
+	}
+
+	/// Binary dump of (part of) a variable
+	template<typename T,
+		typename traits = vector_traits<T>,
+		typename S = typename traits::component_type,
+		size_t N0 = traits::components,
+		size_t N = (N0 > 0 ? N0 : 1)
+		>
+	inline void
+	write_var(T const& var, size_t components = N)
+	{
+		out.write(reinterpret_cast<const char *>(&var), sizeof(S)*components);
+	}
+
+	/// Binary dump of an array of nels variables
+	template<typename T>
+	inline void
+	write_array(T const *var, size_t nels)
+	{
+		out.write(reinterpret_cast<const char *>(var), sizeof(T)*nels);
+	}
+
+public:
+	/// Write appended data for VTK, without any transformation
+	/*! The array is assumed to be local to the node, and node_offset will not
+	 * be considered
+	 */
+	template<typename T>
+	inline void
+	append_local_data(T const* data, const char *name)
+	{
+		array_header(data, name);
+
+		// Push back a lambda that does the actual data storage
+		data_filler.push_back([this, data]() {
+			uint numbytes = sizeof(T)*numParts;
+			write_var(numbytes);
+			write_array(data, numParts);
+		});
 	}
 
 	template<typename T, typename Ret>
@@ -255,82 +273,126 @@ struct VTKAppender
 	template<typename T, typename Ret>
 	using DataTransform = Ret (*)(T const&);
 
-	// Write appended data for VTK, transforming an array of T into an array of Ret
+	/// Write appended data for VTK, transforming an array of T into an array of Ret
+	/*! This version is specialized for a transform that takes as input the data,
+	 * the particle info for the corresponding element (including the node_offset),
+	 * and the GlobalData object.
+	 */
 	template<typename T, typename Ret>
 	inline void
-	append_local_data(T const* var, const char *name, DataTransformFull<T, Ret> func)
+	append_local_data(T const* data, const char *name, DataTransformFull<T, Ret> func)
 	{
-		uint numbytes = sizeof(Ret)*numParts;
-		write_var(out, numbytes);
-		for (size_t i = 0; i < numParts; ++i) {
-			Ret value = func(var[i], info[i + node_offset], gdata);
-			write_var(out, value);
-		}
+		Ret *dummy(nullptr);
+		array_header(dummy, name);
+
+		data_filler.push_back( [this, data, func]() {
+			uint numbytes = sizeof(Ret)*numParts;
+			write_var(numbytes);
+			for (size_t i = 0; i < numParts; ++i) {
+				Ret value = func(data[i], info[i + node_offset], gdata);
+				write_var(value);
+			}
+		});
 	}
+
+	/// Write appended data for VTK, transforming an array of T into an array of Ret
+	/*! This version is specialized for a transform that takes as input the data,
+	 * and the particle info for the corresponding element (including the node_offset).
+	 */
 	template<typename T, typename Ret>
 	inline void
-	append_local_data(T const* var, const char *name, DataTransformInfo<T, Ret> func)
+	append_local_data(T const* data, const char *name, DataTransformInfo<T, Ret> func)
 	{
-		uint numbytes = sizeof(Ret)*numParts;
-		write_var(out, numbytes);
-		for (size_t i = 0; i < numParts; ++i) {
-			Ret value = func(var[i], info[i + node_offset]);
-			write_var(out, value);
-		}
+		Ret *dummy(nullptr);
+		array_header(dummy, name);
+
+		data_filler.push_back( [this, data, func]() {
+			uint numbytes = sizeof(Ret)*numParts;
+			write_var(numbytes);
+			for (size_t i = 0; i < numParts; ++i) {
+				Ret value = func(data[i], info[i + node_offset]);
+				write_var(value);
+			}
+		});
 	}
+
+	/// Write appended data for VTK, transforming an array of T into an array of Ret
+	/*! This version is specialized for a transform that takes as input the data alone.
+	 */
 	template<typename T, typename Ret>
 	inline void
-	append_local_data(T const* var, const char *name, DataTransform<T, Ret> func)
+	append_local_data(T const* data, const char *name, DataTransform<T, Ret> func)
 	{
-		uint numbytes = sizeof(Ret)*numParts;
-		write_var(out, numbytes);
-		for (size_t i = 0; i < numParts; ++i) {
-			Ret value = func(var[i]);
-			write_var(out, value);
-		}
+		Ret *dummy(nullptr);
+		array_header(dummy, name);
+
+		data_filler.push_back( [this, data, func]() {
+			uint numbytes = sizeof(Ret)*numParts;
+			write_var(numbytes);
+			for (size_t i = 0; i < numParts; ++i) {
+				Ret value = func(data[i]);
+				write_var(value);
+			}
+		});
 	}
-	// Write appended data for VTK, mapping the index to some arbitrary value
-	template<typename IndexTransform>
+
+	/// Write appended data for VTK, mapping the index to some arbitrary value
+	template<typename IndexTransform,
+		typename Ret = typename result_of<IndexTransform(size_t)>::type>
 	inline void
 	append_local_data(const char *name, IndexTransform func)
 	{
-		using Ret = typename result_of<IndexTransform(size_t)>::type;
-		uint numbytes = sizeof(Ret)*numParts;
-		write_var(out, numbytes);
-		for (size_t i = 0; i < numParts; ++i) {
-			Ret value = func(i);
-			write_var(out, value);
-		}
+		Ret *dummy = nullptr;
+		array_header(dummy, name);
+
+		data_filler.push_back( [this, func]() {
+			uint numbytes = sizeof(Ret)*numParts;
+			write_var(numbytes);
+			for (size_t i = 0; i < numParts; ++i) {
+				Ret value = func(i);
+				write_var(value);
+			}
+		});
 	}
 
-	// Write a (local) split array to a VTK
+	/// Write a (local) split array to a VTK.
+	/*! No transformation can be applied in this case.
+	 */
 	template<typename T>
 	inline
 	enable_if_t<vector_traits<T>::components == 4>
 	append_local_data(T const* data, const char *name_xyz, const char *name_w)
 	{
-		if (name_xyz) {
-			uint numbytes = 3*sizeof(T)*numParts;
-			write_var(out, numbytes);
-			for (size_t i = 0; i < numParts; ++i)
-				write_var(out, data[i], 3);
-		}
-		if (name_w) {
-			uint numbytes = sizeof(T)*numParts;
-			write_var(out, numbytes);
-			for (size_t i = 0; i < numParts; ++i)
-				write_var(out, data[i].w);
-		}
+		array_header(data, name_xyz, name_w);
+
+		data_filler.push_back( [this, data, name_xyz, name_w]() {
+			if (name_xyz) {
+				uint numbytes = 3*sizeof(T)*numParts;
+				write_var(numbytes);
+				for (size_t i = 0; i < numParts; ++i)
+					write_var(data[i], 3);
+			}
+			if (name_w) {
+				uint numbytes = sizeof(T)*numParts;
+				write_var(numbytes);
+				for (size_t i = 0; i < numParts; ++i)
+					write_var(data[i].w);
+			}
+		});
 	}
 
-	// Write appended data for VTK, without any transformation
-	// The array is assumed to be global to the whole simulation, and node_offset will
-	// be appended to the pointer
+	/// Write appended data for VTK, applying node_offset
 	template<typename T, typename ...Args>
 	inline void
 	append_data(T const* var, Args...args)
 	{
 		append_local_data(var + node_offset, args...);
+	}
+
+	void write_appended_data(void)
+	{
+		for (auto& func : data_filler)
+			func();
 	}
 };
 
@@ -428,6 +490,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	ofstream fid;
 	filename = open_data_file(fid, "PART", current_filenum());
 
+	VTKAppender appender(fid, info, gdata, node_offset, numParts);
+
 	// Header
 	//====================================================================================
 	fid << "<?xml version='1.0'?>" << endl;
@@ -440,164 +504,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// position
 	fid << "   <Points>" << endl;
-	array_header(fid, offset, numParts, pos, "Position", NULL);
+	appender.append_data(pos, "Position", nullptr);
 	fid << "   </Points>" << endl;
 
 	fid << "   <PointData Scalars='" << (neibslist ? "Neibs" : "Pressure") << "' Vectors='Velocity'>" << endl;
-
-	// neibs
-	if (neibslist) {
-		array_header(fid, offset, numParts, neibsnum, "Neibs");
-	}
-
-	if (nextIDs) {
-		array_header(fid, offset, numParts, nextIDs, "NextID");
-	}
-
-	if (intEnergy) {
-		array_header(fid, offset, numParts, intEnergy, "Internal Energy");
-	}
-
-	if (forces) {
-		array_header(fid, offset, numParts, forces,
-			"Spatial acceleration", "Continuity derivative");
-	}
-
-	// pressure
-	scalar_array_header(fid, "Float32", "Pressure", offset);
-	offset += sizeof(float)*numParts+sizeof(int);
-
-	// velocity and density
-	array_header(fid, offset, numParts, vel, "Velocity", "Density");
-
-	// mass
-	scalar_array_header(fid, "Float32", "Mass", offset);
-	offset += sizeof(float)*numParts+sizeof(int);
-
-	// gamma and its gradient
-	if (gradGamma) {
-		array_header(fid, offset, numParts, gradGamma, "Gradient Gamma", "Gamma");
-	}
-
-	// turbulent kinetic energy
-	if (tke) {
-		array_header(fid, offset, numParts, tke, "TKE");
-	}
-
-	// turbulent epsilon
-	if (eps) {
-		array_header(fid, offset, numParts, eps, "Epsilon");
-	}
-
-	// eddy viscosity
-	if (turbvisc) {
-		array_header(fid, offset, numParts, turbvisc, "Eddy viscosity");
-	}
-
-	// SPS eddy viscosity
-	if (spsturbvisc) {
-		array_header(fid, offset, numParts, spsturbvisc, "SPS turbulent viscosity");
-	}
-
-	/* Fluid number is only included if there are more than 1 */
-	const bool write_fluid_num = (gdata->problem->physparams()->numFluids() > 1);
-
-	/* Object number is only included if there are any */
-	// TODO a better way would be for GPUSPH to expose the highest
-	// object number ever associated with any particle, so that we
-	// could check that
-	const bool write_part_obj = (gdata->problem->simparams()->numbodies > 0);
-
-	// particle info
-	if (info) {
-		scalar_array_header(fid, "UInt8", "Part type", offset);
-		offset += sizeof(uchar)*numParts+sizeof(int);
-		scalar_array_header(fid, "UInt8", "Part flags", offset);
-		offset += sizeof(uchar)*numParts+sizeof(int);
-
-		// fluid number
-		if (write_fluid_num) {
-			// Limit to 256 fluids
-			scalar_array_header(fid, "UInt8", "Fluid number", offset);
-			offset += sizeof(uchar)*numParts+sizeof(int);
-		}
-		// object number
-		if (write_part_obj) {
-			// TODO UInt16 or UInt8 based on number of objects
-			scalar_array_header(fid, "UInt16", "Part object", offset);
-			offset += sizeof(ushort)*numParts+sizeof(int);
-		}
-		scalar_array_header(fid, "UInt32", "Part id", offset);
-		offset += sizeof(uint)*numParts+sizeof(int);
-	}
-
-	if (vertices) {
-		array_header(fid, offset, numParts, vertices, "Vertices");
-	}
-
-	// device index
-	if (MULTI_DEVICE) {
-		scalar_array_header(fid, vtk_type_name((dev_idx_t*)(nullptr)), "DeviceIndex", offset);
-		offset += sizeof(dev_idx_t)*numParts+sizeof(int);
-	}
-
-	// cell index
-	scalar_array_header(fid, "UInt32", "CellIndex", offset);
-	offset += sizeof(uint)*numParts+sizeof(int);
-
-	if (eulervel) {
-		// Eulerian velocity and density
-		array_header(fid, offset, numParts, eulervel, "Eulerian velocity", "Eulerian density");
-	}
-
-	// vorticity
-	if (vort) {
-		array_header(fid, offset, numParts, vort, "Vorticity");
-	}
-
-	// normals
-	if (normals) {
-		array_header(fid, offset, numParts, normals, "Normals", "Criteria");
-	}
-
-	// private
-	if (priv) {
-		array_header(fid, offset, numParts, priv, "Private");
-	}
-
-	// volume
-	if (vol) {
-		array_header(fid, offset, numParts, vol, "Volume");
-	}
-
-	// sigma
-	if (sigma) {
-		array_header(fid, offset, numParts, sigma, "Sigma");
-	}
-
-	fid << "   </PointData>" << endl;
-
-	// Cells data
-	fid << "   <Cells>" << endl;
-	scalar_array_header(fid, "Int32", "connectivity", offset);
-	offset += sizeof(uint)*numParts+sizeof(int);
-	scalar_array_header(fid, "Int32", "offsets", offset);
-	offset += sizeof(uint)*numParts+sizeof(int);
-	scalar_array_header(fid, "UInt8", "types", offset);
-	offset += sizeof(uchar)*numParts+sizeof(int);
-	fid << "   </Cells>" << endl;
-	fid << "  </Piece>" << endl;
-
-	fid << " </UnstructuredGrid>" << endl;
-	fid << " <AppendedData encoding='raw'>\n_";
-	//====================================================================================
-
-	int numbytes;
-
-	VTKAppender appender(fid, info, gdata, node_offset, numParts);
-
-	// position
-	appender.append_data(pos, "Position", nullptr);
 
 	// neibs
 	if (neibslist) {
@@ -649,10 +559,19 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		appender.append_data(turbvisc, "Eddy viscosity");
 	}
 
-	// SPS turbulent viscosity
+	// SPS eddy viscosity
 	if (spsturbvisc) {
 		appender.append_data(spsturbvisc, "SPS turbulent viscosity");
 	}
+
+	/* Fluid number is only included if there are more than 1 */
+	const bool write_fluid_num = (gdata->problem->physparams()->numFluids() > 1);
+
+	/* Object number is only included if there are any */
+	// TODO a better way would be for GPUSPH to expose the highest
+	// object number ever associated with any particle, so that we
+	// could check that
+	const bool write_part_obj = (gdata->problem->simparams()->numbodies > 0);
 
 	// particle info
 	if (info) {
@@ -664,11 +583,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 		// fluid number
 		if (write_fluid_num) {
+			// Limit to 256 fluids
 			appender.append_data(info, "Fluid number", get_fluid_num);
 		}
 
 		// object number
 		if (write_part_obj) {
+			// TODO UInt16 or UInt8 based on number of objects
 			appender.append_data(info, "Part object", get_object);
 		}
 
@@ -676,14 +597,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		appender.append_data(info, "Part id", id);
 	}
 
-	// vertices
 	if (vertices) {
 		appender.append_data(vertices, "Vertices");
 	}
 
 	// device index
 	if (MULTI_DEVICE) {
-#if 1
 		appender.append_local_data("DeviceIndex", [this](size_t i) -> dev_idx_t {
 			GlobalData const *gdata(this->gdata);
 			uint numdevs = gdata->devices;
@@ -697,38 +616,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			// which is an error
 			throw runtime_error("unable to find device particle belongs to");
 		});
-#else
-		numbytes = sizeof(dev_idx_t)*numParts;
-		write_var(fid, numbytes);
-		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
-		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
-		// containing cell until next calchash/reorder.
-		// The current policy is: just list the particles according to how the global array is partitioned. In other words, we rely
-		// on the particle index to understad which device downloaded the particle data.
-		for (uint d = 0; d < gdata->devices; d++) {
-			// compute the global device ID for each device
-			dev_idx_t value = gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
-			// write one for each particle (no need for the "absolute" particle index)
-			for (uint p = 0; p < gdata->s_hPartsPerDevice[d]; p++)
-				write_var(fid, value);
-		}
-		// There two alternate policies: 1. use particle hash or 2. compute belonging device.
-		// To use the particle hash, instead of just relying on the particle index, use the following code:
-		/*
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uint value = gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
-			write_var(fid, value);
-		}
-		*/
-		// This should be equivalent to the current "listing" approach. If for any reason (e.g. debug) one needs to write the
-		// device index according to the current spatial position, it is enough to compute the particle hash from its position
-		// instead of reading it from the particlehash array. Please note that this would reflect the spatial split but not the
-		// actual assignments: until the next calchash is performed, one particle remains in the containing device even if it
-		// it is slightly outside the domain.
-#endif
 	}
 
-	// linearized cell index (NOTE: particles might be slightly off the belonging cell)
+	// cell index
 	appender.append_data(particleHash, "CellIndex", get_cellindex);
 
 	if (eulervel) {
@@ -761,12 +651,26 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		appender.append_data(sigma, "Sigma");
 	}
 
+	fid << "   </PointData>" << endl;
+
+	// Cells data
+	fid << "   <Cells>" << endl;
+
 	// connectivity
 	appender.append_local_data("connectivity", [](size_t i)->uint { return i; });
 	// offsets
 	appender.append_local_data("offsets", [](size_t i)->uint { return i+1; });
 	// types (currently all cells type=1, single vertex, the particle)
 	appender.append_local_data("types", [](size_t i)->uchar { return 1; });
+
+	fid << "   </Cells>" << endl;
+	fid << "  </Piece>" << endl;
+
+	fid << " </UnstructuredGrid>" << endl;
+	fid << " <AppendedData encoding='raw'>\n_";
+	//====================================================================================
+
+	appender.write_appended_data();
 
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
