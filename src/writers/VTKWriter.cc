@@ -723,37 +723,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// vorticity
 	if (vort) {
-		numbytes=3*sizeof(float)*numParts;
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float *value = zeroes;
-			if (FLUID(info[i])) {
-				value = (float*)(vort + i);
-			}
-			write_array(fid, value, 3);
-		}
+		appender.append_data(vort, "Vorticity");
 	}
 
 	// normals
 	if (normals) {
-		numbytes=3*sizeof(float)*numParts;
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float *value = zeroes;
-			if (FLUID(info[i]))
-				value = (float*)(normals + i);
-			write_array(fid, value, 3);
-		}
-
-		numbytes=sizeof(float)*numParts;
-		// criteria
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			float value = 0;
-			if (FLUID(info[i]))
-				value = normals[i].w;
-			write_var(fid, value);
-		}
+		appender.append_data(normals, "Normals", "Criteria");
 	}
 
 	// private

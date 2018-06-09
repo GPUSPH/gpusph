@@ -72,17 +72,20 @@ calcVortDevice(	const	float4*		posArray,
 	if (index >= numParticles)
 		return;
 
-	// read particle data from sorted arrays
-	// computing vorticity only for fluid particles
+	// computing vorticity only for active fluid particles
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info))
-		return;
 
 	#if PREFER_L1
 	const float4 pos = posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
+
+	if (NOT_FLUID(info) || INACTIVE(pos)) {
+		vorticity[index] = make_float3(NAN);
+		return;
+	}
+
 	const float4 vel = tex1Dfetch(velTex, index);
 
 	float3 vort = make_float3(0.0f);
@@ -269,6 +272,8 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
 		// NOTE: inactive particles will keep their last surface flag status
 		newInfo[index] = info;
+		if (savenormals)
+			normals[index] = make_float4(NAN);
 		return;
 	}
 
