@@ -684,7 +684,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// device index
 	if (MULTI_DEVICE) {
 #if 1
-		appender.append_data("DeviceIndex", [this](size_t i) -> dev_idx_t {
+		appender.append_local_data("DeviceIndex", [this](size_t i) -> dev_idx_t {
 			GlobalData const *gdata(this->gdata);
 			uint numdevs = gdata->devices;
 			for (uint d = 0; d < numdevs; ++d) {
@@ -762,11 +762,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	}
 
 	// connectivity
-	appender.append_data("connectivity", [](size_t i)->uint { return i; });
+	appender.append_local_data("connectivity", [](size_t i)->uint { return i; });
 	// offsets
-	appender.append_data("offsets", [](size_t i)->uint { return i+1; });
+	appender.append_local_data("offsets", [](size_t i)->uint { return i+1; });
 	// types (currently all cells type=1, single vertex, the particle)
-	appender.append_data("types", [](size_t i)->uchar { return 1; });
+	appender.append_local_data("types", [](size_t i)->uchar { return 1; });
 
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
