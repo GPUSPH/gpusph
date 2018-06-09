@@ -254,8 +254,6 @@ struct VTKAppender
 	using DataTransformInfo = Ret (*)(T const&, particleinfo const&);
 	template<typename T, typename Ret>
 	using DataTransform = Ret (*)(T const&);
-	template<typename Ret>
-	using IndexTransform = Ret (*)(size_t i);
 
 	// Write appended data for VTK, transforming an array of T into an array of Ret
 	template<typename T, typename Ret>
@@ -292,10 +290,11 @@ struct VTKAppender
 		}
 	}
 	// Write appended data for VTK, mapping the index to some arbitrary value
-	template<typename Ret>
+	template<typename IndexTransform>
 	inline void
-	append_local_data(const char *name, IndexTransform<Ret> func)
+	append_local_data(const char *name, IndexTransform func)
 	{
+		using Ret = typename result_of<IndexTransform(size_t)>::type;
 		uint numbytes = sizeof(Ret)*numParts;
 		write_var(out, numbytes);
 		for (size_t i = 0; i < numParts; ++i) {
@@ -684,6 +683,21 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// device index
 	if (MULTI_DEVICE) {
+#if 1
+		appender.append_data("DeviceIndex", [this](size_t i) -> dev_idx_t {
+			GlobalData const *gdata(this->gdata);
+			uint numdevs = gdata->devices;
+			for (uint d = 0; d < numdevs; ++d) {
+				uint partsInDevice = gdata->s_hPartsPerDevice[d];
+				if (i < partsInDevice)
+					return gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
+				i -= partsInDevice;
+			}
+			// If we got here, the sum of all device particles is less than i,
+			// which is an error
+			throw runtime_error("unable to find device particle belongs to");
+		});
+#else
 		numbytes = sizeof(dev_idx_t)*numParts;
 		write_var(fid, numbytes);
 		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
@@ -711,6 +725,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		// instead of reading it from the particlehash array. Please note that this would reflect the spatial split but not the
 		// actual assignments: until the next calchash is performed, one particle remains in the containing device even if it
 		// it is slightly outside the domain.
+#endif
 	}
 
 	// linearized cell index (NOTE: particles might be slightly off the belonging cell)
@@ -746,18 +761,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		appender.append_data(sigma, "Sigma");
 	}
 
-	/* Note the trick: lambdas don't match function parameters that are 
-	 * function pointers, even though they can implicitly convert. So we
-	 * force an arithmetic context by prefixing the lambda with a + sign,
-	 * which forces the lambda to convert to pointer (to function), and
-	 * thus match
-	 */
 	// connectivity
-	appender.append_data("connectivity", +[](size_t i)->uint { return i; });
+	appender.append_data("connectivity", [](size_t i)->uint { return i; });
 	// offsets
-	appender.append_data("offsets", +[](size_t i)->uint { return i+1; });
+	appender.append_data("offsets", [](size_t i)->uint { return i+1; });
 	// types (currently all cells type=1, single vertex, the particle)
-	appender.append_data("types", +[](size_t i)->uchar { return 1; });
+	appender.append_data("types", [](size_t i)->uchar { return 1; });
 
 	fid << " </AppendedData>" << endl;
 	fid << "</VTKFile>" << endl;
