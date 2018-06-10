@@ -1107,8 +1107,13 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SIGMA>();
 	}
 
-	if (gdata->simframework->hasPostProcessEngine(CALC_PRIVATE))
+	if (gdata->simframework->hasPostProcessEngine(CALC_PRIVATE)) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE>();
+		if (gdata->simframework->hasPostProcessOption(CALC_PRIVATE, BUFFER_PRIVATE2))
+			gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE2>();
+		if (gdata->simframework->hasPostProcessOption(CALC_PRIVATE, BUFFER_PRIVATE4))
+			gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE4>();
+	}
 
 	if (problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();

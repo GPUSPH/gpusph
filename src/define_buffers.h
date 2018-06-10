@@ -165,11 +165,20 @@ SET_BUFFER_TRAITS(BUFFER_VOLUME, float4, 1, "Volume");
 #define BUFFER_SIGMA		(BUFFER_VOLUME << 1)
 SET_BUFFER_TRAITS(BUFFER_SIGMA, float, 1, "Sigma (discrete specific volume)");
 
+// Private buffers are used to save custom post-processing results
+// There are three buffers available: a scalar one, one with two components and
+// one with four.
 #define BUFFER_PRIVATE		(BUFFER_SIGMA << 1)
 SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 
+#define BUFFER_PRIVATE2		(BUFFER_PRIVATE << 1)
+SET_BUFFER_TRAITS(BUFFER_PRIVATE2, float2, 1, "Private vector2");
+
+#define BUFFER_PRIVATE4		(BUFFER_PRIVATE2 << 1)
+SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
+
 // last defined buffer. if new buffers are defined, remember to update this
-#define LAST_DEFINED_BUFFER	BUFFER_PRIVATE
+#define LAST_DEFINED_BUFFER	BUFFER_PRIVATE4
 
 // common shortcut
 #define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)

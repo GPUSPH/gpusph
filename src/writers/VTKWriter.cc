@@ -446,6 +446,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float *spsturbvisc = buffers.getData<BUFFER_SPS_TURBVISC>();
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
+	const float2 *priv2 = buffers.getData<BUFFER_PRIVATE2>();
+	const float4 *priv4 = buffers.getData<BUFFER_PRIVATE4>();
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 	const float *intEnergy = buffers.getData<BUFFER_INTERNAL_ENERGY>();
 	const float4 *forces = buffers.getData<BUFFER_FORCES>();
@@ -639,6 +641,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// private
 	if (priv) {
 		appender.append_data(priv, "Private");
+		if (priv2)
+			appender.append_data(priv2, "Private2");
+		if (priv4)
+			appender.append_data(priv4, "Private4");
 	}
 
 	// volume

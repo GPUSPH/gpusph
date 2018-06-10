@@ -381,9 +381,10 @@ template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
 struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
-	// buffers updated in-place
-	static flag_t get_written_buffers(flag_t)
-	{ return BUFFER_PRIVATE; }
+	// pass BUFFER_PRIVATE2 and/or BUFFER_PRIVATE4 to the CALC_PRIVATE filter
+	// to make these buffers available to calcPrivate (and saved)
+	static flag_t get_written_buffers(flag_t options)
+	{ return BUFFER_PRIVATE | (options & (BUFFER_PRIVATE2 | BUFFER_PRIVATE4)) ; }
 
 	static void process(
 				flag_t					options,
