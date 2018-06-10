@@ -43,6 +43,10 @@ class ProblemExample: public XProblem {
 			uint particleRangeEnd,
 			uint deviceIndex,
 			const GlobalData * const gdata) override;
+
+		// Define this override to provide a meaningful name for
+		// the BUFFER_PRIVATE data
+		std::string get_private_name(flag_t buffer) const override;
 };
 #endif	/* _PROBLEMEXAMPLE_H */
 

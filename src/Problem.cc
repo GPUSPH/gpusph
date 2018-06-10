@@ -1436,6 +1436,21 @@ void Problem::calcPrivate(
 	throw invalid_argument("CALC_PRIVATE requested, but calcPrivate() not implemented in problem");
 }
 
+std::string Problem::get_private_name(flag_t buffer) const
+{
+	switch (buffer) {
+	case BUFFER_PRIVATE:
+		return "Private";
+	case BUFFER_PRIVATE2:
+		return "Private2";
+	case BUFFER_PRIVATE4:
+		return "Private4";
+	default:
+		/* This shouldn't happen */
+		return "Buffer" + to_string(buffer);
+	}
+}
+
 void Problem::PlaneCut(PointVect& points, const double a, const double b,
 			const double c, const double d)
 {

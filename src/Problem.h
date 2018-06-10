@@ -455,6 +455,14 @@ class Problem {
 			uint deviceIndex,
 			const GlobalData * const gdata);
 
+		/// Get the name to give to the private buffer(s)
+		/*! A problem requesting the CALC_PRIVATE post-processing filter
+		 * can override this if they want to provide a meaningful name
+		 * ofr the BUFFER_PRIVATE ( and ...2 and ...4 variant, if used)
+		 * buffer(s).
+		 */
+		virtual std::string get_private_name(flag_t buffer) const;
+
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();
 		// partition by splitting the cells according to their linearized hash

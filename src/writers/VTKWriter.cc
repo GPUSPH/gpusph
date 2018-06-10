@@ -640,11 +640,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// private
 	if (priv) {
-		appender.append_data(priv, "Private");
+		appender.append_data(priv, m_problem->get_private_name(BUFFER_PRIVATE).c_str());
 		if (priv2)
-			appender.append_data(priv2, "Private2");
+			appender.append_data(priv2, m_problem->get_private_name(BUFFER_PRIVATE2).c_str());
 		if (priv4)
-			appender.append_data(priv4, "Private4");
+			appender.append_data(priv4, m_problem->get_private_name(BUFFER_PRIVATE4).c_str());
 	}
 
 	// volume

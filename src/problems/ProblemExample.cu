@@ -212,3 +212,9 @@ void ProblemExample::calcPrivate(flag_t options,
 
 	KERNEL_CHECK_ERROR;
 }
+
+std::string
+ProblemExample::get_private_name(flag_t buffer) const
+{
+	return "NeibsNum";
+}
