@@ -1423,8 +1423,18 @@ void Problem::imposeForcedMovingObjects(
 	return;
 }
 
-
-
+void Problem::calcPrivate(
+	flag_t options,
+	BufferList const& bufread,
+	BufferList & bufwrite,
+	uint const *cellStart,
+	uint numParticles,
+	uint particleRangeEnd,
+	uint deviceIndex,
+	const GlobalData * const gdata)
+{
+	throw invalid_argument("CALC_PRIVATE requested, but calcPrivate() not implemented in problem");
+}
 
 void Problem::PlaneCut(PointVect& points, const double a, const double b,
 			const double c, const double d)

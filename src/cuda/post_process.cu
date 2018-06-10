@@ -395,40 +395,9 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, simfl
 				uint					deviceIndex,
 		const	GlobalData	* const		gdata)
 	{
-		// thread per particle
-		uint numThreads = BLOCK_SIZE_CALCTEST;
-		uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-		float *priv = bufwrite.getData<BUFFER_PRIVATE>();
-
-		#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-		#endif
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-
-		//execute kernel
-		cupostprocess::calcPrivateDevice<boundarytype><<<numBlocks, numThreads>>>
-			(	pos,
-				priv,
-				particleHash,
-				cellStart,
-				neibsList,
-				gdata->problem->simparams()->slength,
-				gdata->problem->simparams()->influenceRadius,
-				numParticles);
-
-		#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-		#endif
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+		gdata->problem->calcPrivate(options, bufread, bufwrite,
+			cellStart, numParticles, particleRangeEnd,
+			deviceIndex, gdata);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;

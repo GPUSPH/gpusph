@@ -442,6 +442,19 @@ class Problem {
 			const	double	t,
 			const	float	dt);
 
+		/// Problem-specific implementation of CALC_PRIVATE
+		/*! A problem requesting the CALC_PRIVATE post-processing filter
+		 * MUST override this
+		 */
+		virtual void calcPrivate(flag_t options,
+			BufferList const& bufread,
+			BufferList & bufwrite,
+			uint const *cellStart,
+			uint numParticles,
+			uint particleRangeEnd,
+			uint deviceIndex,
+			const GlobalData * const gdata);
+
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();
 		// partition by splitting the cells according to their linearized hash

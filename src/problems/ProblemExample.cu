@@ -60,6 +60,12 @@ ProblemExample::ProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 	add_writer(VTKWRITER, 1e-1f);
 	m_name = "ProblemExample";
 
+	// *** Post-processing
+	// In our case we show an example of how to add the problem-specific
+	// CALC_PRIVATE post-processing. Additional post-processing functions
+	// are defined in PostProcessType
+	addPostProcess(CALC_PRIVATE);
+
 	// domain size
 	const double dimX = 10;
 	const double dimY = 10;
@@ -113,3 +119,96 @@ ProblemExample::ProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 	// setMassByDensity(floating_obj, physparams()->rho0[0] / 2);
 }
 
+using namespace cubounds; // to access calcGridPosFromParticleHash in device code
+using namespace cuneibs; // to access iterators over neighbors
+
+//! Compute a private variable
+/*!
+ This function computes an arbitrary passive array. It can be used for
+ debugging purposes or passive scalars.
+
+ In this example we simply compute the number of neighbors.
+ */
+template<BoundaryType boundarytype>
+__global__ void
+calcPrivateDevice(
+			float*		priv,
+	const	float4*		__restrict__	posArray,
+	const	float4*		__restrict__		velArray,
+	const	particleinfo* __restrict__	infoArray,
+	const	hashKey*	__restrict__	particleHash,
+	const	uint*		__restrict__	cellStart,
+	const	neibdata*	__restrict__	neibsList,
+	const	float		slength,
+	const	float		inflRadius,
+			uint		numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const float4 pos = posArray[index];
+	// To access the particle info and e.g. filter action based on particle type:
+	//const particleinfo info = infoArray[index];
+	// To access the particle velocity and density, e.g. to apply the standard SPH smoothing
+	//const float4 vel = velArray[index];
+
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	uint neibs = 0;
+
+	// Loop over all the neighbors
+	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
+
+		const uint neib_index = neib_iter.neib_index();
+
+		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(posArray[neib_index]);
+
+		float r = length3(relPos);
+		if (r < inflRadius)
+			neibs += 1;
+	}
+
+	// Will convert to float on storage, because BUFFER_PRIVATE is a float buffer
+	priv[index] = neibs;
+}
+
+void ProblemExample::calcPrivate(flag_t options,
+	BufferList const& bufread,
+	BufferList & bufwrite,
+	uint const *cellStart,
+	uint numParticles,
+	uint particleRangeEnd,
+	uint deviceIndex,
+	const GlobalData * const gdata)
+{
+	/* Example of typical implementation */
+
+	// thread per particle
+	uint numThreads = BLOCK_SIZE_CALCTEST;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const float4 *vel = bufread.getData<BUFFER_VEL>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+	float *priv = bufwrite.getData<BUFFER_PRIVATE>();
+
+	//execute kernel
+	calcPrivateDevice<LJ_BOUNDARY><<<numBlocks, numThreads>>>(
+			priv,
+			pos, vel, info,
+			particleHash,
+			cellStart,
+			neibsList,
+			simparams()->slength,
+			simparams()->influenceRadius,
+			numParticles);
+
+	KERNEL_CHECK_ERROR;
+}

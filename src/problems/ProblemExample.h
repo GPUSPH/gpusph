@@ -31,6 +31,18 @@
 class ProblemExample: public XProblem {
 	public:
 		ProblemExample(GlobalData *);
+
+		// Define this override if you want to be able to compute
+		// specific per-particle values that are not defined
+		// otherwise
+		void calcPrivate(flag_t options,
+			BufferList const& bufread,
+			BufferList & bufwrite,
+			uint const *cellStart,
+			uint numParticles,
+			uint particleRangeEnd,
+			uint deviceIndex,
+			const GlobalData * const gdata) override;
 };
 #endif	/* _PROBLEMEXAMPLE_H */
 

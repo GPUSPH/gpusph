@@ -386,62 +386,6 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 }
 
-//! Compute a private variable
-/*!
- This function computes an arbitrary passive array. It can be used for debugging purposes or passive scalars
-
- \todo this should be defined by the problem, not here
-*/
-template<BoundaryType boundarytype>
-__global__ void
-calcPrivateDevice(	const	float4*		posArray,
-							float*		priv,
-					const	hashKey*	particleHash,
-					const	uint*		cellStart,
-					const	neibdata*	neibsList,
-					const	float		slength,
-					const	float		inflRadius,
-							uint		numParticles)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		#if PREFER_L1
-		float4 pos = posArray[index];
-		#else
-		float4 pos = tex1Dfetch(posTex, index);
-		#endif
-		const particleinfo info = tex1Dfetch(infoTex, index);
-		float4 vel = tex1Dfetch(velTex, index);
-
-		// Compute grid position of current particle
-		const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-
-		priv[index] = 0;
-
-		// Loop over all the neighbors
-		for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
-
-			const uint neib_index = neib_iter.neib_index();
-
-			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos(
-			#if PREFER_L1
-				posArray[neib_index]
-			#else
-				tex1Dfetch(posTex, neib_index)
-			#endif
-				);
-
-			float r = length(as_float3(relPos));
-			if (r < inflRadius)
-				priv[index] += 1;
-		}
-
-	}
-}
-
 // TODO documentation
 __global__ void
 fluxComputationDevice
