@@ -25,3 +25,5 @@ clean:
 	rm -rf gpusph-theory.pdf
 
 .PHONY: clean
+
+.NOTPARALLEL:

@@ -748,9 +748,6 @@ CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
 
 # ------------------------ CFLAGS section end ---------------------- #
 
-# Doxygen configuration
-DOXYCONF = ./Doxygen_settings
-
 # Snapshot date: date of last commit (if possible), or current date
 snap_date := $(shell git log -1 --format='%cd' --date=iso 2> /dev/null | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
 # snapshot tarball filename
@@ -780,6 +777,7 @@ endif
 
 .PHONY: all run showobjs show snapshot expand deps docs test help
 .PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean
+.PHONY: dev-guide user-guide
 
 # target: all - Make subdirs, compile objects, link and produce $(TARGET)
 # link objects in target
@@ -1070,20 +1068,21 @@ $(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf $(AUTOGEN_SRC) | $(CHRONO_SE
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
-# target: docs - Generate Doxygen documentation in $(DOCSDIR);
-# target:        to produce refman.pdf, run "make pdf" in $(DOCSDIR)/latex/.
-docs: $(DOXYCONF) img/logo.png
-	@printf "\r                                 \r"
-	@echo Generating developer documentation...
-	$(CMDECHO)doxygen $(DOXYCONF) > make_docs.log 2>&1 && \
-		echo "  developer documentation: $(DOCSDIR)/dev-guide/html/index.html"
-	@echo Generating user documentation...
-	$(CMDECHO)cd docs/user-guide && $(MAKE) >> make_docs.log && \
-		echo "  user documentation: $(DOCSDIR)/user-guide/gpusph-manual.pdf"
+# TODO docs should also build the user-guide, but since we don't ship images
+# this can't be normally done, so let's not include this for the time being.
+#
+# target: docs - Generate the developers' guide
+docs: dev-guide
 
-img/logo.png:
-	$(CMDECHO)mkdir -p img && \
-		wget http://www.gpusph.org/img/logo.png -O img/logo.png
+# target: dev-guide - Generate the developers' guide
+dev-guide:
+	@echo "Generating developer documentation..."
+	$(CMDECHO) $(MAKE) -C $(DOCSDIR)/$@
+
+# target: user-guide - Generate the user's manuals
+user-guide:
+	@echo "Generating developer documentation..."
+	$(CMDECHO) $(MAKE) -C $(DOCSDIR)/$@
 
 # target: docsclean - Remove $(DOCSDIR)
 docsclean:
