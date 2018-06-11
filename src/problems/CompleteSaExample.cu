@@ -40,7 +40,7 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<DYNAMICVISC>,
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
-		densitydiffusion<FERRARI>,
+		densitydiffusion<BREZZI>,
 		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES>
 	);
 
