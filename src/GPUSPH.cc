@@ -534,9 +534,9 @@ GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
 void GPUSPH::runIntegratorStep(const flag_t integrator_step,
 		const PostProcessEngineSet& noPostProcess) {
 
-	// --- ONLY PREDICTOR ----------------------
+	// --- ONLY PREDICTOR (STEP 1) -------------
 	if (integrator_step == INTEGRATOR_STEP_1) {
-		// variable gravity (SOLO PREDICTOR)
+		// variable gravity
 		if (problem->simparams()->gcallback) {
 			// ask the Problem to update gravity, one per process
 			doCallBacks();
@@ -587,7 +587,7 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step,
 	if (gdata->clOptions->striping && MULTI_DEVICE)
 		doCommand(FORCES_COMPLETE, integrator_step);
 
-	// ---ONLY CORRECTOR------------------------
+	// --- ONLY CORRECTOR (STEP 2) -------------
 	if (integrator_step == INTEGRATOR_STEP_2) {
 		// swap read and writes again because the write contains the variables at time n
 		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
@@ -649,7 +649,7 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step,
 			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 	}
 
-	// ---ONLY CORRECTOR------------------------
+	// --- ONLY CORRECTOR (STEP 2) -------------
 	if (integrator_step == INTEGRATOR_STEP_2) {
 		// Euler needs always cg(n)
 		if (problem->simparams()->numbodies > 0)
@@ -657,9 +657,9 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step,
 	}
 	// -----------------------------------------
 
-	// ---ONLY PREDICTOR------------------------
+	// --- ONLY PREDICTOR (STEP 1) -------------
 	if (integrator_step == INTEGRATOR_STEP_1) {
-		// variable gravity (SOLO PREDICTOR)
+		// variable gravity
 		if (problem->simparams()->gcallback) {
 			// ask the Problem to update gravity, one per process
 			doCallBacks();
@@ -673,7 +673,7 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step,
 	if (problem->simparams()->boundarytype == SA_BOUNDARY)
 		saBoundaryConditions(integrator_step);
 
-	// ---ONLY CORRECTOR------------------------
+	// --- ONLY CORRECTOR (STEP 2) -------------
 	if (integrator_step == INTEGRATOR_STEP_2) {
 		// update inlet/outlet changes only after step 2
 		// and check if a forced buildneibs is required (i.e. if particles were created)
