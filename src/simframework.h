@@ -23,10 +23,12 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Simulation framework and related definition.
+ */
 #ifndef _SIMFRAMEWORK_H
 #define _SIMFRAMEWORK_H
 
-/* The SimFramework encompasses the engines and flags of a simulation */
 
 #include <map>
 #include <vector>
@@ -53,6 +55,11 @@ typedef std::vector< std::pair<FilterType, uint> > FilterFreqList;
 //< Map of postprocessing types to actual postprocess engines
 typedef std::map<PostProcessType, AbstractPostProcessEngine *> PostProcessEngineSet;
 
+/*! The SimFramework encompasses the engines and flags of a simulation.
+ * It's an abstract class that represents the collection of model options that
+ * determine the behavior of the simulation, from the neighbor list construction to
+ * the final post-processing.
+ */
 class SimFramework
 {
 protected:
@@ -71,11 +78,11 @@ protected:
 	SimParams *m_simparams;
 
 protected:
-	// SimFrameworks should override this to convert a FilterType key into
-	// an actual FilterEngine instance
+	//! SimFrameworks should override this to convert a FilterType key into
+	//! an actual FilterEngine instance
 	virtual AbstractFilterEngine* newFilterEngine(FilterType filtertpe, int frequency) = 0;
-	// SimFrameworks should override this to convert a PostProcessType key into
-	// an actual PostProcessEngine instance
+	//! SimFrameworks should override this to convert a PostProcessType key into
+	//! an actual PostProcessEngine instance
 	virtual AbstractPostProcessEngine* newPostProcessEngine(PostProcessType pptype,
 		flag_t options=NO_FLAGS) = 0;
 
@@ -101,18 +108,18 @@ public:
 	{ return m_filterEngines; }
 	FilterFreqList const& getFilterFreqList() const
 	{ return m_filterFreqList; }
-	// add a filter engine with the given frequency (in iterations)
+	//! add a filter engine with the given frequency (in iterations)
 	AbstractFilterEngine* addFilterEngine(FilterType filtertype, int frequency);
 
 	PostProcessEngineSet const& getPostProcEngines() const
 	{ return m_postProcessEngines; }
-	// add a postprocess engine
+	//! add a postprocess engine
 	AbstractPostProcessEngine* addPostProcessEngine(PostProcessType pptype,
 		flag_t options=NO_FLAGS);
-	// returns true if a given postprocessing engine has been added
+	//! returns true if a given postprocessing engine has been added
 	AbstractPostProcessEngine *hasPostProcessEngine(PostProcessType pptype) const;
-	// returns a binary AND of the given option(s) with the options of the pptype
-	// PostProcessEngine, if the engine was added, NO_FLAGS otherwise
+	//! returns a binary AND of the given option(s) with the options of the pptype
+	//! PostProcessEngine, if the engine was added, NO_FLAGS otherwise
 	flag_t hasPostProcessOption(PostProcessType pptype, flag_t option) const;
 
 	inline

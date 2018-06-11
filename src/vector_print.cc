@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Implementaiton part of the output streaming operator for vector types
+ */
+
 #include "vector_print.h"
 
 const int vector_fmt_options::idx = std::ios_base::xalloc();

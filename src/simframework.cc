@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * SimFramework implementation
+ */
+
 #include "simframework.h"
 
 using namespace std;
@@ -56,12 +60,12 @@ SimFramework::~SimFramework()
 	delete m_neibsEngine;
 }
 
-// Filters are run at the beginning of each iteration whose number is an exact
-// multiple of the filter frequency. We also want to ensure that filters are run
-// in order (from lowest-valued type to highest-valued type). Therefore, whenever a new
-// filter is added, we update the map of FilterType to actual FilterEngine, as well as
-// the ordered list of (filter, frequency) pairs.
-
+/*! Filters are run at the beginning of each iteration whose number is an exact
+ * multiple of the filter frequency. We also want to ensure that filters are run
+ * in order (from lowest-valued type to highest-valued type). Therefore, whenever a new
+ * filter is added, we update the map of FilterType to actual FilterEngine, as well as
+ * the ordered list of (filter, frequency) pairs.
+ */
 AbstractFilterEngine* SimFramework::addFilterEngine(FilterType filtertype, int frequency)
 {
 	AbstractFilterEngine *flt = NULL;

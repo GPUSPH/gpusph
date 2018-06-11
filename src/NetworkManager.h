@@ -5,6 +5,10 @@
  *      Author: rustico
  */
 
+/*! \file
+ * NetworkManager class and related defines
+ */
+
 #ifndef NETWORKMANAGER_H_
 #define NETWORKMANAGER_H_
 

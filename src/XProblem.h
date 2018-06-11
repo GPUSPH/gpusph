@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * High-level interface for Problem defintions
+ */
+
 #ifndef _XPROBLEM_H
 #define	_XPROBLEM_H
 

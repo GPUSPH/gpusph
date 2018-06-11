@@ -5,6 +5,10 @@
  *      Author: rustico
  */
 
+/*! \file
+ * Cross-thread syncronization implementation
+ */
+
 #include "Synchronizer.h"
 using namespace std;
 

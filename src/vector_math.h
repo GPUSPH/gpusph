@@ -1,11 +1,13 @@
-/* Math on CUDA vector types, inspired by cutil_math.h */
+/*! \file
+ * Math on CUDA vector types, inspired by cutil_math.h
+ */
 
 // NOTES: to ensure no downconversions are introduced, this header should
 // compile cleanly with -Wconversion enabled. To achieve this, use the following
 // care when adding functions:
 // * float functions should be used on float POD types (e.g.: fabsf instead of
 //   fabs when the argument is a float);
-// * double functions should be used double POD types (obviously);
+// * double functions should be used on double POD types (obviously);
 // * explictly cast int/uint to float when doing mixed int/float operations,
 //   since int-to-float conversion can actually cause data loss (for values
 //   larger than 2^24) and thus -Wconversion warns about them.

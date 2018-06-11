@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Predictor-corrector buffer allocation policy implementation
+ */
+
 #include "predcorr_alloc_policy.h"
 
 #include "define_buffers.h"

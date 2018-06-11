@@ -5,6 +5,10 @@
  *      Author: rustico
  */
 
+/*! \file
+ * Cross-thread syncronization
+ */
+
 #ifndef SYNCHRONIZER_H_
 #define SYNCHRONIZER_H_
 

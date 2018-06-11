@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Timing info */
+/*! \file
+ * Timing info
+ */
 
 #ifndef _TIMING_H
 #define _TIMING_H

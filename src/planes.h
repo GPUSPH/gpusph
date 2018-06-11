@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Data structures for geometric planes */
+/*! \file
+ * Data structures and associated definitions for geometric planes
+ */
 
 #ifndef _PLANES_H
 #define _PLANES_H

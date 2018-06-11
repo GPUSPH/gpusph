@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Simulation parameters for problems */
+/*! \file
+ * Simulation parameters for problems
+ */
 
 #ifndef _SIMPARAMS_H
 #define _SIMPARAMS_H

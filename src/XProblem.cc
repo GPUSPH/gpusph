@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Implementation of the high-level interface for Problem defintions
+ */
+
 #include <string>
 #include <iostream>
 

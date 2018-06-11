@@ -26,6 +26,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Core Problem class implementation
+ */
+
 #include <sstream>
 #include <stdexcept>
 #include <string>

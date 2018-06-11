@@ -22,6 +22,11 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+/*! \file
+ * Writer interface
+ */
+
 #ifndef _WRITER_H
 #define	_WRITER_H
 

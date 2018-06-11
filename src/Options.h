@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Definitions and classes to handle command-line options
+ */
+
 #ifndef _OPTIONS_H_
 #define _OPTIONS_H_
 
@@ -31,35 +35,39 @@
 #include <sstream> // for de-serialization of option values
 #include <map> // unordered_map would be faster, but it's C++11
 
-// arbitrary problem options are allowed, stored in
-// a string -> string map, and deserialized on retrieval.
+/*! arbitrary problem options are allowed, stored in
+ * a string -> string map, and deserialized on retrieval.
+ */
 typedef std::map<std::string, std::string> OptionMap;
 
+//! The Options class is used to manage command-line options
 class Options {
 private:
-	// Storage for arbitrary options
-	// TODO convert legacy options to new mechanism
+	//! Storage for arbitrary options
+	//! TODO convert legacy options to new mechanism
 	OptionMap m_options;
 
 public:
-	// legacy options
-	std::string	problem; // problem name
-	std::string	resume_fname; // file to resume simulation from
-	int		device;  // which device to use
-	std::string	dem; // DEM file to use
-	std::string	dir; // directory where data will be saved
-	double	deltap; // deltap
-	float	tend; // simulation end
-	unsigned long maxiter; // maximum number of iterations to run
-	float	checkpoint_freq; // frequency of hotstart checkpoints (in simulated seconds)
-	int		checkpoints; // number of hotstart checkpoints to keep
-	bool	nosave; // disable saving
-	bool	gpudirect; // enable GPUDirect
-	bool	striping; // enable striping (i.e. compute/transfer overlap)
-	bool	asyncNetworkTransfers; // enable asynchronous network transfers
-	unsigned int num_hosts; // number of physical hosts to which the processes are being assigned
-	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
-	bool no_leak_warning; // if true, do not warn if #parts decreased in simulations without outlets
+	//! legacy options
+	//! @{
+	std::string	problem; ///< problem name
+	std::string	resume_fname; ///< file to resume simulation from
+	int		device;  ///< which device to use
+	std::string	dem; ///< DEM file to use
+	std::string	dir; ///< directory where data will be saved
+	double	deltap; ///< deltap
+	float	tend; ///< simulation end
+	unsigned long maxiter; ///< maximum number of iterations to run
+	float	checkpoint_freq; ///< frequency of hotstart checkpoints (in simulated seconds)
+	int		checkpoints; ///< number of hotstart checkpoints to keep
+	bool	nosave; ///< disable saving
+	bool	gpudirect; ///< enable GPUDirect
+	bool	striping; ///< enable striping (i.e. compute/transfer overlap)
+	bool	asyncNetworkTransfers; ///< enable asynchronous network transfers
+	unsigned int num_hosts; ///< number of physical hosts to which the processes are being assigned
+	bool byslot_scheduling; ///< by slot scheduling across MPI nodes (not round robin)
+	bool no_leak_warning; ///< if true, do not warn if #parts decreased in simulations without outlets
+	//! @}
 
 	Options(void) :
 		m_options(),
@@ -82,8 +90,8 @@ public:
 		no_leak_warning(false)
 	{};
 
-	// set an arbitrary option
-	// TODO templatize for serialization?
+	//! set an arbitrary option
+	//! TODO templatize for serialization?
 	void
 	set(std::string const& key, std::string const& value)
 	{
@@ -91,6 +99,7 @@ public:
 		m_options[key] = value;
 	}
 
+	//! get the value of an option, providing default is option is not set
 	template<typename T> T
 	get(std::string const& key, T const& _default) const
 	{
@@ -112,15 +121,21 @@ public:
 	{ return m_options.end(); }
 };
 
-// Declare custom specializations which otherwise wouldn't be known to
-// Options users
+//! Declare custom specializations which otherwise wouldn't be known to
+//! Options users
+//! @{
+
+//! get() overload for string type
 template<>
 std::string
 Options::get(std::string const& key, std::string const& _default) const;
 
+//! get() overload for boolean type
 template<>
 bool
 Options::get(std::string const& key, bool const& _default) const;
+
+//! @}
 
 
 #endif

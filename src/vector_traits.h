@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Vector type traits, to allow generic programming for (specific) vector types only */
+/*! \file
+ * Vector type traits, to allow generic programming for (specific) vector types only
+ */
 
 #ifndef _VECTOR_TRAITS_H
 #define _VECTOR_TRAITS_H

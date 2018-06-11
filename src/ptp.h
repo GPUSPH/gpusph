@@ -30,6 +30,10 @@
  *      Author: kgamiel
  */
 
+/*! \file
+ * Point-to-point protocol definition
+ */
+
 #ifndef PTP_H_
 #define PTP_H_
 

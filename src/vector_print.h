@@ -23,7 +23,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Output streaming operator for vector types
+/*! \file
+ * Output streaming operator for vector types
  * TODO use std::basic_ostream<CharT, Traits> in place of std::ostream
  * for genericity
  */

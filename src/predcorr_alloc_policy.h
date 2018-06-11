@@ -28,7 +28,9 @@
 
 #include "buffer_alloc_policy.h"
 
-/* Predictor-corrector buffer allocation policy */
+/*! \file
+ * Predictor-corrector buffer allocation policy definitions
+ */
 
 struct PredCorrAllocPolicy : public BufferAllocPolicy {
 	virtual size_t get_max_buffer_count(flag_t Keys = FLAG_MAX) const;

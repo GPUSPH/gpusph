@@ -29,6 +29,10 @@
  * Created on 13 juin 2008, 18:21
  */
 
+/*! \file
+ * Core Problem class interface and related definitions
+ */
+
 #ifndef _PROBLEM_H
 #define	_PROBLEM_H
 

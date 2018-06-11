@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Writer dispatch implementation
+ */
+
 #include <sstream>
 #include <stdexcept>
 

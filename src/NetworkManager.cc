@@ -5,6 +5,10 @@
  *      Author: rustico
  */
 
+/*! \file
+ * NetworkManager class implementation
+ */
+
 #include "mpi_select.opt"
 
 #if USE_MPI

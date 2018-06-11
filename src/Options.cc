@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Specializations of option extractors for the problem class */
+/*! \file
+ * Specializations of option extractors for the problem class
+ */
 
 #include <Options.h>
 
@@ -32,6 +34,7 @@
 
 using namespace std;
 
+//! get a string value
 template<>
 string
 Options::get(string const& key, string const& _default) const
@@ -43,27 +46,32 @@ Options::get(string const& key, string const& _default) const
 	return _default;
 }
 
+//! values accepted to mean 'true'
 static const string true_values[] = {
 	"yes", "true", "1"
 };
 static const string *true_values_end = true_values + sizeof(true_values)/sizeof(*true_values);
 
+//! check if a string value represents a true value
 static bool is_true_value(string const& value)
 {
 	return find(true_values, true_values_end, value) != true_values_end;
 }
 
+//! values accepted to mean 'false'
 static const string false_values[] = {
 	"no", "false", "0"
 };
 static const string *false_values_end = false_values + sizeof(false_values)/sizeof(*false_values);
 
+//! check if a string value represents a true value
 static bool is_false_value(string const& value)
 {
 	return find(false_values, false_values_end, value) != false_values_end;
 }
 
 
+//! get a boolean value, throwing if the string representation is not a known boolean value
 template<>
 bool
 Options::get(string const& key, bool const& _default) const

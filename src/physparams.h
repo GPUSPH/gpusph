@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Physical parameters for problems */
+/*! \file
+ * Physical parameters for problems
+ */
 
 #ifndef _PHYSPARAMS_H
 #define _PHYSPARAMS_H

@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Common host-side utility functions and macros */
+/*!
+ * Common host-side utility functions and macros
+ */
 
 #ifndef _UTILS_H
 #define _UTILS_H
@@ -31,20 +33,20 @@
 #include <math.h>
 #include <float.h>
 
-// use STR(SOMEMACRO) to turn the content of SOMEMACRO into a string
+//! use STR(SOMEMACRO) to turn the content of SOMEMACRO into a string
 #define _STR(x) #x
 #define STR(x) _STR(x)
 
-// Compute a/b rounding up instead of down. The type T is supposed to be an
-// integer, since the code behaves as expected only for integer division.
-// Commonly used e.g. to compute the number of blocks to launch in a kernel.
+//! Compute a/b rounding up instead of down. The type T is supposed to be an
+//! integer, since the code behaves as expected only for integer division.
+//! Commonly used e.g. to compute the number of blocks to launch in a kernel.
 template<typename T>
 inline
 T div_up(T a, T b) {
 	return (a + b - 1)/b;
 }
 
-// for non-integral types:
+//! for non-integral types:
 inline
 float div_up(float a, float b) {
 	return ceil(a/b);
@@ -54,13 +56,13 @@ double div_up(double a, double b) {
 	return ceil(a/b);
 }
 
-// Round a up to the next multiple of b.
+//! Round a up to the next multiple of b.
 template<typename T>
 T round_up(T a, T b) {
 	return div_up(a, b)*b;
 }
 
-// check if a is a multiple of b
+//! check if a is a multiple of b
 inline
 bool is_multiple(double a, double b) {
 	double div = a/b;

@@ -26,9 +26,12 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* System-related definitions */
-
-// TODO split non-particle stuff into different header(s)
+/*! \file
+ * Particle system-related definitions
+ *
+ *
+ * TODO split non-particle stuff into different header(s)
+ */
 
 #ifndef _PARTICLEDEFINE_H
 #define	_PARTICLEDEFINE_H
@@ -38,6 +41,7 @@
 
 #include "common_types.h"
 
+//! Smoothing kernels
 enum KernelType {
 	CUBICSPLINE = 1,
 	QUADRATIC,
@@ -46,6 +50,7 @@ enum KernelType {
 	INVALID_KERNEL
 } ;
 
+//! Names of the smoothing kernels
 #ifndef GPUSPH_MAIN
 extern
 #endif
@@ -62,7 +67,7 @@ const char* KernelName[INVALID_KERNEL+1]
 #endif
 ;
 
-/* TODO find better names for F1 and F2 formulations */
+//! SPH formulations
 enum SPHFormulation {
 	SPH_F1 = 1,
 	SPH_F2,
@@ -70,6 +75,7 @@ enum SPHFormulation {
 	SPH_INVALID
 } ;
 
+//! Names of the SPH formulations
 #ifndef GPUSPH_MAIN
 extern
 #endif
@@ -85,6 +91,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
 #endif
 ;
 
+//! Density diffusion models
 enum DensityDiffusionType {
 	FERRARI = 1,
 	COLAGROSSI,
@@ -93,6 +100,7 @@ enum DensityDiffusionType {
 	INVALID_DENSITY_DIFFUSION
 } ;
 
+//! Name of the density diffusion models
 #ifndef GPUSPH_MAIN
 extern
 #endif
@@ -110,6 +118,7 @@ const char* DensityDiffusionTypeName[INVALID_DENSITY_DIFFUSION+1]
 ;
 
 
+//! Physical boundary models
 enum BoundaryType {
 	LJ_BOUNDARY,
 	MK_BOUNDARY,
@@ -118,6 +127,7 @@ enum BoundaryType {
 	INVALID_BOUNDARY
 };
 
+//! Names of the physical boundary models
 #ifndef GPUSPH_MAIN
 extern
 #endif
@@ -133,9 +143,12 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 #endif
 ;
 
+//! Epsilon for MLS determinant
 #define EPSDETMLS				0.05f
+//! Mininum number of neighbors for MLS correction
 #define MINCORRNEIBSMLS			4
 
+//! Viscous model
 enum ViscosityType {
 	ARTVISC = 1,
 	KINEMATICVISC,
@@ -145,6 +158,7 @@ enum ViscosityType {
 	INVALID_VISCOSITY
 } ;
 
+//! Name of the viscous model
 #ifndef GPUSPH_MAIN
 extern
 #endif
@@ -162,7 +176,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #endif
 ;
 
-/* Periodic boundary */
+//! Boundary periodicity
 enum Periodicity {
 	PERIODIC_NONE = 0,
 	PERIODIC_X   = 1,
@@ -174,6 +188,7 @@ enum Periodicity {
 	PERIODIC_XYZ = PERIODIC_X | PERIODIC_Y | PERIODIC_Z,
 };
 
+//! String representation for the boundary periodicity
 #ifndef GPUSPH_MAIN
 extern
 #endif
@@ -192,8 +207,8 @@ const char* PeriodicityName[PERIODIC_XYZ+1]
 #endif
 ;
 
-/* Density filters */
-// we define FIRST and INVALID filters to make iterating over all filters easier
+//! Density filters
+//! we define FIRST and INVALID filters to make iterating over all filters easier
 enum FilterType {
 	FIRST_FILTER = 0,
 	SHEPARD_FILTER = FIRST_FILTER,
@@ -201,6 +216,7 @@ enum FilterType {
 	INVALID_FILTER
 };
 
+//! Name of the density filters
 #ifndef GPUSPH_MAIN
 extern
 #endif
@@ -214,7 +230,7 @@ const char *FilterName[INVALID_FILTER+1]
 #endif
 ;
 
-/* Post processing engines */
+//! Post-processing engines
 enum PostProcessType {
 	FIRST_POSTPROC = 0,
 	VORTICITY = FIRST_POSTPROC,
@@ -225,6 +241,7 @@ enum PostProcessType {
 	INVALID_POSTPROC
 };
 
+//! Name of the post-processing engines
 #ifndef GPUSPH_MAIN
 extern
 #endif
@@ -241,24 +258,29 @@ const char *PostProcessName[INVALID_POSTPROC+1]
 #endif
 ;
 
-
+//! SPS model storage flags
 enum SPSKernelSimFlags {
 	SPSK_STORE_TAU = 1,
 	SPSK_STORE_TURBVISC = (SPSK_STORE_TAU << 1)
 };
 
-/* Upper limits for number of planes, fluids, and rigit bodies */
+//! Maximum number of planes allowed
 #define MAX_PLANES			8
+//! Maximum number of fluid types allowed
 #define MAX_FLUID_TYPES		4
+//! Maximum number of rigid bodies allowed
 #define	MAX_BODIES			16
 
-/* CUDA linear textures have a limit of 2^27 to the number of elements they can hold.
+/*! Maximum number of elements in a linear texture.
+ * CUDA linear textures have a limit of 2^27 to the number of elements they can hold.
  * This effectively imposes an upper limit on the number of particles that we can use
  * per GPU, due to our use of textures for caching.
  * TODO FIXME actually use this
  */
 #define MAX_CUDA_LINEAR_TEXTURE_ELEMENTS (1U << 27)
 
+//! 24-bit integer multiplication on 1.x was faster than simple integer multiplication,
+//! so wrap the multiplication in a macro.
 #if (__COMPUTE__ >= 20)
 	#define INTMUL(x,y) (x)*(y)
 #else
