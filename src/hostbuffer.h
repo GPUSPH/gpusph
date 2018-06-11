@@ -26,7 +26,9 @@
 #ifndef _HOST_BUFFER_H
 #define _HOST_BUFFER_H
 
-/* Specializations of the buffer class for host buffers */
+/*! \file
+ * Specializations of the Buffer class for host buffers
+ */
 
 // malloc
 #include <cstdlib>
@@ -38,8 +40,9 @@
 
 #include "buffer.h"
 
-/* a specialization of buffers, for the host */
-
+/*! Specialize the Buffer class in the case of host allocations
+ * (i.e. using malloc/free/memset/etc)
+ */
 template<flag_t Key>
 class HostBuffer : public Buffer<Key>
 {

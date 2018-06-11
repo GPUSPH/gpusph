@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Entrypoint to GPUSPH: parse options, instantiate problem and engine,
+ * run simulation, handle errors.
+ */
 
 // endl, cerr, etc.
 #include <iostream>

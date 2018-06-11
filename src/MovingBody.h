@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Movin body management
+ */
+
 #ifndef _MOVING_BODY_H
 #define _MOVING_BODY_H
 

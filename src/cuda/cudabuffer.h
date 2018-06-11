@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Specializations of the Buffer class for CUDA device buffers
+ */
+
 #ifndef _CUDA_BUFFER_H
 #define _CUDA_BUFFER_H
 
@@ -32,13 +36,12 @@
 
 #include "buffer.h"
 
-/* Specializations of the buffer class that reside on
- * a CUDA device */
-
 // CUDA_SAFE_CALL etc
 #include "cuda_call.h"
 
-// a specialization of buffers, with CUDA allocation and free
+/*! Specialize the Buffer class in the case of CUDA device allocations
+ * (i.e. using cudaMalloc/cudaFree/cudaMemset/etc)
+ */
 template<flag_t Key>
 class CUDABuffer : public Buffer<Key>
 {

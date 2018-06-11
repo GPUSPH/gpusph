@@ -23,6 +23,13 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Interface of the CUDA-based GPU worker
+ *
+ * \todo The CUDA-independent part should be split in a separate, generic
+ * Worker class.
+ */
+
 #ifndef GPUWORKER_H_
 #define GPUWORKER_H_
 

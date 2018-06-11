@@ -23,6 +23,13 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Implementation of the CUDA-based GPU worker
+ *
+ * \todo The CUDA-independent part should be split in a separate, generic
+ * Worker class.
+ */
+
 // ostringstream
 #include <sstream>
 // FLT_MAX

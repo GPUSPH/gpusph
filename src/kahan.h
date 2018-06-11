@@ -1,4 +1,6 @@
-/* Kahan summation and related functions */
+/*! \file
+ * Kahan summation and related functions
+ */
 
 #ifndef _KAHAN_H_
 #define _KAHAN_H_
@@ -6,6 +8,8 @@
 #include <math_functions.h>
 #define __spec __host__ __device__
 
+//! Add n floating-point values stored in q
+//! using Kahan summation
 float
 __spec
 kahan_sum(const float *q, uint n)
@@ -24,8 +28,7 @@ kahan_sum(const float *q, uint n)
 	return sum;
 }
 
-/* special cases for 3 and 4 components */
-
+//! Kahan sum of three floating-point values
 float
 __spec
 kahan_sum(const float f1, const float f2, const float f3)
@@ -47,6 +50,7 @@ kahan_sum(const float f1, const float f2, const float f3)
 	return sum;
 }
 
+//! Kahan sum of four floating-point values
 float
 __spec
 kahan_sum(const float f1, const float f2, const float f3, const float f4)
@@ -73,6 +77,7 @@ kahan_sum(const float f1, const float f2, const float f3, const float f4)
 	return sum;
 }
 
+//! Kahan sum of five floating-point values
 float
 __spec
 kahan_sum(const float f1, const float f2, const float f3, const float f4, const float f5)
@@ -104,6 +109,8 @@ kahan_sum(const float f1, const float f2, const float f3, const float f4, const 
 	return sum;
 }
 
+//! Check if any component is non-zero
+//! @{
 inline bool
 __spec
 operator !(const float3& v) {
@@ -115,7 +122,10 @@ __spec
 operator !(const float4& v) {
 	return !(v.x || v.y || v.z || v.w);
 }
+//! @}
 
+//! Increment val by add using Kahan summation
+//! and storing the remainder in kahan
 template<typename T>
 inline void
 __spec
@@ -138,6 +148,8 @@ kahan_dot(const float2 &f1, const float2 &f2)
 	return f1.x*f2.x + f1.y*f2.y;
 }
 
+//! Cross-product using Kahan summation
+//! @{
 inline float
 __spec
 kahan_dot(const float3 &f1, const float3 &f2)
@@ -151,7 +163,10 @@ kahan_dot(const float4 &f1, const float4 &f2)
 {
 	return kahan_sum(f1.x*f2.x, f1.y*f2.y, f1.z*f2.z, f1.w*f2.w);
 }
+//! @}
 
+//! Squared vector length using Kahan summation
+//! @{
 inline float
 __spec
 kahan_sqlength(const float2 &f1)
@@ -172,7 +187,10 @@ kahan_sqlength(const float4 &f1)
 {
 	return kahan_dot(f1, f1);
 }
+//! @}
 
+//! Vector length using Kahan summation
+//! @{
 inline float
 __spec
 kahan_length(const float2 &f1)
@@ -193,6 +211,7 @@ kahan_length(const float4 &f1)
 {
 	return sqrt(kahan_sqlength(f1));
 }
+//! @}
 
 #undef __spec
 

@@ -26,48 +26,61 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Defines for multi-device support
+ */
 #ifndef _MULTIGPU_DEFINES_
 #define _MULTIGPU_DEFINES_
 
-// We use a byte (uchar) to address a device in the cluster
-#define MAX_DEVICES_PER_CLUSTER 256
-
+//! We use a byte (uchar) to address a device in the cluster
+//! @{
 typedef unsigned char devcount_t;
+#define GLOBAL_DEVICE_BITS 8
+#define MAX_DEVICES_PER_CLUSTER (1 << GLOBAL_DEVICE_BITS)
+//! @}
 
-// How many bits [1...8] we reserve to the node rank in the global device index
-// default: 8 devices max per node (so 3 bits), and the remaining bits (5)
-// for the nodes, (so 32 nodes)
+//! Distribution of device bits between per-node devices and node rank
+//! By default we max 8 devices per node (using 3 bits) and the remaining bits (5)
+//! are used for the nodes, thus allowing up to 32 nodes.
+//! @{
 #define DEVICE_BITS 3
-#define NODE_BITS (8 - DEVICE_BITS)
+#define NODE_BITS (GLOBAL_DEVICE_BITS - DEVICE_BITS)
 #define MAX_NODES_PER_CLUSTER (1 << NODE_BITS)
 #define MAX_DEVICES_PER_NODE  (1 << DEVICE_BITS)
 #define DEVICE_BITS_MASK (MAX_DEVICES_PER_NODE - 1)
+//! @}
 
-// The two most significant bits of the cell hash are reserved for multi-GPU usage, as they are used
-// to indicate the cell type (inner, edge, outer). Take this into account in the maximum number of
-// cells we can have in a problem
+//! The two most significant bits of the cell hash are reserved for multi-GPU
+//! usage, as they are used to indicate the cell type (inner, edge, outer). Take
+//! this into account in the maximum number of
+//! cells we can have in a problem
 #define MAX_CELLS			(UINT_MAX >> 2)
 
-// cellTypes used as array indices for the segments
+//! cellTypes used as array indices for the segments
+//! @{
 #define CELLTYPE_INNER_CELL			0U
 #define CELLTYPE_INNER_EDGE_CELL	1U
 #define CELLTYPE_OUTER_EDGE_CELL	2U
 #define CELLTYPE_OUTER_CELL			3U
+//! @}
 
-// 2 high bits for cell type in the compact device map. It is important in
-// the current implementation that the OUTER cells are sorted last
+//! 2 high bits for cell type in the compact device map. It is important in
+//! the current implementation that the OUTER cells are sorted last
+//! @{
 #define CELLTYPE_INNER_CELL_SHIFTED			(CELLTYPE_INNER_CELL<<30)
 #define CELLTYPE_INNER_EDGE_CELL_SHIFTED	(CELLTYPE_INNER_EDGE_CELL<<30)
 #define CELLTYPE_OUTER_EDGE_CELL_SHIFTED	(CELLTYPE_OUTER_EDGE_CELL<<30)
 #define CELLTYPE_OUTER_CELL_SHIFTED			(CELLTYPE_OUTER_CELL<<30) // memset to 0xFF for making OUTER_CELL defaults
+//! @}
 
-// Bitmasks used to reset the cellType (AND mask to reset the high bits, AND ~mask to extract them)
+//! Bitmasks used to reset the cellType (AND mask to reset the high bits, AND
+//! ~mask to extract them)
 #define CELLTYPE_BITMASK		(~( 3U  << 30 ))
 
-// Empty segment (uint)
+//! Empty segment (uint)
 #define EMPTY_SEGMENT (UINT_MAX)
-// guess?
-// TODO: fix comment (Alexis)
+
+//! Empty cell
 #define EMPTY_CELL (UINT_MAX)
 
 #endif // _MULTIGPU_DEFINES_

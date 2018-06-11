@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Interface of the GPUSPH core
+ */
+
 #ifndef GPUSPH_H_
 #define GPUSPH_H_
 

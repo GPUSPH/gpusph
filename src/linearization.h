@@ -26,8 +26,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-/* The following defines constitute an abstraction of the cartesian coordinates to easily change
+/*! \file
+ * The following defines constitute an abstraction of the cartesian coordinates to easily change
  * the order they are used in cell linearization in the whole GPUSPH. This enables fine tuning
  * of the linearization function for performance improvements. In particular, MULTI_DEVICE
  * simulations will benefit of it when the major split axis is COORD3: this means that all the

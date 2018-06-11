@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Implementation of the GPUSPH core
+ */
+
 #include <cfloat> // FLT_EPSILON
 
 #include <unistd.h> // getpid()
