@@ -41,6 +41,7 @@ ifeq ($(GPUSPH_VERSION), $(empty))
 $(warning Unable to determine GPUSPH version)
 GPUSPH_VERSION=unknown-version
 endif
+export GPUSPH_VERSION
 
 # system information
 platform=$(shell uname -s 2>/dev/null)
@@ -774,6 +775,7 @@ ifeq ($(echo), 1)
 else
 	CMDECHO := @
 endif
+export CMDECHO
 
 .PHONY: all run showobjs show snapshot expand deps docs test help
 .PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean
