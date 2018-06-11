@@ -23,14 +23,12 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Contains the abstract interface for the NeibsEngine
+ */
+
 #ifndef _NEIBSENGINE_H
 #define _NEIBSENGINE_H
-
-/* Abstract NeibsEngine base class; it simply defines the interface
- * of the NeibsEngine
- * TODO FIXME in this transition phase it just mirros the exact same
- * set of methods that were exposed in buildneibs, with the same
- * signatures, but the design probably needs to be improved. */
 
 #include "particledefine.h"
 #include "physparams.h"
@@ -38,29 +36,36 @@
 #include "timing.h"
 #include "buffer.h"
 
-/// Neighbor engine class virtual container
-/*!	AbstractNeibsEngine is an abstract class containing only pure virtual functions.
- *	Those functions should be implemented in a child class.
-*/
+/*! Abstract class that defines the interface for the NeibsEngine.
+ * The NeibsEngine is the part of the framework that takes care of building
+ * the neighbors list (and associated tasks, such as computing the
+ * particle hash and handling periodicity).
+ */
 class AbstractNeibsEngine
 {
 public:
 	virtual ~AbstractNeibsEngine() {}
 
+	/// Set the device constants
 	virtual void
 	setconstants(const SimParams *simparams, const PhysParams *physparams,
 		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
 		idx_t const& allocatedParticles) = 0;
 
+	/// Get the device constants
 	virtual void
 	getconstants(SimParams *simparams, PhysParams *physparams) = 0;
 
+	/// Reset iteration information (timing, max neibs, etc)
 	virtual void
 	resetinfo() = 0;
 
+	/// Get the current timing information
 	virtual void
 	getinfo(TimingInfo &timingInfo) = 0;
 
+	/// Compute the particle hash, and disable particles that have
+	/// flown out of the domain.
 	virtual void
 	calcHash(float4*	pos,
 			hashKey*	particleHash,
@@ -69,6 +74,8 @@ public:
 			uint*		compactDeviceMap,
 			const uint	numParticles) = 0;
 
+	/// Update the particle hash computed on host.
+	/// This is done to mark cells and particles that belong to other devices
 	virtual void
 	fixHash(hashKey*	particleHash,
 			uint*		particleIndex,
@@ -76,6 +83,7 @@ public:
 			uint*		compactDeviceMap,
 			const uint	numParticles) = 0;
 
+	/// Sort the data to match the new particle order
 	virtual void
 	reorderDataAndFindCellStart(
 			uint*		cellStart,
@@ -88,11 +96,13 @@ public:
 			const uint		numParticles,
 			uint*			newNumParticles) = 0;
 
+	/// Sort the particles by hash and particleinfo
 	virtual void
 	sort(	const BufferList& bufread,
 			BufferList& bufwrite,
 			uint	numParticles) = 0;
 
+	/// Build the neighbors list
 	virtual void
 	buildNeibsList(	neibdata*			neibsList,
 					const float4*		pos,

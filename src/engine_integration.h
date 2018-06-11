@@ -23,47 +23,58 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Contains the abstract interface for the IntegrationEngine
+ */
+
 #ifndef _INTEGRATIONENGINE_H
 #define _INTEGRATIONENGINE_H
-
-/* Abstract IntegrationEngine base class; it simply defines the interface
- * of the IntegrationEngine
- * TODO FIXME in this transition phase it just mirros the exact same
- * set of methods that were exposed in euler, with the same
- * signatures, but the design probably needs to be improved. */
 
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
 #include "buffer.h"
 
+/*! Abstract class that defines the interface for the IntegrationEngine
+ */
 class AbstractIntegrationEngine
 {
 public:
 	virtual ~AbstractIntegrationEngine() {}
 
+	/// Set the device constants
 	virtual void
 	setconstants(const PhysParams *physparams, float3 const& worldOrigin,
 		uint3 const& gridSize, float3 const& cellSize, idx_t const& allocatedParticles,
 		int const& neiblistsize, float const& slength) = 0;
 
+	/// Get the device constants
 	virtual void
 	getconstants(PhysParams *physparams) = 0;
 
+	/// \defgroup IntegrationEngineRB Rigid Body methods for the IntegrationEngine
+	/// @{
+
+	/// Set the center of mass of all rigid bodies
 	virtual void
 	setrbcg(const int3* cgGridPos, const float3* cgPos, int numbodies) = 0;
 
+	/// Set the translation of all rigid bodies
 	virtual void
 	setrbtrans(const float3* trans, int numbodies) = 0;
 
+	/// Set the rotation of all rigid bodies
 	virtual void
 	setrbsteprot(const float* rot, int numbodies) = 0;
 
+	/// Set the linear velocity of all rigid bodies
 	virtual void
 	setrblinearvel(const float3* linearvel, int numbodies) = 0;
 
+	/// Set the angular velocity of all rigid bodies
 	virtual void
 	setrbangularvel(const float3* angularvel, int numbodies) = 0;
+	/// @}
 
 	/// Integral formulation of continuity equation
 	/*! Integrates density and gamma */
@@ -98,6 +109,7 @@ public:
 		const	float	slength,
 		const	float	influenceRadius) = 0;
 
+	/// Apply density diffusion
 	virtual void
 	apply_density_diffusion(
 		const BufferList& bufread,
@@ -107,9 +119,9 @@ public:
 		const	uint	particleRangeEnd,
 		const	float	dt) = 0;
 
-	/// Single integration 
-	// TODO will probably need to be made more generic for other
-	// integration schemes
+	/// Single integration step
+	/// TODO will probably need to be made more generic for other
+	/// integration schemes
 	virtual void
 	basicstep(
 		const BufferList& bufread,	// this is the read only arrays

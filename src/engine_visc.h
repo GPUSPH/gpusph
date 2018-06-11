@@ -23,26 +23,30 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Contains the abstract interface for the ViscEngine
+ */
+
 #ifndef _VISCENGINE_H
 #define _VISCENGINE_H
 
-/* Abstract ViscEngine base class; it simply defines the interface
- * of the ViscEngine.
+#include "particledefine.h"
+
+/*! Abstract class that defines the interface for the ViscEngine
  * ViscEngines handle the pre-computation of viscosity before the forces.
  * (e.g. SPS, temperature- or rheology-dependent viscosity, etc)
  */
-
-#include "particledefine.h"
-
-// TODO as usual, the API needs to be redesigned properly
 class AbstractViscEngine
 {
 public:
 	virtual ~AbstractViscEngine() {}
 
+	/// Set device constants
 	virtual void setconstants() = 0 ; // TODO
+	/// Get device constants
 	virtual void getconstants() = 0 ; // TODO
 
+	/// Run the viscosity computation step
 	virtual void
 	process(		float2	*tau[],
 					float	*turbvisc,

@@ -26,32 +26,44 @@
 #ifndef _FILTERENGINE_H
 #define _FILTERENGINE_H
 
-/* Abstract FilterEngine base class; it simply defines the interface
- * of the FilterEngine.
- * FilterEngines are run periodically (every N iterations) to filter
- * values (typically, smoothing density: MLS, shepard)
+/*! \file
+ * Contains the abstract interface for filter engines.
  */
 
 #include "particledefine.h"
 
-// TODO as usual, the API needs to be redesigned properly
+/* Abstract class that defines the interface for each FilterEngine
+ * FilterEngines are run periodically (every N iterations) to filter
+ * values (typically, smoothing density: MLS, shepard).
+ */
 class AbstractFilterEngine
 {
 	uint m_frequency; // frequency of the pre-processing (iterations)
 public:
 
+	//! Constructor, sets the frequency
 	AbstractFilterEngine(uint _frequency) : m_frequency(_frequency)
 	{}
 
+	//! Override the frequency
 	void set_frequency(uint _frequency)
 	{ m_frequency = _frequency; }
 
+	//! Get the frequency
 	inline uint frequency() const
 	{ return m_frequency; }
 
+	//! Getter/setter for device constants
+	//! @{
 	virtual void setconstants() = 0 ; // TODO
 	virtual void getconstants() = 0 ; // TODO
+	//! @}
 
+
+	//! Run the filter. Currently this is designed to only filter
+	//! velocity and/or density.
+	//! \todo provide a more general interface, accepting
+	//! the usual pair of read and write BufferList
 	virtual void
 	process(
 		const	float4	*pos,

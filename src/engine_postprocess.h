@@ -23,17 +23,12 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Contains the abstract interface for the PostProcessEngines
+ */
+
 #ifndef _POSTPROCENGINE_H
 #define _POSTPROCENGINE_H
-
-/* Abstract PostProcessEngine base class; it simply defines the interface
- * of the PostProcessEngine.
- * PostProcessEngines are run before writes to produce additional information
- * which is not typically needed during a simulation (e.g. vorticity, testpoint
- * values, surface detection etc).
- *
- * NOTE: surface detection might be needed for other purposes in the future!
- */
 
 #include "particledefine.h"
 #include "buffer.h"
@@ -43,26 +38,37 @@
 // define the GlobalData struct so that we can pass pointers to the functions
 struct GlobalData;
 
-// TODO as usual, the API needs to be redesigned properly
+/*! Abstract class that defines the interface for the PostProcessEngine.
+ * PostProcessEngines are run before writes to produce additional information
+ * which is not typically needed during a simulation (e.g. vorticity, testpoint
+ * values, surface detection etc).
+ *
+ * NOTE: surface detection might be needed for other purposes in the future!
+ */
 class AbstractPostProcessEngine
 {
 protected:
+	/// Hold the options enabled for this specific engine
 	flag_t m_options;
 public:
 
+	/// Construct an engine with the given options
 	AbstractPostProcessEngine(flag_t options=NO_FLAGS) :
 		m_options(options)
 	{}
 
+	/// Get the options set when the engine was created
 	flag_t const& get_options() const
 	{ return m_options; }
 
+	/// Set device constants
 	virtual void
 	setconstants(
 		const	SimParams	*simparams,
 		const	PhysParams	*physparams,
 		idx_t	const&		allocatedParticles) const = 0;
 
+	/// Get device constants
 	virtual void getconstants() = 0 ; // TODO
 
 	//< Main processing routine

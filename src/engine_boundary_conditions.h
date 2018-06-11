@@ -5,6 +5,10 @@
  *      Author: alexisherault
  */
 
+/*! \file
+ * Contains the abstract interface for the BoundaryConditionsEngine
+ */
+
 #ifndef ENGINE_BOUNDARY_CONDITIONS_H_
 #define ENGINE_BOUNDARY_CONDITIONS_H_
 
@@ -13,18 +17,20 @@
 #include "simparams.h"
 #include "buffer.h"
 
-/// TODO AbstractBoundaryConditionsEngine is presently just horrible hack to
-/// speed up the transition to header-only / engine definitions
+/*! Abstract class that defines the interface for BoundaryConditionsEngine.
+ * Currently most of its methods are specific to SA_BOUNDARY, so it's a bit
+ * of a hack.
+ */
 class AbstractBoundaryConditionsEngine
 {
 public:
 	virtual ~AbstractBoundaryConditionsEngine() {}
 
-// Set the number of vertices present in the whole simulation
+/// Set the number of vertices present in the whole simulation
 virtual void
 uploadNumOpenVertices(const uint &numOpenVertices) = 0;
 
-// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
+/// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 virtual void
 saSegmentBoundaryConditions(
 	BufferList &bufwrite,
@@ -51,9 +57,11 @@ findOutgoingSegment(
 	const	float			slength,
 	const	float			influenceradius) = 0;
 
-// There is no need to use two velocity arrays (read and write) and swap them after.
-// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
-// Data is only read from fluid and segments and written only on vertices.
+/*! Computes the boundary conditions on vertex particles using the values from
+ * the segments associated to it. Also creates particles for inflow boundary
+ * conditions. Data is only read from fluid and segments and written only on
+ * vertices, so there is no need to use two velocity buffers and swap.
+ */
 virtual void
 saVertexBoundaryConditions(
 	BufferList &bufwrite,
@@ -75,7 +83,7 @@ saVertexBoundaryConditions(
 	const	uint			numDevices,
 	const	uint			totParticles) = 0;
 
-// computes a normal for vertices in the initialization step
+//! Computes a normal for vertices in the initialization step
 virtual void
 computeVertexNormal(
 	const BufferList&	bufread,
@@ -84,7 +92,7 @@ computeVertexNormal(
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
 
-// initialize gamma
+//! Initialize gamma
 virtual void
 saInitGamma(
 	const BufferList&	bufread,
@@ -97,7 +105,7 @@ saInitGamma(
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
 
-// counts vertices that belong to IO and same segment as other IO vertex
+//! Counts vertices that belong to open boundaries and share a segment with other open boundary vertices
 virtual
 void
 initIOmass_vertexCount(
@@ -107,7 +115,7 @@ initIOmass_vertexCount(
 	const	uint*			cellStart,
 	const	uint			particleRangeEnd) = 0;
 
-// modification of initial io vertex mass
+//! Distribute initial mass for open boundary vertices
 virtual
 void
 initIOmass(
@@ -118,7 +126,7 @@ initIOmass(
 	const	uint			particleRangeEnd,
 	const	float			deltap) = 0;
 
-// disables particles that went through boundaries when open boundaries are used
+//! Disables particles that went through boundaries when open boundaries are used
 virtual void
 disableOutgoingParts(		float4*			pos,
 							vertexinfo*		vertices,
@@ -126,21 +134,21 @@ disableOutgoingParts(		float4*			pos,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd) = 0;
 
-// downloads the per device waterdepth from the GPU
+//! Downloads the per device waterdepth from the GPU
 virtual void
 downloadIOwaterdepth(
 			uint*	h_IOwaterdepth,
 	const	uint*	d_IOwaterdepth,
 	const	uint	numObjects) = 0;
 
-// upload the global waterdepth to the GPU
+//! Upload the global waterdepth to the GPU
 virtual void
 uploadIOwaterdepth(
 	const	uint*	h_IOwaterdepth,
 			uint*	d_IOwaterdepth,
 	const	uint	numObjects) = 0;
 
-// identifies vertices at the corners of open boundaries
+//! Identifies vertices at the corners of open boundaries
 virtual void
 saIdentifyCornerVertices(
 	const	float4*			oldPos,
