@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Debug flags implementation
+ */
+
 #include "buffer.h" // for DEBUG_BUFFER_ACCESS
 #include "debugflags.h"
 

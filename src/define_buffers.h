@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Define one flag for each buffer which is used in a worker */
+/*! \file
+ * Define one flag for each buffer which is used in a worker
+ */
 
 #ifndef DEFINED_BUFFERS
 #define DEFINED_BUFFERS

@@ -1,3 +1,14 @@
+/*! \file
+ * \brief Debug flags definition.
+ *
+ * Individual debug flags are defined here. This file is included as-is
+ * from src/debugflags.h, and is processed to generate two files:
+ * src/parse-debugflags.h
+ * 	which is included by src/debugflags.cc to parse the flag names
+ * src/describe-debugflags.h
+ * 	which is included by src/main.cc to provide help on the debug flags
+ */
+
 /* Please follow the convention:
  * Each debug flag is preceded by a 'header' comment that describes the flag in
  * a short one-liner. This header comment is marked by a triple / at the beginning

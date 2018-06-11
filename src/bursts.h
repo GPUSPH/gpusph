@@ -23,10 +23,15 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Data types to describe data transfer bursts
+ */
 #ifndef _BURSTS_H
 #define _BURSTS_H
 
 #include <vector>
+
+#include "common_types.h"
 
 typedef enum {SND, RCV} TransferDirection;
 

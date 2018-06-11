@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Common types used throughout GPUSPH */
+/*! \file
+ * Common types used throughout GPUSPH
+ */
 
 #ifndef _COMMON_TYPES_H
 #define _COMMON_TYPES_H

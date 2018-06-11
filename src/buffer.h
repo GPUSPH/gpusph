@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Buffer class and associates
+ */
+
 #ifndef _BUFFER_H
 #define _BUFFER_H
 

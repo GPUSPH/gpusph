@@ -23,8 +23,12 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Types, structures, operators and functions that are useful on host,
- * but missing in versions of C++ earlier than C++11
+/*! \file
+ * Types, structures, operators and functions that are useful on host
+ * and device, but missing in earlier versions of C++.
+ * This used to be about stuff missing before C++11, but it has grown
+ * to include stuff that is missing in C++11, defined in C++14/C++17,
+ * and that can be defined in C++11 too.
  */
 
 #ifndef _CPP11_MISSING_H
@@ -34,7 +38,7 @@
 
 #if __cplusplus < 201103L
 
-/* decltype is only avaialable on C++11, but both gcc and clang support
+/*! decltype is only avaialable on C++11, but both gcc and clang support
  * __decltype even on older standards, so use that (unless decltype was
  * already defined, that happens in certain versions of Clang on the Mac
  * OS X)
@@ -43,7 +47,7 @@
 #define decltype __decltype
 #endif
 
-/* conditional is trivial to implement pre-C++11.
+/*! conditional is trivial to implement pre-C++11.
  * It is used to choose either of two types depending on
  * whether a boolean condition is satisfied or not.
  */
@@ -53,7 +57,7 @@ struct conditional { typedef T type; };
 template<typename T, typename F>
 struct conditional<false, T, F> { typedef F type; };
 
-/* enable_if is also trivial to implement pre-C++11.
+/*! enable_if is also trivial to implement pre-C++11.
  * It is used as std::enable_if<some_condition, some_type>::type
  * to restrict a function template to the cases where some_condition
  * (generally assembled from the function template parameters) is satisfied.

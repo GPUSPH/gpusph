@@ -26,7 +26,8 @@
 #ifndef _COND_PARAMS_H
 #define _COND_PARAMS_H
 
-/* Some kernels are very complex and require a different set of parameters in
+/*! \file
+   Some kernels are very complex and require a different set of parameters in
    some specializations.
 
    All of this should be managed as automagically as possible while trying to
@@ -54,26 +55,29 @@
    fallback for each constructor used in the structure it is used as a replacement of.
 */
 
+/*! Empty structure to be used in place of the given typename when the
+ * structre inclusion condition is not satisfied.
+ */
 template<typename>
 struct empty
 {
-	// constructors
+	/// Empty constructor
 	__host__ __device__ __forceinline__
 	empty() {}
 
+	/// Universal constructor
 	template<typename ...T1>
 	__host__ __device__ __forceinline__
 	empty(T1...) {}
 };
 
 
-/* Inclusion of struct_to_include under a given condition would be achieved by
+/*! Inclusion of struct_to_include under a given condition would be achieved by
    deriving the complete class from:
-   > conditional<boolean_condition, struct_to_include, empty<struct_to_include> >::type
+       conditional<boolean_condition, struct_to_include, empty<struct_to_include> >::type
    for example:
-   > conditional<boundarytype == SA_BOUNDARY, sa_boundary_forces_params, empty<sa_boundary_forces_params> >::type
-   which is very verbose, so we define a macro COND_STRUCT(boolean_condition,
-   struct_to_include) to do the job for us
+       conditional<boundarytype == SA_BOUNDARY, sa_boundary_forces_params, empty<sa_boundary_forces_params> >::type
+   which is very verbose, so we define a macro COND_STRUCT(boolean_condition, struct_to_include) to do the job for us
 */
 
 #define COND_STRUCT(some_cond, ...) \

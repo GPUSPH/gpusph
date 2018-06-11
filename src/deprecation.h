@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Macros to mark functions as deprecated */
+/*! \file
+ * Macros to mark functions as deprecated
+ */
 
 #ifndef _DEPRECATION_H
 #define _DEPRECATION_H

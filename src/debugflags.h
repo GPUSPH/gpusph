@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Debug flags
+ */
+
 #ifndef DEBUG_FLAGS_H
 #define DEBUG_FLAGS_H
 

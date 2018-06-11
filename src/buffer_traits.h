@@ -23,31 +23,35 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * BufferTraits structure and quick-definition macro
+ */
+
 #ifndef _BUFFER_TRAITS_H
 #define _BUFFER_TRAITS_H
 
 // flag_t
 #include "common_types.h"
 
-/* BufferTraits: traits struct used to associate a buffer key
+/*! BufferTraits: traits struct used to associate a buffer key
  * with the respective buffer type, number of arrays,
  * and printable name */
 
 template<flag_t Key>
 struct BufferTraits
 {
-	// type of the buffer
+	//! type of the elements stored in the buffer
 	typedef void element_type;
-	// number of buffers. Defaults to zero, so that it may generate an error
+	//! number of buffers. Defaults to zero, so that it may generate an error
 	enum { num_buffers = 0 };
-	// printable name of the buffer
+	//! printable name of the buffer
 	static char name[];
 };
 
-/* Define buffer keys and set buffer traits:
- * data type
- * number of arrays in buffer
- * printable name of buffer
+/*! Macro to define buffer keys and set buffer traits:
+ *  * data type
+ *  * number of arrays in buffer
+ *  * printable name of buffer
  */
 #define SET_BUFFER_TRAITS(code, _type, _nbufs, _name) \
 template<> struct BufferTraits<code> \

@@ -23,8 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* This file is only used to hold the actual strings
- * defining the buffer printable names
+/*! \file
+ * This file is only used to hold the actual strings
+ * defining the buffer printable names.
  */
 
 #include "GlobalData.h"
