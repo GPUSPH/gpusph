@@ -783,11 +783,11 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = ../src \
-                         ../src/cuda \
-                         ../src/geometries \
-                         ../src/problems \
-                         ../src/writers \
+INPUT                  = ../../src \
+                         ../../src/cuda \
+                         ../../src/geometries \
+                         ../../src/problems \
+                         ../../src/writers \
                          src/dox
 
 # This tag can be used to specify the character encoding of the source files
@@ -2077,12 +2077,12 @@ SEARCH_INCLUDES        = YES
 # preprocessor.
 # This tag requires that the tag SEARCH_INCLUDES is set to YES.
 
-INCLUDE_PATH           = ./options \
-                         src \
-                         src/cuda \
-                         src/geometries \
-                         src/problems \
-                         src/writers
+INCLUDE_PATH           = ../../options \
+                         ../../src \
+                         ../../src/cuda \
+                         ../../src/geometries \
+                         ../../src/problems \
+                         ../../src/writers
 
 # You can use the INCLUDE_FILE_PATTERNS tag to specify one or more wildcard
 # patterns (like *.h and *.hpp) to filter out the header-files in the
