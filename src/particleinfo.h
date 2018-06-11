@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Particle info type and functions */
+/*! \file
+ * Particle info type and functions
+ */
 
 #ifndef _PARTICLEINFO_H
 #define _PARTICLEINFO_H
@@ -37,8 +39,6 @@
 #include <cuda_runtime.h>
 
 #include "common_types.h" // ushort
-
-/** @file */
 
 /** \addtogroup particleinfo Particles types and flags
  * 	\ingroup datastructs

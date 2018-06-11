@@ -23,38 +23,60 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Flags used as command parameters
+ */
+
 #ifndef _COMMAND_FLAGS_H
 #define _COMMAND_FLAGS_H
 
 #include "common_types.h"
 
-// 0 reserved as "no flags"
+//! Value 0 reserved as "no flags"
 #define NO_FLAGS	((flag_t)0)
 
-// flags for kernels that process arguments differently depending on which
-// step of the simulation we are at
-// (e.g. forces, euler)
-// these grow from the bottom
+//! \name Integrator steps
+/*! Flags for kernels that process arguments differently depending on which
+ * step of the simulation we are at (e.g. forces, euler).
+ * These grow from the bottom.
+ * @{
+ */
+
 #define INITIALIZATION_STEP	((flag_t)1)
 #define INTEGRATOR_STEP_1	(INITIALIZATION_STEP << 1)
 #define INTEGRATOR_STEP_2	(INTEGRATOR_STEP_1 << 1)
+
+//! The last step
 #define	LAST_DEFINED_STEP	INTEGRATOR_STEP_2
+
 // if new steps are added after INTEGRATOR_STEP_2, remember to update LAST_DEFINED_STEP
 
-// A mask for all integration steps
+//! A mask for all integration steps
 #define ALL_INTEGRATION_STEPS ((LAST_DEFINED_STEP << 1) - 1)
+/** @} */
 
-// flags to select which buffer to access, in case of double-buffered arrays
-// these grow from the top
+//! \name Double-buffer specifications
+/*! Flags to select which buffer to access, in case of double-buffered arrays.
+ * These grow from the top.
+ * @{
+ */
 #define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type
 #define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
+/*! @} */
 
-// now, flags used to specify the buffers to access for swaps, uploads, updates, etc.
-// these start from the next available bit from the bottom and SHOULD NOT get past the highest bit available
-// at the top
 
-// start with a generic define that can be used to iterate over all buffers
+//! \name Buffer key specifications
+/*! Flags that indicate which buffer shuld be accessed for swaps, uploads, updates, etc.
+ * These start from the next available bit from the bottom (i.e. after the LAST_DEFINED_STEP),
+ * and SHOULD NOT get past the highest bit available (i.e. end before DBLBUFFER_READ)
+ * @{
+ */
+
+/*! Generic define for the beginning of the buffer keys, defined in
+ * src/define_buffers.h
+ */
 #define FIRST_DEFINED_BUFFER	(LAST_DEFINED_STEP << 1)
+/*! @} */
 
 #endif
 
