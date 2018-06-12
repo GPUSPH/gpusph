@@ -51,8 +51,11 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal simulation parameters
 	resize_neiblist(256 + 64, 128); // 352
-	// ferrari correction
-	simparams()->ferrariLengthScale = 0.25f;
+	// Density diffusion coefficient
+	if (simparams()->densitydiffusiontype == FERRARI)
+		simparams()->ferrariLengthScale = 0.25f;
+	else
+		simparams()->densityDiffCoeff = 0.01;
 
 	// buildneibs at every iteration
 	simparams()->buildneibsfreq = 1;
