@@ -230,7 +230,7 @@ enable_if_t<(
 update_normals(EP const& params, P &pdata, int index)
 {
 	float4 normal = params.oldBoundElement[index];
-	if (BOUNDARY(pdata.info) || VERTEX(pdata.info)) {
+	if (MOVING(pdata.info) && (BOUNDARY(pdata.info) || VERTEX(pdata.info))) {
 		applyrot(&d_rbsteprot[9*object(pdata.info)], make_float3(normal), normal);
 	}
 	params.newBoundElement[index] = normal;
