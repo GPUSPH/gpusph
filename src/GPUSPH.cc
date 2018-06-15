@@ -1366,7 +1366,7 @@ void GPUSPH::sortParticlesByHash() {
 	// NOTE(2): we don't need to iterate in the last bucket: it should be already correct after the others. That's why "devices-1".
 	// We might want to iterate on last bucket only for correctness check.
 	// For each bucket (device)...
-	for (uint currentGlobalDevice = 0; currentGlobalDevice < (gdata->totDevices - 1); currentGlobalDevice++) {
+	for (uint currentGlobalDevice = 0; currentGlobalDevice < (gdata->totDevices - 1U); currentGlobalDevice++) {
 		// compute where current bucket ends
 		nextBucketBeginsAt += particlesPerGlobalDevice[currentGlobalDevice];
 		// reset rightB to the end
