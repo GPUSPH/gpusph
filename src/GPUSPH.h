@@ -114,7 +114,7 @@ private:
 	void setViscosityCoefficient();
 
 	// Do the multi gpu/multi node forces reduction and move bodies
-	void move_bodies(const uint);
+	void move_bodies(flag_t integrator_step);
 
 	// create the Writer
 	void createWriter();

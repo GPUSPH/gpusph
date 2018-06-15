@@ -606,9 +606,7 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
 	// -----------------------------------------
 
 	// Take care of moving bodies
-	// TODO: use INTEGRATOR_STEP
-	if (integrator_step == INTEGRATOR_STEP_1) move_bodies(1);
-	if (integrator_step == INTEGRATOR_STEP_2) move_bodies(2);
+	move_bodies(integrator_step);
 
 	// integrate also the externals
 	gdata->only_internal = false;
@@ -931,8 +929,10 @@ bool GPUSPH::runSimulation() {
 }
 
 
-void GPUSPH::move_bodies(const uint step)
+void GPUSPH::move_bodies(flag_t integrator_step)
 {
+	const uint step = get_step_number(integrator_step);
+
 	// Get moving bodies data (position, linear and angular velocity ...)
 	if (problem->simparams()->numbodies > 0) {
 		// We have to reduce forces and torques only on bodies which requires it
