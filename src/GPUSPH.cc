@@ -535,8 +535,12 @@ GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
 	doCommand(cmd, flags);
 }
 
-void GPUSPH::runIntegratorStep(const flag_t integrator_step,
-		const PostProcessEngineSet& noPostProcess) {
+// an empty set of PostProcessEngines, to be used when we want to save
+// the particle system without running post-processing filters
+// (e.g. when inspecting the particle system before each forces computation)
+static const PostProcessEngineSet noPostProcess{};
+
+void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
 
 	// --- ONLY PREDICTOR (STEP 1) -------------
 	if (integrator_step == INTEGRATOR_STEP_1) {
@@ -790,11 +794,6 @@ bool GPUSPH::runSimulation() {
 
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 
-	// an empty set of PostProcessEngines, to be used when we want to save
-	// the particle system without running post-processing filters
-	// (e.g. when inspecting the particle system before each forces computation)
-	const PostProcessEngineSet noPostProcess{};
-
 	// Run the actual simulation loop, by issuing the appropriate doCommand()s
 	// in sequence. keep_going will be set to false either by the loop itself
 	// if the simulation is finished, or by a Worker that fails in executing a
@@ -820,7 +819,7 @@ bool GPUSPH::runSimulation() {
 		}
 
 		// run PREDICTOR step (INTEGRATOR_STEP_1)
-		runIntegratorStep(INTEGRATOR_STEP_1, noPostProcess);
+		runIntegratorStep(INTEGRATOR_STEP_1);
 
 		// Here the first part of our time integration scheme is complete. All updated values
 		// are now in the read buffers again: mark the READ buffers as valid n*,
@@ -829,7 +828,7 @@ bool GPUSPH::runSimulation() {
 		// End of predictor step, start corrector step
 
 		// run CORRECTOR step (INTEGRATOR_STEP_2)
-		runIntegratorStep(INTEGRATOR_STEP_2, noPostProcess);
+		runIntegratorStep(INTEGRATOR_STEP_2);
 
 		// Here the second part of our time integration scheme is complete, i.e. the time-step is
 		// fully computed. All updated values are now in the read buffers again:

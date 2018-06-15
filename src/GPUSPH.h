@@ -164,8 +164,7 @@ private:
 	void check_write(const bool);
 
 	// refactored code by splitting the two integrator steps
-	void runIntegratorStep(const flag_t integrator_step,
-				const PostProcessEngineSet& noPostProcess);
+	void runIntegratorStep(const flag_t integrator_step);
 	void runEnabledFilters(const FilterFreqList& enabledFilters);
 
 public:
