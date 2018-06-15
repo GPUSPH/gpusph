@@ -543,6 +543,10 @@ static const PostProcessEngineSet noPostProcess{};
 void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
 
 	// --- ONLY PREDICTOR (STEP 1) -------------
+	// TODO FIXME gravity should be set before imposing the boundary conditions
+	// to be used on the next forces call. This is currently handled in a very
+	// inorganic way, which can be noted by the next call to the gravity callback
+	// which is at the END of step 1 rather than at the BEGINNING of the next
 	if (integrator_step == INTEGRATOR_STEP_1) {
 		// variable gravity
 		if (problem->simparams()->gcallback) {
@@ -596,8 +600,10 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
 		doCommand(FORCES_COMPLETE, integrator_step);
 
 	// --- ONLY CORRECTOR (STEP 2) -------------
+	// during the corrector step, we want to swap compute buffers to put n back
+	// into the READ position, and n* (that will be updated to n+1) into the
+	// WRITE position
 	if (integrator_step == INTEGRATOR_STEP_2) {
-		// swap read and writes again because the write contains the variables at time n
 		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
 		// boundelements is swapped because the normals are updated in the moving objects case
 		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
@@ -613,6 +619,7 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
 	// perform the euler integration step
 	doCommand(EULER, integrator_step);
 	gdata->only_internal = true;
+
 	if (gdata->debug.inspect_pregamma)
 		saveParticles(noPostProcess, integrator_step);
 
@@ -664,6 +671,7 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
 	// -----------------------------------------
 
 	// --- ONLY PREDICTOR (STEP 1) -------------
+	// TODO FIXME see the TODO FIXME on the previous callbacks call
 	if (integrator_step == INTEGRATOR_STEP_1) {
 		// variable gravity
 		if (problem->simparams()->gcallback) {
@@ -722,6 +730,7 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
 	}
 	// -----------------------------------------
 
+	// put all the updated stuff in the READ positions, ready for the next step
 	doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
 	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
