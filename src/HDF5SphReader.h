@@ -12,13 +12,14 @@
 
 #include "Reader.h"
 
-class HDF5SphReader : public Reader{
+class HDF5SphReader : public Reader
+{
 public:
 	// returns the number of particles in the h5sph file
 	size_t getNParts(void) override;
 
 	// allocates the buffer and reads the data from the h5sph file
-	void read(void);
+	void read(void) override;
 };
 
 #endif

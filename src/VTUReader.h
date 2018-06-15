@@ -9,13 +9,14 @@
 #include "base64.h"
 #include "common_types.h"
 
-class VTUReader : public Reader{
+class VTUReader : public Reader
+{
 public:
 	// returns the number of particles in the vtu file
 	size_t getNParts(void) override;
 
 	// allocates the buffer and reads the data from the vtu file
-	void read(void);
+	void read(void) override;
 
 	// read Data array from a node in a vtk file
 	void readData(	pugi::xml_node	da,

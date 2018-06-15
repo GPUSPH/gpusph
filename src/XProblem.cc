@@ -1822,15 +1822,11 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// TODO: nothing else is possible since this is checked while adding the
 			// geometry, should we double-check again? And a default
 
-			// utility pointer
-			const PointVect *xyzBuffer = &(m_geometries[g]->xyz_reader->points);
+			// utility pointer to the first ReadParticle
+			const ReadParticles *xyzParticle = m_geometries[g]->xyz_reader->buf;
 
 			// add every particle
-			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
-
-				// "i" is the particle index in GPUSPH host arrays, "bi" the one in current XZY file)
-				const uint bi = i - tot_parts;
-
+			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; ++i, ++xyzParticle) {
 				// compute particle info, local pos, cellhash
 				// NOTE: using explicit constructor make_particleinfo_by_ids() since some flags may
 				// be set afterward (e.g. in initializeParticles() callback)
@@ -1840,7 +1836,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				SET_FLAG(info[i], pflags);
 
 				// NOTE: reading the mass from the object, even if it is an empty STL
-				Point tmppoint = Point((*xyzBuffer)[bi](0), (*xyzBuffer)[bi](1), (*xyzBuffer)[bi](2),
+				Point tmppoint = Point(xyzParticle->Coords_0, xyzParticle->Coords_1, xyzParticle->Coords_2,
 					m_geometries[g]->ptr->GetPartMass());
 				calc_localpos_and_hash(tmppoint, info[i], pos[i], hash[i]);
 				globalPos[i] = tmppoint.toDouble4();

@@ -25,35 +25,19 @@
 
 #include <string>
 #include "Point.h"
+#include "Reader.h"
 
-class XYZReader {
-private:
-
-	std::string		filename;
-	unsigned int	npart;
-
+class XYZReader : public Reader
+{
 public:
-	// constructor
-	XYZReader();
-	~XYZReader();
+	//! returns the number of particles in the XYZ file
+	size_t getNParts() override;
 
-	// returns the number of particles in the XYZ file
-	int getNParts();
-
-	// allocates the buffer and reads the data from the XYZ file; optionally, returns bbox
-	void read(Point *bbox_min = NULL, Point *bbox_max = NULL);
-
-	// counts the points in the file, without allocating nor loading anything
-	uint count();
-
-	// frees the buffer
-	void empty();
-
-	// free the buffer, reset npart and filename
-	void reset();
-
-	// sets the filename
-	void setFilename(std::string const&);
-
-	PointVect points;
+	//! allocates the buffer and reads the data from the XYZ file
+	//! TODO FIXME this currently actually fills points
+	//! rather than Reader::buf like the other Readers
+	void read() override;
+	//! read() variant that also sets the bounding box
+	//! TODO this should be part of the common Reader interface
+	void read(Point *bbox_min, Point *bbox_max);
 };

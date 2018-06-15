@@ -32,16 +32,7 @@
 
 using namespace std;
 
-XYZReader::XYZReader(void) {
-	filename = "";
-	npart = UINT_MAX;
-}
-
-XYZReader::~XYZReader() {
-	empty();
-}
-
-int XYZReader::getNParts()
+size_t XYZReader::getNParts()
 {
 	// if npart != UINT_MAX, file was already opened (for loading or counting only)
 	if (npart != UINT_MAX)
@@ -66,8 +57,27 @@ int XYZReader::getNParts()
 	return numLines;
 }
 
+void XYZReader::read()
+{
+	read(NULL, NULL);
+}
+
 void XYZReader::read(Point *bbox_min, Point *bbox_max)
 {
+	// read npart if it was yet uninitialized
+	if (npart == UINT_MAX)
+		getNParts();
+
+	cout << "Reading particle data from the input: " << filename << endl;
+
+	// allocating read buffer
+	if(buf == NULL)
+		buf = new ReadParticles[npart];
+	else{
+		delete [] buf;
+		buf = new ReadParticles[npart];
+	}
+
 	ifstream xyzFile(filename.c_str());
 
 	// basic I/O check
@@ -84,48 +94,27 @@ void XYZReader::read(Point *bbox_min, Point *bbox_max)
 	if (bbox_max) *bbox_max = Point(NAN, NAN, NAN);
 
 	double x, y, z;
-
+	ReadParticles *part = buf;
 	while( !xyzFile.eof() ) {
 		// read point coordinates
 		xyzFile >> x >> y >> z;
+
+		part->Coords_0 = x;
+		part->Coords_1 = y;
+		part->Coords_2 = z;
+
 		// ignore the rest of the line (e.g. vertex normals might be given)
+		// TODO read normals if present
 		xyzFile.ignore ( numeric_limits<streamsize>::max(), '\n' );
-		// we have a point, here
-		Point p = Point(x,y,z);
+
 		// update the bounding box ends, if given
+		Point p(x, y, z);
 		if (bbox_min) setMinPerElement(*bbox_min, p);
 		if (bbox_max) setMaxPerElement(*bbox_max, p);
-		// append to the list
-		points.push_back(p);
+
+		++part;
+
     }
 
 	xyzFile.close();
-}
-
-void XYZReader::empty()
-{
-	points.empty();
-}
-
-void XYZReader::reset()
-{
-	empty();
-	filename = "";
-	npart = UINT_MAX;
-}
-
-void XYZReader::setFilename(string const& fn)
-{
-	// reset npart
-	npart = UINT_MAX;
-
-	// copy filename
-	filename = fn;
-
-	// check whether file exists
-	ifstream f(filename.c_str());
-
-	if(!f.good())
-		throw invalid_argument(string("could not open ") + fn);
-	f.close();
 }

@@ -36,19 +36,19 @@ public:
 	Reader(void);
 	virtual ~Reader(void);
 
-	// returns the number of particles in the input file
+	//! returns the number of particles in the input file
 	virtual size_t getNParts(void) = 0;
 
-	// allocates the buffer and reads the data from the input file
+	//! allocates the buffer and reads the data from the input file
 	virtual void read(void) = 0;
 
-	// frees the buffer
+	//! frees the buffer
 	void empty(void);
 
-	// free the buffer, reset npart and filename
+	//! free the buffer, reset npart and filename
 	void reset();
 
-	// sets the filename
+	//! sets the filename
 	void setFilename(std::string const&);
 
 	ReadParticles *buf;
