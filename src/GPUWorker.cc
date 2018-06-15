@@ -50,16 +50,6 @@
 
 using namespace std;
 
-// Auxiliary function to turn a commandFlag INTEGRATOR_STEP_* into a step
-// number (0 = init, 1 = step 1, 2 = step 2, etc)
-int get_step_number(flag_t flags)
-{
-	if (flags & INITIALIZATION_STEP) return 0;
-	if (flags & INTEGRATOR_STEP_1) return 1;
-	if (flags & INTEGRATOR_STEP_2) return 2;
-	return -1;
-}
-
 GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	gdata(_gdata),
 	neibsEngine(gdata->simframework->getNeibsEngine()),

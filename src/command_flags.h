@@ -55,6 +55,30 @@
 #define ALL_INTEGRATION_STEPS ((LAST_DEFINED_STEP << 1) - 1)
 /** @} */
 
+//! Auxiliary function to turn an INTEGRATOR_STEP command flag into a step
+//! number (0 = init, 1 = step 1, 2 = step 2, etc)
+constexpr int get_step_number(flag_t flags)
+{
+#if __cplusplus >= 201402L
+	/* Extract the integrator step */
+	const flag_t integrator_flag = (flags & ALL_INTEGRATION_STEPS);
+	/* Match against the individual steps, return the step number */
+	if (integrator_flag == INITIALIZATION_STEP) return 0;
+	if (integrator_flag == INTEGRATOR_STEP_1) return 1;
+	if (integrator_flag == INTEGRATOR_STEP_2) return 2;
+	/* No match found */
+	return -1;
+#else
+	/* C++11 is much more restrictive on what goes into a constexpr function,
+	 * so we have to write it like this */
+	return
+		((flags & ALL_INTEGRATION_STEPS) == INITIALIZATION_STEP) ? 0 :
+		((flags & ALL_INTEGRATION_STEPS) == INTEGRATOR_STEP_1) ? 1 :
+		((flags & ALL_INTEGRATION_STEPS) == INTEGRATOR_STEP_2) ? 2 :
+		-1;
+#endif
+}
+
 //! \name Double-buffer specifications
 /*! Flags to select which buffer to access, in case of double-buffered arrays.
  * These grow from the top.
