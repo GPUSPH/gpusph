@@ -572,7 +572,7 @@ Problem::check_dt(void)
 	dt_from_gravity *= simparams()->dtadaptfactor;
 
 	float dt_from_visc = NAN;
-	if (simparams()->visctype != ARTVISC) {
+	if (simparams()->visctype != INVISCID) {
 		for (uint f = 0; f < physparams()->numFluids(); ++f)
 			dt_from_visc = fminf(dt_from_visc, simparams()->slength*simparams()->slength/physparams()->kinematicvisc[f]);
 		dt_from_visc *= 0.125f; // TODO this should be configurable
@@ -1384,10 +1384,17 @@ Problem::init_keps(BufferList &buffers, uint numParticles)
 	}
 }
 
-/* Initialize eddy viscosity from k and epsilon */
+/*!
+ * Initialize eddy viscosity from k and epsilon
+ * TODO this is now called whenever the user selects a(n actual) turbulence
+ * mode, but it only does something in the KEPSVISC case
+ */
 void
 Problem::init_turbvisc(BufferList &buffers, uint numParticles)
 {
+	if (simparams()->turbmodel != KEPSVISC)
+		return;
+
 	const float *k = buffers.getConstData<BUFFER_TKE>();
 	const float *e = buffers.getConstData<BUFFER_EPSILON>();
 	float *turbVisc = buffers.getData<BUFFER_TURBVISC>();

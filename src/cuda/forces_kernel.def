@@ -166,7 +166,7 @@ constexpr bool
 computes_keps_term()
 {
 	return
-		FP::visctype == KEPSVISC &&
+		FP::turbmodel == KEPSVISC &&
 		FP::boundarytype == SA_BOUNDARY &&
 		FP::cptype == PT_FLUID;
 }
@@ -261,7 +261,7 @@ template<
 	typename Pt /// particle data type (pdata or ndata)
 >
 __device__ __forceinline__
-enable_if_t<Pt::visctype == KEPSVISC, float>
+enable_if_t<Pt::turbmodel == KEPSVISC, float>
 pressure_for_precalc(Pt const& pdata)
 {
 	return particle_pressure(pdata) + 2.0f*pdata.keps_k/particle_density(pdata)/3.0f;
@@ -274,7 +274,7 @@ template<
 	typename Pt /// particle data type (pdata or ndata)
 >
 __device__ __forceinline__
-enable_if_t<Pt::visctype != KEPSVISC, float>
+enable_if_t<Pt::turbmodel != KEPSVISC, float>
 pressure_for_precalc(Pt const& pdata)
 {
 	return particle_pressure(pdata);
@@ -553,6 +553,7 @@ template<KernelType _kerneltype,
 	DensityDiffusionType _densitydiffusiontype,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
+	TurbulenceModel _turbmodel,
 	flag_t _simflags,
 	ParticleType _cptype,
 	ParticleType _nptype>
@@ -570,20 +571,20 @@ struct forces_particle_data :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	// eulerian velocity only used in case of keps or with open boundaries
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype
-			&& (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
+			&& (_turbmodel == KEPSVISC || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype,
 		sa_boundary_particle_data),
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
-	COND_STRUCT(_visctype == KEPSVISC,
+	COND_STRUCT(_turbmodel == KEPSVISC,
 		keps_particle_data),
 	// everything else is just for PT_FLUID
-	COND_STRUCT(_visctype == SPSVISC,
+	COND_STRUCT(_turbmodel == SPSVISC,
 		sps_particle_data),
 	p_precalc_particle_data,
-	COND_STRUCT(_visctype == KEPSVISC,
+	COND_STRUCT(_turbmodel == KEPSVISC,
 		keps_precalc_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -591,12 +592,13 @@ struct forces_particle_data :
 	static const DensityDiffusionType densitydiffusiontype = _densitydiffusiontype;
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
+	static const TurbulenceModel turbmodel = _turbmodel;
 	static const flag_t simflags = _simflags;
 	static const ParticleType cptype = _cptype;
 	static const ParticleType nptype = _nptype;
 
 	// shorthand for the type of the forces params
-	typedef forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> params_t;
+	typedef forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, turbmodel, simflags, cptype, nptype> params_t;
 
 	// determine specialization automatically based on info and params
 	__device__ __forceinline__
@@ -610,16 +612,16 @@ struct forces_particle_data :
 			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
-				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
+				(turbmodel == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 			eulerVel_particle_data)(_index),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
 			sa_boundary_particle_data)(_index, _info, params),
-		COND_STRUCT(visctype == KEPSVISC,
+		COND_STRUCT(turbmodel == KEPSVISC,
 			keps_particle_data)(_index, _info, params),
-		COND_STRUCT(visctype == SPSVISC,
+		COND_STRUCT(turbmodel == SPSVISC,
 			sps_particle_data)(_index),
 		p_precalc_particle_data(*this),
-		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, fluid_num(_info), *this)
+		COND_STRUCT(turbmodel == KEPSVISC, keps_precalc_particle_data)(vel.w, fluid_num(_info), *this)
 	{}
 };
 
@@ -638,6 +640,7 @@ struct sa_finalize_particle_data
 template<SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
+	TurbulenceModel _turbmodel,
 	flag_t _simflags>
 struct finalize_forces_particle_data :
 	// included unconditionally for all particles:
@@ -646,15 +649,16 @@ struct finalize_forces_particle_data :
 	rb_particle_data,
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_particle_data),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data),
-	COND_STRUCT(_visctype == KEPSVISC, keps_particle_data)
+	COND_STRUCT(_turbmodel == KEPSVISC, keps_particle_data)
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
+	static const TurbulenceModel turbmodel = _turbmodel;
 	static const flag_t simflags = _simflags;
 
 	// shorthand for the type of the forces params
-	typedef finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_t;
+	typedef finalize_forces_params<sph_formulation, boundarytype, visctype, turbmodel, simflags> params_t;
 
 	ParticleType	ptype;
 
@@ -666,7 +670,7 @@ struct finalize_forces_particle_data :
 		rb_particle_data(_info),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params),
-		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info, params)
+		COND_STRUCT(turbmodel == KEPSVISC, keps_particle_data)(_index, _info, params)
 		{}
 };
 
@@ -770,6 +774,7 @@ struct internal_energy_particle_output
 
 template<BoundaryType _boundarytype,
 	ViscosityType _visctype,
+	TurbulenceModel _turbmodel,
 	flag_t _simflags,
 	ParticleType cptype,
 	ParticleType nptype>
@@ -778,12 +783,13 @@ struct forces_particle_output :
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT) &&
 		cptype == PT_FLUID && nptype == PT_BOUNDARY,
 		gamma_cfl_particle_output),
-	COND_STRUCT(_visctype == KEPSVISC, keps_particle_output),
+	COND_STRUCT(_turbmodel == KEPSVISC, keps_particle_output),
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_output),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)
 {
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
+	static const TurbulenceModel turbmodel = _turbmodel;
 	static const flag_t simflags = _simflags;
 
 	template<typename FP>
@@ -793,18 +799,18 @@ struct forces_particle_output :
 		COND_STRUCT(boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && (simflags & ENABLE_DTADAPT) &&
 			cptype == PT_FLUID && nptype == PT_BOUNDARY,
 			gamma_cfl_particle_output)(),
-		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(),
+		COND_STRUCT(turbmodel == KEPSVISC, keps_particle_output)(),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)(),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)()
 	{}
 };
 
-template<BoundaryType _boundarytype, ViscosityType visctype, flag_t _simflags>
+template<BoundaryType _boundarytype, ViscosityType visctype, TurbulenceModel turbmodel, flag_t _simflags>
 struct finalize_particle_output :
 	common_particle_output,
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
 		gamma_cfl_particle_output),
-	COND_STRUCT(visctype == KEPSVISC, keps_particle_output)
+	COND_STRUCT(turbmodel == KEPSVISC, keps_particle_output)
 {
 	template<typename FP>
 	__device__ __forceinline__
@@ -812,7 +818,7 @@ struct finalize_particle_output :
 		common_particle_output(params, index),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
 			gamma_cfl_particle_output)(params, index),
-		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(params, index)
+		COND_STRUCT(turbmodel == KEPSVISC, keps_particle_output)(params, index)
 	{}
 };
 
@@ -913,6 +919,7 @@ template<KernelType kerneltype,
 	DensityDiffusionType densitydiffusiontype,
 	BoundaryType boundarytype,
 	ViscosityType _visctype,
+	TurbulenceModel _turbmodel,
 	flag_t simflags,
 	ParticleType cptype,
 	ParticleType _nptype>
@@ -925,16 +932,17 @@ struct forces_neib_data :
 		sa_boundary_neib_data),
 	// relative eulerian velocity
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
-			(_visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
+			(_turbmodel == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 		eulerVel_neib_data),
 	// these are the same as the particle data
-	COND_STRUCT(_visctype == KEPSVISC, keps_particle_data),
+	COND_STRUCT(_turbmodel == KEPSVISC, keps_particle_data),
 	// precalculated pressure
 	p_precalc_particle_data,
-	COND_STRUCT(_visctype == SPSVISC, sps_particle_data)
+	COND_STRUCT(_turbmodel == SPSVISC, sps_particle_data)
 {
 	static constexpr SPHFormulation sph_formulation = _sph_formulation;
 	static constexpr ViscosityType visctype = _visctype;
+	static constexpr TurbulenceModel turbmodel = _turbmodel;
 	static constexpr ParticleType	nptype = _nptype;
 
 	// shortcut typedefs
@@ -944,7 +952,7 @@ struct forces_neib_data :
 		_sa_boundary_neib_data;
 	typedef
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
-				(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
+				(turbmodel == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 			eulerVel_neib_data)
 		_eulerVel_neib_data;
 
@@ -962,8 +970,8 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
-		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info, params),
-		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
+		COND_STRUCT(turbmodel == KEPSVISC, keps_particle_data)(_index, _info, params),
+		COND_STRUCT(turbmodel == SPSVISC, sps_particle_data)(_index),
 		p_precalc_particle_data(*this)
 	{}
 };
@@ -1016,7 +1024,7 @@ struct forces_neib_output :
  * specialized based on framework options.
  * When possible, we use template functions and SFINAE, which frequently turns
  * down to a pair of function definition, one that implements the actual work
- * if a specific condition is met (e.g. the visctype is KEPSVISC), and the other
+ * if a specific condition is met (e.g. the turbmodel is KEPSVISC), and the other
  * that does nothing. (Sadly, I have not found a way to make this shorter
  * without using C++17 if constexpr, which is obviously not yet supported in CUDA.)
  * In a few cases the complexity of the logic and/or the repeated subexpression
@@ -1042,7 +1050,7 @@ template<typename FP, typename P>
 __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype == SA_BOUNDARY && // when using semi-analytical boundary conditions
-	FP::visctype != KEPSVISC && // and we're not using the k-epsilon turbulence model
+	FP::turbmodel != KEPSVISC && // and we're not using the k-epsilon turbulence model
 	!(FP::simflags & ENABLE_INLET_OUTLET) && // and there are no open boundaries
 	FP::cptype == PT_VERTEX, // when this is a vertex particle
 	bool
@@ -1057,7 +1065,7 @@ template<typename FP, typename P>
 __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype != SA_BOUNDARY || // not using semi-analytical boundaries
-	FP::visctype == KEPSVISC || // or we're using k-epsilon
+	FP::turbmodel == KEPSVISC || // or we're using k-epsilon
 	FP::cptype != PT_VERTEX, // or this is not a vertex particle
 	bool
 >
@@ -1071,7 +1079,7 @@ template<typename FP, typename P>
 __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype == SA_BOUNDARY && // when using semi-analytical boundary conditions
-	FP::visctype != KEPSVISC && // and we're not using the k-epsilon turbulence model
+	FP::turbmodel != KEPSVISC && // and we're not using the k-epsilon turbulence model
 	(FP::simflags & ENABLE_INLET_OUTLET) && // and there are open boundaries
 	FP::cptype == PT_VERTEX, // when this is a vertex particle
 	bool
@@ -1652,12 +1660,9 @@ compute_pressure_contrib
  * models). For the semi-analytical boundary model, the boundary term is
  * rather different, due to the gamma weighting.
  *
- * TODO the volumic term for the KEPSVISC model is essentially the same as
- * the one for DYNAMICVISC, but with the particle viscosity featuring
- * an additional term comig from the k-epsilon model. Similarly, SPSVISC
- * is basically KINEMATICVISC plus a term coming from strain rate. The turbulent
- * models should be explicitly designed to be an addition to a laminar viscous
- * model.
+ * TODO While the turbulence model is now separate from the viscous model, in
+ * this initial phase we still depend on them being coupled (ARTVISC assumes INVISCID,
+ * KEPSVISC assumes DYNAMICVISC, SPSVISC assumes KINEMATICVISC).
  *
  * TODO currently the SPH_GRENIER formulation only supports the DYNAMICVISC model,
  * and needs to be handled separately. We should look into a way to handle this
@@ -1670,7 +1675,7 @@ compute_pressure_contrib
  */
 
 /// Relative velocity used in for viscous computation
-/*! When an eulerian velocity is defined (e.g. k-epsilon viscous model,
+/*! When an eulerian velocity is defined (e.g. k-epsilon turbulent model,
  * open boundaries), the relative velocity between the central and neighbor particle
  * (used to compute the velocity gradient for viscosity) should be computed by
  * considering both the lagrangian and eulerian velocities, making it
@@ -1700,6 +1705,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::visctype == DYNAMICVISC &&
+	FP::turbmodel == LAMINAR_FLOW &&
 	wants_boundary_visc_term<FP>()
 >
 compute_viscous_contrib
@@ -1727,6 +1733,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::visctype == DYNAMICVISC &&
+	FP::turbmodel == LAMINAR_FLOW &&
 	wants_volumic_visc_term<FP>() &&
 	FP::sph_formulation != SPH_GRENIER
 >
@@ -1768,13 +1775,14 @@ compute_viscous_contrib
  * KEPSVISC
  */
 
-/// Boundary viscous contribution, KEPSVISC viscous model
+/// Boundary viscous contribution, KEPSVISC turbulence model
 /*! Specialization for the semi-analytical boundary conditions
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::visctype == KEPSVISC &&
+	FP::visctype == DYNAMICVISC &&
+	FP::turbmodel == KEPSVISC &&
 	wants_boundary_visc_term<FP>()
 >
 compute_viscous_contrib
@@ -1830,7 +1838,8 @@ compute_viscous_contrib
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::visctype == KEPSVISC &&
+	FP::visctype == DYNAMICVISC &&
+	FP::turbmodel == KEPSVISC &&
 	wants_volumic_visc_term<FP>()
 >
 compute_viscous_contrib
@@ -1861,6 +1870,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::visctype == KINEMATICVISC &&
+	FP::turbmodel == LAMINAR_FLOW &&
 	wants_volumic_visc_term<FP>()
 >
 compute_viscous_contrib
@@ -1883,7 +1893,8 @@ compute_viscous_contrib
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::visctype == SPSVISC &&
+	FP::visctype == KINEMATICVISC &&
+	FP::turbmodel == SPSVISC &&
 	wants_volumic_visc_term<FP>()
 >
 compute_viscous_contrib
@@ -1919,7 +1930,8 @@ compute_viscous_contrib
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::visctype == ARTVISC &&
+	FP::visctype == INVISCID &&
+	FP::turbmodel == ARTVISC &&
 	wants_volumic_visc_term<FP>()
 >
 compute_viscous_contrib
@@ -2070,7 +2082,7 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
 
 /*
  * The first set of post-processing functions relate to the viscosity.
- * viscous_fixup is a functin template that applies any necessary fixups
+ * viscous_fixup is a function template that applies any necessary fixups
  * to the forces, and return a viscous coefficient to be used with planes and
  * DEMs
  */
@@ -2079,31 +2091,33 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
+enable_if_t< FP::visctype == INVISCID, float >
+viscous_plane_coefficient(FP const& params, P const& pdata, OP &pout)
+{ return 0; } // free-slip
+
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
 enable_if_t< FP::visctype == DYNAMICVISC, float >
-viscous_fixup(FP const& params, P const& pdata, OP &pout)
+viscous_plane_coefficient(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w; }
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
 enable_if_t< FP::visctype == KINEMATICVISC, float >
-viscous_fixup(FP const& params, P const& pdata, OP &pout)
+viscous_plane_coefficient(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check?
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t< FP::visctype == SPSVISC, float >
+enable_if_t< not (FP::turbmodel == KEPSVISC && FP::boundarytype == SA_BOUNDARY), float >
 viscous_fixup(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check? should be the same as KINEMATICVISC, probably
+{
+	return viscous_plane_coefficient(params, pdata, pout);
+}
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t< FP::visctype == ARTVISC, float >
-viscous_fixup(FP const& params, P const& pdata, OP &pout)
-{ return 0; } // assumes free-slip
-
-template<typename FP, typename P, typename OP>
-__device__ __forceinline__
-enable_if_t< FP::visctype == KEPSVISC && FP::boundarytype == SA_BOUNDARY, float >
+enable_if_t< FP::turbmodel == KEPSVISC && FP::boundarytype == SA_BOUNDARY, float >
 viscous_fixup(FP const& params, P const& pdata, OP &pout)
 {
 	// final division for diff and dv{x,y,z} terms
@@ -2147,7 +2161,7 @@ viscous_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.diff_term_k += Pturb;
 	pout.diff_term_e += pdata.keps_e*1.44f*Pturb/pdata.keps_k;
 
-	return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w;
+	return viscous_plane_coefficient(params, pdata, pout);
 }
 
 /*
@@ -2283,7 +2297,7 @@ add_internal_energy(FP const& params, P const& pdata, N const& ndata, OP &pout, 
 /// Write out keps data after particle-particle interaction
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<FP::visctype == KEPSVISC>
+enable_if_t<FP::turbmodel == KEPSVISC>
 write_keps(FP const& params, P const& pdata, OP& pout)
 {
 	storeTau(pout.tau, pdata.index, params.tau0, params.tau1, params.tau2);
@@ -2292,7 +2306,7 @@ write_keps(FP const& params, P const& pdata, OP& pout)
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<FP::visctype != KEPSVISC>
+enable_if_t<FP::turbmodel != KEPSVISC>
 write_keps(FP const& params, P const& pdata, OP& pout)
 { /* nothing to do */ }
 
@@ -2341,13 +2355,13 @@ write_internal_energy(FP const& params, P const& pdata, OP const& pout)
 /// Write out turbulent viscosity for KEPSVISC
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<FP::visctype == KEPSVISC>
+enable_if_t<FP::turbmodel == KEPSVISC>
 write_turbvisc(FP const& params, P const& pdata, OP const& pout)
 { params.turbvisc[pdata.index] = pdata.turbVisc; }
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<FP::visctype != KEPSVISC>
+enable_if_t<FP::turbmodel != KEPSVISC>
 write_turbvisc(FP const& params, P const& pdata, OP const& pout)
 { /* do nothing */ }
 
@@ -2452,13 +2466,13 @@ struct dyndt_keps_shared_data
 	}
 };
 
-template<BoundaryType boundarytype, ViscosityType visctype, flag_t simflags,
+template<BoundaryType boundarytype, ViscosityType visctype, TurbulenceModel turbmodel, flag_t simflags,
 	bool dtadapt = simflags & ENABLE_DTADAPT>
 struct forces_shared_data :
 	COND_SHARED(dtadapt, dyndt_forces_shared_data),
 	COND_SHARED(dtadapt && USING_DYNAMIC_GAMMA(simflags) && boundarytype == SA_BOUNDARY,
 		dyndt_gamma_shared_data),
-	COND_SHARED(dtadapt && visctype == KEPSVISC,
+	COND_SHARED(dtadapt && turbmodel == KEPSVISC,
 		dyndt_keps_shared_data)
 {
 	typedef
@@ -2469,7 +2483,7 @@ struct forces_shared_data :
 			boundarytype == SA_BOUNDARY, dyndt_gamma_shared_data)
 		gamma;
 	typedef
-		typename COND_SHARED(dtadapt && visctype == KEPSVISC,
+		typename COND_SHARED(dtadapt && turbmodel == KEPSVISC,
 			dyndt_keps_shared_data)
 		keps;
 
@@ -2728,7 +2742,7 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 	// should only be computed in the KEPS case. We check because
 	// the kernel may also be called with a different viscous model
 	// to compute water depth
-	if (FP::visctype == KEPSVISC)
+	if (FP::turbmodel == KEPSVISC)
 		compute_viscous_contrib(params, pdata, ndata, pout, nout);
 
 	// TODO: check what we need to do in that case
@@ -2792,6 +2806,7 @@ template<typename FP, /* forces_params<kerneltype, sph_formulation, etc> */
 	DensityDiffusionType densitydiffusiontype = FP::densitydiffusiontype,
 	BoundaryType boundarytype = FP::boundarytype,
 	ViscosityType visctype = FP::visctype,
+	TurbulenceModel turbmodel = FP::turbmodel,
 	flag_t simflags = FP::simflags,
 	ParticleType cptype = FP::cptype,
 	ParticleType nptype = FP::nptype>
@@ -2836,11 +2851,11 @@ forcesDevice(FP params)
 			break;
 
 		// Loading the rest of particle data
-		forces_particle_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> const
+		forces_particle_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, turbmodel, simflags, cptype, nptype> const
 			pdata(index, pos, info, params);
 
 		// Preparing particle output variables
-		forces_particle_output<boundarytype, visctype, simflags, cptype, nptype> pout(params, index);
+		forces_particle_output<boundarytype, visctype, turbmodel, simflags, cptype, nptype> pout(params, index);
 
 		/* And finally the neighbors list traversal support */
 
@@ -2881,7 +2896,7 @@ forcesDevice(FP params)
 				continue;
 
 			// Load rest of neib data
-			forces_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, cptype, nptype> const
+			forces_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, turbmodel, simflags, cptype, nptype> const
 				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 			// Contributions from this neighbor
@@ -2909,6 +2924,7 @@ template<typename FP, /* finalize_forces_params<...> */
 	SPHFormulation sph_formulation = FP::sph_formulation,
 	BoundaryType boundarytype = FP::boundarytype,
 	ViscosityType visctype = FP::visctype,
+	TurbulenceModel turbmodel = FP::turbmodel,
 	flag_t simflags = FP::simflags>
 __global__ void
 finalizeforcesDevice(FP params)
@@ -2917,7 +2933,7 @@ finalizeforcesDevice(FP params)
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
 	// Allocating shared data in case of adaptive time step
-	__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
+	__shared__ forces_shared_data<boundarytype, visctype, turbmodel, simflags> shared;
 	shared.init();
 
 #pragma unroll
@@ -2942,11 +2958,11 @@ finalizeforcesDevice(FP params)
 			break;
 
 		// Loading the rest of particle data
-		finalize_forces_particle_data<sph_formulation, boundarytype, visctype, simflags> const
+		finalize_forces_particle_data<sph_formulation, boundarytype, visctype, turbmodel, simflags> const
 			pdata(index, pos, info, params);
 
 		// Preparing particle output variables
-		finalize_particle_output<boundarytype, visctype, simflags> pout(params, index);
+		finalize_particle_output<boundarytype, visctype, turbmodel, simflags> pout(params, index);
 
 		// common division or multiplication
 		forces_fixup(params, pdata, pout);

@@ -285,6 +285,7 @@ template<KernelType _kerneltype,
 	DensityDiffusionType _densitydiffusiontype,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
+	TurbulenceModel _turbmodel,
 	flag_t _simflags,
 	ParticleType _cptype,
 	ParticleType _nptype>
@@ -296,7 +297,7 @@ struct forces_params :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params),
+	COND_STRUCT(_turbmodel == KEPSVISC, kepsvisc_forces_params),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -304,6 +305,7 @@ struct forces_params :
 	static const DensityDiffusionType densitydiffusiontype = _densitydiffusiontype;
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
+	static const TurbulenceModel turbmodel = _turbmodel;
 	static const flag_t simflags = _simflags;
 	static const ParticleType cptype = _cptype;
 	static const ParticleType nptype = _nptype;
@@ -363,7 +365,7 @@ struct forces_params :
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_forces_params)
 			(_cfl_gamma, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
+		COND_STRUCT(turbmodel == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
 	{}
 };
@@ -373,6 +375,7 @@ struct forces_params :
 template<SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
+	TurbulenceModel _turbmodel,
 	flag_t _simflags>
 struct finalize_forces_params :
 	common_finalize_forces_params,
@@ -380,12 +383,13 @@ struct finalize_forces_params :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params),
+	COND_STRUCT(_turbmodel == KEPSVISC, kepsvisc_forces_params),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
+	static const TurbulenceModel turbmodel = _turbmodel;
 	static const flag_t simflags = _simflags;
 
 	// This structure provides a constructor that takes as arguments the union of the
@@ -435,7 +439,7 @@ struct finalize_forces_params :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
+		COND_STRUCT(turbmodel == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
 	{}
 };

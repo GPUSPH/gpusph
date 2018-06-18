@@ -51,7 +51,8 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 	const int RHODIFF = get_option("density-diffusion", 1);
 
 	// ** framework setup
-	// viscosities: ARTVISC*, KINEMATICVISC*, DYNAMICVISC*, SPSVISC, KEPSVISC
+	// viscosities: KINEMATICVISC*, DYNAMICVISC*
+	// turbulence models: ARTVISC*, SPSVISC, KEPSVISC
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
 	// * = tested in thsi problem
 	SETUP_FRAMEWORK(

@@ -34,7 +34,7 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 	use_side_walls = get_option("sidewalls", true);
 
 	SETUP_FRAMEWORK(
-		//viscosity<ARTVISC>,
+		//turbulence_model<ARTVISC>,
 		viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>,
 		periodicity<PERIODIC_XY>

@@ -141,10 +141,8 @@ artvisc(	const float	vel_dot_pos,
 			const float	r,
 			const float	slength)
 {
-	// TODO check if it makes sense to support different artificial viscosity coefficients
-	// for different fluids
-	return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/
-									((r*r + d_epsartvisc)*(rho + neib_rho));
+	return vel_dot_pos*slength*d_artvisccoeff*(sspeed + neib_sspeed)/
+			((r*r + d_epsartvisc)*(rho + neib_rho));
 }
 
 

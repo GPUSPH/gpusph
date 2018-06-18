@@ -125,9 +125,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simparams->simflags & ENABLE_XSPH)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>();
 
+	// If the user enabled a(n actual) turbulence model, enable BUFFER_TAU, to
+	// store the shear stress tensor.
 	// TODO FIXME temporary: k-eps needs TAU only for temporary storage
 	// across the split kernel calls in forces
-	if (m_simparams->visctype == SPSVISC || m_simparams->visctype == KEPSVISC)
+	if (m_simparams->turbmodel > ARTVISC)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TAU>();
 
 	if (m_simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
@@ -140,7 +142,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		if (USING_DYNAMIC_GAMMA(m_simparams->simflags))
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
-		if (m_simparams->visctype == KEPSVISC)
+		if (m_simparams->turbmodel == KEPSVISC)
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_KEPS>();
 	}
 
@@ -151,19 +153,19 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTPOS>();
 	}
 
-	if (m_simparams->visctype == KEPSVISC) {
+	if (m_simparams->turbmodel == KEPSVISC) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TKE>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EPSILON>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TURBVISC>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DKDE>();
 	}
 
-	if (m_simparams->visctype == SPSVISC) {
+	if (m_simparams->turbmodel == SPSVISC) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SPS_TURBVISC>();
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY &&
-		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->visctype == KEPSVISC))
+		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->turbmodel == KEPSVISC))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
 	if (m_simparams->simflags & ENABLE_INLET_OUTLET)
@@ -2178,7 +2180,7 @@ float GPUWorker::post_forces()
 	// the _actual_ maximum viscosity
 
 	float max_kinematic = NAN;
-	if (m_simparams->visctype != ARTVISC)
+	if (m_simparams->visctype != INVISCID)
 		for (uint f = 0; f < m_physparams->numFluids(); ++f)
 			max_kinematic = fmaxf(max_kinematic, m_physparams->kinematicvisc[f]);
 

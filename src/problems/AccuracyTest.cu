@@ -36,7 +36,7 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : XProblem(_gdata)
 {
 
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC>,
+		turbulence_model<ARTVISC>,
 		boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_INTERNAL_ENERGY>
 	);

@@ -42,6 +42,7 @@ template<
 	BoundaryType boundarytype,
 	KernelType kerneltype,
 	ViscosityType visctype,
+	TurbulenceModel turbmodel,
 	flag_t simflags>
 class CUDAPredCorrEngine : public AbstractIntegrationEngine
 {
@@ -350,7 +351,7 @@ basicstep(
 		bufwrite.getData<BUFFER_BOUNDELEMENTS>() :
 		NULL;
 
-	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
+	euler_params<kerneltype, sph_formulation, boundarytype, visctype, turbmodel, simflags> params(
 			newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t, step,
 			xsph,
 			newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
@@ -359,9 +360,9 @@ basicstep(
 			newEnergy, oldEnergy, DEDt);
 
 	if (step == 1) {
-		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, turbmodel, simflags><<< numBlocks, numThreads >>>(params);
 	} else if (step == 2) {
-		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
+		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, turbmodel, simflags><<< numBlocks, numThreads >>>(params);
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}

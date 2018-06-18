@@ -104,12 +104,13 @@ template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
+	TurbulenceModel _turbmodel,
 	flag_t _simflags>
 struct euler_particle_data :
 	common_euler_particle_data,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_turbmodel == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
 				sa_boundary_particle_data),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_particle_data),
+	COND_STRUCT(_turbmodel == KEPSVISC, kepsvisc_particle_data),
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)
@@ -118,18 +119,19 @@ struct euler_particle_data :
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
+	static const TurbulenceModel turbmodel = _turbmodel;
 	static const flag_t simflags = _simflags;
 
 	// shorthand for the type of the euler params
-	typedef euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
+	typedef euler_params<kerneltype, sph_formulation, boundarytype, visctype, turbmodel, simflags> params_t;
 
 	// determine specialization automatically based on info and params
 	__device__ __forceinline__
 	euler_particle_data(const uint _index, params_t const& params) :
 		common_euler_particle_data(_index, params),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
+		COND_STRUCT(boundarytype == SA_BOUNDARY && (turbmodel == KEPSVISC || simflags & ENABLE_INLET_OUTLET),
 					sa_boundary_particle_data)(_index, params),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_particle_data)(_index, params),
+		COND_STRUCT(turbmodel == KEPSVISC, kepsvisc_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)(_index, params)
@@ -205,7 +207,7 @@ continuity_integration(EP const& params, P &pdata, int index, float dt)
 /// Integrate k and e in the \f$\kappa-\epsilon\f$ model
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype == KEPSVISC>
+enable_if_t<EP::turbmodel == KEPSVISC>
 integrate_k_e(EP const& params, P &pdata, int index, float dt)
 {
 	const float3 dkde = params.keps_dkde[index];
@@ -216,7 +218,7 @@ integrate_k_e(EP const& params, P &pdata, int index, float dt)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype != KEPSVISC>
+enable_if_t<EP::turbmodel != KEPSVISC>
 integrate_k_e(EP const& params, P &pdata, int index, float dt)
 { /* do nothing*/ }
 
@@ -247,7 +249,7 @@ update_normals(EP const& params, P &pdata, int index)
 /// Integrate the boundary and vertex eulerian velocity in the k-epsilon case
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype == KEPSVISC>
+enable_if_t<EP::turbmodel == KEPSVISC>
 integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
 {
 	if (!IO_BOUNDARY(pdata.info) || (VERTEX(pdata.info) && CORNER(pdata.info))) {
@@ -257,7 +259,7 @@ integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype != KEPSVISC>
+enable_if_t<EP::turbmodel != KEPSVISC>
 integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
 { /* do nothing*/ }
 
@@ -299,7 +301,7 @@ write_energy(EP const& params, P &pdata, int index)
 template<typename EP>
 constexpr bool needs_eulerVel()
 {
-	return EP::visctype == KEPSVISC ||
+	return EP::turbmodel == KEPSVISC ||
 		(EP::boundarytype == SA_BOUNDARY &&
 		 (EP::simflags & ENABLE_INLET_OUTLET));
 }
@@ -324,7 +326,7 @@ write_eulerVel(EP const& params, P &pdata, int index)
  */
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype == KEPSVISC>
+enable_if_t<EP::turbmodel == KEPSVISC>
 write_viscosity_coeff(EP const& params, P &pdata, int index)
 {
 	params.newTKE[index] = pdata.keps_k;
@@ -333,7 +335,7 @@ write_viscosity_coeff(EP const& params, P &pdata, int index)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype != KEPSVISC>
+enable_if_t<EP::turbmodel != KEPSVISC>
 write_viscosity_coeff(EP const& params, P &pdata, int index)
 { /* do nothing*/ }
 
@@ -416,10 +418,11 @@ write_viscosity_coeff(EP const& params, P &pdata, int index)
  *	\tparam simflags : simulation flags
  */
 //TODO templatize vars like other kernels
-template<KernelType kerneltype, SPHFormulation sph_formulation, BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
+template<KernelType kerneltype, SPHFormulation sph_formulation, BoundaryType boundarytype,
+	ViscosityType visctype, TurbulenceModel turbmodel, flag_t simflags>
 __global__ void
 eulerDevice(
-	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
+	euler_params<kerneltype, sph_formulation, boundarytype, visctype, turbmodel, simflags> params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -429,7 +432,7 @@ eulerDevice(
 	// We use dt/2 on the first step, the actual dt on the second step
 	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
 
-	euler_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata(index, params);
+	euler_particle_data<kerneltype, sph_formulation, boundarytype, visctype, turbmodel, simflags> pdata(index, params);
 
 	do {
 		// Euler does nothing to boundary particles apart copying pos and vel

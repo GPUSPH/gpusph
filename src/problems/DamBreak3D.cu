@@ -44,11 +44,12 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	const int RHODIFF = get_option("density-diffusion", 1);
 
 	// ** framework setup
-	// viscosities: ARTVISC*, KINEMATICVISC*, DYNAMICVISC*, SPSVISC, KEPSVISC
+	// viscosities: KINEMATICVISC*, DYNAMICVISC*
+	// turbulence models: ARTVISC*, SPSVISC, KEPSVISC
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
-	// * = tested in thsi problem
+	// * = tested in this problem
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC>,
+		turbulence_model<ARTVISC>,
 		boundary<DYN_BOUNDARY>,
 		flags<ENABLE_DTADAPT>
 	).select_options(

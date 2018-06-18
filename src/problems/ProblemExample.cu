@@ -35,8 +35,9 @@
 ProblemExample::ProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 {
 	SETUP_FRAMEWORK(
-		// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
-		viscosity<ARTVISC>,
+		// viscosity type: KINEMATICVISC, DYNAMICVISC
+		// turbulence models: ARTVISC, SPSVISC, KEPSVISC
+		turbulence_model<ARTVISC>,
 		// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
 		boundary<LJ_BOUNDARY>,
 		add_flags<ENABLE_PLANES>

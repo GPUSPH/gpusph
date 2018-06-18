@@ -444,18 +444,17 @@ CommonWriter::write_physparams(ostream &out)
 			break;
 	}
 
-	out << " " << ViscosityName[SP->visctype] << " viscosity parameters:" << endl;
-	if (SP->visctype == ARTVISC) {
+	out << " " << ViscosityName[SP->visctype] << " viscosity, with " <<
+	   TurbulenceName[SP->turbmodel] << " turbulence model. Parameters:" << endl;
+	if (SP->turbmodel == ARTVISC) {
 		out << "\tartvisccoeff = " << PP->artvisccoeff << "" << endl;
 		out << "\tepsartvisc = " << PP->epsartvisc << "" << endl;
-	} else {
-		for (uint f  = 0; f < PP->numFluids(); ++f)
-			out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
-	}
-	if (SP->visctype == SPSVISC) {
+	} else if (SP->turbmodel == SPSVISC) {
 		out << "\tSmagfactor = " << PP->smagfactor << endl;
 		out << "\tkSPSfactor = " << PP->kspsfactor << endl;
 	}
+	for (uint f  = 0; f < PP->numFluids(); ++f)
+		out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
 	for (uint f  = 0; f < PP->numFluids(); ++f)
 		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f] << endl;
 

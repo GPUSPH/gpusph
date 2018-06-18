@@ -60,8 +60,8 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		viscosity<ARTVISC>,
-		//viscosity<SPSVISC>,
+		turbulence_model<ARTVISC>,
+		//turbulence_model<SPSVISC>,
 		//viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>,
 		densitydiffusion<FERRARI>

@@ -49,8 +49,9 @@ typedef struct SimParams {
 	 * @{ */
 	const KernelType		kerneltype;					///< Kernel type
 	const SPHFormulation	sph_formulation;			///< SPH formulation to use
-	const DensityDiffusionType densitydiffusiontype; 	///< Type of density diffusion corrective term
+	const DensityDiffusionType densitydiffusiontype;	///< Type of density diffusion corrective term
 	const ViscosityType		visctype;					///< Viscosity type (artificial, laminar, ...)
+	const TurbulenceModel	turbmodel;				///< Turbulence model
 	const BoundaryType		boundarytype;				///< Boundary type (Lennard-Jones, SA? ...)
 	const Periodicity		periodicbound;				///< Periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
 	const flag_t			simflags;					///< Simulation flags
@@ -108,18 +109,20 @@ typedef struct SimParams {
 	/** @} */
 
 	SimParams(
-		KernelType _kernel = WENDLAND,
-		SPHFormulation _formulation = SPH_F1,
-		DensityDiffusionType _densitydiffusiontype = DENSITY_DIFFUSION_NONE,
-		ViscosityType _visctype = ARTVISC,
-		BoundaryType _btype = LJ_BOUNDARY,
-		Periodicity _periodic = PERIODIC_NONE,
-		flag_t _simflags = ENABLE_DTADAPT) :
+		KernelType _kernel,
+		SPHFormulation _formulation,
+		DensityDiffusionType _densitydiffusiontype,
+		ViscosityType _visctype,
+		TurbulenceModel _turbmodel,
+		BoundaryType _btype,
+		Periodicity _periodic,
+		flag_t _simflags) :
 
 		kerneltype(_kernel),
 		sph_formulation(_formulation),
 		densitydiffusiontype(_densitydiffusiontype),
 		visctype(_visctype),
+		turbmodel(_turbmodel),
 		boundarytype(_btype),
 		periodicbound(_periodic),
 		simflags(_simflags),

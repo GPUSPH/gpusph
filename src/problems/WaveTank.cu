@@ -53,7 +53,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 	    //viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
-		viscosity<SPSVISC>,
+		turbulence_model<SPSVISC>,
 		boundary<LJ_BOUNDARY>,
 		//boundary<MK_BOUNDARY>,
 		flags<ENABLE_DTADAPT | ENABLE_PLANES>
