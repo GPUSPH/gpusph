@@ -1,3 +1,12 @@
+/*! \file
+ * Physical constants used by all kernels
+ */
+
+#ifndef _PHYS_CORE_
+#define _PHYS_CORE_
+
+#include "particledefine.h"
+
 namespace cuphys {
 __constant__ uint	d_numfluids;			///< number of different fluids
 
@@ -76,4 +85,6 @@ soundSpeed(const float rho, const ushort i)
 {
 	return d_sscoeff[i]*__powf(rho/d_rho0[i], d_sspowercoeff[i]);
 }
+
 }
+#endif

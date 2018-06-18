@@ -1,6 +1,5 @@
-/* IMPORTANT NOTE: this header should be included _inside_ the namespace,
- * of each _kernel.cu file, because of the __constant__s defined below
- */
+#ifndef _SPH_CORE_
+#define _SPH_CORE_
 
 /* This header file contains core functions of SPH such as the weighting functions,
  * its derivative, as well as the EOS (including inverse) and the methods to compute
@@ -169,3 +168,4 @@ F<GAUSSIAN>(const float r, const float slength)
 
 }
 
+#endif
