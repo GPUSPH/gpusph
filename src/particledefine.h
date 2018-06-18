@@ -150,9 +150,9 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 
 //! Viscous model
 enum ViscosityType {
-	INVISCID,
-	KINEMATICVISC,
-	DYNAMICVISC,
+	INVISCID, ///< no laminar viscosity
+	KINEMATICVISC, ///< Morris formula, simplified for constant kinematic viscosity and using harmonic averaging of the density
+	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic density
 	INVALID_VISCOSITY
 } ;
 

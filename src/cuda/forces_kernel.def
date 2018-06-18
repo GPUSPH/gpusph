@@ -1660,18 +1660,20 @@ compute_pressure_contrib
  * models). For the semi-analytical boundary model, the boundary term is
  * rather different, due to the gamma weighting.
  *
- * TODO While the turbulence model is now separate from the viscous model, in
- * this initial phase we still depend on them being coupled (ARTVISC assumes INVISCID,
- * KEPSVISC assumes DYNAMICVISC, SPSVISC assumes KINEMATICVISC).
+ * Moreover, each of the terms has a laminar contribution (standard viscosity for
+ * laminar flow), and optionally a contribution that models additional dissipation
+ * (generally due to sub-scale turbulence).
  *
  * TODO currently the SPH_GRENIER formulation only supports the DYNAMICVISC model,
- * and needs to be handled separately. We should look into a way to handle this
- * in a more rational manner.
+ * without turbulence, and needs to be handled separately. We should look into
+ * a way to handle this in a more rational manner.
  *
  * For most expressions of both the volumic and boundary terms, the viscous
  * contribution is related to the velocity gradient, whose computation in SPH
  * requires the relative velocity, which will be computed taking also the
  * eulerian particle velocity, if necessary.
+ * Similarly, the fluid viscosity in use will be incremented by any appropriate
+ * turbulence contributions.
  */
 
 /// Relative velocity used in for viscous computation
@@ -1692,168 +1694,37 @@ enable_if_t<not has_relEulerVel<N>(), float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel; } /* Standard case */
 
-/*
- * DYNAMICVISC
+/// Viscosity coefficient for the given particle
+/*! This is normally the d_visccoeff for the particle fluid type, but
+ * in the KEPSVISC case it features additional terms
  */
-
-/// Boundary viscous contribution, DYNAMICVISC viscous model
-/*! Specialization for the semi-analytical boundary conditions,
- * in which the term is different than the term used for fluid
- * and vertex particles.
- */
-template<typename FP, typename P, typename N, typename OP, typename ON>
+template<typename P>
 __device__ __forceinline__
-enable_if_t<
-	FP::visctype == DYNAMICVISC &&
-	FP::turbmodel == LAMINAR_FLOW &&
-	wants_boundary_visc_term<FP>()
->
-compute_viscous_contrib
-(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	// velocity of fluid particle along the wall
-	const float3 vel_tau = as_float3(get_viscous_relVel(ndata)) -
-		(IO_BOUNDARY(ndata.info) ?
-		 make_float3(0.0f) :
-		 dot(as_float3(get_viscous_relVel(ndata)), ndata.normal_s)*ndata.normal_s
-		);
-
-	nout.DvDt -= nout.ggamAS*
-		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
-		vel_tau/pdata.vel.w;
-}
-
-/// Volumic viscous contribution, DYNAMICVISC viscous model
-/*! This specialization is used for fluid particles, and in the case
- * of dynamic boundaries also for boundary particles. The expression
- * presented here is not valid with the SPH_GRENIER formulation though,
- * which will use a different specialization.
- */
-template<typename FP, typename P, typename N, typename OP, typename ON>
+enable_if_t<P::turbmodel != KEPSVISC, float>
+get_visc_coeff(P const& pdata)
+{ return d_visccoeff[fluid_num(pdata.info)]; }
+template<typename P>
 __device__ __forceinline__
-enable_if_t<
-	FP::visctype == DYNAMICVISC &&
-	FP::turbmodel == LAMINAR_FLOW &&
-	wants_volumic_visc_term<FP>() &&
-	FP::sph_formulation != SPH_GRENIER
->
-compute_viscous_contrib
-(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	const float our_rho = pdata.vel.w;
-	const float neib_rho = ndata.relVel.w;
-	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
-	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
-
-	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
-			our_visc*our_rho, neib_visc*neib_rho));
-	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
-}
-
-/// Volumic viscous contribution, DYNAMICVISC viscous model
-/*! SPH_GRENIER formulation specialization
- */
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-enable_if_t<
-	FP::visctype == DYNAMICVISC &&
-	wants_volumic_visc_term<FP>() &&
-	FP::sph_formulation == SPH_GRENIER
->
-compute_viscous_contrib
-(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	// TODO support different visctypes
-	const float mu_i = d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w;
-	const float mu_j = d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w;
-	const float avg_mu = 2*(mu_i*mu_j)/(mu_i+mu_j);
-	const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
-	nout.DvDt += avg_mu*avg_sigma*ndata.f*as_float3(ndata.relVel);
-}
+enable_if_t<P::turbmodel == KEPSVISC, float>
+get_visc_coeff(P const& pdata)
+{ return d_visccoeff[fluid_num(pdata.info)] + pdata.turbViscForViscTerm; }
 
 /*
- * KEPSVISC
+ * Laminar contributions to the viscosity
  */
 
-/// Boundary viscous contribution, KEPSVISC turbulence model
-/*! Specialization for the semi-analytical boundary conditions
+/*
+ * INVISCID
  */
+
+/// INVISCID viscous model
+/*! No actual contribution */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<
-	FP::visctype == DYNAMICVISC &&
-	FP::turbmodel == KEPSVISC &&
-	wants_boundary_visc_term<FP>()
->
-compute_viscous_contrib
+enable_if_t< FP::visctype == INVISCID >
+compute_laminar_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
-	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
-
-	if (IO_BOUNDARY(ndata.info)) {
-		// velocity of fluid particle along the wall
-		const float3 vel_tau = as_float3(ndata.relVel + ndata.relEulerVel);
-
-		nout.DvDt -= nout.ggamAS*
-			(our_visc*pdata.vel.w + neib_visc*ndata.relVel.w)/ndata.r_as*
-			vel_tau/pdata.vel.w;
-		return;
-	}
-
-	// for boundary particles without neighbouring fluid particle k is 0 so skip
-	if(pdata.keps_k < params.epsilon)
-		return;
-	// a component of fluid paricle velocity tangential to the wall
-	const float3 u_t = as_float3(ndata.relVel+pdata.eulerVel) - dot(as_float3(ndata.relVel+pdata.eulerVel), ndata.normal_s)*ndata.normal_s;
-	const float abs_u_t = length(u_t);
-
-	// we solve iteratively the wall law equation to obtain y+ value
-	float u_star = 0.0f;
-	// the constant is equal to 0.09^0.25
-	const float uk = 0.547722558f*sqrt(pdata.keps_k);
-	float y_plus = ndata.r_as/our_visc*uk;
-	// constant is equal to 1/0.41
-	if(y_plus < 2.43902439f) // viscous sublayer
-		u_star = abs_u_t/y_plus;
-	else{ // log law
-		// constant is equal to exp(-5.2*0.41)
-		float utau = 0.118599857f*neib_visc/ndata.r_as;
-		for (int i=0; i<10; i++) {
-			// constant is equal to 1/0.41
-			y_plus = fmax(ndata.r_as*utau/neib_visc, 2.43902439f);
-			// constant is equal to 5.2*0.41+1
-			utau = (0.41f*abs_u_t + utau)/(log(y_plus) + 3.132f);
-		}
-		u_star = abs_u_t / (log(y_plus)/0.41f + 5.2f);
-	}
-
-	nout.DvDt -= 2.0f*nout.ggamAS*u_star*u_star*u_t/fmax(abs_u_t,1e-6f);
-}
-
-/// Volumic viscous contribution, KEPSVISC viscous model
-/*! This is used when the neighbor is not a boundary particle,
- * or for dynamic boundaries
- */
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-enable_if_t<
-	FP::visctype == DYNAMICVISC &&
-	FP::turbmodel == KEPSVISC &&
-	wants_volumic_visc_term<FP>()
->
-compute_viscous_contrib
-(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	const float our_rho = pdata.vel.w;
-	const float neib_rho = ndata.relVel.w;
-	const float our_visc = d_visccoeff[fluid_num(pdata.info)]+pdata.turbViscForViscTerm;
-	const float neib_visc = d_visccoeff[fluid_num(ndata.info)]+ndata.turbViscForViscTerm;
-
-	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
-		our_visc*our_rho, neib_visc*neib_rho));
-	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
-}
+{ /* do nothing */ }
 
 /*
  * KINEMATICVISC
@@ -1870,10 +1741,9 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::visctype == KINEMATICVISC &&
-	FP::turbmodel == LAMINAR_FLOW &&
 	wants_volumic_visc_term<FP>()
 >
-compute_viscous_contrib
+compute_laminar_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f));
@@ -1881,40 +1751,112 @@ compute_viscous_contrib
 }
 
 /*
- * SPSVISC
+ * DYNAMICVISC
  */
 
-/* TODO the boundary term is not defined, SPSVISC isn't currently supported
- * with SA_BOUNDARY */
-
-/// Volumic viscous contribution, SPS viscous model
-/*! This is essentially the KINEMATICVISC model, plus a strain rate term
+/// Volumic viscous contribution, DYNAMICVISC viscous model
+/*! This specialization is used for fluid particles, and in the case
+ * of dynamic boundaries also for boundary particles. The expression
+ * presented here is not valid with the SPH_GRENIER formulation though,
+ * which will use a different specialization.
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::visctype == KINEMATICVISC &&
-	FP::turbmodel == SPSVISC &&
-	wants_volumic_visc_term<FP>()
+	FP::visctype == DYNAMICVISC &&
+	wants_volumic_visc_term<FP>() &&
+	FP::sph_formulation != SPH_GRENIER
 >
-compute_viscous_contrib
+compute_laminar_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DvDt.x += ndata.relPos.w*ndata.f*(
-		(pdata.tau.xx + ndata.tau.xx)*ndata.relPos.x +
-		(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.y +
-		(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.z);
-	nout.DvDt.y += ndata.relPos.w*ndata.f*(
-		(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.x +
-		(pdata.tau.yy + ndata.tau.yy)*ndata.relPos.y +
-		(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.z);
-	nout.DvDt.z += ndata.relPos.w*ndata.f*(
-		(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.x +
-		(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.y +
-		(pdata.tau.zz + ndata.tau.zz)*ndata.relPos.z);
-	const float visc(laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f));
-	nout.DvDt += visc*as_float3(ndata.relVel);
+	const float our_rho = pdata.vel.w;
+	const float neib_rho = ndata.relVel.w;
+	/* Note that this takes into account KEPSVISC corrections if appropriate,
+	 * so for the volumic term no additional turbulent contribution will be
+	 * required for KEPSVISC */
+	const float our_visc = get_visc_coeff(pdata);
+	const float neib_visc = get_visc_coeff(ndata);
+
+	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
+			our_visc*our_rho, neib_visc*neib_rho));
+	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
+
+/// Volumic viscous contribution, DYNAMICVISC viscous model
+/*! SPH_GRENIER formulation specialization
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::visctype == DYNAMICVISC &&
+	wants_volumic_visc_term<FP>() &&
+	FP::sph_formulation == SPH_GRENIER
+>
+compute_laminar_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	// TODO support different visctypes
+	const float mu_i = d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w;
+	const float mu_j = d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w;
+	const float avg_mu = 2*(mu_i*mu_j)/(mu_i+mu_j);
+	const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
+	nout.DvDt += avg_mu*avg_sigma*ndata.f*as_float3(ndata.relVel);
+}
+
+/// Boundary viscous contribution, DYNAMICVISC viscous model
+/*! Specialization for the semi-analytical boundary conditions,
+ * in which the term is different than the term used for fluid
+ * and vertex particles.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::visctype == DYNAMICVISC &&
+	wants_boundary_visc_term<FP>()
+>
+compute_laminar_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	/* The laminar contribution from boundary particles is only considered for
+	 * open boundaries, or if NOT using KEPSVISC; for KEPSVISC and solid walls,
+	 * we don't consider any contribution here, and the whole thing is computed
+	 * in the boundary version of compute_turb_visc_contrib
+	 */
+	if (FP::turbmodel == KEPSVISC && !IO_BOUNDARY(ndata.info))
+		return;
+
+	// velocity of fluid particle along the wall
+	const float3 vel_tau = as_float3(get_viscous_relVel(ndata)) -
+		(IO_BOUNDARY(ndata.info) ?
+		 make_float3(0.0f) :
+		 dot3(get_viscous_relVel(ndata), ndata.normal_s)*ndata.normal_s
+		);
+
+	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
+	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
+
+	nout.DvDt -= nout.ggamAS*
+		(our_visc*pdata.vel.w + neib_visc*ndata.relVel.w)/ndata.r_as*
+		vel_tau/pdata.vel.w;
+}
+
+/*
+ * Turbulence contribution to the viscosity
+ */
+
+/*
+ * LAMINAR_FLOW
+ */
+
+/// LAMINAR_FLOW turbulent viscosity
+/*! No actual contribution */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t< FP::turbmodel == LAMINAR_FLOW >
+compute_turb_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
 
 /*
  * ARTVISC
@@ -1930,11 +1872,10 @@ compute_viscous_contrib
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::visctype == INVISCID &&
 	FP::turbmodel == ARTVISC &&
 	wants_volumic_visc_term<FP>()
 >
-compute_viscous_contrib
+compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	if (ndata.vel_dot_pos < 0.0f){
@@ -1943,6 +1884,128 @@ compute_viscous_contrib
 		// note that here we use the position difference and not the velocity difference
 		nout.DvDt += visc*as_float3(ndata.relPos)*ndata.relPos.w*ndata.f;
 	}
+}
+
+/*
+ * SPSVISC
+ */
+
+/* TODO the boundary term is not defined, SPSVISC isn't currently supported
+ * with SA_BOUNDARY */
+
+/// Volumic viscous contribution, SPS turbulence model
+/*! This contributes the sub-particle scale viscosity, computed from
+ * the averaged strain rate term.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::turbmodel == SPSVISC &&
+	wants_volumic_visc_term<FP>()
+>
+compute_turb_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	nout.DvDt.x += ndata.relPos.w*ndata.f*(
+		(pdata.tau.xx + ndata.tau.xx)*ndata.relPos.x +
+		(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.y +
+		(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.z);
+	nout.DvDt.y += ndata.relPos.w*ndata.f*(
+		(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.x +
+		(pdata.tau.yy + ndata.tau.yy)*ndata.relPos.y +
+		(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.z);
+	nout.DvDt.z += ndata.relPos.w*ndata.f*(
+		(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.x +
+		(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.y +
+		(pdata.tau.zz + ndata.tau.zz)*ndata.relPos.z);
+}
+
+/*
+ * KEPSVISC
+ */
+
+/* TODO KEPSVISC is currently only supported with SA_BOUNDARY and DYNAMICVISC */
+
+/// Volumic viscous contribution, KEPSVISC turbulence model
+/*! Specialization for the KEPSVISC contribution to the volumic term.
+ * This is effectively empty, since the only volumic turbulent contribution for
+ * KEPSVISC is in the kinematic viscosity, which is taken 
+ * into account in get_visc_coeff(), used for the laminar visc
+ * contribution.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::visctype == DYNAMICVISC &&
+	FP::turbmodel == KEPSVISC &&
+	wants_volumic_visc_term<FP>()
+>
+compute_turb_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
+
+
+/// Boundary viscous contribution, KEPSVISC turbulence model
+/*! Specialization for the semi-analytical boundary conditions
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::visctype == DYNAMICVISC &&
+	FP::turbmodel == KEPSVISC &&
+	wants_boundary_visc_term<FP>()
+>
+compute_turb_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
+	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
+
+	if (IO_BOUNDARY(ndata.info))
+		return;
+
+	// for boundary particles without neighbouring fluid particle k is 0 so skip
+	if (pdata.keps_k < params.epsilon)
+		return;
+
+	// a component of fluid paricle velocity tangential to the wall
+	const float3 u_t = as_float3(ndata.relVel+pdata.eulerVel) - dot3(ndata.relVel+pdata.eulerVel, ndata.normal_s)*ndata.normal_s;
+	const float abs_u_t = length(u_t);
+
+	// we solve iteratively the wall law equation to obtain y+ value
+	float u_star = 0.0f;
+	// the constant is equal to 0.09^0.25
+	const float uk = 0.547722558f*sqrt(pdata.keps_k);
+	float y_plus = ndata.r_as/our_visc*uk;
+	// constant is equal to 1/0.41
+	if (y_plus < 2.43902439f) // viscous sublayer
+		u_star = abs_u_t/y_plus;
+	else { // log law
+		// constant is equal to exp(-5.2*0.41)
+		float utau = 0.118599857f*neib_visc/ndata.r_as;
+		for (int i=0; i<10; i++) {
+			// constant is equal to 1/0.41
+			y_plus = fmax(ndata.r_as*utau/neib_visc, 2.43902439f);
+			// constant is equal to 5.2*0.41+1
+			utau = (0.41f*abs_u_t + utau)/(log(y_plus) + 3.132f);
+		}
+		u_star = abs_u_t / (log(y_plus)/0.41f + 5.2f);
+	}
+
+	nout.DvDt -= 2.0f*nout.ggamAS*u_star*u_star*u_t/fmax(abs_u_t,1e-6f);
+}
+
+/*
+ * Full neighbor viscous contribution
+ */
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+void compute_viscous_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	compute_turb_visc_contrib(params, pdata, ndata, pout, nout);
+	compute_laminar_visc_contrib(params, pdata, ndata, pout, nout);
 }
 
 /*
