@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Parameter structures for the forces kernel
+ */
+
 #ifndef _FORCES_PARAMS_H
 #define _FORCES_PARAMS_H
 
@@ -436,92 +440,5 @@ struct finalize_forces_params :
 	{}
 };
 
-/// Parameters common to all SPS kernel specializations
-struct common_sps_params
-{
-	const float4* __restrict__		pos;
-	const hashKey* __restrict__		particleHash;
-	const uint* __restrict__		cellStart;
-	const neibdata* __restrict__	neibsList;
-	const uint		numParticles;
-	const float		slength;
-	const float		influenceradius;
-
-	// Constructor / initializer
-	common_sps_params(
-		const	float4	* __restrict__ _pos,
-		const	hashKey	* __restrict__ _particleHash,
-		const	uint	* __restrict__ _cellStart,
-		const	neibdata	* __restrict__ _neibsList,
-		const	uint	_numParticles,
-		const	float	_slength,
-		const	float	_influenceradius) :
-		pos(_pos),
-		particleHash(_particleHash),
-		cellStart(_cellStart),
-		neibsList(_neibsList),
-		numParticles(_numParticles),
-		slength(_slength),
-		influenceradius(_influenceradius)
-	{}
-};
-
-/// Additional parameters passed only if simflag SPS_STORE_TAU is set
-struct tau_sps_params
-{
-	float2* __restrict__ 		tau0;
-	float2* __restrict__ 		tau1;
-	float2* __restrict__ 		tau2;
-
-	tau_sps_params(float2 * __restrict__ _tau0, float2 * __restrict__ _tau1, float2 * __restrict__ _tau2) :
-		tau0(_tau0), tau1(_tau1), tau2(_tau2)
-	{}
-};
-
-/// Additional parameters passed only if simflag SPS_STORE_TURBVISC is set
-struct turbvisc_sps_params
-{
-	float	* __restrict__ turbvisc;
-	turbvisc_sps_params(float * __restrict__ _turbvisc) :
-		turbvisc(_turbvisc)
-	{}
-};
-
-
-/// The actual forces_params struct, which concatenates all of the above, as appropriate.
-template<KernelType kerneltype,
-	BoundaryType boundarytype,
-	uint simflags>
-struct sps_params :
-	common_sps_params,
-	COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params),
-	COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
-{
-	// This structure provides a constructor that takes as arguments the union of the
-	// parameters that would ever be passed to the forces kernel.
-	// It then delegates the appropriate subset of arguments to the appropriate
-	// structs it derives from, in the correct order
-	sps_params(
-		// common
-			const	float4* __restrict__ 	_pos,
-			const	hashKey* __restrict__ 	_particleHash,
-			const	uint* __restrict__ 		_cellStart,
-			const	neibdata* __restrict__ 	_neibsList,
-			const	uint		_numParticles,
-			const	float		_slength,
-			const	float		_influenceradius,
-		// tau
-					float2* __restrict__ 		_tau0,
-					float2* __restrict__ 		_tau1,
-					float2* __restrict__ 		_tau2,
-		// turbvisc
-					float* __restrict__ 		_turbvisc
-		) :
-		common_sps_params(_pos, _particleHash, _cellStart,
-			_neibsList, _numParticles, _slength, _influenceradius),
-		COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
-		COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
-	{}
-};
 #endif // _FORCES_PARAMS_H
 

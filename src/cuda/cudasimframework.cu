@@ -40,6 +40,7 @@
 #include "boundary_conditions.cu"
 #include "euler.cu"
 #include "forces.cu"
+#include "visc.cu"
 #include "post_process.cu"
 
 using namespace std;
