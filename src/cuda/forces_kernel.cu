@@ -134,17 +134,25 @@ MKForce(const float r, const float slength,
 //! Artificial viscosity
 __device__ __forceinline__ float
 artvisc(	const float	vel_dot_pos,
-			const float	rho,
-			const float	neib_rho,
-			const float	sspeed,
-			const float	neib_sspeed,
+			const float	rho_tilde,
+			const float	neib_rho_tilde,
+			const float	sspeed_tilde,
+			const float	neib_sspeed_tilde,
 			const float	r,
 			const float	slength)
 {
 	// TODO check if it makes sense to support different artificial viscosity coefficients
 	// for different fluids
-	return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/
+
+	const float rho = absolute_density(rho_tilde, 0);
+	const float neib_rho = absolute_density(neib_rho_tilde, 0);
+	const float sspeed = soundSpeed(rho_tilde, 0);
+	const float neib_sspeed = soundSpeed(neib_rho_tilde, 0);
+
+ return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/
 									((r*r + d_epsartvisc)*(rho + neib_rho));
+
+
 }
 
 

@@ -2442,6 +2442,8 @@ void GPUWorker::kernel_density_sum()
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 	bufwrite.add_state_on_write("densitySum" + to_string(step));
 
+
+
 	integrationEngine->density_sum(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
 		bufwrite,

@@ -43,18 +43,37 @@ __constant__ float	d_sspowercoeff[MAX_FLUID_TYPES];// (\gamma - 1)/2
 
 /********************** Equation of state, speed of sound, repulsive force **********************************/
 // Equation of state: pressure from density, where i is the fluid kind, not particle_id
-__device__ __forceinline__ float
+
+/*__device__ __forceinline__ float
 P(const float rho, const ushort i)
 {
 	return d_bcoeff[i]*(__powf(rho/d_rho0[i], d_gammacoeff[i]) - 1.0f);
 }
+*/
+
+__device__ __forceinline__ float
+P(const float rho_tilde, const ushort i)
+{
+	const float rho_ratio = rho_tilde + 1; // rho/rho0
+	return d_bcoeff[i]*(__powf(rho_ratio, d_gammacoeff[i]) - 1.0f);
+}
 
 // Inverse equation of state: density from pressure, where i is the fluid kind, not particle_id
-__device__ __forceinline__ float
+/*__device__ __forceinline__ float
 RHO(const float p, const ushort i)
 {
 	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i])*d_rho0[i];
 }
+*/
+
+//RHO returns rho_tilde = rho/rho0 - 1
+
+__device__ __forceinline__ float
+RHO(const float p, const ushort i)
+{
+	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1; 
+}
+
 
 // Riemann celerity
 __device__ float
@@ -71,9 +90,34 @@ RHOR(const float r, const ushort i)
 }
 
 // Sound speed computed from density
-__device__ __forceinline__ float
+/*__device__ __forceinline__ float
 soundSpeed(const float rho, const ushort i)
 {
 	return d_sscoeff[i]*__powf(rho/d_rho0[i], d_sspowercoeff[i]);
 }
+}
+*/
+
+__device__ __forceinline__ float
+soundSpeed(const float rho_tilde, const ushort i)
+{
+	const float rho_ratio = rho_tilde + 1; // rho/rho0
+	return d_sscoeff[i]*__powf(rho_ratio, d_sspowercoeff[i]);
+}
+
+// returns absolute density from relative density
+__device__ __forceinline__ float
+absolute_density(const float rho_tilde, const ushort i)
+{
+	return (rho_tilde + 1)*d_rho0[i];
+}
+
+// Uniform precision on density
+// returns the relative density from absolute density
+__device__ __forceinline__ float
+relative_density(const float rho, const ushort i)
+{
+	return rho/d_rho0[i] - 1;
+}
+
 }

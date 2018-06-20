@@ -290,7 +290,10 @@ __device__ __forceinline__
 enable_if_t<Pt::sph_formulation == SPH_F1, float>
 precalc_pressure(Pt const& pdata)
 {
-	const float rho = particle_density(pdata);
+	// const float rho = particle_density(pdata);
+
+        const float rho = absolute_density( particle_density(pdata), fluid_num(pdata.info) );
+
 	return pressure_for_precalc(pdata)/(rho*rho);
 }
 
@@ -1460,7 +1463,7 @@ enable_if_t<
 mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
+	nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f/d_rho0[fluid_num(pdata.info)];
 }
 
 /// Density ratio contribution
@@ -2193,7 +2196,15 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__
 enable_if_t<FP::sph_formulation != SPH_GRENIER && FP::boundarytype != SA_BOUNDARY>
 forces_fixup(FP const& params, P const& pdata, OP &pout)
-{ /* do nothing */ }
+{ // divide by 1/rho0 mass equation 
+
+	/* Only applies to fluid particles */
+	if (!FLUID(pdata.info))
+		return;
+
+	pout.force.w /= d_rho0[fluid_num(pdata.info)];
+
+}
 
 /*
  * Forces acting on moving bodies

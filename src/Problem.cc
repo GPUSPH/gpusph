@@ -680,21 +680,27 @@ Problem::check_neiblistsize(void)
 	}
 }
 
-
 float
-Problem::density(float h, int i) const
+Problem::density(float h, int i) const    // here we need rho_tilde = density/rho0 -1
 {
-	float density = physparams()->rho0[i];
+	//float density = physparams()->rho0[i];
+	float density = 0.0f; // rho0/rho0 -1
+
 
 	if (h > 0) {
 		float g = fabsf(length(physparams()->gravity));
 		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
-		density = physparams()->rho0[i]*pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
-				1/physparams()->gammacoeff[i]);
+		//density = physparams()->rho0[i]*pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
+		//		1/physparams()->gammacoeff[i]);
+		density = pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
+				1/physparams()->gammacoeff[i])-1.0;
+
 		}
+
 	return density;
 }
 
+// not used here
 // density to achieve a specific pressure
 float
 Problem::density_for_pressure(float P, int i) const
@@ -705,17 +711,34 @@ Problem::density_for_pressure(float P, int i) const
 
 
 float
-Problem::soundspeed(float rho, int i) const
+Problem::soundspeed(float rho_tilde, int i) const
 {
-	return physparams()->sscoeff[i]*pow(rho/physparams()->rho0[i], physparams()->sspowercoeff[i]);
+	const float rho_ratio = rho_tilde + 1;
+
+    return physparams()->sscoeff[i]*pow(rho_ratio, physparams()->sspowercoeff[i]);
 }
 
 
 float
-Problem::pressure(float rho, int i) const
+Problem::pressure(float rho_tilde, int i) const
 {
-	return physparams()->bcoeff[i]*(pow(rho/physparams()->rho0[i], physparams()->gammacoeff[i]) - 1);
+	const float rho_ratio = rho_tilde + 1;
+
+	return physparams()->bcoeff[i]*(pow(rho_ratio, physparams()->gammacoeff[i]) - 1);
 }
+/*
+float
+Problem::absolute_density( float rho_tilde, int i) const
+{
+	return (rho_tilde + 1)*physparams()->rho0[i];
+}
+
+float
+Problem::relative_density( float rho, int i) const
+{
+	return rho/physparams()->rho0[i] - 1;
+}
+*/
 
 void
 Problem::add_gage(double3 const& pt)
@@ -1197,6 +1220,7 @@ Problem::calculateDensityDiffusionCoefficient()
 		simparams()->densityDiffCoeff *= 2.0f*simparams()->slength;
 		break;
 	default:
+
 		break;
 	}
 	return;

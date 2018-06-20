@@ -185,6 +185,10 @@ class Problem {
 		float density_for_pressure(float, int) const;
 
 		float pressure(float, int) const;
+/*
+		float relative_density(float, int) const;
+		float absolute_density(float, int) const;
+*/
 
 		float soundspeed(float, int) const;
 

@@ -41,7 +41,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
 	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
-	const int RHODIFF = get_option("density-diffusion", 1);
+	const int RHODIFF = get_option("density-diffusion", 0);
 
 	// ** framework setup
 	// viscosities: ARTVISC*, KINEMATICVISC*, DYNAMICVISC*, SPSVISC, KEPSVISC
@@ -52,8 +52,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<DYN_BOUNDARY>,
 		flags<ENABLE_DTADAPT>
 	).select_options(
-		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
+		//RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
 
@@ -150,6 +150,10 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// rotation angle
 	const double Z_ANGLE = M_PI / 4;
 
+
+
+// activate the solid obstacle
+/*
 	for (uint i = 0; i < NUM_OBSTACLES; i++) {
 		// Obstacle is of type GT_MOVING_BODY, although the callback is not even implemented, to
 		// make the forces feedback available
@@ -164,6 +168,12 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 		// enable force feedback to measure forces
 		enableFeedback(obstacle);
 	}
+*/
+
+
+
+
+
 
 	// Optionally, add a floating objects
 	/*
