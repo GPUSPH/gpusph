@@ -294,7 +294,10 @@ precalc_pressure(Pt const& pdata)
 
         const float rho = absolute_density( particle_density(pdata), fluid_num(pdata.info) );
 
+	//return pressure_for_precalc(pdata)/((rho+1.0)*(rho+1.0)*d_rho0[0]*d_rho0[0]);
+
 	return pressure_for_precalc(pdata)/(rho*rho);
+
 }
 
 /// Precompute pressure contribution to momentum equation
@@ -1463,7 +1466,7 @@ enable_if_t<
 mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f/d_rho0[fluid_num(pdata.info)];
+	nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
 }
 
 /// Density ratio contribution
@@ -2197,13 +2200,7 @@ __device__ __forceinline__
 enable_if_t<FP::sph_formulation != SPH_GRENIER && FP::boundarytype != SA_BOUNDARY>
 forces_fixup(FP const& params, P const& pdata, OP &pout)
 { // divide by 1/rho0 mass equation 
-
-	/* Only applies to fluid particles */
-	if (!FLUID(pdata.info))
-		return;
-
 	pout.force.w /= d_rho0[fluid_num(pdata.info)];
-
 }
 
 /*

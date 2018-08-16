@@ -149,8 +149,11 @@ artvisc(	const float	vel_dot_pos,
 	const float sspeed = soundSpeed(rho_tilde, 0);
 	const float neib_sspeed = soundSpeed(neib_rho_tilde, 0);
 
- return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/
-									((r*r + d_epsartvisc)*(rho + neib_rho));
+ return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/((r*r + d_epsartvisc)*(rho + neib_rho));
+
+
+
+// return vel_dot_pos*slength*d_visccoeff[0]*(sspeed_tilde + neib_sspeed_tilde)/((r*r + d_epsartvisc)*(2.0+rho_tilde + neib_rho_tilde)*d_rho0[0]);
 
 
 }
@@ -187,13 +190,17 @@ laminarvisc_kinematic(	const float	rho,
  returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
 */
 __device__ __forceinline__ float
-laminarvisc_dynamic(const float	rho,
-					const float	neib_rho,
+laminarvisc_dynamic(const float	rho_tilde,
+					const float	neib_rho_tilde,
 					const float	neib_mass,
 					const float	f,
 					const float	visc,
 					const float	neib_visc)
 {
+
+	const float rho = absolute_density(rho_tilde, 0);
+	const float neib_rho = absolute_density(neib_rho_tilde, 0);
+
 	return neib_mass*(visc + neib_visc)*f/(rho*neib_rho);
 }
 /************************************************************************************************************/

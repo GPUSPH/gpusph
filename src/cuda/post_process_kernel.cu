@@ -283,7 +283,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	CLEAR_FLAG(info, FG_SURFACE);
 
 	// self contribution to normalization: W(0)*vol
-	normal.w = W<kerneltype>(0.0f, slength)*pos.w/tex1Dfetch(velTex, index).w;
+	normal.w = W<kerneltype>(0.0f, slength)*pos.w/absolute_density(tex1Dfetch(velTex, index).w,fluid_num(info));
 
 	// First loop over all neighbors
 	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
@@ -307,7 +307,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		const float r = length(as_float3(relPos));
 
 		// neighbor volume
-		const float neib_vol = relPos.w/tex1Dfetch(velTex, neib_index).w;
+		const float neib_vol = relPos.w/absolute_density(tex1Dfetch(velTex, neib_index).w, fluid_num(info));
 
 		if (r < influenceradius) {
 			const float f = F<kerneltype>(r, slength)*neib_vol; // 1/r ∂Wij/∂r Vj
