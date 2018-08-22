@@ -290,11 +290,8 @@ __device__ __forceinline__
 enable_if_t<Pt::sph_formulation == SPH_F1, float>
 precalc_pressure(Pt const& pdata)
 {
-	// const float rho = particle_density(pdata);
 
         const float rho = absolute_density( particle_density(pdata), fluid_num(pdata.info) );
-
-	//return pressure_for_precalc(pdata)/((rho+1.0)*(rho+1.0)*d_rho0[0]*d_rho0[0]);
 
 	return pressure_for_precalc(pdata)/(rho*rho);
 
@@ -1248,7 +1245,7 @@ template<typename P, typename N>
 __device__ __forceinline__
 enable_if_t<not has_volume<P>(), float>
 volume_ratio(P const& pdata, N const& ndata)
-{ return ndata.relVel.w/pdata.vel.w; }
+{ return absolute_density(ndata.relVel.w,fluid_num(pdata.info))/absolute_density(pdata.vel.w,fluid_num(pdata.info)); }
 
 /// Cases when there is no density contribution
 template<typename FP, typename P, typename N, typename ON,
@@ -1284,7 +1281,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	// actual diffusion term
 	const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
-		(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
+		(absolute_density(pdata.vel.w,fluid_num(pdata.info)) - absolute_density(ndata.relVel.w,fluid_num(pdata.info)) + grav_corr)/absolute_density(pdata.vel.w,fluid_num(pdata.info))/ndata.r*as_float3(ndata.relPos) :
 		make_float3(0.0f);
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
 	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
@@ -1329,10 +1326,10 @@ enable_if_t<
 compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
 {
 	// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
-	nout.DrDt += d_densityDiffCoeff*((2.0f/(pdata.vel.w + ndata.relVel.w))*
+	nout.DrDt += d_densityDiffCoeff*((2.0f/(absolute_density(pdata.vel.w,fluid_num(pdata.info)) + absolute_density(ndata.relVel.w,fluid_num(pdata.info))))*
 		(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
 		- dot(d_gravity, as_float3(ndata.relPos))
-		)*ndata.relPos.w/ndata.relVel.w*ndata.f*params.dt*2.0f*pdata.vel.w;
+		)*ndata.relPos.w/absolute_density(ndata.relVel.w,fluid_num(pdata.info))*ndata.f*params.dt*2.0f*absolute_density(pdata.vel.w,fluid_num(pdata.info));
 }
 
 /// Brezzi density diffusion term from boundary neighbors
@@ -1379,7 +1376,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	// only apply diffusion for large density ratios, specifically
 	// when DeltaP > rhogh
 	if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
-		fabs(dot3(d_gravity, ndata.relPos)*pdata.vel.w))
+		fabs(dot3(d_gravity, ndata.relPos)*absolute_density(pdata.vel.w,fluid_num(pdata.info))))
 		return;
 
 	// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
@@ -1739,13 +1736,15 @@ enable_if_t<
 compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+        //here our_rho and neib_rho are relative. The conversion is carried 
+        //out in forces_kernel.cu
 	const float our_rho = pdata.vel.w;
 	const float neib_rho = ndata.relVel.w;
 	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
 	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
 
 	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
-			our_visc*our_rho, neib_visc*neib_rho));
+			our_visc*absolute_density(our_rho,fluid_num(pdata.info)), neib_visc*absolute_density(neib_rho,fluid_num(pdata.info))));
 	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
@@ -1842,13 +1841,15 @@ enable_if_t<
 compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+        //here our_rho and neib_rho are relative. The conversion is carried 
+        //out in forces_kernel.cu
 	const float our_rho = pdata.vel.w;
 	const float neib_rho = ndata.relVel.w;
 	const float our_visc = d_visccoeff[fluid_num(pdata.info)]+pdata.turbViscForViscTerm;
 	const float neib_visc = d_visccoeff[fluid_num(ndata.info)]+ndata.turbViscForViscTerm;
 
 	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
-		our_visc*our_rho, neib_visc*neib_rho));
+		our_visc*absolute_density(our_rho,fluid_num(pdata.info)), neib_visc*absolute_density(neib_rho,fluid_num(pdata.info))));
 	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
@@ -2087,19 +2088,19 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__
 enable_if_t< FP::visctype == DYNAMICVISC, float >
 viscous_fixup(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w; }
+{ return d_visccoeff[fluid_num(pdata.info)]*absolute_density(pdata.vel.w,fluid_num(pdata.info)); }
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
 enable_if_t< FP::visctype == KINEMATICVISC, float >
 viscous_fixup(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check?
+{ return d_visccoeff[fluid_num(pdata.info)]*absolute_density(pdata.vel.w/4,fluid_num(pdata.info)); } // TODO FIXME check?
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
 enable_if_t< FP::visctype == SPSVISC, float >
 viscous_fixup(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check? should be the same as KINEMATICVISC, probably
+{ return d_visccoeff[fluid_num(pdata.info)]*absolute_density(pdata.vel.w/4,fluid_num(pdata.info)); } // TODO FIXME check? should be the same as KINEMATICVISC, probably
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__

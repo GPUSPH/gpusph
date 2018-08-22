@@ -39,23 +39,24 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	const bool USE_PLANES = get_option("use_planes", false);
 	const uint NUM_OBSTACLES = get_option("num_obstacles", 1);
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
-	const uint NUM_TESTPOINTS = get_option("num_testpoints", 0);
-	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
-	const int RHODIFF = get_option("density-diffusion", 0);
+	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
+	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
+	const int RHODIFF = get_option("density-diffusion", 2);
 
 	// ** framework setup
 	// viscosities: ARTVISC*, KINEMATICVISC*, DYNAMICVISC*, SPSVISC, KEPSVISC
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
-	// * = tested in thsi problem
+	// * = tested in this problem
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC>,
+		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
 		flags<ENABLE_DTADAPT>
-	)/*.select_options(
+	).select_options(
 		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-		//RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
-		USE_PLANES, add_flags<ENABLE_PLANES>()
-	)*/;
+		//RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
+		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>()/*,
+		USE_PLANES, add_flags<ENABLE_PLANES>()*/
+	);
 
 	// will dump testpoints separately
 	addPostProcess(TESTPOINTS);
@@ -63,7 +64,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
 	// diffusion is enabled, 10 otherwise
 	const int mlsIters = get_option("mls",
-		(simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) ? 0 : 0);
+		(simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) ? 0 : 10);
 
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
@@ -74,7 +75,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	resize_neiblist(128);
 
 	// *** Initialization of minimal physical parameters
-	set_deltap(0.02f);
+	set_deltap(0.015f);
 	//simparams()->dt = 0.00005;
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
@@ -90,12 +91,14 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 
 	// default tend 1.5s
 	simparams()->tend=1.5f;
+	//simparams()->ferrariLengthScale = H;
+	//simparams()->densityDiffCoeff = 0.1f;
+
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.2);
-
-	// *** Other parameters and settings
 	add_writer(VTKWRITER, 0.005f);
+	//addPostProcess(VORTICITY);
+	// *** Other parameters and settings
 	m_name = "DamBreak3D";
 
 	// *** Geometrical parameters, starting from the size of the domain
@@ -193,7 +196,16 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// add testpoints
 	const float TESTPOINT_DISTANCE = dimZ / (NUM_TESTPOINTS + 1);
 	for (uint t = 0; t < NUM_TESTPOINTS; t++)
-		addTestPoint(Point(3*dimX/4, dimY/2.0, t * TESTPOINT_DISTANCE));
+		addTestPoint(Point(0.25*dimX, dimY/2.0, (t+1) * TESTPOINT_DISTANCE/2.0));
+
+	for (uint t = 0; t < NUM_TESTPOINTS; t++)
+		addTestPoint(Point(0.4*dimX, dimY/2.0, (t+1) * TESTPOINT_DISTANCE/2.0));
+
+	for (uint t = 0; t < NUM_TESTPOINTS; t++)
+		addTestPoint(Point(0.75*dimX, dimY/2.0, (t+1) * TESTPOINT_DISTANCE/2.0));
+
+	for (uint t = 0; t < NUM_TESTPOINTS; t++)
+		addTestPoint(Point(0.9*dimX, dimY/2.0, (t+1) * TESTPOINT_DISTANCE/2.0));
 }
 
 // since the fluid topology is roughly symmetric along Y through the whole simulation, prefer Y split
@@ -202,11 +214,11 @@ void DamBreak3D::fillDeviceMap()
 	fillDeviceMapByAxis(Y_AXIS);
 }
 
-
+/*
 bool DamBreak3D::need_write(double t) const
 {
  	return 0;
 }
-
+*/
 
 

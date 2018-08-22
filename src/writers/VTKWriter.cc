@@ -401,12 +401,13 @@ float get_pressure(float4 const& pvel, particleinfo const& pinfo, GlobalData con
 	return TESTPOINT(pinfo) ? pvel.w : gdata->problem->pressure(pvel.w, fluid_num(pinfo));
 }
 
-float get_density(float4 const& pvel, particleinfo const& pinfo)
+// Here we store the absolute density to visualize
+float get_density(float4 const& pvel, particleinfo const& pinfo, GlobalData const* gdata)
 {
 	// TODO FIXME: Testpoints compute pressure only
 	// In the future we would like to have a density here but this needs to be
 	// done correctly for multifluids
-	return TESTPOINT(pinfo) ? NAN : pvel.w;
+	return TESTPOINT(pinfo) ? NAN : gdata->problem->absolute_density(pvel.w,fluid_num(pinfo)) ;
 }
 
 // Return the last component of a double4, demoted to a float

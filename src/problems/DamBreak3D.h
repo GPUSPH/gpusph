@@ -35,7 +35,7 @@ class DamBreak3D: public XProblem {
 		//virtual ~DamBreak3D(void);
 		// override standard split
 		void fillDeviceMap();
-		bool need_write(double) const;
+		//bool need_write(double) const;
 };
 #endif	/* _DAMBREAK3D_H */
 

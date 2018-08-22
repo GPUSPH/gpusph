@@ -120,7 +120,7 @@ calcVortDevice(	const	float4*		posArray,
 
 		// Compute vorticity
 		if (r < influenceradius) {
-			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// ∂Wij/∂r*Vj
+			const float f = F<kerneltype>(r, slength)*relPos.w/absolute_density(relVel.w,0);	// ∂Wij/∂r*Vj
 			// vxij = vxi - vxj and same for vyij and vzij
 			vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
 			vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
@@ -196,7 +196,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 		if (r < influenceradius) {
 			const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-			const float w = W<kerneltype>(r, slength)*relPos.w/neib_vel.w;	// Wij*mj
+			const float w = W<kerneltype>(r, slength)*relPos.w/absolute_density(neib_vel.w,0);	// Wij*mj
 			//Velocity
 			velavg.x += w*neib_vel.x;
 			velavg.y += w*neib_vel.y;

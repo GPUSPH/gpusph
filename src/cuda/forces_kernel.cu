@@ -151,11 +151,6 @@ artvisc(	const float	vel_dot_pos,
 
  return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/((r*r + d_epsartvisc)*(rho + neib_rho));
 
-
-
-// return vel_dot_pos*slength*d_visccoeff[0]*(sspeed_tilde + neib_sspeed_tilde)/((r*r + d_epsartvisc)*(2.0+rho_tilde + neib_rho_tilde)*d_rho0[0]);
-
-
 }
 
 
@@ -170,8 +165,8 @@ artvisc(	const float	vel_dot_pos,
  returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
 */
 __device__ __forceinline__ float
-laminarvisc_kinematic(	const float	rho,
-						const float	neib_rho,
+laminarvisc_kinematic(	const float	rho_tilde,
+						const float	neib_rho_tilde,
 						const float	neib_mass,
 						const float	f)
 {
@@ -179,6 +174,10 @@ laminarvisc_kinematic(	const float	rho,
 	// TODO FIXME kinematic viscosity should probably be marked as incompatible
 	// with multi-fluid (or at least if fluids don't have the same, constant
 	// viscosity
+
+	const float rho = absolute_density(rho_tilde, 0);
+	const float neib_rho = absolute_density(neib_rho_tilde, 0);
+
 	return neib_mass*d_visccoeff[0]*f/(rho + neib_rho);
 }
 
@@ -804,7 +803,7 @@ shepardDevice(	const float4*	posArray,
 
 	// Taking into account self contribution in summation
 	float temp1 = pos.w*W<kerneltype>(0, slength);
-	float temp2 = temp1/vel.w ;
+	float temp2 = temp1/absolute_density(vel.w,0) ;
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -835,7 +834,7 @@ shepardDevice(	const float4*	posArray,
 
 		const float r = length(as_float3(relPos));
 
-		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+		const float neib_rho = absolute_density(tex1Dfetch(velTex, neib_index).w,0);
 
 		if (r < influenceradius ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
@@ -845,7 +844,7 @@ shepardDevice(	const float4*	posArray,
 	}
 
 	// Normalize the density and write in global memory
-	vel.w = temp1/temp2;
+	vel.w = relative_density(temp1/temp2,0);
 	newVel[index] = vel;
 }
 
@@ -901,7 +900,7 @@ MlsDevice(	const float4*	posArray,
 	int neibs_num = 0;
 
 	// Taking into account self contribution in MLS matrix construction
-	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
+	mls.xx = W<kerneltype>(0, slength)*pos.w/absolute_density(vel.w,0);
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -931,7 +930,7 @@ MlsDevice(	const float4*	posArray,
 
 		const float r = length(as_float3(relPos));
 
-		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+		const float neib_rho = absolute_density(tex1Dfetch(velTex, neib_index).w,0);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// Add neib contribution only if it's a fluid one
@@ -1038,6 +1037,8 @@ MlsDevice(	const float4*	posArray,
 			const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 			vel.w += MlsCorrContrib(B, relPos, w);
 		}
+                        
+
 	}  // end of second loop trough neighbors
 
 	// If MLS starts misbehaving, define DEBUG_PARTICLE: this will
@@ -1059,7 +1060,7 @@ MlsDevice(	const float4*	posArray,
 		}
 	}
 #endif
-
+        vel.w = relative_density(vel.w,0);
 	newVel[index] = vel;
 }
 /************************************************************************************************************/

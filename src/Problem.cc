@@ -681,17 +681,14 @@ Problem::check_neiblistsize(void)
 }
 
 float
-Problem::density(float h, int i) const    // here we need rho_tilde = density/rho0 -1
+Problem::density(float h, int i) const    // here we initialize rho_tilde = density/rho0 -1
 {
-	//float density = physparams()->rho0[i];
-	float density = 0.0f; // rho0/rho0 -1
+	float density = relative_density(physparams()->rho0[i],0); // rho0/rho0 -1 = 0
 
 
 	if (h > 0) {
 		float g = fabsf(length(physparams()->gravity));
 		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
-		//density = physparams()->rho0[i]*pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
-		//		1/physparams()->gammacoeff[i]);
 		density = pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
 				1/physparams()->gammacoeff[i])-1.0;
 
@@ -700,15 +697,13 @@ Problem::density(float h, int i) const    // here we need rho_tilde = density/rh
 	return density;
 }
 
-// not used here
-// density to achieve a specific pressure
+// TODO : density to achieve a specific pressure 
 float
 Problem::density_for_pressure(float P, int i) const
 {
 	return  physparams()->rho0[i]*pow(P/physparams()->bcoeff[i] + 1,
 				1/physparams()->gammacoeff[i]);
 }
-
 
 float
 Problem::soundspeed(float rho_tilde, int i) const
@@ -718,7 +713,6 @@ Problem::soundspeed(float rho_tilde, int i) const
     return physparams()->sscoeff[i]*pow(rho_ratio, physparams()->sspowercoeff[i]);
 }
 
-
 float
 Problem::pressure(float rho_tilde, int i) const
 {
@@ -726,7 +720,7 @@ Problem::pressure(float rho_tilde, int i) const
 
 	return physparams()->bcoeff[i]*(pow(rho_ratio, physparams()->gammacoeff[i]) - 1);
 }
-/*
+
 float
 Problem::absolute_density( float rho_tilde, int i) const
 {
@@ -738,7 +732,6 @@ Problem::relative_density( float rho, int i) const
 {
 	return rho/physparams()->rho0[i] - 1;
 }
-*/
 
 void
 Problem::add_gage(double3 const& pt)

@@ -53,13 +53,11 @@ P(const float rho_tilde, const ushort i)
 
 // Inverse equation of state: density from pressure, where i is the fluid kind, not particle_id
 //RHO returns rho_tilde = rho/rho0 - 1
-
 __device__ __forceinline__ float
 RHO(const float p, const ushort i)
 {
 	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1.0; 
 }
-
 
 // Riemann celerity
 __device__ float
