@@ -1477,7 +1477,7 @@ enable_if_t<FP::sph_formulation == SPH_F2>
 mass_continuity_density_ratio
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+	nout.DrDt *= absolute_density(pdata.vel.w,fluid_num(pdata.info))/absolute_density(ndata.relVel.w,fluid_num(pdata.info));
 }
 template<typename FP, typename P, typename N, typename ON>
 __device__ __forceinline__
@@ -1575,7 +1575,10 @@ enable_if_t<FP::sph_formulation == SPH_F2, float>
 pressure_gradient_term
 (FP const& params, Pt const& pdata, N const& ndata)
 {
-	return (pdata.p_precalc + ndata.p_precalc)/(pdata.vel.w*ndata.relVel.w);
+	const float rho_p = absolute_density(pdata.vel.w, fluid_num(pdata.info) );
+	const float rho_n = absolute_density(ndata.relVel.w, fluid_num(pdata.info) );
+
+	return (pdata.p_precalc + ndata.p_precalc)/(rho_p*rho_n);
 }
 
 /// Pressure gradient term
@@ -1762,8 +1765,8 @@ compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// TODO support different visctypes
-	const float mu_i = d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w;
-	const float mu_j = d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w;
+	const float mu_i = d_visccoeff[fluid_num(pdata.info)]*absolute_density(pdata.vel.w,fluid_num(pdata.info));
+	const float mu_j = d_visccoeff[fluid_num(ndata.info)]*absolute_density(ndata.relVel.w,fluid_num(pdata.info));
 	const float avg_mu = 2*(mu_i*mu_j)/(mu_i+mu_j);
 	const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
 	nout.DvDt += avg_mu*avg_sigma*ndata.f*as_float3(ndata.relVel);
@@ -2171,9 +2174,9 @@ __device__ __forceinline__
 enable_if_t<FP::sph_formulation == SPH_GRENIER>
 forces_fixup(FP const& params, P const& pdata, OP &pout)
 {
-	pout.force.x /= pdata.vel.w;
-	pout.force.y /= pdata.vel.w;
-	pout.force.z /= pdata.vel.w;
+	pout.force.x /= absolute_density(pdata.vel.w,fluid_num(pdata.info));
+	pout.force.y /= absolute_density(pdata.vel.w,fluid_num(pdata.info));
+	pout.force.z /= absolute_density(pdata.vel.w,fluid_num(pdata.info));
 	pout.force.w /= pdata.sigma;
 }
 

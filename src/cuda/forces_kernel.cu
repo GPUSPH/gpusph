@@ -560,7 +560,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 		// Velocity gradient is contributed by all particles
 		// TODO: fix SA case
 		if ( r < params.influenceradius ) {
-			const float f = F<kerneltype>(r, params.slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
+			const float f = F<kerneltype>(r, params.slength)*relPos.w/absolute_density(relVel.w,0);	// 1/r ∂Wij/∂r Vj
 
 			// Velocity Gradients
 			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
@@ -598,14 +598,14 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	if (simflags & SPSK_STORE_TAU) {
 
 		tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
-		tau.xx /= vel.w;
-		tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
-		tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
+		tau.xx /= absolute_density(vel.w,0);
+		tau.xy *= nu_SPS/absolute_density(vel.w,0);								// tau12 = tau_xy/ρ^2
+		tau.xz *= nu_SPS/absolute_density(vel.w,0);								// tau13 = tau_xz/ρ^2
 		tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
-		tau.yy /= vel.w;
-		tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
+		tau.yy /= absolute_density(vel.w,0);
+		tau.yz *= nu_SPS/absolute_density(vel.w,0);								// tau23 = tau_yz/ρ^2
 		tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
-		tau.zz /= vel.w;
+		tau.zz /= absolute_density(vel.w,0);
 
 		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, tau);
 	}
@@ -736,7 +736,7 @@ densityGrenierDevice(
 	// M = mass_corr/corr, ρ = M/ω
 	// this could be optimized to pos.w/vol assuming all same-fluid particles
 	// have the same mass
-	vel.w = mass_corr/(corr*vol);
+	vel.w = relative_density(mass_corr/(corr*vol),0);
 	velArray[index] = vel;
 	sigmaArray[index] = sigma;
 }
