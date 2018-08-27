@@ -736,7 +736,9 @@ densityGrenierDevice(
 	// M = mass_corr/corr, ρ = M/ω
 	// this could be optimized to pos.w/vol assuming all same-fluid particles
 	// have the same mass
-	vel.w = relative_density(mass_corr/(corr*vol),0);
+	//vel.w = relative_density(mass_corr/(corr*vol),0);
+	vel.w = mass_corr/(corr*vol);
+	vel.w = relative_density(vel.w,0);
 	velArray[index] = vel;
 	sigmaArray[index] = sigma;
 }

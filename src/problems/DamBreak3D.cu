@@ -41,22 +41,22 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
-	const int RHODIFF = get_option("density-diffusion", 0);
+	const int RHODIFF = get_option("density-diffusion", 2);
 
 	// ** framework setup
 	// viscosities: ARTVISC*, KINEMATICVISC*, DYNAMICVISC*, SPSVISC, KEPSVISC
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
-		//formulation<SPH_GRENIER>,
-		viscosity<SPSVISC>,
+		formulation<SPH_GRENIER>,
+		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
 		flags<ENABLE_DTADAPT>
 	).select_options(
 		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		//RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
-		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>()/*,
-		USE_PLANES, add_flags<ENABLE_PLANES>()*/
+		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
 
 	// will dump testpoints separately
@@ -93,11 +93,11 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// default tend 1.5s
 	simparams()->tend=1.5f;
 	//simparams()->ferrariLengthScale = H;
-	//simparams()->densityDiffCoeff = 0.1f;
-	physparams()->artvisccoeff =  0.2;
+	simparams()->densityDiffCoeff = 0.1f;
+	/*physparams()->artvisccoeff =  0.2;
 	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.005f);
