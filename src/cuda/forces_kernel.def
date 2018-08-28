@@ -2177,9 +2177,7 @@ forces_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.force.x /= absolute_density(pdata.vel.w,fluid_num(pdata.info));
 	pout.force.y /= absolute_density(pdata.vel.w,fluid_num(pdata.info));
 	pout.force.z /= absolute_density(pdata.vel.w,fluid_num(pdata.info));
-	//pout.force.w /= relative_density(pdata.sigma,fluid_num(pdata.info));
-	pout.force.w /= (pdata.sigma*d_rho0[fluid_num(pdata.info)]);
-	//pout.force.w /= pdata.sigma;
+	pout.force.w /= pdata.sigma;
 }
 
 template<typename FP, typename P, typename OP>

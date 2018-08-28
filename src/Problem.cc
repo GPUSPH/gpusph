@@ -1374,7 +1374,7 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 		float4 pvol;
 		// .x: initial volume, .w current volume.
 		// at the beginning they are both equal to mass/density
-		pvol.x = pvol.w = pos[i].w/vel[i].w;
+		pvol.x = pvol.w = pos[i].w/absolute_density(vel[i].w,0);
 		// .y is the log of current/initial
 		pvol.y = 0;
 		// .z is unused, set to zero

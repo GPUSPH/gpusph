@@ -41,7 +41,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
-	const int RHODIFF = get_option("density-diffusion", 2);
+	const int RHODIFF = get_option("density-diffusion", 0);
 
 	// ** framework setup
 	// viscosities: ARTVISC*, KINEMATICVISC*, DYNAMICVISC*, SPSVISC, KEPSVISC
@@ -54,7 +54,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 		flags<ENABLE_DTADAPT>
 	).select_options(
 		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-		//RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
+		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
 		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
