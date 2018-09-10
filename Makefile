@@ -1060,7 +1060,7 @@ $(GPUDEPS): $(CUFILES) Makefile.conf | $(CHRONO_SELECT_OPTFILE)
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
-$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf $(AUTOGEN_SRC) | $(CHRONO_SELECT_OPTFILE)
+$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(AUTOGEN_SRC) $(CHRONO_SELECT_OPTFILE)
 	$(call show_stage,DEPS,CPU)
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
