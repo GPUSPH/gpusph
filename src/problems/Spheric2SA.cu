@@ -12,7 +12,8 @@
 Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 {
 	SETUP_FRAMEWORK(
-		viscosity<DYNAMICVISC>,
+		viscosity<KEPSVISC>,
+		//viscosity<DYNAMICVISC>,
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
 		kernel<WENDLAND>,
@@ -24,10 +25,10 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 
 	size_t water = add_fluid(1000.0);
 	set_equation_of_state(water,  7.0f, 130.f);
-	set_kinematic_visc(water, 1.0e-2f);
+	set_kinematic_visc(water, 1.0e-6f);
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
 
-	simparams()->tend = 5.0;
+	simparams()->tend = 1.2;
 	addPostProcess(SURFACE_DETECTION);
 	addPostProcess(TESTPOINTS);
 	H = 0.55;

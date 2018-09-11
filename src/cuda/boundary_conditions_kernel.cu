@@ -126,7 +126,7 @@ calculateIOboundaryCondition(
 		if (unExt <= unInt) // Expansion wave
 			riemannR = rInt + (unExt - unInt);
 		else { // Shock wave
-			float riemannRho = RHO(P(rhoInt, a) + rhoInt * unInt * (unInt - unExt), a);
+			float riemannRho = RHO(P(rhoInt, a) + absolute_density(rhoInt,a) * unInt * (unInt - unExt), a);
 			riemannR = R(riemannRho, a);
 			float riemannC = soundSpeed(riemannRho, a);
 			float lambda = unExt + riemannC;
@@ -145,11 +145,11 @@ calculateIOboundaryCondition(
 		const float cInt = soundSpeed(rhoInt, a);
 		const float lambdaInt = unInt + cInt;
 		const float rExt = R(rhoExt, a);
-		if (rhoExt <= rhoInt) { // Expansion wave
+		if (absolute_density(rhoExt,a) <= absolute_density(rhoInt,a)) { // Expansion wave
 			flux = unInt + (rExt - rInt);
 			float lambda = flux + cExt;
 			if (lambda > lambdaInt) { // shock wave
-				flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmaxf(unInt,1e-5f*d_sscoeff[a])) + unInt;
+				flux = (P(rhoInt, a) - P(rhoExt, a))/(absolute_density(rhoInt,a)*fmaxf(unInt,1e-5f*d_sscoeff[a])) + unInt;
 				// check that unInt was not too small
 				if (fabsf(flux) > d_sscoeff[a] * 0.1f)
 					flux = unInt;
@@ -159,7 +159,7 @@ calculateIOboundaryCondition(
 			}
 		}
 		else { // shock wave
-			flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmaxf(unInt,1e-5f*d_sscoeff[a])) + unInt;
+			flux = (P(rhoInt, a) - P(rhoExt, a))/(absolute_density(rhoInt,a)*fmaxf(unInt,1e-5f*d_sscoeff[a])) + unInt;
 			// check that unInt was not too small
 			if (fabsf(flux) > d_sscoeff[a] * 0.1f)
 				flux = unInt;
@@ -179,7 +179,7 @@ calculateIOboundaryCondition(
 		as_float3(eulerVel) = make_float3(0.0f);
 		// if the imposed pressure on the boundary is negative make sure that the flux is negative
 		// as well (outflow)
-		if (rhoExt < d_rho0[a])
+		if (rhoExt < relative_density(d_rho0[a],a))
 			flux = fminf(flux, 0.0f);
 		// Outflow
 		if (flux < 0.0f)
@@ -647,7 +647,7 @@ struct common_ndata
 		relPos(_relPos),
 		vel(params.vel[index]),
 		r(length3(relPos)),
-		w(W<Params::kerneltype>(r, params.slength)*relPos.w/vel.w),
+		w(W<Params::kerneltype>(r, params.slength)*relPos.w/absolute_density(vel.w,fluid_num(info))),
 		press(P(vel.w, fluid_num(info)))
 	{}
 };
@@ -1119,13 +1119,14 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 		const float unExt = dot3(eulerVel, pdata.normal);
 		const float rhoInt = RHO(pout.sump, fluid_num(pdata.info));
 		const float rhoExt = eulerVel.w;
+		//const float rhoExt = absolute_density(eulerVel.w,fluid_num(pdata.info));
 
 		calculateIOboundaryCondition(eulerVel, pdata.info,
 			rhoInt, rhoExt, pout.sumvel,
 			unInt, unExt, make_float3(pdata.normal));
 	} else {
 		if (VEL_IO(pdata.info))
-			eulerVel.w = rho0;
+			eulerVel.w = relative_density(rho0,fluid_num(pdata.info));
 		else
 			eulerVel = make_float4(0.0f, 0.0f, 0.0f, eulerVel.w);
 	}
@@ -1163,7 +1164,7 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 	// particles that have an initial density less than the reference density have their mass set to 0
 	// or if their velocity is initially 0
 	else if (!resume &&
-		( (PRES_IO(info) && eulerVel.w - rho0 <= 1e-10f*rho0) ||
+		( (PRES_IO(info) && eulerVel.w - relative_density(rho0,fluid_num(pdata.info)) <= 1e-10f*relative_density(rho0,fluid_num(pdata.info))) ||
 		  (VEL_IO(info) && length3(eulerVel) < 1e-10f*d_sscoeff[fluid_num(info)])) )
 		pos.w = 0.0f;
 #endif
@@ -1179,7 +1180,7 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 			// if imposed velocity is greater 0
 			dot3(pdata.normal, eulerVel) > 1e-5f &&
 			// pressure inlets need p > 0 to create particles
-			(VEL_IO(pdata.info) || eulerVel.w-rho0 > rho0*1e-5f)
+			(VEL_IO(pdata.info) || eulerVel.w-relative_density(rho0,fluid_num(pdata.info)) > relative_density(rho0,fluid_num(pdata.info))*1e-5f)
 		   ) {
 			pout.massFluid -= refMass;
 			// Create new particle
@@ -1352,7 +1353,7 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
 			pout.sump = 0.0f;
 			if (VEL_IO(pdata.info)) {
 				pout.sumvel = as_float3(pout.eulerVel);
-				pout.vel.w = d_rho0[fluid_num(pdata.info)];
+				pout.vel.w = relative_density(d_rho0[fluid_num(pdata.info)],fluid_num(pdata.info));
 			} else {
 				pout.sumvel = make_float3(0.0f);
 				// TODO FIXME this is the logic in master, but there's something odd about this,
@@ -1367,6 +1368,9 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
 		const float unExt = dot3(pout.eulerVel, pdata.normal);
 		const float rhoInt = pout.vel.w;
 		const float rhoExt = pout.eulerVel.w;
+		//const float rhoInt = absolute_density(pout.vel.w,fluid_num(pdata.info));
+		//const float rhoExt = absolute_density(pout.eulerVel.w,fluid_num(pdata.info));
+
 
 		calculateIOboundaryCondition(pout.eulerVel, pdata.info, rhoInt, rhoExt, pout.sumvel, unInt, unExt, as_float3(pdata.normal));
 
@@ -1483,7 +1487,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, relPos) < 0.0f) )
 			continue;
 
-		pout.sumpWall += fmax(ndata.press + ndata.vel.w*dot3(d_gravity, relPos), 0.0f)*ndata.w;
+		pout.sumpWall += fmax(ndata.press + absolute_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
 
 		keps_fluid_contrib(params, pdata, ndata, pout);
 
@@ -2090,7 +2094,7 @@ saVertexBoundaryConditionsDevice(Params params)
 		const sa_bc::vertex_fluid_ndata ndata(params, neib_index, relPos);
 
 		if (ndata.r < params.influenceradius) {
-			pout.sumpWall += fmax(ndata.press + ndata.vel.w*dot3(d_gravity, relPos), 0.0f)*ndata.w;
+			pout.sumpWall += fmax(ndata.press + absolute_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
 			pout.shepard_div += ndata.w;
 
 			io_fluid_contrib<step>(params, pdata, ndata, pout);

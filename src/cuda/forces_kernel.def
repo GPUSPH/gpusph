@@ -264,7 +264,8 @@ __device__ __forceinline__
 enable_if_t<Pt::visctype == KEPSVISC, float>
 pressure_for_precalc(Pt const& pdata)
 {
-	return particle_pressure(pdata) + 2.0f*pdata.keps_k/particle_density(pdata)/3.0f;
+        const float rho = absolute_density( particle_density(pdata), fluid_num(pdata.info) );
+	return particle_pressure(pdata) + 2.0f*pdata.keps_k/rho/3.0f;
 }
 
 /// Pressure used in the pressure precalc term
@@ -542,8 +543,8 @@ struct keps_precalc_particle_data
 
 	__device__ __forceinline__
 	keps_precalc_particle_data(const float rho, const uint fnum, keps_particle_data const& ke) :
-		dkdt_precalc(rho*(d_visccoeff[fnum] + ke.turbVisc)),
-		dedt_precalc(rho*(d_visccoeff[fnum] + ke.turbVisc/1.3f))
+		dkdt_precalc(absolute_density(rho,fnum)*(d_visccoeff[fnum] + ke.turbVisc)),
+		dedt_precalc(absolute_density(rho,fnum)*(d_visccoeff[fnum] + ke.turbVisc/1.3f))
 	{}
 };
 
@@ -1305,7 +1306,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	// actual diffusion term
 	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
-		(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r :
+		(absolute_density(pdata.vel.w,fluid_num(pdata.info)) - absolute_density(ndata.relVel.w,fluid_num(pdata.info)) + grav_corr)/ndata.r :
 		0.0f;
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
 	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
@@ -1348,10 +1349,10 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	// for pressure inlets we need to compute a boundary term for the Rhie & Chow filter
 	// the term is essentially the same as the one for the fluid particle except that V_b w' -> |ggam|/r_{as}
 	if (IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info))
-		nout.DrDt -= ((2.0/(pdata.vel.w + ndata.relVel.w))*
+		nout.DrDt -= ((2.0/(absolute_density(pdata.vel.w,fluid_num(pdata.info)) + absolute_density(ndata.relVel.w,fluid_num(pdata.info))))*
 			(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
 			- dot(d_gravity, as_float3(ndata.relPos))
-			)*nout.ggamAS/ndata.r_as*params.dt*2.0f*pdata.vel.w;
+			)*nout.ggamAS/ndata.r_as*params.dt*2.0f*absolute_density(pdata.vel.w,fluid_num(pdata.info));
 }
 
 /* Molteni & Colagrossi density diffusion
@@ -1442,7 +1443,7 @@ enable_if_t<
 mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	nout.DrDt -= pdata.vel.w*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+	nout.DrDt -= absolute_density(pdata.vel.w,fluid_num(pdata.info))*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
 }
 
 /// Mass continuity: divergence of velocity term
@@ -1627,7 +1628,7 @@ compute_pressure_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
-	nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
+	nout.DvDt += pGradTerm*absolute_density(ndata.relVel.w,fluid_num(pdata.info))*nout.ggamAS*ndata.normal_s;
 }
 
 /// Pressure contribution, general formulation
@@ -1719,8 +1720,8 @@ compute_viscous_contrib
 		);
 
 	nout.DvDt -= nout.ggamAS*
-		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
-		vel_tau/pdata.vel.w;
+		(d_visccoeff[fluid_num(pdata.info)]*absolute_density(pdata.vel.w,fluid_num(pdata.info)) + d_visccoeff[fluid_num(ndata.info)]*absolute_density(ndata.relVel.w,fluid_num(pdata.info)))/ndata.r_as*
+		vel_tau/absolute_density(pdata.vel.w,fluid_num(pdata.info));
 }
 
 /// Volumic viscous contribution, DYNAMICVISC viscous model
@@ -1796,8 +1797,8 @@ compute_viscous_contrib
 		const float3 vel_tau = as_float3(ndata.relVel + ndata.relEulerVel);
 
 		nout.DvDt -= nout.ggamAS*
-			(our_visc*pdata.vel.w + neib_visc*ndata.relVel.w)/ndata.r_as*
-			vel_tau/pdata.vel.w;
+			(our_visc*absolute_density(pdata.vel.w,fluid_num(pdata.info)) + neib_visc*absolute_density(ndata.relVel.w,fluid_num(ndata.info)))/ndata.r_as*
+			vel_tau/absolute_density(pdata.vel.w,fluid_num(pdata.info));
 		return;
 	}
 
@@ -1852,7 +1853,7 @@ compute_viscous_contrib
 	const float neib_visc = d_visccoeff[fluid_num(ndata.info)]+ndata.turbViscForViscTerm;
 
 	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
-		our_visc*absolute_density(our_rho,fluid_num(pdata.info)), neib_visc*absolute_density(neib_rho,fluid_num(pdata.info))));
+		our_visc*absolute_density(our_rho,fluid_num(pdata.info)), neib_visc*absolute_density(neib_rho,fluid_num(ndata.info))));
 	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
@@ -1983,11 +1984,11 @@ compute_keps_term
 {
 	// volume contribution for k and epsilon diffusion terms
 	pout.diff_term_k += ndata.relPos.w*(
-		pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc)
-		)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
+		pdata.dkdt_precalc + absolute_density(ndata.relVel.w,fluid_num(ndata.info))*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc)
+		)*(pdata.keps_k - ndata.keps_k)*ndata.f/absolute_density(ndata.relVel.w,fluid_num(ndata.info));
 	pout.diff_term_e += ndata.relPos.w*(
-		pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc/1.3f)
-		)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
+		pdata.dedt_precalc + absolute_density(ndata.relVel.w,fluid_num(ndata.info))*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc/1.3f)
+		)*(pdata.keps_e - ndata.keps_e)*ndata.f/absolute_density(ndata.relVel.w,fluid_num(ndata.info));
 
 	// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
 	const float3 dvmul = -ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ;
@@ -2024,7 +2025,7 @@ compute_keps_term
 	pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.ggamAS;
 
 	// multiplication for velocity gradient terms (gradGam_as*rho_s)
-	const float3 dvmul = nout.ggamAS*ndata.normal_s*ndata.relVel.w;
+	const float3 dvmul = nout.ggamAS*ndata.normal_s*absolute_density(ndata.relVel.w,fluid_num(ndata.info));
 
 	// velocity gradient
 	// From boundary:
@@ -2045,7 +2046,7 @@ __device__ __forceinline__
 enable_if_t<computes_xsph<FP>()>
 compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
+	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(absolute_density(pdata.vel.w,fluid_num(pdata.info)) + absolute_density(ndata.relVel.w,fluid_num(ndata.info)));
 }
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
@@ -2117,7 +2118,7 @@ enable_if_t< FP::visctype == KEPSVISC && FP::boundarytype == SA_BOUNDARY, float 
 viscous_fixup(FP const& params, P const& pdata, OP &pout)
 {
 	// final division for diff and dv{x,y,z} terms
-	const float rhoGam = pdata.vel.w*pdata.gGam.w;
+	const float rhoGam = absolute_density(pdata.vel.w,fluid_num(pdata.info))*pdata.gGam.w;
 
 	// finalize diffusion terms
 	pout.diff_term_k /= rhoGam;
@@ -2157,7 +2158,7 @@ viscous_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.diff_term_k += Pturb;
 	pout.diff_term_e += pdata.keps_e*1.44f*Pturb/pdata.keps_k;
 
-	return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w;
+	return d_visccoeff[fluid_num(pdata.info)]*absolute_density(pdata.vel.w,fluid_num(pdata.info));
 }
 
 /*
@@ -2193,10 +2194,11 @@ forces_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.force.y /= pdata.gGam.w;
 	pout.force.z /= pdata.gGam.w;
 	pout.force.w /= pdata.gGam.w;
+	pout.force.w /= d_rho0[fluid_num(pdata.info)]; // divide by 1/rho0 mass equation 
 
 	// TODO FIXME GB: double-check, this doesn't look right to me
 	if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
-		pout.force.w *= pdata.vel.w;
+		pout.force.w *= absolute_density(pdata.vel.w,fluid_num(pdata.info));
 }
 
 template<typename FP, typename P, typename OP>

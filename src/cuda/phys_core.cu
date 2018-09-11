@@ -61,16 +61,17 @@ RHO(const float p, const ushort i)
 
 // Riemann celerity
 __device__ float
-R(const float rho, const ushort i)
+R(const float rho_tilde, const ushort i)
 {
-	return 2.0f/(d_gammacoeff[i]-1.0f)*d_sscoeff[i]*__powf(rho/d_rho0[i], 0.5f*d_gammacoeff[i]-0.5f);
+	const float rho_ratio = rho_tilde + 1.0f; // rho/rho0
+	return 2.0f/(d_gammacoeff[i]-1.0f)*d_sscoeff[i]*__powf(rho_ratio, 0.5f*d_gammacoeff[i]-0.5f);
 }
 
 // Density from Riemann celerity
 __device__ __forceinline__ float
 RHOR(const float r, const ushort i)
 {
-	return d_rho0[i]*__powf((d_gammacoeff[i]-1.)*r/(2.*d_sscoeff[i]), 2./(d_gammacoeff[i]-1.));
+	return __powf((d_gammacoeff[i]-1.)*r/(2.*d_sscoeff[i]), 2./(d_gammacoeff[i]-1.)) -1.0;
 }
 
 // Sound speed computed from density
