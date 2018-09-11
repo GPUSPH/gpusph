@@ -102,6 +102,7 @@ ALLSRCFILES = $(shell find $(SRCDIR) -type f)
 MPICXXFILES = $(SRCDIR)/NetworkManager.cc
 ifeq ($(USE_HDF5),2)
 	MPICXXFILES += $(SRCDIR)/HDF5SphReader.cc
+	MPICXXFILES += $(SRCDIR)/HDF5SphWriter.cc
 endif
 
 PROBLEM_DIR=$(SRCDIR)/problems

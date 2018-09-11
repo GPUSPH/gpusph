@@ -1675,6 +1675,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 						ptype = PT_VERTEX;
 						vertex_parts++;
 						break;
+					case CRIXUS_BOUNDARY_PARTICLE:
 					case CRIXUS_BOUNDARY:
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = PT_BOUNDARY;
@@ -1747,7 +1748,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 					rigid_body_part_mass = pos[i].w;
 
 				// load boundary-specific data (SA bounds only)
-				if (ptype == PT_BOUNDARY) {
+				if (ptype == PT_BOUNDARY && simparams()->boundarytype == SA_BOUNDARY) {
 					if (m_geometries[g]->flip_normals) {
 						// NOTE: simulating with flipped normals has not been numerically validated...
 						// invert the order of vertices so that for the mass it is m_ref - m_v
