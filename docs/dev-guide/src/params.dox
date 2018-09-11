@@ -1,0 +1,228 @@
+/*! \defgroup params Annotated solver parameters
+Annotated parameters can be defined via GUI in SALOME_GPUSPH module.\n
+The simulation parameters dialog contains sections and subsections.\n
+In the picture below sections are shown in green rectangles and subsections are in
+orange rectangles.\n
+\image html subsection.png "Simulation parameters GUI"
+\see \ref params_page
+*/
+/*! \defgroup user_functions User functions
+\ingroup params
+Annoted solver virtual methods marked by <b>\\userfunc</b> can be redefined 
+with GUI.
+\see \ref params_usage
+*/
+/*!
+\page params_page Solver GUI
+  \tableofcontents
+
+\section intro Introduction
+
+Solver GUI is implemented as a module SALOME_GPUSPH on the base of SALOME 
+platform (see http://salome-platform.org). It provides the functionality to describe
+a problem, generate problem solver sources, build the solver and execute a 
+simulation. In particular, this GUI allows setting parameter values and redefine
+some solver virtual methods.\n
+
+\section how_to_define_params How to introduce solver parameters into GUI
+
+\subsection common Common rules
+Solver parameters can be declared as available via GUI by means of metacomments 
+in the solver source code.\n
+The simulation parameters dialog contains sections and subsections.\n
+In the picture below the sections are shown in green rectangles and subsections are in
+orange rectangles.\n
+\image html subsection.png "Simulation parameters GUI"
+Doxygen-style metacomments can be used to annotate a class member as a parameter or to declare a section or a subsection of parameters.\n
+Currently the following metacomments are available:\n
+\li defpsection - declares a parameters section;
+\li defpsubsection (with two arguments only) - declares a subsection;
+\li mandatory - defines a section or a parameter as mandatory;
+\li inpsection - puts a subsection or a parameter into a particular section or subsection;
+\li label - defines the label of a parameter; 
+\li values - defines a list of options for a subsection; 
+\li default - sets the default value of a parameter; 
+\li min - sets the minimal value of a parameter;
+\li max - sets the maximal value of a parameter;
+\li userfunc - declares a virtual method as available for redefinition in GUI.
+
+\n
+The following types are processed:\n
+\li bool -> boolean parameter;
+\li int, uint -> integer parameter;
+\li float, double -> real parameter;
+\li {int|uint}N -> subsection of N integer parameters with names parameter_name_i (i=1,2,...,N);
+\li {float|double}N -> subsection of N real parameters with names parameter_name_i (i=1,2,...,N);
+\li [std::]vector<T> -> adds a parameter of type "T" and transforms the parent section into a sequence of sections section name_i (i=0,...).
+\n
+Tooltip text is taken from usual C++/Doxygen comment (from comment lines or from
+an end line comment of a member declaration).
+
+\subsection section_declaration Parameters section declaration
+<b>\\defpsection{id, title}</b> – defines a section of parameters with id and
+title.\n
+Section title and description will be used in the dialog as a section title
+and tooltip respectively.\n
+Example:\n
+\snippet simparams.h SECTION_DEFINITION
+<b>\\inpsection{id}</b> – defines that a subsection or a parameter belongs to the
+parameters section with the given id.\n
+<b>\\defpsubsection{id, title}</b> – defines a subsection of parameters with id
+and title.\n
+\n
+A subsection is processed in the same way as a section of parameters, but it can have the list of possible
+ values and represent discriminator group in the dialog.\n
+Example:\n
+\snippet simparams.h SUBSECTION_DEFINITION
+\n
+\subsection mandatory_tag Mandatory and optional sections and parameters.
+
+By default all sections and parameters are optional.\n
+To specify that a section or a parameter is mandatory the custom tag
+<b>\\mandatory</b> is used.\n
+
+Titles of mandatory sections and parameters will be shown in bold font in the dialog.\n
+Example:\n
+\snippet simparams.h PARAM_DEFINITION
+
+\image html time.png "Parameters section [time] presentation in GUI"
+Optional sections will be provided with a check box in the dialog.\n
+\image html optgroup.png "Optional parameters section in GUI"
+\n
+\subsection subsections_values Subsections with values having an effect on parameters list.
+
+Subsections can have a list of possible values (options).
+The list of parameters to be included in the subsection depends on the chosen option.\n
+A custom tag <b>\\values</b> is used to define the list of possible values.\n
+For example, the following annotation can be used to define \c ferrari_correction subsection with options
+"disable", "coefficient" and "length_scale" located in the \c [sph] section:\n
+\snippet simparams.h SPH_SECTION_DEFINITION
+\snippet simparams.h FERRARY_SUBSECTION_DEFINITION
+In GUI the currently selected option value is presented just after the
+subsection title. When this value is doubleclicked, a combobox with the list
+of options is provided.\n
+\image html ferrari1.png "Simulation parameters GUI"
+If a parameter should be included in the subsection only if 
+this subsection has a particular value, this value should be specified
+in <b>\\inpsection</b> tag parameter as <i>{subsection_id, value}</i>.\n
+In the following example two parameters are defined as located inside the
+\c ferrari_correction subsection - \c ferrari and \c ferrariLengthScale. The
+first one is defined for the case when the subsection option value is "coefficient"
+and the last one - for the option "length_scale":
+\snippet simparams.h FERRARY_OPTIONS_DEFINITION
+\n
+\subsection vectors Presentation of vector parameters in GUI
+
+If the section contains at least one vector parameter, this section
+will be represented as a sequence of sections with ids: section_id_0,
+section_id_1, section_id_2, etc.\n
+In the example below the sequence of sections fluid_0, fluid_1, etc. is defined: \n
+\snippet physparams.h VECTOR_SECTION_DEFINITION
+\snippet physparams.h VECTOR_PARAM_DEFINITION
+Here the bundle of fluid sections is declared with the label FLUIDS and each
+fluid section has a label FLUID_SECTION followed by index because the
+vector parameter \c kinematicvisc is contained in it.
+\image html fluids.png "Presentation of a section with vectors in GUI"
+
+\section params_usage How to use annotated parameters in user functions
+
+\subsection general_use General approach
+Solver virtual methods marked by <b>\\userfunc</b> in its source code can be 
+redefined with GUI. They are automatically presented in the specific 
+"User functions" section of the simulation parameters dialog.\n
+\image html userfunc.png "User functions in GUI"
+ 
+SALOME_GPUSPH generates solver sources for a particular problem on the base of 
+GenericProblem class sources including a generated header file containing 
+specific macros definitions of solver parameters values and inserting user 
+functions code by means of the ProblemBuilder application.\n
+
+\subsection pval_use How to insert a parameter value into solver sources of a problem 
+To insert a parameter value as is the macro <b>PVAL(section,parameter)</b> can
+be used. There is another macro <b>PSTR(section, parameter)</b>, which inserts a value as a quoted string.\n
+For example, to insert the value of \c dt parameter from section \c [time] use 
+the following code:
+\code
+  simparams()->dt = PVAL( time, dt );
+\endcode
+Please, note that if the parameter is an annotated class member then the name 
+of this class member is used as a parameter name.
+
+\subsection isdef_use How to check if a parameter is defined
+To check if a parameter is defined use <b>ISDEF(section,parameter)</b> macro.
+This macro can be used to include a part of code by the preprocessor under a condition.\n
+Example:\n
+\code
+#if ISDEF(physics,variable_gravity_start)
+  m_gtstart = PVAL( physics, variable_gravity_start );
+  m_gtend = PVAL( physics, variable_gravity_end );
+  simparams()->gcallback = true;
+#endif
+\endcode 
+
+For parameters in bundles of indexed sections (see \ref vectors_use) 
+use the base section name of a bundle and the name of a parameter with suffix \c _VALS. \n
+Example:\n
+\code
+#if ISDEF(special_boundary,start_time_VALS)
+  int aStart[] = { PVALS( special_boundary, start_time )};
+#endif
+\endcode 
+
+To check if a bundle of indexed sections is defined the macro, such as GPUSPH_&lt;base section name&gt;_SECTIONS can be tested.\n
+Example:
+\code
+#ifdef GPUSPH_special_boundary_SECTIONS
+  // ...
+#endif
+\endcode 
+
+\subsection vectors_use Working with parameters from a bundle of indexed sections
+
+Parameters defined in a bundle of indexed sections (for example, in sections fluid_0, 
+fluid_1, etc.) are available by means of macros providing lists of values for a 
+particular parameter:\n
+\li <b>PVALS(section,parameter)</b> - comma separated list of values "as is" with \c NAN for absent;
+\li <b>PSTRVALS(section,parameter)</b> - comma separated list of quoted values with \c NULL for absent;
+\li <b>PINTVALS(section,parameter)</b> - comma separated list of values "as is" with \c -1 for absent;
+\li <b>PBOOLVALS(section,parameter)</b> - comma separated list of values "as is" with \c false for absent.
+
+Please, note that a base section name should be used, i.e. for the bundle of
+sections with names "fluid_0", "fluid_1", "fluid_2" etc. we should use "fluid" 
+as the base name like this:
+\code
+  double dens[] = { PVALS( fluid, rho0 )};
+  double visc[] = { PVALS( fluid, kinematicvisc )};
+\endcode
+ 
+If a parameter is absent in some sections of the bundle then each of macros
+above inserts a specific value into the values list.\n
+To get a number of sections use <b>NB_SECTIONS(section)</b> macro:
+\code
+  for ( uint i = 1; i < NB_SECTIONS( fluid ); i++ )
+  {
+    size_t fluid_id = add_fluid( i, dens[i] );
+    set_kinematic_visc( fluid_id, visc[i] );
+    set_equation_of_state( fluid_id, eos[i], ss[i] );
+  }
+\endcode 
+
+If the appropriate bundle of indexed sections is defined then the macro 
+\c NB_SECTIONS() can be used in conditions for the preprocessor because its 
+result is always an integer constant.
+
+\subsection enums_use How to check an option value of a subsection
+Subsections options are defined as literals with \\values annotation tag
+(see \ref subsections_values). To check if a particular option value was 
+selected in GUI use <b>ISENUM_EQ(section, parameter, value)</b> macro.\n
+For example, the following code checks if the value of \c variable_gravity 
+subsection (or parameter) from the section \c [physics] is \c "disable" :\n
+\code
+#if ISENUM_EQ(physics,variable_gravity,disable)
+  return XProblem::g_callback(t);
+#else
+  // ...
+#endif
+\endcode
+
+*/

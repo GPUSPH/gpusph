@@ -193,11 +193,23 @@ class XProblem: public Problem {
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);
 
-		// used for hydrostatic filling (absolute value)
+		/*!
+		 * \inpsection{c0_input_method, calculation}
+		 * \mandatory
+		 * \label{FLUID_WATER_LEVEL}
+		 * \default{0}
+		 * used for hydrostatic filling (absolute value)
+		 */
 		double m_waterLevel;
 		// used to set LJ dcoeff and sound speed if m_maxParticleSpeed is unset
 		double m_maxFall;
-		// used to set sound of speed
+		/*!
+		 * \inpsection{c0_input_method, calculation}
+		 * \mandatory
+		 * \label{FLUID_MAX_SPEED}
+		 * \default{0}
+		 * used to set sound of speed
+		 */
 		double m_maxParticleSpeed;
 
 		// number of layers for filling dynamic boundaries
@@ -320,10 +332,12 @@ class XProblem: public Problem {
 		// get current value (NOTE: not yet autocomputed in problem constructor)
 		uint getDynamicBoundariesLayers() { return m_numDynBoundLayers; }
 
-		// callback for filtering out points before they become particles
+		//! @userfunc
+		//! callback for filtering out points before they become particles
 		virtual void filterPoints(PointVect &fluidParts, PointVect &boundaryParts);
 
-		// callback for initializing particles with custom values
+    //! @userfunc
+		//! callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 
 	public:

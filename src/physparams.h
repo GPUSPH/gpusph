@@ -43,32 +43,69 @@ class XProblem;
 class GPUWorker;
 class GPUSPH;
 
-/// Structure holding all physical parameters
-/*! This structure holds all the physical parameters needed by the simulation
+/*!
+ * \defpsection{physics, PHYSICS_SECTION}
+ * \mandatory
+ * TLT_PHYSICS_SECTION
+ * This structure holds all the physical parameters needed by the simulation
  *  along with some basic initialization functions.
  *
  *	\ingroup datastructs
  */
 typedef struct PhysParams {
-	/** \name Equation of state related parameters
-	 *  The relation between pressure and density is given for Cole's equation of state
-	 *	\f[
-	 *		P(\rho) = B\left(\left(\frac{\rho}{\rho_0}\right)^\gamma - 1\right)
-	 *	\f]
-	 *	where \f$\rho_0\f$ is the at-rest density,
-	 *	\f$\gamma\f$ is the adiabatic index and
-	 *	\f$B = \rho_0 c_0^2/\gamma\f$ for a given
-	 *	at-rest sound speed \f$c_0\f$.
-	 *	The sound speed for a given density \f$\rho\f$ can thus be computed as
-	 *	\f[
-	 *		c(\rho) = c_0 \left(\frac{\rho}{\rho_0}\right)^{(\gamma -1)/2},
-	 *	\f]
-	 *	Obviously all of the coefficients below are fluid dependent and are then stored in an
-	 *	STL vector.
-	 *  @{ */
+	//[VECTOR_SECTION_DEFINITION]
+	/*!
+		\defpsection{fluid, FLUIDS, FLUID_SECTION}
+		\mandatory
+		TLT_FLUID_SECTION
+	 */
+	//[VECTOR_SECTION_DEFINITION]
+	/*! Equation of state related parameters
+		The relation between pressure and density is given for Cole's equation of state
+		\f[
+		P(\rho) = B\left(\left(\frac{\rho}{\rho_0}\right)^\gamma - 1\right)
+		\f]
+		where \f$\rho_0\f$ is the at-rest density,
+		\f$\gamma\f$ is the adiabatic index and
+		\f$B = \rho_0 c_0^2/\gamma\f$ for a given
+		at-rest sound speed \f$c_0\f$.
+		The sound speed for a given density \f$\rho\f$ can thus be computed as
+		\f[
+		c(\rho) = c_0 \left(\frac{\rho}{\rho_0}\right)^{(\gamma -1)/2},
+		\f]
+		Obviously all of the coefficients below are fluid dependent and are then stored in an
+		STL vector.
+	 */
+	//! @{
+
+  /*!
+	 * \inpsection{fluid}
+	 * \mandatory
+	 * \label{FLUID_DENSITY}
+	 * \default{1000}
+	 */
 	std::vector<float> rho0; 			///< At-rest density, \f$\rho_0\f$
 	std::vector<float> bcoeff; 			///< Pressure parameter, \f$ B \f$
+  /*!
+	 * \inpsection{fluid}
+	 * \label{EOS_EXPONENT}
+	 * \default{7}
+	 */
 	std::vector<float> gammacoeff;		///< Adiabatic index, \f$\gamma\f$
+  /*!
+	 * \defpsubsection{c0_input_method, C0_INPUT_METHOD}
+	 * \mandatory
+	 * \inpsection{fluid,0}
+	 * \values{direct_input, calculation}
+	 * \default{direct_input}
+	 * TLT_C0_INPUT_METHOD
+	 */
+	/*!
+	 * \inpsection{c0_input_method, direct_input}
+	 * \mandatory
+	 * \label{FLUID_C0}
+	 * \default{0}
+	 */
 	std::vector<float> sscoeff; 		///< Sound speed coefficient ( = sound speed at rest density, \f$ c_0 \f$)
 	std::vector<float> sspowercoeff; 	///< Sound speed equation exponent ( = \f$(\gamma -1)/2\f$ )
 	/** @} */
@@ -87,9 +124,33 @@ typedef struct PhysParams {
 	 *
 	 *  Obviously the fluid dependent coefficients below are stored in an STL vector.
 	 * @{ */
+	//! @}
+
+	//! Fluid viscosity
+	//! @{
 	float	artvisccoeff;				///< Artificial viscosity coefficient (one, for all fluids)
 	float	epsartvisc;					///< Small coefficient used to avoid singularity in artificial viscosity computation
+	//[VECTOR_PARAM_DEFINITION]
+
+	/*!
+	 * \inpsection{fluid}
+	 * \mandatory
+	 * \label{FLUID_VISCOSITY}
+	 * \default{10e-6}
+	 */
 	std::vector<float>	kinematicvisc;	///< Kinematic viscosity (\f$ \nu \f$)
+	//[VECTOR_PARAM_DEFINITION]
+
+/*! Viscosity coefficient used in the viscous contribution functions, depends on
+		viscosity model:
+		* for ARTVSIC: artificial viscosity coefficient
+		* for KINEMATICVISC: 4*kinematic viscosity coefficient,
+		* for DYNAMICVISC: kinematic viscosity coefficient
+		(The choice might seem paradoxical, but with DYNAMICVISC the dynamic viscosity
+		 coefficient is obtained multiplying visccoeff by the particle density, while
+		 with the KINEMATICVISC model the kinematic coefficient is used directly, in a
+		 formula what also includes a harmonic average from which the factor 4 emerges.)
+	 */
 	std::vector<float>	visccoeff;		///< Viscosity coefficient
 	/** @} */
 
@@ -164,6 +225,12 @@ typedef struct PhysParams {
 
 	/** \name Other parameters
 	 * @{ */
+  /*!
+   * \inpsection{physics}
+   * \mandatory
+   * \default{0,0,-9.81}
+   * \label{GRAVITY}
+   */
 	float3	gravity;		///< Gravity
 	/** @} */
 

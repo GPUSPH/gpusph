@@ -123,10 +123,28 @@ class Problem {
 		void *m_bodies_physical_system;
 #endif
 
+    /*!
+     * \defpsection{geometry, GEOMETRY_SECTION}
+     * \mandatory
+     */
+    /*! \inpsection{geometry}
+     * \mandatory
+     * \label{SIZE}
+     * \default{1e9,1e9,1e9}
+     */ 
 		double3	m_size;			// Size of computational domain
+    /*! \inpsection{geometry}
+     * \mandatory
+     * \label{ORIGIN}
+     * \default{0,0,0}
+     */ 
 		double3	m_origin;		// Origin of computational domain
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
+		//! \inpsection{sph}
+		//! \mandatory
+		//! \default{-1}
+		//! \label{SPH_DR}
 		double	m_deltap;		// Initial particle spacing
 
 		const float*	get_dem() const { return m_dem; }
@@ -151,13 +169,17 @@ class Problem {
 
 		virtual ~Problem(void);
 
-		/* a function to check if the (initial or fixed) timestep
-		 * is compatible with the CFL conditions */
+		/*! a function to check if the (initial or fixed) timestep
+		 * is compatible with the CFL conditions
+		 * @userfunc
+		 */
 		virtual void check_dt();
-		/* Find the minimum amount of maximum number of neighbors
+		/*! Find the minimum amount of maximum number of neighbors
 		 * per particle based on the kernel and boundary choice,
 		 * and compare against the user-set value (if any), or
-		 * just set it by default */
+		 * just set it by default
+		 * @userfunc
+		 */
 		virtual void check_neiblistsize();
 
 		std::string const& create_problem_dir();
@@ -301,7 +323,6 @@ class Problem {
 		inline
 		SimFramework*& simframework(void)
 		{ return m_simframework; }
-
 		// add a filter (MLS, SHEPARD), with given frequency
 		inline AbstractFilterEngine*
 		addFilter(FilterType filtertype, int frequency)
@@ -373,6 +394,166 @@ class Problem {
 
 		plane_t make_plane(Point const& pt, Vector const& normal);
 
+		/* This is the definition of sections with pseudoparameters.
+		 *
+		 */
+
+		/**
+		 * @defpsection{output,Output}
+		 * @mandatory
+		 * Options to define whether to generate output files and to set the output frequency.
+		 */
+
+		//@inpsection{output}
+		//@mandatory
+		//@label{VTK writer interval}
+		//@default{1.0}
+		// Introduced by metacomments VTK writer frequency (in terms of simulated seconds).
+		double vtk_frequency;
+
+		//@inpsection{output}
+		//@label{Optional writer interval}
+		//@default{}
+		// Optional writer frequency (in terms of simulated seconds).
+		double commonwriter;
+
+		/**@inpsection{sph}
+		@label{Particles maximum factor}
+		Defines the maximum number of particles in the simulation as a factor times
+		the initial number of particles.
+		This is necessary in case open boundaries are used, because the total number
+		of particles in the simulation can be higher than the initial number of particles.
+		*/
+		double particles_max_factor;
+
+        /** @defpsubsection{density_sum, Summation formulation}
+		 * @inpsection{sph}
+		 * @default{enable}
+		 * @values{disable,enable}
+		 * Activate the continuity equation based on a summation formulation.
+		 * Recommended, and necessary for open boundaries.
+		 */
+
+        /** @defpsubsection{moving_bodies, Moving objects}
+		 * @inpsection{sph}
+		 * @default{disable}
+		 * @values{disable,enable}
+		 * Activate treatment of moving objects (with prescribed motion).
+		 */
+
+		/*! \defpsubsection{variable_gravity,Variable gravity}
+		 *  \inpsection{physics}
+		 *  \values{disable,enable}
+		 *  \default{disable}
+		 * Define variable gravity between two simulation times.
+		 */
+
+		//! \inpsection{variable_gravity, enable}
+		//! \label{Gravity start}
+		//! \mandatory
+		//! \default{0.0}
+		//! Start time for the gravity variation.
+		double variable_gravity_begin;
+
+		//! \inpsection{variable_gravity, enable}
+		//! \label{Gravity end}
+		//! \mandatory
+		//! \default{100.0}
+		//! End time for the gravity variation.
+		double variable_gravity_end;
+
+
+        /** @defpsubsection{turbulence, Turbulence model}
+		 * @inpsection{physics}
+		 * @default{disable}
+		 * @values{disable,k-epsilon}
+		 * Define whether the flow is laminar or turbulent.
+		 * K-epsilon model is used for turbulence modelling.
+		 */
+
+	    /*! \defpsection{periodicity,Periodicity}
+	     * Fluid domain periodicity.
+	     */
+
+		//! \inpsection{periodicity}
+		//! \label{X}
+		//! \mandatory
+		//! \default{false}
+		//! Periodicity along X axis.
+		bool periodicity_x;
+		//! \inpsection{periodicity}
+		//! \label{Y}
+		//! \mandatory
+		//! \default{false}
+		//! Periodicity along Y axis.
+		bool periodicity_y;
+		//! \inpsection{periodicity}
+		//! \label{Z}
+		//! \mandatory
+		//! \default{false}
+		//! Periodicity along Z axis.
+		bool periodicity_z;
+
+        /** @defpsubsection{split_axis, Split axis}
+		 * @inpsection{domain_splitting}
+		 * @default{x}
+		 * @mandatory
+		 * @values{x,y,z}
+		 * Specify which axis will be split.
+		 */
+
+		/*!
+		\defpsection{probe, PROBES, PROBE}
+		Test point parameters.
+		*/
+
+		//! \inpsection{probe}
+		//! \label{X}
+		//! \mandatory
+		//! \default{0.0}
+		//! Coordinate along X axis.
+		std::vector<float> x;
+		//! \inpsection{probe}
+		//! \label{Y}
+		//! \mandatory
+		//! \default{0.0}
+		//! Coordinate along Y axis.
+		std::vector<float> y;
+		//! \inpsection{probe}
+		//! \label{Z}
+		//! \mandatory
+		//! \default{0.0}
+		//! Coordinate along Z axis.
+		std::vector<float> z;
+
+		/*!
+		\defpsection{wave_gage, Wave gages, Wave gage}
+		The list of wave gages.
+When deﬁning the wave gage, the evolution of free surface elevation
+at that position will be outputed by GPUSPH in a ﬁle.
+		*/
+
+		//! \inpsection{wave_gage}
+		//! \label{X}
+		//! \mandatory
+		//! \default{0.0}
+		//! Coordinate along X axis.
+		std::vector<float> gage_x;
+		//! \inpsection{wave_gage}
+		//! \label{Y}
+		//! \mandatory
+		//! \default{0.0}
+		//! Coordinate along Y axis.
+		std::vector<float> gage_y;
+		//! \inpsection{wave_gage}
+		//! \label{Z}
+		//! \mandatory
+		//! \default{0.0}
+		//! Coordinate along Z axis.
+		std::vector<float> gage_z;
+
+		/* End of pseudo parameters definition */
+
 		// add a new writer, with the given write frequency in (fractions of) seconds
 		void add_writer(WriterType wt, double freq);
 
@@ -380,28 +561,40 @@ class Problem {
 		WriterList const& get_writers() const
 		{ return m_writers; }
 
-		// overridden in subclasses if they want explicit writes
-		// beyond those controlled by the writer(s) periodic time
+		/*! @userfunc
+		 overridden in subclasses if they want explicit writes
+		 beyond those controlled by the writer(s) periodic time
+		 */
 		virtual bool need_write(double) const;
 
-		// overridden in subclasses if they want to write custom stuff
-		// using the CALLBACKWRITER
+
+		/*! @userfunc
+		 overridden in subclasses if they want to write custom stuff
+		 using the CALLBACKWRITER
+		 */
 		virtual void writer_callback(CallbackWriter *,
 			uint numParts, BufferList const&, uint node_offset, double t,
 			const bool testpoints) const;
 
-		// is the simulation running at the given time?
+		//! @userfunc
+		//! is the simulation running at the given time?
 		virtual bool finished(double) const;
 
+    //! @userfunc
 		virtual int fill_parts(bool fill = true) = 0;
-		// maximum number of particles that may be generated
+    //! @userfunc
+		//! maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
+		//! @userfunc
 		virtual void copy_to_array(BufferList & ) = 0;
+		//! @userfunc
 		virtual void release_memory(void) = 0;
 
+		//! @userfunc
 		virtual void copy_planes(PlaneList& planes);
 
-		/* moving boundary and gravity callbacks */
+		//! @userfunc
+		/*! moving boundary and gravity callbacks */
 		virtual float3 g_callback(const double t);
 
 		void allocate_bodies_storage();
@@ -436,15 +629,18 @@ class Problem {
 		// callback for initializing joints between Chrono bodies
 		virtual void initializeObjectJoints();
 
-		/* This method can be overridden in problems when the object
+		//! @userfunc
+		/*! This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
 		 */
 		virtual void
 		bodies_forces_callback(const double t0, const double t1, const uint step, float3 *forces, float3 *torques);
 
+		//! @userfunc
 		virtual void
 		post_timestep_callback(const double t);
 
+		//! @userfunc
 		virtual void
 		moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
 							const float3& force, const float3& torque, const KinematicData& initial_kdata,
@@ -456,15 +652,19 @@ class Problem {
 							float3 * & trans, float * & steprot,
 							float3 * & linearvel, float3 * & angularvel);
 
-		/* Initialize the particle volumes */
+		//! @userfunc
+		/*! Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);
 
+		//! @userfunc
 		/* Initialize k and epsilon */
 		virtual void init_keps(BufferList &, uint numParticles);
 
+		//! @userfunc
 		/* Initialize eddy viscosity */
 		virtual void init_turbvisc(BufferList &, uint numParticles);
 
+		//! @userfunc
 		virtual void imposeBoundaryConditionHost(
 			BufferList&		bufwrite,
 			const BufferList&	bufread,
@@ -474,6 +674,7 @@ class Problem {
 			const	uint			numOpenBoundaries,
 			const	uint			particleRangeEnd);
 
+		//! @userfunc
 		virtual void imposeForcedMovingObjects(
 					float3	&gravityCenters,
 					float3	&translations,
@@ -486,6 +687,7 @@ class Problem {
 		/*! A problem requesting the CALC_PRIVATE post-processing filter
 		 * MUST override this
 		 */
+		//! @userfunc
 		virtual void calcPrivate(flag_t options,
 			BufferList const& bufread,
 			BufferList & bufwrite,
@@ -501,9 +703,11 @@ class Problem {
 		 * ofr the BUFFER_PRIVATE ( and ...2 and ...4 variant, if used)
 		 * buffer(s).
 		 */
+		//! @userfunc
 		virtual std::string get_private_name(flag_t buffer) const;
 
-		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
+		//! @userfunc
+		//! Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();
 		// partition by splitting the cells according to their linearized hash
 		void fillDeviceMapByCellHash();

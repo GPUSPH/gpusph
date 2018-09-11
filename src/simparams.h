@@ -38,12 +38,16 @@
 
 typedef std::vector<double4> GageList;
 
-/// Structure holding all simulation related parameters
-/*! This structure holds all the simulation related parameters
+//[SPH_SECTION_DEFINITION]
+/** \defpsection{sph, SPH_SECTION}
+ \mandatory
+ TLT_SPH_SECTION
+ * This structure holds all the simulation related parameters
  *  along with some basic initialization functions.
  *
  *	\ingroup datastructs
  */
+//[SPH_SECTION_DEFINITION]
 typedef struct SimParams {
 	/** \name Options that are set via SimFramework
 	 * @{ */
@@ -56,7 +60,12 @@ typedef struct SimParams {
 	const flag_t			simflags;					///< Simulation flags
 	/** @} */
 
-	/** \name Kernel and neighbor list related parameters
+	/**
+	 * \inpsection{sph}
+	 * \mandatory
+	 * \default{1.3}
+	 * \label{SMOOTHING_FACTOR}
+	 * \name Kernel and neighbor list related parameters
 	 * @{ */
 	double			sfactor;				///< Smoothing factor
 	double			slength;				///< Smoothing length \f$ h \f$ (smoothing factor * \f$ \Delta p \f$)
@@ -65,22 +74,98 @@ typedef struct SimParams {
 	double			nlexpansionfactor;		///< Expansion factor to apply to influenceradius for the neighbor list construction
 	double			nlInfluenceRadius;		///< Influence radius ( = \f$ \kappa h \f$ * nlexpansionfactor) used in neighbor list construction
 	double			nlSqInfluenceRadius;	///< Square influence radius for neighbor list construction
+	/*! 
+	 * \defsection{neighbours,NEIGHBOURS_SECTION}
+	 * \mandatory
+	 * TLT_NEIGHBOURS_SECTION
+	 */
+	/*!
+	 * \inpsection{neighbours}
+	 * \default{1}
+	 * \mandatory
+	 * \label{NEIB_FREQ}
+	 */
 	uint			buildneibsfreq;			///< Frequency (in iterations) of neighbor list rebuilding
+	/*!
+	 * \inpsection{neighbours}
+	 * \default{256}
+	 * \mandatory
+	 * \label{neiblistsize}
+	 */
 	uint			neiblistsize;			///< Total size of the neighbor list (per particle)
 	uint			neibboundpos;			///< Marker for boundary parts section of the neighbor list
 	/** @} */
 
-	/** \name Time related parameters
+	//[SECTION_DEFINITION]
+	/** \defpsection{time, TIME_SECTION}
+	 *  \mandatory
+	 *  TLT_TIME_SECTION
+	 * \name Time related parameters
 	 * @{ */
+	//[SECTION_DEFINITION]
+
+	//[SUBSECTION_DEFINITION]
+	/*! \defpsubsection{variable_dt,VARIABLE_DT}
+	 *  \inpsection{time}
+	 *  \mandatory
+	 *  \values{disable,enable}
+	 *  \default{enable}
+	 * TLT_VARIABLE_DT
+	 */
+	//[SUBSECTION_DEFINITION]
+
+		//! \inpsection{variable_dt, disable}
+		//! \label{DT}
+		//! \default{10e-5}
+		//! TLT_DT
 	float			dt;						///< Time step (initial when using adaptive time stepping)
+	//[PARAM_DEFINITION]
+
+		//! \inpsection{time}
+		//! \mandatory
+		//! \label{SIMULATION_END_TIME}
+		//! \default{10.}
+		//! TLT_SIMULATION_END_TIME
 	double			tend;					///< Simulation end time (0 means run forever)
+	//[PARAM_DEFINITION]
+
+	  //! \inpsection{variable_dt, enable}
+		//! \label{DT_FACTOR}
+		//! \default{0.3}
+		//! \max{1.}
+		//! TLT_DT_FACTOR
 	float			dtadaptfactor;			///< Safety factor used in adaptive time step computation
 	/** @} */
 
 	/** \name Density diffusion related parameters
 	 * @{ */
+	//[DENSITY_DIFFUSION_SUBSECTION_DEFINITION]
+
+	/*!
+	 * \defpsubsection{density_diffusion, SPH_DENSITY_DIFFUSION}
+	 * \inpsection{sph}
+	 * TLT_SPH_DENSITY_DIFFUSION
+	 */
+
+	//[DENSITY_DIFFUSION_SUBSECTION_DEFINITION]
+ 
+	//[DENSITY_DIFFUSION_OPTIONS_DEFINITION]
+
+	/*!
+	 * \inpsection{density_diffusion, coefficient}
+	 * \label{DENSITY_DIFFUSION_COEF}
+	 * \default{1}
+	 * \min{0}
+	 * \max{1}
+	 */
 	float			densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
+	/*!
+	 * \inpsection{density_diffusion, ferrari_length_scale}
+	 * \label{FERRARI_LENGTH_SCALE}
+	 * \default{0.01}
+	 */
 	float			ferrariLengthScale;		///< Length scale for Ferrari correction
+	//[DENSITY_DIFFUSION_OPTIONS_DEFINITION]
 	/** @} */
 
 	/** \name Call back and post-processing related parameters

@@ -1123,7 +1123,7 @@ dev-guide:
 
 # target: user-guide - Generate the user's manuals
 user-guide:
-	@echo "Generating developer documentation..."
+	@echo "Generating user documentation..."
 	$(CMDECHO) $(MAKE) -C $(DOCSDIR)/$@
 
 # target: docsclean - Remove $(DOCSDIR)

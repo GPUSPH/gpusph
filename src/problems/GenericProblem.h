@@ -1,0 +1,346 @@
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
+
+    Università di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#ifndef _GENERICPROBLEM_H
+#define	_GENERICPROBLEM_H
+
+#include "XProblem.h"
+#define GPUSPH_INCLUDE_PARAMS
+#define GPUSPH_USER_FUNCTIONS
+// Include  parameters macro definitions auto-generated from ini file.
+GPUSPH_INCLUDE_PARAMS
+
+#define WARN_ORIGIN_DEFINED(x) "The domain origin " x " is defined even "\
+	"though external *.h5sph geometrical elements are read."
+#define WARN_SIZE_DEFINED(x) "The domain size " x " is defined even "\
+	"though external *.h5sph geometrical elements are read."
+
+/*! \def PVAL(s,p)
+ Value of the parameter p in the section s.
+ \param s the section name
+ \param p the parameter name
+ */
+#define PVAL(s,p) GPUSPH_##s##_##p##__
+/*! \def ISNAN(s,p)
+ Check if the parameter p in the section s is NAN.
+ \param s the section name
+ \param p the parameter name
+ */
+#define ISNAN(s,p) GPUSPH_##s##_##p##__NAN != 0
+/*! Check if the parameter p in the section s is defined.
+ \param s the section name
+ \param p the parameter name
+ */
+#define ISDEF(s,p) defined (GPUSPH_##s##_##p##__)
+/*! Number of indexed sections with the base section name s.
+ \param s the base section name
+ */
+#define NB_SECTIONS(s) GPUSPH_NB_##s##__
+/*!
+ * The comma separated list of the parameter p values in indexed sections with
+ * the base section name s. If in some sections the parameter is absent
+ * then NAN is inserted into the list of values.
+ * \param s the base section name
+ * \param p the parameter name
+ */
+#define PVALS(s,p) GPUSPH_##s##_##p##_VALS__
+/*!
+ * The comma separated list of the parameter p quoted values in indexed sections
+ * with the base section name s. If in some sections the parameter is absent
+ * then NULL is inserted into the list of values.
+ * \param s the base section name
+ * \param p the parameter name
+ */
+#define PSTRVALS(s,p) GPUSPH_##s##_##p##_STRVALS__
+/*!
+ * The comma separated list of the parameter p values in indexed sections
+ * with the base section name s. If in some sections the parameter is absent
+ * then -1 is inserted into the list of values.
+ * \param s the base section name
+ * \param p the parameter name
+ */
+#define PINTVALS(s,p) GPUSPH_##s##_##p##_INTVALS__
+/*!
+ * The comma separated list of the parameter p values in indexed sections
+ * with the base section name s. If in some sections the parameter is absent
+ * then false is inserted into the list of values.
+ * \param s the base section name
+ * \param p the parameter name
+ */
+#define PBOOLVALS(s,p) GPUSPH_##s##_##p##_BOOLVALS__
+/*! Enclose the value with double quotes to use it as a string literal.*/
+#define PQUOTE(x) #x
+/*! Auxiliary macro to expand macros in the argument if any.*/
+#define _PSTR(theValue) PQUOTE(theValue)
+/*! The string value of the parameter p in the section s.
+ \param s the section name
+ \param p the parameter name
+ */
+#define PSTR(s,p) _PSTR(PVAL(s,p))
+/*! Check if the parameter p in the section s has value v.
+ \param s the section name
+ \param p the parameter name
+ \param v the parameter's value
+ */
+#define ISENUM_EQ(s,p,v) defined( GPUSPH_##s##_##p##_##v )
+
+/*! Define problem name according to general.name parameter value.*/
+#if ISDEF(general, name)
+  #define GenericProblem PVAL(general, name)
+#endif
+
+/*! Wave gages */
+#ifdef GPUSPH_wave_gage_SECTIONS
+#define WAVE_GAGES \
+{ \
+  double wave_gage_x[] = { PVALS( wave_gage, x ) }; \
+  double wave_gage_y[] = { PVALS( wave_gage, y ) }; \
+  double wave_gage_z[] = { PVALS( wave_gage, z ) }; \
+  for ( uint i = 0; i < NB_SECTIONS(wave_gage) ) \
+  { \
+    add_gage(make_double3( wave_gage_x[i], wave_gage_y[i], wave_gage_z[i] )); \
+  } \
+}
+#else
+#define WAVE_GAGES
+#endif
+
+/*! Test points */
+#ifdef GPUSPH_probe_SECTIONS
+#define TEST_POINTS \
+{ \
+  double probe_x[] = { PVALS( probe, x ) }; \
+  double probe_y[] = { PVALS( probe, y ) }; \
+  double probe_z[] = { PVALS( probe, z ) }; \
+  for ( uint i = 0; i < NB_SECTIONS(probe) ) \
+  { \
+    addTestPoint(make_double3( probe_x[i], probe_y[i], probe_z[i] )); \
+  } \
+}
+#else
+#define TEST_POINTS
+#endif
+
+/*! Split axis definitions */
+#define x_AXIS X_AXIS
+#define y_AXIS Y_AXIS
+#define z_AXIS Z_AXIS
+#if ISDEF(domain_splitting,split_axis)
+  #define __SPLIT_AXIS(a) a##_AXIS
+  #define _SPLIT_AXIS(a) __SPLIT_AXIS(a)
+  #define SPLIT_AXIS _SPLIT_AXIS( PVAL( domain_splitting, split_axis ) )
+#else
+  #define SPLIT_AXIS LONGEST_AXIS
+#endif
+
+/*! Periodicity definition */
+#if ISDEF(periodicity,periodicity_x)
+  #define _periodicity_x_true PERIODIC_X
+  #define _periodicity_x_false PERIODIC_NONE
+  #define _periodicity_y_true PERIODIC_Y
+  #define _periodicity_y_false PERIODIC_NONE
+  #define _periodicity_z_true PERIODIC_Z
+  #define _periodicity_z_false PERIODIC_NONE
+  #define __PERIODIC(x,v) _periodicity##_##x##_##v
+  #define _PERIODIC(x,v) __PERIODIC(x,v)
+  #define PERIODIC(x) _PERIODIC(x, PVAL(periodicity, periodicity_##x ))
+  #define PERIODICITY (Periodicity)(PERIODIC(x) | PERIODIC(y) | PERIODIC(z))
+#else
+  #define PERIODICITY PERIODIC_NONE
+#endif
+
+/*! Boundary conditions type definition */
+#if ISDEF(sph,bnd_type)
+#define BOUNDARY_TYPE PVAL(sph,bnd_type)
+#else
+#define BOUNDARY_TYPE SA_BOUNDARY
+#endif
+
+/*! Viscosity type definition */
+#if ISENUM_EQ(physics,turbulence,k_epsilon)
+#define VISCOSITY_TYPE KEPSVISC
+#else
+#define VISCOSITY_TYPE DYNAMICVISC
+#endif
+
+/*! Kernel type definition */
+#if ISDEF(sph,kernel)
+#define KERNEL_TYPE PVAL(sph,kernel)
+#else
+#define KERNEL_TYPE WENDLAND
+#endif
+
+/*! SPH formulation type definition */
+#if ISDEF(sph,formulation)
+#define SPH_FORMULATION PVAL(sph,formulation)
+#else
+#define SPH_FORMULATION SPH_F1
+#endif
+
+/*! Flags definitions */
+#if ISDEF(special_boundary,open_bnd_type_VALS)
+#define FLAG_INLET_OUTLET ENABLE_INLET_OUTLET
+#else
+#define FLAG_INLET_OUTLET 0
+#endif
+
+#if ISENUM_EQ(sph,density_sum,enable) || ISDEF(special_boundary,open_bnd_type_VALS)
+#define FLAG_DENSITY_SUM ENABLE_DENSITY_SUM
+#else
+#define FLAG_DENSITY_SUM 0
+#endif
+
+#if ISENUM_EQ(sph,moving_bodies,enable) || ISDEF(special_boundary,collisions_file_VALS) \
+		|| ISDEF(special_boundary,rotation_vel_x_VALS)\
+		|| ISDEF(special_boundary,rotation_vel_y_VALS)\
+		|| ISDEF(special_boundary,rotation_vel_z_VALS)\
+		|| ISDEF(special_boundary,translation_vel_x_VALS)\
+		|| ISDEF(special_boundary,translation_vel_y_VALS)\
+		|| ISDEF(special_boundary,translation_vel_z_VALS)
+#define FLAG_MOVING_BODIES ENABLE_MOVING_BODIES
+#else
+#define FLAG_MOVING_BODIES 0
+#endif
+
+#if ISENUM_EQ(time,variable_dt,disable)
+#define FLAG_DTADAPT ENABLE_DTADAPT
+#else
+#define FLAG_DTADAPT 0
+#endif
+
+#define FLAGS_LIST ENABLE_WATER_DEPTH | FLAG_INLET_OUTLET | FLAG_DENSITY_SUM \
+  | FLAG_DTADAPT | FLAG_MOVING_BODIES
+
+#define open_boundary GT_OPENBOUNDARY
+#define floating_body GT_FLOATING_BODY
+#define moving_body GT_MOVING_BODY
+#define free_surface GT_FREE_SURFACE
+
+#define pressure_driven 0
+#define velocity_driven 1
+
+/*! IMPOSE_WATER_LEVEL and IMPOSE_VELOCITY macros */
+#if ISDEF(special_boundary,open_bnd_type_VALS)
+  #if ISDEF(special_boundary,open_bnd_water_level_VALS)
+    #define IMPOSE_WATER_LEVEL \
+    { \
+      const double wlevel[] = { PVALS( special_boundary, open_bnd_water_level ) }; \
+      int aBndType[] = { PINTVALS( special_boundary, type ) }; \
+      int anOpenBndType[] = { PINTVALS( special_boundary, open_bnd_type ) }; \
+      for (uint i=0; i<NB_SECTIONS(special_boundary); i++) \
+      { \
+        if ( object(info) == i && aBndType[i] == open_boundary \
+            && anOpenBndType[i] == pressure_driven )  \
+        { \
+          waterdepth = wlevel[i]; \
+        } \
+      } \
+    }
+  #else
+    #define IMPOSE_WATER_LEVEL
+  #endif
+
+  #if ISDEF(special_boundary,open_bnd_vel_x_VALS) \
+    || ISDEF(special_boundary,open_bnd_vel_y_VALS) \
+    || ISDEF(special_boundary,open_bnd_vel_z_VALS)
+    #if ISDEF(special_boundary,open_bnd_vel_x_VALS)
+    #define __OPEN_BND_VEL_X  PVALS(special_boundary,open_bnd_vel_x)
+    #else
+    #define __OPEN_BND_VEL_X  0
+    #endif
+
+    #if ISDEF(special_boundary,open_bnd_vel_y_VALS)
+    #define __OPEN_BND_VEL_Y  PVALS(special_boundary,open_bnd_vel_y)
+    #else
+    #define __OPEN_BND_VEL_Y  0
+    #endif
+
+    #if ISDEF(special_boundary,open_bnd_vel_z_VALS)
+    #define __OPEN_BND_VEL_Z  PVALS(special_boundary,open_bnd_vel_z)
+    #else
+    #define __OPEN_BND_VEL_Z  0
+    #endif
+
+    #define IMPOSE_VELOCITY \
+    { \
+      const double vel_x[NB_SECTIONS(special_boundary)]={__OPEN_BND_VEL_X};\
+      const double vel_y[NB_SECTIONS(special_boundary)]={__OPEN_BND_VEL_Y};\
+      const double vel_z[NB_SECTIONS(special_boundary)]={__OPEN_BND_VEL_Z};\
+      int aBndType[] = { PINTVALS( special_boundary, type ) }; \
+      int anOpenBndType[] = { PINTVALS( special_boundary, open_bnd_type ) }; \
+      for (uint i=0; i<NB_SECTIONS(special_boundary); i++) \
+      { \
+        if ( object(info) == i && aBndType[i] == open_boundary \
+            && anOpenBndType[i] == velocity_driven )  \
+        { \
+            eulerVel.x = vel_x[i]; \
+            eulerVel.y = vel_y[i]; \
+            eulerVel.z = vel_z[i]; \
+        } \
+      } \
+    }
+  #else
+    #define IMPOSE_VELOCITY
+  #endif
+
+#else
+#define IMPOSE_WATER_LEVEL
+#define IMPOSE_VELOCITY
+#endif
+
+/*!
+ * Provides the base template for the solver source generated by ProblemBuilder.
+ */
+class GenericProblem: public XProblem {
+	public:
+		GenericProblem(GlobalData *);
+
+		GPUSPH_USER_FUNCTIONS
+
+	private:
+
+#if ISDEF(physics,variable_gravity_begin)
+		double m_gtstart;
+#endif
+
+#if ISDEF(physics,variable_gravity_end)
+  double m_gtend;
+#endif
+
+#ifdef GPUSPH_special_boundary_SECTIONS
+
+  #if ISDEF(special_boundary,start_time_VALS)
+    double m_bndtstart[ NB_SECTIONS(special_boundary) ];
+  #endif
+
+  #if ISDEF(special_boundary,end_time_VALS)
+    double m_bndtend[ NB_SECTIONS(special_boundary) ];
+  #endif
+
+#endif
+
+};
+#endif	/* _GENERICPROBLEM_H */
+
