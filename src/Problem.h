@@ -124,7 +124,7 @@ class Problem {
 #endif
 
     /*!
-     * \defpsection{geometry, GEOMETRY_SECTION}
+     * \defpsection{geometry, Domain dimensions}
      * \mandatory
      */
     /*! \inpsection{geometry}
@@ -494,8 +494,16 @@ class Problem {
 		//! Periodicity along Z axis.
 		bool periodicity_z;
 
-        /** @defpsubsection{split_axis, Split axis}
+		/*! \defpsection{domain_splitting, Multi-GPU}
+		 * Enable/disable domain splitting for multi-GPU simulations
+		 */
+		/*! \defpsubsection{domain_splitting1,Domain splitting}
 		 * @inpsection{domain_splitting}
+		 * Enable/disable domain splitting for multi-GPU simulations
+		 */
+
+		/** @defpsubsection{split_axis, Split axis}
+		 * @inpsection{domain_splitting1}
 		 * @default{x}
 		 * @mandatory
 		 * @values{x,y,z}

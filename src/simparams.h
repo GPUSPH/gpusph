@@ -75,7 +75,7 @@ typedef struct SimParams {
 	double			nlInfluenceRadius;		///< Influence radius ( = \f$ \kappa h \f$ * nlexpansionfactor) used in neighbor list construction
 	double			nlSqInfluenceRadius;	///< Square influence radius for neighbor list construction
 	/*! 
-	 * \defsection{neighbours,NEIGHBOURS_SECTION}
+	 * \defpsection{neighbours,NEIGHBOURS_SECTION}
 	 * \mandatory
 	 * TLT_NEIGHBOURS_SECTION
 	 */
