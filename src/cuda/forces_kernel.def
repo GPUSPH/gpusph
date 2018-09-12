@@ -202,6 +202,31 @@ constexpr bool needs_waterdepth()
 		FP::nptype == PT_FLUID;
 }
 
+/*
+ * Auxiliary functions, needed to retrieve the kinematic viscosity coefficient
+ */
+
+/// Viscosity coefficient for the given particle
+/*! This is normally the d_visccoeff for the particle fluid type, but
+ * in the KEPSVISC case it features additional terms
+ */
+template<typename P>
+__device__ __forceinline__
+float // TODO this will be overloaded for non-constant viscosity (e.g. temperature dependent or non-Newtonian)
+get_laminar_visc_coeff(P const& pdata)
+{ return d_visccoeff[fluid_num(pdata.info)]; }
+template<typename P>
+__device__ __forceinline__
+enable_if_t<P::turbmodel != KEPSVISC, float>
+get_visc_coeff(P const& pdata)
+{ return get_laminar_visc_coeff(pdata); }
+template<typename P>
+__device__ __forceinline__
+enable_if_t<P::turbmodel == KEPSVISC, float>
+get_visc_coeff(P const& pdata)
+{ return get_laminar_visc_coeff(pdata) + pdata.turbViscForViscTerm; }
+
+
 
 /*
  * Auxiliary functions, needed to initialize const members in one go
@@ -494,6 +519,7 @@ struct keps_particle_data
 	const	float	turbVisc;
 	// turbulent viscosity for viscous term
 	// this is 0 for vertex particles
+	// TODO wall vertex particles should have turbVisc = 0 anyway, why is this needed in the first place?
 	const	float	turbViscForViscTerm;
 
 	template<typename FP>
@@ -538,9 +564,9 @@ struct keps_precalc_particle_data
 	const	float	dedt_precalc;
 
 	__device__ __forceinline__
-	keps_precalc_particle_data(const float rho, const uint fnum, keps_particle_data const& ke) :
-		dkdt_precalc(rho*(d_visccoeff[fnum] + ke.turbVisc)),
-		dedt_precalc(rho*(d_visccoeff[fnum] + ke.turbVisc/1.3f))
+	keps_precalc_particle_data(float rho, common_particle_data const& pdata, keps_particle_data const& ke) :
+		dkdt_precalc(rho*(get_laminar_visc_coeff(pdata) + ke.turbVisc)),
+		dedt_precalc(rho*(get_laminar_visc_coeff(pdata) + ke.turbVisc/1.3f))
 	{}
 };
 
@@ -621,7 +647,7 @@ struct forces_particle_data :
 		COND_STRUCT(turbmodel == SPSVISC,
 			sps_particle_data)(_index),
 		p_precalc_particle_data(*this),
-		COND_STRUCT(turbmodel == KEPSVISC, keps_precalc_particle_data)(vel.w, fluid_num(_info), *this)
+		COND_STRUCT(turbmodel == KEPSVISC, keps_precalc_particle_data)(vel.w, *this, *this)
 	{}
 };
 
@@ -1694,21 +1720,6 @@ enable_if_t<not has_relEulerVel<N>(), float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel; } /* Standard case */
 
-/// Viscosity coefficient for the given particle
-/*! This is normally the d_visccoeff for the particle fluid type, but
- * in the KEPSVISC case it features additional terms
- */
-template<typename P>
-__device__ __forceinline__
-enable_if_t<P::turbmodel != KEPSVISC, float>
-get_visc_coeff(P const& pdata)
-{ return d_visccoeff[fluid_num(pdata.info)]; }
-template<typename P>
-__device__ __forceinline__
-enable_if_t<P::turbmodel == KEPSVISC, float>
-get_visc_coeff(P const& pdata)
-{ return d_visccoeff[fluid_num(pdata.info)] + pdata.turbViscForViscTerm; }
-
 /*
  * Laminar contributions to the viscosity
  */
@@ -1796,10 +1807,13 @@ enable_if_t<
 compute_laminar_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	const float our_rho = pdata.vel.w;
+	const float neib_rho = ndata.relVel.w;
 	// TODO support different visctypes
-	const float mu_i = d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w;
-	const float mu_j = d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w;
+	const float mu_i = get_visc_coeff(pdata)*our_rho;
+	const float mu_j = get_visc_coeff(ndata)*neib_rho;
 	const float avg_mu = 2*(mu_i*mu_j)/(mu_i+mu_j);
+
 	const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
 	nout.DvDt += avg_mu*avg_sigma*ndata.f*as_float3(ndata.relVel);
 }
@@ -1833,8 +1847,9 @@ compute_laminar_visc_contrib
 		 dot3(get_viscous_relVel(ndata), ndata.normal_s)*ndata.normal_s
 		);
 
-	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
-	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
+	// TODO check if this should be get_visc_coeff instead of get_laminar_visc_coeff
+	const float our_visc = get_laminar_visc_coeff(pdata);
+	const float neib_visc = get_laminar_visc_coeff(ndata);
 
 	nout.DvDt -= nout.ggamAS*
 		(our_visc*pdata.vel.w + neib_visc*ndata.relVel.w)/ndata.r_as*
@@ -1958,8 +1973,9 @@ enable_if_t<
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
-	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
+	// TODO check if this should be get_visc_coeff instead of get_laminar_visc_coeff
+	const float our_visc = get_laminar_visc_coeff(pdata);
+	const float neib_visc = get_laminar_visc_coeff(ndata);
 
 	if (IO_BOUNDARY(ndata.info))
 		return;
@@ -2048,10 +2064,10 @@ compute_keps_term
 {
 	// volume contribution for k and epsilon diffusion terms
 	pout.diff_term_k += ndata.relPos.w*(
-		pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc)
+		pdata.dkdt_precalc + ndata.relVel.w*(get_laminar_visc_coeff(ndata) + ndata.turbVisc)
 		)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
 	pout.diff_term_e += ndata.relPos.w*(
-		pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff[fluid_num(ndata.info)] + ndata.turbVisc/1.3f)
+		pdata.dedt_precalc + ndata.relVel.w*(get_laminar_visc_coeff(ndata) + ndata.turbVisc/1.3f)
 		)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
 
 	// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
@@ -2162,13 +2178,13 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__
 enable_if_t< FP::visctype == DYNAMICVISC, float >
 viscous_plane_coefficient(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w; }
+{ return get_laminar_visc_coeff(pdata)*pdata.vel.w; }
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
 enable_if_t< FP::visctype == KINEMATICVISC, float >
 viscous_plane_coefficient(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check?
+{ return get_laminar_visc_coeff(pdata)*pdata.vel.w/4; } // TODO FIXME check?
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
