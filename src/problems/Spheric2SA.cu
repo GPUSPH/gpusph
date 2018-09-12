@@ -18,7 +18,8 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 		periodicity<PERIODIC_NONE>,
 		kernel<WENDLAND>,
 		densitydiffusion<FERRARI>,
-		add_flags<ENABLE_DTADAPT | ENABLE_GAMMA_QUADRATURE>
+		//add_flags<ENABLE_DTADAPT | ENABLE_GAMMA_QUADRATURE>
+		add_flags<ENABLE_DTADAPT | ENABLE_DENSITY_SUM>
 	);
 
 	set_deltap(0.02715f);
@@ -122,3 +123,12 @@ void Spheric2SA::fillDeviceMap()
 {
 	fillDeviceMapByAxis(X_AXIS);
 }
+
+bool Spheric2SA::need_write(double t) const
+{
+ 	return 0;
+}
+
+
+
+

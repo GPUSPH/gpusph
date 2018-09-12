@@ -67,7 +67,7 @@ R(const float rho_tilde, const ushort i)
 	return 2.0f/(d_gammacoeff[i]-1.0f)*d_sscoeff[i]*__powf(rho_ratio, 0.5f*d_gammacoeff[i]-0.5f);
 }
 
-// Density from Riemann celerity
+// Relative density from Riemann celerity
 __device__ __forceinline__ float
 RHOR(const float r, const ushort i)
 {

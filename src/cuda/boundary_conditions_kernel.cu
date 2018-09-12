@@ -126,7 +126,9 @@ calculateIOboundaryCondition(
 		if (unExt <= unInt) // Expansion wave
 			riemannR = rInt + (unExt - unInt);
 		else { // Shock wave
-			float riemannRho = RHO(P(rhoInt, a) + absolute_density(rhoInt,a) * unInt * (unInt - unExt), a);
+			//float riemannRho = RHO(P(rhoInt, a) + rhoInt * unInt * (unInt - unExt), a);
+			float riemannRho = RHO(P(rhoInt, a) + absolute_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative		
+
 			riemannR = R(riemannRho, a);
 			float riemannC = soundSpeed(riemannRho, a);
 			float lambda = unExt + riemannC;
@@ -1119,7 +1121,6 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 		const float unExt = dot3(eulerVel, pdata.normal);
 		const float rhoInt = RHO(pout.sump, fluid_num(pdata.info));
 		const float rhoExt = eulerVel.w;
-		//const float rhoExt = absolute_density(eulerVel.w,fluid_num(pdata.info));
 
 		calculateIOboundaryCondition(eulerVel, pdata.info,
 			rhoInt, rhoExt, pout.sumvel,
