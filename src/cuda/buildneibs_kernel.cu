@@ -964,12 +964,12 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 
 		// The way the neighbors list is constructed depends on
 		// the boundary type used in the simulation.
-		// 	* For Lennard-Johnes boundaries :
+		// 	* For Lennard-Jones boundaries :
 		//		we construct a neighbors list for fluid, test points
 		//		and particles belonging to a floating body or a moving
 		//		boundary on which we want to compute forces.
 		//	* For SA boundaries :
-		//		same as Lennard-Johnes plus vertice and boundary particles
+		//		same as Lennard-Jones plus vertice and boundary particles
 		//	* For dynamic boundaries :
 		//		we construct a neighbors list for all particles.
 		//TODO: optimze test. (Alexis).

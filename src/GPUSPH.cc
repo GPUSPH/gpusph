@@ -175,7 +175,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
 	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
 	printf(" - Grid size:    %u x %u x %u (%s cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->addSeparators(gdata->nGridCells).c_str());
-	printf(" - Cell linearizazion: %s,%s,%s\n", STR(COORD1), STR(COORD2), STR(COORD3));
+	printf(" - Cell linearization: %s,%s,%s\n", STR(COORD1), STR(COORD2), STR(COORD3));
 	printf(" - Dp:   %g\n", gdata->problem->m_deltap);
 	printf(" - R0:   %g\n", gdata->problem->physparams()->r0);
 
@@ -1823,7 +1823,7 @@ void GPUSPH::buildNeibList()
 
 		if (currDevMaxFluidBoundaryNeibs > maxPossibleFluidBoundaryNeibs ||
 			currDevMaxVertexNeibs > maxPossibleVertexNeibs) {
-			printf("WARNING: current max. neighbors numbers (%u | %u) greather than max possible neibs (%u | %u) at iteration %lu\n",
+			printf("WARNING: current max. neighbors numbers (%u | %u) greater than max possible neibs (%u | %u) at iteration %lu\n",
 				currDevMaxFluidBoundaryNeibs, currDevMaxVertexNeibs, maxPossibleFluidBoundaryNeibs, maxPossibleVertexNeibs, gdata->iterations);
 			printf("\tpossible culprit: %d (neibs: %d + %d | %d)\n", gdata->timingInfo[d].hasTooManyNeibs,
 				gdata->timingInfo[d].hasMaxNeibs[PT_FLUID],
