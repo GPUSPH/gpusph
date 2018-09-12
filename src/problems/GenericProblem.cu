@@ -164,7 +164,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 	m_size = make_double3( NAN, NAN, NAN);
 	if (strcmp("1e+09", PSTR(geometry, m_size_1)) != 0)
 	{
-		m_origin.x = PVAL(geometry, m_size_1);
+		m_size.x = PVAL(geometry, m_size_1);
 		warn(WARN_SIZE_DEFINED("X"));
 	}
 	if (strcmp("1e+09", PSTR(geometry, m_size_2)) != 0)
