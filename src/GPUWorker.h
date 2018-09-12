@@ -273,6 +273,7 @@ private:
 	void kernel_saIdentifyCornerVertices();
 	void kernel_updatePositions();
 	void kernel_disableOutgoingParts();
+	void kernel_disableFreeSurfParts();
 	void kernel_imposeBoundaryCondition();
 	void kernel_initIOmass_vertexCount();
 	void kernel_initIOmass();

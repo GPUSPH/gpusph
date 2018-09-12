@@ -1801,6 +1801,10 @@ void GPUWorker::simulationThread() {
 				if (dbg_step_printf) printf(" T %d issuing DISABLE_OUTGOING_PARTS:\n", deviceIndex);
 				kernel_disableOutgoingParts();
 				break;
+			case DISABLE_FREE_SURF_PARTS:
+				if (dbg_step_printf) printf(" T %d issuing DISABLE_FREE_SURF_PARTS:\n", deviceIndex);
+				kernel_disableFreeSurfParts();
+				break;
 			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_SEGMENT_BOUNDARY_CONDITIONS\n", deviceIndex);
 				kernel_saSegmentBoundaryConditions();
@@ -2946,6 +2950,30 @@ void GPUWorker::kernel_disableOutgoingParts()
 				bufread.getData<BUFFER_INFO>(),
 				m_numParticles,
 				numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
+}
+
+void GPUWorker::kernel_disableFreeSurfParts()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("disableFreeSurfParts");
+
+	bcEngine->disableFreeSurfParts(
+			bufwrite.getData<BUFFER_POS>(),
+			bufwrite.getData<BUFFER_VEL>(),
+			bufwrite.getData<BUFFER_FORCES>(),
+			bufwrite.getData<BUFFER_GRADGAMMA>(),
+			bufwrite.getData<BUFFER_VERTICES>(),
+			bufread.getData<BUFFER_INFO>(),
+			m_numParticles,
+			numPartsToElaborate);
 
 	bufwrite.clear_pending_state();
 }

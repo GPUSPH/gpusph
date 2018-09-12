@@ -139,6 +139,11 @@ bool XProblem::initialize()
 	// aux var for automatic water level computation
 	double highest_water_part = NAN;
 
+	// Enable free surface boundaries for loading if repack mode is on
+	// and old repacking results can not be reused without recomputing.
+	bool enableFreeSurf = false;
+//			(gdata->mode == REPACK && !(gdata->repack_flags & REPACK_REUSE));
+
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		// aux vars to store bbox of current geometry
 		Point currMin, currMax;
@@ -147,6 +152,9 @@ bool XProblem::initialize()
 		if (m_geometries[g]->type == GT_PLANE)
 			continue;
 
+		if (m_geometries[g]->type == GT_FREE_SURFACE)
+			m_geometries[g]->enabled = enableFreeSurf;
+		
 		// ignore deleted geometries
 		if (!m_geometries[g]->enabled)
 			continue;
@@ -441,6 +449,14 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
 			break;
+		case GT_FREE_SURFACE:
+			// free-surface particles for repacking behave like a fixed boundary
+			// they are used only if repack mode is on and old result can
+			// not be reused - this is checked during the problem initialization.
+			geomInfo->handle_collisions = true;
+			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
+			geomInfo->enabled = false;
 	}
 
 	// --- Default intersection type
@@ -458,10 +474,11 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	}
 
 	// --- Default erase operation
-	// Upon intersection or subtraction we can choose to interact with fluid
+	// Upon intersection or substraction we can choose to interact with fluid
 	// or boundaries. By default, water erases only other water, while boundaries
 	// erase water and other boundaries. Testpoints eras nothing.
 	switch (geomInfo->type) {
+		case GT_FREE_SURFACE:
 		case GT_FLUID:
 			geomInfo->erase_operation = ET_ERASE_FLUID;
 			break;
@@ -1700,6 +1717,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 						break;
 					case GT_FLOATING_BODY:
 						SET_FLAG(info[i], FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE);
+						break;
+					case GT_FREE_SURFACE:
+						SET_FLAG(info[i], FG_SURFACE);
 						break;
 					case GT_OPENBOUNDARY:
 						const ushort VELOCITY_DRIVEN_FLAG =

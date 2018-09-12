@@ -187,6 +187,8 @@ enum CommandType {
 	INIT_IO_MASS_VERTEX_COUNT,
 	/// Modifiy initial mass of open boundaries
 	INIT_IO_MASS,
+	/// Option for repacking only: disable free surface particles after the repacking is done
+	DISABLE_FREE_SURF_PARTS,
 	/// Quit the simulation cycle
 	QUIT
 };

@@ -48,7 +48,8 @@ enum GeometryType {	GT_FLUID,
 					GT_FLOATING_BODY,
 					GT_MOVING_BODY,
 					GT_PLANE,
-					GT_TESTPOINTS
+					GT_TESTPOINTS,
+					GT_FREE_SURFACE
 };
 
 enum FillType {	FT_NOFILL,

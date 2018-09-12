@@ -134,6 +134,17 @@ disableOutgoingParts(		float4*			pos,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd) = 0;
 
+// Disables free surface boundary particles after the repacking is achieved
+virtual void
+disableFreeSurfParts(		float4*			pos,
+							float4*			vel,
+							float4*			force,
+							float4*			gradGam,
+							vertexinfo*		vertices,
+					const	particleinfo*	info,
+					const	uint			numParticles,
+					const	uint			particleRangeEnd) = 0;
+
 //! Downloads the per device waterdepth from the GPU
 virtual void
 downloadIOwaterdepth(

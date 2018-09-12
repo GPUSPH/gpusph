@@ -2207,6 +2207,59 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 	}
 }
 
+/*!
+ This kernel is only used for repacking in combination with the free surface particle identification.
+ As soon as repacking is finished the free surface particles are removed by this kernel.
+*/
+__global__ void
+disableFreeSurfPartsDevice(			float4*		oldPos,
+									float4*		oldVel,
+									float4*		oldForce,
+									float4*		oldGradGam,
+									vertexinfo*	oldVertices,
+							const	uint		numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if(index < numParticles) {
+		const particleinfo info = tex1Dfetch(infoTex, index);
+		float4 vel = oldVel[index];
+		vel.x = 0;
+		vel.y = 0;
+		vel.z = 0;
+		oldVel[index] = vel;
+		float4 force = oldForce[index];
+		force.x = 0;
+		force.y = 0;
+		force.z = 0;
+		force.w = 0;
+		oldForce[index] = force;
+		float4 gradGam = oldGradGam[index];
+		gradGam.x = 0;
+		gradGam.y = 0;
+		gradGam.z = 0;
+		gradGam.w = 0;
+		oldGradGam[index] = gradGam;
+
+		if (SURFACE(info) && NOT_FLUID(info)) {
+			float4 pos = oldPos[index];
+			if (ACTIVE(pos)) {
+				vertexinfo vertices = oldVertices[index];
+				disable_particle(pos);
+				pos.x = NAN;
+				pos.y = NAN;
+				pos.z = NAN;
+				vertices.x = 0;
+				vertices.y = 0;
+				vertices.z = 0;
+				vertices.w = 0;
+				oldPos[index] = pos;
+				oldVertices[index] = vertices;
+			}
+		}
+	}
+}
+
 /** @} */
 
 } // namespace cubounds

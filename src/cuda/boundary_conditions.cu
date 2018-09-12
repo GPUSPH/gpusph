@@ -93,6 +93,38 @@ disableOutgoingParts(		float4*			pos,
 	KERNEL_CHECK_ERROR;
 }
 
+/// Disables free surface boundary particles during the repacking process
+void
+disableFreeSurfParts(		float4*			pos,
+							float4*			vel,
+							float4*			force,
+							float4*			gradGam,
+							vertexinfo*		vertices,
+					const	particleinfo*	info,
+					const	uint			numParticles,
+					const	uint			particleRangeEnd)
+{
+	uint numThreads = BLOCK_SIZE_SA_BOUND;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	//execute kernel
+	cubounds::disableFreeSurfPartsDevice<<<numBlocks, numThreads>>>
+		(	pos,
+			vel,
+			force,
+			gradGam,
+			vertices,
+			numParticles);
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
+
 /// Computes the boundary conditions on segments using the information from the fluid
 /** For solid walls this is used to impose Neuman boundary conditions.
  *  For open boundaries it imposes the appropriate inflow velocity solving the associated
