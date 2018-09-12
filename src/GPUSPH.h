@@ -41,6 +41,9 @@
 // IPPSCounter
 #include "timing.h"
 
+// Repacking functions
+#include "Repacking.h"
+
 // The GPUSPH class is singleton. Wise tips about a correct singleton implementation are give here:
 // http://stackoverflow.com/questions/1008019/c-singleton-design-pattern
 
@@ -180,6 +183,8 @@ public:
 
 	/*static*/ bool runSimulation();
 
+private:
+	Repacking repack;
 };
 
 #endif // GPUSPH_H_

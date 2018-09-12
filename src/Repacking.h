@@ -10,14 +10,14 @@ struct GlobalData;
 class Problem;
 
 /**
-  \class RepackAlgo
+  \class Repacking
   Class implementing the auxiliary stages for repacking algorithm
 */
-class RepackAlgo
+class Repacking
 {
 public:
-	RepackAlgo();
-	~RepackAlgo();
+	Repacking();
+	~Repacking();
 
 	void Init( GPUSPH*, GlobalData*, Problem* );
 	bool SetParams();

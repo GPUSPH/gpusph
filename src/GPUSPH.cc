@@ -70,7 +70,8 @@ GPUSPH* GPUSPH::getInstance() {
 	return &instance;
 }
 
-GPUSPH::GPUSPH() {
+GPUSPH::GPUSPH() 
+{
 	clOptions = NULL;
 	gdata = NULL;
 	problem = NULL;
@@ -127,6 +128,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata = _gdata;
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
+
+	// Initialization necessary for repacking mode
+	repack.Init( this, gdata, problem );
 
 	// For the new problem interface (compute worldorigin, init ODE, etc.)
 	// In all cases, also runs the checks for dt, neib list size, etc
@@ -415,6 +419,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// TODO
 	//		// > new Integrator
+
+	repack.SetParams();
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
@@ -801,6 +807,22 @@ bool GPUSPH::runSimulation() {
 
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 
+	// Perform repacking algorithm if necessary according to options
+	bool isRepackFinished = true;
+//	if (gdata->mode==REPACK) {
+		isRepackFinished = repack.Start();
+//		if ( isRepackFinished )
+//			doWrite(REPACKING); // write loaded reused result
+//	}
+	bool isKePositive = false;
+//	if (isRepackFinished && (gdata->repack_flags & REPACK_ONLY)) // the option --repack-only
+//		gdata->keep_going = false;
+//	else
+//		gdata->keep_going = true;
+// Initialize variables for tracking repacking advancement
+	std::vector<int> iters;
+	std::vector<double> energies;
+
 	// Run the actual simulation loop, by issuing the appropriate doCommand()s
 	// in sequence. keep_going will be set to false either by the loop itself
 	// if the simulation is finished, or by a Worker that fails in executing a
@@ -842,6 +864,45 @@ bool GPUSPH::runSimulation() {
 		// mark the READ buffers as valid n+1, and the WRITE buffers as valid n
 		markIntegrationStep("n+1", BUFFER_VALID, "n", BUFFER_VALID);
 		// End of corrector step, finish iteration
+
+		//if (!isRepackFinished) {
+		//	float ke = repack.TotalKE();
+		//	//if (gdata->iterations >= gdata->clOptions->repack_max_iter ||
+		//	//		(isKePositive && ke < gdata->clOptions->repack_ke)) {
+		//		printf( "Repacking algorithm is finished\n" );
+		//		printStatus();
+		//		repack.Stop();
+		//		isRepackFinished = true;
+		//		//doWrite(REPACKING);
+		//		//// Stop simulation if repack-only flag is on.
+		//		//if( gdata->repack_flags & REPACK_ONLY )
+		//		//	gdata->quit_request = true;
+		//		//// Remove free surface boundary particles.
+		//		//// Initialize particles after repacking without the free surface boundary
+		//		//// Do we need to init volume for SPH_GRENIER?
+		//		//doCommand(DISABLE_FREE_SURF_PARTS);
+		//		////doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
+
+		//		//if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+
+		//		//	// compute neighbour list for the first time
+		//		//	buildNeibList();
+
+		//		//	// set density and other values for segments and vertices
+		//		//	// and set initial value of gamma using the quadrature formula
+		//		//	saBoundaryConditions(INITIALIZATION_STEP);
+		//		//	doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_FORCES | BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
+		//		//}
+
+		//		//if (MULTI_DEVICE)
+		//		//	doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_FORCES | BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
+		//	//} else {
+		//	//	gdata->quit_request = false;
+		//	//}
+		//	if (ke>0)
+		//		isKePositive = true;
+		//}
+
 
 		// increase counters
 		gdata->iterations++;
@@ -1865,6 +1926,11 @@ void GPUSPH::printStatus(FILE *out)
 			//ti.meanTimeNeibsList,
 			//ti.meanTimeEuler
 			);
+	//if (gdata->mode==REPACK) {
+	//	// Calculate total kinetic energy
+	//	float ke = repack.TotalKE();
+	//	fprintf(out, "  %i: Total kinetic energy: %e\n", (int)gdata->iterations, ke );
+	//}
 	fflush(out);
 	// output to the info stream is always overwritten
 	if (out == m_info_stream)
