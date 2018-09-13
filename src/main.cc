@@ -394,32 +394,47 @@ int main(int argc, char** argv) {
 			throw invalid_argument("no simulation framework defined in the problem!");
 		gdata.allocPolicy = gdata.simframework->getAllocPolicy();
 
-
-		// get - and actually instantiate - the existing instance of GPUSPH
-		GPUSPH *Simulator = GPUSPH::getInstance();
-
-		// initialize CUDA, start workers, allocate CPU and GPU buffers
-		bool initialized  = Simulator->initialize(&gdata);
-
-		if (!initialized)
-			throw runtime_error("GPUSPH: problem during initialization");
-
-		printf("GPUSPH: initialized\n");
-
-		// run the repacking until a quit request is triggered or an exception is thrown (TODO)
 		if (gdata.problem->simparams()->simflags & ENABLE_REPACKING) {
-			bool repacked = Simulator->runRepacking();
+
+			// get - and actually instantiate - the existing instance of GPUSPH
+			GPUSPH *SimulatorRepack = GPUSPH::getInstance();
+
+			// initialize CUDA, start workers, allocate CPU and GPU buffers
+			bool initialized  = SimulatorRepack->initialize(&gdata);
+
+			if (!initialized)
+				throw runtime_error("GPUSPH: problem during initialization");
+
+			printf("GPUSPH: initialized\n");
+
+			// run the repacking until a quit request is triggered or an exception is thrown (TODO)
+			bool repacked = SimulatorRepack->runRepacking();
 			if (!repacked)
 				throw runtime_error("GPUSPH: problem during repacking");
-			
+
 			printf("GPUSPH: repacked\n");
+
+			// finalize everything
+			SimulatorRepack->finalize();
 		}
+		//if (!repack_only) {
+			// get - and actually instantiate - the existing instance of GPUSPH
+			GPUSPH *Simulator = GPUSPH::getInstance();
 
-		// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-		Simulator->runSimulation();
+			// initialize CUDA, start workers, allocate CPU and GPU buffers
+			bool initialized  = Simulator->initialize(&gdata);
 
-		// finalize everything
-		Simulator->finalize();
+			if (!initialized)
+				throw runtime_error("GPUSPH: problem during initialization");
+
+			printf("GPUSPH: initialized\n");
+
+			// run the simulation until a quit request is triggered or an exception is thrown (TODO)
+			Simulator->runSimulation();
+
+			// finalize everything
+			Simulator->finalize();
+		//}
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata.ret = 1;

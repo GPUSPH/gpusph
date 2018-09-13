@@ -52,7 +52,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 		//formulation<SPH_F2>,
 		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
-		flags<ENABLE_DTADAPT>
+		flags<ENABLE_DTADAPT | ENABLE_REPACKING>
 	).select_options(
 		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),

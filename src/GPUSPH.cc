@@ -130,9 +130,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
-	// Initialization necessary for repacking mode
-	repack.Init( this, gdata, problem );
-
 	// For the new problem interface (compute worldorigin, init ODE, etc.)
 	// In all cases, also runs the checks for dt, neib list size, etc
 	// and creates the problem dir
@@ -180,13 +177,17 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
 	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
 	printf(" - Grid size:    %u x %u x %u (%s cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->addSeparators(gdata->nGridCells).c_str());
-	printf(" - Cell linearizazion: %s,%s,%s\n", STR(COORD1), STR(COORD2), STR(COORD3));
+	printf(" - Cell linearization: %s,%s,%s\n", STR(COORD1), STR(COORD2), STR(COORD3));
 	printf(" - Dp:   %g\n", gdata->problem->m_deltap);
 	printf(" - R0:   %g\n", gdata->problem->physparams()->r0);
 
 
 	// initial dt (or, just dt in case adaptive is disabled)
 	gdata->dt = _sp->dt;
+
+	// Initialization necessary for repacking mode
+	if (_sp->simflags & ENABLE_REPACKING)
+		repack.Init( this, gdata, problem );
 
 	printf("Generating problem particles...\n");
 
@@ -325,27 +326,60 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		problem->copy_to_array(gdata->s_hBuffers);
 		printf("---\n");
 	} else {
-		gdata->s_hBuffers.set_state_on_write("resumed");
-		gdata->iterations = hf[0]->get_iterations();
-		gdata->dt = hf[0]->get_dt();
 		gdata->t = hf[0]->get_t();
-		for (uint i = 0; i < hot_nrank; i++) {
-			hf[i]->load();
+		if (gdata->t > 0) {
+			gdata->s_hBuffers.set_state_on_write("resumed");
+			gdata->iterations = hf[0]->get_iterations();
+			gdata->dt = hf[0]->get_dt();
+			for (uint i = 0; i < hot_nrank; i++) {
+				hf[i]->load();
 #if 0
-			// for debugging, enable this and inspect contents
-			const float4 *pos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
-			const particleinfo *info = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
+				// for debugging, enable this and inspect contents
+				const float4 *pos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
+				const particleinfo *info = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
 #endif
-			hot_in[i].close();
-			cerr << "Successfully restored hot start file " << i+1 << " / " << hot_nrank << endl;
-			cerr << *hf[i];
-		}
-		cerr << "Restarting from t=" << gdata->t
-			<< ", iteration=" << gdata->iterations
-			<< ", dt=" << gdata->dt << endl;
-		// warn about possible discrepancies in case of ODE objects
-		if (problem->simparams()->numbodies) {
-			cerr << "WARNING: simulation has rigid bodies and/or moving boundaries, resume will not give identical results" << endl;
+				hot_in[i].close();
+				cerr << "Successfully restored hot start file " << i+1 << " / " << hot_nrank << endl;
+				cerr << *hf[i];
+			}
+
+			cerr << "Restarting from t=" << gdata->t
+				<< ", iteration=" << gdata->iterations
+				<< ", dt=" << gdata->dt << endl;
+			// warn about possible discrepancies in case of ODE objects
+			if (problem->simparams()->numbodies) {
+				cerr << "WARNING: simulation has rigid bodies and/or moving boundaries, resume will not give identical results" << endl;
+			}
+		} else {	
+			gdata->s_hBuffers.set_state_on_write("resume from repack");
+			gdata->iterations = 0;
+			gdata->dt = hf[0]->get_dt();
+			for (uint i = 0; i < hot_nrank; i++) {
+				hf[i]->load();
+#if 0
+				// for debugging, enable this and inspect contents
+				const float4 *pos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
+				const particleinfo *info = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
+#endif
+				hot_in[i].close();
+				cerr << "Successfully restored repack file " << i+1 << " / " << hot_nrank << endl;
+				cerr << *hf[i];
+			}
+
+			// initialize values of k and e for k-e model
+			if (problem->simparams()->visctype == KEPSVISC) {
+				problem->init_keps(gdata->s_hBuffers, gdata->totParticles);
+				problem->init_turbvisc(gdata->s_hBuffers, gdata->totParticles);
+			}
+			// TODO: check if this is necessary
+			//if (problem->simparams()->sph_formulation == SPH_GRENIER)
+			//	problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
+
+			// call user-set initialization routine, if any
+			problem->initializeParticles(gdata->s_hBuffers, gdata->totParticles);
+
+			cerr << "Restarting from a repack file"
+				<< ", dt=" << gdata->dt << endl;
 		}
 		delete[] hf;
 		delete[] hot_in;
@@ -896,41 +930,8 @@ bool GPUSPH::runRepacking() {
 		// End of repacking step
 
 		float ke = repack.TotalKE();
-		//if (gdata->repackIterations >= gdata->clOptions->repack_max_iter ||
-		//		(gdata->repackPositiveKe && ke < gdata->clOptions->repack_ke)) { 
-		printf( "Repacking algorithm is finished\n" );
-		printStatus();
-		repack.Stop();
-		gdata->keep_repacking = false;
-		doWrite(REPACK_STEP);
-		// Stop simulation if repack-only flag is on.
-		//if( gdata->repack_flags & REPACK_ONLY )
-		//	gdata->quit_request = true;
-		// Remove free surface boundary particles.
-		// Initialize particles after repacking without the free surface boundary
-		// Do we need to init volume for SPH_GRENIER?
-		doCommand(DISABLE_FREE_SURF_PARTS);
-		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
-		// Here the disabling of free-surface particles is complete. All updated values
-		// are now in the read buffers again: mark the READ buffers as valid surface,
-		// and the WRITE buffers as valid repack
-		markIntegrationStep("surface", BUFFER_VALID, "repack", BUFFER_VALID);
-		
-		if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-
-			// compute neighbour list for the first time
-			buildNeibList();
-
-			// set density and other values for segments and vertices
-			// and set initial value of gamma using the quadrature formula
-			saBoundaryConditions(INITIALIZATION_STEP);
-
-			// else 
-			//	gdata->quit_request = false;
-		}
 		if (ke>0)
 			gdata->repackPositiveKe = true;
-//}
 
 		// increase counters
 		gdata->repackIterations++;
@@ -948,7 +949,7 @@ bool GPUSPH::runRepacking() {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// if runnin multinode, should also find the network minimum
+			// if running multinode, should also find the network minimum
 			if (MULTI_NODE)
 				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
@@ -961,15 +962,33 @@ bool GPUSPH::runRepacking() {
 			gdata->quit_request = true;
 		}
 
-		// check that dt is not too small (relative to t)
-		if (gdata->t == previous_t) {
-			fprintf(stderr, "FATAL: repacking timestep %g too small at iteration %lu, time is still - requesting quit...\n", gdata->dt, gdata->repackIterations);
-			gdata->quit_request = true;
+		int repackMaxIter = 100;
+		float repackMinKe = 0;
+		// are we done?
+		const bool we_are_done =
+			// have we reached the maximum number of repacking iterations? 
+			gdata->repackIterations >= repackMaxIter ||
+			// have we sufficiently decreased the kinetic energy?
+			gdata->repackPositiveKe && ke < repackMinKe ||
+			// and of course we're finished if a quit was requested
+			gdata->quit_request;
+
+		if (we_are_done) {
+			printf( "Repacking algorithm is finished\n" );
+			printStatus();
+			gdata->keep_repacking = false;
+			gdata->t = -1.;
+			// Disable free surface boundary particles
+			printf( "Disable free-surface particles" );
+			doCommand(DISABLE_FREE_SURF_PARTS);
+			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
 		}
+
+		check_write(we_are_done);
 
 	} catch (exception &e) {
 		cerr << e.what() << endl;
-		gdata->keep_going = false;
+		gdata->keep_repacking = false;
 		// the loop is being ended by some exception, so we cannot guarantee that
 		// all threads are alive. Force unlocks on all subsequent barriers to exit
 		// as cleanly as possible without stalling
@@ -984,6 +1003,22 @@ bool GPUSPH::runRepacking() {
 	if (MULTI_NODE)
 		printf("Global performance of the multinode repacking: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
 
+	printf("Repacking end, cleaning up...\n");
+
+	// doCommand(QUIT) would be equivalent, but this is more clear
+	//gdata->nextCommand = QUIT;
+	//gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
+	//gdata->threadSynchronizer->barrier(); // end of SIMULATION, begins FINALIZATION ***
+
+	//// just wait or...?
+
+	//gdata->threadSynchronizer->barrier(); // end of FINALIZATION ***
+
+	//// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
+	//// we wait for the threads to actually exit
+	//for (uint d = 0; d < gdata->devices; d++)
+	//	gdata->GPUWORKERS[d]->join_worker();
+	
 	return (repacked = true);
 }
 

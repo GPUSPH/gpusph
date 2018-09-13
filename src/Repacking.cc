@@ -132,33 +132,33 @@ bool Repacking::SetParams()
 	//if( !canReuseData )
 	//{
 		printf( "The repacking data will be re-written\n" );
-		// Initialize repacking parameters if old results can not be reused.
-		const double dr = problem->get_deltap();
-		max_c0 = NAN;
+	//	// Initialize repacking parameters if old results can not be reused.
+	//	const double dr = problem->get_deltap();
+	//	max_c0 = NAN;
 
-		for (uint f = 0; f < problem->physparams()->numFluids(); ++f)
-			max_c0 = fmaxf(max_c0,problem->physparams()->sscoeff[f]);
-		printf("max_c0 = %f\n", max_c0);
+	//	for (uint f = 0; f < problem->physparams()->numFluids(); ++f)
+	//		max_c0 = fmaxf(max_c0,problem->physparams()->sscoeff[f]);
+	//	printf("max_c0 = %f\n", max_c0);
 
-		// Fill in constants
-		//gdata->repack_a = 1.f;
-		//gdata->repack_alpha  = 0.1f;
+	//	// Fill in constants
+	//	//gdata->repack_a = 1.f;
+	//	//gdata->repack_alpha  = 0.1f;
 
-		//gdata->dt = CFL * dr / (sqrt(repack_a)*c0);
-		// Keep original dt
-		dt = gdata->dt;
-		printf("dt = %f\n", dt);
-		gdata->dt   = 1.*dr/max_c0;
+	//	//gdata->dt = CFL * dr / (sqrt(repack_a)*c0);
+	//	// Keep original dt
+	//	dt = gdata->dt;
+	//	printf("dt = %f\n", dt);
+	//	gdata->dt   = 1.*dr/max_c0;
 
-		//problem->simparams()->repack_a = gdata->repack_a;
-		//problem->simparams()->repack_alpha = gdata->repack_alpha;
+	//	//problem->simparams()->repack_a = gdata->repack_a;
+	//	//problem->simparams()->repack_alpha = gdata->repack_alpha;
 
-		//printf( "---\n");
-		//printf( "Particle repacking is enabled\n");
-		//printf( "repack_a=%e\n", gdata->repack_a );
-		//printf( "repack_alpha=%e\n", gdata->repack_alpha );
-		//printf( "dt=%e\n", gdata->dt );
-		//printf( "dr=%e\n", dr );
+	//	//printf( "---\n");
+	//	//printf( "Particle repacking is enabled\n");
+	//	//printf( "repack_a=%e\n", gdata->repack_a );
+	//	//printf( "repack_alpha=%e\n", gdata->repack_alpha );
+	//	//printf( "dt=%e\n", gdata->dt );
+	//	//printf( "dr=%e\n", dr );
 
 		printf( "Repacking parameters are set\n");
 	//}
