@@ -126,10 +126,9 @@ calculateIOboundaryCondition(
 		if (unExt <= unInt) // Expansion wave
 			riemannR = rInt + (unExt - unInt);
 		else { // Shock wave
-			//float riemannRho = RHO(P(rhoInt, a) + rhoInt * unInt * (unInt - unExt), a);
 			float riemannRho = RHO(P(rhoInt, a) + absolute_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative		
-
 			riemannR = R(riemannRho, a);
+
 			float riemannC = soundSpeed(riemannRho, a);
 			float lambda = unExt + riemannC;
 			const float cInt = soundSpeed(rhoInt, a);
@@ -976,7 +975,7 @@ io_boundary_contrib(Params const& params, PData const& pdata,
 		ndata.vertices.y == my_id ? vertexWeights.y :
 		ndata.vertices.z == my_id ? vertexWeights.z :
 		0.0f;
-	pout.sumMdot += params.vel[ndata.index].w*ndata.normal.w*weight*
+	pout.sumMdot += absolute_density(params.vel[ndata.index].w,fluid_num(ndata.info))*ndata.normal.w*weight*
 		dot3(params.eulerVel[ndata.index], ndata.normal); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 }
 
@@ -1369,9 +1368,6 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
 		const float unExt = dot3(pout.eulerVel, pdata.normal);
 		const float rhoInt = pout.vel.w;
 		const float rhoExt = pout.eulerVel.w;
-		//const float rhoInt = absolute_density(pout.vel.w,fluid_num(pdata.info));
-		//const float rhoExt = absolute_density(pout.eulerVel.w,fluid_num(pdata.info));
-
 
 		calculateIOboundaryCondition(pout.eulerVel, pdata.info, rhoInt, rhoExt, pout.sumvel, unInt, unExt, as_float3(pdata.normal));
 
