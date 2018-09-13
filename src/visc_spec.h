@@ -33,6 +33,30 @@
 #ifndef _VISC_SPEC_H
 #define _VISC_SPEC_H
 
+//! Kind of viscosity used within the simulation
+/*! This can be either KINEMATIC or DYNAMIC, depending on whether
+ * the preference is to work in terms of the kinematic viscosity ν,
+ * or in terms of the dynamic viscosity µ = ρν
+ */
+enum ComputationalViscosity {
+	KINEMATIC, ///< Kinematic viscosity (SI units: m²/s)
+	DYNAMIC, ///< Dynamic viscosity (SI units: Pa s)
+};
+
+//! Name of the viscous model
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* ComputationalViscosityName[DYNAMIC+1]
+#ifdef GPUSPH_MAIN
+= {
+	"Kinematic",
+	"Dynamic",
+}
+#endif
+;
+
+
 //! Viscous model
 enum ViscosityType {
 	INVISCID, ///< no laminar viscosity
