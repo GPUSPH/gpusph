@@ -487,6 +487,11 @@ class Problem {
 		void fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices);
 
 		void PlaneCut(PointVect&, const double, const double, const double, const double);
+    
+		//! @userfunc
+		//! callback for initializing particles with custom values
+		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+
 
 };
 #endif

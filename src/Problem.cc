@@ -1489,3 +1489,28 @@ void Problem::PlaneCut(PointVect& points, const double a, const double b,
 	points.clear();
 	points = new_points;
 }
+
+// callback for initializing particles with custom values
+void Problem::initializeParticles(BufferList &buffers, const uint numParticles)
+{
+	// Default: do nothing
+
+	/*
+	// Example usage
+
+	// 1. warn the user if this is expected to take much time
+	printf("Initializing particles velocity...\n");
+
+	// 2. grab the particle arrays from the buffer list
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
+	// 3. iterate on the particles
+	for (uint i = 0; i < numParticles; i++) {
+		// 4. optionally grep with custom filters (e.g. type, size, position, etc.)
+		if (FLUID(info[i]))
+			// 5. set in loco the desired values
+			vel[i].x = 0.1;
+	}
+	*/
+}

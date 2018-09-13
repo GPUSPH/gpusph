@@ -157,7 +157,7 @@ bool is_inside(double3 const& origin, float R, double4 const& pt)
 }
 
 // Mass and density initialization
-	void
+void
 Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 {
 	// Example usage

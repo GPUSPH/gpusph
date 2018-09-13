@@ -42,7 +42,7 @@ class Bubble: public XProblem {
 		Bubble(GlobalData *);
 		void draw_boundary(float);
 		void copy_planes(PlaneList&);
-		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+		void initializeParticles(BufferList &buffers, const uint numParticles);
 };
 #endif	/* _BUBBLE_H */
 
