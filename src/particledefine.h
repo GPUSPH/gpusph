@@ -41,6 +41,8 @@
 
 #include "common_types.h"
 
+#include "visc_spec.h"
+
 //! Smoothing kernels
 enum KernelType {
 	CUBICSPLINE = 1,
@@ -147,88 +149,6 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 #define EPSDETMLS				0.05f
 //! Mininum number of neighbors for MLS correction
 #define MINCORRNEIBSMLS			4
-
-//! Viscous model
-enum ViscosityType {
-	INVISCID, ///< no laminar viscosity
-	KINEMATICVISC, ///< Morris formula, simplified for constant kinematic viscosity and using harmonic averaging of the density
-	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic density
-	INVALID_VISCOSITY
-} ;
-
-//! Name of the viscous model
-#ifndef GPUSPH_MAIN
-extern
-#endif
-const char* ViscosityName[INVALID_VISCOSITY+1]
-#ifdef GPUSPH_MAIN
-= {
-	"Inviscid",
-	"Kinematic",
-	"Dynamic",
-	"(invalid)"
-}
-#endif
-;
-
-//! Turbulence model
-/*!
- * While strictly speaking not a turbulence model, artificial viscosity is considered
- * among the turbulence model, since its behavior can be assimilated to it (i.e.
- * an addition to the viscous model, rather than an alternative to it).
- */
-enum TurbulenceModel {
-	LAMINAR_FLOW, ///< No turbulence
-	ARTVISC, ///< Artificial viscosity
-	SPSVISC, ///< Sub-particle scale turbulence model
-	KEPSVISC, ///< k-epsilon turbulence model
-	INVALID_TURBULENCE
-};
-
-//! Name of the turbulence model model
-#ifndef GPUSPH_MAIN
-extern
-#endif
-const char* TurbulenceName[INVALID_TURBULENCE+1]
-#ifdef GPUSPH_MAIN
-= {
-	"Pure laminar flow",
-	"Artificial viscosity",
-	"Sub-particle scale",
-	"k-epsilon",
-	"(invalid)"
-}
-#endif
-;
-
-//! Define the default turbulence model for the given viscous model
-/*!
- * This is ARTVISC for inviscid flows, and laminar flow (no turbulence) otherwise.
- * (And invalid values map to invalid values).
- */
-constexpr TurbulenceModel default_turbulence_for(ViscosityType visctype)
-{
-	return
-		visctype == INVISCID ? ARTVISC :
-		visctype >= INVALID_VISCOSITY ? INVALID_TURBULENCE :
-			LAMINAR_FLOW;
-}
-
-//! Define the legacy laminar model for the given turbulence model
-/*!
- * This is inviscid flow for the ARTVISC case, KINEMATICVISC for SPS, and
- * DYNAMICVISC for KEPS. In all other cases we return INVALID_VISCOSITY,
- * since there was no associated viscous model.
- */
-constexpr ViscosityType default_laminar_visc_for(TurbulenceModel turbmodel)
-{
-	return
-		turbmodel == ARTVISC ? INVISCID :
-		turbmodel == SPSVISC ? KINEMATICVISC :
-		turbmodel == KEPSVISC ? DYNAMICVISC :
-			INVALID_VISCOSITY;
-}
-
 
 //! Boundary periodicity
 enum Periodicity {
