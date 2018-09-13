@@ -881,6 +881,167 @@ basicstep(
 	return numBlocks;
 }
 
+// Returns numBlock for delayed dt reduction in case of striping
+uint
+repackstep(
+	BufferList const& bufread,
+	BufferList& bufwrite,
+	float4	*rbforces,
+	float4	*rbtorques,
+	const	uint	*cellStart,
+	uint	numParticles,
+	uint	fromParticle,
+	uint	toParticle,
+	float	deltap,
+	float	slength,
+	float	dtadaptfactor,
+	float	influenceradius,
+	const	float	epsilon,
+	uint	*IOwaterdepth,
+	uint	cflOffset,
+	const	uint	step,
+	const	float	dt,
+	const	bool compute_object_forces)
+{
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const float4 *vel = bufread.getData<BUFFER_VEL>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
+	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
+
+	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
+	float4 *xsph = bufwrite.getData<BUFFER_XSPH>();
+
+	const float *turbvisc = bufread.getData<BUFFER_TURBVISC>();
+
+	// TODO FIXME temporary k-eps needs TAU only for temporary storage
+	// across the split kernel calls in forces
+	float2 **tau = bufwrite.getRawPtr<BUFFER_TAU>();
+
+	float3 *keps_dkde = bufwrite.getData<BUFFER_DKDE>();
+	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
+	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
+	float *cfl_keps = bufwrite.getData<BUFFER_CFL_KEPS>();
+	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
+	float *DEDt = bufwrite.getData<BUFFER_INTERNAL_ENERGY_UPD>();
+
+	const float4 *volume = bufread.getData<BUFFER_VOLUME>();
+	const float *sigma = bufread.getData<BUFFER_SIGMA>();
+
+	int dummy_shared = 0;
+
+	const uint numParticlesInRange = toParticle - fromParticle;
+	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
+	if (keps_dkde) {
+		// KEPS buffers need to be cleared too, as they will be built progressively
+		CUDA_SAFE_CALL(cudaMemset(keps_dkde + fromParticle, 0, numParticlesInRange*sizeof(float3)));
+		// TODO tau currently is reset in KEPSVISC, but must NOT be reset if SPSVISC
+		// ideally tau should be computed in its own kernel in the KEPSVISC case too
+		CUDA_SAFE_CALL(cudaMemset(tau[0] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
+		CUDA_SAFE_CALL(cudaMemset(tau[1] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
+		CUDA_SAFE_CALL(cudaMemset(tau[2] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
+	}
+
+
+	// thread per particle
+	uint numThreads = BLOCK_SIZE_FORCES;
+	// number of blocks, rounded up to next multiple of 4 to improve reductions
+	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
+	#if (__COMPUTE__ == 20)
+	int dtadapt = !!(simflags & ENABLE_DTADAPT);
+	if (visctype == SPSVISC)
+		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
+	else
+		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
+	#endif
+
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID> params_ff(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			xsph,
+			volume, sigma,
+			cfl_gamma, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc, tau,
+			DEDt);
+
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			xsph,
+			volume, sigma,
+			cfl_gamma, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc, tau,
+			DEDt);
+
+
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			xsph,
+			volume, sigma,
+			cfl_gamma, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc, tau,
+			DEDt);
+
+
+	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+
+	{
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			xsph,
+			volume, sigma,
+			cfl_gamma, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc, tau,
+			DEDt);
+
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vf(
+			forces, rbforces, rbtorques,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			xsph,
+			volume, sigma,
+			cfl_gamma, vertPos, epsilon,
+			IOwaterdepth,
+			keps_dkde, turbvisc, tau,
+			DEDt);
+
+		vertex_forces(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
+	}
+
+	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+
+
+	if (compute_object_forces || (boundarytype == DYN_BOUNDARY))
+		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
+
+	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
+			forces, rbforces, rbtorques,
+			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
+			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
+			sigma,
+			oldGGam,
+			IOwaterdepth,
+			keps_dkde, turbvisc, tau, DEDt);
+
+	cuforces::finalizeforcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
+
+	return numBlocks;
+}
+
 void
 setDEM(const float *hDem, int width, int height)
 {
