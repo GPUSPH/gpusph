@@ -43,7 +43,8 @@
  */
 
 #define INITIALIZATION_STEP	((flag_t)1)
-#define INTEGRATOR_STEP_1	(INITIALIZATION_STEP << 1)
+#define REPACK_STEP	(INITIALIZATION_STEP << 1)
+#define INTEGRATOR_STEP_1	(REPACK_STEP << 1)
 #define INTEGRATOR_STEP_2	(INTEGRATOR_STEP_1 << 1)
 
 //! The last step
@@ -64,6 +65,7 @@ constexpr int get_step_number(flag_t flags)
 	const flag_t integrator_flag = (flags & ALL_INTEGRATION_STEPS);
 	/* Match against the individual steps, return the step number */
 	if (integrator_flag == INITIALIZATION_STEP) return 0;
+	if (integrator_flag == REPACK_STEP) return 0;
 	if (integrator_flag == INTEGRATOR_STEP_1) return 1;
 	if (integrator_flag == INTEGRATOR_STEP_2) return 2;
 	/* No match found */
@@ -73,6 +75,7 @@ constexpr int get_step_number(flag_t flags)
 	 * so we have to write it like this */
 	return
 		((flags & ALL_INTEGRATION_STEPS) == INITIALIZATION_STEP) ? 0 :
+		((flags & ALL_INTEGRATION_STEPS) == REPACK_STEP) ? 0 :
 		((flags & ALL_INTEGRATION_STEPS) == INTEGRATOR_STEP_1) ? 1 :
 		((flags & ALL_INTEGRATION_STEPS) == INTEGRATOR_STEP_2) ? 2 :
 		-1;

@@ -29,13 +29,13 @@ Repacking::~Repacking()
 void Repacking::Init( GPUSPH* _gpusph, GlobalData* _gdata, Problem* _problem )
 {
 	gdata = _gdata;
-	//if( gdata->mode!=REPACK )
-	//	return;
-
-	printf( "Repacking algorithm initialization\n" );
-
 	gpusph = _gpusph;
 	problem = _problem;
+
+	if (problem->simparams()->simflags & !ENABLE_REPACKING)
+		return;
+
+	printf( "Repacking algorithm initialization\n" );
 
 	std::string data_file_name = GetFileName(true);
 	std::string conf_file_name = GetFileName(false);
@@ -124,8 +124,8 @@ float Repacking::TotalKE() const
 */
 bool Repacking::SetParams()
 {
-	//if( gdata->mode!=REPACK )
-	//	return true;
+	if (problem->simparams()->simflags & !ENABLE_REPACKING)
+		return false;
 
 	//bool canReuseData = ( (gdata->repack_flags & REPACK_REUSE) != 0 );
 
@@ -167,14 +167,15 @@ bool Repacking::SetParams()
 /**
   Check if the repacking algorithm can be omitted
   (i.e. the already prepared repacking data can be re-used)
-  @return true if the repacking data can be re-used
+  @return false if the repacking data can be re-used and
+	the repacking should not be run
 */
 bool Repacking::Start()
 {
-	//if( gdata->mode!=REPACK )
-	//	return true;
+	if (problem->simparams()->simflags & !ENABLE_REPACKING)
+		return false;
 
-	//printf( "REPACKING ALGORITHM:\n" );
+	printf( "Repacking starts\n" );
 	//bool canReuseData = ( (gdata->repack_flags & REPACK_REUSE) != 0 );
 
 	//if( canReuseData )
@@ -183,9 +184,9 @@ bool Repacking::Start()
 	//	std::string data_file_name = GetFileName(true);
 	//	LoadData( data_file_name );
 	//	gdata->mode = STANDARD; // nothing to do with repacking
-	//	return true;
+	//	return false;
 	//}
-	return false;
+	return true;
 }
 
 /**
@@ -194,8 +195,8 @@ bool Repacking::Start()
 */
 void Repacking::Stop()
 {
-	//if( gdata->mode != REPACK )
-	//	return;
+	if (problem->simparams()->simflags & !ENABLE_REPACKING)
+		return;
  
 	std::string data_file_name = GetFileName(true);
 	std::string conf_file_name = GetFileName(false);
@@ -207,7 +208,6 @@ void Repacking::Stop()
 	// Restore standard mode parameters
 	gdata->dt = dt;
 	gdata->t = 0;
-	//gdata->mode = STANDARD;
 }
 
 /**

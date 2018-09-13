@@ -406,6 +406,15 @@ int main(int argc, char** argv) {
 
 		printf("GPUSPH: initialized\n");
 
+		// run the repacking until a quit request is triggered or an exception is thrown (TODO)
+		if (gdata.problem->simparams()->simflags & ENABLE_REPACKING) {
+			bool repacked = Simulator->runRepacking();
+			if (!repacked)
+				throw runtime_error("GPUSPH: problem during repacking");
+			
+			printf("GPUSPH: repacked\n");
+		}
+
 		// run the simulation until a quit request is triggered or an exception is thrown (TODO)
 		Simulator->runSimulation();
 

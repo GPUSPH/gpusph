@@ -2118,9 +2118,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 
 	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
 
-	
 	if (m_simparams->simflags & !ENABLE_REPACKING) {
-
 		bufwrite.add_state_on_write("forces" + to_string(step));
 
 		auto ret = forcesEngine->basicstep(
@@ -2142,13 +2140,11 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 				step,
 				(firstStep ? 0.5f : 1.0f)*gdata->dt,
 				(m_simparams->numforcesbodies > 0) ? true : false);
-
 		bufwrite.clear_pending_state();
 		return ret;
 	} else {
-
 		bufwrite.add_state_on_write("forces_repack" + to_string(step));
-
+		
 		auto ret = forcesEngine->repackstep(
 				m_dBuffers.getReadBufferList(),
 				bufwrite,
@@ -2168,7 +2164,6 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 				step,
 				(firstStep ? 0.5f : 1.0f)*gdata->dt,
 				(m_simparams->numforcesbodies > 0) ? true : false);
-
 		bufwrite.clear_pending_state();
 		return ret;
 	}
@@ -2445,6 +2440,7 @@ void GPUWorker::kernel_euler()
 	const bool firstStep = (step == 1);
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+
 	if (m_simparams->simflags & !ENABLE_REPACKING) { 
 		bufwrite.add_state_on_write("euler" + to_string(step));
 
@@ -2460,6 +2456,7 @@ void GPUWorker::kernel_euler()
 				gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
 				m_simparams->slength,
 				m_simparams->influenceRadius);
+		bufwrite.clear_pending_state();
 	} else {
 		bufwrite.add_state_on_write("euler_repack" + to_string(step));
 
@@ -2475,10 +2472,8 @@ void GPUWorker::kernel_euler()
 				gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
 				m_simparams->slength,
 				m_simparams->influenceRadius);
+		bufwrite.clear_pending_state();
 	}
-
-	bufwrite.clear_pending_state();
-
 }
 
 void GPUWorker::kernel_density_sum()

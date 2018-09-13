@@ -320,10 +320,12 @@ struct GlobalData {
 	float3 s_varGravity;
 
 	// simulation time control
+	bool keep_repacking;
 	bool keep_going;
 	bool quit_request;
 	bool save_request;
 	unsigned long iterations;
+	unsigned long repackIterations;
 
 	// on the host, the total simulation time is a double. on the device, it
 	// will be downconverted to a float. this ensures that we can run very long
@@ -387,6 +389,9 @@ struct GlobalData {
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
+	// repacking parameter, true if the kinetic energy is positive
+	bool repackPositiveKe;
+
 	GlobalData(void):
 		ret(0),
 		debug(),
@@ -413,10 +418,12 @@ struct GlobalData {
 		particlesCreated(false),
 		createdParticlesIterations(0),
 		s_hPlanes(),
+		keep_repacking(false),
 		keep_going(true),
 		quit_request(false),
 		save_request(false),
 		iterations(0),
+		repackIterations(0),
 		t(0.0),
 		dt(0.0f),
 		lastGlobalPeakFluidBoundaryNeibsNum(0),
@@ -439,7 +446,8 @@ struct GlobalData {
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
-		s_hRbAngularVelocities(NULL)
+		s_hRbAngularVelocities(NULL),
+		repackPositiveKe(false)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
