@@ -417,24 +417,24 @@ int main(int argc, char** argv) {
 			// finalize everything
 			Simulator->finalize();
 		}
-		////if (!repack_only) {
-		//	// get - and actually instantiate - the existing instance of GPUSPH
-		//	GPUSPH *Simulator = GPUSPH::getInstance();
+		//if (!repack_only) {
+			// get - and actually instantiate - the existing instance of GPUSPH
+			GPUSPH *Simulator = GPUSPH::getInstance();
 
-		//	// initialize CUDA, start workers, allocate CPU and GPU buffers
-		//	bool initialized  = Simulator->initialize(&gdata);
+			// initialize CUDA, start workers, allocate CPU and GPU buffers
+			bool initialized  = Simulator->initialize(&gdata);
 
-		//	if (!initialized)
-		//		throw runtime_error("GPUSPH: problem during initialization");
+			if (!initialized)
+				throw runtime_error("GPUSPH: problem during initialization");
 
-		//	printf("GPUSPH: initialized\n");
+			printf("GPUSPH: initialized\n");
 
-		//	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-		//	Simulator->runSimulation();
+			// run the simulation until a quit request is triggered or an exception is thrown (TODO)
+			Simulator->runSimulation();
 
-		//	// finalize everything
-		//	Simulator->finalize();
-		////}
+			// finalize everything
+			Simulator->finalize();
+		//}
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata.ret = 1;

@@ -1657,8 +1657,9 @@ void GPUWorker::simulationThread() {
 
 		// if anything else failed (e.g. another worker was assigned an
 		// non-existent device number and failed to complete initialize()
-		// correctly), we shouldn't do anything. So check that keep_going is still true
-		if (gdata->keep_going)
+		// correctly), we shouldn't do anything. 
+		// So check that keep_going or keep_repacking is still true
+		if (gdata->keep_going || gdata->keep_repacking)
 			uploadSubdomain();
 
 		if (gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET)
@@ -1670,7 +1671,7 @@ void GPUWorker::simulationThread() {
 
 		// TODO
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
-		while (gdata->keep_going) {
+		while (gdata->keep_going || gdata->keep_repacking) {
 			switch (gdata->nextCommand) {
 				// logging here?
 			case IDLE:
@@ -1881,7 +1882,7 @@ void GPUWorker::simulationThread() {
 				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
 				exit(1);
 			}
-			if (gdata->keep_going) {
+			if (gdata->keep_going || gdata->keep_repacking) {
 				/*
 				// example usage of checkPartValBy*()
 				// alternatively, can be used in the previous switch construct, to check who changes what
@@ -1899,6 +1900,7 @@ void GPUWorker::simulationThread() {
 		cerr << "Device " << deviceIndex << " thread " << thread_id.get_id() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
 		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
+		const_cast<GlobalData*>(gdata)->keep_repacking = false;
 		const_cast<GlobalData*>(gdata)->ret |= 1;
 	}
 

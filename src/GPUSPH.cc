@@ -467,16 +467,20 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	for (uint d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
 
-	gdata->keep_going = true;
 
 	// Prepare for repacking if necessary
-	if (_sp->simflags & ENABLE_REPACKING) {
+	if (_sp->simflags & ENABLE_REPACKING && !repacked) {
 		gdata->keep_repacking = repack.Start();
+		gdata->keep_going = false;
 		// If previous repack results are read, do not repack
-		if (!gdata->keep_repacking)
+		if (!gdata->keep_repacking) {
 			doWrite(REPACK_STEP);
+			gdata->keep_going = true;
+			repacked = true;
+		}
 	} else {
 		gdata->keep_repacking = false;
+		gdata->keep_going = true;
 	}
 	// If the repacking only is done and it was read from previous results
 	// the simulation does not even start
@@ -559,9 +563,9 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 	gdata->commandFlags = flags;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
-	if (flags | REPACK_STEP && !gdata->keep_repacking)
+	if (!repacked && !gdata->keep_repacking)
 		throw runtime_error("GPUSPH repacking aborted by worker thread");
-	if (!gdata->keep_going)
+	if (gdata->problem->simparams()->simflags & ENABLE_REPACKING && repacked && !gdata->keep_going)
 		throw runtime_error("GPUSPH aborted by worker thread");
 }
 
