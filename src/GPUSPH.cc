@@ -559,7 +559,8 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 	gdata->commandFlags = flags;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
-
+	if (flags | REPACK_STEP && !gdata->keep_repacking)
+		throw runtime_error("GPUSPH repacking aborted by worker thread");
 	if (!gdata->keep_going)
 		throw runtime_error("GPUSPH aborted by worker thread");
 }
@@ -892,7 +893,7 @@ bool GPUSPH::runRepacking() {
 		m_multiNodePerformanceCounter->start();
 
 	// write some info. This could replace "Entering the main simulation cycle"
-	printStatus();
+	printRepackingStatus();
 
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 
@@ -903,7 +904,7 @@ bool GPUSPH::runRepacking() {
 	// the loop from issuing subsequent commands; hence, the body consists of a
 	// try/catch block --------v-----
 	while (gdata->keep_repacking) try {
-		printStatus(m_info_stream);
+		printRepackingStatus(m_info_stream);
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
 
@@ -940,7 +941,6 @@ bool GPUSPH::runRepacking() {
 		if (MULTI_NODE)
 			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
 		// to check, later, that the simulation is actually progressing
-		double previous_t = gdata->t;
 		gdata->t += gdata->dt;
 		// buildneibs_freq?
 
@@ -953,7 +953,7 @@ bool GPUSPH::runRepacking() {
 			if (MULTI_NODE)
 				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
-
+		
 		// check that dt is not too small (absolute)
 		if (!gdata->dt) {
 			throw DtZeroException(gdata->t, gdata->dt);
@@ -962,8 +962,8 @@ bool GPUSPH::runRepacking() {
 			gdata->quit_request = true;
 		}
 
-		int repackMaxIter = 100;
-		float repackMinKe = 0;
+		int repackMaxIter = 1000;
+		float repackMinKe = 100;
 		// are we done?
 		const bool we_are_done =
 			// have we reached the maximum number of repacking iterations? 
@@ -972,20 +972,20 @@ bool GPUSPH::runRepacking() {
 			gdata->repackPositiveKe && ke < repackMinKe ||
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
-
+		
 		if (we_are_done) {
-			printf( "Repacking algorithm is finished\n" );
-			printStatus();
-			gdata->keep_repacking = false;
+			printf("Repacking algorithm is finished\n");
+			printRepackingStatus();
 			gdata->t = -1.;
 			// Disable free surface boundary particles
-			printf( "Disable free-surface particles" );
-			doCommand(DISABLE_FREE_SURF_PARTS);
-			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
+			printf("Disable free-surface particles");
+			//doCommand(DISABLE_FREE_SURF_PARTS);
+			//doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
+			gdata->keep_repacking = false;
 		}
 
 		check_write(we_are_done);
-
+		
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata->keep_repacking = false;
@@ -1006,54 +1006,52 @@ bool GPUSPH::runRepacking() {
 	printf("Repacking end, cleaning up...\n");
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
-	//gdata->nextCommand = QUIT;
-	//gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
-	//gdata->threadSynchronizer->barrier(); // end of SIMULATION, begins FINALIZATION ***
+	gdata->nextCommand = QUIT;
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
+	gdata->threadSynchronizer->barrier(); // end of SIMULATION, begins FINALIZATION ***
 
 	//// just wait or...?
 
-	//gdata->threadSynchronizer->barrier(); // end of FINALIZATION ***
+	gdata->threadSynchronizer->barrier(); // end of FINALIZATION ***
 
-	//// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
-	//// we wait for the threads to actually exit
-	//for (uint d = 0; d < gdata->devices; d++)
-	//	gdata->GPUWORKERS[d]->join_worker();
+	// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
+	// we wait for the threads to actually exit
+	for (uint d = 0; d < gdata->devices; d++)
+		gdata->GPUWORKERS[d]->join_worker();
 	
 	return (repacked = true);
 }
 
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
-	if (!repacked) {
-		// doing first write
-		printf("Performing first write...\n");
-		doWrite(INITIALIZATION_STEP);
+	// doing first write
+	printf("Performing first write...\n");
+	doWrite(INITIALIZATION_STEP);
 
-		printf("Letting threads upload the subdomains...\n");
-		gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
+	printf("Letting threads upload the subdomains...\n");
+	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 
-		// here the Workers are uploading their subdomains
+	// here the Workers are uploading their subdomains
 
-		// After next barrier, the workers will enter their simulation cycle, so it is recommended to set
-		// nextCommand properly before the barrier (although should be already initialized to IDLE).
-		// doCommand(IDLE) would be equivalent, but this is more clear
-		gdata->nextCommand = IDLE;
-		gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
-		gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
+	// After next barrier, the workers will enter their simulation cycle, so it is recommended to set
+	// nextCommand properly before the barrier (although should be already initialized to IDLE).
+	// doCommand(IDLE) would be equivalent, but this is more clear
+	gdata->nextCommand = IDLE;
+	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
-		// this is where we invoke initialization routines that have to be
-		// run by the GPUWokers
+	// this is where we invoke initialization routines that have to be
+	// run by the GPUWokers
 
-		if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 
-			// compute neighbour list for the first time
-			buildNeibList();
+		// compute neighbour list for the first time
+		buildNeibList();
 
-			// set density and other values for segments and vertices
-			// and set initial value of gamma using the quadrature formula
-			saBoundaryConditions(INITIALIZATION_STEP);
+		// set density and other values for segments and vertices
+		// and set initial value of gamma using the quadrature formula
+		saBoundaryConditions(INITIALIZATION_STEP);
 
-		}
 	}
 
 	printf("Entering the main simulation cycle\n");
@@ -1110,45 +1108,6 @@ bool GPUSPH::runSimulation() {
 		// mark the READ buffers as valid n+1, and the WRITE buffers as valid n
 		markIntegrationStep("n+1", BUFFER_VALID, "n", BUFFER_VALID);
 		// End of corrector step, finish iteration
-
-		//if (gdata->keep_repacking) {
-		//	float ke = repack.TotalKE();
-		//	//if (gdata->iterations >= gdata->clOptions->repack_max_iter ||
-		//	//		(gdata->repackPositiveKe && ke < gdata->clOptions->repack_ke)) {
-		//		printf( "Repacking algorithm is finished\n" );
-		//		printStatus();
-		//		repack.Stop();
-		//		gdata->keep_repacking = false;
-		//		//doWrite(REPACKING);
-		//		//// Stop simulation if repack-only flag is on.
-		//		//if( gdata->repack_flags & REPACK_ONLY )
-		//		//	gdata->quit_request = true;
-		//		//// Remove free surface boundary particles.
-		//		//// Initialize particles after repacking without the free surface boundary
-		//		//// Do we need to init volume for SPH_GRENIER?
-		//		//doCommand(DISABLE_FREE_SURF_PARTS);
-		//		////doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
-
-		//		//if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-
-		//		//	// compute neighbour list for the first time
-		//		//	buildNeibList();
-
-		//		//	// set density and other values for segments and vertices
-		//		//	// and set initial value of gamma using the quadrature formula
-		//		//	saBoundaryConditions(INITIALIZATION_STEP);
-		//		//	doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_FORCES | BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-		//		//}
-
-		//		//if (MULTI_DEVICE)
-		//		//	doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_FORCES | BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-		//	//} else {
-		//	//	gdata->quit_request = false;
-		//	//}
-		//	if (ke>0)
-		//		gdata->repackPositiveKe = true;
-		//}
-
 
 		// increase counters
 		gdata->iterations++;
@@ -2172,16 +2131,27 @@ void GPUSPH::printStatus(FILE *out)
 			//ti.meanTimeNeibsList,
 			//ti.meanTimeEuler
 			);
-	if (gdata->problem->simparams()->simflags & ENABLE_REPACKING) {
-		// Calculate total kinetic energy
-		float ke = repack.TotalKE();
-		fprintf(out, "  %i: Total kinetic energy: %e\n", (int)gdata->repackIterations, ke );
-	}
 	fflush(out);
 	// output to the info stream is always overwritten
 	if (out == m_info_stream)
 		fseek(out, 0, SEEK_SET);
 //#undef ti
+}
+
+void GPUSPH::printRepackingStatus(FILE *out)
+{
+	fprintf(out, "Repacking time t=%es, iteration=%s, dt=%es, total kinetic energy %e, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
+			gdata->t, gdata->addSeparators(gdata->repackIterations).c_str(), gdata->dt,
+			repack.TotalKE(),
+			gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
+			m_totalPerformanceCounter->getMIPPS(),
+			gdata->lastGlobalPeakFluidBoundaryNeibsNum,
+			gdata->lastGlobalPeakVertexNeibsNum
+			);
+	fflush(out);
+	// output to the info stream is always overwritten
+	if (out == m_info_stream)
+		fseek(out, 0, SEEK_SET);
 }
 
 void GPUSPH::printParticleDistribution()
@@ -2630,7 +2600,11 @@ void GPUSPH::check_write(bool we_are_done)
 					++it;
 				}
 				if (force_write || maxfreq > 0) {
-					printStatus();
+					if (gdata->keep_repacking)
+						printRepackingStatus();
+					else
+						printStatus();
+
 					m_intervalPerformanceCounter->restart();
 				}
 			}

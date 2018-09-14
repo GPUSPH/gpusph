@@ -101,9 +101,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.005f);
-	//addPostProcess(VORTICITY);
-	// *** Other parameters and settings
+	add_writer(VTKWRITER, 0.05f);
 	m_name = "DamBreak3D";
 
 	// *** Geometrical parameters, starting from the size of the domain

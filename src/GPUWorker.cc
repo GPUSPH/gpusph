@@ -2118,7 +2118,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 
 	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
 
-	if (m_simparams->simflags & !ENABLE_REPACKING) {
+	if (!gdata->keep_repacking) {
 		bufwrite.add_state_on_write("forces" + to_string(step));
 
 		auto ret = forcesEngine->basicstep(
@@ -2144,7 +2144,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		return ret;
 	} else {
 		bufwrite.add_state_on_write("forces_repack" + to_string(step));
-		
+
 		auto ret = forcesEngine->repackstep(
 				m_dBuffers.getReadBufferList(),
 				bufwrite,
@@ -2422,7 +2422,7 @@ void GPUWorker::kernel_forces()
 	// gdata->dts is directly used instead of handling dt1 and dt2
 	//printf(" Step %d, bool %d, returned %g, current %g, ",
 	//	gdata->step, firstStep, returned_dt, gdata->dts[devnum]);
-	if (firstStep)
+	if (firstStep || gdata->keep_repacking)
 		gdata->dts[m_deviceIndex] = returned_dt;
 	else
 		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);

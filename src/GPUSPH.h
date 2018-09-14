@@ -150,6 +150,8 @@ private:
 
 	// print information about the status of the simulation
 	void printStatus(FILE *out = stdout);
+	// print information about the status of the repacking
+	void printRepackingStatus(FILE *out = stdout);
 
 	// print information about the status of the simulation
 	void printParticleDistribution();

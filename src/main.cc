@@ -397,28 +397,6 @@ int main(int argc, char** argv) {
 		if (gdata.problem->simparams()->simflags & ENABLE_REPACKING) {
 
 			// get - and actually instantiate - the existing instance of GPUSPH
-			GPUSPH *SimulatorRepack = GPUSPH::getInstance();
-
-			// initialize CUDA, start workers, allocate CPU and GPU buffers
-			bool initialized  = SimulatorRepack->initialize(&gdata);
-
-			if (!initialized)
-				throw runtime_error("GPUSPH: problem during initialization");
-
-			printf("GPUSPH: initialized\n");
-
-			// run the repacking until a quit request is triggered or an exception is thrown (TODO)
-			bool repacked = SimulatorRepack->runRepacking();
-			if (!repacked)
-				throw runtime_error("GPUSPH: problem during repacking");
-
-			printf("GPUSPH: repacked\n");
-
-			// finalize everything
-			SimulatorRepack->finalize();
-		}
-		//if (!repack_only) {
-			// get - and actually instantiate - the existing instance of GPUSPH
 			GPUSPH *Simulator = GPUSPH::getInstance();
 
 			// initialize CUDA, start workers, allocate CPU and GPU buffers
@@ -429,12 +407,34 @@ int main(int argc, char** argv) {
 
 			printf("GPUSPH: initialized\n");
 
-			// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-			Simulator->runSimulation();
+			// run the repacking until a quit request is triggered or an exception is thrown (TODO)
+			bool repacked = Simulator->runRepacking();
+			if (!repacked)
+				throw runtime_error("GPUSPH: problem during repacking");
+
+			printf("GPUSPH: repacked\n");
 
 			// finalize everything
 			Simulator->finalize();
-		//}
+		}
+		////if (!repack_only) {
+		//	// get - and actually instantiate - the existing instance of GPUSPH
+		//	GPUSPH *Simulator = GPUSPH::getInstance();
+
+		//	// initialize CUDA, start workers, allocate CPU and GPU buffers
+		//	bool initialized  = Simulator->initialize(&gdata);
+
+		//	if (!initialized)
+		//		throw runtime_error("GPUSPH: problem during initialization");
+
+		//	printf("GPUSPH: initialized\n");
+
+		//	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
+		//	Simulator->runSimulation();
+
+		//	// finalize everything
+		//	Simulator->finalize();
+		////}
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata.ret = 1;
