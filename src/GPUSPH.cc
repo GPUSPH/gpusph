@@ -563,10 +563,16 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 	gdata->commandFlags = flags;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
-	if (!repacked && !gdata->keep_repacking)
-		throw runtime_error("GPUSPH repacking aborted by worker thread");
-	if (gdata->problem->simparams()->simflags & ENABLE_REPACKING && repacked && !gdata->keep_going)
-		throw runtime_error("GPUSPH aborted by worker thread");
+	
+	if (gdata->problem->simparams()->simflags & ENABLE_REPACKING) {
+		if (!repacked && !gdata->keep_repacking)
+			throw runtime_error("GPUSPH repacking aborted by worker thread");
+		if (repacked && !gdata->keep_going)
+			throw runtime_error("GPUSPH aborted by worker thread");
+	} else {
+		if (!gdata->keep_going)
+			throw runtime_error("GPUSPH aborted by worker thread");
+	}
 }
 
 // Auxiliary template selector for setExtraCommandArg
@@ -982,7 +988,7 @@ bool GPUSPH::runRepacking() {
 			printRepackingStatus();
 			gdata->t = -1.;
 			// Disable free surface boundary particles
-			printf("Disable free-surface particles");
+			printf("Disable free-surface particles\n");
 			//doCommand(DISABLE_FREE_SURF_PARTS);
 			//doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
 			gdata->keep_repacking = false;
