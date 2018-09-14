@@ -1524,8 +1524,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_testpointParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_testpointParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		//float rho = physparams()->rho0[0];
-		float rho = relative_density(physparams()->rho0[0],0);
+		float rho = 0.0f;
 		if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
 			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
@@ -1543,8 +1542,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_fluidParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_fluidParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		//float rho = physparams()->rho0[0];
-		float rho = relative_density(physparams()->rho0[0],0);
+		float rho = 0.0f;
 		if (m_hydrostaticFilling)
 			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
@@ -1562,8 +1560,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_boundaryParts[i - tot_parts].toDouble4();
 		// Compute density for hydrostatic filling. FIXME for multifluid
-		//float rho = physparams()->rho0[0];
-		float rho = relative_density(physparams()->rho0[0],0);
+		float rho = 0.0f;
 		if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
 			rho = density(m_waterLevel - globalPos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
@@ -1713,8 +1710,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				//float rho = physparams()->rho0[0];
-				float rho = relative_density(physparams()->rho0[0],0);
+				float rho = 0.0f;
 				if (m_hydrostaticFilling && (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY))
 					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
@@ -1846,8 +1842,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
-				//float rho = physparams()->rho0[0];
-				float rho = relative_density(physparams()->rho0[0],0);
+				float rho = 0.0f;
 				if (m_hydrostaticFilling && (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY))
 					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
@@ -1897,7 +1892,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				globalPos[i] = rbparts[i - tot_parts].toDouble4();
 				// Compute density for hydrostatic filling. FIXME for multifluid
 				//float rho = physparams()->rho0[0];
-				float rho = relative_density(physparams()->rho0[0],0);
+				float rho = 0.0f;
 				if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
 					rho = density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
