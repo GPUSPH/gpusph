@@ -33,6 +33,30 @@
 #ifndef _VISC_SPEC_H
 #define _VISC_SPEC_H
 
+#include "average.h"
+
+//! Rheology of the fluid(s)
+/*! For the time being, we only support NEWTONIAN, but
+ * this will be extended to include things such as temperature dependency
+ * and generalized Newtonian rheologies.
+ */
+enum RheologyType {
+	NEWTONIAN, ///< Viscosity independent of strain rate
+};
+
+//! Name of the rheology type
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* RheologyTypeName[NEWTONIAN+1]
+#ifdef GPUSPH_MAIN
+= {
+	"Newtonian",
+}
+#endif
+;
+
+
 //! Kind of viscosity used within the simulation
 /*! This can be either KINEMATIC or DYNAMIC, depending on whether
  * the preference is to work in terms of the kinematic viscosity ν,
@@ -58,8 +82,9 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 
 
 //! Viscous model
+//! (TODO this will become a viscous operator type, e.g. Morris vs Monaghan vs Español and Revenga)
 enum ViscosityType {
-	INVISCID, ///< no laminar viscosity
+	INVISCID, ///< no laminar viscosity TODO maybe this should become a RheologyType
 	KINEMATICVISC, ///< Morris formula, simplified for constant kinematic viscosity and using harmonic averaging of the density
 	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic density
 	INVALID_VISCOSITY
@@ -137,5 +162,56 @@ constexpr ViscosityType default_laminar_visc_for(TurbulenceModel turbmodel)
 		turbmodel == KEPSVISC ? DYNAMICVISC :
 			INVALID_VISCOSITY;
 }
+
+//! Select the default averaging operator for a given legacy viscous operator
+constexpr AverageOperator default_avg_op(ViscosityType visctype)
+{
+	return visctype == KINEMATICVISC ? HARMONIC : ARITHMETIC;
+}
+
+//! A complete viscous specification includes:
+// * a rheological model
+// * a turbulence model
+// * a computational viscosity specification
+// * a viscosity type (TODO will become the viscous operator)
+// * an averaging operator
+template<
+	RheologyType _rheologytype,
+	TurbulenceModel _turbmodel,
+	ComputationalViscosity _compvisc= KINEMATIC,
+	ViscosityType _visctype = default_laminar_visc_for(_turbmodel),
+	AverageOperator _avgop = default_avg_op(_visctype),
+	// is this a constant-viscosity formulation?
+	// TODO multifluid: we need to specify whether we're using one fluid
+	// or more, since for #fluids > 1 we can't assume constant viscosity
+	bool _is_const_visc = (_rheologytype == NEWTONIAN && _turbmodel != KEPSVISC)
+>
+struct FullViscSpec {
+	static constexpr RheologyType rheologytype = _rheologytype;
+	static constexpr TurbulenceModel turbmodel = _turbmodel;
+	static constexpr ComputationalViscosity compvisc = _compvisc;
+	static constexpr ViscosityType visctype = _visctype;
+	static constexpr AverageOperator avgop = _avgop;
+
+	static constexpr bool is_const_visc = _is_const_visc;
+
+	//! Change the computational viscosity type specification
+	/*! Sometimes we need to refer to the same viscous specification, except for the
+	 * computational viscosity type; this type alias can be used to that effect
+	 */
+	template<ComputationalViscosity altcompvisc>
+	using change_computational_visc =
+		FullViscSpec<rheologytype, turbmodel, altcompvisc, visctype, avgop>;
+
+	//! Force the assumption about constant viscosity
+	/*! Sometimes we need to refer to the same viscous specification, but ignoring
+	 * (or forcing) the assumption that the viscosity is constant;
+	 * this type alias can be used to that effect
+	 */
+	template<bool is_const_visc>
+	using assume_const_visc =
+		FullViscSpec<rheologytype, turbmodel, compvisc, visctype, avgop, is_const_visc>;
+
+};
 
 #endif

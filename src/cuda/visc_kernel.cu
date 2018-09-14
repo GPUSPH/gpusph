@@ -31,6 +31,7 @@
 #define _VISC_KERNEL_
 
 #include "visc_params.h"
+#include "visc_avg.cu"
 
 #include "tensor.cu"
 
