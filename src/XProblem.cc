@@ -2014,7 +2014,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	flush(cout);
 
 	// initialize values of k and e for k-e model
-	if (simparams()->turbmodel == KEPSVISC)
+	if (simparams()->turbmodel == KEPSILON)
 		init_keps(buffers, tot_parts);
 
 	// call user-set initialization routine, if any

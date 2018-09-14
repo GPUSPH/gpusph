@@ -158,8 +158,8 @@ struct sa_boundary_moving_euler_params
 };
 
 
-/// Additional parameters passed only to kernels with KEPSVISC
-struct kepsvisc_euler_params
+/// Additional parameters passed only to kernels with KEPSILON
+struct keps_euler_params
 {
 	float			* __restrict__ newTKE;	///< updated values of k, for k-e model (out)
 	float			* __restrict__ newEps;	///< updated values of e, for k-e model (out)
@@ -169,7 +169,7 @@ struct kepsvisc_euler_params
 	const	float3	* __restrict__ keps_dkde;	///< derivative of ??? (in)
 
 	// Constructor / initializer
-	kepsvisc_euler_params(
+	keps_euler_params(
 			float		* __restrict__ _newTKE,
 			float		* __restrict__ _newEps,
 			float		* __restrict__ _newTurbVisc,
@@ -223,24 +223,24 @@ struct energy_euler_params
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
-	ViscosityType _visctype,
-	TurbulenceModel _turbmodel,
-	flag_t _simflags>
+	typename _ViscSpec,
+	flag_t _simflags,
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
 struct euler_params :
 	common_euler_params,
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_euler_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_euler_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params),
-	COND_STRUCT(_turbmodel == KEPSVISC, kepsvisc_euler_params),
+	COND_STRUCT(_has_keps, keps_euler_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_euler_params),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr SPHFormulation sph_formulation = _sph_formulation;
 	static constexpr BoundaryType boundarytype = _boundarytype;
-	static constexpr ViscosityType visctype = _visctype;
-	static constexpr TurbulenceModel turbmodel = _turbmodel;
+	using ViscSpec = _ViscSpec;
 	static constexpr flag_t simflags = _simflags;
+	static constexpr bool has_keps = _has_keps;
 
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the euler kernel.
@@ -275,7 +275,7 @@ struct euler_params :
 		const	neibdata	* __restrict__ _neibsList,
 		const	uint	* __restrict__ _cellStart,
 
-		// KEPSVISC
+		// KEPSILON
 				float	* __restrict__ _newTKE,
 				float	* __restrict__ _newEps,
 				float	* __restrict__ _newTurbVisc,
@@ -299,7 +299,7 @@ struct euler_params :
 			(_newEulerVel, _vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params)
 			(_newBoundElement, _oldBoundElement),
-		COND_STRUCT(turbmodel == KEPSVISC, kepsvisc_euler_params)(_newTKE, _newEps, _newTurbVisc, _oldTKE, _oldEps, _keps_dkde),
+		COND_STRUCT(has_keps, keps_euler_params)(_newTKE, _newEps, _newTurbVisc, _oldTKE, _oldEps, _keps_dkde),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(_newEnergy, _oldEnergy, _DEDt)
 

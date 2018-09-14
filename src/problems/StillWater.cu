@@ -54,7 +54,7 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		//viscosity<KINEMATICVISC>,
 		viscosity<DYNAMICVISC>,
-		//turbulence_model<ARTVISC>,
+		//viscosity<ARTVISC>,
 		boundary<DYN_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
 	).select_options(

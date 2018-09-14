@@ -41,6 +41,7 @@
  * and generalized Newtonian rheologies.
  */
 enum RheologyType {
+	INVISCID, ///< No (laminar) viscosity
 	NEWTONIAN, ///< Viscosity independent of strain rate
 };
 
@@ -51,56 +52,8 @@ extern
 const char* RheologyTypeName[NEWTONIAN+1]
 #ifdef GPUSPH_MAIN
 = {
-	"Newtonian",
-}
-#endif
-;
-
-
-//! Kind of viscosity used within the simulation
-/*! This can be either KINEMATIC or DYNAMIC, depending on whether
- * the preference is to work in terms of the kinematic viscosity ν,
- * or in terms of the dynamic viscosity µ = ρν
- */
-enum ComputationalViscosity {
-	KINEMATIC, ///< Kinematic viscosity (SI units: m²/s)
-	DYNAMIC, ///< Dynamic viscosity (SI units: Pa s)
-};
-
-//! Name of the viscous model
-#ifndef GPUSPH_MAIN
-extern
-#endif
-const char* ComputationalViscosityName[DYNAMIC+1]
-#ifdef GPUSPH_MAIN
-= {
-	"Kinematic",
-	"Dynamic",
-}
-#endif
-;
-
-
-//! Viscous model
-//! (TODO this will become a viscous operator type, e.g. Morris vs Monaghan vs Español and Revenga)
-enum ViscosityType {
-	INVISCID, ///< no laminar viscosity TODO maybe this should become a RheologyType
-	KINEMATICVISC, ///< Morris formula, simplified for constant kinematic viscosity and using harmonic averaging of the density
-	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic density
-	INVALID_VISCOSITY
-} ;
-
-//! Name of the viscous model
-#ifndef GPUSPH_MAIN
-extern
-#endif
-const char* ViscosityName[INVALID_VISCOSITY+1]
-#ifdef GPUSPH_MAIN
-= {
 	"Inviscid",
-	"Kinematic",
-	"Dynamic",
-	"(invalid)"
+	"Newtonian",
 }
 #endif
 ;
@@ -113,9 +66,9 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
  */
 enum TurbulenceModel {
 	LAMINAR_FLOW, ///< No turbulence
-	ARTVISC, ///< Artificial viscosity
-	SPSVISC, ///< Sub-particle scale turbulence model
-	KEPSVISC, ///< k-epsilon turbulence model
+	ARTIFICIAL, ///< Artificial viscosity
+	SPS, ///< Sub-particle scale turbulence model
+	KEPSILON, ///< k-epsilon turbulence model
 	INVALID_TURBULENCE
 };
 
@@ -135,73 +88,92 @@ const char* TurbulenceName[INVALID_TURBULENCE+1]
 #endif
 ;
 
-//! Define the default turbulence model for the given viscous model
-/*!
- * This is ARTVISC for inviscid flows, and laminar flow (no turbulence) otherwise.
- * (And invalid values map to invalid values).
+//! Kind of viscosity used within the simulation
+/*! This can be either KINEMATIC or DYNAMIC, depending on whether
+ * the preference is to work in terms of the kinematic viscosity ν,
+ * or in terms of the dynamic viscosity µ = ρν
  */
-constexpr TurbulenceModel default_turbulence_for(ViscosityType visctype)
-{
-	return
-		visctype == INVISCID ? ARTVISC :
-		visctype >= INVALID_VISCOSITY ? INVALID_TURBULENCE :
-			LAMINAR_FLOW;
-}
+enum ComputationalViscosityType {
+	KINEMATIC, ///< Kinematic viscosity (SI units: m²/s)
+	DYNAMIC, ///< Dynamic viscosity (SI units: Pa s)
+};
 
-//! Define the legacy laminar model for the given turbulence model
-/*!
- * This is inviscid flow for the ARTVISC case, KINEMATICVISC for SPS, and
- * DYNAMICVISC for KEPS. In all other cases we return INVALID_VISCOSITY,
- * since there was no associated viscous model.
+//! Name of the viscous model
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* ComputationalViscosityName[DYNAMIC+1]
+#ifdef GPUSPH_MAIN
+= {
+	"Kinematic",
+	"Dynamic",
+}
+#endif
+;
+
+//! Supported viscous models
+/*! Currently only MORRIS is available, with plans to add Monaghan's and
+ * Español & Revenga too
  */
-constexpr ViscosityType default_laminar_visc_for(TurbulenceModel turbmodel)
-{
-	return
-		turbmodel == ARTVISC ? INVISCID :
-		turbmodel == SPSVISC ? KINEMATICVISC :
-		turbmodel == KEPSVISC ? DYNAMICVISC :
-			INVALID_VISCOSITY;
-}
+enum ViscousModel {
+	MORRIS,
+};
 
-//! Select the default averaging operator for a given legacy viscous operator
-constexpr AverageOperator default_avg_op(ViscosityType visctype)
-{
-	return visctype == KINEMATICVISC ? HARMONIC : ARITHMETIC;
+//! Name of the viscous model
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* ViscousModelName[MORRIS+1]
+#ifdef GPUSPH_MAIN
+= {
+	"Morris 1994",
 }
+#endif
+;
+
+
 
 //! A complete viscous specification includes:
 // * a rheological model
 // * a turbulence model
 // * a computational viscosity specification
-// * a viscosity type (TODO will become the viscous operator)
+// * a viscous model (discretization approach to the viscous operator)
 // * an averaging operator
+// TODO use the TypeValue and Multiplexer from CUDASimFramework
 template<
-	RheologyType _rheologytype,
-	TurbulenceModel _turbmodel,
-	ComputationalViscosity _compvisc= KINEMATIC,
-	ViscosityType _visctype = default_laminar_visc_for(_turbmodel),
-	AverageOperator _avgop = default_avg_op(_visctype),
+	RheologyType _rheologytype = NEWTONIAN,
+	TurbulenceModel _turbmodel = LAMINAR_FLOW,
+	ComputationalViscosityType _compvisc = KINEMATIC,
+	ViscousModel _viscmodel = MORRIS,
+	AverageOperator _avgop = ARITHMETIC,
 	// is this a constant-viscosity formulation?
 	// TODO multifluid: we need to specify whether we're using one fluid
 	// or more, since for #fluids > 1 we can't assume constant viscosity
-	bool _is_const_visc = (_rheologytype == NEWTONIAN && _turbmodel != KEPSVISC)
+	bool _is_const_visc = (_rheologytype == NEWTONIAN && _turbmodel != KEPSILON)
 >
 struct FullViscSpec {
 	static constexpr RheologyType rheologytype = _rheologytype;
 	static constexpr TurbulenceModel turbmodel = _turbmodel;
-	static constexpr ComputationalViscosity compvisc = _compvisc;
-	static constexpr ViscosityType visctype = _visctype;
+	static constexpr ComputationalViscosityType compvisc = _compvisc;
+	static constexpr ViscousModel viscmodel = _viscmodel;
 	static constexpr AverageOperator avgop = _avgop;
 
 	static constexpr bool is_const_visc = _is_const_visc;
 
+	//! Change the turbulence model
+	template<TurbulenceModel newturb>
+	using with_turbmodel =
+		FullViscSpec<rheologytype, newturb, compvisc, viscmodel, avgop>;
+
 	//! Change the computational viscosity type specification
-	/*! Sometimes we need to refer to the same viscous specification, except for the
-	 * computational viscosity type; this type alias can be used to that effect
-	 */
-	template<ComputationalViscosity altcompvisc>
-	using change_computational_visc =
-		FullViscSpec<rheologytype, turbmodel, altcompvisc, visctype, avgop>;
+	template<ComputationalViscosityType altcompvisc>
+	using with_computational_visc =
+		FullViscSpec<rheologytype, turbmodel, altcompvisc, viscmodel, avgop>;
+
+	//! Change the averaging operator
+	template<AverageOperator altavgop>
+	using with_avg_operator =
+		FullViscSpec<rheologytype, turbmodel, compvisc, viscmodel, altavgop>;
 
 	//! Force the assumption about constant viscosity
 	/*! Sometimes we need to refer to the same viscous specification, but ignoring
@@ -210,8 +182,77 @@ struct FullViscSpec {
 	 */
 	template<bool is_const_visc>
 	using assume_const_visc =
-		FullViscSpec<rheologytype, turbmodel, compvisc, visctype, avgop, is_const_visc>;
+		FullViscSpec<rheologytype, turbmodel, compvisc, viscmodel, avgop, is_const_visc>;
+};
 
+//! Legacy viscosity type
+enum LegacyViscosityType {
+	ARTVISC = 1,
+	KINEMATICVISC, ///< Morris formula, simplified for constant kinematic viscosity and using harmonic averaging of the density
+	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic density
+	SPSVISC, ///< KINEMATICVISC + SPS
+	KEPSVISC, ///< DYNAMICVISC + SPS
+	INVALID_VISCOSITY
+} ;
+
+//! Name of the viscous model
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* LegacyViscosityName[INVALID_VISCOSITY+1]
+#ifdef GPUSPH_MAIN
+= {
+	"(null)",
+	"Artificial",
+	"Kinematic",
+	"Dynamic",
+	"SPS + kinematic",
+	"k-e model",
+	"(invalid)"
+}
+#endif
+;
+
+//! Convert a LegacyViscosityType to a FullViscSpec
+/*! A template structure with a typedef 'type' to the corresponding FullViscSpec
+ */
+template<LegacyViscosityType>
+struct ConvertLegacyVisc;
+
+template<>
+struct ConvertLegacyVisc<ARTVISC>
+{
+	/* Inviscid flow with artificial viscosity */
+	using type = FullViscSpec<INVISCID, ARTIFICIAL>;
+};
+
+template<>
+struct ConvertLegacyVisc<KINEMATICVISC>
+{
+	/* The default, except for the use of harmonic average and assumption of constant
+	 * viscosity kinematic viscosity */
+	using type = typename FullViscSpec<>::with_avg_operator<HARMONIC>::assume_const_visc<true>;
+};
+
+template<>
+struct ConvertLegacyVisc<DYNAMICVISC>
+{
+	/* The default: Morris model with arithmetic mean for a laminar newtonian flow */
+	using type = FullViscSpec<>; /* the default! */
+};
+
+template<>
+struct ConvertLegacyVisc<SPSVISC>
+{
+	/* KINEMATICVISC + SPS */
+	using type = typename ConvertLegacyVisc<KINEMATICVISC>::type::with_turbmodel<SPS>;
+};
+
+template<>
+struct ConvertLegacyVisc<KEPSVISC>
+{
+	/* DYNAMICVISC + KEPSILON */
+	using type = typename ConvertLegacyVisc<DYNAMICVISC>::type::with_turbmodel<KEPSILON>;
 };
 
 #endif

@@ -157,7 +157,7 @@ enum CommandType {
 	COMPUTE_DENSITY,
 	/// Compute SPS stress matrix
 	/// TODO FIXME RENAME COMMAND (generic viscEngine processing)
-	SPS,
+	CALC_SPS,
 	/// Compute total force acting on a moving body
 	REDUCE_BODIES_FORCES,
 	/// Upload new value of gravity, after problem callback

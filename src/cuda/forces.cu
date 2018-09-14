@@ -179,8 +179,7 @@ template<
 	KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	TurbulenceModel turbmodel,
+	typename ViscSpec,
 	BoundaryType boundarytype,
 	flag_t simflags>
 class CUDAForcesEngine;
@@ -254,15 +253,16 @@ template<
 	KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
-	TurbulenceModel turbmodel,
+	typename ViscSpec,
 	BoundaryType boundarytype,
 	flag_t simflags>
 class CUDAForcesEngine : public AbstractForcesEngine
 {
+	static const RheologyType rheologytype = ViscSpec::rheologytype;
+	static const TurbulenceModel turbmodel = ViscSpec::turbmodel;
 
-static const bool needs_eulerVel = (boundarytype == SA_BOUNDARY &&
-			(turbmodel == KEPSVISC || (simflags & ENABLE_INLET_OUTLET)));
+	static const bool needs_eulerVel = (boundarytype == SA_BOUNDARY &&
+			(turbmodel == KEPSILON || (simflags & ENABLE_INLET_OUTLET)));
 
 
 void
@@ -476,7 +476,7 @@ bind_textures(
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 	}
 
-	if (turbmodel == KEPSVISC) {
+	if (turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread.getData<BUFFER_TKE>(), numParticles*sizeof(float)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread.getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
 	}
@@ -487,13 +487,13 @@ unbind_textures()
 {
 	// TODO FIXME why are SPS textures unbound here but bound in sps?
 	// shouldn't we bind them in bind_textures() instead?
-	if (turbmodel == SPSVISC) {
+	if (turbmodel == SPS) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
 	}
 
-	if (turbmodel == KEPSVISC) {
+	if (turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	}
@@ -562,13 +562,13 @@ dtreduce(	float	slength,
 			dt = dt_gam;
 	}
 
-	if (visctype != INVISCID || turbmodel > ARTVISC) {
+	if (rheologytype != INVISCID || turbmodel > ARTIFICIAL) {
 		/* Stability condition from viscosity h²/ν
 		   We get the maximum kinematic viscosity from the caller, and in the KEPS case we
 		   add the maximum KEPS
 		 */
 		float visccoeff = max_kinematic;
-		if (turbmodel == KEPSVISC)
+		if (turbmodel == KEPSILON)
 			visccoeff += cflmax(numBlocks, cfl_keps, tempCfl);
 
 		float dt_visc = slength*slength/visccoeff;
@@ -629,7 +629,7 @@ compute_density_diffusion(
 
 	cuforces::computeDensityDiffusionDevice
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype,
-		 visctype, simflags, PT_FLUID>
+		 ViscSpec, simflags, PT_FLUID>
 		<<<numBlocks, numThreads>>>(params);
 
 	// check if last kernel invocation generated an error
@@ -686,7 +686,7 @@ vertex_forces(
 	// and for turbulent viscosity with the k-epsilon model
 	const bool waterdepth =
 		QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH);
-	const bool keps = (turbmodel == KEPSVISC);
+	const bool keps = (turbmodel == KEPSILON);
 	if (waterdepth || keps) {
 		cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
 	}
@@ -779,8 +779,8 @@ basicstep(
 	if (keps_dkde) {
 		// KEPS buffers need to be cleared too, as they will be built progressively
 		CUDA_SAFE_CALL(cudaMemset(keps_dkde + fromParticle, 0, numParticlesInRange*sizeof(float3)));
-		// TODO tau currently is reset in KEPSVISC, but must NOT be reset if SPSVISC
-		// ideally tau should be computed in its own kernel in the KEPSVISC case too
+		// TODO tau currently is reset in KEPSILON, but must NOT be reset if SPS
+		// ideally tau should be computed in its own kernel in the KEPSILON case too
 		CUDA_SAFE_CALL(cudaMemset(tau[0] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaMemset(tau[1] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaMemset(tau[2] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
@@ -793,13 +793,13 @@ basicstep(
 	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
 	#if (__COMPUTE__ == 20)
 	int dtadapt = !!(simflags & ENABLE_DTADAPT);
-	if (turbmodel == SPSVISC)
+	if (turbmodel == SPS)
 		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
 	else
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
 
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, turbmodel, simflags, PT_FLUID, PT_FLUID> params_ff(
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_FLUID> params_ff(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -810,7 +810,7 @@ basicstep(
 			keps_dkde, turbvisc, tau,
 			DEDt);
 
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, turbmodel, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -822,7 +822,7 @@ basicstep(
 			DEDt);
 
 
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, turbmodel, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -837,7 +837,7 @@ basicstep(
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
 	{
-		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, turbmodel, simflags, PT_FLUID, PT_VERTEX> params_fv(
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_VERTEX> params_fv(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -848,7 +848,7 @@ basicstep(
 			keps_dkde, turbvisc, tau,
 			DEDt);
 
-		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, turbmodel, simflags, PT_VERTEX, PT_FLUID> params_vf(
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_VERTEX, PT_FLUID> params_vf(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -868,7 +868,7 @@ basicstep(
 	if (compute_object_forces || (boundarytype == DYN_BOUNDARY))
 		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
 
-	finalize_forces_params<sph_formulation, boundarytype, visctype, turbmodel, simflags> params_finalize(
+	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
 			forces, rbforces, rbtorques,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl_forces, cfl_gamma, cfl_keps, cflOffset,

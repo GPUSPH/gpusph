@@ -50,7 +50,7 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 	// density diffusion terms, see DensityDiffusionType
 	const int RHODIFF = get_option("density-diffusion", 1);
 
-	// ** framework setup
+	// ** framework setup TODO newvisc update
 	// viscosities: KINEMATICVISC*, DYNAMICVISC*
 	// turbulence models: ARTVISC*, SPSVISC, KEPSVISC
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*

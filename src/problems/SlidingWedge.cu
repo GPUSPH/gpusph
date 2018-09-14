@@ -51,9 +51,9 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-	    //turbulence_model<ARTVISC>,
+	    //viscosity<ARTVISC>,
 		viscosity<KINEMATICVISC>,
-		//turbulence_model<SPSVISC>,
+		//viscosity<SPSVISC>,
 		boundary<LJ_BOUNDARY>,
 		//boundary<MK_BOUNDARY>
 		//boundary<DYN_BOUNDARY>,

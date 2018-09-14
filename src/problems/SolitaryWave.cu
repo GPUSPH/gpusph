@@ -50,9 +50,9 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 	m_origin = make_double3(0.0, 0.0, -1.2*height);
 
 	SETUP_FRAMEWORK(
-		turbulence_model<ARTVISC>,
+		viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
-		//turbulence_model<SPSVISC>,
+		//viscosity<SPSVISC>,
 		boundary<LJ_BOUNDARY>,
 		//boundary<MK_BOUNDARY>,
 		flags<ENABLE_DTADAPT | ENABLE_PLANES>

@@ -49,7 +49,7 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
 	SETUP_FRAMEWORK(
-		turbulence_model<ARTVISC>,//SPSVISC, or viscosity<DYNAMICVISC>
+		viscosity<ARTVISC>,//SPSVISC, or DYNAMICVISC
 		boundary<LJ_BOUNDARY>,
 		add_flags<ENABLE_MOVING_BODIES>
 	);

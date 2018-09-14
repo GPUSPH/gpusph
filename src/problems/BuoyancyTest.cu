@@ -22,8 +22,8 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		turbulence_model<ARTVISC>,
-		//turbulence_model<SPSVISC>,
+		viscosity<ARTVISC>,
+		//viscosity<SPSVISC>,
 		//viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>
 	);

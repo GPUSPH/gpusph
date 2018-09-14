@@ -95,7 +95,7 @@ Problem::initialize()
 	check_neiblistsize();
 	calculateDensityDiffusionCoefficient();
 
-	/* Set ARTVISC epsilon to h^2/10 if not set by the user.
+	/* Set artificial viscosity epsilon to h^2/10 if not set by the user.
 	 * For simplicity, we do this regardless of the viscosity model used,
 	 * it'll just be ignored otherwise */
 	if (isnan(physparams()->epsartvisc))
@@ -572,7 +572,7 @@ Problem::check_dt(void)
 	dt_from_gravity *= simparams()->dtadaptfactor;
 
 	float dt_from_visc = NAN;
-	if (simparams()->visctype != INVISCID) {
+	if (simparams()->rheologytype != INVISCID) {
 		for (uint f = 0; f < physparams()->numFluids(); ++f)
 			dt_from_visc = fminf(dt_from_visc, simparams()->slength*simparams()->slength/physparams()->kinematicvisc[f]);
 		dt_from_visc *= 0.125f; // TODO this should be configurable
@@ -1387,12 +1387,12 @@ Problem::init_keps(BufferList &buffers, uint numParticles)
 /*!
  * Initialize eddy viscosity from k and epsilon
  * TODO this is now called whenever the user selects a(n actual) turbulence
- * mode, but it only does something in the KEPSVISC case
+ * mode, but it only does something in the KEPSILON case
  */
 void
 Problem::init_turbvisc(BufferList &buffers, uint numParticles)
 {
-	if (simparams()->turbmodel != KEPSVISC)
+	if (simparams()->turbmodel != KEPSILON)
 		return;
 
 	const float *k = buffers.getConstData<BUFFER_TKE>();

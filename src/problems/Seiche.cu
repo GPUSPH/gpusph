@@ -36,7 +36,7 @@
 Seiche::Seiche(GlobalData *_gdata) : XProblem(_gdata)
 {
 	SETUP_FRAMEWORK(
-		turbulence_model<SPSVISC>,
+		viscosity<SPSVISC>,
 		flags<ENABLE_DTADAPT | ENABLE_PLANES>
 	);
 

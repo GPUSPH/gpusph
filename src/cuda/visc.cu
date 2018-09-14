@@ -48,14 +48,13 @@
 /// specialization, so our CUDAViscEngine::process delegates to a helper function,
 /// process_implementation(), which can use SFINAE to do the necessary specialization.
 
-template<ViscosityType _visctype,
-	TurbulenceModel _turbmodel,
+template<typename _ViscSpec,
 	KernelType _kerneltype,
 	BoundaryType _boundarytype>
-class CUDAViscEngine : public AbstractViscEngine
+class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 {
-	static constexpr ViscosityType visctype = _visctype;
-	static constexpr TurbulenceModel turbmodel = _turbmodel;
+	using ViscSpec = _ViscSpec;
+
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr BoundaryType boundarytype = _boundarytype;
 
@@ -65,7 +64,7 @@ class CUDAViscEngine : public AbstractViscEngine
 	/// This is to avoid the issues associated with SFINAE not being possible
 	/// when the specializations can only be differentiate by return type.
 	template<typename This>
-	enable_if_t<This::turbmodel != SPSVISC>
+	enable_if_t<This::turbmodel != SPS>
 	process_implementation(
 					float2	*tau[],
 					float	*turbvisc,
@@ -82,9 +81,9 @@ class CUDAViscEngine : public AbstractViscEngine
 			const	This *)
 	{ /* do nothing */ }
 
-	/// Viscous engine implementation, specialized for the SPSVISC turbulence model.
+	/// Viscous engine implementation, specialized for the SPS turbulence model.
 	template<typename This>
-	enable_if_t<This::turbmodel == SPSVISC>
+	enable_if_t<This::turbmodel == SPS>
 	process_implementation(
 					float2	*tau[],
 					float	*turbvisc,

@@ -16,59 +16,14 @@
  * computational viscous choice and rheology type.
  */
 
-//! Specialization for constant dynamic viscosity
-/*! In this case there is simply no averaging to do.
- */
-template<typename ViscSpec>
-_AVG_FUNC_SPEC
-enable_if_t<
-	ViscSpec::is_const_visc &&
-	ViscSpec::compvisc == DYNAMIC
->
-visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
-{
-	return 2*neib_mass*visc/(rho*neib_rho);
-
-}
-
-//! Specialization for constant kinematic viscosity
-/*! In this case the viscosity can be factored out,
- * and we are left with the densities instead of the dynamic viscosities
- * inside the averaging operator, so we apply the required averaging
- * operator, but in a special form that only gets passed the densities
- */
-template<typename ViscSpec>
-_AVG_FUNC_SPEC
-enable_if_t<
-	ViscSpec::is_const_visc &&
-	ViscSpec::compvisc == KINEMATIC
->
-visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
-{
-	return visc*visc_avg<ViscSpec>(rho, neib_rho, neib_mass);
-}
-
-//! Specialization for non-constant kinematic viscosity
-template<typename ViscSpec>
-_AVG_FUNC_SPEC
-enable_if_t<
-	!ViscSpec::is_const_visc &&
-	ViscSpec::compvisc == KINEMATIC
->
-visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
-{
-	// no simplification possible, just call the dynvisc variant
-	using DynSpec = typename ViscSpec::change_computational_visc<DYNAMIC>;
-	return visc_avg<DynSpec>(visc*rho, neib_visc*neib_rho, rho, neib_rho, neib_mass);
-}
-
 //! Specialization for non-constant dynamic viscosity with arithmetic averaging
 template<typename ViscSpec>
 _AVG_FUNC_SPEC
 enable_if_t<
 	!ViscSpec::is_const_visc &&
 	ViscSpec::avgop == ARITHMETIC &&
-	ViscSpec::compvisc == DYNAMIC
+	ViscSpec::compvisc == DYNAMIC,
+	float
 >
 visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
 {
@@ -80,7 +35,7 @@ visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass
 //! Specialization for density-only arithmetic averaging
 template<typename ViscSpec>
 _AVG_FUNC_SPEC
-enable_if_t< ViscSpec::avgop == ARITHMETIC >
+enable_if_t< ViscSpec::avgop == ARITHMETIC, float >
 visc_avg(float rho, float neib_rho, float neib_mass)
 {
 	// m_β*2*((ρ_α + ρ_β)/2)/(ρ_αρ_β) = 
@@ -94,7 +49,8 @@ _AVG_FUNC_SPEC
 enable_if_t<
 	!ViscSpec::is_const_visc &&
 	ViscSpec::avgop == HARMONIC &&
-	ViscSpec::compvisc == DYNAMIC
+	ViscSpec::compvisc == DYNAMIC,
+	float
 >
 visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
 {
@@ -106,7 +62,7 @@ visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass
 //! Specialization for density-only harmonic averaging
 template<typename ViscSpec>
 _AVG_FUNC_SPEC
-enable_if_t< ViscSpec::avgop == HARMONIC >
+enable_if_t< ViscSpec::avgop == HARMONIC, float >
 visc_avg(float rho, float neib_rho, float neib_mass)
 {
 	// m_β*2*(2*(ρ_α ρ_β)/(ρ_α + ρ_β))/(ρ_α ρ_β) = 
@@ -120,7 +76,8 @@ _AVG_FUNC_SPEC
 enable_if_t<
 	!ViscSpec::is_const_visc &&
 	ViscSpec::avgop == GEOMETRIC &&
-	ViscSpec::compvisc == DYNAMIC
+	ViscSpec::compvisc == DYNAMIC,
+	float
 >
 visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
 {
@@ -132,12 +89,64 @@ visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass
 //! Specialization for density-only harmonic averaging
 template<typename ViscSpec>
 _AVG_FUNC_SPEC
-enable_if_t< ViscSpec::avgop == GEOMETRIC >
+enable_if_t< ViscSpec::avgop == GEOMETRIC, float >
 visc_avg(float rho, float neib_rho, float neib_mass)
 {
 	// m_β*2*(sqrt(ρ_α ρ_β))/(ρ_α ρ_β) = 
 	// m_β*2*rsqrt(ρ_α ρ_β)
 	return 2*neib_mass*rsqrt(rho*neib_rho);
+}
+
+/* Optimizations in case of constant viscosity */
+
+//! Specialization for constant dynamic viscosity
+/*! In this case there is simply no averaging to do.
+ */
+template<typename ViscSpec>
+_AVG_FUNC_SPEC
+enable_if_t<
+	ViscSpec::is_const_visc &&
+	ViscSpec::compvisc == DYNAMIC,
+	float
+>
+visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
+{
+	return 2*neib_mass*visc/(rho*neib_rho);
+
+}
+
+
+//! Specialization for constant kinematic viscosity
+/*! In this case the viscosity can be factored out,
+ * and we are left with the densities instead of the dynamic viscosities
+ * inside the averaging operator, so we apply the required averaging
+ * operator, but in a special form that only gets passed the densities
+ */
+template<typename ViscSpec>
+_AVG_FUNC_SPEC
+enable_if_t<
+	ViscSpec::is_const_visc &&
+	ViscSpec::compvisc == KINEMATIC,
+	float
+>
+visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
+{
+	return visc*visc_avg<ViscSpec>(rho, neib_rho, neib_mass);
+}
+
+//! Specialization for non-constant kinematic viscosity
+template<typename ViscSpec>
+_AVG_FUNC_SPEC
+enable_if_t<
+	!ViscSpec::is_const_visc &&
+	ViscSpec::compvisc == KINEMATIC,
+	float
+>
+visc_avg(float visc, float neib_visc, float rho, float neib_rho, float neib_mass)
+{
+	// no simplification possible, just call the dynvisc variant
+	using DynSpec = typename ViscSpec::template with_computational_visc<DYNAMIC>;
+	return visc_avg<DynSpec>(visc*rho, neib_visc*neib_rho, rho, neib_rho, neib_mass);
 }
 
 #endif
