@@ -126,6 +126,7 @@ calculateIOboundaryCondition(
 		if (unExt <= unInt) // Expansion wave
 			riemannR = rInt + (unExt - unInt);
 		else { // Shock wave
+		       // TODO Check case of multifluid for a = fluid_num(info)
 			float riemannRho = RHO(P(rhoInt, a) + absolute_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative		
 			riemannR = R(riemannRho, a);
 
@@ -146,7 +147,8 @@ calculateIOboundaryCondition(
 		const float cInt = soundSpeed(rhoInt, a);
 		const float lambdaInt = unInt + cInt;
 		const float rExt = R(rhoExt, a);
-		if (absolute_density(rhoExt,a) <= absolute_density(rhoInt,a)) { // Expansion wave
+		// TODO Check case of multifluid for a = fluid_num(info)
+		if (rhoExt <= rhoInt) { // Expansion wave
 			flux = unInt + (rExt - rInt);
 			float lambda = flux + cExt;
 			if (lambda > lambdaInt) { // shock wave
@@ -180,7 +182,7 @@ calculateIOboundaryCondition(
 		as_float3(eulerVel) = make_float3(0.0f);
 		// if the imposed pressure on the boundary is negative make sure that the flux is negative
 		// as well (outflow)
-		if (rhoExt < relative_density(d_rho0[a],a))
+		if (rhoExt < 0.0f)
 			flux = fminf(flux, 0.0f);
 		// Outflow
 		if (flux < 0.0f)
@@ -1126,7 +1128,7 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 			unInt, unExt, make_float3(pdata.normal));
 	} else {
 		if (VEL_IO(pdata.info))
-			eulerVel.w = relative_density(rho0,fluid_num(pdata.info));
+			eulerVel.w = 0.0f;
 		else
 			eulerVel = make_float4(0.0f, 0.0f, 0.0f, eulerVel.w);
 	}
@@ -1164,7 +1166,7 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 	// particles that have an initial density less than the reference density have their mass set to 0
 	// or if their velocity is initially 0
 	else if (!resume &&
-		( (PRES_IO(info) && eulerVel.w - relative_density(rho0,fluid_num(pdata.info)) <= 1e-10f*relative_density(rho0,fluid_num(pdata.info))) ||
+		( (PRES_IO(info) && eulerVel.w <= 1e-10f) ||
 		  (VEL_IO(info) && length3(eulerVel) < 1e-10f*d_sscoeff[fluid_num(info)])) )
 		pos.w = 0.0f;
 #endif
@@ -1180,7 +1182,7 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 			// if imposed velocity is greater 0
 			dot3(pdata.normal, eulerVel) > 1e-5f &&
 			// pressure inlets need p > 0 to create particles
-			(VEL_IO(pdata.info) || eulerVel.w-relative_density(rho0,fluid_num(pdata.info)) > relative_density(rho0,fluid_num(pdata.info))*1e-5f)
+			(VEL_IO(pdata.info) || eulerVel.w > 1e-5f)
 		   ) {
 			pout.massFluid -= refMass;
 			// Create new particle
@@ -1353,7 +1355,7 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
 			pout.sump = 0.0f;
 			if (VEL_IO(pdata.info)) {
 				pout.sumvel = as_float3(pout.eulerVel);
-				pout.vel.w = relative_density(d_rho0[fluid_num(pdata.info)],fluid_num(pdata.info));
+				pout.vel.w = 0.0f;
 			} else {
 				pout.sumvel = make_float3(0.0f);
 				// TODO FIXME this is the logic in master, but there's something odd about this,

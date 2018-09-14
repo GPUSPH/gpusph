@@ -1247,6 +1247,8 @@ __device__ __forceinline__
 enable_if_t<not has_volume<P>(), float>
 volume_ratio(P const& pdata, N const& ndata)
 { return absolute_density(ndata.relVel.w,fluid_num(ndata.info))/absolute_density(pdata.vel.w,fluid_num(pdata.info)); }
+// TODO : check accuracy
+//{ return (ndata.relVel.w + 1.0f)/(pdata.vel.w + 1.0f)*(d_rho0[fluid_num(ndata.info)]/d_rho0[fluid_num(pdata.info)]); }
 
 /// Cases when there is no density contribution
 template<typename FP, typename P, typename N, typename ON,

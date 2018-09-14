@@ -683,7 +683,7 @@ Problem::check_neiblistsize(void)
 float
 Problem::density(float h, int i) const    // here we initialize rho_tilde = density/rho0 -1
 {
-	float density = relative_density(physparams()->rho0[i],0); // rho0/rho0 -1 = 0
+	float density = 0.0f; // rho0/rho0 -1 = 0
 
 
 	if (h > 0) {

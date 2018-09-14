@@ -120,7 +120,7 @@ calcVortDevice(	const	float4*		posArray,
 
 		// Compute vorticity
 		if (r < influenceradius) {
-			const float f = F<kerneltype>(r, slength)*relPos.w/absolute_density(relVel.w,0);	// ∂Wij/∂r*Vj
+			const float f = F<kerneltype>(r, slength)*relPos.w/absolute_density(relVel.w,fluid_num(neib_info));	// ∂Wij/∂r*Vj
 			// vxij = vxi - vxj and same for vyij and vzij
 			vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
 			vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
@@ -196,7 +196,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 		if (r < influenceradius) {
 			const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-			const float w = W<kerneltype>(r, slength)*relPos.w/absolute_density(neib_vel.w,0);	// Wij*mj
+			const float w = W<kerneltype>(r, slength)*relPos.w/absolute_density(neib_vel.w,fluid_num(neib_info));	// Wij*mj
 			//Velocity
 			velavg.x += w*neib_vel.x;
 			velavg.y += w*neib_vel.y;
@@ -260,7 +260,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		return;
 
 	// read particle data from sorted arrays
-	particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = tex1Dfetch(infoTex, index);
 
 	#if PREFER_L1
 	const float4 pos = posArray[index];
@@ -304,10 +304,13 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length(as_float3(relPos));	
+
+		// read neighbor data from sorted arrays
+	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// neighbor volume
-		const float neib_vol = relPos.w/absolute_density(tex1Dfetch(velTex, neib_index).w, fluid_num(info));
+		const float neib_vol = relPos.w/absolute_density(tex1Dfetch(velTex, neib_index).w, fluid_num(neib_info));
 
 		if (r < influenceradius) {
 			const float f = F<kerneltype>(r, slength)*neib_vol; // 1/r ∂Wij/∂r Vj
