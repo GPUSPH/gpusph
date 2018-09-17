@@ -232,7 +232,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		} else if (!strcmp(arg, "--repack-only")) {
 			_clOptions->repack_only = true;
 		} else if (!strcmp(arg, "--from-repack")) {
-			_clOptions->repack_fname = string(*argv);
+			_clOptions->resume_fname = string(*argv);
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--help")) {
@@ -337,8 +337,12 @@ void simulate(GlobalData *gdata)
 
 	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
 	switch (repack_or_run) {
-		case REPACKING: Simulator->runRepacking(); break;
-		case STANDARD: Simulator->runSimulation(); break;
+		case REPACKING:
+			Simulator->runRepacking();
+			break;
+		case STANDARD:
+			Simulator->runSimulation();
+			break;
 	}
 	// finalize everything
 	Simulator->finalize();
@@ -433,10 +437,15 @@ int main(int argc, char** argv) {
 	}
 
 	try {
-		if (gdata.clOptions->repack)
+		if (gdata.clOptions->repack || gdata.clOptions->repack_only)
 			simulate<REPACKING>(&gdata);
-		if (!gdata.clOptions->repack_only)
+		if (!gdata.clOptions->repack_only) {
+			if (gdata.clOptions->repack) {
+				string last_checkpoint_file = "";
+				gdata.clOptions->resume_fname = last_checkpoint_file;
+			}
 			simulate<STANDARD>(&gdata);
+		}
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata.ret = 1;

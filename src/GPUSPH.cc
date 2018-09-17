@@ -347,9 +347,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 				cerr << "WARNING: simulation has rigid bodies and/or moving boundaries, resume will not give identical results" << endl;
 			}
 		} else {
-			gdata->s_hBuffers.set_state_on_write("resume from repack");
+			gdata->s_hBuffers.set_state_on_write("resumed from repack");
 			gdata->iterations = 0;
-			gdata->dt = hf[0]->get_dt();
+			gdata->t = 0;
 			for (uint i = 0; i < hot_nrank; i++) {
 				hf[i]->load();
 #if 0
@@ -361,6 +361,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 				cerr << "Successfully restored repack file " << i+1 << " / " << hot_nrank << endl;
 				cerr << *hf[i];
 			}
+
+			// Re-initialize the arrays
+			problem->copy_to_array(gdata->s_hBuffers);
 
 			// initialize values of k and e for k-e model
 			if (problem->simparams()->visctype == KEPSVISC) {
@@ -464,10 +467,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	for (uint d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
 
-
 	// Prepare for repacking if necessary
-	if ((gdata->clOptions->repack || !gdata->clOptions->repack_fname.empty()) && !repacked) {
-		gdata->keep_repacking = true;//repack.Start();
+	if ((gdata->clOptions->repack || gdata->clOptions->repack_only) && !repacked) {
+		gdata->keep_repacking = true;
 		gdata->keep_going = false;
 		// If previous repack results are read, do not repack
 		if (!gdata->keep_repacking) {
@@ -561,7 +563,7 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 
-	if (gdata->clOptions->repack) {
+	if (gdata->clOptions->repack || gdata->clOptions->repack_only) {
 		if (!repacked && !gdata->keep_repacking)
 			throw runtime_error("GPUSPH repacking aborted by worker thread");
 		if (repacked && !gdata->keep_going)
@@ -827,6 +829,9 @@ void GPUSPH::runRepackingStep(const flag_t integrator_step) {
 
 	// -----------------------------------------
 
+	// Take care of moving bodies
+	move_bodies(integrator_step);
+
 	// integrate also the externals
 	gdata->only_internal = false;
 	// perform the euler integration step
@@ -969,7 +974,7 @@ bool GPUSPH::runRepacking() {
 			gdata->quit_request = true;
 		}
 
-		int repackMaxIter = 10;
+		int repackMaxIter = 1000;
 		float repackMinKe = 100;
 		// are we done?
 		const bool we_are_done =
@@ -980,18 +985,19 @@ bool GPUSPH::runRepacking() {
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
 
+		if (we_are_done)
+			gdata->t = -1.;
+		check_write(we_are_done);
+
 		if (we_are_done) {
 			printf("Repacking algorithm is finished\n");
 			printStatus();
-			gdata->t = -1.;
 			// Disable free surface boundary particles
 			printf("Disable free-surface particles\n");
 			//doCommand(DISABLE_FREE_SURF_PARTS);
 			//doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
 			gdata->keep_repacking = false;
 		}
-
-		check_write(we_are_done);
 
 	} catch (exception &e) {
 		cerr << e.what() << endl;
@@ -1026,6 +1032,7 @@ bool GPUSPH::runRepacking() {
 	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
 
+	gdata->keep_going = true;
 	return (repacked = true);
 }
 

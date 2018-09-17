@@ -425,6 +425,8 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	double dt1 = dt;
 	if (step == 1)
 		dt1 /= 2.0;
+	if (step == 0)
+		dt1 = 0;
 	double t0 = t;
 	double t1 = t + dt1;
 
@@ -697,7 +699,7 @@ Problem::density(float h, int i) const    // here we initialize rho_tilde = dens
 	return density;
 }
 
-// TODO : density to achieve a specific pressure 
+// TODO : density to achieve a specific pressure
 float
 Problem::density_for_pressure(float P, int i) const
 {

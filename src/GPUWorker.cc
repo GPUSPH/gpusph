@@ -1657,7 +1657,7 @@ void GPUWorker::simulationThread() {
 
 		// if anything else failed (e.g. another worker was assigned an
 		// non-existent device number and failed to complete initialize()
-		// correctly), we shouldn't do anything. 
+		// correctly), we shouldn't do anything.
 		// So check that keep_going or keep_repacking is still true
 		if (gdata->keep_going || gdata->keep_repacking)
 			uploadSubdomain();
@@ -2163,8 +2163,8 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 				m_simparams->epsilon,
 				m_dIOwaterdepth,
 				cflOffset,
-				step,
-				(firstStep ? 0.5f : 1.0f)*gdata->dt,
+				2, //repack as if in step 2
+				gdata->dt,
 				(m_simparams->numforcesbodies > 0) ? true : false);
 		bufwrite.clear_pending_state();
 		return ret;
@@ -2443,7 +2443,7 @@ void GPUWorker::kernel_euler()
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
-	if (m_simparams->simflags & !ENABLE_REPACKING) { 
+	if (m_simparams->simflags & !ENABLE_REPACKING) {
 		bufwrite.add_state_on_write("euler" + to_string(step));
 
 		integrationEngine->basicstep(
@@ -2470,8 +2470,8 @@ void GPUWorker::kernel_euler()
 				numPartsToElaborate,
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
-				step,
-				gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+				2,
+				gdata->t + gdata->dt,
 				m_simparams->slength,
 				m_simparams->influenceRadius);
 		bufwrite.clear_pending_state();
