@@ -91,8 +91,8 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	float rho0 = 1;
 	float rho1 = 1000;
 
-	size_t air = add_fluid(rho0);
-	size_t water = add_fluid(rho1);
+	air = add_fluid(rho0);
+	water = add_fluid(rho1);
 
 	set_equation_of_state(air,  1.4, 198*maxvel);
 	set_equation_of_state(water,  7.0f, 14*maxvel);
@@ -115,16 +115,19 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	setPositioning(PP_CORNER);
 	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		Point(m_origin),
-		m_size.x,	m_size.y, m_size.z);
+		m_size.x, m_size.y, m_size.z);
 	disableCollisions(experiment_box);
-	setMassByDensity(experiment_box, physparams()->rho0[1]);
 
 	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
 		Point(m_origin + extra_offset),
 		lx, ly, H);
+
 	// the actual particle mass will be set during the
-	// initializeParticles routine
-	setMassByDensity(fluid, physparams()->rho0[0]);
+	// initializeParticles routine, both for the tank and for the
+	// fluid particles, by multiplitying the mass computed here
+	// by the density of the particle
+	setMassByDensity(experiment_box, 1);
+	setMassByDensity(fluid, 1);
 
 }
 
@@ -175,14 +178,18 @@ Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 	for (uint i = 0; i < numParticles; i++) {
 		float rho = 1;
 		double depth = H - pos_global[i].z + m_origin.z;
+		// for boundary particles, we use the density of water,
+		// fluid particles will override fluid_idx depending on whether
+		// they are inside the bubble or not
+		int fluid_idx = water;
 		if (FLUID(info[i])) {
-			int fluid_idx = is_inside(m_origin, R, pos_global[i]) ? 0 : 1;
+			fluid_idx = is_inside(m_origin, R, pos_global[i]) ? air : water;
 			// hydrostatic density: for the heavy fluid, this is simply computed
 			// as the density that gives pressure rho g h, with h depth
 			rho = density(depth, fluid_idx);
 			// for the bubble, the hydrostatic density must be computed in a slightly
 			// more complex way:
-			if (fluid_idx == 0) {
+			if (fluid_idx == air) {
 				// interface: depth of center of the bubble corrected by
 				// R^2 - horizontal offset squared
 				// note: no correction by m_origin.z because we are only
@@ -193,16 +200,17 @@ Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 						);
 				// pressure at interface, from heavy fluid
 				float g = length(physparams()->gravity);
-				float P = physparams()->rho0[1]*(H - z_intf)*g;
+				float P = physparams()->rho0[water]*(H - z_intf)*g;
 				// plus hydrostatic pressure from _our_ fluid
-				P += physparams()->rho0[0]*(z_intf - pos_global[i].z + m_origin.z)*g;
-				rho = density_for_pressure(P, 0);
+				P += physparams()->rho0[air]*(z_intf - pos_global[i].z + m_origin.z)*g;
+				rho = density_for_pressure(P, air);
 			}
 			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
 		} else if (BOUNDARY(info[i])) {
-			rho = density(depth, 1);
-			info[i]= make_particleinfo(PT_BOUNDARY, 1, i);
+			rho = density(depth, fluid_idx);
+			info[i]= make_particleinfo(PT_BOUNDARY, fluid_idx, i);
 		}
+		// fix up the particle mass according to the actual density
 		pos[i].w *= rho;
 		vel[i].w = rho;
 	}

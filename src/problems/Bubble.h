@@ -38,6 +38,8 @@ class Bubble: public XProblem {
 		float		R;  // sphere radius
 		double		lx, ly, lz;		// dimension of experiment box
 
+		size_t		air, water; // fluid indices of air and water
+
 	public:
 		Bubble(GlobalData *);
 		void draw_boundary(float);
