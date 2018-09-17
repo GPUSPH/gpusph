@@ -342,9 +342,8 @@ void simulate(GlobalData *gdata)
 	}
 	// finalize everything
 	Simulator->finalize();
-	printf("I am cleaning up guys\n");
-	gdata->cleanup();
-	printf("GlobalData cleaned\n");
+	if (repack_or_run == REPACKING)
+		gdata->cleanup();
 }
 
 int main(int argc, char** argv) {
@@ -436,7 +435,6 @@ int main(int argc, char** argv) {
 	try {
 		if (gdata.clOptions->repack)
 			simulate<REPACKING>(&gdata);
-		printf("Hello\n");
 		if (!gdata.clOptions->repack_only)
 			simulate<STANDARD>(&gdata);
 	} catch (exception &e) {

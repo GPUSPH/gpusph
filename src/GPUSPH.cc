@@ -70,7 +70,7 @@ GPUSPH* GPUSPH::getInstance() {
 	return &instance;
 }
 
-GPUSPH::GPUSPH() 
+GPUSPH::GPUSPH()
 {
 	clOptions = NULL;
 	gdata = NULL;
@@ -346,7 +346,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			if (problem->simparams()->numbodies) {
 				cerr << "WARNING: simulation has rigid bodies and/or moving boundaries, resume will not give identical results" << endl;
 			}
-		} else {	
+		} else {
 			gdata->s_hBuffers.set_state_on_write("resume from repack");
 			gdata->iterations = 0;
 			gdata->dt = hf[0]->get_dt();
@@ -476,7 +476,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			repacked = true;
 		}
 	} else {
-		printf("I am here------------------\n");
 		gdata->keep_repacking = false;
 		gdata->keep_going = true;
 	}
@@ -561,7 +560,7 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 	gdata->commandFlags = flags;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
-	
+
 	if (gdata->clOptions->repack) {
 		if (!repacked && !gdata->keep_repacking)
 			throw runtime_error("GPUSPH repacking aborted by worker thread");
@@ -917,7 +916,7 @@ bool GPUSPH::runRepacking() {
 		// call Integrator -> setNextStep
 
 		// build neighbors list
-		if (gdata->repackIterations % problem->simparams()->buildneibsfreq == 0 ||
+		if (gdata->iterations % problem->simparams()->buildneibsfreq == 0 ||
 				gdata->particlesCreated) {
 			buildNeibList();
 		}
@@ -925,11 +924,11 @@ bool GPUSPH::runRepacking() {
 		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
 
 		// run enabled filters
-		if (gdata->repackIterations > 0) {
+		if (gdata->iterations > 0) {
 			runEnabledFilters(enabledFilters);
 		}
 
-		// run REPACK step 
+		// run REPACK step
 		runRepackingStep(REPACK_STEP);
 
 		// Here the repacking step is complete. All updated values
@@ -943,7 +942,7 @@ bool GPUSPH::runRepacking() {
 			gdata->repackPositiveKe = true;
 
 		// increase counters
-		gdata->repackIterations++;
+		gdata->iterations++;
 		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
 		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
 		if (MULTI_NODE)
@@ -961,26 +960,26 @@ bool GPUSPH::runRepacking() {
 			if (MULTI_NODE)
 				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
-		
+
 		// check that dt is not too small (absolute)
 		if (!gdata->dt) {
 			throw DtZeroException(gdata->t, gdata->dt);
 		} else if (gdata->dt < FLT_EPSILON) {
-			fprintf(stderr, "FATAL: repacking timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->repackIterations);
+			fprintf(stderr, "FATAL: repacking timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
 			gdata->quit_request = true;
 		}
 
-		int repackMaxIter = 1000;
+		int repackMaxIter = 10;
 		float repackMinKe = 100;
 		// are we done?
 		const bool we_are_done =
-			// have we reached the maximum number of repacking iterations? 
-			gdata->repackIterations >= repackMaxIter ||
+			// have we reached the maximum number of repacking iterations?
+			gdata->iterations >= repackMaxIter ||
 			// have we sufficiently decreased the kinetic energy?
 			gdata->repackPositiveKe && ke < repackMinKe ||
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
-		
+
 		if (we_are_done) {
 			printf("Repacking algorithm is finished\n");
 			printStatus();
@@ -993,7 +992,7 @@ bool GPUSPH::runRepacking() {
 		}
 
 		check_write(we_are_done);
-		
+
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata->keep_repacking = false;
@@ -1026,7 +1025,7 @@ bool GPUSPH::runRepacking() {
 	// we wait for the threads to actually exit
 	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
-	
+
 	return (repacked = true);
 }
 
@@ -2146,22 +2145,6 @@ void GPUSPH::printStatus(FILE *out)
 //#undef ti
 }
 
-void GPUSPH::printRepackingStatus(FILE *out)
-{
-	//fprintf(out, "Repacking time t=%es, iteration=%s, dt=%es, total kinetic energy %e, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
-	//		gdata->t, gdata->addSeparators(gdata->repackIterations).c_str(), gdata->dt,
-	//		100,//repack.TotalKE(),
-	//		gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
-	//		m_totalPerformanceCounter->getMIPPS(),
-	//		gdata->lastGlobalPeakFluidBoundaryNeibsNum,
-	//		gdata->lastGlobalPeakVertexNeibsNum
-	//		);
-	//fflush(out);
-	//// output to the info stream is always overwritten
-	//if (out == m_info_stream)
-	//	fseek(out, 0, SEEK_SET);
-}
-
 void GPUSPH::printParticleDistribution()
 {
 	printf("Particle distribution for process %u at iteration %lu:\n", gdata->mpi_rank, gdata->iterations);
@@ -2521,7 +2504,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	if (cFlag & INITIALIZATION_STEP) {
 		// During the simulation, saBoundaryConditions operates on the WRITE buffers, because it's invoked before the post-compute buffer swap,
-		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is 
+		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is
 		// finished they are expected to be in the READ position, so swap them again:
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 	}

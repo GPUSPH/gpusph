@@ -325,7 +325,6 @@ struct GlobalData {
 	bool quit_request;
 	bool save_request;
 	unsigned long iterations;
-	unsigned long repackIterations;
 
 	// on the host, the total simulation time is a double. on the device, it
 	// will be downconverted to a float. this ensures that we can run very long
@@ -401,7 +400,6 @@ struct GlobalData {
 		totDevices(0),
 		problem(NULL),
 		simframework(NULL),
-		allocPolicy(NULL),
 		clOptions(NULL),
 		threadSynchronizer(NULL),
 		networkManager(NULL),
@@ -424,7 +422,6 @@ struct GlobalData {
 		quit_request(false),
 		save_request(false),
 		iterations(0),
-		repackIterations(0),
 		t(0.0),
 		dt(0.0f),
 		lastGlobalPeakFluidBoundaryNeibsNum(0),
@@ -686,9 +683,8 @@ struct GlobalData {
 
 	// function for cleanup between the repacking and the standard run
 	void cleanup() {
-		// TODO fix double pointers resetting	
-		// TODO check s_hBuffers
-		// TODO check s_hPlanes
+		printf("Cleaning GlobalData...\n");
+
 		GPUWORKERS = NULL;
 		threadSynchronizer = NULL;
 
@@ -707,7 +703,7 @@ struct GlobalData {
 		s_hRbAppliedTorque = NULL;
 		s_hRbDeviceTotalForce = NULL;
 		s_hRbDeviceTotalTorque = NULL;
-		
+
 		s_hDeviceMap = NULL;
 		s_hPartsPerSliceAlongX = NULL;
 		s_hPartsPerSliceAlongY = NULL;
@@ -716,12 +712,10 @@ struct GlobalData {
 		s_dCellStarts = NULL;
 		s_dSegmentsStart = NULL;
 
-		delete allocPolicy;
 		allocPolicy = NULL;
-		//delete simframework;
-		//simframework = NULL;
-		//delete problem;
-		//problem = NULL;
+		simframework = NULL;
+		delete problem;
+		problem = NULL;
 		totParticles = 0;
 		numOpenVertices = 0;
 		allocatedParticles = 0;
@@ -733,7 +727,6 @@ struct GlobalData {
 		quit_request = false;
 		save_request = false;
 		iterations = 0;
-		repackIterations = 0;
 		t = 0.0;
 		dt = 0.0f;
 		lastGlobalPeakFluidBoundaryNeibsNum = 0;
@@ -743,7 +736,6 @@ struct GlobalData {
 		repackPositiveKe = false;
 		nextCommand = IDLE;
 		commandFlags = NO_FLAGS;
-		//TODO extraCommandArg? 
 	}
 };
 

@@ -397,7 +397,6 @@ public:
 		map_type::iterator buf = m_map.begin();
 		while (buf != m_map.end()) {
 			delete buf->second;
-			buf->second = NULL;
 			++buf;
 		}
 		m_map.clear();
