@@ -32,9 +32,6 @@ void Repacking::Init( GPUSPH* _gpusph, GlobalData* _gdata, Problem* _problem )
 	gpusph = _gpusph;
 	problem = _problem;
 
-	if (problem->simparams()->simflags & !ENABLE_REPACKING)
-		return;
-
 	printf( "Repacking algorithm initialization\n" );
 
 	std::string data_file_name = GetFileName(true);
@@ -124,9 +121,6 @@ float Repacking::TotalKE() const
 */
 bool Repacking::SetParams()
 {
-	if (problem->simparams()->simflags & !ENABLE_REPACKING)
-		return false;
-
 	//bool canReuseData = ( (gdata->repack_flags & REPACK_REUSE) != 0 );
 
 	//if( !canReuseData )
@@ -172,9 +166,6 @@ bool Repacking::SetParams()
 */
 bool Repacking::Start()
 {
-	if (problem->simparams()->simflags & !ENABLE_REPACKING)
-		return false;
-
 	printf( "Repacking starts\n" );
 	//bool canReuseData = ( (gdata->repack_flags & REPACK_REUSE) != 0 );
 
@@ -195,9 +186,6 @@ bool Repacking::Start()
 */
 void Repacking::Stop()
 {
-	if (problem->simparams()->simflags & !ENABLE_REPACKING)
-		return;
- 
 	std::string data_file_name = GetFileName(true);
 	std::string conf_file_name = GetFileName(false);
 

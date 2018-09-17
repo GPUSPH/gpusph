@@ -2145,7 +2145,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		bufwrite.clear_pending_state();
 		return ret;
 	} else {
-		bufwrite.add_state_on_write("forces_repack" + to_string(step));
+		bufwrite.add_state_on_write("forces_repack");
 
 		auto ret = forcesEngine->repackstep(
 				m_dBuffers.getReadBufferList(),
@@ -2460,7 +2460,7 @@ void GPUWorker::kernel_euler()
 				m_simparams->influenceRadius);
 		bufwrite.clear_pending_state();
 	} else {
-		bufwrite.add_state_on_write("euler_repack" + to_string(step));
+		bufwrite.add_state_on_write("euler_repack");
 
 		integrationEngine->repackstep(
 				m_dBuffers.getReadBufferList(),	// this is the read only arrays

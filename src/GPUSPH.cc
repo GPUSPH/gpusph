@@ -185,10 +185,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// initial dt (or, just dt in case adaptive is disabled)
 	gdata->dt = _sp->dt;
 
-	// Initialization necessary for repacking mode
-	if (_sp->simflags & ENABLE_REPACKING)
-		repack.Init( this, gdata, problem );
-
 	printf("Generating problem particles...\n");
 
 	ifstream *hot_in = NULL;
@@ -455,7 +451,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO
 	//		// > new Integrator
 
-	repack.SetParams();
+	//if (gdata->clOptions->repack)
+	//	repack.SetParams();
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
@@ -469,8 +466,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 
 	// Prepare for repacking if necessary
-	if (_sp->simflags & ENABLE_REPACKING && !repacked) {
-		gdata->keep_repacking = repack.Start();
+	if ((gdata->clOptions->repack || !gdata->clOptions->repack_fname.empty()) && !repacked) {
+		gdata->keep_repacking = true;//repack.Start();
 		gdata->keep_going = false;
 		// If previous repack results are read, do not repack
 		if (!gdata->keep_repacking) {
@@ -479,6 +476,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			repacked = true;
 		}
 	} else {
+		printf("I am here------------------\n");
 		gdata->keep_repacking = false;
 		gdata->keep_going = true;
 	}
@@ -564,7 +562,7 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 	
-	if (gdata->problem->simparams()->simflags & ENABLE_REPACKING) {
+	if (gdata->clOptions->repack) {
 		if (!repacked && !gdata->keep_repacking)
 			throw runtime_error("GPUSPH repacking aborted by worker thread");
 		if (repacked && !gdata->keep_going)
@@ -903,7 +901,7 @@ bool GPUSPH::runRepacking() {
 		m_multiNodePerformanceCounter->start();
 
 	// write some info. This could replace "Entering the main simulation cycle"
-	printRepackingStatus();
+	printStatus();
 
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 
@@ -914,7 +912,7 @@ bool GPUSPH::runRepacking() {
 	// the loop from issuing subsequent commands; hence, the body consists of a
 	// try/catch block --------v-----
 	while (gdata->keep_repacking) try {
-		printRepackingStatus(m_info_stream);
+		printStatus(m_info_stream);
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
 
@@ -940,7 +938,7 @@ bool GPUSPH::runRepacking() {
 		markIntegrationStep("repack", BUFFER_VALID, "n", BUFFER_VALID);
 		// End of repacking step
 
-		float ke = repack.TotalKE();
+		float ke = 100;//repack.TotalKE();
 		if (ke>0)
 			gdata->repackPositiveKe = true;
 
@@ -985,7 +983,7 @@ bool GPUSPH::runRepacking() {
 		
 		if (we_are_done) {
 			printf("Repacking algorithm is finished\n");
-			printRepackingStatus();
+			printStatus();
 			gdata->t = -1.;
 			// Disable free surface boundary particles
 			printf("Disable free-surface particles\n");
@@ -2150,18 +2148,18 @@ void GPUSPH::printStatus(FILE *out)
 
 void GPUSPH::printRepackingStatus(FILE *out)
 {
-	fprintf(out, "Repacking time t=%es, iteration=%s, dt=%es, total kinetic energy %e, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
-			gdata->t, gdata->addSeparators(gdata->repackIterations).c_str(), gdata->dt,
-			repack.TotalKE(),
-			gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
-			m_totalPerformanceCounter->getMIPPS(),
-			gdata->lastGlobalPeakFluidBoundaryNeibsNum,
-			gdata->lastGlobalPeakVertexNeibsNum
-			);
-	fflush(out);
-	// output to the info stream is always overwritten
-	if (out == m_info_stream)
-		fseek(out, 0, SEEK_SET);
+	//fprintf(out, "Repacking time t=%es, iteration=%s, dt=%es, total kinetic energy %e, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
+	//		gdata->t, gdata->addSeparators(gdata->repackIterations).c_str(), gdata->dt,
+	//		100,//repack.TotalKE(),
+	//		gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
+	//		m_totalPerformanceCounter->getMIPPS(),
+	//		gdata->lastGlobalPeakFluidBoundaryNeibsNum,
+	//		gdata->lastGlobalPeakVertexNeibsNum
+	//		);
+	//fflush(out);
+	//// output to the info stream is always overwritten
+	//if (out == m_info_stream)
+	//	fseek(out, 0, SEEK_SET);
 }
 
 void GPUSPH::printParticleDistribution()
@@ -2611,7 +2609,7 @@ void GPUSPH::check_write(bool we_are_done)
 				}
 				if (force_write || maxfreq > 0) {
 					if (gdata->keep_repacking)
-						printRepackingStatus();
+						printStatus();
 					else
 						printStatus();
 

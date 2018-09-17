@@ -104,6 +104,9 @@ void print_usage() {
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
 	cout << " --debug : enable debug flags FLAGS\n";
 #include "describe-debugflags.h"
+	cout << " --repack : run the repacking before the simulation, beware to enable repacking in the simulation framework\n";
+	cout << " --repack-only : run the repacking and stop\n";
+	cout << " --from-repack : run from a previous repack file\n";
 	cout << " --help: Show this help and exit\n";
 }
 
@@ -224,6 +227,14 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			gdata->debug = parse_debug_flags(*argv);
 			argv++;
 			argc--;
+		} else if (!strcmp(arg, "--repack")) {
+			_clOptions->repack = true;
+		} else if (!strcmp(arg, "--repack-only")) {
+			_clOptions->repack_only = true;
+		} else if (!strcmp(arg, "--from-repack")) {
+			_clOptions->repack_fname = string(*argv);
+			argv++;
+			argc--;
 		} else if (!strcmp(arg, "--help")) {
 			print_usage();
 			return 0;
@@ -297,13 +308,50 @@ void sigusr1_handler(int signum) {
 	gdata_static_pointer->save_request = true;
 }
 
+enum RunMode {
+		REPACKING,
+		STANDARD
+};
+
+template<RunMode repack_or_run>
+void simulate(GlobalData *gdata)
+{
+	// the Problem could (should?) be initialized inside GPUSPH::initialize()
+	gdata->problem = new PROBLEM(gdata);
+	if (gdata->problem->simframework())
+		gdata->simframework = gdata->problem->simframework();
+	else
+		throw invalid_argument("no simulation framework defined in the problem!");
+	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
+
+	// get - and actually instantiate - the existing instance of GPUSPH
+	GPUSPH *Simulator = GPUSPH::getInstance();
+
+	// initialize CUDA, start workers, allocate CPU and GPU buffers
+	bool initialized  = Simulator->initialize(gdata);
+
+	if (!initialized)
+		throw runtime_error("GPUSPH: problem during initialization");
+
+	printf("GPUSPH: initialized\n");
+
+	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
+	switch (repack_or_run) {
+		case REPACKING: Simulator->runRepacking(); break;
+		case STANDARD: Simulator->runSimulation(); break;
+	}
+	// finalize everything
+	Simulator->finalize();
+	printf("I am cleaning up guys\n");
+	gdata->cleanup();
+	printf("GlobalData cleaned\n");
+}
+
 int main(int argc, char** argv) {
 	if (!check_short_length()) {
 		printf("Fatal: this architecture does not have uint = 2 short\n");
 		exit(1);
 	}
-
-
 
 	GlobalData gdata;
 	gdata_static_pointer = &gdata;
@@ -385,56 +433,12 @@ int main(int argc, char** argv) {
 
 	}
 
-	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	try {
-		gdata.problem = new PROBLEM(&gdata);
-		if (gdata.problem->simframework())
-			gdata.simframework = gdata.problem->simframework();
-		else
-			throw invalid_argument("no simulation framework defined in the problem!");
-		gdata.allocPolicy = gdata.simframework->getAllocPolicy();
-
-		if (gdata.problem->simparams()->simflags & ENABLE_REPACKING) {
-
-			// get - and actually instantiate - the existing instance of GPUSPH
-			GPUSPH *Simulator = GPUSPH::getInstance();
-
-			// initialize CUDA, start workers, allocate CPU and GPU buffers
-			bool initialized  = Simulator->initialize(&gdata);
-
-			if (!initialized)
-				throw runtime_error("GPUSPH: problem during initialization");
-
-			printf("GPUSPH: initialized\n");
-
-			// run the repacking until a quit request is triggered or an exception is thrown (TODO)
-			bool repacked = Simulator->runRepacking();
-			if (!repacked)
-				throw runtime_error("GPUSPH: problem during repacking");
-
-			printf("GPUSPH: repacked\n");
-
-			// finalize everything
-			Simulator->finalize();
-		}
-		//if (!repack_only) {
-			// get - and actually instantiate - the existing instance of GPUSPH
-			GPUSPH *Simulator = GPUSPH::getInstance();
-
-			// initialize CUDA, start workers, allocate CPU and GPU buffers
-			bool initialized  = Simulator->initialize(&gdata);
-
-			if (!initialized)
-				throw runtime_error("GPUSPH: problem during initialization");
-
-			printf("GPUSPH: initialized\n");
-
-			// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-			Simulator->runSimulation();
-
-			// finalize everything
-			Simulator->finalize();
-		//}
+		if (gdata.clOptions->repack)
+			simulate<REPACKING>(&gdata);
+		printf("Hello\n");
+		if (!gdata.clOptions->repack_only)
+			simulate<STANDARD>(&gdata);
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata.ret = 1;

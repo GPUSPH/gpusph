@@ -67,6 +67,10 @@ public:
 	unsigned int num_hosts; ///< number of physical hosts to which the processes are being assigned
 	bool byslot_scheduling; ///< by slot scheduling across MPI nodes (not round robin)
 	bool no_leak_warning; ///< if true, do not warn if #parts decreased in simulations without outlets
+	bool repack; ///< if true, run the repacking before the simulation
+	bool repack_only; ///< if true, run the repacking only and quit
+	std::string repack_fname; ///< repack file to resume simulation from
+
 	//! @}
 
 	Options(void) :
@@ -87,7 +91,10 @@ public:
 		asyncNetworkTransfers(false),
 		num_hosts(0),
 		byslot_scheduling(false),
-		no_leak_warning(false)
+		no_leak_warning(false),
+		repack(false),
+		repack_only(false),
+		repack_fname()
 	{};
 
 	//! set an arbitrary option

@@ -401,6 +401,7 @@ struct GlobalData {
 		totDevices(0),
 		problem(NULL),
 		simframework(NULL),
+		allocPolicy(NULL),
 		clOptions(NULL),
 		threadSynchronizer(NULL),
 		networkManager(NULL),
@@ -681,6 +682,68 @@ struct GlobalData {
 					}
 		fclose(fid);
 		printf(" > compact device map dumped to file %s\n",fname.c_str());
+	}
+
+	// function for cleanup between the repacking and the standard run
+	void cleanup() {
+		// TODO fix double pointers resetting	
+		// TODO check s_hBuffers
+		// TODO check s_hPlanes
+		GPUWORKERS = NULL;
+		threadSynchronizer = NULL;
+
+		s_hRbCgGridPos = NULL;
+		s_hRbCgPos = NULL;
+		s_hRbTranslations = NULL;
+		s_hRbLinearVelocities = NULL;
+		s_hRbAngularVelocities = NULL;
+		s_hRbRotationMatrices = NULL;
+
+		s_hRbFirstIndex = NULL;
+		s_hRbLastIndex = NULL;
+		s_hRbTotalForce = NULL;
+		s_hRbAppliedForce = NULL;
+		s_hRbTotalTorque = NULL;
+		s_hRbAppliedTorque = NULL;
+		s_hRbDeviceTotalForce = NULL;
+		s_hRbDeviceTotalTorque = NULL;
+		
+		s_hDeviceMap = NULL;
+		s_hPartsPerSliceAlongX = NULL;
+		s_hPartsPerSliceAlongY = NULL;
+		s_hPartsPerSliceAlongZ = NULL;
+		s_dCellEnds = NULL;
+		s_dCellStarts = NULL;
+		s_dSegmentsStart = NULL;
+
+		delete allocPolicy;
+		allocPolicy = NULL;
+		//delete simframework;
+		//simframework = NULL;
+		//delete problem;
+		//problem = NULL;
+		totParticles = 0;
+		numOpenVertices = 0;
+		allocatedParticles = 0;
+		nGridCells = 0;
+		particlesCreated = false;
+		createdParticlesIterations = 0;
+		keep_repacking = false;
+		keep_going = true;
+		quit_request = false;
+		save_request = false;
+		iterations = 0;
+		repackIterations = 0;
+		t = 0.0;
+		dt = 0.0f;
+		lastGlobalPeakFluidBoundaryNeibsNum = 0;
+		lastGlobalPeakVertexNeibsNum = 0;
+		lastGlobalNumInteractions = 0;
+		only_internal = false;
+		repackPositiveKe = false;
+		nextCommand = IDLE;
+		commandFlags = NO_FLAGS;
+		//TODO extraCommandArg? 
 	}
 };
 
