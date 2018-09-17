@@ -895,7 +895,7 @@ bool GPUSPH::runSimulation() {
 		if (we_are_done)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
-	} catch (exception &e) {
+	} catch (exception const& e) {
 		cerr << e.what() << endl;
 		gdata->keep_going = false;
 		// the loop is being ended by some exception, so we cannot guarantee that

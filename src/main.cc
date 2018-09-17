@@ -398,7 +398,7 @@ int main(int argc, char** argv) {
 
 		// finalize everything
 		Simulator->finalize();
-	} catch (exception &e) {
+	} catch (exception const& e) {
 		cerr << e.what() << endl;
 		gdata.ret = 1;
 	}
