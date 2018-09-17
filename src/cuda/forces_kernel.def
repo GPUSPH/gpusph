@@ -1742,15 +1742,13 @@ enable_if_t<
 compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-        //here our_rho and neib_rho are relative. The conversion is carried 
-        //out in forces_kernel.cu
-	const float our_rho = pdata.vel.w;
-	const float neib_rho = ndata.relVel.w;
+	const float our_rho_abs = absolute_density(pdata.vel.w,fluid_num(pdata.info));
+	const float neib_rho_abs = absolute_density(ndata.relVel.w,fluid_num(ndata.info));
 	const float our_visc = d_visccoeff[fluid_num(pdata.info)];
 	const float neib_visc = d_visccoeff[fluid_num(ndata.info)];
 
-	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
-			our_visc*absolute_density(our_rho,fluid_num(pdata.info)), neib_visc*absolute_density(neib_rho,fluid_num(ndata.info))));
+	const float visc(laminarvisc_dynamic(our_rho_abs, neib_rho_abs, ndata.relPos.w, ndata.f,
+			our_visc*our_rho_abs, neib_visc*neib_rho_abs));
 	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
@@ -1847,15 +1845,13 @@ enable_if_t<
 compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-        //here our_rho and neib_rho are relative. The conversion is carried 
-        //out in forces_kernel.cu
-	const float our_rho = pdata.vel.w;
-	const float neib_rho = ndata.relVel.w;
+	const float our_rho_abs = absolute_density(pdata.vel.w,fluid_num(pdata.info));
+	const float neib_rho_abs = absolute_density(ndata.relVel.w,fluid_num(ndata.info));
 	const float our_visc = d_visccoeff[fluid_num(pdata.info)]+pdata.turbViscForViscTerm;
 	const float neib_visc = d_visccoeff[fluid_num(ndata.info)]+ndata.turbViscForViscTerm;
 
-	const float visc(laminarvisc_dynamic(our_rho, neib_rho, ndata.relPos.w, ndata.f,
-		our_visc*absolute_density(our_rho,fluid_num(pdata.info)), neib_visc*absolute_density(neib_rho,fluid_num(ndata.info))));
+	const float visc(laminarvisc_dynamic(our_rho_abs, neib_rho_abs, ndata.relPos.w, ndata.f,
+		our_visc*our_rho_abs, neib_visc*neib_rho_abs));
 	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
@@ -1879,7 +1875,10 @@ enable_if_t<
 compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	const float visc(laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f));
+	const float our_rho_abs = absolute_density(pdata.vel.w,fluid_num(pdata.info));
+	const float neib_rho_abs = absolute_density(ndata.relVel.w,fluid_num(ndata.info));
+
+	const float visc(laminarvisc_kinematic(our_rho_abs, neib_rho_abs, ndata.relPos.w, ndata.f));
 	nout.DvDt += visc*as_float3(get_viscous_relVel(ndata));
 }
 
@@ -1914,7 +1913,11 @@ compute_viscous_contrib
 		(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.x +
 		(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.y +
 		(pdata.tau.zz + ndata.tau.zz)*ndata.relPos.z);
-	const float visc(laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f));
+
+	const float our_rho_abs = absolute_density(pdata.vel.w,fluid_num(pdata.info));
+	const float neib_rho_abs = absolute_density(ndata.relVel.w,fluid_num(ndata.info));
+
+	const float visc(laminarvisc_kinematic(our_rho_abs, neib_rho_abs, ndata.relPos.w, ndata.f));
 	nout.DvDt += visc*as_float3(ndata.relVel);
 }
 
@@ -1939,7 +1942,11 @@ compute_viscous_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	if (ndata.vel_dot_pos < 0.0f){
-		const float visc = artvisc(ndata.vel_dot_pos, pdata.vel.w, ndata.relVel.w,
+
+		const float our_rho_abs = absolute_density(pdata.vel.w,fluid_num(pdata.info));
+		const float neib_rho_abs = absolute_density(ndata.relVel.w,fluid_num(ndata.info));
+
+		const float visc = artvisc(ndata.vel_dot_pos, our_rho_abs, neib_rho_abs,
 			pdata.sspeed, ndata.sspeed, ndata.r, params.slength);
 		// note that here we use the position difference and not the velocity difference
 		nout.DvDt += visc*as_float3(ndata.relPos)*ndata.relPos.w*ndata.f;

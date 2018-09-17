@@ -134,23 +134,17 @@ MKForce(const float r, const float slength,
 //! Artificial viscosity
 __device__ __forceinline__ float
 artvisc(	const float	vel_dot_pos,
-			const float	rho_tilde,
-			const float	neib_rho_tilde,
-			const float	sspeed_tilde,
-			const float	neib_sspeed_tilde,
+			const float	rho_abs,
+			const float	neib_rho_abs,
+			const float	sspeed,
+			const float	neib_sspeed,
 			const float	r,
 			const float	slength)
 {
 	// TODO check if it makes sense to support different artificial viscosity coefficients
 	// for different fluids
-	// TODO Multi fluid case : pass part/neib info
 
-	const float rho = absolute_density(rho_tilde, 0);
-	const float neib_rho = absolute_density(neib_rho_tilde, 0);
-	const float sspeed = soundSpeed(rho_tilde, 0);
-	const float neib_sspeed = soundSpeed(neib_rho_tilde, 0);
-
- return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/((r*r + d_epsartvisc)*(rho + neib_rho));
+ return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/((r*r + d_epsartvisc)*(rho_abs + neib_rho_abs));
 
 }
 
@@ -166,8 +160,8 @@ artvisc(	const float	vel_dot_pos,
  returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
 */
 __device__ __forceinline__ float
-laminarvisc_kinematic(	const float	rho_tilde,
-						const float	neib_rho_tilde,
+laminarvisc_kinematic(	const float	rho_abs,
+						const float	neib_rho_abs,
 						const float	neib_mass,
 						const float	f)
 {
@@ -176,10 +170,7 @@ laminarvisc_kinematic(	const float	rho_tilde,
 	// with multi-fluid (or at least if fluids don't have the same, constant
 	// viscosity
 
-	const float rho = absolute_density(rho_tilde, 0);
-	const float neib_rho = absolute_density(neib_rho_tilde, 0);
-
-	return neib_mass*d_visccoeff[0]*f/(rho + neib_rho);
+	return neib_mass*d_visccoeff[0]*f/(rho_abs + neib_rho_abs);
 }
 
 
@@ -190,18 +181,16 @@ laminarvisc_kinematic(	const float	rho_tilde,
  returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
 */
 __device__ __forceinline__ float
-laminarvisc_dynamic(const float	rho_tilde,
-					const float	neib_rho_tilde,
+laminarvisc_dynamic(const float	rho_abs,
+					const float	neib_rho_abs,
 					const float	neib_mass,
 					const float	f,
 					const float	visc,
 					const float	neib_visc)
 {
 
-	const float rho = absolute_density(rho_tilde, 0);
-	const float neib_rho = absolute_density(neib_rho_tilde, 0);
 
-	return neib_mass*(visc + neib_visc)*f/(rho*neib_rho);
+	return neib_mass*(visc + neib_visc)*f/(rho_abs*neib_rho_abs);
 }
 /************************************************************************************************************/
 

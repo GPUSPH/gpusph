@@ -52,6 +52,7 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	// TODO GAUSSIAN kernel of radius 3
 	SETUP_FRAMEWORK(
 		formulation<SPH_GRENIER>,
+		//formulation<SPH_F2>,
 		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
 		flags<ENABLE_DTADAPT | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
@@ -211,8 +212,17 @@ Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 			info[i]= make_particleinfo(PT_BOUNDARY, fluid_idx, i);
 		}
 		// fix up the particle mass according to the actual density
-		pos[i].w *= rho;
+		pos[i].w *= absolute_density(rho,fluid_idx);
 		vel[i].w = rho;
 	}
 }
+
+
+bool Bubble::need_write(double t) const
+{
+ 	return 0;
+}
+
+
+
 
