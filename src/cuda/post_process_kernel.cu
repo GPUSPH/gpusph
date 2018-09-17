@@ -260,7 +260,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		return;
 
 	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	particleinfo info = tex1Dfetch(infoTex, index);
 
 	#if PREFER_L1
 	const float4 pos = posArray[index];

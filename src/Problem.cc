@@ -689,20 +689,17 @@ Problem::density(float h, int i) const    // here we initialize rho_tilde = dens
 	if (h > 0) {
 		float g = fabsf(length(physparams()->gravity));
 		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
-		density = pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
-				1/physparams()->gammacoeff[i])-1.0;
+		density = pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,1/physparams()->gammacoeff[i])-1.0;
 
 		}
 
 	return density;
 }
 
-// TODO : density to achieve a specific pressure 
 float
 Problem::density_for_pressure(float P, int i) const
 {
-	return  physparams()->rho0[i]*pow(P/physparams()->bcoeff[i] + 1,
-				1/physparams()->gammacoeff[i]);
+	return  pow(P/physparams()->bcoeff[i] + 1,1/physparams()->gammacoeff[i])-1.0;
 }
 
 float
@@ -1370,11 +1367,13 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 	const float4 *vel = buffers.getConstData<BUFFER_VEL>();
 	float4 *vol = buffers.getData<BUFFER_VOLUME>();
 
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+
 	for (uint i = 0; i < numParticles; ++i) {
 		float4 pvol;
 		// .x: initial volume, .w current volume.
 		// at the beginning they are both equal to mass/density
-		pvol.x = pvol.w = pos[i].w/absolute_density(vel[i].w,0);
+		pvol.x = pvol.w = pos[i].w/absolute_density(vel[i].w,fluid_num(info[i]));
 		// .y is the log of current/initial
 		pvol.y = 0;
 		// .z is unused, set to zero
