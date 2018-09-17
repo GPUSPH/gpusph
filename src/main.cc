@@ -141,31 +141,13 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--device")) {
-			/* read the next arg as a list of integers */
-			char * pch;
-			pch = strtok (*argv,",");
-			while (pch != NULL) {
-				//printf ("%s\n",pch);
-				if (gdata->devices==MAX_DEVICES_PER_NODE) {
-					printf("WARNING: devices exceeding number %u will be ignored\n",
-						gdata->device[MAX_DEVICES_PER_NODE-1]);
-					break;
-				} else {
-					// inc _clOptions->devices only if scanf was successful
-					if (sscanf(pch, "%u", &(gdata->device[gdata->devices]))>0) {
-						gdata->devices++;
-						gdata->totDevices++;
-					} else {
-						printf("WARNING: token %s is not a number - ignored\n", pch);
-						//break;
-					}
-				}
-				pch = strtok (NULL, " ,.-");
-			}
-			if (gdata->devices<1) {
-				fprintf(stderr, "ERROR: --device option given, but no device specified\n");
-				return -EINVAL;
-			}
+			/* parse the argument as a device list, and append it to any previously
+			 * added devices */
+			auto devs = parse_devices_string(*argv);
+			if (devs.empty())
+				throw std::out_of_range("--device option given, but no device specified");
+			_clOptions->devices.insert(_clOptions->devices.end(),
+					devs.begin(), devs.end());
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--deltap")) {
@@ -246,14 +228,21 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		}
 	}
 
-	if (gdata->devices==0) {
-		printf(" * No devices specified, falling back to default (dev 0)...\n");
-		// default: use first device. May use cutGetMaxGflopsDeviceId() instead.
-		gdata->device[gdata->devices++] = 0;
+	// If no --device was specified by the user, get the default device(s)
+	if (_clOptions->devices.empty()) {
+		_clOptions->devices = get_default_devices();
 	}
 
-	// only for single-gpu
-	_clOptions->device = gdata->device[0];
+	for (auto dev : _clOptions->devices) {
+		if (gdata->devices == MAX_DEVICES_PER_NODE) {
+			printf("WARNING: devices exceeding number %u will be ignored\n",
+					gdata->device[MAX_DEVICES_PER_NODE-1]);
+			break;
+		}
+		gdata->device[gdata->devices] = dev;
+		++gdata->devices;
+		++gdata->totDevices;
+	}
 
 	_clOptions->problem = string( QUOTED_PROBLEM );
 
@@ -411,7 +400,7 @@ int main(int argc, char** argv) {
 
 		// finalize everything
 		Simulator->finalize();
-	} catch (exception &e) {
+	} catch (exception const& e) {
 		cerr << e.what() << endl;
 		gdata.ret = 1;
 	}

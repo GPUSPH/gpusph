@@ -3131,7 +3131,7 @@ struct density_diffusion_neib_output :
 /**! Return in DrDt the contribution to the density diffusion from all neighbors of type nptype.
  * The logic is the same for all neighbors type, with the following exceptions;
  *
- * VERTEX particles only contribue in the SA_BOUNDARY case,
+ * VERTEX particles only contribute in the SA_BOUNDARY case,
  * since they are not defined otherwise.
  *
  * Per Ferrand et al. (CPC 2017), (solid wall) BOUNDARY particles do not contribute.
