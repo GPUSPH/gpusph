@@ -40,7 +40,8 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 			kernel<WENDLAND>,
 			viscosity<KINEMATICVISC>,
 			boundary<DYN_BOUNDARY>,
-			periodicity<PERIODIC_Y>
+			periodicity<PERIODIC_Y>,
+			disable_flags<ENABLE_DTADAPT>
 			);
 
   // Size and origin of the simulation domain

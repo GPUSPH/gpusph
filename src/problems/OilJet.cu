@@ -32,7 +32,8 @@ OilJet::OilJet(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		formulation<SPH_GRENIER>,
 		viscosity<DYNAMICVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		disable_flags<ENABLE_DTADAPT>
 	);
 
 	set_deltap(0.05f);  // 0.05 is minimum to have 3 layers of particles in the cylinder

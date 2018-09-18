@@ -296,7 +296,7 @@ struct TypeDefaults
 	typedef TypeValue<ViscosityType, ARTVISC> Viscosity;
 	typedef TypeValue<BoundaryType, LJ_BOUNDARY> Boundary;
 	typedef TypeValue<Periodicity, PERIODIC_NONE> Periodic;
-	typedef TypeValue<flag_t, ENABLE_NONE> Flags;
+	typedef TypeValue<flag_t, DEFAULT_FLAGS> Flags;
 };
 
 // The user-visible name template parameters will all subclass TypeDefaults,
@@ -373,7 +373,11 @@ struct periodicity : virtual public ParentArgs
 		virtual public periodicity<periodicbound, NewParent> {};
 };
 
+#if 0
 // Flags override
+// These are disabled because problems should only use
+// add_flags<> and disable_flags<>, in order to avoid issues
+// when new default flags get introduced for backwards compatibility
 template<flag_t simflags, typename ParentArgs=TypeDefaults>
 struct flags : virtual public ParentArgs
 {
@@ -382,6 +386,7 @@ struct flags : virtual public ParentArgs
 	template<typename NewParent> struct reparent :
 		virtual public flags<simflags, NewParent> {};
 };
+#endif
 
 // Add flags: this is an override that adds the new simflags
 // to the ones of the parent.

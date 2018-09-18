@@ -89,4 +89,7 @@
 /// Disable individual flags in a given field
 #define DISABLE_FLAGS(field, flags) ((field) & ~(flags))
 
+/// The flags enabled by default
+#define DEFAULT_FLAGS ENABLE_DTADAPT
+
 #endif

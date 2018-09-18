@@ -55,8 +55,9 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 		//viscosity<KINEMATICVISC>,
 		viscosity<DYNAMICVISC>,
 		//viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>
-		//boundary<LJ_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		//boundary<LJ_BOUNDARY>,
+		disable_flags<ENABLE_DTADAPT>
 	).select_options(
 		rhodiff == FERRARI, densitydiffusion<FERRARI>(),
 		rhodiff == COLAGROSSI, densitydiffusion<COLAGROSSI>(),

@@ -17,7 +17,7 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 		periodicity<PERIODIC_NONE>,
 		kernel<WENDLAND>,
 		densitydiffusion<FERRARI>,
-		add_flags<ENABLE_DTADAPT | ENABLE_GAMMA_QUADRATURE>
+		add_flags<ENABLE_GAMMA_QUADRATURE>
 	);
 
 	set_deltap(0.02715f);
