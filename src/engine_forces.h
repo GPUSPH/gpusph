@@ -172,8 +172,6 @@ public:
 	repackstep(
 		const BufferList& bufread,
 		BufferList& bufwrite,
-				float4	*rbforces,
-				float4	*rbtorques,
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	fromParticle,
@@ -183,11 +181,8 @@ public:
 				float	dtadaptfactor,
 				float	influenceradius,
 		const	float	epsilon,
-				uint	*IOwaterdepth,
 				uint	cflOffset,
-		const	uint	step,
-		const	float	dt,
-		const	bool compute_object_forces) = 0;
+		const	float	dt) = 0;
 
 	// Reduction methods
 

@@ -2150,8 +2150,6 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		auto ret = forcesEngine->repackstep(
 				m_dBuffers.getReadBufferList(),
 				bufwrite,
-				m_dRbForces,
-				m_dRbTorques,
 				m_dCellStart,
 				m_numParticles,
 				fromParticle,
@@ -2161,11 +2159,8 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 				m_simparams->dtadaptfactor,
 				m_simparams->influenceRadius,
 				m_simparams->epsilon,
-				m_dIOwaterdepth,
 				cflOffset,
-				2, //repack as if in step 2
-				gdata->dt,
-				(m_simparams->numforcesbodies > 0) ? true : false);
+				gdata->dt);
 		bufwrite.clear_pending_state();
 		return ret;
 	}
