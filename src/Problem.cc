@@ -98,8 +98,15 @@ Problem::initialize()
 	/* Set ARTVISC epsilon to h^2/10 if not set by the user.
 	 * For simplicity, we do this regardless of the viscosity model used,
 	 * it'll just be ignored otherwise */
-	if (isnan(physparams()->epsartvisc))
+	if (simparams()->visctype == ARTVISC && isnan(physparams()->epsartvisc)){
 		physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+		printf("ARTVISC epsilon is not set, using default value: %e\n", physparams()->epsartvisc);		
+	}
+
+	if (simparams()->sph_formulation == SPH_GRENIER && isnan(physparams()->epsinterface)){
+		physparams()->epsinterface = 0.05;
+		printf("Grenier's interface epsilon is not set, using default value: %e\n", physparams()->epsinterface);
+	}
 
 	create_problem_dir();
 
