@@ -26,6 +26,9 @@ unsigned neibs : 1;
 /// debug forces on host
 unsigned forces : 1;
 
+/// debug relative density variation on host
+unsigned relative_density : 1;
+
 /// inspect pre-force particle status
 unsigned inspect_preforce : 1;
 
