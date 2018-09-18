@@ -181,8 +181,18 @@ class Problem {
 
 		uint3 const& get_gridsize(void) const
 		{ return m_gridsize; }
-		float density(float, int) const;
-		float density_for_pressure(float, int) const;
+
+		//! Compute the hydrostatic density
+		/*! Compute the hydrostatic density for depth h
+		 * and fluid number i
+		 */
+		float density(float h, int i) const;
+
+		//! Inverse equation of state
+		/*! Compute the density needed to achieve pressure P
+		 * for fluid number i
+		 */
+		float density_for_pressure(float P, int i) const;
 
 		float pressure(float, int) const;
 
