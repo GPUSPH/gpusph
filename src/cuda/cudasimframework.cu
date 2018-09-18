@@ -394,6 +394,18 @@ struct add_flags : virtual public ParentArgs
 		virtual public add_flags<simflags, NewParent> {};
 };
 
+// Disable flags: this is an override that removes the given simflags
+// from the ones of the parent
+template<flag_t simflags, typename ParentArgs=TypeDefaults>
+struct disable_flags : virtual public ParentArgs
+{
+	typedef TypeValue<flag_t, DISABLE_FLAGS(ParentArgs::Flags::value, simflags)> Flags;
+
+	template<typename NewParent> struct reparent :
+		virtual public add_flags<simflags, NewParent> {};
+};
+
+
 /// We want to give users the possibility to change options (e.g. enable flags)
 /// conditionally at runtime. For this, we need a way to pack collection of
 /// overrides to be selected by a switch statement (currently limited to three

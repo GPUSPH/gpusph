@@ -36,7 +36,6 @@
 
 //! No options
 #define ENABLE_NONE				0UL
-#define DISABLE_ALL_SIMFLAGS	(ENABLE_NONE)
 
 //! Adaptive timestepping
 #define ENABLE_DTADAPT			1UL
@@ -86,5 +85,8 @@
 #define QUERY_ALL_FLAGS(field, flags)	(((field) & (flags)) == (flags))
 /// General query that identifies whether at least one flag in field is set
 #define QUERY_ANY_FLAGS(field, flags)	((field) & (flags))
+
+/// Disable individual flags in a given field
+#define DISABLE_FLAGS(field, flags) ((field) & ~(flags))
 
 #endif
