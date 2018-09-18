@@ -682,9 +682,9 @@ Problem::check_neiblistsize(void)
 
 
 float
-Problem::density(float h, int i) const
+Problem::hydrostatic_density(float h, int i) const
 {
-	float density = physparams()->rho0[i];
+	float density = atrest_density(i);
 
 	if (h > 0) {
 		float g = fabsf(length(physparams()->gravity));

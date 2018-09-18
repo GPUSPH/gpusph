@@ -113,7 +113,7 @@ DynBoundsExample::initializeParticles(BufferList &buffers, const uint numParticl
 		// 5. set in loco the desired values
 		float ht = m_origin.z + H+2*w - pos[i].z;
 		ht *= cos(alpha);
-		vel[i].w = density(ht, 0);
+		vel[i].w = hydrostatic_density(ht, 0);
 	}
 }
 

@@ -186,7 +186,7 @@ Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 			fluid_idx = is_inside(m_origin, R, pos_global[i]) ? air : water;
 			// hydrostatic density: for the heavy fluid, this is simply computed
 			// as the density that gives pressure rho g h, with h depth
-			rho = density(depth, fluid_idx);
+			rho = hydrostatic_density(depth, fluid_idx);
 			// for the bubble, the hydrostatic density must be computed in a slightly
 			// more complex way:
 			if (fluid_idx == air) {
@@ -207,11 +207,11 @@ Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 			}
 			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
 		} else if (BOUNDARY(info[i])) {
-			rho = density(depth, fluid_idx);
+			rho = hydrostatic_density(depth, fluid_idx);
 			info[i]= make_particleinfo(PT_BOUNDARY, fluid_idx, i);
 		}
 		// fix up the particle mass according to the actual density
-		pos[i].w *= rho;
+		pos[i].w *= physical_density(rho, fluid_idx);
 		vel[i].w = rho;
 	}
 }
