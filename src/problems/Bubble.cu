@@ -126,8 +126,8 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	// initializeParticles routine, both for the tank and for the
 	// fluid particles, by multiplitying the mass computed here
 	// by the density of the particle
-	setMassByDensity(experiment_box, 1);
-	setMassByDensity(fluid, 1);
+	setParticleMassByDensity(experiment_box, 1);
+	setParticleMassByDensity(fluid, 1);
 
 }
 
