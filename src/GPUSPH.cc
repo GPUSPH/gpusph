@@ -442,9 +442,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO
 	//		// > new Integrator
 
-	//if (gdata->clOptions->repack)
-	//	repack.SetParams();
-
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
 
@@ -469,15 +466,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->keep_repacking = false;
 		gdata->keep_going = true;
 	}
-	// If the repacking only is done and it was read from previous results
-	// the simulation does not even start
-	// TODO: we should probably not allow this combination?
-	//if (gdata->repack_flags & REPACK_ONLY) {
-	//	printf("Warning: repacking only while reading from previous repacking results, the simulation does not run\n");
-	//	gdata->keep_going = false;
-	//} else {
-	//	gdata->keep_going = true;
-	//}
+
+	//	repack.SetParams();
 
 	// actually start the threads
 	for (uint d = 0; d < gdata->devices; d++)
@@ -931,6 +921,7 @@ bool GPUSPH::runRepacking() {
 		// End of repacking step
 
 		float ke = 100;//repack.TotalKE();
+
 		if (ke>0)
 			gdata->repackPositiveKe = true;
 
@@ -2532,7 +2523,7 @@ void GPUSPH::markIntegrationStep(
 
 void GPUSPH::check_write(bool we_are_done)
 {
-		static PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+		PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 		// list of writers that need to write at this timestep
 		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
 
