@@ -383,6 +383,10 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_densityDiffCoeff, &simparams->densityDiffCoeff, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_alpha, &simparams->repack_alpha, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_alpha, &simparams->repack_a, sizeof(float)));
+
 }
 
 
@@ -720,6 +724,50 @@ boundary_forces(
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
 }
 
+/* forcesDevice kernel calls that involve vertex particles
+ * are factored out here in this separate member function, that
+ * does nothing in the non-SA_BOUNDARY case
+ */
+template<
+	typename FluidVertexParams,
+	typename VertexFluidParams>
+enable_if_t<FluidVertexParams::boundarytype == SA_BOUNDARY>
+vertex_repack(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	FluidVertexParams const& params_fv,
+	VertexFluidParams const& params_vf)
+{
+	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+}
+template<
+	typename FluidVertexParams,
+	typename VertexFluidParams>
+enable_if_t<FluidVertexParams::boundarytype != SA_BOUNDARY>
+vertex_repack(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	FluidVertexParams const& params_fv,
+	VertexFluidParams const& params_vf)
+{ /* do nothing */ }
+
+/* forcesDevice kernel calls where the central type is boundary
+ * are factored out here in this separate member function, that
+ * does nothing in the SA_BOUNDARY case
+ */
+template<typename BoundaryFluidParams>
+enable_if_t<BoundaryFluidParams::boundarytype == SA_BOUNDARY>
+boundary_repack(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	BoundaryFluidParams const& params_bf)
+{ /* do nothing */ }
+template<typename BoundaryFluidParams>
+enable_if_t<BoundaryFluidParams::boundarytype != SA_BOUNDARY>
+boundary_repack(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	BoundaryFluidParams const& params_bf)
+{
+	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
+}
+
 
 // Returns numBlock for delayed dt reduction in case of striping
 uint
@@ -914,7 +962,7 @@ repackstep(
 	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
 	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
 
-	//int dummy_shared = 0;
+	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
@@ -925,59 +973,59 @@ repackstep(
 	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
 	#if (__COMPUTE__ == 20)
 	int dtadapt = !!(simflags & ENABLE_DTADAPT);
-	//dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
+	dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
 
-	repack_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID> params_ff(
+	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_FLUID> params_ff(
 			forces,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, dt,
 			cfl_gamma, vertPos, epsilon);
 
-	repack_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
 			forces,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, dt,
 			cfl_gamma, vertPos, epsilon);
 
 
-	repack_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+	repack_params<kerneltype, boundarytype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
 			forces,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, dt,
 			cfl_gamma, vertPos, epsilon);
 
-	//cuforces::repackForcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
 	{
-		repack_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+		repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX> params_fv(
 			forces,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, dt,
 			cfl_gamma, vertPos, epsilon);
 
-		repack_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vf(
+		repack_params<kerneltype, boundarytype, simflags, PT_VERTEX, PT_FLUID> params_vf(
 			forces,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, dt,
 			cfl_gamma, vertPos, epsilon);
 
-		//vertex_repack_forces(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
+		vertex_repack(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
 	}
 
-	//cuforces::repackForcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
 
 	//if (boundarytype == DYN_BOUNDARY)
-		//repack_boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
+	//	boundary_repack(numBlocks, numThreads, dummy_shared, params_bf);
 
-	finalize_repack_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
+	finalize_repack_params<boundarytype, simflags> params_finalize(
 			forces,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
-			cfl_forces, cfl_gamma, cflOffset,
+			deltap, cfl_forces, cfl_gamma, cflOffset,
 			oldGGam);
 
-	//cuforces::finalizeRepackForcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
+	cuforces::finalizeRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
 
 	return numBlocks;
 }

@@ -115,6 +115,7 @@ struct common_finalize_repack_params
 	const	uint	toParticle;
 
 	const	float	slength;
+	const	float	deltap;
 
 	// Constructor / initializer
 	common_finalize_repack_params(
@@ -125,7 +126,8 @@ struct common_finalize_repack_params
 		const	uint	*_cellStart,
 		const	uint	_fromParticle,
 		const	uint	_toParticle,
-		const	float	_slength) :
+		const	float	_slength,
+		const float _deltap) :
 		forces(_forces),
 		posArray(_posArray),
 		velArray(_velArray),
@@ -133,7 +135,8 @@ struct common_finalize_repack_params
 		cellStart(_cellStart),
 		fromParticle(_fromParticle),
 		toParticle(_toParticle),
-		slength(_slength)
+		slength(_slength),
+		deltap(_deltap)
 	{}
 };
 
@@ -190,10 +193,7 @@ struct sa_finalize_repack_params
 
 /// The actual repack_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
-	SPHFormulation _sph_formulation,
-	DensityDiffusionType _densitydiffusiontype,
 	BoundaryType _boundarytype,
-	ViscosityType _visctype,
 	flag_t _simflags,
 	ParticleType _cptype,
 	ParticleType _nptype>
@@ -202,10 +202,7 @@ struct repack_params :
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_repack_params)
 {
 	static const KernelType kerneltype = _kerneltype;
-	static const SPHFormulation sph_formulation = _sph_formulation;
-	static const DensityDiffusionType densitydiffusiontype = _densitydiffusiontype;
 	static const BoundaryType boundarytype = _boundarytype;
-	static const ViscosityType visctype = _visctype;
 	static const flag_t simflags = _simflags;
 	static const ParticleType cptype = _cptype;
 	static const ParticleType nptype = _nptype;
@@ -246,18 +243,14 @@ struct repack_params :
 
 
 /// The actual finalize_forces_params struct, which concatenates all of the above, as appropriate.
-template<SPHFormulation _sph_formulation,
-	BoundaryType _boundarytype,
-	ViscosityType _visctype,
+template<BoundaryType _boundarytype,
 	flag_t _simflags>
 struct finalize_repack_params :
 	common_finalize_repack_params,
 	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_repack_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_repack_params)
 {
-	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
-	static const ViscosityType visctype = _visctype;
 	static const flag_t simflags = _simflags;
 
 	// This structure provides a constructor that takes as arguments the union of the
@@ -275,6 +268,7 @@ struct finalize_repack_params :
 				uint	_toParticle,
 
 		const	float	_slength,
+		const float _deltap,
 		// dyndt
 				float	*_cfl_forces,
 				float	*_cfl_gamma,
@@ -285,7 +279,7 @@ struct finalize_repack_params :
 		) :
 		common_finalize_repack_params(_forces,
 			_posArray, _velArray, _particleHash, _cellStart,
-			 _fromParticle, _toParticle, _slength),
+			 _fromParticle, _toParticle, _slength,_deltap),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_finalize_repack_params)
 			(_cfl_forces, _cfl_gamma, _cflOffset),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_repack_params) (_gGam)
