@@ -362,20 +362,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 				cerr << *hf[i];
 			}
 
-			// Re-initialize the arrays
-			problem->copy_to_array(gdata->s_hBuffers);
-
-			// initialize values of k and e for k-e model
-			if (problem->simparams()->visctype == KEPSVISC) {
-				problem->init_keps(gdata->s_hBuffers, gdata->totParticles);
-				problem->init_turbvisc(gdata->s_hBuffers, gdata->totParticles);
-			}
-			// TODO: check if this is necessary
-			//if (problem->simparams()->sph_formulation == SPH_GRENIER)
-			//	problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
-
-			// call user-set initialization routine, if any
-			problem->initializeParticles(gdata->s_hBuffers, gdata->totParticles);
+			// Reset the arrays
+			problem->resetBuffers(gdata->s_hBuffers, gdata->totParticles);
 
 			cerr << "Restarting from a repack file"
 				<< ", dt=" << gdata->dt << endl;

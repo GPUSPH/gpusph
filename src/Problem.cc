@@ -74,6 +74,8 @@ Problem::Problem(GlobalData *_gdata) :
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_deltap(NAN),
+	m_hydrostaticFilling(true),
+	m_waterLevel(NAN),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
 	m_bodies_storage(NULL)
@@ -1515,4 +1517,28 @@ void Problem::initializeParticles(BufferList &buffers, const uint numParticles)
 			vel[i].x = 0.1;
 	}
 	*/
+}
+
+void Problem::resetBuffers(BufferList &buffers, const uint numParticles)
+{
+	double4 *globalPos = buffers.getData<BUFFER_POS_GLOBAL>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
+
+	for (uint i = 0; i < numParticles; i++) {
+		// Compute density for hydrostatic filling. FIXME for multifluid
+		float rho = relative_density(physparams()->rho0[0],0);
+		if (m_hydrostaticFilling)
+			rho = density(m_waterLevel - globalPos[i].z, 0);
+		vel[i] = make_float4(0, 0, 0, rho);
+		if (eulerVel)
+			eulerVel[i] = make_float4(0);
+	}
+
+	// initialize values of k and e for k-e model
+	if (simparams()->visctype == KEPSVISC)
+		init_keps(buffers, numParticles);
+
+	// call user-set initialization routine, if any
+	initializeParticles(buffers, numParticles);
 }

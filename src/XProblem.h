@@ -194,8 +194,6 @@ class XProblem: public Problem {
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);
 
-		// used for hydrostatic filling (absolute value)
-		double m_waterLevel;
 		// used to set LJ dcoeff and sound speed if m_maxParticleSpeed is unset
 		double m_maxFall;
 		// used to set sound of speed
@@ -203,9 +201,6 @@ class XProblem: public Problem {
 
 		// number of layers for filling dynamic boundaries
 		uint m_numDynBoundLayers;
-
-		// enable hydrostatic filling already during fill - uses m_waterLevel
-		bool m_hydrostaticFilling;
 
 	protected:
 		// methods for creation of new objects

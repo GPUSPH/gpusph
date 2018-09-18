@@ -66,11 +66,8 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_positioning = PP_CENTER;
 
 	// NAN water level and max fall: will autocompute if user doesn't define them
-	m_waterLevel = NAN;
 	m_maxFall = NAN;
 	m_maxParticleSpeed = NAN;
-
-	m_hydrostaticFilling = true;
 
 	// *** Other parameters and settings
 	m_name = "XProblem";
@@ -154,7 +151,7 @@ bool XProblem::initialize()
 
 		if (m_geometries[g]->type == GT_FREE_SURFACE)
 			m_geometries[g]->enabled = enableFreeSurf;
-		
+
 		// ignore deleted geometries
 		if (!m_geometries[g]->enabled)
 			continue;
