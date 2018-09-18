@@ -64,8 +64,7 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
 		//viscosity<SPSVISC>,
 		//viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>,
-		densitydiffusion<FERRARI>,
-		disable_flags<ENABLE_DTADAPT>
+		densitydiffusion<FERRARI>
 	).select_options(
 		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);

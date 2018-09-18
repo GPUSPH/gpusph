@@ -57,8 +57,7 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 		boundary<LJ_BOUNDARY>,
 		//boundary<MK_BOUNDARY>
 		//boundary<DYN_BOUNDARY>,
-		densitydiffusion<FERRARI>,
-		disable_flags<ENABLE_DTADAPT>
+		densitydiffusion<FERRARI>
 	);
 
 	addPostProcess(SURFACE_DETECTION);

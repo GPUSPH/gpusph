@@ -38,8 +38,7 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
 		boundary<DYN_BOUNDARY>,
-		add_flags<ENABLE_INTERNAL_ENERGY>,
-		disable_flags<ENABLE_DTADAPT>
+		add_flags<ENABLE_INTERNAL_ENERGY>
 	);
 
 	// Size and origin of the simulation domain

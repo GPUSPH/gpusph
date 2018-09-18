@@ -51,8 +51,7 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,//DYNAMICVISC//SPSVISC
 		boundary<LJ_BOUNDARY>,
-		add_flags<ENABLE_MOVING_BODIES>,
-		disable_flags<ENABLE_DTADAPT>
+		add_flags<ENABLE_MOVING_BODIES>
 	);
 
 	//addFilter(MLS_FILTER, 10);

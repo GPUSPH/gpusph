@@ -46,8 +46,7 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		boundary<DYN_BOUNDARY>,
 		viscosity<DYNAMICVISC>,
-		periodicity<PERIODIC_XY>,
-		disable_flags<ENABLE_DTADAPT>
+		periodicity<PERIODIC_XY>
 	);
 
 	set_deltap(W/64);
