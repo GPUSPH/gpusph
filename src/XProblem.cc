@@ -1284,19 +1284,20 @@ int XProblem::fill_parts(bool fill)
 
 		// Now will set the particle and object mass if still unset
 		const double DEFAULT_DENSITY = atrest_density(0);
+		const double DEFAULT_PHYSICAL_DENSITY = physical_density(DEFAULT_DENSITY, 0);
 		// Setting particle mass by means of dx and default density only. This leads to same mass
 		// everywhere but possibly slightly different densities.
-		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * DEFAULT_DENSITY;
+		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * DEFAULT_PHYSICAL_DENSITY;
 
 		// Set part mass, if not set already.
 		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set)
-			setParticleMassByDensity(g, DEFAULT_DENSITY);
+			setParticleMassByDensity(g, DEFAULT_PHYSICAL_DENSITY);
 			// TODO: should the following be an option?
 			//setParticleMass(g, DEFAULT_PARTICLE_MASS);
 
 		// Set object mass for floating objects, if not set already
 		if (m_geometries[g]->type == GT_FLOATING_BODY && !m_geometries[g]->mass_was_set)
-			setMassByDensity(g, DEFAULT_DENSITY);
+			setMassByDensity(g, DEFAULT_PHYSICAL_DENSITY);
 
 		// prepare for erase operations
 		bool del_fluid = (m_geometries[g]->erase_operation == ET_ERASE_FLUID);
@@ -1704,14 +1705,15 @@ void XProblem::copy_to_array(BufferList &buffers)
 						break;
 				}
 
+				// FIXME for multifluid
 				Point tmppoint = Point(hdf5Buffer[bi].Coords_0, hdf5Buffer[bi].Coords_1, hdf5Buffer[bi].Coords_2,
-					atrest_density(0)*hdf5Buffer[bi].Volume);
+					atrest_physical_density(0)*hdf5Buffer[bi].Volume);
 				calc_localpos_and_hash(tmppoint, info[i], pos[i], hash[i]);
 				globalPos[i] = tmppoint.toDouble4();
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
 				float rho = atrest_density(0);
-				if (m_hydrostaticFilling && (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY))
+				if (m_hydrostaticFilling && (ptype == PT_FLUID || ptype == PT_VERTEX || simparams()->boundarytype == DYN_BOUNDARY))
 					rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 
@@ -1843,7 +1845,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// Compute density for hydrostatic filling. FIXME for multifluid
 				float rho = atrest_density(0);
-				if (m_hydrostaticFilling && (ptype == PT_FLUID || simparams()->boundarytype == DYN_BOUNDARY))
+				if (m_hydrostaticFilling && (ptype == PT_FLUID || ptype == PT_VERTEX || simparams()->boundarytype == DYN_BOUNDARY))
 					rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 

@@ -134,8 +134,8 @@ MKForce(const float r, const float slength,
 //! Artificial viscosity
 __device__ __forceinline__ float
 artvisc(	const float	vel_dot_pos,
-			const float	rho,
-			const float	neib_rho,
+			const float	rho_abs,
+			const float	neib_rho_abs,
 			const float	sspeed,
 			const float	neib_sspeed,
 			const float	r,
@@ -143,8 +143,9 @@ artvisc(	const float	vel_dot_pos,
 {
 	// TODO check if it makes sense to support different artificial viscosity coefficients
 	// for different fluids
-	return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/
-									((r*r + d_epsartvisc)*(rho + neib_rho));
+
+ return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/((r*r + d_epsartvisc)*(rho_abs + neib_rho_abs));
+
 }
 
 
@@ -159,8 +160,8 @@ artvisc(	const float	vel_dot_pos,
  returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
 */
 __device__ __forceinline__ float
-laminarvisc_kinematic(	const float	rho,
-						const float	neib_rho,
+laminarvisc_kinematic(	const float	rho_abs,
+						const float	neib_rho_abs,
 						const float	neib_mass,
 						const float	f)
 {
@@ -168,7 +169,8 @@ laminarvisc_kinematic(	const float	rho,
 	// TODO FIXME kinematic viscosity should probably be marked as incompatible
 	// with multi-fluid (or at least if fluids don't have the same, constant
 	// viscosity
-	return neib_mass*d_visccoeff[0]*f/(rho + neib_rho);
+
+	return neib_mass*d_visccoeff[0]*f/(rho_abs + neib_rho_abs);
 }
 
 
@@ -179,14 +181,16 @@ laminarvisc_kinematic(	const float	rho,
  returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
 */
 __device__ __forceinline__ float
-laminarvisc_dynamic(const float	rho,
-					const float	neib_rho,
+laminarvisc_dynamic(const float	rho_abs,
+					const float	neib_rho_abs,
 					const float	neib_mass,
 					const float	f,
 					const float	visc,
 					const float	neib_visc)
 {
-	return neib_mass*(visc + neib_visc)*f/(rho*neib_rho);
+
+
+	return neib_mass*(visc + neib_visc)*f/(rho_abs*neib_rho_abs);
 }
 /************************************************************************************************************/
 
@@ -546,7 +550,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 		// Velocity gradient is contributed by all particles
 		// TODO: fix SA case
 		if ( r < params.influenceradius ) {
-			const float f = F<kerneltype>(r, params.slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
+			const float f = F<kerneltype>(r, params.slength)*relPos.w/physical_density(relVel.w,fluid_num(neib_info));	// 1/r ∂Wij/∂r Vj
 
 			// Velocity Gradients
 			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
@@ -579,19 +583,21 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	// Storing the turbulent viscosity for each particle
 	write_sps_turbvisc<simflags & SPSK_STORE_TURBVISC>::with(params, index, nu_SPS);
 
+        float abs_rho = physical_density(vel.w,fluid_num(info));
+
 	// Shear Stress matrix = TAU (pronounced taf)
 	// Dalrymple & Rogers (2006): eq. (10)
 	if (simflags & SPSK_STORE_TAU) {
 
 		tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
-		tau.xx /= vel.w;
-		tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
-		tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
+		tau.xx /= abs_rho;
+		tau.xy *= nu_SPS/abs_rho;								// tau12 = tau_xy/ρ^2
+		tau.xz *= nu_SPS/abs_rho;								// tau13 = tau_xz/ρ^2
 		tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
-		tau.yy /= vel.w;
-		tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
+		tau.yy /= abs_rho;
+		tau.yz *= nu_SPS/abs_rho;								// tau23 = tau_yz/ρ^2
 		tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
-		tau.zz /= vel.w;
+		tau.zz /= abs_rho;
 
 		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, tau);
 	}
@@ -723,6 +729,7 @@ densityGrenierDevice(
 	// this could be optimized to pos.w/vol assuming all same-fluid particles
 	// have the same mass
 	vel.w = mass_corr/(corr*vol);
+	vel.w = numerical_density(vel.w,fnum);
 	velArray[index] = vel;
 	sigmaArray[index] = sigma;
 }
@@ -789,7 +796,7 @@ shepardDevice(	const float4*	posArray,
 
 	// Taking into account self contribution in summation
 	float temp1 = pos.w*W<kerneltype>(0, slength);
-	float temp2 = temp1/vel.w ;
+	float temp2 = temp1/physical_density(vel.w,fluid_num(info)) ;
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -820,7 +827,7 @@ shepardDevice(	const float4*	posArray,
 
 		const float r = length(as_float3(relPos));
 
-		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+		const float neib_rho = physical_density(tex1Dfetch(velTex, neib_index).w,fluid_num(neib_info));
 
 		if (r < influenceradius ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
@@ -830,7 +837,7 @@ shepardDevice(	const float4*	posArray,
 	}
 
 	// Normalize the density and write in global memory
-	vel.w = temp1/temp2;
+	vel.w = numerical_density(temp1/temp2,fluid_num(info));
 	newVel[index] = vel;
 }
 
@@ -886,7 +893,7 @@ MlsDevice(	const float4*	posArray,
 	int neibs_num = 0;
 
 	// Taking into account self contribution in MLS matrix construction
-	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
+	mls.xx = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w,fluid_num(info));
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -915,9 +922,9 @@ MlsDevice(	const float4*	posArray,
 			continue;
 
 		const float r = length(as_float3(relPos));
-
-		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const float neib_rho = physical_density(tex1Dfetch(velTex, neib_index).w,fluid_num(neib_info));
+ 
 
 		// Add neib contribution only if it's a fluid one
 		if (r < influenceradius) {
@@ -1023,6 +1030,8 @@ MlsDevice(	const float4*	posArray,
 			const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 			vel.w += MlsCorrContrib(B, relPos, w);
 		}
+                        
+
 	}  // end of second loop trough neighbors
 
 	// If MLS starts misbehaving, define DEBUG_PARTICLE: this will
@@ -1044,7 +1053,7 @@ MlsDevice(	const float4*	posArray,
 		}
 	}
 #endif
-
+        vel.w = numerical_density(vel.w,fluid_num(info));
 	newVel[index] = vel;
 }
 /************************************************************************************************************/

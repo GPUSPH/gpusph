@@ -43,37 +43,58 @@ __constant__ float	d_sspowercoeff[MAX_FLUID_TYPES];// (\gamma - 1)/2
 
 /********************** Equation of state, speed of sound, repulsive force **********************************/
 // Equation of state: pressure from density, where i is the fluid kind, not particle_id
+
 __device__ __forceinline__ float
-P(const float rho, const ushort i)
+P(const float rho_tilde, const ushort i)
 {
-	return d_bcoeff[i]*(__powf(rho/d_rho0[i], d_gammacoeff[i]) - 1.0f);
+	const float rho_ratio = rho_tilde + 1.0f; // rho/rho0
+	return d_bcoeff[i]*(__powf(rho_ratio, d_gammacoeff[i]) - 1.0f);
 }
 
 // Inverse equation of state: density from pressure, where i is the fluid kind, not particle_id
+//RHO returns rho_tilde = rho/rho0 - 1
 __device__ __forceinline__ float
 RHO(const float p, const ushort i)
 {
-	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i])*d_rho0[i];
+	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1.0; 
 }
 
 // Riemann celerity
 __device__ float
-R(const float rho, const ushort i)
+R(const float rho_tilde, const ushort i)
 {
-	return 2.0f/(d_gammacoeff[i]-1.0f)*d_sscoeff[i]*__powf(rho/d_rho0[i], 0.5f*d_gammacoeff[i]-0.5f);
+	const float rho_ratio = rho_tilde + 1.0f; // rho/rho0
+	return 2.0f/(d_gammacoeff[i]-1.0f)*d_sscoeff[i]*__powf(rho_ratio, 0.5f*d_gammacoeff[i]-0.5f);
 }
 
-// Density from Riemann celerity
+// Relative density from Riemann celerity
 __device__ __forceinline__ float
 RHOR(const float r, const ushort i)
 {
-	return d_rho0[i]*__powf((d_gammacoeff[i]-1.)*r/(2.*d_sscoeff[i]), 2./(d_gammacoeff[i]-1.));
+	return __powf((d_gammacoeff[i]-1.)*r/(2.*d_sscoeff[i]), 2./(d_gammacoeff[i]-1.)) -1.0;
 }
 
 // Sound speed computed from density
 __device__ __forceinline__ float
-soundSpeed(const float rho, const ushort i)
+soundSpeed(const float rho_tilde, const ushort i)
 {
-	return d_sscoeff[i]*__powf(rho/d_rho0[i], d_sspowercoeff[i]);
+	const float rho_ratio = rho_tilde + 1.0; // rho/rho0
+	return d_sscoeff[i]*__powf(rho_ratio, d_sspowercoeff[i]);
 }
+
+// returns physical density from numerical (stored) density
+__device__ __forceinline__ float
+physical_density(const float rho_tilde, const ushort i)
+{
+	return (rho_tilde + 1.0f)*d_rho0[i];
+}
+
+// Uniform precision on density
+// returns the numerical (stored) density from physical density
+__device__ __forceinline__ float
+numerical_density(const float rho, const ushort i)
+{
+	return rho/d_rho0[i] - 1.0f;
+}
+
 }

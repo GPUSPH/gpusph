@@ -184,6 +184,10 @@ class Problem {
 
 		//! Returns the at-rest (numerical) density
 		float atrest_density(int i) const
+		{ return 0; }
+
+		//! Returns the at-rest physical density
+		float atrest_physical_density(int i) const
 		{ return physparams()->rho0[i]; }
 
 		//! Compute the (numerical) hydrostatic density
@@ -205,8 +209,7 @@ class Problem {
 		 * the used density value itself, since we work with the physical
 		 * density anyway.
 		 */
-		float physical_density(float numerical_density, int i) const
-		{ return numerical_density; }
+		float physical_density(float numerical_density, int i) const;
 
 		//! Return the numerical density value
 		/*! In preparation for the relative density work,
@@ -215,9 +218,7 @@ class Problem {
 		 * density value itself, since we work with the physical
 		 * density anyway.
 		 */
-		float numerical_density(float physical_density, int i) const
-		{ return physical_density; }
-
+		float numerical_density(float physical_density, int i) const;
 
 		float pressure(float, int) const;
 

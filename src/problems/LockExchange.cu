@@ -34,7 +34,6 @@
 
 LockExchange::LockExchange(GlobalData *_gdata) : XProblem(_gdata)
 {
-
 	//const double dimX = 1.82;
 	dimX = 0.6;
 	dimY = 0.23;
@@ -82,6 +81,7 @@ LockExchange::LockExchange(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	const float g = length(physparams()->gravity);
 	physparams()->epsinterface = 0.08;
+
 	// If we used only makeUniverseBox(), origin and size would be computed automatically
 	m_origin = make_double3(0, 0, 0);
 	m_size = make_double3(dimX, dimY, dimZ);

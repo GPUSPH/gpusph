@@ -52,6 +52,7 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	// TODO GAUSSIAN kernel of radius 3
 	SETUP_FRAMEWORK(
 		formulation<SPH_GRENIER>,
+		//formulation<SPH_F2>,
 		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
 		add_flags<(USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
@@ -215,4 +216,13 @@ Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 		vel[i].w = rho;
 	}
 }
+
+
+bool Bubble::need_write(double t) const
+{
+ 	return 0;
+}
+
+
+
 

@@ -292,6 +292,8 @@ int main(int argc, char** argv) {
 		exit(1);
 	}
 
+
+
 	GlobalData gdata;
 	gdata_static_pointer = &gdata;
 

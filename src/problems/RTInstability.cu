@@ -178,7 +178,7 @@ RTInstability::initializeParticles(BufferList &buffers, const uint numParticles)
 
 	// 3. iterate on the particles
 	for (uint i = 0; i < numParticles; i++) {
-		float rho = 1000;
+		float rho;
 		double depth = H - pos_global[i].z;
 		// for boundary particles, we use the heavy density,
 		int fluid_idx = heavy;

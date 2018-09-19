@@ -17,7 +17,7 @@ class Spheric2SA: public XProblem {
 		
 		uint max_parts(uint);
 		void fillDeviceMap();
-
+		bool need_write(double) const;
 };
 
 #endif	/* _SPHERIC2SA_H */
