@@ -2994,10 +2994,7 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<
-	FP::simflags & ENABLE_REPACKING &&
-	FP::cptype == PT_FLUID && FP::nptype == PT_FLUID
->
+enable_if_t<FP::cptype == PT_FLUID && FP::nptype == PT_FLUID>
 compute_repack_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
 
@@ -3022,7 +3019,6 @@ compute_repack_pp_interaction(FP const& params, P const& pdata, N const & ndata,
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::simflags & ENABLE_REPACKING &&
 	FP::boundarytype == SA_BOUNDARY &&
 	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
 >
@@ -3051,7 +3047,6 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t
 <
-	FP::simflags & ENABLE_REPACKING &&
 	FP::boundarytype != SA_BOUNDARY &&
 	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
 >
@@ -3076,7 +3071,6 @@ compute_repack_pp_interaction(FP const& params, P const& pdata, N const & ndata,
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	FP::simflags & ENABLE_REPACKING &&
 	FP::boundarytype == SA_BOUNDARY &&
 	FP::cptype == PT_FLUID && FP::nptype == PT_VERTEX
 >
