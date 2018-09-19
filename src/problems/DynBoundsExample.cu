@@ -46,10 +46,11 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		boundary<DYN_BOUNDARY>,
 		viscosity<DYNAMICVISC>,
-		periodicity<PERIODIC_XY>
+		periodicity<PERIODIC_XY>,
+		add_flags<ENABLE_REPACKING>
 	);
 
-	set_deltap(W/64);
+	set_deltap(W/20);
 	resize_neiblist(128);
 
 	w = m_deltap*4;

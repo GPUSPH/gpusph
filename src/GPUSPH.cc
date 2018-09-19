@@ -798,17 +798,13 @@ void GPUSPH::runRepackingStep(const flag_t integrator_step) {
 
 	// update forces of external particles
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL,
-				POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+		doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | DBLBUFFER_WRITE);
 
 	// if striping was active, now we want the kernels to complete
 	if (gdata->clOptions->striping && MULTI_DEVICE)
 		doCommand(FORCES_COMPLETE, integrator_step);
 
 	// -----------------------------------------
-
-	// Take care of moving bodies
-	move_bodies(integrator_step);
 
 	// integrate also the externals
 	gdata->only_internal = false;
@@ -953,7 +949,7 @@ bool GPUSPH::runRepacking() {
 			gdata->quit_request = true;
 		}
 
-		int repackMaxIter = 1000;
+		int repackMaxIter = 4000;
 		float repackMinKe = 100;
 		// are we done?
 		const bool we_are_done =

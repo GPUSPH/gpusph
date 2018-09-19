@@ -2221,7 +2221,62 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
 
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-void compute_repacking_contrib
+enable_if_t<FP::cptype == PT_FLUID && FP::nptype == PT_FLUID>
+compute_repacking_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	/* Mixing force for repacking: \f$ F = -2ac^2\nabla\Gamma \f$
+		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
+	*/
+	nout.DvDt -= 2.f*d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*d_sscoeff[fluid_num(pdata.info)]
+		*ndata.relPos.w/absolute_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.f*as_float3(ndata.relPos);
+
+}
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype != SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_repacking_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	/* Mixing force for repacking: \f$ F = -2ac^2\nabla\Gamma \f$
+		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
+	*/
+	nout.DvDt -= 2.f*d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*d_sscoeff[fluid_num(pdata.info)]
+		*ndata.relPos.w/absolute_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.f*as_float3(ndata.relPos);
+}
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_VERTEX
+>
+compute_repacking_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	/* Mixing force for repacking: \f$ F = -2ac^2\nabla\Gamma \f$
+		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
+	*/
+	nout.DvDt -= 2.f*d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*ndata.relPos.w/absolute_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.f*as_float3(ndata.relPos);
+}
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_repacking_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
@@ -3480,9 +3535,6 @@ finalizeRepackDevice(FP params)
 
 		// External forces
 		if (FLUID(pdata.info)) {
-
-			// Adding gravity
-			as_float3(pout.force) += d_gravity;
 
 			// Adding the repacking damping term T(zeta) from Colagrossi et al.
 			const uint fType =  fluid_num(pdata.info);

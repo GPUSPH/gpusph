@@ -318,6 +318,7 @@ struct CUDARepackingHelper<kerneltype, boundarytype, simflags, true> {
 		int dummy_shared = 0;
 
 		const uint numParticlesInRange = toParticle - fromParticle;
+		// reset forces to 0
 		CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
 
 		// thread per particle
@@ -360,11 +361,8 @@ struct CUDARepackingHelper<kerneltype, boundarytype, simflags, true> {
 		//	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
 		//}
 
-		//cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+		cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
-
-		//if (boundarytype == DYN_BOUNDARY)
-		//	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
 
 		finalize_repack_params<boundarytype, simflags> params_finalize(
 				forces,
@@ -514,7 +512,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_alpha, &simparams->repack_alpha, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_alpha, &simparams->repack_a, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_a, &simparams->repack_a, sizeof(float)));
 
 }
 
@@ -907,6 +905,7 @@ basicstep(
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
+	// reset forces to zero
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
 	if (keps_dkde) {
 		// KEPS buffers need to be cleared too, as they will be built progressively

@@ -427,8 +427,6 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	double dt1 = dt;
 	if (step == 1)
 		dt1 /= 2.0;
-	if (step == 0)
-		dt1 = 0;
 	double t0 = t;
 	double t1 = t + dt1;
 

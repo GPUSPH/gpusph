@@ -144,7 +144,7 @@ __device__ __forceinline__
 void
 standard_corrected_velocity(EP const& params, P &pdata)
 {
-	pdata.velc = pdata.vel + (params.step - 1)*pdata.force*params.half_dt;
+	pdata.velc = params.step == 2 ? pdata.vel + pdata.force*params.half_dt : pdata.vel;
 }
 template<typename EP, typename P>
 __device__ __forceinline__
