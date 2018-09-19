@@ -154,6 +154,8 @@ enum ParticleFlag {
 	FG_CORNER =				(PART_FLAG_START<<5), ///< particle is a corner of an I/O
 
 	FG_SURFACE =			(PART_FLAG_START<<6), ///< particle is at the free surface
+	FG_INTERFACE =			(PART_FLAG_START<<7), ///< particle is at the interface between two phases
+	FG_SEDIMENT =			(PART_FLAG_START<<8), ///< particle is sediment (rheology + effective pressure)
 };
 /** @} */
 
@@ -204,6 +206,12 @@ enum ParticleFlag {
  *  @{ */
 /// Check if particle is on the free surface
 #define SURFACE(f)		(type(f) & FG_SURFACE)
+
+/// Check if particle is at the interface of two phases
+#define INTERFACE(f)		(type(f) & FG_INTERFACE)
+
+/// Check if particle is sediment 
+#define SEDIMENT(f)		(type(f) & FG_SEDIMENT)
 
 /// Check if a particle belongs to I/O open boundary
 /** Particles belonging to an I/O boundary have the FG_INLET

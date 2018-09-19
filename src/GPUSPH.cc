@@ -877,6 +877,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (gdata->simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
+	if (gdata->simframework->hasPostProcessOption(INTERFACE_DETECTION, BUFFER_NORMALS))
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
+
 	if (gdata->simframework->hasPostProcessEngine(VORTICITY))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VORTICITY>();
 

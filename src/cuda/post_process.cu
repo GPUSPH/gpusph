@@ -294,6 +294,180 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 	}
 };
 
+// Interface detection for multi-phase flows
+template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, boundarytype, simflags>
+: public CUDAPostProcessEngineHelperDefaults
+{
+	// pass BUFFER_NORMALS option to the INTERFACE_DETECTION filter
+	// to save normals too
+	static flag_t get_written_buffers(flag_t options)
+	{ return BUFFER_INFO | (options & BUFFER_NORMALS); }
+
+	static void process(
+				flag_t					options,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata)
+	{
+		// thread per particle
+		uint numThreads = BLOCK_SIZE_CALCTEST;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+
+		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO>();
+		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
+
+		#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+		#endif
+		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+		// execute the kernel
+		if (options & BUFFER_NORMALS) {
+			cupostprocess::calcInterfaceparticleDevice<kerneltype, boundarytype, simflags, true><<< numBlocks, numThreads >>>
+				(	pos,
+					normals,
+					newInfo,
+					particleHash,
+					cellStart,
+					neibsList,
+					particleRangeEnd,
+					gdata->problem->m_deltap,
+					gdata->problem->simparams()->slength,
+					gdata->problem->simparams()->influenceRadius);
+		} else {
+			cupostprocess::calcInterfaceparticleDevice<kerneltype, boundarytype, simflags, false><<< numBlocks, numThreads >>>
+				(	pos,
+					normals,
+					newInfo,
+					particleHash,
+					cellStart,
+					neibsList,
+					particleRangeEnd,
+					gdata->problem->m_deltap,
+					gdata->problem->simparams()->slength,
+					gdata->problem->simparams()->influenceRadius);
+		}
+
+		// check if kernel invocation generated an error
+		KERNEL_CHECK_ERROR;
+
+		#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+		#endif
+		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+	}
+};
+
+// Interface detection for multi-phase flows
+// Specialization for SA_BOUNDARY
+template<KernelType kerneltype, flag_t simflags>
+struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, SA_BOUNDARY, simflags>
+: public CUDAPostProcessEngineHelperDefaults
+{
+	// pass BUFFER_NORMALS option to the INTERFACE_DETECTION filter
+	// to save normals too
+	static flag_t get_written_buffers(flag_t options)
+	{ return BUFFER_INFO | (options & BUFFER_NORMALS); }
+
+	static void process(
+				flag_t					options,
+		BufferList const& bufread,
+		BufferList&		bufwrite,
+				uint					numParticles,
+				uint					particleRangeEnd,
+				uint					deviceIndex,
+		const	GlobalData	* const		gdata)
+	{
+		// thread per particle
+		uint numThreads = BLOCK_SIZE_CALCTEST;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+		const float4 *boundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();	
+		const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundElement, numParticles*sizeof(float4)));
+
+		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO>();
+		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
+
+		#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+		#endif
+		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gGam, numParticles*sizeof(float4)));
+
+		// execute the kernel
+		if (options & BUFFER_NORMALS) {
+			cupostprocess::calcInterfaceparticleDevice<kerneltype, SA_BOUNDARY, simflags, true><<< numBlocks, numThreads >>>
+				(	pos,
+					normals,
+					newInfo,
+					vertPos[0],
+					vertPos[1],
+					vertPos[2],
+					particleHash,
+					cellStart,
+					neibsList,
+					particleRangeEnd,
+					gdata->problem->m_deltap,
+					gdata->problem->simparams()->slength,
+					gdata->problem->simparams()->influenceRadius);
+		} else {
+			cupostprocess::calcInterfaceparticleDevice<kerneltype, SA_BOUNDARY, simflags, false><<< numBlocks, numThreads >>>
+				(	pos,
+					normals,
+					newInfo,
+					vertPos[0],
+					vertPos[1],
+					vertPos[2],
+					particleHash,
+					cellStart,
+					neibsList,
+					particleRangeEnd,
+					gdata->problem->m_deltap,
+					gdata->problem->simparams()->slength,
+					gdata->problem->simparams()->influenceRadius);
+		}
+
+		// check if kernel invocation generated an error
+		KERNEL_CHECK_ERROR;
+
+		#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+		#endif
+		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+	}
+};
+
 template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
 struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>
 : public CUDAPostProcessEngineHelperDefaults

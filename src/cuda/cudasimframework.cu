@@ -253,6 +253,8 @@ protected:
 			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, simflags>(options);
 		case SURFACE_DETECTION:
 			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
+		case INTERFACE_DETECTION:
+			return new CUDAPostProcessEngine<INTERFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
 		case FLUX_COMPUTATION:
 			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>(options);
 		case CALC_PRIVATE:

@@ -142,6 +142,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NORMALS>();
+	if (m_simframework->hasPostProcessOption(INTERFACE_DETECTION, BUFFER_NORMALS))
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NORMALS>();
+
 	if (m_simframework->hasPostProcessEngine(VORTICITY))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VORTICITY>();
 
