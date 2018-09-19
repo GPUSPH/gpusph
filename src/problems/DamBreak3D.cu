@@ -51,7 +51,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<ARTVISC>,
 		boundary<DYN_BOUNDARY>
 	).select_options(
-		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
+		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
 		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
 		USE_PLANES, add_flags<ENABLE_PLANES>()

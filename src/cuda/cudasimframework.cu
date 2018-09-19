@@ -524,38 +524,28 @@ public:
 	}
 
 	/// Chained selectors (for multiple overrides)
-	template<typename Extra, typename Sel2, typename Other>
-	SimFramework * select_options(bool selector, Extra, Sel2 selector2, Other)
+	template<typename Extra, typename ...Rest>
+	SimFramework * select_options(bool selector, Extra, Rest...rest)
 	{
 		if (selector)
-			return extend<Extra>().select_options(selector2, Other());
-		return this->select_options(selector2, Other());
+			return extend<Extra>().select_options(rest...);
+		return this->select_options(rest...);
 	}
 
 	/// Chained selectors (for multiple overrides)
-	template<typename Switch, typename Sel2, typename Other>
-	SimFramework * select_options(int selector, Switch, Sel2 selector2, Other)
+	template<typename Switch, typename ...Rest>
+	SimFramework * select_options(int selector, Switch, Rest...rest)
 	{
 		switch (selector) {
 		case 0:
-			return extend< typename Switch::A >().select_options(selector2, Other());
+			return extend< typename Switch::A >().select_options(rest...);
 		case 1:
-			return extend< typename Switch::B >().select_options(selector2, Other());
+			return extend< typename Switch::B >().select_options(rest...);
 		case 2:
-			return extend< typename Switch::C >().select_options(selector2, Other());
+			return extend< typename Switch::C >().select_options(rest...);
 		}
 		throw runtime_error("invalid selector value");
 	}
-
-	/// Chained selectors (for multiple overrides)
-	template<typename E1, typename E2, typename SelO, typename Other>
-	SimFramework * select_options(bool s1, E1, bool s2, E2, SelO sel_o, Other)
-	{
-		if (s1)
-			return extend<E1>().select_options(s2, E2(), sel_o, Other());
-		return this->select_options(s2, E2(), sel_o, Other());
-	}
-
 
 };
 
