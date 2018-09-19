@@ -2438,7 +2438,7 @@ void GPUWorker::kernel_euler()
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
-	if (m_simparams->simflags & !ENABLE_REPACKING) {
+	if (!gdata->keep_repacking) {
 		bufwrite.add_state_on_write("euler" + to_string(step));
 
 		integrationEngine->basicstep(
