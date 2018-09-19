@@ -198,7 +198,7 @@ template<KernelType _kerneltype,
 	ParticleType _cptype,
 	ParticleType _nptype>
 struct repack_params :
-	common_repack_params,
+	COND_STRUCT(_simflags & ENABLE_REPACKING, common_repack_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_repack_params)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -232,8 +232,8 @@ struct repack_params :
 		const	float	_epsilon
 
 		) :
-		common_repack_params(_forces,
-			_pos, _particleHash, _cellStart,
+		COND_STRUCT(_simflags & ENABLE_REPACKING, common_repack_params)
+			(_forces, _pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius, _dt),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_repack_params)
@@ -246,7 +246,7 @@ struct repack_params :
 template<BoundaryType _boundarytype,
 	flag_t _simflags>
 struct finalize_repack_params :
-	common_finalize_repack_params,
+	COND_STRUCT(_simflags & ENABLE_REPACKING, common_finalize_repack_params),
 	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_repack_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_repack_params)
 {
@@ -277,8 +277,8 @@ struct finalize_repack_params :
 		// SA_BOUNDARY
 		const	float4	*_gGam
 		) :
-		common_finalize_repack_params(_forces,
-			_posArray, _velArray, _particleHash, _cellStart,
+		COND_STRUCT(simflags & ENABLE_REPACKING, common_finalize_repack_params)
+			(_forces,	_posArray, _velArray, _particleHash, _cellStart,
 			 _fromParticle, _toParticle, _slength,_deltap),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_finalize_repack_params)
 			(_cfl_forces, _cfl_gamma, _cflOffset),
