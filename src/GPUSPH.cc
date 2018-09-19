@@ -540,25 +540,87 @@ GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
 // (e.g. when inspecting the particle system before each forces computation)
 static const PostProcessEngineSet noPostProcess{};
 
-void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
+void
+GPUSPH::prepareNextStep(const flag_t current_integrator_step)
+{
+	if (current_integrator_step == INTEGRATOR_STEP_2) {
+		// Euler needs always cg(n)
+		if (problem->simparams()->numbodies > 0)
+			doCommand(EULER_UPLOAD_OBJECTS_CG);
+	}
 
-	// --- ONLY PREDICTOR (STEP 1) -------------
-	// TODO FIXME gravity should be set before imposing the boundary conditions
-	// to be used on the next forces call. This is currently handled in a very
-	// inorganic way, which can be noted by the next call to the gravity callback
-	// which is at the END of step 1 rather than at the BEGINNING of the next
-	if (integrator_step == INTEGRATOR_STEP_1) {
-		// variable gravity
-		if (problem->simparams()->gcallback) {
-			// ask the Problem to update gravity, one per process
-			doCallBacks();
-			// upload on the GPU, one per device
-			doCommand(UPLOAD_GRAVITY);
+	// variable gravity
+	if (problem->simparams()->gcallback) {
+		// ask the Problem to update gravity, one per process
+		doCallBacks();
+		// upload on the GPU, one per device
+		doCommand(UPLOAD_GRAVITY);
+	}
+
+	// TODO when support for Grenier's formulation is added to models
+	// with boundary conditions, the computation of the new sigma and
+	// smoothed density should be moved here from the beginning of
+	// runIntegratorStep
+
+	// semi-analytical boundary conditions
+	switch (problem->simparams()->boundarytype) {
+	case LJ_BOUNDARY:
+	case MK_BOUNDARY:
+	case DYN_BOUNDARY:
+		/* nothing to do for LJ, MK and dynamic boundaries */
+		break;
+	case SA_BOUNDARY:
+		saBoundaryConditions(current_integrator_step);
+		break;
+	}
+
+	// open boundaries: new particle generation, only during the corrector
+	if (current_integrator_step == INTEGRATOR_STEP_2 &&
+		problem->simparams()->simflags & ENABLE_INLET_OUTLET)
+	{
+		doCommand(DOWNLOAD_NEWNUMPARTS);
+		gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
+		for (uint d = 1; d < gdata->devices; d++)
+			gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
+		// if runnign multinode, should also find the network minimum
+		if (MULTI_NODE)
+			gdata->networkManager->networkBoolReduction(
+				&(gdata->particlesCreated), 1);
+
+		// update the it counter if new particles are created
+		if (gdata->particlesCreated) {
+			gdata->createdParticlesIterations++;
+
+			/*** IMPORTANT: updateArrayIndices() is only useful to be able to dump
+			 * the newly generated particles on the upcoming (if any) save. HOWEVER,
+			 * it introduces significant issued when used in multi-GPU, due
+			 * to the fact that generated particles are appended after the externals.
+			 * A method to handle this better needs to be devised (at worst enabling
+			 * this only as a debug feature in single-GPU mode). For the time being
+			 * the code section is disabled.
+			 */
+#if 0
+			// we also update the array indices, so that e.g. when saving
+			// the newly created particles are visible
+			// TODO this doesn't seem to impact performance noticeably
+			// in single-GPU. If it is found to be too expensive on
+			// multi-GPU (or especially multi-node) it might be necessary
+			// to only do it when saving. It does not affect the simulation
+			// anyway, since it will be done during the next buildNeibList()
+			// call
+			updateArrayIndices();
+#endif
 		}
 	}
-	// -----------------------------------------
 
+}
+
+void
+GPUSPH::runIntegratorStep(const flag_t integrator_step)
+{
 	// for Grenier formulation, compute sigma and smoothed density
+	// TODO with boundary models requiring kernels for boundary conditions,
+	// this should be moved into prepareNextStep
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
 		// put READ vel in WRITE buffer
 		doCommand(SWAP_BUFFERS, BUFFER_VEL);
@@ -662,73 +724,8 @@ void GPUSPH::runIntegratorStep(const flag_t integrator_step) {
 			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 	}
 
-	// --- ONLY CORRECTOR (STEP 2) -------------
-	if (integrator_step == INTEGRATOR_STEP_2) {
-		// Euler needs always cg(n)
-		if (problem->simparams()->numbodies > 0)
-			doCommand(EULER_UPLOAD_OBJECTS_CG);
-	}
-	// -----------------------------------------
-
-	// --- ONLY PREDICTOR (STEP 1) -------------
-	// TODO FIXME see the TODO FIXME on the previous callbacks call
-	if (integrator_step == INTEGRATOR_STEP_1) {
-		// variable gravity
-		if (problem->simparams()->gcallback) {
-			// ask the Problem to update gravity, one per process
-			doCallBacks();
-			// upload on the GPU, one per device
-			doCommand(UPLOAD_GRAVITY);
-		}
-	}
-	// -----------------------------------------
-
-	// semi-analytical boundary conditions
-	if (problem->simparams()->boundarytype == SA_BOUNDARY)
-		saBoundaryConditions(integrator_step);
-
-	// --- ONLY CORRECTOR (STEP 2) -------------
-	if (integrator_step == INTEGRATOR_STEP_2) {
-		// update inlet/outlet changes only after step 2
-		// and check if a forced buildneibs is required (i.e. if particles were created)
-		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
-			doCommand(DOWNLOAD_NEWNUMPARTS);
-			gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
-			for (uint d = 1; d < gdata->devices; d++)
-				gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
-			// if runnign multinode, should also find the network minimum
-			if (MULTI_NODE)
-				gdata->networkManager->networkBoolReduction(
-						&(gdata->particlesCreated), 1);
-
-			// update the it counter if new particles are created
-			if (gdata->particlesCreated) {
-				gdata->createdParticlesIterations++;
-
-				/*** IMPORTANT: updateArrayIndices() is only useful to be able to dump
-				 * the newly generated particles on the upcoming (if any) save. HOWEVER,
-				 * it introduces significant issued when used in multi-GPU, due
-				 * to the fact that generated particles are appended after the externals.
-				 * A method to handle this better needs to be devised (at worst enabling
-				 * this only as a debug feature in single-GPU mode). For the time being
-				 * the code section is disabled.
-				 */
-#if 0
-				// we also update the array indices, so that e.g. when saving
-				// the newly created particles are visible
-				// TODO this doesn't seem to impact performance noticeably
-				// in single-GPU. If it is found to be too expensive on
-				// multi-GPU (or especially multi-node) it might be necessary
-				// to only do it when saving. It does not affect the simulation
-				// anyway, since it will be done during the next buildNeibList()
-				// call
-				updateArrayIndices();
-#endif
-
-			}
-		}
-	}
-	// -----------------------------------------
+	// upload gravity, boundary conditions, etc
+	prepareNextStep(integrator_step);
 
 	// put all the updated stuff in the READ positions, ready for the next step
 	doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
@@ -776,16 +773,16 @@ bool GPUSPH::runSimulation() {
 
 	// this is where we invoke initialization routines that have to be
 	// run by the GPUWokers
+	const bool needs_preparation = (
+		(problem->simparams()->gcallback) ||
+		(problem->simparams()->boundarytype == SA_BOUNDARY)
+	);
 
-	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-
+	if (needs_preparation) {
 		// compute neighbour list for the first time
 		buildNeibList();
 
-		// set density and other values for segments and vertices
-		// and set initial value of gamma using the quadrature formula
-		saBoundaryConditions(INITIALIZATION_STEP);
-
+		prepareNextStep(INITIALIZATION_STEP);
 	}
 
 	printf("Entering the main simulation cycle\n");

@@ -138,6 +138,9 @@ private:
 	// setting of boundary conditions for the semi-analytical boundaries
 	void saBoundaryConditions(flag_t cFlag);
 
+	// prepare for the next forces computation
+	void prepareNextStep(const flag_t current_integrator_step);
+
 	// mark the beginning/end of a step, setting the state and validity
 	// of READ and WRITE buffers
 	void markIntegrationStep(
