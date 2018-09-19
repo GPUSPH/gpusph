@@ -440,10 +440,6 @@ int main(int argc, char** argv) {
 		if (gdata.clOptions->repack || gdata.clOptions->repack_only)
 			simulate<REPACKING>(&gdata);
 		if (!gdata.clOptions->repack_only) {
-			if (gdata.clOptions->repack) {
-				string last_checkpoint_file = "";
-				gdata.clOptions->resume_fname = last_checkpoint_file;
-			}
 			simulate<STANDARD>(&gdata);
 		}
 	} catch (exception &e) {
