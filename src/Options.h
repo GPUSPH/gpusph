@@ -69,6 +69,7 @@ public:
 	double	deltap; ///< deltap
 	float	tend; ///< simulation end
 	unsigned long maxiter; ///< maximum number of iterations to run
+	unsigned long repack_maxiter; ///< maximum number of iterations for repacking
 	float	checkpoint_freq; ///< frequency of hotstart checkpoints (in simulated seconds)
 	int		checkpoints; ///< number of hotstart checkpoints to keep
 	bool	nosave; ///< disable saving
@@ -94,6 +95,7 @@ public:
 		deltap(NAN),
 		tend(NAN),
 		maxiter(0),
+		repack_maxiter(2000),
 		checkpoint_freq(NAN),
 		checkpoints(-1),
 		nosave(false),

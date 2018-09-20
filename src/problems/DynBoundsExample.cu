@@ -60,6 +60,8 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	simparams()->tend = 2;
 
+	simparams()->repack_maxiter = 1000;
+
 	/* slope */
 	float degs = 60; /* degrees */
 	alpha = M_PI*degs/180; /* radians */

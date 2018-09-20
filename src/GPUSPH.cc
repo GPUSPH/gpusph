@@ -155,6 +155,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (isfinite(clOptions->tend))
 		_sp->tend = clOptions->tend;
 
+	if (isfinite(clOptions->repack_maxiter))
+		_sp->repack_maxiter = clOptions->repack_maxiter;
+
 	// update the GlobalData copies of the sizes of the domain
 	gdata->worldOrigin = make_float3(problem->get_worldorigin());
 	gdata->worldSize = make_float3(problem->get_worldsize());
@@ -947,12 +950,11 @@ bool GPUSPH::runRepacking() {
 			gdata->quit_request = true;
 		}
 
-		int repackMaxIter = 4000;
 		float repackMinKe = 100;
 		// are we done?
 		const bool we_are_done =
 			// have we reached the maximum number of repacking iterations?
-			gdata->iterations >= repackMaxIter ||
+			gdata->iterations >= gdata->problem->simparams()->repack_maxiter ||
 			// have we sufficiently decreased the kinetic energy?
 			gdata->repackPositiveKe && ke < repackMinKe ||
 			// and of course we're finished if a quit was requested

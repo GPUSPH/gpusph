@@ -106,6 +106,7 @@ void print_usage() {
 #include "describe-debugflags.h"
 	cout << " --repack : run the repacking before the simulation, beware to enable repacking in the simulation framework\n";
 	cout << " --repack-only : run the repacking and stop\n";
+	cout << " --repack-maxiter : repacking breaks after this many iterations (integer VAL)\n";
 	cout << " --from-repack : run from a previous repack file\n";
 	cout << " --help: Show this help and exit\n";
 }
@@ -213,6 +214,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			_clOptions->repack = true;
 		} else if (!strcmp(arg, "--repack-only")) {
 			_clOptions->repack_only = true;
+		} else if (!strcmp(arg, "--repack-maxiter")) {
+			/* read the next arg as an unsigned long */
+			sscanf(*argv, "%lu", &(_clOptions->repack_maxiter));
+			argv++;
+			argc--;
 		} else if (!strcmp(arg, "--from-repack")) {
 			_clOptions->resume_fname = string(*argv);
 			argv++;

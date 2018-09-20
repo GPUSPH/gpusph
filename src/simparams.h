@@ -109,6 +109,7 @@ typedef struct SimParams {
 
 	/** \name Repacking parameters
 	 * @{ */
+	uint			repack_maxiter; //< maximum number of iterations for repacking
 	float			repack_a;	//< repacking parameter 'a' for mixing intensity, recommended value: 1
 	float			repack_alpha;	//< repacking parameter 'alpha' for velocity damping, recommended value: 0.1
 
@@ -161,6 +162,7 @@ typedef struct SimParams {
 		numbodies(0),
 		numOpenBoundaries(0),
 		epsilon(5e-5f),
+		repack_maxiter(2000),
 		repack_a(1.0f),
 		repack_alpha(0.1f)
 	{};
