@@ -350,21 +350,26 @@ basicstep(
 		bufwrite.getData<BUFFER_BOUNDELEMENTS>() :
 		NULL;
 
-	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
-			newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t, step,
-			xsph,
-			newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
-			newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
-			newVol, oldVol,
-			newEnergy, oldEnergy, DEDt);
-
-	if (step == 1) {
-		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
-	} else if (step == 2) {
-		cueuler::eulerDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags><<< numBlocks, numThreads >>>(params);
-	} else {
+	if (step == 1)
+		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
+			euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, 1>(
+				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
+				xsph,
+				newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
+				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
+				newVol, oldVol,
+				newEnergy, oldEnergy, DEDt));
+	else if (step == 2)
+		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
+			euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, 2>(
+				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
+				xsph,
+				newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
+				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
+				newVol, oldVol,
+				newEnergy, oldEnergy, DEDt));
+	else
 		throw std::invalid_argument("unsupported predcorr timestep");
-	}
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

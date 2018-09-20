@@ -99,12 +99,14 @@ struct energy_particle_data
 	{}
 };
 
-/// The actual euler_params struct, which concatenates all of the above, as appropriate.
-template<KernelType _kerneltype,
-	SPHFormulation _sph_formulation,
-	BoundaryType _boundarytype,
-	ViscosityType _visctype,
-	flag_t _simflags>
+/// The actual euler_particle_data struct, which concatenates all of the above, as appropriate.
+template<typename EP, ///< euler_param template specialization
+	KernelType _kerneltype = EP::kerneltype,
+	SPHFormulation _sph_formulation = EP::sph_formulation,
+	BoundaryType _boundarytype = EP::boundarytype,
+	ViscosityType _visctype = EP::visctype,
+	flag_t _simflags = EP::simflags,
+	int _step = EP::step>
 struct euler_particle_data :
 	common_euler_particle_data,
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
@@ -119,9 +121,10 @@ struct euler_particle_data :
 	static const BoundaryType boundarytype = _boundarytype;
 	static const ViscosityType visctype = _visctype;
 	static const flag_t simflags = _simflags;
+	static const int step = _step;
 
 	// shorthand for the type of the euler params
-	typedef euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
+	typedef EP params_t;
 
 	// determine specialization automatically based on info and params
 	__device__ __forceinline__
@@ -388,38 +391,17 @@ write_viscosity_coeff(EP const& params, P &pdata, int index)
  *	- \f$\Omega(t, t + \Delta t)\f$ the rotation of the body between time
  *		\f$t\f$ an \f$t + \Delta t\f$
  *	- \f$C\f$ the center of rotation
- *
- *	\param[in] oldPos : previous particle's position
- *	\param[in] hashKey : particle's hash
- *	\param[in] oldVel : previous particle's velocity
- *	\param[in] oldEulerVel : previous eulerian velocities for ??? <- TODO
- *	\param[in] okdTKE : previous values of k, for k-e model
- *	\param[in] oldEps : previous values of e, for k-e model
- *	\param[in] particleInfo : particle's information
- *	\param[in] forces : derivative of particle's velocity and density
- *	\param[in] keps_dkde : derivative of ??? <- TODO
- *	\param[in] xsph : SPH mean of velocities used for xsph correction
- *	\param[out] newPos : updated particle's position
- *	\param[out] newVel : updated particle's  velocity
- *	\param[out] newEulerVel : updated eulerian velocities for ??? <- TODO
- *	\param[out] newTKE : updated values of k, for k-e model
- *	\param[out] newEps : updated values of e, for k-e model
- *	\param[in,out] newBoundElement : ??? <- TODO
- *	\param[in] numParticles : total number of particles
- *	\param[in] full_dt  : time step (dt)
- *	\param[in] half_dt : half of time step (dt/2)
- *	\param[in] t : simualation time
- *
- *	\tparam step : integration step (1, 2)
- *	\tparam boundarytype : type of boundary
- *	\tparam kerneltype : type of kernel
- *	\tparam simflags : simulation flags
  */
 //TODO templatize vars like other kernels
-template<KernelType kerneltype, SPHFormulation sph_formulation, BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
+template<typename EP, ///< euler_params template instantiation type
+	KernelType kerneltype = EP::kerneltype,
+	SPHFormulation sph_formulation = EP::sph_formulation,
+	BoundaryType boundarytype = EP::boundarytype,
+	ViscosityType visctype = EP::visctype,
+	flag_t simflags = EP::simflags,
+	int step = EP::step>
 __global__ void
-eulerDevice(
-	euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
+eulerDevice(EP params)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -427,9 +409,9 @@ eulerDevice(
 		return;
 
 	// We use dt/2 on the first step, the actual dt on the second step
-	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
+	const float dt = (step == 1) ? params.half_dt : params.full_dt;
 
-	euler_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata(index, params);
+	euler_particle_data<EP> pdata(index, params);
 
 	do {
 		// Euler does nothing to boundary particles apart copying pos and vel
