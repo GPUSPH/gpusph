@@ -310,13 +310,13 @@ void simulate(GlobalData *gdata)
 	if (gdata->problem->simframework())
 		gdata->simframework = gdata->problem->simframework();
 	else
-		throw invalid_argument("no simulation framework defined in the problem!");
+		throw invalid_argument("No simulation framework defined in the problem!");
 	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
 
 	// check consistency of the repacking options
 	if ((gdata->clOptions->repack || gdata->clOptions->repack_only)
 		&& !(gdata->problem->simparams()->simflags & ENABLE_REPACKING))
-		throw invalid_argument("repacking asked for but it is disabled in the simulation framework!");
+		throw invalid_argument("Repacking asked for but it is disabled in the simulation framework!");
 
 	// get - and actually instantiate - the existing instance of GPUSPH
 	GPUSPH *Simulator = GPUSPH::getInstance();
