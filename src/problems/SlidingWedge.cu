@@ -57,8 +57,7 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 		boundary<LJ_BOUNDARY>,
 		//boundary<MK_BOUNDARY>
 		//boundary<DYN_BOUNDARY>,
-		densitydiffusion<FERRARI>,
-		flags<ENABLE_DTADAPT>
+		densitydiffusion<FERRARI>
 	);
 
 	addPostProcess(SURFACE_DETECTION);
@@ -198,7 +197,7 @@ void SlidingWedge::copy_to_array(BufferList &buffers)
 		float ht =  - boundary_parts[i-j](2);
 		if (ht < 0)
 			ht = 0.0;
-		float rho = density(ht, 0);
+		float rho = hydrostatic_density(ht, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);  // first is type, object, 3rd id
 		calc_localpos_and_hash(boundary_parts[i-j], info[i], pos[i], hash[i]);
@@ -215,7 +214,7 @@ void SlidingWedge::copy_to_array(BufferList &buffers)
 			float ht = - rbparts[i](2);
 			if (ht < 0)
 				ht = 0.0;
-			float rho = density(ht, 0);
+			float rho = hydrostatic_density(ht, 0);
 			//rho = physparams()->rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
@@ -248,7 +247,7 @@ void SlidingWedge::copy_to_array(BufferList &buffers)
 		float ht =  - parts[i-j](2);
 		if (ht < 0)
 			ht = 0.0;
-		float rho = density(ht, 0);
+		float rho = hydrostatic_density(ht, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i]= make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);

@@ -85,17 +85,17 @@ soundSpeed(const float rho_tilde, const ushort i)
 	return d_sscoeff[i]*__powf(rho_ratio, d_sspowercoeff[i]);
 }
 
-// returns absolute density from relative density
+// returns physical density from numerical (stored) density
 __device__ __forceinline__ float
-absolute_density(const float rho_tilde, const ushort i)
+physical_density(const float rho_tilde, const ushort i)
 {
 	return (rho_tilde + 1.0f)*d_rho0[i];
 }
 
 // Uniform precision on density
-// returns the relative density from absolute density
+// returns the numerical (stored) density from physical density
 __device__ __forceinline__ float
-relative_density(const float rho, const ushort i)
+numerical_density(const float rho, const ushort i)
 {
 	return rho/d_rho0[i] - 1.0f;
 }

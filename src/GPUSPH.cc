@@ -1150,7 +1150,7 @@ bool GPUSPH::runSimulation() {
 		if (we_are_done)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
-	} catch (exception &e) {
+	} catch (exception const& e) {
 		cerr << e.what() << endl;
 		gdata->keep_going = false;
 		// the loop is being ended by some exception, so we cannot guarantee that
@@ -2078,7 +2078,7 @@ void GPUSPH::buildNeibList()
 
 		if (currDevMaxFluidBoundaryNeibs > maxPossibleFluidBoundaryNeibs ||
 			currDevMaxVertexNeibs > maxPossibleVertexNeibs) {
-			printf("WARNING: current max. neighbors numbers (%u | %u) greather than max possible neibs (%u | %u) at iteration %lu\n",
+			printf("WARNING: current max. neighbors numbers (%u | %u) greater than max possible neibs (%u | %u) at iteration %lu\n",
 				currDevMaxFluidBoundaryNeibs, currDevMaxVertexNeibs, maxPossibleFluidBoundaryNeibs, maxPossibleVertexNeibs, gdata->iterations);
 			printf("\tpossible culprit: %d (neibs: %d + %d | %d)\n", gdata->timingInfo[d].hasTooManyNeibs,
 				gdata->timingInfo[d].hasMaxNeibs[PT_FLUID],

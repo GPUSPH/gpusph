@@ -100,8 +100,15 @@ Problem::initialize()
 	/* Set ARTVISC epsilon to h^2/10 if not set by the user.
 	 * For simplicity, we do this regardless of the viscosity model used,
 	 * it'll just be ignored otherwise */
-	if (isnan(physparams()->epsartvisc))
+	if (simparams()->visctype == ARTVISC && isnan(physparams()->epsartvisc)){
 		physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+		printf("ARTVISC epsilon is not set, using default value: %e\n", physparams()->epsartvisc);
+	}
+
+	if (simparams()->sph_formulation == SPH_GRENIER && isnan(physparams()->epsinterface)){
+		physparams()->epsinterface = 0.05;
+		printf("Grenier's interface epsilon is not set, using default value: %e\n", physparams()->epsinterface);
+	}
 
 	create_problem_dir();
 
@@ -683,28 +690,24 @@ Problem::check_neiblistsize(void)
 }
 
 float
-Problem::density(float h, int i) const    // here we initialize rho_tilde = density/rho0 -1
+Problem::hydrostatic_density(float h, int i) const
 {
-	float density = relative_density(physparams()->rho0[i],0); // rho0/rho0 -1 = 0
-
+	float density = atrest_density(i);
 
 	if (h > 0) {
 		float g = fabsf(length(physparams()->gravity));
 		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
-		density = pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
-				1/physparams()->gammacoeff[i])-1.0;
+		density = pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,1/physparams()->gammacoeff[i])-1.0;
 
 		}
 
 	return density;
 }
 
-// TODO : density to achieve a specific pressure
 float
 Problem::density_for_pressure(float P, int i) const
 {
-	return  physparams()->rho0[i]*pow(P/physparams()->bcoeff[i] + 1,
-				1/physparams()->gammacoeff[i]);
+	return  pow(P/physparams()->bcoeff[i] + 1,1/physparams()->gammacoeff[i])-1.0;
 }
 
 float
@@ -724,13 +727,13 @@ Problem::pressure(float rho_tilde, int i) const
 }
 
 float
-Problem::absolute_density( float rho_tilde, int i) const
+Problem::physical_density( float rho_tilde, int i) const
 {
 	return (rho_tilde + 1)*physparams()->rho0[i];
 }
 
 float
-Problem::relative_density( float rho, int i) const
+Problem::numerical_density( float rho, int i) const
 {
 	return rho/physparams()->rho0[i] - 1;
 }
@@ -1372,11 +1375,13 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 	const float4 *vel = buffers.getConstData<BUFFER_VEL>();
 	float4 *vol = buffers.getData<BUFFER_VOLUME>();
 
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+
 	for (uint i = 0; i < numParticles; ++i) {
 		float4 pvol;
 		// .x: initial volume, .w current volume.
 		// at the beginning they are both equal to mass/density
-		pvol.x = pvol.w = pos[i].w/absolute_density(vel[i].w,0);
+		pvol.x = pvol.w = pos[i].w/physical_density(vel[i].w,fluid_num(info[i]));
 		// .y is the log of current/initial
 		pvol.y = 0;
 		// .z is unused, set to zero
@@ -1519,15 +1524,16 @@ void Problem::initializeParticles(BufferList &buffers, const uint numParticles)
 
 void Problem::resetBuffers(BufferList &buffers, const uint numParticles)
 {
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
 	double4 *globalPos = buffers.getData<BUFFER_POS_GLOBAL>();
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
 
 	for (uint i = 0; i < numParticles; i++) {
-		// Compute density for hydrostatic filling. FIXME for multifluid
-		float rho = relative_density(physparams()->rho0[0],0);
+		// Compute density for hydrostatic filling.
+		float rho = physical_density(physparams()->rho0[0],fluid_num(info[i]));
 		if (m_hydrostaticFilling)
-			rho = density(m_waterLevel - globalPos[i].z, 0);
+			rho = hydrostatic_density(m_waterLevel - globalPos[i].z, fluid_num(info[i]));
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);

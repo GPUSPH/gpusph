@@ -401,14 +401,18 @@ float get_pressure(float4 const& pvel, particleinfo const& pinfo, GlobalData con
 	return TESTPOINT(pinfo) ? pvel.w : gdata->problem->pressure(pvel.w, fluid_num(pinfo));
 }
 
-// Here we store the absolute density to visualize
+// Here we store the physical density to visualize
 float get_density(float4 const& pvel, particleinfo const& pinfo, GlobalData const* gdata)
 {
 	// TODO FIXME: Testpoints compute pressure only
 	// In the future we would like to have a density here but this needs to be
 	// done correctly for multifluids
-	return TESTPOINT(pinfo) ? NAN : gdata->problem->absolute_density(pvel.w,fluid_num(pinfo)) ;
+	return TESTPOINT(pinfo) ? NAN : gdata->problem->physical_density(pvel.w,fluid_num(pinfo)) ;
 }
+
+// Return the last component of a float4 
+float get_last_component(float4 const& pvel )
+{ return pvel.w; }
 
 // Return the last component of a double4, demoted to a float
 float demote_w(double4 const& data)
@@ -539,6 +543,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// density
 	appender.append_data(vel, "Density", get_density);
 
+	if (gdata->debug.numerical_density) {
+		appender.append_data(vel, "Relative Density", get_last_component);
+	}
+
 	// mass
 	appender.append_data(pos, "Mass", demote_w);
 
@@ -625,8 +633,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	appender.append_data(particleHash, "CellIndex", get_cellindex);
 
 	if (eulervel) {
-		// Eulerian velocity and density
-		appender.append_data(eulervel, "Eulerian velocity", "Eulerian density");
+		// Eulerian velocity
+		appender.append_data(eulervel, "Eulerian velocity", nullptr);
+
+		// Eulerian density
+		appender.append_data(eulervel, "Eulerian density", get_density);
 	}
 
 	// vorticity

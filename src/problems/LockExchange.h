@@ -1,4 +1,4 @@
-/*  Copyright 2015 Giuseppe Bilotta, Alexis Herault, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,30 +23,24 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _BUBBLE_H
-#define	_BUBBLE_H
+#ifndef _LockExchange_H
+#define	_LockExchange_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
 
-class Bubble: public XProblem {
+class LockExchange: public XProblem {
 	private:
-		uint		dyn_layers; // number of layers for DYN_BOUNDARY
-		double3		extra_offset; // offset caused by DYN_BOUNDARY
-		float		H;  // still water level
-		float		R;  // sphere radius
-		double		lx, ly, lz;		// dimension of experiment box
 
-		size_t		air, water; // fluid indices of air and water
+	double dimX, dimY, dimZ;
+	double H;
+	size_t light, heavy; // fluid indices of air and water
 
 	public:
-		Bubble(GlobalData *);
-		void draw_boundary(float);
-		void copy_planes(PlaneList&);
+		LockExchange(GlobalData *);
+		//virtual ~LockExchange(void);
+		// override standard split
+		void fillDeviceMap();
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
-		bool need_write(double)const;
 };
-#endif	/* _BUBBLE_H */
-
+#endif	/* _LockExchange_H */
 

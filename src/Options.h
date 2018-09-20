@@ -33,12 +33,22 @@
 #include <cmath>
 #include <string>
 #include <sstream> // for de-serialization of option values
+#include <vector>
 #include <map> // unordered_map would be faster, but it's C++11
 
 /*! arbitrary problem options are allowed, stored in
  * a string -> string map, and deserialized on retrieval.
  */
 typedef std::map<std::string, std::string> OptionMap;
+
+//! parse a string in the form number[,number...] and return a vector of integers
+std::vector<int> parse_devices_string(const char *);
+
+//! return the default devices
+/*! This parses the environment variable GPUSPH_DEVICE as a comma-separated list
+ *  of device numbers (if available), and otherwise returns just the device 0
+ */
+std::vector<int> get_default_devices();
 
 //! The Options class is used to manage command-line options
 class Options {
@@ -48,11 +58,12 @@ private:
 	OptionMap m_options;
 
 public:
+
 	//! legacy options
 	//! @{
 	std::string	problem; ///< problem name
 	std::string	resume_fname; ///< file to resume simulation from
-	int		device;  ///< which device to use
+	std::vector<int> devices; ///< list of devices to be used
 	std::string	dem; ///< DEM file to use
 	std::string	dir; ///< directory where data will be saved
 	double	deltap; ///< deltap
@@ -77,7 +88,7 @@ public:
 		m_options(),
 		problem(),
 		resume_fname(),
-		device(-1),
+		devices(),
 		dem(),
 		dir(),
 		deltap(NAN),

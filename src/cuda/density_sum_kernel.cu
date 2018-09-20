@@ -513,7 +513,7 @@ densitySumBoundaryDevice(
 	float imposedGam = compute_imposed_gamma(pdata.gGamN.w, sumGam);
 
 	// generate new density based on previously computed values
-	pout.rho = (imposedGam*absolute_density(pdata.vel.w,fluid_num(pdata.info)) + params.forces[index].w)/pout.gGamNp1.w;
+	pout.rho = (imposedGam*physical_density(pdata.vel.w,fluid_num(pdata.info)) + params.forces[index].w)/pout.gGamNp1.w;
 
 	// clipping of new gamma
 	// this needs to happen after the density update because otherwise density jumps can occur
@@ -524,7 +524,7 @@ densitySumBoundaryDevice(
 
 	// output of updated variables:
 	// density
-	params.newVel[index].w = relative_density(pout.rho,fluid_num(pdata.info));
+	params.newVel[index].w = numerical_density(pout.rho,fluid_num(pdata.info));
 	// gamma
 	params.newgGam[index] = pout.gGamNp1;
 }

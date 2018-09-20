@@ -48,13 +48,11 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
-		//formulation<SPH_GRENIER>,
-		//formulation<SPH_F2>,
-		viscosity<DYNAMICVISC>,
-		boundary<DYN_BOUNDARY>,
-		flags<ENABLE_DTADAPT | ENABLE_REPACKING>
+		viscosity<ARTVISC>,
+		boundary<DYN_BOUNDARY>
+		add_flags<ENABLE_REPACKING>
 	).select_options(
-		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
+		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
 		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
 		USE_PLANES, add_flags<ENABLE_PLANES>()
