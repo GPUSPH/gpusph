@@ -130,7 +130,7 @@ private:
 	void saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_t write_flags);
 
 	// callbacks for moving boundaries and variable gravity
-	void doCallBacks();
+	void doCallBacks(const flag_t current_integrator_step);
 
 	// rebuild the neighbor list
 	void buildNeibList();

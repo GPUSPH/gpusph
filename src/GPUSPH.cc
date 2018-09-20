@@ -552,7 +552,7 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 	// variable gravity
 	if (problem->simparams()->gcallback) {
 		// ask the Problem to update gravity, one per process
-		doCallBacks();
+		doCallBacks(current_integrator_step);
 		// upload on the GPU, one per device
 		doCommand(UPLOAD_GRAVITY);
 	}
@@ -1837,12 +1837,40 @@ void GPUSPH::buildNeibList()
 	}
 }
 
-void GPUSPH::doCallBacks()
+//! Invoke system callbacks
+/*! Currently this only calls the variable-gravity callback.
+ * Since this is invoked in-between steps, the simulated time t
+ * for which the problem should be set up should be the one
+ * for the next timestep
+ */
+void GPUSPH::doCallBacks(const flag_t current_integrator_step)
 {
 	Problem *pb = gdata->problem;
 
+	double t_callback;
+	switch (current_integrator_step)
+	{
+	case INITIALIZATION_STEP:
+		/* prepare for the simulation, so reset to 0 */
+		t_callback = 0;
+		break;
+	case INTEGRATOR_STEP_1:
+		/* end of predictor, prepare for corrector, where forces
+		 * will be computed at t + dt/2
+		 */
+		t_callback = gdata->t + gdata->dt/2;
+		break;
+	case INTEGRATOR_STEP_2:
+		/* end of corrector, prepare for next predictor, where forces
+		 * will be computed at t + dt (t and dt are still the one
+		 * for the current whole step
+		 */
+		t_callback = gdata->t + gdata->dt;
+		break;
+	}
+
 	if (pb->simparams()->gcallback)
-		gdata->s_varGravity = pb->g_callback(gdata->t);
+		gdata->s_varGravity = pb->g_callback(t_callback);
 }
 
 void GPUSPH::printStatus(FILE *out)
