@@ -32,24 +32,24 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cstdlib>
-#include <cstring>
 
 using namespace std;
 
-std::vector<int> parse_devices_string(const char *argv)
+vector<int> parse_devices_string(const char *argv)
 {
-	std::vector<int> ret;
-	// stupid stdlib wanting a char* instead of a const char* for strtok
-	char *pch = strtok ((char*)argv, ",");
-	while (pch != NULL) {
+	vector<int> ret;
+
+	istringstream tokenizer(argv);
+
+	string dev_string;
+	while (getline(tokenizer, dev_string, ',')) {
 		int next_dev = -1;
 		// if this could be parsed like an unsitned integer:
-		if (sscanf(pch, "%u", &next_dev)>0) {
+		if (sscanf(dev_string.c_str(), "%u", &next_dev)>0) {
 			ret.push_back(next_dev);
 		} else {
-			throw invalid_argument("token " + string(pch) + " is not a number");
+			throw invalid_argument("token " + dev_string + " is not a number");
 		}
-		pch = strtok (NULL, ",");
 	}
 	return ret;
 }
