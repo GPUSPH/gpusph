@@ -55,13 +55,13 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 		//formulation<SPH_F2>,
 		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
-		add_flags<(USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
+		add_flags<ENABLE_REPACKING | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
 	);
 
 	// SPH parameters
 	// Grenier sets h/R = 0.128
 	//set_deltap(6.72e-4/1.3);
-	set_deltap(0.128*R/1.3);
+	set_deltap(0.128*R/1.3*4);
 
 	if (simparams()->boundarytype == DYN_BOUNDARY) {
 		dyn_layers = simparams()->get_influence_layers() + 1;

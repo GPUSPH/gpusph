@@ -313,6 +313,11 @@ void simulate(GlobalData *gdata)
 		throw invalid_argument("no simulation framework defined in the problem!");
 	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
 
+	// check consistency of the repacking options
+	if ((gdata->clOptions->repack || gdata->clOptions->repack_only)
+		&& !(gdata->problem->simparams()->simflags & ENABLE_REPACKING))
+		throw invalid_argument("repacking asked for but it is disabled in the simulation framework!");
+
 	// get - and actually instantiate - the existing instance of GPUSPH
 	GPUSPH *Simulator = GPUSPH::getInstance();
 
