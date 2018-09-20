@@ -315,6 +315,22 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	 */
 	bool resumed = false;
 
+	// Prepare for repacking if necessary
+	if ((gdata->clOptions->repack || gdata->clOptions->repack_only) && !repacked) {
+		gdata->keep_repacking = true;
+		gdata->keep_going = false;
+		// If previous repack results are read, do not repack
+		if (!gdata->keep_repacking) {
+			doWrite(REPACK_STEP);
+			gdata->keep_going = true;
+			repacked = true;
+		}
+	} else {
+		gdata->keep_repacking = false;
+		gdata->keep_going = true;
+	}
+
+	// initialize the buffers
 	if (clOptions->resume_fname.empty()) {
 		gdata->s_hBuffers.set_state_on_write("problem init");
 		printf("Copying the particles to shared arrays...\n");
@@ -451,21 +467,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
 	for (uint d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
-
-	// Prepare for repacking if necessary
-	if ((gdata->clOptions->repack || gdata->clOptions->repack_only) && !repacked) {
-		gdata->keep_repacking = true;
-		gdata->keep_going = false;
-		// If previous repack results are read, do not repack
-		if (!gdata->keep_repacking) {
-			doWrite(REPACK_STEP);
-			gdata->keep_going = true;
-			repacked = true;
-		}
-	} else {
-		gdata->keep_repacking = false;
-		gdata->keep_going = true;
-	}
 
 	//	repack.SetParams();
 

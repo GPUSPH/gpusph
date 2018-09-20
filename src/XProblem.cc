@@ -2038,7 +2038,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		init_keps(buffers, tot_parts);
 
 	// call user-set initialization routine, if any
-	initializeParticles(buffers, tot_parts);
+	if (!gdata->keep_repacking)
+		initializeParticles(buffers, tot_parts);
 }
 
 // callback for filtering out points before they become particles (e.g. unfills/cuts)
