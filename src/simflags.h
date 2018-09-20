@@ -72,8 +72,16 @@
 //! Compute internal energy
 #define ENABLE_INTERNAL_ENERGY (ENABLE_GAMMA_QUADRATURE << 1)
 
+//! Enable multi-fluid support
+/*! This disables optimizations in the viscous contributions that assume
+ * a single constant viscosity for all particles
+ */
+#define ENABLE_MULTIFLUID	(ENABLE_INTERNAL_ENERGY <<1)
+#define IS_MULTIFLUID(flags)	((flags) & ENABLE_MULTIFLUID)
+#define IS_SINGLEFLUID(flags)	(!IS_MULTIFLUID(flags))
+
 //! Last simulation flag
-#define LAST_SIMFLAG		ENABLE_INTERNAL_ENERGY
+#define LAST_SIMFLAG		ENABLE_MULTIFLUID
 
 //! All flags.
 //! Since flags are a bitmap, LAST_SIMFLAG - 1 sets all bits before

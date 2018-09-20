@@ -320,6 +320,7 @@ CommonWriter::write_simparams(ostream &out)
 	out << " kernelradius = " << SP->kernelradius << endl;
 	out << " influenceRadius = " << SP->influenceRadius << endl;
 	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
+	out << " multi-fluid support: " << ED[!!(SP->simflags & ENABLE_MULTIFLUID)] << endl;
 	out << " Rheology: " << RheologyTypeName[SP->rheologytype] << endl;
 	switch (SP->rheologytype) {
 	case INVISCID: break; /* nothing to show */

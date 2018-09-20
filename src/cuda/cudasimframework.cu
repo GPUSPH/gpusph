@@ -127,18 +127,22 @@ template<
 	ComputationalViscosityType _compvisc,
 	ViscousModel _viscmodel,
 	AverageOperator _viscavgop,
+	LegacyViscosityType _legacyvisctype,
 	BoundaryType _boundarytype,
 	Periodicity _periodicbound,
 	flag_t _simflags,
-	// TODO multifluid: we need to specify whether we're using one fluid
-	// or more, since for #fluids > 1 we can't assume constant viscosity
-	bool _is_const_visc = (_rheologytype == NEWTONIAN && _turbmodel != KEPSILON),
+	bool _is_const_visc = (_legacyvisctype == KINEMATICVISC) || (
+		IS_SINGLEFLUID(_simflags) &&
+		(_rheologytype == NEWTONIAN) &&
+		(_turbmodel != KEPSILON)
+	),
 	bool invalid_combination =
 		// Currently, we consider invalid only the case
 		// of SA_BOUNDARY
 
 		// TODO extend to include all unsupported/untested combinations for other boundary conditions
 
+		(_legacyvisctype == KINEMATICVISC && IS_MULTIFLUID(_simflags)) || // kinematicvisc model only made sense for single-fluid
 		(_turbmodel == KEPSILON && _boundarytype != SA_BOUNDARY) || // k-epsilon only supported in SA currently
 		(_boundarytype == SA_BOUNDARY && (
 			// viscosity
@@ -183,7 +187,7 @@ public:
 	static const bool is_const_visc = _is_const_visc;
 
 	using ViscSpec = FullViscSpec<_rheologytype, _turbmodel, _compvisc,
-	      _viscmodel, _viscavgop, _is_const_visc>;
+	      _viscmodel, _viscavgop, _simflags, _is_const_visc>;
 
 	static const BoundaryType boundarytype = _boundarytype;
 	static const Periodicity periodicbound = _periodicbound;
@@ -296,7 +300,7 @@ struct MultiplexSubclass : virtual public T
 template<typename Arg1, typename Arg2, typename Arg3,
 	typename Arg4, typename Arg5, typename Arg6,
 	typename Arg7, typename Arg8, typename Arg9,
-	typename Arg10, typename Arg11>
+	typename Arg10, typename Arg11, typename Arg12>
 struct ArgSelector :
 	virtual public MultiplexSubclass<Arg1,1>,
 	virtual public MultiplexSubclass<Arg2,2>,
@@ -307,7 +311,8 @@ struct ArgSelector :
 	virtual public MultiplexSubclass<Arg7,7>,
 	virtual public MultiplexSubclass<Arg9,9>,
 	virtual public MultiplexSubclass<Arg10,10>,
-	virtual public MultiplexSubclass<Arg11,11>
+	virtual public MultiplexSubclass<Arg11,11>,
+	virtual public MultiplexSubclass<Arg12,12>
 {};
 
 // Now we set the defaults for each argument
@@ -321,6 +326,7 @@ struct TypeDefaults
 	typedef TypeValue<ComputationalViscosityType, KINEMATIC> ComputationalViscosity;
 	typedef TypeValue<ViscousModel, MORRIS> ViscModel;
 	typedef TypeValue<AverageOperator, ARITHMETIC> ViscAveraging;
+	typedef TypeValue<LegacyViscosityType, INVALID_VISCOSITY> LegacyViscType;
 	typedef TypeValue<BoundaryType, LJ_BOUNDARY> Boundary;
 	typedef TypeValue<Periodicity, PERIODIC_NONE> Periodic;
 	typedef TypeValue<flag_t, ENABLE_NONE> Flags;
@@ -375,13 +381,17 @@ DEFINE_ARGSELECTOR(visc_average, AverageOperator, ViscAveraging);
 template<LegacyViscosityType visctype, typename ParentArgs=TypeDefaults>
 struct viscosity : virtual public ParentArgs
 {
+	// propagate the information about the fact that the user
+	// specified the given legacy type
+	typedef TypeValue<LegacyViscosityType, visctype> LegacyViscType;
+
+	// set the corresponding viscous model parameters
 	using Spec = typename ConvertLegacyVisc<visctype>::type;
 	typedef TypeValue<RheologyType, Spec::rheologytype> Rheology;
 	typedef TypeValue<TurbulenceModel, Spec::turbmodel> Turbulence;
 	typedef TypeValue<ComputationalViscosityType, Spec::compvisc> ComputationalViscosity;
 	typedef TypeValue<ViscousModel, Spec::viscmodel> ViscModel;
 	typedef TypeValue<AverageOperator, Spec::avgop> ViscAveraging;
-	// TODO is_const_visc
 
 	template<typename NewParent> struct reparent :
 		virtual public viscosity<visctype, NewParent> {};
@@ -445,11 +455,12 @@ template<
 	typename Arg8 = DefaultArg,
 	typename Arg9 = DefaultArg,
 	typename Arg10 = DefaultArg,
-	typename Arg11 = DefaultArg>
+	typename Arg11 = DefaultArg,
+	typename Arg12 = DefaultArg>
 class CUDASimFramework {
 	/// The collection of arguments for our current setup
 	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6,
-		Arg7, Arg8, Arg9, Arg10, Arg11> Args;
+		Arg7, Arg8, Arg9, Arg10, Arg11, Arg12> Args;
 
 	/// Comfort static defines
 	static const KernelType kerneltype = Args::Kernel::value;
@@ -476,6 +487,7 @@ class CUDASimFramework {
 			compvisc,
 			viscmodel,
 			viscavgop,
+			Args::LegacyViscType::value,
 			boundarytype,
 			periodicbound,
 			simflags> CUDASimFrameworkType;

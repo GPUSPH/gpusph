@@ -33,6 +33,8 @@
 #ifndef _VISC_SPEC_H
 #define _VISC_SPEC_H
 
+#include "simflags.h"
+
 #include "average.h"
 
 //! Rheology of the fluid(s)
@@ -139,6 +141,7 @@ const char* ViscousModelName[MORRIS+1]
 // * a computational viscosity specification
 // * a viscous model (discretization approach to the viscous operator)
 // * an averaging operator
+// * knowledge about the presence of multiple fluids
 // TODO use the TypeValue and Multiplexer from CUDASimFramework
 template<
 	RheologyType _rheologytype = NEWTONIAN,
@@ -146,10 +149,13 @@ template<
 	ComputationalViscosityType _compvisc = KINEMATIC,
 	ViscousModel _viscmodel = MORRIS,
 	AverageOperator _avgop = ARITHMETIC,
+	flag_t _simflags = ENABLE_NONE,
 	// is this a constant-viscosity formulation?
-	// TODO multifluid: we need to specify whether we're using one fluid
-	// or more, since for #fluids > 1 we can't assume constant viscosity
-	bool _is_const_visc = (_rheologytype == NEWTONIAN && _turbmodel != KEPSILON)
+	bool _is_const_visc = (
+		IS_SINGLEFLUID(_simflags) &&
+		(_rheologytype == NEWTONIAN) &&
+		(_turbmodel != KEPSILON)
+	)
 >
 struct FullViscSpec {
 	static constexpr RheologyType rheologytype = _rheologytype;
@@ -157,23 +163,24 @@ struct FullViscSpec {
 	static constexpr ComputationalViscosityType compvisc = _compvisc;
 	static constexpr ViscousModel viscmodel = _viscmodel;
 	static constexpr AverageOperator avgop = _avgop;
+	static constexpr flag_t simflags = _simflags;
 
 	static constexpr bool is_const_visc = _is_const_visc;
 
 	//! Change the turbulence model
 	template<TurbulenceModel newturb>
 	using with_turbmodel =
-		FullViscSpec<rheologytype, newturb, compvisc, viscmodel, avgop>;
+		FullViscSpec<rheologytype, newturb, compvisc, viscmodel, avgop, simflags>;
 
 	//! Change the computational viscosity type specification
 	template<ComputationalViscosityType altcompvisc>
 	using with_computational_visc =
-		FullViscSpec<rheologytype, turbmodel, altcompvisc, viscmodel, avgop>;
+		FullViscSpec<rheologytype, turbmodel, altcompvisc, viscmodel, avgop, simflags>;
 
 	//! Change the averaging operator
 	template<AverageOperator altavgop>
 	using with_avg_operator =
-		FullViscSpec<rheologytype, turbmodel, compvisc, viscmodel, altavgop>;
+		FullViscSpec<rheologytype, turbmodel, compvisc, viscmodel, altavgop, simflags>;
 
 	//! Force the assumption about constant viscosity
 	/*! Sometimes we need to refer to the same viscous specification, but ignoring
@@ -182,7 +189,7 @@ struct FullViscSpec {
 	 */
 	template<bool is_const_visc>
 	using assume_const_visc =
-		FullViscSpec<rheologytype, turbmodel, compvisc, viscmodel, avgop, is_const_visc>;
+		FullViscSpec<rheologytype, turbmodel, compvisc, viscmodel, avgop, simflags, is_const_visc>;
 };
 
 //! Legacy viscosity type

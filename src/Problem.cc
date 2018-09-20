@@ -86,10 +86,27 @@ Problem::Problem(GlobalData *_gdata) :
 bool
 Problem::initialize()
 {
-	if (simparams()->gage.size() > 0 && !m_simframework->hasPostProcessEngine(SURFACE_DETECTION)) {
+	SimParams const* _sp(simparams());
+	PhysParams const* _pp(physparams());
+
+	if (_sp->gage.size() > 0 && !m_simframework->hasPostProcessEngine(SURFACE_DETECTION)) {
 		printf("Wave gages present: force-enabling surface detection\n");
 		m_simframework->addPostProcessEngine(SURFACE_DETECTION);
 	}
+
+	const bool multi_fluid_flag = IS_MULTIFLUID(_sp->simflags);
+	const bool has_multiple_fluids = (_pp->numFluids() > 1);
+
+	if (has_multiple_fluids && !multi_fluid_flag) {
+		throw invalid_argument(to_string(_pp->numFluids()) +
+			" fluids defined, but ENABLE_MULTIFLUID missing from simulation flags");
+	}
+
+	if (multi_fluid_flag && !has_multiple_fluids) {
+		fprintf(stderr, "WARNING: multi-fluid support enabled, but only one fluid defined\n"
+			"Viscous computation will not be optimized\n");
+	}
+
 	// run post-construction functions
 	check_dt();
 	check_neiblistsize();

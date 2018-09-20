@@ -54,7 +54,7 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 		formulation<SPH_GRENIER>,
 		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
-		flags<ENABLE_DTADAPT | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
+		flags<ENABLE_DTADAPT | ENABLE_MULTIFLUID | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
 	);
 
 	// SPH parameters
