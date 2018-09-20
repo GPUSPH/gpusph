@@ -49,7 +49,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_REPACKING>
 	).select_options(
 		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),

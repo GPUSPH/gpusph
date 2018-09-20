@@ -136,10 +136,9 @@ bool XProblem::initialize()
 	// aux var for automatic water level computation
 	double highest_water_part = NAN;
 
-	// Enable free surface boundaries for loading if repack mode is on
-	// and old repacking results can not be reused without recomputing.
-	bool enableFreeSurf = false;
-//			(gdata->mode == REPACK && !(gdata->repack_flags & REPACK_REUSE));
+	// Enable free surface boundaries if we are repacking
+	bool enableFreeSurf = (gdata->clOptions->repack == true
+		|| gdata->clOptions->repack_only == true);
 
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		// aux vars to store bbox of current geometry
@@ -450,7 +449,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			// free-surface particles for repacking behave like a fixed boundary
 			// they are used only if repack mode is on and old result can
 			// not be reused - this is checked during the problem initialization.
-			geomInfo->handle_collisions = true;
+			geomInfo->handle_collisions = false;
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
 			geomInfo->enabled = false;

@@ -477,6 +477,19 @@ struct sa_boundary_particle_data
 	{}
 };
 
+// data used for SA_BOUNDARY for repacking
+struct sa_repack_particle_data
+{
+	const	float4	oldGGam;
+	const	float4 belem;
+	__device__ __forceinline__
+	sa_repack_particle_data(const uint index, particleinfo const& info,
+		sa_boundary_repack_params const& params) :
+		oldGGam(tex1Dfetch(gamTex, index)),
+		belem(BOUNDARY(info) ? tex1Dfetch(boundTex, index) : make_float4(0.0f))
+	{}
+};
+
 // SPSVISC particle data
 struct sps_particle_data
 {
@@ -639,6 +652,18 @@ struct sa_finalize_particle_data
 	{}
 };
 
+struct sa_finalize_repack_particle_data
+{
+	// x,y,z contains the gradient of gamma, w gamma itself
+	const float4	gGam;
+
+	__device__ __forceinline__
+	sa_finalize_repack_particle_data(const uint index,
+			sa_finalize_repack_params const& params) :
+		gGam(params.gGam[index])
+	{}
+};
+
 template<SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
@@ -689,7 +714,7 @@ struct repack_particle_data :
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype,
-		sa_boundary_particle_data)
+		sa_repack_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const BoundaryType boundarytype = _boundarytype;
@@ -707,7 +732,7 @@ struct repack_particle_data :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		vel_particle_data(_index, _info),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
-			sa_boundary_particle_data)(_index, _info, params)
+			sa_repack_particle_data)(_index, _info, params)
 	{}
 };
 
@@ -716,7 +741,7 @@ template<BoundaryType _boundarytype,
 struct finalize_repack_particle_data :
 	// included unconditionally for all particles:
 	common_finalize_particle_data,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data)
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_repack_particle_data)
 {
 	static const BoundaryType boundarytype = _boundarytype;
 	static const flag_t simflags = _simflags;
@@ -731,7 +756,7 @@ struct finalize_repack_particle_data :
 	finalize_repack_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info,
 		params_t const& params) :
 		common_finalize_particle_data(_index, _pos, params.velArray[_index], _info, params.particleHash),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params)
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_repack_particle_data)(_index, params)
 		{}
 };
 
@@ -2234,10 +2259,10 @@ enable_if_t<FP::cptype == PT_FLUID && FP::nptype == PT_FLUID>
 compute_repacking_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	/* Mixing force for repacking: \f$ F = -2ac^2\nabla\Gamma \f$
+	/* Mixing force for repacking: \f$ F = -ac^2\nabla\Gamma \f$
 		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
 	*/
-	nout.DvDt -= 2.f*d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
 		*d_sscoeff[fluid_num(pdata.info)]
 		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
 		*ndata.f*as_float3(ndata.relPos);
@@ -2253,10 +2278,10 @@ enable_if_t<
 compute_repacking_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	/* Mixing force for repacking: \f$ F = -2ac^2\nabla\Gamma \f$
+	/* Mixing force for repacking: \f$ F = -ac^2\nabla\Gamma \f$
 		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
 	*/
-	nout.DvDt -= 2.f*d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
 		*d_sscoeff[fluid_num(pdata.info)]
 		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
 		*ndata.f*as_float3(ndata.relPos);
@@ -2271,10 +2296,10 @@ enable_if_t<
 compute_repacking_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	/* Mixing force for repacking: \f$ F = -2ac^2\nabla\Gamma \f$
+	/* Mixing force for repacking: \f$ F = -ac^2\nabla\Gamma \f$
 		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
 	*/
-	nout.DvDt -= 2.f*d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
 		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
 		*ndata.f*as_float3(ndata.relPos);
 }
@@ -2287,7 +2312,11 @@ enable_if_t<
 >
 compute_repacking_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{ /* do nothing */ }
+{
+	/* Boundary term for repacking: \f$ F_s = -ac^2\sum_s \nabla\gamma_{as} \f$*/
+	nout.DvDt += d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*d_sscoeff[fluid_num(pdata.info)]*nout.ggamAS*ndata.normal_s;
+}
 
 
 /*
@@ -2440,9 +2469,6 @@ repack_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.force.w /= pdata.gGam.w;
 	pout.force.w /= d_rho0[fluid_num(pdata.info)]; // divide by 1/rho0 mass equation
 
-	// TODO FIXME GB: double-check, this doesn't look right to me
-	if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
-		pout.force.w *= physical_density(pdata.vel.w,fluid_num(pdata.info));
 }
 
 template<typename FP, typename P, typename OP>

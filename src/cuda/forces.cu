@@ -284,6 +284,26 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype,
 	flag_t simflags>
 struct CUDARepackingHelper<kerneltype, boundarytype, simflags, true> {
+	/* repackDevice kernel calls that involve vertex particles
+	 * are factored out here in this separate member function, that
+	 * does nothing in the non-SA_BOUNDARY case
+	 */
+	template<typename FluidVertexParams>
+		enable_if_t<FluidVertexParams::boundarytype == SA_BOUNDARY>
+		static vertex_repack(
+				uint numBlocks, uint numThreads, int dummy_shared,
+				FluidVertexParams const& params_fv)
+		{
+			cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+
+		}
+	template<typename FluidVertexParams>
+		enable_if_t<FluidVertexParams::boundarytype != SA_BOUNDARY>
+		static vertex_repack(
+				uint numBlocks, uint numThreads, int dummy_shared,
+				FluidVertexParams const& params_fv)
+		{ /* do nothing */ }
+
 	static uint
 	process(
 		BufferList const& bufread,
@@ -351,15 +371,15 @@ struct CUDARepackingHelper<kerneltype, boundarytype, simflags, true> {
 
 		cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
-		//if (boundarytype == SA_BOUNDARY) {
-		//	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX> params_fv(
-		//			forces,
-		//			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-		//			deltap, slength, influenceradius, dt,
-		//			cfl_gamma, vertPos, epsilon);
+		{
+			repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+					forces,
+					pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+					deltap, slength, influenceradius, dt,
+					cfl_gamma, vertPos, epsilon);
 
-		//	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
-		//}
+			vertex_repack(numBlocks, numThreads, dummy_shared, params_fv);
+		}
 
 		cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
