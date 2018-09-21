@@ -975,7 +975,10 @@ bool GPUSPH::runRepacking() {
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
 
-		if (we_are_done) {
+		if (!we_are_done) {
+			// Save the intermediate results if required
+			check_write(we_are_done);
+		} else {
 			printf("Repacking algorithm is finished\n");
 			printStatus();
 			gdata->t = -1.;
@@ -984,19 +987,16 @@ bool GPUSPH::runRepacking() {
 			doCommand(DISABLE_FREE_SURF_PARTS);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
+			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VERTICES);
 
+			// The particles are actually deleted in the calcHash and
+			// reorderDataAndFindCellStart functions
 			buildNeibList();
-			//if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-			//	// re-set density and other values for segments and vertices
-			//	// and set value of gamma for further simulation using the quadrature formula
-			//	saBoundaryConditions(INITIALIZATION_STEP);
-			//}
+			// Write the final results
 			check_write(we_are_done);
 			// No command after keep_repacking has been unset
 			gdata->keep_repacking = false;
 			if (gdata->quit_request) gdata->keep_going = false;
-		} else {
-			check_write(we_are_done);
 		}
 
 	} catch (exception &e) {

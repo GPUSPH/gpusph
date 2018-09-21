@@ -163,8 +163,8 @@ typedef struct SimParams {
 		numOpenBoundaries(0),
 		epsilon(5e-5f),
 		repack_maxiter(2000),
-		repack_a(1.0f),
-		repack_alpha(0.1f)
+		repack_a(0.1f),
+		repack_alpha(0.01f)
 	{};
 
 	/** \name Kernel parameters related methods
