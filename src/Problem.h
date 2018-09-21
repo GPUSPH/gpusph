@@ -181,8 +181,44 @@ class Problem {
 
 		uint3 const& get_gridsize(void) const
 		{ return m_gridsize; }
-		float density(float, int) const;
-		float density_for_pressure(float, int) const;
+
+		//! Returns the at-rest (numerical) density
+		float atrest_density(int i) const
+		{ return 0; }
+
+		//! Returns the at-rest physical density
+		float atrest_physical_density(int i) const
+		{ return physparams()->rho0[i]; }
+
+		//! Compute the (numerical) hydrostatic density
+		/*! Compute the hydrostatic density for depth h
+		 * and fluid number i
+		 */
+		float hydrostatic_density(float h, int i) const;
+
+		//! Inverse equation of state
+		/*! Compute the (numerical) density needed to achieve pressure P
+		 * for fluid number i
+		 */
+		float density_for_pressure(float P, int i) const;
+
+		//! Return the physical density value
+		/*! In preparation for the relative density work,
+		 * provide a function that converts a used-density-value
+		 * to a physical density value; currently this just returns
+		 * the used density value itself, since we work with the physical
+		 * density anyway.
+		 */
+		float physical_density(float numerical_density, int i) const;
+
+		//! Return the numerical density value
+		/*! In preparation for the relative density work,
+		 * provide a function that converts a physical density to the
+		 * value used internally; currently this just returns the used
+		 * density value itself, since we work with the physical
+		 * density anyway.
+		 */
+		float numerical_density(float physical_density, int i) const;
 
 		float pressure(float, int) const;
 

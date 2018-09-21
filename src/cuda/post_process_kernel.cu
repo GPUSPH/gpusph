@@ -120,7 +120,7 @@ calcVortDevice(	const	float4*		posArray,
 
 		// Compute vorticity
 		if (r < influenceradius) {
-			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// ∂Wij/∂r*Vj
+			const float f = F<kerneltype>(r, slength)*relPos.w/physical_density(relVel.w,fluid_num(neib_info));	// ∂Wij/∂r*Vj
 			// vxij = vxi - vxj and same for vyij and vzij
 			vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
 			vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
@@ -196,7 +196,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 		if (r < influenceradius) {
 			const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-			const float w = W<kerneltype>(r, slength)*relPos.w/neib_vel.w;	// Wij*mj
+			const float w = W<kerneltype>(r, slength)*relPos.w/physical_density(neib_vel.w,fluid_num(neib_info));	// Wij*mj
 			//Velocity
 			velavg.x += w*neib_vel.x;
 			velavg.y += w*neib_vel.y;
@@ -283,7 +283,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	CLEAR_FLAG(info, FG_SURFACE);
 
 	// self contribution to normalization: W(0)*vol
-	normal.w = W<kerneltype>(0.0f, slength)*pos.w/tex1Dfetch(velTex, index).w;
+	normal.w = W<kerneltype>(0.0f, slength)*pos.w/physical_density(tex1Dfetch(velTex, index).w,fluid_num(info));
 
 	// First loop over all neighbors
 	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
@@ -304,10 +304,13 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length(as_float3(relPos));	
+
+		// read neighbor data from sorted arrays
+	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// neighbor volume
-		const float neib_vol = relPos.w/tex1Dfetch(velTex, neib_index).w;
+		const float neib_vol = relPos.w/physical_density(tex1Dfetch(velTex, neib_index).w, fluid_num(neib_info));
 
 		if (r < influenceradius) {
 			const float f = F<kerneltype>(r, slength)*neib_vol; // 1/r ∂Wij/∂r Vj

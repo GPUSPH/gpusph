@@ -504,7 +504,7 @@ INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(USER_PROBLEM_DIR
 # includes such as stdint.h
 CUDA_INCLUDE_PATH = $(abspath $(CUDA_INSTALL_PATH)/include)
 ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
-	CC_INCPATH += -isystem $(CUDA_INCLUDE_PATH)
+	CC_INCPATH += -I $(CUDA_INCLUDE_PATH)
 endif
 
 # LIBPATH

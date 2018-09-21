@@ -1893,7 +1893,7 @@ void GPUWorker::simulationThread() {
 				gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 2
 			}
 		}
-	} catch (exception &e) {
+	} catch (exception const& e) {
 		cerr << "Device " << deviceIndex << " thread " << thread_id.get_id() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
 		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
@@ -1904,7 +1904,7 @@ void GPUWorker::simulationThread() {
 
 	try {
 		finalize();
-	} catch (exception &e) {
+	} catch (exception const& e) {
 		// if anything goes wrong here, there isn't much we can do,
 		// so just show the error and carry on
 		cerr << e.what() << endl;
@@ -2443,6 +2443,8 @@ void GPUWorker::kernel_density_sum()
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 	bufwrite.add_state_on_write("densitySum" + to_string(step));
+
+
 
 	integrationEngine->density_sum(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays

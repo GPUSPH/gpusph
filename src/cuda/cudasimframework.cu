@@ -329,7 +329,7 @@ struct TypeDefaults
 	typedef TypeValue<LegacyViscosityType, INVALID_VISCOSITY> LegacyViscType;
 	typedef TypeValue<BoundaryType, LJ_BOUNDARY> Boundary;
 	typedef TypeValue<Periodicity, PERIODIC_NONE> Periodic;
-	typedef TypeValue<flag_t, ENABLE_NONE> Flags;
+	typedef TypeValue<flag_t, DEFAULT_FLAGS> Flags;
 };
 
 // The user-visible name template parameters will all subclass TypeDefaults,
@@ -403,8 +403,13 @@ DEFINE_ARGSELECTOR(boundary, BoundaryType, Boundary);
 // Periodic override
 DEFINE_ARGSELECTOR(periodicity, Periodicity, Periodic);
 
+#if 0
 // Flags override
+// These are disabled because problems should only use
+// add_flags<> and disable_flags<>, in order to avoid issues
+// when new default flags get introduced for backwards compatibility
 DEFINE_ARGSELECTOR(flags, flag_t, Flags);
+#endif
 
 // Add flags: this is an override that adds the new simflags
 // to the ones of the parent.
@@ -416,6 +421,18 @@ struct add_flags : virtual public ParentArgs
 	template<typename NewParent> struct reparent :
 		virtual public add_flags<simflags, NewParent> {};
 };
+
+// Disable flags: this is an override that removes the given simflags
+// from the ones of the parent
+template<flag_t simflags, typename ParentArgs=TypeDefaults>
+struct disable_flags : virtual public ParentArgs
+{
+	typedef TypeValue<flag_t, DISABLE_FLAGS(ParentArgs::Flags::value, simflags)> Flags;
+
+	template<typename NewParent> struct reparent :
+		virtual public add_flags<simflags, NewParent> {};
+};
+
 
 /// We want to give users the possibility to change options (e.g. enable flags)
 /// conditionally at runtime. For this, we need a way to pack collection of
@@ -547,38 +564,28 @@ public:
 	}
 
 	/// Chained selectors (for multiple overrides)
-	template<typename Extra, typename Sel2, typename Other>
-	SimFramework * select_options(bool selector, Extra, Sel2 selector2, Other)
+	template<typename Extra, typename ...Rest>
+	SimFramework * select_options(bool selector, Extra, Rest...rest)
 	{
 		if (selector)
-			return extend<Extra>().select_options(selector2, Other());
-		return this->select_options(selector2, Other());
+			return extend<Extra>().select_options(rest...);
+		return this->select_options(rest...);
 	}
 
 	/// Chained selectors (for multiple overrides)
-	template<typename Switch, typename Sel2, typename Other>
-	SimFramework * select_options(int selector, Switch, Sel2 selector2, Other)
+	template<typename Switch, typename ...Rest>
+	SimFramework * select_options(int selector, Switch, Rest...rest)
 	{
 		switch (selector) {
 		case 0:
-			return extend< typename Switch::A >().select_options(selector2, Other());
+			return extend< typename Switch::A >().select_options(rest...);
 		case 1:
-			return extend< typename Switch::B >().select_options(selector2, Other());
+			return extend< typename Switch::B >().select_options(rest...);
 		case 2:
-			return extend< typename Switch::C >().select_options(selector2, Other());
+			return extend< typename Switch::C >().select_options(rest...);
 		}
 		throw runtime_error("invalid selector value");
 	}
-
-	/// Chained selectors (for multiple overrides)
-	template<typename E1, typename E2, typename SelO, typename Other>
-	SimFramework * select_options(bool s1, E1, bool s2, E2, SelO sel_o, Other)
-	{
-		if (s1)
-			return extend<E1>().select_options(s2, E2(), sel_o, Other());
-		return this->select_options(s2, E2(), sel_o, Other());
-	}
-
 
 };
 

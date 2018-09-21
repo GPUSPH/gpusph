@@ -260,7 +260,8 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 		// Velocity gradient is contributed by all particles
 		// TODO: fix SA case
 		if ( r < params.influenceradius ) {
-			const float f = F<kerneltype>(r, params.slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
+			const float neib_rho = physical_density(relVel.w, fluid_num(neib_info));
+			const float f = F<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// 1/r ∂Wij/∂r Vj
 
 			// Velocity Gradients
 			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
@@ -297,15 +298,17 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	// Dalrymple & Rogers (2006): eq. (10)
 	if (simflags & SPSK_STORE_TAU) {
 
+		const float rho = physical_density(vel.w, fluid_num(info));
+
 		tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
-		tau.xx /= vel.w;
-		tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
-		tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
+		tau.xx /= rho;
+		tau.xy *= nu_SPS/rho;								// tau12 = tau_xy/ρ^2
+		tau.xz *= nu_SPS/rho;								// tau13 = tau_xz/ρ^2
 		tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
-		tau.yy /= vel.w;
-		tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
+		tau.yy /= rho;
+		tau.yz *= nu_SPS/rho;								// tau23 = tau_yz/ρ^2
 		tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
-		tau.zz /= vel.w;
+		tau.zz /= rho;
 
 		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, tau);
 	}

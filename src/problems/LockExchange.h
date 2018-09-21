@@ -23,19 +23,24 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _DAMBREAK3D_H
-#define	_DAMBREAK3D_H
+#ifndef _LockExchange_H
+#define	_LockExchange_H
 
 #include "XProblem.h"
 
-class DamBreak3D: public XProblem {
+class LockExchange: public XProblem {
 	private:
+
+	double dimX, dimY, dimZ;
+	double H;
+	size_t light, heavy; // fluid indices of air and water
+
 	public:
-		DamBreak3D(GlobalData *);
-		//virtual ~DamBreak3D(void);
+		LockExchange(GlobalData *);
+		//virtual ~LockExchange(void);
 		// override standard split
 		void fillDeviceMap();
-		//bool need_write(double) const;
+		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 };
-#endif	/* _DAMBREAK3D_H */
+#endif	/* _LockExchange_H */
 

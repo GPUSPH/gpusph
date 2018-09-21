@@ -36,12 +36,12 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// *** user parameters from command line
 	const bool WET = get_option("wet", false);
-	const bool USE_PLANES = get_option("use_planes", true);
+	const bool USE_PLANES = get_option("use_planes", false);
 	const uint NUM_OBSTACLES = get_option("num_obstacles", 1);
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
-	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
-	const int RHODIFF = get_option("density-diffusion", 1);
+	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
+	const int RHODIFF = get_option("density-diffusion", 2);
 
 	// ** framework setup
 	// viscosities: KINEMATICVISC*, DYNAMICVISC*
@@ -50,10 +50,10 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
-		flags<ENABLE_DTADAPT>
+		boundary<DYN_BOUNDARY>
 	).select_options(
 		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
+		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
 		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
@@ -75,25 +75,33 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	resize_neiblist(128);
 
 	// *** Initialization of minimal physical parameters
-	set_deltap(0.02f);
+	set_deltap(0.015f);
+	//simparams()->dt = 0.00005;
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	const float g = length(physparams()->gravity);
 	const double H = 0.4;
 	physparams()->dcoeff = 5.0f * g * H;
 	add_fluid(1000.0);
+
+	//add_fluid(2350.0);
 	set_equation_of_state(0,  7.0f, 20.0f);
-	//set_kinematic_visc(0, 1.0e-2f);
-	set_dynamic_visc(0, 1.0e-4f);
+	set_kinematic_visc(0, 1.0e-2f);
+	//set_dynamic_visc(0, 1.0e-4f);
 
 	// default tend 1.5s
 	simparams()->tend=1.5f;
+	//simparams()->ferrariLengthScale = H;
+	simparams()->densityDiffCoeff = 0.1f;
+	/*physparams()->artvisccoeff =  0.2;
+	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.2);
-
-	// *** Other parameters and settings
 	add_writer(VTKWRITER, 0.005f);
+	//addPostProcess(VORTICITY);
+	// *** Other parameters and settings
 	m_name = "DamBreak3D";
 
 	// *** Geometrical parameters, starting from the size of the domain
@@ -151,6 +159,10 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// rotation angle
 	const double Z_ANGLE = M_PI / 4;
 
+
+
+// activate the solid obstacle
+
 	for (uint i = 0; i < NUM_OBSTACLES; i++) {
 		// Obstacle is of type GT_MOVING_BODY, although the callback is not even implemented, to
 		// make the forces feedback available
@@ -165,6 +177,11 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 		// enable force feedback to measure forces
 		enableFeedback(obstacle);
 	}
+
+
+
+
+
 
 	// Optionally, add a floating objects
 	/*
@@ -182,7 +199,16 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// add testpoints
 	const float TESTPOINT_DISTANCE = dimZ / (NUM_TESTPOINTS + 1);
 	for (uint t = 0; t < NUM_TESTPOINTS; t++)
-		addTestPoint(Point(dimX, dimY/2.0, t * TESTPOINT_DISTANCE));
+		addTestPoint(Point(0.25*dimX, dimY/2.0, (t+1) * TESTPOINT_DISTANCE/2.0));
+
+	for (uint t = 0; t < NUM_TESTPOINTS; t++)
+		addTestPoint(Point(0.4*dimX, dimY/2.0, (t+1) * TESTPOINT_DISTANCE/2.0));
+
+	for (uint t = 0; t < NUM_TESTPOINTS; t++)
+		addTestPoint(Point(0.75*dimX, dimY/2.0, (t+1) * TESTPOINT_DISTANCE/2.0));
+
+	for (uint t = 0; t < NUM_TESTPOINTS; t++)
+		addTestPoint(Point(0.9*dimX, dimY/2.0, (t+1) * TESTPOINT_DISTANCE/2.0));
 }
 
 // since the fluid topology is roughly symmetric along Y through the whole simulation, prefer Y split
@@ -190,3 +216,12 @@ void DamBreak3D::fillDeviceMap()
 {
 	fillDeviceMapByAxis(Y_AXIS);
 }
+
+/*
+bool DamBreak3D::need_write(double t) const
+{
+ 	return 0;
+}
+*/
+
+

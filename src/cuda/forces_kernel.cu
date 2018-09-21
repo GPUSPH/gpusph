@@ -421,6 +421,7 @@ densityGrenierDevice(
 	// this could be optimized to pos.w/vol assuming all same-fluid particles
 	// have the same mass
 	vel.w = mass_corr/(corr*vol);
+	vel.w = numerical_density(vel.w,fnum);
 	velArray[index] = vel;
 	sigmaArray[index] = sigma;
 }
@@ -487,7 +488,7 @@ shepardDevice(	const float4*	posArray,
 
 	// Taking into account self contribution in summation
 	float temp1 = pos.w*W<kerneltype>(0, slength);
-	float temp2 = temp1/vel.w ;
+	float temp2 = temp1/physical_density(vel.w,fluid_num(info)) ;
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -518,7 +519,7 @@ shepardDevice(	const float4*	posArray,
 
 		const float r = length(as_float3(relPos));
 
-		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+		const float neib_rho = physical_density(tex1Dfetch(velTex, neib_index).w,fluid_num(neib_info));
 
 		if (r < influenceradius ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
@@ -528,7 +529,7 @@ shepardDevice(	const float4*	posArray,
 	}
 
 	// Normalize the density and write in global memory
-	vel.w = temp1/temp2;
+	vel.w = numerical_density(temp1/temp2,fluid_num(info));
 	newVel[index] = vel;
 }
 
@@ -584,7 +585,7 @@ MlsDevice(	const float4*	posArray,
 	int neibs_num = 0;
 
 	// Taking into account self contribution in MLS matrix construction
-	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
+	mls.xx = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w,fluid_num(info));
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -613,9 +614,9 @@ MlsDevice(	const float4*	posArray,
 			continue;
 
 		const float r = length(as_float3(relPos));
-
-		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const float neib_rho = physical_density(tex1Dfetch(velTex, neib_index).w,fluid_num(neib_info));
+ 
 
 		// Add neib contribution only if it's a fluid one
 		if (r < influenceradius) {
@@ -721,6 +722,8 @@ MlsDevice(	const float4*	posArray,
 			const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 			vel.w += MlsCorrContrib(B, relPos, w);
 		}
+
+
 	}  // end of second loop trough neighbors
 
 	// If MLS starts misbehaving, define DEBUG_PARTICLE: this will
@@ -742,7 +745,7 @@ MlsDevice(	const float4*	posArray,
 		}
 	}
 #endif
-
+        vel.w = numerical_density(vel.w,fluid_num(info));
 	newVel[index] = vel;
 }
 /************************************************************************************************************/

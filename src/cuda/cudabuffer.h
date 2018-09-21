@@ -63,7 +63,7 @@ public:
 			if (bufs[i]) {
 				try {
 					CUDA_SAFE_CALL(cudaFree(bufs[i]));
-				} catch (std::exception &e) {
+				} catch (std::exception const& e) {
 #if _DEBUG_
 					std::cerr << e.what() <<
 						" [while freeing buffer " << Key << ":" << i << " ("

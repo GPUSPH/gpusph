@@ -56,7 +56,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<SPSVISC>,
 		boundary<LJ_BOUNDARY>,
 		//boundary<MK_BOUNDARY>,
-		flags<ENABLE_DTADAPT | ENABLE_PLANES>
+		add_flags<ENABLE_PLANES>
 	);
 
 	m_size = make_double3(lx, ly, lz);

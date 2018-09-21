@@ -292,6 +292,8 @@ int main(int argc, char** argv) {
 		exit(1);
 	}
 
+
+
 	GlobalData gdata;
 	gdata_static_pointer = &gdata;
 
@@ -398,7 +400,7 @@ int main(int argc, char** argv) {
 
 		// finalize everything
 		Simulator->finalize();
-	} catch (exception &e) {
+	} catch (exception const& e) {
 		cerr << e.what() << endl;
 		gdata.ret = 1;
 	}

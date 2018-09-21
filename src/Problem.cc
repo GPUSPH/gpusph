@@ -115,8 +115,15 @@ Problem::initialize()
 	/* Set artificial viscosity epsilon to h^2/10 if not set by the user.
 	 * For simplicity, we do this regardless of the viscosity model used,
 	 * it'll just be ignored otherwise */
-	if (isnan(physparams()->epsartvisc))
+	if (simparams()->turbmodel == ARTIFICIAL && isnan(physparams()->epsartvisc)){
 		physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+		printf("ARTVISC epsilon is not set, using default value: %e\n", physparams()->epsartvisc);		
+	}
+
+	if (simparams()->sph_formulation == SPH_GRENIER && isnan(physparams()->epsinterface)){
+		physparams()->epsinterface = 0.05;
+		printf("Grenier's interface epsilon is not set, using default value: %e\n", physparams()->epsinterface);
+	}
 
 	create_problem_dir();
 
@@ -697,41 +704,53 @@ Problem::check_neiblistsize(void)
 	}
 }
 
-
 float
-Problem::density(float h, int i) const
+Problem::hydrostatic_density(float h, int i) const
 {
-	float density = physparams()->rho0[i];
+	float density = atrest_density(i);
 
 	if (h > 0) {
 		float g = fabsf(length(physparams()->gravity));
 		// TODO g*rho0*h/B could be simplified to g*h*gamma/(c0*c0)
-		density = physparams()->rho0[i]*pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,
-				1/physparams()->gammacoeff[i]);
+		density = pow(g*physparams()->rho0[i]*h/physparams()->bcoeff[i] + 1,1/physparams()->gammacoeff[i])-1.0;
+
 		}
+
 	return density;
 }
 
-// density to achieve a specific pressure
 float
 Problem::density_for_pressure(float P, int i) const
 {
-	return  physparams()->rho0[i]*pow(P/physparams()->bcoeff[i] + 1,
-				1/physparams()->gammacoeff[i]);
+	return  pow(P/physparams()->bcoeff[i] + 1,1/physparams()->gammacoeff[i])-1.0;
 }
 
-
 float
-Problem::soundspeed(float rho, int i) const
+Problem::soundspeed(float rho_tilde, int i) const
 {
-	return physparams()->sscoeff[i]*pow(rho/physparams()->rho0[i], physparams()->sspowercoeff[i]);
+	const float rho_ratio = rho_tilde + 1;
+
+    return physparams()->sscoeff[i]*pow(rho_ratio, physparams()->sspowercoeff[i]);
 }
 
+float
+Problem::pressure(float rho_tilde, int i) const
+{
+	const float rho_ratio = rho_tilde + 1;
+
+	return physparams()->bcoeff[i]*(pow(rho_ratio, physparams()->gammacoeff[i]) - 1);
+}
 
 float
-Problem::pressure(float rho, int i) const
+Problem::physical_density( float rho_tilde, int i) const
 {
-	return physparams()->bcoeff[i]*(pow(rho/physparams()->rho0[i], physparams()->gammacoeff[i]) - 1);
+	return (rho_tilde + 1)*physparams()->rho0[i];
+}
+
+float
+Problem::numerical_density( float rho, int i) const
+{
+	return rho/physparams()->rho0[i] - 1;
 }
 
 void
@@ -1214,6 +1233,7 @@ Problem::calculateDensityDiffusionCoefficient()
 		simparams()->densityDiffCoeff *= 2.0f*simparams()->slength;
 		break;
 	default:
+
 		break;
 	}
 	return;
@@ -1370,11 +1390,13 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 	const float4 *vel = buffers.getConstData<BUFFER_VEL>();
 	float4 *vol = buffers.getData<BUFFER_VOLUME>();
 
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+
 	for (uint i = 0; i < numParticles; ++i) {
 		float4 pvol;
 		// .x: initial volume, .w current volume.
 		// at the beginning they are both equal to mass/density
-		pvol.x = pvol.w = pos[i].w/vel[i].w;
+		pvol.x = pvol.w = pos[i].w/physical_density(vel[i].w,fluid_num(info[i]));
 		// .y is the log of current/initial
 		pvol.y = 0;
 		// .z is unused, set to zero

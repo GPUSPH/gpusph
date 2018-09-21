@@ -51,17 +51,22 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,//SPSVISC, or DYNAMICVISC
 		boundary<LJ_BOUNDARY>,
+		//boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_MOVING_BODIES>
 	);
 
 	//addFilter(MLS_FILTER, 10);
 
 	// SPH parameters
-	set_deltap(0.015f);
+	set_deltap(0.02f);
 	simparams()->dt = 0.0001f;
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
-	simparams()->tend = 10.f;
+	simparams()->tend = 1.5f;
+
+	//setDynamicBoundariesLayers(3);
+
+	//resize_neiblist(128);
 
 	// Physical parameters
 	H = 0.4f;
@@ -81,14 +86,14 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->MK_beta = MK_par;
 	#undef MK_par
 
-	set_kinematic_visc(0, 1.0e-6f);
+	set_kinematic_visc(0, 1.0e-2f);
 	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1);
-	add_writer(COMMONWRITER, 0.0);
-
+	//add_writer(VTKWRITER, 0.1);
+	//add_writer(COMMONWRITER, 0.0);
+	add_writer(VTKWRITER, 0.005f);
 	// Name of problem used for directory creation
 	m_name = "DamBreakGate";
 
