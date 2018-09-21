@@ -147,7 +147,7 @@ bool XProblem::initialize()
 		// ignore planes for bbox
 		if (m_geometries[g]->type == GT_PLANE)
 			continue;
-
+		// Load the free-surface boundary particles when repacking only
 		if (m_geometries[g]->type == GT_FREE_SURFACE)
 			m_geometries[g]->enabled = enableFreeSurf;
 
@@ -447,8 +447,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			break;
 		case GT_FREE_SURFACE:
 			// free-surface particles for repacking behave like a fixed boundary
-			// they are used only if repack mode is on and old result can
-			// not be reused - this is checked during the problem initialization.
+			// they are used only if repack mode is on
 			geomInfo->handle_collisions = false;
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
@@ -474,7 +473,6 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	// or boundaries. By default, water erases only other water, while boundaries
 	// erase water and other boundaries. Testpoints eras nothing.
 	switch (geomInfo->type) {
-		case GT_FREE_SURFACE:
 		case GT_FLUID:
 			geomInfo->erase_operation = ET_ERASE_FLUID;
 			break;

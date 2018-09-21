@@ -224,6 +224,19 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			post_fname = resume_file.substr(found-1);
 			cout << "Hot start has been written from a multi-node simulation with " << hot_nrank << " processes" << endl;
 		}
+		if(resume_file.compare(0,8,"repack_n") == 0) {
+			// get number of ranks from previous simulation
+			pre_fname = clOptions->resume_fname.substr(0, found+8);
+			found = resume_file.find_first_of(".")+1;
+			size_t found2 = resume_file.find_first_of("_", 8);
+			if (found == string::npos || found2 == string::npos || found > found2) {
+				err_msg << "Malformed Repack filename: " << resume_file << "\nNeeds to be of the form \"repack_nX.Y_ZZZZZ.bin\"";
+				throw runtime_error(err_msg.str());
+			}
+			istringstream (resume_file.substr(found,found2-found)) >> hot_nrank;
+			post_fname = resume_file.substr(found-1);
+			cout << "Hot start has been written from a multi-node simulation with " << hot_nrank << " processes" << endl;
+		}
 		// allocate hot file arrays and file pointers
 		hot_in = new ifstream[hot_nrank];
 		hf = new HotFile*[hot_nrank];
@@ -322,12 +335,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if ((gdata->clOptions->repack || gdata->clOptions->repack_only) && !repacked) {
 		gdata->keep_repacking = true;
 		gdata->keep_going = false;
-		// If previous repack results are read, do not repack
-		if (!gdata->keep_repacking) {
-			doWrite(REPACK_STEP);
-			gdata->keep_going = true;
-			repacked = true;
-		}
 	} else {
 		gdata->keep_repacking = false;
 		gdata->keep_going = true;
@@ -785,7 +792,8 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 }
 
-void GPUSPH::runRepackingStep(const flag_t integrator_step) {
+void
+GPUSPH::runRepackingStep(const flag_t integrator_step) {
 
 	if (gdata->debug.inspect_preforce)
 		saveParticles(noPostProcess, integrator_step);
@@ -813,6 +821,18 @@ void GPUSPH::runRepackingStep(const flag_t integrator_step) {
 	doCommand(EULER, integrator_step);
 	gdata->only_internal = true;
 
+	if (gdata->debug.inspect_pregamma)
+		saveParticles(noPostProcess, integrator_step);
+
+	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+		// with SA_BOUNDARY we need to integrate gamma,
+		// which needs the new position and thus
+		// needs to be done after EULER
+		// we do it as if we were in step 2 of predictor-corrector
+		doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_2);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+	}
 	// -----------------------------------------
 
 	// put all the updated stuff in the READ positions, ready for the next step
@@ -859,16 +879,11 @@ bool GPUSPH::runRepacking() {
 
 	// this is where we invoke initialization routines that have to be
 	// run by the GPUWokers
-	const bool needs_preparation = (
-		(problem->simparams()->gcallback) ||
-		(problem->simparams()->boundarytype == SA_BOUNDARY)
-	);
-
-	if (needs_preparation) {
+	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 		// compute neighbour list for the first time
 		buildNeibList();
 
-		prepareNextStep(INITIALIZATION_STEP);
+		saBoundaryConditions(INITIALIZATION_STEP);
 	}
 
 	printf("Entering the repacking cycle\n");
@@ -960,18 +975,28 @@ bool GPUSPH::runRepacking() {
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
 
-		if (we_are_done)
-			gdata->t = -1.;
-		check_write(we_are_done);
-
 		if (we_are_done) {
 			printf("Repacking algorithm is finished\n");
 			printStatus();
+			gdata->t = -1.;
 			// Disable free surface boundary particles
 			printf("Disable free-surface particles\n");
-			//doCommand(DISABLE_FREE_SURF_PARTS);
-			//doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_VERTICES | DBLBUFFER_WRITE);
+			doCommand(DISABLE_FREE_SURF_PARTS);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
+
+			buildNeibList();
+			//if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+			//	// re-set density and other values for segments and vertices
+			//	// and set value of gamma for further simulation using the quadrature formula
+			//	saBoundaryConditions(INITIALIZATION_STEP);
+			//}
+			check_write(we_are_done);
+			// No command after keep_repacking has been unset
 			gdata->keep_repacking = false;
+			if (gdata->quit_request) gdata->keep_going = false;
+		} else {
+			check_write(we_are_done);
 		}
 
 	} catch (exception &e) {
@@ -2417,7 +2442,8 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		}
 
 		// modify particle mass on open boundaries
-		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+		if(gdata->clOptions->repack == false && gdata->clOptions->repack_only==false
+			&& problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
 			// identify all the corner vertex particles
 			doCommand(SWAP_BUFFERS, BUFFER_INFO);
 			doCommand(IDENTIFY_CORNER_VERTICES);

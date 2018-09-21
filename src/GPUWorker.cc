@@ -3007,9 +3007,6 @@ void GPUWorker::kernel_disableFreeSurfParts()
 
 	bcEngine->disableFreeSurfParts(
 			bufwrite.getData<BUFFER_POS>(),
-			bufwrite.getData<BUFFER_VEL>(),
-			bufwrite.getData<BUFFER_FORCES>(),
-			bufwrite.getData<BUFFER_GRADGAMMA>(),
 			bufwrite.getData<BUFFER_VERTICES>(),
 			bufread.getData<BUFFER_INFO>(),
 			m_numParticles,

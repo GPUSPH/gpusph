@@ -127,7 +127,7 @@ calculateIOboundaryCondition(
 			riemannR = rInt + (unExt - unInt);
 		else { // Shock wave
 		       // TODO Check case of multifluid for a = fluid_num(info)
-			float riemannRho = RHO(P(rhoInt, a) + physical_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative		
+			float riemannRho = RHO(P(rhoInt, a) + physical_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative
 			riemannR = R(riemannRho, a);
 
 			float riemannC = soundSpeed(riemannRho, a);
@@ -2215,9 +2215,6 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 */
 __global__ void
 disableFreeSurfPartsDevice(			float4*		oldPos,
-									float4*		oldVel,
-									float4*		oldForce,
-									float4*		oldGradGam,
 									vertexinfo*	oldVertices,
 							const	uint		numParticles)
 {
@@ -2225,32 +2222,12 @@ disableFreeSurfPartsDevice(			float4*		oldPos,
 
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
-		float4 vel = oldVel[index];
-		vel.x = 0;
-		vel.y = 0;
-		vel.z = 0;
-		oldVel[index] = vel;
-		float4 force = oldForce[index];
-		force.x = 0;
-		force.y = 0;
-		force.z = 0;
-		force.w = 0;
-		oldForce[index] = force;
-		float4 gradGam = oldGradGam[index];
-		gradGam.x = 0;
-		gradGam.y = 0;
-		gradGam.z = 0;
-		gradGam.w = 0;
-		oldGradGam[index] = gradGam;
 
 		if (SURFACE(info) && NOT_FLUID(info)) {
 			float4 pos = oldPos[index];
 			if (ACTIVE(pos)) {
 				vertexinfo vertices = oldVertices[index];
 				disable_particle(pos);
-				pos.x = NAN;
-				pos.y = NAN;
-				pos.z = NAN;
 				vertices.x = 0;
 				vertices.y = 0;
 				vertices.z = 0;
