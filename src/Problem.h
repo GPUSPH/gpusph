@@ -459,6 +459,9 @@ class Problem {
 		/* Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);
 
+		/* Initialize the internal energy */
+		virtual void init_internal_energy(BufferList &, uint numParticles);
+
 		/* Initialize k and epsilon */
 		virtual void init_keps(BufferList &, uint numParticles);
 
