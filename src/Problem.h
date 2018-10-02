@@ -123,21 +123,21 @@ class Problem {
 		void *m_bodies_physical_system;
 #endif
 
-    /*!
-     * \defpsection{geometry, Domain dimensions}
-     * \mandatory
-     */
-    /*! \inpsection{geometry}
-     * \mandatory
-     * \label{SIZE}
-     * \default{1e9,1e9,1e9}
-     */
-		double3	m_size;			// Size of computational domain
-    /*! \inpsection{geometry}
-     * \mandatory
-     * \label{ORIGIN}
-     * \default{0,0,0}
-     */
+        /*!
+         * \defpsection{geometry, Domain dimensions}
+         * \mandatory
+         */
+        /*! \inpsection{geometry}
+         * \mandatory
+         * \label{SIZE}
+         * \default{1e9,1e9,1e9}
+         */
+        double3	m_size;			// Size of computational domain
+        /*! \inpsection{geometry}
+         * \mandatory
+         * \label{ORIGIN}
+         * \default{0,0,0}
+         */
 		double3	m_origin;		// Origin of computational domain
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
@@ -494,18 +494,6 @@ class Problem {
 		//! Periodicity along Z axis.
 		bool periodicity_z;
 
-		/*! \defpsection{domain_splitting, Multi-GPU}
-		 * Enable/disable domain splitting for multi-GPU simulations
-		 */
-
-		/** @defpsubsection{split_axis, Split axis}
-		 * @inpsection{domain_splitting}
-		 * @default{x}
-		 * @mandatory
-		 * @values{x,y,z}
-		 * Specify which axis will be split.
-		 */
-
 		/*!
 		\defpsection{probe, PROBES, PROBE}
 		Test point parameters.
@@ -584,9 +572,8 @@ at that position will be outputed by GPUSPH in a ﬁle.
 		//! is the simulation running at the given time?
 		virtual bool finished(double) const;
 
-    //! @userfunc
 		virtual int fill_parts(bool fill = true) = 0;
-    //! @userfunc
+        //! @userfunc
 		//! maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
 		//! @userfunc
@@ -716,6 +703,18 @@ at that position will be outputed by GPUSPH in a ﬁle.
 		// partition by splitting the cells according to their linearized hash
 		void fillDeviceMapByCellHash();
 		// partition by splitting along an axis. Default: along the longest
+		/*! \defpsection{domain_splitting, Multi-GPU}
+		 * Enable/disable domain splitting for multi-GPU simulations
+		 */
+
+		/** @defpsubsection{split_axis, Split axis}
+		 * @inpsection{domain_splitting}
+		 * @default{x}
+		 * @mandatory
+		 * @values{x,y,z}
+		 * Specify which axis will be split.
+		 */
+
 		void fillDeviceMapByAxis(SplitAxis preferred_split_axis);
 		// like fillDeviceMapByAxis(), but splits are proportional to the contained fluid particles
 		void fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis);

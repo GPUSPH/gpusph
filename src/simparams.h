@@ -139,34 +139,36 @@ typedef struct SimParams {
 
 	/** \name Density diffusion related parameters
 	 * @{ */
-	//[DENSITY_DIFFUSION_SUBSECTION_DEFINITION]
+	//[FERRARY_SUBSECTION_DEFINITION]
 
 	/*!
-	 * \defpsubsection{density_diffusion, SPH_DENSITY_DIFFUSION}
+	 * \defpsubsection{ferrari_correction, SPH_FERRARI}
 	 * \inpsection{sph}
-	 * TLT_SPH_DENSITY_DIFFUSION
+	 * \values{disable, coefficient, length_scale}
+	 * \default{disable}
+	 * TLT_SPH_FERRARI
 	 */
 
-	//[DENSITY_DIFFUSION_SUBSECTION_DEFINITION]
+	//[FERRARY_SUBSECTION_DEFINITION]
  
-	//[DENSITY_DIFFUSION_OPTIONS_DEFINITION]
+	//[FERRARY_OPTIONS_DEFINITION]
 
 	/*!
-	 * \inpsection{density_diffusion, coefficient}
-	 * \label{DENSITY_DIFFUSION_COEF}
+	 * \inpsection{ferrari_correction, coefficient}
+	 * \label{FERRARI_COEF}
 	 * \default{1}
 	 * \min{0}
 	 * \max{1}
 	 */
-	float			densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
+	float			ferrari;				// coefficient for Ferrari correction
+
 	/*!
-	 * \inpsection{density_diffusion, ferrari_length_scale}
-	 * \label{FERRARI_LENGTH_SCALE}
+	 * \inpsection{ferrari_correction, length_scale}
+	 * \label{FERRARI_SCALE}
 	 * \default{0.01}
 	 */
-	float			ferrariLengthScale;		///< Length scale for Ferrari correction
-	//[DENSITY_DIFFUSION_OPTIONS_DEFINITION]
-	/** @} */
+	float			ferrariLengthScale;		// length scale for Ferrari correction
+	//[FERRARY_OPTIONS_DEFINITION]
 
 	/** \name Call back and post-processing related parameters
 	 * @{ */
