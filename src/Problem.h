@@ -131,13 +131,13 @@ class Problem {
      * \mandatory
      * \label{SIZE}
      * \default{1e9,1e9,1e9}
-     */ 
+     */
 		double3	m_size;			// Size of computational domain
     /*! \inpsection{geometry}
      * \mandatory
      * \label{ORIGIN}
      * \default{0,0,0}
-     */ 
+     */
 		double3	m_origin;		// Origin of computational domain
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
@@ -497,13 +497,9 @@ class Problem {
 		/*! \defpsection{domain_splitting, Multi-GPU}
 		 * Enable/disable domain splitting for multi-GPU simulations
 		 */
-		/*! \defpsubsection{domain_splitting1,Domain splitting}
-		 * @inpsection{domain_splitting}
-		 * Enable/disable domain splitting for multi-GPU simulations
-		 */
 
 		/** @defpsubsection{split_axis, Split axis}
-		 * @inpsection{domain_splitting1}
+		 * @inpsection{domain_splitting}
 		 * @default{x}
 		 * @mandatory
 		 * @values{x,y,z}
