@@ -208,7 +208,7 @@ class XProblem: public Problem {
 		 * \mandatory
 		 * \label{FLUID_MAX_SPEED}
 		 * \default{0}
-		 * used to set sound of speed
+		 * used to set the numerical speed of sound
 		 */
 		double m_maxParticleSpeed;
 

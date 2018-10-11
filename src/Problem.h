@@ -123,21 +123,21 @@ class Problem {
 		void *m_bodies_physical_system;
 #endif
 
-        /*!
-         * \defpsection{geometry, Domain dimensions}
-         * \mandatory
-         */
-        /*! \inpsection{geometry}
-         * \mandatory
-         * \label{SIZE}
-         * \default{1e9,1e9,1e9}
-         */
-        double3	m_size;			// Size of computational domain
-        /*! \inpsection{geometry}
-         * \mandatory
-         * \label{ORIGIN}
-         * \default{0,0,0}
-         */
+		/*!
+		 * \defpsection{geometry, Domain dimensions}
+		 * \mandatory
+		 */
+		/*! \inpsection{geometry}
+		 * \mandatory
+		 * \label{SIZE}
+		 * \default{1e9,1e9,1e9}
+		 */
+		double3	m_size;			// Size of computational domain
+		/*! \inpsection{geometry}
+		 * \mandatory
+		 * \label{ORIGIN}
+		 * \default{0,0,0}
+		 */
 		double3	m_origin;		// Origin of computational domain
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
@@ -426,7 +426,7 @@ class Problem {
 		*/
 		double particles_max_factor;
 
-        /** @defpsubsection{density_sum, Summation formulation}
+		/** @defpsubsection{density_sum, Summation formulation}
 		 * @inpsection{sph}
 		 * @default{enable}
 		 * @values{disable,enable}
@@ -434,36 +434,37 @@ class Problem {
 		 * Recommended, and necessary for open boundaries.
 		 */
 
-        /** @defpsubsection{moving_bodies, Moving objects}
+		/** @defpsubsection{moving_bodies, Moving objects}
 		 * @inpsection{sph}
 		 * @default{disable}
 		 * @values{disable,enable}
 		 * Activate treatment of moving objects (with prescribed motion).
 		 */
 
-		/*! \defpsubsection{variable_gravity,Variable gravity}
-		 *  \inpsection{physics}
-		 *  \values{disable,enable}
-		 *  \default{disable}
+		/** @defpsubsection{variable_gravity,Variable gravity}
+		 *  @inpsection{physics}
+		 *  @values{disable,enable}
+		 *  @default{disable}
 		 * Define variable gravity between two simulation times.
 		 */
 
-		//! \inpsection{variable_gravity, enable}
-		//! \label{Gravity start}
-		//! \mandatory
-		//! \default{0.0}
-		//! Start time for the gravity variation.
+		/** @inpsection{variable_gravity, enable}
+		*	@label{Gravity start}
+		*	@mandatory
+		*	@default{0.0}
+		* Start time for the gravity variation.
+		*/
 		double variable_gravity_begin;
 
-		//! \inpsection{variable_gravity, enable}
-		//! \label{Gravity end}
-		//! \mandatory
-		//! \default{100.0}
-		//! End time for the gravity variation.
+		/** @inpsection{variable_gravity, enable}
+		* @label{Gravity end}
+		* @mandatory
+		* @default{100.0}
+		* End time for the gravity variation.
+		*/
 		double variable_gravity_end;
 
-
-        /** @defpsubsection{turbulence, Turbulence model}
+		/** @defpsubsection{turbulence, Turbulence model}
 		 * @inpsection{physics}
 		 * @default{disable}
 		 * @values{disable,k-epsilon}
@@ -471,77 +472,90 @@ class Problem {
 		 * K-epsilon model is used for turbulence modelling.
 		 */
 
-	    /*! \defpsection{periodicity,Periodicity}
-	     * Fluid domain periodicity.
-	     */
+		/*! \defpsection{periodicity, Periodicity}
+		 * Fluid domain periodicity.
+		 */
 
-		//! \inpsection{periodicity}
-		//! \label{X}
-		//! \mandatory
-		//! \default{false}
-		//! Periodicity along X axis.
+		/* \inpsection{periodicity}
+		* \label{X}
+		* \mandatory
+		* \default{false}
+		* Periodicity along X axis.
+		*/
 		bool periodicity_x;
-		//! \inpsection{periodicity}
-		//! \label{Y}
-		//! \mandatory
-		//! \default{false}
-		//! Periodicity along Y axis.
+
+		/* \inpsection{periodicity}
+		* \label{Y}
+		* \mandatory
+		* \default{false}
+		* Periodicity along Y axis.
+		*/
 		bool periodicity_y;
-		//! \inpsection{periodicity}
-		//! \label{Z}
-		//! \mandatory
-		//! \default{false}
-		//! Periodicity along Z axis.
+
+		/* \inpsection{periodicity}
+		* \label{Z}
+		* \mandatory
+		* \default{false}
+		* Periodicity along Z axis.
+		*/
 		bool periodicity_z;
 
-		/*!
-		\defpsection{probe, PROBES, PROBE}
+		/* \defpsection{probe, PROBES, PROBE}
 		Test point parameters.
 		*/
 
-		//! \inpsection{probe}
-		//! \label{X}
-		//! \mandatory
-		//! \default{0.0}
-		//! Coordinate along X axis.
+		/* \inpsection{probe}
+		* \label{X}
+		* \mandatory
+		* \default{0.0}
+		* Coordinate along X axis.
+		*/
 		std::vector<float> x;
-		//! \inpsection{probe}
-		//! \label{Y}
-		//! \mandatory
-		//! \default{0.0}
-		//! Coordinate along Y axis.
+
+		/* \inpsection{probe}
+		* \label{Y}
+		* \mandatory
+		* \default{0.0}
+		* Coordinate along Y axis.
+		*/
 		std::vector<float> y;
-		//! \inpsection{probe}
-		//! \label{Z}
-		//! \mandatory
-		//! \default{0.0}
-		//! Coordinate along Z axis.
+
+		/* \inpsection{probe}
+		* \label{Z}
+		* \mandatory
+		* \default{0.0}
+		* Coordinate along Z axis.
+		*/
 		std::vector<float> z;
 
-		/*!
-		\defpsection{wave_gage, Wave gages, Wave gage}
+		/* \defpsection{wave_gage, Wave gages, Wave gage}
 		The list of wave gages.
-When deﬁning the wave gage, the evolution of free surface elevation
-at that position will be outputed by GPUSPH in a ﬁle.
+		When deﬁning the wave gage, the evolution of free surface elevation
+		at that position will be outputed by GPUSPH in a ﬁle.
 		*/
 
-		//! \inpsection{wave_gage}
-		//! \label{X}
-		//! \mandatory
-		//! \default{0.0}
-		//! Coordinate along X axis.
+		/* \inpsection{wave_gage}
+		* \label{X}
+		* \mandatory
+		* \default{0.0}
+		* Coordinate along X axis.
+		*/
 		std::vector<float> gage_x;
-		//! \inpsection{wave_gage}
-		//! \label{Y}
-		//! \mandatory
-		//! \default{0.0}
-		//! Coordinate along Y axis.
+
+		/* \inpsection{wave_gage}
+		* \label{Y}
+		* \mandatory
+		* \default{0.0}
+		* Coordinate along Y axis.
+		*/
 		std::vector<float> gage_y;
-		//! \inpsection{wave_gage}
-		//! \label{Z}
-		//! \mandatory
-		//! \default{0.0}
-		//! Coordinate along Z axis.
+
+		/* \inpsection{wave_gage}
+		* \label{Z}
+		* \mandatory
+		* \default{0.0}
+		* Coordinate along Z axis.
+		*/
 		std::vector<float> gage_z;
 
 		/* End of pseudo parameters definition */
@@ -573,7 +587,7 @@ at that position will be outputed by GPUSPH in a ﬁle.
 		virtual bool finished(double) const;
 
 		virtual int fill_parts(bool fill = true) = 0;
-        //! @userfunc
+		//! @userfunc
 		//! maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
 		//! @userfunc
