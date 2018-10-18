@@ -81,47 +81,6 @@ artvisc(	const float	vel_dot_pos,
 			((r*r + d_epsartvisc)*(rho + neib_rho));
 }
 
-
-// ATTENTION: for all non artificial viscosity
-// µ is the dynamic viscosity (ρν)
-
-//! Morris laminar viscous term
-/*!
- Scalar part of viscosity using Morris 1997
- expression 21 p218 when all particles have the same viscosity
- in this case d_visccoeff = 4 nu
- returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
-*/
-__device__ __forceinline__ float
-laminarvisc_kinematic(	const float	rho,
-						const float	neib_rho,
-						const float	neib_mass,
-						const float	f)
-{
-	// NOTE: this won't work in multi-fluid!
-	// TODO FIXME kinematic viscosity should probably be marked as incompatible
-	// with multi-fluid (or at least if fluids don't have the same, constant
-	// viscosity
-	return neib_mass*d_visccoeff[0]*f/(rho + neib_rho);
-}
-
-
-//! Morris laminar viscous term for variable viscosity
-/*!
- Same behaviour as laminarvisc_kinematic but for particle
- dependent viscosity.
- returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
-*/
-__device__ __forceinline__ float
-laminarvisc_dynamic(const float	rho,
-					const float	neib_rho,
-					const float	neib_mass,
-					const float	f,
-					const float	visc,
-					const float	neib_visc)
-{
-	return neib_mass*(visc + neib_visc)*f/(rho*neib_rho);
-}
 /************************************************************************************************************/
 
 
