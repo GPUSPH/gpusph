@@ -63,8 +63,9 @@ const char* RheologyTypeName[NEWTONIAN+1]
 //! Turbulence model
 /*!
  * While strictly speaking not a turbulence model, artificial viscosity is considered
- * among the turbulence model, since its behavior can be assimilated to it (i.e.
- * an addition to the viscous model, rather than an alternative to it).
+ * among the turbulence models, since its behavior can be assimilated to it (i.e.
+ * an addition to the viscous model, rather than an alternative to it), even though
+ * it's normally only used for inviscid flow.
  */
 enum TurbulenceModel {
 	LAMINAR_FLOW, ///< No turbulence
@@ -118,9 +119,8 @@ const char* ComputationalViscosityName[DYNAMIC+1]
  * Español & Revenga too
  */
 enum ViscousModel {
-	MORRIS,
+	MORRIS, ///< Morris et al., JCP 1997
 };
-
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
 extern
@@ -128,7 +128,7 @@ extern
 const char* ViscousModelName[MORRIS+1]
 #ifdef GPUSPH_MAIN
 = {
-	"Morris 1994",
+	"Morris 1997",
 }
 #endif
 ;
@@ -196,7 +196,7 @@ struct FullViscSpec {
 enum LegacyViscosityType {
 	ARTVISC = 1,
 	KINEMATICVISC, ///< Morris formula, simplified for constant kinematic viscosity and using harmonic averaging of the density
-	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic density
+	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic viscosity
 	SPSVISC, ///< KINEMATICVISC + SPS
 	KEPSVISC, ///< DYNAMICVISC + SPS
 	INVALID_VISCOSITY
