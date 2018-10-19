@@ -181,53 +181,41 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = -1;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
+	// Loop over all neighbors to compute their contribution to the velocity gradient
+	// TODO: check which particle types should contribute with SA
+	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
 
-	// loop over all the neighbors
-	// TODO FIXME splitneibs : correctly iterate over all particle types OR
-	// filter based on particle type (only FLUID, BOUNDARY only for DYN?)
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = params.neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, params.cellStart,
-				neib_data, gridPos, neib_cellnum, neib_cell_base_index);
+		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
-		const float4 relPos = pos_corr - params.pos[neib_index];
+		const float4 relPos = neib_iter.relPos(
+		#if PREFER_L1
+			posArray[neib_index]
 		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			tex1Dfetch(posTex, neib_index)
 		#endif
+			);
 
-		// skip inactive particles
-		if (INACTIVE(relPos))
-			continue;
-
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 		const float r = length3(relPos);
+
+		// skip inactive particles and particles outside of the kernel support
+		if (INACTIVE(relPos) || r >= params.influenceradius)
+			continue;
 
 		// Compute relative velocity
 		// Now relVel is a float4 and neib density is stored in relVel.w
 		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		// Velocity gradient is contributed by all particles
-		// TODO: fix SA case
-		if ( r < params.influenceradius ) {
-			const float neib_rho = physical_density(relVel.w, fluid_num(neib_info));
-			const float f = F<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// 1/r ∂Wij/∂r Vj
+		const float neib_rho = physical_density(relVel.w, fluid_num(neib_info));
+		const float f = F<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// 1/r ∂Wij/∂r Vj
 
-			// Velocity Gradients
-			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
-			dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
-			dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
-			}
-		} // end of loop through neighbors
+		// Velocity Gradients
+		dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
+		dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
+		dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
+	} // end of loop through neighbors
 
 
 	// SPS stress matrix elements
