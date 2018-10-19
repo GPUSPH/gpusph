@@ -638,7 +638,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
 	if (problem->simparams()->turbmodel == SPS) {
 		gdata->only_internal = true;
-		doCommand(CALC_SPS, integrator_step);
+		doCommand(CALC_VISC, integrator_step);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 	}

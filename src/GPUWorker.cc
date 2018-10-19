@@ -1827,9 +1827,9 @@ void GPUWorker::simulationThread() {
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_DENSITY\n", deviceIndex);
 				kernel_compute_density();
 				break;
-			case CALC_SPS:
-				if (dbg_step_printf) printf(" T %d issuing CALC_SPS\n", deviceIndex);
-				kernel_sps();
+			case CALC_VISC:
+				if (dbg_step_printf) printf(" T %d issuing CALC_VISC\n", deviceIndex);
+				kernel_visc();
 				break;
 			case REDUCE_BODIES_FORCES:
 				if (dbg_step_printf) printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
@@ -2730,8 +2730,7 @@ void GPUWorker::kernel_compute_density()
 }
 
 
-// TODO FIXME RENAME METHOD
-void GPUWorker::kernel_sps()
+void GPUWorker::kernel_visc()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
@@ -2742,14 +2741,8 @@ void GPUWorker::kernel_sps()
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 	bufwrite.add_state_on_write("SPS");
 
-	viscEngine->process(bufwrite.getRawPtr<BUFFER_TAU>(),
-		bufwrite.getData<BUFFER_SPS_TURBVISC>(),
-		bufread.getData<BUFFER_POS>(),
-		bufread.getData<BUFFER_VEL>(),
-		bufread.getData<BUFFER_INFO>(),
-		bufread.getData<BUFFER_HASH>(),
+	viscEngine->calc_visc(bufread, bufwrite,
 		m_dCellStart,
-		bufread.getData<BUFFER_NEIBSLIST>(),
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,

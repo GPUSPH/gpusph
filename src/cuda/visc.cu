@@ -43,10 +43,10 @@
 /// CUDAViscEngine class.
 ///
 /// Generally, the kernel and boundary type will be passed through to the
-/// process() to call the appropriate kernels, and the main selector would be
-/// just the ViscosityType. We cannot have partial function/method template
-/// specialization, so our CUDAViscEngine::process delegates to a helper function,
-/// process_implementation(), which can use SFINAE to do the necessary specialization.
+/// calc_visc() to call the appropriate kernels, and the main selector would be
+/// just the ViscSpec. We cannot have partial function/method template
+/// specialization, so our CUDAViscEngine::calc_visc delegates to a helper function,
+/// calc_visc_implementation(), which can use SFINAE to do the necessary specialization.
 
 template<typename _ViscSpec,
 	KernelType _kerneltype,
@@ -65,40 +65,39 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	/// when the specializations can only be differentiate by return type.
 	template<typename This>
 	enable_if_t<This::turbmodel != SPS>
-	process_implementation(
-					float2	*tau[],
-					float	*turbvisc,
-			const	float4	*pos,
-			const	float4	*vel,
-			const	particleinfo	*info,
-			const	hashKey	*particleHash,
-			const	uint	*cellStart,
-			const	neibdata*neibsList,
-					uint	numParticles,
-					uint	particleRangeEnd,
-					float	slength,
-					float	influenceradius,
-			const	This *)
+	calc_visc_implementation(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
 	{ /* do nothing */ }
 
 	/// Viscous engine implementation, specialized for the SPS turbulence model.
 	template<typename This>
 	enable_if_t<This::turbmodel == SPS>
-	process_implementation(
-					float2	*tau[],
-					float	*turbvisc,
-			const	float4	*pos,
-			const	float4	*vel,
-			const	particleinfo	*info,
-			const	hashKey	*particleHash,
-			const	uint	*cellStart,
-			const	neibdata*neibsList,
-					uint	numParticles,
-					uint	particleRangeEnd,
-					float	slength,
-					float	influenceradius,
-			const	This *)
+	calc_visc_implementation(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
 	{
+		float2 **tau = bufwrite.getRawPtr<BUFFER_TAU>();
+		float *turbvisc = bufwrite.getData<BUFFER_SPS_TURBVISC>();
+
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
 #if !PREFER_L1
@@ -140,22 +139,17 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	void getconstants() {}
 
 	void
-	process(		float2	*tau[],
-					float	*turbvisc,
-			const	float4	*pos,
-			const	float4	*vel,
-			const	particleinfo	*info,
-			const	hashKey	*particleHash,
-			const	uint	*cellStart,
-			const	neibdata*neibsList,
-					uint	numParticles,
-					uint	particleRangeEnd,
-					float	slength,
-					float	influenceradius)
+	calc_visc(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	slength,
+		const	float	influenceradius)
 	{
-		process_implementation(
-			tau, turbvisc, pos, vel, info, particleHash, cellStart, neibsList, numParticles,
-			particleRangeEnd, slength, influenceradius, this);
+		calc_visc_implementation(bufread, bufwrite, cellStart,
+			numParticles, particleRangeEnd, slength, influenceradius, this);
 	}
 
 };
