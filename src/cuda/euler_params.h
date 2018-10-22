@@ -68,7 +68,6 @@ struct common_euler_params
 	const	float	full_dt;			///< time step (dt)
 	const	float	half_dt;			///< half of time step (dt/2)
 	const	float	t;				///< simulation time
-	const	uint		step;			///< integrator step //parametro template di euler params struttura collettiva
 
 	// Constructor / initializer
 	common_euler_params(
@@ -82,8 +81,7 @@ struct common_euler_params
 		const	uint			_numParticles,
 		const	float		_full_dt,
 		const	float		_half_dt,
-		const	float		_t,
-		const	uint			_step) :
+		const	float		_t) :
 		newPos(_newPos),
 		newVel(_newVel),
 		oldPos(_oldPos),
@@ -94,8 +92,7 @@ struct common_euler_params
 		numParticles(_numParticles),
 		full_dt(_full_dt),
 		half_dt(_half_dt),
-		t(_t),
-		step(_step)
+		t(_t)
 	{}
 };
 
@@ -224,7 +221,8 @@ template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	ViscosityType _visctype,
-	flag_t _simflags>
+	flag_t _simflags,
+	int _step>
 struct euler_params :
 	common_euler_params,
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_euler_params),
@@ -239,6 +237,7 @@ struct euler_params :
 	static constexpr BoundaryType boundarytype = _boundarytype;
 	static constexpr ViscosityType visctype = _visctype;
 	static constexpr flag_t simflags = _simflags;
+	static constexpr int step = _step;
 
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the euler kernel.
@@ -257,7 +256,6 @@ struct euler_params :
 		const	float		_full_dt,
 		const	float		_half_dt,
 		const	float		_t,
-		const	uint			_step,
 
 		// XSPH
 		const	float4	* __restrict__ _xsph,
@@ -291,7 +289,7 @@ struct euler_params :
 		const	float	* __restrict__ _DEDt) :
 
 		common_euler_params(_newPos, _newVel, _oldPos, _particleHash,
-			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step),
+			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_euler_params)
 			(_newEulerVel, _vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
