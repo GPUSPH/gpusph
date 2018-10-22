@@ -169,6 +169,8 @@ private:
 
 	// perform a repacking step
 	void runRepackingStep(const flag_t integrator_step);
+	// compute the total kinetic energy for repacking
+	float computeKineticEnergy();
 	// refactored code by splitting the two integrator steps
 	void runIntegratorStep(const flag_t integrator_step);
 	void runEnabledFilters(const FilterFreqList& enabledFilters);

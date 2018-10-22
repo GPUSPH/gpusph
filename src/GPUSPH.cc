@@ -932,11 +932,6 @@ bool GPUSPH::runRepacking() {
 		markIntegrationStep("repack", BUFFER_VALID, "n", BUFFER_VALID);
 		// End of repacking step
 
-		float ke = 100;//repack.TotalKE();
-
-		if (ke>0)
-			gdata->repackPositiveKe = true;
-
 		// increase counters
 		gdata->iterations++;
 		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
@@ -966,12 +961,19 @@ bool GPUSPH::runRepacking() {
 		gdata->t += gdata->dt;
 
 		float repackMinKe = 100;
+		// Compute the total kinetic energy to determine if repacking
+		// should stop or not
+		float kineticEnergy = computeKineticEnergy();
+
+		if (kineticEnergy > 0)
+			gdata->repackPositiveKe = true;
+
 		// are we done?
 		const bool we_are_done =
 			// have we reached the maximum number of repacking iterations?
 			gdata->iterations >= gdata->problem->simparams()->repack_maxiter ||
 			// have we sufficiently decreased the kinetic energy?
-			gdata->repackPositiveKe && ke < repackMinKe ||
+			gdata->repackPositiveKe && kineticEnergy < repackMinKe ||
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
 
@@ -2638,4 +2640,32 @@ void GPUSPH::check_write(bool we_are_done)
 			}
 		}
 
+}
+
+float GPUSPH::computeKineticEnergy()
+{
+	uint node_offset = gdata->s_hStartPerDevice[0];
+	// Kinetic energy computed on one node
+	float kineticEnergy = 0.0f;
+
+	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
+	const float4 *lpos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
+	const hashKey* hash = gdata->s_hBuffers.getConstData<BUFFER_HASH>();
+	/* vel is only used to compute kinetic energy */
+	const float4 *vel = gdata->s_hBuffers.getConstData<BUFFER_VEL>();
+
+	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
+		const float4 pos = lpos[i];
+		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(hash[i]) );
+
+		// we're interested in the kinetic energy in the system
+		// to determine whether to continue repacking or not
+		const float kineticEnergies = lpos[i].w*sqlength3(vel[i])/2;
+		kineticEnergy += kineticEnergies;
+	}
+	if (MULTI_NODE)
+		// after this, kineticEnergy actually becomes the total kinetic energy over all nodes
+		gdata->networkManager->networkFloatReduction(&(kineticEnergy), 1, SUM_REDUCTION);
+
+	return kineticEnergy;
 }
