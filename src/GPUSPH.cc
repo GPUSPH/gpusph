@@ -943,9 +943,6 @@ bool GPUSPH::runRepacking() {
 		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
 		if (MULTI_NODE)
 			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
-		// to check, later, that the simulation is actually progressing
-		gdata->t += gdata->dt;
-		// buildneibs_freq?
 
 		// choose minimum dt among the devices
 		if (gdata->problem->simparams()->simflags & ENABLE_DTADAPT) {
@@ -964,6 +961,9 @@ bool GPUSPH::runRepacking() {
 			fprintf(stderr, "FATAL: repacking timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
 			gdata->quit_request = true;
 		}
+
+		// to check, later, that the simulation is actually progressing
+		gdata->t += gdata->dt;
 
 		float repackMinKe = 100;
 		// are we done?
