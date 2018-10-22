@@ -137,21 +137,5 @@ public:
 		const	float	influenceRadius)
 	= 0;
 
-	/// Single repack integration step
-	virtual void
-	repackstep(
-		const BufferList& bufread,	// this is the read only arrays
-		BufferList& bufwrite,
-		const	uint	*cellStart,
-		const	uint	numParticles,
-		const	uint	particleRangeEnd,
-		const	float	dt,
-		const	float	dt2,
-		const	int		step,
-		const	float	t,
-		const	float	slength,
-		const	float	influenceRadius)
-	= 0;
-
 };
 #endif

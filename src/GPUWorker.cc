@@ -2435,42 +2435,31 @@ void GPUWorker::kernel_euler()
 
 	const int step = get_step_number(gdata->commandFlags);
 	const bool firstStep = (step == 1);
+	bool repackStep = false;
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
 	if (!gdata->keep_repacking) {
 		bufwrite.add_state_on_write("euler" + to_string(step));
-
-		integrationEngine->basicstep(
-				m_dBuffers.getReadBufferList(),	// this is the read only arrays
-				bufwrite,
-				m_dCellStart,
-				m_numParticles,
-				numPartsToElaborate,
-				gdata->dt, // m_dt,
-				gdata->dt/2.0f, // m_dt/2.0,
-				step,
-				gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
-				m_simparams->slength,
-				m_simparams->influenceRadius);
-		bufwrite.clear_pending_state();
 	} else {
 		bufwrite.add_state_on_write("euler_repack");
-
-		integrationEngine->repackstep(
-				m_dBuffers.getReadBufferList(),	// this is the read only arrays
-				bufwrite,
-				m_dCellStart,
-				m_numParticles,
-				numPartsToElaborate,
-				gdata->dt, // m_dt,
-				gdata->dt/2.0f, // m_dt/2.0,
-				2,
-				gdata->t + gdata->dt,
-				m_simparams->slength,
-				m_simparams->influenceRadius);
-		bufwrite.clear_pending_state();
+		repackStep = true;
 	}
+
+	integrationEngine->basicstep(
+			m_dBuffers.getReadBufferList(),	// this is the read only arrays
+			bufwrite,
+			m_dCellStart,
+			m_numParticles,
+			numPartsToElaborate,
+			gdata->dt, // m_dt,
+			gdata->dt/2.0f, // m_dt/2.0,
+			repackStep ? 2 : step,
+			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+			m_simparams->slength,
+			m_simparams->influenceRadius);
+	bufwrite.clear_pending_state();
+
 }
 
 void GPUWorker::kernel_density_sum()
