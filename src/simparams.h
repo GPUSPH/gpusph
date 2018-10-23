@@ -110,49 +110,70 @@ typedef struct SimParams {
 	 *  Define if the time step may vary or is fixed
 	 */
 
-	/*! \inpsection{variable_dt, disable}
-	 *! \label{DT}
-	 *! \default{10e-5}
-	 *! Time step (initial when using adaptive time stepping)
-	 */
+	//! \inpsection{variable_dt, disable}
+	//! \label{DT}
+	//! \default{1e-5}
+	//! TLT_DT
 	float			dt;						///< Time step (initial when using adaptive time stepping)
 
 	//! \inpsection{time}
 	//! \mandatory
-	//! \label{Simulation end time}
+	//! \label{SIMULATION_END_TIME}
 	//! \default{10.}
-	//! Simulation end time (0 means run forever)
+	//! TLT_SIMULATION_END_TIME
 	double			tend;					///< Simulation end time (0 means run forever)
 
 	//! \inpsection{variable_dt, enable}
-	//! \label{CFL coefficient}
+	//! \label{DT_FACTOR}
 	//! \default{0.3}
 	//! \max{1.}
-	//! Float coefficient lower than 1.
+	//! TLT_DT_FACTOR
 	float			dtadaptfactor;			///< Safety factor used in adaptive time step computation
 
 	/** \name Density diffusion related parameters
 	 * @{ */
-
 	/*!
-	 * \defpsubsection{density_diffusion, SPH_DENSITY_DIFFUSION}
-	 * \inpsection{sph}
-	 * TLT_SPH_DENSITY_DIFFUSION
+	 * \defpsection{density_diffusion, DENSITY_DIFFUSION_SECTION}
+	 * \mandatory
+	 * TLT_DENSITY_DIFFUSION
+	 */
+
+	/*! \defpsubsection{density_diff_type,DENSITY_DIFF_TYPE}
+	 *  \inpsection{density_diffusion}
+	 *  \mandatory
+	 *  \values{None,Colagrossi,Brezzi,Ferrari}
+	 *  \default{None}
+	 * TLT_DENSITY_DIFFUSION_TYPES
 	 */
 
 	/*!
-	 * \inpsection{density_diffusion, coefficient}
+	 * \inpsection{density_diff_type, Colagrossi}
 	 * \label{DENSITY_DIFFUSION_COEF}
-	 * \default{1}
+	 * \default{0.1}
 	 * \min{0}
 	 * \max{1}
+	 * TLT_COLAGROSSI_COEFF
 	 */
 	float			densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
 	/*!
-	 * \inpsection{density_diffusion, ferrari_length_scale}
-	 * \label{FERRARI_LENGTH_SCALE}
-	 * \default{0.01}
+	 * \inpsection{density_diff_type, Brezzi}
+	 * \label{DENSITY_DIFFUSION_COEF}
+	 * \default{0.1}
+	 * \min{0}
+	 * \max{1}
+	 * TLT_BREZZI_COEFF
 	 */
+	float &brezziDiffCoeff = densityDiffCoeff;
+	/*!
+	 * \inpsection{density_diff_type, Ferrari}
+	 * \label{DENSITY_DIFFUSION_COEF}
+	 * \default{0.1}
+	 * \min{0}
+	 * \max{1}
+	 * TLT_FERRARI_COEFF
+	 */
+	float &ferrariDiffCoeff = densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
+
 	float			ferrariLengthScale;		///< Length scale for Ferrari correction
 	/** @} */
 
@@ -241,7 +262,7 @@ typedef struct SimParams {
 	 */
 	inline double
 	set_smoothing(
-			double smooth, 	///< [in]Êsmoothing factor
+			double smooth, 	///< [in]ï¿½smoothing factor
 			double deltap	///< [in] particle spacing \f$ \Delta p \f$
 			)
 	{
