@@ -31,6 +31,10 @@
  * The sections to be used in the user interface are
  * defined in gpusphgui/SGPUSPH/resources/params.xml.
  * Please consult this file for the list of sections.
+ * The tooltips are the comments appearing when sliding
+ * the mouse over a variable in the interface. They are
+ * contained in TLT_ variables, defined in
+ * gpusphgui/SGPUSPH_SRC/src/SGPUSPHGUI/resources/SGPUSPH_msg_en.ts
 */
 
 #ifndef _SIMPARAMS_H
@@ -79,7 +83,7 @@ typedef struct SimParams {
 	 * \inpsection{neighbours}
 	 * \default{1}
 	 * \mandatory
-	 * \label{NEIB_FREQ}
+	 * \label{buildneibsfreq}
 	 */
 	uint			buildneibsfreq;			///< Frequency (in iterations) of neighbor list rebuilding
 	/*!
@@ -89,6 +93,12 @@ typedef struct SimParams {
 	 * \label{neiblistsize}
 	 */
 	uint			neiblistsize;			///< Total size of the neighbor list (per particle)
+	/*!
+	 * \inpsection{neighbours}
+	 * \default{128}
+	 * \mandatory
+	 * \label{neibboundpos}
+	 */
 	uint			neibboundpos;			///< Marker for boundary parts section of the neighbor list
 	/** @} */
 
@@ -97,32 +107,32 @@ typedef struct SimParams {
 	 *  \mandatory
 	 *  \values{disable,enable}
 	 *  \default{enable}
-	 * TLT_VARIABLE_DT
+	 *  Define if the time step may vary or is fixed
 	 */
 
-	//! \inpsection{variable_dt, disable}
-	//! \label{DT}
-	//! \default{10e-5}
-	//! TLT_DT
+	/*! \inpsection{variable_dt, disable}
+	 *! \label{DT}
+	 *! \default{10e-5}
+	 *! Time step (initial when using adaptive time stepping)
+	 */
 	float			dt;						///< Time step (initial when using adaptive time stepping)
 
 	//! \inpsection{time}
 	//! \mandatory
-	//! \label{SIMULATION_END_TIME}
+	//! \label{Simulation end time}
 	//! \default{10.}
-	//! TLT_SIMULATION_END_TIME
+	//! Simulation end time (0 means run forever)
 	double			tend;					///< Simulation end time (0 means run forever)
 
 	//! \inpsection{variable_dt, enable}
-	//! \label{DT_FACTOR}
+	//! \label{CFL coefficient}
 	//! \default{0.3}
 	//! \max{1.}
-	//! TLT_DT_FACTOR
+	//! Float coefficient lower than 1.
 	float			dtadaptfactor;			///< Safety factor used in adaptive time step computation
 
 	/** \name Density diffusion related parameters
 	 * @{ */
-	//[FERRARY_SUBSECTION_DEFINITION]
 
 	/*!
 	 * \defpsubsection{ferrari_correction, SPH_FERRARI}
@@ -132,10 +142,6 @@ typedef struct SimParams {
 	 * TLT_SPH_FERRARI
 	 */
 
-	//[FERRARY_SUBSECTION_DEFINITION]
-
-	//[FERRARY_OPTIONS_DEFINITION]
-
 	/*!
 	 * \inpsection{ferrari_correction, coefficient}
 	 * \label{FERRARI_COEF}
@@ -143,7 +149,7 @@ typedef struct SimParams {
 	 * \min{0}
 	 * \max{1}
 	 */
-	float			ferrari;				// coefficient for Ferrari correction
+	float			densityDiffCoeff;				// coefficient for Ferrari correction
 
 	/*!
 	 * \inpsection{ferrari_correction, length_scale}
@@ -151,7 +157,6 @@ typedef struct SimParams {
 	 * \default{0.01}
 	 */
 	float			ferrariLengthScale;		// length scale for Ferrari correction
-	//[FERRARY_OPTIONS_DEFINITION]
 
 	/** \name Call back and post-processing related parameters
 	 * @{ */
