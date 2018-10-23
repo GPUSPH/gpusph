@@ -655,6 +655,8 @@ struct keps_precalc_particle_data
 	const	float	dkdt_precalc;
 	const	float	dedt_precalc;
 
+	// TODO double-check compvisc == DYNAMIC vs compvisc == KINEMATIC case for this
+	// initialization
 	__device__ __forceinline__
 	keps_precalc_particle_data(float rho, common_particle_data const& pdata, keps_particle_data const& ke) :
 		dkdt_precalc(rho*(get_laminar_visc_coeff(pdata) + ke.turbVisc)),
@@ -1882,7 +1884,7 @@ enable_if_t<
 compute_laminar_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	const float avg_mu = 2*average<FP::ViscSpec::avgop>(
+	const float avg_mu = average<FP::ViscSpec::avgop>(
 			get_dynamic_visc(pdata), get_dynamic_visc(ndata));
 
 	const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);

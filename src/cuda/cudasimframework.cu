@@ -183,11 +183,18 @@ public:
 	static const TurbulenceModel turbmodel = _turbmodel;
 	static const ComputationalViscosityType compvisc = _compvisc;
 	static const ViscousModel viscmodel = _viscmodel;
-	static const AverageOperator viscavgop = _viscavgop;
+	// Grenier used to assume harmonic averaging regardless of the specification. Today we support
+	// overriding the choice, but for backwards compatibility we should still assume harmonic averaging
+	// when legacy viscous specifications have been used
+	static const AverageOperator viscavgop = (
+		(_legacyvisctype != INVALID_VISCOSITY) ? // was there a legacy specification?
+		AverageOperator::HARMONIC : // yes, assume harmonic averaging 
+		_viscavgop // no, take what the user gave us
+	);
 	static const bool is_const_visc = _is_const_visc;
 
 	using ViscSpec = FullViscSpec<_rheologytype, _turbmodel, _compvisc,
-	      _viscmodel, _viscavgop, _simflags, _is_const_visc>;
+	      _viscmodel, viscavgop, _simflags, _is_const_visc>;
 
 	static const BoundaryType boundarytype = _boundarytype;
 	static const Periodicity periodicbound = _periodicbound;
