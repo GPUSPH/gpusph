@@ -70,7 +70,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 					viscosity<VISCOSITY_TYPE>,
 					boundary<BOUNDARY_TYPE>,
 					periodicity<PERIODICITY>,
-					flags<FLAGS_LIST>);
+					add_flags<FLAGS_LIST>);
 
 	// Initialization of the physical parameters
 	set_deltap ( PVAL( sph, m_deltap ));
@@ -88,7 +88,8 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 #endif
 
 	// Initialization of the neighbours parameters
-	simparams()->maxneibsnum = PVAL(neighbours, maxneibsnum);
+	simparams()->neiblistsize = PVAL(neighbours, neiblistsize);
+	simparams()->neibboundpos = PVAL(neighbours, neibboundpos);
 	simparams()->buildneibsfreq = PVAL(neighbours, buildneibsfreq);
 
 	// Time parameters
@@ -102,7 +103,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 
 	// Ferrari correction
 #if ISDEF(sph,ferrari)
-	simparams()->ferrari= PVAL( sph, ferrari );
+	simparams()->densityDiffCoeff= PVAL( sph, densityDiffCoeff );
 #endif
 #if ISDEF(sph,ferrariLengthScale)
 	simparams()->ferrariLengthScale = PVAL( sph, ferrariLengthScale );
