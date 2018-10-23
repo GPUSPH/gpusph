@@ -27,6 +27,12 @@
  * Physical parameters for problems
  */
 
+/* \note
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * Please consult this file for the list of sections.
+*/
+
 #ifndef _PHYSPARAMS_H
 #define _PHYSPARAMS_H
 
@@ -43,23 +49,12 @@ class XProblem;
 class GPUWorker;
 class GPUSPH;
 
-/*!
- * \defpsection{physics, PHYSICS_SECTION}
- * \mandatory
- * TLT_PHYSICS_SECTION
- * This structure holds all the physical parameters needed by the simulation
+/* The PhysParams structure holds all the physical parameters needed by the simulation
  *  along with some basic initialization functions.
  *
  *	\ingroup datastructs
  */
 typedef struct PhysParams {
-	//[VECTOR_SECTION_DEFINITION]
-	/*!
-		\defpsection{fluid, FLUIDS, FLUID_SECTION}
-		\mandatory
-		TLT_FLUID_SECTION
-	 */
-	//[VECTOR_SECTION_DEFINITION]
 	/*! Equation of state related parameters
 		The relation between pressure and density is given for Cole's equation of state
 		\f[

@@ -27,6 +27,12 @@
  * Simulation parameters for problems
  */
 
+/* \note
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * Please consult this file for the list of sections.
+*/
+
 #ifndef _SIMPARAMS_H
 #define _SIMPARAMS_H
 
@@ -38,16 +44,11 @@
 
 typedef std::vector<double4> GageList;
 
-//[SPH_SECTION_DEFINITION]
-/** \defpsection{sph, SPH_SECTION}
- \mandatory
- TLT_SPH_SECTION
- * This structure holds all the simulation related parameters
+/** The SimParams structure holds all the simulation related parameters
  *  along with some basic initialization functions.
  *
  *	\ingroup datastructs
  */
-//[SPH_SECTION_DEFINITION]
 typedef struct SimParams {
 	/** \name Options that are set via SimFramework
 	 * @{ */
@@ -74,11 +75,6 @@ typedef struct SimParams {
 	double			nlexpansionfactor;		///< Expansion factor to apply to influenceradius for the neighbor list construction
 	double			nlInfluenceRadius;		///< Influence radius ( = \f$ \kappa h \f$ * nlexpansionfactor) used in neighbor list construction
 	double			nlSqInfluenceRadius;	///< Square influence radius for neighbor list construction
-	/*! 
-	 * \defpsection{neighbours,NEIGHBOURS_SECTION}
-	 * \mandatory
-	 * TLT_NEIGHBOURS_SECTION
-	 */
 	/*!
 	 * \inpsection{neighbours}
 	 * \default{1}
@@ -96,15 +92,6 @@ typedef struct SimParams {
 	uint			neibboundpos;			///< Marker for boundary parts section of the neighbor list
 	/** @} */
 
-	//[SECTION_DEFINITION]
-	/** \defpsection{time, TIME_SECTION}
-	 *  \mandatory
-	 *  TLT_TIME_SECTION
-	 * \name Time related parameters
-	 * @{ */
-	//[SECTION_DEFINITION]
-
-	//[SUBSECTION_DEFINITION]
 	/*! \defpsubsection{variable_dt,VARIABLE_DT}
 	 *  \inpsection{time}
 	 *  \mandatory
@@ -112,30 +99,26 @@ typedef struct SimParams {
 	 *  \default{enable}
 	 * TLT_VARIABLE_DT
 	 */
-	//[SUBSECTION_DEFINITION]
 
-		//! \inpsection{variable_dt, disable}
-		//! \label{DT}
-		//! \default{10e-5}
-		//! TLT_DT
+	//! \inpsection{variable_dt, disable}
+	//! \label{DT}
+	//! \default{10e-5}
+	//! TLT_DT
 	float			dt;						///< Time step (initial when using adaptive time stepping)
-	//[PARAM_DEFINITION]
 
-		//! \inpsection{time}
-		//! \mandatory
-		//! \label{SIMULATION_END_TIME}
-		//! \default{10.}
-		//! TLT_SIMULATION_END_TIME
+	//! \inpsection{time}
+	//! \mandatory
+	//! \label{SIMULATION_END_TIME}
+	//! \default{10.}
+	//! TLT_SIMULATION_END_TIME
 	double			tend;					///< Simulation end time (0 means run forever)
-	//[PARAM_DEFINITION]
 
-	  //! \inpsection{variable_dt, enable}
-		//! \label{DT_FACTOR}
-		//! \default{0.3}
-		//! \max{1.}
-		//! TLT_DT_FACTOR
+	//! \inpsection{variable_dt, enable}
+	//! \label{DT_FACTOR}
+	//! \default{0.3}
+	//! \max{1.}
+	//! TLT_DT_FACTOR
 	float			dtadaptfactor;			///< Safety factor used in adaptive time step computation
-	/** @} */
 
 	/** \name Density diffusion related parameters
 	 * @{ */
@@ -150,7 +133,7 @@ typedef struct SimParams {
 	 */
 
 	//[FERRARY_SUBSECTION_DEFINITION]
- 
+
 	//[FERRARY_OPTIONS_DEFINITION]
 
 	/*!

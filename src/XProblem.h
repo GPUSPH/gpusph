@@ -27,6 +27,12 @@
  * High-level interface for Problem defintions
  */
 
+/* \note
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * Please consult this file for the list of sections.
+*/
+
 #ifndef _XPROBLEM_H
 #define	_XPROBLEM_H
 

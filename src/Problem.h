@@ -33,6 +33,12 @@
  * Core Problem class interface and related definitions
  */
 
+/* \note
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * Please consult this file for the list of sections.
+*/
+
 #ifndef _PROBLEM_H
 #define	_PROBLEM_H
 
@@ -123,10 +129,6 @@ class Problem {
 		void *m_bodies_physical_system;
 #endif
 
-		/*!
-		 * \defpsection{geometry, Domain dimensions}
-		 * \mandatory
-		 */
 		/*! \inpsection{geometry}
 		 * \mandatory
 		 * \label{SIZE}
@@ -398,12 +400,6 @@ class Problem {
 		 *
 		 */
 
-		/**
-		 * @defpsection{output,Output}
-		 * @mandatory
-		 * Options to define whether to generate output files and to set the output frequency.
-		 */
-
 		//@inpsection{output}
 		//@mandatory
 		//@label{VTK writer interval}
@@ -472,15 +468,11 @@ class Problem {
 		 * K-epsilon model is used for turbulence modelling.
 		 */
 
-		/*! \defpsection{periodicity, Periodicity}
-		 * Fluid domain periodicity.
-		 */
-
 		/* \inpsection{periodicity}
 		* \label{X}
 		* \mandatory
 		* \default{false}
-		* Periodicity along X axis.
+		* Periodicity along the X axis.
 		*/
 		bool periodicity_x;
 
@@ -488,7 +480,7 @@ class Problem {
 		* \label{Y}
 		* \mandatory
 		* \default{false}
-		* Periodicity along Y axis.
+		* Periodicity along the Y axis.
 		*/
 		bool periodicity_y;
 
@@ -499,10 +491,6 @@ class Problem {
 		* Periodicity along Z axis.
 		*/
 		bool periodicity_z;
-
-		/* \defpsection{probe, PROBES, PROBE}
-		Test point parameters.
-		*/
 
 		/* \inpsection{probe}
 		* \label{X}
@@ -527,12 +515,6 @@ class Problem {
 		* Coordinate along Z axis.
 		*/
 		std::vector<float> z;
-
-		/* \defpsection{wave_gage, Wave gages, Wave gage}
-		The list of wave gages.
-		When deﬁning the wave gage, the evolution of free surface elevation
-		at that position will be outputed by GPUSPH in a ﬁle.
-		*/
 
 		/* \inpsection{wave_gage}
 		* \label{X}
@@ -717,9 +699,6 @@ class Problem {
 		// partition by splitting the cells according to their linearized hash
 		void fillDeviceMapByCellHash();
 		// partition by splitting along an axis. Default: along the longest
-		/*! \defpsection{domain_splitting, Multi-GPU}
-		 * Enable/disable domain splitting for multi-GPU simulations
-		 */
 
 		/** @defpsubsection{split_axis, Split axis}
 		 * @inpsection{domain_splitting}
