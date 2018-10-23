@@ -191,7 +191,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 		// Now relPos is a float4 and neib mass is stored in relPos.w
 		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-			posArray[neib_index]
+			params.posArray[neib_index]
 		#else
 			tex1Dfetch(posTex, neib_index)
 		#endif
