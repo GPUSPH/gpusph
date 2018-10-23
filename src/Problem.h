@@ -568,6 +568,7 @@ class Problem {
 		//! is the simulation running at the given time?
 		virtual bool finished(double) const;
 
+    //! @userfunc
 		virtual int fill_parts(bool fill = true) = 0;
 		//! @userfunc
 		//! maximum number of particles that may be generated
@@ -707,7 +708,6 @@ class Problem {
 		 * @values{x,y,z}
 		 * Specify which axis will be split.
 		 */
-
 		void fillDeviceMapByAxis(SplitAxis preferred_split_axis);
 		// like fillDeviceMapByAxis(), but splits are proportional to the contained fluid particles
 		void fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis);

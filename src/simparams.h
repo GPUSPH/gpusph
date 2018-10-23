@@ -135,28 +135,26 @@ typedef struct SimParams {
 	 * @{ */
 
 	/*!
-	 * \defpsubsection{ferrari_correction, SPH_FERRARI}
+	 * \defpsubsection{density_diffusion, SPH_DENSITY_DIFFUSION}
 	 * \inpsection{sph}
-	 * \values{disable, coefficient, length_scale}
-	 * \default{disable}
-	 * TLT_SPH_FERRARI
+	 * TLT_SPH_DENSITY_DIFFUSION
 	 */
 
 	/*!
-	 * \inpsection{ferrari_correction, coefficient}
-	 * \label{FERRARI_COEF}
+	 * \inpsection{density_diffusion, coefficient}
+	 * \label{DENSITY_DIFFUSION_COEF}
 	 * \default{1}
 	 * \min{0}
 	 * \max{1}
 	 */
-	float			densityDiffCoeff;				// coefficient for Ferrari correction
-
+	float			densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
 	/*!
-	 * \inpsection{ferrari_correction, length_scale}
-	 * \label{FERRARI_SCALE}
+	 * \inpsection{density_diffusion, ferrari_length_scale}
+	 * \label{FERRARI_LENGTH_SCALE}
 	 * \default{0.01}
 	 */
-	float			ferrariLengthScale;		// length scale for Ferrari correction
+	float			ferrariLengthScale;		///< Length scale for Ferrari correction
+	/** @} */
 
 	/** \name Call back and post-processing related parameters
 	 * @{ */
