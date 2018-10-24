@@ -135,15 +135,18 @@ class Problem {
 		 * \default{1e9,1e9,1e9}
 		 */
 		double3	m_size;			// Size of computational domain
+
 		/*! \inpsection{geometry}
 		 * \mandatory
 		 * \label{ORIGIN}
 		 * \default{0,0,0}
 		 */
 		double3	m_origin;		// Origin of computational domain
+
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
-		//! \inpsection{sph}
+
+		//! \inpsection{discretisation}
 		//! \mandatory
 		//! \default{-1}
 		//! \label{SPH_DR}
@@ -396,59 +399,43 @@ class Problem {
 
 		plane_t make_plane(Point const& pt, Vector const& normal);
 
-		/* This is the definition of sections with pseudoparameters.
-		 *
+		/**@inpsection{output}
+		 * @mandatory
+		 * @label{VTK writer interval}
+		 * @default{1.0}
+		 * VTK writer frequency (in terms of simulated seconds).
 		 */
-
-		//@inpsection{output}
-		//@mandatory
-		//@label{VTK writer interval}
-		//@default{1.0}
-		// Introduced by metacomments VTK writer frequency (in terms of simulated seconds).
 		double vtk_frequency;
 
-		//@inpsection{output}
-		//@label{Optional writer interval}
-		//@default{}
-		// Optional writer frequency (in terms of simulated seconds).
+		/**@inpsection{output}
+		 * @label{Optional writer interval}
+		 * @default{}
+		 * Optional writer frequency (in terms of simulated seconds).
+		 */
 		double commonwriter;
 
-		/**@inpsection{sph}
-		@label{Particles maximum factor}
-		Defines the maximum number of particles in the simulation as a factor times
-		the initial number of particles.
-		This is necessary in case open boundaries are used, because the total number
-		of particles in the simulation can be higher than the initial number of particles.
-		*/
+		/**@inpsection{discretisation}
+		 * @label{PARTICLES_MAX_FACTOR}
+		 * @default{1}
+		 * Defines the maximum number of particles in the simulation as a factor times
+		 * The initial number of particles.
+		 * This is necessary in case open boundaries are used, because the total number
+		 * Of particles in the simulation can be higher than the initial number of particles.
+		 */
 		double particles_max_factor;
 
-		/** @defpsubsection{density_sum, Summation formulation}
-		 * @inpsection{sph}
-		 * @default{enable}
+		/**@defpsubsection{variable_gravity,Variable gravity}
+		 * @inpsection{physics}
 		 * @values{disable,enable}
-		 * Activate the continuity equation based on a summation formulation.
-		 * Recommended, and necessary for open boundaries.
-		 */
-
-		/** @defpsubsection{moving_bodies, Moving objects}
-		 * @inpsection{sph}
 		 * @default{disable}
-		 * @values{disable,enable}
-		 * Activate treatment of moving objects (with prescribed motion).
-		 */
-
-		/** @defpsubsection{variable_gravity,Variable gravity}
-		 *  @inpsection{physics}
-		 *  @values{disable,enable}
-		 *  @default{disable}
 		 * Define variable gravity between two simulation times.
 		 */
 
-		/** @inpsection{variable_gravity, enable}
-		*	@label{Gravity start}
-		*	@mandatory
-		*	@default{0.0}
-		* Start time for the gravity variation.
+		/**@inpsection{variable_gravity, enable}
+		*	 @label{Gravity start}
+		*	 @mandatory
+		*	 @default{0.0}
+		*  Start time for the gravity variation.
 		*/
 		double variable_gravity_begin;
 
@@ -459,14 +446,6 @@ class Problem {
 		* End time for the gravity variation.
 		*/
 		double variable_gravity_end;
-
-		/** @defpsubsection{turbulence, Turbulence model}
-		 * @inpsection{physics}
-		 * @default{disable}
-		 * @values{disable,k-epsilon}
-		 * Define whether the flow is laminar or turbulent.
-		 * K-epsilon model is used for turbulence modelling.
-		 */
 
 		/* \inpsection{periodicity}
 		* \label{X}
@@ -702,7 +681,7 @@ class Problem {
 		// partition by splitting along an axis. Default: along the longest
 
 		/** @defpsubsection{split_axis, Split axis}
-		 * @inpsection{domain_splitting}
+		 * @inpsection{domain splitting}
 		 * @default{x}
 		 * @mandatory
 		 * @values{x,y,z}

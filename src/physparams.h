@@ -55,6 +55,27 @@ class GPUSPH;
  *	\ingroup datastructs
  */
 typedef struct PhysParams {
+	/* \note
+	 * physparams.h is scanned by the SALOME user interface.
+	 * To change the user interface, it is only necessary to
+	 * modify the appropriate comments in simparams.h, physparams.h,
+	 * Problem.h, XProblem.h, particledefine.h and simflags.h
+	 * The variable labels and tooltips are
+	 * defined in the user interface files themselves, so
+	 * ease follow the convention we adopted: use placeholders
+	 * in the GPUSPH files and define them in GPUSPHGUI.
+	 * The tooltips are the comments appearing when sliding
+	 * the mouse over a variable in the interface. They are
+	 * contained in the TLT_ variables. All the placeholders
+	 * contents are defined in:
+	 * gpusphgui/SGPUSPH_SRC/src/SGPUSPHGUI/resources/SGPUSPH_msg_en.ts
+	 * The sections to be used in the user interface are
+	 * defined in gpusphgui/SGPUSPH/resources/params.xml.
+	 * To assign a parameter to a section, the command
+	 * \inpsection is used.
+	 * Please consult this file for the list of sections.
+	 */
+
 	/*! Equation of state related parameters
 		The relation between pressure and density is given for Cole's equation of state
 		\f[

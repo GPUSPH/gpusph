@@ -27,16 +27,6 @@
  * Simulation parameters for problems
  */
 
-/* \note
- * The sections to be used in the user interface are
- * defined in gpusphgui/SGPUSPH/resources/params.xml.
- * Please consult this file for the list of sections.
- * The tooltips are the comments appearing when sliding
- * the mouse over a variable in the interface. They are
- * contained in TLT_ variables, defined in
- * gpusphgui/SGPUSPH_SRC/src/SGPUSPHGUI/resources/SGPUSPH_msg_en.ts
-*/
-
 #ifndef _SIMPARAMS_H
 #define _SIMPARAMS_H
 
@@ -65,12 +55,34 @@ typedef struct SimParams {
 	const flag_t			simflags;					///< Simulation flags
 	/** @} */
 
+	/* \note
+	 * simparams.h is scanned by the SALOME user interface.
+	 * To change the user interface, it is only necessary to
+	 * modify the appropriate comments in simparams.h, physparams.h,
+	 * Problem.h, XProblem.h, particledefine.h and simflags.h
+	 * The variable labels and tooltips are
+	 * defined in the user interface files themselves, so
+	 * ease follow the convention we adopted: use placeholders
+	 * in the GPUSPH files and define them in GPUSPHGUI.
+	 * The tooltips are the comments appearing when sliding
+	 * the mouse over a variable in the interface. They are
+	 * contained in the TLT_ variables. All the placeholders
+	 * contents are defined in:
+	 * gpusphgui/SGPUSPH_SRC/src/SGPUSPHGUI/resources/SGPUSPH_msg_en.ts
+	 * The sections to be used in the user interface are
+	 * defined in gpusphgui/SGPUSPH/resources/params.xml.
+	 * To assign a parameter to a section, the command
+	 * \inpsection is used.
+	 * Please consult this file for the list of sections.
+	 */
+
+	/** \name Kernel and neighbor list related parameters
+	 * @{ */
 	/**
-	 * \inpsection{sph}
+	 * \inpsection{discretisation}
 	 * \mandatory
 	 * \default{1.3}
 	 * \label{SMOOTHING_FACTOR}
-	 * \name Kernel and neighbor list related parameters
 	 * @{ */
 	double			sfactor;				///< Smoothing factor
 	double			slength;				///< Smoothing length \f$ h \f$ (smoothing factor * \f$ \Delta p \f$)
@@ -83,32 +95,27 @@ typedef struct SimParams {
 	 * \inpsection{neighbours}
 	 * \default{1}
 	 * \mandatory
-	 * \label{buildneibsfreq}
+	 * \label{NEIB_FREQ}
+	 * TLT_NEIB_FREQ
 	 */
 	uint			buildneibsfreq;			///< Frequency (in iterations) of neighbor list rebuilding
 	/*!
 	 * \inpsection{neighbours}
 	 * \default{256}
 	 * \mandatory
-	 * \label{neiblistsize}
+	 * \label{NEIB_LIST_SIZE}
+	 * TLT_NEIB_LIST_SIZE
 	 */
 	uint			neiblistsize;			///< Total size of the neighbor list (per particle)
 	/*!
 	 * \inpsection{neighbours}
 	 * \default{128}
 	 * \mandatory
-	 * \label{neibboundpos}
+	 * \label{NEIB_BOUND_POS}
+	 * TLT_NEIB_BOUND_POS
 	 */
 	uint			neibboundpos;			///< Marker for boundary parts section of the neighbor list
 	/** @} */
-
-	/*! \defpsubsection{variable_dt,VARIABLE_DT}
-	 *  \inpsection{time}
-	 *  \mandatory
-	 *  \values{disable,enable}
-	 *  \default{enable}
-	 *  Define if the time step may vary or is fixed
-	 */
 
 	/*! \inpsection{variable_dt, disable}
 	 * \label{DT}
@@ -135,14 +142,8 @@ typedef struct SimParams {
 
 	/** \name Density diffusion related parameters
 	 * @{ */
-	/*!
-	 * \defpsection{density_diffusion, DENSITY_DIFFUSION_SECTION}
-	 * \mandatory
-	 * TLT_DENSITY_DIFFUSION
-	 */
-
 	/*! \defpsubsection{density_diff_type,DENSITY_DIFF_TYPE}
-	 *  \inpsection{density_diffusion}
+	 *  \inpsection{density diffusion}
 	 *  \mandatory
 	 *  \values{None,Colagrossi,Brezzi,Ferrari}
 	 *  \default{None}
@@ -155,7 +156,7 @@ typedef struct SimParams {
 	 * \default{0.1}
 	 * \min{0}
 	 * \max{1}
-	 * TLT_COLAGROSSI_COEFF
+	 * TLT_DENSITY_DIFF_COEF
 	 */
 	float			densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
 	/*!
@@ -164,7 +165,7 @@ typedef struct SimParams {
 	 * \default{0.1}
 	 * \min{0}
 	 * \max{1}
-	 * TLT_BREZZI_COEFF
+	 * TLT_DENSITY_DIFF_COEF
 	 */
 	float &brezziDiffCoeff = densityDiffCoeff;
 	/*!
@@ -173,7 +174,7 @@ typedef struct SimParams {
 	 * \default{0.1}
 	 * \min{0}
 	 * \max{1}
-	 * TLT_FERRARI_COEFF
+	 * TLT_DENSITY_DIFF_COEF
 	 */
 	float &ferrariDiffCoeff = densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
 

@@ -204,7 +204,7 @@ class XProblem: public Problem {
 		 * \mandatory
 		 * \label{FLUID_WATER_LEVEL}
 		 * \default{0}
-		 * used for hydrostatic filling (absolute value)
+		 * used for hydrostatic filling (absolute value) and to set the speed of sound
 		 */
 		double m_waterLevel;
 		// used to set LJ dcoeff and sound speed if m_maxParticleSpeed is unset

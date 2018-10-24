@@ -33,6 +33,27 @@
  * TODO split non-particle stuff into different header(s)
  */
 
+/* \note
+ * particledefine.h is scanned by the SALOME user interface.
+ * To change the user interface, it is only necessary to
+ * modify the appropriate comments in simparams.h, physparams.h,
+ * Problem.h, XProblem.h, particledefine.h and simflags.h
+ * The variable labels and tooltips are
+ * defined in the user interface files themselves, so
+ * ease follow the convention we adopted: use placeholders
+ * in the GPUSPH files and define them in GPUSPHGUI.
+ * The tooltips are the comments appearing when sliding
+ * the mouse over a variable in the interface. They are
+ * contained in the TLT_ variables. All the placeholders
+ * contents are defined in:
+ * gpusphgui/SGPUSPH_SRC/src/SGPUSPHGUI/resources/SGPUSPH_msg_en.ts
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * To assign a parameter to a section, the command
+ * \inpsection is used.
+ * Please consult this file for the list of sections.
+ */
+
 #ifndef _PARTICLEDEFINE_H
 #define	_PARTICLEDEFINE_H
 
@@ -42,6 +63,13 @@
 #include "common_types.h"
 
 //! Smoothing kernels
+/*!
+ * \inpsection{discretisation}
+ * \label{KERNEL_TYPE}
+ * \default{WENDLAND}
+ * \values{CUBICSPLINE, QUADRATIC, WENDLAND, GAUSSIAN}
+ * TLT_KERNEL_TYPE
+ */
 enum KernelType {
 	CUBICSPLINE = 1,
 	QUADRATIC,
@@ -68,6 +96,13 @@ const char* KernelName[INVALID_KERNEL+1]
 ;
 
 //! SPH formulations
+/*!
+ * \inpsection{discretisation}
+ * \label{SPH_FORMULATION}
+ * \default{SPH_F1}
+ * \values{SPH_F1, SPH_F2, SPH_GRENIER}
+ * TLT_SPH_FORMULATION
+ */
 enum SPHFormulation {
 	SPH_F1 = 1,
 	SPH_F2,
@@ -149,6 +184,12 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 #define MINCORRNEIBSMLS			4
 
 //! Viscous model
+/** @defpsubsection{turbulence, TURBULENCE}
+ * @inpsection{physics}
+ * @default{disable}
+ * @values{disable, artificial viscosity, k-epsilon, SPS model (LES)}
+ * TLT_TURBULENCE
+ */
 enum ViscosityType {
 	ARTVISC = 1,
 	KINEMATICVISC,
@@ -177,6 +218,12 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 ;
 
 //! Boundary periodicity
+/*!
+ * @defpsubsection{periodicity, PERIODICITY_SECTION}
+ * @inpsection{boundaries}
+ * @mandatory
+ * TLT_PERIODICITY_SECTION
+ */
 enum Periodicity {
 	PERIODIC_NONE = 0,
 	PERIODIC_X   = 1,
