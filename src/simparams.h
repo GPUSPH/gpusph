@@ -110,24 +110,27 @@ typedef struct SimParams {
 	 *  Define if the time step may vary or is fixed
 	 */
 
-	//! \inpsection{variable_dt, disable}
-	//! \label{DT}
-	//! \default{1e-5}
-	//! TLT_DT
+	/*! \inpsection{variable_dt, disable}
+	 * \label{DT}
+	 * \default{1e-5}
+	 * TLT_DT
+	 */
 	float			dt;						///< Time step (initial when using adaptive time stepping)
 
-	//! \inpsection{time}
-	//! \mandatory
-	//! \label{SIMULATION_END_TIME}
-	//! \default{10.}
-	//! TLT_SIMULATION_END_TIME
+	/*! \inpsection{time}
+	 * \mandatory
+	 * \label{SIMULATION_END_TIME}
+	 * \default{10.}
+	 * TLT_SIMULATION_END_TIME
+	 */
 	double			tend;					///< Simulation end time (0 means run forever)
 
-	//! \inpsection{variable_dt, enable}
-	//! \label{DT_FACTOR}
-	//! \default{0.3}
-	//! \max{1.}
-	//! TLT_DT_FACTOR
+	/*! \inpsection{variable_dt, enable}
+	 * \label{DT_FACTOR}
+	 * \default{0.3}
+	 * \max{1.}
+	 * TLT_DT_FACTOR
+	 */
 	float			dtadaptfactor;			///< Safety factor used in adaptive time step computation
 
 	/** \name Density diffusion related parameters
@@ -262,7 +265,7 @@ typedef struct SimParams {
 	 */
 	inline double
 	set_smoothing(
-			double smooth, 	///< [in]�smoothing factor
+			double smooth, 	///< [in] smoothing factor
 			double deltap	///< [in] particle spacing \f$ \Delta p \f$
 			)
 	{
