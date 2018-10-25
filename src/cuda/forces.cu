@@ -785,6 +785,9 @@ basicstep(
 		CUDA_SAFE_CALL(cudaMemset(tau[1] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaMemset(tau[2] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 	}
+	if (DEDt) {
+		CUDA_SAFE_CALL(cudaMemset(DEDt + fromParticle, 0, numParticlesInRange*sizeof(float)));
+	}
 
 
 	// thread per particle

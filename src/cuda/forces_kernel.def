@@ -891,8 +891,10 @@ struct internal_energy_particle_output
 {
 	float DEDt; // derivative of the internal energy with respect to time
 
+	template<typename FP>
 	__device__ __forceinline__
-	internal_energy_particle_output() : DEDt(0.0f)
+	internal_energy_particle_output(FP const& params, uint index) :
+		DEDt(params.DEDt[index])
 	{}
 };
 
@@ -925,7 +927,7 @@ struct forces_particle_output :
 			gamma_cfl_particle_output)(),
 		COND_STRUCT(has_keps, keps_particle_output)(),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)(),
-		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)()
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)(params, index)
 	{}
 };
 
