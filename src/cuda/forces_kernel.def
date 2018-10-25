@@ -2755,7 +2755,7 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 	compute_density_derivative(params, pdata, ndata, pout, nout);
 
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback
-	if (COMPUTE_FORCE(pdata.info)) {
+	if (COMPUTE_FORCE(pdata.info) || (FP::simflags & ENABLE_INTERNAL_ENERGY)) {
 		// Compute pressure part of acceleration
 		compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
@@ -2767,7 +2767,8 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 		// TODO : implement keps for dynamic boundaries
 
 		// Sum all contributions from the neighbors in the force array
-		as_float3(pout.force) += nout.DvDt;
+		if (COMPUTE_FORCE(pdata.info))
+			as_float3(pout.force) += nout.DvDt;
 
 		// Summ all internal energy contributions from the neighbors
 		add_internal_energy(params, pdata, ndata, pout, nout);
