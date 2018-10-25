@@ -41,7 +41,7 @@ template<
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	KernelType kerneltype,
-	ViscosityType visctype,
+	typename ViscSpec,
 	flag_t simflags>
 class CUDAPredCorrEngine : public AbstractIntegrationEngine
 {
@@ -352,7 +352,7 @@ basicstep(
 
 	if (step == 1)
 		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
-			euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, 1>(
+			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 1>(
 				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
 				xsph,
 				newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
@@ -361,7 +361,7 @@ basicstep(
 				newEnergy, oldEnergy, DEDt));
 	else if (step == 2)
 		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
-			euler_params<kerneltype, sph_formulation, boundarytype, visctype, simflags, 2>(
+			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 2>(
 				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
 				xsph,
 				newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,

@@ -26,9 +26,35 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * NeibsEngine CUDA kernels
+ */
+
+
 /*
  * Device code.
  */
+
+/* Important notes on block sizes:
+	- a parallel reduction for max neibs number is done inside neiblist, block
+	size for neiblist MUST BE A POWER OF 2
+ */
+#if (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_CALCHASH		256
+	#define MIN_BLOCKS_CALCHASH		6
+	#define BLOCK_SIZE_REORDERDATA	256
+	#define MIN_BLOCKS_REORDERDATA	6
+	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define MIN_BLOCKS_BUILDNEIBS	5
+#else
+	#define BLOCK_SIZE_CALCHASH		256
+	#define MIN_BLOCKS_CALCHASH		1
+	#define BLOCK_SIZE_REORDERDATA	256
+	#define MIN_BLOCKS_REORDERDATA	1
+	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define MIN_BLOCKS_BUILDNEIBS	1
+#endif
+
 
 
 // TODO :
@@ -48,6 +74,8 @@
 // TODO : what was CELLTYPE_MASK_* supposed to be ? Can we delete ?
 // CELLTYPE_MASK_*
 #include "multi_gpu_defines.h"
+
+#include "buildneibs_params.h"
 
 
 /** \namespace cuneibs

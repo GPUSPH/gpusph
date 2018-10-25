@@ -125,9 +125,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simparams->simflags & ENABLE_XSPH)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>();
 
+	// If the user enabled a(n actual) turbulence model, enable BUFFER_TAU, to
+	// store the shear stress tensor.
 	// TODO FIXME temporary: k-eps needs TAU only for temporary storage
 	// across the split kernel calls in forces
-	if (m_simparams->visctype == SPSVISC || m_simparams->visctype == KEPSVISC)
+	if (m_simparams->turbmodel > ARTIFICIAL)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TAU>();
 
 	if (m_simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
@@ -140,7 +142,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		if (USING_DYNAMIC_GAMMA(m_simparams->simflags))
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
-		if (m_simparams->visctype == KEPSVISC)
+		if (m_simparams->turbmodel == KEPSILON)
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_KEPS>();
 	}
 
@@ -151,19 +153,19 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTPOS>();
 	}
 
-	if (m_simparams->visctype == KEPSVISC) {
+	if (m_simparams->turbmodel == KEPSILON) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TKE>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EPSILON>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TURBVISC>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DKDE>();
 	}
 
-	if (m_simparams->visctype == SPSVISC) {
+	if (m_simparams->turbmodel == SPS) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SPS_TURBVISC>();
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY &&
-		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->visctype == KEPSVISC))
+		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->turbmodel == KEPSILON))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
 	if (m_simparams->simflags & ENABLE_INLET_OUTLET)
@@ -1825,9 +1827,9 @@ void GPUWorker::simulationThread() {
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_DENSITY\n", deviceIndex);
 				kernel_compute_density();
 				break;
-			case SPS:
-				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
-				kernel_sps();
+			case CALC_VISC:
+				if (dbg_step_printf) printf(" T %d issuing CALC_VISC\n", deviceIndex);
+				kernel_visc();
 				break;
 			case REDUCE_BODIES_FORCES:
 				if (dbg_step_printf) printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
@@ -2178,7 +2180,7 @@ float GPUWorker::post_forces()
 	// the _actual_ maximum viscosity
 
 	float max_kinematic = NAN;
-	if (m_simparams->visctype != ARTVISC)
+	if (m_simparams->rheologytype != INVISCID)
 		for (uint f = 0; f < m_physparams->numFluids(); ++f)
 			max_kinematic = fmaxf(max_kinematic, m_physparams->kinematicvisc[f]);
 
@@ -2728,8 +2730,7 @@ void GPUWorker::kernel_compute_density()
 }
 
 
-// TODO FIXME RENAME METHOD
-void GPUWorker::kernel_sps()
+void GPUWorker::kernel_visc()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
@@ -2740,14 +2741,8 @@ void GPUWorker::kernel_sps()
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 	bufwrite.add_state_on_write("SPS");
 
-	viscEngine->process(bufwrite.getRawPtr<BUFFER_TAU>(),
-		bufwrite.getData<BUFFER_SPS_TURBVISC>(),
-		bufread.getData<BUFFER_POS>(),
-		bufread.getData<BUFFER_VEL>(),
-		bufread.getData<BUFFER_INFO>(),
-		bufread.getData<BUFFER_HASH>(),
+	viscEngine->calc_visc(bufread, bufwrite,
 		m_dCellStart,
-		bufread.getData<BUFFER_NEIBSLIST>(),
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,

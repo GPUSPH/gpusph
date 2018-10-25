@@ -62,6 +62,8 @@
 
 #include "common_types.h"
 
+#include "visc_spec.h"
+
 //! Smoothing kernels
 /*!
  * \inpsection{discretisation}
@@ -182,40 +184,6 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 #define EPSDETMLS				0.05f
 //! Mininum number of neighbors for MLS correction
 #define MINCORRNEIBSMLS			4
-
-//! Viscous model
-/** @defpsubsection{turbulence, TURBULENCE}
- * @inpsection{physics}
- * @default{disable}
- * @values{disable, artificial viscosity, k-epsilon, SPS model (LES)}
- * TLT_TURBULENCE
- */
-enum ViscosityType {
-	ARTVISC = 1,
-	KINEMATICVISC,
-	DYNAMICVISC,
-	SPSVISC,
-	KEPSVISC,
-	INVALID_VISCOSITY
-} ;
-
-//! Name of the viscous model
-#ifndef GPUSPH_MAIN
-extern
-#endif
-const char* ViscosityName[INVALID_VISCOSITY+1]
-#ifdef GPUSPH_MAIN
-= {
-	"(null)",
-	"Artificial",
-	"Kinematic",
-	"Dynamic",
-	"SPS + kinematic",
-	"k-e model",
-	"(invalid)"
-}
-#endif
-;
 
 //! Boundary periodicity
 /*!

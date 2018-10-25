@@ -31,6 +31,7 @@
 #define _VISCENGINE_H
 
 #include "particledefine.h"
+#include "buffer.h"
 
 /*! Abstract class that defines the interface for the ViscEngine
  * ViscEngines handle the pre-computation of viscosity before the forces.
@@ -47,19 +48,20 @@ public:
 	virtual void getconstants() = 0 ; // TODO
 
 	/// Run the viscosity computation step
+	/*! This method runs the necessary computations needed for
+	 * viscous computation, such as the stress tensor correction for SPS,
+	 * or the viscosity itself in case of per-particle viscosity.
+	 * (\see{BUFFER_EFFVISC})
+	 */
 	virtual void
-	process(		float2	*tau[],
-					float	*turbvisc,
-			const	float4	*pos,
-			const	float4	*vel,
-			const	particleinfo	*info,
-			const	hashKey	*particleHash,
-			const	uint	*cellStart,
-			const	neibdata*neibsList,
-					uint	numParticles,
-					uint	particleRangeEnd,
-			float	slength,
-			float	influenceradius) = 0;
+	calc_visc(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	slength,
+		const	float	influenceradius) = 0;
 
 };
 #endif

@@ -320,7 +320,21 @@ CommonWriter::write_simparams(ostream &out)
 	out << " kernelradius = " << SP->kernelradius << endl;
 	out << " influenceRadius = " << SP->influenceRadius << endl;
 	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
-	out << " viscosity type: " << SP->visctype << " (" << ViscosityName[SP->visctype] << ")" << endl;
+	out << " multi-fluid support: " << ED[!!(SP->simflags & ENABLE_MULTIFLUID)] << endl;
+	out << " Rheology: " << RheologyTypeName[SP->rheologytype] << endl;
+	switch (SP->rheologytype) {
+	case INVISCID: break; /* nothing to show */
+	case NEWTONIAN:
+		       out << "\tTurbulence model: " << TurbulenceName[SP->turbmodel] << endl;
+		       out << "\tComputational viscosity type: " << ComputationalViscosityName[SP->compvisc] << endl;
+		       out << "\tViscous model operator: " << ViscousModelName[SP->viscmodel] << endl;
+		       out << "\tViscous averaging operator: " << AverageOperatorName[SP->viscavgop] << endl;
+		       if (SP->is_const_visc)
+			       out << "\t(constant viscosity optimizations)" << endl;
+		       break;
+	default:
+		       throw runtime_error("unimplemented rheology parameter printout");
+	}
 	out << " periodicity: " << SP->periodicbound << " (" << PeriodicityName[SP->periodicbound] << ")" << endl;
 
 	out << " initial dt = " << SP->dt << endl;
@@ -444,20 +458,21 @@ CommonWriter::write_physparams(ostream &out)
 			break;
 	}
 
-	out << " " << ViscosityName[SP->visctype] << " viscosity parameters:" << endl;
-	if (SP->visctype == ARTVISC) {
+	out << RheologyTypeName[SP->rheologytype] << " rheology with "
+		<< TurbulenceName[SP->turbmodel] << " turbulence model. Parameters:" << endl;
+	if (SP->turbmodel == ARTIFICIAL) {
 		out << "\tartvisccoeff = " << PP->artvisccoeff << "" << endl;
 		out << "\tepsartvisc = " << PP->epsartvisc << "" << endl;
-	} else {
-		for (uint f  = 0; f < PP->numFluids(); ++f)
-			out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
-	}
-	if (SP->visctype == SPSVISC) {
+	} else if (SP->turbmodel == SPS) {
 		out << "\tSmagfactor = " << PP->smagfactor << endl;
 		out << "\tkSPSfactor = " << PP->kspsfactor << endl;
 	}
+
 	for (uint f  = 0; f < PP->numFluids(); ++f)
-		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f] << endl;
+		out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
+	for (uint f  = 0; f < PP->numFluids(); ++f)
+		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f]
+			<< (SP->compvisc == KINEMATIC ? " (m^2/s)" : " (Pa s)") <<endl;
 
 	if (SP->simflags & ENABLE_XSPH) {
 		out << " epsxsph = " << PP->epsxsph << endl;

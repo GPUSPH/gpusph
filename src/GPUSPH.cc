@@ -389,7 +389,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
 
-	if (!resumed && _sp->visctype == KEPSVISC)
+	if (!resumed && _sp->turbmodel > ARTIFICIAL)
 		problem->init_turbvisc(gdata->s_hBuffers, gdata->totParticles);
 
 	/* When starting a simulation with open boundaries, we need to
@@ -636,9 +636,9 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	}
 
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
-	if (problem->simparams()->visctype == SPSVISC) {
+	if (problem->simparams()->turbmodel == SPS) {
 		gdata->only_internal = true;
-		doCommand(SPS, integrator_step);
+		doCommand(CALC_VISC, integrator_step);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 	}
@@ -1026,7 +1026,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_GRADGAMMA>();
 	}
 
-	if (problem->simparams()->visctype == KEPSVISC) {
+	if (problem->simparams()->turbmodel == KEPSILON) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TKE>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EPSILON>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TURBVISC>();
@@ -1034,13 +1034,13 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (problem->simparams()->boundarytype == SA_BOUNDARY &&
 		(problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
-		problem->simparams()->visctype == KEPSVISC))
+		problem->simparams()->turbmodel == KEPSILON))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EULERVEL>();
 
 	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEXTID>();
 
-	if (problem->simparams()->visctype == SPSVISC)
+	if (problem->simparams()->turbmodel == SPS)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SPS_TURBVISC>();
 
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
@@ -1455,35 +1455,27 @@ void GPUSPH::particleSwap(uint idx1, uint idx2)
 void GPUSPH::setViscosityCoefficient()
 {
 	PhysParams *pp = gdata->problem->physparams();
-	ViscosityType vt = gdata->problem->simparams()->visctype;
+	const SimParams *sp = gdata->problem->simparams();
 
 	// Set visccoeff based on the viscosity model used
-	switch (vt) {
-		case ARTVISC:
-			for (uint f = 0; f < pp->numFluids(); ++f)
-				pp->visccoeff[f] = pp->artvisccoeff;
-			break;
-
-		case KINEMATICVISC:
-		case SPSVISC:
-			for (uint f = 0; f < pp->numFluids(); ++f)
-				pp->visccoeff[f] = 4*pp->kinematicvisc[f];
-			break;
-
-		case KEPSVISC:
-		case DYNAMICVISC:
-			for (uint f = 0; f < pp->numFluids(); ++f)
-				pp->visccoeff[f] = pp->kinematicvisc[f];
-			break;
-
-		default:
-			throw runtime_error(string("Don't know how to set viscosity coefficient for chosen viscosity type!"));
-			break;
+	if (sp->rheologytype == INVISCID) {
+		// ensure that the viscous coefficients are NaN: they should never be used,
+		// and if they are it's an error
+		for (uint f = 0; f < pp->numFluids(); ++f)
+			pp->visccoeff[f] = NAN;
+	} else if (sp->compvisc == KINEMATIC) {
+		for (uint f = 0; f < pp->numFluids(); ++f)
+			pp->visccoeff[f] = pp->kinematicvisc[f];
+	} else if (sp->compvisc == DYNAMIC) {
+		for (uint f = 0; f < pp->numFluids(); ++f)
+			pp->visccoeff[f] = pp->kinematicvisc[f]*pp->rho0[f];
+	} else {
+		throw runtime_error("Don't know how to set viscosity coefficient for chosen viscosity type!");
 	}
 
 	// Set SPS factors from coefficients, if they were not set
 	// by the problem
-	if (vt == SPSVISC) {
+	if (sp->turbmodel == SPS) {
 		// TODO physparams should have configurable Cs, Ci
 		// rather than configurable smagfactor, kspsfactor, probably
 		const double spsCs = 0.12;
@@ -1695,16 +1687,16 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_
 		which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
 
 	// get k and epsilon
-	if (simparams->visctype == KEPSVISC)
+	if (simparams->turbmodel == KEPSILON)
 		which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
 
 	// Get SPS turbulent viscocity
-	if (simparams->visctype == SPSVISC)
+	if (simparams->turbmodel == SPS)
 		which_buffers |= BUFFER_SPS_TURBVISC;
 
 	// get Eulerian velocity
 	if (simparams->simflags & ENABLE_INLET_OUTLET ||
-		simparams->visctype == KEPSVISC)
+		simparams->turbmodel == KEPSILON)
 		which_buffers |= BUFFER_EULERVEL;
 
 	// get nextIDs

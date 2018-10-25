@@ -42,6 +42,8 @@
 #include "kahan.h"
 #include "tensor.cu"
 
+#include "visc_kernel.cu"
+
 
 #if __COMPUTE__ < 20
 #define printf(...) /* eliminate printf from 1.x */
@@ -69,6 +71,7 @@ using namespace cugeom;
 using namespace cusph;
 using namespace cuphys;
 using namespace cuneibs;
+using namespace cuvisc;
 
 // Core SPH functions
 /** \name Device constants
@@ -128,73 +131,6 @@ MKForce(const float r, const float slength,
 
 	return force;
 }
-/************************************************************************************************************/
-
-/***************************************** Viscosities *******************************************************/
-//! Artificial viscosity
-__device__ __forceinline__ float
-artvisc(	const float	vel_dot_pos,
-			const float	rho_abs,
-			const float	neib_rho_abs,
-			const float	sspeed,
-			const float	neib_sspeed,
-			const float	r,
-			const float	slength)
-{
-	// TODO check if it makes sense to support different artificial viscosity coefficients
-	// for different fluids
-
- return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/((r*r + d_epsartvisc)*(rho_abs + neib_rho_abs));
-
-}
-
-
-// ATTENTION: for all non artificial viscosity
-// µ is the dynamic viscosity (ρν)
-
-//! Morris laminar viscous term
-/*!
- Scalar part of viscosity using Morris 1997
- expression 21 p218 when all particles have the same viscosity
- in this case d_visccoeff = 4 nu
- returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
-*/
-__device__ __forceinline__ float
-laminarvisc_kinematic(	const float	rho_abs,
-						const float	neib_rho_abs,
-						const float	neib_mass,
-						const float	f)
-{
-	// NOTE: this won't work in multi-fluid!
-	// TODO FIXME kinematic viscosity should probably be marked as incompatible
-	// with multi-fluid (or at least if fluids don't have the same, constant
-	// viscosity
-
-	return neib_mass*d_visccoeff[0]*f/(rho_abs + neib_rho_abs);
-}
-
-
-//! Morris laminar viscous term for variable viscosity
-/*!
- Same behaviour as laminarvisc_kinematic but for particle
- dependent viscosity.
- returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
-*/
-__device__ __forceinline__ float
-laminarvisc_dynamic(const float	rho_abs,
-					const float	neib_rho_abs,
-					const float	neib_mass,
-					const float	f,
-					const float	visc,
-					const float	neib_visc)
-{
-
-
-	return neib_mass*(visc + neib_visc)*f/(rho_abs*neib_rho_abs);
-}
-/************************************************************************************************************/
-
-
 /************************************************************************************************************/
 
 /******************** Functions for computing repulsive force directly from DEM *****************************/
@@ -321,48 +257,6 @@ dtadaptBlockReduce(	float*	sm_max,
 
 
 /************************************************************************************************************/
-/*		   Kernels for computing SPS tensor and SPS viscosity												*/
-/************************************************************************************************************/
-
-//! A functor that writes out turbvisc for SPS visc
-template<bool>
-struct write_sps_turbvisc
-{
-	template<typename FP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, const uint index, const float turbvisc)
-	{ /* do nothing */ }
-};
-
-template<>
-template<typename FP>
-__device__ __forceinline__ void
-write_sps_turbvisc<true>::with(FP const& params, const uint index, const float turbvisc)
-{ params.turbvisc[index] = turbvisc; }
-
-//! A functor that writes out tau for SPS visc
-template<bool>
-struct write_sps_tau
-{
-	template<typename FP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, const uint index, symtensor3 const& tau)
-	{ /* do nothing */ }
-};
-
-template<>
-template<typename FP>
-__device__ __forceinline__ void
-write_sps_tau<true>::with(FP const& params, const uint index, symtensor3 const& tau)
-{
-	storeTau(tau, index, params.tau0, params.tau1, params.tau2);
-}
-
-/************************************************************************************************************/
-
-/************************************************************************************************************/
 /*		Device functions used in kernels other than the main forces kernel									*/
 /************************************************************************************************************/
 
@@ -395,213 +289,11 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 	// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
 }
 
-//! Fetch tau tensor from texture
-/*!
- an auxiliary function that fetches the tau tensor
- for particle i from the textures where it's stored
-*/
-__device__
-symtensor3 fetchTau(uint i)
-{
-	symtensor3 tau;
-	float2 temp = tex1Dfetch(tau0Tex, i);
-	tau.xx = temp.x;
-	tau.xy = temp.y;
-	temp = tex1Dfetch(tau1Tex, i);
-	tau.xz = temp.x;
-	tau.yy = temp.y;
-	temp = tex1Dfetch(tau2Tex, i);
-	tau.yz = temp.x;
-	tau.zz = temp.y;
-	return tau;
-}
-
-//! Fetch tau tensor from split arrays
-/*!
- an auxiliary function that fetches the tau tensor
- for particle i from the arrays where it's stored
-*/
-__device__
-symtensor3 fetchTau(uint i,
-	const float2 *__restrict__ tau0,
-	const float2 *__restrict__ tau1,
-	const float2 *__restrict__ tau2)
-{
-	symtensor3 tau;
-	float2 temp = tau0[i];
-	tau.xx = temp.x;
-	tau.xy = temp.y;
-	temp = tau1[i];
-	tau.xz = temp.x;
-	tau.yy = temp.y;
-	temp = tau2[i];
-	tau.yz = temp.x;
-	tau.zz = temp.y;
-	return tau;
-}
-
-//! Store tau tensor to split arrays
-__device__
-void storeTau(symtensor3 const& tau, uint i,
-	float2 *__restrict__ tau0,
-	float2 *__restrict__ tau1,
-	float2 *__restrict__ tau2)
-{
-	tau0[i] = make_float2(tau.xx, tau.xy);
-	tau1[i] = make_float2(tau.xz, tau.yy);
-	tau2[i] = make_float2(tau.yz, tau.zz);
-}
-
-
 /*  @} */
 
 /** \name Kernels
  *  @{ */
 
-//! Compute SPS matrix
-/*!
- Compute the Sub-Particle-Stress (SPS) Tensor matrix for all Particles
- WITHOUT Kernel correction
-
- Procedure:
-
- (1) compute velocity gradients
-
- (2) compute turbulent eddy viscosity (non-dynamic)
-
- (3) compute turbulent shear stresses
-
- (4) return SPS tensor matrix (tau) divided by rho^2
-*/
-template<KernelType kerneltype,
-	BoundaryType boundarytype,
-	uint simflags>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= params.numParticles)
-		return;
-
-	// read particle data from sorted arrays
-	// Compute SPS matrix only for any kind of particles
-	// TODO testpoints should also compute SPS, it'd be useful
-	// when we will enable SPS saving to disk
-	const particleinfo info = tex1Dfetch(infoTex, index);
-
-	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
-	const float4 pos = params.pos[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
-
-	// skip inactive particles
-	if (INACTIVE(pos))
-		return;
-
-	const float4 vel = tex1Dfetch(velTex, index);
-
-	// Gradients of the the velocity components
-	float3 dvx = make_float3(0.0f);
-	float3 dvy = make_float3(0.0f);
-	float3 dvz = make_float3(0.0f);
-
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = -1;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
-	// loop over all the neighbors
-	// TODO FIXME splitneibs : correctly iterate over all particle types OR
-	// filter based on particle type (only FLUID, BOUNDARY only for DYN?)
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = params.neibsList[i + index];
-
-		if (neib_data == NEIBS_END) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, params.cellStart,
-				neib_data, gridPos, neib_cellnum, neib_cell_base_index);
-
-		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
-		const float4 relPos = pos_corr - params.pos[neib_index];
-		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-		#endif
-
-		// skip inactive particles
-		if (INACTIVE(relPos))
-			continue;
-
-		const float r = length3(relPos);
-
-		// Compute relative velocity
-		// Now relVel is a float4 and neib density is stored in relVel.w
-		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-		// Velocity gradient is contributed by all particles
-		// TODO: fix SA case
-		if ( r < params.influenceradius ) {
-			const float f = F<kerneltype>(r, params.slength)*relPos.w/physical_density(relVel.w,fluid_num(neib_info));	// 1/r ∂Wij/∂r Vj
-
-			// Velocity Gradients
-			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
-			dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
-			dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
-			}
-		} // end of loop through neighbors
-
-
-	// SPS stress matrix elements
-	symtensor3 tau;
-
-	// Calculate Sub-Particle Scale viscosity
-	// and special turbulent terms
-	float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-	float temp = dvx.y + dvy.x;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-	tau.xy = temp;
-	SijSij_bytwo += temp*temp;
-	temp = dvx.z + dvz.x;			// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-	tau.xz = temp;
-	SijSij_bytwo += temp*temp;
-	temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-	tau.yz = temp;
-	SijSij_bytwo += temp*temp;
-	const float S = sqrtf(SijSij_bytwo);
-	const float nu_SPS = d_smagfactor*S;		// Dalrymple & Rogers (2006): eq. (12)
-	const float divu_SPS = 0.6666666666f*nu_SPS*(dvx.x + dvy.y + dvz.z);
-	const float Blinetal_SPS = d_kspsfactor*SijSij_bytwo;
-
-	// Storing the turbulent viscosity for each particle
-	write_sps_turbvisc<simflags & SPSK_STORE_TURBVISC>::with(params, index, nu_SPS);
-
-        float abs_rho = physical_density(vel.w,fluid_num(info));
-
-	// Shear Stress matrix = TAU (pronounced taf)
-	// Dalrymple & Rogers (2006): eq. (10)
-	if (simflags & SPSK_STORE_TAU) {
-
-		tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
-		tau.xx /= abs_rho;
-		tau.xy *= nu_SPS/abs_rho;								// tau12 = tau_xy/ρ^2
-		tau.xz *= nu_SPS/abs_rho;								// tau13 = tau_xz/ρ^2
-		tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
-		tau.yy /= abs_rho;
-		tau.yz *= nu_SPS/abs_rho;								// tau23 = tau_yz/ρ^2
-		tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
-		tau.zz /= abs_rho;
-
-		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, tau);
-	}
-}
 /************************************************************************************************************/
 
 /************************************************************************************************************/
@@ -1030,7 +722,7 @@ MlsDevice(	const float4*	posArray,
 			const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 			vel.w += MlsCorrContrib(B, relPos, w);
 		}
-                        
+
 
 	}  // end of second loop trough neighbors
 

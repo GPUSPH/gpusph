@@ -48,8 +48,15 @@ typedef struct SimParams {
 	 * @{ */
 	const KernelType		kerneltype;					///< Kernel type
 	const SPHFormulation	sph_formulation;			///< SPH formulation to use
-	const DensityDiffusionType densitydiffusiontype; 	///< Type of density diffusion corrective term
-	const ViscosityType		visctype;					///< Viscosity type (artificial, laminar, ...)
+	const DensityDiffusionType densitydiffusiontype;	///< Type of density diffusion corrective term
+
+	const RheologyType		rheologytype;				///< Rheology type (Newtonian etc)
+	const TurbulenceModel	turbmodel;					///< Turbulence model
+	const ComputationalViscosityType compvisc;			///< Viscosity kind used in computations (kinematic vs dynamic)
+	const ViscousModel		viscmodel;					///< Discretization model for the viscous operator (e.g. Morris vs Monaghan)
+	const AverageOperator	viscavgop;					///< Averaging operator used in the viscous model (e.g. arithmetic vs harmonic)
+	const bool				is_const_visc;				///< Are we assuming constant viscosity?
+
 	const BoundaryType		boundarytype;				///< Boundary type (Lennard-Jones, SA? ...)
 	const Periodicity		periodicbound;				///< Periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
 	const flag_t			simflags;					///< Simulation flags
@@ -205,22 +212,20 @@ typedef struct SimParams {
 	float			epsilon;				///< If \f$ |r_a - r_b| < \epsilon \f$ two positions are considered identical. TODO: check that the test is done on a relative quantity
 	/** @} */
 
-	SimParams(
-		KernelType _kernel = WENDLAND,
-		SPHFormulation _formulation = SPH_F1,
-		DensityDiffusionType _densitydiffusiontype = DENSITY_DIFFUSION_NONE,
-		ViscosityType _visctype = ARTVISC,
-		BoundaryType _btype = LJ_BOUNDARY,
-		Periodicity _periodic = PERIODIC_NONE,
-		flag_t _simflags = ENABLE_DTADAPT) :
-
-		kerneltype(_kernel),
-		sph_formulation(_formulation),
-		densitydiffusiontype(_densitydiffusiontype),
-		visctype(_visctype),
-		boundarytype(_btype),
-		periodicbound(_periodic),
-		simflags(_simflags),
+	template<typename Framework>
+	SimParams(Framework *simframework) :
+		kerneltype(Framework::kerneltype),
+		sph_formulation(Framework::sph_formulation),
+		densitydiffusiontype(Framework::densitydiffusiontype),
+		rheologytype(Framework::rheologytype),
+		turbmodel(Framework::turbmodel),
+		compvisc(Framework::compvisc),
+		viscmodel(Framework::viscmodel),
+		viscavgop(Framework::viscavgop),
+		is_const_visc(Framework::is_const_visc),
+		boundarytype(Framework::boundarytype),
+		periodicbound(Framework::periodicbound),
+		simflags(Framework::simflags),
 
 		sfactor(1.3f),
 		slength(0),
@@ -231,7 +236,7 @@ typedef struct SimParams {
 		 * TODO we should have some centralized way to specify the default kernel
 		 * radius for each KernelType
 		 */
-		kernelradius(_kernel == GAUSSIAN ? 3.0f : 2.0f),
+		kernelradius(kerneltype == GAUSSIAN ? 3.0f : 2.0f),
 		influenceRadius(0),
 		nlexpansionfactor(1.0f),
 		nlInfluenceRadius(0),
@@ -254,7 +259,7 @@ typedef struct SimParams {
 		numbodies(0),
 		numOpenBoundaries(0),
 		epsilon(5e-5f)
-	{};
+	{}
 
 	/** \name Kernel parameters related methods
 	 * @{ */

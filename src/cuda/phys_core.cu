@@ -1,3 +1,12 @@
+/*! \file
+ * Physical constants used by all kernels
+ */
+
+#ifndef _PHYS_CORE_
+#define _PHYS_CORE_
+
+#include "particledefine.h"
+
 namespace cuphys {
 __constant__ uint	d_numfluids;			///< number of different fluids
 
@@ -18,14 +27,17 @@ __constant__ float	d_MK_K;		///< This is typically the square of the maximum vel
 __constant__ float	d_MK_d;		///< This is typically the distance between boundary particles
 __constant__ float	d_MK_beta;	///< This is typically the ration between h and the distance between boundary particles
 
-__constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient
-__constant__ float	d_epsartvisc;					///< epsilon of artificial viscosity
+__constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient for laminar viscosity
 
-__constant__ float	d_partsurf;		///< particle surface (typically particle spacing suared)
+// Artificial viscosity parameters
+__constant__ float	d_artvisccoeff;					///< viscous coefficient for artificial viscosity
+__constant__ float	d_epsartvisc;					///< epsilon of artificial viscosity
 
 // Sub-Particle Scale (SPS) Turbulence parameters
 __constant__ float	d_smagfactor;
 __constant__ float	d_kspsfactor;
+
+__constant__ float	d_partsurf;		///< particle surface (typically particle spacing suared)
 
 // Free surface detection
 __constant__ float	d_cosconeanglefluid;
@@ -98,3 +110,4 @@ numerical_density(const float rho, const ushort i)
 }
 
 }
+#endif

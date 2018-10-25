@@ -51,7 +51,7 @@
 // TODO FIXME at this time this is just a horrible hack to group the boundary-conditions
 // methods needed for SA, it needs a heavy-duty refactoring of course
 
-template<KernelType kerneltype, ViscosityType visctype,
+template<KernelType kerneltype, typename ViscSpec,
 	BoundaryType boundarytype, flag_t simflags>
 class CUDABoundaryConditionsEngine : public AbstractBoundaryConditionsEngine
 {
@@ -138,7 +138,7 @@ saSegmentBoundaryConditions(
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	sa_segment_bc_params<kerneltype, visctype, simflags> params(
+	sa_segment_bc_params<kerneltype, ViscSpec, simflags> params(
 		pos, vel, particleHash, cellStart, neibsList,
 		gGam, vertices, vertPos,
 		eulerVel, tke, eps,
@@ -270,7 +270,7 @@ saVertexBoundaryConditions(
 	dummy_shared = 2560;
 	#endif
 
-	sa_vertex_bc_params<kerneltype, visctype, simflags> params(
+	sa_vertex_bc_params<kerneltype, ViscSpec, simflags> params(
 		pos, vel, info, particleHash, cellStart, neibsList,
 		gGam, vertices, vertPos,
 		eulerVel, tke, eps,

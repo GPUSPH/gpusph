@@ -155,9 +155,8 @@ enum CommandType {
 	DISABLE_OUTGOING_PARTS,
 	/// SPH_GRENIER only: compute density
 	COMPUTE_DENSITY,
-	/// Compute SPS stress matrix
-	/// TODO FIXME RENAME COMMAND (generic viscEngine processing)
-	SPS,
+	/// Compute per-particle viscosity and SPS stress matrix
+	CALC_VISC,
 	/// Compute total force acting on a moving body
 	REDUCE_BODIES_FORCES,
 	/// Upload new value of gravity, after problem callback

@@ -67,13 +67,13 @@ struct xsph_particle_data
 	{}
 };
 
-struct kepsvisc_particle_data
+struct keps_particle_data
 {
 	float	keps_k;
 	float	keps_e;
 
 	__device__ __forceinline__
-	kepsvisc_particle_data(const uint index, kepsvisc_euler_params params) :
+	keps_particle_data(const uint index, keps_euler_params params) :
 		keps_k(params.oldTKE[index]),
 		keps_e(params.oldEps[index])
 	{}
@@ -104,14 +104,15 @@ template<typename EP, ///< euler_param template specialization
 	KernelType _kerneltype = EP::kerneltype,
 	SPHFormulation _sph_formulation = EP::sph_formulation,
 	BoundaryType _boundarytype = EP::boundarytype,
-	ViscosityType _visctype = EP::visctype,
+	typename _ViscSpec = typename EP::ViscSpec,
 	flag_t _simflags = EP::simflags,
-	int _step = EP::step>
+	int _step = EP::step,
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
 struct euler_particle_data :
 	common_euler_particle_data,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_has_keps || _simflags & ENABLE_INLET_OUTLET),
 				sa_boundary_particle_data),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_particle_data),
+	COND_STRUCT(_has_keps, keps_particle_data),
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)
@@ -119,9 +120,10 @@ struct euler_particle_data :
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
-	static const ViscosityType visctype = _visctype;
+	using ViscSpec = _ViscSpec;
 	static const flag_t simflags = _simflags;
 	static const int step = _step;
+	static const bool has_keps = _has_keps;
 
 	// shorthand for the type of the euler params
 	typedef EP params_t;
@@ -130,9 +132,9 @@ struct euler_particle_data :
 	__device__ __forceinline__
 	euler_particle_data(const uint _index, params_t const& params) :
 		common_euler_particle_data(_index, params),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && (_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET),
+		COND_STRUCT(boundarytype == SA_BOUNDARY && (has_keps || simflags & ENABLE_INLET_OUTLET),
 					sa_boundary_particle_data)(_index, params),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_particle_data)(_index, params),
+		COND_STRUCT(has_keps, keps_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)(_index, params)
@@ -208,7 +210,7 @@ continuity_integration(EP const& params, P &pdata, int index, float dt)
 /// Integrate k and e in the \f$\kappa-\epsilon\f$ model
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype == KEPSVISC>
+enable_if_t<EP::has_keps>
 integrate_k_e(EP const& params, P &pdata, int index, float dt)
 {
 	const float3 dkde = params.keps_dkde[index];
@@ -219,7 +221,7 @@ integrate_k_e(EP const& params, P &pdata, int index, float dt)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype != KEPSVISC>
+enable_if_t<not EP::has_keps>
 integrate_k_e(EP const& params, P &pdata, int index, float dt)
 { /* do nothing*/ }
 
@@ -250,7 +252,7 @@ update_normals(EP const& params, P &pdata, int index)
 /// Integrate the boundary and vertex eulerian velocity in the k-epsilon case
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype == KEPSVISC>
+enable_if_t<EP::has_keps>
 integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
 {
 	if (!IO_BOUNDARY(pdata.info) || (VERTEX(pdata.info) && CORNER(pdata.info))) {
@@ -260,7 +262,7 @@ integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype != KEPSVISC>
+enable_if_t<not EP::has_keps>
 integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
 { /* do nothing*/ }
 
@@ -302,7 +304,7 @@ write_energy(EP const& params, P &pdata, int index)
 template<typename EP>
 constexpr bool needs_eulerVel()
 {
-	return EP::visctype == KEPSVISC ||
+	return EP::has_keps ||
 		(EP::boundarytype == SA_BOUNDARY &&
 		 (EP::simflags & ENABLE_INLET_OUTLET));
 }
@@ -322,12 +324,12 @@ write_eulerVel(EP const& params, P &pdata, int index)
 
 
 /// A functor that helps to writes viscosity coefficient
-/*! This is currently enabled only for KEPSVISC, to write out k, e
+/*! This is currently enabled only for KEPSILON, to write out k, e
  * and the turbulent viscosity
  */
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype == KEPSVISC>
+enable_if_t<EP::has_keps>
 write_viscosity_coeff(EP const& params, P &pdata, int index)
 {
 	params.newTKE[index] = pdata.keps_k;
@@ -336,7 +338,7 @@ write_viscosity_coeff(EP const& params, P &pdata, int index)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::visctype != KEPSVISC>
+enable_if_t<not EP::has_keps>
 write_viscosity_coeff(EP const& params, P &pdata, int index)
 { /* do nothing*/ }
 
@@ -397,7 +399,7 @@ template<typename EP, ///< euler_params template instantiation type
 	KernelType kerneltype = EP::kerneltype,
 	SPHFormulation sph_formulation = EP::sph_formulation,
 	BoundaryType boundarytype = EP::boundarytype,
-	ViscosityType visctype = EP::visctype,
+	typename ViscSpec = typename EP::ViscSpec,
 	flag_t simflags = EP::simflags,
 	int step = EP::step>
 __global__ void
@@ -523,7 +525,7 @@ eulerDevice(EP params)
 	write_volume(params, pdata, index);
 	write_energy(params, pdata, index);
 	// the condition should just be “if the euler velocity is there”,
-	// which is currently for KEPSVISC or open boundaries, but we don't have an easy way
+	// which is currently for KEPSILON or open boundaries, but we don't have an easy way
 	// to check for struct membership, so let's do it by enumerating the cases
 	// TODO FIXME
 	write_eulerVel(params, pdata, index);

@@ -132,7 +132,15 @@ SET_BUFFER_TRAITS(BUFFER_TURBVISC, float, 1, "Eddy Viscosity");
 #define BUFFER_DKDE			(BUFFER_TURBVISC << 1)
 SET_BUFFER_TRAITS(BUFFER_DKDE, float3, 1, "[k]-[e] derivatives");
 
-#define BUFFER_EULERVEL			(BUFFER_DKDE << 1)
+/** Effective viscosity array
+ * This is used to hold the per-particle viscosity in models where it's necessary;
+ * the value stored here is the dynamic viscosity or kinematic viscosity depending on
+ * the \see{ComputationalViscosityType} of the viscous specification
+ */
+#define BUFFER_EFFVISC		(BUFFER_DKDE << 1)
+SET_BUFFER_TRAITS(BUFFER_EFFVISC, float, 1, "Effective viscosity");
+
+#define BUFFER_EULERVEL			(BUFFER_EFFVISC << 1)
 SET_BUFFER_TRAITS(BUFFER_EULERVEL, float4, 1, "Eulerian velocity");
 
 /** Next ID of generated particle

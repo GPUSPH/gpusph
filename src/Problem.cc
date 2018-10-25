@@ -86,19 +86,36 @@ Problem::Problem(GlobalData *_gdata) :
 bool
 Problem::initialize()
 {
-	if (simparams()->gage.size() > 0 && !m_simframework->hasPostProcessEngine(SURFACE_DETECTION)) {
+	SimParams const* _sp(simparams());
+	PhysParams const* _pp(physparams());
+
+	if (_sp->gage.size() > 0 && !m_simframework->hasPostProcessEngine(SURFACE_DETECTION)) {
 		printf("Wave gages present: force-enabling surface detection\n");
 		m_simframework->addPostProcessEngine(SURFACE_DETECTION);
 	}
+
+	const bool multi_fluid_flag = IS_MULTIFLUID(_sp->simflags);
+	const bool has_multiple_fluids = (_pp->numFluids() > 1);
+
+	if (has_multiple_fluids && !multi_fluid_flag) {
+		throw invalid_argument(to_string(_pp->numFluids()) +
+			" fluids defined, but ENABLE_MULTIFLUID missing from simulation flags");
+	}
+
+	if (multi_fluid_flag && !has_multiple_fluids) {
+		fprintf(stderr, "WARNING: multi-fluid support enabled, but only one fluid defined\n"
+			"Viscous computation will not be optimized\n");
+	}
+
 	// run post-construction functions
 	check_dt();
 	check_neiblistsize();
 	calculateDensityDiffusionCoefficient();
 
-	/* Set ARTVISC epsilon to h^2/10 if not set by the user.
+	/* Set artificial viscosity epsilon to h^2/10 if not set by the user.
 	 * For simplicity, we do this regardless of the viscosity model used,
 	 * it'll just be ignored otherwise */
-	if (simparams()->visctype == ARTVISC && isnan(physparams()->epsartvisc)){
+	if (simparams()->turbmodel == ARTIFICIAL && isnan(physparams()->epsartvisc)){
 		physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 		printf("ARTVISC epsilon is not set, using default value: %e\n", physparams()->epsartvisc);		
 	}
@@ -579,7 +596,7 @@ Problem::check_dt(void)
 	dt_from_gravity *= simparams()->dtadaptfactor;
 
 	float dt_from_visc = NAN;
-	if (simparams()->visctype != ARTVISC) {
+	if (simparams()->rheologytype != INVISCID) {
 		for (uint f = 0; f < physparams()->numFluids(); ++f)
 			dt_from_visc = fminf(dt_from_visc, simparams()->slength*simparams()->slength/physparams()->kinematicvisc[f]);
 		dt_from_visc *= 0.125f; // TODO this should be configurable
@@ -1406,10 +1423,17 @@ Problem::init_keps(BufferList &buffers, uint numParticles)
 	}
 }
 
-/* Initialize eddy viscosity from k and epsilon */
+/*!
+ * Initialize eddy viscosity from k and epsilon
+ * TODO this is now called whenever the user selects a(n actual) turbulence
+ * mode, but it only does something in the KEPSILON case
+ */
 void
 Problem::init_turbvisc(BufferList &buffers, uint numParticles)
 {
+	if (simparams()->turbmodel != KEPSILON)
+		return;
+
 	const float *k = buffers.getConstData<BUFFER_TKE>();
 	const float *e = buffers.getConstData<BUFFER_EPSILON>();
 	float *turbVisc = buffers.getData<BUFFER_TURBVISC>();

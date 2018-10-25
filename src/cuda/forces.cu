@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Template implementation of ForceEngine in CUDA
+ */
+
 #include <cstdio>
 #include <stdexcept>
 
@@ -33,8 +37,6 @@
 #include "textures.cuh"
 
 #include "engine_forces.h"
-#include "engine_boundary_conditions.h"
-#include "engine_visc.h"
 #include "engine_filter.h"
 #include "simflags.h"
 
@@ -60,8 +62,6 @@
 	#define MIN_BLOCKS_SHEPARD		6
 	#define BLOCK_SIZE_MLS			128
 	#define MIN_BLOCKS_MLS			6
-	#define BLOCK_SIZE_SPS			128
-	#define MIN_BLOCKS_SPS			6
 	#define BLOCK_SIZE_FMAX			256
 	#define MAX_BLOCKS_FMAX			64
 #else
@@ -74,8 +74,6 @@
 	#define MIN_BLOCKS_SHEPARD		1
 	#define BLOCK_SIZE_MLS			128
 	#define MIN_BLOCKS_MLS			1
-	#define BLOCK_SIZE_SPS			128
-	#define MIN_BLOCKS_SPS			1
 	#define BLOCK_SIZE_FMAX			256
 	#define MAX_BLOCKS_FMAX			64
 #endif
@@ -181,7 +179,7 @@ template<
 	KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
+	typename ViscSpec,
 	BoundaryType boundarytype,
 	flag_t simflags>
 class CUDAForcesEngine;
@@ -255,14 +253,16 @@ template<
 	KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
-	ViscosityType visctype,
+	typename ViscSpec,
 	BoundaryType boundarytype,
 	flag_t simflags>
 class CUDAForcesEngine : public AbstractForcesEngine
 {
+	static const RheologyType rheologytype = ViscSpec::rheologytype;
+	static const TurbulenceModel turbmodel = ViscSpec::turbmodel;
 
-static const bool needs_eulerVel = (boundarytype == SA_BOUNDARY &&
-			(visctype == KEPSVISC || (simflags & ENABLE_INLET_OUTLET)));
+	static const bool needs_eulerVel = (boundarytype == SA_BOUNDARY &&
+			(turbmodel == KEPSILON || (simflags & ENABLE_INLET_OUTLET)));
 
 
 void
@@ -324,6 +324,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	}
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_sqC0, sqC0, numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visccoeff, &physparams->visccoeff[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_artvisccoeff, &physparams->artvisccoeff, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_gravity, &physparams->gravity, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_dcoeff, &physparams->dcoeff, sizeof(float)));
@@ -475,7 +476,7 @@ bind_textures(
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 	}
 
-	if (visctype == KEPSVISC) {
+	if (turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread.getData<BUFFER_TKE>(), numParticles*sizeof(float)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread.getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
 	}
@@ -486,13 +487,13 @@ unbind_textures()
 {
 	// TODO FIXME why are SPS textures unbound here but bound in sps?
 	// shouldn't we bind them in bind_textures() instead?
-	if (visctype == SPSVISC) {
+	if (turbmodel == SPS) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
 	}
 
-	if (visctype == KEPSVISC) {
+	if (turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	}
@@ -561,13 +562,13 @@ dtreduce(	float	slength,
 			dt = dt_gam;
 	}
 
-	if (visctype != ARTVISC) {
+	if (rheologytype != INVISCID || turbmodel > ARTIFICIAL) {
 		/* Stability condition from viscosity h²/ν
 		   We get the maximum kinematic viscosity from the caller, and in the KEPS case we
 		   add the maximum KEPS
 		 */
 		float visccoeff = max_kinematic;
-		if (visctype == KEPSVISC)
+		if (turbmodel == KEPSILON)
 			visccoeff += cflmax(numBlocks, cfl_keps, tempCfl);
 
 		float dt_visc = slength*slength/visccoeff;
@@ -628,7 +629,7 @@ compute_density_diffusion(
 
 	cuforces::computeDensityDiffusionDevice
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype,
-		 visctype, simflags, PT_FLUID>
+		 ViscSpec, simflags, PT_FLUID>
 		<<<numBlocks, numThreads>>>(params);
 
 	// check if last kernel invocation generated an error
@@ -685,7 +686,7 @@ vertex_forces(
 	// and for turbulent viscosity with the k-epsilon model
 	const bool waterdepth =
 		QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH);
-	const bool keps = (visctype == KEPSVISC);
+	const bool keps = (turbmodel == KEPSILON);
 	if (waterdepth || keps) {
 		cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
 	}
@@ -778,8 +779,8 @@ basicstep(
 	if (keps_dkde) {
 		// KEPS buffers need to be cleared too, as they will be built progressively
 		CUDA_SAFE_CALL(cudaMemset(keps_dkde + fromParticle, 0, numParticlesInRange*sizeof(float3)));
-		// TODO tau currently is reset in KEPSVISC, but must NOT be reset if SPSVISC
-		// ideally tau should be computed in its own kernel in the KEPSVISC case too
+		// TODO tau currently is reset in KEPSILON, but must NOT be reset if SPS
+		// ideally tau should be computed in its own kernel in the KEPSILON case too
 		CUDA_SAFE_CALL(cudaMemset(tau[0] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaMemset(tau[1] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaMemset(tau[2] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
@@ -792,13 +793,13 @@ basicstep(
 	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
 	#if (__COMPUTE__ == 20)
 	int dtadapt = !!(simflags & ENABLE_DTADAPT);
-	if (visctype == SPSVISC)
+	if (turbmodel == SPS)
 		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
 	else
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
 
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_FLUID> params_ff(
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_FLUID> params_ff(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -809,7 +810,7 @@ basicstep(
 			keps_dkde, turbvisc, tau,
 			DEDt);
 
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -821,7 +822,7 @@ basicstep(
 			DEDt);
 
 
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -836,7 +837,7 @@ basicstep(
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
 	{
-		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_VERTEX> params_fv(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -847,7 +848,7 @@ basicstep(
 			keps_dkde, turbvisc, tau,
 			DEDt);
 
-		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, visctype, simflags, PT_VERTEX, PT_FLUID> params_vf(
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_VERTEX, PT_FLUID> params_vf(
 			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -867,7 +868,7 @@ basicstep(
 	if (compute_object_forces || (boundarytype == DYN_BOUNDARY))
 		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
 
-	finalize_forces_params<sph_formulation, boundarytype, visctype, simflags> params_finalize(
+	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
 			forces, rbforces, rbtorques,
 			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
 			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
@@ -947,149 +948,6 @@ reduceRbForces(	float4	*forces,
 		totaltorque[i] = as_float3(temp);
 		}
 }
-
-};
-
-/// CUDAViscEngine class. Should be moved into its own source file
-///
-/// Generally, the kernel and boundary type will be passed through to the
-/// process() to call the appropriate kernels, and the main selector would be
-/// just the ViscosityType. We cannot have partial function/method template
-/// specialization, so our CUDAViscEngine actually delegates to a helper functor,
-/// which should be partially specialized as a whole class
-
-template<ViscosityType visctype,
-	KernelType kerneltype,
-	BoundaryType boundarytype>
-class CUDAViscEngine;
-
-template<ViscosityType visctype,
-	KernelType kerneltype,
-	BoundaryType boundarytype>
-struct CUDAViscEngineHelper
-{
-	static void
-	process(		float2	*tau[],
-					float	*turbvisc,
-			const	float4	*pos,
-			const	float4	*vel,
-			const	particleinfo	*info,
-			const	hashKey	*particleHash,
-			const	uint	*cellStart,
-			const	neibdata*neibsList,
-					uint	numParticles,
-					uint	particleRangeEnd,
-					float	slength,
-					float	influenceradius);
-};
-
-
-template<ViscosityType visctype,
-	KernelType kerneltype,
-	BoundaryType boundarytype>
-void
-CUDAViscEngineHelper<visctype, kerneltype, boundarytype>::process(
-			float2	*tau[],
-			float	*turbvisc,
-	const	float4	*pos,
-	const	float4	*vel,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	particleRangeEnd,
-			float	slength,
-			float	influenceradius)
-{ /* default, does nothing */ }
-
-/// Partial specialization for SPSVISC. Partial specializations
-/// redefine the whole helper struct, not just the method, since
-/// C++ does not allow partial function/method template specializations
-/// (which is why we have the Helper struct in the first place
-template<KernelType kerneltype,
-	BoundaryType boundarytype>
-struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
-{
-	static void
-	process(		float2	*tau[],
-					float	*turbvisc,
-			const	float4	*pos,
-			const	float4	*vel,
-			const	particleinfo	*info,
-			const	hashKey	*particleHash,
-			const	uint	*cellStart,
-			const	neibdata*neibsList,
-					uint	numParticles,
-					uint	particleRangeEnd,
-					float	slength,
-					float	influenceradius)
-{
-	int dummy_shared = 0;
-	// bind textures to read all particles, not only internal ones
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
-	uint numThreads = BLOCK_SIZE_SPS;
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	#if (__COMPUTE__ == 20)
-	dummy_shared = 2560;
-	#endif
-
-	sps_params<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)> params(
-			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
-			tau[0], tau[1], tau[2], turbvisc);
-
-	cuforces::SPSstressMatrixDevice<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)>
-		<<<numBlocks, numThreads, dummy_shared>>>(params);
-
-	// check if kernel invocation generated an error
-	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
-}
-};
-
-/// Actual CUDAVicEngine
-template<ViscosityType visctype,
-	KernelType kerneltype,
-	BoundaryType boundarytype>
-class CUDAViscEngine : public AbstractViscEngine
-{
-	// TODO when we will be in a separate namespace from forces
-	void setconstants() {}
-	void getconstants() {}
-
-	void
-	process(		float2	*tau[],
-					float	*turbvisc,
-			const	float4	*pos,
-			const	float4	*vel,
-			const	particleinfo	*info,
-			const	hashKey	*particleHash,
-			const	uint	*cellStart,
-			const	neibdata*neibsList,
-					uint	numParticles,
-					uint	particleRangeEnd,
-					float	slength,
-					float	influenceradius)
-	{
-		CUDAViscEngineHelper<visctype, kerneltype, boundarytype>::process
-		(tau, turbvisc, pos, vel, info, particleHash, cellStart, neibsList, numParticles,
-		 particleRangeEnd, slength, influenceradius);
-	}
 
 };
 

@@ -43,7 +43,8 @@ RTInstability::RTInstability(GlobalData *_gdata) : XProblem(_gdata)
 		formulation<SPH_GRENIER>,
 		//formulation<SPH_F2>,
 		viscosity<DYNAMICVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		add_flags<ENABLE_MULTIFLUID>
 	).select_options(
 		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),

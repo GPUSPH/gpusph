@@ -263,7 +263,7 @@ private:
 	void kernel_filter();
 	void kernel_postprocess();
 	void kernel_compute_density();
-	void kernel_sps();
+	void kernel_visc();
 	void kernel_meanStrain();
 	void kernel_reduceRBForces();
 	void kernel_saSegmentBoundaryConditions();

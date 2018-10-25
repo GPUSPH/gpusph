@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file
+ * Parameter structures for the forces kernel
+ */
+
 #ifndef _FORCES_PARAMS_H
 #define _FORCES_PARAMS_H
 
@@ -248,15 +252,15 @@ struct water_depth_forces_params
 	{}
 };
 
-/// Additional parameters passed only to kernels with KEPSVISC
-struct kepsvisc_forces_params
+/// Additional parameters passed only to kernels with KEPSILON
+struct keps_forces_params
 {
 	float3	* __restrict__ keps_dkde;
 	const float	* __restrict__ turbvisc;
 	float2	* __restrict__ tau0;
 	float2	* __restrict__ tau1;
 	float2	* __restrict__ tau2;
-	kepsvisc_forces_params(float3 * __restrict__ _keps_dkde, const float * __restrict__ _turbvisc,
+	keps_forces_params(float3 * __restrict__ _keps_dkde, const float * __restrict__ _turbvisc,
 		float2 **tau) :
 		keps_dkde(_keps_dkde),
 		turbvisc(_turbvisc),
@@ -280,11 +284,12 @@ template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
 	DensityDiffusionType _densitydiffusiontype,
 	BoundaryType _boundarytype,
-	ViscosityType _visctype,
+	typename _ViscSpec,
 	flag_t _simflags,
 	ParticleType _cptype,
-	ParticleType _nptype>
-struct forces_params :
+	ParticleType _nptype,
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
+struct forces_params : _ViscSpec,
 	common_forces_params,
 	COND_STRUCT((_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
@@ -292,17 +297,25 @@ struct forces_params :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params),
+	COND_STRUCT(_has_keps, keps_forces_params),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const DensityDiffusionType densitydiffusiontype = _densitydiffusiontype;
 	static const BoundaryType boundarytype = _boundarytype;
-	static const ViscosityType visctype = _visctype;
+
+	using ViscSpec = _ViscSpec;
+	static const RheologyType rheologytype = ViscSpec::rheologytype;
+	static const TurbulenceModel turbmodel = ViscSpec::turbmodel;
+	static const ViscousModel viscmodel = ViscSpec::viscmodel;
+
 	static const flag_t simflags = _simflags;
 	static const ParticleType cptype = _cptype;
 	static const ParticleType nptype = _nptype;
+
+	static const bool has_keps = _has_keps;
+	static const bool inviscid = rheologytype == INVISCID;
 
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the forces kernel.
@@ -341,7 +354,7 @@ struct forces_params :
 		// ENABLE_WATER_DEPTH
 				uint	* __restrict__ _IOwaterdepth,
 
-		// KEPSVISC
+		// KEPSILON
 				float3	* __restrict__ _keps_dkde,
 		const	float	* __restrict__ _turbvisc,
 				float2	** tau,
@@ -359,7 +372,7 @@ struct forces_params :
 		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype, sa_boundary_forces_params)
 			(_cfl_gamma, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
+		COND_STRUCT(has_keps, keps_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
 	{}
 };
@@ -368,21 +381,31 @@ struct forces_params :
 /// The actual finalize_forces_params struct, which concatenates all of the above, as appropriate.
 template<SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
-	ViscosityType _visctype,
-	flag_t _simflags>
+	typename _ViscSpec,
+	flag_t _simflags,
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _inviscid = _ViscSpec::rheologytype == INVISCID>
 struct finalize_forces_params :
 	common_finalize_forces_params,
 	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_forces_params),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
-	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params),
+	COND_STRUCT(_has_keps, keps_forces_params),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
-	static const ViscosityType visctype = _visctype;
+
+	using ViscSpec = _ViscSpec;
+	static const RheologyType rheologytype = ViscSpec::rheologytype;
+	static const TurbulenceModel turbmodel = ViscSpec::turbmodel;
+	static const ViscousModel viscmodel = ViscSpec::viscmodel;
+
 	static const flag_t simflags = _simflags;
+
+	static const bool has_keps = _has_keps;
+	static const bool inviscid = _inviscid;
 
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the finalize forces kernel.
@@ -416,7 +439,7 @@ struct finalize_forces_params :
 		// ENABLE_WATER_DEPTH
 				uint	*_IOwaterdepth,
 
-		// KEPSVISC
+		// KEPSILON
 				float3	*_keps_dkde,
 		const	float	*_turbvisc,
 				float2	**tau,
@@ -431,97 +454,10 @@ struct finalize_forces_params :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
-		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc, tau),
+		COND_STRUCT(has_keps, keps_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)
 	{}
 };
 
-/// Parameters common to all SPS kernel specializations
-struct common_sps_params
-{
-	const float4* __restrict__		pos;
-	const hashKey* __restrict__		particleHash;
-	const uint* __restrict__		cellStart;
-	const neibdata* __restrict__	neibsList;
-	const uint		numParticles;
-	const float		slength;
-	const float		influenceradius;
-
-	// Constructor / initializer
-	common_sps_params(
-		const	float4	* __restrict__ _pos,
-		const	hashKey	* __restrict__ _particleHash,
-		const	uint	* __restrict__ _cellStart,
-		const	neibdata	* __restrict__ _neibsList,
-		const	uint	_numParticles,
-		const	float	_slength,
-		const	float	_influenceradius) :
-		pos(_pos),
-		particleHash(_particleHash),
-		cellStart(_cellStart),
-		neibsList(_neibsList),
-		numParticles(_numParticles),
-		slength(_slength),
-		influenceradius(_influenceradius)
-	{}
-};
-
-/// Additional parameters passed only if simflag SPS_STORE_TAU is set
-struct tau_sps_params
-{
-	float2* __restrict__ 		tau0;
-	float2* __restrict__ 		tau1;
-	float2* __restrict__ 		tau2;
-
-	tau_sps_params(float2 * __restrict__ _tau0, float2 * __restrict__ _tau1, float2 * __restrict__ _tau2) :
-		tau0(_tau0), tau1(_tau1), tau2(_tau2)
-	{}
-};
-
-/// Additional parameters passed only if simflag SPS_STORE_TURBVISC is set
-struct turbvisc_sps_params
-{
-	float	* __restrict__ turbvisc;
-	turbvisc_sps_params(float * __restrict__ _turbvisc) :
-		turbvisc(_turbvisc)
-	{}
-};
-
-
-/// The actual forces_params struct, which concatenates all of the above, as appropriate.
-template<KernelType kerneltype,
-	BoundaryType boundarytype,
-	uint simflags>
-struct sps_params :
-	common_sps_params,
-	COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params),
-	COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
-{
-	// This structure provides a constructor that takes as arguments the union of the
-	// parameters that would ever be passed to the forces kernel.
-	// It then delegates the appropriate subset of arguments to the appropriate
-	// structs it derives from, in the correct order
-	sps_params(
-		// common
-			const	float4* __restrict__ 	_pos,
-			const	hashKey* __restrict__ 	_particleHash,
-			const	uint* __restrict__ 		_cellStart,
-			const	neibdata* __restrict__ 	_neibsList,
-			const	uint		_numParticles,
-			const	float		_slength,
-			const	float		_influenceradius,
-		// tau
-					float2* __restrict__ 		_tau0,
-					float2* __restrict__ 		_tau1,
-					float2* __restrict__ 		_tau2,
-		// turbvisc
-					float* __restrict__ 		_turbvisc
-		) :
-		common_sps_params(_pos, _particleHash, _cellStart,
-			_neibsList, _numParticles, _slength, _influenceradius),
-		COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
-		COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
-	{}
-};
 #endif // _FORCES_PARAMS_H
 
