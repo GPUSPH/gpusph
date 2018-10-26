@@ -60,7 +60,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 		m_energyfile << "\ttotal";
 		m_energyfile << endl;
 		m_energyfile << set_vector_fmt("\t");
-		m_energyfile.precision(9);
+		m_energyfile.precision(16);
 	}
 
 	size_t ngages = m_problem->simparams()->gage.size();
