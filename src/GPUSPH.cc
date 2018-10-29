@@ -389,6 +389,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
 
+	if (!resumed && (_sp->simflags & ENABLE_INTERNAL_ENERGY))
+		problem->init_internal_energy(gdata->s_hBuffers, gdata->totParticles);
+
 	if (!resumed && _sp->turbmodel > ARTIFICIAL)
 		problem->init_turbvisc(gdata->s_hBuffers, gdata->totParticles);
 

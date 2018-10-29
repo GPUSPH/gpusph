@@ -1406,6 +1406,18 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 	}
 }
 
+/* Initialize the particle internal energy. */
+void
+Problem::init_internal_energy(BufferList &buffers, uint numParticles)
+{
+	float *int_eng = buffers.getData<BUFFER_INTERNAL_ENERGY>();
+
+	for (uint i = 0; i < numParticles; ++i) {
+		int_eng[i]=0;
+	}
+
+}
+
 /* Default initialization for k and epsilon  */
 void
 Problem::init_keps(BufferList &buffers, uint numParticles)
