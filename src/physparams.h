@@ -100,6 +100,7 @@ typedef struct PhysParams {
 	 * \default{1000}
 	 */
 	std::vector<float> rho0; 			///< At-rest density, \f$\rho_0\f$
+
 	std::vector<float> bcoeff; 			///< Pressure parameter, \f$ B \f$
   /*!
 	 * \inpsection{fluid}
@@ -121,6 +122,7 @@ typedef struct PhysParams {
 	 * TLT_FLUID_C0
 	 */
 	std::vector<float> sscoeff; 		///< Sound speed coefficient ( = sound speed at rest density, \f$ c_0 \f$)
+
 	std::vector<float> sspowercoeff; 	///< Sound speed equation exponent ( = \f$(\gamma -1)/2\f$ )
 	/** @} */
 
@@ -147,6 +149,7 @@ typedef struct PhysParams {
 	 * \inpsection{fluid}
 	 * \label{FLUID_VISCOSITY}
 	 * \default{10e-6}
+	 * TLT_FLUID_VISCOSITY
 	 */
 	std::vector<float>	kinematicvisc;	///< Kinematic viscosity (\f$ \nu \f$)
 
@@ -178,29 +181,43 @@ typedef struct PhysParams {
 	 *	usually \f$ p_1 = 12 \f$, \f$p_2 = 6\f$ and \f$ D \f$ is a problem dependent parameter.
 	 * @{ */
   /*!
-   * \inpsection{boundaries}
    * \defpsubsection{Lennard-Jones formulation, LENNARD_JONES_PARAMETERS}
-	 * \values{yes, no}
-	 * \default{no}
-   */
+   * \inpsection{boundaries}
+	 * \values{enable, disable}
+	 * \default{disable}
+   * TLT_LENNARD_JONES_PARAMETERS
+	 */
   /*!
-   * \inpsection{Lennard-Jones formulation}
-	 * \label{r0}
-	 * \values{yes, no}
-	 * \default{no}
+   * \inpsection{Lennard-Jones formulation, enable}
+	 * \label{LJ_R0}
+	 * \default{0.}
+	 * TLT_LJ_R0
    */
 	float	r0;			///< Influence radius of LJ repulsive force, \f$ r_0 \f$
+
 	float	dcoeff;		///< \f$ D \f$
+  /*!
+   * \inpsection{Lennard-Jones formulation, enable}
+	 * \label{LJ_P1_COEFF}
+	 * \default{12.}
+	 * TLT_LJ_P1COEFF
+   */
 	float	p1coeff;	///< \f$ p_1 \f$
+  /*!
+   * \inpsection{Lennard-Jones formulation, enable}
+	 * \label{LJ_P2_COEFF}
+	 * \default{6.}
+	 * TLT_LJ_P2COEFF
+   */
 	float	p2coeff;	///< \f$ p_2 \f$
 	/** @} */
 
 
-	/** \name Geometrical LJ boundary related parameters
+	/** \name Geometrical DEM and LJ boundary related parameters
 	 *  When boundaries can be built using a set of plane or when simulating flows over a real topography
 	 *  we can directly compute a boundary normal repulsive force without using boundary particles.
 	 *  With a real topography we directly use the Digital Elevation Model (DEM).
-	 *  The parameters needed in those case are describe below.
+	 *  The parameters needed in those cases are described below.
 	 * @{ */
 	float	ewres;			///< DEM east-west resolution
 	float	nsres;			///< DEM north-south resolution
@@ -223,6 +240,12 @@ typedef struct PhysParams {
 
 	/** \name XSPH related parameter
 	 * @{ */
+  /*!
+   * \inpsection{xsph, enable}
+	 * \label{XSPH_COEFF}
+	 * \default{0.5}
+	 * TLT_XSPH_COEFF
+   */
 	float	epsxsph;		///< \f$ \epsilon \f$ coefficient for XSPH correction
 	/** @} */
 

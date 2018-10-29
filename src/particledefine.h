@@ -195,6 +195,8 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 /*!
  * @defpsubsection{periodicity, PERIODICITY_SECTION}
  * @inpsection{boundaries}
+ * \values{enable, disable}
+ * \default{disable}
  * TLT_PERIODICITY_SECTION
  */
 enum Periodicity {

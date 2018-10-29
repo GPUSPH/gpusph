@@ -415,87 +415,87 @@ class Problem {
 		 */
 		double particles_max_factor;
 
-		/**@defpsubsection{variable_gravity,Variable gravity}
+		/**@defpsubsection{variable_gravity, VARIABLE_GRAVITY}
 		 * @inpsection{physics}
 		 * @values{disable,enable}
 		 * @default{disable}
-		 * Define variable gravity between two simulation times.
+		 * TLT_VARIABLE_GRAVITY
 		 */
 
 		/**@inpsection{variable_gravity, enable}
-		*	 @label{Gravity start}
+		*	 @label{GRAVITY_START}
 		*	 @default{0.0}
-		*  Start time for the gravity variation.
+		*  TLT_GRAVITY_START
 		*/
 		double variable_gravity_begin;
 
 		/** @inpsection{variable_gravity, enable}
-		* @label{Gravity end}
+		* @label{GRAVITY_END}
 		* @default{100.0}
-		* End time for the gravity variation.
+		* TLT_GRAVITY_END
 		*/
 		double variable_gravity_end;
 
-		/* \inpsection{periodicity}
+		/* \inpsection{periodicity, enable}
 		* \label{X}
 		* \default{false}
-		* Periodicity along the X axis.
+		* TLT_PERIODICITY_X
 		*/
 		bool periodicity_x;
 
-		/* \inpsection{periodicity}
+		/* \inpsection{periodicity, enable}
 		* \label{Y}
 		* \default{false}
-		* Periodicity along the Y axis.
+		* TLT_PERIODICITY_Y
 		*/
 		bool periodicity_y;
 
-		/* \inpsection{periodicity}
+		/* \inpsection{periodicity, enable}
 		* \label{Z}
 		* \default{false}
-		* Periodicity along Z axis.
+		* TLT_PERIODICITY_Z
 		*/
 		bool periodicity_z;
 
 		/* \inpsection{probe}
 		* \label{X}
 		* \default{0.0}
-		* Coordinate along X axis.
+		* TLT_PROBE_X
 		*/
 		std::vector<float> x;
 
 		/* \inpsection{probe}
 		* \label{Y}
 		* \default{0.0}
-		* Coordinate along Y axis.
+		* TLT_PROBE_Y
 		*/
 		std::vector<float> y;
 
 		/* \inpsection{probe}
 		* \label{Z}
 		* \default{0.0}
-		* Coordinate along Z axis.
+		* TLT_PROBE_Z
 		*/
 		std::vector<float> z;
 
 		/* \inpsection{wave_gage}
 		* \label{X}
 		* \default{0.0}
-		* Coordinate along X axis.
+		* TLT_WAVE_GAGE_X
 		*/
 		std::vector<float> gage_x;
 
 		/* \inpsection{wave_gage}
 		* \label{Y}
 		* \default{0.0}
-		* Coordinate along Y axis.
+		* TLT_WAVE_GAGE_Y
 		*/
 		std::vector<float> gage_y;
 
 		/* \inpsection{wave_gage}
 		* \label{Z}
 		* \default{0.0}
-		* Coordinate along Z axis.
+		* TLT_WAVE_GAGE_Z
 		*/
 		std::vector<float> gage_z;
 
@@ -538,9 +538,9 @@ class Problem {
 		//!
 		virtual void copy_planes(PlaneList& planes);
 
+		/*! moving boundary and gravity callbacks */
 		//! @userfunc
 		//! @label{Variable gravity definition}
-		/*! moving boundary and gravity callbacks */
 		virtual float3 g_callback(const double t);
 
 		void allocate_bodies_storage();
@@ -582,7 +582,6 @@ class Problem {
 		virtual void
 		bodies_forces_callback(const double t0, const double t1, const uint step, float3 *forces, float3 *torques);
 
-		//! @userfunc
 		virtual void
 		post_timestep_callback(const double t);
 
