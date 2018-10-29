@@ -201,7 +201,6 @@ class XProblem: public Problem {
 
 		/*!
 		 * \inpsection{c0_input_method, calculation}
-		 * \mandatory
 		 * \label{FLUID_WATER_LEVEL}
 		 * \default{0}
 		 * used for hydrostatic filling (absolute value) and to set the speed of sound
@@ -211,7 +210,6 @@ class XProblem: public Problem {
 		double m_maxFall;
 		/*!
 		 * \inpsection{c0_input_method, calculation}
-		 * \mandatory
 		 * \label{FLUID_MAX_SPEED}
 		 * \default{0}
 		 * used to set the numerical speed of sound

@@ -87,7 +87,6 @@ typedef struct SimParams {
 	 * @{ */
 	/**
 	 * \inpsection{discretisation}
-	 * \mandatory
 	 * \default{1.3}
 	 * \label{SMOOTHING_FACTOR}
 	 * @{ */
@@ -101,7 +100,6 @@ typedef struct SimParams {
 	/*!
 	 * \inpsection{neighbours}
 	 * \default{1}
-	 * \mandatory
 	 * \label{NEIB_FREQ}
 	 * TLT_NEIB_FREQ
 	 */
@@ -109,7 +107,6 @@ typedef struct SimParams {
 	/*!
 	 * \inpsection{neighbours}
 	 * \default{256}
-	 * \mandatory
 	 * \label{NEIB_LIST_SIZE}
 	 * TLT_NEIB_LIST_SIZE
 	 */
@@ -117,7 +114,6 @@ typedef struct SimParams {
 	/*!
 	 * \inpsection{neighbours}
 	 * \default{128}
-	 * \mandatory
 	 * \label{NEIB_BOUND_POS}
 	 * TLT_NEIB_BOUND_POS
 	 */
@@ -132,7 +128,6 @@ typedef struct SimParams {
 	float			dt;						///< Time step (initial when using adaptive time stepping)
 
 	/*! \inpsection{time}
-	 * \mandatory
 	 * \label{SIMULATION_END_TIME}
 	 * \default{10.}
 	 * TLT_SIMULATION_END_TIME
@@ -149,14 +144,6 @@ typedef struct SimParams {
 
 	/** \name Density diffusion related parameters
 	 * @{ */
-	/*! \defpsubsection{density_diff_type,DENSITY_DIFF_TYPE}
-	 *  \inpsection{density diffusion}
-	 *  \mandatory
-	 *  \values{None,Colagrossi,Brezzi,Ferrari}
-	 *  \default{None}
-	 * TLT_DENSITY_DIFFUSION_TYPES
-	 */
-
 	/*!
 	 * \inpsection{density_diff_type, Colagrossi}
 	 * \label{DENSITY_DIFFUSION_COEF}

@@ -129,6 +129,12 @@ const char* SPHFormulationName[SPH_INVALID+1]
 ;
 
 //! Density diffusion models
+/*! \defpsubsection{density_diff_type,DENSITY_DIFF_TYPE}
+ *  \inpsection{density calculation}
+ *  \values{none,Colagrossi,Brezzi,Ferrari}
+ *  \default{Brezzi}
+ * TLT_DENSITY_DIFFUSION_TYPES
+ */
 enum DensityDiffusionType {
 	FERRARI = 1,
 	COLAGROSSI,
@@ -189,7 +195,6 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 /*!
  * @defpsubsection{periodicity, PERIODICITY_SECTION}
  * @inpsection{boundaries}
- * @mandatory
  * TLT_PERIODICITY_SECTION
  */
 enum Periodicity {

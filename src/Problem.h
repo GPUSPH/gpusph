@@ -130,14 +130,12 @@ class Problem {
 #endif
 
 		/*! \inpsection{geometry}
-		 * \mandatory
 		 * \label{SIZE}
 		 * \default{1e9,1e9,1e9}
 		 */
 		double3	m_size;			// Size of computational domain
 
 		/*! \inpsection{geometry}
-		 * \mandatory
 		 * \label{ORIGIN}
 		 * \default{0,0,0}
 		 */
@@ -147,7 +145,6 @@ class Problem {
 		uint3	m_gridsize;		// Number of grid cells along each axis
 
 		//! \inpsection{discretisation}
-		//! \mandatory
 		//! \default{-1}
 		//! \label{SPH_DR}
 		double	m_deltap;		// Initial particle spacing
@@ -176,14 +173,12 @@ class Problem {
 
 		/*! a function to check if the (initial or fixed) timestep
 		 * is compatible with the CFL conditions
-		 * @userfunc
 		 */
 		virtual void check_dt();
 		/*! Find the minimum amount of maximum number of neighbors
 		 * per particle based on the kernel and boundary choice,
 		 * and compare against the user-set value (if any), or
 		 * just set it by default
-		 * @userfunc
 		 */
 		virtual void check_neiblistsize();
 
@@ -400,7 +395,6 @@ class Problem {
 		plane_t make_plane(Point const& pt, Vector const& normal);
 
 		/**@inpsection{output}
-		 * @mandatory
 		 * @label{VTK writer interval}
 		 * @default{1.0}
 		 * VTK writer frequency (in terms of simulated seconds).
@@ -417,10 +411,7 @@ class Problem {
 		/**@inpsection{discretisation}
 		 * @label{PARTICLES_MAX_FACTOR}
 		 * @default{1}
-		 * Defines the maximum number of particles in the simulation as a factor times
-		 * The initial number of particles.
-		 * This is necessary in case open boundaries are used, because the total number
-		 * Of particles in the simulation can be higher than the initial number of particles.
+		 * TLT_PARTICLES_MAX_FACTOR
 		 */
 		double particles_max_factor;
 
@@ -433,7 +424,6 @@ class Problem {
 
 		/**@inpsection{variable_gravity, enable}
 		*	 @label{Gravity start}
-		*	 @mandatory
 		*	 @default{0.0}
 		*  Start time for the gravity variation.
 		*/
@@ -441,7 +431,6 @@ class Problem {
 
 		/** @inpsection{variable_gravity, enable}
 		* @label{Gravity end}
-		* @mandatory
 		* @default{100.0}
 		* End time for the gravity variation.
 		*/
@@ -449,7 +438,6 @@ class Problem {
 
 		/* \inpsection{periodicity}
 		* \label{X}
-		* \mandatory
 		* \default{false}
 		* Periodicity along the X axis.
 		*/
@@ -457,7 +445,6 @@ class Problem {
 
 		/* \inpsection{periodicity}
 		* \label{Y}
-		* \mandatory
 		* \default{false}
 		* Periodicity along the Y axis.
 		*/
@@ -465,7 +452,6 @@ class Problem {
 
 		/* \inpsection{periodicity}
 		* \label{Z}
-		* \mandatory
 		* \default{false}
 		* Periodicity along Z axis.
 		*/
@@ -473,7 +459,6 @@ class Problem {
 
 		/* \inpsection{probe}
 		* \label{X}
-		* \mandatory
 		* \default{0.0}
 		* Coordinate along X axis.
 		*/
@@ -481,7 +466,6 @@ class Problem {
 
 		/* \inpsection{probe}
 		* \label{Y}
-		* \mandatory
 		* \default{0.0}
 		* Coordinate along Y axis.
 		*/
@@ -489,7 +473,6 @@ class Problem {
 
 		/* \inpsection{probe}
 		* \label{Z}
-		* \mandatory
 		* \default{0.0}
 		* Coordinate along Z axis.
 		*/
@@ -497,7 +480,6 @@ class Problem {
 
 		/* \inpsection{wave_gage}
 		* \label{X}
-		* \mandatory
 		* \default{0.0}
 		* Coordinate along X axis.
 		*/
@@ -505,7 +487,6 @@ class Problem {
 
 		/* \inpsection{wave_gage}
 		* \label{Y}
-		* \mandatory
 		* \default{0.0}
 		* Coordinate along Y axis.
 		*/
@@ -513,7 +494,6 @@ class Problem {
 
 		/* \inpsection{wave_gage}
 		* \label{Z}
-		* \mandatory
 		* \default{0.0}
 		* Coordinate along Z axis.
 		*/
@@ -528,14 +508,14 @@ class Problem {
 		WriterList const& get_writers() const
 		{ return m_writers; }
 
-		/*! @userfunc
+		/*!
 		 overridden in subclasses if they want explicit writes
 		 beyond those controlled by the writer(s) periodic time
 		 */
 		virtual bool need_write(double) const;
 
 
-		/*! @userfunc
+		/*!
 		 overridden in subclasses if they want to write custom stuff
 		 using the CALLBACKWRITER
 		 */
@@ -543,24 +523,23 @@ class Problem {
 			uint numParts, BufferList const&, uint node_offset, double t,
 			const bool testpoints) const;
 
-		//! @userfunc
 		//! is the simulation running at the given time?
 		virtual bool finished(double) const;
 
-		//! @userfunc
+		//!
 		virtual int fill_parts(bool fill = true) = 0;
-		//! @userfunc
 		//! maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
-		//! @userfunc
+		//!
 		virtual void copy_to_array(BufferList & ) = 0;
-		//! @userfunc
+		//!
 		virtual void release_memory(void) = 0;
 
-		//! @userfunc
+		//!
 		virtual void copy_planes(PlaneList& planes);
 
 		//! @userfunc
+		//! @label{Variable gravity definition}
 		/*! moving boundary and gravity callbacks */
 		virtual float3 g_callback(const double t);
 
@@ -596,7 +575,7 @@ class Problem {
 		// callback for initializing joints between Chrono bodies
 		virtual void initializeObjectJoints();
 
-		//! @userfunc
+		//!
 		/*! This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
 		 */
@@ -608,6 +587,7 @@ class Problem {
 		post_timestep_callback(const double t);
 
 		//! @userfunc
+		//! @label{Prescribe objects' motion}
 		virtual void
 		moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
 							const float3& force, const float3& torque, const KinematicData& initial_kdata,
@@ -619,19 +599,17 @@ class Problem {
 							float3 * & trans, float * & steprot,
 							float3 * & linearvel, float3 * & angularvel);
 
-		//! @userfunc
 		/*! Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);
 
-		//! @userfunc
 		/* Initialize k and epsilon */
 		virtual void init_keps(BufferList &, uint numParticles);
 
-		//! @userfunc
 		/* Initialize eddy viscosity */
 		virtual void init_turbvisc(BufferList &, uint numParticles);
 
 		//! @userfunc
+		//! @label{Prescribe custom open boundary conditions}
 		virtual void imposeBoundaryConditionHost(
 			BufferList&		bufwrite,
 			const BufferList&	bufread,
@@ -641,7 +619,6 @@ class Problem {
 			const	uint			numOpenBoundaries,
 			const	uint			particleRangeEnd);
 
-		//! @userfunc
 		virtual void imposeForcedMovingObjects(
 					float3	&gravityCenters,
 					float3	&translations,
@@ -655,6 +632,7 @@ class Problem {
 		 * MUST override this
 		 */
 		//! @userfunc
+		//! @label{Custom user function}
 		virtual void calcPrivate(flag_t options,
 			BufferList const& bufread,
 			BufferList & bufwrite,
@@ -667,25 +645,22 @@ class Problem {
 		/// Get the name to give to the private buffer(s)
 		/*! A problem requesting the CALC_PRIVATE post-processing filter
 		 * can override this if they want to provide a meaningful name
-		 * ofr the BUFFER_PRIVATE ( and ...2 and ...4 variant, if used)
+		 * for the BUFFER_PRIVATE ( and ...2 and ...4 variant, if used)
 		 * buffer(s).
 		 */
-		//! @userfunc
 		virtual std::string get_private_name(flag_t buffer) const;
 
-		//! @userfunc
 		//! Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();
 		// partition by splitting the cells according to their linearized hash
 		void fillDeviceMapByCellHash();
 		// partition by splitting along an axis. Default: along the longest
 
-		/** @defpsubsection{split_axis, Split axis}
-		 * @inpsection{domain splitting}
+		/** @defpsubsection{split_axis, SPLIT_AXIS}
+		 * @inpsection{domain_splitting}
 		 * @default{x}
-		 * @mandatory
 		 * @values{x,y,z}
-		 * Specify which axis will be split.
+		 * TLT_SPLIT_AXIS
 		 */
 		void fillDeviceMapByAxis(SplitAxis preferred_split_axis);
 		// like fillDeviceMapByAxis(), but splits are proportional to the contained fluid particles

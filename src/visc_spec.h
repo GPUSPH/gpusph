@@ -45,7 +45,7 @@
 /** @defpsubsection{rheology, RHEOLOGY}
  * @inpsection{physics}
  * @default{Newtonian}
- * @values{Inviscid, Newtonian}
+ * @values{inviscid, Newtonian}
  * TLT_RHEOLOGY
  */
 enum RheologyType {

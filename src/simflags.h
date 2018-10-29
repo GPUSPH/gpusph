@@ -62,8 +62,7 @@
 //! Adaptive timestepping
 /**@defpsubsection{variable_dt, ENABLE_DTADAPT}
  * @inpsection{time}
- * @mandatory
- * @default{disable}
+ * @default{enable}
  * @values{disable,enable}
  * TLT_ENABLE_DTADAPT
  */
@@ -71,8 +70,7 @@
 
 //! XSPH
 /**@defpsubsection{xsph, ENABLE_XSPH}
- * @inpsection{discretisation}
- * @mandatory
+ * @inpsection{density calculation}
  * @default{disable}
  * @values{disable,enable}
  * TLT_ENABLE_XSPH
@@ -115,7 +113,7 @@
 
 //! Summation density
 /**@defpsubsection{density_sum, ENABLE_DENSITY_SUM}
- * @inpsection{discretisation}
+ * @inpsection{density calculation}
  * @default{enable}
  * @values{disable,enable}
  * TLT_ENABLE_DENSITY_SUM

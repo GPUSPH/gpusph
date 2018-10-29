@@ -96,7 +96,6 @@ typedef struct PhysParams {
 
   /*!
 	 * \inpsection{fluid}
-	 * \mandatory
 	 * \label{FLUID_DENSITY}
 	 * \default{1000}
 	 */
@@ -110,7 +109,6 @@ typedef struct PhysParams {
 	std::vector<float> gammacoeff;		///< Adiabatic index, \f$\gamma\f$
   /*!
 	 * \defpsubsection{c0_input_method, C0_INPUT_METHOD}
-	 * \mandatory
 	 * \inpsection{fluid,0}
 	 * \values{direct_input, calculation}
 	 * \default{direct_input}
@@ -118,44 +116,39 @@ typedef struct PhysParams {
 	 */
 	/*!
 	 * \inpsection{c0_input_method, direct_input}
-	 * \mandatory
 	 * \label{FLUID_C0}
 	 * \default{0}
+	 * TLT_FLUID_C0
 	 */
 	std::vector<float> sscoeff; 		///< Sound speed coefficient ( = sound speed at rest density, \f$ c_0 \f$)
 	std::vector<float> sspowercoeff; 	///< Sound speed equation exponent ( = \f$(\gamma -1)/2\f$ )
 	/** @} */
 
 	/** \name Viscosity related parameters
-	 *  Viscosity coefficient used in the viscous contribution functions, depends on
-	 *  viscosity model:
-	 *		- for ARTVSIC: artificial viscosity coefficient
-	 *  	- for KINEMATICVISC: 4xkinematic viscosity,
-	 *   	- for DYNAMICVISC: kinematic viscosity
-	 *
-	 *  (The choice might seem paradoxical, but with DYNAMICVISC the dynamic viscosity
-	 *  coefficient is obtained multiplying visccoeff by the particle density, while
-	 *  with the KINEMATICVISC model the kinematic viscosity is used directly, in a
-	 *  formula what also includes a harmonic average from which the factor 4 emerges).
-	 *
-	 *  Obviously the fluid dependent coefficients below are stored in an STL vector.
-	 * @{ */
-	//! @}
-
-	//! Fluid viscosity
+	 */
+	//! Artifical viscosity
 	//! @{
+	/*!
+	 * \inpsection{turbulence, artificial viscosity}
+	 * \label{ARTIFICIAL_VISCOSITY_VALUE}
+	 * \default{0.3}
+	 * TLT_ARIFICIAL_VISCOSITY_VALUE
+	 */
 	float	artvisccoeff;				///< Artificial viscosity coefficient (one, for all fluids)
+	/*!
+	 * \inpsection{turbulence, artificial viscosity}
+	 * \label{EPSILON_ARTVISC_VALUE}
+	 * \default{NAN}
+	 * TLT_EPSILON_ARTVISC_VALUE
+	 */
 	float	epsartvisc;					///< Small coefficient used to avoid singularity in artificial viscosity computation
-	//[VECTOR_PARAM_DEFINITION]
 
 	/*!
 	 * \inpsection{fluid}
-	 * \mandatory
 	 * \label{FLUID_VISCOSITY}
 	 * \default{10e-6}
 	 */
 	std::vector<float>	kinematicvisc;	///< Kinematic viscosity (\f$ \nu \f$)
-	//[VECTOR_PARAM_DEFINITION]
 
 /*! Viscosity coefficient used in the viscous contribution functions, depends on
 		viscosity model:
@@ -165,7 +158,7 @@ typedef struct PhysParams {
 		(The choice might seem paradoxical, but with DYNAMICVISC the dynamic viscosity
 		 coefficient is obtained multiplying visccoeff by the particle density, while
 		 with the KINEMATICVISC model the kinematic coefficient is used directly, in a
-		 formula what also includes a harmonic average from which the factor 4 emerges.)
+		 formula that also includes a harmonic average from which the factor 4 emerges.)
 	 */
 	std::vector<float>	visccoeff;		///< Viscosity coefficient
 	/** @} */
@@ -184,6 +177,18 @@ typedef struct PhysParams {
 	 *	the influence radius of the repulsive force (typically equal to initial inter-particle distance \f$ \Delta p \f$),
 	 *	usually \f$ p_1 = 12 \f$, \f$p_2 = 6\f$ and \f$ D \f$ is a problem dependent parameter.
 	 * @{ */
+  /*!
+   * \inpsection{boundaries}
+   * \defpsubsection{Lennard-Jones formulation, LENNARD_JONES_PARAMETERS}
+	 * \values{yes, no}
+	 * \default{no}
+   */
+  /*!
+   * \inpsection{Lennard-Jones formulation}
+	 * \label{r0}
+	 * \values{yes, no}
+	 * \default{no}
+   */
 	float	r0;			///< Influence radius of LJ repulsive force, \f$ r_0 \f$
 	float	dcoeff;		///< \f$ D \f$
 	float	p1coeff;	///< \f$ p_1 \f$
@@ -243,7 +248,6 @@ typedef struct PhysParams {
 	 * @{ */
   /*!
    * \inpsection{physics}
-   * \mandatory
    * \default{0,0,-9.81}
    * \label{GRAVITY}
    */
