@@ -35,4 +35,4 @@ Contributing
 
 If you wish to contribute to GPUSPH, please consult CONTRIBUTING_.
 
-.. _CONTRIBUTING: ./CONTRIBUTING.html
+.. _CONTRIBUTING: CONTRIBUTING.rst
