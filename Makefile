@@ -953,6 +953,7 @@ show:
 	@echo "Verbose:         $(verbose)"
 	@echo "Debug:           $(DBG)"
 	@echo "CXX:             $(CXX)"
+	@echo "CXX version:     $(shell $(CXX) --version | head -1)"
 	@echo "MPICXX:          $(MPICXX)"
 	@echo "nvcc:            $(NVCC)"
 	@echo "nvcc version:    $(NVCC_VER)"
