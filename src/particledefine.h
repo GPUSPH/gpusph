@@ -69,7 +69,7 @@
  * \inpsection{discretisation}
  * \label{KERNEL_TYPE}
  * \default{Wendland}
- * \values{Cubic spline, Quadratic, Wendland, Gaussian}
+ * \values{Cubic_spline, Quadratic, Wendland, Gaussian}
  * TLT_KERNEL_TYPE
  */
 enum KernelType {
@@ -101,8 +101,8 @@ const char* KernelName[INVALID_KERNEL+1]
 /*!
 *! \defpsubsection{sph_formulation,SPH_FORMULATION}
  * \inpsection{discretisation}
- * \values{Single fluid WCSPH, Multi-fluid, Multi-fluid Grenier}
- * \default{Single fluid WCSPH}
+ * \values{Single_fluid_WCSPH, Multi_fluid, Multi_fluid_Grenier}
+ * \default{Single_fluid_WCSPH}
  * TLT_SPH_FORMULATION
  */
 enum SPHFormulation {
@@ -130,7 +130,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
 
 //! Density diffusion models
 /*! \defpsubsection{density_diff_type,DENSITY_DIFF_TYPE}
- *  \inpsection{density calculation}
+ *  \inpsection{density_calculation}
  *  \values{none,Colagrossi,Brezzi,Ferrari}
  *  \default{Brezzi}
  * TLT_DENSITY_DIFFUSION_TYPE

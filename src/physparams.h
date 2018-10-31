@@ -131,14 +131,14 @@ typedef struct PhysParams {
 	//! Artifical viscosity
 	//! @{
 	/*!
-	 * \inpsection{turbulence, artificial viscosity}
+	 * \inpsection{turbulence, artificial_viscosity}
 	 * \label{ARTIFICIAL_VISCOSITY_VALUE}
 	 * \default{0.3}
 	 * TLT_ARIFICIAL_VISCOSITY_VALUE
 	 */
 	float	artvisccoeff;				///< Artificial viscosity coefficient (one, for all fluids)
 	/*!
-	 * \inpsection{turbulence, artificial viscosity}
+	 * \inpsection{turbulence, artificial_viscosity}
 	 * \label{EPSILON_ARTVISC_VALUE}
 	 * \default{NAN}
 	 * TLT_EPSILON_ARTVISC_VALUE
@@ -273,6 +273,7 @@ typedef struct PhysParams {
    * \inpsection{physics}
    * \default{0,0,-9.81}
    * \label{GRAVITY}
+	 * TLT_GRAVITY
    */
 	float3	gravity;		///< Gravity
 	/** @} */

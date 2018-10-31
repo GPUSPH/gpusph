@@ -70,7 +70,7 @@ const char* RheologyTypeName[NEWTONIAN+1]
 /** @defpsubsection{turbulence, TURBULENCE}
  * @inpsection{physics}
  * @default{disable}
- * @values{disable, artificial viscosity, k-epsilon, SPS model (LES)}
+ * @values{disable, artificial_viscosity, k_epsilon, SPS_model}
  * TLT_TURBULENCE
  */
 /*!

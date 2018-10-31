@@ -130,18 +130,18 @@ GPUSPH_INCLUDE_PARAMS
 
 /*! Test points */
 #ifdef GPUSPH_probe_SECTIONS
-#define TEST_POINTS \
-{ \
-  double probe_x[] = { PVALS( probe, x ) }; \
-  double probe_y[] = { PVALS( probe, y ) }; \
-  double probe_z[] = { PVALS( probe, z ) }; \
-  for ( uint i = 0; i < NB_SECTIONS(probe) ) \
-  { \
-    addTestPoint(make_double3( probe_x[i], probe_y[i], probe_z[i] )); \
-  } \
-}
+	#define TEST_POINTS \
+	{ \
+	  double probe_x[] = { PVALS( probe, x ) }; \
+  	double probe_y[] = { PVALS( probe, y ) }; \
+ 	  double probe_z[] = { PVALS( probe, z ) }; \
+	  for ( uint i = 0; i < NB_SECTIONS(probe) ) \
+  	{ \
+			addTestPoint(make_double3( probe_x[i], probe_y[i], probe_z[i] )); \
+		} \
+	}
 #else
-#define TEST_POINTS
+	#define TEST_POINTS
 #endif
 
 /*! Split axis definitions */
@@ -174,107 +174,108 @@ GPUSPH_INCLUDE_PARAMS
 
 /*! Boundary conditions type definition */
 #if ISDEF(sph,bnd_type)
-#define BOUNDARY_TYPE PVAL(sph,bnd_type)
+	#define BOUNDARY_TYPE PVAL(sph,bnd_type)
 #else
-#define BOUNDARY_TYPE SA_BOUNDARY
+	#define BOUNDARY_TYPE SA_BOUNDARY
 #endif
 
 /*! Rheology definition */
 #if ISENUM_EQ(physics,rheology,inviscid)
-#define RHEOLOGY_TYPE INVISCID
+	#define RHEOLOGY_TYPE INVISCID
 #elif ISENUM_EQ(physics,rheology,Newtonian)
+	#define RHEOLOGY_TYPE NEWTONIAN
 #else
-#define RHEOLOGY_TYPE NEWTONIAN
+	#define RHEOLOGY_TYPE NEWTONIAN
 #endif
 
 /*! Turbulence model definition */
 #if ISENUM_EQ(physics,turbulence,disable)
-#define TURBULENCE_MODEL LAMINAR_FLOW
-#elif ISENUM_EQ(physics,turbulence,artificial viscosity)
-#define TURBULENCE_MODEL ARTIFICIAL
-#elif ISENUM_EQ(physics,turbulence,k-epsilon)
-#define TURBULENCE_MODEL KEPSILON
-#elif ISENUM_EQ(physics,turbulence,SPS model (LES))
-#define TURBULENCE_MODEL SPS
+	#define TURBULENCE_MODEL LAMINAR_FLOW
+#elif ISENUM_EQ(physics,turbulence,artificial_viscosity)
+	#define TURBULENCE_MODEL ARTIFICIAL
+#elif ISENUM_EQ(physics,turbulence,k_epsilon)
+	#define TURBULENCE_MODEL KEPSILON
+#elif ISENUM_EQ(physics,turbulence,SPS_model)
+	#define TURBULENCE_MODEL SPS
 #else
-#define TURBULENCE_MODEL LAMINAR_FLOW
+	#define TURBULENCE_MODEL LAMINAR_FLOW
 #endif
 
 /*! Viscosity averaging definition */
 #if ISENUM_EQ(physics,viscosityAveraging,Arithmetic)
-#define VISCOSITY_AVERAGING ARITHMETIC
+	#define VISCOSITY_AVERAGING ARITHMETIC
 #elif ISENUM_EQ(physics,viscosityAveraging,Harmonic)
-#define VISCOSITY_AVERAGING HARMONIC
+	#define VISCOSITY_AVERAGING HARMONIC
 #elif ISENUM_EQ(physics,viscosityAveraging,Geometric)
-#define VISCOSITY_AVERAGING GEOMETRIC
+	#define VISCOSITY_AVERAGING GEOMETRIC
 #else
-#define VISCOSITY_AVERAGING ARITHMETIC
+	#define VISCOSITY_AVERAGING ARITHMETIC
 #endif
 
 /*! Viscous model definition */
 #if ISENUM_EQ(physics,viscousModel,Morris)
-#define VISCOUS_MODEL MORRIS
+	#define VISCOUS_MODEL MORRIS
 #else
-#define VISCOUS_MODEL MORRIS
+	#define VISCOUS_MODEL MORRIS
 #endif
 
 /*! Viscosity type definition */
 #if ISENUM_EQ(physics,viscosityType,kinematic)
-#define VISCOSITY_TYPE KINEMATIC
+	#define VISCOSITY_TYPE KINEMATIC
 #if ISENUM_EQ(physics,viscosityType,dynamic)
-#define VISCOSITY_TYPE DYNAMIC
+	#define VISCOSITY_TYPE DYNAMIC
 #else
-#define VISCOSITY_TYPE KINEMATIC
+	#define VISCOSITY_TYPE KINEMATIC
 #endif
 
 /*! Kernel type definition */
-#if ISENUM_EQ(discretisation,kernel_type,Cubic spline)
-#define KERNEL_TYPE CUBICSPLINE
+#if ISENUM_EQ(discretisation,kernel_type,Cubic_spline)
+	#define KERNEL_TYPE CUBICSPLINE
 #elif ISENUM_EQ(discretisation,kerne_typel,Quadratic)
-#define KERNEL_TYPE QUADRATIC
+	#define KERNEL_TYPE QUADRATIC
 #elif ISENUM_EQ(discretisation,kerne_typel,Wendland)
-#define KERNEL_TYPE WENDLAND
+	#define KERNEL_TYPE WENDLAND
 #elif ISENUM_EQ(discretisation,kerne_typel,Gaussian)
-#define KERNEL_TYPE GAUSSIAN
+	#define KERNEL_TYPE GAUSSIAN
 #else
-#define KERNEL_TYPE WENDLAND
+	#define KERNEL_TYPE WENDLAND
 #endif
 
 /*! SPH formulation definition */
-#if ISENUM_EQ(discretisation,sph_formulation, Single fluid WCSPH)
-#define SPH_FORMULATION SPH_F1
-#elif ISENUM_EQ(discretisation,sph_formulation, Multi-fluid)
-#define SPH_FORMULATION SPH_F2
-#elif ISENUM_EQ(discretisation,sph_formulation, Multi-fluid Grenier)
-#define SPH_FORMULATION SPH_GRENIER
+#if ISENUM_EQ(discretisation,sph_formulation, Single_fluid_WCSPH)
+	#define SPH_FORMULATION SPH_F1
+#elif ISENUM_EQ(discretisation,sph_formulation, Multi_fluid)
+	#define SPH_FORMULATION SPH_F2
+#elif ISENUM_EQ(discretisation,sph_formulation, Multi_fluid_Grenier)
+	#define SPH_FORMULATION SPH_GRENIER
 #else
-#define SPH_FORMULATION SPH_F1
+	#define SPH_FORMULATION SPH_F1
 #endif
 
 /*! Density diffusion type definition */
-#if ISENUM_EQ(density calculation,density_diff_type, none)
-#define DENSITY_DIFFUSION_TYPE DENSITY_DIFFUSION_NONE
-#elif ISENUM_EQ(density calculation,density_diff_type, Colagrossi)
-#define DENSITY_DIFFUSION_TYPE COLAGROSSI
-#elif ISENUM_EQ(density calculation,density_diff_type, Brezzi)
-#define DENSITY_DIFFUSION_TYPE BREZZI
-#elif ISENUM_EQ(density calculation,density_diff_type, Ferrari)
-#define DENSITY_DIFFUSION_TYPE FERRARI
+#if ISENUM_EQ(density_calculation,density_diff_type, none)
+	#define DENSITY_DIFFUSION_TYPE DENSITY_DIFFUSION_NONE
+#elif ISENUM_EQ(density_calculation,density_diff_type, Colagrossi)
+	#define DENSITY_DIFFUSION_TYPE COLAGROSSI
+#elif ISENUM_EQ(density_calculation,density_diff_type, Brezzi)
+	#define DENSITY_DIFFUSION_TYPE BREZZI
+#elif ISENUM_EQ(density_calculation,density_diff_type, Ferrari)
+	#define DENSITY_DIFFUSION_TYPE FERRARI
 #else
-#define DENSITY_DIFFUSION_TYPE DENSITY_DIFFUSION_NONE
+	#define DENSITY_DIFFUSION_TYPE DENSITY_DIFFUSION_NONE
 #endif
 
 /*! Flags definitions */
 #if ISDEF(special_boundary,open_bnd_type_VALS)
-#define FLAG_INLET_OUTLET ENABLE_INLET_OUTLET
+	#define FLAG_INLET_OUTLET ENABLE_INLET_OUTLET
 #else
-#define FLAG_INLET_OUTLET 0
+	#define FLAG_INLET_OUTLET 0
 #endif
 
 #if ISENUM_EQ(sph,density_sum,enable) || ISDEF(special_boundary,open_bnd_type_VALS)
-#define FLAG_DENSITY_SUM ENABLE_DENSITY_SUM
+	#define FLAG_DENSITY_SUM ENABLE_DENSITY_SUM
 #else
-#define FLAG_DENSITY_SUM 0
+	#define FLAG_DENSITY_SUM 0
 #endif
 
 #if ISENUM_EQ(sph,moving_bodies,enable) || ISDEF(special_boundary,collisions_file_VALS) \
@@ -284,40 +285,40 @@ GPUSPH_INCLUDE_PARAMS
 		|| ISDEF(special_boundary,translation_vel_x_VALS)\
 		|| ISDEF(special_boundary,translation_vel_y_VALS)\
 		|| ISDEF(special_boundary,translation_vel_z_VALS)
-#define FLAG_MOVING_BODIES ENABLE_MOVING_BODIES
+	#define FLAG_MOVING_BODIES ENABLE_MOVING_BODIES
 #else
-#define FLAG_MOVING_BODIES 0
+	#define FLAG_MOVING_BODIES 0
 #endif
 
 #if ISENUM_EQ(time,variable_dt,enable)
-#define FLAG_DTADAPT ENABLE_DTADAPT
+	#define FLAG_DTADAPT ENABLE_DTADAPT
 #else
-#define FLAG_DTADAPT 0
+	#define FLAG_DTADAPT 0
 #endif
 
-#if ISENUM_EQ(density calculation,xsph,enable)
-#define FLAG_XSPH ENABLE_XSPH
+#if ISENUM_EQ(density_calculation,xsph,enable)
+	#define FLAG_XSPH ENABLE_XSPH
 #else
-#define FLAG_XSPH 0
+	#define FLAG_XSPH 0
 #endif
 
 #if ISENUM_EQ(boundaries,gamma_quadrature,enable)
-#define FLAG_GAMMA_QUADRATURE ENABLE_GAMMA_QUADRATURE
+	#define FLAG_GAMMA_QUADRATURE ENABLE_GAMMA_QUADRATURE
 #else
-#define FLAG_GAMMA_QUADRATURE 0
+	#define FLAG_GAMMA_QUADRATURE 0
 #endif
 
 #if ISENUM_EQ(output,internal_energy,enable)
-#define FLAG_INTERNAL_ENERGY ENABLE_INTERNAL_ENERGY
+	#define FLAG_INTERNAL_ENERGY ENABLE_INTERNAL_ENERGY
 #else
-#define FLAG_INTERNAL_ENERGY 0
+	#define FLAG_INTERNAL_ENERGY 0
 #endif
 
-#if ISENUM_EQ(discretisation,sph_formulation, Multi-fluid) || \
-ISENUM_EQ(discretisation,sph_formulation, Multi-fluid Grenier)
-#define FLAG_MULTIFLUID_SUPPORT ENABLE_MULTIFLUID
+#if ISENUM_EQ(discretisation,sph_formulation, Multi_fluid) || \
+	ISENUM_EQ(discretisation,sph_formulation, Multi_fluid_Grenier)
+	#define FLAG_MULTIFLUID_SUPPORT ENABLE_MULTIFLUID
 #else
-#define FLAG_MULTIFLUID_SUPPORT 0
+	#define FLAG_MULTIFLUID_SUPPORT 0
 #endif
 
 #define FLAGS_LIST ENABLE_WATER_DEPTH | FLAG_INLET_OUTLET | FLAG_DENSITY_SUM \
@@ -397,8 +398,8 @@ ISENUM_EQ(discretisation,sph_formulation, Multi-fluid Grenier)
   #endif
 
 #else
-#define IMPOSE_WATER_LEVEL
-#define IMPOSE_VELOCITY
+	#define IMPOSE_WATER_LEVEL
+	#define IMPOSE_VELOCITY
 #endif
 
 /*!

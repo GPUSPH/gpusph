@@ -70,7 +70,7 @@
 
 //! XSPH
 /**@defpsubsection{xsph, ENABLE_XSPH}
- * @inpsection{density calculation}
+ * @inpsection{density_calculation}
  * @default{disable}
  * @values{disable,enable}
  * TLT_ENABLE_XSPH
@@ -113,7 +113,7 @@
 
 //! Summation density
 /**@defpsubsection{density_sum, ENABLE_DENSITY_SUM}
- * @inpsection{density calculation}
+ * @inpsection{density_calculation}
  * @default{enable}
  * @values{disable,enable}
  * TLT_ENABLE_DENSITY_SUM
