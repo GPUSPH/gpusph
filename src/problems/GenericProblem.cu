@@ -67,7 +67,12 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 	// Setup the simulation framework
 	SETUP_FRAMEWORK(kernel<KERNEL_TYPE>,
 					formulation<SPH_FORMULATION>,
-					viscosity<VISCOSITY_TYPE>,
+					densitydiffusion<DENSITY_DIFFUSION_TYPE>,
+					rheology<RHEOLOGY_TYPE>,
+					turbulence_model<TURBULENCE_MODEL>,
+					computational_visc<VISCOSITY_TYPE>,
+					visc_model<VISCOUS_MODEL>,
+					visc_average<VISCOSITY_AVERAGING>,
 					boundary<BOUNDARY_TYPE>,
 					periodicity<PERIODICITY>,
 					add_flags<FLAGS_LIST>);

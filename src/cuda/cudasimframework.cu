@@ -194,7 +194,7 @@ public:
 	// when legacy viscous specifications have been used
 	static const AverageOperator viscavgop = (
 		(_legacyvisctype != INVALID_VISCOSITY) ? // was there a legacy specification?
-		AverageOperator::HARMONIC : // yes, assume harmonic averaging 
+		AverageOperator::HARMONIC : // yes, assume harmonic averaging
 		_viscavgop // no, take what the user gave us
 	);
 	static const bool is_const_visc = _is_const_visc;

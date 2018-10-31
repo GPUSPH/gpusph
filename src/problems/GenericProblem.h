@@ -29,6 +29,7 @@
 #include "XProblem.h"
 #define GPUSPH_INCLUDE_PARAMS
 #define GPUSPH_USER_FUNCTIONS
+
 // Include  parameters macro definitions auto-generated from ini file.
 GPUSPH_INCLUDE_PARAMS
 
@@ -178,25 +179,89 @@ GPUSPH_INCLUDE_PARAMS
 #define BOUNDARY_TYPE SA_BOUNDARY
 #endif
 
-/*! Viscosity type definition */
-#if ISENUM_EQ(physics,turbulence,k_epsilon)
-#define VISCOSITY_TYPE KEPSVISC
+/*! Rheology definition */
+#if ISENUM_EQ(physics,rheology,inviscid)
+#define RHEOLOGY_TYPE INVISCID
+#elif ISENUM_EQ(physics,rheology,Newtonian)
 #else
-#define VISCOSITY_TYPE DYNAMICVISC
+#define RHEOLOGY_TYPE NEWTONIAN
+#endif
+
+/*! Turbulence model definition */
+#if ISENUM_EQ(physics,turbulence,disable)
+#define TURBULENCE_MODEL LAMINAR_FLOW
+#elif ISENUM_EQ(physics,turbulence,artificial viscosity)
+#define TURBULENCE_MODEL ARTIFICIAL
+#elif ISENUM_EQ(physics,turbulence,k-epsilon)
+#define TURBULENCE_MODEL KEPSILON
+#elif ISENUM_EQ(physics,turbulence,SPS model (LES))
+#define TURBULENCE_MODEL SPS
+#else
+#define TURBULENCE_MODEL LAMINAR_FLOW
+#endif
+
+/*! Viscosity averaging definition */
+#if ISENUM_EQ(physics,viscosityAveraging,Arithmetic)
+#define VISCOSITY_AVERAGING ARITHMETIC
+#elif ISENUM_EQ(physics,viscosityAveraging,Harmonic)
+#define VISCOSITY_AVERAGING HARMONIC
+#elif ISENUM_EQ(physics,viscosityAveraging,Geometric)
+#define VISCOSITY_AVERAGING GEOMETRIC
+#else
+#define VISCOSITY_AVERAGING ARITHMETIC
+#endif
+
+/*! Viscous model definition */
+#if ISENUM_EQ(physics,viscousModel,Morris)
+#define VISCOUS_MODEL MORRIS
+#else
+#define VISCOUS_MODEL MORRIS
+#endif
+
+/*! Viscosity type definition */
+#if ISENUM_EQ(physics,viscosityType,kinematic)
+#define VISCOSITY_TYPE KINEMATIC
+#if ISENUM_EQ(physics,viscosityType,dynamic)
+#define VISCOSITY_TYPE DYNAMIC
+#else
+#define VISCOSITY_TYPE KINEMATIC
 #endif
 
 /*! Kernel type definition */
-#if ISDEF(sph,kernel)
-#define KERNEL_TYPE PVAL(sph,kernel)
+#if ISENUM_EQ(discretisation,kernel_type,Cubic spline)
+#define KERNEL_TYPE CUBICSPLINE
+#elif ISENUM_EQ(discretisation,kerne_typel,Quadratic)
+#define KERNEL_TYPE QUADRATIC
+#elif ISENUM_EQ(discretisation,kerne_typel,Wendland)
+#define KERNEL_TYPE WENDLAND
+#elif ISENUM_EQ(discretisation,kerne_typel,Gaussian)
+#define KERNEL_TYPE GAUSSIAN
 #else
 #define KERNEL_TYPE WENDLAND
 #endif
 
-/*! SPH formulation type definition */
-#if ISDEF(sph,formulation)
-#define SPH_FORMULATION PVAL(sph,formulation)
+/*! SPH formulation definition */
+#if ISENUM_EQ(discretisation,sph_formulation, Single fluid WCSPH)
+#define SPH_FORMULATION SPH_F1
+#elif ISENUM_EQ(discretisation,sph_formulation, Multi-fluid)
+#define SPH_FORMULATION SPH_F2
+#elif ISENUM_EQ(discretisation,sph_formulation, Multi-fluid Grenier)
+#define SPH_FORMULATION SPH_GRENIER
 #else
 #define SPH_FORMULATION SPH_F1
+#endif
+
+/*! Density diffusion type definition */
+#if ISENUM_EQ(density calculation,density_diff_type, none)
+#define DENSITY_DIFFUSION_TYPE DENSITY_DIFFUSION_NONE
+#elif ISENUM_EQ(density calculation,density_diff_type, Colagrossi)
+#define DENSITY_DIFFUSION_TYPE COLAGROSSI
+#elif ISENUM_EQ(density calculation,density_diff_type, Brezzi)
+#define DENSITY_DIFFUSION_TYPE BREZZI
+#elif ISENUM_EQ(density calculation,density_diff_type, Ferrari)
+#define DENSITY_DIFFUSION_TYPE FERRARI
+#else
+#define DENSITY_DIFFUSION_TYPE DENSITY_DIFFUSION_NONE
 #endif
 
 /*! Flags definitions */
@@ -224,14 +289,40 @@ GPUSPH_INCLUDE_PARAMS
 #define FLAG_MOVING_BODIES 0
 #endif
 
-#if ISENUM_EQ(time,variable_dt,disable)
+#if ISENUM_EQ(time,variable_dt,enable)
 #define FLAG_DTADAPT ENABLE_DTADAPT
 #else
 #define FLAG_DTADAPT 0
 #endif
 
+#if ISENUM_EQ(density calculation,xsph,enable)
+#define FLAG_XSPH ENABLE_XSPH
+#else
+#define FLAG_XSPH 0
+#endif
+
+#if ISENUM_EQ(boundaries,gamma_quadrature,enable)
+#define FLAG_GAMMA_QUADRATURE ENABLE_GAMMA_QUADRATURE
+#else
+#define FLAG_GAMMA_QUADRATURE 0
+#endif
+
+#if ISENUM_EQ(output,internal_energy,enable)
+#define FLAG_INTERNAL_ENERGY ENABLE_INTERNAL_ENERGY
+#else
+#define FLAG_INTERNAL_ENERGY 0
+#endif
+
+#if ISENUM_EQ(discretisation,sph_formulation, Multi-fluid) || \
+ISENUM_EQ(discretisation,sph_formulation, Multi-fluid Grenier)
+#define FLAG_MULTIFLUID_SUPPORT ENABLE_MULTIFLUID
+#else
+#define FLAG_MULTIFLUID_SUPPORT 0
+#endif
+
 #define FLAGS_LIST ENABLE_WATER_DEPTH | FLAG_INLET_OUTLET | FLAG_DENSITY_SUM \
-  | FLAG_DTADAPT | FLAG_MOVING_BODIES
+  | FLAG_DTADAPT | FLAG_MOVING_BODIES | FLAG_XSPH | FLAG_GAMMA_QUADRATURE \
+	| FLAG_INTERNAL_ENERGY | FLAG_MULTIFLUID_SUPPORT
 
 #define open_boundary GT_OPENBOUNDARY
 #define floating_body GT_FLOATING_BODY

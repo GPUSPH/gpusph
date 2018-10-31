@@ -65,11 +65,11 @@
 #include "visc_spec.h"
 
 //! Smoothing kernels
-/*!
+/*! \defpsubsection{kernel_type,KERNEL_TYPE}
  * \inpsection{discretisation}
  * \label{KERNEL_TYPE}
- * \default{WENDLAND}
- * \values{CUBICSPLINE, QUADRATIC, WENDLAND, GAUSSIAN}
+ * \default{Wendland}
+ * \values{Cubic spline, Quadratic, Wendland, Gaussian}
  * TLT_KERNEL_TYPE
  */
 enum KernelType {
@@ -99,10 +99,10 @@ const char* KernelName[INVALID_KERNEL+1]
 
 //! SPH formulations
 /*!
+*! \defpsubsection{sph_formulation,SPH_FORMULATION}
  * \inpsection{discretisation}
- * \label{SPH_FORMULATION}
- * \default{SPH_F1}
- * \values{SPH_F1, SPH_F2, SPH_GRENIER}
+ * \values{Single fluid WCSPH, Multi-fluid, Multi-fluid Grenier}
+ * \default{Single fluid WCSPH}
  * TLT_SPH_FORMULATION
  */
 enum SPHFormulation {
@@ -133,7 +133,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
  *  \inpsection{density calculation}
  *  \values{none,Colagrossi,Brezzi,Ferrari}
  *  \default{Brezzi}
- * TLT_DENSITY_DIFFUSION_TYPES
+ * TLT_DENSITY_DIFFUSION_TYPE
  */
 enum DensityDiffusionType {
 	FERRARI = 1,

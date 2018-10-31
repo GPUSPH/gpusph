@@ -12,8 +12,8 @@
 #endif
 
 //! Averaging operator names
-/**@inpsection{physics}
- * @label{VISCOUS_AVERAGING}
+/**@defpsubsection{viscosityAveraging, VISCOUS_AVERAGING}
+ * @inpsection{physics}
  * @default{Harmonic}
  * @values{Arithmetic, Harmonic, Geometric}
  * TLT_VISCOUS_AVERAGING
