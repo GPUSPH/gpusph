@@ -415,27 +415,6 @@ class Problem {
 		 */
 		double particles_max_factor;
 
-		/**@defpsubsection{variable_gravity, VARIABLE_GRAVITY}
-		 * @inpsection{physics}
-		 * @values{disable,enable}
-		 * @default{disable}
-		 * TLT_VARIABLE_GRAVITY
-		 */
-
-		/**@inpsection{variable_gravity, enable}
-		*	 @label{GRAVITY_START}
-		*	 @default{0.0}
-		*  TLT_GRAVITY_START
-		*/
-		double variable_gravity_begin;
-
-		/** @inpsection{variable_gravity, enable}
-		* @label{GRAVITY_END}
-		* @default{100.0}
-		* TLT_GRAVITY_END
-		*/
-		double variable_gravity_end;
-
 		/* \inpsection{periodicity, enable}
 		* \label{X}
 		* \default{false}
@@ -540,7 +519,7 @@ class Problem {
 
 		/*! moving boundary and gravity callbacks */
 		//! @userfunc
-		//! @label{Variable gravity definition}
+		//! Variable gravity definition
 		virtual float3 g_callback(const double t);
 
 		void allocate_bodies_storage();

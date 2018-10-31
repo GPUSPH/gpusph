@@ -78,14 +78,6 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 
 	// Gravity
 	physparams()->gravity = make_float3(PVAL(physics, gravity_1), PVAL(physics, gravity_2), PVAL(physics, gravity_3));
-	// Gravity
-	// Assume that if gravity is enabled then both start and end time are
-	// mandatory to be defined.
-#if ISDEF(physics,variable_gravity_begin)
-	m_gtstart = PVAL( physics, variable_gravity_begin );
-	m_gtend = PVAL( physics, variable_gravity_end );
-	simparams()->gcallback = true;
-#endif
 
 	// Initialization of the neighbours parameters
 	simparams()->neiblistsize = PVAL(neighbours, neiblistsize);

@@ -321,14 +321,6 @@ class GenericProblem: public XProblem {
 
 	private:
 
-#if ISDEF(physics,variable_gravity_begin)
-		double m_gtstart;
-#endif
-
-#if ISDEF(physics,variable_gravity_end)
-  double m_gtend;
-#endif
-
 #ifdef GPUSPH_special_boundary_SECTIONS
 
   #if ISDEF(special_boundary,start_time_VALS)
