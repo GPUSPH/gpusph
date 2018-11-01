@@ -1597,10 +1597,12 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
  */
 
 /// Contribution from fluid neighbors for Ferrari density diffusion
+/// for all formulations excepted SPH_HA.
 template<typename FP, typename P, typename N, typename ON,
 	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
+	FP::sph_formulation != SPH_HA &&
 	FP::densitydiffusiontype == FERRARI &&
 	nptype == PT_FLUID
 >
@@ -1620,12 +1622,55 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
 }
 
-/// Contribution from boundary neighbors for Ferrari density diffusion,
-/// in the semi-analytical boundary model
+/// Contribution from fluid (and vertex if SA_BOUNDARY is used) neighbors 
+// for Ferrari density diffusion with SPH_HA.
 template<typename FP, typename P, typename N, typename ON,
 	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::densitydiffusiontype == FERRARI &&
+	(nptype == PT_FLUID || nptype == PT_VERTEX)
+>
+compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{
+	// Fluid numbers
+	const uint p_fluid_num = fluid_num(pdata.info);
+	const uint n_fluid_num = fluid_num(ndata.info);
+	// No inter-phase diffusion
+	if (p_fluid_num != n_fluid_num) return;
+
+	// Initial volumes
+	const float p_volume0 = pdata.pos.w/d_rho0[p_fluid_num];
+	const float n_volume0 = ndata.relPos.w/d_rho0[n_fluid_num];
+	// Actual volumes
+	const float p_volume = pdata.pos.w/physical_density(pdata);
+	const float n_volume = ndata.relPos.w/physical_density(ndata);
+	// Volume fractions (must be computed from initial volumes)
+	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+	const float n_theta = volume_fraction<SA_BOUNDARY,     nptype>::with(n_volume0, params.deltap);
+
+	// gravity correction for free-surface flows
+	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
+
+	// actual diffusion term -- SPH_HA: the term (rho - neib_rho) is replaced by
+	// mass*(1/vol - neib_theta/(theta*neib_volume))
+	// actual diffusion term
+	const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
+		max(pdata.sspeed, ndata.sspeed)*
+		(pdata.pos.w*(1./p_volume - n_theta/(p_theta*n_volume)) + grav_corr)/physical_density(pdata)/ndata.r*as_float3(ndata.relPos) :
+		make_float3(0.0f);
+	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
+	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+}
+
+/// Contribution from boundary neighbors for Ferrari density diffusion,
+/// in the semi-analytical boundary model for all formulations excpeted SPH_HA.
+template<typename FP, typename P, typename N, typename ON,
+	ParticleType nptype = N::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation != SPH_HA &&
 	FP::densitydiffusiontype == FERRARI &&
 	FP::boundarytype == SA_BOUNDARY &&
 	nptype == PT_BOUNDARY
@@ -1641,6 +1686,60 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
 		(rho - neib_rho + grav_corr)/ndata.r :
+		0.0f;
+	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
+	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
+}
+
+/// Contribution from boundary neighbors for Ferrari density diffusion,
+/// in the semi-analytical boundary model for all formulations excpeted SPH_HA.
+template<typename FP, typename P, typename N, typename ON,
+	ParticleType nptype = N::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::densitydiffusiontype == FERRARI &&
+	FP::boundarytype == SA_BOUNDARY &&
+	nptype == PT_BOUNDARY
+>
+compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{
+	// Fluid numbers
+	const uint p_fluid_num = fluid_num(pdata.info);
+	const uint n_fluid_num = fluid_num(ndata.info);
+
+	// Initial volumes
+	const float p_volume0 = pdata.pos.w/d_rho0[p_fluid_num];
+	// Volume fractions (must be computed from initial volumes)
+	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+	const float n_theta = 0.5; // for boundary elements, always 0.5
+
+	// Actual volumes
+	const float p_volume = pdata.pos.w/physical_density(pdata);
+
+	/* Actual volume should be calculated from the actual (interpolated) density
+	* and the mass. But boundary elements do not have mass. To get their actual 
+	* interpolated volume, we use the fact that:
+	*
+	* 	 n_ref_volume/n_ref_volume0 = n_rho0/n_rho
+	* 	 ==> n_ref_volume = n_ref_volume0*n_rho0/n_rho 
+	* 
+	* with n_ref_volume0 = deltap^3. Note that we are computing the reference volume
+	* here which is defined by:
+	*
+	* 	n_volume = n_theta*n_ref_volume
+	*/
+	const float n_ref_volume0 = params.deltap*params.deltap*params.deltap;
+	const float n_volume = n_theta*n_ref_volume0*d_rho0[fluid_num(ndata.info)]/physical_density(ndata);
+
+
+	// gravity correction for free-surface flows
+	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
+	// actual diffusion term
+
+	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
+		max(pdata.sspeed, ndata.sspeed)*
+		(pdata.pos.w*(1./p_volume - n_theta/(p_theta*n_volume)) + grav_corr)/ndata.r :
 		0.0f;
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
 	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
