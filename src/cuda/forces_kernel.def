@@ -1898,11 +1898,13 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
  * Reference: Molteni & Colagrossi, 2009
  */
 
-/// Molteni & Colagrossi density diffusion term
+/// Molteni & Colagrossi density diffusion term for all
+/// formulations excepted SPH_HA.
 template<typename FP, typename Pt, typename N, typename ON,
 	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
+	FP::sph_formulation != SPH_HA &&
 	FP::densitydiffusiontype == COLAGROSSI &&
 	nptype == PT_FLUID
 >
@@ -1932,6 +1934,50 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
 
 	// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
+
+	nout.DrDt -= diff_term;
+}
+
+/// Molteni & Colagrossi density diffusion term for SPH_HA
+/// formulation.
+template<typename FP, typename Pt, typename N, typename ON,
+	ParticleType nptype = N::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation == SPH_HA &&
+	FP::densitydiffusiontype == COLAGROSSI &&
+	nptype == PT_FLUID
+>
+compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
+{
+	const int p_fluid_num = fluid_num(pdata.info);
+	/* only applies to same-fluid particles */
+	if (p_fluid_num != fluid_num(ndata.info))
+		return;
+
+	// The diffusion can occur between particles belonging to
+	// different phases. Since the stabilization should stabilize
+	// density oscillations due to the weakly compressible effects,
+	// the fact that particles have different masses should have no
+	// effect.
+
+	// only apply diffusion for large density ratios, specifically
+	// when DeltaP < rhogh
+	if (fabs(P(pdata.vel.w, p_fluid_num) - P(ndata.relVel.w, p_fluid_num)) <
+			fabs(dot3(d_gravity, ndata.relPos)*physical_density(pdata)))
+		return;
+
+	// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
+	// \psi_ij = 2(vol_i/vol_j - 1) (x_j-x_i)/|x_i - x_j|.
+	// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
+	// 2(vol_i/vol_j - 1) F_ij
+	// For us rhodiffcoeff = \xi*h*2
+	// Additionally, we need to multiplie by the particle mass
+
+	const float p_volume = pdata.pos.w/physical_density(pdata);
+	const float n_volume = ndata.relPos.w/physical_density(ndata);
+	const float diff_term = d_densityDiffCoeff*d_sscoeff[p_fluid_num]*
+		( p_volume/n_volume - 1)*ndata.f*pdata.pos.w;
 
 	nout.DrDt -= diff_term;
 }
