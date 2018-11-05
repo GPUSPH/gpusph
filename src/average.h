@@ -14,8 +14,8 @@
 //! Averaging operator names
 /**@defpsubsection{viscosityAveraging, VISCOUS_AVERAGING}
  * @inpsection{physics}
- * @default{Harmonic}
- * @values{Arithmetic, Harmonic, Geometric}
+ * @default{harmonic}
+ * @values{arithmetic, harmonic, geometric}
  * TLT_VISCOUS_AVERAGING
  */
 enum AverageOperator

@@ -78,11 +78,13 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 					add_flags<FLAGS_LIST>);
 
 	// Initialization of the physical parameters
-	set_deltap ( PVAL( sph, m_deltap ));
+	set_deltap ( PVAL( discretisation, m_deltap ));
 	physparams()->r0 = m_deltap;
 
 	// Gravity
+#if ISDEF(physics,gravity)
 	physparams()->gravity = make_float3(PVAL(physics, gravity_1), PVAL(physics, gravity_2), PVAL(physics, gravity_3));
+#endif
 
 	// Initialization of the neighbours parameters
 	simparams()->neiblistsize = PVAL(neighbours, neiblistsize);

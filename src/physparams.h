@@ -181,14 +181,14 @@ typedef struct PhysParams {
 	 *	usually \f$ p_1 = 12 \f$, \f$p_2 = 6\f$ and \f$ D \f$ is a problem dependent parameter.
 	 * @{ */
   /*!
-   * \defpsubsection{Lennard-Jones formulation, LENNARD_JONES_PARAMETERS}
+   * \defpsubsection{Lennard_Jones_formulation, LENNARD_JONES_PARAMETERS}
    * \inpsection{boundaries}
 	 * \values{enable, disable}
 	 * \default{disable}
    * TLT_LENNARD_JONES_PARAMETERS
 	 */
   /*!
-   * \inpsection{Lennard-Jones formulation, enable}
+   * \inpsection{Lennard_Jones_formulation, enable}
 	 * \label{LJ_R0}
 	 * \default{0.}
 	 * TLT_LJ_R0
@@ -197,14 +197,14 @@ typedef struct PhysParams {
 
 	float	dcoeff;		///< \f$ D \f$
   /*!
-   * \inpsection{Lennard-Jones formulation, enable}
+   * \inpsection{Lennard_Jones_formulation, enable}
 	 * \label{LJ_P1_COEFF}
 	 * \default{12.}
 	 * TLT_LJ_P1COEFF
    */
 	float	p1coeff;	///< \f$ p_1 \f$
   /*!
-   * \inpsection{Lennard-Jones formulation, enable}
+   * \inpsection{Lennard_Jones_formulation, enable}
 	 * \label{LJ_P2_COEFF}
 	 * \default{6.}
 	 * TLT_LJ_P2COEFF
