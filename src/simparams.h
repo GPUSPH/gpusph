@@ -113,7 +113,7 @@ typedef struct SimParams {
 	uint			neiblistsize;			///< Total size of the neighbor list (per particle)
 	/*!
 	 * \inpsection{neighbours}
-	 * \default{128}
+	 * \default{192}
 	 * \label{NEIB_BOUND_POS}
 	 * TLT_NEIB_BOUND_POS
 	 */

@@ -231,11 +231,11 @@ GPUSPH_INCLUDE_PARAMS
 /*! Kernel type definition */
 #if ISENUM_EQ(discretisation,kernel_type,Cubic_spline)
 #define KERNEL_TYPE CUBICSPLINE
-#elif ISENUM_EQ(discretisation,kerne_typel,Quadratic)
+#elif ISENUM_EQ(discretisation,kerne_type,Quadratic)
 #define KERNEL_TYPE QUADRATIC
-#elif ISENUM_EQ(discretisation,kerne_typel,Wendland)
+#elif ISENUM_EQ(discretisation,kerne_type,Wendland)
 #define KERNEL_TYPE WENDLAND
-#elif ISENUM_EQ(discretisation,kerne_typel,Gaussian)
+#elif ISENUM_EQ(discretisation,kerne_type,Gaussian)
 #define KERNEL_TYPE GAUSSIAN
 #else
 #define KERNEL_TYPE WENDLAND
@@ -272,13 +272,13 @@ GPUSPH_INCLUDE_PARAMS
 #define FLAG_INLET_OUTLET 0
 #endif
 
-#if ISENUM_EQ(sph,density_sum,enable) || ISDEF(special_boundary,open_bnd_type_VALS)
+#if ISENUM_EQ(density_calculation,density_sum,enable) || ISDEF(special_boundary,open_bnd_type_VALS)
 #define FLAG_DENSITY_SUM ENABLE_DENSITY_SUM
 #else
 #define FLAG_DENSITY_SUM 0
 #endif
 
-#if ISENUM_EQ(sph,moving_bodies,enable) || ISDEF(special_boundary,collisions_file_VALS) \
+#if ISENUM_EQ(boundaries,moving_bodies,enable) || ISDEF(special_boundary,collisions_file_VALS) \
 	|| ISDEF(special_boundary,rotation_vel_x_VALS)\
 || ISDEF(special_boundary,rotation_vel_y_VALS)\
 || ISDEF(special_boundary,rotation_vel_z_VALS)\
@@ -314,16 +314,16 @@ GPUSPH_INCLUDE_PARAMS
 #define FLAG_INTERNAL_ENERGY 0
 #endif
 
-#if ISENUM_EQ(discretisation,sph_formulation, Multi_fluid) || \
-	ISENUM_EQ(discretisation,sph_formulation, Multi_fluid_Grenier)
+#if ISENUM_EQ(discretisation,sph_formulation,Multi_fluid) || \
+	ISENUM_EQ(discretisation,sph_formulation,Multi_fluid_Grenier)
 #define FLAG_MULTIFLUID_SUPPORT ENABLE_MULTIFLUID
 #else
 #define FLAG_MULTIFLUID_SUPPORT 0
 #endif
 
 #define FLAGS_LIST ENABLE_WATER_DEPTH | FLAG_INLET_OUTLET | FLAG_DENSITY_SUM \
-	| FLAG_DTADAPT | FLAG_MOVING_BODIES | FLAG_XSPH | FLAG_GAMMA_QUADRATURE \
-| FLAG_INTERNAL_ENERGY | FLAG_MULTIFLUID_SUPPORT
+	| FLAG_DTADAPT | FLAG_MOVING_BODIES | FLAG_GAMMA_QUADRATURE \
+	| FLAG_INTERNAL_ENERGY | FLAG_MULTIFLUID_SUPPORT | FLAG_XSPH
 
 #define open_boundary GT_OPENBOUNDARY
 #define floating_body GT_FLOATING_BODY

@@ -110,9 +110,9 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 
 	// Writer settings
 	add_writer(VTKWRITER, PVAL(output, vtk_frequency));
-	if ( PVAL( output, commonwriter ) > 0) {
+#if ISDEF(output,commonwriter)
 		add_writer(COMMONWRITER, PVAL(output, commonwriter));
-	}
+#endif
 
 	size_t fluid_0 = add_fluid(PVAL(fluid_0, rho0));
 	set_kinematic_visc(fluid_0, PVAL(fluid_0, kinematicvisc));
