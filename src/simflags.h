@@ -134,6 +134,12 @@
 #define USING_DYNAMIC_GAMMA(flags)	(!((flags) & ENABLE_GAMMA_QUADRATURE))
 
 //! repacking
+/**@defpsubsection{repacking, ENABLE_REPACKING}
+ * @inpsection{initialisation}
+ * @default{disable}
+ * @values{disable,enable}
+ * TLT_ENABLE_REPACKING
+ */
 #define ENABLE_REPACKING		(ENABLE_GAMMA_QUADRATURE << 1)
 
 //! Compute internal energy

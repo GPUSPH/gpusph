@@ -68,8 +68,8 @@
 /*! \defpsubsection{kernel_type,KERNEL_TYPE}
  * \inpsection{discretisation}
  * \label{KERNEL_TYPE}
- * \default{Wendland}
  * \values{Cubic_spline, Quadratic, Wendland, Gaussian}
+ * \default{Wendland}
  * TLT_KERNEL_TYPE
  */
 enum KernelType {

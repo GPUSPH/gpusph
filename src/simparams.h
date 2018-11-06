@@ -200,8 +200,26 @@ typedef struct SimParams {
 	/** @} */
 	/** \name Repacking parameters
 	 * @{ */
+	/*!
+	 * \inpsection{repacking, enable}
+	 * \label{REPACK_MAX_ITER}
+	 * \default{2000}
+	 * TLT_REPACK_MAX_ITER
+	 */
 	uint			repack_maxiter; //< maximum number of iterations for repacking
+	/*!
+	 * \inpsection{repacking, enable}
+	 * \label{REPACK_A}
+	 * \default{0.1}
+	 * TLT_REPACK_A
+	 */
 	float			repack_a;	//< repacking parameter 'a' for mixing intensity, recommended value: 1
+	/*!
+	 * \inpsection{repacking, enable}
+	 * \label{REPACK_ALPHA}
+	 * \default{0.01}
+	 * TLT_REPACK_ALPHA
+	 */
 	float			repack_alpha;	//< repacking parameter 'alpha' for velocity damping, recommended value: 0.1
 	/** @} */
 
