@@ -132,12 +132,14 @@ class Problem {
 		/*! \inpsection{geometry}
 		 * \label{SIZE}
 		 * \default{1e9,1e9,1e9}
+		 * \mandatory
 		 */
 		double3	m_size;			// Size of computational domain
 
 		/*! \inpsection{geometry}
 		 * \label{ORIGIN}
 		 * \default{0,0,0}
+		 * \mandatory
 		 */
 		double3	m_origin;		// Origin of computational domain
 

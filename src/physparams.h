@@ -273,6 +273,7 @@ typedef struct PhysParams {
    * \inpsection{physics}
    * \default{0,0,-9.81}
    * \label{GRAVITY}
+	 * \mandatory
 	 * TLT_GRAVITY
    */
 	float3	gravity;		///< Gravity
