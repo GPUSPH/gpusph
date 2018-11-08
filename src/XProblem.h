@@ -114,6 +114,9 @@ struct GeometryInfo {
 	// user-set inertia
 	double custom_inertia[3];
 
+	// user-set center of gravity
+	double3 custom_cg;
+
 	// aux vars to check if user set what he/she should
 	bool mass_was_set;
 	bool particle_mass_was_set;
@@ -267,6 +270,9 @@ class XProblem: public Problem {
 		// methods to set a custom inertia matrix (and overwrite the precomputed one)
 		void setInertia(const GeometryID gid, const double i11, const double i22, const double i33);
 		void setInertia(const GeometryID gid, const double* mainDiagonal);
+
+		// method to set a custom center of gravity (and overwrite the precomputed one)
+		void setCenterOfGravity(const GeometryID gid, const double3 cg);
 
 		// methods for rotating an existing object
 		void setOrientation(const GeometryID gid, const EulerParameters &ep);

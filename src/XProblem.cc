@@ -1021,6 +1021,21 @@ void XProblem::setInertia(const GeometryID gid, const double* mainDiagonal)
 	setInertia(gid, mainDiagonal[0], mainDiagonal[1], mainDiagonal[2]);
 }
 
+// Set a custom center of gravity. Will overwrite the precomputed one
+void XProblem::setCenterOfGravity(const GeometryID gid, const double3 cg)
+{
+	if (!validGeometry(gid)) return;
+
+	// implicitly checking that geometry is a GT_FLOATING_BODY
+	if (!m_geometries[gid]->handle_dynamics) {
+		printf("WARNING: trying to set inertia of a geometry with no dynamics! Ignoring\n");
+		return;
+	}
+	m_geometries[gid]->custom_cg.x = cg.x;
+	m_geometries[gid]->custom_cg.y = cg.y;
+	m_geometries[gid]->custom_cg.z = cg.z;
+}
+
 // NOTE: GPUSPH uses ZXZ angles counterclockwise, ODE used XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
 // We should check what's used by Chrono
 void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
@@ -1433,6 +1448,15 @@ int XProblem::fill_parts(bool fill)
 				// (Box, Sphere, Cylinder), but it would be only necessary for non-primitive
 				// geometries (e.g. STL meshes)
 				m_geometries[g]->ptr->SetInertia(physparams()->r0);
+
+			// Use custom center of gravity only if entirely finite (no partial overwrite)
+			double cg[3];
+			cg[0] = m_geometries[g]->custom_cg.x;
+			cg[1] = m_geometries[g]->custom_cg.y;
+			cg[2] = m_geometries[g]->custom_cg.z;
+			if (isfinite(cg[0]) && isfinite(cg[1]) && isfinite(cg[2]))
+				m_geometries[g]->ptr->SetCenterOfGravity(cg);
+
 
 			// Fix the geometry *before the creation of the Chrono body* if not moving nor floating.
 			// TODO: check if it holds for moving
