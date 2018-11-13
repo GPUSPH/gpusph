@@ -149,6 +149,7 @@ class Problem {
 		//! \inpsection{discretisation}
 		//! \default{-1}
 		//! \label{SPH_DR}
+		//! TLT_SPH_DR
 		double	m_deltap;		// Initial particle spacing
 
 		/*!

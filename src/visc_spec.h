@@ -43,7 +43,7 @@
  * and generalized Newtonian rheologies.
  */
 /** @defpsubsection{rheology, RHEOLOGY}
- * @inpsection{physics}
+ * @inpsection{viscous_options}
  * @default{Newtonian}
  * @values{inviscid, Newtonian}
  * TLT_RHEOLOGY
@@ -68,7 +68,7 @@ const char* RheologyTypeName[NEWTONIAN+1]
 
 //! Turbulence model
 /** @defpsubsection{turbulence, TURBULENCE}
- * @inpsection{physics}
+ * @inpsection{viscous_options}
  * @default{disable}
  * @values{disable, artificial_viscosity, k_epsilon, SPS_model}
  * TLT_TURBULENCE
@@ -109,7 +109,7 @@ const char* TurbulenceName[INVALID_TURBULENCE+1]
  * or in terms of the dynamic viscosity µ = ρν
  */
 /** @defpsubsection{viscosityType, VISCOSITY_TYPE}
- * @inpsection{physics}
+ * @inpsection{viscous_options}
  * @default{kinematic}
  * @values{kinematic, dynamic}
  * TLT_VISCOSITY_TYPE
@@ -137,7 +137,7 @@ const char* ComputationalViscosityName[DYNAMIC+1]
  * Español & Revenga too
  */
 /** @defpsubsection{viscousModel, VISCOUS_MODEL}
- * @inpsection{physics}
+ * @inpsection{viscous_options}
  * @default{Morris}
  * @values{Morris}
  * TLT_VISCOUS_MODEL

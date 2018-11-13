@@ -94,12 +94,6 @@
 
 //! inlet/outlet
 //! open boundaries
-/**@defpsubsection{open_boundaries, ENABLE_INLET_OUTLET}
- * @inpsection{boundaries}
- * @default{disable}
- * @values{disable,enable}
- * TLT_ENABLE_INLET_OUTLET
- */
 #define ENABLE_INLET_OUTLET		(ENABLE_MOVING_BODIES << 1)
 
 //! water depth computation
@@ -147,7 +141,7 @@
  * @inpsection{output}
  * @default{disable}
  * @values{disable,enable}
- * TLT_INTERNAL_ENERGY
+ * TLT_ENABLE_INTERNAL_ENERGY
  */
 #define ENABLE_INTERNAL_ENERGY (ENABLE_REPACKING<< 1)
 

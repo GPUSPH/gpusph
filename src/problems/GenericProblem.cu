@@ -239,30 +239,30 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		{
 			specialBoundaryType = GT_MOVING_BODY;
 			// TODO: Synchronize with common flags.
-      if (SetUp.MovingBodies == "disable") {
-        std::cout << std::endl << "--------------------------------------------------------------" << std::endl << std::endl;
-        std::cout << "WARNING !!!" << std::endl
-          << "You have a moving body but the moving_bodies are disabled in the boundaries section!" << std::endl;
-      }
+//      if (SetUp.MovingBodies == "disable") {
+//        std::cout << std::endl << "--------------------------------------------------------------" << std::endl << std::endl;
+//        std::cout << "WARNING !!!" << std::endl
+//          << "You have a moving body but the moving_bodies are disabled in the boundaries section!" << std::endl;
+//      }
 		}
 		else if ( aBndType[i] == floating_body )    // floating_body
 		{
 			specialBoundaryType = GT_FLOATING_BODY;
 			// TODO: Synchronize with common flags.
-      if (SetUp.MovingBodies == "disable") {
-        std::cout << std::endl << "WARNING !!!" << std::endl
-          << "You have a floating body but the moving_bodies are disabled in the boundaries section!" << std::endl;
-      }
+//      if (SetUp.MovingBodies == "disable") {
+//        std::cout << std::endl << "WARNING !!!" << std::endl
+//          << "You have a floating body but the moving_bodies are disabled in the boundaries section!" << std::endl;
+//      }
 		}
 		else if ( aBndType[i] == open_boundary )    // open_boundary
 		{
 			specialBoundaryType = GT_OPENBOUNDARY;
 			// TODO: Synchronize with common flags.
-      if (SetUp.OpenBoundaries == "disable") {
-        std::cout << std::endl << "--------------------------------------------------------------" << std::endl << std::endl;
-        std::cout << "WARNING !!!" << std::endl
-          << "You have an open boundary but the open_boundaries are disabled in the boundaries section!" << std::endl;
-      }
+//      if (SetUp.OpenBoundaries == "disable") {
+//        std::cout << std::endl << "--------------------------------------------------------------" << std::endl << std::endl;
+//        std::cout << "WARNING !!!" << std::endl
+//          << "You have an open boundary but the open_boundaries are disabled in the boundaries section!" << std::endl;
+//      }
 		}
 		else if ( aBndType[i] == free_surface )    // free_surface
 		{

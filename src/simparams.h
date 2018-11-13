@@ -89,7 +89,8 @@ typedef struct SimParams {
 	 * \inpsection{discretisation}
 	 * \default{1.3}
 	 * \label{SMOOTHING_FACTOR}
-	 * @{ */
+	 * TLT_SMOOTHING_FACTOR
+	 */
 	double			sfactor;				///< Smoothing factor
 	double			slength;				///< Smoothing length \f$ h \f$ (smoothing factor * \f$ \Delta p \f$)
 	double			kernelradius;			///< Kernel radius \f$ \kappa \f$
