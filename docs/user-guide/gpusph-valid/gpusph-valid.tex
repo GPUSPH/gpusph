@@ -19,6 +19,158 @@ are described, together with their setup in the user interface.
 \section{Spheric2}
 
 
+\subsection{Case Study Setup and Details}
+%\vspace*{2pt}
+   
+\begin{itemize}
+\item \textbf{Description of the Problem}: This case is based on the experimental setup of Kleefsman et al. \citep{Kleefsman}
+  in their work on modeling hydraulics problems with wave impact.
+  In fact, this case study has become a classic validation problem in the literature and has been reiterated multiple times,
+  as can be seen in Issa and Violeau's paper \citep{SPHERIC} and in Leroy's thesis \citep{AgnesLeroy}. This case study is well
+  suited for the study of strong surface deformation capabilities on an algorithm. The problem entails a model dam break
+  problem with a model rigid obstacle upstream of the dam's collapse. There is no analytical solution to a problem of this type,
+  so the numerical results will be compared to the measurements done by Kleefsman et al. \citep{Kleefsman}.
+  Since the mathematical setup of the problem is out of the scope of this report, most variables and parameters are not non-dimensionalized except for: 
+  \begin{equation}
+    \begin{array}{l}
+      \displaystyle{  t^{+} \doteq \frac{t}{\sqrt{L/g}} } \medskip \\ 
+    \end{array}
+    \end{equation}  
+
+  \begin{figure}[h!]
+    \includegraphics[scale =0.5]{figures/SPHERIC_GEOMETRY}
+    \centering
+    \caption{ The 3-D geometric details of the Spheric2 case can be seen in this figure. The dimensions and the locations of the height probes can be seen here. The numbering of the fluid height sensors is from H1 to H4, as can be seen above the vertical lines in red indicating the location of the sensors.}
+    \label{fig:SphericGeometry}
+  \end{figure}
+  
+  \begin{figure}[h!]
+    \includegraphics[scale =0.6]{figures/SPHERIC_NODES}
+    \centering
+    \caption{ The geometric details of the obstacle used in Spheric2 can be seen in this figure. The locations of the pressure probes can be seen here. The numbering of the pressure sensors is from P1 to P8, as can be seen to the left of the crosses in red indicating the location of the sensors.}
+    \label{fig:Spheric_Nodes}
+  \end{figure}
+  
+\item \textbf{Problem Setup}: This case involves the study of the deviation of numerical results from the experimental results available.
+  Following Kleefsman's work, we setup numerical pressure sensors along the rigid obstacle, as can be seen in the figure \ref{fig:Spheric_Nodes}.
+  We also place numerical wave height gauges, whose locations can be seen in the figure \ref{fig:SphericGeometry}.
+  The geometric details can be seen in the figure \ref{fig:SphericGeometry}. Note that figures \ref{fig:SphericGeometry},
+  \ref{fig:Spheric_Nodes} for this test case have been imported from Kleefsman et al. \citep{Kleefsman}.
+  The experimental results contain data on the pressure variation in time along the sensors seen in figure \ref{fig:Spheric_Nodes}
+  and data on the fluid height along the gauges shown in figure \ref{fig:SphericGeometry}. The analysis on the results of this
+  test case will be based on a visual comparison of the numerical versus the experimental results.    
+  
+\item \textbf{The Numerical and Physical Parameters Studied:} The tests run for this case are designed to study the performance
+  of the free surface deformation capabilities of the solver. Among the many parameters varied in the simulations,
+  three important parameters stand out. The behavior of the solver strongly changes with kinematic viscosity,
+  particle size and the turning on of the turbulence model. As will be seen in the results section,
+  the solver generates less noise when the turbulent model is turned on
+  for models with significantly high Reynolds numbers\footnote{A detailed study of when the turbulent model is
+    recommended to be used is out of the scope of this report.}. The simulations have a fluid particle number
+  of about 3 million particles. It is important to note that our numerical
+  setups do not model a physical gate, and thus the dam's fluid falls instantaneouly, and this is not the case in
+  Kleefsman et al.'s work. The following presents the parameters used and the tests run for this test case are presented below:   
+  \begin{itemize}
+  \item Numerical Speed of Sound: ${c_n} = 40 \; m/s$
+  \item Smoothing Length to Particle Size Ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item The Gravity Field is: $g = -9.81.0 \; {m}/{s^2}$
+  \item The Density is: $\rho = 1000 \; {kg}/{m^3} $
+  \item The Length Scale is: $L = 0.55 \; m$
+  \item Simulation Time\footnote{Test 6 was run for $t^+=34$.} $t^+ = 26 $
+  \item Particle size: $0.01m$
+  \item Kinematic viscosity: $\nu = 1 \times 10^{-6} (m^2/s)$
+  \item Whatever the density diffusion formulation, a density diffusion coefficient of 0.1
+  \item With semi-analytical boundaries, a density equation based on the summation definition of the density
+  \end{itemize}
+  
+  \begin{table}[h!]
+    \centering
+    \begin{tabular}{ |p{3cm}||p{2cm}|p{2cm}|p{2cm}|p{3cm}|  } 
+      \hline
+      \multicolumn{5}{|c|}{Numerical Tests Studied} \\
+      \hline
+      Numerical Test & Boundary formulation & Turbulent Model & Density diffusion \\
+      \hline
+      Test 1 & Lennard-Jones      & none & Colagrossi \\
+      Test 2 & Lennard-Jones      & SPS & Colagrossi \\
+      Test 3 & Dynamic (3 layers) & SPS  & Colagrossi \\
+      Test 4 & Semi-analytical    & $k-\epsilon$ & Brezzi
+      \hline
+    \end{tabular}
+  \end{table}
+
+\vspace{20pt}
+   
+\end{itemize}
+
+\subsection{Results}
+
+\section{Hydrostatic basin}
+
+\subsection{Case Study Setup and Details}
+\vspace*{2pt}
+\begin{itemize}
+\item \textbf{Description of the Problem}: We consider a simple 3-dimensional rectangular basin which is
+  filled with fluid particles, and subjected to a gravity-like field force acting in a parallel and
+  opposite manner with respect to the bottom's normal. Figure (\ref{fig:HydrostaticBasin}) represents the
+  geometric setup of this case. The problem is non-dimensionalized by using the system's scale length $L$
+  and other physical parameters. The non-dimensional parameters and variables are as seen below:   
+  \begin{equation}
+    \begin{array}{l}
+      \displaystyle{  z^{+} \doteq \frac{z}{L} } \medskip \\ 
+      \displaystyle{  t^{+} \doteq \frac{t}{\sqrt{L/g}} } \medskip \\ 
+      \displaystyle{  P^{+} \doteq \frac{P}{\rho gL} } \medskip \\ 
+      \displaystyle{  F^{+} \doteq \frac{F}{\rho g} } 
+    \end{array}
+  \end{equation}  
+  
+\item \textbf{Case Study}:  This case involves the study of the deviation of numerical results
+  from the analytical solution. The solution is based on the hydrostatic equation which can be
+  derived from the RANS equation projected along the vertical z-axis: 
+  
+  \begin{equation}\label{eq:HydroDifferential}
+    0 = F^{+}+ \frac{d P^+}{d z^+}
+  \end{equation}
+  
+  with the differential equation being an ordinary differential equation presented as a boundary value problem.
+  The wall boundaries are solid and the velocity is nullified. The resulting pressure profiles
+  depend on the gravity-like force field. The chosen parameters and
+  the solution to equation (\ref{eq:HydroDifferential}) are presented below.
+  
+  The forcing function is chosen to be: $ F^+ = \text{C}  $  
+    
+  \begin{equation}\label{eq:HydroStatic}
+    P^+(z^+) =  -F^{+} z^+  + C
+  \end{equation}
+  
+  The constant in equations (\ref{eq:HydroStatic}) is defined as:\\
+  $C = P^+(z^+ = 0) = 1$
+  
+\item \textbf{The Numerical and Physical Parameters Studied:} This study sets up three tests.
+  We look to study the stability of hydrostatic iterations in GPUSPH with three boundary formulations available in GPUSPH:
+  Lennard-Jones, Dynamic boundaries and Semi-analytical boundaries.
+  The particle size of this problem is related to particle number in the problem through the following representation,
+  where \textit{N} is the particle number per unit
+  \textit{L}\footnote{The basin's boundaries slightly reduce the expected number of particles (per unit $L$)
+    along the \textit{x} and \textit{y} axes due to the fluid being constrained from multiple sides,
+    as opposed to the number of particles along \textit{z}. }:
+  \begin{equation}
+    \delta r = \frac{L}{N} 
+  \end{equation}            
+  
+  \begin{itemize}
+  \item Numerical Speed of Sound: ${c_n} = 40 \; m/s$
+  \item Smoothing Length to Particle Size Ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item Kinematic Viscosity\footnote{To be used in the numerical setup only}: $\nu = 0.05 \; {m^2}/{s}$
+  \item The Gravity Field is: $g = -1.0 \; {m}/{s^2}$
+  \item The Density is: $\rho = 1.0 \; {kg}/{m^3} $
+  \item The Length Scale is: $L = 1.0 \; m$
+  \item Simulation Time: $t^+ = 600 $ 
+  \end{itemize}
+  
+\end{itemize}
+
+
 \bibliography{../gpusph-manual.bib}
 
 \end{document}

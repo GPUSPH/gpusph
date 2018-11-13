@@ -6,7 +6,7 @@ SVG2PDF ?= inkscape $< --export-pdf=$@
 
 EXTRA_DEPS = $(patsubst %.svg, %.pdf, $(wildcard ../fig/*.svg))
 
-gpusph-valid.pdf:
+gpusph-salome.pdf:
 
 # Set of general pattern rules to produce final and intermediate results
 # during a compilation.
@@ -39,7 +39,7 @@ gpusph-valid.pdf:
 ../fig/%.pdf: ../fig/%.svg
 	$(SVG2PDF)
 
-#gpusph-valid.pdf: gpusph-license.tex gpusph-reference.bib
+#gpusph-salome.pdf: gpusph-license.tex gpusph-reference.bib
 
 clean:
 	rm -rf *.aux *.bbl *.log *.out *.blg *.toc *.pdf ../fig/*pdf

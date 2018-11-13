@@ -1,4 +1,4 @@
-LTX ?= pdflatex
+LTX ?= xelatex
 LTXFLAGS ?=
 
 # Command to convert an SVG to PDF
