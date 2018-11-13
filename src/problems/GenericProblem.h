@@ -173,8 +173,8 @@ GPUSPH_INCLUDE_PARAMS
 #endif
 
 /*! Boundary conditions type definition */
-#if ISDEF(sph,bnd_type)
-#define BOUNDARY_TYPE PVAL(sph,bnd_type)
+#if ISDEF(boundaries,bnd_type)
+#define BOUNDARY_TYPE PVAL(boundaries,bnd_type)
 #else
 #define BOUNDARY_TYPE SA_BOUNDARY
 #endif

@@ -100,12 +100,15 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 #endif
 	simparams()->tend = PVAL(time, tend);
 
-	// Ferrari correction
-#if ISDEF(sph,ferrari)
-	simparams()->densityDiffCoeff= PVAL( sph, densityDiffCoeff );
+	// Density diffusion
+#if ISDEF(density_calculation, ferrariDiffCoeff)
+	simparams()->densityDiffCoeff= PVAL( density_calculation, ferrariDiffCoeff );
 #endif
-#if ISDEF(sph,ferrariLengthScale)
-	simparams()->ferrariLengthScale = PVAL( sph, ferrariLengthScale );
+#if ISDEF(density_calculation, brezziDiffCoeff)
+	simparams()->densityDiffCoeff= PVAL( density_calculation, brezziDiffCoeff );
+#endif
+#if ISDEF(density_calculation, densityDiffCoeff)
+	simparams()->densityDiffCoeff= PVAL( density_calculation, densityDiffCoeff );
 #endif
 
 	// Writer settings

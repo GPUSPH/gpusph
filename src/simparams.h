@@ -162,7 +162,11 @@ typedef struct SimParams {
 	 * \max{1}
 	 * TLT_DENSITY_DIFF_COEF
 	 */
-	float &brezziDiffCoeff = densityDiffCoeff;
+	// For brezziDiffCoeff to appear in the GUI we need to define it here explicitely.
+	// However, do not try to set its value in your Problem: it is not used by GPUSPH, only
+	// densityDiffCoeff is used, for all types of densityDiffusion.
+	// In GenericProblem, densityDiffCoeff is set equal to brezziDiffCoeff.
+	float			brezziDiffCoeff; //< Dummy coefficient for Brezzi density diffusion, only for the user interface
 	/*!
 	 * \inpsection{density_diff_type, Ferrari}
 	 * \label{DENSITY_DIFFUSION_COEF}
@@ -171,7 +175,11 @@ typedef struct SimParams {
 	 * \max{1}
 	 * TLT_DENSITY_DIFF_COEF
 	 */
-	float &ferrariDiffCoeff = densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
+	// For ferrariDiffCoeff to appear in the GUI we need to define it here explicitely.
+	// However, do not try to set its value in your Problem: it is not used by GPUSPH, only
+	// densityDiffCoeff is used, for all types of densityDiffusion.
+	// In GenericProblem, densityDiffCoeff is set equal to ferrariDiffCoeff.
+	float			ferrariDiffCoeff;		///< Dummy coefficient for Ferrari density diffusion, only for the user interface
 
 	float			ferrariLengthScale;		///< Length scale for Ferrari correction
 	/** @} */
