@@ -140,12 +140,15 @@ For this test-case, the geometrical setup only contains the basin and the initia
   \item Execute the preprocessor\\
     \textbf{SPH Preprocessor $\to$ Execute preprocessor}\smallskip\\
     \includegraphics[scale=0.3,trim={0cm 15cm 28cm 2cm}, clip]{../fig/SPHERIC2/Salome/execute_preprocessor.png}
-  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis.
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis:\\
+    \begin{center}\includegraphics[scale=0.3,trim={17cm 6cm 18cm 15cm}, clip]{../fig/SPHERIC2/Salome/spheric2-particles.png}\end{center}
+    
     For each study, Salome creates a folder with the study name underscore presph at the same location as the hdf file.
     This is where the preprocessor files are stored: for example, let us assume that the \cmd{Spheric2.hdf} file
-    is located at \cmd{$MY_STUDY_PATH/Spheric2.hdf}. Then the particle files for the case
-    with semi-analytical boundaries are located in:
-    \cmd{$MY_STUDY_PATH/Spheric2_presph/Spheric2SA}. The files are the following:\\
+    is located at \cmd{$MY_STUDY_PATH/Spheric2.hdf}.
+    Then, the particle files for the case with semi-analytical boundaries are located in:\\
+    \cmd{$MY_STUDY_PATH/Spheric2_presph/Spheric2SA}. \\
+    The files are the following:\\
     - \cmd{Spheric2SA.fluid.h5sph}:  GPUSPH file for the fluid\\
     - \cmd{Spheric2SA.basin.h5sph}: GPUSPH file for the basin\\
     - \cmd{Spheric2SA.basin.vtu}: vtu file of the basin, can be opened in Paravis\\
@@ -273,8 +276,8 @@ and wave gages.
   \end{equation}            
   
   \begin{itemize}
-  \item numerical Speed of Sound: ${c_n} = 40 \; m/s$
-  \item smoothing Length to Particle Size Ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item numerical speed of sound: ${c_n} = 40 \; m/s$
+  \item smoothing length to particle size ratio: $\dfrac{h}{\delta r}=1.3$ 
   \item kinematic viscosity: $\nu = 0.05 \; {m^2}/{s}$
   \item gravity field: $g = -1.0 \; {m}/{s^2}$
   \item fluid density: $\rho = 1.0 \; {kg}/{m^3} $
