@@ -54,6 +54,9 @@
 
 % graphics inclusion
 \RequirePackage{graphicx}
+\RequirePackage{caption}
+\RequirePackage{subcaption}
+\RequirePackage{float}
 
 % extra mathematical symbols, full AMS math support
 \RequirePackage{amssymb,amsmath,bm}

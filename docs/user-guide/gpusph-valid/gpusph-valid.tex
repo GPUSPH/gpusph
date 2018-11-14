@@ -38,20 +38,20 @@ are described, together with their setup in the user interface.
     \end{equation}  
 
   \begin{figure}[h!]
-    \includegraphics[scale =0.5]{figures/SPHERIC_GEOMETRY}
+    \includegraphics[scale =0.5]{../fig/SPHERIC2/SPHERIC_GEOMETRY}
     \centering
     \caption{ The 3-D geometric details of the Spheric2 case can be seen in this figure. The dimensions and the locations of the height probes can be seen here. The numbering of the fluid height sensors is from H1 to H4, as can be seen above the vertical lines in red indicating the location of the sensors.}
     \label{fig:SphericGeometry}
   \end{figure}
   
   \begin{figure}[h!]
-    \includegraphics[scale =0.6]{figures/SPHERIC_NODES}
+    \includegraphics[scale =0.6]{../fig/SPHERIC2/SPHERIC_NODES}
     \centering
     \caption{ The geometric details of the obstacle used in Spheric2 can be seen in this figure. The locations of the pressure probes can be seen here. The numbering of the pressure sensors is from P1 to P8, as can be seen to the left of the crosses in red indicating the location of the sensors.}
     \label{fig:Spheric_Nodes}
   \end{figure}
   
-\item \textbf{Problem Setup}: This case involves the study of the deviation of numerical results from the experimental results available.
+\item \textbf{Case Setup}: This case involves the study of the deviation of numerical results from the experimental results available.
   Following Kleefsman's work, we setup numerical pressure sensors along the rigid obstacle, as can be seen in the figure \ref{fig:Spheric_Nodes}.
   We also place numerical wave height gauges, whose locations can be seen in the figure \ref{fig:SphericGeometry}.
   The geometric details can be seen in the figure \ref{fig:SphericGeometry}. Note that figures \ref{fig:SphericGeometry},
@@ -60,160 +60,174 @@ are described, together with their setup in the user interface.
   and data on the fluid height along the gauges shown in figure \ref{fig:SphericGeometry}. The analysis on the results of this
   test case will be based on a visual comparison of the numerical versus the experimental results.    
   
-\item \textbf{The Numerical and Physical Parameters Studied:} The tests run for this case are designed to study the performance
-  of the free surface deformation capabilities of the solver. Among the many parameters varied in the simulations,
-  three important parameters stand out. The behavior of the solver strongly changes with kinematic viscosity,
-  particle size and the turning on of the turbulence model. As will be seen in the results section,
-  the solver generates less noise when the turbulent model is turned on
-  for models with significantly high Reynolds numbers\footnote{A detailed study of when the turbulent model is
-    recommended to be used is out of the scope of this report.}. The simulations have a fluid particle number
+\item \textbf{The numerical and physical parameters studied:} The tests run for this case are designed to study the performance
+  of the free surface deformation capabilities of the solver. The simulations have a fluid particle number
   of about 3 million particles. It is important to note that our numerical
   setups do not model a physical gate, and thus the dam's fluid falls instantaneouly, and this is not the case in
-  Kleefsman et al.'s work. The following presents the parameters used and the tests run for this test case are presented below:   
+  Kleefsman et al.'s work. The following parameters were used for the four test cases presented in the table \ref{tab:spheric2-setup}:   
   \begin{itemize}
-  \item Numerical Speed of Sound: ${c_n} = 40 \; m/s$
-  \item Smoothing Length to Particle Size Ratio: $\dfrac{h}{\delta r}=1.3$ 
-  \item The Gravity Field is: $g = -9.81.0 \; {m}/{s^2}$
-  \item The Density is: $\rho = 1000 \; {kg}/{m^3} $
-  \item The Length Scale is: $L = 0.55 \; m$
-  \item Simulation Time\footnote{Test 6 was run for $t^+=34$.} $t^+ = 26 $
-  \item Particle size: $0.01m$
-  \item Kinematic viscosity: $\nu = 1 \times 10^{-6} (m^2/s)$
-  \item Whatever the density diffusion formulation, a density diffusion coefficient of 0.1
-  \item With semi-analytical boundaries, a density equation based on the summation definition of the density
+  \item numerical speed of sound: ${c_n} = 40 \; m/s$
+  \item smoothing length to particle size ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item gravity field: $g = -9.81.0 \; {m}/{s^2}$
+  \item density: $\rho = 1000 \; {kg}/{m^3} $
+  \item length scale: $L = 0.55 \; m$
+  \item simulation time: $t^+ = 26 $
+  \item particle size: $0.01m$
+  \item kinematic viscosity: $\nu = 1 \times 10^{-6} (m^2/s)$
+  \item whatever the density diffusion formulation, a density diffusion coefficient of 0.1
+  \item with semi-analytical boundaries, a density equation based on the summation definition of the density
   \end{itemize}
   
-  \begin{table}[h!]
-    \centering
-    \begin{tabular}{ |p{3cm}||p{2cm}|p{2cm}|p{2cm}|p{3cm}|  } 
-      \hline
-      \multicolumn{5}{|c|}{Numerical Tests Studied} \\
+  \begin{table}[h]\caption{Numerical tests performed on the Spheric-2 test-case}
+    \label{tab:spheric2-setup}
+    \begin{tabular}{ |p{3cm}|p{4cm}|p{3.5cm}|p{3cm}|  } 
       \hline
       Numerical Test & Boundary formulation & Turbulent Model & Density diffusion \\
       \hline
-      Test 1 & Lennard-Jones      & none & Colagrossi \\
-      Test 2 & Lennard-Jones      & SPS & Colagrossi \\
-      Test 3 & Dynamic (3 layers) & SPS  & Colagrossi \\
-      Test 4 & Semi-analytical    & $k-\epsilon$ & Brezzi
+      Test 1 & Lennard-Jones      & none         & Colagrossi \\
+      Test 2 & Lennard-Jones      & SPS          & Colagrossi \\
+      Test 3 & Dynamic (3 layers) & SPS          & Colagrossi \\
+      Test 4 & Semi-analytical    & $k-\epsilon$ & Brezzi \\
       \hline
     \end{tabular}
   \end{table}
-
-\vspace{20pt}
-   
 \end{itemize}
+
+\subsection{Setup in Salome}\label{sec:salome_spheric2}
+For this test-case, the geometrical setup only contains the basin and the initial free-surface shape.
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the basin and free-surface\\
+    \textbf{New entity $\to$ Basic $\to$ Point}\smallskip\\
+    \includegraphics[scale=0.4,trim={0 13cm 40cm 7cm}, clip]{../fig/SPHERIC2/Salome/vertices_creation.png}
+  \item Create the lines linking the vertices together\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\smallskip\\
+    \includegraphics[scale=0.4,trim={40cm 10cm 0cm 11cm}, clip]{../fig/SPHERIC2/Salome/lines_creation.png}
+  \item Create the faces of the basin and free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Face}\smallskip\\
+    \includegraphics[scale=0.28,trim={18cm 8cm 5cm 7cm}, clip]{../fig/SPHERIC2/Salome/faces_creation.png}
+  \item Create a shell with the two faces of the free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.3,trim={12cm 8cm 15cm 7cm}, clip]{../fig/SPHERIC2/Salome/free_surf_shell.png}
+  \item Create a shell with the faces of the basin\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.3,trim={12cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/basin_shell.png}
+  \item Check the normals orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\smallskip\\
+    \includegraphics[scale=0.28,trim={12cm 7cm 12cm 8cm}, clip]{../fig/SPHERIC2/Salome/check_normals.png}
+  \item For the case with dynamic boundaries, we want the layers ot be created outwards, so we need to
+    create a second shell of the basin with reversed normals\\
+    \textbf{Repair $\to$ Change orientation}\smallskip\\
+    \includegraphics[scale=0.3,trim={12cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/revert_normals.png}
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create three cases, one for each type of boundary conditions\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.5,trim={0cm 26.5cm 45cm 1cm}, clip]{../fig/SPHERIC2/Salome/create_prepro_case.png}
+  \item Then, define the main boundary for each case, taking care to select the basin with reversed normals for the dynamic boundaries\\
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 6cm 40cm 26.5cm}, clip]{../fig/SPHERIC2/Salome/define_main_boundary.png}
+  \item Define the free-surface for the three cases\\
+    \textbf{SPH Preprocessor $\to$ Define free surface}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 6cm 40cm 26.5cm}, clip]{../fig/SPHERIC2/Salome/define_free_surface.png}
+  \item Edit the cases parameters, taking care to choose the corresponding boundary formulation\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={0cm 11cm 35cm 2cm}, clip]{../fig/SPHERIC2/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\smallskip\\
+    \includegraphics[scale=0.3,trim={0cm 15cm 28cm 2cm}, clip]{../fig/SPHERIC2/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis.
+    For each study, Salome creates a folder with the study name underscore presph at the same location as the hdf file.
+    This is where the preprocessor files are stored: for example, let us assume that the \cmd{Spheric2.hdf} file
+    is located at \cmd{$MY_STUDY_PATH/Spheric2.hdf}. Then the particle files for the case
+    with semi-analytical boundaries are located in:
+    \cmd{$MY_STUDY_PATH/Spheric2_presph/Spheric2SA}. The files are the following:\\
+    - \cmd{Spheric2SA.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{Spheric2SA.basin.h5sph}: GPUSPH file for the basin\\
+    - \cmd{Spheric2SA.basin.vtu}: vtu file of the basin, can be opened in Paravis\\
+    - \cmd{Spheric2SA.fluid.vtu}: vtu file of the fluid, can be opened in Paravis\\
+    - \cmd{basin.stl}: stl file of the basin, can be used for visualisation purposes\\
+    - \cmd{basin.obj}: file for handling collisions with the basin in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create four cases, one for each of the tests of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 25cm 48cm 2cm}, clip]{../fig/SPHERIC2/Salome/create_solver_case.png}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary formulation\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/SPHERIC2/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters and set them to the ones of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/SPHERIC2/Salome/edit_simulation_parameters.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \end{itemize}
+\end{enumerate}
 
 \subsection{Results}
 
-The results of this case are compared with either the experimental results from Kleefsman et al. \citep{Kleefsman} and with the numerical results of Leroy \citep{AgnesLeroy}, where applicable. The results of the tests are in the form of pressure values recorded in time at the different sensors and in values of fluid height at the different height sensors in time. Figure (\ref{fig:Crash}) shows snapshots at the time $t^+=2.95$ of different simulations. The image at the top left of figure (\ref{fig:Crash}) is of test 1, the top right is representative of the coarse tests (2,3,4,5)\footnote{Presenting snapshots of all the tests of similar coarseness is tedious and redundant.} and the image at the bottom, the refined test 6\footnote{For the definition of tests, refer to table 5 at the end of section 2.3.1.}. The snapshot of test 1 shows particles stuck to the basin walls, as was reported in section 5.2 of Leroy's thesis \citep{AgnesLeroy}, and this is due to the high viscosity of the fluid in the system. Test 1 will be the only study compared with the Leroy's results. The snapshot of the coarse simulations presents a significant difference in fluid crashing behavior when compared to the image of the finer simulation seen below it. A possible explanation for this discrepancy is that the finer the fluid particles in the model are, the more they approximate the mass of the physical fluid, and thus the more the energy of the numerical model approximates the physical system is. Theoretically, the total mass of the physical fluid in this model should be $m= 675.4 $ kg, whereas, the fluid used in test 6 has a total mass of $m = 670.890$ kg and the the fluid used in the rest of the tests, a total mass of $m=658.735$ kg. Since the finer simulation uses a larger total mass, and by extension the energy, the finer simulation is expected to have more pronounced crashing behavior, as is seen in the snapshots. Test 6 also shows better performance when the results from the testpoints are compared to the results of experiments (2,3,4,5). 
+The results of this case are compared with the experimental results from Kleefsman et al. \citep{Kleefsman}.
+The results of the tests are in the form of pressure values recorded in time at the different sensors
+and in values of fluid height at the different height sensors in time.
+Figure (\ref{fig:Crash}) shows snapshots at the time $t^+=2.95$ of the simulation with semi-analytical boundaries.
 
 %%%%%%%%%% CRASH
 \begin{figure}[H]
-
-	\begin{subfigure}[b]{0.7\linewidth}
-	 \centering
-	\hspace*{3.3cm} \includegraphics[scale=0.45]{figures/ScaleCrash.png}
-	 \end{subfigure}	
-	
-  \begin{subfigure}[b]{0.75\linewidth}
+  \begin{subfigure}[b]{0.7\linewidth}
     \centering
-     \hspace*{-5cm} \includegraphics[width=0.75\linewidth]{figures/ViscousCrash3.png} 
-  \end{subfigure}%%
-  \begin{subfigure}[b]{0.75\linewidth}
+    \hspace*{3.3cm} \includegraphics[scale=0.45]{../fig/SPHERIC2/Nahed_results/ScaleCrash.png}
+  \end{subfigure}	
+  
+  
+  \begin{subfigure}[b]{1\linewidth}
     \centering
-    \hspace*{-10cm} \includegraphics[width=0.75\linewidth]{figures/CoarseCrash3.png} 
+    \includegraphics[width=1\linewidth]{../fig/SPHERIC2/Nahed_results/CoarseCrash3.png} 
   \end{subfigure} 
-	\vspace*{2pt}
-	
-	\begin{subfigure}[b]{1\linewidth}
-	\centering
-	\includegraphics[width=1\linewidth]{figures/RefinedCrash3.png}
-	\end{subfigure}
-	
-	\caption{The images shown above represent snapshots at $t^+ = 2.95 $ for three different simulations. The viscous and coarse test, $\delta r = 0.017651 \; m, \nu = 0.01 \; m^2/s$, is seen at the top left, the coarse type simulation, $\delta r = 0.017651 \; m, \nu = 1 \times 10^{-6} \; m^2/s$, is seen at the top right and the refined simulation from test 6, $\delta r = 0.0056 \; m, \nu = 1 \times 10^{-6} \; m^2/s$ is seen at the bottom center. The velocities of the three snapshots follow the color scale  seen above.}
-	\label{fig:Crash}
+  
+  \caption{The image shown above is a snapshot of the Spheric2 simulation at $t^+ = 2.95 $ using semi-analytical boundaries.
+    The velocities follow the color scale  seen above.}
+  \label{fig:Crash}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%Experiments 2 to 5
 \begin{figure}[H]
-  	 \centering 	
-	 \begin{subfigure}[b]{1\linewidth}
-	    \includegraphics[width=1\linewidth]{figures/DATAforREPORT/SPHERIC2SA/Experiment1/C_P2_P5_H2_H4.png} 
-	    \caption{Test 1}
-	 \end{subfigure}%% 
-  
-  	 \begin{subfigure}[b]{1\linewidth}
-    		\includegraphics[width=1\linewidth]{figures/DATAforREPORT/SPHERIC2SA/Experiment2/B_P2_P5_H2_H4.png} 		
-		\caption{Test 2}
- 	 \end{subfigure}   
-\end{figure}
-
-\begin{figure}[H]\ContinuedFloat
-  	\begin{subfigure}[b]{1\linewidth}
-    		 \includegraphics[width=1\linewidth]{figures/DATAforREPORT/SPHERIC2SA/Experiment3/B_P2_P5_H2_H4.png} 
-    		 \caption{Test 3}
-  	\end{subfigure}%%
-  	
-  	\begin{subfigure}[b]{1\linewidth}
-    		\includegraphics[width=1\linewidth]{figures/DATAforREPORT/SPHERIC2SA/Experiment4/B_P2_P5_H2_H4.png} 
-		\caption{Test 4}  	
-  	\end{subfigure}
-  	
-\end{figure}  	 
-  
-\begin{figure}[H]\ContinuedFloat  
-  	\begin{subfigure}[b]{1\linewidth}
-   		\includegraphics[width=1\linewidth]{figures/DATAforREPORT/SPHERIC2SA/Experiment5/B_P2_P5_H2_H4.png} 
-		\caption{Test 5}
-  	\end{subfigure}%% 
-
-     \caption{This figure lists the results obtained for test 1 to 5, with the results for each test paired together. Listing all the data is tedious and redundant. The data from P2 and P5, are on the top 2 sub-plots, and the data from H2 and H4 on the bottom 2 sub-plots of each sub-figure denoted by (a,b,c,d,e). The red plots display the data as obtained from GPUSPH. No FV data exists for the height sensors in (a), and WCSPH and ISPH refer to weakly compressible and incompressible SPH.}
+  \centering 	
+    \includegraphics[width=1\linewidth]{../fig/SPHERIC2/Nahed_results/B_P2_P5_H2_H4.png}
+    \caption{This figure shows the results obtained for the Spheric2 case, with semi-analytical boundaries and the $k-\epsilon$ turbulence model.
+      The data from P2 and P5, are on the top 2 sub-plots, and the data from H2 and H4 on the bottom 2 sub-plots.
+      The red lines display the data as obtained from GPUSPH, while the black lines represent the experiments.}
 \label{fig:TestpointsAll}
 \end{figure}
 %%%%%%%%%%%%%%%%%
 
-In analyzing the data out of the testpoints of test 1, we refer to figure (\ref{fig:TestpointsAll}a). WCSPH and ISPH refer, respectively, to the two SPH models Leroy studied, in which she performed simulations using a weakly compressible and an incompressible SPH model \citep{AgnesLeroy}. As is seen in the plots, GPUSPH\footnote{As mentioned previously, GPUSPH is a WCSPH solver.} largely outperforms the WCSPH model used by Leroy. GPUSPH has significantly lower levels of noise when compared to the previous WCSPH models used. However, GPUSPH does not significantly outperform the ISPH model (except by not realizing negative pressures) used by Leroy, when their data is compared to the FV results seen on the pressure testpoint plots. \\ 
 
-In analyzing the tests compared against Kleefsman et al.'s experiments, it is important to note that simulations that were run with the $k$--$\epsilon$ turbulent model turned on, generally faired better than their counterparts with the model turned off. This is seen in the significant reduction of noise in the simulation results between tests 2 and 3, and between tests 4 and 5, in which tests 2 and 4 faired better than their counterparts. Next, we look at the differences between the simulations with different Ferrari coefficient values $f$. Between tests 2 and 4 (with $k$--$\epsilon$), we note that test 4's use of $f = 0.1$ significantly reduces the solver's generation of large pressure peaks. A possible explanation to this reduction in pressure peaks is because the Ferrari coefficient adds more weight to the density correcting terms used in the algorithm (see section 1.2.6); therefore reducing errors in density and in turn pressure.
-
-\begin{figure}[H]
-	\centering
-  \begin{subfigure}[b]{1\linewidth}
-      \includegraphics[width=1\linewidth]{figures/DATAforREPORT/SPHERIC2SA/Experiment6/B_P1toP4.png}
-      \caption{P1 to P4}
-  \end{subfigure}%%
-  
-  \begin{subfigure}[b]{1\linewidth}
-   		\includegraphics[width=1\linewidth]{figures/DATAforREPORT/SPHERIC2SA/Experiment6/B_P5toP8.png} 
-		\caption{P5 to P8}  
-  \end{subfigure} 
-  
-\end{figure}
-
-\begin{figure}[H]\ContinuedFloat    
-
-  \begin{subfigure}[b]{1\linewidth}
-   		\includegraphics[width=1\linewidth]{figures/DATAforREPORT/SPHERIC2SA/Experiment6/B_WaveGauges.png} 
- 		\caption{H1 to H4} 
-  \end{subfigure} 
-  
-  \caption{This figure lists the results obtained for test 6, with the results paired as indicated above. The complete set of results for this test are displayed because of the strong agreement between the simulation and Kleefsman's results. The set of parameters used in test 6 are the most effective out of all the non-viscous experiments, and thus a complete display of the data is warranted.}
-
-\end{figure}
-
-
-Referring to test 6, which uses both the $k$--$\epsilon$ and $f=0.1$, we note that the data admits significantly better results than those of tests 2 to 5. Most of the unwanted large pressure peaks are no longer resolved except in testpoint P8. Most of the noise is also cleared away. However, as is the case with some tests in GPUSPH, negative pressures can often erroneously quantify\footnote{This is due to Cole's equation of state's \ref{eq:normal compressibility} sensitivity to density fluctuations.}, and this is issue is not cleared in this test, as is seen in testpoints P3, P5, P6, P7 and P8. The water height sensors also reveal test 6's agreement with Kleefsman et al.'s data. However, noise is apparent in sensor H1 and H2, and that is due to the violent crashing that occurs when the fluid impacts the object upstream of it. Parts of the fluid are projected violently and the height sensors are thus perturbed with sensory peaks, as is seen in sensors H1 and H2. The gaps seen in the height data correspond to instances where gaps between the fluid occur as the fluid responds to the impact. The gaps do not significantly disturb the flow of data. It is important to note that the data in all of the sensors admits a small phase lag. It is not clear why this occurs, however a future test studying the fluid's response change as a result of a non-instantaneous gate release will be beneficial\footnote{It is important that the future modeler model the gate release based on the gate release parameters used in Kleefsman et al.'s work.}.  
+In analyzing the tests compared against Kleefsman et al.'s experiments,
+it is important to note that the simulation was run with the $k$--$\epsilon$
+turbulent model turned on, which improves the results compared to a simulation without
+a turbulence model since it reduces the noise, especially in the pressure signals. 
+It is also noteworthy that with a finer discretisation, the results would improve significantly at all probes
+and wave gages.
 
 \section{Hydrostatic basin}
 
 \subsection{Case Study Setup and Details}
 \vspace*{2pt}
 \begin{itemize}
-\item \textbf{Description of the Problem}: We consider a simple 3-dimensional rectangular basin which is
+\item \textbf{Description of the case}: We consider a simple 3-dimensional rectangular basin which is
   filled with fluid particles, and subjected to a gravity-like field force acting in a parallel and
-  opposite manner with respect to the bottom's normal. Figure (\ref{fig:HydrostaticBasin}) represents the
-  geometric setup of this case. The problem is non-dimensionalized by using the system's scale length $L$
+  opposite manner with respect to the bottom's normal. The case is non-dimensionalized by using the system's scale length $L$
   and other physical parameters. The non-dimensional parameters and variables are as seen below:   
   \begin{equation}
     \begin{array}{l}
@@ -249,7 +263,7 @@ Referring to test 6, which uses both the $k$--$\epsilon$ and $f=0.1$, we note th
 \item \textbf{The Numerical and Physical Parameters Studied:} This study sets up three tests.
   We look to study the stability of hydrostatic iterations in GPUSPH with three boundary formulations available in GPUSPH:
   Lennard-Jones, Dynamic boundaries and Semi-analytical boundaries.
-  The particle size of this problem is related to particle number in the problem through the following representation,
+  The particle size of this case is related to particle number in the case through the following representation,
   where \textit{N} is the particle number per unit
   \textit{L}\footnote{The basin's boundaries slightly reduce the expected number of particles (per unit $L$)
     along the \textit{x} and \textit{y} axes due to the fluid being constrained from multiple sides,
@@ -259,16 +273,19 @@ Referring to test 6, which uses both the $k$--$\epsilon$ and $f=0.1$, we note th
   \end{equation}            
   
   \begin{itemize}
-  \item Numerical Speed of Sound: ${c_n} = 40 \; m/s$
-  \item Smoothing Length to Particle Size Ratio: $\dfrac{h}{\delta r}=1.3$ 
-  \item Kinematic Viscosity\footnote{To be used in the numerical setup only}: $\nu = 0.05 \; {m^2}/{s}$
-  \item The Gravity Field is: $g = -1.0 \; {m}/{s^2}$
-  \item The Density is: $\rho = 1.0 \; {kg}/{m^3} $
-  \item The Length Scale is: $L = 1.0 \; m$
-  \item Simulation Time: $t^+ = 600 $ 
+  \item numerical Speed of Sound: ${c_n} = 40 \; m/s$
+  \item smoothing Length to Particle Size Ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item kinematic viscosity: $\nu = 0.05 \; {m^2}/{s}$
+  \item gravity field: $g = -1.0 \; {m}/{s^2}$
+  \item fluid density: $\rho = 1.0 \; {kg}/{m^3} $
+  \item length scale: $L = 1.0 \; m$
+  \item simulation time: $t^+ = 600 $ 
   \end{itemize}
-  
 \end{itemize}
+
+\subsection{Setup in Salome}
+
+The same steps for the setup can be followed as for the Spheric2 test-case (see the section \ref{sec:salome_spheric2}).
 
 \subsection{Results}
 Modeling hydrostatic phenomenon is not trivial in SPH due to the tendency of the particles
@@ -279,101 +296,52 @@ mathematical models in SPH and efficient algorithms, hydrostatic phenomena can b
 
 The results of this case show GPUSPH's capacity at resolving hydrostatic phenomena. The results obtained show
 both the pressure profiles at a their initial and final conditions, and the L$_2$ error's progression in time.
-The L$_2$ error\footnote{The L$_2$ error used in this case is defined by equation (\ref{L2Error}), but with
-  the scalar pressure field in place of the vector velocity field.} is important as it shows whether
-GPUSPH displays converging numerical results for hydrostatic phenomena. Tests 1 and 2 are shown in
-figures (\ref{fig:HydroExp1}), (\ref{fig:HydroExp1L2}) and (\ref{fig:HydroExp2}), (\ref{fig:HydroExp2L2})
-respectively. As can be seen from figure (\ref{fig:HydroExp1}) and (\ref{fig:HydroExp2}) the pressure
-profiles at the initial state $t^+=0$ and the final state $t^+=600$ are displayed. The initial state of
-the particles in the basin is initialized with a hydrostatic profile, where the particles are arranged
-in a Cartesian manner\footnote{As our figures are two dimensional, they do not explicity show the total
+The L$_2$ error is important as it shows whether
+GPUSPH displays converging numerical results for hydrostatic phenomena.
+The results with semi-analytical boundaries are shiwn in the figures \ref{fig:HydroExp2} and \ref{fig:HydroExp2L2}.
+The pressure profiles at the initial state $t^+=0$ and the final state $t^+=600$ are displayed in the figure \ref{fig:HydroExp2}.
+The initial state of the particles in the basin is initialized with a hydrostatic profile, where the particles are arranged
+on a Cartesian grid\footnote{As our figures are two dimensional, they do not explicity show the total
   number of particles in the basin, since most of the particles exist initially alongside each other on flat planes.
   At later time steps however, the particles rearrange and are found at different positions, as is evident
-  by the plots at the final iteration.} at every $\delta r$. Test 1's results at the final time step show
-a deviation of the particles' pressure distribution away from the reference distribution. The results of
-test 1's final iteration show that there is an almost constant deviation, w.r.t the z-axis, in the
-pressure values of the particles. The particles also show a small drift in their vertical positions,
-where the particles move slightly below the initially defined surface at $z^+=1$, and they move closer
-to the basin floor, moving below the initially lowest particle layer at $z^+ = 0.1$. Although test 1's
-results at the final iteration appear to be significantly erroneous, the L$_2$ error in time seen in
-figure (\ref{fig:HydroExp1L2}) reveals that the solution is in a convergent trend, because of the
-negative slopes and stable behavior of the error. This brings into context GPUSPH's current capacity
-at simulating stable hydrostatic phenomena, and looking at test 2, the results also reveal positive results.
-Test 2 in figure (\ref{fig:HydroExp2}b) shows that as is seen in test 1, the particles exhibit a deviation
-in their pressure distribution, and they reveal a small drift in position. The drift in vertical position
+  by the plots at the final iteration.} at every $\delta r$.
+
+Test 2 in figure (\ref{fig:HydroExp2}b) shows that the particles exhibit a deviation
+in their pressure distribution, and reveals a small drift in position. The drift in vertical position
 is also away from the initially defined surface at $z^+=0$ and under the initially lowest particle layer
-at $z^+=0.05$. To quantify how these deviations effect the convergence of model, the L$_2$ error, in time,
-is analyzed from figure (\ref{fig:HydroExp2L2}). Although initially the L$_2$ error in test 2 is $ >50\% $
-of the initial L$_2$ error in test 1, the slope, w.r.t time, of the L$_2$ in test 2 drops more rapidly
-than in test 1. This results in an L$_2$ error at $t^+=600$ to be $\approx 50\%$ of the respective L$_2$
-error in test 1. The results of test 3 did not show any effective improvement from the results of test 2;
-therefore its results are not displayed, and the \textit{nlexpansion} factor chosen does not significantly alter the solver's results.\\ 
+at $z^+=0.05$. To quantify how these deviations effect the convergence of the model, the L$_2$ error, in time,
+is analyzed from figure (\ref{fig:HydroExp2L2}). The results show an overall good behaviour of GPUSPH.\\
 
 The analysis of the results of this case study show that GPUSPH is effectively capable of simulating
-hydrostatic phenomena since the solvers show convergent behavior. The convergent behavior is evident
-for both tests and is more pronounced for models with finer particle distributions, as seen in test 2.
-However, more studies are to be performed in order to study under which parameter settings do
-GPUSPH's solvers lose the good convergence shown here. This is required because it is important
-to know what and where the limitations of a solver are. 
+hydrostatic phenomena since it shows a convergent behavior. 
 \vfill
-  
 
 \begin{figure}[H]
-             
-  \begin{subfigure}{.9\textwidth}
+  \begin{subfigure}{.5\textwidth}
     \centering
-    \includegraphics[width=.9\linewidth]{figures/DATAforREPORT/Hydrostatic/10Particles/Pressure_10particles_Initial.png}
+    \includegraphics[trim={1.5cm 0 1.8cm 0}, clip, width=.9\linewidth]{../fig/Hydrostatic/20Particles/Pressure_20particles_Initial.png}
     \vspace*{5pt}
     \caption{Initial State}
   \end{subfigure}%
-  
-  \begin{subfigure}{.9\textwidth}
+  \begin{subfigure}{.5\textwidth}
     \centering 
-    \includegraphics[width=.9\linewidth]{figures/DATAforREPORT/Hydrostatic/10Particles/Pressure_10particles_Final.png}
-    \caption{Final State}
-  \end{subfigure}
-  
-  \caption{The images seen above present the numerical and theoretical pressure profiles along the basin's height. The initial profile at $t^+=0$ is seen at the top and with the final pressure profile at $t^+=600$ in the image just under. The results are for test 1 of section 2.2.1. It is important to note that the theoretical profile is based on the initial distribution of the particles and thus extends from the particles at the surface of the basin at $z^+=1$ to the bottom particle's postion at a distance $\delta r = 0.1 $ from the floor at $z^+=0$. }
-  \label{fig:HydroExp1}
-\end{figure}
-
-\begin{figure}[H]
-  
-  \begin{subfigure}{.9\textwidth}
-    \centering
-    \includegraphics[width=.9\linewidth]{figures/DATAforREPORT/Hydrostatic/20Particles/Pressure_20particles_Initial.png}
-    \vspace*{5pt}
-    \caption{Initial State}
-  \end{subfigure}%
-  
-  \begin{subfigure}{.9\textwidth}
-    \centering 
-    \includegraphics[width=.9\linewidth]{figures/DATAforREPORT/Hydrostatic/20Particles/Pressure_20particles_Final.png}
+    \includegraphics[trim={1.5cm 0 1.8cm 0}, clip, width=.9\linewidth]{../fig/Hydrostatic/20Particles/Pressure_20particles_Final.png}
     \caption{Final State}        
   \end{subfigure}
-  
-  \caption{The images seen above present the numerical and theoretical pressure profiles along the basin's height. The initial profile at $t^+=0$ is seen at the top and with the final pressure profile at $t^+=600$ in the image just under. The results are for test 2 of section 2.2.1. It is important to note that the theoretical profile is based on the initial distribution of the particles and thus extends from the particles at the surface of the basin at $z^+=1$ to the bottom particle's postion at a distance $\delta r = 0.05 $ from the floor at $z^+=0$. }
-  
+  \caption{Hydrostatic basin case: numerical and theoretical pressure profiles along the basin's height.
+    The initial profile at $t^+=0$ is seen at the top and with the final pressure profile at $t^+=600$ in the image just under.
+    The results are for semi-analytical boundaries. It is important to note that the theoretical profile is
+    based on the initial distribution of the particles and thus extends from the particles at the surface of the
+    basin at $z^+=1$ to the bottom particle's postion at a distance $\delta r = 0.05 $ from the floor at $z^+=0$. }
   \label{fig:HydroExp2}
-  
 \end{figure}
 
 \begin{figure}[H]
-  
   \centering
-  \includegraphics[scale=0.6]{figures/DATAforREPORT/Hydrostatic/10Particles/Hydrostatic_L2_10particles.png}
-  \caption{The plot seen above represents the L$_2$ error as it progresses in time for test 1 of section 2.2.1, where we note the decreasing trend of the error in time. The data is presented as a semi-log plot. }
-  \label{fig:HydroExp1L2}	
-\end{figure}
-
-\begin{figure}[H]
-  
-  \centering
-  \includegraphics[scale=0.6]{figures/DATAforREPORT/Hydrostatic/20Particles/L2_Hydrostatic20Part.png}
+  \includegraphics[scale=0.6]{../fig/Hydrostatic/20Particles/L2_Hydrostatic20Part.png}
   \caption{The plot seen above represents the L$_2$ error as it progresses in time for test 2 of section 2.2.1, where we note the decreasing trend of the error in time. The data is presented as a semi-log plot. }
   \label{fig:HydroExp2L2}
 \end{figure}
-
 
 \bibliography{../gpusph-manual.bib}
 
