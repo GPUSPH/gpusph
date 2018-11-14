@@ -317,6 +317,7 @@ struct ArgSelector :
 	virtual public MultiplexSubclass<Arg5,5>,
 	virtual public MultiplexSubclass<Arg6,6>,
 	virtual public MultiplexSubclass<Arg7,7>,
+	virtual public MultiplexSubclass<Arg8,8>,
 	virtual public MultiplexSubclass<Arg9,9>,
 	virtual public MultiplexSubclass<Arg10,10>,
 	virtual public MultiplexSubclass<Arg11,11>,
