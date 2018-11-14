@@ -32,7 +32,11 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		viscosity<DYNAMICVISC>,
+		rheology<NEWTONIAN>,
+		turbulence_model<LAMINAR_FLOW>,
+		computational_visc<KINEMATIC>,
+		visc_model<MORRIS>,
+		visc_average<ARITHMETIC>,
 		periodicity<PERIODIC_XY>,
 		boundary<DYN_BOUNDARY>
 	).select_options(
