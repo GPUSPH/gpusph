@@ -187,7 +187,8 @@ public:
 	// overriding the choice, but for backwards compatibility we should still assume harmonic averaging
 	// when legacy viscous specifications have been used
 	static const AverageOperator viscavgop = (
-		(_legacyvisctype != INVALID_VISCOSITY) ? // was there a legacy specification?
+		((_sph_formulation == SPH_GRENIER) && // when using Grenier's formulation
+		(_legacyvisctype != INVALID_VISCOSITY)) ? // was there a legacy specification?
 		AverageOperator::HARMONIC : // yes, assume harmonic averaging 
 		_viscavgop // no, take what the user gave us
 	);
