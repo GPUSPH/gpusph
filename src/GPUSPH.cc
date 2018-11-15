@@ -337,7 +337,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->keep_going = false;
 	} else {
 		gdata->keep_repacking = false;
-		gdata->keep_going = true;
+		if (!gdata->quit_request) gdata->keep_going = true;
 	}
 
 	// initialize the buffers
@@ -838,7 +838,7 @@ GPUSPH::runRepackingStep(const flag_t integrator_step) {
 	}
 	// -----------------------------------------
 
-	// put all the updated stuff in the READ positions, ready for the next step
+	// put all the updated stuff in the READ position, ready for the next step
 	doCommand(SWAP_BUFFERS, POST_REPACK_SWAP_BUFFERS);
 }
 
@@ -987,16 +987,26 @@ bool GPUSPH::runRepacking() {
 			printf("Repacking algorithm is finished\n");
 			printStatus();
 			gdata->t = -1.;
-			// Disable free surface boundary particles
 			printf("Disable free-surface particles\n");
+			// First, put POS and VERTICES in the write position
+			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VERTICES);
+			// Disable the free surface boundary particles
 			doCommand(DISABLE_FREE_SURF_PARTS);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
+				// Put POS and VERTICES back in the read position
 			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VERTICES);
 
-			// The particles are actually deleted in the calcHash and
-			// reorderDataAndFindCellStart functions
+			// The free-surface particles are actually deleted in the calcHash and
+			// reorderDataAndFindCellStart functions, so call buildNeibList now
 			buildNeibList();
+			// In the SA case, gamma needs to be recomputed after
+			// the free-surface boundary has been removed
+			if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+				// re-set density and other values for bound. elements and vertices
+				// and set value of gamma for further simulation using the quadrature formula
+				saBoundaryConditions(INITIALIZATION_STEP);
+			}
 			// Write the final results
 			check_write(we_are_done);
 			// No command after keep_repacking has been unset
@@ -1007,6 +1017,7 @@ bool GPUSPH::runRepacking() {
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata->keep_repacking = false;
+		gdata->keep_going = false;
 		// the loop is being ended by some exception, so we cannot guarantee that
 		// all threads are alive. Force unlocks on all subsequent barriers to exit
 		// as cleanly as possible without stalling
@@ -2422,8 +2433,11 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	if (cFlag & INITIALIZATION_STEP) {
 
-		// if no restart
-		if (clOptions->resume_fname.empty()) {
+		// If there is no restart, compute gamma.
+		// In case of repacking, saBoundaryConditions(INITIALIZATION_STEP)
+		// is called at the end of the repacking to fix gamma
+		// after the free-surface has been disabled
+		if (clOptions->resume_fname.empty() || gdata->keep_repacking) {
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
 
 			// compute normal for vertices
@@ -2467,7 +2481,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	}
 
 	// impose open boundary conditions
-	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET && !gdata->keep_repacking) {
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
 		if (MULTI_DEVICE && problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
