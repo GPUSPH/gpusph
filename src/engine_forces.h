@@ -165,6 +165,25 @@ public:
 		const	float	dt,
 		const	bool compute_object_forces) = 0;
 
+	/// Repack forces step.
+	/// \return the number of blocks launched (which is the number of blocks to
+	/// launch dtreduce on)
+	virtual uint
+	repackstep(
+		const BufferList& bufread,
+		BufferList& bufwrite,
+		const	uint	*cellStart,
+				uint	numParticles,
+				uint	fromParticle,
+				uint	toParticle,
+				float	deltap,
+				float	slength,
+				float	dtadaptfactor,
+				float	influenceradius,
+		const	float	epsilon,
+				uint	cflOffset,
+		const	float	dt) = 0;
+
 	// Reduction methods
 
 	/// Get number of elements needed for fmax

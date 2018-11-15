@@ -76,6 +76,7 @@ private:
 
 	// other vars
 	bool initialized;
+	bool repacked;
 
 	// constructor and copy/assignment: private for singleton scheme
 	GPUSPH();
@@ -166,6 +167,10 @@ private:
 
 	void check_write(const bool);
 
+	// perform a repacking step
+	void runRepackingStep(const flag_t integrator_step);
+	// compute the total kinetic energy for repacking
+	float computeKineticEnergy();
 	// refactored code by splitting the two integrator steps
 	void runIntegratorStep(const flag_t integrator_step);
 	void runEnabledFilters(const FilterFreqList& enabledFilters);
@@ -179,6 +184,7 @@ public:
 
 	// (de)initialization (include allocation)
 	bool initialize(GlobalData* _gdata);
+	bool runRepacking();
 	bool finalize();
 
 	/*static*/ bool runSimulation();

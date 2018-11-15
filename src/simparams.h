@@ -177,9 +177,9 @@ typedef struct SimParams {
 
 	/** \name Call back and post-processing related parameters
 	 * @{ */
-	bool			gcallback;				///< True if using a variable gravity set trough a callback function
-	bool			calc_energy;			///< True if we want to compute system energy at save time
-	GageList		gage;					///< Water gages list
+	bool			gcallback;		///< True if using a variable gravity set trough a callback function
+	bool			calc_energy;		///< True if we want to compute system energy at save time
+	GageList		gage;			///< Water gages list
 	/** @} */
 
 	/** \name Floating/moving bodies related parameters
@@ -198,6 +198,13 @@ typedef struct SimParams {
 	 * @{ */
 	float			epsilon;				///< If \f$ |r_a - r_b| < \epsilon \f$ two positions are considered identical. TODO: check that the test is done on a relative quantity
 	/** @} */
+	/** \name Repacking parameters
+	 * @{ */
+	uint			repack_maxiter; //< maximum number of iterations for repacking
+	float			repack_a;	//< repacking parameter 'a' for mixing intensity, recommended value: 1
+	float			repack_alpha;	//< repacking parameter 'alpha' for velocity damping, recommended value: 0.1
+	/** @} */
+
 
 	template<typename Framework>
 	SimParams(Framework *simframework) :
@@ -245,7 +252,10 @@ typedef struct SimParams {
 		numforcesbodies(0),
 		numbodies(0),
 		numOpenBoundaries(0),
-		epsilon(5e-5f)
+		epsilon(5e-5f),
+		repack_maxiter(2000),
+		repack_a(0.1f),
+		repack_alpha(0.01f)
 	{}
 
 	/** \name Kernel parameters related methods

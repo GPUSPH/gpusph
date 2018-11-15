@@ -1659,8 +1659,9 @@ void GPUWorker::simulationThread() {
 
 		// if anything else failed (e.g. another worker was assigned an
 		// non-existent device number and failed to complete initialize()
-		// correctly), we shouldn't do anything. So check that keep_going is still true
-		if (gdata->keep_going)
+		// correctly), we shouldn't do anything.
+		// So check that keep_going or keep_repacking is still true
+		if (gdata->keep_going || gdata->keep_repacking)
 			uploadSubdomain();
 
 		if (gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET)
@@ -1672,7 +1673,7 @@ void GPUWorker::simulationThread() {
 
 		// TODO
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
-		while (gdata->keep_going) {
+		while (gdata->keep_going || gdata->keep_repacking) {
 			switch (gdata->nextCommand) {
 				// logging here?
 			case IDLE:
@@ -1803,6 +1804,10 @@ void GPUWorker::simulationThread() {
 				if (dbg_step_printf) printf(" T %d issuing DISABLE_OUTGOING_PARTS:\n", deviceIndex);
 				kernel_disableOutgoingParts();
 				break;
+			case DISABLE_FREE_SURF_PARTS:
+				if (dbg_step_printf) printf(" T %d issuing DISABLE_FREE_SURF_PARTS:\n", deviceIndex);
+				kernel_disableFreeSurfParts();
+				break;
 			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_SEGMENT_BOUNDARY_CONDITIONS\n", deviceIndex);
 				kernel_saSegmentBoundaryConditions();
@@ -1879,7 +1884,7 @@ void GPUWorker::simulationThread() {
 				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
 				exit(1);
 			}
-			if (gdata->keep_going) {
+			if (gdata->keep_going || gdata->keep_repacking) {
 				/*
 				// example usage of checkPartValBy*()
 				// alternatively, can be used in the previous switch construct, to check who changes what
@@ -1897,6 +1902,7 @@ void GPUWorker::simulationThread() {
 		cerr << "Device " << deviceIndex << " thread " << thread_id.get_id() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
 		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
+		const_cast<GlobalData*>(gdata)->keep_repacking = false;
 		const_cast<GlobalData*>(gdata)->ret |= 1;
 	}
 
@@ -2115,30 +2121,51 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 	const bool firstStep = (step == 1);
 
 	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
-	bufwrite.add_state_on_write("forces" + to_string(step));
 
-	auto ret = forcesEngine->basicstep(
-		m_dBuffers.getReadBufferList(),
-		bufwrite,
-		m_dRbForces,
-		m_dRbTorques,
-		m_dCellStart,
-		m_numParticles,
-		fromParticle,
-		toParticle,
-		gdata->problem->m_deltap,
-		m_simparams->slength,
-		m_simparams->dtadaptfactor,
-		m_simparams->influenceRadius,
-		m_simparams->epsilon,
-		m_dIOwaterdepth,
-		cflOffset,
-		step,
-		(firstStep ? 0.5f : 1.0f)*gdata->dt,
-		(m_simparams->numforcesbodies > 0) ? true : false);
+	if (!gdata->keep_repacking) {
+		bufwrite.add_state_on_write("forces" + to_string(step));
 
-	bufwrite.clear_pending_state();
-	return ret;
+		auto ret = forcesEngine->basicstep(
+				m_dBuffers.getReadBufferList(),
+				bufwrite,
+				m_dRbForces,
+				m_dRbTorques,
+				m_dCellStart,
+				m_numParticles,
+				fromParticle,
+				toParticle,
+				gdata->problem->m_deltap,
+				m_simparams->slength,
+				m_simparams->dtadaptfactor,
+				m_simparams->influenceRadius,
+				m_simparams->epsilon,
+				m_dIOwaterdepth,
+				cflOffset,
+				step,
+				(firstStep ? 0.5f : 1.0f)*gdata->dt,
+				(m_simparams->numforcesbodies > 0) ? true : false);
+		bufwrite.clear_pending_state();
+		return ret;
+	} else {
+		bufwrite.add_state_on_write("forces_repack");
+
+		auto ret = forcesEngine->repackstep(
+				m_dBuffers.getReadBufferList(),
+				bufwrite,
+				m_dCellStart,
+				m_numParticles,
+				fromParticle,
+				toParticle,
+				gdata->problem->m_deltap,
+				m_simparams->slength,
+				m_simparams->dtadaptfactor,
+				m_simparams->influenceRadius,
+				m_simparams->epsilon,
+				cflOffset,
+				gdata->dt);
+		bufwrite.clear_pending_state();
+		return ret;
+	}
 }
 
 /// Run the steps necessary for forces execution
@@ -2394,7 +2421,7 @@ void GPUWorker::kernel_forces()
 	// gdata->dts is directly used instead of handling dt1 and dt2
 	//printf(" Step %d, bool %d, returned %g, current %g, ",
 	//	gdata->step, firstStep, returned_dt, gdata->dts[devnum]);
-	if (firstStep)
+	if (firstStep || gdata->keep_repacking)
 		gdata->dts[m_deviceIndex] = returned_dt;
 	else
 		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
@@ -2410,23 +2437,29 @@ void GPUWorker::kernel_euler()
 
 	const int step = get_step_number(gdata->commandFlags);
 	const bool firstStep = (step == 1);
+	bool repackStep = false;
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("euler" + to_string(step));
+
+	if (!gdata->keep_repacking) {
+		bufwrite.add_state_on_write("euler" + to_string(step));
+	} else {
+		bufwrite.add_state_on_write("euler_repack");
+		repackStep = true;
+	}
 
 	integrationEngine->basicstep(
-		m_dBuffers.getReadBufferList(),	// this is the read only arrays
-		bufwrite,
-		m_dCellStart,
-		m_numParticles,
-		numPartsToElaborate,
-		gdata->dt, // m_dt,
-		gdata->dt/2.0f, // m_dt/2.0,
-		step,
-		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
-		m_simparams->slength,
-		m_simparams->influenceRadius);
-
+			m_dBuffers.getReadBufferList(),	// this is the read only arrays
+			bufwrite,
+			m_dCellStart,
+			m_numParticles,
+			numPartsToElaborate,
+			gdata->dt, // m_dt,
+			gdata->dt/2.0f, // m_dt/2.0,
+			repackStep ? 2 : step,
+			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+			m_simparams->slength,
+			m_simparams->influenceRadius);
 	bufwrite.clear_pending_state();
 
 }
@@ -2941,6 +2974,27 @@ void GPUWorker::kernel_disableOutgoingParts()
 				bufread.getData<BUFFER_INFO>(),
 				m_numParticles,
 				numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
+}
+
+void GPUWorker::kernel_disableFreeSurfParts()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const& bufread = m_dBuffers.getReadBufferList();
+	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufwrite.add_state_on_write("disableFreeSurfParts");
+
+	bcEngine->disableFreeSurfParts(
+			bufwrite.getData<BUFFER_POS>(),
+			bufwrite.getData<BUFFER_VERTICES>(),
+			bufread.getData<BUFFER_INFO>(),
+			m_numParticles,
+			numPartsToElaborate);
 
 	bufwrite.clear_pending_state();
 }

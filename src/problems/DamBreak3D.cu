@@ -50,7 +50,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		add_flags<ENABLE_REPACKING>
 	).select_options(
 		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
@@ -99,9 +100,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.005f);
-	//addPostProcess(VORTICITY);
-	// *** Other parameters and settings
+	add_writer(VTKWRITER, 0.05f);
 	m_name = "DamBreak3D";
 
 	// *** Geometrical parameters, starting from the size of the domain

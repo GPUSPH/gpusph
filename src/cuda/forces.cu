@@ -46,6 +46,7 @@
 #include "define_buffers.h"
 
 #include "forces_params.h"
+#include "repack_params.h"
 #include "density_diffusion_params.h"
 
 /* Important notes on block sizes:
@@ -246,6 +247,153 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 	}
 };
 
+/// Repacking computation is a no-op unless repacking is enabled. Since C++ does not
+/// allow partial template specialization for methods, we rely on a CUDARepackingHelper
+/// auxiliary functor, that we can re-define with partial specialization as needed.
+
+/// General case: do nothing
+template<KernelType kerneltype,
+	BoundaryType boundarytype,
+	flag_t simflags,
+	bool repacking_enabled>
+struct CUDARepackingHelper {
+	static uint
+	process(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint	*cellStart,
+		uint	numParticles,
+		uint	fromParticle,
+		uint	toParticle,
+		float	deltap,
+		float	slength,
+		float	dtadaptfactor,
+		float	influenceradius,
+		const	float	epsilon,
+		uint	cflOffset,
+		const	float	dt)
+	{ /* do nothing by default */
+		return 0;
+	}
+};
+
+/// Repacking case
+template<KernelType kerneltype,
+	BoundaryType boundarytype,
+	flag_t simflags>
+struct CUDARepackingHelper<kerneltype, boundarytype, simflags, true> {
+	/* repackDevice kernel calls that involve vertex particles
+	 * are factored out here in this separate member function, that
+	 * does nothing in the non-SA_BOUNDARY case
+	 */
+	template<typename FluidVertexParams>
+		enable_if_t<FluidVertexParams::boundarytype == SA_BOUNDARY>
+		static vertex_repack(
+				uint numBlocks, uint numThreads, int dummy_shared,
+				FluidVertexParams const& params_fv)
+		{
+			cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+
+		}
+	template<typename FluidVertexParams>
+		enable_if_t<FluidVertexParams::boundarytype != SA_BOUNDARY>
+		static vertex_repack(
+				uint numBlocks, uint numThreads, int dummy_shared,
+				FluidVertexParams const& params_fv)
+		{ /* do nothing */ }
+
+	static uint
+	process(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint	*cellStart,
+		uint	numParticles,
+		uint	fromParticle,
+		uint	toParticle,
+		float	deltap,
+		float	slength,
+		float	dtadaptfactor,
+		float	influenceradius,
+		const	float	epsilon,
+		uint	cflOffset,
+		const	float	dt)
+	{
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+		const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+		const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
+		const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
+
+		float4 *forces = bufwrite.getData<BUFFER_FORCES>();
+		float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
+		float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
+		float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
+
+		int dummy_shared = 0;
+
+		const uint numParticlesInRange = toParticle - fromParticle;
+		// reset forces to 0
+		CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
+
+		// thread per particle
+		uint numThreads = BLOCK_SIZE_FORCES;
+		// number of blocks, rounded up to next multiple of 4 to improve reductions
+		uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
+#if (__COMPUTE__ == 20)
+		int dtadapt = !!(simflags & ENABLE_DTADAPT);
+		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
+#endif
+
+		repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_FLUID> params_ff(
+				forces,
+				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+				deltap, slength, influenceradius, dt,
+				cfl_gamma, vertPos, epsilon);
+
+		repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+				forces,
+				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+				deltap, slength, influenceradius, dt,
+				cfl_gamma, vertPos, epsilon);
+
+
+		repack_params<kerneltype, boundarytype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+				forces,
+				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+				deltap, slength, influenceradius, dt,
+				cfl_gamma, vertPos, epsilon);
+
+		cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+
+		{
+			repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+					forces,
+					pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+					deltap, slength, influenceradius, dt,
+					cfl_gamma, vertPos, epsilon);
+
+			vertex_repack(numBlocks, numThreads, dummy_shared, params_fv);
+		}
+
+		cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+
+
+		finalize_repack_params<boundarytype, simflags> params_finalize(
+				forces,
+				pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
+				deltap, cfl_forces, cfl_gamma, cflOffset,
+				oldGGam);
+
+		cuforces::finalizeRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
+
+		return numBlocks;
+	}
+};
+
 
 /// CUDAForcesEngine
 
@@ -383,6 +531,10 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_densityDiffCoeff, &simparams->densityDiffCoeff, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_alpha, &simparams->repack_alpha, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_a, &simparams->repack_a, sizeof(float)));
+
 }
 
 
@@ -720,7 +872,6 @@ boundary_forces(
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
 }
 
-
 // Returns numBlock for delayed dt reduction in case of striping
 uint
 basicstep(
@@ -775,6 +926,7 @@ basicstep(
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
+	// reset forces to zero
 	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
 	if (keps_dkde) {
 		// KEPS buffers need to be cleared too, as they will be built progressively
@@ -882,6 +1034,29 @@ basicstep(
 
 	cuforces::finalizeforcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
 
+	return numBlocks;
+}
+
+// Returns numBlock for delayed dt reduction in case of striping
+uint
+repackstep(
+	BufferList const& bufread,
+	BufferList& bufwrite,
+	const	uint	*cellStart,
+	uint	numParticles,
+	uint	fromParticle,
+	uint	toParticle,
+	float	deltap,
+	float	slength,
+	float	dtadaptfactor,
+	float	influenceradius,
+	const	float	epsilon,
+	uint	cflOffset,
+	const	float	dt)
+{
+	uint numBlocks = CUDARepackingHelper<kerneltype, boundarytype, simflags, !!(simflags & ENABLE_REPACKING)>::process(bufread,
+		bufwrite, cellStart, numParticles, fromParticle, toParticle, deltap, slength,
+		dtadaptfactor, influenceradius, epsilon, cflOffset, dt);
 	return numBlocks;
 }
 

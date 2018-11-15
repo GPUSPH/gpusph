@@ -54,7 +54,8 @@ enum GeometryType {	GT_FLUID,
 					GT_FLOATING_BODY,
 					GT_MOVING_BODY,
 					GT_PLANE,
-					GT_TESTPOINTS
+					GT_TESTPOINTS,
+					GT_FREE_SURFACE
 };
 
 enum FillType {	FT_NOFILL,
@@ -199,13 +200,6 @@ class XProblem: public Problem {
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);
 
-		/*!
-		 * \inpsection{c0_input_method, calculation}
-		 * \label{FLUID_WATER_LEVEL}
-		 * \default{0}
-		 * used for hydrostatic filling (absolute value) and to set the speed of sound
-		 */
-		double m_waterLevel;
 		// used to set LJ dcoeff and sound speed if m_maxParticleSpeed is unset
 		double m_maxFall;
 		/*!
@@ -219,8 +213,6 @@ class XProblem: public Problem {
 		// number of layers for filling dynamic boundaries
 		uint m_numDynBoundLayers;
 
-		// enable hydrostatic filling already during fill - uses m_waterLevel
-		bool m_hydrostaticFilling;
 
 	protected:
 		// methods for creation of new objects
@@ -339,10 +331,6 @@ class XProblem: public Problem {
 		//! callback for filtering out points before they become particles during
 		//! GPUSPH internal pre-processing
 		virtual void filterPoints(PointVect &fluidParts, PointVect &boundaryParts);
-
-    //! @userfunc
-		//! callback for initializing particles with custom values
-		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 
 	public:
 		XProblem(GlobalData *);

@@ -151,6 +151,17 @@ class Problem {
 		//! \label{SPH_DR}
 		double	m_deltap;		// Initial particle spacing
 
+		/*!
+		 * \inpsection{c0_input_method, calculation}
+		 * \label{FLUID_WATER_LEVEL}
+		 * \default{0}
+		 * used for hydrostatic filling (absolute value) and to set the speed of sound
+		 */
+		double m_waterLevel;
+
+		// enable hydrostatic filling already during fill - uses m_waterLevel
+		bool m_hydrostaticFilling;
+
 		const float*	get_dem() const { return m_dem; }
 		int		get_dem_ncols() const { return m_ncols; }
 		int		get_dem_nrows() const { return m_nrows; }
@@ -656,6 +667,13 @@ class Problem {
 		void fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices);
 
 		void PlaneCut(PointVect&, const double, const double, const double, const double);
+
+		//! @userfunc
+		//! callback for initializing particles with custom values
+		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+		//! callback for resetting the buffer values after resuming from a repack file
+		virtual void resetBuffers(BufferList &buffers, const uint numParticles);
+
 
 };
 #endif

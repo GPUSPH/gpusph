@@ -69,6 +69,7 @@ public:
 	double	deltap; ///< deltap
 	float	tend; ///< simulation end
 	unsigned long maxiter; ///< maximum number of iterations to run
+	unsigned long repack_maxiter; ///< maximum number of iterations for repacking
 	float	checkpoint_freq; ///< frequency of hotstart checkpoints (in simulated seconds)
 	int		checkpoints; ///< number of hotstart checkpoints to keep
 	bool	nosave; ///< disable saving
@@ -81,6 +82,9 @@ public:
 	bool visualization; ///< if true - live visualization via DisplayWriter will be enabled
 	double visu_freq; ///< visualization frequency
 	std::string pipeline_fpath; ///< path to visualization pipeline file
+	bool repack; ///< if true, run the repacking before the simulation
+	bool repack_only; ///< if true, run the repacking only and quit
+	std::string repack_fname; ///< repack file to resume simulation from
 	//! @}
 
 	Options(void) :
@@ -93,6 +97,7 @@ public:
 		deltap(NAN),
 		tend(NAN),
 		maxiter(0),
+		repack_maxiter(2000),
 		checkpoint_freq(NAN),
 		checkpoints(-1),
 		nosave(false),
@@ -104,7 +109,10 @@ public:
 		no_leak_warning(false),
 		visualization(false),
 		visu_freq(NAN),
-		pipeline_fpath()
+		pipeline_fpath(),
+		repack(false),
+		repack_only(false),
+		repack_fname()
 	{};
 
 	//! set an arbitrary option

@@ -127,7 +127,7 @@ calculateIOboundaryCondition(
 			riemannR = rInt + (unExt - unInt);
 		else { // Shock wave
 		       // TODO Check case of multifluid for a = fluid_num(info)
-			float riemannRho = RHO(P(rhoInt, a) + physical_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative		
+			float riemannRho = RHO(P(rhoInt, a) + physical_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative
 			riemannR = R(riemannRho, a);
 
 			float riemannC = soundSpeed(riemannRho, a);
@@ -2204,6 +2204,36 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 					oldPos[index] = pos;
 					oldVertices[index] = vertices;
 				}
+			}
+		}
+	}
+}
+
+/*!
+ This kernel is only used for repacking in combination with the free surface particle identification.
+ As soon as repacking is finished the free surface particles are removed by this kernel.
+*/
+__global__ void
+disableFreeSurfPartsDevice(			float4*		oldPos,
+									vertexinfo*	oldVertices,
+							const	uint		numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if(index < numParticles) {
+		const particleinfo info = tex1Dfetch(infoTex, index);
+
+		if (SURFACE(info) && NOT_FLUID(info)) {
+			float4 pos = oldPos[index];
+			if (ACTIVE(pos)) {
+				vertexinfo vertices = oldVertices[index];
+				disable_particle(pos);
+				vertices.x = 0;
+				vertices.y = 0;
+				vertices.z = 0;
+				vertices.w = 0;
+				oldPos[index] = pos;
+				oldVertices[index] = vertices;
 			}
 		}
 	}

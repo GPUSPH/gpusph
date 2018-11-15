@@ -7,6 +7,7 @@
 #define CRIXUS_FLUID 1
 #define CRIXUS_VERTEX 2
 #define CRIXUS_BOUNDARY 3
+#define CRIXUS_BOUNDARY_PARTICLE 4
 
 struct ReadParticles {
 	double Coords_0;

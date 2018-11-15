@@ -186,6 +186,8 @@ enum CommandType {
 	INIT_IO_MASS_VERTEX_COUNT,
 	/// Modifiy initial mass of open boundaries
 	INIT_IO_MASS,
+	/// Option for repacking only: disable free surface particles after the repacking is done
+	DISABLE_FREE_SURF_PARTS,
 	/// Quit the simulation cycle
 	QUIT
 };
@@ -317,6 +319,7 @@ struct GlobalData {
 	float3 s_varGravity;
 
 	// simulation time control
+	bool keep_repacking;
 	bool keep_going;
 	bool quit_request;
 	bool save_request;
@@ -384,6 +387,9 @@ struct GlobalData {
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
+	// repacking parameter, true if the kinetic energy is positive
+	bool repackPositiveKe;
+
 	GlobalData(void):
 		ret(0),
 		debug(),
@@ -410,6 +416,7 @@ struct GlobalData {
 		particlesCreated(false),
 		createdParticlesIterations(0),
 		s_hPlanes(),
+		keep_repacking(false),
 		keep_going(true),
 		quit_request(false),
 		save_request(false),
@@ -436,7 +443,8 @@ struct GlobalData {
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
-		s_hRbAngularVelocities(NULL)
+		s_hRbAngularVelocities(NULL),
+		repackPositiveKe(false)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
@@ -670,6 +678,63 @@ struct GlobalData {
 					}
 		fclose(fid);
 		printf(" > compact device map dumped to file %s\n",fname.c_str());
+	}
+
+	// function for cleanup between the repacking and the standard run
+	void cleanup() {
+		printf("Cleaning GlobalData...\n");
+
+		GPUWORKERS = NULL;
+		threadSynchronizer = NULL;
+
+		s_hRbCgGridPos = NULL;
+		s_hRbCgPos = NULL;
+		s_hRbTranslations = NULL;
+		s_hRbLinearVelocities = NULL;
+		s_hRbAngularVelocities = NULL;
+		s_hRbRotationMatrices = NULL;
+
+		s_hRbFirstIndex = NULL;
+		s_hRbLastIndex = NULL;
+		s_hRbTotalForce = NULL;
+		s_hRbAppliedForce = NULL;
+		s_hRbTotalTorque = NULL;
+		s_hRbAppliedTorque = NULL;
+		s_hRbDeviceTotalForce = NULL;
+		s_hRbDeviceTotalTorque = NULL;
+
+		s_hDeviceMap = NULL;
+		s_hPartsPerSliceAlongX = NULL;
+		s_hPartsPerSliceAlongY = NULL;
+		s_hPartsPerSliceAlongZ = NULL;
+		s_dCellEnds = NULL;
+		s_dCellStarts = NULL;
+		s_dSegmentsStart = NULL;
+
+		allocPolicy = NULL;
+		simframework = NULL;
+		delete problem;
+		problem = NULL;
+		totParticles = 0;
+		numOpenVertices = 0;
+		allocatedParticles = 0;
+		nGridCells = 0;
+		particlesCreated = false;
+		createdParticlesIterations = 0;
+		keep_repacking = false;
+		keep_going = true;
+		quit_request = false;
+		save_request = false;
+		iterations = 0;
+		t = 0.0;
+		dt = 0.0f;
+		lastGlobalPeakFluidBoundaryNeibsNum = 0;
+		lastGlobalPeakVertexNeibsNum = 0;
+		lastGlobalNumInteractions = 0;
+		only_internal = false;
+		repackPositiveKe = false;
+		nextCommand = IDLE;
+		commandFlags = NO_FLAGS;
 	}
 };
 

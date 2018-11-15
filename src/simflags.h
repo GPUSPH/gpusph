@@ -133,6 +133,9 @@
 #define ENABLE_GAMMA_QUADRATURE		(ENABLE_DENSITY_SUM << 1)
 #define USING_DYNAMIC_GAMMA(flags)	(!((flags) & ENABLE_GAMMA_QUADRATURE))
 
+//! repacking
+#define ENABLE_REPACKING		(ENABLE_GAMMA_QUADRATURE << 1)
+
 //! Compute internal energy
 /**@defpsubsection{internal_energy, ENABLE_INTERNAL_ENERGY}
  * @inpsection{output}
@@ -140,7 +143,7 @@
  * @values{disable,enable}
  * TLT_INTERNAL_ENERGY
  */
-#define ENABLE_INTERNAL_ENERGY (ENABLE_GAMMA_QUADRATURE << 1)
+#define ENABLE_INTERNAL_ENERGY (ENABLE_REPACKING<< 1)
 
 //! Enable multi-fluid support
 /*! This disables optimizations in the viscous contributions that assume

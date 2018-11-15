@@ -48,6 +48,13 @@ SimFramework::~SimFramework()
 {
 	delete m_simparams;
 
+	for (auto flt: m_postProcessEngines) {
+		delete flt.second;
+	}
+	for (auto flt: m_filterEngines) {
+		delete flt.second;
+	}
+
 	m_postProcessEngines.clear();
 	m_filterFreqList.clear();
 	m_filterEngines.clear();

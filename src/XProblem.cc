@@ -68,11 +68,8 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_positioning = PP_CENTER;
 
 	// NAN water level and max fall: will autocompute if user doesn't define them
-	m_waterLevel = NAN;
 	m_maxFall = NAN;
 	m_maxParticleSpeed = NAN;
-
-	m_hydrostaticFilling = true;
 
 	// *** Other parameters and settings
 	m_name = "XProblem";
@@ -150,6 +147,10 @@ bool XProblem::initialize()
 	// aux var for automatic water level computation
 	double highest_water_part = NAN;
 
+	// Enable free surface boundaries if we are repacking
+	bool enableFreeSurf = (gdata->clOptions->repack == true
+		|| gdata->clOptions->repack_only == true);
+
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		// aux vars to store bbox of current geometry
 		Point currMin, currMax;
@@ -157,6 +158,9 @@ bool XProblem::initialize()
 		// ignore planes for bbox
 		if (m_geometries[g]->type == GT_PLANE)
 			continue;
+		// Load the free-surface boundary particles when repacking only
+		if (m_geometries[g]->type == GT_FREE_SURFACE)
+			m_geometries[g]->enabled = enableFreeSurf;
 
 		// ignore deleted geometries
 		if (!m_geometries[g]->enabled)
@@ -452,6 +456,13 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
 			break;
+		case GT_FREE_SURFACE:
+			// free-surface particles for repacking behave like a fixed boundary
+			// they are used only if repack mode is on
+			geomInfo->handle_collisions = false;
+			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
+			geomInfo->enabled = false;
 	}
 
 	// --- Default intersection type
@@ -469,7 +480,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	}
 
 	// --- Default erase operation
-	// Upon intersection or subtraction we can choose to interact with fluid
+	// Upon intersection or substraction we can choose to interact with fluid
 	// or boundaries. By default, water erases only other water, while boundaries
 	// erase water and other boundaries. Testpoints eras nothing.
 	switch (geomInfo->type) {
@@ -1684,6 +1695,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 						ptype = PT_VERTEX;
 						vertex_parts++;
 						break;
+					case CRIXUS_BOUNDARY_PARTICLE:
 					case CRIXUS_BOUNDARY:
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = PT_BOUNDARY;
@@ -1708,6 +1720,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 						break;
 					case GT_FLOATING_BODY:
 						SET_FLAG(info[i], FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE);
+						break;
+					case GT_FREE_SURFACE:
+						SET_FLAG(info[i], FG_SURFACE);
 						break;
 					case GT_OPENBOUNDARY:
 						const ushort VELOCITY_DRIVEN_FLAG =
@@ -1756,7 +1771,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 					rigid_body_part_mass = pos[i].w;
 
 				// load boundary-specific data (SA bounds only)
-				if (ptype == PT_BOUNDARY) {
+				if (ptype == PT_BOUNDARY && simparams()->boundarytype == SA_BOUNDARY) {
 					if (m_geometries[g]->flip_normals) {
 						// NOTE: simulating with flipped normals has not been numerically validated...
 						// invert the order of vertices so that for the mass it is m_ref - m_v
@@ -2031,7 +2046,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		init_keps(buffers, tot_parts);
 
 	// call user-set initialization routine, if any
-	initializeParticles(buffers, tot_parts);
+	if (!gdata->keep_repacking)
+		initializeParticles(buffers, tot_parts);
 }
 
 // callback for filtering out points before they become particles (e.g. unfills/cuts)
@@ -2045,27 +2061,3 @@ void XProblem::filterPoints(PointVect &fluidParts, PointVect &boundaryParts)
 	*/
 }
 
-// callback for initializing particles with custom values
-void XProblem::initializeParticles(BufferList &buffers, const uint numParticles)
-{
-	// Default: do nothing
-
-	/*
-	// Example usage
-
-	// 1. warn the user if this is expected to take much time
-	printf("Initializing particles velocity...\n");
-
-	// 2. grab the particle arrays from the buffer list
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	// 3. iterate on the particles
-	for (uint i = 0; i < numParticles; i++) {
-		// 4. optionally grep with custom filters (e.g. type, size, position, etc.)
-		if (FLUID(info[i]))
-			// 5. set in loco the desired values
-			vel[i].x = 0.1;
-	}
-	*/
-}
