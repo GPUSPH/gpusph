@@ -30,6 +30,18 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 	// Allow user to set the MLS frequency at runtime. Default to 0 (no MLS).
 	const int mlsIters = get_option("mls", 0);
 
+	// Allow user to set the computational viscosity; accepted values: dyn, kin
+	const string compvisc = get_option("compvisc", "kin");
+
+	if (compvisc != "kin" && compvisc != "dyn")
+		throw std::invalid_argument("unknown compvisc value " + compvisc);
+
+	// Allow user to set the viscous averaging; accepted values: arithmetic, harmonic, geometric
+	const string viscavg = get_option("viscavg", "arithmetic");
+
+	if (viscavg != "arithmetic" && viscavg != "harmonic" && viscavg != "geometric")
+		throw std::invalid_argument("unknown viscavg value " + viscavg);
+
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
 		rheology<NEWTONIAN>,
@@ -42,7 +54,10 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 	).select_options(
 		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
-		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>()
+		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		compvisc == "dyn", computational_visc<DYNAMIC>(),
+		viscavg == "harmonic", visc_average<HARMONIC>(),
+		viscavg == "geometric", visc_average<GEOMETRIC>()
 	);
 
 	if (mlsIters > 0)
