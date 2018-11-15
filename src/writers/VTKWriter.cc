@@ -69,7 +69,7 @@ VTKWriter::VTKWriter(const GlobalData *_gdata)
 	m_planes_fname(),
 	m_blockidx(-1)
 {
-	m_fname_sfx = ".vtu";
+	m_fname_sfx = ".vtp";
 
 	string time_fname = open_data_file(m_timefile, "VTUinp", "", ".pvd");
 
@@ -502,10 +502,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// Header
 	//====================================================================================
 	fid << "<?xml version='1.0'?>" << endl;
-	fid << "<VTKFile type='UnstructuredGrid'  version='0.1'  byte_order='" <<
+	fid << "<VTKFile type='PolyData'  version='0.1'  byte_order='" <<
 		endianness[*(char*)&endian_int & 1] << "'>" << endl;
-	fid << " <UnstructuredGrid>" << endl;
-	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfCells='" << numParts << "'>" << endl;
+	fid << " <PolyData>" << endl;
+	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfVerts='" << numParts << "'>" << endl;
 
 	size_t offset = 0;
 
@@ -672,19 +672,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	fid << "   </PointData>" << endl;
 
 	// Cells data
-	fid << "   <Cells>" << endl;
+	fid << "   <Verts>" << endl;
 
 	// connectivity
 	appender.append_local_data("connectivity", [](size_t i)->uint { return i; });
 	// offsets
 	appender.append_local_data("offsets", [](size_t i)->uint { return i+1; });
-	// types (currently all cells type=1, single vertex, the particle)
-	appender.append_local_data("types", [](size_t i)->uchar { return 1; });
 
-	fid << "   </Cells>" << endl;
+	fid << "   </Verts>" << endl;
 	fid << "  </Piece>" << endl;
 
-	fid << " </UnstructuredGrid>" << endl;
+	fid << " </PolyData>" << endl;
 	fid << " <AppendedData encoding='raw'>\n_";
 	//====================================================================================
 

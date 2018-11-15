@@ -45,7 +45,7 @@ class VTKWriter : public Writer
 	// Save planes to a VTU file
 	void save_planes();
 
-	// Add a block (.vtu file) to the timefile
+	// Add a block (.vtp file) to the timefile
 	void add_block(std::string const& blockname, std::string const& fname);
 
 	// this method is used to close the XML in the timefile,
