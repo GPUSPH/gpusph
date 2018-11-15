@@ -175,6 +175,9 @@ For this test-case, the geometrical setup only contains the basin and the initia
     1. Generate the sources\\
     2. Build solver\\
     3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
+    \cmd{$MY_STUDY_PATH/Spheric2_gpusph/Spheric2SA}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/Spheric2_gpusph/Spheric2SA/gpusph/dist/linux/x86_64}.
   \end{itemize}
 \end{enumerate}
 
@@ -263,7 +266,7 @@ and wave gages.
   The constant in equations (\ref{eq:HydroStatic}) is defined as:\\
   $C = P^+(z^+ = 0) = 1$
   
-\item \textbf{The Numerical and Physical Parameters Studied:} This study sets up three tests.
+\item \textbf{The numerical and physical parameters studied:} This study sets up three tests.
   We look to study the stability of hydrostatic iterations in GPUSPH with three boundary formulations available in GPUSPH:
   Lennard-Jones, Dynamic boundaries and Semi-analytical boundaries.
   The particle size of this case is related to particle number in the case through the following representation,
