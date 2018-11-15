@@ -16,7 +16,9 @@
 #include <fstream>
 #include <limits.h> // UINT_MAX
 
+#ifndef USE_CMAKE
 #include "hdf5_select.opt"
+#endif
 
 #include <stdexcept>
 

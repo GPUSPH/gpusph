@@ -164,7 +164,7 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 # override:                     defaults /usr/local/cuda,
 # override:                     validity is checked by looking for bin/nvcc under it,
 # override:                     /usr is always tried as a last resort
-CUDA_INSTALL_PATH ?= /usr/local/cuda
+CUDA_INSTALL_PATH ?= /opt/cuda
 
 # We check the validity of the path by looking for bin/nvcc under it.
 # if not found, we look into /usr, and finally abort
@@ -811,6 +811,7 @@ $(COMPUTE_SELECT_OPTFILE): $(LIST_CUDA_CC) | $(OPTSDIR)
 	@echo "/* Define the compute capability GPU code was compiled for. */" \
 		> $(COMPUTE_SELECT_OPTFILE)
 	$(call show_stage_nl,SCRIPTS,compute detection)
+	@printf "#define COMPUTE " >> $(COMPUTE_SELECT_OPTFILE)
 	@$(SCRIPTSDIR)/define-cuda-cc.sh $(COMPUTE) >> $(COMPUTE_SELECT_OPTFILE)
 $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if fastmath is enabled for GPU code. */" \

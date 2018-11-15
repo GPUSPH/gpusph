@@ -31,7 +31,9 @@
 #include "Point.h"
 #include "Vector.h"
 
+#ifndef USE_CMAKE
 #include "chrono_select.opt"
+#endif
 #if USE_CHRONO == 1
 #include "chrono/core/ChQuaternion.h"
 #endif

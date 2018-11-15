@@ -58,7 +58,9 @@
 
 // Enable to get/set envelop and margin (mainly debug)
 /*
+#ifndef USE_CMAKE
 #include "chrono_select.opt"
+#endif // USE_CMAKE
 #if USE_CHRONO == 1
 #include "chrono/collision/ChCCollisionModel.h"
 #endif

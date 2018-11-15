@@ -39,8 +39,13 @@
 #include "NetworkManager.h"
 
 // Include only the problem selected at compile time (PROBLEM, QUOTED_PROBLEM)
+#ifdef USE_CMAKE
+#include "problem.h"
+#else
 #include "problem_select.opt"
+#endif // USE_CMAKE
 
+#ifndef USE_CMAKE
 /* Include all other opt file for show_version */
 #include "chrono_select.opt"
 #include "compute_select.opt"
@@ -49,6 +54,7 @@
 #include "gpusph_version.opt"
 #include "hdf5_select.opt"
 #include "mpi_select.opt"
+#endif // USE_CMAKE
 
 using namespace std;
 

@@ -7,7 +7,11 @@
 CC="$1"
 
 if [ -z "$CC" ] ; then
-	lister=$(dirname "$0")/list-cuda-cc
+	if [ -f ./list-cuda-cc ] ; then
+		lister=./list-cuda-cc
+	else
+		lister=$(dirname "$0")/list-cuda-cc
+	fi
 	read CC card <<-AVOID_SUBSHELL_PROBLEM
 		$(${lister} | cut -f2- | sort -n | head -1)
 	AVOID_SUBSHELL_PROBLEM
@@ -25,4 +29,4 @@ fi
 # transform CC from major.minor to their concatenation
 CC=$(echo ${CC} | tr -d .)
 
-echo "#define COMPUTE $CC /* $card */"
+echo "$CC"
