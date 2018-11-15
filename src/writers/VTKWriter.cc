@@ -430,6 +430,9 @@ uchar get_fluid_num(particleinfo const& pinfo)
 ushort get_object(particleinfo const& pinfo)
 { return object(pinfo); }
 
+uchar get_object_few(particleinfo const& pinfo)
+{ return object(pinfo); }
+
 uint get_cellindex(hashKey const& phash)
 { return cellHashFromParticleHash(phash); }
 
@@ -582,7 +585,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// TODO a better way would be for GPUSPH to expose the highest
 	// object number ever associated with any particle, so that we
 	// could check that
-	const bool write_part_obj = (gdata->problem->simparams()->numbodies > 0);
+	const uint numbodies = gdata->problem->simparams()->numbodies;
+	const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
+	const bool write_part_obj = (numbodies > 0 || numOpenBoundaries > 0);
+	// does the number of objects fit in an unsigned char?
+	const bool write_few_obj = (numbodies + numOpenBoundaries < UCHAR_MAX);
 
 	// particle info
 	if (info) {
@@ -600,8 +607,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 		// object number
 		if (write_part_obj) {
-			// TODO UInt16 or UInt8 based on number of objects
-			appender.append_data(info, "Part object", get_object);
+			if (write_few_obj)
+				appender.append_data(info, "Part object", get_object_few);
+			else
+				appender.append_data(info, "Part object", get_object);
 		}
 
 		// id
