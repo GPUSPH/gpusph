@@ -97,7 +97,7 @@ public:
 		deltap(NAN),
 		tend(NAN),
 		maxiter(0),
-		repack_maxiter(2000),
+		repack_maxiter(0),
 		checkpoint_freq(NAN),
 		checkpoints(-1),
 		nosave(false),

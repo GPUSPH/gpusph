@@ -117,6 +117,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		add_writer(COMMONWRITER, PVAL(output, commonwriter));
 #endif
 
+	// fluids settings
 	size_t fluid_0 = add_fluid(PVAL(fluid_0, rho0));
 	set_kinematic_visc(fluid_0, PVAL(fluid_0, kinematicvisc));
 
@@ -128,7 +129,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 	set_equation_of_state(fluid_0, PVAL(fluid_0, kinematicvisc), PVAL(fluid_0, sscoeff));
 #endif
 
-	//	ADD_MORE_FLUIDS
+	//	Add more fluids
 #if NB_SECTIONS( fluid ) > 1
 	double dens[] =
 	{	PVALS( fluid, rho0 )};
@@ -145,6 +146,11 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		set_equation_of_state( fluid_id, eos[i], ss[i] );
 	}
 #endif
+
+	// Repacking settings
+	simparams()->repack_maxiter = PVAL(initialisation, repack_maxiter);
+	simparams()->repack_a = PVAL(initialisation, repack_a);
+	simparams()->repack_alpha = PVAL(initialisation, repack_alpha);
 
 	// Geometry settings
 	m_origin = make_double3( NAN, NAN, NAN);
@@ -181,11 +187,11 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		warn(WARN_SIZE_DEFINED("Z"));
 	}
 
-	// Fluid definition
+	// Fluid particles definition
 	GeometryID fluid = addHDF5File(GT_FLUID, Point(0, 0, 0),
 		PSTR(geometry, fluid_file), NULL);
 
-	// Main container
+	// Main container definition
 	const char* collisionsFileString = NULL;
 #if ISDEF( geometry, collision_file )
 	collisionsFileString = PSTR( geometry, collision_file );
@@ -194,7 +200,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		PSTR(geometry, walls_file), collisionsFileString);
 	disableCollisions(container);
 
-	// Special boundaries
+	// Special boundaries definition
 #ifdef GPUSPH_special_boundary_SECTIONS
 #if NB_SECTIONS(special_boundary) > 0
 #define enable true

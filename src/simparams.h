@@ -212,10 +212,10 @@ typedef struct SimParams {
 	/*!
 	 * \inpsection{repacking, enable}
 	 * \label{REPACK_MAX_ITER}
-	 * \default{2000}
+	 * \default{200}
 	 * TLT_REPACK_MAX_ITER
 	 */
-	uint			repack_maxiter; //< maximum number of iterations for repacking
+	unsigned long			repack_maxiter; //< maximum number of iterations for repacking
 	/*!
 	 * \inpsection{repacking, enable}
 	 * \label{REPACK_A}

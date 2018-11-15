@@ -155,7 +155,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (isfinite(clOptions->tend))
 		_sp->tend = clOptions->tend;
 
-	if (isfinite(clOptions->repack_maxiter))
+	if (clOptions->repack_maxiter)
 		_sp->repack_maxiter = clOptions->repack_maxiter;
 
 	// update the GlobalData copies of the sizes of the domain
