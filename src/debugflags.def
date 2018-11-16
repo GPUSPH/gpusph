@@ -54,3 +54,5 @@ unsigned inspect_buffer_access : 1;
  * in src/buffer.h
  */
 unsigned clobber_invalid_buffers : 1;
+
+/* vim: set ft=cpp: */
