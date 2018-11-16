@@ -1706,7 +1706,7 @@ void GPUWorker::simulationThread() {
 
 		const bool dbg_step_printf = gdata->debug.print_step;
 
-		// TODO
+		// TODO automate the dbg_step_printf output
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
 		while (gdata->keep_going) {
 			switch (gdata->nextCommand) {
@@ -1720,15 +1720,24 @@ void GPUWorker::simulationThread() {
 				swapBuffers();
 				break;
 			case SET_BUFFER_STATE:
-				if (dbg_step_printf) printf(" T %d issuing SET_BUFFER_STATE\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing SET_BUFFER_STATE%s <- %s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str(),
+						gdata->extraCommandArg.string.c_str());
 				setBufferState();
 				break;
 			case ADD_BUFFER_STATE:
-				if (dbg_step_printf) printf(" T %d issuing ADD_BUFFER_STATE\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing ADD_BUFFER_STATE%s += %s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str(),
+						gdata->extraCommandArg.string.c_str());
 				addBufferState();
 				break;
 			case SET_BUFFER_VALIDITY:
-				if (dbg_step_printf) printf(" T %d issuing SET_BUFFER_VALIDITY\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing SET_BUFFER_VALIDITY%s <- %d\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str(),
+						BufferValidity(gdata->extraCommandArg.flag));
 				setBufferValidity();
 				break;
 			case CALCHASH:
@@ -1784,7 +1793,9 @@ void GPUWorker::simulationThread() {
 				kernel_apply_density_diffusion();
 				break;
 			case DUMP:
-				if (dbg_step_printf) printf(" T %d issuing DUMP\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing DUMP%s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str());
 				dumpBuffers();
 				break;
 			case DUMP_CELLS:
@@ -1812,19 +1823,27 @@ void GPUWorker::simulationThread() {
 				uploadNewNumParticles();
 				break;
 			case APPEND_EXTERNAL:
-				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing APPEND_EXTERNAL%s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str());
 				importExternalCells();
 				break;
 			case UPDATE_EXTERNAL:
-				if (dbg_step_printf) printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing UPDATE_EXTERNAL%s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str());
 				importExternalCells();
 				break;
 			case FILTER:
-				if (dbg_step_printf) printf(" T %d issuing FILTER\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing FILTER %s\n",
+						deviceIndex, FilterName[gdata->extraCommandArg.flag]);
 				kernel_filter();
 				break;
 			case POSTPROCESS:
-				if (dbg_step_printf) printf(" T %d issuing POSTPROCESS\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing POSTPROCESS %s\n",
+						deviceIndex, PostProcessName[gdata->extraCommandArg.flag]);
 				kernel_postprocess();
 				break;
 			case DISABLE_OUTGOING_PARTS:
