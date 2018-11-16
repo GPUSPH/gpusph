@@ -211,6 +211,9 @@ private:
 	// select a BufferList based on the DBLBUFFER_* specification
 	// in the command flags
 	BufferList& getBufferListByCommandFlags(flag_t flags);
+	// create a textual description of the list of buffers in the command flags
+	std::string describeCommandFlagsBuffers(flag_t flags);
+	std::string describeCommandFlagsBuffers();
 
 	// setting or adding to buffer states
 	void setBufferState(const flag_t flags, std::string const& state);

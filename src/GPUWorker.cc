@@ -1109,6 +1109,42 @@ GPUWorker::getBufferListByCommandFlags(flag_t flags)
 		m_dBuffers.getWriteBufferList() : m_dBuffers.getBufferList(0));
 }
 
+string
+GPUWorker::describeCommandFlagsBuffers(flag_t flags)
+{
+	static constexpr flag_t dbl_both = (DBLBUFFER_WRITE | DBLBUFFER_READ);
+
+	string s;
+	char sep[3] = { ' ', ' ', ' ' };
+	for (auto key : m_dBuffers.get_keys()) {
+		if (key & gdata->commandFlags) {
+			s.append(sep, 3);
+			s.append(getBuffer(0, key)->get_buffer_name());
+			sep[1] = '|';
+		}
+	}
+
+	const flag_t dbl_spec = ( flags & dbl_both );
+	if (dbl_spec) {
+		s.append(" [");
+		if (dbl_spec & DBLBUFFER_READ)
+			s.push_back('R');
+		if (dbl_spec == dbl_both)
+			s.push_back(',');
+		if (dbl_spec & DBLBUFFER_WRITE)
+			s.push_back('W');
+		s.append("]");
+	}
+
+	return s;
+}
+
+string
+GPUWorker::describeCommandFlagsBuffers()
+{
+	return describeCommandFlagsBuffers(gdata->commandFlags);
+}
+
 void GPUWorker::setBufferState(const flag_t flags, std::string const& state)
 {
 	// get the bufferlist to set the data for
@@ -1678,17 +1714,9 @@ void GPUWorker::simulationThread() {
 			case IDLE:
 				break;
 			case SWAP_BUFFERS:
-				if (dbg_step_printf) {
-					printf(" T %d issuing SWAP_BUFFERS", deviceIndex);
-					char sep = ' ';
-					for (auto key : m_dBuffers.get_keys()) {
-						if (key & gdata->commandFlags) {
-							printf(" %c %s", sep, getBuffer(0, key)->get_buffer_name());
-							sep = '|';
-						}
-					}
-					puts("");
-				}
+				if (dbg_step_printf)
+					printf(" T %d issuing SWAP_BUFFERS%s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str());
 				swapBuffers();
 				break;
 			case SET_BUFFER_STATE:
