@@ -336,6 +336,24 @@ void GPUWorker::dropExternalParticles()
 	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = EMPTY_SEGMENT;
 }
 
+/// compare UPDATE_EXTERNAL arguments against list of updated buffers
+void GPUWorker::checkBufferUpdate()
+{
+	BufferList const& buflist = getBufferListByCommandFlags(gdata->commandFlags);
+	for (auto const& iter : buflist) {
+		auto const key = iter.first;
+		auto const buf = iter.second;
+		const bool need_update = buf->is_dirty();
+		const bool listed = !!(key & gdata->commandFlags);
+
+		if (need_update && !listed)
+			cout <<  buf->get_buffer_name() << " needs update, but is NOT listed" << endl;
+		else if (listed && !need_update)
+			cout <<  buf->get_buffer_name() << " is listed, but is NOT dirty" << endl;
+
+	}
+}
+
 // Start an async inter-device transfer. This will be actually P2P if device can access peer memory
 // (actually, since it is currently used only to import data from other devices, the dstDevice could be omitted or implicit)
 void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int srcDevice, size_t count)
@@ -871,6 +889,8 @@ void GPUWorker::transferBursts()
 // staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
 void GPUWorker::importExternalCells()
 {
+	if (gdata->debug.check_buffer_update) checkBufferUpdate();
+
 	if (gdata->nextCommand == APPEND_EXTERNAL)
 		transferBurstsSizes();
 	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )

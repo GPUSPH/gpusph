@@ -179,6 +179,9 @@ private:
 	// cuts all external particles
 	void dropExternalParticles();
 
+	/// compare UPDATE_EXTERNAL arguments against list of updated buffers
+	void checkBufferUpdate();
+
 	// compute list of bursts
 	void computeCellBursts();
 	// iterate on the list and send/receive/read cell sizes

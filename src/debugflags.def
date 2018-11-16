@@ -42,6 +42,12 @@ unsigned inspect_pregamma : 1;
  */
 unsigned inspect_buffer_access : 1;
 
+/// check buffer update
+/*! This is used to check that all and only modified buffers
+ * are exchanged in an UPDATE_EXTERNAL call
+ */
+unsigned check_buffer_update : 1;
+
 /// clobber invalid buffers
 /*! When this is true, every time a buffer is marked invalid,
  * its content will be clobbered (reset to the initial value,
