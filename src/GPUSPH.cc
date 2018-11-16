@@ -2261,25 +2261,27 @@ void GPUSPH::markIntegrationStep(
 	std::string const& read_state, BufferValidity read_valid,
 	std::string const& write_state, BufferValidity write_valid)
 {
-	/* TODO mark buffer validity */
 	doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, read_state);
 	doCommand(SET_BUFFER_VALIDITY, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, read_valid);
 	doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, write_state);
 	doCommand(SET_BUFFER_VALIDITY, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, write_valid);
 
-	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
-		doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_state);
-		doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_valid);
-	} else {
-		/* When not using movig bodies, the boundary elements buffer for READ should also be used for WRITE */
-		doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, write_state);
-		/* In this case, the WRITE buffer can be assumed to be invalid */
-		doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, BUFFER_INVALID);
+	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+		// Keep track of the synchronization of boundary element arrays in the SA_BOUNDARY case
+		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
+			doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_state);
+			doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_valid);
+		} else {
+			/* When not using movig bodies, the boundary elements buffer for READ should also be used for WRITE */
+			doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, write_state);
+			/* In this case, the WRITE buffer can be assumed to be invalid */
+			doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, BUFFER_INVALID);
+		}
 	}
 
 	// CFL and forces buffer are reset, and are always invalid at the end of the step
-	/* TODO mark buffer validity */
 	doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
+	doCommand(SET_BUFFER_VALIDITY, BUFFERS_CFL | BUFFER_FORCES, BUFFER_INVALID);
 }
 
 void GPUSPH::check_write(bool we_are_done)
