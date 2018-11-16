@@ -1317,8 +1317,12 @@ void GPUWorker::dumpBuffers() {
 			void *dstptr = hostbuf->get_offset_buffer(ai, firstInnerParticle);
 			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyDeviceToHost));
 		}
-		hostbuf->set_state(buf->state());
-		hostbuf->mark_valid();
+		// In multi-GPU, only one thread should update the host buffer state,
+		// to avoid crashes due to multiple threads writing the string at the same time
+		if (m_deviceIndex == 0) {
+			hostbuf->set_state(buf->state());
+			hostbuf->mark_valid();
+		}
 	}
 }
 
