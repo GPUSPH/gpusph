@@ -621,23 +621,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		appender.append_data(vertices, "Vertices");
 	}
 
-	// device index
-	if (MULTI_DEVICE) {
-		appender.append_local_data("DeviceIndex", [this](size_t i) -> dev_idx_t {
-			GlobalData const *gdata(this->gdata);
-			uint numdevs = gdata->devices;
-			for (uint d = 0; d < numdevs; ++d) {
-				uint partsInDevice = gdata->s_hPartsPerDevice[d];
-				if (i < partsInDevice)
-					return gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
-				i -= partsInDevice;
-			}
-			// If we got here, the sum of all device particles is less than i,
-			// which is an error
-			throw runtime_error("unable to find device particle belongs to");
-		});
-	}
-
 	// cell index
 	appender.append_data(particleHash, "CellIndex", get_cellindex);
 
@@ -676,6 +659,23 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// sigma
 	if (sigma) {
 		appender.append_data(sigma, "Sigma");
+	}
+
+	// device index
+	if (MULTI_DEVICE) {
+		appender.append_local_data("DeviceIndex", [this](size_t i) -> dev_idx_t {
+			GlobalData const *gdata(this->gdata);
+			uint numdevs = gdata->devices;
+			for (uint d = 0; d < numdevs; ++d) {
+				uint partsInDevice = gdata->s_hPartsPerDevice[d];
+				if (i < partsInDevice)
+					return gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
+				i -= partsInDevice;
+			}
+			// If we got here, the sum of all device particles is less than i,
+			// which is an error
+			throw runtime_error("unable to find device particle belongs to");
+		});
 	}
 
 	fid << "   </PointData>" << endl;
