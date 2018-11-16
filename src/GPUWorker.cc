@@ -139,9 +139,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simparams->simflags & ENABLE_DTADAPT) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
-		if (USING_DYNAMIC_GAMMA(m_simparams->simflags))
-			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
+		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
+			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
 		if (m_simparams->turbmodel == KEPSILON)
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_KEPS>();
 	}
