@@ -1865,10 +1865,12 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_
 			doCommand(UPDATE_EXTERNAL, written_buffers | DBLBUFFER_WRITE);
 #endif
 		/* Swap the written buffers, so we can access the new data from
-		 * DBLBUFFER_READ
+		 * DBLBUFFER_READ.
+		 * TODO should also update buffer state and validity
 		 */
 		if (need_update_and_swap)
 			doCommand(SWAP_BUFFERS, written_buffers);
+
 
 		which_buffers |= updated_buffers | written_buffers;
 	}
