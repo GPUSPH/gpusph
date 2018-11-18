@@ -331,6 +331,10 @@ public:
 	size_t getDeviceMemory();
 	// for peer transfers: get the buffer `key` from the buffer list `list_idx`
 	const AbstractBuffer* getBuffer(size_t list_idx, flag_t key) const;
+
+#ifdef INSPECT_DEVICE_MEMORY
+	const MultiBufferList& getBufferList() const;
+#endif
 };
 
 #endif /* GPUWORKER_H_ */

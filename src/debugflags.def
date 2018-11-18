@@ -48,6 +48,15 @@ unsigned inspect_buffer_access : 1;
  */
 unsigned check_buffer_update : 1;
 
+/// check buffer consistency
+/*! When this is enabled, after every command GPUSPH will verify
+ * that the shared parts of the subdomains in multi-GPU simulations
+ * are consistent across devices.
+ * \note This needs compile-time support,
+ * add -DINSPECT_DEVICE_MEMORY to CPPFLAGS in Makefile.local
+ */
+unsigned check_buffer_consistency : 1;
+
 /// clobber invalid buffers
 /*! When this is true, every time a buffer is marked invalid,
  * its content will be clobbered (reset to the initial value,

@@ -1664,6 +1664,13 @@ const AbstractBuffer* GPUWorker::getBuffer(size_t list_idx, flag_t key) const
 	return m_dBuffers.getBufferList(list_idx)[key];
 }
 
+#ifdef INSPECT_DEVICE_MEMORY
+const MultiBufferList& GPUWorker::getBufferList() const
+{
+	return m_dBuffers;
+}
+#endif
+
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }
