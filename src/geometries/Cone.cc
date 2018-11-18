@@ -241,9 +241,9 @@ Cone::GeomCreate(const double dx) {
 #if USE_CHRONO == 1
 	m_body->GetCollisionModel()->ClearModel();
 	const double rb = m_rb + dx/2.;
-	const double rt = rt + dx/2.;
+	const double rt = m_rt + dx/2.;
 	const double h = m_h + dx;
-	m_body->GetCollisionModel()->AddCone(m_rb, m_rt, m_h);
+	m_body->GetCollisionModel()->AddCone(rb, rt, h);
 	m_body->GetCollisionModel()->BuildModel();
 	m_body->SetCollide(true);
 #else
