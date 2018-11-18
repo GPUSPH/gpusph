@@ -197,23 +197,24 @@ GPUWorker::~GPUWorker() {
 }
 
 // Return the number of particles currently being handled (internal and r.o.)
-uint GPUWorker::getNumParticles()
+uint GPUWorker::getNumParticles() const
 {
 	return m_numParticles;
 }
 
 // Return the number of allocated particles
-uint GPUWorker::getNumAllocatedParticles()
+uint GPUWorker::getNumAllocatedParticles() const
 {
 	return m_numAllocatedParticles;
 }
 
-uint GPUWorker::getNumInternalParticles() {
+uint GPUWorker::getNumInternalParticles() const
+{
 	return m_numInternalParticles;
 }
 
 // Return the maximum number of particles the worker can handled (allocated)
-uint GPUWorker::getMaxParticles()
+uint GPUWorker::getMaxParticles() const
 {
 	return m_numAllocatedParticles;
 }

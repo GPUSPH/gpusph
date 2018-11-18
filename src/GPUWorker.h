@@ -310,10 +310,10 @@ public:
 	~GPUWorker();
 
 	// getters of the number of particles
-	uint getNumParticles();
-	uint getNumAllocatedParticles();
-	uint getNumInternalParticles();
-	uint getMaxParticles();
+	uint getNumParticles() const;
+	uint getNumAllocatedParticles() const;
+	uint getNumInternalParticles() const;
+	uint getMaxParticles() const;
 
 	// compute the bytes required for each particle/cell
 	size_t computeMemoryPerParticle();
