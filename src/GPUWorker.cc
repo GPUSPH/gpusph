@@ -2773,18 +2773,22 @@ void GPUWorker::kernel_postprocess()
 		throw invalid_argument("non-existing postprocess filter invoked");
 	}
 
+	// Post-process engines may do in-place updates,
+	// so set a state-on-write for them too
+	BufferList &bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufread.add_state_on_write(string("postprocess ") + PostProcessName[proctype] + " (in-place)");
 	bufwrite.add_state_on_write(string("postprocess ") + PostProcessName[proctype]);
 
 	procpair->second->process(
-		m_dBuffers.getReadBufferList(),
-		m_dBuffers.getWriteBufferList(),
+		bufread, bufwrite,
 		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		m_deviceIndex,
 		gdata);
 
+	bufread.clear_pending_state();
 	bufwrite.clear_pending_state();
 }
 
