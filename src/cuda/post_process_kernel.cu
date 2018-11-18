@@ -270,8 +270,6 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	float4 normal = make_float4(0.0f);
 
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
-		// NOTE: inactive particles will keep their last surface flag status
-		newInfo[index] = info;
 		if (savenormals)
 			normals[index] = make_float4(NAN);
 		return;
