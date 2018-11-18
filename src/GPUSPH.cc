@@ -1737,7 +1737,8 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_
 		/* Swap the written buffers, so we can access the new data from
 		 * DBLBUFFER_READ
 		 */
-		doCommand(SWAP_BUFFERS, written_buffers);
+		if (written_buffers != NO_FLAGS)
+			doCommand(SWAP_BUFFERS, written_buffers);
 		which_buffers |= updated_buffers | written_buffers;
 	}
 
