@@ -1844,21 +1844,32 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_
 		const flag_t updated_buffers = flt->second->get_updated_buffers();
 		/* list of buffers that were written in BUFFER_WRITE */
 		const flag_t written_buffers = flt->second->get_written_buffers();
+
+		// If the post-process engine wrote something, we need to do
+		// a multi-device update as well as a buffer swap
+		const bool need_update_and_swap = (written_buffers != NO_FLAGS);
+
 		/* TODO FIXME ideally we would have a way to specify when,
 		 * after a post-processing, buffers need to be uploaded to other
 		 * devices as well.
-		 * This might be needed e.g. after the INFO update from SURFACE_DETECTION,
-		 * although maybe not during pre-write post-processing
+		 * This IS needed e.g. after the INFO update from SURFACE_DETECTION,
+		 * even during pre-write post-processing, since otherwise buffers
+		 * get out of sync across devices. Doing this update here is
+		 * suboptimal, but otherwise we'd need to pass the information
+		 * about the need to update external particles, and which buffers,
+		 * to the main loop, which would be a bit of a mess in itself;
+		 * so let's do it here for the time being.
 		 */
-#if 0
-		if (MULTI_DEVICE)
+#if 1
+		if (MULTI_DEVICE && need_update_and_swap)
 			doCommand(UPDATE_EXTERNAL, written_buffers | DBLBUFFER_WRITE);
 #endif
 		/* Swap the written buffers, so we can access the new data from
 		 * DBLBUFFER_READ
 		 */
-		if (written_buffers != NO_FLAGS)
+		if (need_update_and_swap)
 			doCommand(SWAP_BUFFERS, written_buffers);
+
 		which_buffers |= updated_buffers | written_buffers;
 	}
 
