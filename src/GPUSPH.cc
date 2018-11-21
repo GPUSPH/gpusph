@@ -976,7 +976,7 @@ bool GPUSPH::runRepacking() {
 			// have we reached the maximum number of repacking iterations?
 			gdata->iterations >= gdata->problem->simparams()->repack_maxiter ||
 			// have we sufficiently decreased the kinetic energy?
-			gdata->repackPositiveKe && kineticEnergy < repackMinKe ||
+			//gdata->repackPositiveKe && kineticEnergy < repackMinKe ||
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
 
@@ -1009,6 +1009,7 @@ bool GPUSPH::runRepacking() {
 			}
 			// Write the final results
 			check_write(we_are_done);
+
 			// No command after keep_repacking has been unset
 			gdata->keep_repacking = false;
 			if (gdata->quit_request) gdata->keep_going = false;

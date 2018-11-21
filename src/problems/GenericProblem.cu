@@ -87,8 +87,11 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 #endif
 
 	// Initialization of the neighbours parameters
-	simparams()->neiblistsize = PVAL(neighbours, neiblistsize);
-	simparams()->neibboundpos = PVAL(neighbours, neibboundpos);
+#if ISENUM_EQ(boundaries,bnd_type,SA_BOUNDARY)
+	resize_neiblist(PVAL(neighbours, neiblistsize), PVAL(neighbours, neibboundpos));
+#else
+	resize_neiblist(PVAL(neighbours, neiblistsize));
+#endif
 	simparams()->buildneibsfreq = PVAL(neighbours, buildneibsfreq);
 
 	// Time parameters
@@ -148,9 +151,15 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 #endif
 
 	// Repacking settings
+#if ISDEF( initialisation, repack_maxiter )
 	simparams()->repack_maxiter = PVAL(initialisation, repack_maxiter);
+#endif
+#if ISDEF( initialisation, repack_a )
 	simparams()->repack_a = PVAL(initialisation, repack_a);
+#endif
+#if ISDEF( initialisation, repack_alpha )
 	simparams()->repack_alpha = PVAL(initialisation, repack_alpha);
+#endif
 
 	// Geometry settings
 	m_origin = make_double3( NAN, NAN, NAN);
