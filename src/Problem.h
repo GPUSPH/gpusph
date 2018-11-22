@@ -522,6 +522,9 @@ class Problem {
 		//!
 		virtual int fill_parts(bool fill = true) = 0;
 		//! maximum number of particles that may be generated
+		//! @userfunc
+		//! User function for setting the maximum number of particles with IO.
+		//! Activate it with IO boundaries.
 		virtual uint max_parts(uint numParts);
 		//!
 		virtual void copy_to_array(BufferList & ) = 0;
@@ -646,6 +649,8 @@ class Problem {
 		virtual std::string get_private_name(flag_t buffer) const;
 
 		//! Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
+		//! @userfunc
+		//! @label{User function for the mutli-GPU domain splitting. Activate it if you have chosen a splitting option.}
 		virtual void fillDeviceMap();
 		// partition by splitting the cells according to their linearized hash
 		void fillDeviceMapByCellHash();
