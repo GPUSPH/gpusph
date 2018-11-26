@@ -41,7 +41,7 @@ int ParamsFile::write( const char* theParamsFile )
   for ( ; aCur != aSections.end(); aCur++ )
   {
     // Ignore user_functions section.
-    if ( aCur->first == USER_FUNCTIONS_SECTION )
+    if ( aCur->first == "user_functions" )
       continue;
 
     aFile << "// [" << aCur->first << "]" << std::endl;

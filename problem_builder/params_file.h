@@ -8,7 +8,6 @@
 #define GENERATION_TIME_STR "// Generation time:    "
 #define GPUSPH_PREFIX "GPUSPH_"
 #define GPUSPH_SUFFIX "__"
-#define USER_FUNCTIONS_SECTION "user_functions"
 
 //! Parameters values file writer.
 class ParamsFile

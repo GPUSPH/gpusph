@@ -130,26 +130,56 @@ int CudaFile::writeHeaderFile ( const std::string& theGenericHeader,
 
 std::list< std::string > CudaFile::getUserFunctions() const
 {
-  std::list< std::string > aRes;
-  IniSections aSections = myConfig->GetSections();
-  IniSections_Iter aCur = aSections.begin();
-  for ( ; aCur != aSections.end(); aCur++ )
+  std::list< std::string > userFunctionsList;
+  IniSections sectionList = myConfig->GetSections();
+  IniSections_Iter section = sectionList.begin();
+  for ( ; section != sectionList.end(); section++ )
   {
     // Find user_functions section.
-    if ( aCur->first == USER_FUNCTIONS_SECTION )
+    if ( section->first == "user_functions" )
     {
-      IniSection_Iter aPar = aCur->second.begin();
-      for ( ; aPar != aCur->second.end(); aPar++ )
+      IniSection_Iter aPar = section->second.begin();
+      for ( ; aPar != section->second.end(); aPar++ )
       {
-        if ( aPar->second == UF_ENABLE )
+        if ( aPar->second == "enable" )
         {
-          aRes.push_back( aPar->first );
+					std::cout << aPar->first << std::endl;
+          userFunctionsList.push_back( aPar->first );
         }
       }
-      break;
     }
+    if ( section->first == "domain_splitting" )
+		{
+			std::string device_map_function = "fillDeviceMap";
+			std::cout << device_map_function << std::endl;
+			userFunctionsList.push_back( device_map_function );
+		}
   }
-  return aRes;
+  IndexedSections sequenceList = myConfig->GetIndexedSections();
+  IndexedSections_Iter sequence = sequenceList.begin();
+  for ( ; sequence != sequenceList.end(); sequence++ )
+	{
+		if ( sequence->first == "special_boundary" )
+		{
+			IndexedSection_Iter section = sequence->second.begin();
+			for ( ; section != sequence->second.end(); section++ )
+			{
+
+				IniSection_Iter aPar = section->second.begin();
+				for ( ; aPar != section->second.end(); aPar++ )
+				{
+					if ( aPar->first == "open_bnd_type" )
+					{
+						std::string max_parts_function = "max_parts";
+						userFunctionsList.push_back( max_parts_function );
+						break;
+					}
+				}
+				break;
+			}
+		}
+	}
+  return userFunctionsList;
 }
 
 int CudaFile::replaceUserFunctionsHeader(

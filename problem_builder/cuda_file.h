@@ -13,8 +13,6 @@
 #define GPUSPH_USER_FUNCTIONS "GPUSPH_USER_FUNCTIONS"
 //! User functions section name.
 #define UF_SUBDIR "user_functions"
-//! The ini parameter value to enable a function.
-#define UF_ENABLE "enable"
 //! The inserted user function beginning mark prefix.
 #define UF_BEGIN_COMMENT "// BEGIN USER FUNCTION FILE: "
 //! The inserted user function ending mark prefix.
