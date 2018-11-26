@@ -353,7 +353,7 @@ GPUSPH_INCLUDE_PARAMS
 		if ( object(info) == i && aBndType[i] == open_boundary \
 				&& anOpenBndType[i] == pressure_driven )  \
 		{ \
-			waterdepth = wlevel[i]; \
+			waterlevel = wlevel[i]; \
 		} \
 	} \
 }

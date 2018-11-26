@@ -41,26 +41,16 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 	// Private variables
 	m_name = PSTR(general, name);
 #ifdef GPUSPH_special_boundary_SECTIONS
-#if ISDEF(special_boundary,start_time_VALS)
-	int aStart[] =
-	{	PVALS( special_boundary, start_time )};
-#endif
-
-#if ISDEF(special_boundary,end_time_VALS)
-	int anEnd[] =
-	{	PVALS( special_boundary, end_time )};
-#endif
-
 	for (uint i = 0; i < NB_SECTIONS( special_boundary ); i++)
 	{
 #if ISDEF(special_boundary,start_time_VALS)
-		m_bndtstart [ i ] = aStart[ i ];
+		m_bndtstart [ i ] = PVALS (special_boundary, start_time)[i];
 #endif
 
 #if ISDEF(special_boundary,end_time_VALS)
 		m_bndtend [ i ] = anEnd[ i ];
+		m_bndtend [ i ] = PVALS (special_boundary, end_time)[i];
 #endif
-
 	}
 #endif
 
