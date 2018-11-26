@@ -161,8 +161,8 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	const particleinfo info = tex1Dfetch(infoTex, index);
 
 	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
-	const float4 pos = params.pos[index];
+	#if PREFER_L1
+	const float4 pos = params.posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
@@ -191,7 +191,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 		// Now relPos is a float4 and neib mass is stored in relPos.w
 		const float4 relPos = neib_iter.relPos(
 		#if PREFER_L1
-			params.pos[neib_index]
+			params.posArray[neib_index]
 		#else
 			tex1Dfetch(posTex, neib_index)
 		#endif
