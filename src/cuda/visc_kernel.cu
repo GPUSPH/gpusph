@@ -83,6 +83,147 @@ artvisc(	const float	vel_dot_pos,
 
 /************************************************************************************************************/
 
+/************************************************************************************************************/
+/*		   Device functions to compute the shear rate                                                       */
+/************************************************************************************************************/
+
+//! Shear rate computation return
+/*! When computing the shear rate, we can return three possible tensors:
+ * - the shear rate tensor τ = (∇v + (∇v)ᵀ)/2;
+ * - its double D = ∇v + (∇v)ᵀ;
+ * - a matrix assembled from the shear tensor diagonal and the doubled one off-diagonal
+ *
+ * The purpose here is to share the common computational effort, and return the values
+ * that are most useful in applications.
+ */
+enum ShearRateReturnType {
+	TENSOR,
+	DOUBLED_TENSOR,
+	MIXED_TENSOR
+};
+
+//! Compute ∇v + (∇v)ᵀ or its doubled version
+template<KernelType kerneltype, ShearRateReturnType ret_type>
+__device__ __forceinline__
+symtensor3 shearRate(
+	int index, /* particle index */
+	int3 const& gridPos, /* particle grid position */
+	float4 const& pos, /* particle position (in cell) */
+	float4 const& vel, /* particle velocity */
+	neibs_list_params const& params) /* parameters needed to walk the neighbors list */
+{
+	// Gradients of the the velocity components
+	float3 dvx = make_float3(0.0f);
+	float3 dvy = make_float3(0.0f);
+	float3 dvz = make_float3(0.0f);
+
+	// Loop over all neighbors to compute their contribution to the velocity gradient
+	// TODO: check which particle types should contribute with SA
+	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+
+		const uint neib_index = neib_iter.neib_index();
+
+		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
+		#if PREFER_L1
+			params.posArray[neib_index]
+		#else
+			tex1Dfetch(posTex, neib_index)
+		#endif
+			);
+
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const float r = length3(relPos);
+
+		// skip inactive particles and particles outside of the kernel support
+		if (INACTIVE(relPos) || r >= params.influenceradius)
+			continue;
+
+		// Compute relative velocity
+		// Now relVel is a float4 and neib density is stored in relVel.w
+		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+
+		const float neib_rho = physical_density(relVel.w, fluid_num(neib_info));
+		const float f = F<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// 1/r ∂Wij/∂r Vj
+
+		const float3 relPos_f = as_float3(relPos)*f;
+		// Velocity Gradients
+		dvx -= relVel.x*relPos_f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
+		dvy -= relVel.y*relPos_f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
+		dvz -= relVel.z*relPos_f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
+	} // end of loop through neighbors
+
+	symtensor3 ret;
+	/* Start by storing the mixed version: non-doubled diagonal elements,
+	 * doubled off-diagonal elements
+	 */
+	ret.xx = dvx.x;
+	ret.xy = dvx.y + dvy.x;
+	ret.xz = dvx.z + dvz.x;
+	ret.yy = dvy.y;
+	ret.yz = dvy.z + dvz.y;
+	ret.zz = dvz.z;
+
+	/* If the doubled version was requested, double the diagonal elements */
+	if (ret_type == DOUBLED_TENSOR) {
+		ret.xx *= 2.0f;
+		ret.yy *= 2.0f;
+		ret.zz *= 2.0f;
+	}
+	/* If the actual tensor was requested, halve the off-diagonal elements */
+	if (ret_type == TENSOR) {
+		ret.xy *= 0.5f;
+		ret.xz *= 0.5f;
+		ret.yz *= 0.5f;
+	}
+
+	return ret;
+}
+
+//! Compute the square of the double contraction norm of the shear rate tensor D:D/2
+/*! Given velocity (vx, vy, vz), we compute the shear rate norm as the square root
+ * of D:D/2 = 2τ.τ = 2 ( (∂vx/∂x)² + (∂vy/∂y)² + (∂vz/∂z)² ) +
+ *   (∂vx/∂y + ∂vy/∂x)² + (∂vx/∂z + ∂vz/∂x)² + (∂vy/∂z + ∂vz/∂y)²
+ * following e.g. Alexandrou et al. (2001) JNNFM doi:10.1016/S0377-0257(01)00127-6.
+ * This function returns its squared value (i.e. before taking the square root).
+ *
+ * The template parameter is used to determine how the tensor is encoded,
+ * i.e. if we are being passed τ, D or the mixed form.
+ *
+ * \todo Other authors seem to use the second invariant defined as (Tr(D)^2 - Tr(D.D))/2,
+ * we should explore the differences between the two, and possibly offer the option
+ * to choose which norm to use.
+ */
+template<ShearRateReturnType shRate_type>
+__device__ __forceinline__
+float shearRateNorm2(symtensor3 const& shRate)
+{
+	// Start by adding the diagonal entries
+	float diag_terms = shRate.xx*shRate.xx + shRate.yy*shRate.yy + shRate.zz*shRate.zz;
+	/* If shRate encodes D, we need to halve since we got
+	 * 4 ( (∂vx/∂x)² + (∂vy/∂y)² + (∂vz/∂z)² ),
+	 * otherwise we need to double since we only got
+	 * (∂vx/∂x)² + (∂vy/∂y)² + (∂vz/∂z)².
+	 */
+	if (shRate_type == DOUBLED_TENSOR)
+		diag_terms *= 0.5f;
+	else
+		diag_terms *= 2.0f;
+
+	float off_terms =  shRate.xy*shRate.xy + shRate.xz*shRate.xz + shRate.yz*shRate.yz;
+	/* If shRate encodes τ, we need to multiply by 4 since we got
+	 * ( (∂vx/∂y + ∂vy/∂x)² + (∂vx/∂z + ∂vz/∂x)² + (∂vy/∂z + ∂vz/∂y)² )/4
+	 */
+	if (shRate_type == TENSOR)
+		off_terms *= 4.0f;
+
+	return diag_terms + off_terms;
+}
+
+/************************************************************************************************************/
+
+
 
 /************************************************************************************************************/
 /*		   Kernels for computing SPS tensor and SPS viscosity												*/
@@ -173,69 +314,17 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 
 	const float4 vel = tex1Dfetch(velTex, index);
 
-	// Gradients of the the velocity components
-	float3 dvx = make_float3(0.0f);
-	float3 dvy = make_float3(0.0f);
-	float3 dvz = make_float3(0.0f);
-
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
-	// Loop over all neighbors to compute their contribution to the velocity gradient
-	// TODO: check which particle types should contribute with SA
-	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
-
-		const uint neib_index = neib_iter.neib_index();
-
-		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			params.posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
-
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-		const float r = length3(relPos);
-
-		// skip inactive particles and particles outside of the kernel support
-		if (INACTIVE(relPos) || r >= params.influenceradius)
-			continue;
-
-		// Compute relative velocity
-		// Now relVel is a float4 and neib density is stored in relVel.w
-		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-
-		const float neib_rho = physical_density(relVel.w, fluid_num(neib_info));
-		const float f = F<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// 1/r ∂Wij/∂r Vj
-
-		// Velocity Gradients
-		dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
-		dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
-		dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
-	} // end of loop through neighbors
-
-
-	// SPS stress matrix elements
-	symtensor3 tau;
+	symtensor3 tau = shearRate<kerneltype, MIXED_TENSOR>(index, gridPos, pos, vel, params);
 
 	// Calculate Sub-Particle Scale viscosity
 	// and special turbulent terms
-	float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-	float temp = dvx.y + dvy.x;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-	tau.xy = temp;
-	SijSij_bytwo += temp*temp;
-	temp = dvx.z + dvz.x;			// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-	tau.xz = temp;
-	SijSij_bytwo += temp*temp;
-	temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-	tau.yz = temp;
-	SijSij_bytwo += temp*temp;
+	const float SijSij_bytwo = shearRateNorm2<MIXED_TENSOR>(tau);
 	const float S = sqrtf(SijSij_bytwo);
 	const float nu_SPS = d_smagfactor*S;		// Dalrymple & Rogers (2006): eq. (12)
-	const float divu_SPS = 0.6666666666f*nu_SPS*(dvx.x + dvy.y + dvz.z);
+	const float divu_SPS = 0.6666666666f*nu_SPS*(tau.xx + tau.yy + tau.zz);
 	const float Blinetal_SPS = d_kspsfactor*SijSij_bytwo;
 
 	// Storing the turbulent viscosity for each particle
@@ -247,14 +336,17 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 
 		const float rho = physical_density(vel.w, fluid_num(info));
 
-		tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
+		/* Since tau stores the diagonal components non-doubled, but we need the doubled
+		 * ones, we double them here */
+
+		tau.xx = nu_SPS*(tau.xx+tau.xx) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
 		tau.xx /= rho;
 		tau.xy *= nu_SPS/rho;								// tau12 = tau_xy/ρ^2
 		tau.xz *= nu_SPS/rho;								// tau13 = tau_xz/ρ^2
-		tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
+		tau.yy = nu_SPS*(tau.yy+tau.yy) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
 		tau.yy /= rho;
 		tau.yz *= nu_SPS/rho;								// tau23 = tau_yz/ρ^2
-		tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
+		tau.zz = nu_SPS*(tau.zz+tau.zz) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
 		tau.zz /= rho;
 
 		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, tau);
