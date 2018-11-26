@@ -106,6 +106,7 @@ typedef struct PhysParams {
 	 * \inpsection{fluid}
 	 * \label{EOS_EXPONENT}
 	 * \default{7}
+   * TLT_EOS_EXPONENT
 	 */
 	std::vector<float> gammacoeff;		///< Adiabatic index, \f$\gamma\f$
   /*!

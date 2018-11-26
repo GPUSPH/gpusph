@@ -451,42 +451,42 @@ class Problem {
 		bool periodicity_z;
 
 		/* \inpsection{probe}
-		* \label{X}
+		* \label{PROBE_X}
 		* \default{0.0}
 		* TLT_PROBE_X
 		*/
 		std::vector<float> x;
 
 		/* \inpsection{probe}
-		* \label{Y}
+		* \label{PROBE_Y}
 		* \default{0.0}
 		* TLT_PROBE_Y
 		*/
 		std::vector<float> y;
 
 		/* \inpsection{probe}
-		* \label{Z}
+		* \label{PROBE_Z}
 		* \default{0.0}
 		* TLT_PROBE_Z
 		*/
 		std::vector<float> z;
 
 		/* \inpsection{wave_gage}
-		* \label{X}
+		* \label{WAVE_GAGE_X}
 		* \default{0.0}
 		* TLT_WAVE_GAGE_X
 		*/
 		std::vector<float> gage_x;
 
 		/* \inpsection{wave_gage}
-		* \label{Y}
+		* \label{WAVE_GAGE_Y}
 		* \default{0.0}
 		* TLT_WAVE_GAGE_Y
 		*/
 		std::vector<float> gage_y;
 
 		/* \inpsection{wave_gage}
-		* \label{Z}
+		* \label{WAVE_GAGE_Z}
 		* \default{0.0}
 		* TLT_WAVE_GAGE_Z
 		*/
