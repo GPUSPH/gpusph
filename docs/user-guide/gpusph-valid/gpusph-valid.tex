@@ -23,7 +23,7 @@ are described, together with their setup in the user interface.
 %\vspace*{2pt}
    
 \begin{itemize}
-\item \textbf{Description of the Problem}: This case is based on the experimental setup of Kleefsman et al. \citep{Kleefsman}
+\item \textbf{Description of the case}: This case is based on the experimental setup of Kleefsman et al. \citep{Kleefsman}
   in their work on modeling hydraulics problems with wave impact.
   In fact, this case study has become a classic validation problem in the literature and has been reiterated multiple times,
   as can be seen in Issa and Violeau's paper \citep{SPHERIC} and in Leroy's thesis \citep{AgnesLeroy}. This case study is well
@@ -349,6 +349,156 @@ hydrostatic phenomena since it shows a convergent behavior.
   \label{fig:HydroExp2L2}
 \end{figure}
 
+\section{Channel IO}
+
+\subsection{Case Study Setup and Details}
+%\vspace*{2pt}
+   
+\begin{itemize}
+\item \textbf{Description of the case}: this is a schematic case of a laminar channel flow with an inflow and an outflow boundary.
+  The channel has a rectangular section of size $1m x 1m$ and a length of $4m$.
+
+  We consider a simple 3-dimensional rectangular channel which is
+  filled with fluid particles, and subjected to a gravity field force acting in a parallel and
+  opposite manner with respect to the bottom's normal. The case is non-dimensionalized by using the water depth $h$
+  and other physical parameters. The non-dimensional parameters and variables are as seen below:   
+  \begin{equation}
+    \begin{array}{l}
+      \displaystyle{  z^{+} \doteq \frac{z}{h} } \medskip \\ 
+      \displaystyle{  t^{+} \doteq \frac{t}{\sqrt{h/g}} } \medskip \\ 
+      \displaystyle{  P^{+} \doteq \frac{P}{\rho gh} } \medskip \\ 
+      \displaystyle{  F^{+} \doteq \frac{F}{\rho g} } 
+    \end{array}
+  \end{equation}
+  The dimensionless channel length is $L^+=8$, and the dimensionless channel width is $l^+=2$.
+
+\item \textbf{The numerical and physical parameters studied:} This study sets up only one test: indeed, the only
+  boundary formulation making it possible to use inflow/outflow boundaries in GPUSPH, at the moment, is the semi-analytical
+  formulation.
+  \begin{itemize}
+  \item numerical speed of sound: ${c_n} = 10\sqrt{gh} \; m/s$
+  \item smoothing length to particle size ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item kinematic viscosity: $\nu = 0.01 \; {m^2}/{s}$
+  \item gravity field: $g = -9.81 \; {m}/{s^2}$
+  \item fluid density: $\rho = 1000 \; {kg}/{m^3} $
+  \item length scale: $h = 0.5 \; m$
+  \item simulation time: $t^+ = 10 $ 
+  \end{itemize}
+\end{itemize}
+
+\subsection{Setup in Salome}
+For this test-case, the geometrical setup only contains the channel and the initial free-surface shape.
+We will not use any repacking so it is not necessary to include the free-surface in the main boundary shell.
+In order to define the inflow and outflow boundaries, it will be necessary to define groups of faces
+corresponding to these two areas in the GEOM object of the channel. The steps below are performed:
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the basin and free-surface\\
+    \textbf{New entity $\to$ Basic $\to$ Point}\smallskip\\
+    \includegraphics[scale=0.4,trim={0 13cm 40cm 7cm}, clip]{../fig/ChannelIO/Salome/vertices_creation.png}
+  \item Create the lines linking the vertices together\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\smallskip\\
+    \includegraphics[scale=0.4,trim={40cm 10cm 0cm 11cm}, clip]{../fig/ChannelIO/Salome/lines_creation.png}
+  \item Create the faces of the basin and free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Face}\smallskip\\
+    \includegraphics[scale=0.28,trim={18cm 8cm 5cm 7cm}, clip]{../fig/ChannelIO/Salome/faces_creation.png}
+  \item Create a shell with the faces of the basin\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.3,trim={12cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/basin_shell.png}
+  \item Check the normals orientation (they should be oriented towards the fluid)\\
+    \textbf{Inspection $\to$ Normal to a face}\smallskip\\
+    \includegraphics[scale=0.28,trim={12cm 7cm 12cm 8cm}, clip]{../fig/SPHERIC2/Salome/check_normals.png}
+  \item If not, change their orientation at this stage in the GEOM module\\
+    \textbf{Repair $\to$ Change orientation}\smallskip\\
+    \includegraphics[scale=0.3,trim={12cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/revert_normals.png}
+  \item Create groups of faces for the inflow and outflow boundaries, in the basin object:
+    \textbf{New entity $\to$ Group $\to$ Create group}\smallskip\\
+    - Select the face type group in the Shape type section\\
+    - Name the group, for example \textbf{inflow}\\
+    - Select the two faces of the inflow from the GUI and click on the Add button\\
+    - Click on Apply and Close\\
+    \includegraphics[scale=0.4,trim={25cm 7cm 15cm 8cm}, clip]{../fig/ChannelIO/Salome/create_inflow_group.png}
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create three cases, one for each type of boundary conditions\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.5,trim={0cm 26.5cm 45cm 1cm}, clip]{../fig/ChannelIO/Salome/create_prepro_case.png}
+  \item Then, define the main boundary for each case, taking care to select the basin with reversed normals for the dynamic boundaries\\
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_main_boundary.png}
+  \item Define the free-surface for the three cases\\
+    \textbf{SPH Preprocessor $\to$ Define free surface}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_free_surface.png}
+  \item Define the inflow and outflow boundaries as special boundaries\\
+    \textbf{SPH Preprocessor $\to$ Define special boundary grid}\smallskip\\
+    Select the \textbf{inlet} group of the basin\\
+    Choose the \textbf{Surface type} as \textbf{Open boundary}\\
+    Do the same for the outlet\\
+    \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_inlet.png}
+  \item Edit the cases parameters, taking care to choose the corresponding boundary formulation\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={15cm 14cm 30cm 5cm}, clip]{../fig/ChannelIO/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\smallskip\\
+    \includegraphics[scale=0.3,trim={0cm 10cm 28cm 12cm}, clip]{../fig/ChannelIO/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis.
+    The field KENT makes it possible to visualize the index of the different boundaries: 0 for the main wall, 1 for the inlet,
+    2 for the outlet:\\
+    \begin{center}\includegraphics[scale=0.3,trim={13cm 6cm 18cm 10cm}, clip]{../fig/ChannelIO/Salome/channelIO_particles.png}\end{center}
+    
+    Assuming that the \cmd{ChannlIO.hdf} file is located at \cmd{$MY_STUDY_PATH/ChannelIO.hdf}.
+    Then, the particle files for the case are located in:\\
+    \cmd{$MY_STUDY_PATH/ChannelIO_presph/ChannelIO}. \\
+    The files are the following:\\
+    - \cmd{ChannelIO.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{ChannelIO.basin.h5sph}: GPUSPH file for the walls of the channel\\
+    - \cmd{ChannelIO.inlet.h5sph}: GPUSPH file for the inlet boundary\\
+    - \cmd{ChannelIO.outlet.h5sph}: GPUSPH file for the outlet boundary\\
+    - \cmd{ChannelIO.fluid.vtu}:  vtu file for the fluid, can be opened in Paravis\\
+    - \cmd{ChannelIO.basin.vtu}: vtu file for the walls of the channel, can be opened in Paravis\\
+    - \cmd{ChannelIO.inlet.vtu}: vtu file for the inlet boundary, can be opened in Paravis\\
+    - \cmd{ChannelIO.outlet.h5sph}: vtu file for the outlet boundary, can be opened in Paravis\\
+    - \cmd{basin.stl}: stl file of the channel walls, can be used for visualisation purposes\\
+    - \cmd{basin.obj}: file for handling collisions with the channel walls in GPUSPH\\
+    - \cmd{inlet.stl}: stl file of the inlet boundary, can be used for visualisation purposes\\
+    - \cmd{inlet.obj}: file for handling collisions with the inlet boundary in GPUSPH\\
+    - \cmd{outlet.stl}: stl file of the outlet boundary, can be used for visualisation purposes\\
+    - \cmd{outlet.obj}: file for handling collisions with the outlet boundary in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create four cases, one for each of the tests of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 25cm 48cm 2cm}, clip]{../fig/ChannelIO/Salome/create_solver_case.png}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary formulation
+    and boundary types\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/ChannelIO/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters and set them to the ones of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/ChannelIO/Salome/edit_simulation_parameters.png}\medskip
+  \item Choose to prescribe a constant velocity at the inlet and a constant water level at the outlet in the simulation parameters,
+    and enable the user function imposeBoundaryConditionsHost:\\
+    \includegraphics[scale=0.4,trim={0cm 5cm 38cm 15cm}, clip]{../fig/ChannelIO/Salome/edit_inlet_outlet.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
+    \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIO}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIO/gpusph/dist/linux/x86_64}.
+  \end{itemize}
+\end{enumerate}
+
+  
 \bibliography{../gpusph-manual.bib}
 
 \end{document}
