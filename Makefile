@@ -89,6 +89,13 @@ else
 	TARGET_SFX=
 endif
 
+# on Windows, executables have .exe extension
+ifeq ($(wsl), 1)
+	EXE_SFX=.exe
+else
+	EXE_SFX=
+endif
+
 # directories: binary, objects, sources, expanded sources
 DISTDIR = dist/$(platform_lcase)/$(arch)
 DEPDIR = dep
@@ -101,17 +108,18 @@ OPTSDIR = options
 INFODIR = info
 
 # target binary
-exename = $(1)$(TARGET_SFX)
+exename = $(1)$(TARGET_SFX)$(EXE_SFX)
 exe = $(DISTDIR)/$(call exename,$1)
 
-dbgexename = $(1)$(DBG_SFX)
+dbgexename = $(1)$(DBG_SFX)$(EXE_SFX)
 dbgexe = $(DISTDIR)/$(call dbgexename,$1)
-nodbgexename = $(1)$(DBG_SFX)
+nodbgexename = $(1)$(DBG_SFX)$(EXE_SFX)
 nodbgexe = $(DISTDIR)/$(call nodbgexename,$1)
 
 # binary to list compute capabilities of installed devices
-LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc
-
+LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc$(EXE_SFX)
+# binary to check for availability of CUDA installation
+NVCC_EXE=nvcc$(EXE_SFX)
 
 # --------------- File lists
 
@@ -195,10 +203,10 @@ CUDA_INSTALL_PATH ?= /usr/local/cuda
 
 # We check the validity of the path by looking for bin/nvcc under it.
 # if not found, we look into /usr, and finally abort
-ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/$(NVCC_EXE)),)
 	CUDA_INSTALL_PATH = /usr
 	# check again
-	ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+	ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/$(NVCC_EXE)),)
 $(error Could not find CUDA, please set CUDA_INSTALL_PATH)
 	endif
 endif
@@ -213,7 +221,7 @@ endif
 #	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
 
 # nvcc info
-NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
+NVCC=$(CUDA_INSTALL_PATH)/bin/$(NVCC_EXE)
 NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
 versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
