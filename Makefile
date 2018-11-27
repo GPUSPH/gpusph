@@ -196,10 +196,17 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 # --------------- Locate and set up compilers and flags
 
 # override: CUDA_INSTALL_PATH - where CUDA is installed
-# override:                     defaults /usr/local/cuda,
+# override:                     defaults to nvcc path, if found in PATH
+#                               falls back to /usr/local/cuda otherwise
 # override:                     validity is checked by looking for bin/nvcc under it,
 # override:                     /usr is always tried as a last resort
-CUDA_INSTALL_PATH ?= /usr/local/cuda
+CUDA_INSTALL_PATH ?= $(shell dirname "$$(dirname "$$(which $(NVCC_EXE))")")
+
+ifeq ($(CUDA_INSTALL_PATH),$(empty))
+	CUDA_INSTALL_PATH = /usr/local/cuda
+endif
+
+CUDA_INSTALL_PATH:=$(subst $(space),\ ,$(CUDA_INSTALL_PATH))
 
 # We check the validity of the path by looking for bin/nvcc under it.
 # if not found, we look into /usr, and finally abort
