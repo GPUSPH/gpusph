@@ -322,18 +322,13 @@ CommonWriter::write_simparams(ostream &out)
 	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
 	out << " multi-fluid support: " << ED[!!(SP->simflags & ENABLE_MULTIFLUID)] << endl;
 	out << " Rheology: " << RheologyName[SP->rheologytype] << endl;
-	switch (SP->rheologytype) {
-	case INVISCID: break; /* nothing to show */
-	case NEWTONIAN:
-		       out << "\tTurbulence model: " << TurbulenceName[SP->turbmodel] << endl;
-		       out << "\tComputational viscosity type: " << ComputationalViscosityName[SP->compvisc] << endl;
-		       out << "\tViscous model operator: " << ViscousModelName[SP->viscmodel] << endl;
-		       out << "\tViscous averaging operator: " << AverageOperatorName[SP->viscavgop] << endl;
-		       if (SP->is_const_visc)
-			       out << "\t(constant viscosity optimizations)" << endl;
-		       break;
-	default:
-		       throw runtime_error("unimplemented rheology parameter printout");
+	if (SP->rheologytype != INVISCID) {
+		out << "\tTurbulence model: " << TurbulenceName[SP->turbmodel] << endl;
+		out << "\tComputational viscosity type: " << ComputationalViscosityName[SP->compvisc] << endl;
+		out << "\tViscous model operator: " << ViscousModelName[SP->viscmodel] << endl;
+		out << "\tViscous averaging operator: " << AverageOperatorName[SP->viscavgop] << endl;
+		if (SP->is_const_visc)
+			out << "\t(constant viscosity optimizations)" << endl;
 	}
 	out << " periodicity: " << SP->periodicbound << " (" << PeriodicityName[SP->periodicbound] << ")" << endl;
 
@@ -467,9 +462,20 @@ CommonWriter::write_physparams(ostream &out)
 		out << "\tSmagfactor = " << PP->smagfactor << endl;
 		out << "\tkSPSfactor = " << PP->kspsfactor << endl;
 	}
+	if (NEEDS_EFFECTIVE_VISC(SP->rheologytype))
+		out << "\tlimiting visc = " << PP->limiting_visc << endl;
 
-	for (uint f  = 0; f < PP->numFluids(); ++f)
+	for (uint f  = 0; f < PP->numFluids(); ++f) {
 		out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
+		out << "\tvisc_consistency[ " << f << " ] = " << PP->visc_consistency[f] << " (Pa^n s)" << endl;
+
+		if (NONLINEAR_RHEOLOGY(SP->rheologytype))
+			out << "\tvisc_nonlinear_param[ " << f << " ] = " << PP->visc_nonlinear_param[f] << endl;
+		if (YIELDING_RHEOLOGY(SP->rheologytype))
+			out << "\tyield_strength[ " << f << " ] = " << PP->yield_strength[f] << " (Pa s)" << endl;
+		if (REGULARIZED_RHEOLOGY(SP->rheologytype))
+			out << "\tvisc_regularization_param[ " << f << " ] = " << PP->visc_regularization_param[f] << " (Pa s)" << endl;
+	}
 	for (uint f  = 0; f < PP->numFluids(); ++f)
 		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f]
 			<< (SP->compvisc == KINEMATIC ? " (m^2/s)" : " (Pa s)") <<endl;

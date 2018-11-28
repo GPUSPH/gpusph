@@ -322,7 +322,14 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 		sqC0[i] *= sqC0[i];
 	}
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_sqC0, sqC0, numFluids*sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visccoeff, &physparams->visccoeff[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_yield_strength, &physparams->yield_strength[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visc_nonlinear_param, &physparams->visc_nonlinear_param[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visc_regularization_param, &physparams->visc_regularization_param[0], numFluids*sizeof(float)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_limiting_visc, &physparams->limiting_visc, sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_artvisccoeff, &physparams->artvisccoeff, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_gravity, &physparams->gravity, sizeof(float3)));
@@ -392,7 +399,11 @@ getconstants(PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&numFluids, cuforces::d_numfluids, sizeof(uint)));
 	if (numFluids != physparams->numFluids())
 		throw std::runtime_error("wrong number of fluids");
+
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visccoeff[0], cuforces::d_visccoeff, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->yield_strength[0], cuforces::d_yield_strength, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visc_nonlinear_param[0], cuforces::d_visc_nonlinear_param, numFluids*sizeof(float), 0));
+
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->rho0[0], cuforces::d_rho0, numFluids*sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->bcoeff[0], cuforces::d_bcoeff, numFluids*sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->gammacoeff[0], cuforces::d_gammacoeff, numFluids*sizeof(float), 0));

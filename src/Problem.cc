@@ -69,7 +69,7 @@ using namespace std;
 Problem::Problem(GlobalData *_gdata) :
 	m_problem_dir(_gdata->clOptions->dir),
 	m_dem(NULL),
-	m_physparams(new PhysParams()),
+	m_physparams(NULL),
 	m_simframework(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
@@ -158,8 +158,8 @@ Problem::InitializeChrono()
 {
 #if USE_CHRONO == 1
 	m_bodies_physical_system = new ::chrono::ChSystemNSC();
-	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
-		m_physparams->gravity.z));
+	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(physparams()->gravity.x, physparams()->gravity.y,
+		physparams()->gravity.z));
 	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
 	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::SOR);
 	// For debug purposes

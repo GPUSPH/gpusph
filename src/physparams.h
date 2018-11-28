@@ -36,6 +36,8 @@
 
 #include "particledefine.h"
 
+#include "visc_spec.h"
+
 #include "deprecation.h"
 
 class Problem;
@@ -50,6 +52,12 @@ class GPUSPH;
  *	\ingroup datastructs
  */
 typedef struct PhysParams {
+	//! Rheology type
+	/*! This is initialized at structure construction, and is used to determine how
+	 * to use some of the viscous options
+	 */
+	const RheologyType rheologytype;
+
 	/** \name Equation of state related parameters
 	 *  The relation between pressure and density is given for Cole's equation of state
 	 *	\f[
@@ -75,7 +83,7 @@ typedef struct PhysParams {
 
 	/** \name Viscosity related parameters
 	 *  Viscosity coefficient used in the viscous contribution functions, depends on
-	 *  viscosity model:
+	 *  viscosity model (TODO FIXME for new viscous specification):
 	 *		- for ARTVSIC: artificial viscosity coefficient
 	 *  	- for KINEMATICVISC: 4xkinematic viscosity,
 	 *   	- for DYNAMICVISC: kinematic viscosity
@@ -89,7 +97,79 @@ typedef struct PhysParams {
 	 * @{ */
 	float	artvisccoeff;				///< Artificial viscosity coefficient (one, for all fluids)
 	float	epsartvisc;					///< Small coefficient used to avoid singularity in artificial viscosity computation
-	std::vector<float>	kinematicvisc;	///< Kinematic viscosity (\f$ \nu \f$)
+
+	/** \name Newtonian fluids
+	 * @{ */
+	std::vector<float>	kinematicvisc;	///< Kinematic viscosity (\f$ \nu \f$). SI units: m²/s
+	/** @} */
+
+	/** \name Generalized Newtonian parameters
+	 *  Note that we there is a small overlap: when modelling Newtonian fluids with a more general model,
+	 *  the consistency index corresponds to the dynamic viscous viscosity (\f$ \mu \f$, SI units Pa s), that
+	 *  the user could also set via set_kinematic_visc.
+	 *  Consistency between the two indices is preserved in the wrapper functions.
+	 * @{ */
+	std::vector<float>	yield_strength;	///< Yield strength for Bingham, Herschel–Bulkley and Zhu rheological models. SI units: Pa s
+
+	//! Viscous non-linearity
+	/*! This is either the exponent n for the power-law and Herschel–Bulkley model (pure number):
+	 * or the exponential coefficient of De Kee and Turcotte (SI units: s).
+	 *
+	 * With Herschel–Bulkley, the effective viscosity is computed as:
+	 *
+	 * k \dot\gamma^(n-1) + τ_0/\dot\gamma
+	 *
+	 * for De Kee and Turcotte as:
+	 *
+	 * mu exp(-t1 \dot\gamma) + τ_0/\dot\gamma
+	 *
+	 * n = 1 or t1 = 0 give the Newtonian rheology.
+	 * n < 1 or t1 > 0 give shear-thinning behavior (pseudo-plastic).
+	 * n > 1 or t1 < 0 give shear-thickening behavior (dilatant).
+	 */
+	std::vector<float>	visc_nonlinear_param;	///< Exponent for power-law and Herschel–Bulkley rheology
+
+	//! Viscosity consistency index
+	/*! This is the dynamic viscosity in the Newtonian case, the consistency index for power-law and Herschel–Bulkley,
+	 * and the exponential coefficient for the De Kee & Turcotte, and Zhu models.
+	 * SI units: Pa s^n in the power-law and HB cases, Pa s in all other cases
+	 */
+	std::vector<float>	visc_consistency;
+
+	//! Papanastasiou regularization parameter
+	/*! The Bingham model is regularized following the Papanastasiou model, with an effective viscosity computed as
+	 *
+	 * mu + τ_0 (1 - exp(-m \dot\gamma))/\dot\gamma
+	 *
+	 * instead of
+	 *
+	 * mu + τ_0/\dot\gamma
+	 *
+	 * so that the limit for \dot\gamma \to 0 is mu + τ_0 m instead of producing an infinite viscosity.
+	 *
+	 * The same regularization for the yield strength component can be applied to the Herschel–Bulkley model,
+	 * as proposed by Alexandrou et al 2001, that computes the effective viscosity as:
+	 *
+	 * k \dot\gamma^(n-1) + τ_0 (1 - exp(-m \dot\gamma))/\dot\gamma
+	 *
+	 * However, this does not prevent infinite viscosity for shear-thinning materials, which is solved by the Zhu model,
+	 * which combines Papanastasiou with De Kee and Turcotte:
+	 *
+	 * mu exp(-t1 \dot\gamma) + τ_0 (1 - exp(-m \dot\gamma))/\dot\gamma
+	 *
+	 * \see{visc_nonlinear_param, limiting_visc}
+	 */
+	std::vector<float>	visc_regularization_param;
+
+	//! Upper limit to the effective dynamic viscosity. SI units: Pa s
+	/*! This is used to prevent infinite viscosity for shear rates close to zero
+	 * when the model is not regularized.
+	 *
+	 * \note this is fluid-independent
+	 */
+	float limiting_visc;
+	/** @} */
+
 	std::vector<float>	visccoeff;		///< Viscosity coefficient
 	/** @} */
 
@@ -177,9 +257,12 @@ typedef struct PhysParams {
 	// to get a warning about them for the constructor, only
 	// when the users actually assign to them
 IGNORE_WARNINGS(deprecated-declarations)
-	PhysParams(void) :
+	PhysParams(RheologyType _rheologytype) :
+		rheologytype(_rheologytype),
 		artvisccoeff(0.3f),
 		epsartvisc(NAN),
+
+		limiting_visc(1.0e3),
 
 		r0(NAN),
 		dcoeff(NAN),
@@ -245,6 +328,19 @@ protected:
 		// Prime the viscosity coefficient arrays, but do not initialize them
 		kinematicvisc.push_back(NAN);
 		visccoeff.push_back(NAN);
+
+		// We do initialize the generalized Newtonian parameters, with the values
+		// we would need to reduce back to a Newtonian rheology
+		yield_strength.push_back(0.0f);
+
+		/* Newtonian behavior is achieved with a power-law exponent of 1 or an exponential coefficient of 0,
+		 * so it depends on the rheology type
+		 */
+		visc_nonlinear_param.push_back(EXPONENTIAL_RHEOLOGY(rheologytype) ? 0.0f : 1.0f);
+		visc_consistency.push_back(NAN); // this must be kept in sync with kinematicvisc
+
+		// Default regularization param: 1000
+		visc_regularization_param.push_back(1000.0f);
 
 		return rho0.size() - 1;
 	}
@@ -312,30 +408,123 @@ protected:
 	}
 	/** @} */
 
+	/** \name Rheological model checks
+	 * @{ */
+
+	//! Check if using a power-law rheology
+	bool is_power_law_rheology() const
+	{ return POWERLAW_RHEOLOGY(rheologytype); }
+
+	//! Throw if not using a power-law rheology
+	void must_be_power_law_rheology() const
+	{
+		if (!is_power_law_rheology())
+			throw std::invalid_argument("The " + std::string(RheologyName[rheologytype]) + " rheological model is not power-law");
+	}
+
+	//! Check if using an exponential rheology
+	bool is_exponential_rheology() const
+	{ return EXPONENTIAL_RHEOLOGY(rheologytype); }
+
+	//! Throw if not using an exponential rheology
+	void must_be_exponential_rheology() const
+	{
+		if (!is_exponential_rheology())
+			throw std::invalid_argument("The " + std::string(RheologyName[rheologytype]) + " rheological model is not exponential");
+	}
+
+	/** @} */
+
 	/** \name Viscosity related methods
 	 * @{ */
+
+	/// Raise the limiting viscosity if necessary to take into account the new settings for the given fluid.
+	void update_limiting_visc(int fluid_idx)
+	{
+		float new_limit = yield_strength.at(fluid_idx)*visc_regularization_param[fluid_idx] + visc_consistency[fluid_idx];
+		limiting_visc = fmaxf(limiting_visc, new_limit);
+	}
+
 	/// Set the kinematic viscosity of a given fluid
 	/*! This function set the kinematic viscosity \f$ \nu \f$ of a given fluid
+	 * \todo This should check that fluid is Newtonian
 	 */
 	void set_kinematic_visc(
 			size_t fluid_idx,	///< [in] fluid number
 			float nu			///< [in] kinematic viscosity \f$ \nu \f$
 			) {
 		kinematicvisc.at(fluid_idx) = nu;
+		visc_consistency.at(fluid_idx) = nu*rho0[fluid_idx];
+		update_limiting_visc(fluid_idx);
 	}
 
 	/// Set the dynamic viscosity of a given fluid
 	/*! This set the dynamic viscosity \f$ \mu \f$ of a given fluid
+	 * \todo This should check that fluid is Newtonian
 	*/
 	void set_dynamic_visc(
 			size_t fluid_idx,	///< [in] fluid number
-			float mu			///< [in] dynamic viscosity viscosity \f$ \mu \f$
+			float mu			///< [in] dynamic viscosity \f$ \mu \f$
 			) {
-		set_kinematic_visc(fluid_idx, mu/rho0[fluid_idx]);
+		kinematicvisc.at(fluid_idx) = mu/rho0[fluid_idx];
+		visc_consistency.at(fluid_idx) = mu;
+		update_limiting_visc(fluid_idx);
+	}
+
+	/// Set the consistency index of a given fluid
+	/*! This is equivalent to setting the dynamic viscosity for Newtonian fluids
+	 */
+	void set_consistency_index(
+			size_t fluid_idx,	///< [in] fluid number
+			float k			///< [in] viscous consistency index \f$ \mu \f$
+			) {
+		set_dynamic_visc(fluid_idx, k);
+	}
+
+	/// Set the yield strength of a given fluid
+	void set_yield_strength(
+			size_t fluid_idx,	///< [in] fluid number
+			float ys			///< [in] viscous consistency index \f$ y_s \f$
+			) {
+		yield_strength.at(fluid_idx) = ys;
+		update_limiting_visc(fluid_idx);
+	}
+
+	/// Set the power law exponent of a given fluid
+	void set_visc_power_law(
+			size_t fluid_idx,	///< [in] fluid number
+			float n			///< [in] viscous power law index \f$ n \f$
+			) {
+		must_be_power_law_rheology();
+		visc_nonlinear_param.at(fluid_idx) = n;
+	}
+
+	/// Set the exponential law coefficient of a given fluid
+	void set_visc_exponential_coeff(
+			size_t fluid_idx,	///< [in] fluid number
+			float t1			///< [in] viscous exponential law coefficient \f$ t_1 \f$
+			) {
+		must_be_exponential_rheology();
+		visc_nonlinear_param.at(fluid_idx) = t1;
+	}
+
+	/// Set the regularization parameter for the yield strength component of the apparent viscosity
+	void set_visc_regularization_param(
+			size_t fluid_idx,	///< [in] fluid number
+			float m			///< [in] regularization parameter \f$ m \f$
+			) {
+		visc_regularization_param.at(fluid_idx) = m;
+	}
+
+	/// Set the maximum allowed viscosity
+	void set_limiting_viscosity(
+			float max_visc		///< [in] maximum allowed viscosity
+		) {
+		limiting_visc = max_visc;
 	}
 
 	/// Return the kinematic viscosity of a given fluid
-	/*! This function return kinematic viscosity \f$ \nu \f$ of a given fluid
+	/*! This function returns the kinematic viscosity \f$ \nu \f$ of a given fluid
 	 *
 	 * \return \f$ \nu \f$
 	*/
@@ -344,6 +533,51 @@ protected:
 			) const {
 		return kinematicvisc.at(fluid_idx);
 	}
+
+	/// Return the dynamic viscosity of a given fluid
+	float get_dynamic_visc(
+			size_t fluid_idx	///< [in] fluid number
+			) const {
+		return visc_consistency.at(fluid_idx);
+	}
+
+	/// Return the viscous consistency index of a given fluid
+	float get_consistency_index(
+			size_t fluid_idx	///< [in] fluid number
+			) const {
+		return visc_consistency.at(fluid_idx);
+	}
+
+	/// Return the yield strength of a given fluid
+	float get_yield_strength(
+			size_t fluid_idx	///< [in] fluid number
+			) const {
+		return yield_strength.at(fluid_idx);
+	}
+
+	/// Return the viscous power law exponent of a given fluid
+	float get_visc_power_law(
+			size_t fluid_idx	///< [in] fluid number
+			) const {
+		must_be_power_law_rheology();
+		return visc_nonlinear_param.at(fluid_idx);
+	}
+
+	/// Return the viscous exponential law coefficient of a given fluid
+	float get_visc_exponential_coeff(
+			size_t fluid_idx	///< [in] fluid number
+			) const {
+		must_be_exponential_rheology();
+		return visc_nonlinear_param.at(fluid_idx);
+	}
+
+	/// Return the regularization paramter for the yield strength component of the apparent viscosity
+	float get_visc_regularization_param(
+			size_t fluid_idx	///< [in] fluid number
+			) const {
+		return visc_regularization_param.at(fluid_idx);
+	}
+
 	/** @} */
 
 } PhysParams;

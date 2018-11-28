@@ -361,23 +361,47 @@ class Problem {
 		{ return m_physparams; }
 
 		PhysParams *physparams(void)
-		{ return m_physparams; }
+		{
+			if (!m_physparams)
+				m_physparams = new PhysParams(m_simframework->simparams()->rheologytype);
+			return m_physparams;
+		}
 
 		// wrappers for physparams functions
 		size_t add_fluid(float rho)
-		{ return m_physparams->add_fluid(rho); }
+		{ return physparams()->add_fluid(rho); }
 		void set_density(size_t fluid_idx, float _rho0)
-		{ return m_physparams->set_density(fluid_idx, _rho0); }
+		{ return physparams()->set_density(fluid_idx, _rho0); }
 		float get_density(size_t fluid_idx)
-		{ return m_physparams->get_density(fluid_idx); }
+		{ return physparams()->get_density(fluid_idx); }
 		void set_equation_of_state(size_t fluid_idx, float gamma, float c0)
-		{ return m_physparams->set_equation_of_state(fluid_idx, gamma, c0); }
+		{ return physparams()->set_equation_of_state(fluid_idx, gamma, c0); }
+
 		void set_kinematic_visc(size_t fluid_idx, float nu)
-		{ return m_physparams->set_kinematic_visc(fluid_idx, nu); }
+		{ return physparams()->set_kinematic_visc(fluid_idx, nu); }
 		void set_dynamic_visc(size_t fluid_idx, float mu)
-		{ return m_physparams->set_dynamic_visc(fluid_idx, mu); }
+		{ return physparams()->set_dynamic_visc(fluid_idx, mu); }
+		void set_consistency_index(size_t fluid_idx, float k)
+		{ return physparams()->set_consistency_index(fluid_idx, k); }
+		void set_yield_strength(size_t fluid_idx, float ys)
+		{ return physparams()->set_yield_strength(fluid_idx, ys); }
+		void set_visc_power_law(size_t fluid_idx, float n)
+		{ return physparams()->set_visc_power_law(fluid_idx, n); }
+		void set_visc_exponential_coeff(size_t fluid_idx, float n)
+		{ return physparams()->set_visc_exponential_coeff(fluid_idx, n); }
+
 		float get_kinematic_visc(size_t fluid_idx) const
-		{ return m_physparams->get_kinematic_visc(fluid_idx); }
+		{ return physparams()->get_kinematic_visc(fluid_idx); }
+		float get_dynamic_visc(size_t fluid_idx) const
+		{ return physparams()->get_dynamic_visc(fluid_idx); }
+		float get_consistency_index(size_t fluid_idx) const
+		{ return physparams()->get_consistency_index(fluid_idx); }
+		float get_yield_strength(size_t fluid_idx) const
+		{ return physparams()->get_yield_strength(fluid_idx); }
+		float get_visc_power_law(size_t fluid_idx) const
+		{ return physparams()->get_visc_power_law(fluid_idx); }
+		float get_visc_exponential_coeff(size_t fluid_idx) const
+		{ return physparams()->get_visc_exponential_coeff(fluid_idx); }
 
 		// simple functions to add gages. the third component
 		// is actually ignored

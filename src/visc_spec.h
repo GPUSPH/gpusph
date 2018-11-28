@@ -47,22 +47,60 @@
 enum RheologyType {
 	INVISCID, ///< No (laminar) viscosity
 	NEWTONIAN, ///< Viscosity independent of strain rate
+	BINGHAM, ///< Bingham model (Newtonian + yield strength)
+	PAPANASTASIOU, ///< Regularized Bingham model
+	POWER_LAW, ///< Viscosity depends on a power of the strain rate
+	HERSCHEL_BULKLEY, ///< Power law + yield strength
+	ALEXANDROU, ///< Regularized Herschel–Bulkley
+	DEKEE_TURCOTTE, ///< Exponential + yield strength
+	ZHU, ///< Regularized De Kee and Turcotte
 };
+
+//! Check if an effective viscosity needs to be computed
+#define NEEDS_EFFECTIVE_VISC(rheology) ((rheology) > NEWTONIAN)
+
+//! Check if the rheology is non-linear (aside from the yield strength)
+#define NONLINEAR_RHEOLOGY(rheology) ((rheology) >= POWER_LAW)
+
+//! Check if the rheology has a yield strength
+#define YIELDING_RHEOLOGY(rheology) (NEEDS_EFFECTIVE_VISC(rheology) && ((rheology) != POWER_LAW))
+
+//! Check if the rheology uses the regularization parameter
+#define REGULARIZED_RHEOLOGY(rheology) ( \
+	((rheology) == PAPANASTASIOU) || \
+	((rheology) == ALEXANDROU) || \
+	((rheology) == ZHU) \
+	)
+
+//! Check if the rheology has an exponential behavior
+#define EXPONENTIAL_RHEOLOGY(rheology) ((rheology) >= DEKEE_TURCOTTE)
+
+//! Check if the rheology has a power-law behavior
+/*! This includes rheology with yield strength
+ */
+#define POWERLAW_RHEOLOGY(rheology) (NONLINEAR_RHEOLOGY(rheology) && (rheology) < DEKEE_TURCOTTE)
 
 //! Name of the rheology type
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* RheologyName[NEWTONIAN+1]
+const char* RheologyName[ZHU+1]
 #ifdef GPUSPH_MAIN
 = {
 	"Inviscid",
 	"Newtonian",
+	"Bingham",
+	"Papanastasiou",
+	"Power-law",
+	"Herschel–Bulkley",
+	"Alexandrou",
+	"De Kee & Turcotte",
+	"Zhu"
 }
 #endif
 ;
 
-DEFINE_OPTION_RANGE(RheologyType, RheologyName, INVISCID, NEWTONIAN);
+DEFINE_OPTION_RANGE(RheologyType, RheologyName, INVISCID, ZHU);
 
 //! Turbulence model
 /*!

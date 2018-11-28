@@ -1324,7 +1324,7 @@ void GPUSPH::setViscosityCoefficient()
 			pp->visccoeff[f] = pp->kinematicvisc[f];
 	} else if (sp->compvisc == DYNAMIC) {
 		for (uint f = 0; f < pp->numFluids(); ++f)
-			pp->visccoeff[f] = pp->kinematicvisc[f]*pp->rho0[f];
+			pp->visccoeff[f] = pp->visc_consistency[f];
 	} else {
 		throw runtime_error("Don't know how to set viscosity coefficient for chosen viscosity type!");
 	}
