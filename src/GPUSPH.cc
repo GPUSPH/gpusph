@@ -785,6 +785,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->simparams()->turbmodel == SPS)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SPS_TURBVISC>();
 
+	if (NEEDS_EFFECTIVE_VISC(problem->simparams()->rheologytype))
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EFFVISC>();
+
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
 		// Only for debugging:
@@ -1314,19 +1317,27 @@ void GPUSPH::setViscosityCoefficient()
 	const SimParams *sp = gdata->problem->simparams();
 
 	// Set visccoeff based on the viscosity model used
-	if (sp->rheologytype == INVISCID) {
+	switch (sp->rheologytype) {
+	case INVISCID:
 		// ensure that the viscous coefficients are NaN: they should never be used,
 		// and if they are it's an error
 		for (uint f = 0; f < pp->numFluids(); ++f)
 			pp->visccoeff[f] = NAN;
-	} else if (sp->compvisc == KINEMATIC) {
-		for (uint f = 0; f < pp->numFluids(); ++f)
-			pp->visccoeff[f] = pp->kinematicvisc[f];
-	} else if (sp->compvisc == DYNAMIC) {
+		break;
+	case NEWTONIAN:
+		if (sp->compvisc == KINEMATIC) {
+			for (uint f = 0; f < pp->numFluids(); ++f)
+				pp->visccoeff[f] = pp->kinematicvisc[f];
+		} else if (sp->compvisc == DYNAMIC) {
+			for (uint f = 0; f < pp->numFluids(); ++f)
+				pp->visccoeff[f] = pp->visc_consistency[f];
+		}
+		break;
+	default:
+		/* Generalized Newtonian: the stored coefficients are always the dynamic value
+		 */
 		for (uint f = 0; f < pp->numFluids(); ++f)
 			pp->visccoeff[f] = pp->visc_consistency[f];
-	} else {
-		throw runtime_error("Don't know how to set viscosity coefficient for chosen viscosity type!");
 	}
 
 	// Set SPS factors from coefficients, if they were not set

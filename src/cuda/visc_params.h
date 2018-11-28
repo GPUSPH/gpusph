@@ -57,7 +57,7 @@ struct turbvisc_sps_params
 };
 
 
-/// The actual forces_params struct, which concatenates all of the above, as appropriate.
+/// The actual sps_params struct, which concatenates all of the above, as appropriate.
 template<KernelType kerneltype,
 	BoundaryType boundarytype,
 	uint simflags>
@@ -92,5 +92,40 @@ struct sps_params :
 		COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
 	{}
 };
+
+//! Effective viscosity kernel parameters
+/** in addition to the standard neibs_list_params, it only includes
+ * the array where the effective viscosity is written
+ */
+template<KernelType _kerneltype,
+	BoundaryType _boundarytype,
+	typename _ViscSpec>
+struct effvisc_params : neibs_list_params
+{
+	float * __restrict__	effvisc;
+
+	using ViscSpec = _ViscSpec;
+
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr BoundaryType boundarytype = _boundarytype;
+	static constexpr RheologyType rheologytype = ViscSpec::rheologytype;
+
+	effvisc_params(
+		// common
+			const	float4* __restrict__	_posArray,
+			const	hashKey* __restrict__	_particleHash,
+			const	uint* __restrict__		_cellStart,
+			const	neibdata* __restrict__	_neibsList,
+			const	uint		_numParticles,
+			const	float		_slength,
+			const	float		_influenceradius,
+		// effective viscosity
+					float*	__restrict__	_effvisc) :
+	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
+		_slength, _influenceradius),
+	effvisc(_effvisc)
+	{}
+};
+
 
 #endif // _VISC_PARAMS_H

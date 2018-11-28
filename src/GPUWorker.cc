@@ -171,6 +171,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SPS_TURBVISC>();
 	}
 
+	if (NEEDS_EFFECTIVE_VISC(m_simparams->rheologytype))
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EFFVISC>();
+
 	if (m_simparams->boundarytype == SA_BOUNDARY &&
 		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->turbmodel == KEPSILON))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();

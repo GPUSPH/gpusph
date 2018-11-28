@@ -452,18 +452,18 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	}
 
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
-	if (sp->turbmodel == SPS) {
+	if (sp->turbmodel == SPS || NEEDS_EFFECTIVE_VISC(sp->rheologytype)) {
 		this_phase->add_command(CALC_VISC)
 			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL)
 			.writing(current_state,
-				BUFFER_TAU | BUFFER_SPS_TURBVISC);
+				BUFFER_TAU | BUFFER_SPS_TURBVISC | BUFFER_EFFVISC);
 
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_TAU);
+				.updating(current_state, BUFFER_TAU | BUFFER_EFFVISC);
 	}
 
 	if (gdata->debug.inspect_preforce)

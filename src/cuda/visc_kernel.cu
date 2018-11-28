@@ -223,6 +223,231 @@ float shearRateNorm2(symtensor3 const& shRate)
 
 /************************************************************************************************************/
 
+/************************************************************************************************************/
+/*		Kernels and functions to compute the effective viscosity for generalized Newtonian rheologies		*/
+/************************************************************************************************************/
+
+//! Polynomial approximation to (1 - exp(-x))/x, of the given order
+/** This can be written in Horner form as
+ * (1 - x/2 ( 1 - x/3 ( 1 - x/4 (...))))
+ * which we can write iteratively
+ */
+template<unsigned int order>
+__device__ __forceinline__
+float
+horner_one_minus_exp_minus_over(float x, float inner)
+{
+	constexpr float div=(-1.0f/(order+1.0f));
+	return horner_one_minus_exp_minus_over<order - 1>(x, fmaf(x*inner, div, 1.0f));
+}
+
+template<>
+__device__ __forceinline__
+float
+horner_one_minus_exp_minus_over<1>(float x, float inner)
+{
+	return fmaf(x*inner, -0.5f, 1.0f);
+}
+
+template<unsigned int order>
+__device__ __forceinline__
+float
+horner_one_minus_exp_minus_over(float x)
+{
+	constexpr float div=(-1.0f/(order+1.0f));
+	return horner_one_minus_exp_minus_over<order - 1>(x, fmaf(x, div, 1.0f));
+}
+
+template<>
+__device__ __forceinline__
+float
+horner_one_minus_exp_minus_over<1>(float x)
+{
+	return fmaf(x, -0.5f, 1.0f);
+}
+
+//! Forms of yield strength contribution
+/** We have three forms for the yield strengt contribution:
+ * - no contribution (e.g. from power law)
+ * - standard contribution (y_s/\dot\gamma), which can become infinite
+ * - regularized contribution (Papanastasiou etc)
+ */
+enum YsContrib
+{
+	NO_YS, ///< no yield strength
+	STD_YS, ///< standard form
+	REG_YS ///< regularized
+};
+
+//! Statically determine the yield strength contribution for the given rheological model
+template<RheologyType rheologytype>
+__device__ __forceinline__
+constexpr YsContrib
+yield_strength_type()
+{
+	return
+		REGULARIZED_RHEOLOGY(rheologytype) ? REG_YS : // yield with regularization
+		YIELDING_RHEOLOGY(rheologytype) ? STD_YS : // yield without regularization
+			NO_YS; // everything else: should be just Newtonian and power-law
+}
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< yield_strength_type<KP::rheologytype>() == NO_YS, float >
+viscYieldTerm(int fluid, float shrate, KP const& params)
+{
+	return 0.0f;
+}
+
+//! Standard contribution from the yield strength
+/** This has the potential to become infinite at vanishing shear rates.
+ */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< yield_strength_type<KP::rheologytype>() == STD_YS, float>
+viscYieldTerm(int fluid, float shrate, KP const& params)
+{
+	return d_yield_strength[fluid]/shrate;
+}
+
+//! Regularized contribution from the yield strength
+/** Instead of dividing by the shear rate norm, we multiply by
+ * (1 - exp(-m \dot\gamma))/\dot\gamma
+ * which tends to m at vanishing shear rates.
+ */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< yield_strength_type<KP::rheologytype>() == REG_YS, float >
+viscYieldTerm(int fluid, float shrate, KP const& params)
+{
+	const float m = d_visc_regularization_param[fluid];
+	// we use a Taylor series for shrate < 1/m,
+	// the exponential form for shrate >= 1/m
+	// TODO allow customization of linearization order,
+	// 8 has currently been chosen because it should create
+	// a relative error of less than 2.5e-7
+	const float mx = m*shrate;
+	float reg = 0.0f;
+	if (mx < 1)
+		reg = m*horner_one_minus_exp_minus_over<8>(mx);
+	else
+		reg = (1 - expf(-mx))/shrate;
+
+	return d_yield_strength[fluid]*reg;
+}
+
+//! Linear dependency on the shear rate
+/** For BINGHAM and PAPANASTASIOU */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t<not NONLINEAR_RHEOLOGY(KP::rheologytype), float >
+viscShearTerm(int fluid, float shrate, KP const& params)
+{
+	return d_visccoeff[fluid];
+}
+
+//! Power-law dependency on the shear rate
+/** For POWER_LAW, HERSCHEL_BULKLEY and ALEXANDROU */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t<POWERLAW_RHEOLOGY(KP::rheologytype), float >
+viscShearTerm(int fluid, float shrate, KP const& params)
+{
+	return d_visccoeff[fluid]*powf(shrate, d_visc_nonlinear_param[fluid] - 1);
+}
+
+//! Exponential dependency on the shear rate
+/** For DEKEE_TURCOTTE and ZHU */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t<EXPONENTIAL_RHEOLOGY(KP::rheologytype), float >
+viscShearTerm(int fluid, float shrate, KP const& params)
+{
+	return d_visccoeff[fluid]*expf( -d_visc_nonlinear_param[fluid]*shrate );
+}
+
+//! Store the effective viscosity (DYNAMIC computational model)
+/*! In this case we store the viscosity as-is, since we computed the dynamic viscosity */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< KP::ViscSpec::compvisc == DYNAMIC >
+store_effective_visc(KP const& params, int index, float effvisc,
+	float /* rhotilde */, int /* fluid */)
+{
+	params.effvisc[index] = effvisc;
+}
+
+//! Store the effective viscosity (KINEMATIC computational model)
+/*! In this case we divide by the physical density */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< KP::ViscSpec::compvisc == KINEMATIC >
+store_effective_visc(KP const& params, int index, float effvisc,
+	float rhotilde, int fluid)
+{
+	params.effvisc[index] = effvisc/physical_density(rhotilde, fluid);
+}
+
+//! Per-particle effective viscosity computation
+/** The individual contributions are factored out in viscShearTerm and viscYieldTerm,
+ * the common part (shear rate norm computation, clamping, storage) is in this kernel
+ */
+template<typename KP,
+	KernelType kerneltype = KP::kerneltype,
+	BoundaryType boundarytype = KP::boundarytype>
+__global__ void
+effectiveViscDevice(KP params)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	const particleinfo info = tex1Dfetch(infoTex, index);
+
+	// fluid number
+	const int fluid = fluid_num(info);
+
+	// read particle data from sorted arrays
+	#if PREFER_L1
+	const float4 pos = params.posArray[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+
+	// skip inactive particles
+	if (INACTIVE(pos))
+		return;
+
+	const float4 vel = tex1Dfetch(velTex, index);
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+	// shear rate tensor
+	symtensor3 tau = shearRate<kerneltype, MIXED_TENSOR>(index, gridPos, pos, vel, params);
+
+	// shear rate norm
+	const float SijSij_bytwo = shearRateNorm2<MIXED_TENSOR>(tau);
+	const float S = sqrtf(SijSij_bytwo);
+
+	float effvisc = 0.0f;
+
+	// effective viscosity contribution from the shear rate norm
+	// (e.g. k \dot\gamma^n for power law and Herschel–Bulkley)
+	if (d_visccoeff[fluid] != 0.0f)
+		effvisc += viscShearTerm(fluid, S, params);
+
+	// add effective viscosity contribution from the yield strength
+	// (e.g. tau_0/\dot\gamma for Bingham and Herschel–Bulkley)
+	if (d_yield_strength[fluid] != 0.0f)
+		effvisc += viscYieldTerm(fluid, S, params);
+
+	// Clamp to the user-set limiting viscosity
+	effvisc = fminf(effvisc, d_limiting_visc);
+
+	store_effective_visc(params, index, effvisc, vel.w, fluid);
+
+}
 
 
 /************************************************************************************************************/

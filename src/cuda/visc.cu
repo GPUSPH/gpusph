@@ -64,7 +64,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	/// This is to avoid the issues associated with SFINAE not being possible
 	/// when the specializations can only be differentiate by return type.
 	template<typename This>
-	enable_if_t<This::turbmodel != SPS>
+	enable_if_t<This::turbmodel != SPS && !NEEDS_EFFECTIVE_VISC(This::rheologytype)>
 	calc_visc_implementation(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
@@ -74,6 +74,52 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{ /* do nothing */ }
+
+	/// Viscous engine implementation, specialized for the generalized Newtonian rheologies
+	template<typename This>
+	enable_if_t<NEEDS_EFFECTIVE_VISC(This::rheologytype)>
+	calc_visc_implementation(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+	{
+		float *effvisc = bufwrite.getData<BUFFER_EFFVISC>();
+
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+#endif
+		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+		uint numThreads = BLOCK_SIZE_SPS;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+		effvisc_params<kerneltype, boundarytype, ViscSpec> params(
+			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			effvisc);
+
+		cuvisc::effectiveViscDevice<<<numBlocks, numThreads>>>(params);
+
+		// check if kernel invocation generated an error
+		KERNEL_CHECK_ERROR;
+
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+#endif
+	}
 
 	/// Viscous engine implementation, specialized for the SPS turbulence model.
 	template<typename This>

@@ -454,6 +454,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float4 *gradGamma = buffers.getData<BUFFER_GRADGAMMA>();
 	const float *tke = buffers.getData<BUFFER_TKE>();
 	const float *eps = buffers.getData<BUFFER_EPSILON>();
+	const float *effvisc = buffers.getData<BUFFER_EFFVISC>();
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float *spsturbvisc = buffers.getData<BUFFER_SPS_TURBVISC>();
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
@@ -560,6 +561,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// gamma and its gradient
 	if (gradGamma) {
 		appender.append_data(gradGamma, "Gradient Gamma", "Gamma");
+	}
+
+	// Effective viscosity
+	if (effvisc) {
+		appender.append_data(effvisc, "Effective viscosity");
 	}
 
 	// turbulent kinetic energy
