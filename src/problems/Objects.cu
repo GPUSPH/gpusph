@@ -59,8 +59,7 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>
 	).select_options(
-		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		RHODIFF,
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
 

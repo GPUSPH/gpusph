@@ -58,8 +58,7 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<DYN_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
 	).select_options(
-		rhodiff == FERRARI, densitydiffusion<FERRARI>(),
-		rhodiff == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		rhodiff,
 		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 

@@ -52,9 +52,7 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 		periodicity<PERIODIC_XY>,
 		boundary<DYN_BOUNDARY>
 	).select_options(
-		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
-		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		RHODIFF,
 		compvisc == "dyn", computational_visc<DYNAMIC>(),
 		viscavg == "harmonic", visc_average<HARMONIC>(),
 		viscavg == "geometric", visc_average<GEOMETRIC>()

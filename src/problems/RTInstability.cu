@@ -46,9 +46,7 @@ RTInstability::RTInstability(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_MULTIFLUID>
 	).select_options(
-		//RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
-		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		RHODIFF,
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
 

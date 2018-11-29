@@ -42,6 +42,7 @@
 #include "forces.cu"
 #include "visc.cu"
 #include "post_process.cu"
+#include "option_range.h"
 
 using namespace std;
 
@@ -354,6 +355,10 @@ struct TypeDefaults
 struct DefaultArg : virtual public TypeDefaults
 {};
 
+//! A structure that maps to the selector for the specific type
+template<typename Option, Option value>
+struct selector_for;
+
 #define DEFINE_ARGSELECTOR(selector, SelectorType, ArgName) \
 template<SelectorType value__, typename ParentArgs=TypeDefaults> \
 struct selector : virtual public ParentArgs \
@@ -361,7 +366,11 @@ struct selector : virtual public ParentArgs \
 	typedef TypeValue<SelectorType, value__> ArgName; \
 	template<typename NewParent> struct reparent : \
 		virtual public selector<value__, NewParent> {}; \
-}
+}; \
+template<SelectorType value> \
+struct selector_for<SelectorType, value> : virtual public selector<value> \
+{}
+
 
 // Kernel override
 DEFINE_ARGSELECTOR(kernel, KernelType, Kernel);
@@ -441,28 +450,6 @@ struct disable_flags : virtual public ParentArgs
 	template<typename NewParent> struct reparent :
 		virtual public add_flags<simflags, NewParent> {};
 };
-
-
-/// We want to give users the possibility to change options (e.g. enable flags)
-/// conditionally at runtime. For this, we need a way to pack collection of
-/// overrides to be selected by a switch statement (currently limited to three
-/// options)
-template<typename _A, typename _B, typename _C>
-struct TypeSwitch {
-	typedef _A A;
-	typedef _B B;
-	typedef _C C;
-};
-
-/// Comfort method to allow the user to select one of three flags at runtime
-template<flag_t F0, flag_t F1, flag_t F2>
-struct FlagSwitch :
-	TypeSwitch<
-		add_flags<F0>,
-		add_flags<F1>,
-		add_flags<F2>
-	>
-{};
 
 /// Our CUDASimFramework is actualy a factory for CUDASimFrameworkImpl*,
 /// generating one when assigned to a SimFramework*. This is to allow us
@@ -556,19 +543,20 @@ public:
 		return *this;
 	}
 
-	/// Select one of three overrides in a Switch, based on the value of
-	/// selector. TODO refine
-	template<typename Switch>
-	SimFramework * select_options(int selector, Switch)
+	/// Select a run-time override based on an option value
+	template<typename Option, Option check = option_range<Option>::min>
+	enable_if_t<option_range<Option>::defined && is_in_range(check), SimFramework *>
+	select_options(Option selector)
 	{
-		switch (selector) {
-		case 0:
-			return extend< typename Switch::A >();
-		case 1:
-			return extend< typename Switch::B >();
-		case 2:
-			return extend< typename Switch::C >();
-		}
+		if (selector == check)
+			return extend< selector_for<Option, check> >();
+		return select_options<Option, Option(check+1)>(selector);
+	}
+
+	template<typename Option, Option check>
+	enable_if_t<not is_in_range(check), SimFramework *>
+	select_options(Option selector)
+	{
 		throw runtime_error("invalid selector value");
 	}
 
@@ -582,17 +570,19 @@ public:
 	}
 
 	/// Chained selectors (for multiple overrides)
-	template<typename Switch, typename ...Rest>
-	SimFramework * select_options(int selector, Switch, Rest...rest)
+	template<typename Option, Option check = option_range<Option>::min, typename ...Rest>
+	enable_if_t<option_range<Option>::defined && is_in_range(check), SimFramework *>
+	select_options(Option selector, Rest...rest)
 	{
-		switch (selector) {
-		case 0:
-			return extend< typename Switch::A >().select_options(rest...);
-		case 1:
-			return extend< typename Switch::B >().select_options(rest...);
-		case 2:
-			return extend< typename Switch::C >().select_options(rest...);
-		}
+		if (selector == check)
+			return extend< selector_for<Option, check> >().select_options(rest...);
+		return select_options<Option, Option(check+1), Rest...>(selector, rest...);
+	}
+
+	template<typename Option, Option check, typename ...Rest>
+	enable_if_t<not is_in_range(check), SimFramework *>
+	select_options(Option selector, Rest...rest)
+	{
 		throw runtime_error("invalid selector value");
 	}
 
