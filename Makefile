@@ -117,7 +117,8 @@ nodbgexename = $(1)$(DBG_SFX)$(EXE_SFX)
 nodbgexe = $(DISTDIR)/$(call nodbgexename,$1)
 
 # binary to list compute capabilities of installed devices
-LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc$(EXE_SFX)
+LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc
+LIST_CUDA_CC_EXE=$(LIST_CUDA_CC)$(EXE_SFX)
 # binary to check for availability of CUDA installation
 NVCC_EXE=nvcc$(EXE_SFX)
 
@@ -932,7 +933,7 @@ $(DBG_SELECT_OPTFILE): | $(OPTSDIR)
 		> $(DBG_SELECT_OPTFILE)
 	@if test "$(dbg)" = "1" ; then echo "#define _DEBUG_" >> $(DBG_SELECT_OPTFILE); \
 	else echo "#undef _DEBUG_" >> $(DBG_SELECT_OPTFILE); fi
-$(COMPUTE_SELECT_OPTFILE): $(LIST_CUDA_CC) | $(OPTSDIR)
+$(COMPUTE_SELECT_OPTFILE): $(LIST_CUDA_CC_EXE) | $(OPTSDIR)
 	@echo "/* Define the compute capability GPU code was compiled for. */" \
 		> $(COMPUTE_SELECT_OPTFILE)
 	$(call show_stage_nl,SCRIPTS,compute detection)
@@ -1036,7 +1037,7 @@ $(CUDEPS): | $(DEPSUBS) $(OPTFILES) ;
 # can cause the compiler to error out when the architecture is not supported
 # (for example too recent architectures on older compilers, or obsolete architectures
 # not supported in the most recent version of the SDK)
-$(LIST_CUDA_CC): $(LIST_CUDA_CC).cc
+$(LIST_CUDA_CC_EXE): $(LIST_CUDA_CC).cc
 	$(call show_stage,SCRIPTS,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) -Wno-deprecated-gpu-targets $(filter-out -arch=sm_%,$(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS)))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
 
