@@ -321,7 +321,7 @@ CommonWriter::write_simparams(ostream &out)
 	out << " influenceRadius = " << SP->influenceRadius << endl;
 	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
 	out << " multi-fluid support: " << ED[!!(SP->simflags & ENABLE_MULTIFLUID)] << endl;
-	out << " Rheology: " << RheologyTypeName[SP->rheologytype] << endl;
+	out << " Rheology: " << RheologyName[SP->rheologytype] << endl;
 	switch (SP->rheologytype) {
 	case INVISCID: break; /* nothing to show */
 	case NEWTONIAN:
@@ -458,7 +458,7 @@ CommonWriter::write_physparams(ostream &out)
 			break;
 	}
 
-	out << RheologyTypeName[SP->rheologytype] << " rheology with "
+	out << RheologyName[SP->rheologytype] << " rheology with "
 		<< TurbulenceName[SP->turbmodel] << " turbulence model. Parameters:" << endl;
 	if (SP->turbmodel == ARTIFICIAL) {
 		out << "\tartvisccoeff = " << PP->artvisccoeff << "" << endl;

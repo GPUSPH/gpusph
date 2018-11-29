@@ -55,7 +55,7 @@ DEFINE_OPTION_RANGE(RheologyType, INVISCID, NEWTONIAN);
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* RheologyTypeName[NEWTONIAN+1]
+const char* RheologyName[NEWTONIAN+1]
 #ifdef GPUSPH_MAIN
 = {
 	"Inviscid",
