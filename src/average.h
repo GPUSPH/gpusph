@@ -5,6 +5,8 @@
 #ifndef AVERAGE_H
 #define AVERAGE_H
 
+#include "option_range.h"
+
 #ifdef __CUDACC__
 #define _AVG_FUNC_SPEC __host__ __device__ __forceinline__
 #else
@@ -19,6 +21,7 @@ enum AverageOperator
 	GEOMETRIC //! sqrt(ab)
 };
 
+DEFINE_OPTION_RANGE(AverageOperator, ARITHMETIC, GEOMETRIC);
 
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
