@@ -25,7 +25,7 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 	const int ppH = get_option("ppH", 32);
 
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
-	const int RHODIFF = get_option("density-diffusion", 0);
+	const DensityDiffusionType RHODIFF = get_option("density-diffusion", DENSITY_DIFFUSION_NONE);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 (no MLS).
 	const int mlsIters = get_option("mls", 0);

@@ -44,7 +44,7 @@ LockExchange::LockExchange(GlobalData *_gdata) : XProblem(_gdata)
 	const bool USE_PLANES = get_option("use_planes", false);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 0);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
-	const int RHODIFF = get_option("density-diffusion", 2);
+	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
 
 	SETUP_FRAMEWORK(
 		formulation<SPH_GRENIER>,

@@ -41,7 +41,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
-	const int RHODIFF = get_option("density-diffusion", 2);
+	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
 
 	// ** framework setup
 	// viscosities: KINEMATICVISC*, DYNAMICVISC*
