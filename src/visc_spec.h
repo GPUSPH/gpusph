@@ -33,6 +33,8 @@
 #ifndef _VISC_SPEC_H
 #define _VISC_SPEC_H
 
+#include "option_range.h"
+
 #include "simflags.h"
 
 #include "average.h"
@@ -46,6 +48,8 @@ enum RheologyType {
 	INVISCID, ///< No (laminar) viscosity
 	NEWTONIAN, ///< Viscosity independent of strain rate
 };
+
+DEFINE_OPTION_RANGE(RheologyType, INVISCID, NEWTONIAN);
 
 //! Name of the rheology type
 #ifndef GPUSPH_MAIN
@@ -75,6 +79,8 @@ enum TurbulenceModel {
 	INVALID_TURBULENCE
 };
 
+DEFINE_OPTION_RANGE(TurbulenceModel, LAMINAR_FLOW, KEPSILON);
+
 //! Name of the turbulence model model
 #ifndef GPUSPH_MAIN
 extern
@@ -101,6 +107,8 @@ enum ComputationalViscosityType {
 	DYNAMIC, ///< Dynamic viscosity (SI units: Pa s)
 };
 
+DEFINE_OPTION_RANGE(ComputationalViscosityType, KINEMATIC, DYNAMIC);
+
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
 extern
@@ -121,6 +129,9 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 enum ViscousModel {
 	MORRIS, ///< Morris et al., JCP 1997
 };
+
+DEFINE_OPTION_RANGE(ViscousModel, MORRIS, MORRIS);
+
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
 extern

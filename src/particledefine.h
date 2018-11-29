@@ -52,6 +52,8 @@ enum KernelType {
 	INVALID_KERNEL
 } ;
 
+DEFINE_OPTION_RANGE(KernelType, CUBICSPLINE, GAUSSIAN);
+
 //! Names of the smoothing kernels
 #ifndef GPUSPH_MAIN
 extern
@@ -77,6 +79,8 @@ enum SPHFormulation {
 	SPH_INVALID
 } ;
 
+DEFINE_OPTION_RANGE(SPHFormulation, SPH_F1, SPH_GRENIER);
+
 //! Names of the SPH formulations
 #ifndef GPUSPH_MAIN
 extern
@@ -95,25 +99,26 @@ const char* SPHFormulationName[SPH_INVALID+1]
 
 //! Density diffusion models
 enum DensityDiffusionType {
-	FERRARI = 1,
+	DENSITY_DIFFUSION_NONE,
+	FERRARI,
 	COLAGROSSI,
 	BREZZI,
-	DENSITY_DIFFUSION_NONE,
 	INVALID_DENSITY_DIFFUSION
 } ;
+
+DEFINE_OPTION_RANGE(DensityDiffusionType, DENSITY_DIFFUSION_NONE, BREZZI);
 
 //! Name of the density diffusion models
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* DensityDiffusionTypeName[INVALID_DENSITY_DIFFUSION+1]
+const char* DensityDiffusionName[INVALID_DENSITY_DIFFUSION+1]
 #ifdef GPUSPH_MAIN
 = {
-	"(null)",
+	"none",
 	"Ferrari",
 	"Colagrossi",
 	"Brezzi",
-	"none",
 	"(invalid)"
 }
 #endif
@@ -128,6 +133,8 @@ enum BoundaryType {
 	DYN_BOUNDARY,
 	INVALID_BOUNDARY
 };
+
+DEFINE_OPTION_RANGE(BoundaryType, LJ_BOUNDARY, DYN_BOUNDARY);
 
 //! Names of the physical boundary models
 #ifndef GPUSPH_MAIN
@@ -161,6 +168,8 @@ enum Periodicity {
 	PERIODIC_YZ  = PERIODIC_Y | PERIODIC_Z,
 	PERIODIC_XYZ = PERIODIC_X | PERIODIC_Y | PERIODIC_Z,
 };
+
+DEFINE_OPTION_RANGE(Periodicity, PERIODIC_NONE, PERIODIC_XYZ);
 
 //! String representation for the boundary periodicity
 #ifndef GPUSPH_MAIN
