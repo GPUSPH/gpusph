@@ -4,6 +4,14 @@
 
 #include "cudasimframework.cu"
 
+/* By default, we only compile for the Newtonian rheology.
+ * The user can support a more complete Poiseuille example
+ * by putting CPPFLAGS += -DPOISEUILLE_ALL_RHEO in Makefile.local
+ */
+#ifndef POISEUILLE_ALL_RHEO
+#define POISEUILLE_ALL_RHEO 0
+#endif
+
 Poiseuille::Poiseuille(GlobalData *_gdata) :
 	XProblem(_gdata),
 
@@ -35,6 +43,15 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 
 	const AverageOperator viscavg = get_option("viscavg", ARITHMETIC);
 
+	// Allow user to set the rheology type;
+	const RheologyType want_rheology = get_option("rheology", NEWTONIAN);
+
+#if !POISEUILLE_ALL_RHEO
+	if (want_rheology != NEWTONIAN)
+		throw std::invalid_argument("Poiseuille compiled without support for non-Newtonian rheology");
+
+#endif
+
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
 		rheology<NEWTONIAN>,
@@ -48,6 +65,9 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 		( RHODIFF  // switch to the user-selected density diffusion
 		, compvisc // switch to the user-selected computational viscosity
 		, viscavg  // switch to the user-selected viscous averaging operator
+#if POISEUILLE_ALL_RHEO
+		, want_rheology // switch to the user-selected rheology
+#endif
 		);
 
 	if (mlsIters > 0)
