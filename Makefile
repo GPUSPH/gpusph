@@ -195,8 +195,12 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 
 # --------------- Locate and set up compilers and flags
 
+# flag to determine the compiler version
+CXX_VERSION_FLAG= --version | head -1
+
 ifeq ($(wsl),1)
 	CXX=cl.exe
+	CXX_VERSION_FLAG= 2>&1 > /dev/null | grep C/C++
 endif
 
 # override: CUDA_INSTALL_PATH - where CUDA is installed
@@ -1136,7 +1140,7 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	@echo "Verbose:         $(verbose)"									>> $@
 	@echo "Debug:           $(DBG)"										>> $@
 	@echo "CXX:             $(CXX)"										>> $@
-	@echo "CXX version:     $(shell $(CXX) --version | head -1)"		>> $@
+	@echo "CXX version:     $(shell $(CXX) $(CXX_VERSION_FLAG))"		>> $@
 	@echo "MPICXX:          $(MPICXX)"									>> $@
 	@echo "nvcc:            $(NVCC)"									>> $@
 	@echo "nvcc version:    $(NVCC_VER)"								>> $@
