@@ -36,28 +36,34 @@
 #include <stdexcept>
 #include <istream>
 
+/* For the string parsing */
+#include <algorithm>
+#include <cstring>
+#include <stdexcept>
+#include <cxxabi.h>
+
 #include "cpp11_missing.h"
 
 //! 'Traits'-like structure to determine the first and last valid value for each option
 /** This can be used to programmatically iterate over each possible value
- * of a given option
+ * of a given option. It also links the type to the array of names, which can be
+ * leveraged when parsing e.g. user input.
  */
 
 template<typename Option>
 struct option_range
 {
-	static constexpr Option min = Option();
-	static constexpr Option max = Option();
 	static constexpr bool defined = false;
 };
 
-#define DEFINE_OPTION_RANGE(_option, _min, _max) \
+#define DEFINE_OPTION_RANGE(_option, _names,_min, _max) \
 template<> \
 struct option_range<_option> \
 { \
 	static constexpr _option min = _min; \
 	static constexpr _option max = _max; \
 	static constexpr bool defined = true; \
+	static constexpr auto names = _names; \
 }
 
 //! Check if an option has a valid range
@@ -89,14 +95,61 @@ void throw_if_out_of_range(Option const& value)
 			+ " " + std::to_string(option_range<Option>::max) + "]");
 }
 
+//! Parse a string as an option value
+/*! This does a case-insenstive prefix comparison with the names for the
+ * allowed values for the option, and throws if no match is found.
+ *
+ * \todo we should also throw if ambiguous (common prefix)
+ * \todo we should allow multiple variants for string values
+ */
+template<typename Option>
+Option parse_option_string(std::string const& val)
+{
+	const auto names = option_range<Option>::names;
+
+	const char* str = val.c_str();
+	const size_t sz = val.size();
+	const auto from = names + option_range<Option>::min;
+	const auto to = names + option_range<Option>::max + 1;
+	const auto found = std::find_if(from, to, [&](const char* candidate) {
+		return !strncasecmp(str, candidate, sz);
+	});
+	if (found < to)
+		return Option(found - from);
+
+	/* error out: we use the implementation-specific __cxa_demangle
+	 * to get a user-visible name for the type */
+	char * tname = abi::__cxa_demangle(typeid(Option).name(), NULL, 0, NULL);
+	const std::string errmsg = val + " is not a valid " + tname;
+	free(tname);
+
+	throw std::invalid_argument(errmsg);
+}
+
+
 template<typename Option>
 enable_if_t<option_range<Option>::defined, std::istream&>
 operator>>(std::istream& in, Option& out)
 {
-	unsigned int v;
-	in >> v;
-	out = (Option)v;
-	throw_if_out_of_range(out);
+	// Skip whitespace
+	in >> std::ws;
+
+	// Look at the next character
+	int next = in.peek();
+
+	// If it's a digit, assume the user is giving us a numeric value
+	// between the minimum and maximum allowed value for the option
+	if (isdigit(next)) {
+		unsigned int v;
+		in >> v;
+		out = (Option)v;
+		throw_if_out_of_range(out);
+	} else {
+		// parse as a string: compare the provided value
+		std::string s;
+		in >> s;
+		out = parse_option_string<Option>(s);
+	}
 	return in;
 }
 

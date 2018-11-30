@@ -52,8 +52,6 @@ enum KernelType {
 	INVALID_KERNEL
 } ;
 
-DEFINE_OPTION_RANGE(KernelType, CUBICSPLINE, GAUSSIAN);
-
 //! Names of the smoothing kernels
 #ifndef GPUSPH_MAIN
 extern
@@ -71,6 +69,8 @@ const char* KernelName[INVALID_KERNEL+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(KernelType, KernelName, CUBICSPLINE, GAUSSIAN);
+
 //! SPH formulations
 enum SPHFormulation {
 	SPH_F1 = 1,
@@ -78,8 +78,6 @@ enum SPHFormulation {
 	SPH_GRENIER,
 	SPH_INVALID
 } ;
-
-DEFINE_OPTION_RANGE(SPHFormulation, SPH_F1, SPH_GRENIER);
 
 //! Names of the SPH formulations
 #ifndef GPUSPH_MAIN
@@ -97,6 +95,8 @@ const char* SPHFormulationName[SPH_INVALID+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(SPHFormulation, SPHFormulationName, SPH_F1, SPH_GRENIER);
+
 //! Density diffusion models
 enum DensityDiffusionType {
 	DENSITY_DIFFUSION_NONE,
@@ -105,8 +105,6 @@ enum DensityDiffusionType {
 	BREZZI,
 	INVALID_DENSITY_DIFFUSION
 } ;
-
-DEFINE_OPTION_RANGE(DensityDiffusionType, DENSITY_DIFFUSION_NONE, BREZZI);
 
 //! Name of the density diffusion models
 #ifndef GPUSPH_MAIN
@@ -124,6 +122,8 @@ const char* DensityDiffusionName[INVALID_DENSITY_DIFFUSION+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(DensityDiffusionType, DensityDiffusionName, DENSITY_DIFFUSION_NONE, BREZZI);
+
 
 //! Physical boundary models
 enum BoundaryType {
@@ -133,8 +133,6 @@ enum BoundaryType {
 	DYN_BOUNDARY,
 	INVALID_BOUNDARY
 };
-
-DEFINE_OPTION_RANGE(BoundaryType, LJ_BOUNDARY, DYN_BOUNDARY);
 
 //! Names of the physical boundary models
 #ifndef GPUSPH_MAIN
@@ -152,6 +150,8 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(BoundaryType, BoundaryName, LJ_BOUNDARY, DYN_BOUNDARY);
+
 //! Epsilon for MLS determinant
 #define EPSDETMLS				0.05f
 //! Mininum number of neighbors for MLS correction
@@ -168,8 +168,6 @@ enum Periodicity {
 	PERIODIC_YZ  = PERIODIC_Y | PERIODIC_Z,
 	PERIODIC_XYZ = PERIODIC_X | PERIODIC_Y | PERIODIC_Z,
 };
-
-DEFINE_OPTION_RANGE(Periodicity, PERIODIC_NONE, PERIODIC_XYZ);
 
 //! String representation for the boundary periodicity
 #ifndef GPUSPH_MAIN
@@ -189,6 +187,8 @@ const char* PeriodicityName[PERIODIC_XYZ+1]
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(Periodicity, PeriodicityName, PERIODIC_NONE, PERIODIC_XYZ);
 
 //! Density filters
 //! we define FIRST and INVALID filters to make iterating over all filters easier

@@ -21,8 +21,6 @@ enum AverageOperator
 	GEOMETRIC //! sqrt(ab)
 };
 
-DEFINE_OPTION_RANGE(AverageOperator, ARITHMETIC, GEOMETRIC);
-
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
 extern
@@ -36,6 +34,8 @@ const char* AverageOperatorName[GEOMETRIC+1]
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(AverageOperator, AverageOperatorName, ARITHMETIC, GEOMETRIC);
 
 /* Actual operators */
 

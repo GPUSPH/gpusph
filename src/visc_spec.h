@@ -49,8 +49,6 @@ enum RheologyType {
 	NEWTONIAN, ///< Viscosity independent of strain rate
 };
 
-DEFINE_OPTION_RANGE(RheologyType, INVISCID, NEWTONIAN);
-
 //! Name of the rheology type
 #ifndef GPUSPH_MAIN
 extern
@@ -63,6 +61,8 @@ const char* RheologyName[NEWTONIAN+1]
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(RheologyType, RheologyName, INVISCID, NEWTONIAN);
 
 //! Turbulence model
 /*!
@@ -78,8 +78,6 @@ enum TurbulenceModel {
 	KEPSILON, ///< k-epsilon turbulence model
 	INVALID_TURBULENCE
 };
-
-DEFINE_OPTION_RANGE(TurbulenceModel, LAMINAR_FLOW, KEPSILON);
 
 //! Name of the turbulence model model
 #ifndef GPUSPH_MAIN
@@ -97,6 +95,8 @@ const char* TurbulenceName[INVALID_TURBULENCE+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(TurbulenceModel, TurbulenceName, LAMINAR_FLOW, KEPSILON);
+
 //! Kind of viscosity used within the simulation
 /*! This can be either KINEMATIC or DYNAMIC, depending on whether
  * the preference is to work in terms of the kinematic viscosity ν,
@@ -106,8 +106,6 @@ enum ComputationalViscosityType {
 	KINEMATIC, ///< Kinematic viscosity (SI units: m²/s)
 	DYNAMIC, ///< Dynamic viscosity (SI units: Pa s)
 };
-
-DEFINE_OPTION_RANGE(ComputationalViscosityType, KINEMATIC, DYNAMIC);
 
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
@@ -122,6 +120,8 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(ComputationalViscosityType, ComputationalViscosityName, KINEMATIC, DYNAMIC);
+
 //! Supported viscous models
 /*! Currently only MORRIS is available, with plans to add Monaghan's and
  * Español & Revenga too
@@ -129,8 +129,6 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 enum ViscousModel {
 	MORRIS, ///< Morris et al., JCP 1997
 };
-
-DEFINE_OPTION_RANGE(ViscousModel, MORRIS, MORRIS);
 
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
@@ -143,6 +141,8 @@ const char* ViscousModelName[MORRIS+1]
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(ViscousModel, ViscousModelName, MORRIS, MORRIS);
 
 
 

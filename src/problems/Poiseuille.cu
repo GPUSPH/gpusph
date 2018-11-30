@@ -31,16 +31,9 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 	const int mlsIters = get_option("mls", 0);
 
 	// Allow user to set the computational viscosity; accepted values: dyn, kin
-	const string compvisc = get_option("compvisc", "kin");
+	const ComputationalViscosityType compvisc = get_option("compvisc", KINEMATIC);
 
-	if (compvisc != "kin" && compvisc != "dyn")
-		throw std::invalid_argument("unknown compvisc value " + compvisc);
-
-	// Allow user to set the viscous averaging; accepted values: arithmetic, harmonic, geometric
-	const string viscavg = get_option("viscavg", "arithmetic");
-
-	if (viscavg != "arithmetic" && viscavg != "harmonic" && viscavg != "geometric")
-		throw std::invalid_argument("unknown viscavg value " + viscavg);
+	const AverageOperator viscavg = get_option("viscavg", ARITHMETIC);
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
@@ -51,12 +44,11 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 		visc_average<ARITHMETIC>,
 		periodicity<PERIODIC_XY>,
 		boundary<DYN_BOUNDARY>
-	).select_options(
-		RHODIFF,
-		compvisc == "dyn", computational_visc<DYNAMIC>(),
-		viscavg == "harmonic", visc_average<HARMONIC>(),
-		viscavg == "geometric", visc_average<GEOMETRIC>()
-	);
+	).select_options
+		( RHODIFF  // switch to the user-selected density diffusion
+		, compvisc // switch to the user-selected computational viscosity
+		, viscavg  // switch to the user-selected viscous averaging operator
+		);
 
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
