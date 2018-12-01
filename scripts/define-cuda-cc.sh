@@ -6,10 +6,16 @@
 
 CC="$1"
 
+if [ $(uname -r 2>/dev/null | grep Microsoft) ] ; then
+	EXE_SFX=".exe"
+else
+	EXE_SFX=""
+fi
+
 if [ -z "$CC" ] ; then
-	lister=$(dirname "$0")/list-cuda-cc
-	read CC card <<-AVOID_SUBSHELL_PROBLEM
-		$(${lister} | cut -f2- | sort -n | head -1)
+	lister=$(dirname "$0")/list-cuda-cc${EXE_SFX}
+	read CC card<<-AVOID_SUBSHELL_PROBLEM
+		$(${lister} | cut -f2- | sort -n | head -1 | tr -d '\r')
 	AVOID_SUBSHELL_PROBLEM
 	if [ -z "$CC" ] ; then
 		CC=3.0
