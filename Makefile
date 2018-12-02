@@ -838,6 +838,12 @@ else
 	endif
 endif
 
+# For WSL, it catches C++ exceptions only and tells the compiler to assume
+# that functions declared as extern "C" never throw a C++ exception
+ifeq ($(wsl), 1)
+	CXXFLAGS += /EHsc
+endif
+
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
 ifeq ($(verbose), 1)
 	CUFLAGS += --ptxas-options=-v
