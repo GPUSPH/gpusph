@@ -752,7 +752,7 @@ CUFLAGS  ?=
 
 # flag to produce the obj file only for C++ compiler
 ifeq ($(wsl), 1)
-	OBJ_OUT=/Fo
+	OBJ_OUT=/c /Fo
 else
 	OBJ_OUT=-c -o
 endif
@@ -793,7 +793,9 @@ CXXFLAGS += $(TARGET_ARCH)
 # We also force C++11 mode, since we are no relying on C++11 features
 # TODO Check if any -std is present in CXXFLAGS (added by the user) and if
 # the specified value is not 11, warn before removing it
-ifeq ($(wsl), 0)
+ifeq ($(wsl), 1)
+	CXXFLAGS += /std:c++14
+else
 	CXXFLAGS += -std=c++11
 endif
 
