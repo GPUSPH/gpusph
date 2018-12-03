@@ -395,6 +395,7 @@ int main(int argc, char** argv) {
 	gdata.clOptions = new Options();
 
 	// catch SIGINT and SIGUSR1
+#ifdef _POSIX_C_SOURCE
 	struct sigaction int_action, usr1_action;
 
 	memset(&int_action, 0, sizeof(struct sigaction));
@@ -404,6 +405,12 @@ int main(int argc, char** argv) {
 	memset(&usr1_action, 0, sizeof(struct sigaction));
 	usr1_action.sa_handler = sigusr1_handler;
 	sigaction(SIGUSR1, &usr1_action, NULL);
+#else
+	signal(SIGINT, sigint_handler);
+	#ifdef SIGUSR1
+	signal(SIGUSR1, siguser_handler);
+	#endif
+#endif
 
 	// parse command-line options
 	int opt_ret = parse_options(argc, argv, &gdata);
