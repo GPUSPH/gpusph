@@ -164,10 +164,17 @@ problem_gen_obj = $(OBJDIR)/$(1).gen.o
 
 problem_objs = $(call problem_obj,$1) $(call problem_gen_obj,$1)
 
+ifeq ($(wsl),1)
+	UNSUPPORTED_CC=$(SRCDIR)/writers/UDPWriter.cc
+else
+	UNSUPPORTED_CC=
+endif
+
 # list of .cc files, exclusing MPI and problem sources
-CCFILES = $(filter-out $(MPICXXFILES),\
+CCFILES = $(filter-out $(UNSUPPORTED_CC),\
+	  $(filter-out $(MPICXXFILES),\
 	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
-	  $(wildcard $(adir)/*.cc)))
+	  $(wildcard $(adir)/*.cc))))
 
 # list of .cu files: we only compile problems directly, all other
 # CUDA files are included via the cudasimframework

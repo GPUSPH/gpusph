@@ -39,7 +39,9 @@
 #include "CustomTextWriter.h"
 #include "CallbackWriter.h"
 #include "TextWriter.h"
-#include "UDPWriter.h"
+#ifndef _MSC_VER
+ #include "UDPWriter.h"
+#endif
 #include "VTKLegacyWriter.h"
 #include "VTKWriter.h"
 #include "Writer.h"
@@ -120,7 +122,11 @@ Writer::Create(GlobalData *_gdata)
 				writer = new CustomTextWriter(_gdata);
 				break;
 			case UDPWRITER:
-				writer = new UDPWriter(_gdata);
+				#ifdef _MSC_VER				
+					throw std::invalid_argument("UDPWriter is not supported in Windows");
+				#else
+ 					writer = new UDPWriter(_gdata);
+				#endif
 				break;
 			case HOTWRITER:
 				writer = new HotWriter(_gdata);
