@@ -31,8 +31,10 @@
 
 #include <cfloat> // FLT_EPSILON
 
+#ifndef _MSC_VER
 #include <unistd.h> // getpid()
 #include <sys/mman.h> // shm_open()/shm_unlink()
+#endif
 #include <fcntl.h> // O_* macros when opening files
 
 #define GPUSPH_MAIN
@@ -130,7 +132,9 @@ void GPUSPH::showCommandTimes()
 	}
 }
 
+// InfoStream will be disabled on MSVC at the moment because shm_open is posix
 void GPUSPH::openInfoStream() {
+	#ifndef _MSC_VER
 	stringstream ss;
 	ss << "GPUSPH-" << getpid();
 	m_info_stream_name = ss.str();
@@ -151,14 +155,17 @@ void GPUSPH::openInfoStream() {
 	fputs("Initializing ...\n", m_info_stream);
 	fflush(m_info_stream);
 	fseek(m_info_stream, 0, SEEK_SET);
+	#endif
 }
 
 void GPUSPH::closeInfoStream() {
+	#ifndef _MSC_VER
 	if (m_info_stream) {
 		shm_unlink(m_info_stream_name.c_str());
 		fclose(m_info_stream);
 		m_info_stream = NULL;
 	}
+	#endif
 }
 
 bool GPUSPH::initialize(GlobalData *_gdata) {
@@ -1937,6 +1944,7 @@ void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 
 void GPUSPH::printStatus(FILE *out)
 {
+#ifndef _MSC_VER
 //#define ti timingInfo
 	fprintf(out, "%s time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
 		gdata->run_mode_Desc(),
@@ -1958,6 +1966,7 @@ void GPUSPH::printStatus(FILE *out)
 	if (out == m_info_stream)
 		fseek(out, 0, SEEK_SET);
 //#undef ti
+#endif
 }
 
 void GPUSPH::printParticleDistribution()
