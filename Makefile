@@ -812,6 +812,14 @@ else
 	CXXFLAGS += -std=c++11
 endif
 
+# The MSVC compiler’s definition of the __cplusplus is reporting the value “199711L”,
+# indicating (erroneously!) that the compiler conformed to the C++98 Standard.
+# We need to compile with the /Zc:__cplusplus switch to see the updated value
+# of the __cplusplus macro.
+ifeq ($(wsl), 1)
+	CXXFLAGS +=/Zc:__cplusplus
+endif
+
 # HDF5 might require specific flags
 ifneq ($(USE_HDF5),0)
 	CXXFLAGS += $(HDF5_CXX)
