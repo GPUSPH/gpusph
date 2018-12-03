@@ -102,8 +102,8 @@ template<bool B>
 using bool_constant = std::integral_constant<bool, B>;
 #endif
 
-#if __cplusplus >= 201703L
-using std::as_const();
+#if __cplusplus >= 201703L || _MSC_VER > 1400
+using std::as_const;
 #else
 template <class T>
 constexpr typename std::add_const<T>::type& as_const(T& t) noexcept
