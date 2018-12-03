@@ -781,6 +781,8 @@ CPPFLAGS += -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS
 # Likewise, for some reasons some versions g++ (such as g++-5 on Ubuntu)
 # don't include functions such as isnan under std when including <cmath>
 CPPFLAGS += -D_GLIBCXX_USE_C99_MATH
+# and definitions such as M_PI when including <cmath>
+CPPFLAGS += -D_USE_MATH_DEFINES
 
 # Define USE_HDF5 according to the availability of the HDF5 library
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
