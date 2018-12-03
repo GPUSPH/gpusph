@@ -627,9 +627,13 @@ INCPATH += -I$(SRCDIR) \
 # include path. This is particularly important in the case where CUDA_INCLUDE_PATH
 # is /usr/include, since otherwise GCC 6 (and later) will fail to find standard
 # includes such as stdint.h
-CUDA_INCLUDE_PATH = $(abspath $(CUDA_INSTALL_PATH)/include)
-ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
-	CC_INCPATH += -I $(CUDA_INCLUDE_PATH)
+ifeq ($(wsl),1)
+	CUDA_INCLUDE_PATH=$(CUDA_INSTALL_PATH)/include
+else
+	CUDA_INCLUDE_PATH = $(abspath $(CUDA_INSTALL_PATH)/include)
+	ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
+		CC_INCPATH += -I $(CUDA_INCLUDE_PATH)
+	endif
 endif
 
 # LIBPATH
