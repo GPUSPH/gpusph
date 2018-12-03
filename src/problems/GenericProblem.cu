@@ -29,30 +29,25 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
+// custom function to print warnings during the problem generation
 void warn( const char* theWarn )
 {
-	std::cout << std::endl << "--------------------------------------------------------------" << std::endl;
+	std::cout << std::endl << "--------------------" << std::endl;
 	std::cout << "WARNING: " << theWarn << std::endl << std::endl;
 }
 
+// Generic problem class
 GenericProblem::GenericProblem(GlobalData *_gdata)
 		: XProblem(_gdata)
 {
-	// Private variables
+  // Set the problem name. PSTR is defined in GenericProblem.h,
+  // it reads string type parameters from the parameters file
+  // (header file created by Salome). Each parameter
+  // is defined through a line:
+  // GPUSPH_section_name_parameter_name__ value
+  // for example:
+  // GPUSPH_general_name__ ProblemName
 	m_name = PSTR(general, name);
-#ifdef GPUSPH_special_boundary_SECTIONS
-	for (uint i = 0; i < NB_SECTIONS( special_boundary ); i++)
-	{
-#if ISDEF(special_boundary,start_time_VALS)
-		m_bndtstart [ i ] = PVALS (special_boundary, start_time)[i];
-#endif
-
-#if ISDEF(special_boundary,end_time_VALS)
-		m_bndtend [ i ] = anEnd[ i ];
-		m_bndtend [ i ] = PVALS (special_boundary, end_time)[i];
-#endif
-	}
-#endif
 
 	// Setup the simulation framework
 	SETUP_FRAMEWORK(kernel<KERNEL_TYPE>,
@@ -67,14 +62,12 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 					periodicity<PERIODICITY>,
 					add_flags<FLAGS_LIST>);
 
-	// Initialization of the physical parameters
+	// Initialization of the discretisation parameters
+#if ISDEF(discretisation,sfactor)
+	simparams()->sfactor = PVAL( discretisation, sfactor );
+#endif
 	set_deltap ( PVAL( discretisation, m_deltap ));
 	physparams()->r0 = m_deltap;
-
-	// Gravity
-#if ISDEF(physics,gravity)
-	physparams()->gravity = make_float3(PVAL(physics, gravity_1), PVAL(physics, gravity_2), PVAL(physics, gravity_3));
-#endif
 
 	// Initialization of the neighbours parameters
 #if ISENUM_EQ(boundaries,bnd_type,SA_BOUNDARY)
@@ -104,6 +97,12 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 	simparams()->densityDiffCoeff= PVAL( density_calculation, densityDiffCoeff );
 #endif
 
+  // Gravity
+#if ISDEF(physics,gravity)
+	physparams()->gravity = make_float3(PVAL(physics, gravity_1), PVAL(physics, gravity_2), PVAL(physics, gravity_3));
+#endif
+
+
 	// Writer settings
 	add_writer(VTKWRITER, PVAL(output, vtk_frequency));
 #if ISDEF(output,commonwriter)
@@ -116,27 +115,41 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 
 #if ISDEF(fluid_0,m_waterLevel)
 	setWaterLevel( PVAL( fluid_0, m_waterLevel ) );
+#endif
+#if ISDEF(fluid_0,m_maxParticleSpeed)
 	setMaxParticleSpeed( PVAL( fluid_0, m_maxParticleSpeed ) );
-	set_equation_of_state( fluid_0, PVAL( fluid_0, kinematicvisc ), NAN);
+#endif
+#if ISDEF(fluid_0,sscoeff)
+	set_equation_of_state( fluid_0, PVAL( fluid_0, gammacoeff), PVAL(fluid_0, sscoeff));
 #else
-	set_equation_of_state(fluid_0, PVAL(fluid_0, kinematicvisc), PVAL(fluid_0, sscoeff));
+	set_equation_of_state(fluid_0, PVAL(fluid_0, gammacoeff), NAN);
 #endif
 
 	//	Add more fluids
 #if NB_SECTIONS( fluid ) > 1
-	double dens[] =
+	// density
+  const double fluidDensity[] =
 	{	PVALS( fluid, rho0 )};
-	double visc[] =
+  // kinematic viscosity
+	const double fluidViscosity[] =
 	{	PVALS( fluid, kinematicvisc )};
-	double ss[] =
+  // speed of sound
+	const double fluidSSCoeff[] =
 	{	PVALS( fluid, sscoeff )};
-	double eos[] =
+  // equation of state exponent
+	const double fluidEOS[] =
 	{	PVALS( fluid, gammacoeff )};
+  // speed of sound input method
+  const char c0InputMethod[] =
+  { PSTRVALS( fluid, input_method)};
 	for ( uint i = 1; i < NB_SECTIONS( fluid ); i++ )
 	{
-		size_t fluid_id = add_fluid( i, dens[i] );
-		set_kinematic_visc( fluid_id, visc[i] );
-		set_equation_of_state( fluid_id, eos[i], ss[i] );
+		size_t fluid_id = add_fluid( i, fluidDensity[i] );
+		set_kinematic_visc( fluid_id, fluidViscosity[i] );
+    if (c0InputMethod[i] == "direct_input")
+  		set_equation_of_state( fluid_id, fluidEOS[i], fluidSSCoeff[i] );
+    else
+  		set_equation_of_state( fluid_id, fluidEOS[i], NAN );
 	}
 #endif
 
@@ -191,9 +204,10 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		PSTR(geometry, fluid_file), NULL);
 
 	// Main container definition
-	const char* collisionsFileString = NULL;
 #if ISDEF( geometry, collision_file )
-	collisionsFileString = PSTR( geometry, collision_file );
+	const char* collisionsFileString = PSTR( geometry, collision_file );
+#else
+	const char* collisionsFileString = NULL;
 #endif
 	GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0, 0, 0),
 		PSTR(geometry, walls_file), collisionsFileString);
@@ -201,133 +215,160 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 
 	// Special boundaries definition
 #ifdef GPUSPH_special_boundary_SECTIONS
-#if NB_SECTIONS(special_boundary) > 0
 #define enable true
 #define disable false
+#if NB_SECTIONS(special_boundary) > 0
 	// Lists of special boundaries parameters values.
 #if ISDEF(special_boundary,collisions_VALS)
-	const bool aCollisionsFlags[] =
-	{	PBOOLVALS( special_boundary, collisions )};
+	const bool enableCollisionsArray[] =
+	{	PVALS( special_boundary, collisions )};
 #endif
 
 #if ISDEF(special_boundary,feedback_VALS)
-	bool aFeedbackFlags[] =
-	{	PBOOLVALS( special_boundary, feedback )};
+	const bool enableFeedbackArray[] =
+	{	PVALS( special_boundary, feedback )};
 #endif
 
 #if ISDEF(special_boundary,collisions_file_VALS)
-	const char* aCollisionsFiles[] =
+	char* collisionsFiles[] =
 	{	PSTRVALS( special_boundary, collisions_file )};
 #endif
 
-#if ISDEF(special_boundary,floating_body_geometry_VALS)
-	const char* aFloatingGeomFiles[] =
-	{	PSTRVALS( special_boundary, floating_body_geometry )};
+#if ISDEF(special_boundary,object_geometry_file_VALS)
+	char* objectFiles[] =
+	{	PSTRVALS( special_boundary, object_geometry_file )};
 #endif
 
 #if ISDEF(special_boundary,open_bnd_type_VALS)
-	int anOpenBndType[] =
-	{	PINTVALS( special_boundary, open_bnd_type )};
+	const int openBndType[] =
+	{	PVALS( special_boundary, open_bnd_type )};
 #endif
 
-#if ISDEF(special_boundary,density_VALS)
-	double aDensity[] =
-	{	PVALS( special_boundary, density )};
+#if ISDEF(special_boundary,object_density_VALS)
+	const double objectDensity[] =
+	{	PVALS( special_boundary, object_density )};
 #endif
 
-	int aBndType[] =
-	{	PINTVALS( special_boundary, type )};
-	const char* aBndFile[] =
+#if ISDEF(special_boundary,object_mass_VALS)
+	const double objectMass[] =
+	{	PVALS( special_boundary, object_mass )};
+#endif
+
+#if ISDEF(special_boundary,object_cg_x_VALS)
+	const double3 objectCG[] =
+	{	make_double3 (PVALS (special_boundary, object_cg_x),
+                  PVALS (special_boundary, object_cg_y),
+                  PVALS (special_boundary, object_cg_z))};
+#endif
+#if ISDEF(special_boundary,object_inertia_x_VALS)
+	const double objectInertiaX[] =
+	{ PVALS (special_boundary, object_inertia_x)};
+#endif
+#if ISDEF(special_boundary,object_inertia_y_VALS)
+	const double objectInertiaY[] =
+	{ PVALS (special_boundary, object_inertia_y)};
+#endif
+#if ISDEF(special_boundary,object_inertia_z_VALS)
+	const double objectInertiaZ[] =
+	{ PVALS (special_boundary, object_inertia_z)};
+#endif
+
+	const int boundaryType[] =
+	{	PVALS( special_boundary, type )};
+	const char* boundaryFile[] =
 	{	PSTRVALS( special_boundary, file )};
 	// Set parameters for each special boundary
 	for (uint i = 0; i < NB_SECTIONS(special_boundary); i++)
 	{
 		GeometryType specialBoundaryType;
-		if ( aBndType[i] == moving_body )    // moving_body
+		if ( boundaryType[i] == moving_body )
 		{
 			specialBoundaryType = GT_MOVING_BODY;
-			// TODO: Synchronize with common flags.
-//      if (SetUp.MovingBodies == "disable") {
-//        std::cout << std::endl << "--------------------------------------------------------------" << std::endl << std::endl;
-//        std::cout << "WARNING !!!" << std::endl
-//          << "You have a moving body but the moving_bodies are disabled in the boundaries section!" << std::endl;
-//      }
 		}
-		else if ( aBndType[i] == floating_body )    // floating_body
+		else if ( boundaryType[i] == floating_body )
 		{
 			specialBoundaryType = GT_FLOATING_BODY;
-			// TODO: Synchronize with common flags.
-//      if (SetUp.MovingBodies == "disable") {
-//        std::cout << std::endl << "WARNING !!!" << std::endl
-//          << "You have a floating body but the moving_bodies are disabled in the boundaries section!" << std::endl;
-//      }
 		}
-		else if ( aBndType[i] == open_boundary )    // open_boundary
+		else if ( boundaryType[i] == open_boundary )
 		{
 			specialBoundaryType = GT_OPENBOUNDARY;
-			// TODO: Synchronize with common flags.
-//      if (SetUp.OpenBoundaries == "disable") {
-//        std::cout << std::endl << "--------------------------------------------------------------" << std::endl << std::endl;
-//        std::cout << "WARNING !!!" << std::endl
-//          << "You have an open boundary but the open_boundaries are disabled in the boundaries section!" << std::endl;
-//      }
 		}
-		else if ( aBndType[i] == free_surface )    // free_surface
+		else if ( boundaryType[i] == free_surface )
 		{
 			specialBoundaryType = GT_FREE_SURFACE;
 		}
-		const char* aCollisionsFile = NULL;
+		char* collisionsFile = NULL;
 #if ISDEF(special_boundary,collisions_file_VALS)
-		if( aCollisionsFiles[ i ] )
-		{
-			aCollisionsFile = aCollisionsFiles[ i ];
+		if (collisionsFiles[i]) {
+			collisionsFile = collisionsFiles[i];
 		}
 #endif
-#if ISDEF(special_boundary,floating_body_geometry_VALS)
-		if ( aCollisionsFile == NULL && aBndType[ i ] == floating_body )
-		{
-			aCollisionsFile = aFloatingGeomFiles[ i ];
+#if ISDEF(special_boundary,object_geometry_file_VALS)
+		if (objectFiles[i]) {
+			collisionsFile = objectFiles[i];
 		}
+#endif
+#if ISDEF(special_boundary,start_time_VALS)
+		m_bndtstart [ i ] = PVALS (special_boundary, start_time)[i];
 #endif
 
-		// Define a special boundary
-		GeometryID aSpecialBnd = addHDF5File( specialBoundaryType,
-				Point(0,0,0), aBndFile[i], aCollisionsFile );
+#if ISDEF(special_boundary,end_time_VALS)
+		m_bndtend [ i ] = PVALS (special_boundary, end_time)[i];
+#endif
+
+		const char* specialBoundaryFile = &collisionsFile[0];
+    // Define the special boundary
+		GeometryID specialBoundary = addHDF5File( specialBoundaryType,
+				Point(0,0,0), boundaryFile[i], specialBoundaryFile );
 
 #if ISDEF(special_boundary,collisions_VALS)
-		if ( !aCollisionsFlags[i] )    // != "true"
+		if ( !enableCollisionsArray[i] )
 		{
-			// If collisions are disabled.
-			disableCollisions( aSpecialBnd );
+			disableCollisions( specialBoundary );
 		}
 #endif
 
 #if ISDEF(special_boundary,feedback_VALS)
-		if ( aFeedbackFlags[ i ] )    // enable
+		if (enableFeedbackArray[i])
 		{
-			// If feedback is enabled.
-			enableFeedback( aSpecialBnd );
+			enableFeedback( specialBoundary );
 		}
 #endif
 
 #if ISDEF(special_boundary,open_bnd_type_VALS)
 		if ( specialBoundaryType == GT_OPENBOUNDARY
-				&& anOpenBndType[ i ] == velocity_driven )
+				&& openBndType[ i ] == velocity_driven )
 		{
-			setVelocityDriven( aSpecialBnd, true );
+			setVelocityDriven( specialBoundary, true );
 		}
 #endif
 
-#if ISDEF(special_boundary,density_VALS)
-		if ( aDensity[ i ] > 0 && ::isfinite( aDensity[ i ] ) )
+#if ISDEF(special_boundary,object_density_VALS)
+		if ( objectDensity[ i ] > 0 && ::isfinite( objectDensity[ i ] ) )
 		{
-			setMassByDensity( aSpecialBnd, aDensity[ i ] );
+			setMassByDensity( specialBoundary, objectDensity[ i ] );
 		}
+#endif
+
+#if ISDEF(special_boundary,object_mass_VALS)
+		if ( objectMass[ i ] > 0 && ::isfinite( objectMass[ i ] ) )
+		{
+			setMass( specialBoundary, objectMass[i] );
+		}
+#endif
+
+#if ISDEF(special_boundary,object_cg_x_VALS)
+    setCenterOfGravity( specialBoundary, objectCG[i] );
+#endif
+
+#if ISDEF(special_boundary,object_inertia_x_VALS)
+    setInertia( specialBoundary, objectInertiaX[i], objectInertiaY[i], objectInertiaZ[i] );
 #endif
 
 	}
 #endif
 #endif
+
 }
 
 GPUSPH_USER_FUNCTIONS

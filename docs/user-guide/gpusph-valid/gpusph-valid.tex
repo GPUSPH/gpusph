@@ -95,32 +95,36 @@ are described, together with their setup in the user interface.
 
 \subsection{Setup in Salome}\label{sec:salome_spheric2}
 For this test-case, the geometrical setup only contains the basin and the initial free-surface shape.
+We will not use the repacking feature of GPUSPH, so the free-surface is a separate shell from the
+main boundary and it will not be an input particle file for GPUSPH. It is only a limit considered for
+fluid particle filling. Follow the steps below to build the case:
 \begin{enumerate}
 \item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
   \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
   \begin{itemize}
-  \item Create the vertices of the basin and free-surface\\
+  \item Create the vertices of the basin and free-surface, following the coordinates of the figure \ref{fig:SphericGeometry}\\
     \textbf{New entity $\to$ Basic $\to$ Point}\smallskip\\
     \includegraphics[scale=0.4,trim={0 13cm 40cm 7cm}, clip]{../fig/SPHERIC2/Salome/vertices_creation.png}
-  \item Create the lines linking the vertices together\\
+  \item Create the lines linking the vertices together, considering the free-surface and the basin as two separate objects
+    (there is no connectivity between them)\\
     \textbf{New entity $\to$ Basic $\to$ Line}\smallskip\\
     \includegraphics[scale=0.4,trim={40cm 10cm 0cm 11cm}, clip]{../fig/SPHERIC2/Salome/lines_creation.png}
   \item Create the faces of the basin and free-surface\\
     \textbf{New entity $\to$ Build $\to$ Face}\smallskip\\
-    \includegraphics[scale=0.28,trim={18cm 8cm 5cm 7cm}, clip]{../fig/SPHERIC2/Salome/faces_creation.png}
+    \includegraphics[scale=0.28,trim={18cm 3cm 15cm 7cm}, clip]{../fig/SPHERIC2/Salome/faces_creation.png}
   \item Create a shell with the two faces of the free-surface\\
     \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
     \includegraphics[scale=0.3,trim={12cm 8cm 15cm 7cm}, clip]{../fig/SPHERIC2/Salome/free_surf_shell.png}
   \item Create a shell with the faces of the basin\\
     \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
-    \includegraphics[scale=0.3,trim={12cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/basin_shell.png}
+    \includegraphics[scale=0.35,trim={22cm 3cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/basin_shell.png}
   \item Check the normals orientation\\
     \textbf{Inspection $\to$ Normal to a face}\smallskip\\
-    \includegraphics[scale=0.28,trim={12cm 7cm 12cm 8cm}, clip]{../fig/SPHERIC2/Salome/check_normals.png}
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/SPHERIC2/Salome/check_normals.png}
   \item For the case with dynamic boundaries, we want the layers ot be created outwards, so we need to
     create a second shell of the basin with reversed normals\\
     \textbf{Repair $\to$ Change orientation}\smallskip\\
-    \includegraphics[scale=0.3,trim={12cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/revert_normals.png}
+    \includegraphics[scale=0.4,trim={32cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/revert_normals.png}
   \end{itemize}
 \item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
   \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
@@ -170,7 +174,7 @@ For this test-case, the geometrical setup only contains the basin and the initia
     \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/SPHERIC2/Salome/define_gpusph_boundaries.png}
   \item Edit the simulation parameters and set them to the ones of the table \ref{tab:spheric2-setup}.\\
     \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
-    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/SPHERIC2/Salome/edit_simulation_parameters.png}\medskip
+    \includegraphics[scale=0.4,trim={0cm 5cm 44cm 1cm}, clip]{../fig/SPHERIC2/Salome/edit_simulation_parameters.png}\medskip
   \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
     1. Generate the sources\\
     2. Build solver\\
@@ -186,7 +190,7 @@ For this test-case, the geometrical setup only contains the basin and the initia
 The results of this case are compared with the experimental results from Kleefsman et al. \citep{Kleefsman}.
 The results of the tests are in the form of pressure values recorded in time at the different sensors
 and in values of fluid height at the different height sensors in time.
-Figure (\ref{fig:Crash}) shows snapshots at the time $t^+=2.95$ of the simulation with semi-analytical boundaries.
+Figure (\ref{fig:Crash}) shows a snapshot at the time $t^+=2.95$ of the simulation with semi-analytical boundaries.
 
 %%%%%%%%%% CRASH
 \begin{figure}[H]
@@ -291,7 +295,131 @@ and wave gages.
 
 \subsection{Setup in Salome}
 
-The same steps for the setup can be followed as for the Spheric2 test-case (see the section \ref{sec:salome_spheric2}).
+For this case we show the use of the repacking feature of GPUSPH, following Colagrossi \textit{et al.}'s work.
+There are three cases: one for each boundary type (dynamic, Lennard-Jones and semi-analytical).
+The idea is to let the particles reorganise themselves before the beginning of the simulation so as to
+make the initial repartition of particles as homogeneous as possible. In order to do that, when performing a simulation
+of a free-surface flow, it is necessary to provide GPUSPH with a particle file corresponding to the initial free-surface
+position. These particles will be considered as a boundary and the repacking will happen within the solid, open and free-surface
+boundaries of the domain. As soon as the repacking if finished, the free-surface particles are removed from the simulation
+domain and the simulation can begin. Thus, during pre-processing the free-surface is considered as a boundary.
+It is inputed as a special boundary and there is no need anymore to define a separate free-surface like in the Spheric2 case.
+The following steps can be followed:
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the basin and free-surface\\
+    \textbf{New entity $\to$ Basic $\to$ Point} \\
+    \includegraphics[scale=0.4,trim={23cm 3cm 15cm 10cm}, clip]{../fig/HydrostaticBasin/Salome/vertices_creation.png}
+  \item Create the lines linking the vertices together, for the basin on the one hand, and for the free-surface on the other hand\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\\
+    \includegraphics[scale=0.35,trim={20cm 3cm 15cm 11cm}, clip]{../fig/HydrostaticBasin/Salome/lines_creation.png}
+  \item Create the faces of the basin and free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Face}\\
+    \includegraphics[scale=0.28,trim={18cm 3cm 15cm 7cm}, clip]{../fig/HydrostaticBasin/Salome/faces_creation.png}
+  \item Create a shell with the faces of the basin\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\\
+    \includegraphics[scale=0.35,trim={22cm 3cm 15cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/basin_shell.png}
+  \item Check the basin's normals orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/check_normals.png}
+  \item For the case with semi-analytical boundaries, we want the normals to be oriented inwards, so we need to
+    create a second shell of the basin with reversed normals\\
+    \textbf{Repair $\to$ Change orientation}\\
+    \includegraphics[scale=0.4,trim={22cm 7cm 15cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/revert_normals.png}
+  \item Rename the basin into \cmd{basin\_outwards\_normals} by selecting it in the object tree and pressing F2
+  \item Check the free-surface face's orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/check_fs_normals.png}
+  \item Rename the free-surface face into \cmd{free\_surface\_outwards\_normals}
+  \item For semi-analytical boundaries, we will need a free-surface with normals pointing towards the fluid, so
+    create another free-surface face with reverted normals:\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/revert_fs_normals.png}
+  \item Cut the \cmd{basin\_outwards\_normals} using \cmd{free\_surface\_outwards\_normals} as a tool\\
+    \textbf{Operations $\to$ Boolean $\to$ Cut}\\
+    \includegraphics[scale=0.35,trim={22cm 3cm 15cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/basin_cut.png}
+  \item Create a shell comprising \cmd{basin\_outwards\_normals\_cut} and \\
+    \cmd{free\_surface\_outwards\_normals}\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\\
+    \includegraphics[scale=0.35,trim={22cm 3cm 15cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/basin_fs_shell.png}
+  \item Create a group of faces with the free-surface face in \\
+    \cmd{basin\_with\_free\_surf\_outwards\_normals}\\
+    \textbf{New entity $\to$ Group $\to$ Create group}\\
+    \includegraphics[scale=0.35,trim={25cm 3cm 11cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/fs_group.png}
+  \item Repeat the last three steps with \cmd{basin\_inwards\_normals} and \\
+    \cmd{free\_surface\_inwards\_normals}.
+
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create three cases, one for each type of boundary conditions\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\\
+    Name them \cmd{HydrostaticLJ}, \cmd{HydrostaticDyn} and \cmd{HydrostaticSA}    
+  \item Then, define the main boundary for each case, taking care to select \cmd{basin\_with\_free\_surf\_outwards\_normals}
+    for the dynamic boundaries and \cmd{basin\_with\_free\_surf\_inwards\_normals} for semi-analytical boundaries. For
+    Lennard-Jones boundaries it does not matter.
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\\
+    \includegraphics[scale=0.45,trim={0cm 6cm 40cm 20cm}, clip]{../fig/HydrostaticBasin/Salome/define_main_boundary.png}
+  \item Define a special boundary using the free-surface group for each case, specifying it is a free-surface type special
+    boundary\\
+    \textbf{SPH Preprocessor $\to$ Define special boundary grid}\\
+    \includegraphics[scale=0.45,trim={0cm 6cm 40cm 25cm}, clip]{../fig/HydrostaticBasin/Salome/define_free_surface.png}
+  \item Edit the cases parameters, taking care to choose the corresponding boundary formulation for each case\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={15cm 5cm 30cm 10cm}, clip]{../fig/HydrostaticBasin/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\\
+    \includegraphics[scale=0.3,trim={0cm 15cm 28cm 2cm}, clip]{../fig/HydrostaticBasin/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis:\\
+    \begin{center}\includegraphics[scale=0.3,trim={17cm 2cm 18cm 9cm}, clip]{../fig/HydrostaticBasin/Salome/hydrostaticBasin-particles.png}\end{center}
+    
+    For each study, Salome creates a folder with the study name underscore presph at the same location as the hdf file.
+    This is where the preprocessor files are stored: for example, let us assume that the \cmd{HydrostaticBasin.hdf} file
+    is located at \cmd{$MY_STUDY_PATH/HydrostaticBasin.hdf}.
+    Then, the particle files for the case with Lennard-Jones boundaries are located in:\\
+    \cmd{$MY_STUDY_PATH/HydrostaticBasin_presph/HydrostaticBasinLJ}. \\
+    The files are the following:\\
+    - \cmd{HydrostaticBasinLJ.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{HydrostaticBasinLJ.basin_with_free_surf_outwards_normals.h5sph}: GPUSPH file for the basin\\
+    - \cmd{HydrostaticBasinLJ.basin_free_surface.h5sph}: GPUSPH file for the free-surface\\
+    - \cmd{HydrostaticBasinLJ.basin_with_free_surf_outwards_normals.vtu}: vtu file of the basin, can be opened in Paravis\\
+    - \cmd{HydrostaticBasinLJ.fluid.vtu}: vtu file of the fluid, can be opened in Paravis\\
+    - \cmd{HydrostaticBasinLJ.basin_free_surface.vtu}: vtu file of the free-surface, can be opened in Paravis\\
+    - \cmd{basin_with_free_surf_outwards_normals.stl}: stl file of the basin, can be used for visualisation purposes\\
+    - \cmd{basin_with_free_surf_outwards_normals.obj}: file for handling collisions with the basin in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create three cases, one for each boundary formulation.\\
+    \textbf{GPUSPH $\to$ Add a case}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary
+    formulation and boundary type for each file\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/HydrostaticBasin/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters, taking care to enable repacking\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\\
+    \includegraphics[scale=0.4,trim={0cm 5cm 40cm 1cm}, clip]{../fig/HydrostaticBasin/Salome/edit_simulation_parameters.png}
+  \item Edit the execution parameters, choosing to enable the repack and run option\\
+    \textbf{GPUSPH $\to$ Edit execution parameters}\\
+    \includegraphics[scale=0.4,trim={0cm 10cm 40cm 1cm}, clip]{../fig/HydrostaticBasin/Salome/edit_execution_parameters.png}
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder:\\
+    \cmd{$MY_STUDY_PATH/HydrostaticBasin_gpusph/HydrostaticBasinLJ}.\\ While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/HydrostaticBasin_gpusph/HydrostaticBasinLJ/}\\
+    \cmd{gpusph/dist/linux/x86_64}\\
+    The repacking results are stored with names
+    \cmd{REPACK_*.vtu} while the simulation results are stored with names \cmd{PART_*.vtu}.
+  \end{itemize}
+\end{enumerate}
 
 \subsection{Results}
 Modeling hydrostatic phenomenon is not trivial in SPH due to the tendency of the particles
@@ -356,12 +484,8 @@ hydrostatic phenomena since it shows a convergent behavior.
    
 \begin{itemize}
 \item \textbf{Description of the case}: this is a schematic case of a laminar channel flow with an inflow and an outflow boundary.
-  The channel has a rectangular section of size $1m x 1m$ and a length of $4m$.
-
-  We consider a simple 3-dimensional rectangular channel which is
-  filled with fluid particles, and subjected to a gravity field force acting in a parallel and
-  opposite manner with respect to the bottom's normal. The case is non-dimensionalized by using the water depth $h$
-  and other physical parameters. The non-dimensional parameters and variables are as seen below:   
+  The channel has a rectangular section of size $1m \times 1m$ and a length of $4m$, with a water depth of $0.5m$.
+  The case is non-dimensionalized using the water depth $h$ and the gravity. The non-dimensional parameters and variables are as thus:   
   \begin{equation}
     \begin{array}{l}
       \displaystyle{  z^{+} \doteq \frac{z}{h} } \medskip \\ 
@@ -387,10 +511,12 @@ hydrostatic phenomena since it shows a convergent behavior.
 \end{itemize}
 
 \subsection{Setup in Salome}
-For this test-case, the geometrical setup only contains the channel and the initial free-surface shape.
-We will not use any repacking so it is not necessary to include the free-surface in the main boundary shell.
-In order to define the inflow and outflow boundaries, it will be necessary to define groups of faces
-corresponding to these two areas in the GEOM object of the channel. The steps below are performed:
+For this test-case, the geometrical setup only contains the channel walls and open boundaries, and the initial free-surface shape.
+We will not use any repacking, so it is not necessary to intersect the solid and open boundaries with the free-surface and to include the
+free-surface in the main boundary shell.
+The main boundary shell thus comprises the walls, and also the inflow and outflow boundaries of the channel.
+They shall have to be included in groups of faces corresponding to the inlet and outlet frontiers.
+The steps below are performed:
 \begin{enumerate}
 \item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
   \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
@@ -406,13 +532,13 @@ corresponding to these two areas in the GEOM object of the channel. The steps be
     \includegraphics[scale=0.28,trim={18cm 8cm 5cm 7cm}, clip]{../fig/ChannelIO/Salome/faces_creation.png}
   \item Create a shell with the faces of the basin\\
     \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
-    \includegraphics[scale=0.3,trim={12cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/basin_shell.png}
+    \includegraphics[scale=0.3,trim={20cm 7cm 10cm 8cm}, clip]{../fig/ChannelIO/Salome/basin_shell.png}
   \item Check the normals orientation (they should be oriented towards the fluid)\\
     \textbf{Inspection $\to$ Normal to a face}\smallskip\\
-    \includegraphics[scale=0.28,trim={12cm 7cm 12cm 8cm}, clip]{../fig/SPHERIC2/Salome/check_normals.png}
+    \includegraphics[scale=0.28,trim={20cm 7cm 10cm 8cm}, clip]{../fig/ChannelIO/Salome/check_normals.png}
   \item If not, change their orientation at this stage in the GEOM module\\
     \textbf{Repair $\to$ Change orientation}\smallskip\\
-    \includegraphics[scale=0.3,trim={12cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/revert_normals.png}
+    \includegraphics[scale=0.3,trim={20cm 7cm 10cm 8cm}, clip]{../fig/ChannelIO/Salome/revert_normals.png}
   \item Create groups of faces for the inflow and outflow boundaries, in the basin object:
     \textbf{New entity $\to$ Group $\to$ Create group}\smallskip\\
     - Select the face type group in the Shape type section\\
@@ -424,13 +550,13 @@ corresponding to these two areas in the GEOM object of the channel. The steps be
 \item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
   \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
   \begin{itemize}
-  \item First we have to create three cases, one for each type of boundary conditions\\
+  \item First we have to create a new case:\\
     \textbf{SPH Preprocessor $\to$ Add a case}\smallskip\\
     \includegraphics[scale=0.5,trim={0cm 26.5cm 45cm 1cm}, clip]{../fig/ChannelIO/Salome/create_prepro_case.png}
-  \item Then, define the main boundary for each case, taking care to select the basin with reversed normals for the dynamic boundaries\\
+  \item Then, define the main boundary for this case\\
     \textbf{SPH Preprocessor $\to$ Define the main boundary}\smallskip\\
     \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_main_boundary.png}
-  \item Define the free-surface for the three cases\\
+  \item Define the free-surface for particle filling\\
     \textbf{SPH Preprocessor $\to$ Define free surface}\smallskip\\
     \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_free_surface.png}
   \item Define the inflow and outflow boundaries as special boundaries\\
@@ -439,7 +565,8 @@ corresponding to these two areas in the GEOM object of the channel. The steps be
     Choose the \textbf{Surface type} as \textbf{Open boundary}\\
     Do the same for the outlet\\
     \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_inlet.png}
-  \item Edit the cases parameters, taking care to choose the corresponding boundary formulation\\
+  \item Edit the case parameters, taking care to choose the semi-analytical boundary formulation and using a particle size of $0.1m$,
+    which is a coarse discretisation\\
     \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
     \includegraphics[scale=0.35,trim={15cm 14cm 30cm 5cm}, clip]{../fig/ChannelIO/Salome/edit_filling_parameters.png}
   \item Execute the preprocessor\\
@@ -475,14 +602,14 @@ corresponding to these two areas in the GEOM object of the channel. The steps be
 \item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
   \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
   \begin{itemize}
-  \item First we need to create four cases, one for each of the tests of the table \ref{tab:spheric2-setup}.\\
+  \item First we need to create a new case\\
     \textbf{GPUSPH $\to$ Add a case}\smallskip\\
     \includegraphics[scale=0.45,trim={0cm 25cm 48cm 2cm}, clip]{../fig/ChannelIO/Salome/create_solver_case.png}
   \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary formulation
     and boundary types\\
     \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
     \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/ChannelIO/Salome/define_gpusph_boundaries.png}
-  \item Edit the simulation parameters and set them to the ones of the table \ref{tab:spheric2-setup}.\\
+  \item Edit the simulation parameters\\
     \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
     \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/ChannelIO/Salome/edit_simulation_parameters.png}\medskip
   \item Choose to prescribe a constant velocity at the inlet and a constant water level at the outlet in the simulation parameters,
@@ -495,6 +622,50 @@ corresponding to these two areas in the GEOM object of the channel. The steps be
   \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
     \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIO}. While the solver is still running, they are temporarily stored in:\\
     \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIO/gpusph/dist/linux/x86_64}.
+  \item It is visible in the results that a wave is created at the inlet because the constant velocity is imposed on
+    the whole height of the channel, even above the free surface. Also, the $0.5m/s$ velocity is directly prescribed
+    from the first iteration, while the fluid is initially at rest, which generates a wave in the domain.\\
+    \includegraphics[scale=0.3,trim={20cm 5cm 10cm 10cm}, clip]{../fig/ChannelIO/Salome/ChannelIO_results.png}\medskip\\
+    To improve this, it is possible to modify the imposition of boundary conditions at the inflow so that the inlet velocity
+    follows a parabolic vertical profile between the bed and the free-surface, and its maximum varies from 0 to 0.5 m/s
+    within a given time. This is detailed below. 
+  \end{itemize}
+\item \textbf{Create a new case with more advanced boundary conditions in the GPUSPH solver module}
+  \begin{itemize}
+  \item Copy the previous ChannelIO case to ChannelIOFade\\
+    \textbf{GPUSPH $\to$ Copy a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 25cm 48cm 2cm}, clip]{../fig/ChannelIO/Salome/copy_solver_case.png}
+  \item In the simulation parameters dialog, edit the imposeBoundaryConditionsHost user function\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\\
+    \textbf{imposeBoundaryConditionsHost $\to$ Edit...}\\
+    A dialog opens, which contains the function's definition\smallskip\\
+    \includegraphics[scale=0.4,trim={17cm 5cm 25cm 10cm}, clip]{../fig/ChannelIO/Salome/edit_imposeBoundaryConditions.png}\medskip
+  \item In the function editor, replace the line \cmd{IMPOSE\_VELOCITY} by:
+    \begin{lstlisting}
+// define the water level as equal to 0.5m
+const float h = 0.5;
+if (absPos.z < 0.5) {
+  // define the fading time as 2 seconds
+  const float time_fade = 2.;
+  // define the maximum velocity at the inflow,
+  // which varies from 0 to 0.5m/s in 2s
+  const float U = 0.5 * fminf(t/time_fade, 1.);
+  // define the horizontal velocity at the inflow
+  // through a vertical parabolic profile
+  eulerVel.x = U * (1 - powf(absPos.z,2.)/powf(h,2.));
+}
+    \end{lstlisting}
+    \includegraphics[scale=0.5,trim={19cm 5cm 28cm 10cm}, clip]{../fig/ChannelIO/Salome/change_eulerVel.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
+    \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIOFade}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIOFade/gpusph/dist/linux/x86_64}.
+  \item The result is definitely improved compared to the previous simulation (here the picture is a simulation with
+    $dr = 0.05m$).\smallskip\\
+    \includegraphics[scale=0.3,trim={20cm 5cm 10cm 10cm}, clip]{../fig/ChannelIO/Salome/ChannelIOFade_results.png}\medskip\\
   \end{itemize}
 \end{enumerate}
 

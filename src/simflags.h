@@ -84,12 +84,6 @@
 #define ENABLE_DEM				(ENABLE_PLANES << 1)
 
 //! moving boundaries and rigid bodies
-/**@defpsubsection{moving_bodies, ENABLE_MOVING_BODIES}
- * @inpsection{boundaries}
- * @default{disable}
- * @values{disable,enable}
- * TLT_ENABLE_MOVING_BODIES
- */
 #define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
 
 //! inlet/outlet

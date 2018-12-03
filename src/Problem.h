@@ -133,15 +133,17 @@ class Problem {
 		 * \label{SIZE}
 		 * \default{1e9,1e9,1e9}
 		 * \mandatory
+     * TLT_SIZE
 		 */
-		double3	m_size;			// Size of computational domain
+		double3	m_size;			// Size of the computational domain
 
 		/*! \inpsection{geometry}
 		 * \label{ORIGIN}
 		 * \default{0,0,0}
 		 * \mandatory
+     * TLT_ORIGIN
 		 */
-		double3	m_origin;		// Origin of computational domain
+		double3	m_origin;		// Origin of the computational domain
 
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
