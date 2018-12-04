@@ -1761,224 +1761,220 @@ void GPUWorker::simulationThread() {
 		const bool dbg_step_printf = gdata->debug.print_step;
 		const bool dbg_buffer_lists = gdata->debug.inspect_buffer_lists;
 
+		// message prefix for the debug string
+		string dbg_prefix;
+
 		// TODO automate the dbg_step_printf output
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
 		while (gdata->keep_going) {
+
+			if (dbg_step_printf)
+				dbg_prefix = " T " + to_string(deviceIndex) + " issuing " + getCommandName(gdata->nextCommand);
+
 			switch (gdata->nextCommand) {
 				// logging here?
 			case IDLE:
 				break;
 			case SWAP_BUFFERS:
 				if (dbg_step_printf)
-					printf(" T %d issuing SWAP_BUFFERS%s\n",
-						deviceIndex, describeCommandFlagsBuffers().c_str());
+					cout << dbg_prefix << describeCommandFlagsBuffers() << endl;
 				swapBuffers();
 				break;
 			case SET_BUFFER_STATE:
 				if (dbg_step_printf)
-					printf(" T %d issuing SET_BUFFER_STATE%s <- %s\n",
-						deviceIndex, describeCommandFlagsBuffers().c_str(),
-						gdata->extraCommandArg.string.c_str());
+					cout << dbg_prefix << describeCommandFlagsBuffers() << " <- " << gdata->extraCommandArg.string << endl;
 				setBufferState();
 				break;
 			case ADD_BUFFER_STATE:
 				if (dbg_step_printf)
-					printf(" T %d issuing ADD_BUFFER_STATE%s += %s\n",
-						deviceIndex, describeCommandFlagsBuffers().c_str(),
-						gdata->extraCommandArg.string.c_str());
+					cout << dbg_prefix << describeCommandFlagsBuffers() << " += " << gdata->extraCommandArg.string << endl;
 				addBufferState();
 				break;
 			case SET_BUFFER_VALIDITY:
 				if (dbg_step_printf)
-					printf(" T %d issuing SET_BUFFER_VALIDITY%s <- %d\n",
-						deviceIndex, describeCommandFlagsBuffers().c_str(),
-						BufferValidity(gdata->extraCommandArg.flag));
+					cout << dbg_prefix << describeCommandFlagsBuffers() << " <- " << BufferValidity(gdata->extraCommandArg.flag) << endl;
 				setBufferValidity();
 				break;
 			case CALCHASH:
-				if (dbg_step_printf) printf(" T %d issuing HASH\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_calcHash();
 				break;
 			case SORT:
-				if (dbg_step_printf) printf(" T %d issuing SORT\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_sort();
 				break;
 			case CROP:
-				if (dbg_step_printf) printf(" T %d issuing CROP\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				dropExternalParticles();
 				break;
 			case REORDER:
-				if (dbg_step_printf) printf(" T %d issuing REORDER\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_reorderDataAndFindCellStart();
 				break;
 			case BUILDNEIBS:
-				if (dbg_step_printf) printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_buildNeibsList();
 				break;
 			case FORCES_SYNC:
-				if (dbg_step_printf) printf(" T %d issuing FORCES_SYNC\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_forces();
 				break;
 			case FORCES_ENQUEUE:
-				if (dbg_step_printf) printf(" T %d issuing FORCES_ENQUEUE\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_forces_async_enqueue();
 				break;
 			case FORCES_COMPLETE:
-				if (dbg_step_printf) printf(" T %d issuing FORCES_COMPLETE\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_forces_async_complete();
 				break;
 			case EULER:
-				if (dbg_step_printf) printf(" T %d issuing EULER\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_euler();
 				break;
 			case DENSITY_SUM:
-				if (dbg_step_printf) printf(" T %d issuing DENSITY_SUM\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_density_sum();
 				break;
 			case INTEGRATE_GAMMA:
-				if (dbg_step_printf) printf(" T %d issuing INTEGRATE_GAMMA\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_integrate_gamma();
 				break;
 			case CALC_DENSITY_DIFFUSION:
-				if (dbg_step_printf) printf(" T %d issuing CALC_DENSITY_DIFFUSION\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_calc_density_diffusion();
 				break;
 			case APPLY_DENSITY_DIFFUSION:
-				if (dbg_step_printf) printf(" T %d issuing APPLY_DENSITY_DIFFUSION\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_apply_density_diffusion();
 				break;
 			case DUMP:
 				if (dbg_step_printf)
-					printf(" T %d issuing DUMP%s\n",
-						deviceIndex, describeCommandFlagsBuffers().c_str());
+					cout << dbg_prefix << describeCommandFlagsBuffers() << endl;
 				dumpBuffers();
 				break;
 			case DUMP_CELLS:
-				if (dbg_step_printf) printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				downloadCellsIndices();
 				break;
 			case UPDATE_SEGMENTS:
-				if (dbg_step_printf) printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				updateSegments();
 				break;
 			case DOWNLOAD_IOWATERDEPTH:
-				if (dbg_step_printf) printf(" T %d issuing DOWNLOAD_IOWATERDEPTH\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_download_iowaterdepth();
 				break;
 			case UPLOAD_IOWATERDEPTH:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_IOWATERDEPTH\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_upload_iowaterdepth();
 				break;
 			case DOWNLOAD_NEWNUMPARTS:
-				if (dbg_step_printf) printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				downloadNewNumParticles();
 				break;
 			case UPLOAD_NEWNUMPARTS:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_NEWNUMPARTS\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				uploadNewNumParticles();
 				break;
 			case APPEND_EXTERNAL:
 				if (dbg_step_printf)
-					printf(" T %d issuing APPEND_EXTERNAL%s\n",
-						deviceIndex, describeCommandFlagsBuffers().c_str());
+					cout << dbg_prefix << describeCommandFlagsBuffers() << endl;
 				importExternalCells();
 				break;
 			case UPDATE_EXTERNAL:
 				if (dbg_step_printf)
-					printf(" T %d issuing UPDATE_EXTERNAL%s\n",
-						deviceIndex, describeCommandFlagsBuffers().c_str());
+					cout << dbg_prefix << describeCommandFlagsBuffers() << endl;
 				importExternalCells();
 				break;
 			case FILTER:
 				if (dbg_step_printf)
-					printf(" T %d issuing FILTER %s\n",
-						deviceIndex, FilterName[gdata->extraCommandArg.flag]);
+					cout << dbg_prefix << " " << FilterName[gdata->extraCommandArg.flag] << endl;
 				kernel_filter();
 				break;
 			case POSTPROCESS:
 				if (dbg_step_printf)
-					printf(" T %d issuing POSTPROCESS %s\n",
-						deviceIndex, PostProcessName[gdata->extraCommandArg.flag]);
+					cout << dbg_prefix << " " << PostProcessName[gdata->extraCommandArg.flag] << endl;
 				kernel_postprocess();
 				break;
 			case DISABLE_OUTGOING_PARTS:
-				if (dbg_step_printf) printf(" T %d issuing DISABLE_OUTGOING_PARTS:\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_disableOutgoingParts();
 				break;
 			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
-				if (dbg_step_printf) printf(" T %d issuing SA_CALC_SEGMENT_BOUNDARY_CONDITIONS\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_saSegmentBoundaryConditions();
 				break;
 			case SA_CALC_VERTEX_BOUNDARY_CONDITIONS:
-				if (dbg_step_printf) printf(" T %d issuing SA_CALC_VERTEX_BOUNDARY_CONDITIONS\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_saVertexBoundaryConditions();
 				break;
 			case SA_COMPUTE_VERTEX_NORMAL:
-				if (dbg_step_printf) printf(" T %d issuing SA_COMPUTE_VERTEX_NORMAL\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_saComputeVertexNormal();
 				break;
 			case SA_INIT_GAMMA:
-				if (dbg_step_printf) printf(" T %d issuing SA_INIT_GAMMA\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_saInitGamma();
 				break;
 			case IDENTIFY_CORNER_VERTICES:
-				if (dbg_step_printf) printf(" T %d issuing IDENTIFY_CORNER_VERTICES\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_saIdentifyCornerVertices();
 				break;
 			case COMPUTE_DENSITY:
-				if (dbg_step_printf) printf(" T %d issuing COMPUTE_DENSITY\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_compute_density();
 				break;
 			case CALC_VISC:
-				if (dbg_step_printf) printf(" T %d issuing CALC_VISC\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_visc();
 				break;
 			case REDUCE_BODIES_FORCES:
-				if (dbg_step_printf) printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_reduceRBForces();
 				break;
 			case UPLOAD_GRAVITY:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				uploadGravity();
 				break;
 			case UPLOAD_PLANES:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				uploadPlanes();
 				break;
 			case EULER_UPLOAD_OBJECTS_CG:
-				if (dbg_step_printf) printf(" T %d issuing EULER_UPLOAD_OBJECTS_CG\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				uploadEulerBodiesCentersOfGravity();
 				break;
 			case FORCES_UPLOAD_OBJECTS_CG:
-				if (dbg_step_printf) printf(" T %d issuing FORCES_UPLOAD_OBJECTS_CG\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				uploadForcesBodiesCentersOfGravity();
 				break;
 			case UPLOAD_OBJECTS_MATRICES:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_MATRICES\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				uploadBodiesTransRotMatrices();
 				break;
 			case UPLOAD_OBJECTS_VELOCITIES:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_VELOCITIES\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				uploadBodiesVelocities();
 				break;
 			case IMPOSE_OPEN_BOUNDARY_CONDITION:
-				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_imposeBoundaryCondition();
 				break;
 			case INIT_IO_MASS_VERTEX_COUNT:
-				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS_VERTEX_COUNT\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_initIOmass_vertexCount();
 				break;
 			case INIT_IO_MASS:
-				if (dbg_step_printf) printf(" T %d issuing INIT_IO_MASS\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				kernel_initIOmass();
 				break;
 			case QUIT:
-				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
+				if (dbg_step_printf) cout << dbg_prefix << endl;
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
 			default:
-				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
+				fprintf(stderr, "FATAL: command %d (%s) issued on device %d is not implemented\n",
+					gdata->nextCommand, getCommandName(gdata->nextCommand), deviceIndex);
 				exit(1);
 			}
 			if (dbg_buffer_lists)

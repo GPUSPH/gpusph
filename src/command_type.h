@@ -50,6 +50,8 @@ enum CommandBufferUsage
 	DYNAMIC_BUFFER_USAGE ///< command needs a parameter specifying the buffers to operate on
 };
 
+extern const char* command_name[];
+
 template<CommandType T>
 struct CommandTraits
 {
@@ -58,8 +60,6 @@ struct CommandTraits
 	static constexpr flag_t reads = BUFFER_NONE; ///< list of buffers read by this command
 	static constexpr flag_t updates = BUFFER_NONE; ///< list of buffers updated in-place by this command
 	static constexpr flag_t writes = BUFFER_NONE; ///< list of buffers written by this command
-
-	static const char name[]; ///< printable name of the buffer
 };
 
 
@@ -73,11 +73,16 @@ struct CommandTraits<_command> \
 	static constexpr flag_t reads = _reads; \
 	static constexpr flag_t updates = _updates; \
 	static constexpr flag_t writes = _writes; \
- \
-	static const char name[]; \
 };
 
 #include "define_commands.h"
+
+inline const char * getCommandName(CommandType cmd)
+{
+	if (cmd < NUM_COMMANDS)
+		return command_name[cmd];
+	return "<undefined command>";
+}
 
 #undef DEFINE_COMMAND
 

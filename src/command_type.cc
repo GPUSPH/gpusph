@@ -30,9 +30,8 @@
 
 #include "command_type.h"
 
-#define DEFINE_COMMAND(_command, ...) \
-const char CommandTraits<_command>::name[] = #_command;
-
+const char* command_name[] = {
+#define DEFINE_COMMAND(_command, ...) #_command,
 #include "define_commands.h"
-
 #undef DEFINE_COMMAND
+};
