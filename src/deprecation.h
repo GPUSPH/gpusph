@@ -46,6 +46,10 @@
 // on stderr on (first) usage, so that even on execution the user
 // is reminded to upgrade to the new API.
 
+#ifdef _MSC_VER
+#define DEPRECATED
+#define DEPRECATED_MSG(str)
+#else
 /* Mark a function deprecated */
 #define DEPRECATED __attribute__((deprecated))
 
@@ -53,6 +57,7 @@
  */
 
 #define DEPRECATED_MSG(str) __attribute__((deprecated(str)))
+#endif
 
 /* For the functions that provide compatibility between the deprecated
  * and new APIs, we want to avoid getting deprecation warnings,
@@ -77,7 +82,8 @@ and_or_assigning_to = obsolete_variables;
  * for a more complete solution.
  */
 
-// auxiliary macros to assemble the pragmas
+// auxiliary macros to assemble the pragmas not supported on MSVC
+#ifndef _MSC_VER
 #define GCC_DIAG_STR(s) #s
 #define GCC_DIAG_JOINSTR(x,y) GCC_DIAG_STR(x ## y)
 #define GCC_DIAG_DO_PRAGMA(x) _Pragma (#x)
@@ -86,11 +92,18 @@ and_or_assigning_to = obsolete_variables;
 #else
 #define GCC_DIAG_PRAGMA(x) GCC_DIAG_DO_PRAGMA(GCC diagnostic x)
 #endif
+#endif
 
 // the macros we will use in the code: IGNORE_WARNINGS and RESTORE_WARNINGS
+#ifdef _MSC_VER
+#define IGNORE_WARNINGS(str)
+#define RESTORE_WARNINGS
+#else
 #define IGNORE_WARNINGS(str) \
 	GCC_DIAG_PRAGMA(push) \
 	GCC_DIAG_PRAGMA(ignored GCC_DIAG_JOINSTR(-W, str))
 #define RESTORE_WARNINGS \
 	GCC_DIAG_PRAGMA(pop)
+#endif
+
 #endif
