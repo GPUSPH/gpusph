@@ -6,6 +6,9 @@
 #include <direct.h>
 #define mkdir(name, mode) _mkdir(name)
 
+#include <process.h> //_getpid()
+#define getpid _getpid
+
 // not is not defined and will be replaced by !
 #define not !
 
