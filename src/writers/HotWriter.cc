@@ -26,7 +26,9 @@
  */
 #include <sstream>
 
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 #include <iostream>
 #include <stdexcept>
 #include <fcntl.h>
