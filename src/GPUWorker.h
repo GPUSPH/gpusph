@@ -187,6 +187,9 @@ private:
 	template<CommandType>
 	void describeCommand();
 
+	/// Handle the case of an unknown command being invoked
+	void unknownCommand(CommandType);
+
 	// cuts all external particles
 	// runCommand<CROP> = void dropExternalParticles();
 

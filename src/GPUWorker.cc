@@ -3003,9 +3003,43 @@ void GPUWorker::runCommand<UPLOAD_OBJECTS_VELOCITIES>()
 	integrationEngine->setrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numbodies);
 }
 
+template<>
+void GPUWorker::runCommand<IDLE>()
+{ /* do nothing */ }
+
+template<>
+void GPUWorker::runCommand<QUIT>()
+{
+	/* TODO: this currently does nothing, but it should probably check
+	 * that gdata->keep_going has been set false
+	 */
+}
+
+template<>
+void GPUWorker::runCommand<NUM_COMMANDS>()
+{
+	unknownCommand(NUM_COMMANDS);
+}
+
+void GPUWorker::unknownCommand(CommandType cmd)
+{
+	string err = "FATAL: command " + to_string(cmd)
+		+ " (" + getCommandName(cmd) + ") issued on device " + to_string(m_deviceIndex)
+		+ " is not implemented";
+	throw std::runtime_error(err);
+}
+
+
 template<CommandType Cmd>
 void GPUWorker::describeCommand()
 {
+	if (Cmd >= NUM_COMMANDS) {
+		/* nothing to describe, this is an error condition;
+		 * it will be handled separately in the command dispatch switch
+		 */
+		return;
+	}
+
 	string desc = " T " + to_string(m_deviceIndex) +
 		" issuing " + getCommandName(Cmd);
 
@@ -3078,201 +3112,14 @@ void GPUWorker::simulationThread() {
 		while (gdata->keep_going) {
 
 			switch (gdata->nextCommand) {
-				// logging here?
-			case IDLE:
+#define DEFINE_COMMAND(code, ...) \
+			case code: \
+				if (dbg_step_printf) describeCommand<code>(); \
+				runCommand<code>(); \
 				break;
-			case SWAP_BUFFERS:
-				if (dbg_step_printf) describeCommand<SWAP_BUFFERS>();
-				runCommand<SWAP_BUFFERS>();
-				break;
-			case SET_BUFFER_STATE:
-				if (dbg_step_printf) describeCommand<SET_BUFFER_STATE>();
-				runCommand<SET_BUFFER_STATE>();
-				break;
-			case ADD_BUFFER_STATE:
-				if (dbg_step_printf) describeCommand<ADD_BUFFER_STATE>();
-				runCommand<ADD_BUFFER_STATE>();
-				break;
-			case SET_BUFFER_VALIDITY:
-				if (dbg_step_printf) describeCommand<SET_BUFFER_VALIDITY>();
-				runCommand<SET_BUFFER_VALIDITY>();
-				break;
-			case CALCHASH:
-				if (dbg_step_printf) describeCommand<CALCHASH>();
-				runCommand<CALCHASH>();
-				break;
-			case SORT:
-				if (dbg_step_printf) describeCommand<SORT>();
-				runCommand<SORT>();
-				break;
-			case CROP:
-				if (dbg_step_printf) describeCommand<CROP>();
-				runCommand<CROP>();
-				break;
-			case REORDER:
-				if (dbg_step_printf) describeCommand<REORDER>();
-				runCommand<REORDER>();
-				break;
-			case BUILDNEIBS:
-				if (dbg_step_printf) describeCommand<BUILDNEIBS>();
-				runCommand<BUILDNEIBS>();
-				break;
-			case FORCES_SYNC:
-				if (dbg_step_printf) describeCommand<FORCES_SYNC>();
-				runCommand<FORCES_SYNC>();
-				break;
-			case FORCES_ENQUEUE:
-				if (dbg_step_printf) describeCommand<FORCES_ENQUEUE>();
-				runCommand<FORCES_ENQUEUE>();
-				break;
-			case FORCES_COMPLETE:
-				if (dbg_step_printf) describeCommand<FORCES_COMPLETE>();
-				runCommand<FORCES_COMPLETE>();
-				break;
-			case EULER:
-				if (dbg_step_printf) describeCommand<EULER>();
-				runCommand<EULER>();
-				break;
-			case DENSITY_SUM:
-				if (dbg_step_printf) describeCommand<DENSITY_SUM>();
-				runCommand<DENSITY_SUM>();
-				break;
-			case INTEGRATE_GAMMA:
-				if (dbg_step_printf) describeCommand<INTEGRATE_GAMMA>();
-				runCommand<INTEGRATE_GAMMA>();
-				break;
-			case CALC_DENSITY_DIFFUSION:
-				if (dbg_step_printf) describeCommand<CALC_DENSITY_DIFFUSION>();
-				runCommand<CALC_DENSITY_DIFFUSION>();
-				break;
-			case APPLY_DENSITY_DIFFUSION:
-				if (dbg_step_printf) describeCommand<APPLY_DENSITY_DIFFUSION>();
-				runCommand<APPLY_DENSITY_DIFFUSION>();
-				break;
-			case DUMP:
-				if (dbg_step_printf) describeCommand<DUMP>();
-				runCommand<DUMP>();
-				break;
-			case DUMP_CELLS:
-				if (dbg_step_printf) describeCommand<DUMP_CELLS>();
-				runCommand<DUMP_CELLS>();
-				break;
-			case UPDATE_SEGMENTS:
-				if (dbg_step_printf) describeCommand<UPDATE_SEGMENTS>();
-				runCommand<UPDATE_SEGMENTS>();
-				break;
-			case DOWNLOAD_IOWATERDEPTH:
-				if (dbg_step_printf) describeCommand<DOWNLOAD_IOWATERDEPTH>();
-				runCommand<DOWNLOAD_IOWATERDEPTH>();
-				break;
-			case UPLOAD_IOWATERDEPTH:
-				if (dbg_step_printf) describeCommand<UPLOAD_IOWATERDEPTH>();
-				runCommand<UPLOAD_IOWATERDEPTH>();
-				break;
-			case DOWNLOAD_NEWNUMPARTS:
-				if (dbg_step_printf) describeCommand<DOWNLOAD_NEWNUMPARTS>();
-				runCommand<DOWNLOAD_NEWNUMPARTS>();
-				break;
-			case UPLOAD_NEWNUMPARTS:
-				if (dbg_step_printf) describeCommand<UPLOAD_NEWNUMPARTS>();
-				runCommand<UPLOAD_NEWNUMPARTS>();
-				break;
-			case APPEND_EXTERNAL:
-				if (dbg_step_printf) describeCommand<APPEND_EXTERNAL>();
-				runCommand<APPEND_EXTERNAL>();
-				break;
-			case UPDATE_EXTERNAL:
-				if (dbg_step_printf) describeCommand<UPDATE_EXTERNAL>();
-				runCommand<APPEND_EXTERNAL>();
-				break;
-			case FILTER:
-				if (dbg_step_printf) describeCommand<FILTER>();
-				runCommand<FILTER>();
-				break;
-			case POSTPROCESS:
-				if (dbg_step_printf) describeCommand<POSTPROCESS>();
-				runCommand<POSTPROCESS>();
-				break;
-			case DISABLE_OUTGOING_PARTS:
-				if (dbg_step_printf) describeCommand<DISABLE_OUTGOING_PARTS>();
-				runCommand<DISABLE_OUTGOING_PARTS>();
-				break;
-			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
-				if (dbg_step_printf) describeCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>();
-				runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>();
-				break;
-			case SA_CALC_VERTEX_BOUNDARY_CONDITIONS:
-				if (dbg_step_printf) describeCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>();
-				runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>();
-				break;
-			case SA_COMPUTE_VERTEX_NORMAL:
-				if (dbg_step_printf) describeCommand<SA_COMPUTE_VERTEX_NORMAL>();
-				runCommand<SA_COMPUTE_VERTEX_NORMAL>();
-				break;
-			case SA_INIT_GAMMA:
-				if (dbg_step_printf) describeCommand<SA_INIT_GAMMA>();
-				runCommand<SA_INIT_GAMMA>();
-				break;
-			case IDENTIFY_CORNER_VERTICES:
-				if (dbg_step_printf) describeCommand<IDENTIFY_CORNER_VERTICES>();
-				runCommand<IDENTIFY_CORNER_VERTICES>();
-				break;
-			case COMPUTE_DENSITY:
-				if (dbg_step_printf) describeCommand<COMPUTE_DENSITY>();
-				runCommand<COMPUTE_DENSITY>();
-				break;
-			case CALC_VISC:
-				if (dbg_step_printf) describeCommand<CALC_VISC>();
-				runCommand<CALC_VISC>();
-				break;
-			case REDUCE_BODIES_FORCES:
-				if (dbg_step_printf) describeCommand<REDUCE_BODIES_FORCES>();
-				runCommand<REDUCE_BODIES_FORCES>();
-				break;
-			case UPLOAD_GRAVITY:
-				if (dbg_step_printf) describeCommand<UPLOAD_GRAVITY>();
-				runCommand<UPLOAD_GRAVITY>();
-				break;
-			case UPLOAD_PLANES:
-				if (dbg_step_printf) describeCommand<UPLOAD_PLANES>();
-				runCommand<UPLOAD_PLANES>();
-				break;
-			case EULER_UPLOAD_OBJECTS_CG:
-				if (dbg_step_printf) describeCommand<EULER_UPLOAD_OBJECTS_CG>();
-				runCommand<EULER_UPLOAD_OBJECTS_CG>();
-				break;
-			case FORCES_UPLOAD_OBJECTS_CG:
-				if (dbg_step_printf) describeCommand<FORCES_UPLOAD_OBJECTS_CG>();
-				runCommand<FORCES_UPLOAD_OBJECTS_CG>();
-				break;
-			case UPLOAD_OBJECTS_MATRICES:
-				if (dbg_step_printf) describeCommand<UPLOAD_OBJECTS_MATRICES>();
-				runCommand<UPLOAD_OBJECTS_MATRICES>();
-				break;
-			case UPLOAD_OBJECTS_VELOCITIES:
-				if (dbg_step_printf) describeCommand<UPLOAD_OBJECTS_VELOCITIES>();
-				runCommand<UPLOAD_OBJECTS_VELOCITIES>();
-				break;
-			case IMPOSE_OPEN_BOUNDARY_CONDITION:
-				if (dbg_step_printf) describeCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>();
-				runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>();
-				break;
-			case INIT_IO_MASS_VERTEX_COUNT:
-				if (dbg_step_printf) describeCommand<INIT_IO_MASS_VERTEX_COUNT>();
-				runCommand<INIT_IO_MASS_VERTEX_COUNT>();
-				break;
-			case INIT_IO_MASS:
-				if (dbg_step_printf) describeCommand<INIT_IO_MASS>();
-				runCommand<INIT_IO_MASS>();
-				break;
-			case QUIT:
-				if (dbg_step_printf) describeCommand<QUIT>();
-				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
-				break;
+#include "define_commands.h"
 			default:
-				fprintf(stderr, "FATAL: command %d (%s) issued on device %d is not implemented\n",
-					gdata->nextCommand, getCommandName(gdata->nextCommand), deviceIndex);
-				exit(1);
+				unknownCommand(gdata->nextCommand);
 			}
 			if (dbg_buffer_lists)
 				cout << m_dBuffers.inspect() << endl;
