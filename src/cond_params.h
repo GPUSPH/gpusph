@@ -61,16 +61,16 @@
  * structre inclusion condition is not satisfied.
  */
 template<typename>
-struct empty
+struct empty_struct
 {
 	/// Empty constructor
 	__host__ __device__ __forceinline__
-	empty() {}
+	empty_struct() {}
 
 	/// Universal constructor
 	template<typename ...T1>
 	__host__ __device__ __forceinline__
-	empty(T1 const&...) {}
+	empty_struct(T1 const&...) {}
 };
 
 
@@ -83,7 +83,7 @@ struct empty
 */
 
 #define COND_STRUCT(some_cond, ...) \
-	conditional<bool(some_cond), __VA_ARGS__, empty< __VA_ARGS__ > >::type
+	conditional<bool(some_cond), __VA_ARGS__, empty_struct< __VA_ARGS__ > >::type
 
 #endif // _COND_PARAMS_H
 
