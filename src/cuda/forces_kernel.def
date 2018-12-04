@@ -90,27 +90,23 @@ DECLARE_MEMBER_DETECTOR(relVel, has_relVel)
 
 /// Selector to check if we need a CFL condition for gamma
 template<typename FP>
-__device__ __forceinline__
-constexpr bool
-needs_gamma_cfl()
+struct needs_gamma_cfl
 {
-	return
+	constexpr static bool value =
 		FP::boundarytype == SA_BOUNDARY && // only needed with SA
 		// only computed when fluid interacts with boundary
 		FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY &&
 		USING_DYNAMIC_GAMMA(FP::simflags) && // only needed when using dynamic gamma
 		(FP::simflags & ENABLE_DTADAPT); // with adaptive time-stepping
-}
+};
 
 /// Selector to check if we need a CFL condition for gamma,
 /// taking open boundaries into consideration
 template<typename FP>
-__device__ __forceinline__
-constexpr bool
-needs_io_gamma_cfl()
+struct needs_io_gamma_cfl
 {
-	return needs_gamma_cfl<FP>() && (FP::simflags & ENABLE_INLET_OUTLET) && !FP::repacking;
-}
+	constexpr static bool value = needs_gamma_cfl<FP>::value && (FP::simflags & ENABLE_INLET_OUTLET) && !FP::repacking;
+};
 
 /// Selector to check if the simplified surface tension correction should be applied
 /*! TODO Currently this is only used in the case of Grenier's formulation
@@ -122,15 +118,13 @@ needs_io_gamma_cfl()
  * should depend on an appropriate simflag instead of the sph_formulation.
  */
 template<typename FP>
-__device__ __forceinline__
-constexpr bool
-has_pseudo_surface_tension()
+struct has_pseudo_surface_tension
 {
-	return
+	constexpr static bool value =
 		FP::sph_formulation == SPH_GRENIER &&
 		FP::cptype == PT_FLUID &&
 		FP::nptype == PT_FLUID;
-}
+};
 
 /// Volumic versus boundary viscous term selectors
 /*! These selectors are used to check if the neighbors of the given type,
@@ -139,39 +133,33 @@ has_pseudo_surface_tension()
  * for LJ and MK (2) differentiate the volumic and boundary terms in SA
  */
 template<typename FP>
-__device__ __forceinline__
-constexpr bool
-wants_boundary_visc_term()
+struct wants_boundary_visc_term
 {
-	return
+	constexpr static bool value =
 		FP::boundarytype == SA_BOUNDARY &&
 		FP::nptype == PT_BOUNDARY;
-}
+};
 
 template<typename FP>
-__device__ __forceinline__
-constexpr bool
-wants_volumic_visc_term()
+struct wants_volumic_visc_term
 {
-	return
+	constexpr static bool value =
 		FP::nptype != PT_BOUNDARY ||
 		FP::boundarytype == DYN_BOUNDARY;
-}
+};
 
 /// Selector for k-epsilon differential equations terms
 /*! Presently KEPSILON is only supported with semi-analytical boundary conditions,
  * but in the future this restriction may be lifted
  */
 template<typename FP>
-__device__ __forceinline__
-constexpr bool
-computes_keps_term()
+struct computes_keps_term
 {
-	return
+	constexpr static bool value =
 		FP::turbmodel == KEPSILON &&
 		FP::boundarytype == SA_BOUNDARY &&
 		FP::cptype == PT_FLUID;
-}
+};
 
 /// Selector to determine if XSPH should be computed
 /*! With XSPH, fluid velocity also considers a weighted contribution
@@ -180,13 +168,13 @@ computes_keps_term()
  * neighbor particles are PT_FLUID.
  */
 template<typename FP>
-constexpr bool
-computes_xsph()
+struct computes_xsph
 {
-	return (FP::simflags & ENABLE_XSPH) &&
+	constexpr static bool value =
+		(FP::simflags & ENABLE_XSPH) &&
 		(FP::cptype == PT_FLUID) &&
 		(FP::nptype == PT_FLUID);
-}
+};
 
 /// Selector to determine if water depth computation is needed
 /**! water depth is only computed by vertex particles from fluid particles,
@@ -194,15 +182,14 @@ computes_xsph()
  *   is enabled. Of course SA_BOUNDARY must be enabled too
  */
 template<typename FP>
-__device__ __forceinline__
-constexpr bool needs_waterdepth()
+struct needs_waterdepth
 {
-	return
+	constexpr static bool value =
 		QUERY_ALL_FLAGS(FP::simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH) &&
 		FP::boundarytype == SA_BOUNDARY &&
 		FP::cptype == PT_VERTEX &&
 		FP::nptype == PT_FLUID;
-}
+};
 
 /*
  * Auxiliary functions, needed to retrieve the kinematic viscosity coefficient
@@ -215,7 +202,7 @@ constexpr bool needs_waterdepth()
  */
 template<typename N>
 __device__ __forceinline__
-enable_if_t<has_relVel<N>(), float>
+enable_if_t<has_relVel_constexpr<N>::value, float>
 particle_density(N const& ndata)
 {
 	/* has relVel, so it's neighbor data */
@@ -224,7 +211,7 @@ particle_density(N const& ndata)
 
 template<typename P>
 __device__ __forceinline__
-enable_if_t<not has_relVel<P>(), float>
+enable_if_t<not has_relVel_constexpr<P>::value, float>
 particle_density(P const& pdata)
 {
 	/* no relVel, assume it's central particle data */
@@ -1080,7 +1067,7 @@ struct finalize_repack_particle_output :
 
 template<typename FP>
 __device__ __forceinline__
-enable_if_t<has_velArray<FP>(), float4>
+enable_if_t<has_velArray_constexpr<FP>::value, float4>
 fetchVel(FP const& params, uint index)
 {
 	return params.velArray[index];
@@ -1088,7 +1075,7 @@ fetchVel(FP const& params, uint index)
 
 template<typename FP>
 __device__ __forceinline__
-enable_if_t<!has_velArray<FP>(), float4>
+enable_if_t<!has_velArray_constexpr<FP>::value, float4>
 fetchVel(FP const& params, uint index)
 {
 	return tex1Dfetch(velTex, index);
@@ -1457,7 +1444,7 @@ compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pou
  */
 template<typename FP, typename OP, typename P, typename N, typename ON>
 __device__ __forceinline__
-enable_if_t<needs_gamma_cfl<FP>()>
+enable_if_t<needs_gamma_cfl<FP>::value>
 compute_gamma_cfl_solid_wall
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1474,7 +1461,7 @@ compute_gamma_cfl_solid_wall
 }
 template<typename FP, typename OP, typename P, typename N, typename ON>
 __device__ __forceinline__
-enable_if_t<not needs_gamma_cfl<FP>()>
+enable_if_t<not needs_gamma_cfl<FP>::value>
 compute_gamma_cfl_solid_wall
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
@@ -1485,7 +1472,7 @@ compute_gamma_cfl_solid_wall
  */
 template<typename FP, typename OP, typename P, typename N, typename ON>
 __device__ __forceinline__
-enable_if_t<needs_io_gamma_cfl<FP>()>
+enable_if_t<needs_io_gamma_cfl<FP>::value>
 compute_gamma_cfl_open_boundary
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1500,7 +1487,7 @@ compute_gamma_cfl_open_boundary
 
 template<typename FP, typename OP, typename P, typename N, typename ON>
 __device__ __forceinline__
-enable_if_t<not needs_io_gamma_cfl<FP>()>
+enable_if_t<not needs_io_gamma_cfl<FP>::value>
 compute_gamma_cfl_open_boundary
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
@@ -1580,12 +1567,12 @@ volume_fraction(const float volume, const float deltap)
  */
 template<typename P, typename N>
 __device__ __forceinline__
-enable_if_t<has_volume<P>(), float>
+enable_if_t<has_volume_constexpr<P>::value, float>
 volume_ratio(P const& pdata, N const& ndata)
 { return pdata.volume/ndata.volume; }
 template<typename P, typename N>
 __device__ __forceinline__
-enable_if_t<not has_volume<P>(), float>
+enable_if_t<not has_volume_constexpr<P>::value, float>
 volume_ratio(P const& pdata, N const& ndata)
 { return physical_density(ndata)/physical_density(pdata); }
 // TODO : check accuracy
@@ -2227,7 +2214,7 @@ compute_density_derivative
 template<typename FP, typename Pt, typename N>
 __device__ __forceinline__
 enable_if_t<
-	has_pseudo_surface_tension<FP>(),
+	has_pseudo_surface_tension<FP>::value,
 	float
 >
 apply_pseudo_surface_tension(FP const& params, Pt const& pdata, N const& ndata, float pGradTerm)
@@ -2242,7 +2229,7 @@ apply_pseudo_surface_tension(FP const& params, Pt const& pdata, N const& ndata, 
 template<typename FP, typename Pt, typename N>
 __device__ __forceinline__
 enable_if_t<
-	not has_pseudo_surface_tension<FP>(),
+	not has_pseudo_surface_tension<FP>::value,
 	float
 >
 apply_pseudo_surface_tension(FP const& params, Pt const& pdata, N const& ndata, float pGradTerm)
@@ -2497,12 +2484,12 @@ compute_pressure_contrib
  */
 template<typename N>
 __device__ __forceinline__
-enable_if_t<has_relEulerVel<N>(), float4>
+enable_if_t<has_relEulerVel_constexpr<N>::value, float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel + ndata.relEulerVel; } /* eulerVel case */
 template<typename N>
 __device__ __forceinline__
-enable_if_t<not has_relEulerVel<N>(), float4>
+enable_if_t<not has_relEulerVel_constexpr<N>::value, float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel; } /* Standard case */
 
@@ -2611,7 +2598,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
-	wants_volumic_visc_term<FP>() &&
+	wants_volumic_visc_term<FP>::value &&
 	FP::viscmodel != ESPANOL_REVENGA &&
 	FP::sph_formulation != SPH_GRENIER
 >
@@ -2630,7 +2617,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
-	wants_volumic_visc_term<FP>() &&
+	wants_volumic_visc_term<FP>::value &&
 	FP::viscmodel != ESPANOL_REVENGA &&
 	FP::sph_formulation == SPH_GRENIER
 >
@@ -2652,7 +2639,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
-	wants_volumic_visc_term<FP>() &&
+	wants_volumic_visc_term<FP>::value &&
 	FP::viscmodel == ESPANOL_REVENGA
 >
 compute_laminar_visc_contrib
@@ -2688,7 +2675,7 @@ __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
 	FP::viscmodel == MORRIS &&
-	wants_boundary_visc_term<FP>()
+	wants_boundary_visc_term<FP>::value
 >
 compute_laminar_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -2749,7 +2736,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::turbmodel == ARTIFICIAL &&
-	wants_volumic_visc_term<FP>()
+	wants_volumic_visc_term<FP>::value
 >
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -2778,7 +2765,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::turbmodel == SPS &&
-	wants_volumic_visc_term<FP>()
+	wants_volumic_visc_term<FP>::value
 >
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -2814,7 +2801,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::has_keps &&
-	wants_volumic_visc_term<FP>()
+	wants_volumic_visc_term<FP>::value
 >
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -2829,7 +2816,7 @@ __device__ __forceinline__
 enable_if_t<
 	FP::viscmodel == MORRIS &&
 	FP::has_keps &&
-	wants_boundary_visc_term<FP>()
+	wants_boundary_visc_term<FP>::value
 >
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -2906,7 +2893,7 @@ void compute_viscous_contrib
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<not computes_keps_term<FP>()>
+enable_if_t<not computes_keps_term<FP>::value>
 compute_keps_term
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
@@ -2917,7 +2904,7 @@ compute_keps_term
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	computes_keps_term<FP>() &&
+	computes_keps_term<FP>::value &&
 	(FP::nptype == PT_FLUID || FP::nptype == PT_VERTEX)
 >
 compute_keps_term
@@ -2951,7 +2938,7 @@ compute_keps_term
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	computes_keps_term<FP>() &&
+	computes_keps_term<FP>::value &&
 	(FP::nptype == PT_BOUNDARY)
 >
 compute_keps_term
@@ -2986,14 +2973,14 @@ compute_keps_term
 /// Compute mean neighborhood velocity for XSPH
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<computes_xsph<FP>()>
+enable_if_t<computes_xsph<FP>::value>
 compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(physical_density(pdata) + physical_density(ndata));
 }
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<not computes_xsph<FP>()>
+enable_if_t<not computes_xsph<FP>::value>
 compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
@@ -3278,13 +3265,13 @@ compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 /// A function that computes the water depth at an outflow, if enabled
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<not needs_waterdepth<FP>()>
+enable_if_t<not needs_waterdepth<FP>::value>
 compute_water_depth_at_outflow(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<needs_waterdepth<FP>()>
+enable_if_t<needs_waterdepth<FP>::value>
 compute_water_depth_at_outflow(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// note all computations here are done assuming that the gravity vector points in z direction only
@@ -3348,7 +3335,7 @@ write_keps(FP const& params, P const& pdata, OP& pout)
 /// A funcion that writes out gammaCfl, if present
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<has_gammaCfl<OP>()>
+enable_if_t<has_gammaCfl_constexpr<OP>::value>
 write_gamma_cfl(FP const& params, P const& pdata, OP& pout)
 {
 	params.cfl_gamma[pdata.index] = pout.gammaCfl;
@@ -3357,19 +3344,19 @@ write_gamma_cfl(FP const& params, P const& pdata, OP& pout)
 /// write_gamma_cfl is there is no gammaCfl
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<!has_gammaCfl<OP>()>
+enable_if_t<!has_gammaCfl_constexpr<OP>::value>
 write_gamma_cfl(FP const& params, P const& pdata, OP& pout)
 { /* do nothing */ }
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<computes_xsph<FP>()>
+enable_if_t<computes_xsph<FP>::value>
 write_xsph(FP const& params, P const& pdata, OP const& pout)
 { params.xsph[pdata.index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<not computes_xsph<FP>()>
+enable_if_t<not computes_xsph<FP>::value>
 write_xsph(FP const& params, P const& pdata, OP const& pout)
 { /* do nothing */ }
 

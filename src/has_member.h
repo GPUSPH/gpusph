@@ -53,10 +53,16 @@ template<typename T, typename = std::false_type > struct _##detector : std::fals
 /* Specialization that due to SFINAE will only be triggered when \
  * FP::member is a valid expression */ \
 template<typename T> struct _##detector<T, bool_constant<!sizeof(decltype(T::member))>> : std::true_type {}; \
-/* Constexpr function that returns true if the given type has the given member, \
+/* Struct with constexpr static attribute and \
+ * Constexpr function that returns true if the given type has the given member, \
  * false otherwise. Both a no-argument version, and one that derives the type \
  * from the argument, are provided. \
  */ \
+ template<typename T, bool ret = _##detector<T>::value> \
+struct detector##_constexpr \
+{ \
+    constexpr static bool value = ret; \
+}; \
 template<typename T, bool ret = _##detector<T>::value> \
 __host__ __device__ __forceinline__ \
 constexpr bool detector() { return ret; } \
@@ -66,10 +72,10 @@ constexpr bool detector(T const&) { return ret; }
 
 /*! Example usage:
 
-   DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
+    DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
 
-   template<FP> enable_if_t<has_velArray<FP>(), float4> func() { ... }
-   template<FP> enable_if_t<!has_velArray<FP>(), float4> func() { ... }
+    template<FP> enable_if_t<has_velArray<FP>::value, float4> func() { ... }
+    template<FP> enable_if_t<!has_velArray<FP>::value, float4> func() { ... }
 
  */
 
