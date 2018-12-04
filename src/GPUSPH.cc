@@ -132,13 +132,14 @@ void GPUSPH::showCommandTimes()
 	}
 }
 
-// InfoStream will be disabled on MSVC at the moment because shm_open is posix
 void GPUSPH::openInfoStream() {
-	#ifndef _MSC_VER
 	stringstream ss;
 	ss << "GPUSPH-" << getpid();
 	m_info_stream_name = ss.str();
 	m_info_stream = NULL;
+
+	// InfoStream will be disabled on MSVC at the moment because shm_open is posix
+	#ifndef _MSC_VER
 	int ret = shm_open(m_info_stream_name.c_str(), O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IROTH);
 	if (ret < 0) {
 		cerr << "WARNING: unable to open info stream " << m_info_stream_name << endl;
@@ -1944,7 +1945,8 @@ void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 
 void GPUSPH::printStatus(FILE *out)
 {
-#ifndef _MSC_VER
+	//We check "out" in case the infostream is not created for MSVC
+	if (!out) return;
 //#define ti timingInfo
 	fprintf(out, "%s time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
 		gdata->run_mode_Desc(),
@@ -1966,7 +1968,6 @@ void GPUSPH::printStatus(FILE *out)
 	if (out == m_info_stream)
 		fseek(out, 0, SEEK_SET);
 //#undef ti
-#endif
 }
 
 void GPUSPH::printParticleDistribution()
