@@ -561,7 +561,7 @@ Writer::open_data_file(ofstream &out, const char* base, string const& num, strin
 
 	full_filename = m_dirname + "/" + filename;
 
-	out.open(full_filename.c_str());
+	out.open(full_filename.c_str(), fstream::binary);
 
 	if (!out) {
 		stringstream ss;
