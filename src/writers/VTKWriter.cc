@@ -473,7 +473,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		open_data_file(neibs, "neibs", current_filenum(), ".txt");
 		const idx_t stride = numParts;
 		const idx_t maxneibsnum = gdata->problem->simparams()->neiblistsize;
-		const id_t listend = maxneibsnum*stride;
+		const idx_t listend = maxneibsnum*stride;
 		for (uint i = 0; i < numParts; ++i) {
 			neibsnum[i] = maxneibsnum;
 			neibs << i << "\t" << id(info[i]) << "\t";
