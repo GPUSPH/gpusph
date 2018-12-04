@@ -27,6 +27,9 @@
  * Commands that GPUSPH can issue to workers via doCommand() calls
  */
 
+#ifndef COMMAND_TYPE_H
+#define COMMAND_TYPE_H
+
 #include "common_types.h"
 #include "define_buffers.h"
 
@@ -86,3 +89,4 @@ inline const char * getCommandName(CommandType cmd)
 
 #undef DEFINE_COMMAND
 
+#endif
