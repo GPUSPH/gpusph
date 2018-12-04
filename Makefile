@@ -851,7 +851,11 @@ endif
 # include to every source, the _DEBUG_ macro is actually passed on the compiler command line
 ifeq ($(dbg), 1)
 	CPPFLAGS += -D_DEBUG_
-	CXXFLAGS += -g
+	ifeq ($(wsl), 1)
+		CXXFLAGS += /Zi 
+	else
+		CXXFLAGS += -g
+	endif
 	CUFLAGS  += -G
 else
 	ifeq ($(wsl), 1)
