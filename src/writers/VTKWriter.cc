@@ -711,7 +711,7 @@ void
 VTKWriter::write_WaveGage(double t, GageList const& gage)
 {
 	ofstream fp;
-	string filename = open_data_file(fp, "WaveGage", current_filenum(), "vtu");
+	string filename = open_data_file(fp, "WaveGage", current_filenum(), ".vtu");
 
 	size_t num = gage.size();
 
@@ -794,7 +794,7 @@ void
 VTKWriter::save_planes()
 {
 	ofstream fp;
-	m_planes_fname = open_data_file(fp, "PLANES", "", "vtu");
+	m_planes_fname = open_data_file(fp, "PLANES", "", ".vtu");
 
 	fp << set_vector_fmt(" ");
 
