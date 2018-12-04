@@ -100,7 +100,7 @@ typedef uint4 vertexinfo;
 #define make_vertexinfo make_uint4
 
 /// Check if a given ID can be found in the given vertex info
-constexpr __host__ __device__ __forceinline__ __attribute__((pure))
+constexpr __host__ __device__ __forceinline__ PURE_ATTRIBUTE
 bool has_vertex(
 	vertexinfo const& verts, ///< vertexinfo holding list of vertices
 	uint id			 ///< id of the particles to be checked
@@ -112,7 +112,7 @@ bool has_vertex(
 /// Return the index (0, 1 or 2) of the ID in the vertex list
 /** -1 is returned if the vertex is not in the list
  */
-constexpr __host__ __device__ __forceinline__ __attribute__((pure))
+constexpr __host__ __device__ __forceinline__ PURE_ATTRIBUTE
 int local_vertex_index(
 	vertexinfo const& verts, ///< vertexinfo holding list of vertices
 	uint id			 ///< id of the particles to be checked
@@ -393,7 +393,7 @@ particleinfo make_particleinfo_by_ids(
  *
  * \return particle type
  */
-static __forceinline__ __host__ __device__ __attribute__((pure))
+static __forceinline__ __host__ __device__ PURE_ATTRIBUTE
 const ushort& type(	const particleinfo &info	///< Particle info
 		)
 {
@@ -405,7 +405,7 @@ const ushort& type(	const particleinfo &info	///< Particle info
  *
  * \return particle object number
  */
-static __forceinline__ __host__ __device__ __attribute__((pure))
+static __forceinline__ __host__ __device__ PURE_ATTRIBUTE
 ushort object(const particleinfo &info)
 {
 	return GET_OBJECT_NUM(info.y);
@@ -416,7 +416,7 @@ ushort object(const particleinfo &info)
  *
  * \return particle fluid number
  */
-static __forceinline__ __host__ __device__ __attribute__((pure))
+static __forceinline__ __host__ __device__ PURE_ATTRIBUTE
 ushort fluid_num(const particleinfo &info)
 {
 	return GET_FLUID_NUM(info.y);
@@ -434,7 +434,7 @@ void set_fluid_num(particleinfo &info, ushort fluid_num)
  *
  * \return particle fluid number
  */
-static __forceinline__ __host__ __device__ __attribute__((pure))
+static __forceinline__ __host__ __device__ PURE_ATTRIBUTE
 uint id(const particleinfo &info)
 {
 	return (uint)(info.z) | ((uint)(info.w) << 16);

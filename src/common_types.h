@@ -48,6 +48,17 @@
 // size_t
 #include <cstddef>
 
+#ifdef _MSC_VER
+#include "msvc_support.h"
+#endif
+
+// MSVC does't support pure attributes
+#ifdef _MSC_VER
+#define PURE_ATTRIBUTE
+#else
+#define PURE_ATTRIBUTE __attribute__((pure))
+#endif
+
 // define uint, uchar, ulong
 typedef unsigned long ulong; // only used in timing
 typedef unsigned int uint;
