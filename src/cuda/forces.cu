@@ -317,7 +317,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_sspowercoeff, &physparams->sspowercoeff[0], numFluids*sizeof(float)));
 
 	// compute (and upload) square of sound speeds, needed for Ferrari
-	float sqC0[numFluids];
+	float sqC0[MAX_FLUID_TYPES];
 	for (uint i = 0; i < numFluids; ++i) {
 		sqC0[i]  = physparams->sscoeff[i];
 		sqC0[i] *= sqC0[i];
