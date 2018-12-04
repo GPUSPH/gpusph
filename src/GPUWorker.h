@@ -176,8 +176,15 @@ private:
 	// event to synchronize striping
 	cudaEvent_t m_halfForcesEvent;
 
+	/// Function template to run a specific command
+	/*! There should be a specialization of the template for each
+	 * (supported) command
+	 */
+	template<CommandType>
+	void runCommand();
+
 	// cuts all external particles
-	void dropExternalParticles();
+	// runCommand<CROP> = void dropExternalParticles();
 
 	/// compare UPDATE_EXTERNAL arguments against list of updated buffers
 	void checkBufferUpdate();
@@ -189,8 +196,8 @@ private:
 	// iterate on the list and send/receive/read bursts of particles
 	void transferBursts();
 
-	// append or update the external cells of other devices in the device memory
-	void importExternalCells();
+	/// append or update the external cells of other devices in the device memory
+	void importExternalCells(); // runCommand<APPEND_EXTERNAL> or runCommand<UPDATE_EXTERNAL>
 	// aux methods for importPeerEdgeCells();
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 	void asyncCellIndicesUpload(uint fromCell, uint toCell);
@@ -220,78 +227,78 @@ private:
 
 	// setting or adding to buffer states
 	void setBufferState(const flag_t flags, std::string const& state);
-	void setBufferState(); // setBufferState() from commandFlags and extraCommandArg
+	// runCommand<SET_BUFFER_STATE> = void setBufferState(); // setBufferState() from commandFlags and extraCommandArg
 	void addBufferState(const flag_t flags, std::string const& state);
-	void addBufferState(); // addBufferState() from commandFlags and extraCommandArg
+	// runCommand<ADD_BUFFER_STATE> = void addBufferState(); // addBufferState() from commandFlags and extraCommandArg
 
 	// setting buffer validity
 	void setBufferValidity(const flag_t flags, BufferValidity validity);
-	void setBufferValidity(); // setBufferValidity() from commandFlags and extraCommandArg
+	// runCommand<SET_BUFFER_VALIDITY> = void setBufferValidity(); // setBufferValidity() from commandFlags and extraCommandArg
 
 	void uploadSubdomain();
-	void dumpBuffers();
-	void swapBuffers();
+	// runCommand<DUMP> = void dumpBuffers();
+	// runCommand<SWAP_BUFFERS> = void swapBuffers();
 	void setDeviceCellsAsEmpty();
-	void downloadCellsIndices();
+	// runCommand<DUMP_CELLS> = void downloadCellsIndices();
 	void downloadSegments();
 	void uploadSegments();
-	void updateSegments();
+	// runCommand<UPDATE_SEGMENTS> = void updateSegments();
 	void resetSegments();
 	void uploadNumOpenVertices();
-	void uploadNewNumParticles();
-	void downloadNewNumParticles();
+	// runCommand<UPLOAD_NEWNUMPARTS> = void uploadNewNumParticles();
+	// runCommand<DOWNLOAD_NEWNUMPARTS> = void downloadNewNumParticles();
 
 	// moving boundaries, gravity, planes
-	void uploadGravity();
-	void uploadPlanes();
+	void uploadGravity(); // also runCommand<UPLOAD_GRAVITY>
+	void uploadPlanes(); // also runCommand<UPLOAD_PLANES>
 
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
 	void uploadConstants();
 
 	// bodies
-	void uploadForcesBodiesCentersOfGravity();
-	void uploadEulerBodiesCentersOfGravity();
-	void uploadBodiesTransRotMatrices();
-	void uploadBodiesVelocities();
+	void uploadForcesBodiesCentersOfGravity(); // also runCommand<FORCES_UPLOAD_OBJECTS_CG>
+	void uploadEulerBodiesCentersOfGravity(); // runCommand<EULER_UPLOAD_OBJECTS_CG> 
+	// runCommand<UPLOAD_OBJECTS_MATRICES> = void uploadBodiesTransRotMatrices();
+	// runCommand<UPLOAD_OBJECTS_VELOCITIES> = void uploadBodiesVelocities();
 
 	// kernels
-	void kernel_calcHash();
-	void kernel_sort();
-	void kernel_reorderDataAndFindCellStart();
-	void kernel_buildNeibsList();
-	void kernel_forces();
-	void kernel_euler();
-	void kernel_density_sum();
-	void kernel_integrate_gamma();
-	void kernel_calc_density_diffusion();
-	void kernel_apply_density_diffusion();
-	void kernel_filter();
-	void kernel_postprocess();
-	void kernel_compute_density();
-	void kernel_visc();
+	// runCommand<CALCHASH> = void kernel_calcHash();
+	// runCommand<SORT> = void kernel_sort();
+	// runCommand<REORDER> = void kernel_reorderDataAndFindCellStart();
+	// runCommand<BUILDNEIBS> = void kernel_buildNeibsList();
+	// runCommand<FORCES_SYNC> = void kernel_forces();
+	// runCommand<EULER> = void kernel_euler();
+	// runCommand<DENSITY_SUM> = void kernel_density_sum();
+	// runCommand<INTEGRATE_GAMMA> = void kernel_integrate_gamma();
+	// runCommand<CALC_DENSITY_DIFFUSION> = void kernel_calc_density_diffusion();
+	// runCommand<APPLY_DENSITY_DIFFUSION> = void kernel_apply_density_diffusion();
+	// runCommand<FILTER> = void kernel_filter();
+	// runCommand<POSTPROCESS> = void kernel_postprocess();
+	// runCommand<COMPUTE_DENSITY> = void kernel_compute_density();
+	// runCommand<CALC_VISC> = void kernel_visc();
 	void kernel_meanStrain();
-	void kernel_reduceRBForces();
-	void kernel_saSegmentBoundaryConditions();
-	void kernel_saVertexBoundaryConditions();
-	void kernel_saComputeVertexNormal();
-	void kernel_saInitGamma();
-	void kernel_saIdentifyCornerVertices();
+	// runCommand<REDUCE_BODIES_FORCES> = void kernel_reduceRBForces();
+	// runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS> = void kernel_saSegmentBoundaryConditions();
+	// runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS> = void kernel_saVertexBoundaryConditions();
+	// runCommand<SA_COMPUTE_VERTEX_NORMAL> = void kernel_saComputeVertexNormal();
+	// runCommand<SA_INIT_GAMMA> = void kernel_saInitGamma();
+	// runCommand<IDENTIFY_CORNER_VERTICES> = void kernel_saIdentifyCornerVertices();
 	void kernel_updatePositions();
-	void kernel_disableOutgoingParts();
-	void kernel_imposeBoundaryCondition();
-	void kernel_initIOmass_vertexCount();
-	void kernel_initIOmass();
-	void kernel_download_iowaterdepth();
-	void kernel_upload_iowaterdepth();
+	// runCommand<DISABLE_OUTGOING_PARTS> = void kernel_disableOutgoingParts();
+	// runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION> = void kernel_imposeBoundaryCondition();
+	// runCommand<INIT_IO_MASS_VERTEX_COUNT> = void kernel_initIOmass_vertexCount();
+	// runCommand<INIT_IO_MASS> = void kernel_initIOmass();
+	// runCommand<DOWNLOAD_IOWATERDEPTH> = void kernel_download_iowaterdepth();
+	// runCommand<UPLOAD_IOWATERDEPTH> = void kernel_upload_iowaterdepth();
 	/*void uploadMbData();
-	void uploadGravity();*/
+	// runCommand<UPLOAD_GRAVITY> = void uploadGravity();*/
 
 	void checkPartValByIndex(const char* printID, const uint pindex);
 
 	// asynchronous alternative to kernel_force
-	void kernel_forces_async_enqueue();
-	void kernel_forces_async_complete();
+	// runCommand<FORCES_ENQUEUE> = void kernel_forces_async_enqueue();
+	// runCommand<FORCES_COMPLETE> = void kernel_forces_async_complete();
 
 	// aux methods for forces kernel striping
 	uint enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset);
