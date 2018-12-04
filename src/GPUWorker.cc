@@ -3003,6 +3003,39 @@ void GPUWorker::runCommand<UPLOAD_OBJECTS_VELOCITIES>()
 	integrationEngine->setrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numbodies);
 }
 
+template<CommandType Cmd>
+void GPUWorker::describeCommand()
+{
+	string desc = " T " + to_string(m_deviceIndex) +
+		" issuing " + getCommandName(Cmd);
+
+	// Add buffer specification, if needed
+	if (CommandTraits<Cmd>::buffer_usage == DYNAMIC_BUFFER_USAGE)
+		desc += describeCommandFlagsBuffers();
+
+	// Add extra information, if needed
+	switch (Cmd) {
+	case SET_BUFFER_STATE:
+		desc += " <- " + gdata->extraCommandArg.string;
+		break;
+	case ADD_BUFFER_STATE:
+		desc += " += " + gdata->extraCommandArg.string;
+		break;
+	case SET_BUFFER_VALIDITY:
+		desc += " <- " + to_string(BufferValidity(gdata->extraCommandArg.flag));
+		break;
+	case FILTER:
+		desc += " " + string(FilterName[gdata->extraCommandArg.flag]);
+		break;
+	case POSTPROCESS:
+		desc += " " + string(PostProcessName[gdata->extraCommandArg.flag]);
+		break;
+	}
+
+	cout << desc << endl;
+
+}
+
 // Actual thread calling GPU-methods
 // Note that this has to be defined last because it needs to know about all
 // the specializations of runCommand
@@ -3040,215 +3073,200 @@ void GPUWorker::simulationThread() {
 		const bool dbg_step_printf = gdata->debug.print_step;
 		const bool dbg_buffer_lists = gdata->debug.inspect_buffer_lists;
 
-		// message prefix for the debug string
-		string dbg_prefix;
-
 		// TODO automate the dbg_step_printf output
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
 		while (gdata->keep_going) {
-
-			if (dbg_step_printf)
-				dbg_prefix = " T " + to_string(deviceIndex) + " issuing " + getCommandName(gdata->nextCommand);
 
 			switch (gdata->nextCommand) {
 				// logging here?
 			case IDLE:
 				break;
 			case SWAP_BUFFERS:
-				if (dbg_step_printf)
-					cout << dbg_prefix << describeCommandFlagsBuffers() << endl;
+				if (dbg_step_printf) describeCommand<SWAP_BUFFERS>();
 				runCommand<SWAP_BUFFERS>();
 				break;
 			case SET_BUFFER_STATE:
-				if (dbg_step_printf)
-					cout << dbg_prefix << describeCommandFlagsBuffers() << " <- " << gdata->extraCommandArg.string << endl;
+				if (dbg_step_printf) describeCommand<SET_BUFFER_STATE>();
 				runCommand<SET_BUFFER_STATE>();
 				break;
 			case ADD_BUFFER_STATE:
-				if (dbg_step_printf)
-					cout << dbg_prefix << describeCommandFlagsBuffers() << " += " << gdata->extraCommandArg.string << endl;
+				if (dbg_step_printf) describeCommand<ADD_BUFFER_STATE>();
 				runCommand<ADD_BUFFER_STATE>();
 				break;
 			case SET_BUFFER_VALIDITY:
-				if (dbg_step_printf)
-					cout << dbg_prefix << describeCommandFlagsBuffers() << " <- " << BufferValidity(gdata->extraCommandArg.flag) << endl;
+				if (dbg_step_printf) describeCommand<SET_BUFFER_VALIDITY>();
 				runCommand<SET_BUFFER_VALIDITY>();
 				break;
 			case CALCHASH:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<CALCHASH>();
 				runCommand<CALCHASH>();
 				break;
 			case SORT:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<SORT>();
 				runCommand<SORT>();
 				break;
 			case CROP:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<CROP>();
 				runCommand<CROP>();
 				break;
 			case REORDER:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<REORDER>();
 				runCommand<REORDER>();
 				break;
 			case BUILDNEIBS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<BUILDNEIBS>();
 				runCommand<BUILDNEIBS>();
 				break;
 			case FORCES_SYNC:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<FORCES_SYNC>();
 				runCommand<FORCES_SYNC>();
 				break;
 			case FORCES_ENQUEUE:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<FORCES_ENQUEUE>();
 				runCommand<FORCES_ENQUEUE>();
 				break;
 			case FORCES_COMPLETE:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<FORCES_COMPLETE>();
 				runCommand<FORCES_COMPLETE>();
 				break;
 			case EULER:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<EULER>();
 				runCommand<EULER>();
 				break;
 			case DENSITY_SUM:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<DENSITY_SUM>();
 				runCommand<DENSITY_SUM>();
 				break;
 			case INTEGRATE_GAMMA:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<INTEGRATE_GAMMA>();
 				runCommand<INTEGRATE_GAMMA>();
 				break;
 			case CALC_DENSITY_DIFFUSION:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<CALC_DENSITY_DIFFUSION>();
 				runCommand<CALC_DENSITY_DIFFUSION>();
 				break;
 			case APPLY_DENSITY_DIFFUSION:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<APPLY_DENSITY_DIFFUSION>();
 				runCommand<APPLY_DENSITY_DIFFUSION>();
 				break;
 			case DUMP:
-				if (dbg_step_printf)
-					cout << dbg_prefix << describeCommandFlagsBuffers() << endl;
+				if (dbg_step_printf) describeCommand<DUMP>();
 				runCommand<DUMP>();
 				break;
 			case DUMP_CELLS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<DUMP_CELLS>();
 				runCommand<DUMP_CELLS>();
 				break;
 			case UPDATE_SEGMENTS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<UPDATE_SEGMENTS>();
 				runCommand<UPDATE_SEGMENTS>();
 				break;
 			case DOWNLOAD_IOWATERDEPTH:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<DOWNLOAD_IOWATERDEPTH>();
 				runCommand<DOWNLOAD_IOWATERDEPTH>();
 				break;
 			case UPLOAD_IOWATERDEPTH:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<UPLOAD_IOWATERDEPTH>();
 				runCommand<UPLOAD_IOWATERDEPTH>();
 				break;
 			case DOWNLOAD_NEWNUMPARTS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<DOWNLOAD_NEWNUMPARTS>();
 				runCommand<DOWNLOAD_NEWNUMPARTS>();
 				break;
 			case UPLOAD_NEWNUMPARTS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<UPLOAD_NEWNUMPARTS>();
 				runCommand<UPLOAD_NEWNUMPARTS>();
 				break;
 			case APPEND_EXTERNAL:
-				if (dbg_step_printf)
-					cout << dbg_prefix << describeCommandFlagsBuffers() << endl;
+				if (dbg_step_printf) describeCommand<APPEND_EXTERNAL>();
 				runCommand<APPEND_EXTERNAL>();
 				break;
 			case UPDATE_EXTERNAL:
-				if (dbg_step_printf)
-					cout << dbg_prefix << describeCommandFlagsBuffers() << endl;
+				if (dbg_step_printf) describeCommand<UPDATE_EXTERNAL>();
 				runCommand<APPEND_EXTERNAL>();
 				break;
 			case FILTER:
-				if (dbg_step_printf)
-					cout << dbg_prefix << " " << FilterName[gdata->extraCommandArg.flag] << endl;
+				if (dbg_step_printf) describeCommand<FILTER>();
 				runCommand<FILTER>();
 				break;
 			case POSTPROCESS:
-				if (dbg_step_printf)
-					cout << dbg_prefix << " " << PostProcessName[gdata->extraCommandArg.flag] << endl;
+				if (dbg_step_printf) describeCommand<POSTPROCESS>();
 				runCommand<POSTPROCESS>();
 				break;
 			case DISABLE_OUTGOING_PARTS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<DISABLE_OUTGOING_PARTS>();
 				runCommand<DISABLE_OUTGOING_PARTS>();
 				break;
 			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>();
 				runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>();
 				break;
 			case SA_CALC_VERTEX_BOUNDARY_CONDITIONS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>();
 				runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>();
 				break;
 			case SA_COMPUTE_VERTEX_NORMAL:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<SA_COMPUTE_VERTEX_NORMAL>();
 				runCommand<SA_COMPUTE_VERTEX_NORMAL>();
 				break;
 			case SA_INIT_GAMMA:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<SA_INIT_GAMMA>();
 				runCommand<SA_INIT_GAMMA>();
 				break;
 			case IDENTIFY_CORNER_VERTICES:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<IDENTIFY_CORNER_VERTICES>();
 				runCommand<IDENTIFY_CORNER_VERTICES>();
 				break;
 			case COMPUTE_DENSITY:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<COMPUTE_DENSITY>();
 				runCommand<COMPUTE_DENSITY>();
 				break;
 			case CALC_VISC:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<CALC_VISC>();
 				runCommand<CALC_VISC>();
 				break;
 			case REDUCE_BODIES_FORCES:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<REDUCE_BODIES_FORCES>();
 				runCommand<REDUCE_BODIES_FORCES>();
 				break;
 			case UPLOAD_GRAVITY:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<UPLOAD_GRAVITY>();
 				runCommand<UPLOAD_GRAVITY>();
 				break;
 			case UPLOAD_PLANES:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<UPLOAD_PLANES>();
 				runCommand<UPLOAD_PLANES>();
 				break;
 			case EULER_UPLOAD_OBJECTS_CG:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<EULER_UPLOAD_OBJECTS_CG>();
 				runCommand<EULER_UPLOAD_OBJECTS_CG>();
 				break;
 			case FORCES_UPLOAD_OBJECTS_CG:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<FORCES_UPLOAD_OBJECTS_CG>();
 				runCommand<FORCES_UPLOAD_OBJECTS_CG>();
 				break;
 			case UPLOAD_OBJECTS_MATRICES:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<UPLOAD_OBJECTS_MATRICES>();
 				runCommand<UPLOAD_OBJECTS_MATRICES>();
 				break;
 			case UPLOAD_OBJECTS_VELOCITIES:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<UPLOAD_OBJECTS_VELOCITIES>();
 				runCommand<UPLOAD_OBJECTS_VELOCITIES>();
 				break;
 			case IMPOSE_OPEN_BOUNDARY_CONDITION:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>();
 				runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>();
 				break;
 			case INIT_IO_MASS_VERTEX_COUNT:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<INIT_IO_MASS_VERTEX_COUNT>();
 				runCommand<INIT_IO_MASS_VERTEX_COUNT>();
 				break;
 			case INIT_IO_MASS:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<INIT_IO_MASS>();
 				runCommand<INIT_IO_MASS>();
 				break;
 			case QUIT:
-				if (dbg_step_printf) cout << dbg_prefix << endl;
+				if (dbg_step_printf) describeCommand<QUIT>();
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
 			default:

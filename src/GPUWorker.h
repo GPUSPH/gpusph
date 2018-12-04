@@ -183,6 +183,10 @@ private:
 	template<CommandType>
 	void runCommand();
 
+	/// Function template to show a specific command
+	template<CommandType>
+	void describeCommand();
+
 	// cuts all external particles
 	// runCommand<CROP> = void dropExternalParticles();
 
