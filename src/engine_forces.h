@@ -74,9 +74,7 @@ public:
 
 	/// Compute total force and torque acting on each rigid body
 	virtual void
-	reduceRbForces(	float4	*forces,
-					float4	*torques,
-					uint	*rbnum,
+	reduceRbForces(	BufferList& bufwrite,
 					uint	*lastindex,
 					float3	*totalforce,
 					float3	*totaltorque,
@@ -148,8 +146,6 @@ public:
 	basicstep(
 		const BufferList& bufread,
 		BufferList& bufwrite,
-				float4	*rbforces,
-				float4	*rbtorques,
 		const	uint	*cellStart,
 				uint	numParticles,
 				uint	fromParticle,

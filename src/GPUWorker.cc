@@ -62,8 +62,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_simframework(gdata->simframework),
 	m_dCellStart(NULL),
 	m_dCellEnd(NULL),
-	m_dRbForces(NULL),
-	m_dRbNum(NULL),
 	m_hCompactDeviceMap(NULL),
 	m_dCompactDeviceMap(NULL),
 	m_dSegmentStart(NULL),
@@ -87,6 +85,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	// we also know Problem::fillparts() has already been called
 	m_numInternalParticles = m_numParticles = gdata->s_hPartsPerDevice[m_deviceIndex];
+	m_numForcesBodiesParticles = gdata->problem->get_forces_bodies_numparts();
+	printf("number of forces rigid bodies particles = %d\n", m_numForcesBodiesParticles);
 
 	m_particleRangeBegin = 0;
 	m_particleRangeEnd = m_numInternalParticles;
@@ -117,6 +117,12 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_VEL>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_INFO>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>();
+
+	if (m_simparams->numforcesbodies) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_FORCES>(0);
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_TORQUES>(0);
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_KEYS>();
+	}
 
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_HASH>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
@@ -967,6 +973,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 		if (key == BUFFER_NEIBSLIST)
 			nels *= m_simparams->neiblistsize; // number of particles times neib list size
+		else if (key & BUFFERS_RB_PARTICLES)
+			nels = m_numForcesBodiesParticles; // number of particles in rigid bodies
 		else if (key == BUFFER_CFL_TEMP)
 			nels = tempCflEls;
 		else if (key & BUFFERS_CFL) { // other CFL buffers
@@ -1013,18 +1021,6 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	allocated += sizeof(uint);
 
 	if (m_simparams->numforcesbodies) {
-		m_numForcesBodiesParticles = gdata->problem->get_forces_bodies_numparts();
-		printf("number of forces rigid bodies particles = %d\n", m_numForcesBodiesParticles);
-
-		int objParticlesFloat4Size = m_numForcesBodiesParticles*sizeof(float4);
-		int objParticlesUintSize = m_numForcesBodiesParticles*sizeof(uint);
-
-		CUDA_SAFE_CALL(cudaMalloc(&m_dRbTorques, objParticlesFloat4Size));
-		CUDA_SAFE_CALL(cudaMalloc(&m_dRbForces, objParticlesFloat4Size));
-		CUDA_SAFE_CALL(cudaMalloc(&m_dRbNum, objParticlesUintSize));
-
-		allocated += 2 * objParticlesFloat4Size + objParticlesUintSize;
-
 		uint* rbnum = new uint[m_numForcesBodiesParticles];
 
 		forcesEngine->setrbstart(gdata->s_hRbFirstIndex, m_simparams->numforcesbodies);
@@ -1037,7 +1033,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 			offset += gdata->problem->get_body_numparts(i);
 		}
 		size_t  size = m_numForcesBodiesParticles*sizeof(uint);
-		CUDA_SAFE_CALL(cudaMemcpy((void *) m_dRbNum, (void*) rbnum, size, cudaMemcpyHostToDevice));
+		CUDA_SAFE_CALL(cudaMemcpy(m_dBuffers.getReadBufferList().getData<BUFFER_RB_KEYS>(),
+				rbnum, size, cudaMemcpyHostToDevice));
 
 		delete[] rbnum;
 	}
@@ -1087,17 +1084,6 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
 		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
-
-	if (m_simparams->numforcesbodies) {
-		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
-		CUDA_SAFE_CALL(cudaFree(m_dRbForces));
-		CUDA_SAFE_CALL(cudaFree(m_dRbNum));
-
-		// DEBUG
-		// delete [] m_hRbForces;
-		// delete [] m_hRbTorques;
-	}
-
 
 	// here: dem device buffers?
 }
@@ -1968,8 +1954,6 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 	auto ret = forcesEngine->basicstep(
 		m_dBuffers.getReadBufferList(),
 		bufwrite,
-		m_dRbForces,
-		m_dRbTorques,
 		m_dCellStart,
 		m_numParticles,
 		fromParticle,
@@ -2114,9 +2098,8 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>()
 	// if we have objects potentially shared across different devices, must reset their forces
 	// and torques to avoid spurious contributions
 	if (m_simparams->numforcesbodies > 0 && MULTI_DEVICE) {
-		uint bodiesPartsSize = m_numForcesBodiesParticles * sizeof(float4);
-		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0f, bodiesPartsSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0f, bodiesPartsSize));
+		m_dBuffers.getWriteBufferList().get<BUFFER_RB_FORCES>()->clobber();
+		m_dBuffers.getWriteBufferList().get<BUFFER_RB_TORQUES>()->clobber();
 	}
 
 	// NOTE: the stripe containing the internal edge particles must be run first, so that the
@@ -2226,9 +2209,8 @@ void GPUWorker::runCommand<FORCES_SYNC>()
 	// if we have objects potentially shared across different devices, must reset their forces
 	// and torques to avoid spurious contributions
 	if (m_simparams->numforcesbodies > 0 && MULTI_DEVICE) {
-		uint bodiesPartsSize = m_numForcesBodiesParticles * sizeof(float4);
-		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0f, bodiesPartsSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0f, bodiesPartsSize));
+		m_dBuffers.getWriteBufferList().get<BUFFER_RB_FORCES>()->clobber();
+		m_dBuffers.getWriteBufferList().get<BUFFER_RB_TORQUES>()->clobber();
 	}
 
 	const uint fromParticle = 0;
@@ -2660,7 +2642,7 @@ void GPUWorker::runCommand<REDUCE_BODIES_FORCES>()
 	if (m_numForcesBodiesParticles == 0) return;
 
 	if (numforcesbodies)
-		forcesEngine->reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex,
+		forcesEngine->reduceRbForces(m_dBuffers.getWriteBufferList(), gdata->s_hRbLastIndex,
 				gdata->s_hRbDeviceTotalForce + m_deviceIndex*numforcesbodies,
 				gdata->s_hRbDeviceTotalTorque + m_deviceIndex*numforcesbodies,
 				numforcesbodies, m_numForcesBodiesParticles);

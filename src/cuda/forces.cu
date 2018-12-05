@@ -735,8 +735,6 @@ uint
 basicstep(
 	BufferList const& bufread,
 	BufferList& bufwrite,
-	float4	*rbforces,
-	float4	*rbtorques,
 	const	uint	*cellStart,
 	uint	numParticles,
 	uint	fromParticle,
@@ -763,6 +761,8 @@ basicstep(
 	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
 
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
+	float4 *rbforces = bufwrite.getData<BUFFER_RB_FORCES>();
+	float4 *rbtorques = bufwrite.getData<BUFFER_RB_TORQUES>();
 	float4 *xsph = bufwrite.getData<BUFFER_XSPH>();
 
 	const float *turbvisc = bufread.getData<BUFFER_TURBVISC>();
@@ -924,15 +924,17 @@ round_particles(uint numparts)
 }
 
 void
-reduceRbForces(	float4	*forces,
-				float4	*torques,
-				uint	*rbnum,
+reduceRbForces(	BufferList& bufwrite,
 				uint	*lastindex,
 				float3	*totalforce,
 				float3	*totaltorque,
 				uint	numforcesbodies,
 				uint	numForcesBodiesParticles)
 {
+	float4 *forces = bufwrite.getData<BUFFER_RB_FORCES>();
+	float4 *torques = bufwrite.getData<BUFFER_RB_TORQUES>();
+	uint *rbnum = bufwrite.getData<BUFFER_RB_KEYS>();
+
 	thrust::device_ptr<float4> forces_devptr = thrust::device_pointer_cast(forces);
 	thrust::device_ptr<float4> torques_devptr = thrust::device_pointer_cast(torques);
 	thrust::device_ptr<uint> rbnum_devptr = thrust::device_pointer_cast(rbnum);

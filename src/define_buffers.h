@@ -71,7 +71,23 @@ SET_BUFFER_TRAITS(BUFFER_NEIBSLIST, neibdata, 1, "Neighbor List");
 #define BUFFER_FORCES		(BUFFER_NEIBSLIST << 1)
 SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
-#define BUFFER_INTERNAL_ENERGY (BUFFER_FORCES << 1)
+/* Forces and torques acting on rigid body particles only
+ * Note that these are sized according to the number of object particles,
+ * not with the entire particle system
+ */
+#define BUFFER_RB_FORCES	(BUFFER_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_RB_FORCES, float4, 1, "Object forces");
+#define BUFFER_RB_TORQUES	(BUFFER_RB_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_RB_TORQUES, float4, 1, "Object torques");
+
+/* Object number for each object particle
+ * TODO this is already present in the INFO buffer, rewrite the segmented scan
+ * to use that?
+ */
+#define BUFFER_RB_KEYS	(BUFFER_RB_TORQUES << 1)
+SET_BUFFER_TRAITS(BUFFER_RB_KEYS, uint, 1, "Object particle key");
+
+#define BUFFER_INTERNAL_ENERGY (BUFFER_RB_KEYS << 1)
 SET_BUFFER_TRAITS(BUFFER_INTERNAL_ENERGY, float, 1, "Internal Energy");
 
 #define BUFFER_INTERNAL_ENERGY_UPD (BUFFER_INTERNAL_ENERGY << 1)
@@ -205,8 +221,12 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 // NOTE: READ or WRITE specification must be added for double buffers
 #define ALL_DEFINED_BUFFERS		(((FIRST_DEFINED_BUFFER-1) ^ (LAST_DEFINED_BUFFER-1)) | LAST_DEFINED_BUFFER )
 
+// all object particle buffers
+#define BUFFERS_RB_PARTICLES (BUFFER_RB_FORCES | BUFFER_RB_TORQUES | BUFFER_RB_KEYS)
+
 // all particle-based buffers
-#define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & ~(BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
+#define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & \
+	~(BUFFERS_RB_PARTICLES | BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
 
 // TODO we need a better form of buffer classification, distinguishing:
 // * “permanent” buffers for particle properties (which need to be sorted):
@@ -257,7 +277,8 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
  */
 #define EPHEMERAL_BUFFERS \
 	(ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS) | \
-	 BUFFERS_CFL)
+	 BUFFERS_CFL | \
+	 BUFFERS_RB_PARTICLES)
 
 //! Buffers that hold data that is useful throughout a simulation step
 /*! A typical example is the neighbors list

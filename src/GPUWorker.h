@@ -90,6 +90,8 @@ private:
 	uint m_numAllocatedParticles;
 	// number of internal particles, used for multi-GPU
 	uint m_numInternalParticles;
+	// Total number of particles belonging to rigid bodies on which we compute forces
+	uint		m_numForcesBodiesParticles;
 
 	// range of particles the kernels should write to
 	uint m_particleRangeBegin; // inclusive
@@ -141,13 +143,6 @@ private:
 
 	uint*		m_dCellStart;			// index of cell start in sorted order
 	uint*		m_dCellEnd;				// index of cell end in sorted order
-
-	// GPU arrays for rigid bodies (CPU ones are in GlobalData)
-	uint		m_numForcesBodiesParticles;		// Total number of particles belonging to rigid bodies on which we compute forces
-	float4*		m_dRbForces;					// Forces on particles belonging to rigid bodies
-	float4*		m_dRbTorques;					// Torques on particles belonging to rigid bodies
-	uint*		m_dRbNum;						// Key used in segmented scan
-
 
 	// CPU/GPU buffers for the compact device map (2 bits per cell)
 	uint*		m_hCompactDeviceMap;
