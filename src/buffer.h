@@ -660,7 +660,6 @@ public:
 
 	size_type size() const
 	{ return m_map.size(); }
-
 };
 
 /* A MultiBufferList takes into account that some of the buffers are needed

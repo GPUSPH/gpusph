@@ -1526,7 +1526,6 @@ void Problem::calcPrivate(
 	flag_t options,
 	BufferList const& bufread,
 	BufferList & bufwrite,
-	uint const *cellStart,
 	uint numParticles,
 	uint particleRangeEnd,
 	uint deviceIndex,

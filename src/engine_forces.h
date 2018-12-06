@@ -121,7 +121,6 @@ public:
 	virtual void
 	compute_density(const BufferList& bufread,
 		BufferList& bufwrite,
-		const uint *cellStart,
 		uint numParticles,
 		float slength,
 		float influenceradius) = 0;
@@ -131,7 +130,6 @@ public:
 	compute_density_diffusion(
 		const BufferList& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	deltap,
@@ -146,7 +144,6 @@ public:
 	basicstep(
 		const BufferList& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 				uint	numParticles,
 				uint	fromParticle,
 				uint	toParticle,

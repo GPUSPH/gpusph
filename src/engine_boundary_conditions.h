@@ -35,7 +35,6 @@ virtual void
 saSegmentBoundaryConditions(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -50,7 +49,6 @@ virtual void
 findOutgoingSegment(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -66,7 +64,6 @@ virtual void
 saVertexBoundaryConditions(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -88,7 +85,6 @@ virtual void
 computeVertexNormal(
 	const BufferList&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
 
@@ -97,7 +93,6 @@ virtual void
 saInitGamma(
 	const BufferList&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
 	const	float			deltap,
@@ -112,7 +107,6 @@ initIOmass_vertexCount(
 	BufferList& bufwrite,
 	const BufferList& bufread,
 	const	uint			numParticles,
-	const	uint*			cellStart,
 	const	uint			particleRangeEnd) = 0;
 
 //! Distribute initial mass for open boundary vertices
@@ -122,7 +116,6 @@ initIOmass(
 	BufferList& bufwrite,
 	const BufferList& bufread,
 	const	uint			numParticles,
-	const	uint*			cellStart,
 	const	uint			particleRangeEnd,
 	const	float			deltap) = 0;
 

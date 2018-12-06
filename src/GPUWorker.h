@@ -141,12 +141,9 @@ private:
 	// GPU arrays
 	MultiBufferList	m_dBuffers;
 
-	uint*		m_dCellStart;			// index of cell start in sorted order
-	uint*		m_dCellEnd;				// index of cell end in sorted order
-
-	// CPU/GPU buffers for the compact device map (2 bits per cell)
-	uint*		m_hCompactDeviceMap;
-	uint*		m_dCompactDeviceMap;
+	// CPU arrays (for the workers, these only hold cell-based buffers:
+	// BUFFER_CELLSTART, BUFFER_CELLEND, BUFFER_COMPACT_DEV_MAP)
+	BufferList m_hBuffers;
 
 	// bursts of cells to be transferred
 	BurstList	m_bursts;

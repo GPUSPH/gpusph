@@ -86,8 +86,6 @@ public:
 	/// Sort the data to match the new particle order
 	virtual void
 	reorderDataAndFindCellStart(
-			uint*		cellStart,
-			uint*		cellEnd,
 			uint*		segmentStart,
 			const hashKey*	particleHash,
 			const uint*	particleIndex,

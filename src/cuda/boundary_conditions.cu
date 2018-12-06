@@ -36,6 +36,7 @@
 #include "utils.h"
 #include "cuda_call.h"
 
+#include "buffer.h"
 #include "define_buffers.h"
 
 #include "sa_bc_params.h"
@@ -104,7 +105,6 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 saSegmentBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -120,6 +120,7 @@ saSegmentBoundaryConditionsImpl(
 	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
+	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
@@ -172,7 +173,6 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 saSegmentBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -194,7 +194,6 @@ void
 saSegmentBoundaryConditions(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -204,7 +203,7 @@ saSegmentBoundaryConditions(
 	// and 1 or 2 for the first and second step during integration
 	const	uint			step)
 {
-	saSegmentBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, cellStart, numParticles,
+	saSegmentBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, numParticles,
 		particleRangeEnd, deltap, slength, influenceradius, step);
 }
 
@@ -213,7 +212,6 @@ void
 findOutgoingSegment(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -227,6 +225,7 @@ findOutgoingSegment(
 	const	float4			*vel(bufwrite.getConstData<BUFFER_VEL>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
+	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
@@ -261,7 +260,6 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 saVertexBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -297,7 +295,7 @@ saVertexBoundaryConditionsImpl(
 	// execute the kernel
 #define SA_VERTEX_BC_STEP(step) case step: \
 	{ sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-		bufread, bufwrite, cellStart, newNumParticles, numParticles, totParticles, \
+		bufread, bufwrite, newNumParticles, numParticles, totParticles, \
 		deltap, slength, influenceradius, deviceId, numDevices, dt); \
 	  cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
 	} break
@@ -321,7 +319,6 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 saVertexBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -349,7 +346,6 @@ void
 saVertexBoundaryConditions(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -366,7 +362,7 @@ saVertexBoundaryConditions(
 	const	uint			numDevices,
 	const	uint			totParticles)
 {
-	saVertexBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, cellStart,
+	saVertexBoundaryConditionsImpl<boundarytype>(bufwrite, bufread,
 		numParticles, particleRangeEnd, deltap, slength, influenceradius,
 		step, resume, dt,
 		newNumParticles, deviceId, numDevices, totParticles);
@@ -383,7 +379,6 @@ void
 computeVertexNormal(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd)
 {
@@ -397,6 +392,7 @@ computeVertexNormal(
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
 	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
@@ -429,7 +425,6 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 saInitGammaImpl(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
 	const	float			deltap,
@@ -448,6 +443,7 @@ saInitGammaImpl(
 	const float4 *boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
 	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
 	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
@@ -502,7 +498,6 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 saInitGammaImpl(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
 	const	float			deltap,
@@ -519,7 +514,6 @@ void
 saInitGamma(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
 	const	float			deltap,
@@ -527,7 +521,7 @@ saInitGamma(
 	const	uint			numParticles,
 	const	uint			particleRangeEnd)
 {
-	saInitGammaImpl<boundarytype>(bufread, bufwrite, cellStart,
+	saInitGammaImpl<boundarytype>(bufread, bufwrite,
 		slength, influenceradius, deltap, epsilon,
 		numParticles, particleRangeEnd);
 }
@@ -540,7 +534,6 @@ initIOmass_vertexCount(
 	BufferList& bufwrite,
 	BufferList const& bufread,
 	const	uint			numParticles,
-	const	uint*			cellStart,
 	const	uint			particleRangeEnd)
 {
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
@@ -554,6 +547,7 @@ initIOmass_vertexCount(
 
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
@@ -572,7 +566,6 @@ initIOmass(
 	BufferList& bufwrite,
 	BufferList const& bufread,
 	const	uint			numParticles,
-	const	uint*			cellStart,
 	const	uint			particleRangeEnd,
 	const	float			deltap)
 {
@@ -589,6 +582,7 @@ initIOmass(
 	const float4 *forces = bufread.getData<BUFFER_FORCES>();
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 

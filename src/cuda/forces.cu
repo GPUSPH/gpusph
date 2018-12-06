@@ -197,7 +197,6 @@ struct CUDADensityHelper {
 	static void
 	process(BufferList const& bufread,
 		BufferList& bufwrite,
-		const uint *cellStart,
 		const uint numParticles,
 		float slength,
 		float influenceradius)
@@ -212,7 +211,6 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 	static void
 	process(BufferList const& bufread,
 		BufferList& bufwrite,
-		const uint *cellStart,
 		const uint numParticles,
 		float slength,
 		float influenceradius)
@@ -224,6 +222,7 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		const float4 *vol = bufread.getData<BUFFER_VOLUME>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* Update WRITE vel in place, caller should do a swap before and after */
@@ -587,13 +586,12 @@ dtreduce(	float	slength,
 void
 compute_density(BufferList const& bufread,
 	BufferList& bufwrite,
-	const uint *cellStart,
 	uint numParticles,
 	float slength,
 	float influenceradius)
 {
 	CUDADensityHelper<kerneltype, sph_formulation, boundarytype>::process(bufread,
-		bufwrite, cellStart, numParticles, slength, influenceradius);
+		bufwrite, numParticles, slength, influenceradius);
 	return;
 }
 
@@ -601,7 +599,6 @@ void
 compute_density_diffusion(
 	BufferList const& bufread,
 	BufferList& bufwrite,
-	const	uint	*cellStart,
 	const	uint	numParticles,
 	const	uint	particleRangeEnd,
 	const	float	deltap,
@@ -621,7 +618,7 @@ compute_density_diffusion(
 			bufread.getData<BUFFER_VEL>(),
 			bufread.getData<BUFFER_INFO>(),
 			bufread.getData<BUFFER_HASH>(),
-			cellStart,
+			bufread.getData<BUFFER_CELLSTART>(),
 			bufread.getData<BUFFER_NEIBSLIST>(),
 			bufread.getData<BUFFER_GRADGAMMA>(),
 			bufread.getRawPtr<BUFFER_VERTPOS>(),
@@ -735,7 +732,6 @@ uint
 basicstep(
 	BufferList const& bufread,
 	BufferList& bufwrite,
-	const	uint	*cellStart,
 	uint	numParticles,
 	uint	fromParticle,
 	uint	toParticle,
@@ -755,6 +751,7 @@ basicstep(
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();

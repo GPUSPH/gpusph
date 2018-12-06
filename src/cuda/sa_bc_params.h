@@ -286,7 +286,6 @@ struct sa_vertex_bc_params :
 	sa_vertex_bc_params(
 		const	BufferList&	bufread,
 				BufferList&	bufwrite,
-		const	uint	* __restrict__ _cellStart,
 				uint	* __restrict__ _newNumParticles,
 		const	uint	_numParticles,
 		const	uint	_totParticles,
@@ -301,7 +300,7 @@ struct sa_vertex_bc_params :
 			bufwrite.getConstData<BUFFER_POS>(),
 			bufwrite.getData<BUFFER_VEL>(),
 			bufread.getData<BUFFER_HASH>(),
-			_cellStart,
+			bufread.getData<BUFFER_CELLSTART>(),
 			bufread.getData<BUFFER_NEIBSLIST>(),
 			bufwrite.getData<BUFFER_GRADGAMMA>(),
 			bufwrite.getConstData<BUFFER_VERTICES>(),

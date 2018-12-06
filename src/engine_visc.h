@@ -57,7 +57,6 @@ public:
 	calc_visc(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	slength,

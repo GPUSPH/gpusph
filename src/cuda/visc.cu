@@ -68,7 +68,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	calc_visc_implementation(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	slength,
@@ -82,7 +81,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	calc_visc_implementation(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	slength,
@@ -96,6 +94,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		int dummy_shared = 0;
@@ -142,13 +141,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	calc_visc(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	slength,
 		const	float	influenceradius)
 	{
-		calc_visc_implementation(bufread, bufwrite, cellStart,
+		calc_visc_implementation(bufread, bufwrite,
 			numParticles, particleRangeEnd, slength, influenceradius, this);
 	}
 

@@ -81,7 +81,6 @@ struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 				flag_t					options,
 		BufferList const& bufread,
 		BufferList&		bufwrite,
-		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,
@@ -99,7 +98,6 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, simflags
 				flag_t					options,
 		BufferList const& bufread,
 		BufferList&		bufwrite,
-		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,
@@ -113,6 +111,7 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, simflags
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		float3 *vort = bufwrite.getData<BUFFER_VORTICITY>();
@@ -156,7 +155,6 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, simflag
 				flag_t					options,
 		BufferList const& bufread,
 		BufferList&		bufwrite,
-		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,
@@ -169,6 +167,7 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, simflag
 		const float4 *pos = bufread.getData<BUFFER_POS>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* in-place update! */
@@ -231,7 +230,6 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 				flag_t					options,
 		BufferList const& bufread,
 		BufferList&		bufwrite,
-		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,
@@ -245,6 +243,7 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* in-place update! */
@@ -308,7 +307,6 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, s
 				flag_t					options,
 		BufferList const& bufread,
 		BufferList&		bufwrite,
-		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,
@@ -396,14 +394,13 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, simfl
 				flag_t					options,
 		BufferList const& bufread,
 		BufferList&		bufwrite,
-		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,
 		const	GlobalData	* const		gdata)
 	{
 		gdata->problem->calcPrivate(options, bufread, bufwrite,
-			cellStart, numParticles, particleRangeEnd,
+			numParticles, particleRangeEnd,
 			deviceIndex, gdata);
 
 		// check if kernel invocation generated an error
@@ -439,7 +436,6 @@ public:
 	void process(
 		BufferList const& bufread,
 		BufferList&		bufwrite,
-		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,
@@ -449,7 +445,6 @@ public:
 			(	m_options,
 				bufread,
 				bufwrite,
-				cellStart,
 				numParticles,
 				particleRangeEnd,
 				deviceIndex,

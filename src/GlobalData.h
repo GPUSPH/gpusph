@@ -172,6 +172,7 @@ struct GlobalData {
 
 	// cellStart, cellEnd, segmentStart (limits of cells of the sam type) for each device.
 	// Note the s(shared)_d(device) prefix, since they're device pointers
+	// TODO migrate them to the buffer mechanism as well
 	uint** s_dCellStarts;
 	uint** s_dCellEnds;
 	uint** s_dSegmentsStart;

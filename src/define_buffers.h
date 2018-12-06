@@ -58,14 +58,19 @@ SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 #define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
 SET_BUFFER_TRAITS(BUFFER_PARTINDEX, uint, 1, "Particle Index");
 
-// not used for the time being. evaluate if they should be migrated to the buffer mechanism
-// too or not
+/* Cell-related buffers: index of the first and last particle in each cell */
 #define BUFFER_CELLSTART	(BUFFER_PARTINDEX << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLSTART, uint, 1, "Cell Start");
 #define BUFFER_CELLEND		(BUFFER_CELLSTART << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLEND, uint, 1, "Cell End");
 
-#define BUFFER_NEIBSLIST	(BUFFER_CELLEND << 1)
+/* Compact device map
+ * (we only use 2 bits per cell, a single uchar might be sufficient)
+ */
+#define BUFFER_COMPACT_DEV_MAP		(BUFFER_CELLEND << 1)
+SET_BUFFER_TRAITS(BUFFER_COMPACT_DEV_MAP, uint, 1, "Compact device map");
+
+#define BUFFER_NEIBSLIST	(BUFFER_COMPACT_DEV_MAP << 1)
 SET_BUFFER_TRAITS(BUFFER_NEIBSLIST, neibdata, 1, "Neighbor List");
 
 #define BUFFER_FORCES		(BUFFER_NEIBSLIST << 1)
@@ -215,7 +220,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define BUFFERS_CFL			( BUFFER_CFL | BUFFER_CFL_TEMP | BUFFER_CFL_KEPS | BUFFER_CFL_GAMMA)
 
 // all CELL buffers
-#define BUFFERS_CELL		( BUFFER_CELLSTART | BUFFER_CELLEND )
+#define BUFFERS_CELL		( BUFFER_CELLSTART | BUFFER_CELLEND | BUFFER_COMPACT_DEV_MAP)
 
 // elegant way to set to 1 all bits in between the first and the last buffers
 // NOTE: READ or WRITE specification must be added for double buffers

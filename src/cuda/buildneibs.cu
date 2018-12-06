@@ -216,8 +216,6 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
  */
 void
 reorderDataAndFindCellStart(
-		uint*				cellStart,			// index of cells first particle (out)
-		uint*				cellEnd,			// index of cells last particle (out)
 		uint*				segmentStart,		// TODO
 		const hashKey*		particleHash,		// sorted particle hashes (in)
 		const uint*			particleIndex,		// sorted particle indices (in)
@@ -228,6 +226,10 @@ reorderDataAndFindCellStart(
 {
 	const uint numThreads = BLOCK_SIZE_REORDERDATA;
 	const uint numBlocks = div_up(numParticles, numThreads);
+
+	// index of cells first and last particles (computed by the kernel)
+	uint *cellStart = sorted_buffers.getData<BUFFER_CELLSTART>();
+	uint *cellEnd = sorted_buffers.getData<BUFFER_CELLEND>();
 
 	// TODO find a smarter way to do this
 	const float4 *oldPos = unsorted_buffers.getData<BUFFER_POS>();

@@ -519,7 +519,6 @@ class Problem {
 		virtual void calcPrivate(flag_t options,
 			BufferList const& bufread,
 			BufferList & bufwrite,
-			uint const *cellStart,
 			uint numParticles,
 			uint particleRangeEnd,
 			uint deviceIndex,

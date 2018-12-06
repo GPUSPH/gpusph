@@ -112,7 +112,6 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 density_sum_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
@@ -144,6 +143,7 @@ density_sum_impl(
 	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
 	const float4 *newEulerVel = bufwrite.getConstData<BUFFER_EULERVEL>();
 
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 	const float4 *oldBoundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
@@ -208,7 +208,6 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 density_sum_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
@@ -226,7 +225,6 @@ void
 density_sum(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
@@ -237,7 +235,7 @@ density_sum(
 		const	float	slength,
 		const	float	influenceradius)
 {
-	density_sum_impl<boundarytype>(bufread, bufwrite, cellStart,
+	density_sum_impl<boundarytype>(bufread, bufwrite,
 		numParticles, particleRangeEnd,
 		dt, dt2, step, t, epsilon, slength, influenceradius);
 }
@@ -248,7 +246,6 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 integrate_gamma_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
@@ -294,7 +291,7 @@ integrate_gamma_impl(
 		bufwrite.getConstData<BUFFER_EULERVEL>(), // eulerian vel at step n+1
 		vertPos,
 		bufread.getData<BUFFER_NEIBSLIST>(),
-		cellStart,
+		bufread.getData<BUFFER_CELLSTART>(),
 		particleRangeEnd,
 		dt, dt2, t, step,
 		epsilon, slength, influenceradius);
@@ -320,7 +317,6 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 integrate_gamma_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
@@ -338,7 +334,6 @@ void
 integrate_gamma(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
@@ -349,7 +344,7 @@ integrate_gamma(
 		const	float	slength,
 		const	float	influenceradius)
 {
-	integrate_gamma_impl<boundarytype>(bufread, bufwrite, cellStart,
+	integrate_gamma_impl<boundarytype>(bufread, bufwrite,
 		numParticles, particleRangeEnd,
 		dt, dt2, step, t, epsilon, slength, influenceradius);
 }
@@ -359,7 +354,6 @@ void
 apply_density_diffusion(
 	BufferList const& bufread,
 	BufferList& bufwrite,
-	const	uint	*cellStart,
 	const	uint	numParticles,
 	const	uint	particleRangeEnd,
 	const	float	dt)
@@ -383,7 +377,6 @@ void
 basicstep(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
@@ -405,6 +398,7 @@ basicstep(
 	const float *oldTKE = bufread.getData<BUFFER_TKE>();
 	const float *oldEps = bufread.getData<BUFFER_EPSILON>();
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 

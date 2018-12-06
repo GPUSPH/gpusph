@@ -41,6 +41,7 @@
 #include "Problem.h"
 
 #include "cudabuffer.h"
+#include "hostbuffer.h"
 
 // round_up
 #include "utils.h"
@@ -60,10 +61,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	filterEngines(gdata->simframework->getFilterEngines()),
 	postProcEngines(gdata->simframework->getPostProcEngines()),
 	m_simframework(gdata->simframework),
-	m_dCellStart(NULL),
-	m_dCellEnd(NULL),
-	m_hCompactDeviceMap(NULL),
-	m_dCompactDeviceMap(NULL),
 	m_dSegmentStart(NULL),
 	m_dIOwaterdepth(NULL),
 	m_dNewNumParticles(NULL),
@@ -105,8 +102,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_hNetworkTransferBuffer = NULL;
 	m_hNetworkTransferBufferSize = 0;
 
-	m_dCompactDeviceMap = NULL;
-	m_hCompactDeviceMap = NULL;
 	m_dSegmentStart = NULL;
 
 	m_forcesKernelTotalNumBlocks = 0;
@@ -122,6 +117,13 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_FORCES>(0);
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_TORQUES>(0);
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_KEYS>();
+	}
+
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CELLSTART>(-1);
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CELLEND>(-1);
+	if (MULTI_GPU) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_COMPACT_DEV_MAP>();
+		m_hBuffers.addBuffer<HostBuffer, BUFFER_COMPACT_DEV_MAP>();
 	}
 
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_HASH>();
@@ -271,10 +273,10 @@ size_t GPUWorker::computeMemoryPerParticle()
 size_t GPUWorker::computeMemoryPerCell()
 {
 	size_t tot = 0;
-	tot += sizeof(m_dCellStart[0]);
-	tot += sizeof(m_dCellEnd[0]);
+	tot += sizeof(BufferTraits<BUFFER_CELLSTART>::element_type);
+	tot += sizeof(BufferTraits<BUFFER_CELLEND>::element_type);
 	if (MULTI_DEVICE)
-		tot += sizeof(m_dCompactDeviceMap[0]);
+		tot += sizeof(BufferTraits<BUFFER_COMPACT_DEV_MAP>::element_type);
 	return tot;
 }
 
@@ -382,13 +384,20 @@ void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int
 // Parameters: fromCell is inclusive, toCell is exclusive
 void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 {
-	uint numCells = toCell - fromCell;
-	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + fromCell),
-										(gdata->s_dCellStarts[m_deviceIndex] + fromCell),
-										sizeof(uint) * numCells, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
-	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellEnd + fromCell),
-										(gdata->s_dCellEnds[m_deviceIndex] + fromCell),
-										sizeof(uint) * numCells, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
+	const uint numCells = toCell - fromCell;
+	const uint transferSize = sizeof(uint)*numCells;
+
+	// TODO migrate s_dCellStarts to the device mechanism and provide an API
+	// to copy offset data between buffers (even of different types)
+	uint * dst = m_dBuffers.getWriteBufferList().getData<BUFFER_CELLSTART>() + fromCell;
+	const uint * src = gdata->s_dCellStarts[m_deviceIndex] + fromCell;
+
+	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
+
+	dst = m_dBuffers.getWriteBufferList().getData<BUFFER_CELLEND>() + fromCell;
+	src = gdata->s_dCellEnds[m_deviceIndex] + fromCell;
+
+	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 }
 
 // wrapper for NetworkManage send/receive methods
@@ -927,9 +936,7 @@ size_t GPUWorker::allocateHostBuffers() {
 	size_t allocated = 0;
 
 	if (MULTI_DEVICE) {
-		m_hCompactDeviceMap = new uint[m_nGridCells];
-		memset(m_hCompactDeviceMap, 0, uintCellsSize);
-		allocated += uintCellsSize;
+		allocated += m_hBuffers.get<BUFFER_COMPACT_DEV_MAP>()->alloc(m_nGridCells);
 
 		// allocate a 1Mb transferBuffer if peer copies are disabled
 		if (m_disableP2Ptranfers)
@@ -939,6 +946,7 @@ size_t GPUWorker::allocateHostBuffers() {
 		if (!gdata->clOptions->gpudirect)
 			resizeNetworkTransferBuffer(1024 * 1024);
 
+		// TODO migrate these to the buffer system as well
 		cudaMallocHost(&(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize);
 		cudaMallocHost(&(gdata->s_dCellEnds[m_deviceIndex]), uintCellsSize);
 		allocated += 2*uintCellsSize;
@@ -975,6 +983,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 			nels *= m_simparams->neiblistsize; // number of particles times neib list size
 		else if (key & BUFFERS_RB_PARTICLES)
 			nels = m_numForcesBodiesParticles; // number of particles in rigid bodies
+		else if (key & BUFFERS_CELL)
+			nels = m_nGridCells; // cell buffers are sized by number of cells
 		else if (key == BUFFER_CFL_TEMP)
 			nels = tempCflEls;
 		else if (key & BUFFERS_CFL) { // other CFL buffers
@@ -991,19 +1001,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		++iter;
 	}
 
-	CUDA_SAFE_CALL(cudaMalloc(&m_dCellStart, uintCellsSize));
-	allocated += uintCellsSize;
-
-	CUDA_SAFE_CALL(cudaMalloc(&m_dCellEnd, uintCellsSize));
-	allocated += uintCellsSize;
-
 	if (MULTI_DEVICE) {
-		// TODO: an array of uchar would suffice
-		CUDA_SAFE_CALL(cudaMalloc(&m_dCompactDeviceMap, uintCellsSize));
-		// initialize anyway for single-GPU simulations
-		CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
-		allocated += uintCellsSize;
-
 		// alloc segment only if not single_device
 		CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
@@ -1056,7 +1054,6 @@ void GPUWorker::deallocateHostBuffers() {
 		cudaFreeHost(gdata->s_dCellStarts[m_deviceIndex]);
 		cudaFreeHost(gdata->s_dCellEnds[m_deviceIndex]);
 		free(gdata->s_dSegmentsStart[m_deviceIndex]);
-		delete [] m_hCompactDeviceMap;
 	}
 
 	if (m_hPeerTransferBuffer)
@@ -1072,11 +1069,7 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 	m_dBuffers.clear();
 
-	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
-	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
-
 	if (MULTI_DEVICE) {
-		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
 		CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
 	}
 
@@ -1355,7 +1348,7 @@ void GPUWorker::runCommand<SWAP_BUFFERS>()
 // Sets all cells as empty in device memory. Used before reorder
 void GPUWorker::setDeviceCellsAsEmpty()
 {
-	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, UINT_MAX, gdata->nGridCells  * sizeof(uint)));
+	m_dBuffers.getReadBufferList().get<BUFFER_CELLSTART>()->clobber();
 }
 
 // if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
@@ -1415,13 +1408,18 @@ template<>
 void GPUWorker::runCommand<DUMP_CELLS>()
 // void GPUWorker::downloadCellsIndices()
 {
-	size_t _size = gdata->nGridCells * sizeof(uint);
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellStarts[m_deviceIndex],
-								m_dCellStart,
-								_size, cudaMemcpyDeviceToHost));
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellEnds[m_deviceIndex],
-								m_dCellEnd,
-								_size, cudaMemcpyDeviceToHost));
+	const size_t _size = gdata->nGridCells * sizeof(uint);
+
+	// TODO migrate s_dCellStarts to the device mechanism and provide an API
+	// to copy offset data between buffers (even of different types)
+	const uint * src = m_dBuffers.getReadBufferList().getConstData<BUFFER_CELLSTART>();
+	uint * dst = gdata->s_dCellStarts[m_deviceIndex];
+
+	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyDeviceToHost));
+
+	src = m_dBuffers.getReadBufferList().getConstData<BUFFER_CELLEND>();
+	dst = gdata->s_dCellEnds[m_deviceIndex];
+	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyDeviceToHost));
 	/*_size = 4 * sizeof(uint);
 	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dSegmentsStart[m_deviceIndex],
 								m_dSegmentStart,
@@ -1577,6 +1575,8 @@ void GPUWorker::runCommand<UPLOAD_PLANES>() { uploadPlanes(); }
 // per cell is added. This means that we might miss cells if the extra displacement is
 // not parallel to one cartesian axis.
 void GPUWorker::createCompactDeviceMap() {
+	uint *compactDeviceMap = m_hBuffers.getData<BUFFER_COMPACT_DEV_MAP>();
+
 	// Here we have several possibilities:
 	// 1. dynamic programming - visit each cell and half of its neighbors once, only write self
 	//    (14*cells reads, 1*cells writes)
@@ -1644,7 +1644,7 @@ void GPUWorker::createCompactDeviceMap() {
 				if (is_mine && any_foreign_neib)	cellType = CELLTYPE_INNER_EDGE_CELL_SHIFTED;
 				if (!is_mine && any_mine_neib)		cellType = CELLTYPE_OUTER_EDGE_CELL_SHIFTED;
 				if (!is_mine && !any_mine_neib)		cellType = CELLTYPE_OUTER_CELL_SHIFTED;
-				m_hCompactDeviceMap[cell_lin_idx] = cellType;
+				compactDeviceMap[cell_lin_idx] = cellType;
 			}
 	// here it is possible to save the compact device map
 	// gdata->saveCompactDeviceMapToFile("", m_deviceIndex, m_hCompactDeviceMap);
@@ -1652,8 +1652,11 @@ void GPUWorker::createCompactDeviceMap() {
 
 // self-explanatory
 void GPUWorker::uploadCompactDeviceMap() {
-	size_t _size = m_nGridCells * sizeof(uint);
-	CUDA_SAFE_CALL(cudaMemcpy(m_dCompactDeviceMap, m_hCompactDeviceMap, _size, cudaMemcpyHostToDevice));
+	uint *dst = m_dBuffers.getWriteBufferList().getData<BUFFER_COMPACT_DEV_MAP>();
+	const uint *src = m_hBuffers.getData<BUFFER_COMPACT_DEV_MAP>();
+
+	const size_t _size = m_nGridCells * sizeof(uint);
+	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyHostToDevice));
 }
 
 // this should be singleton, i.e. should check that no other thread has been started (mutex + counter or bool)
@@ -1819,7 +1822,7 @@ void GPUWorker::runCommand<CALCHASH>()
 					bufwrite.getData<BUFFER_HASH>(),
 					bufwrite.getData<BUFFER_PARTINDEX>(),
 					bufread.getData<BUFFER_INFO>(),
-					m_dCompactDeviceMap,
+					bufwrite.getData<BUFFER_COMPACT_DEV_MAP>(),
 					m_numParticles);
 	else
 		neibsEngine->calcHash(
@@ -1827,7 +1830,7 @@ void GPUWorker::runCommand<CALCHASH>()
 					bufwrite.getData<BUFFER_HASH>(),
 					bufwrite.getData<BUFFER_PARTINDEX>(),
 					bufread.getData<BUFFER_INFO>(),
-					m_dCompactDeviceMap,
+					bufwrite.getData<BUFFER_COMPACT_DEV_MAP>(),
 					m_numParticles);
 
 	bufwrite.clear_pending_state();
@@ -1870,8 +1873,6 @@ void GPUWorker::runCommand<REORDER>()
 
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	neibsEngine->reorderDataAndFindCellStart(
-							m_dCellStart,	  // output: cell start index
-							m_dCellEnd,		// output: cell end index
 							m_dSegmentStart,
 
 							// hash
@@ -1928,8 +1929,8 @@ void GPUWorker::runCommand<BUILDNEIBS>()
 					bufread.getData<BUFFER_BOUNDELEMENTS>(),
 					bufwrite.getRawPtr<BUFFER_VERTPOS>(),
 					bufwrite.getConstData<BUFFER_HASH>(),
-					m_dCellStart,
-					m_dCellEnd,
+					bufread.getData<BUFFER_CELLSTART>(),
+					bufread.getData<BUFFER_CELLEND>(),
 					m_numParticles,
 					numPartsToElaborate,
 					m_nGridCells,
@@ -1954,7 +1955,6 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 	auto ret = forcesEngine->basicstep(
 		m_dBuffers.getReadBufferList(),
 		bufwrite,
-		m_dCellStart,
 		m_numParticles,
 		fromParticle,
 		toParticle,
@@ -2256,7 +2256,6 @@ void GPUWorker::runCommand<EULER>()
 	integrationEngine->basicstep(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
 		bufwrite,
-		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		gdata->dt, // m_dt,
@@ -2285,12 +2284,9 @@ void GPUWorker::runCommand<DENSITY_SUM>()
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 	bufwrite.add_state_on_write("densitySum" + to_string(step));
 
-
-
 	integrationEngine->density_sum(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
 		bufwrite,
-		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		gdata->dt, // m_dt,
@@ -2322,7 +2318,6 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>()
 	integrationEngine->integrate_gamma(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
 		bufwrite,
-		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		gdata->dt, // m_dt,
@@ -2356,7 +2351,6 @@ void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>()
 	forcesEngine->compute_density_diffusion(
 		m_dBuffers.getReadBufferList(),
 		bufwrite,
-		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		gdata->problem->m_deltap,
@@ -2387,7 +2381,6 @@ void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>()
 	integrationEngine->apply_density_diffusion(
 		m_dBuffers.getReadBufferList(),
 		bufwrite,
-		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		dt);
@@ -2470,7 +2463,6 @@ void GPUWorker::runCommand<INIT_IO_MASS_VERTEX_COUNT>()
 		bufwrite,
 		bufread,
 		m_numParticles,
-		m_dCellStart,
 		numPartsToElaborate);
 
 	bufwrite.clear_pending_state();
@@ -2494,7 +2486,6 @@ void GPUWorker::runCommand<INIT_IO_MASS>()
 		bufwrite,
 		bufread,
 		m_numParticles,
-		m_dCellStart,
 		numPartsToElaborate,
 		gdata->problem->m_deltap);
 
@@ -2529,7 +2520,7 @@ void GPUWorker::runCommand<FILTER>()
 		bufwrite.getData<BUFFER_VEL>(),
 		bufread.getData<BUFFER_INFO>(),
 		bufread.getData<BUFFER_HASH>(),
-		m_dCellStart,
+		bufread.getData<BUFFER_CELLSTART>(),
 		bufread.getData<BUFFER_NEIBSLIST>(),
 		m_numParticles,
 		numPartsToElaborate,
@@ -2564,7 +2555,6 @@ void GPUWorker::runCommand<POSTPROCESS>()
 
 	procpair->second->process(
 		bufread, bufwrite,
-		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		m_deviceIndex,
@@ -2588,7 +2578,6 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>()
 	bufwrite.add_state_on_write("compute density");
 
 	forcesEngine->compute_density(bufread, bufwrite,
-		m_dCellStart,
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
@@ -2611,7 +2600,6 @@ void GPUWorker::runCommand<CALC_VISC>()
 	bufwrite.add_state_on_write("SPS");
 
 	viscEngine->calc_visc(bufread, bufwrite,
-		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,
@@ -2666,7 +2654,6 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>()
 
 	bcEngine->saSegmentBoundaryConditions(
 		bufwrite, bufread,
-				m_dCellStart,
 				m_numParticles,
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
@@ -2680,7 +2667,6 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>()
 		bufwrite.add_state_on_write("findOutgoingSegment");
 		bcEngine->findOutgoingSegment(
 			bufwrite, bufread,
-				m_dCellStart,
 				m_numParticles,
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
@@ -2711,7 +2697,6 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>()
 
 	bcEngine->saVertexBoundaryConditions(
 		bufwrite, bufread,
-				m_dCellStart,
 				m_numParticles,
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
@@ -2743,7 +2728,6 @@ void GPUWorker::runCommand<SA_COMPUTE_VERTEX_NORMAL>()
 	bcEngine->computeVertexNormal(
 				m_dBuffers.getReadBufferList(),
 				bufwrite,
-				m_dCellStart,
 				m_numParticles,
 				numPartsToElaborate);
 
@@ -2765,7 +2749,6 @@ void GPUWorker::runCommand<SA_INIT_GAMMA>()
 	bcEngine->saInitGamma(
 				m_dBuffers.getReadBufferList(),
 				bufwrite,
-				m_dCellStart,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
 				gdata->problem->m_deltap,
@@ -2795,7 +2778,7 @@ void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>()
 				bufwrite.getData<BUFFER_INFO>(),
 				bufread.getData<BUFFER_HASH>(),
 				bufread.getData<BUFFER_VERTICES>(),
-				m_dCellStart,
+				bufread.getData<BUFFER_CELLSTART>(),
 				bufread.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
