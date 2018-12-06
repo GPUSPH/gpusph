@@ -211,8 +211,6 @@ fixHash(	const BufferList& bufread, ///< input buffers (INFO, COMPACT_DEV_MAP)
 void
 reorderDataAndFindCellStart(
 		uint*				segmentStart,		// TODO
-		const hashKey*		particleHash,		// sorted particle hashes (in)
-		const uint*			particleIndex,		// sorted particle indices (in)
 		BufferList& sorted_buffers,			// list of sorted buffers (out)
 		BufferList const& unsorted_buffers,	// list of buffers to sort (in)
 		const uint			numParticles,		// total number of particles in input buffers (in)
@@ -220,6 +218,9 @@ reorderDataAndFindCellStart(
 {
 	const uint numThreads = BLOCK_SIZE_REORDERDATA;
 	const uint numBlocks = div_up(numParticles, numThreads);
+
+	const hashKey *particleHash = sorted_buffers.getConstData<BUFFER_HASH>();
+	const uint *particleIndex = sorted_buffers.getConstData<BUFFER_PARTINDEX>();
 
 	// index of cells first and last particles (computed by the kernel)
 	uint *cellStart = sorted_buffers.getData<BUFFER_CELLSTART>();

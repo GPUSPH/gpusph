@@ -82,8 +82,6 @@ public:
 	virtual void
 	reorderDataAndFindCellStart(
 			uint*		segmentStart,
-			const hashKey*	particleHash,
-			const uint*	particleIndex,
 			BufferList& sorted_buffers,
 			const BufferList& unsorted_buffers,
 			const uint		numParticles,

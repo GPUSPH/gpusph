@@ -1861,12 +1861,6 @@ void GPUWorker::runCommand<REORDER>()
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	neibsEngine->reorderDataAndFindCellStart(
 							m_dSegmentStart,
-
-							// hash
-							sorted.getConstData<BUFFER_HASH>(),
-							// sorted particle indices
-							sorted.getConstData<BUFFER_PARTINDEX>(),
-
 							// output: sorted buffers
 							sorted,
 							// input: unsorted buffers
