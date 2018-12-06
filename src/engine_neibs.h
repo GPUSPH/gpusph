@@ -97,15 +97,8 @@ public:
 
 	/// Build the neighbors list
 	virtual void
-	buildNeibsList(	neibdata*			neibsList,
-					const float4*		pos,
-					const particleinfo*	info,
-					const vertexinfo*	vertices,
-					const float4		*boundelem,
-					float2*				vertPos[],
-					const hashKey*		particleHash,
-					const uint*			cellStart,
-					const uint*			cellEnd,
+	buildNeibsList( const BufferList&	bufread,
+						  BufferList&	bufwrite,
 					const uint			numParticles,
 					const uint			particleRangeEnd,
 					const uint			gridCells,

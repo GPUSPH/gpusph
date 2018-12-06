@@ -386,21 +386,25 @@ sort(	BufferList const& bufread,
 /// Build neibs list
 void
 buildNeibsList(
-		neibdata	*neibsList,
-const	float4		*pos,
-const	particleinfo*info,
-const	vertexinfo	*vertices,
-const	float4		*boundelem,
-		float2		*vertPos[],
-const	hashKey		*particleHash,
-const	uint		*cellStart,
-const	uint		*cellEnd,
+const	BufferList&	bufread,
+		BufferList&	bufwrite,
 const	uint		numParticles,
 const	uint		particleRangeEnd,
 const	uint		gridCells,
 const	float		sqinfluenceradius,
 const	float		boundNlSqInflRad)
 {
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
+	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
+	const hashKey *particleHash = bufwrite.getConstData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const uint *cellEnd = bufread.getData<BUFFER_CELLEND>();
+
+	neibdata	*neibsList = bufwrite.getData<BUFFER_NEIBSLIST>();
+	float2		**vertPos  = bufwrite.getRawPtr<BUFFER_VERTPOS>();
+
 	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
 	// throw otherwise
 	if (vertices || boundelem || vertPos) {

@@ -1906,15 +1906,8 @@ void GPUWorker::runCommand<BUILDNEIBS>()
 	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
 	neibsEngine->buildNeibsList(
-					bufwrite.getData<BUFFER_NEIBSLIST>(),
-					bufread.getData<BUFFER_POS>(),
-					bufread.getData<BUFFER_INFO>(),
-					bufread.getData<BUFFER_VERTICES>(),
-					bufread.getData<BUFFER_BOUNDELEMENTS>(),
-					bufwrite.getRawPtr<BUFFER_VERTPOS>(),
-					bufwrite.getConstData<BUFFER_HASH>(),
-					bufread.getData<BUFFER_CELLSTART>(),
-					bufread.getData<BUFFER_CELLEND>(),
+					bufread,
+					bufwrite,
 					m_numParticles,
 					numPartsToElaborate,
 					m_nGridCells,
