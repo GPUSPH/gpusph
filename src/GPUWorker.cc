@@ -2489,13 +2489,7 @@ void GPUWorker::runCommand<FILTER>()
 	bufwrite.add_state_on_write(string("filter ") + FilterName[filtertype]);
 
 	filterpair->second->process(
-		bufread.getData<BUFFER_POS>(),
-		bufread.getData<BUFFER_VEL>(),
-		bufwrite.getData<BUFFER_VEL>(),
-		bufread.getData<BUFFER_INFO>(),
-		bufread.getData<BUFFER_HASH>(),
-		bufread.getData<BUFFER_CELLSTART>(),
-		bufread.getData<BUFFER_NEIBSLIST>(),
+		bufread, bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,

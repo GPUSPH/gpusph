@@ -30,6 +30,7 @@
  * Contains the abstract interface for filter engines.
  */
 
+#include "buffer.h"
 #include "particledefine.h"
 
 /* Abstract class that defines the interface for each FilterEngine
@@ -66,13 +67,8 @@ public:
 	//! the usual pair of read and write BufferList
 	virtual void
 	process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,

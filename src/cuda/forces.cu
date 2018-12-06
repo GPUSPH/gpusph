@@ -972,13 +972,8 @@ template<FilterType filtertype, KernelType kerneltype, BoundaryType boundarytype
 struct CUDAFilterEngineHelper
 {
 	static void process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
@@ -990,18 +985,21 @@ template<KernelType kerneltype, BoundaryType boundarytype>
 struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 {
 	static void process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
 				float	influenceradius)
 {
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const float4 *oldVel = bufread.getData<BUFFER_VEL>();
+	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const neibdata*neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
 	int dummy_shared = 0;
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_SHEPARD;
@@ -1037,18 +1035,21 @@ template<KernelType kerneltype, BoundaryType boundarytype>
 struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 {
 	static void process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
 				float	influenceradius)
 {
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const float4 *oldVel = bufread.getData<BUFFER_VEL>();
+	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const neibdata*neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
 	int dummy_shared = 0;
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_MLS;
@@ -1091,20 +1092,15 @@ public:
 
 	void
 	process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
 				float	influenceradius)
 	{
 		CUDAFilterEngineHelper<filtertype, kerneltype, boundarytype>::process
-			(pos, oldVel, newVel, info, particleHash, cellStart, neibsList,
+			(bufread, bufwrite,
 			 numParticles, particleRangeEnd, slength, influenceradius);
 	}
 };
