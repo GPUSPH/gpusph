@@ -675,7 +675,7 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
 				hashKey*			particleHash,		///< [in,out] particle's hashes
 				uint*				particleIndex,		///< [out] particle's indexes
 				const particleinfo*	particelInfo,		///< [in] particle's informations
-				uint				*compactDeviceMap,	///< [in] type of the cells belonging to the device
+				const uint*			compactDeviceMap,	///< [in] type of the cells belonging to the device
 				const uint			numParticles		///< [in] total number of particles
 				)
 {
@@ -797,10 +797,10 @@ __global__ void
 /*! \cond */
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 /*! \endcond */
-fixHashDevice(	hashKey*			particleHash,		///< [in,out] particle's hashes
+fixHashDevice(	hashKey*		particleHash,			///< [in,out] particle's hashes
 				uint*				particleIndex,		///< [out] particle's indexes
 				const particleinfo* particelInfo,		///< [in] particle's informations
-				uint				*compactDeviceMap,	///< [in] type of the cells belonging to the device
+				const uint*			compactDeviceMap,	///< [in] type of the cells belonging to the device
 				const uint			numParticles		///< [in] total number of particles
 				)
 {

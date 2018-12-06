@@ -148,28 +148,25 @@ getinfo(TimingInfo & timingInfo)	// timing info (in, out)
  *  @{ */
 
 /// Launch the compute hash kernel
-/*!	CPU part responsible of launching the compute hash kernel
- * 	(cuneibs::calcHashDevice) on the device.
- * 	\param[in,out] posArray : particle's positions
- *	\param[in,out] particleHash : particle's hashes
- *	\param[out] particleIndex : particle's indexes
- *	\param[in] particleInfo : particle's information
- *	\param[out] compactDeviceMap : TODO
- *	\param[in] numParticles : total number of particles
+/*!	Update the particle position and cell hash,
+ * compute the particle index for sorting,
+ * update the compact device map
  */
 void
-calcHash(float4		*pos,					// particle's positions (in, out)
-		hashKey		*particleHash,			// particle's hashes (in, out)
-		uint		*particleIndex,			// particle's indexes (out)
-		const particleinfo	*particleInfo,	// particle's information (in)
-		uint		*compactDeviceMap,		// TODO
-		const uint	numParticles)			// total number of particles
+calcHash(	const BufferList& bufread, ///< input buffers (INFO, COMPACT_DEV_MAP)
+			BufferList& bufwrite, ///< output buffers: HASH, POS (updated in place), PARTINDEX
+			const uint	numParticles)			///< total number of particles
 {
 	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	cuneibs::calcHashDevice<periodicbound><<< numBlocks, numThreads >>>
-		(pos, particleHash, particleIndex, particleInfo, compactDeviceMap, numParticles);
+		(bufwrite.getData<BUFFER_POS>(),
+		 bufwrite.getData<BUFFER_HASH>(),
+		 bufwrite.getData<BUFFER_PARTINDEX>(),
+		 bufread.getData<BUFFER_INFO>(),
+		 bufread.getData<BUFFER_COMPACT_DEV_MAP>(),
+		 numParticles);
 
 	// Check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -177,26 +174,23 @@ calcHash(float4		*pos,					// particle's positions (in, out)
 
 
 /// Launch the fix hash kernel
-/*!	CPU part responsible of launching the fix hash kernel
- * 	(cuneibs::fixHashDevice) on the device.
- * 	\param[in,out] particleHash : particle's hashes
- * 	\param[out] particleIndex : particle's indexes
- * 	\param[in] particleInfo : particle's informations
- * 	\param[out] compactDeviceMap : ???
- * 	\param[in] numParticles : total number of particles
+/*!	Restricted version of \seealso calcHash, assuming the hash was already computed on host
+ * and only needs a fixup to include the cell type specified in the COMPACT_DEV_MAP
  */
 void
-fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
-		uint	*particleIndex,				// particle's indexes (out)
-		const particleinfo* particleInfo,	// particle's information (in)
-		uint	*compactDeviceMap,			// TODO
-		const uint	numParticles)			// total number of particles
+fixHash(	const BufferList& bufread, ///< input buffers (INFO, COMPACT_DEV_MAP)
+			BufferList& bufwrite, ///< output buffers: HASH (updated in place), PARTINDEX
+			const uint	numParticles)			///< total number of particles
 {
 	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
-	cuneibs::fixHashDevice<<< numBlocks, numThreads >>>(particleHash, particleIndex,
-				particleInfo, compactDeviceMap, numParticles);
+	cuneibs::fixHashDevice<<< numBlocks, numThreads >>>(
+		bufwrite.getData<BUFFER_HASH>(),
+		bufwrite.getData<BUFFER_PARTINDEX>(),
+		bufread.getData<BUFFER_INFO>(),
+		bufread.getData<BUFFER_COMPACT_DEV_MAP>(),
+		numParticles);
 
 	// Check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

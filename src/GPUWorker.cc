@@ -1816,20 +1816,9 @@ void GPUWorker::runCommand<CALCHASH>()
 	bufwrite.add_state_on_write(run_fix ? "fixHash" : "calcHash");
 
 	if (run_fix)
-		neibsEngine->fixHash(
-					bufwrite.getData<BUFFER_HASH>(),
-					bufwrite.getData<BUFFER_PARTINDEX>(),
-					bufread.getData<BUFFER_INFO>(),
-					bufwrite.getData<BUFFER_COMPACT_DEV_MAP>(),
-					m_numParticles);
+		neibsEngine->fixHash(bufread, bufwrite, m_numParticles);
 	else
-		neibsEngine->calcHash(
-					bufwrite.getData<BUFFER_POS>(),
-					bufwrite.getData<BUFFER_HASH>(),
-					bufwrite.getData<BUFFER_PARTINDEX>(),
-					bufread.getData<BUFFER_INFO>(),
-					bufwrite.getData<BUFFER_COMPACT_DEV_MAP>(),
-					m_numParticles);
+		neibsEngine->calcHash(bufread, bufwrite, m_numParticles);
 
 	bufwrite.clear_pending_state();
 }
