@@ -1897,11 +1897,8 @@ void GPUWorker::runCommand<BUILDNEIBS>()
 
 	bufwrite.set_state_on_write("neibslist");
 
-	neibdata* neibsList = bufwrite.getData<BUFFER_NEIBSLIST>();
-
 	// reset the neighbor list
-	CUDA_SAFE_CALL(cudaMemset(neibsList,
-		0xff, numPartsToElaborate * sizeof(neibdata) * m_simparams->neiblistsize));
+	bufwrite.get<BUFFER_NEIBSLIST>()->clobber();
 
 	// this is the square the distance used for neighboursearching of boundaries
 	// it is delta p / 2 bigger than the standard radius
@@ -1909,7 +1906,7 @@ void GPUWorker::runCommand<BUILDNEIBS>()
 	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
 	neibsEngine->buildNeibsList(
-					neibsList,
+					bufwrite.getData<BUFFER_NEIBSLIST>(),
 					bufread.getData<BUFFER_POS>(),
 					bufread.getData<BUFFER_INFO>(),
 					bufread.getData<BUFFER_VERTICES>(),
