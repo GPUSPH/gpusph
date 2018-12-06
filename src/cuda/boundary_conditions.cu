@@ -620,18 +620,22 @@ uploadIOwaterdepth(
 // Identifies vertices at the corners of open boundaries
 void
 saIdentifyCornerVertices(
-	const	float4*			oldPos,
-	const	float4*			boundelement,
-			particleinfo*	info,
-	const	hashKey*		particleHash,
-	const	vertexinfo*		vertices,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
+	const	BufferList&	bufread,
+			BufferList&	bufwrite,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
 	const	float			eps)
 {
+	const float4* oldPos = bufread.getData<BUFFER_POS>();
+	const float4* boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
+	const hashKey* particleHash = bufread.getData<BUFFER_HASH>();
+	const vertexinfo* vertices = bufread.getData<BUFFER_VERTICES>();
+	const uint* cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const neibdata* neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+	particleinfo*	info = bufwrite.getData<BUFFER_INFO>();
+
 	int dummy_shared = 0;
 
 	uint numThreads = BLOCK_SIZE_SA_BOUND;

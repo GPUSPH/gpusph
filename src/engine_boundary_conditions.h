@@ -144,13 +144,8 @@ uploadIOwaterdepth(
 //! Identifies vertices at the corners of open boundaries
 virtual void
 saIdentifyCornerVertices(
-	const	float4*			oldPos,
-	const	float4*			boundelement,
-			particleinfo*	info,
-	const	hashKey*		particleHash,
-	const	vertexinfo*		vertices,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
+	const	BufferList&	bufread,
+			BufferList&	bufwrite,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,

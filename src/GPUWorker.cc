@@ -2741,13 +2741,7 @@ void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>()
 	bufwrite.add_state_on_write("saIdentifyCornerVertices");
 
 	bcEngine->saIdentifyCornerVertices(
-				bufread.getData<BUFFER_POS>(),
-				bufread.getData<BUFFER_BOUNDELEMENTS>(),
-				bufwrite.getData<BUFFER_INFO>(),
-				bufread.getData<BUFFER_HASH>(),
-				bufread.getData<BUFFER_VERTICES>(),
-				bufread.getData<BUFFER_CELLSTART>(),
-				bufread.getData<BUFFER_NEIBSLIST>(),
+		bufread, bufwrite,
 				m_numParticles,
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
