@@ -2003,10 +2003,7 @@ float GPUWorker::post_forces()
 		m_simparams->dtadaptfactor,
 		sspeed_cfl,
 		max_kinematic,
-		bufwrite.getData<BUFFER_CFL>(),
-		bufwrite.getData<BUFFER_CFL_GAMMA>(),
-		bufwrite.getData<BUFFER_CFL_KEPS>(),
-		bufwrite.getData<BUFFER_CFL_TEMP>(),
+		bufwrite,
 		m_forcesKernelTotalNumBlocks,
 		m_numParticles);
 

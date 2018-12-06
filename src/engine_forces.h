@@ -174,10 +174,7 @@ public:
 				float	dtadaptfactor,
 				float	sspeed_cfl,
 				float	max_kinematic,
-				float	*cfl_forces,
-				float	*cfl_gamma,
-				float	*cfl_keps,
-				float	*tempCfl,
+				BufferList& bufwrite,
 				uint	numBlocks,
 				uint	numParticles) = 0;
 

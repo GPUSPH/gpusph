@@ -149,7 +149,7 @@ static inline uint nextPow2(uint x )
 
 static inline float
 cflmax( const uint	n,
-		float*		cfl,
+const	float*		cfl,
 		float*		tempCfl)
 {
 	const int numBlocks = reducefmax(tempCfl, cfl, n);
@@ -539,13 +539,15 @@ dtreduce(	float	slength,
 			float	dtadaptfactor,
 			float	sspeed_cfl,
 			float	max_kinematic,
-			float	*cfl_forces,
-			float	*cfl_gamma,
-			float	*cfl_keps,
-			float	*tempCfl,
+			BufferList& bufwrite,
 			uint	numBlocks,
 			uint	numParticles)
 {
+	const float *cfl_forces = bufwrite.getConstData<BUFFER_CFL>();
+	const float *cfl_gamma = bufwrite.getConstData<BUFFER_CFL_GAMMA>();
+	const float *cfl_keps = bufwrite.getConstData<BUFFER_CFL_KEPS>();
+	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
+
 	// cfl holds one value per block in the forces kernel call,
 	// so it holds numBlocks elements
 	float maxcfl = cflmax(numBlocks, cfl_forces, tempCfl);
