@@ -74,8 +74,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
 
-	printf("Thread 0x%zx global device id: %d (%d)\n", thread_id.get_id(), m_globalDeviceIdx, gdata->totDevices);
-
 	// we know that GPUWorker is initialized when Problem was already
 	m_simparams = gdata->problem->simparams();
 	m_physparams = gdata->problem->physparams();
@@ -3041,14 +3039,9 @@ void GPUWorker::describeCommand()
 void GPUWorker::simulationThread() {
 	// INITIALIZATION PHASE
 
-	// retrieve GlobalData and device number (index in process array)
-	const GlobalData* gdata = getGlobalData();
-	const unsigned int cudaDeviceNumber = getCUDADeviceNumber();
-	const unsigned int deviceIndex = getDeviceIndex();
-
 	try {
 
-		setDeviceProperties( checkCUDA(gdata, deviceIndex) );
+		setDeviceProperties( checkCUDA(gdata, m_deviceIndex) );
 
 		initialize();
 
@@ -3103,7 +3096,10 @@ void GPUWorker::simulationThread() {
 			}
 		}
 	} catch (exception const& e) {
-		cerr << "Device " << deviceIndex << " thread " << thread_id.get_id() << " iteration " << gdata->iterations << " last command: " << gdata->nextCommand << ". Exception: " << e.what() << endl;
+		cerr << "Device " << m_deviceIndex << " thread " << this_thread::get_id()
+			<< " iteration " << gdata->iterations
+			<< " last command: " << gdata->nextCommand << "(" << getCommandName(gdata->nextCommand)
+			<< "). Exception: " << e.what() << endl;
 		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
 		const_cast<GlobalData*>(gdata)->ret |= 1;
