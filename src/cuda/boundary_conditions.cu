@@ -71,12 +71,15 @@ uploadNumOpenVertices(const uint &numOpenVertices)
 
 /// Disables particles that went through boundaries when open boundaries are used
 void
-disableOutgoingParts(		float4*			pos,
-							vertexinfo*		vertices,
-					const	particleinfo*	info,
+disableOutgoingParts(const	BufferList& bufread,
+							BufferList& bufwrite,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd)
 {
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	float4 *pos = bufwrite.getData<BUFFER_POS>();
+	vertexinfo *vertices = bufwrite.getData<BUFFER_VERTICES>();
+
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 

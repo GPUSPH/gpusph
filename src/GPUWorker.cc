@@ -2764,9 +2764,7 @@ void GPUWorker::runCommand<DISABLE_OUTGOING_PARTS>()
 	bufwrite.add_state_on_write("disableOutgoingParts");
 
 	bcEngine->disableOutgoingParts(
-				bufwrite.getData<BUFFER_POS>(),
-				bufwrite.getData<BUFFER_VERTICES>(),
-				bufread.getData<BUFFER_INFO>(),
+		bufread, bufwrite,
 				m_numParticles,
 				numPartsToElaborate);
 
