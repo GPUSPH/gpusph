@@ -64,6 +64,11 @@ class GPUWorker {
 private:
 	GlobalData* gdata;
 
+	// utility pointers - the actual structures are in Problem
+	const SimFramework *m_simframework;
+	PhysParams*	m_physparams;
+	SimParams*	m_simparams;
+
 	AbstractNeibsEngine *neibsEngine;
 	AbstractViscEngine *viscEngine;
 	AbstractForcesEngine *forcesEngine;
@@ -75,9 +80,9 @@ private:
 	std::thread thread_id;
 	void simulationThread();
 
-	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;
 	devcount_t m_globalDeviceIdx;
+	unsigned int m_cudaDeviceNumber;
 	GlobalData* getGlobalData();
 	unsigned int getCUDADeviceNumber();
 	devcount_t getDeviceIndex();
@@ -121,11 +126,6 @@ private:
 	void *m_hNetworkTransferBuffer;
 	size_t m_hNetworkTransferBufferSize;
 	void resizeNetworkTransferBuffer(size_t required_size);
-
-	// utility pointers - the actual structures are in Problem
-	PhysParams*	m_physparams;
-	SimParams*	m_simparams;
-	const SimFramework *m_simframework;
 
 	// CPU arrays
 	//float4*			m_hPos;					// postions array

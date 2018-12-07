@@ -53,6 +53,11 @@ using namespace std;
 
 GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	gdata(_gdata),
+
+	m_simframework(gdata->simframework),
+	m_physparams(gdata->problem->physparams()),
+	m_simparams(gdata->problem->simparams()),
+
 	neibsEngine(gdata->simframework->getNeibsEngine()),
 	viscEngine(gdata->simframework->getViscEngine()),
 	forcesEngine(gdata->simframework->getForcesEngine()),
@@ -60,49 +65,45 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	bcEngine(gdata->simframework->getBCEngine()),
 	filterEngines(gdata->simframework->getFilterEngines()),
 	postProcEngines(gdata->simframework->getPostProcEngines()),
-	m_simframework(gdata->simframework),
+
+	m_deviceIndex(_deviceIndex),
+	m_globalDeviceIdx(GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex)),
+	m_cudaDeviceNumber(gdata->device[_deviceIndex]),
+
+	// Problem::fillparts() has already been called
+	m_numParticles(gdata->s_hPartsPerDevice[_deviceIndex]),
+	m_nGridCells(gdata->nGridCells),
+	m_numAllocatedParticles(0),
+	m_numInternalParticles(m_numParticles),
+	m_numForcesBodiesParticles(gdata->problem->get_forces_bodies_numparts()),
+
+	m_particleRangeBegin(0),
+	m_particleRangeEnd(m_numInternalParticles),
+
+	m_hostMemory(0),
+	m_deviceMemory(0),
+
+	// set to true to force host staging even if peer access is set successfully
+	m_disableP2Ptranfers(false),
+	m_hPeerTransferBuffer(NULL),
+	m_hPeerTransferBufferSize(0),
+
+	// used if GPUDirect is disabled
+	m_hNetworkTransferBuffer(NULL),
+	m_hNetworkTransferBufferSize(0),
+
 	m_dSegmentStart(NULL),
 	m_dIOwaterdepth(NULL),
 	m_dNewNumParticles(NULL),
+
+	m_forcesKernelTotalNumBlocks(),
+
 	m_asyncH2DCopiesStream(0),
 	m_asyncD2HCopiesStream(0),
 	m_asyncPeerCopiesStream(0),
 	m_halfForcesEvent(0)
 {
-	m_deviceIndex = _deviceIndex;
-	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
-
-	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
-
-	// we know that GPUWorker is initialized when Problem was already
-	m_simparams = gdata->problem->simparams();
-	m_physparams = gdata->problem->physparams();
-
-	// we also know Problem::fillparts() has already been called
-	m_numInternalParticles = m_numParticles = gdata->s_hPartsPerDevice[m_deviceIndex];
-	m_numForcesBodiesParticles = gdata->problem->get_forces_bodies_numparts();
 	printf("number of forces rigid bodies particles = %d\n", m_numForcesBodiesParticles);
-
-	m_particleRangeBegin = 0;
-	m_particleRangeEnd = m_numInternalParticles;
-
-	m_numAllocatedParticles = 0;
-	m_nGridCells = gdata->nGridCells;
-
-	m_hostMemory = m_deviceMemory = 0;
-
-	// set to true to force host staging even if peer access is set successfully
-	m_disableP2Ptranfers = false;
-	m_hPeerTransferBuffer = NULL;
-	m_hPeerTransferBufferSize = 0;
-
-	// used if GPUDirect is disabled
-	m_hNetworkTransferBuffer = NULL;
-	m_hNetworkTransferBufferSize = 0;
-
-	m_dSegmentStart = NULL;
-
-	m_forcesKernelTotalNumBlocks = 0;
 
 	m_dBuffers.setAllocPolicy(gdata->simframework->getAllocPolicy());
 
