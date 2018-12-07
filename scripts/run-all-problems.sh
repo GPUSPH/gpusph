@@ -18,7 +18,7 @@ if [ 0 -lt "$#" ] ; then
 	[ -z "$1" ] || sfx="$1"
 	shift
 	if [ 0 -lt "$#" ] ; then
-		[ -z "$1"] || maxiter="$1"
+		[ -z "$1" ] || maxiter="$1"
 		shift
 	fi
 fi
