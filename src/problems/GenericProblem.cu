@@ -230,12 +230,12 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 #endif
 
 #if ISDEF(special_boundary,collisions_file_VALS)
-	char* collisionsFiles[] =
+	const char* collisionsFiles[] =
 	{	PSTRVALS( special_boundary, collisions_file )};
 #endif
 
 #if ISDEF(special_boundary,object_geometry_file_VALS)
-	char* objectFiles[] =
+	const char* objectFiles[] =
 	{	PSTRVALS( special_boundary, object_geometry_file )};
 #endif
 
@@ -297,16 +297,12 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		{
 			specialBoundaryType = GT_FREE_SURFACE;
 		}
-		char* collisionsFile = NULL;
 #if ISDEF(special_boundary,collisions_file_VALS)
-		if (collisionsFiles[i]) {
-			collisionsFile = collisionsFiles[i];
-		}
-#endif
-#if ISDEF(special_boundary,object_geometry_file_VALS)
-		if (objectFiles[i]) {
-			collisionsFile = objectFiles[i];
-		}
+    const char* collisionsFile = (collisionsFiles[i]) ? collisionsFiles[i] : NULL;
+#elif ISDEF(special_boundary,object_geometry_file_VALS)
+		const char*	collisionsFile = (objectFiles[i]) ? objectFiles[i] : NULL;
+#else
+    const char* collisionsFile = NULL;
 #endif
 #if ISDEF(special_boundary,start_time_VALS)
 		m_bndtstart [ i ] = PVALS (special_boundary, start_time)[i];

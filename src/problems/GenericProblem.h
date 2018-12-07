@@ -157,7 +157,7 @@ GPUSPH_INCLUDE_PARAMS
 #endif
 
 /*! Periodicity definition */
-#if ISDEF(periodicity,periodicity_x)
+#if ISDEF(boundaries,periodicity_x)
 #define _periodicity_x_true PERIODIC_X
 #define _periodicity_x_false PERIODIC_NONE
 #define _periodicity_y_true PERIODIC_Y
@@ -166,7 +166,7 @@ GPUSPH_INCLUDE_PARAMS
 #define _periodicity_z_false PERIODIC_NONE
 #define __PERIODIC(x,v) _periodicity##_##x##_##v
 #define _PERIODIC(x,v) __PERIODIC(x,v)
-#define PERIODIC(x) _PERIODIC(x, PVAL(periodicity, periodicity_##x ))
+#define PERIODIC(x) _PERIODIC(x, PVAL(boundaries, periodicity_##x ))
 #define PERIODICITY (Periodicity)(PERIODIC(x) | PERIODIC(y) | PERIODIC(z))
 #else
 #define PERIODICITY PERIODIC_NONE
@@ -180,49 +180,49 @@ GPUSPH_INCLUDE_PARAMS
 #endif
 
 /*! Rheology definition */
-#if ISENUM_EQ(physics,rheology,inviscid)
+#if ISENUM_EQ(viscous_options,rheology,inviscid)
 #define RHEOLOGY_TYPE INVISCID
-#elif ISENUM_EQ(physics,rheology,Newtonian)
+#elif ISENUM_EQ(viscous_options,rheology,Newtonian)
 #define RHEOLOGY_TYPE NEWTONIAN
 #else
 #define RHEOLOGY_TYPE NEWTONIAN
 #endif
 
 /*! Turbulence model definition */
-#if ISENUM_EQ(physics,turbulence,disable)
+#if ISENUM_EQ(viscous_options,turbulence,disable)
 #define TURBULENCE_MODEL LAMINAR_FLOW
-#elif ISENUM_EQ(physics,turbulence,artificial_viscosity)
+#elif ISENUM_EQ(viscous_options,turbulence,artificial_viscosity)
 #define TURBULENCE_MODEL ARTIFICIAL
-#elif ISENUM_EQ(physics,turbulence,k_epsilon)
+#elif ISENUM_EQ(viscous_options,turbulence,k_epsilon)
 #define TURBULENCE_MODEL KEPSILON
-#elif ISENUM_EQ(physics,turbulence,SPS_model)
+#elif ISENUM_EQ(viscous_options,turbulence,SPS_model)
 #define TURBULENCE_MODEL SPS
 #else
 #define TURBULENCE_MODEL LAMINAR_FLOW
 #endif
 
 /*! Viscosity averaging definition */
-#if ISENUM_EQ(physics,viscosityAveraging,Arithmetic)
+#if ISENUM_EQ(viscous_options,viscosityAveraging,Arithmetic)
 #define VISCOSITY_AVERAGING ARITHMETIC
-#elif ISENUM_EQ(physics,viscosityAveraging,Harmonic)
+#elif ISENUM_EQ(viscous_options,viscosityAveraging,Harmonic)
 #define VISCOSITY_AVERAGING HARMONIC
-#elif ISENUM_EQ(physics,viscosityAveraging,Geometric)
+#elif ISENUM_EQ(viscous_options,viscosityAveraging,Geometric)
 #define VISCOSITY_AVERAGING GEOMETRIC
 #else
 #define VISCOSITY_AVERAGING ARITHMETIC
 #endif
 
 /*! Viscous model definition */
-#if ISENUM_EQ(physics,viscousModel,Morris)
+#if ISENUM_EQ(viscous_options,viscousModel,Morris)
 #define VISCOUS_MODEL MORRIS
 #else
 #define VISCOUS_MODEL MORRIS
 #endif
 
 /*! Viscosity type definition */
-#if ISENUM_EQ(physics,viscosityType,kinematic)
+#if ISENUM_EQ(viscous_options,viscosityType,kinematic)
 #define VISCOSITY_TYPE KINEMATIC
-#elif ISENUM_EQ(physics,viscosityType,dynamic)
+#elif ISENUM_EQ(viscous_options,viscosityType,dynamic)
 #define VISCOSITY_TYPE DYNAMIC
 #else
 #define VISCOSITY_TYPE KINEMATIC
