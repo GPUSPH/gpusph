@@ -212,7 +212,7 @@ public:
 		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, ViscSpec, boundarytype, simflags>::select();
 
 		// TODO should be allocated by the integration scheme
-		m_allocPolicy = new PredCorrAllocPolicy();
+		m_allocPolicy = make_shared<PredCorrAllocPolicy>();
 
 		m_simparams = new SimParams(this);
 	}

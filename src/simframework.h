@@ -29,8 +29,8 @@
 #ifndef _SIMFRAMEWORK_H
 #define _SIMFRAMEWORK_H
 
-
 #include <map>
+#include <memory>
 #include <vector>
 #include <stdexcept>
 
@@ -69,7 +69,7 @@ protected:
 	AbstractForcesEngine *m_forcesEngine;
 	AbstractBoundaryConditionsEngine *m_bcEngine;
 
-	BufferAllocPolicy *m_allocPolicy;
+	std::shared_ptr<BufferAllocPolicy> m_allocPolicy;
 
 	FilterEngineSet m_filterEngines;
 	FilterFreqList m_filterFreqList;
@@ -101,7 +101,9 @@ public:
 	AbstractBoundaryConditionsEngine *getBCEngine()
 	{ return m_bcEngine; }
 
-	BufferAllocPolicy *getAllocPolicy()
+	std::shared_ptr<BufferAllocPolicy> getAllocPolicy()
+	{ return m_allocPolicy; }
+	std::shared_ptr<const BufferAllocPolicy> getAllocPolicy() const
 	{ return m_allocPolicy; }
 
 	FilterEngineSet const& getFilterEngines() const

@@ -849,7 +849,9 @@ void GPUWorker::transferBursts()
 				if (!(gdata->commandFlags & bufkey))
 					continue; // skip unwanted buffers
 
-				AbstractBuffer *buf = bufset->second;
+				// here we use the explicit type instead of auto to better
+				// highlight the constness difference with peerbuf below
+				shared_ptr<AbstractBuffer> buf = bufset->second;
 
 				// TODO it would be better to have this check done in a doCommand() sanitizer
 				if ((bufkey & need_dbl_buffer_specified) && !dbl_buffer_specified) {
@@ -862,7 +864,7 @@ void GPUWorker::transferBursts()
 				const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
 
 				// retrieve peer's indices, if intra-node
-				const AbstractBuffer *peerbuf = NULL;
+				shared_ptr<const AbstractBuffer> peerbuf;
 				uint peerCudaDevNum = 0;
 				if (m_bursts[i].scope == NODE_SCOPE) {
 					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
@@ -1163,7 +1165,7 @@ void GPUWorker::setBufferState(const flag_t flags, std::string const& state)
 		if (!(buf_to_get & flags))
 			continue;
 
-		AbstractBuffer *buf = iter.second;
+		auto buf = iter.second;
 		buf->set_state(state);
 	}
 }
@@ -1186,7 +1188,7 @@ void GPUWorker::addBufferState(const flag_t flags, std::string const& state)
 		if (!(buf_to_get & flags))
 			continue;
 
-		AbstractBuffer *buf = iter.second;
+		auto buf = iter.second;
 		buf->add_state(state);
 	}
 }
@@ -1209,7 +1211,7 @@ void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
 		if (!(buf_to_get & flags))
 			continue;
 
-		AbstractBuffer *buf = iter.second;
+		shared_ptr<AbstractBuffer> buf = iter.second;
 		BufferValidity was_valid = buf->validity();
 		/* Invalid buffers should only be set valid (or dirty) by the kernels that write to them.
 		 * If an invalid buffer gets marked as valid due to this call, it means that a wrong swap
@@ -1261,7 +1263,7 @@ void GPUWorker::uploadSubdomain() {
 		if (buf_to_up & skip_bufs)
 			continue;
 
-		AbstractBuffer *buf = buflist[buf_to_up];
+		auto buf = buflist[buf_to_up];
 		size_t _size = howManyParticles * buf->get_element_size();
 
 		printf("Thread %d uploading %d %s items (%s) on device %d from position %d\n",
@@ -1311,8 +1313,8 @@ void GPUWorker::runCommand<DUMP>()
 		if (!(buf_to_get & flags))
 			continue;
 
-		const AbstractBuffer *buf = buflist[buf_to_get];
-		auto *hostbuf(onhost->second);
+		shared_ptr<const AbstractBuffer> buf = buflist[buf_to_get];
+		shared_ptr<AbstractBuffer> hostbuf(onhost->second);
 		size_t _size = howManyParticles * buf->get_element_size();
 		if (buf_to_get == BUFFER_NEIBSLIST)
 			_size *= gdata->problem->simparams()->neiblistsize;
@@ -1698,7 +1700,7 @@ size_t GPUWorker::getDeviceMemory() {
 	return m_deviceMemory;
 }
 
-const AbstractBuffer* GPUWorker::getBuffer(size_t list_idx, flag_t key) const
+shared_ptr<const AbstractBuffer> GPUWorker::getBuffer(size_t list_idx, flag_t key) const
 {
 	return m_dBuffers.getBufferList(list_idx)[key];
 }

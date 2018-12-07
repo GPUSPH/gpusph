@@ -30,6 +30,7 @@
 #ifndef _BUFFER_H
 #define _BUFFER_H
 
+#include <memory>
 #include <array>
 #include <map>
 #include <set>
@@ -361,7 +362,15 @@ public:
  */
 class BufferList
 {
-	typedef std::map<flag_t, AbstractBuffer*> map_type;
+	typedef std::shared_ptr<AbstractBuffer> ptr_type;
+	typedef std::shared_ptr<const AbstractBuffer> const_ptr_type;
+
+	template<flag_t Key>
+	using buffer_ptr_type = std::shared_ptr<Buffer<Key>>;
+	template<flag_t Key>
+	using const_buffer_ptr_type = std::shared_ptr<const Buffer<Key>>;
+
+	typedef std::map<flag_t, ptr_type> map_type;
 
 	map_type m_map;
 
@@ -375,27 +384,35 @@ class BufferList
 	flag_t m_updated_buffers;
 
 protected:
-	void addExistingBuffer(flag_t Key, AbstractBuffer* buf)
-	{ m_map[Key] = buf; }
+	void addExistingBuffer(flag_t Key, ptr_type buf)
+	{
+		// map.insert returns a pair<iterator, bool>
+		// where the bool tells if the insertion was successful
+		// (it fails if the key is present already)
+		auto ret = m_map.insert(std::make_pair(Key, buf));
+		if (!ret.second) {
+			std::string err = "double insertion of buffer " +
+				std::to_string(Key) + " (" + buf->get_buffer_name() + ")";
+			throw std::runtime_error(err);
+		}
+
+	}
+
+	// remove a buffer
+	void removeBuffer(flag_t Key)
+	{ m_map.erase(Key); }
 
 	// replace the buffer at position Key with buf, returning the
 	// old one
-	AbstractBuffer *replaceBuffer(flag_t Key, AbstractBuffer *buf)
+	ptr_type replaceBuffer(flag_t Key, ptr_type buf)
 	{
-		AbstractBuffer *old = m_map[Key];
+		ptr_type old = m_map.at(Key);
 		m_map[Key] = buf;
 		return old;
 	}
 
-	// remove a buffer without deallocating it
-	// used by the MultiBufferList to remove buffers shared
-	// by multiple lists
-	// TODO this would be all oh so much better using C++11 shared_ptr ...
-	void removeBuffer(flag_t Key)
-	{ m_map.erase(Key); }
-
-
 	friend class MultiBufferList;
+
 public:
 	BufferList() :
 		m_map(),
@@ -411,11 +428,6 @@ public:
 
 	// delete all buffers before clearing the hash
 	void clear() {
-		map_type::iterator buf = m_map.begin();
-		while (buf != m_map.end()) {
-			delete buf->second;
-			++buf;
-		}
 		m_map.clear();
 	}
 
@@ -466,13 +478,13 @@ public:
 	/* Read-only [] accessor. Insertion of buffers should be done via the
 	 * addBuffer<>() method template.
 	 */
-	AbstractBuffer* operator[](const flag_t& Key) {
+	ptr_type operator[](const flag_t& Key) {
 		map_type::const_iterator exists = m_map.find(Key);
 		if (exists != m_map.end())
 			return exists->second;
 		else return NULL;
 	}
-	const AbstractBuffer* operator[](const flag_t& Key) const {
+	const_ptr_type operator[](const flag_t& Key) const {
 		map_type::const_iterator exists = m_map.find(Key);
 		if (exists != m_map.end())
 			return exists->second;
@@ -481,21 +493,21 @@ public:
 
 	/* Templatized getter to allow the user to access the Buffers in the list
 	 * with proper typing (so e.g .get<BUFFER_POS>() will return a
-	 * Buffer<BUFFER_POS>* instead of an AbstractBuffer*)
+	 * shared pointer to Buffer<BUFFER_POS> instead of an AbstractBuffer)
 	 */
 	template<flag_t Key>
-	Buffer<Key> *get() {
+	buffer_ptr_type<Key> get() {
 		map_type::iterator exists = m_map.find(Key);
 		if (exists != m_map.end())
-			return static_cast<Buffer<Key>*>(exists->second);
+			return std::static_pointer_cast<Buffer<Key>>(exists->second);
 		else return NULL;
 	}
 	// const version
 	template<flag_t Key>
-	const Buffer<Key> *get() const {
+	const_buffer_ptr_type<Key> get() const {
 		map_type::const_iterator exists = m_map.find(Key);
 		if (exists != m_map.end())
-			return static_cast<const Buffer<Key>*>(exists->second);
+			return std::static_pointer_cast<const Buffer<Key>>(exists->second);
 		else return NULL;
 	}
 
@@ -571,7 +583,7 @@ public:
 	 */
 	template<flag_t Key>
 	DATA_TYPE(Key) **getRawPtr() {
-		Buffer<Key> *buf = this->get<Key>();
+		buffer_ptr_type<Key> buf = this->get<Key>();
 		if (!buf)
 			return NULL;
 
@@ -601,7 +613,7 @@ public:
 	// const version
 	template<flag_t Key>
 	const DATA_TYPE(Key)* const* getRawPtr() const {
-		const Buffer<Key> *buf = this->get<Key>();
+		const_buffer_ptr_type<Key> buf = this->get<Key>();
 		if (!buf)
 			return NULL;
 
@@ -633,7 +645,7 @@ public:
 		if (exists != m_map.end()) {
 			throw std::runtime_error("trying to add a buffer for an already-available key!");
 		} else {
-			m_map[Key] = new BufferClass<Key>(_init);
+			m_map.insert(std::make_pair(Key, std::make_shared<BufferClass<Key>>(_init)));
 		}
 		return *this;
 	}
@@ -674,7 +686,7 @@ class MultiBufferList
 {
 public:
 	// buffer allocation policy
-	const BufferAllocPolicy *m_policy;
+	std::shared_ptr<const BufferAllocPolicy> m_policy;
 
 	// TODO FIXME this is for double-buffered lists only
 	// In general we would have N writable list (N=1 usually)
@@ -693,9 +705,6 @@ public:
 
 public:
 
-	MultiBufferList(): m_policy(NULL)
-	{}
-
 	~MultiBufferList() {
 		clear();
 	}
@@ -704,35 +713,10 @@ public:
 
 	void clear() {
 		// nothing to do, if the policy was never set
-		if (m_policy == NULL)
+		if (!m_policy)
 			return;
 
-		// we cannot just clear() the lists, because that would
-		// lead to a double-free of the shared pointers. In C++11
-		// this could be fixed with shared_ptrs, but we can't rely
-		// on C++11, so we have to do the management manually.
-
-		// To avoid the double free, first do a manual deallocation
-		// and removal of the shared buffers:
-		std::set<flag_t>::const_iterator iter = m_buffer_keys.begin();
-		const std::set<flag_t>::const_iterator end = m_buffer_keys.end();
-		for ( ; iter != end ; ++iter) {
-			const flag_t key = *iter;
-			const size_t count = m_policy->get_buffer_count(key);
-			if (count != 1)
-				continue;
-			// ok, the buffer had a count of 1, so it was not
-			// double buffered, and is shared among lists:
-			// we deallocated it ourselves, and remove it
-			// from the lists, in order to avoid double deletions
-			AbstractBuffer *buf = m_lists[0][key];
-
-			for (auto& list : m_lists)
-				list.removeBuffer(key);
-			delete buf;
-		}
-
-		// now clear the lists
+		// clear the lists
 		for (auto& list : m_lists)
 			list.clear();
 
@@ -740,9 +724,9 @@ public:
 		m_buffer_keys.clear();
 	}
 
-	void setAllocPolicy(const BufferAllocPolicy* _policy)
+	void setAllocPolicy(std::shared_ptr<const BufferAllocPolicy> _policy)
 	{
-		if (m_policy != NULL)
+		if (m_policy)
 			throw std::runtime_error("cannot change buffer allocation policy");
 		m_policy = _policy;
 
@@ -758,7 +742,7 @@ public:
 	template<template<flag_t> class BufferClass, flag_t Key>
 	void addBuffer(int _init=-1)
 	{
-		if (m_policy == NULL)
+		if (!m_policy)
 			throw std::runtime_error("trying to add buffers before setting policy");
 		if (m_buffer_keys.find(Key) != m_buffer_keys.end())
 			throw std::runtime_error("trying to re-add buffer");
@@ -778,7 +762,7 @@ public:
 				throw std::runtime_error("buffer count less than max but bigger than 1 not supported");
 			// multi-buffered, allocate one instance in each buffer list
 			for (size_t c = 0; c < m_lists.size(); ++c) {
-				AbstractBuffer *buff = new BufferClass<Key>(_init);
+				std::shared_ptr<AbstractBuffer> buff = std::make_shared<BufferClass<Key>>(_init);
 				/* R for Read, W for Write */
 				buff->set_uid((c == READ_LIST ? "0R" : "0W") +
 					(std::to_string(Key)));
@@ -786,7 +770,7 @@ public:
 			}
 		} else {
 			// single-buffered, allocate once and put in all lists
-			AbstractBuffer *buff = new BufferClass<Key>(_init);
+			std::shared_ptr<AbstractBuffer> buff = std::make_shared<BufferClass<Key>>(_init);
 			/* U for Unique */
 			buff->set_uid("0U" + (std::to_string(Key)));
 
@@ -807,8 +791,8 @@ public:
 
 			// get the old READ buffer, replace the one in WRITE
 			// with it and the one in READ with the old WRITE one
-			AbstractBuffer *oldread = m_lists[READ_LIST][key];
-			AbstractBuffer *oldwrite = m_lists[WRITE_LIST].replaceBuffer(key, oldread);
+			auto oldread = m_lists[READ_LIST][key];
+			auto oldwrite = m_lists[WRITE_LIST].replaceBuffer(key, oldread);
 			m_lists[READ_LIST].replaceBuffer(key, oldwrite);
 		}
 
@@ -827,7 +811,7 @@ public:
 			return 0;
 
 		// get the corresponding buffer
-		const AbstractBuffer *buf = m_lists[0][Key];
+		const auto buf = m_lists[0][Key];
 
 		size_t single = buf->get_element_size();
 		single *= buf->get_array_count();

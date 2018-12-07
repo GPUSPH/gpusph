@@ -118,7 +118,7 @@ struct GlobalData {
 	Problem* problem;
 
 	SimFramework *simframework;
-	BufferAllocPolicy *allocPolicy;
+	std::shared_ptr<BufferAllocPolicy> allocPolicy;
 
 	Options* clOptions;
 
