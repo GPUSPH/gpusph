@@ -1,6 +1,10 @@
-namespace cugeom {
+/*! \file
+ * Device constants and functions for planes and DEM management
+ */
 
 #include "planes.h"
+
+namespace cugeom {
 
 using namespace cuneibs;
 

@@ -41,29 +41,50 @@
 #endif
 #endif
 
-#include "particledefine.h"
+#include "particleinfo.h"
 
-// textures for particle position, velocity and flags
-texture<float4, 1, cudaReadModeElementType> posTex;		// position and mass
-texture<float4, 1, cudaReadModeElementType> velTex;		// velocity and density
-texture<float4, 1, cudaReadModeElementType> volTex;		// volume
-texture<float, 1, cudaReadModeElementType> energyTex;	// internal energy
-texture<float4, 1, cudaReadModeElementType> boundTex;		// boundary elements
-texture<float4, 1, cudaReadModeElementType> gamTex;		// gradient gamma
-texture<particleinfo, 1, cudaReadModeElementType> infoTex;	// info
-texture<vertexinfo, 1, cudaReadModeElementType> vertTex;	// vertices
-texture<float, 1, cudaReadModeElementType> keps_kTex;	// k for k-e model
-texture<float, 1, cudaReadModeElementType> keps_eTex;	// e for k-e model
-texture<float, 1, cudaReadModeElementType> tviscTex;	// eddy viscosity
-texture<float4, 1, cudaReadModeElementType> eulerVelTex;		// eulerian velocity and density
+//! \name Textures for particle position, velocity, flags etc
+/*! We basically need _at least_ a texture for each of the
+ * non-ephemeral particle property, plus one for the ephemeral properties
+ * which we must read from the neighbors, when leveraging the texture cache:
+ * \todo ideally, we should define these programmatically, and even better define our own
+ * derived
+ *
+ * template<flag_t Buffer>
+ * struct bufferTexture : texture< BufferTraits<Buffer>::element_type > {};
+ *
+ * (SPS etc would need a slightly different treatment though)
+ * OTOH, NVIDIA hardware is moving towards a shared L1/texture cache, and if this keeps up
+ * we might get rid of textures altogether
+ * @{
+ */
+texture<float4, 1, cudaReadModeElementType> posTex;		///< position and mass
+texture<float4, 1, cudaReadModeElementType> velTex;		///< velocity and density
+texture<float4, 1, cudaReadModeElementType> volTex;		///< volume
+texture<float, 1, cudaReadModeElementType> energyTex;	///< internal energy
+texture<float4, 1, cudaReadModeElementType> boundTex;	///< boundary elements
+texture<float4, 1, cudaReadModeElementType> gamTex;		///< gradient gamma
+texture<particleinfo, 1, cudaReadModeElementType> infoTex;	///< info
+texture<vertexinfo, 1, cudaReadModeElementType> vertTex;	///< vertices
+texture<float, 1, cudaReadModeElementType> keps_kTex;	///< k for k-e model
+texture<float, 1, cudaReadModeElementType> keps_eTex;	///< e for k-e model
+texture<float, 1, cudaReadModeElementType> tviscTex;	///< eddy viscosity
+texture<float4, 1, cudaReadModeElementType> eulerVelTex;	///< eulerian velocity and density
 
-// SPS matrix
-// TODO these should probably be coalesced in a float4 + float2 texture
+//! SPS matrix
+/*! \todo these should probably be coalesced in a float4 + float2 texture
+ * @{
+ */
 texture<float2, 1, cudaReadModeElementType> tau0Tex;
 texture<float2, 1, cudaReadModeElementType> tau1Tex;
 texture<float2, 1, cudaReadModeElementType> tau2Tex;
+/** @} */
 
-// neib list management
-texture<uint, 1, cudaReadModeElementType> cellStartTex;		 // first particle index in cell table
-texture<uint, 1, cudaReadModeElementType> cellEndTex;		 // last particle index in cell table
+//! neib list management
+/*! @{ */
+texture<uint, 1, cudaReadModeElementType> cellStartTex;	///< first particle index in cell table
+texture<uint, 1, cudaReadModeElementType> cellEndTex;	///< last particle index in cell table
+/** @} */
+
+/** @} */
 #endif

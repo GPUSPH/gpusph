@@ -664,7 +664,6 @@ neibsInCell(
  * 	object particles
  * 	- fill the particle's indexes array with current indexes
  *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- *	\todo compactDeviceMap seems to be read-only, constify-it
  */
 template <Periodicity periodicbound>
 __global__ void
@@ -791,7 +790,6 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
  * 	He computes the high bits of particle hash according to the
  * 	compact device map. Also initialize particleIndex.
  * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\todo compactDeviceMap seems to be read-only, constify-it
  */
 __global__ void
 /*! \cond */
