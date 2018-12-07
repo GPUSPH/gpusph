@@ -1371,16 +1371,22 @@ Problem::calc_grid_hash(int3 gridPos) const
 void
 Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash) const
 {
+	static bool warned_out_of_bounds = false;
 	// check if the particle is actually inside the domain
-	if (pos(0) < m_origin.x || pos(0) > m_origin.x + m_size.x ||
-		pos(1) < m_origin.y || pos(1) > m_origin.y + m_size.y ||
-		pos(2) < m_origin.z || pos(2) > m_origin.z + m_size.z)
+	if (!warned_out_of_bounds &&
+		(pos(0) < m_origin.x || pos(0) > m_origin.x + m_size.x ||
+		 pos(1) < m_origin.y || pos(1) > m_origin.y + m_size.y ||
+		 pos(2) < m_origin.z || pos(2) > m_origin.z + m_size.z))
 	{
-		uint pid = id(info);
+		const uint pid = id(info);
 		stringstream errmsg;
 		errmsg << "Particle " << pid << " position " << make_double4(pos)
 			<< " is outside of the domain " << m_origin << "--" << (m_origin+m_size) ;
-		throw std::out_of_range(errmsg.str());
+		warned_out_of_bounds = true;
+		if (gdata->debug.validate_init_positions)
+			throw std::out_of_range(errmsg.str());
+		else
+			cerr << errmsg << endl;
 	}
 
 	int3 gridPos = calc_grid_pos(pos);
