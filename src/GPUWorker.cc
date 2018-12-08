@@ -3055,9 +3055,9 @@ void GPUWorker::simulationThread() {
 			}
 		}
 	} catch (exception const& e) {
-		cerr << "Device " << m_deviceIndex << " thread " << this_thread::get_id()
+		cerr << "Device " << (int)m_deviceIndex << " thread " << hex << this_thread::get_id() << dec
 			<< " iteration " << gdata->iterations
-			<< " last command: " << gdata->nextCommand << "(" << getCommandName(gdata->nextCommand)
+			<< " last command: " << gdata->nextCommand << " (" << getCommandName(gdata->nextCommand)
 			<< "). Exception: " << e.what() << endl;
 		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
