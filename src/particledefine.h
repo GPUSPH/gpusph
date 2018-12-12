@@ -67,7 +67,6 @@
 //! Smoothing kernels
 /*! \defpsubsection{kernel_type,KERNEL_TYPE}
  * \inpsection{discretisation}
- * \label{KERNEL_TYPE}
  * \values{Cubic_spline, Quadratic, Wendland, Gaussian}
  * \default{Wendland}
  * TLT_KERNEL_TYPE
@@ -231,6 +230,12 @@ const char* PeriodicityName[PERIODIC_XYZ+1]
 
 //! Density filters
 //! we define FIRST and INVALID filters to make iterating over all filters easier
+/*! \defpsubsection{density_filters,DENSITY_FILTERS}
+ * \inpsection{density_calculation}
+ * \values{None, Shepard, MLS}
+ * \default{None}
+ * TLT_DENSITY_FILTERS
+ */
 enum FilterType {
 	FIRST_FILTER = 0,
 	SHEPARD_FILTER = FIRST_FILTER,
@@ -253,6 +258,19 @@ const char *FilterName[INVALID_FILTER+1]
 ;
 
 //! Post-processing engines
+/*! \defpsubsection{vorticity_processing,VORTICITY_PROCESSING}
+ * \inpsection{output}
+ * \values{disable,enable}
+ * \default{disable}
+ * TLT_VORTICITY_PROCESSING
+ */
+/*! \defpsubsection{surface_processing,SURFACE_PROCESSING}
+ * \inpsection{output}
+ * \values{disable,enable}
+ * \default{enable}
+ * TLT_SURFACE_PROCESSING
+ */
+ //TODO: add FLUX_COMPUTATION and CALC_PRIVATE to the graphical interface
 enum PostProcessType {
 	FIRST_POSTPROC = 0,
 	VORTICITY = FIRST_POSTPROC,

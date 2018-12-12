@@ -204,14 +204,20 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		PSTR(geometry, fluid_file), NULL);
 
 	// Main container definition
-#if ISDEF( geometry, collision_file )
-	const char* collisionsFileString = PSTR( geometry, collision_file );
+#if ISDEF(boundaries,main_container_collision_file)
+	const char* collisionsFileString = PSTR(boundaries, main_container_collision_file);
 #else
 	const char* collisionsFileString = NULL;
 #endif
 	GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0, 0, 0),
 		PSTR(geometry, walls_file), collisionsFileString);
-	disableCollisions(container);
+
+#if ISDEF(boundaries,collisions_VALS)
+		if ( !PVAL(boundaries,collisions) )
+		{
+			disableCollisions( container );
+		}
+#endif
 
 	// Special boundaries definition
 #ifdef GPUSPH_special_boundary_SECTIONS

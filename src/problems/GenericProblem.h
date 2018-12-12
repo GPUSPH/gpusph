@@ -132,6 +132,7 @@ GPUSPH_INCLUDE_PARAMS
 #ifdef GPUSPH_probe_SECTIONS
 #define TEST_POINTS \
 { \
+  addPostProcess(TESTPOINTS);\
 	double probe_x[] = { PVALS( probe, x ) }; \
 	double probe_y[] = { PVALS( probe, y ) }; \
 	double probe_z[] = { PVALS( probe, z ) }; \
@@ -350,8 +351,7 @@ GPUSPH_INCLUDE_PARAMS
 	int anOpenBndType[] = { PINTVALS( special_boundary, open_bnd_type ) }; \
 	for (uint i=0; i<NB_SECTIONS(special_boundary); i++) \
 	{ \
-		if ( object(info) == i && aBndType[i] == open_boundary \
-				&& anOpenBndType[i] == pressure_driven )  \
+		if ( aBndType[i] == open_boundary && anOpenBndType[i] == pressure_driven )  \
 		{ \
 			waterlevel = wlevel[i]; \
 		} \
@@ -391,8 +391,7 @@ GPUSPH_INCLUDE_PARAMS
 	int anOpenBndType[] = { PINTVALS( special_boundary, open_bnd_type ) }; \
 	for (uint i=0; i<NB_SECTIONS(special_boundary); i++) \
 	{ \
-		if ( object(info) == i && aBndType[i] == open_boundary \
-				&& anOpenBndType[i] == velocity_driven )  \
+		if (aBndType[i] == open_boundary && anOpenBndType[i] == velocity_driven )  \
 		{ \
 			eulerVel.x = vel_x[i]; \
 			eulerVel.y = vel_y[i]; \
