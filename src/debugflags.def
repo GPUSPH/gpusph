@@ -42,6 +42,12 @@ unsigned inspect_pregamma : 1;
  */
 unsigned inspect_buffer_access : 1;
 
+/// inspect buffer lists at the end of each command
+/*! This is a very verbose inspection: at the end of each command,
+ * the state of the buffers across all lists will be printed.
+ */
+unsigned inspect_buffer_lists : 1;
+
 /// check buffer update
 /*! This is used to check that all and only modified buffers
  * are exchanged in an UPDATE_EXTERNAL call

@@ -1737,6 +1737,7 @@ void GPUWorker::simulationThread() {
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
 		const bool dbg_step_printf = gdata->debug.print_step;
+		const bool dbg_buffer_lists = gdata->debug.inspect_buffer_lists;
 
 		// TODO automate the dbg_step_printf output
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
@@ -1958,6 +1959,8 @@ void GPUWorker::simulationThread() {
 				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
 				exit(1);
 			}
+			if (dbg_buffer_lists)
+				cout << m_dBuffers.inspect() << endl;
 			if (gdata->keep_going) {
 				/*
 				// example usage of checkPartValBy*()
