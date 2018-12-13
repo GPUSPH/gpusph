@@ -12,6 +12,10 @@ add_failed() {
 	failed="${failed}$1 ($2)\n"
 }
 
+abort() {
+	echo "$@" >&2
+	exit 1
+}
 
 sfx=check
 ref=reference
@@ -26,7 +30,15 @@ if [ 0 -lt "$#" ] ; then
 	fi
 fi
 
-for problem in $(make list-problems) ; do
+problem_list="$(make list-problems)"
+
+# Check that we have all the references first
+for problem in $problem_list ; do
+	refdir="tests/${problem}_${ref}"
+	[ -d "$refdir" ] || abort "Reference directory $refdir for problem $problem not found —did you forget to run-all-problems?"
+done
+
+for problem in $problem_list ; do
 	echo "Testing ${problem} ..."
 	outdir="tests/${problem}_${sfx}"
 	refdir="tests/${problem}_${ref}"
