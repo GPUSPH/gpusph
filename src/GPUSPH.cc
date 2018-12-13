@@ -2395,22 +2395,26 @@ void GPUSPH::markIntegrationStep(
 	std::string const& read_state, BufferValidity read_valid,
 	std::string const& write_state, BufferValidity write_valid)
 {
-	doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, read_state);
-	doCommand(SET_BUFFER_VALIDITY, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, read_valid);
-	doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, write_state);
-	doCommand(SET_BUFFER_VALIDITY, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, write_valid);
+	doCommand(SET_BUFFER_STATE, PARTICLE_PROPS_BUFFERS | DBLBUFFER_READ, read_state);
+	doCommand(SET_BUFFER_VALIDITY, PARTICLE_PROPS_BUFFERS | DBLBUFFER_READ, read_valid);
 
-	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-		// Keep track of the synchronization of boundary element arrays in the SA_BOUNDARY case
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
-			doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_state);
-			doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_valid);
-		} else {
-			/* When not using movig bodies, the boundary elements buffer for READ should also be used for WRITE */
-			doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, write_state);
-			/* In this case, the WRITE buffer can be assumed to be invalid */
-			doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, BUFFER_INVALID);
-		}
+	/* When invalidating the “other” copy, we treat BUFFER_BOUNDELEMENTS specially:
+	 * in the ENABLE_MOVING_BOUNDARIES case, they behave like all other buffers,
+	 * otherwise the WRITE copy will always be invalidated, and the READ copy
+	 * will be given the write_state as well.
+	 */
+	static const bool has_moving_bodies = (problem->simparams()->simflags & ENABLE_MOVING_BODIES);
+	static const flag_t write_buffers = has_moving_bodies ? PARTICLE_PROPS_BUFFERS :
+		(PARTICLE_PROPS_BUFFERS & ~BUFFER_BOUNDELEMENTS);
+
+	doCommand(SET_BUFFER_STATE, write_buffers | DBLBUFFER_WRITE, write_state);
+	doCommand(SET_BUFFER_VALIDITY, write_buffers | DBLBUFFER_WRITE, write_valid);
+
+	if (problem->simparams()->boundarytype == SA_BOUNDARY && !has_moving_bodies) {
+		/* When not using movig bodies, the boundary elements buffer for READ should also be used for WRITE */
+		doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, write_state);
+		/* In this case, the WRITE buffer can be assumed to be invalid */
+		doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, BUFFER_INVALID);
 	}
 
 	// CFL and forces buffer are reset, and are always invalid at the end of the step
