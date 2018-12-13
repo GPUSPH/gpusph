@@ -1219,6 +1219,17 @@ void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
 			continue;
 
 		AbstractBuffer *buf = iter.second;
+		BufferValidity was_valid = buf->validity();
+		/* Invalid buffers should only be set valid (or dirty) by the kernels that write to them.
+		 * If an invalid buffer gets marked as valid due to this call, it means that a wrong swap
+		 * happened somewhere.
+		 */
+		if (validity == BUFFER_VALID && was_valid == BUFFER_INVALID) {
+			if (debug_inspect_buffer)
+				cout << "\t\t(forcing buffer validity for " << buf->inspect() << ")" << endl;
+			else
+				throw std::invalid_argument("forcing buffer validity on an invalid buffer");
+		}
 		buf->mark_valid(validity);
 	}
 }
