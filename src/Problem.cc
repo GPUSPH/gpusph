@@ -1386,7 +1386,7 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 		if (gdata->debug.validate_init_positions)
 			throw std::out_of_range(errmsg.str());
 		else
-			cerr << errmsg << endl;
+			cerr << errmsg.str() << endl;
 	}
 
 	int3 gridPos = calc_grid_pos(pos);
