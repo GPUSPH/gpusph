@@ -38,6 +38,8 @@
 #include "buffer_traits.h"
 #endif
 
+// when we want to explicitly specify “no buffer”
+#define BUFFER_NONE ((flag_t)0U)
 
 // start from FIRST_DEFINED_BUFFER
 // double-precision position buffer (used on host only)

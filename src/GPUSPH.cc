@@ -2395,31 +2395,57 @@ void GPUSPH::markIntegrationStep(
 	std::string const& read_state, BufferValidity read_valid,
 	std::string const& write_state, BufferValidity write_valid)
 {
-	doCommand(SET_BUFFER_STATE, PARTICLE_PROPS_BUFFERS | DBLBUFFER_READ, read_state);
-	doCommand(SET_BUFFER_VALIDITY, PARTICLE_PROPS_BUFFERS | DBLBUFFER_READ, read_valid);
-
-	/* When invalidating the “other” copy, we treat BUFFER_BOUNDELEMENTS specially:
-	 * in the ENABLE_MOVING_BOUNDARIES case, they behave like all other buffers,
-	 * otherwise the WRITE copy will always be invalidated, and the READ copy
-	 * will be given the write_state as well.
+	/* There are four buffers that need special treatment:
+	 * * the INFO buffer is always representative of both states —in fact, because of this
+	 *   and because it's part of the sorting key, it's the only property buffer
+	 *   which is not double buffered;
+	 * * the VERTICES buffer is always representative of both states, even though it is used
+	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
+	 *   in-place;
+	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
+	 *   representative of the previous state only until it gets updated, when it is
+	 *   representative of the next state only; due to the way we use markIntegrationStep,
+	 *   we count it as a 'shared' buffer;
+	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
+	 *   boundaries, otherwise is follows the behavior of the other buffers
 	 */
+
 	static const bool has_moving_bodies = (problem->simparams()->simflags & ENABLE_MOVING_BODIES);
-	static const flag_t write_buffers = has_moving_bodies ? PARTICLE_PROPS_BUFFERS :
-		(PARTICLE_PROPS_BUFFERS & ~BUFFER_BOUNDELEMENTS);
+	static const bool using_sa = (problem->simparams()->boundarytype == SA_BOUNDARY);
+	static const flag_t shared_buffers =
+		BUFFER_INFO |
+		BUFFER_VERTICES |
+		BUFFER_NEXTID |
+		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
+	// the INFO buffer in the WRITE position should NOT be marked invalid, since it's actually shared
+	static const flag_t invalid_shared_buffers = shared_buffers & ~BUFFER_INFO;
 
-	doCommand(SET_BUFFER_STATE, write_buffers | DBLBUFFER_WRITE, write_state);
-	doCommand(SET_BUFFER_VALIDITY, write_buffers | DBLBUFFER_WRITE, write_valid);
+	static const flag_t read_buffers  = DBLBUFFER_READ  |  PARTICLE_PROPS_BUFFERS;
+	static const flag_t write_buffers = DBLBUFFER_WRITE | (PARTICLE_PROPS_BUFFERS & ~shared_buffers);
 
-	if (problem->simparams()->boundarytype == SA_BOUNDARY && !has_moving_bodies) {
-		/* When not using movig bodies, the boundary elements buffer for READ should also be used for WRITE */
-		doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, write_state);
-		/* In this case, the WRITE buffer can be assumed to be invalid */
-		doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, BUFFER_INVALID);
-	}
+	doCommand(SET_BUFFER_STATE, read_buffers, read_state);
+	doCommand(SET_BUFFER_VALIDITY, read_buffers, read_valid);
 
-	// CFL and forces buffer are reset, and are always invalid at the end of the step
-	doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
-	doCommand(SET_BUFFER_VALIDITY, BUFFERS_CFL | BUFFER_FORCES, BUFFER_INVALID);
+	doCommand(SET_BUFFER_STATE, write_buffers, write_state);
+	doCommand(SET_BUFFER_VALIDITY, write_buffers, write_valid);
+
+	doCommand(ADD_BUFFER_STATE, shared_buffers | DBLBUFFER_READ, write_state);
+	/* When not using SA, VERTICES, NEXTID and BOUNDELEMENTS aren't used at all, so
+	 * there's nothing to set as invalid
+	 */
+	if (using_sa)
+		doCommand(SET_BUFFER_VALIDITY, invalid_shared_buffers | DBLBUFFER_WRITE, BUFFER_INVALID);
+
+	// Ephemeral buffers are always reset, as they are always invalid for the next step
+	// TODO FIXME when the clobber invalid buffers option is enabled, this invalidates
+	// some ephemeral buffers that get stored (e.g. SPS turbulent viscosity, Grenier's sigma,
+	// forces with the appropriate debug options, etc). While this doesn't (or shouldn't)
+	// affect the simulation, it may create spurious differences in the written data.
+	// Find a clean way to handle this; possible options thought of so far:
+	// * moving the call to markIntegrationStep to _after_ the dump will do it;
+	// * invalidating at the beginning of the step, but not at the end.
+	doCommand(SET_BUFFER_STATE, EPHEMERAL_BUFFERS, "");
+	doCommand(SET_BUFFER_VALIDITY, EPHEMERAL_BUFFERS, BUFFER_INVALID);
 }
 
 void GPUSPH::check_write(bool we_are_done)

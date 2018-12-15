@@ -32,9 +32,13 @@
 #include "define_buffers.h"
 
 //! All double buffers (for the predictor-corrector integration scheme)
-/*! Presently, these are all the buffers holding particle properties
+/*! Presently, these are all the buffers holding particle properties,
+ * except for the INFO buffer. The reason why the INFO buffer isn't
+ * included is that it is only ever updated in-place (and rarely at that),
+ * and in contrast to e.g. VERTICES (which is also only updated in-place)
+ * it doesn't need a double buffer for sorting, since it is used as a sort key.
  */
-#define BUFFERS_ALL_DBL PARTICLE_PROPS_BUFFERS
+#define BUFFERS_ALL_DBL (PARTICLE_PROPS_BUFFERS & ~BUFFER_INFO)
 
 size_t
 PredCorrAllocPolicy::get_max_buffer_count(flag_t Keys) const
