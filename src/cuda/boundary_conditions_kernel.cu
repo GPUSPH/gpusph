@@ -1204,13 +1204,21 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 			params.cloneParticleHash[clone_idx] = calcGridHash(clone_gridPos);
 			// the new velocity of the fluid particle is the eulerian velocity of the vertex
 			params.vel[clone_idx] = eulerVel;
-			params.cloneForces[clone_idx] = make_float4(0.0f);
+			params.gGam[clone_idx] = params.gGam[pdata.index];
+			// copy k-eps information,if present
+			clone_vertex_keps(params, pdata, clone_idx);
 
+			// reset everything else
 			// the eulerian velocity of fluid particles is always 0
 			params.eulerVel[clone_idx] = make_float4(0.0f);
-			params.gGam[clone_idx] = params.gGam[pdata.index];
+			params.cloneForces[clone_idx] = make_float4(0.0f);
 			params.cloneVertices[clone_idx] = make_vertexinfo(0, 0, 0, 0);
-			clone_vertex_keps(params, pdata, clone_idx);
+			params.nextIDs[clone_idx] = UINT_MAX;
+			// TODO missing from the reset at the moment:
+			// INTERNAL_ENERGY,
+			// BOUNDELEMENTS,
+			// TURBVISC,
+			// VOLUME
 		}
 	}
 
