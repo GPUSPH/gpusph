@@ -230,16 +230,23 @@ saVertexBoundaryConditions(
 	const	uint			numDevices,
 	const	uint			totParticles)
 {
-	// only needed (and updated) in case of particle creation
-	float4	*forces(bufwrite.getData<BUFFER_FORCES>());
-	// only updated in case of particle creation
+	/* In the case of open boundaries, during the _last_ integration
+	 * step we generate new particles. In this case, we need to initialize
+	 * the corresponding location of most if not all particle buffers.
+	 */
+	const bool may_create_particles =
+		(simflags & ENABLE_INLET_OUTLET) && (step == 2);
+
+	// these are only needed (and updated) in case of particle creation
+	float4	*forces = may_create_particles ? bufwrite.getData<BUFFER_FORCES>() : NULL;
+	uint *nextIDs = may_create_particles ? bufwrite.getData<BUFFER_NEXTID>() : NULL;
+
+	// these should be const except in the case of particle creation
 	float4	*pos(bufwrite.getData<BUFFER_POS>());
 	// only updated in case of particle creation
 	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
 	// only updated in case of particle creation
 	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
-	// only updated in case of particle creation
-	uint *nextIDs(bufwrite.getData<BUFFER_NEXTID>());
 
 	float4	*vel(bufwrite.getData<BUFFER_VEL>());
 	float	*tke(bufwrite.getData<BUFFER_TKE>());

@@ -2265,6 +2265,11 @@ void GPUSPH::prepareProblem()
 
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {
+	const bool has_io = (problem->simparams()->simflags & ENABLE_INLET_OUTLET);
+	// In the open boundary case, the last integration step is when we generate
+	// and destroy particles
+	const bool last_io_step = has_io && (cFlag & INTEGRATOR_STEP_2);
+
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
@@ -2288,7 +2293,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		}
 
 		// modify particle mass on open boundaries
-		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+		if (has_io) {
 			// identify all the corner vertex particles
 			doCommand(SWAP_BUFFERS, BUFFER_INFO);
 			doCommand(IDENTIFY_CORNER_VERTICES);
@@ -2314,7 +2319,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	}
 
 	// impose open boundary conditions
-	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+	if (has_io) {
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
 		if (MULTI_DEVICE && problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
@@ -2361,26 +2366,29 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
-	// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
-	// this updates the nextID buffer if particles get generated,
-	// so let's put it in the write position, and then swap back afterwards
-	doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
+	// compute boundary conditions on vertices including mass variation and
+	// create new particles at open boundaries.
+	// This updates the nextID buffer by vertices that generate new particles,
+	// which happens only during the last integration step in the IO case:
+	// so in this case it in the WRITE position, and swap it back afterwards.
+	if (last_io_step)
+		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-	doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
+
+	// check if we need to delete some particles which passed through open boundaries
+	if (last_io_step) {
+		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
+		doCommand(DISABLE_OUTGOING_PARTS);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
+	}
 
 	if (!(cFlag & INITIALIZATION_STEP)) {
 		/* Restore normals */
 		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-	}
-
-	// check if we need to delete some particles which passed through open boundaries
-	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET && (cFlag & INTEGRATOR_STEP_2)) {
-		doCommand(DISABLE_OUTGOING_PARTS);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 	}
 
 	if (cFlag & INITIALIZATION_STEP) {
