@@ -1142,9 +1142,9 @@ generate_new_particles(Params const& params, PData const& pdata, float4 const& p
 		params.cloneForces[clone_idx] = make_float4(0.0f);
 		params.cloneVertices[clone_idx] = make_vertexinfo(0, 0, 0, 0);
 		params.nextIDs[clone_idx] = UINT_MAX;
+		params.cloneBoundElems[clone_idx] = make_float4(-NAN);
 		// TODO missing from the reset at the moment:
 		// INTERNAL_ENERGY,
-		// BOUNDELEMENTS,
 		// TURBVISC,
 		// VOLUME
 	}

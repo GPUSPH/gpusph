@@ -219,6 +219,7 @@ struct sa_cloning_params
 	particleinfo * __restrict__ cloneInfo; //! Writable info array
 	hashKey * __restrict__ cloneParticleHash; //! Writable particleHash array
 	vertexinfo * __restrict__ cloneVertices; //! Writable vertices array
+	float4 * __restrict__ cloneBoundElems; //! Writeable boundary elements array
 	uint * __restrict__ nextIDs; //! Next ID for generated particles
 	uint * __restrict__ newNumParticles; //! New number of particles
 	const uint totParticles; //! Maximum number of particles allowed in the simulation
@@ -237,6 +238,7 @@ struct sa_cloning_params
 		cloneInfo(bufread_clone.getData<BUFFER_INFO>()),
 		cloneParticleHash(bufread_clone.getData<BUFFER_HASH>()),
 		cloneVertices(bufwrite.getData<BUFFER_VERTICES>()),
+		cloneBoundElems(bufread_clone.getData<BUFFER_BOUNDELEMENTS>()),
 		nextIDs(bufwrite.getData<BUFFER_NEXTID>()),
 		newNumParticles(_newNumParticles),
 		totParticles(_totParticles),
