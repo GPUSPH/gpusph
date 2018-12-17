@@ -98,9 +98,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 #endif
 
   // Gravity
-#if ISDEF(physics,gravity)
 	physparams()->gravity = make_float3(PVAL(physics, gravity_1), PVAL(physics, gravity_2), PVAL(physics, gravity_3));
-#endif
 
 
 	// Writer settings

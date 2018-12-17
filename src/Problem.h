@@ -411,16 +411,16 @@ class Problem {
 		plane_t make_plane(Point const& pt, Vector const& normal);
 
 		/**@inpsection{output}
-		 * @label{VTK writer interval}
+		 * @label{VTK_WRITER_INTERVAL}
 		 * @default{1.0}
-		 * VTK writer frequency (in terms of simulated seconds).
+		 * TLT_VTK_WRITER_INTERVAL
 		 */
 		double vtk_frequency;
 
 		/**@inpsection{output}
-		 * @label{Optional writer interval}
+		 * @label{COMMON_WRITER_INTERVAL}
 		 * @default{}
-		 * Optional writer frequency (in terms of simulated seconds).
+		 * TLT_COMMON_WRITER_INTERVAL
 		 */
 		double commonwriter;
 

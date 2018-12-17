@@ -10,7 +10,7 @@
 
 \LoadClass[a4paper,twoside,12pt]{article}
 
-\RequirePackage[letterpaper]{geometry} 
+\RequirePackage[letterpaper]{geometry}
 
 %----------------------------------------------------------------------------------------
 %	VARIOUS REQUIRED PACKAGES
@@ -100,7 +100,7 @@
 \newcommand{\Lap}{\textbf{L}}
 
 % current version
-\newcommand{\version}{4.0}
+\newcommand{\version}{5.0}
 \newcommand{\currentver}{version~\version}
 
 % text macros
