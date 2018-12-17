@@ -210,13 +210,9 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 	GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0, 0, 0),
 		PSTR(geometry, walls_file), collisionsFileString);
 
-#if ISDEF(boundaries,collisions_VALS)
-		if ( !PVAL(boundaries,collisions) )
-		{
+#if !ISDEF(boundaries,main_container_collision_file)
 			disableCollisions( container );
-		}
 #endif
-
 	// Special boundaries definition
 #ifdef GPUSPH_special_boundary_SECTIONS
 #define enable true
@@ -316,10 +312,9 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 		m_bndtend [ i ] = PVALS (special_boundary, end_time)[i];
 #endif
 
-		const char* specialBoundaryFile = &collisionsFile[0];
     // Define the special boundary
 		GeometryID specialBoundary = addHDF5File( specialBoundaryType,
-				Point(0,0,0), boundaryFile[i], specialBoundaryFile );
+				Point(0,0,0), boundaryFile[i], collisionsFile );
 
 #if ISDEF(special_boundary,collisions_VALS)
 		if ( !enableCollisionsArray[i] )
