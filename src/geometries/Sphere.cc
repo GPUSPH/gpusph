@@ -97,7 +97,7 @@ Sphere::FillBorder(PointVect& points, const double dx)
 	const int nc = (int) ceil(M_PI/angle); //number of layers
 	const double dtheta = M_PI/nc;
 
-	for (int i = - nc; i <= nc; ++i) {
+	for (int i = 0; i <= nc; ++i) {
 		FillDiskBorder(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
 	}
 }
@@ -119,7 +119,7 @@ Sphere::FillIn(PointVect& points, const double dx, const int _layers)
 		const int nc = (int) ceil(M_PI/angle);
 		const double dtheta = M_PI/nc;
 
-		for (int i = - nc; i <= nc; ++i) {
+		for (int i = 0; i <= nc; ++i) {
 			FillDiskBorder(points, m_ep, m_center, r*sin(i*dtheta), r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
 		}
 	}
@@ -135,7 +135,7 @@ Sphere::Fill(PointVect& points, const double dx, const bool fill)
 	const int nc = (int) ceil(M_PI/angle); //number of layers
 	const double dtheta = M_PI/nc;
 
-	for (int i = - nc; i <= nc; ++i) {
+	for (int i = 0; i <= nc; ++i) {
 		nparts += FillDisk(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, fill);
 	}
 
