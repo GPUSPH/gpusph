@@ -34,7 +34,7 @@
 class Sphere: public Object {
 	private:
 		double	m_r;
-
+		int FillBorder(PointVect&, const double, const double, const bool fill = true);
 	public:
 		Sphere(void);
 		Sphere(const Point &, const double);

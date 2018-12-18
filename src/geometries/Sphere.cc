@@ -93,13 +93,21 @@ void Sphere::shift(const double3 &offset)
 void
 Sphere::FillBorder(PointVect& points, const double dx)
 {
-	const double angle = dx/m_r;
+	FillBorder(points, dx, m_r);
+}
+
+int
+Sphere::FillBorder(PointVect& points, const double dx, const double r, const bool fill)
+{
+	int nparts = 0;
+	const double angle = dx/r;
 	const int nc = (int) ceil(M_PI/angle); //number of layers
 	const double dtheta = M_PI/nc;
 
 	for (int i = 0; i <= nc; ++i) {
-		FillDiskBorder(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
+		nparts += FillDiskBorder(points, m_ep, m_center, r*sin(i*dtheta), r*cos(i*dtheta), dx, 2.0*M_PI*rand() / RAND_MAX);
 	}
+	return nparts;
 }
 
 
@@ -131,12 +139,11 @@ int
 Sphere::Fill(PointVect& points, const double dx, const bool fill)
 {
 	int nparts = 0;
-	const double angle = dx/m_r;
-	const int nc = (int) ceil(M_PI/angle); //number of layers
-	const double dtheta = M_PI/nc;
+	int nc = round(m_r / dx);
+	double distance = m_r / (nc);
 
 	for (int i = 0; i <= nc; ++i) {
-		nparts += FillDisk(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, fill);
+		nparts += FillBorder(points, dx, i*distance);
 	}
 
 	return nparts;
