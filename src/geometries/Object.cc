@@ -251,13 +251,7 @@ int
 Object::FillDisk(PointVect& points, const EulerParameters& ep, const Point& center,
 		const double r, const double z, const double dx, const bool fill) const
 {
-	const int nr = (int) ceil(r/dx);
-	const double dr = r/nr;
-	int nparts = 0;
-	for (int i = 0; i <= nr; i++)
-		nparts += FillDiskBorder(points, ep, center, i*dr, z, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
-
-	return nparts;
+	return FillDisk(points, ep, center, 0, r, z, dx, fill);
 }
 
 
@@ -280,8 +274,11 @@ int
 Object::FillDisk(PointVect& points, const EulerParameters& ep, const Point& center, const double rmin,
 		const double rmax, const double z, const double dx, const bool fill) const
 {
+	if (rmax < 0) throw std::invalid_argument("FillDisk with maximum radius lower than 0");
+	if (rmin < 0) throw std::invalid_argument("FillDisk with minimum radius lower than 0");
+	if (rmax < rmin) throw std::invalid_argument("FillDisk with maximum radius lower than minimum radius");
 	const int nr = (int) ceil((rmax - rmin)/dx);
-	const double dr = (rmax - rmin)/nr;
+	const double dr = (nr==0)? 0 : (rmax - rmin)/nr;
 	int nparts = 0;
 	for (int i = 0; i <= nr; i++)
 		nparts += FillDiskBorder(points, ep, center, rmin + i*dr, z, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
