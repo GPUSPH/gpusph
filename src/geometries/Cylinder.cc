@@ -189,6 +189,19 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 
 	m_origin(3) = m_center(3);
 
+	if (layers*dx > m_r) {
+		std::cerr << "WARNING: Cylinder FillIn with " << layers << " layers and " << dx << " stepping > radius " << m_r << " replaced by Fill" << std::endl;
+		Fill(points, dx, true);
+		return;
+	}
+
+	if (2*layers*dx > m_h) {
+		std::cerr << "WARNING: Cylinder FillIn with " << layers << " layers and " << dx << " stepping > half-height " << (m_h/2) << " replaced by Fill" << std::endl;
+		Fill(points, dx, true);
+		return;
+	}
+
+
 	for (uint l = 0; l < layers; l++) {
 
 		const double smaller_r = m_r - l * dx;
