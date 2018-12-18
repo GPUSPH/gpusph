@@ -76,10 +76,8 @@ Cylinder::Cylinder(const Point& origin, const double radius, const double height
 
 Cylinder::Cylinder(const Point& origin, const Vector& radius, const Vector& height)
 {
-	if (fabs(radius*height) > 1e-8*radius.norm()*height.norm()) {
-		std::cout << "Trying to construct a cylinder with non perpendicular radius and axis\n";
-		exit(1);
-	}
+	if (fabs(radius*height) > 1e-8*radius.norm()*height.norm())
+		throw std::invalid_argument("Trying to construct a cylinder with non perpendicular radius and axis");
 	m_origin = origin;
 	m_center = m_origin + 0.5*height;
 	m_r = radius.norm();
