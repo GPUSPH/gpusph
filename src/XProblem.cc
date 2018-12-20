@@ -1259,9 +1259,6 @@ int XProblem::fill_parts(bool fill)
 		PointVect* parts_vector = NULL;
 		double dx = 0.0;
 
-		// ignore deleted geometries
-		if (!m_geometries[g]->enabled) continue;
-
 		// set dx and recipient vector according to geometry type
 		switch (m_geometries[g]->type) {
 			case GT_FLUID:
@@ -1320,6 +1317,9 @@ int XProblem::fill_parts(bool fill)
 			else
 				m_geometries[g]->ptr->Intersect(m_boundaryParts, unfill_dx);
 		}
+
+		// ignore deleted geometries
+		if (!m_geometries[g]->enabled) continue;
 
 		// after making some space, fill
 		if (fill) {
