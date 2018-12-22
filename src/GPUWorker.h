@@ -225,6 +225,7 @@ private:
 	std::string describeCommandFlagsBuffers();
 
 	// setting or adding to buffer states
+	void clearBufferState(const flag_t flags);
 	void setBufferState(const flag_t flags, std::string const& state);
 	// runCommand<SET_BUFFER_STATE> = void setBufferState(); // setBufferState() from commandFlags and extraCommandArg
 	void addBufferState(const flag_t flags, std::string const& state);

@@ -1155,6 +1155,20 @@ GPUWorker::describeCommandFlagsBuffers()
 	return describeCommandFlagsBuffers(gdata->commandFlags);
 }
 
+void GPUWorker::clearBufferState(const flag_t flags)
+{
+	// get the bufferlist to set the data for
+	BufferList& buflist = getBufferListByCommandFlags(flags);
+	for (auto& iter : buflist) {
+		flag_t buf_to_get = iter.first;
+		if (!(buf_to_get & flags))
+			continue;
+
+		auto buf = iter.second;
+		buf->clear_state();
+	}
+}
+
 void GPUWorker::setBufferState(const flag_t flags, std::string const& state)
 {
 	// get the bufferlist to set the data for
@@ -1175,7 +1189,10 @@ template<>
 void GPUWorker::runCommand<SET_BUFFER_STATE>()
 // void GPUWorker::setBufferState()
 {
-	setBufferState(gdata->commandFlags, gdata->extraCommandArg.string);
+	if (gdata->extraCommandArg.string.empty())
+		clearBufferState(gdata->commandFlags);
+	else
+		setBufferState(gdata->commandFlags, gdata->extraCommandArg.string);
 }
 
 void GPUWorker::addBufferState(const flag_t flags, std::string const& state)
@@ -1330,7 +1347,7 @@ void GPUWorker::runCommand<DUMP>()
 		// In multi-GPU, only one thread should update the host buffer state,
 		// to avoid crashes due to multiple threads writing the string at the same time
 		if (m_deviceIndex == 0) {
-			hostbuf->set_state(buf->state());
+			hostbuf->copy_state(buf.get());
 			hostbuf->mark_valid();
 		}
 	}
@@ -1816,7 +1833,7 @@ void GPUWorker::runCommand<CALCHASH>()
 
 	const bool run_fix = (gdata->iterations == 0);
 
-	bufwrite.add_state_on_write(run_fix ? "fixHash" : "calcHash");
+	bufwrite.add_manipulator_on_write(run_fix ? "fixHash" : "calcHash");
 
 	if (run_fix)
 		neibsEngine->fixHash(bufread, bufwrite, m_numParticles);
@@ -1872,7 +1889,7 @@ void GPUWorker::runCommand<REORDER>()
 							m_dNewNumParticles);
 
 	flag_t sorted_buffers = sorted.get_updated_buffers();
-	setBufferState(sorted_buffers | DBLBUFFER_READ, "");
+	clearBufferState(sorted_buffers | DBLBUFFER_READ);
 	setBufferValidity(sorted_buffers | DBLBUFFER_READ, BUFFER_INVALID);
 
 	sorted.clear_pending_state();
@@ -1924,7 +1941,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 	const bool firstStep = (step == 1);
 
 	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
-	bufwrite.add_state_on_write("forces" + to_string(step));
+	bufwrite.add_manipulator_on_write("forces" + to_string(step));
 
 	auto ret = forcesEngine->basicstep(
 		m_dBuffers.getReadBufferList(),
@@ -1957,7 +1974,7 @@ void GPUWorker::pre_forces()
 
 	if (m_simparams->simflags & ENABLE_DTADAPT) {
 		BufferList& bufwrite(m_dBuffers.getWriteBufferList());
-		bufwrite.add_state_on_write("pre-forces");
+		bufwrite.add_manipulator_on_write("pre-forces");
 
 		forcesEngine->clear_cfl(bufwrite, m_numAllocatedParticles);
 		bufwrite.clear_pending_state();
@@ -1977,7 +1994,7 @@ float GPUWorker::post_forces()
 		return m_simparams->dt;
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("post-forces");
+	bufwrite.add_manipulator_on_write("post-forces");
 
 	// TODO multifluid: dtreduce needs the maximum viscosity. We compute it
 	// here and pass it over. This is inefficient as we compute it every time,
@@ -2222,7 +2239,7 @@ void GPUWorker::runCommand<EULER>()
 	const bool firstStep = (step == 1);
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("euler" + to_string(step));
+	bufwrite.add_manipulator_on_write("euler" + to_string(step));
 
 	integrationEngine->basicstep(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
@@ -2253,7 +2270,7 @@ void GPUWorker::runCommand<DENSITY_SUM>()
 	const bool firstStep = (step == 1);
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("densitySum" + to_string(step));
+	bufwrite.add_manipulator_on_write("densitySum" + to_string(step));
 
 	integrationEngine->density_sum(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
@@ -2284,7 +2301,7 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>()
 	const bool firstStep = (step == 1);
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("integrateGamma" + to_string(step));
+	bufwrite.add_manipulator_on_write("integrateGamma" + to_string(step));
 
 	integrationEngine->integrate_gamma(
 		m_dBuffers.getReadBufferList(),	// this is the read only arrays
@@ -2315,7 +2332,7 @@ void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>()
 	const bool firstStep = (step == 1);
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("calcDensityDiffusion" + to_string(step));
+	bufwrite.add_manipulator_on_write("calcDensityDiffusion" + to_string(step));
 
 	const float dt = (firstStep ? gdata->dt/2.0f : gdata->dt);
 
@@ -2345,7 +2362,7 @@ void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>()
 	const bool firstStep = (step == 1);
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("applyDensityDiffusion" + to_string(step));
+	bufwrite.add_manipulator_on_write("applyDensityDiffusion" + to_string(step));
 
 	const float dt = (firstStep ? gdata->dt/2.0f : gdata->dt);
 
@@ -2402,7 +2419,7 @@ void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("imposeBC");
+	bufwrite.add_manipulator_on_write("imposeBC");
 
 	gdata->problem->imposeBoundaryConditionHost(
 		bufwrite,
@@ -2428,7 +2445,7 @@ void GPUWorker::runCommand<INIT_IO_MASS_VERTEX_COUNT>()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("initIOmass vertex count");
+	bufwrite.add_manipulator_on_write("initIOmass vertex count");
 
 	bcEngine->initIOmass_vertexCount(
 		bufwrite,
@@ -2451,7 +2468,7 @@ void GPUWorker::runCommand<INIT_IO_MASS>()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("initIOmass");
+	bufwrite.add_manipulator_on_write("initIOmass");
 
 	bcEngine->initIOmass(
 		bufwrite,
@@ -2483,7 +2500,7 @@ void GPUWorker::runCommand<FILTER>()
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
-	bufwrite.add_state_on_write(string("filter ") + FilterName[filtertype]);
+	bufwrite.add_manipulator_on_write(string("filter/") + FilterName[filtertype]);
 
 	filterpair->second->process(
 		bufread, bufwrite,
@@ -2515,8 +2532,8 @@ void GPUWorker::runCommand<POSTPROCESS>()
 	// so set a state-on-write for them too
 	BufferList &bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufread.add_state_on_write(string("postprocess ") + PostProcessName[proctype] + " (in-place)");
-	bufwrite.add_state_on_write(string("postprocess ") + PostProcessName[proctype]);
+	bufread.add_manipulator_on_write(string("postprocess/") + PostProcessName[proctype] + "(in-place)");
+	bufwrite.add_manipulator_on_write(string("postprocess/") + PostProcessName[proctype]);
 
 	procpair->second->process(
 		bufread, bufwrite,
@@ -2540,7 +2557,7 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>()
 
 	const BufferList& bufread = m_dBuffers.getReadBufferList();
 	BufferList& bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("compute density");
+	bufwrite.add_manipulator_on_write("compute density");
 
 	forcesEngine->compute_density(bufread, bufwrite,
 		numPartsToElaborate,
@@ -2562,7 +2579,7 @@ void GPUWorker::runCommand<CALC_VISC>()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("SPS");
+	bufwrite.add_manipulator_on_write("calc visc");
 
 	viscEngine->calc_visc(bufread, bufwrite,
 		m_numParticles,
@@ -2615,7 +2632,7 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("saSegmentBoundaryConditions" + to_string(step));
+	bufwrite.add_manipulator_on_write("saSegmentBoundaryConditions" + to_string(step));
 
 	bcEngine->saSegmentBoundaryConditions(
 		bufwrite, bufread,
@@ -2629,7 +2646,7 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>()
 	bufwrite.clear_pending_state();
 
 	if ( (m_simparams->simflags & ENABLE_INLET_OUTLET) && (step == 2)) {
-		bufwrite.add_state_on_write("findOutgoingSegment");
+		bufwrite.add_manipulator_on_write("findOutgoingSegment");
 		bcEngine->findOutgoingSegment(
 			bufwrite, bufread,
 				m_numParticles,
@@ -2658,7 +2675,7 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("saVertexBoundaryConditions" + to_string(step));
+	bufwrite.add_manipulator_on_write("saVertexBoundaryConditions" + to_string(step));
 
 	bcEngine->saVertexBoundaryConditions(
 		bufwrite, bufread,
@@ -2688,7 +2705,7 @@ void GPUWorker::runCommand<SA_COMPUTE_VERTEX_NORMAL>()
 	if (numPartsToElaborate == 0) return;
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("saComputeVertexNormal");
+	bufwrite.add_manipulator_on_write("saComputeVertexNormal");
 
 	bcEngine->computeVertexNormal(
 				m_dBuffers.getReadBufferList(),
@@ -2709,7 +2726,7 @@ void GPUWorker::runCommand<SA_INIT_GAMMA>()
 	if (numPartsToElaborate == 0) return;
 
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("saInitGamma");
+	bufwrite.add_manipulator_on_write("saInitGamma");
 
 	bcEngine->saInitGamma(
 				m_dBuffers.getReadBufferList(),
@@ -2735,7 +2752,7 @@ void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("saIdentifyCornerVertices");
+	bufwrite.add_manipulator_on_write("saIdentifyCornerVertices");
 
 	bcEngine->saIdentifyCornerVertices(
 		bufread, bufwrite,
@@ -2758,7 +2775,7 @@ void GPUWorker::runCommand<DISABLE_OUTGOING_PARTS>()
 
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_state_on_write("disableOutgoingParts");
+	bufwrite.add_manipulator_on_write("disableOutgoingParts");
 
 	bcEngine->disableOutgoingParts(
 		bufread, bufwrite,

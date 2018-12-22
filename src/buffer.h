@@ -34,6 +34,7 @@
 #include <array>
 #include <map>
 #include <set>
+#include <vector>
 
 #include <stdexcept>
 
@@ -73,15 +74,16 @@ class MultiBufferList;
  */
 class AbstractBuffer
 {
-public:
-private:
 	void **m_ptr;
 
 	size_t m_allocated_elements;
 
 	BufferValidity m_validity;
 
-	std::string m_state;
+	// The state(s) of the buffer
+	std::vector<std::string> m_state;
+	// the list of kernels that have manipulated the buffer since the last state change
+	std::vector<std::string> m_manipulators;
 
 	// unique buffer ID, used to track the buffer handling across states and buffer lists
 	// we could use the pointer, but this isn't invariant across runs, while we can set
@@ -108,8 +110,8 @@ protected:
 	}
 
 	friend class MultiBufferList; // needs to be able to access set_uid
-public:
 
+public:
 	// default constructor: just ensure ptr is null
 	AbstractBuffer() :
 		m_ptr(NULL),
@@ -140,14 +142,36 @@ public:
 	inline void mark_invalid() { mark_valid(BUFFER_INVALID); }
 
 	// get buffer state
-	inline std::string state() const { return m_state; }
+	inline std::vector<std::string> const& state() const { return m_state; }
 
 	// change buffer state
-	inline void set_state(std::string const& state) { m_state = state; }
-	inline void add_state(std::string const& state) {
-		if (m_state.size() > 0)
-			m_state += ", ";
-		m_state += state;
+	inline void clear_state()
+	{
+		m_state.clear();
+		m_manipulators.clear();
+	}
+	inline void set_state(std::string const& state)
+	{
+		clear_state();
+		m_state.push_back(state);
+	}
+	inline void add_state(std::string const& state)
+	{
+		if (m_state.size() == 0)
+			throw std::runtime_error("adding state " + state +
+				" to buffer " + get_buffer_name() + " without state");
+		m_state.push_back(state);
+	}
+	inline void copy_state(AbstractBuffer const* other)
+	{
+		clear_state();
+		for (auto const& s : other->state())
+			m_state.push_back(s);
+	}
+
+	inline void add_manipulator(std::string const& manip)
+	{
+		m_manipulators.push_back(manip);
 	}
 
 	// element size of the arrays
@@ -195,8 +219,16 @@ public:
 		_desc += ", id " + m_uid;
 		_desc += ", validity ";
 		_desc +=	std::to_string(m_validity);
-		_desc += ", state: ";
-		_desc += state();
+		_desc += ", state:";
+		for (auto const& s : m_state) {
+			_desc += " " + s;
+		}
+		if (m_manipulators.size() > 0) {
+			_desc += ", manipulators:";
+			for (auto const& m : m_manipulators) {
+				_desc += " " + m;
+			}
+		}
 
 		return _desc;
 	}
@@ -454,6 +486,10 @@ public:
 		for (auto& iter : m_map)
 			iter.second->add_state(state);
 	}
+	inline void add_manipulator(std::string const& manip) {
+		for (auto& iter : m_map)
+			iter.second->add_manipulator(manip);
+	}
 	// set state only for buffers that get accessed for writing
 	void set_state_on_write(std::string const& state)
 	{
@@ -462,8 +498,8 @@ public:
 		m_has_pending_state = PENDING_SET;
 		m_pending_state = state;
 	}
-	// add state only for buffers that get accessed for writing
-	void add_state_on_write(std::string const& state)
+	// add manipulator for buffers that get accessed for writing
+	void add_manipulator_on_write(std::string const& state)
 	{
 		if (m_has_pending_state > NOT_PENDING)
 			DEBUG_INSPECT_BUFFER("setting pending state addition without previous reset!" << std::endl);
@@ -538,8 +574,8 @@ public:
 			buf->set_state(m_pending_state);
 			break;
 		case PENDING_ADD:
-			DEBUG_INSPECT_BUFFER("state add " << m_pending_state);
-			buf->add_state(m_pending_state);
+			DEBUG_INSPECT_BUFFER("manipulator add " << m_pending_state);
+			buf->add_manipulator(m_pending_state);
 			break;
 		}
 		DEBUG_INSPECT_BUFFER("]" << std::endl);
@@ -597,8 +633,8 @@ public:
 			buf->set_state(m_pending_state);
 			break;
 		case PENDING_ADD:
-			DEBUG_INSPECT_BUFFER("state add " << m_pending_state);
-			buf->add_state(m_pending_state);
+			DEBUG_INSPECT_BUFFER("manipulator add " << m_pending_state);
+			buf->add_manipulator(m_pending_state);
 			break;
 		}
 

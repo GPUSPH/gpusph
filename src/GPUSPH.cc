@@ -2459,7 +2459,8 @@ void GPUSPH::markIntegrationStep(
 	doCommand(SET_BUFFER_STATE, write_buffers, write_state);
 	doCommand(SET_BUFFER_VALIDITY, write_buffers, write_valid);
 
-	doCommand(ADD_BUFFER_STATE, shared_buffers | DBLBUFFER_READ, write_state);
+	if (!write_state.empty())
+		doCommand(ADD_BUFFER_STATE, shared_buffers | DBLBUFFER_READ, write_state);
 	/* When not using SA, VERTICES, NEXTID and BOUNDELEMENTS aren't used at all, so
 	 * there's nothing to set as invalid
 	 */
