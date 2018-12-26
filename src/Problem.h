@@ -56,7 +56,9 @@
 #include "simframework.h"
 // #include "deprecation.h"
 
+#ifndef USE_CMAKE
 #include "chrono_select.opt"
+#endif
 #if USE_CHRONO == 1
 #include "chrono/physics/ChSystem.h"
 #endif

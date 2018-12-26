@@ -51,15 +51,20 @@
 #include "utils.h"
 
 /* Include only the problem selected at compile time */
+#ifdef USE_CMAKE
+#include "problem.h"
+#else
 #include "problem_select.opt"
-
+#endif // USE_CMAKE
 // HotFile
 #include "HotFile.h"
 
 /* Include all other opt file for show_version */
+#ifndef USE_CMAKE
 #include "gpusph_version.opt"
 #include "fastmath_select.opt"
 #include "compute_select.opt"
+#endif // USE_CMAKE
 
 using namespace std;
 

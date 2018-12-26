@@ -1,0 +1,3 @@
+#define PROBLEM ${GPUSPH_PROBLEM}
+#define QUOTED_PROBLEM "${GPUSPH_PROBLEM}"
+#include "${GPUSPH_PROBLEM}.h"

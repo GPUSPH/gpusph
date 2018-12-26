@@ -1,0 +1,14 @@
+# - Find CHRONO Multi-physics Simulation Engine support
+#
+#  CHRONO_FOUND - System has CHRONO
+#  CHRONO_INCLUDE_DIRS - CHRONO include directories
+#  CHRONO_LIBRARIES - The libraries needed to use CHRONO
+
+FIND_LIBRARY(CHRONO_LIBRARIES NAMES ChronoEngine)
+FIND_PATH(CHRONO_INCLUDE_DIRS NAMES chrono/core/ChChrono.h)
+
+# handle the QUIETLY and REQUIRED arguments and set CHRONO_FOUND to TRUE if 
+# all listed variables are TRUE
+INCLUDE(FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(CHRONO DEFAULT_MSG CHRONO_LIBRARIES CHRONO_INCLUDE_DIRS)
+MARK_AS_ADVANCED(CHRONO_INCLUDE_DIRS CHRONO_LIBRARIES)

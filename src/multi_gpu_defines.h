@@ -113,6 +113,12 @@ typedef unsigned char devcount_t;
 #define _MULTIGPU_DEFINES_
 
 #ifndef PROBLEM
+#ifndef USE_CMAKE
+#include "gpusph_version.opt"
+#include "fastmath_select.opt"
+#include "compute_select.opt"
+#endif // USE_CMAKE
+
 #include "problem_select.opt"
 #endif
 

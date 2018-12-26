@@ -36,7 +36,9 @@
 
 #include <stdio.h>
 
+#ifndef USE_CMAKE
 #include "chrono_select.opt"
+#endif
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
 #endif

@@ -9,7 +9,9 @@
  * NetworkManager class implementation
  */
 
+#ifndef USE_CMAKE
 #include "mpi_select.opt"
+#endif
 
 #if USE_MPI
 #include <mpi.h>

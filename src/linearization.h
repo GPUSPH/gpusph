@@ -35,4 +35,6 @@
  * thus eligible for a single burst transfer.
  * Cells with consecutive COORD1 are consecutive in their linearized index. */
 
+#ifndef USE_CMAKE
 #include "linearization_select.opt"
+#endif

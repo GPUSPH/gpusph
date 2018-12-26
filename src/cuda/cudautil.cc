@@ -1,7 +1,10 @@
 #include <cstdio>
 
 #include "cudautil.h"
+#ifndef USE_CMAKE
 #include "compute_select.opt"
+#endif
+
 
 // TODO: errors should be thrown properly, the functions should not brutally terminate everything.
 // Furthermore, the number of CUDA devices could be checked before the threads are started (i.e. when checking
