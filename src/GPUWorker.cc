@@ -1867,6 +1867,8 @@ template<>
 void GPUWorker::runCommand<REORDER>()
 // void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
+	static const flag_t multi_buffered = m_simframework->getAllocPolicy()->get_multi_buffered();
+
 	// reset also if the device is empty (or we will download uninitialized values)
 	setDeviceCellsAsEmpty();
 
@@ -1888,7 +1890,7 @@ void GPUWorker::runCommand<REORDER>()
 							m_numParticles,
 							m_dNewNumParticles);
 
-	flag_t sorted_buffers = sorted.get_updated_buffers();
+	flag_t sorted_buffers = sorted.get_updated_buffers() & multi_buffered;
 	clearBufferState(sorted_buffers | DBLBUFFER_READ);
 	setBufferValidity(sorted_buffers | DBLBUFFER_READ, BUFFER_INVALID);
 
