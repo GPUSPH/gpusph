@@ -1909,6 +1909,8 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 
 void GPUSPH::buildNeibList()
 {
+	markIntegrationStep("unsorted", BUFFER_VALID, "", BUFFER_INVALID);
+
 	// run most of the following commands on all particles
 	gdata->only_internal = false;
 
@@ -1987,6 +1989,11 @@ void GPUSPH::buildNeibList()
 
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
+
+	// This isn't necessary because all buffers should have been marked appropriately
+	// by the kernels
+	// TODO verify
+	// markIntegrationStep("sorted", BUFFER_VALID, "", BUFFER_INVALID);
 
 	gdata->last_buildneibs_iteration = gdata->iterations;
 }
