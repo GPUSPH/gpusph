@@ -878,6 +878,18 @@ ifeq ($(wsl), 1)
 	CXXFLAGS += /EHsc
 endif
 
+# Suppresses display of sign-on banner
+ifeq ($(wsl), 1)
+	CXXFLAGS += /nologo
+endif
+
+# /FS Forces writes to the program database (PDB) file
+#	  to be serialized through MSPDBSRV.EXE. (parallel builds)
+# /Zf Improves PDB generation time in parallel builds.
+ifeq ($(wsl), 1)
+	CXXFLAGS += /Zf /FS
+endif
+
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
 ifeq ($(verbose), 1)
 	CUFLAGS += --ptxas-options=-v
