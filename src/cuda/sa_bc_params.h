@@ -211,6 +211,12 @@ struct sa_io_params
 };
 
 //! Parameters needed when cloning particles
+/*! Note that to initialize some of the data for the new particles we might
+ * need to access for writing some buffers that should otherwise be read-only,
+ * and may even write to buffers shared between states of the particle system.
+ * This is OK, but we need to inform the system about the safety of these
+ * accesses.
+ */
 struct sa_cloning_params
 {
 	// vel, gGam, eulerVel, tke and eps are already writeable in the mother structure,
@@ -235,11 +241,17 @@ struct sa_cloning_params
 		const	 uint _numDevices)
 	:
 		cloneForces(bufwrite.getData<BUFFER_FORCES>()),
-		cloneInfo(bufread_clone.getData<BUFFER_INFO>()),
+		cloneInfo(bufread_clone.getData<BUFFER_INFO,
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
 		cloneParticleHash(bufread_clone.getData<BUFFER_HASH>()),
-		cloneVertices(bufwrite.getData<BUFFER_VERTICES>()),
-		cloneBoundElems(bufread_clone.getData<BUFFER_BOUNDELEMENTS>()),
-		nextIDs(bufwrite.getData<BUFFER_NEXTID>()),
+		cloneVertices(bufwrite.getData<BUFFER_VERTICES,
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		cloneBoundElems(bufread_clone.getData<BUFFER_BOUNDELEMENTS,
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		nextIDs(bufwrite.getData<BUFFER_NEXTID,
+			// TODO FIXME rather than being multi-state safe,
+			// access to nextIDs should simply set the n+1 state
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
 		newNumParticles(_newNumParticles),
 		totParticles(_totParticles),
 		deviceId(_deviceId),

@@ -547,6 +547,16 @@ public:
 		else return NULL;
 	}
 
+	/*! In some circumstances, we might want to access a buffer under conditions
+	 * that should normally raise an error. This can be overridden by allowing
+	 * manually specifying that we know we are violating some constratins, so the
+	 * error should not be flagged
+	 */
+	enum AccessSafety {
+		NO_SAFETY, ///< No special safety consideration
+		MULTISTATE_SAFE, ///< Safe to access multi-state buffers for writing
+	};
+
 
 	/* In most cases, user wants access directly to a specific array of a given buffer
 	 * possibly with correct typing, which is exactly what this method does,
@@ -555,7 +565,8 @@ public:
 	 * The static cast is necessary because the get_buffer() method must return a void*
 	 * due to overloading rules.
 	 */
-	template<flag_t Key>
+	template<flag_t Key, ///< key of the buffer to retrieve
+		AccessSafety safety = NO_SAFETY> ///< 
 	DATA_TYPE(Key) *getData(uint num=0) {
 		map_type::iterator exists = m_map.find(Key);
 		if (exists == m_map.end())
@@ -579,6 +590,19 @@ public:
 			break;
 		}
 		DEBUG_INSPECT_BUFFER("]" << std::endl);
+
+		// Multi-state buffers shouldn't be accessed for writing,
+		// under normal conditions.
+		if (buf->state().size() > 1) {
+			std::string errmsg = "access multi-state buffer " +
+				buf->inspect() + " for writing";
+			if (safety & MULTISTATE_SAFE) {
+				DEBUG_INSPECT_BUFFER(errmsg);
+			} else {
+				throw std::invalid_argument(errmsg);
+			}
+		}
+
 
 		m_updated_buffers |= Key;
 		buf->mark_dirty();
@@ -622,6 +646,10 @@ public:
 		buffer_ptr_type<Key> buf = this->get<Key>();
 		if (!buf)
 			return NULL;
+
+		if (buf->state().size() > 1)
+			throw std::invalid_argument("trying to access multi-state buffer " +
+				buf->inspect() + " for writing");
 
 		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [raw ptr ");
 		switch (m_has_pending_state) {

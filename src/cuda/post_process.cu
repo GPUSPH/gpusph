@@ -247,7 +247,8 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* in-place update! */
-		particleinfo *newInfo = const_cast<BufferList&>(bufread).getData<BUFFER_INFO>();
+		particleinfo *newInfo = const_cast<BufferList&>(bufread).getData<BUFFER_INFO,
+			BufferList::AccessSafety::MULTISTATE_SAFE>();
 
 		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
 

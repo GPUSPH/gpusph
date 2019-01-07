@@ -78,7 +78,13 @@ disableOutgoingParts(const	BufferList& bufread,
 {
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	float4 *pos = bufwrite.getData<BUFFER_POS>();
-	vertexinfo *vertices = bufwrite.getData<BUFFER_VERTICES>();
+	// We abuse the VERTICES array, which is otherwise unused by fluid particles,
+	// to store the vertices of the boundary element crossed by outgoing particles.
+	// Since the VERTICES array is shared across states unless we also have moving
+	// objects, accessing it for writing here would not be allowed; but we know
+	// we can do it anyway, so we use the “unsafe” version of getData
+	vertexinfo *vertices = bufwrite.getData<BUFFER_VERTICES,
+		BufferList::AccessSafety::MULTISTATE_SAFE>();
 
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -234,7 +240,9 @@ findOutgoingSegment(
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 
 	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
+	// See note about vertices in disableOutgoingParts
+	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES,
+		BufferList::AccessSafety::MULTISTATE_SAFE>());
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
