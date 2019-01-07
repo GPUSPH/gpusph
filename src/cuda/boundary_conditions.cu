@@ -285,7 +285,7 @@ saVertexBoundaryConditionsImpl(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-	const	particleinfo	*info(const_cast<BufferList&>(bufread).getData<BUFFER_INFO>());
+	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
