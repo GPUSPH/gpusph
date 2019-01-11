@@ -394,9 +394,11 @@ public:
  */
 class BufferList
 {
+public:
 	typedef std::shared_ptr<AbstractBuffer> ptr_type;
 	typedef std::shared_ptr<const AbstractBuffer> const_ptr_type;
 
+private:
 	template<flag_t Key>
 	using buffer_ptr_type = std::shared_ptr<Buffer<Key>>;
 	template<flag_t Key>
@@ -749,9 +751,28 @@ public:
 class MultiBufferList
 {
 public:
+	typedef BufferList::ptr_type ptr_type;
+
+private:
 	// buffer allocation policy
 	std::shared_ptr<const BufferAllocPolicy> m_policy;
 
+	// Pool of buffers: this holds all the available copy of each
+	// allocated buffer, when not in use in a specific state
+	std::map<flag_t, std::vector<ptr_type>> m_pool;
+
+	// Particle system states: indexed by the state name (currently a string),
+	// they map to a BufferList of the buffers in that state
+	std::map<std::string, BufferList> m_state;
+
+	// Keys of Buffers added so far
+	// It's a set instead of a single flag_t to allow iteration on it
+	// without bit-shuffling. Might change.
+	// TODO check if we still need it, we could simply take the list
+	// of keys available in m_pool.
+	std::set<flag_t> m_buffer_keys;
+
+	// Legacy double-buffered list management:
 	// TODO FIXME this is for double-buffered lists only
 	// In general we would have N writable list (N=1 usually)
 	// and M read-only lists (M >= 1), with the number of each
@@ -761,11 +782,6 @@ public:
 
 	// list of BufferLists
 	std::array<BufferList, 2> m_lists;
-
-	// Keys of Buffers added so far
-	// It's a set instead of a single flag_t to allow iteration on it
-	// without bit-shuffling. Might change.
-	std::set<flag_t> m_buffer_keys;
 
 public:
 
@@ -780,12 +796,16 @@ public:
 		if (!m_policy)
 			return;
 
-		// clear the lists
-		for (auto& list : m_lists)
-			list.clear();
+		// clear the states and pool
+		m_state.clear();
+		m_pool.clear();
 
 		// and purge the list of keys too
 		m_buffer_keys.clear();
+
+		// clear the lists
+		for (auto& list : m_lists)
+			list.clear();
 	}
 
 	void setAllocPolicy(std::shared_ptr<const BufferAllocPolicy> _policy)
@@ -828,15 +848,17 @@ public:
 			for (size_t c = 0; c < m_lists.size(); ++c) {
 				std::shared_ptr<AbstractBuffer> buff = std::make_shared<BufferClass<Key>>(_init);
 				/* R for Read, W for Write */
-				buff->set_uid((c == READ_LIST ? "0R" : "0W") +
-					(std::to_string(Key)));
+				buff->set_uid((c == READ_LIST ? "0R" : "0W") + std::to_string(Key));
+				m_pool[Key].push_back(buff);
+
 				m_lists[c].addExistingBuffer(Key, buff);
 			}
 		} else {
 			// single-buffered, allocate once and put in all lists
 			std::shared_ptr<AbstractBuffer> buff = std::make_shared<BufferClass<Key>>(_init);
 			/* U for Unique */
-			buff->set_uid("0U" + (std::to_string(Key)));
+			buff->set_uid("0U" + std::to_string(Key));
+			m_pool[Key].push_back(buff);
 
 			for (auto& list : m_lists)
 				list.addExistingBuffer(Key, buff);
@@ -875,11 +897,12 @@ public:
 			return 0;
 
 		// get the corresponding buffer
-		const auto buf = m_lists[0][Key];
+		const auto& vec = m_pool.at(Key);
+		const auto buf = vec.front();
 
 		size_t single = buf->get_element_size();
 		single *= buf->get_array_count();
-		single *= m_policy->get_buffer_count(Key);
+		single *= vec.size();
 
 		return single*nels;
 	}
@@ -890,12 +913,10 @@ public:
 	{
 		// number of actual instances of the buffer
 		const size_t count = m_policy->get_buffer_count(Key);
-		size_t list_idx = 0;
+		auto& vec = m_pool.at(Key);
 		size_t allocated = 0;
-		while (list_idx < count) {
-			allocated += m_lists[list_idx][Key]->alloc(nels);
-			++list_idx;
-		}
+		for (auto buf : vec)
+			allocated += buf->alloc(nels);
 		return allocated;
 	}
 

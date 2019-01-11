@@ -56,13 +56,35 @@ string MultiBufferList::inspect() const
 		_desc << k;
 		++count;
 	}
+	_desc << "\n";
 
 	key_width = to_string(max_key).size();
 
-	_desc << "\n\tREAD list:\t";
+	for (auto const& sv : m_state) {
+		_desc << "\tState " << sv.first << "\n";
+		count = 0;
+		for (auto const& pair : sv.second) {
+			_desc << "\t\t\t";
+			_desc << setw(key_width) << right << pair.first;
+			_desc << "\t" + pair.second->inspect() << "\n";
+			++count;
+		}
+	}
+
+	_desc << "\tPool:\n";
+
+	for (auto const& sv : m_pool) {
+		_desc << "\t\t" << setw(key_width) << right << sv.first << ":\n";
+		for (auto const& b : sv.second) {
+			_desc << "\t\t\t" + b->inspect() << "\n";
+			++count;
+		}
+	}
+
+	_desc << "\tREAD list:\t";
 
 	count = 0;
-	for (auto pair : m_lists[READ_LIST]) {
+	for (auto const& pair : m_lists[READ_LIST]) {
 		if (count > 0) _desc << "\n\t\t\t";
 		_desc << setw(key_width) << right << pair.first;
 		_desc << "\t" + pair.second->inspect();
@@ -71,7 +93,7 @@ string MultiBufferList::inspect() const
 	_desc << "\n\tWRITE list:\t";
 
 	count = 0;
-	for (auto pair : m_lists[WRITE_LIST]) {
+	for (auto const& pair : m_lists[WRITE_LIST]) {
 		if (count > 0) _desc << "\n\t\t\t";
 		_desc << setw(key_width) << right << pair.first;
 		_desc << "\t" + pair.second->inspect();
