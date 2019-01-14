@@ -530,6 +530,13 @@ void setExtraCommandArg(GlobalData *gdata, const char *arg)
 void setExtraCommandArg(GlobalData *gdata, std::string const& arg)
 { gdata->extraCommandArg.string = arg; }
 
+void setExtraCommandArg(GlobalData *gdata, std::string const& arg1, std::string const& arg2)
+{
+	gdata->extraCommandArg.strings.clear();
+	gdata->extraCommandArg.strings.push_back(arg1);
+	gdata->extraCommandArg.strings.push_back(arg2);
+}
+
 template<typename T>
 enable_if_t<CanBeStoredInFlag<T>::value>
 setExtraCommandArg(GlobalData *gdata, T arg)
@@ -547,6 +554,20 @@ GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
 {
 	setExtraCommandArg(gdata, arg);
 	doCommand(cmd, flags);
+}
+
+void
+GPUSPH::doCommand(CommandType cmd, flag_t flags, std::string const& src, std::string const& dst)
+{
+	setExtraCommandArg(gdata, src, dst);
+	doCommand(cmd, flags);
+}
+
+void
+GPUSPH::doCommand(CommandType cmd, std::string const& src)
+{
+	setExtraCommandArg(gdata, src);
+	doCommand(cmd, NO_FLAGS);
 }
 
 // an empty set of PostProcessEngines, to be used when we want to save
@@ -792,8 +813,15 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
-	// this is where we invoke initialization routines that have to be
-	// run by the GPUWokers
+	// Each complete integration step operates reading the information from “step n”
+	// to produce the configuration at “step n+1”; the initial upload brings the particle
+	// into a particle system “initial upload”, which we now rename to “step n”
+	doCommand(RENAME_STATE, "initial upload", "step n");
+
+	// Some formulations require stuff to be done before the beginning of the
+	// main loop (partially, this is stuff that is also done at the end of each
+	// time-step, but since there is no time-step preceding the first one,
+	// that's done here).
 	const bool needs_preparation = (
 		(problem->simparams()->gcallback) ||
 		(problem->simparams()->boundarytype == SA_BOUNDARY)

@@ -66,6 +66,18 @@ DEFINE_COMMAND_DYN(ADD_BUFFER_STATE)
 /// Set the validity of the given buffers
 DEFINE_COMMAND_DYN(SET_BUFFER_VALIDITY)
 
+/// Initialize a new (invalid) ParticleSystem state
+DEFINE_COMMAND_NOBUF(INIT_STATE)
+/// Change the name of a ParticleSystem state
+DEFINE_COMMAND_NOBUF(RENAME_STATE)
+/// Release a ParticleSystem state
+DEFINE_COMMAND_NOBUF(RELEASE_STATE)
+
+/// Share buffers between states
+/*! Arguments: buffers, “source” state, “destination” state
+ */
+DEFINE_COMMAND_DYN(SHARE_BUFFERS)
+
 /// Swap double-buffered buffers
 DEFINE_COMMAND_DYN(SWAP_BUFFERS)
 

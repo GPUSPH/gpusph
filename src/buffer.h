@@ -30,6 +30,7 @@
 #ifndef _BUFFER_H
 #define _BUFFER_H
 
+#include <algorithm>
 #include <memory>
 #include <array>
 #include <map>
@@ -144,6 +145,9 @@ public:
 	// get buffer state
 	inline std::vector<std::string> const& state() const { return m_state; }
 
+	// get number of states
+	inline size_t num_states() const { return m_state.size(); }
+
 	// change buffer state
 	inline void clear_state()
 	{
@@ -162,6 +166,16 @@ public:
 				" to buffer " + get_buffer_name() + " without state");
 		m_state.push_back(state);
 	}
+	// remove buffer state, return number of states still present
+	inline size_t remove_state(std::string const& state) {
+		auto found = std::find(m_state.begin(), m_state.end(), state);
+		if (found == m_state.end())
+			throw std::runtime_error("trying to remove unassinged buffer state " +
+				state);
+		m_state.erase(found);
+		return m_state.size();
+	}
+
 	inline void copy_state(AbstractBuffer const* other)
 	{
 		clear_state();
@@ -649,7 +663,7 @@ public:
 		if (!buf)
 			return NULL;
 
-		if (buf->state().size() > 1)
+		if (buf->num_states() > 1)
 			throw std::invalid_argument("trying to access multi-state buffer " +
 				buf->inspect() + " for writing");
 
@@ -747,6 +761,19 @@ public:
  *
  * TODO FIXME the code currently assumes that buffers are _at most_ double-buffered.
  * This whole thing will soon be removed by the ParticleSystem::State mechanism.
+ *
+ * \note The hardest parts during the transition to the new approach is making the two
+ * forms coexist, meaning that buffers should remain accessible both via the old
+ * READ/WRITE “fixed” lists and via the new “state selection” mechanism, even though
+ * any specific kernel should only be able to access them only through one of the schemes,
+ * not both: doing this allows us to migrate the kernels gradually, verifying each
+ * single step, and deprecating the old interface only after all kernels have been
+ * successfully migrated.
+ *
+ * This will inevitably require some duplication of information and slower execution,
+ * due to the need to keep the two views of the particle system in sync. Some
+ * additional commands will also be introduced, to manage the parts of this synchronization
+ * that cannot be modelled automatically.
  */
 class MultiBufferList
 {
@@ -782,6 +809,18 @@ private:
 
 	// list of BufferLists
 	std::array<BufferList, 2> m_lists;
+
+	//! Put a buffer back into the pool
+	void pool_buffer(flag_t key, ptr_type buf)
+	{
+		m_pool[key].push_back(buf);
+
+		/* Reset the buffer state */
+		buf->mark_invalid();
+		buf->set_state(std::string());
+	}
+	inline void pool_buffer(std::pair<flag_t, ptr_type> const& key_buf)
+	{ pool_buffer(key_buf.first, key_buf.second); }
 
 public:
 
@@ -865,7 +904,7 @@ public:
 		}
 	}
 
-	/* Swap the lists the given buffers belong to */
+	//! Swap the READ/WRITE lists the given buffers belong to
 	// TODO make this a cyclic rotation for the case > 2
 	void swapBuffers(flag_t keys) {
 		std::set<flag_t>::const_iterator iter = m_buffer_keys.begin();
@@ -883,6 +922,163 @@ public:
 		}
 
 	}
+
+
+	//! Create a new State
+	/*! The State will hold an unitialized copy of each of the buffers
+	 * specified in keys. A buffer not being available will result in
+	 * failure.
+	 */
+	void initialize_state(std::string const& state, flag_t req_keys)
+	{
+		auto ret = m_state.insert(std::make_pair(state, BufferList()));
+		if (!ret.second)
+			throw std::runtime_error("state " + state + " already exists");
+
+		BufferList& list = ret.first->second;
+
+		// loop over all keys available in the pool, and only operate
+		// on the ones that have been requested too
+		// TODO we do it this way at the moment to allow a general
+		// req_keys specification for all models (e.g. SA buffers
+		// in non-SA mode), but in the future it should be fine tuned
+		// to ensure that only the needed buffers are in req_keys
+		// (no extra buffers), and all of them can be loaded
+		for (auto key : m_buffer_keys) {
+			// skip unrequested keys
+			if ( !(key & req_keys) )
+				continue;
+			auto& bufvec = m_pool.at(key);
+			if (bufvec.empty()) {
+				std::string errmsg = "no buffers with key "
+					+ std::to_string(key) + " available for state "
+					+ state;
+				throw std::runtime_error(errmsg);
+			}
+
+			auto buf = bufvec.back();
+			list.addExistingBuffer(key, buf);
+			buf->set_state(state);
+			bufvec.pop_back();
+		}
+	}
+
+	//! Create a new State from a legacy list (read or write)
+	/*! Similar to initialize_state(state, req_keys), but fetch buffers from
+	 * the given bufferlist instead of the pool. If any of the buffers is already in use
+	 * by a different state, abort.
+	 */
+	void initialize_state(std::string const& state, BufferList& src, flag_t req_keys)
+	{
+		auto ret = m_state.insert(std::make_pair(state, BufferList()));
+		if (!ret.second)
+			throw std::runtime_error("state " + state + " already exists");
+
+		BufferList& dst = ret.first->second;
+		for (auto pair : src) {
+			// skip unrequested keys
+			flag_t key = pair.first;
+			if ( !(key & req_keys) )
+				continue;
+			auto buf = pair.second;
+			if (buf->state().empty()) {
+				dst.addExistingBuffer(key, buf);
+				buf->set_state(state);
+				/* We still need to remove the buffer from the pool */
+				auto& pooled = m_pool.at(key);
+				auto found = std::find(pooled.begin(), pooled.end(), buf);
+				if (found == pooled.end())
+					throw std::runtime_error(buf->get_buffer_name()
+						+ std::string(" not found in the pool"));
+				pooled.erase(found);
+			} else {
+				throw std::runtime_error(buf->get_buffer_name()
+					+ std::string(" already in state")
+					+ buf->state()[0]);
+			}
+		}
+
+	}
+
+	//! Release all the buffers in a particular state back to the free pool
+	void release_state(std::string const& state)
+	{
+		// TODO throw a more explicative error than the default
+		// if the state is not found
+		BufferList& list = m_state.at(state);
+		for (auto kb : list) {
+			/* remove the state from the buffer states, and
+			 * pool the buffer if there are no more states */
+			if (kb.second->remove_state(state) == 0)
+				pool_buffer(kb);
+		}
+		m_state.erase(state);
+	}
+
+	//! Rename the state of a BufferList representing a ParticleSystem state
+	/*! \note assumes that the new state does not exist yet, throws if found
+	 */
+	void rename_state(std::string const& old_state, std::string const& new_state)
+	{
+		// TODO throw a more explicative error than the default
+		// if the state is not found
+		BufferList& list = m_state.at(old_state);
+
+		auto ret = m_state.insert(std::make_pair(new_state, list));
+		if (!ret.second)
+			throw std::runtime_error("state " + new_state + " exists already");
+
+		/* Reset the state for all buffers */
+		for (auto kb : list) {
+			ptr_type buf = kb.second;
+
+			buf->set_state(new_state);
+		}
+
+		m_state.erase(old_state);
+	}
+
+	//! Share a buffer between states
+	/*! In some circumstances, a buffer will consistently have the same value
+	 * across states, either always (e.g. the INFO buffer is the same for step n and step n+1)
+	 * or under particular conditions (e.g. no moving objects).
+	 * In these cases, however, we will prevent write access to the buffer.
+	 * This method fails if the destination state has the buffers already
+	 * in a non-invalid state.
+	 */
+	void share_buffers(std::string const& src_state, std::string const& dst_state,
+		flag_t shared_buffers)
+	{
+		BufferList& src = m_state.at(src_state);
+		BufferList& dst = m_state.at(dst_state);
+
+		for (auto pair : src) {
+			flag_t key = pair.first;
+			if ( !(key & shared_buffers) )
+				continue;
+			ptr_type old = dst[key];
+			pair.second->add_state(dst_state);
+			if (!old) {
+				dst.addExistingBuffer(key, pair.second);
+				continue;
+			}
+			/* there was a buffer already: we pool it if it was invalid and not
+			 * shared already */
+			if (!old->is_invalid())
+				throw std::runtime_error("trying to replace valid buffer "
+					+ std::string(old->get_buffer_name()) + " in state " +
+					dst_state + " with shared buffer from state " +
+					src_state);
+			if (!old->num_states() == 1)
+				throw std::runtime_error("trying to shared buffer "
+					+ std::string(old->get_buffer_name()) + " in state " +
+					dst_state + " with shared buffer from state " +
+					src_state);
+			dst.replaceBuffer(key, pair.second);
+			pool_buffer(key, old);
+		}
+	}
+
 
 	/* Get the set of Keys for which buffers have been added */
 	const std::set<flag_t>& get_keys() const
@@ -935,6 +1131,14 @@ public:
 			throw std::runtime_error("asked for non-existing buffer list");
 		return m_lists[idx];
 	}
+
+	/* Get the buffer list of a specific state */
+	BufferList& getState(std::string const& str)
+	{ return m_state.at(str); }
+	/* Get the buffer list of a specific state (const) */
+	const BufferList& getState(std::string const& str) const
+	{ return m_state.at(str); }
+
 
 	/* Get the read-only buffer list */
 	BufferList& getReadBufferList()

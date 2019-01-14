@@ -1251,8 +1251,12 @@ void GPUWorker::runCommand<SET_BUFFER_VALIDITY>()
 	setBufferValidity(gdata->commandFlags, BufferValidity(gdata->extraCommandArg.flag));
 }
 
-// upload subdomain, just allocated and sorted by main thread
+//! Upload subdomain to an “initial upload” state
+/*! Data is taken from the buffers allocated and sorted on host
+ */
 void GPUWorker::uploadSubdomain() {
+	m_dBuffers.initialize_state("initial upload", IMPORT_BUFFERS);
+
 	// indices
 	const uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
 	const uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
@@ -1262,13 +1266,12 @@ void GPUWorker::uploadSubdomain() {
 
 	// buffers to skip in the upload. Rationale:
 	// POS_GLOBAL is computed on host from POS and HASH
-	// NORMALS and VORTICITY are post-processing, so always produced on device
-	// and _downloaded_ to host, never uploaded
-	static const flag_t skip_bufs = BUFFER_POS_GLOBAL |
-		BUFFER_NORMALS | BUFFER_VORTICITY;
+	// ephemeral buffers (including post-process results such as NORMALS and VORTICITY)
+	// are  produced on device and _downloaded_ to host, never uploaded
+	static const flag_t skip_bufs = BUFFER_POS_GLOBAL | EPHEMERAL_BUFFERS;
 
 	// we upload data to the READ buffers
-	BufferList& buflist = m_dBuffers.getReadBufferList();
+	BufferList& buflist = m_dBuffers.getState("initial upload");
 
 	// iterate over each array in the _host_ buffer list, and upload data
 	// to the (first) read buffer
@@ -1281,6 +1284,9 @@ void GPUWorker::uploadSubdomain() {
 			continue;
 
 		auto buf = buflist[buf_to_up];
+		if (!buf)
+			throw runtime_error(string("Host buffer ") + onhost->second->get_buffer_name() +
+				" has no GPU counterpart");
 		size_t _size = howManyParticles * buf->get_element_size();
 
 		printf("Thread %d uploading %d %s items (%s) on device %d from position %d\n",
@@ -1300,6 +1306,37 @@ void GPUWorker::uploadSubdomain() {
 		buf->mark_valid();
 	}
 }
+
+// Initialize a new particle system state, holding only the particle buffers
+template<>
+void GPUWorker::runCommand<INIT_STATE>()
+{
+	m_dBuffers.initialize_state(gdata->extraCommandArg.string, PARTICLE_PROPS_BUFFERS);
+}
+
+// Rename a particle state
+template<>
+void GPUWorker::runCommand<RENAME_STATE>()
+{
+	auto const& args(gdata->extraCommandArg.strings);
+	m_dBuffers.rename_state(args[0], args[1]);
+}
+
+// Release a particle system state
+template<>
+void GPUWorker::runCommand<RELEASE_STATE>()
+{
+	m_dBuffers.release_state(gdata->extraCommandArg.string);
+}
+
+// Share buffers between states
+template<>
+void GPUWorker::runCommand<SHARE_BUFFERS>()
+{
+	auto const& args(gdata->extraCommandArg.strings);
+	m_dBuffers.share_buffers(args[0], args[1], gdata->commandFlags);
+}
+
 
 // Download the subset of the specified buffer to the correspondent shared CPU array.
 // Makes multiple transfers. Only downloads the subset relative to the internal particles.
