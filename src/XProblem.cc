@@ -633,9 +633,9 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 }
 
 GeometryID XProblem::addPlane(
-	const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff)
+	const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff, const FillType ftype)
 {
-	return addGeometry(GT_PLANE, FT_NOFILL,
+	return addGeometry(GT_PLANE, ftype,
 		new Plane( a_coeff, b_coeff, c_coeff, d_coeff )
 	);
 }
@@ -1321,6 +1321,9 @@ int XProblem::fill_parts(bool fill)
 				m_geometries[g]->ptr->Intersect(m_boundaryParts, unfill_dx);
 		}
 
+		if (m_geometries[g]->fill_type == FT_UNFILL)
+			continue;
+
 		// after making some space, fill
 		if (fill) {
 			switch (m_geometries[g]->fill_type) {
@@ -1455,6 +1458,9 @@ void XProblem::copy_planes(PlaneList &planes)
 
 		// skip deleted
 		if (! m_geometries[gid]->enabled) continue;
+
+		if ( m_geometries[gid]->fill_type == FT_UNFILL)
+			continue;
 
 		// not a plane?
 		if (m_geometries[gid]->type != GT_PLANE) continue;
