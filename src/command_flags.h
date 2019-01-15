@@ -85,7 +85,6 @@ constexpr int get_step_number(flag_t flags)
 #define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
 /*! @} */
 
-
 //! \name Buffer key specifications
 /*! Flags that indicate which buffer shuld be accessed for swaps, uploads, updates, etc.
  * These start from the next available bit from the bottom (i.e. after the LAST_DEFINED_STEP),

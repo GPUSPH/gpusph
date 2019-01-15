@@ -1255,7 +1255,19 @@ void GPUWorker::runCommand<SET_BUFFER_VALIDITY>()
 /*! Data is taken from the buffers allocated and sorted on host
  */
 void GPUWorker::uploadSubdomain() {
-	m_dBuffers.initialize_state("initial upload", IMPORT_BUFFERS);
+	// buffers to skip in the upload. Rationale:
+	// POS_GLOBAL is computed on host from POS and HASH
+	// ephemeral buffers (including post-process results such as NORMALS and VORTICITY)
+	// are produced on device and _downloaded_ to host, never uploaded
+	// VERTPOS, while not ephemeral, is computed from scratch at each neighbors list construction,
+	// and should should not be undumped
+	// (note that HASH is _updated_ during the list, so we do need to upload it)
+	static const flag_t skip_bufs = BUFFER_POS_GLOBAL | EPHEMERAL_BUFFERS | BUFFER_VERTPOS;
+
+	// The list of buffers to be imported: this is the same as the list used for
+	// APPEND_EXTERNAL, minus the skippable buffers above
+	m_dBuffers.initialize_state("initial upload",
+		(IMPORT_BUFFERS | BUFFER_COMPACT_DEV_MAP) & ~skip_bufs);
 
 	// indices
 	const uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
@@ -1263,12 +1275,6 @@ void GPUWorker::uploadSubdomain() {
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
-
-	// buffers to skip in the upload. Rationale:
-	// POS_GLOBAL is computed on host from POS and HASH
-	// ephemeral buffers (including post-process results such as NORMALS and VORTICITY)
-	// are  produced on device and _downloaded_ to host, never uploaded
-	static const flag_t skip_bufs = BUFFER_POS_GLOBAL | EPHEMERAL_BUFFERS;
 
 	// we upload data to the READ buffers
 	BufferList& buflist = m_dBuffers.getState("initial upload");
@@ -1280,12 +1286,20 @@ void GPUWorker::uploadSubdomain() {
 	const BufferList::const_iterator stop = gdata->s_hBuffers.end();
 	for ( ; onhost != stop ; ++onhost) {
 		flag_t buf_to_up = onhost->first;
+		shared_ptr<const AbstractBuffer> host_buf = onhost->second;
+
 		if (buf_to_up & skip_bufs)
 			continue;
 
+		if (host_buf->is_invalid()) {
+			printf("Thread %d skipping host buffer %s for device %d (invalid buffer)\n",
+				m_deviceIndex, host_buf->get_buffer_name(), m_cudaDeviceNumber);
+			continue;
+		}
+
 		auto buf = buflist[buf_to_up];
 		if (!buf)
-			throw runtime_error(string("Host buffer ") + onhost->second->get_buffer_name() +
+			throw runtime_error(string("Host buffer ") + host_buf->get_buffer_name() +
 				" has no GPU counterpart");
 		size_t _size = howManyParticles * buf->get_element_size();
 
@@ -1298,7 +1312,7 @@ void GPUWorker::uploadSubdomain() {
 		// and VERTPOS) have no host counterpart)
 		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
 			void *dstptr = buf->get_buffer(ai);
-			const void *srcptr = onhost->second->get_offset_buffer(ai, firstInnerParticle);
+			const void *srcptr = host_buf->get_offset_buffer(ai, firstInnerParticle);
 			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
 		}
 
@@ -1953,13 +1967,14 @@ void GPUWorker::runCommand<SORT>()
 	if (numPartsToElaborate == 0) return;
 
 	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
-	bufwrite.set_state_on_write("sorted");
+	bufwrite.add_manipulator_on_write("sort");
 
 	neibsEngine->sort(
 			m_dBuffers.getReadBufferList(),
 			bufwrite,
 			numPartsToElaborate);
 
+	m_dBuffers.change_buffers_state(bufwrite.get_updated_buffers(), "unsorted", "sorted");
 	bufwrite.clear_pending_state();
 }
 
@@ -1975,10 +1990,12 @@ void GPUWorker::runCommand<REORDER>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	const BufferList& unsorted = m_dBuffers.getReadBufferList();
-	BufferList& sorted = m_dBuffers.getWriteBufferList();
+	// TODO cherry pick the buffers from that state that are actually going
+	// to be needed
+	const BufferList& unsorted = m_dBuffers.getState("unsorted");
+	BufferList& sorted = m_dBuffers.getState("sorted");
 
-	sorted.set_state_on_write("sorted");
+	sorted.add_manipulator_on_write("reorder");
 
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	neibsEngine->reorderDataAndFindCellStart(
@@ -1991,7 +2008,6 @@ void GPUWorker::runCommand<REORDER>()
 							m_dNewNumParticles);
 
 	flag_t sorted_buffers = sorted.get_updated_buffers() & multi_buffered;
-	clearBufferState(sorted_buffers | DBLBUFFER_READ);
 	setBufferValidity(sorted_buffers | DBLBUFFER_READ, BUFFER_INVALID);
 
 	sorted.clear_pending_state();
@@ -2011,7 +2027,7 @@ void GPUWorker::runCommand<BUILDNEIBS>()
 	BufferList const& bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 
-	bufwrite.set_state_on_write("neibslist");
+	bufwrite.add_manipulator_on_write("buildneibs");
 
 	// reset the neighbor list
 	bufwrite.get<BUFFER_NEIBSLIST>()->clobber();

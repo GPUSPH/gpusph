@@ -815,7 +815,16 @@ bool GPUSPH::runSimulation() {
 
 	// Each complete integration step operates reading the information from “step n”
 	// to produce the configuration at “step n+1”; the initial upload brings the particle
-	// into a particle system “initial upload”, which we now rename to “step n”
+	// into a particle system “initial upload”, which we rename to “step n” before
+	// entering the main simulation cycle.
+	// The state has an anomaly in the SA case though: on simulation start (but not
+	// on simulation resume) BUFFER_GRADGAMMA is uninitialized, so we will drop it
+	// from the state, and only reintroduce it before preparing the next step.
+	// To be more future proof, rather than using BUFFER_GRADAMMA specifically,
+	// we will get the list of invalid buffers on host and use that
+	flag_t invalid_host_buffers = getInvalidHostBuffers();
+	if (invalid_host_buffers)
+		doCommand(REMOVE_STATE_BUFFERS, "initial upload", invalid_host_buffers);
 	doCommand(RENAME_STATE, "initial upload", "step n");
 
 	// Some formulations require stuff to be done before the beginning of the
@@ -829,7 +838,11 @@ bool GPUSPH::runSimulation() {
 
 	// compute neighbour list for the first time. This is done regardless
 	// of preparations, since we need to do one anyway
-	buildNeibList();
+	// Exclude invalid buffers, if any
+	buildNeibList(~invalid_host_buffers);
+
+	if (invalid_host_buffers)
+		doCommand(ADD_STATE_BUFFERS, "step n", invalid_host_buffers);
 
 	if (needs_preparation) {
 		prepareNextStep(INITIALIZATION_STEP);
@@ -867,6 +880,12 @@ bool GPUSPH::runSimulation() {
 			 gdata->particlesCreated);
 
 		if (needs_new_neibs) {
+			// legacy bufferlist to states migration: resync "step n"
+			// state with the READ list
+			doCommand(RESYNC_STATE, "step n", DBLBUFFER_READ);
+			// remove ephemeral buffers from the particle system state
+			doCommand(REMOVE_STATE_BUFFERS, "step n", EPHEMERAL_BUFFERS);
+
 			buildNeibList();
 			if (Writer::HotWriterPending())
 				saveParticles(noPostProcess, HotWriteFlags);
@@ -1382,6 +1401,19 @@ void GPUSPH::checkBufferConsistency()
 #else
 	throw runtime_error("cannot check buffer consistency without INSPECT_DEVICE_MEMORY");
 #endif
+}
+
+/// Get the list of invalid host buffers
+flag_t GPUSPH::getInvalidHostBuffers()
+{
+	flag_t invalid_host_buffers = NO_FLAGS;
+	for (auto const& kb : gdata->s_hBuffers) {
+		if (kb.second->is_invalid()) {
+			cout << kb.second->get_buffer_name() << " is invalid" << endl;
+			invalid_host_buffers |= kb.first;
+		}
+	}
+	return invalid_host_buffers;
 }
 
 /// Initialize the array holding the IDs of the next generated particles
@@ -1935,9 +1967,34 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 	doWrite(write_flags);
 }
 
-void GPUSPH::buildNeibList()
+void GPUSPH::buildNeibList(flag_t allowed_buffers)
 {
-	markIntegrationStep("unsorted", BUFFER_VALID, "", BUFFER_INVALID);
+	// We want to sort the particles starting from the state “step n”.
+	// We remove the cell, neibslist and vertex position buffers, invalidating them.
+	// They will be added to the sorted state, to be reinitialized during hash computation
+	// and neighbors list construction
+#define NEIBS_SEQUENCE_REFRESH_BUFFERS \
+	( (BUFFERS_CELL & ~BUFFER_COMPACT_DEV_MAP) | BUFFER_NEIBSLIST | BUFFER_VERTPOS)
+	doCommand(REMOVE_STATE_BUFFERS, "step n", NEIBS_SEQUENCE_REFRESH_BUFFERS);
+
+	// Rename the state to “unsorted”
+	doCommand(RENAME_STATE, "step n", "unsorted");
+
+	// The particle index starts from the unsorted state, initialized by CALCHASH below,
+	// and will be released after the reorder (not needed anymore)
+	doCommand(ADD_STATE_BUFFERS, "unsorted", BUFFER_PARTINDEX);
+
+	// Initialize the new particle system state (“sorted”) with all particle properties
+	// (except for BUFFER_INFO, which will be sorted in-place), plus the auxiliary buffers
+	// that get rebuilt during the sort and neighbors list construction
+	// (cell start/end, vertex relative positions and the neiblists itself)
+	doCommand(INIT_STATE, "sorted",
+		((PARTICLE_PROPS_BUFFERS | NEIBS_SEQUENCE_REFRESH_BUFFERS) & ~BUFFER_INFO)
+		& allowed_buffers);
+
+	// The compact device map (when present) carries over to the other state, unchanged
+	if (MULTI_DEVICE)
+		doCommand(SHARE_BUFFERS, "unsorted", "sorted", BUFFER_COMPACT_DEV_MAP);
 
 	// run most of the following commands on all particles
 	gdata->only_internal = false;
@@ -1953,6 +2010,14 @@ void GPUSPH::buildNeibList()
 	doCommand(SORT);
 	// reorder everything else
 	doCommand(REORDER);
+
+	// we don't need the PARTINDEX buffer anymore
+	// TODO since we only need PARTINDEX during sorting, and other ephemeral buffers
+	// such as FORCES only outside of sorting, we could spare some memory recycling
+	// one such ephemeral buffer in place of PARTINDEX
+	doCommand(REMOVE_STATE_BUFFERS, "sorted", BUFFER_PARTINDEX);
+	// we don't need the unsorted state anymore
+	doCommand(RELEASE_STATE, "unsorted");
 
 	// get the new number of particles: with inlet/outlets, they
 	// may have changed because of incoming/outgoing particle, otherwise
@@ -2018,10 +2083,7 @@ void GPUSPH::buildNeibList()
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
 
-	// This isn't necessary because all buffers should have been marked appropriately
-	// by the kernels
-	// TODO verify
-	// markIntegrationStep("sorted", BUFFER_VALID, "", BUFFER_INVALID);
+	doCommand(RENAME_STATE, "sorted", "step n");
 
 	gdata->last_buildneibs_iteration = gdata->iterations;
 }
@@ -2335,7 +2397,11 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	if (cFlag & INITIALIZATION_STEP) {
 
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
+		// we used to swap gamma here for SA_INIT_GAMMA, but
+		// we don't during this transition phase, because the state management
+		// for sorting actually makes it so that we want to work
+		// on the copy of GRADGAMMA that is already in the WRITE position
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// compute normal for vertices
 		doCommand(SA_COMPUTE_VERTEX_NORMAL);
