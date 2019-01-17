@@ -1563,6 +1563,10 @@ void GPUSPH::saveParticles(
 	if (simparams->turbmodel == SPS)
 		which_buffers |= BUFFER_SPS_TURBVISC;
 
+	// Get effective viscocity
+	if (NEEDS_EFFECTIVE_VISC(simparams->rheologytype))
+		which_buffers |= BUFFER_EFFVISC;
+
 	// get Eulerian velocity
 	if (simparams->simflags & ENABLE_INLET_OUTLET ||
 		simparams->turbmodel == KEPSILON)
