@@ -266,6 +266,14 @@ struct internal_energy_forces_params
 	{}
 };
 
+struct effective_visc_forces_params
+{
+	const float * __restrict__ effective_visc;
+	effective_visc_forces_params(BufferList const& bufread) :
+		effective_visc(bufread.getData<BUFFER_EFFVISC>())
+	{}
+};
+
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -275,7 +283,8 @@ template<KernelType _kerneltype,
 	flag_t _simflags,
 	ParticleType _cptype,
 	ParticleType _nptype,
-	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype)>
 struct forces_params : _ViscSpec,
 	common_forces_params,
 	COND_STRUCT((_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
@@ -285,7 +294,8 @@ struct forces_params : _ViscSpec,
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	COND_STRUCT(_has_keps, keps_forces_params),
-	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)
+	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params),
+	COND_STRUCT(_has_effective_visc, effective_visc_forces_params)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -302,6 +312,7 @@ struct forces_params : _ViscSpec,
 	static const ParticleType nptype = _nptype;
 
 	static const bool has_keps = _has_keps;
+	static const bool has_effective_visc = _has_effective_visc;
 	static const bool inviscid = rheologytype == INVISCID;
 
 	// This structure provides a constructor that takes as arguments the union of the
@@ -337,7 +348,8 @@ struct forces_params : _ViscSpec,
 			(bufread, bufwrite, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(has_keps, keps_forces_params)(bufread, bufwrite),
-		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(bufwrite)
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(bufwrite),
+		COND_STRUCT(has_effective_visc, effective_visc_forces_params)(bufread)
 	{}
 };
 
@@ -348,7 +360,8 @@ template<SPHFormulation _sph_formulation,
 	typename _ViscSpec,
 	flag_t _simflags,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
-	bool _inviscid = _ViscSpec::rheologytype == INVISCID>
+	bool _inviscid = _ViscSpec::rheologytype == INVISCID,
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype)>
 struct finalize_forces_params :
 	common_finalize_forces_params,
 	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
@@ -356,7 +369,8 @@ struct finalize_forces_params :
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_forces_params),
 	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	COND_STRUCT(_has_keps, keps_forces_params),
-	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)
+	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params),
+	COND_STRUCT(_has_effective_visc, effective_visc_forces_params)
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
@@ -369,6 +383,7 @@ struct finalize_forces_params :
 	static const flag_t simflags = _simflags;
 
 	static const bool has_keps = _has_keps;
+	static const bool has_effective_visc = _has_effective_visc;
 	static const bool inviscid = _inviscid;
 
 	// This structure provides a constructor that takes as arguments the union of the
@@ -394,7 +409,8 @@ struct finalize_forces_params :
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params)(bufread),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(has_keps, keps_forces_params)(bufread, bufwrite),
-		COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(bufwrite)
+		COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(bufwrite),
+		COND_STRUCT(has_effective_visc, effective_visc_forces_params)(bufread)
 	{}
 };
 

@@ -250,9 +250,15 @@ using cuphys::physical_density;
  */
 template<typename P>
 __device__ __forceinline__
-float // TODO this will be overloaded for non-constant viscosity (e.g. temperature dependent or non-Newtonian)
+enable_if_t<not P::has_effective_visc, float>
 get_laminar_visc_coeff(P const& pdata)
 { return d_visccoeff[fluid_num(pdata.info)]; }
+template<typename P>
+__device__ __forceinline__
+enable_if_t<P::has_effective_visc, float>
+get_laminar_visc_coeff(P const& pdata)
+{ return pdata.effective_visc; }
+
 template<typename P>
 __device__ __forceinline__
 enable_if_t<not P::has_keps, float>
@@ -625,6 +631,16 @@ struct keps_particle_data
 	{}
 };
 
+// Effective visc particle data
+struct effective_visc_particle_data
+{
+	const	float	effective_visc;
+
+	__device__ __forceinline__
+	effective_visc_particle_data(const uint index, effective_visc_forces_params const& params) :
+		effective_visc(params.effective_visc[index]) {}
+};
+
 // Precomputed pressure contribution
 // Automatic initialization of this beast is a bit messy because
 // (1) we want it to be const
@@ -658,8 +674,9 @@ struct keps_precalc_particle_data
 
 	// TODO double-check compvisc == DYNAMIC vs compvisc == KINEMATIC case for this
 	// initialization
+	template<typename Pt>
 	__device__ __forceinline__
-	keps_precalc_particle_data(float rho, common_particle_data const& pdata, keps_particle_data const& ke) :
+	keps_precalc_particle_data(float rho, Pt const& pdata, keps_particle_data const& ke) :
 		dkdt_precalc(rho*(get_laminar_visc_coeff(pdata) + ke.turbVisc)),
 		dedt_precalc(rho*(get_laminar_visc_coeff(pdata) + ke.turbVisc/1.3f))
 	{}
@@ -678,7 +695,8 @@ template<KernelType _kerneltype,
 	ParticleType _cptype,
 	ParticleType _nptype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
-	bool _has_sps = _ViscSpec::turbmodel == SPS>
+	bool _has_sps = _ViscSpec::turbmodel == SPS,
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -704,6 +722,7 @@ struct forces_particle_data :
 	// everything else is just for PT_FLUID
 	COND_STRUCT(_has_sps, sps_particle_data),
 	p_precalc_particle_data,
+	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
 	COND_STRUCT(_has_keps, keps_precalc_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -718,6 +737,7 @@ struct forces_particle_data :
 	static const ParticleType cptype = _cptype;
 	static const ParticleType nptype = _nptype;
 	static const bool has_keps = _has_keps;
+	static const bool has_effective_visc = _has_effective_visc;
 	static const bool has_sps = _has_sps;
 
 	// shorthand for the type of the forces params
@@ -742,6 +762,7 @@ struct forces_particle_data :
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
 		COND_STRUCT(has_sps, sps_particle_data)(_index),
 		p_precalc_particle_data(*this),
+		COND_STRUCT(_has_effective_visc, effective_visc_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_precalc_particle_data)(
 			physical_density(vel.w, fluid_num(_info)), *this, *this)
 	{}
@@ -763,7 +784,8 @@ template<SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	typename _ViscSpec,
 	flag_t _simflags,
-	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype)>
 struct finalize_forces_particle_data :
 	// included unconditionally for all particles:
 	common_finalize_particle_data,
@@ -771,6 +793,7 @@ struct finalize_forces_particle_data :
 	rb_particle_data,
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_particle_data),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data),
+	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
 	COND_STRUCT(_has_keps, keps_particle_data)
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -781,6 +804,7 @@ struct finalize_forces_particle_data :
 
 	static const flag_t simflags = _simflags;
 	static const bool has_keps = _has_keps;
+	static const bool has_effective_visc = _has_effective_visc;
 
 	// shorthand for the type of the forces params
 	typedef finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_t;
@@ -795,6 +819,7 @@ struct finalize_forces_particle_data :
 		rb_particle_data(_info),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params),
+		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params)
 		{}
 };
@@ -1050,7 +1075,8 @@ template<KernelType kerneltype,
 	ParticleType cptype,
 	ParticleType _nptype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
-	bool _has_sps = _ViscSpec::turbmodel == SPS>
+	bool _has_sps = _ViscSpec::turbmodel == SPS,
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype) >
 struct forces_neib_data :
 	common_neib_data,
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
@@ -1062,6 +1088,7 @@ struct forces_neib_data :
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || simflags & ENABLE_INLET_OUTLET),
 		eulerVel_neib_data),
+	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
 	// these are the same as the particle data
 	COND_STRUCT(_has_keps, keps_particle_data),
 	// precalculated pressure
@@ -1075,6 +1102,7 @@ struct forces_neib_data :
 
 	static constexpr ParticleType	nptype = _nptype;
 	static const bool has_keps = _has_keps;
+	static const bool has_effective_visc = _has_effective_visc;
 	static const bool has_sps = _has_sps;
 
 	// shortcut typedefs
@@ -1102,6 +1130,7 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
+		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
 		COND_STRUCT(has_sps, sps_particle_data)(_index),
 		p_precalc_particle_data(*this)
