@@ -413,7 +413,7 @@ struct common_segment_pout
 		vel(make_float4(0)),
 		// Gamma always needs to be recomputed when moving bodies are enabled.
 		// If not, we only need to compute if it wasn't defined
-		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || !isfinite(gGam.w))
+		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || Params::step == 0)
 	{
 		if (calcGam)
 			gGam.w = 0;
@@ -561,6 +561,7 @@ template<typename Params,
 	bool has_io = (Params::has_io),
 	bool has_keps = (Params::has_keps),
 	bool has_eulerVel = (has_io || has_keps),
+	bool initStep = (Params::step == 0),
 	typename eulervel_struct =
 		typename COND_STRUCT(has_eulerVel, eulervel_pout),
 	typename keps_struct =
