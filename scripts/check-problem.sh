@@ -22,6 +22,8 @@ echo "Testing ${problem} ..."
 outdir="tests/${problem}_${sfx}"
 refdir="tests/${problem}_${ref}"
 
+[ -d "$refdir" ] || abort "Reference directory $refdir for problem $problem not found"
+
 rm -rf "$outdir"
 
 make $problem && ./GPUSPH --dir "$outdir" --maxiter $maxiter || abort "Failed!"

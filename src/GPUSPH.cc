@@ -556,13 +556,52 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags)
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 
 	if (gdata->clOptions->repack || gdata->clOptions->repack_only) {
-		if (!repacked && !gdata->keep_repacking)
-			throw runtime_error("GPUSPH repacking aborted by worker thread");
-		if (repacked && !gdata->keep_going)
-			throw runtime_error("GPUSPH aborted by worker thread");
+    if (!repacked && !gdata->keep_repacking) {
+      throw runtime_error("GPUSPH repacking aborted by worker thread");
+      // Check buffer consistency after every call.
+      // Don't even bother with the conditional if it's not enabled though.
+      // TODO as things are now, all the calls from the first APPEND_EXTERNAL
+      // to the first EULER will complain about inconsistency in the WRITE buffers.
+      // With knowledge about which buffers are read/written to by each command, we
+      // could restrict ourselves to check those buffers; with the upcoming new
+      // Integrator and ParticleSystem classes, this will be easier, so let's not
+      // waste too much time on it at the moment.
+#ifdef INSPECT_DEVICE_MEMORY
+      if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
+        checkBufferConsistency();
+#endif
+    }
+    if (repacked && !gdata->keep_going) {
+      throw runtime_error("GPUSPH aborted by worker thread");
+      // Check buffer consistency after every call.
+      // Don't even bother with the conditional if it's not enabled though.
+      // TODO as things are now, all the calls from the first APPEND_EXTERNAL
+      // to the first EULER will complain about inconsistency in the WRITE buffers.
+      // With knowledge about which buffers are read/written to by each command, we
+      // could restrict ourselves to check those buffers; with the upcoming new
+      // Integrator and ParticleSystem classes, this will be easier, so let's not
+      // waste too much time on it at the moment.
+#ifdef INSPECT_DEVICE_MEMORY
+      if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
+        checkBufferConsistency();
+#endif
+    }
 	} else {
-		if (!gdata->keep_going)
-			throw runtime_error("GPUSPH aborted by worker thread");
+    if (!gdata->keep_going) {
+      throw runtime_error("GPUSPH aborted by worker thread");
+      // Check buffer consistency after every call.
+      // Don't even bother with the conditional if it's not enabled though.
+      // TODO as things are now, all the calls from the first APPEND_EXTERNAL
+      // to the first EULER will complain about inconsistency in the WRITE buffers.
+      // With knowledge about which buffers are read/written to by each command, we
+      // could restrict ourselves to check those buffers; with the upcoming new
+      // Integrator and ParticleSystem classes, this will be easier, so let's not
+      // waste too much time on it at the moment.
+#ifdef INSPECT_DEVICE_MEMORY
+      if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
+        checkBufferConsistency();
+#endif
+    }
 	}
 }
 
@@ -1521,6 +1560,113 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 
 }
 
+/// Check consistency of buffers across multiple GPUs
+/*! This verifies that the particle buffers have the same content for areas
+ * that are shared across devices (i.e. subdomain edges).
+ * \note This requires the code to be compiled with INSPECT_DEVICE_MEMORY,
+ * to ensure that device buffers are accessible on host.
+ */
+void GPUSPH::checkBufferConsistency()
+{
+#ifdef INSPECT_DEVICE_MEMORY
+	const devcount_t numdevs = gdata->devices;
+
+#define NUM_CHECK_LISTS 2
+	const char* buflist_name[NUM_CHECK_LISTS] = { "READ", "WRITE" };
+	std::vector<const BufferList *> buflist(numdevs*NUM_CHECK_LISTS);
+
+	for (devcount_t d = 0; d < numdevs; ++d) {
+		buflist[NUM_CHECK_LISTS*d + 0] = &gdata->GPUWORKERS[d]->getBufferList().getReadBufferList();
+		buflist[NUM_CHECK_LISTS*d + 1] = &gdata->GPUWORKERS[d]->getBufferList().getWriteBufferList();
+	}
+
+	std::vector<uint> numParticles(numdevs);
+	std::vector<uint> numInternalParticles(numdevs);
+
+	for (devcount_t d = 0; d < numdevs; ++d) {
+		numParticles[d] = gdata->GPUWORKERS[d]->getNumParticles();
+		numInternalParticles[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+	}
+
+	std::vector<particleinfo const*> infoArray(numdevs);
+	std::vector<float4 const*> posArray(numdevs);
+	std::vector<float4 const*> velArray(numdevs);
+
+	// TODO FIXME this is where we assume two devices, for faster calculation about
+	// which particles we have to compare against which
+
+	if (numdevs != 2)
+		throw runtime_error("sorry, buffer consistency check is only supported for two devices at the moment");
+
+	uint externalParticles[2] = {
+		numParticles[0] - numInternalParticles[0],
+		numParticles[1] - numInternalParticles[1]
+	};
+	uint edgeParticlesStart[2] = {
+		numInternalParticles[0] - externalParticles[1],
+		numInternalParticles[1] - externalParticles[0]
+	};
+
+	for (uint l = 0; l < NUM_CHECK_LISTS; ++l) {
+
+		for (devcount_t d = 0; d < numdevs; ++d) {
+			infoArray[d] = buflist[NUM_CHECK_LISTS*d + l]->getData<BUFFER_INFO>();
+			posArray[d] = buflist[NUM_CHECK_LISTS*d + l]->getData<BUFFER_POS>();
+			velArray[d] = buflist[NUM_CHECK_LISTS*d + l]->getData<BUFFER_VEL>();
+		}
+
+		// Check the external particles of each device against their counterparts on the devices where these are edge internal
+		for (uint d = 0; d < numdevs; ++d) {
+			const uint neib_d = 1 - d; // TODO FIXME numdevs == 2
+			for (uint p = 0; p < externalParticles[d]; ++p) {
+				uint offset = numInternalParticles[d] + p;
+				uint neib_offset = edgeParticlesStart[neib_d] + p;
+
+				const particleinfo info = infoArray[d][offset];
+				const particleinfo neib_info = infoArray[neib_d][neib_offset];
+				const float4 pos = posArray[d][offset];
+				const float4 neib_pos = posArray[neib_d][neib_offset];
+				const float4 vel = velArray[d][offset];
+				const float4 neib_vel = velArray[neib_d][neib_offset];
+
+				if (memcmp(&info, &neib_info, sizeof(info))) {
+					printf("%s INFO mismatch @ iteration %d, command %d | %d: device %d external particle %d (offset %d, neib %d)\n",
+						buflist_name[l], gdata->iterations, gdata->nextCommand, gdata->commandFlags,
+						d, p, offset, neib_offset);
+					printf("(%d %d %d %d) vs (%d %d %d %d)\n",
+						info.x, info.y, info.z, info.w,
+						neib_info.x, neib_info.y, neib_info.z, neib_info.w);
+					break;
+				}
+
+				if (memcmp(&pos, &neib_pos, sizeof(pos))) {
+					printf("%s POS mismatch @ iteration %d, command %d | %d: device %d external particle %d (offset %d, neib %d)\n",
+						buflist_name[l], gdata->iterations, gdata->nextCommand, gdata->commandFlags,
+						d, p, offset, neib_offset);
+					printf("(%g %g %g %g) vs (%g %g %g %g)\n",
+						pos.x, pos.y, pos.z, pos.w,
+						neib_pos.x, neib_pos.y, neib_pos.z, neib_pos.w);
+					break;
+				}
+
+				if (memcmp(&vel, &neib_vel, sizeof(vel))) {
+					printf("%s VEL mismatch @ iteration %d, command %d | %d: device %d external particle %d (offset %d, neib %d)\n",
+						buflist_name[l], gdata->iterations, gdata->nextCommand, gdata->commandFlags,
+						d, p, offset, neib_offset);
+					printf("(%g %g %g %g) vs (%g %g %g %g)\n",
+						vel.x, vel.y, vel.z, vel.w,
+						neib_vel.x, neib_vel.y, neib_vel.z, neib_vel.w);
+					break;
+				}
+			}
+		}
+	}
+
+#else
+	throw runtime_error("cannot check buffer consistency without INSPECT_DEVICE_MEMORY");
+#endif
+}
+
 /// Initialize the array holding the IDs of the next generated particles
 /*! Each open boundary vertex, when generating a new particle, will assign it
  * its nextID value, and update the nextID by adding the total count of open
@@ -2022,20 +2168,34 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_
 		const flag_t updated_buffers = flt->second->get_updated_buffers();
 		/* list of buffers that were written in BUFFER_WRITE */
 		const flag_t written_buffers = flt->second->get_written_buffers();
+
+		// If the post-process engine wrote something, we need to do
+		// a multi-device update as well as a buffer swap
+		const bool need_update_and_swap = (written_buffers != NO_FLAGS);
+
 		/* TODO FIXME ideally we would have a way to specify when,
 		 * after a post-processing, buffers need to be uploaded to other
 		 * devices as well.
-		 * This might be needed e.g. after the INFO update from SURFACE_DETECTION,
-		 * although maybe not during pre-write post-processing
+		 * This IS needed e.g. after the INFO update from SURFACE_DETECTION,
+		 * even during pre-write post-processing, since otherwise buffers
+		 * get out of sync across devices. Doing this update here is
+		 * suboptimal, but otherwise we'd need to pass the information
+		 * about the need to update external particles, and which buffers,
+		 * to the main loop, which would be a bit of a mess in itself;
+		 * so let's do it here for the time being.
 		 */
-#if 0
-		if (MULTI_DEVICE)
+#if 1
+		if (MULTI_DEVICE && need_update_and_swap)
 			doCommand(UPDATE_EXTERNAL, written_buffers | DBLBUFFER_WRITE);
 #endif
 		/* Swap the written buffers, so we can access the new data from
-		 * DBLBUFFER_READ
+		 * DBLBUFFER_READ.
+		 * TODO should also update buffer state and validity
 		 */
-		doCommand(SWAP_BUFFERS, written_buffers);
+		if (need_update_and_swap)
+			doCommand(SWAP_BUFFERS, written_buffers);
+
+
 		which_buffers |= updated_buffers | written_buffers;
 	}
 
@@ -2429,6 +2589,11 @@ void GPUSPH::prepareProblem()
 
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {
+	const bool has_io = (problem->simparams()->simflags & ENABLE_INLET_OUTLET);
+	// In the open boundary case, the last integration step is when we generate
+	// and destroy particles
+	const bool last_io_step = has_io && (cFlag & INTEGRATOR_STEP_2);
+
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
@@ -2455,8 +2620,8 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		}
 
 		// modify particle mass on open boundaries
-		if(gdata->clOptions->repack == false && gdata->clOptions->repack_only==false
-			&& problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+		if (gdata->clOptions->repack == false && gdata->clOptions->repack_only==false
+      && has_io) {
 			// identify all the corner vertex particles
 			doCommand(SWAP_BUFFERS, BUFFER_INFO);
 			doCommand(IDENTIFY_CORNER_VERTICES);
@@ -2482,7 +2647,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	}
 
 	// impose open boundary conditions
-	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET && !gdata->keep_repacking) {
+	if (has_io && !gdata->keep_repacking) {
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
 		if (MULTI_DEVICE && problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
@@ -2529,26 +2694,29 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
-	// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
-	// this updates the nextID buffer if particles get generated,
-	// so let's put it in the write position, and then swap back afterwards
-	doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
+	// compute boundary conditions on vertices including mass variation and
+	// create new particles at open boundaries.
+	// This updates the nextID buffer by vertices that generate new particles,
+	// which happens only during the last integration step in the IO case:
+	// so in this case it in the WRITE position, and swap it back afterwards.
+	if (last_io_step)
+		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-	doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
+
+	// check if we need to delete some particles which passed through open boundaries
+	if (last_io_step) {
+		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
+		doCommand(DISABLE_OUTGOING_PARTS);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
+	}
 
 	if (!(cFlag & INITIALIZATION_STEP)) {
 		/* Restore normals */
 		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-	}
-
-	// check if we need to delete some particles which passed through open boundaries
-	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET && (cFlag & INTEGRATOR_STEP_2)) {
-		doCommand(DISABLE_OUTGOING_PARTS);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 	}
 
 	if (cFlag & INITIALIZATION_STEP) {
@@ -2563,25 +2731,64 @@ void GPUSPH::markIntegrationStep(
 	std::string const& read_state, BufferValidity read_valid,
 	std::string const& write_state, BufferValidity write_valid)
 {
-	/* TODO mark buffer validity */
-	doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, read_state);
-	doCommand(SET_BUFFER_VALIDITY, POST_COMPUTE_SWAP_BUFFERS | BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, read_valid);
-	doCommand(SET_BUFFER_STATE, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, write_state);
-	doCommand(SET_BUFFER_VALIDITY, POST_COMPUTE_SWAP_BUFFERS | DBLBUFFER_WRITE, write_valid);
+	/* There are four buffers that need special treatment:
+	 * * the INFO buffer is always representative of both states —in fact, because of this
+	 *   and because it's part of the sorting key, it's the only property buffer
+	 *   which is not double buffered;
+	 * * the VERTICES buffer is always representative of both states, even though it is used
+	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
+	 *   in-place;
+	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
+	 *   representative of the previous state only until it gets updated, when it is
+	 *   representative of the next state only; due to the way we use markIntegrationStep,
+	 *   we count it as a 'shared' buffer;
+	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
+	 *   boundaries, otherwise is follows the behavior of the other buffers
+	 */
 
-	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES) {
-		doCommand(SET_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_state);
-		doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, write_valid);
-	} else {
-		/* When not using movig bodies, the boundary elements buffer for READ should also be used for WRITE */
-		doCommand(ADD_BUFFER_STATE, BUFFER_BOUNDELEMENTS | DBLBUFFER_READ, write_state);
-		/* In this case, the WRITE buffer can be assumed to be invalid */
-		doCommand(SET_BUFFER_VALIDITY, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE, BUFFER_INVALID);
+	static const bool has_moving_bodies = (problem->simparams()->simflags & ENABLE_MOVING_BODIES);
+	static const bool using_sa = (problem->simparams()->boundarytype == SA_BOUNDARY);
+	static const flag_t shared_buffers =
+		BUFFER_INFO |
+		BUFFER_VERTICES |
+		BUFFER_NEXTID |
+		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
+	// the INFO buffer in the WRITE position should NOT be marked invalid, since it's actually shared
+	static const flag_t invalid_shared_buffers = shared_buffers & ~BUFFER_INFO;
+
+	static const flag_t read_buffers  = DBLBUFFER_READ  |  PARTICLE_PROPS_BUFFERS;
+	static const flag_t write_buffers = DBLBUFFER_WRITE | (PARTICLE_PROPS_BUFFERS & ~shared_buffers);
+
+	doCommand(SET_BUFFER_STATE, read_buffers, read_state);
+	doCommand(SET_BUFFER_VALIDITY, read_buffers, read_valid);
+
+	doCommand(SET_BUFFER_STATE, write_buffers, write_state);
+	doCommand(SET_BUFFER_VALIDITY, write_buffers, write_valid);
+
+	doCommand(ADD_BUFFER_STATE, shared_buffers | DBLBUFFER_READ, write_state);
+	/* When not using SA, VERTICES, NEXTID and BOUNDELEMENTS aren't used at all, so
+	 * there's nothing to set as invalid
+	 */
+	if (using_sa)
+		doCommand(SET_BUFFER_VALIDITY, invalid_shared_buffers | DBLBUFFER_WRITE, BUFFER_INVALID);
+
+	// Ephemeral buffers are always reset, as they are always invalid for the next step
+	// TODO FIXME when the clobber invalid buffers option is enabled, this invalidates
+	// some ephemeral buffers that get stored (e.g. SPS turbulent viscosity, Grenier's sigma,
+	// forces with the appropriate debug options, etc). While this doesn't (or shouldn't)
+	// affect the simulation, it may create spurious differences in the written data.
+	//
+	// Find a clean way to handle this; possible options thought of so far:
+	// 1. moving the call to markIntegrationStep to _after_ the dump;
+	// 2. invalidating at the beginning of the step, but not at the end.
+	//
+	// We currently implement option 2, with the specific knowledge that
+	// the first markIntegrationStep has an empty+invalid write state.
+	// (Maybe we could also do it for the intermediate markIntegrationStep?)
+	if (write_state.empty() && write_valid == BUFFER_INVALID) {
+		doCommand(SET_BUFFER_STATE, EPHEMERAL_BUFFERS, "");
+		doCommand(SET_BUFFER_VALIDITY, EPHEMERAL_BUFFERS, BUFFER_INVALID);
 	}
-
-	// CFL and forces buffer are reset, and are always invalid at the end of the step
-	/* TODO mark buffer validity */
-	doCommand(SET_BUFFER_STATE, BUFFERS_CFL | BUFFER_FORCES, "");
 }
 
 void GPUSPH::check_write(bool we_are_done)

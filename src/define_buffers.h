@@ -38,6 +38,8 @@
 #include "buffer_traits.h"
 #endif
 
+// when we want to explicitly specify “no buffer”
+#define BUFFER_NONE ((flag_t)0U)
 
 // start from FIRST_DEFINED_BUFFER
 // double-precision position buffer (used on host only)
@@ -206,22 +208,66 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 // all particle-based buffers
 #define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & ~(BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
 
-// particle-based buffers to be imported during the APPEND_EXTERNAL command
-#define IMPORT_BUFFERS \
+// TODO we need a better form of buffer classification, distinguishing:
+// * “permanent” buffers for particle properties (which need to be sorted):
+// 	** properties that evolve with the system (pos, vel, etc)
+// 	** properties that follow the particles, but don't evolve;
+// 	** (the distinction sometimes depends on the framework, e.g.
+// 	    BOUNDELEMENTS doesn't change if there are no moving objects,
+// 	    VERTICES only changes for fluid elements in the open boundary case,
+// 	    and the change is ephemeral)
+// * “ephemeral” buffers that get used right after compute
+//    (forces, CFL, apparenty viscosity, etc) and at most need to be preserved
+//    until the next save
+/* note: BUFFER_NEXTID wasn't in IMPORT_BUFFERS before the rearranging of the classification,
+ * but probably it should be, assuming open boundary vertex particles can end up
+ * on a different device from the one they started on
+ */
+
+//! Buffers denoting particle properties that (may) evolve with the system
+#define PARTICLE_PROPS_BUFFERS \
 	(	BUFFER_POS | \
-		BUFFER_HASH | \
 		BUFFER_VEL | \
 		BUFFER_INFO | \
 		BUFFER_INTERNAL_ENERGY | \
+		BUFFER_NEXTID | \
 		BUFFER_VERTICES | \
-		BUFFER_VERTPOS | \
 		BUFFER_BOUNDELEMENTS | \
 		BUFFER_GRADGAMMA | \
 		BUFFER_EULERVEL | \
 		BUFFER_TKE | \
 		BUFFER_EPSILON | \
-		BUFFER_VOLUME | \
-		DBLBUFFER_READ)
+		BUFFER_TURBVISC | \
+		BUFFER_VOLUME)
+
+//! Auxiliary buffers
+/*! These are not physical particle properties, but the buffers are used
+ * as support for other things, and generally recomputed or updated only
+ * during the sorting/neighbors list construction phase.
+ * HASH buffer is needed together with the POS buffer to assemble the global
+ * position and to traverse the neighbors list.
+ * VERTPOS is needed to speed up the computation of the Gamma gradient contribution.
+ */
+#define PARTICLE_SUPPORT_BUFFERS (BUFFER_HASH | BUFFER_VERTPOS)
+
+//! Buffers holding temporary data
+/*! These are use to store the results of some computation that needs to be reused
+ * right after (e.g. forces, CFL etc). They are defined as particle buffers which are
+ * not properties or support, plus the CFL buffers
+ */
+#define EPHEMERAL_BUFFERS \
+	(ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS) | \
+	 BUFFERS_CFL)
+
+//! Buffers that hold data that is useful throughout a simulation step
+/*! A typical example is the neighbors list
+ */
+#define SUPPORT_BUFFERS \
+	(ALL_DEFINED_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | EPHEMERAL_BUFFERS))
+
+// particle-based buffers to be imported during the APPEND_EXTERNAL command
+// These are the particle property buffers plus the hash, from the READ list
+#define IMPORT_BUFFERS (PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS | DBLBUFFER_READ)
 
 #define POST_FORCES_UPDATE_BUFFERS \
 	(	BUFFER_FORCES | \

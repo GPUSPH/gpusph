@@ -91,6 +91,9 @@ private:
 	size_t allocateGlobalHostBuffers();
 	void deallocateGlobalHostBuffers();
 
+	// check consistency of buffers across multiple GPUs
+	void checkBufferConsistency();
+
 	// compute initial values for the IDs of the next generated particles,
 	// and return the number of open boundary vertices
 	uint initializeNextIDs(bool resumed);

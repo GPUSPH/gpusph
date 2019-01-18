@@ -208,6 +208,10 @@ class Problem {
 		get_option(std::string const& key, T _default) const
 		{ return m_options->get(key, _default); }
 
+		std::string
+		get_option(std::string const& key, const char * _default) const
+		{ return m_options->get(key, std::string(_default)); }
+
 		double3 const& get_worldorigin(void) const
 		{ return m_origin; }
 

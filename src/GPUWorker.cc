@@ -139,9 +139,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simparams->simflags & ENABLE_DTADAPT) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
-		if (USING_DYNAMIC_GAMMA(m_simparams->simflags))
-			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
+		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
+			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
 		if (m_simparams->turbmodel == KEPSILON)
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_KEPS>();
 	}
@@ -197,23 +197,24 @@ GPUWorker::~GPUWorker() {
 }
 
 // Return the number of particles currently being handled (internal and r.o.)
-uint GPUWorker::getNumParticles()
+uint GPUWorker::getNumParticles() const
 {
 	return m_numParticles;
 }
 
 // Return the number of allocated particles
-uint GPUWorker::getNumAllocatedParticles()
+uint GPUWorker::getNumAllocatedParticles() const
 {
 	return m_numAllocatedParticles;
 }
 
-uint GPUWorker::getNumInternalParticles() {
+uint GPUWorker::getNumInternalParticles() const
+{
 	return m_numInternalParticles;
 }
 
 // Return the maximum number of particles the worker can handled (allocated)
-uint GPUWorker::getMaxParticles()
+uint GPUWorker::getMaxParticles() const
 {
 	return m_numAllocatedParticles;
 }
@@ -334,6 +335,24 @@ void GPUWorker::dropExternalParticles()
 	m_particleRangeEnd =  m_numParticles = m_numInternalParticles;
 	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = EMPTY_SEGMENT;
 	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = EMPTY_SEGMENT;
+}
+
+/// compare UPDATE_EXTERNAL arguments against list of updated buffers
+void GPUWorker::checkBufferUpdate()
+{
+	BufferList const& buflist = getBufferListByCommandFlags(gdata->commandFlags);
+	for (auto const& iter : buflist) {
+		auto const key = iter.first;
+		auto const buf = iter.second;
+		const bool need_update = buf->is_dirty();
+		const bool listed = !!(key & gdata->commandFlags);
+
+		if (need_update && !listed)
+			cout <<  buf->get_buffer_name() << " needs update, but is NOT listed" << endl;
+		else if (listed && !need_update)
+			cout <<  buf->get_buffer_name() << " is listed, but is NOT dirty" << endl;
+
+	}
 }
 
 // Start an async inter-device transfer. This will be actually P2P if device can access peer memory
@@ -871,6 +890,8 @@ void GPUWorker::transferBursts()
 // staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
 void GPUWorker::importExternalCells()
 {
+	if (gdata->debug.check_buffer_update) checkBufferUpdate();
+
 	if (gdata->nextCommand == APPEND_EXTERNAL)
 		transferBurstsSizes();
 	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
@@ -1109,6 +1130,42 @@ GPUWorker::getBufferListByCommandFlags(flag_t flags)
 		m_dBuffers.getWriteBufferList() : m_dBuffers.getBufferList(0));
 }
 
+string
+GPUWorker::describeCommandFlagsBuffers(flag_t flags)
+{
+	static constexpr flag_t dbl_both = (DBLBUFFER_WRITE | DBLBUFFER_READ);
+
+	string s;
+	char sep[3] = { ' ', ' ', ' ' };
+	for (auto key : m_dBuffers.get_keys()) {
+		if (key & gdata->commandFlags) {
+			s.append(sep, 3);
+			s.append(getBuffer(0, key)->get_buffer_name());
+			sep[1] = '|';
+		}
+	}
+
+	const flag_t dbl_spec = ( flags & dbl_both );
+	if (dbl_spec) {
+		s.append(" [");
+		if (dbl_spec & DBLBUFFER_READ)
+			s.push_back('R');
+		if (dbl_spec == dbl_both)
+			s.push_back(',');
+		if (dbl_spec & DBLBUFFER_WRITE)
+			s.push_back('W');
+		s.append("]");
+	}
+
+	return s;
+}
+
+string
+GPUWorker::describeCommandFlagsBuffers()
+{
+	return describeCommandFlagsBuffers(gdata->commandFlags);
+}
+
 void GPUWorker::setBufferState(const flag_t flags, std::string const& state)
 {
 	// get the bufferlist to set the data for
@@ -1162,6 +1219,17 @@ void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
 			continue;
 
 		AbstractBuffer *buf = iter.second;
+		BufferValidity was_valid = buf->validity();
+		/* Invalid buffers should only be set valid (or dirty) by the kernels that write to them.
+		 * If an invalid buffer gets marked as valid due to this call, it means that a wrong swap
+		 * happened somewhere.
+		 */
+		if (validity == BUFFER_VALID && was_valid == BUFFER_INVALID) {
+			if (debug_inspect_buffer)
+				cout << "\t\t(forcing buffer validity for " << buf->inspect() << ")" << endl;
+			else
+				throw std::invalid_argument("forcing buffer validity on an invalid buffer");
+		}
 		buf->mark_valid(validity);
 	}
 }
@@ -1261,8 +1329,12 @@ void GPUWorker::dumpBuffers() {
 			void *dstptr = hostbuf->get_offset_buffer(ai, firstInnerParticle);
 			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyDeviceToHost));
 		}
-		hostbuf->set_state(buf->state());
-		hostbuf->mark_valid();
+		// In multi-GPU, only one thread should update the host buffer state,
+		// to avoid crashes due to multiple threads writing the string at the same time
+		if (m_deviceIndex == 0) {
+			hostbuf->set_state(buf->state());
+			hostbuf->mark_valid();
+		}
 	}
 }
 
@@ -1603,6 +1675,13 @@ const AbstractBuffer* GPUWorker::getBuffer(size_t list_idx, flag_t key) const
 	return m_dBuffers.getBufferList(list_idx)[key];
 }
 
+#ifdef INSPECT_DEVICE_MEMORY
+const MultiBufferList& GPUWorker::getBufferList() const
+{
+	return m_dBuffers;
+}
+#endif
+
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }
@@ -1670,8 +1749,9 @@ void GPUWorker::simulationThread() {
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
 		const bool dbg_step_printf = gdata->debug.print_step;
+		const bool dbg_buffer_lists = gdata->debug.inspect_buffer_lists;
 
-		// TODO
+		// TODO automate the dbg_step_printf output
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
 		while (gdata->keep_going || gdata->keep_repacking) {
 			switch (gdata->nextCommand) {
@@ -1679,29 +1759,30 @@ void GPUWorker::simulationThread() {
 			case IDLE:
 				break;
 			case SWAP_BUFFERS:
-				if (dbg_step_printf) {
-					printf(" T %d issuing SWAP_BUFFERS", deviceIndex);
-					char sep = ' ';
-					for (auto key : m_dBuffers.get_keys()) {
-						if (key & gdata->commandFlags) {
-							printf(" %c %s", sep, getBuffer(0, key)->get_buffer_name());
-							sep = '|';
-						}
-					}
-					puts("");
-				}
+				if (dbg_step_printf)
+					printf(" T %d issuing SWAP_BUFFERS%s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str());
 				swapBuffers();
 				break;
 			case SET_BUFFER_STATE:
-				if (dbg_step_printf) printf(" T %d issuing SET_BUFFER_STATE\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing SET_BUFFER_STATE%s <- %s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str(),
+						gdata->extraCommandArg.string.c_str());
 				setBufferState();
 				break;
 			case ADD_BUFFER_STATE:
-				if (dbg_step_printf) printf(" T %d issuing ADD_BUFFER_STATE\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing ADD_BUFFER_STATE%s += %s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str(),
+						gdata->extraCommandArg.string.c_str());
 				addBufferState();
 				break;
 			case SET_BUFFER_VALIDITY:
-				if (dbg_step_printf) printf(" T %d issuing SET_BUFFER_VALIDITY\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing SET_BUFFER_VALIDITY%s <- %d\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str(),
+						BufferValidity(gdata->extraCommandArg.flag));
 				setBufferValidity();
 				break;
 			case CALCHASH:
@@ -1757,7 +1838,9 @@ void GPUWorker::simulationThread() {
 				kernel_apply_density_diffusion();
 				break;
 			case DUMP:
-				if (dbg_step_printf) printf(" T %d issuing DUMP\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing DUMP%s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str());
 				dumpBuffers();
 				break;
 			case DUMP_CELLS:
@@ -1785,19 +1868,27 @@ void GPUWorker::simulationThread() {
 				uploadNewNumParticles();
 				break;
 			case APPEND_EXTERNAL:
-				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing APPEND_EXTERNAL%s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str());
 				importExternalCells();
 				break;
 			case UPDATE_EXTERNAL:
-				if (dbg_step_printf) printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing UPDATE_EXTERNAL%s\n",
+						deviceIndex, describeCommandFlagsBuffers().c_str());
 				importExternalCells();
 				break;
 			case FILTER:
-				if (dbg_step_printf) printf(" T %d issuing FILTER\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing FILTER %s\n",
+						deviceIndex, FilterName[gdata->extraCommandArg.flag]);
 				kernel_filter();
 				break;
 			case POSTPROCESS:
-				if (dbg_step_printf) printf(" T %d issuing POSTPROCESS\n", deviceIndex);
+				if (dbg_step_printf)
+					printf(" T %d issuing POSTPROCESS %s\n",
+						deviceIndex, PostProcessName[gdata->extraCommandArg.flag]);
 				kernel_postprocess();
 				break;
 			case DISABLE_OUTGOING_PARTS:
@@ -1884,7 +1975,13 @@ void GPUWorker::simulationThread() {
 				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
 				exit(1);
 			}
+<<<<<<< HEAD
 			if (gdata->keep_going || gdata->keep_repacking) {
+=======
+			if (dbg_buffer_lists)
+				cout << m_dBuffers.inspect() << endl;
+			if (gdata->keep_going) {
+>>>>>>> next
 				/*
 				// example usage of checkPartValBy*()
 				// alternatively, can be used in the previous switch construct, to check who changes what
@@ -2727,18 +2824,22 @@ void GPUWorker::kernel_postprocess()
 		throw invalid_argument("non-existing postprocess filter invoked");
 	}
 
+	// Post-process engines may do in-place updates,
+	// so set a state-on-write for them too
+	BufferList &bufread = m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	bufread.add_state_on_write(string("postprocess ") + PostProcessName[proctype] + " (in-place)");
 	bufwrite.add_state_on_write(string("postprocess ") + PostProcessName[proctype]);
 
 	procpair->second->process(
-		m_dBuffers.getReadBufferList(),
-		m_dBuffers.getWriteBufferList(),
+		bufread, bufwrite,
 		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		m_deviceIndex,
 		gdata);
 
+	bufread.clear_pending_state();
 	bufwrite.clear_pending_state();
 }
 

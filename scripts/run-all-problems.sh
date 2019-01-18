@@ -1,20 +1,27 @@
 #!/bin/sh
 
 # Run all problems in GPUSPH, for the given number of iterations, creating simulations with the specified suffix
-# Syntax: run-all-problems [suffix] [maxiter]
+# Syntax: run-all-problems [suffix [maxiter [GPUSPH options]]]
 # default suffix is 'reference'
 # default maxiter is 1000
+# if they are present as arguments but empty, they will be kept at the default values
 
 abort() {
 	echo "$@" >&2
 	exit 1
 }
 
-sfx="$1"
-maxiter="$2"
+sfx=reference
+maxiter=1000
 
-[ -z "$sfx" ] && sfx=reference
-[ -z "$maxiter" ] && maxiter=1000
+if [ 0 -lt "$#" ] ; then
+	[ -z "$1" ] || sfx="$1"
+	shift
+	if [ 0 -lt "$#" ] ; then
+		[ -z "$1" ] || maxiter="$1"
+		shift
+	fi
+fi
 
 for problem in $(make list-problems) ; do
 	echo "Running test ${problem} ..."
@@ -23,5 +30,5 @@ for problem in $(make list-problems) ; do
 		echo "$outdir exists, skipping"
 		continue
 	fi
-	make $problem && ./GPUSPH --dir "$outdir" --maxiter $maxiter || abort "Failed!"
+	make $problem && ./GPUSPH --dir "$outdir" --maxiter $maxiter "$@" || abort "Failed!"
 done

@@ -256,37 +256,13 @@ saVertexBoundaryConditions(
 	const	uint			numDevices,
 	const	uint			totParticles)
 {
-	// only needed (and updated) in case of particle creation
-	float4	*forces(bufwrite.getData<BUFFER_FORCES>());
-	// only updated in case of particle creation
-	float4	*pos(bufwrite.getData<BUFFER_POS>());
-	// only updated in case of particle creation
-	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-	// only updated in case of particle creation
-	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
-	// only updated in case of particle creation
-	uint *nextIDs(bufwrite.getData<BUFFER_NEXTID>());
-
-	float4	*vel(bufwrite.getData<BUFFER_VEL>());
-	float	*tke(bufwrite.getData<BUFFER_TKE>());
-	float	*eps(bufwrite.getData<BUFFER_EPSILON>());
-	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
-
-	// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position
-	// (updated in-place for generated particles)
-
-	particleinfo	*info(const_cast<BufferList&>(bufread).getData<BUFFER_INFO>());
-	hashKey			*particleHash(const_cast<BufferList&>(bufread).getData<BUFFER_HASH>());
-
-	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
-	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-
-
 	int dummy_shared = 0;
 
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+	const	particleinfo	*info(const_cast<BufferList&>(bufread).getData<BUFFER_INFO>());
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
@@ -296,18 +272,13 @@ saVertexBoundaryConditions(
 	dummy_shared = 2560;
 	#endif
 
-	sa_vertex_bc_params<kerneltype, ViscSpec, simflags> params(
-		pos, vel, info, particleHash, cellStart, neibsList,
-		gGam, vertices, vertPos,
-		eulerVel, tke, eps,
-		forces,
-		numParticles, newNumParticles, nextIDs, totParticles,
-		deltap, slength, influenceradius,
-		deviceId, numDevices, dt);
-
 	// execute the kernel
 #define SA_VERTEX_BC_STEP(step) case step: \
-	cubounds::saVertexBoundaryConditionsDevice<step><<< numBlocks, numThreads, dummy_shared >>>(params); break
+	{ sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
+		bufread, bufwrite, cellStart, newNumParticles, numParticles, totParticles, \
+		deltap, slength, influenceradius, deviceId, numDevices, dt); \
+	  cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} break
 
 	switch (step) {
 		SA_VERTEX_BC_STEP(0);

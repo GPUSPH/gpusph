@@ -69,7 +69,7 @@ VTKWriter::VTKWriter(const GlobalData *_gdata)
 	m_planes_fname(),
 	m_blockidx(-1)
 {
-	m_fname_sfx = ".vtu";
+	m_fname_sfx = ".vtp";
 
 	string time_fname = open_data_file(m_timefile, "VTUinp", "", ".pvd");
 
@@ -430,6 +430,9 @@ uchar get_fluid_num(particleinfo const& pinfo)
 ushort get_object(particleinfo const& pinfo)
 { return object(pinfo); }
 
+uchar get_object_few(particleinfo const& pinfo)
+{ return object(pinfo); }
+
 uint get_cellindex(hashKey const& phash)
 { return cellHashFromParticleHash(phash); }
 
@@ -470,7 +473,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		open_data_file(neibs, "neibs", current_filenum(), ".txt");
 		const idx_t stride = numParts;
 		const idx_t maxneibsnum = gdata->problem->simparams()->neiblistsize;
-		const id_t listend = maxneibsnum*stride;
+		const idx_t listend = maxneibsnum*stride;
 		for (uint i = 0; i < numParts; ++i) {
 			neibsnum[i] = maxneibsnum;
 			neibs << i << "\t" << id(info[i]) << "\t";
@@ -504,10 +507,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// Header
 	//====================================================================================
 	fid << "<?xml version='1.0'?>" << endl;
-	fid << "<VTKFile type='UnstructuredGrid'  version='0.1'  byte_order='" <<
+	fid << "<VTKFile type='PolyData'  version='0.1'  byte_order='" <<
 		endianness[*(char*)&endian_int & 1] << "'>" << endl;
-	fid << " <UnstructuredGrid>" << endl;
-	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfCells='" << numParts << "'>" << endl;
+	fid << " <PolyData>" << endl;
+	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfVerts='" << numParts << "'>" << endl;
 
 	size_t offset = 0;
 
@@ -584,7 +587,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// TODO a better way would be for GPUSPH to expose the highest
 	// object number ever associated with any particle, so that we
 	// could check that
-	const bool write_part_obj = (gdata->problem->simparams()->numbodies > 0);
+	const uint numbodies = gdata->problem->simparams()->numbodies;
+	const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
+	const bool write_part_obj = (numbodies > 0 || numOpenBoundaries > 0);
+	// does the number of objects fit in an unsigned char?
+	const bool write_few_obj = (numbodies + numOpenBoundaries < UCHAR_MAX);
 
 	// particle info
 	if (info) {
@@ -602,8 +609,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 		// object number
 		if (write_part_obj) {
-			// TODO UInt16 or UInt8 based on number of objects
-			appender.append_data(info, "Part object", get_object);
+			if (write_few_obj)
+				appender.append_data(info, "Part object", get_object_few);
+			else
+				appender.append_data(info, "Part object", get_object);
 		}
 
 		// id
@@ -612,23 +621,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	if (vertices) {
 		appender.append_data(vertices, "Vertices");
-	}
-
-	// device index
-	if (MULTI_DEVICE) {
-		appender.append_local_data("DeviceIndex", [this](size_t i) -> dev_idx_t {
-			GlobalData const *gdata(this->gdata);
-			uint numdevs = gdata->devices;
-			for (uint d = 0; d < numdevs; ++d) {
-				uint partsInDevice = gdata->s_hPartsPerDevice[d];
-				if (i < partsInDevice)
-					return gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
-				i -= partsInDevice;
-			}
-			// If we got here, the sum of all device particles is less than i,
-			// which is an error
-			throw runtime_error("unable to find device particle belongs to");
-		});
 	}
 
 	// cell index
@@ -671,22 +663,37 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		appender.append_data(sigma, "Sigma");
 	}
 
+	// device index
+	if (MULTI_DEVICE) {
+		appender.append_local_data("DeviceIndex", [this](size_t i) -> dev_idx_t {
+			GlobalData const *gdata(this->gdata);
+			uint numdevs = gdata->devices;
+			for (uint d = 0; d < numdevs; ++d) {
+				uint partsInDevice = gdata->s_hPartsPerDevice[d];
+				if (i < partsInDevice)
+					return gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
+				i -= partsInDevice;
+			}
+			// If we got here, the sum of all device particles is less than i,
+			// which is an error
+			throw runtime_error("unable to find device particle belongs to");
+		});
+	}
+
 	fid << "   </PointData>" << endl;
 
 	// Cells data
-	fid << "   <Cells>" << endl;
+	fid << "   <Verts>" << endl;
 
 	// connectivity
 	appender.append_local_data("connectivity", [](size_t i)->uint { return i; });
 	// offsets
 	appender.append_local_data("offsets", [](size_t i)->uint { return i+1; });
-	// types (currently all cells type=1, single vertex, the particle)
-	appender.append_local_data("types", [](size_t i)->uchar { return 1; });
 
-	fid << "   </Cells>" << endl;
+	fid << "   </Verts>" << endl;
 	fid << "  </Piece>" << endl;
 
-	fid << " </UnstructuredGrid>" << endl;
+	fid << " </PolyData>" << endl;
 	fid << " <AppendedData encoding='raw'>\n_";
 	//====================================================================================
 
@@ -706,7 +713,7 @@ void
 VTKWriter::write_WaveGage(double t, GageList const& gage)
 {
 	ofstream fp;
-	string filename = open_data_file(fp, "WaveGage", current_filenum());
+	string filename = open_data_file(fp, "WaveGage", current_filenum(), ".vtu");
 
 	size_t num = gage.size();
 
@@ -789,7 +796,7 @@ void
 VTKWriter::save_planes()
 {
 	ofstream fp;
-	m_planes_fname = open_data_file(fp, "PLANES");
+	m_planes_fname = open_data_file(fp, "PLANES", "", ".vtu");
 
 	fp << set_vector_fmt(" ");
 

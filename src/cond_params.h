@@ -68,7 +68,7 @@ struct empty
 	/// Universal constructor
 	template<typename ...T1>
 	__host__ __device__ __forceinline__
-	empty(T1...) {}
+	empty(T1 const&...) {}
 };
 
 

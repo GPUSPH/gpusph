@@ -179,6 +179,9 @@ private:
 	// cuts all external particles
 	void dropExternalParticles();
 
+	/// compare UPDATE_EXTERNAL arguments against list of updated buffers
+	void checkBufferUpdate();
+
 	// compute list of bursts
 	void computeCellBursts();
 	// iterate on the list and send/receive/read cell sizes
@@ -211,6 +214,9 @@ private:
 	// select a BufferList based on the DBLBUFFER_* specification
 	// in the command flags
 	BufferList& getBufferListByCommandFlags(flag_t flags);
+	// create a textual description of the list of buffers in the command flags
+	std::string describeCommandFlagsBuffers(flag_t flags);
+	std::string describeCommandFlagsBuffers();
 
 	// setting or adding to buffer states
 	void setBufferState(const flag_t flags, std::string const& state);
@@ -305,10 +311,10 @@ public:
 	~GPUWorker();
 
 	// getters of the number of particles
-	uint getNumParticles();
-	uint getNumAllocatedParticles();
-	uint getNumInternalParticles();
-	uint getMaxParticles();
+	uint getNumParticles() const;
+	uint getNumAllocatedParticles() const;
+	uint getNumInternalParticles() const;
+	uint getMaxParticles() const;
 
 	// compute the bytes required for each particle/cell
 	size_t computeMemoryPerParticle();
@@ -326,6 +332,10 @@ public:
 	size_t getDeviceMemory();
 	// for peer transfers: get the buffer `key` from the buffer list `list_idx`
 	const AbstractBuffer* getBuffer(size_t list_idx, flag_t key) const;
+
+#ifdef INSPECT_DEVICE_MEMORY
+	const MultiBufferList& getBufferList() const;
+#endif
 };
 
 #endif /* GPUWORKER_H_ */

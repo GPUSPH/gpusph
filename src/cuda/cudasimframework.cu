@@ -193,7 +193,8 @@ public:
 	// overriding the choice, but for backwards compatibility we should still assume harmonic averaging
 	// when legacy viscous specifications have been used
 	static const AverageOperator viscavgop = (
-		(_legacyvisctype != INVALID_VISCOSITY) ? // was there a legacy specification?
+		((_sph_formulation == SPH_GRENIER) && // when using Grenier's formulation
+		(_legacyvisctype != INVALID_VISCOSITY)) ? // was there a legacy specification?
 		AverageOperator::HARMONIC : // yes, assume harmonic averaging
 		_viscavgop // no, take what the user gave us
 	);
@@ -322,6 +323,7 @@ struct ArgSelector :
 	virtual public MultiplexSubclass<Arg5,5>,
 	virtual public MultiplexSubclass<Arg6,6>,
 	virtual public MultiplexSubclass<Arg7,7>,
+	virtual public MultiplexSubclass<Arg8,8>,
 	virtual public MultiplexSubclass<Arg9,9>,
 	virtual public MultiplexSubclass<Arg10,10>,
 	virtual public MultiplexSubclass<Arg11,11>,

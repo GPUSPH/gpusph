@@ -254,7 +254,9 @@ class XProblem: public Problem {
 		// request to invert normals while loading - only for HDF5 files
 		void flipNormals(const GeometryID gid, bool flip = true);
 
-		// method for deleting a geometry (actually disabling)
+		/*! Method for deleting a geometry (actually disabling).
+		 *	NOTE: the geometry still use its IntersectionType to intersect preceding geometries.
+		 */
 		void deleteGeometry(const GeometryID gid);
 
 		// methods to enable/disable handling of dynamics/collisions for a specific geometry

@@ -343,12 +343,14 @@ struct vertex_io_pdata
 {
 	bool corner; // is this a corner vertex?
 	const float4 normal;
+	const float  refMass; // reference mass ∆p³*ρ_0
 
 	template<typename Params>
 	__device__ __forceinline__
 	vertex_io_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		corner(CORNER(_info)),
-		normal(tex1Dfetch(boundTex, _index))
+		normal(tex1Dfetch(boundTex, _index)),
+		refMass(params.deltap*params.deltap*params.deltap*d_rho0[fluid_num(_info)])
 	{}
 };
 
@@ -1083,19 +1085,84 @@ clone_vertex_keps(Params const& params, PData const& pdata, int clone_idx)
 	params.eps[clone_idx] = params.eps[pdata.index];
 }
 
+//! generate new particles
+/**! This is only done in the open boundary case and only if this is
+ * the last integration step
+ */
+template<typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<not (Params::has_io && Params::step == 2)>
+generate_new_particles(Params const& params, PData const& pdata, float4 const& pos, POut &pout)
+{ /* do nothing */ }
+
+template<typename Params, typename PData, typename POut>
+__device__ __forceinline__
+enable_if_t<Params::has_io && Params::step == 2>
+generate_new_particles(Params const& params, PData const& pdata, float4 const& pos, POut &pout)
+{
+	// during the second step, check whether new particles need to be created
+
+	if (
+		// create new particle if the mass of the vertex is large enough
+		pos.w > pdata.refMass*0.5f &&
+		// if mass flux > 0
+		pout.sumMdot > 0 &&
+		// if imposed velocity is greater than 0
+		dot3(pdata.normal, pout.eulerVel) > 1e-5f &&
+		// pressure inlets need p > 0 to create particles
+		(VEL_IO(pdata.info) || pout.eulerVel.w > 1e-5f)
+	   ) {
+		// Create new particle
+		particleinfo clone_info;
+		uint clone_idx = createNewFluidParticle(
+			clone_info, pdata.info,
+			params.numParticles, params.newNumParticles,
+			params.nextIDs + pdata.index,
+			params.totParticles);
+
+		// Problem has already checked that there is enough memory for new particles
+		float4 clone_pos = pos; // new position is position of vertex particle
+		clone_pos.w = pdata.refMass; // new fluid particle has reference mass
+		int3 clone_gridPos = pdata.gridPos; // as the position is the same so is the grid position
+		pout.massFluid -= clone_pos.w;
+
+		// assign new values to array
+		params.clonePos[clone_idx] = clone_pos;
+		params.cloneInfo[clone_idx] = clone_info;
+		params.cloneParticleHash[clone_idx] = calcGridHash(clone_gridPos);
+		// the new velocity of the fluid particle is the eulerian velocity of the vertex
+		params.vel[clone_idx] = pout.eulerVel;
+		params.gGam[clone_idx] = params.gGam[pdata.index];
+		// copy k-eps information,if present
+		clone_vertex_keps(params, pdata, clone_idx);
+
+		// reset everything else
+		// the eulerian velocity of fluid particles is always 0
+		params.eulerVel[clone_idx] = make_float4(0.0f);
+		params.cloneForces[clone_idx] = make_float4(0.0f);
+		params.cloneVertices[clone_idx] = make_vertexinfo(0, 0, 0, 0);
+		params.nextIDs[clone_idx] = UINT_MAX;
+		params.cloneBoundElems[clone_idx] = make_float4(-NAN);
+		// TODO missing from the reset at the moment:
+		// INTERNAL_ENERGY,
+		// TURBVISC,
+		// VOLUME
+	}
+}
+
 
 //! impose boundary conditions on open boundary vertex
 /**! This includs solving the Riemann problem to compute the appropriate
  * boundary conditions for velocity and pressure, as well as generating
  * new particles and absorb the ones that have gone through an open boundary
  */
-template<int step, typename Params, typename PData, typename POut>
+template<typename Params, typename PData, typename POut, uint step = Params::step>
 __device__ __forceinline__
 enable_if_t<!Params::has_io>
 impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 { /* do nothing */ }
 
-template<int step, typename Params, typename PData, typename POut>
+template<typename Params, typename PData, typename POut, uint step = Params::step>
 __device__ __forceinline__
 enable_if_t<Params::has_io>
 impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
@@ -1103,10 +1170,6 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 	/* only open boundary vertex that are not corners participate */
 	if (pdata.corner || !IO_BOUNDARY(pdata.info))
 		return;
-
-	// reference mass:
-	const float rho0 = d_rho0[fluid_num(pdata.info)];
-	const float refMass = params.deltap*params.deltap*params.deltap*rho0;
 
 	// TODO in the k-epsilon case wel'll be re-fetching what we wrote
 	// during impose_vertex_keps_bc, see if it's possible to avoid this
@@ -1147,14 +1210,14 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 			pos.w = 0.0f;
 
 		// clip to +/- 2 refMass all the time
-		pos.w = fmaxf(-2.0f*refMass, fminf(2.0f*refMass, pos.w));
+		pos.w = fmaxf(-2.0f*pdata.refMass, fminf(2.0f*pdata.refMass, pos.w));
 
 		// clip to +/- originalVertexMass if we have outflow
 		// or if the normal eulerian velocity is less or equal to 0
 		if (pout.sumMdot < 0.0f ||
 			dot3(pdata.normal, eulerVel) < 1e-5f*d_sscoeff[fluid_num(pdata.info)])
 		{
-			const float weightedMass = refMass*pdata.normal.w;
+			const float weightedMass = pdata.refMass*pdata.normal.w;
 			pos.w = fmaxf(-weightedMass, fminf(weightedMass, pos.w));
 		}
 	}
@@ -1171,52 +1234,11 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 		pos.w = 0.0f;
 #endif
 
-	if (step == 2) {
-		// during the second step, check whether new particles need to be created
-
-		if (
-			// create new particle if the mass of the vertex is large enough
-			pos.w > refMass*0.5f &&
-			// if mass flux > 0
-			pout.sumMdot > 0 &&
-			// if imposed velocity is greater 0
-			dot3(pdata.normal, eulerVel) > 1e-5f &&
-			// pressure inlets need p > 0 to create particles
-			(VEL_IO(pdata.info) || eulerVel.w > 1e-5f)
-		   ) {
-			pout.massFluid -= refMass;
-			// Create new particle
-			particleinfo clone_info;
-			uint clone_idx = createNewFluidParticle(
-				clone_info, pdata.info,
-				params.numParticles, params.newNumParticles,
-				params.nextIDs + pdata.index,
-				params.totParticles);
-
-			// Problem has already checked that there is enough memory for new particles
-			float4 clone_pos = pos; // new position is position of vertex particle
-			clone_pos.w = refMass; // new fluid particle has reference mass
-			int3 clone_gridPos = pdata.gridPos; // as the position is the same so is the grid position
-
-			// assign new values to array
-			params.clonePos[clone_idx] = clone_pos;
-			params.cloneInfo[clone_idx] = clone_info;
-			params.cloneParticleHash[clone_idx] = calcGridHash(clone_gridPos);
-			// the new velocity of the fluid particle is the eulerian velocity of the vertex
-			params.vel[clone_idx] = eulerVel;
-			params.cloneForces[clone_idx] = make_float4(0.0f);
-
-			// the eulerian velocity of fluid particles is always 0
-			params.eulerVel[clone_idx] = make_float4(0.0f);
-			params.gGam[clone_idx] = params.gGam[pdata.index];
-			params.cloneVertices[clone_idx] = make_vertexinfo(0, 0, 0, 0);
-			clone_vertex_keps(params, pdata, clone_idx);
-		}
-	}
+	pout.eulerVel = eulerVel;
+	generate_new_particles(params, pdata, pos, pout);
 
 	pos.w += pout.massFluid;
 	params.clonePos[pdata.index] = pos;
-
 }
 
 
@@ -2058,7 +2080,8 @@ initIOmass(
  * the mass of outgoing fluid particles is redistributed to vertex particles
  * herein.
  */
-template<int step, typename Params,
+template<typename Params,
+	uint step = Params::step,
 	bool initStep = (step == 0),
 	bool lastStep = (step == 2)
 >
@@ -2118,7 +2141,7 @@ saVertexBoundaryConditionsDevice(Params params)
 	// including generation of new fluid particles and destruction of fluid
 	// particles that have been marked by the preceding findOutgoingSegmentDevice
 	// invokation
-	impose_vertex_io_bc<step>(params, pdata, pout);
+	impose_vertex_io_bc(params, pdata, pout);
 }
 
 //! Identify corner vertices on open boundaries

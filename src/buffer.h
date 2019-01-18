@@ -61,6 +61,10 @@ enum BufferValidity {
 	BUFFER_INVALID, //<! Buffer contains invalid data
 };
 
+// Forward-declare the BufferList and MultiBufferList classes, that need access to some Buffer protected methods
+class BufferList;
+class MultiBufferList;
+
 
 /* Base class for the Buffer template class.
  * The base pointer is a pointer to pointer to allow easy management
@@ -78,14 +82,23 @@ private:
 
 	std::string m_state;
 
+	// unique buffer ID, used to track the buffer handling across states and buffer lists
+	// we could use the pointer, but this isn't invariant across runs, while we can set
+	// a unique ID on initialization in such a way that it only depends on initialization order
+	std::string m_uid;
+
 protected:
 	// constructor that aliases m_ptr to some array of pointers
 	AbstractBuffer(void *bufs[]) :
 		m_ptr(bufs),
 		m_allocated_elements(0),
 		m_validity(BUFFER_INVALID),
-		m_state()
+		m_state(),
+		m_uid("<unset>")
 	{}
+
+	void set_uid(std::string const& uid)
+	{ m_uid = uid; }
 
 	size_t set_allocated_elements(size_t allocs)
 	{
@@ -93,6 +106,7 @@ protected:
 		return allocs;
 	}
 
+	friend class MultiBufferList; // needs to be able to access set_uid
 public:
 
 	// default constructor: just ensure ptr is null
@@ -177,6 +191,7 @@ public:
 		_desc += get_buffer_class();
 		_desc += " ";
 		_desc += get_buffer_name();
+		_desc += ", id " + m_uid;
 		_desc += ", validity ";
 		_desc +=	std::to_string(m_validity);
 		_desc += ", state: ";
@@ -271,10 +286,6 @@ public:
  * we just add a method to get the printable name associated with the given Key.
  */
 
-// Forward-declare the BufferList class, which we want to be friend with the
-// Buffer classes so that it may access the protected get_raw_ptr() methods.
-class BufferList;
-
 // since some people find this particular aspect of the C++ syntax a bit too ugly,
 // let's introduce a de-uglifying macro that just returns the expected data type for
 // elements in array Key (e.g. float4 for BUFFER_POS):
@@ -307,10 +318,6 @@ public:
 	virtual const char* get_buffer_class() const
 	{ return "Buffer"; }
 };
-
-// Forward declaration of the MultiBufferList, which we want to make friend
-// with the BufferList
-class MultiBufferList;
 
 /* Specialized list of Buffers of any type. Internally it's implemented as a map
  * instead of an actual list to allow non-consecutive keys as well as
@@ -684,6 +691,8 @@ public:
 		clear();
 	}
 
+	std::string inspect() const;
+
 	void clear() {
 		// nothing to do, if the policy was never set
 		if (m_policy == NULL)
@@ -759,11 +768,18 @@ public:
 			if (count != m_lists.size())
 				throw std::runtime_error("buffer count less than max but bigger than 1 not supported");
 			// multi-buffered, allocate one instance in each buffer list
-			for (auto& list : m_lists)
-				list.addBuffer<BufferClass, Key>(_init);
+			for (size_t c = 0; c < m_lists.size(); ++c) {
+				AbstractBuffer *buff = new BufferClass<Key>(_init);
+				/* R for Read, W for Write */
+				buff->set_uid((c == READ_LIST ? "0R" : "0W") +
+					(std::to_string(Key)));
+				m_lists[c].addExistingBuffer(Key, buff);
+			}
 		} else {
 			// single-buffered, allocate once and put in all lists
-			AbstractBuffer *buff = new BufferClass<Key>;
+			AbstractBuffer *buff = new BufferClass<Key>(_init);
+			/* U for Unique */
+			buff->set_uid("0U" + (std::to_string(Key)));
 
 			for (auto& list : m_lists)
 				list.addExistingBuffer(Key, buff);

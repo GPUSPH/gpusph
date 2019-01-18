@@ -93,7 +93,18 @@ public:
 		const int N = baseclass::array_count;
 		element_type **bufs = baseclass::get_raw_ptr();
 		for (int i = 0; i < N; ++i) {
+#ifdef INSPECT_DEVICE_MEMORY
+			// If device memory inspection (from host) is enabled,
+			// the device buffers are allocated in managed mode,
+			// which makes them accessible on host via the same pointer
+			// as the device.
+			// TODO explore the possibility to make this the default,
+			// assessing the performance impact and the hardware
+			// and software (esp. CUDA version) requirements.
+			CUDA_SAFE_CALL(cudaMallocManaged(bufs + i, bufmem));
+#else
 			CUDA_SAFE_CALL(cudaMalloc(bufs + i, bufmem));
+#endif
 			CUDA_SAFE_CALL(cudaMemset(bufs[i], baseclass::get_init_value(), bufmem));
 		}
 		return bufmem*N;

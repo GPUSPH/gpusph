@@ -218,10 +218,14 @@ template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
 struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
+	// buffers updated in-place
+	static flag_t get_updated_buffers(flag_t)
+	{ return BUFFER_INFO; }
+
 	// pass BUFFER_NORMALS option to the SURFACE_DETECTION filter
 	// to save normals too
 	static flag_t get_written_buffers(flag_t options)
-	{ return BUFFER_INFO | (options & BUFFER_NORMALS); }
+	{ return (options & BUFFER_NORMALS); }
 
 	static void process(
 				flag_t					options,
@@ -243,7 +247,9 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO>();
+		/* in-place update! */
+		particleinfo *newInfo = const_cast<BufferList&>(bufread).getData<BUFFER_INFO>();
+
 		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
 
 		#if !PREFER_L1

@@ -137,7 +137,7 @@ Disk::FillBorder(PointVect& points, const double dx)
 int
 Disk::Fill(PointVect& points, const double dx, const bool fill)
 {
-	return FillDisk(points, m_ep, m_center, m_r, 0.0, dx, 0.0, fill);
+	return FillDisk(points, m_ep, m_center, 0.0, m_r, 0.0, dx, fill);
 }
 
 

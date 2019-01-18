@@ -270,8 +270,6 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	float4 normal = make_float4(0.0f);
 
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
-		// NOTE: inactive particles will keep their last surface flag status
-		newInfo[index] = info;
 		if (savenormals)
 			normals[index] = make_float4(NAN);
 		return;
@@ -304,10 +302,10 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));	
+		const float r = length3(relPos);
 
 		// read neighbor data from sorted arrays
-	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// neighbor volume
 		const float neib_vol = relPos.w/physical_density(tex1Dfetch(velTex, neib_index).w, fluid_num(neib_info));

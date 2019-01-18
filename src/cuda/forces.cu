@@ -703,7 +703,7 @@ dtreduce(	float	slength,
 	float maxcfl = cflmax(numBlocks, cfl_forces, tempCfl);
 	float dt = dtadaptfactor*fminf(sqrtf(slength/maxcfl), slength/sspeed_cfl);
 
-	if (USING_DYNAMIC_GAMMA(simflags)) {
+	if (boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags)) {
 		// TODO FIXME while cfl_gamma is allocated with numAllocatedParticles elements,
 		// the elements that we want to reduce are actually less than that, because
 		// the finalizeforcesDevice call actually does a preliminary reduction of it
