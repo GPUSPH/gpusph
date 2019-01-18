@@ -375,5 +375,29 @@ basicstep(
 	KERNEL_CHECK_ERROR;
 }
 
+/// Disables free surface boundary particles during the repacking process
+	void
+disableFreeSurfParts(		float4*			pos,
+		const	particleinfo*	info,
+		const	uint			numParticles,
+		const	uint			particleRangeEnd)
+{
+	uint numThreads = BLOCK_SIZE_INTEGRATE;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	//execute kernel
+	cueuler::disableFreeSurfPartsDevice<<<numBlocks, numThreads>>>
+		(	pos,
+			numParticles);
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
+
 };
 

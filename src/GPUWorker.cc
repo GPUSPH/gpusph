@@ -3086,9 +3086,8 @@ void GPUWorker::kernel_disableFreeSurfParts()
 	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
 	bufwrite.add_state_on_write("disableFreeSurfParts");
 
-	bcEngine->disableFreeSurfParts(
+	integrationEngine->disableFreeSurfParts(
 			bufwrite.getData<BUFFER_POS>(),
-			bufwrite.getData<BUFFER_VERTICES>(),
 			bufread.getData<BUFFER_INFO>(),
 			m_numParticles,
 			numPartsToElaborate);

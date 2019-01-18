@@ -1023,18 +1023,17 @@ bool GPUSPH::runRepacking() {
 			// Save the intermediate results if required
 			check_write(we_are_done);
 		} else {
-			printf("Repacking algorithm is finished\n");
-			printStatus();
 			gdata->t = -1.;
 			printf("Disable free-surface particles\n");
-			// First, put POS and VERTICES in the write position
-			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VERTICES);
+			// First, put POS in the write position
+			doCommand(SWAP_BUFFERS, BUFFER_POS);
 			// Disable the free surface boundary particles
 			doCommand(DISABLE_FREE_SURF_PARTS);
+
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
-				// Put POS and VERTICES back in the read position
-			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VERTICES);
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
+			// Put new POS in the read position
+			doCommand(SWAP_BUFFERS, BUFFER_POS);
 
 			// The free-surface particles are actually deleted in the calcHash and
 			// reorderDataAndFindCellStart functions, so call buildNeibList now
@@ -1049,15 +1048,16 @@ bool GPUSPH::runRepacking() {
 			// Write the final results
 			check_write(we_are_done);
 
+			printf("Repacking algorithm is finished\n");
+
 			// No command after keep_repacking has been unset
 			gdata->keep_repacking = false;
-			if (gdata->quit_request) gdata->keep_going = false;
 		}
 
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata->keep_repacking = false;
-		gdata->keep_going = false;
+		//gdata->keep_going = false;
 		// the loop is being ended by some exception, so we cannot guarantee that
 		// all threads are alive. Force unlocks on all subsequent barriers to exit
 		// as cleanly as possible without stalling
@@ -2847,10 +2847,7 @@ void GPUSPH::check_write(bool we_are_done)
 					++it;
 				}
 				if (force_write || maxfreq > 0) {
-					if (gdata->keep_repacking)
-						printStatus();
-					else
-						printStatus();
+					printStatus();
 
 					m_intervalPerformanceCounter->restart();
 				}

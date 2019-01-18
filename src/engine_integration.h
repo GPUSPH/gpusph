@@ -137,5 +137,12 @@ public:
 		const	float	influenceRadius)
 	= 0;
 
+	// Disable free surface boundary particles after the repacking is achieved
+	virtual void
+		disableFreeSurfParts(		float4*			pos,
+				const	particleinfo*	info,
+				const	uint			numParticles,
+				const	uint			particleRangeEnd) = 0;
+
 };
 #endif
