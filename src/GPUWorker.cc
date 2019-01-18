@@ -1975,13 +1975,9 @@ void GPUWorker::simulationThread() {
 				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
 				exit(1);
 			}
-<<<<<<< HEAD
-			if (gdata->keep_going || gdata->keep_repacking) {
-=======
 			if (dbg_buffer_lists)
 				cout << m_dBuffers.inspect() << endl;
-			if (gdata->keep_going) {
->>>>>>> next
+			if (gdata->keep_going || gdata->keep_repacking) {
 				/*
 				// example usage of checkPartValBy*()
 				// alternatively, can be used in the previous switch construct, to check who changes what
