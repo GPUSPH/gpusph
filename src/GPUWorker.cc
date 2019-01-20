@@ -1218,14 +1218,11 @@ void GPUWorker::runCommand<ADD_BUFFER_STATE>()
 	addBufferState(gdata->commandFlags, gdata->extraCommandArg.string);
 }
 
-void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
+void setBufferValidity(BufferList& buflist, const flag_t keys, BufferValidity validity)
 {
-	// get the bufferlist to set the data for
-	BufferList& buflist = getBufferListByCommandFlags(flags);
-
 	for (auto& iter : buflist) {
 		flag_t buf_to_get = iter.first;
-		if (!(buf_to_get & flags))
+		if (!(buf_to_get & keys))
 			continue;
 
 		shared_ptr<AbstractBuffer> buf = iter.second;
@@ -1242,6 +1239,14 @@ void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
 		}
 		buf->mark_valid(validity);
 	}
+}
+
+void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
+{
+	// get the bufferlist to set the data for
+	BufferList& buflist = getBufferListByCommandFlags(flags);
+
+	::setBufferValidity(buflist, flags, validity);
 }
 
 template<>
@@ -1996,7 +2001,7 @@ void GPUWorker::runCommand<REORDER>()
 
 	// TODO cherry pick the buffers from that state that are actually going
 	// to be needed
-	const BufferList& unsorted = m_dBuffers.getState("unsorted");
+	BufferList& unsorted = m_dBuffers.getState("unsorted");
 	BufferList& sorted = m_dBuffers.getState("sorted");
 
 	sorted.add_manipulator_on_write("reorder");
@@ -2007,12 +2012,12 @@ void GPUWorker::runCommand<REORDER>()
 							// output: sorted buffers
 							sorted,
 							// input: unsorted buffers
-							unsorted,
+							(const BufferList &)unsorted,
 							m_numParticles,
 							m_dNewNumParticles);
 
 	flag_t sorted_buffers = sorted.get_updated_buffers() & multi_buffered;
-	setBufferValidity(sorted_buffers | DBLBUFFER_READ, BUFFER_INVALID);
+	::setBufferValidity(unsorted, sorted_buffers, BUFFER_INVALID);
 
 	sorted.clear_pending_state();
 }
