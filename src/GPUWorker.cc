@@ -1935,8 +1935,11 @@ void GPUWorker::runCommand<CALCHASH>()
 {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	BufferList const bufread = m_dBuffers.state_subset("unsorted",
+		BUFFER_INFO | BUFFER_COMPACT_DEV_MAP);
+
+	BufferList bufwrite = m_dBuffers.state_subset("unsorted",
+		BUFFER_POS | BUFFER_HASH | BUFFER_PARTINDEX);
 
 	// calcHashDevice() should use CPU-computed hashes at iteration 0, or some particles
 	// might be lost (if a GPU computes a different hash and does not recognize the particles
@@ -1967,6 +1970,7 @@ void GPUWorker::runCommand<SORT>()
 	if (numPartsToElaborate == 0) return;
 
 	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
+	bufwrite.clear_pending_state();
 	bufwrite.add_manipulator_on_write("sort");
 
 	neibsEngine->sort(
