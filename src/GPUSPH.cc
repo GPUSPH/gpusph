@@ -2000,11 +2000,7 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 	gdata->only_internal = false;
 
 	doCommand(CALCHASH);
-	// and put INFO into the WRITE position as it will be
-	// reoreded by the SORT
-	doCommand(SWAP_BUFFERS, BUFFER_INFO);
 	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
-	// in-place in WRITE
 	doCommand(SORT);
 	// reorder everything else
 	doCommand(REORDER);
