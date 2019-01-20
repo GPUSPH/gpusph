@@ -1227,6 +1227,19 @@ public:
 		}
 	}
 
+	//! Extract a buffer list holding a subset of the buffers in a given state
+	BufferList state_subset(std::string const& state, flag_t selection)
+	{
+		BufferList& src = m_state.at(state);
+		BufferList ret;
+		for (auto& kb : src)
+		{
+			if (kb.first & selection)
+				ret.addExistingBuffer(kb.first, kb.second);
+		}
+		return ret;
+	}
+
 
 	/* Get the set of Keys for which buffers have been added */
 	const std::set<flag_t>& get_keys() const
