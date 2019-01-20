@@ -399,7 +399,7 @@ const	float		boundNlSqInflRad)
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	const hashKey *particleHash = bufwrite.getConstData<BUFFER_HASH>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
 	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const uint *cellEnd = bufread.getData<BUFFER_CELLEND>();
 
