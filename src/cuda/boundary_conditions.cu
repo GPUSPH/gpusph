@@ -93,13 +93,15 @@ disableOutgoingParts(		float4*			pos,
 	KERNEL_CHECK_ERROR;
 }
 
-/// Computes the boundary conditions on segments using the information from the fluid
-/** For solid walls this is used to impose Neuman boundary conditions.
- *  For open boundaries it imposes the appropriate inflow velocity solving the associated
- *  Riemann problem.
+//! SFINAE implementation of saSegmentBoundaryConditions
+/** Due to the limited or non-existant support for kernels different from Wendland
+ * for semi-analytical boundary conditions, we want to avoid compiling the SA boundary
+ * conditions methods altogether. The implementation is thus refactored into methods
+ * that can be SFINAEd, called by the public interface.
  */
-void
-saSegmentBoundaryConditions(
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype == SA_BOUNDARY>
+saSegmentBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
 	const	uint*			cellStart,
@@ -162,6 +164,49 @@ saSegmentBoundaryConditions(
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 }
+//! Non-SA case for the implementation of saSegmentBoundaryConditions
+/** In this case, we should never be called, so throw
+ */
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype != SA_BOUNDARY>
+saSegmentBoundaryConditionsImpl(
+	BufferList &bufwrite,
+	BufferList const& bufread,
+	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius,
+	// step will be 0 for the initialization step,
+	// and 1 or 2 for the first and second step during integration
+	const	uint			step)
+{
+	throw std::runtime_error("saSegmentBoundaryConditions called without SA_BOUNDARY");
+}
+
+/// Computes the boundary conditions on segments using the information from the fluid
+/** For solid walls this is used to impose Neuman boundary conditions.
+ *  For open boundaries it imposes the appropriate inflow velocity solving the associated
+ *  Riemann problem.
+ */
+void
+saSegmentBoundaryConditions(
+	BufferList &bufwrite,
+	BufferList const& bufread,
+	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius,
+	// step will be 0 for the initialization step,
+	// and 1 or 2 for the first and second step during integration
+	const	uint			step)
+{
+	saSegmentBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, cellStart, numParticles,
+		particleRangeEnd, deltap, slength, influenceradius, step);
+}
 
 /// Detect particles that cross an open boundary and find the boundary element they have crossed
 void
@@ -205,12 +250,15 @@ findOutgoingSegment(
 	KERNEL_CHECK_ERROR;
 }
 
-/// Apply boundary conditions to vertex particles.
-// There is no need to use two velocity arrays (read and write) and swap them after.
-// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
-// Data is only read from fluid and segments and written only on vertices.
-void
-saVertexBoundaryConditions(
+//! SFINAE implementation of saVertexBoundaryConditions
+/** Due to the limited or non-existant support for kernels different from Wendland
+ * for semi-analytical boundary conditions, we want to avoid compiling the SA boundary
+ * conditions methods altogether. The implementation is thus refactored into methods
+ * that can be SFINAEd, called by the public interface.
+ */
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype == SA_BOUNDARY>
+saVertexBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
 	const	uint*			cellStart,
@@ -268,6 +316,61 @@ saVertexBoundaryConditions(
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 }
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype != SA_BOUNDARY>
+saVertexBoundaryConditionsImpl(
+	BufferList &bufwrite,
+	BufferList const& bufread,
+	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius,
+	// step will be 0 for the initialization step,
+	// and 1 or 2 for the first and second step during integration
+	const	uint			step,
+	const	bool			resume, // TODO FIXME check if still needed
+	const	float			dt, // for open boundaries
+	// These are the cloning-related members
+			uint*			newNumParticles,
+	const	uint			deviceId,
+	const	uint			numDevices,
+	const	uint			totParticles)
+{
+	throw std::runtime_error("saVertexBoundaryConditions called without SA_BOUNDARY");
+}
+
+/// Apply boundary conditions to vertex particles.
+// There is no need to use two velocity arrays (read and write) and swap them after.
+// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
+// Data is only read from fluid and segments and written only on vertices.
+void
+saVertexBoundaryConditions(
+	BufferList &bufwrite,
+	BufferList const& bufread,
+	const	uint*			cellStart,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius,
+	// step will be 0 for the initialization step,
+	// and 1 or 2 for the first and second step during integration
+	const	uint			step,
+	const	bool			resume, // TODO FIXME check if still needed
+	const	float			dt, // for open boundaries
+	// These are the cloning-related members
+			uint*			newNumParticles,
+	const	uint			deviceId,
+	const	uint			numDevices,
+	const	uint			totParticles)
+{
+	saVertexBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, cellStart,
+		numParticles, particleRangeEnd, deltap, slength, influenceradius,
+		step, resume, dt,
+		newNumParticles, deviceId, numDevices, totParticles);
+}
 
 /// Compute normal for vertices in initialization step
 /*! This kernel updates BUFFER_BOUNDELEMENTS,
@@ -315,10 +418,15 @@ computeVertexNormal(
 	KERNEL_CHECK_ERROR;
 }
 
-
-/// Initialize gamma
-void
-saInitGamma(
+//! SFINAE implementation of saInitGamma
+/** Due to the limited or non-existant support for kernels different from Wendland
+ * for semi-analytical boundary conditions, we want to avoid compiling the SA boundary
+ * conditions methods altogether. The implementation is thus refactored into methods
+ * that can be SFINAEd, called by the public interface.
+ */
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype == SA_BOUNDARY>
+saInitGammaImpl(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
 	const	uint*			cellStart,
@@ -388,8 +496,42 @@ saInitGamma(
 	KERNEL_CHECK_ERROR;
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype != SA_BOUNDARY>
+saInitGammaImpl(
+	BufferList const&	bufread,
+	BufferList&		bufwrite,
+	const	uint*			cellStart,
+	const	float			slength,
+	const	float			influenceradius,
+	const	float			deltap,
+	const	float			epsilon,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd)
+{
+	throw std::runtime_error("saInitGamma called without SA_BOUNDARY");
+}
+
+
+/// Initialize gamma
+void
+saInitGamma(
+	BufferList const&	bufread,
+	BufferList&		bufwrite,
+	const	uint*			cellStart,
+	const	float			slength,
+	const	float			influenceradius,
+	const	float			deltap,
+	const	float			epsilon,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd)
+{
+	saInitGammaImpl<boundarytype>(bufread, bufwrite, cellStart,
+		slength, influenceradius, deltap, epsilon,
+		numParticles, particleRangeEnd);
+}
+
 
 // counts vertices that belong to IO and same segment as other IO vertex
 virtual

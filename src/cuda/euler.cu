@@ -103,8 +103,13 @@ setrbsteprot(const float* rot, int numbodies)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbsteprot, rot, 9*numbodies*sizeof(float)));
 }
 
-void
-density_sum(
+// TODO FIXME density summation is only currently supported for SA_BOUNDARY, and the code
+// is designed for it (no conditional gamma terms etc). It should be redesigned
+// to extend support to other formulations as well.
+// For the time being we SFINAE its “actual” implementation in this secondary method
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype == SA_BOUNDARY>
+density_sum_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
 		const	uint	*cellStart,
@@ -198,9 +203,49 @@ density_sum(
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 }
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype != SA_BOUNDARY>
+density_sum_impl(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt,
+		const	float	dt2,
+		const	int		step,
+		const	float	t,
+		const	float	epsilon,
+		const	float	slength,
+		const	float	influenceradius)
+{
+	throw std::runtime_error("density summation is currently only supported with SA_BOUNDARY");
+}
 
 void
-integrate_gamma(
+density_sum(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt,
+		const	float	dt2,
+		const	int		step,
+		const	float	t,
+		const	float	epsilon,
+		const	float	slength,
+		const	float	influenceradius)
+{
+	density_sum_impl<boundarytype>(bufread, bufwrite, cellStart,
+		numParticles, particleRangeEnd,
+		dt, dt2, step, t, epsilon, slength, influenceradius);
+}
+
+// SFINAE implementation of integrate_gamma
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype == SA_BOUNDARY>
+integrate_gamma_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
 		const	uint	*cellStart,
@@ -270,6 +315,45 @@ integrate_gamma(
 
 	KERNEL_CHECK_ERROR;
 }
+template<BoundaryType _boundarytype>
+enable_if_t<_boundarytype != SA_BOUNDARY>
+integrate_gamma_impl(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt,
+		const	float	dt2,
+		const	int		step,
+		const	float	t,
+		const	float	epsilon,
+		const	float	slength,
+		const	float	influenceradius)
+{
+	throw std::runtime_error("integrate_gamma called without SA_BOUNDARY");
+}
+
+void
+integrate_gamma(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint	*cellStart,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt,
+		const	float	dt2,
+		const	int		step,
+		const	float	t,
+		const	float	epsilon,
+		const	float	slength,
+		const	float	influenceradius)
+{
+	integrate_gamma_impl<boundarytype>(bufread, bufwrite, cellStart,
+		numParticles, particleRangeEnd,
+		dt, dt2, step, t, epsilon, slength, influenceradius);
+}
+
 
 void
 apply_density_diffusion(
