@@ -175,7 +175,16 @@ public:
 			throw std::runtime_error("trying to remove unassigned buffer state " +
 				state + " from buffer " + this->inspect());
 		m_state.erase(found);
+		m_manipulators.clear();
 		return m_state.size();
+	}
+	// replace a state with  different one
+	inline void replace_state(std::string const& old_s, std::string const& new_s) {
+		auto found = std::find(m_state.begin(), m_state.end(), old_s);
+		if (found == m_state.end())
+			throw std::runtime_error("trying to replace unassigned buffer state " +
+				old_s + " from buffer " + this->inspect());
+		found->replace(0, found->size(), new_s);
 	}
 
 	inline void copy_state(AbstractBuffer const* other)
@@ -990,6 +999,37 @@ public:
 		}
 	}
 
+	//! Swap buffers between states, invalidating the destination ones
+	void swap_state_buffers(std::string const& src_state, std::string const& dst_state, flag_t keys)
+	{
+		BufferList& src = m_state.at(src_state);
+		BufferList& dst = m_state.at(dst_state);
+
+		for (auto const key : m_buffer_keys) {
+			if ( !(key & keys) )
+				continue;
+			auto src_buf = src[key];
+			auto dst_buf = dst[key];
+
+			// if none is present, skip the key
+			if (!src_buf && !dst_buf)
+				continue;
+			// at least one is present, but do we have both?
+			if (!src_buf)
+				throw std::runtime_error("trying to swap asymmetric buffer " +
+					std::string(dst_buf->get_buffer_name()));
+			if (!dst_buf)
+				throw std::runtime_error("trying to swap asymmetric buffer " +
+					std::string(src_buf->get_buffer_name()));
+
+			src.replaceBuffer(key, dst_buf);
+			dst.replaceBuffer(key, src_buf);
+			dst_buf->replace_state(dst_state, src_state);
+			src_buf->replace_state(src_state, dst_state);
+			src_buf->mark_invalid();
+		}
+	}
+
 	//! Remove buffers from one state
 	void remove_state_buffers(std::string const& state, flag_t req_keys)
 	{
@@ -1136,7 +1176,7 @@ public:
 				throw std::runtime_error("trying to rename state " + old_state
 					+ " with invalid buffer " + buf->inspect());
 
-			buf->set_state(new_state);
+			buf->replace_state(old_state, new_state);
 		}
 
 		m_state.erase(old_state);

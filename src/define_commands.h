@@ -85,9 +85,15 @@ DEFINE_COMMAND_DYN(ADD_STATE_BUFFERS)
  * with other states
  */
 DEFINE_COMMAND_DYN(REMOVE_STATE_BUFFERS)
+/// Swap buffers between two states, marking the new destination buffer as invalid
+/*! Arguments: “source” state, “destination” state, buffer(s)
+ * \note order of states is important, because the buffers moved to the
+ * “destination” state are marked invalid
+ */
+DEFINE_COMMAND_DYN(SWAP_STATE_BUFFERS)
 
 /// Share buffers between states
-/*! Arguments: “source” state, “destination” state, buffer
+/*! Arguments: “source” state, “destination” state, buffer(s)
  */
 DEFINE_COMMAND_DYN(SHARE_BUFFERS)
 

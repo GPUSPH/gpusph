@@ -1369,6 +1369,17 @@ void GPUWorker::runCommand<REMOVE_STATE_BUFFERS>()
 	m_dBuffers.remove_state_buffers(gdata->extraCommandArg.string, gdata->commandFlags);
 }
 
+// Swap buffers between state, invalidating the destination one
+template<>
+void GPUWorker::runCommand<SWAP_STATE_BUFFERS>()
+{
+	const flag_t flags = gdata->commandFlags;
+	const string& src = gdata->extraCommandArg.strings[0];
+	const string& dst = gdata->extraCommandArg.strings[1];
+
+	m_dBuffers.swap_state_buffers(src, dst, flags);
+}
+
 
 
 // Share buffers between states
