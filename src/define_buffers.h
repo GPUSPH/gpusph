@@ -291,6 +291,14 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define SUPPORT_BUFFERS \
 	(ALL_DEFINED_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | EPHEMERAL_BUFFERS))
 
+//! Buffers that get (re)initialized during the neighbors list construction
+/*! These are otherwise immutable, shouldn't be sorted, and are shared between states.
+ * Note that BUFFER_COMPACT_DEV_MAP is excluded from these buffers because it's
+ * generated once at the beginning of the simulation and never updated.
+ */
+#define NEIBS_SEQUENCE_REFRESH_BUFFERS \
+	( (BUFFERS_CELL & ~BUFFER_COMPACT_DEV_MAP) | BUFFER_NEIBSLIST | BUFFER_VERTPOS)
+
 // particle-based buffers to be imported during the APPEND_EXTERNAL command
 // These are the particle property buffers plus the hash, from the READ list
 #define IMPORT_BUFFERS (PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS | DBLBUFFER_READ)

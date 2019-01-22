@@ -660,6 +660,29 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 void
 GPUSPH::runIntegratorStep(const flag_t integrator_step)
 {
+	/* In the predictor/corrector scheme we use, there are four buffers that
+	 * need special treatment:
+	 * * the INFO buffer is always representative of both states —in fact, because of this
+	 *   and because it's part of the sorting key, it's the only property buffer
+	 *   which is not double buffered;
+	 * * the VERTICES buffer is always representative of both states, even though it is used
+	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
+	 *   in-place;
+	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
+	 *   representative of the previous state only until it gets updated, when it is
+	 *   representative of the next state only;
+	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
+	 *   boundaries, otherwise is follows the behavior of the other buffers
+	 */
+
+	static const bool has_moving_bodies = (problem->simparams()->simflags & ENABLE_MOVING_BODIES);
+	static const flag_t shared_buffers =
+		BUFFER_INFO |
+		BUFFER_VERTICES |
+		BUFFER_NEXTID |
+		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
+		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
+
 	// for Grenier formulation, compute sigma and smoothed density
 	// TODO with boundary models requiring kernels for boundary conditions,
 	// this should be moved into prepareNextStep
@@ -714,6 +737,21 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 	}
 	// -----------------------------------------
+
+	// On the predictor, we need to (re)init the predicted status (n*),
+	// on the corrector this will be updated (in place) to the corrected status (n+1)
+	// TODO we need to better formalize the situation in which a kernel moves
+	// a buffer to one state to the other on update
+	if (integrator_step == INTEGRATOR_STEP_1) {
+		doCommand(INIT_STATE, "step n*", PARTICLE_PROPS_BUFFERS & ~shared_buffers);
+		/* The buffers (re)initialized during the neighbors list construction
+		 * and the INFO and HASH buffers are shared between states
+		 */
+		doCommand(SHARE_BUFFERS, "step n", "step n*",
+			shared_buffers | BUFFER_HASH | NEIBS_SEQUENCE_REFRESH_BUFFERS);
+	} else {
+		doCommand(RENAME_STATE, "step n*", "step n+1");
+	}
 
 	// Take care of moving bodies
 	move_bodies(integrator_step);
@@ -778,6 +816,8 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 	FilterFreqList::const_iterator flt(enabledFilters.begin());
 	FilterFreqList::const_iterator flt_end(enabledFilters.end());
+	doCommand(RENAME_STATE, "step n", "unfiltered");
+	doCommand(INIT_STATE, "filtered", BUFFER_VEL);
 	while (flt != flt_end) {
 		FilterType filter = flt->first;
 		uint freq = flt->second; // known to be > 0
@@ -789,9 +829,19 @@ void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
 
 			doCommand(SWAP_BUFFERS, BUFFER_VEL);
+
+			// swap buffers between filtered and unfiltered: this moves
+			// the filtered buffer into the unfiltered state (as in: unfiltered for the
+			// next filter, if any), and moves what was in the unfiltered state to filtered:
+			// the latter is marked invalid, in preparation for the next filter (if any)
+			doCommand(SWAP_STATE_BUFFERS, "unfiltered", "filtered", BUFFER_VEL);
 		}
 		++flt;
 	}
+	// a bit of a paradox: the state rename is done for the unfiltered state,
+	// since this is where the previously filtered velocity has been moved with the last swap
+	doCommand(RENAME_STATE, "unfiltered", "step n");
+	doCommand(RELEASE_STATE, "filtered");
 }
 
 bool GPUSPH::runSimulation() {
@@ -869,8 +919,12 @@ bool GPUSPH::runSimulation() {
 	// try/catch block --------v-----
 	while (gdata->keep_going) try {
 		printStatus(m_info_stream);
-		// when there will be an Integrator class, here (or after bneibs?) we will
-		// call Integrator -> setNextStep
+
+		// legacy bufferlist to states migration: resync "step n"
+		// state with the READ list
+		doCommand(RESYNC_STATE, "step n", DBLBUFFER_READ);
+		// remove ephemeral buffers from the particle system state
+		doCommand(REMOVE_STATE_BUFFERS, "step n", EPHEMERAL_BUFFERS);
 
 		// build neighbors list every buildneibsfreq or if we created
 		// particles, but only after the first iteration, because we have
@@ -880,18 +934,13 @@ bool GPUSPH::runSimulation() {
 			 gdata->particlesCreated);
 
 		if (needs_new_neibs) {
-			// legacy bufferlist to states migration: resync "step n"
-			// state with the READ list
-			doCommand(RESYNC_STATE, "step n", DBLBUFFER_READ);
-			// remove ephemeral buffers from the particle system state
-			doCommand(REMOVE_STATE_BUFFERS, "step n", EPHEMERAL_BUFFERS);
-
 			buildNeibList();
 			if (Writer::HotWriterPending())
 				saveParticles(noPostProcess, HotWriteFlags);
 		}
 
-		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
+		// when there will be an Integrator class, here (or after bneibs?) we will
+		// call Integrator -> setNextStep
 
 		// run enabled filters
 		if (gdata->iterations > 0) {
@@ -902,9 +951,8 @@ bool GPUSPH::runSimulation() {
 		runIntegratorStep(INTEGRATOR_STEP_1);
 
 		// Here the first part of our time integration scheme is complete. All updated values
-		// are now in the read buffers again: mark the READ buffers as valid n*,
-		// and the WRITE buffers as valid n
-		markIntegrationStep("n*", BUFFER_VALID, "n", BUFFER_VALID);
+		// are now in the read buffers again
+
 		// End of predictor step, start corrector step
 
 		// run CORRECTOR step (INTEGRATOR_STEP_2)
@@ -912,9 +960,11 @@ bool GPUSPH::runSimulation() {
 
 		// Here the second part of our time integration scheme is complete, i.e. the time-step is
 		// fully computed. All updated values are now in the read buffers again:
-		// mark the READ buffers as valid n+1, and the WRITE buffers as valid n
-		markIntegrationStep("n+1", BUFFER_VALID, "n", BUFFER_VALID);
+
 		// End of corrector step, finish iteration
+
+		doCommand(RELEASE_STATE, "step n");
+		doCommand(RENAME_STATE, "step n+1", "step n");
 
 		// increase counters
 		gdata->iterations++;
@@ -1973,8 +2023,6 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 	// We remove the cell, neibslist and vertex position buffers, invalidating them.
 	// They will be added to the sorted state, to be reinitialized during hash computation
 	// and neighbors list construction
-#define NEIBS_SEQUENCE_REFRESH_BUFFERS \
-	( (BUFFERS_CELL & ~BUFFER_COMPACT_DEV_MAP) | BUFFER_NEIBSLIST | BUFFER_VERTPOS)
 	doCommand(REMOVE_STATE_BUFFERS, "step n", NEIBS_SEQUENCE_REFRESH_BUFFERS);
 
 	// Rename the state to “unsorted”
@@ -2520,21 +2568,6 @@ void GPUSPH::markIntegrationStep(
 	std::string const& read_state, BufferValidity read_valid,
 	std::string const& write_state, BufferValidity write_valid)
 {
-	/* There are four buffers that need special treatment:
-	 * * the INFO buffer is always representative of both states —in fact, because of this
-	 *   and because it's part of the sorting key, it's the only property buffer
-	 *   which is not double buffered;
-	 * * the VERTICES buffer is always representative of both states, even though it is used
-	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
-	 *   in-place;
-	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
-	 *   representative of the previous state only until it gets updated, when it is
-	 *   representative of the next state only; due to the way we use markIntegrationStep,
-	 *   we count it as a 'shared' buffer;
-	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
-	 *   boundaries, otherwise is follows the behavior of the other buffers
-	 */
-
 	static const bool has_moving_bodies = (problem->simparams()->simflags & ENABLE_MOVING_BODIES);
 	static const bool using_sa = (problem->simparams()->boundarytype == SA_BOUNDARY);
 	static const flag_t shared_buffers =
