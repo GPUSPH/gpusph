@@ -425,9 +425,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Starting workers...\n");
 
 	// allocate workers
-	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
+	gdata->GPUWORKERS.reserve(gdata->devices);
 	for (uint d=0; d < gdata->devices; d++)
-		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
+		gdata->GPUWORKERS.push_back( make_shared<GPUWorker>(gdata, d) );
 
 	gdata->keep_going = true;
 
@@ -461,10 +461,7 @@ bool GPUSPH::finalize() {
 	free(m_rcAddrs);
 
 	// workers
-	for (uint d = 0; d < gdata->devices; d++)
-		delete gdata->GPUWORKERS[d];
-
-	free(gdata->GPUWORKERS);
+	gdata->GPUWORKERS.clear();
 
 	// Synchronizer
 	delete gdata->threadSynchronizer;

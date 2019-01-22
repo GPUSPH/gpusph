@@ -227,7 +227,7 @@ struct GlobalData {
 	devcount_t totDevices;
 
 	// array of GPUWorkers, one per GPU
-	GPUWorker** GPUWORKERS;
+	std::vector<std::shared_ptr<GPUWorker>> GPUWORKERS;
 
 	Problem* problem;
 
