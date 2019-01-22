@@ -443,7 +443,7 @@ effectiveViscDevice(KP params)
 		effvisc += viscYieldTerm(fluid, S, params);
 
 	// Clamp to the user-set limiting viscosity
-	effvisc = fminf(effvisc, d_limiting_visc);
+	effvisc = fminf(effvisc, d_limiting_kinvisc*d_rho0[fluid]);
 
 	store_effective_visc(params, index, effvisc, vel.w, fluid);
 

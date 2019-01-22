@@ -157,17 +157,17 @@ typedef struct PhysParams {
 	 *
 	 * mu exp(-t1 \dot\gamma) + τ_0 (1 - exp(-m \dot\gamma))/\dot\gamma
 	 *
-	 * \see{visc_nonlinear_param, limiting_visc}
+	 * \see{visc_nonlinear_param, limiting_kinvisc}
 	 */
 	std::vector<float>	visc_regularization_param;
 
-	//! Upper limit to the effective dynamic viscosity. SI units: Pa s
+	//! Upper limit to the effective kinematic viscosity. SI units: m²/s
 	/*! This is used to prevent infinite viscosity for shear rates close to zero
 	 * when the model is not regularized.
 	 *
 	 * \note this is fluid-independent
 	 */
-	float limiting_visc;
+	float limiting_kinvisc;
 	/** @} */
 
 	std::vector<float>	visccoeff;		///< Viscosity coefficient
@@ -262,7 +262,7 @@ IGNORE_WARNINGS(deprecated-declarations)
 		artvisccoeff(0.3f),
 		epsartvisc(NAN),
 
-		limiting_visc(1.0e3),
+		limiting_kinvisc(1.0e3),
 
 		r0(NAN),
 		dcoeff(NAN),
@@ -439,10 +439,10 @@ protected:
 	 * @{ */
 
 	/// Raise the limiting viscosity if necessary to take into account the new settings for the given fluid.
-	void update_limiting_visc(int fluid_idx)
+	void update_limiting_kinvisc(int fluid_idx)
 	{
 		float new_limit = yield_strength.at(fluid_idx)*visc_regularization_param[fluid_idx] + visc_consistency[fluid_idx];
-		limiting_visc = fmaxf(limiting_visc, new_limit);
+		limiting_kinvisc = fmaxf(limiting_kinvisc, new_limit);
 	}
 
 	/// Set the kinematic viscosity of a given fluid
@@ -455,7 +455,7 @@ protected:
 			) {
 		kinematicvisc.at(fluid_idx) = nu;
 		visc_consistency.at(fluid_idx) = nu*rho0[fluid_idx];
-		update_limiting_visc(fluid_idx);
+		update_limiting_kinvisc(fluid_idx);
 	}
 
 	/// Set the dynamic viscosity of a given fluid
@@ -468,7 +468,7 @@ protected:
 			) {
 		kinematicvisc.at(fluid_idx) = mu/rho0[fluid_idx];
 		visc_consistency.at(fluid_idx) = mu;
-		update_limiting_visc(fluid_idx);
+		update_limiting_kinvisc(fluid_idx);
 	}
 
 	/// Set the consistency index of a given fluid
@@ -487,7 +487,7 @@ protected:
 			float ys			///< [in] viscous consistency index \f$ y_s \f$
 			) {
 		yield_strength.at(fluid_idx) = ys;
-		update_limiting_visc(fluid_idx);
+		update_limiting_kinvisc(fluid_idx);
 	}
 
 	/// Set the power law exponent of a given fluid
@@ -517,10 +517,10 @@ protected:
 	}
 
 	/// Set the maximum allowed viscosity
-	void set_limiting_viscosity(
+	void set_limiting_kinviscosity(
 			float max_visc		///< [in] maximum allowed viscosity
 		) {
-		limiting_visc = max_visc;
+		limiting_kinvisc = max_visc;
 	}
 
 	/// Return the kinematic viscosity of a given fluid

@@ -32,7 +32,7 @@ __constant__ float	d_yield_strength[MAX_FLUID_TYPES]; ///< yield strength for Bi
 __constant__ float	d_visc_nonlinear_param[MAX_FLUID_TYPES]; ///< exponent for power-law and Herschel–Bulkley rheology, exponential coefficient for Zhu and DeKee & Turcotte
 __constant__ float	d_visc_regularization_param[MAX_FLUID_TYPES]; ///< Papanastasiou regularization parameter
 
-__constant__ float	d_limiting_visc; ///< upper bound to the viscosity
+__constant__ float	d_limiting_kinvisc; ///< upper bound to the viscosity
 
 // Artificial viscosity parameters
 __constant__ float	d_artvisccoeff;					///< viscous coefficient for artificial viscosity

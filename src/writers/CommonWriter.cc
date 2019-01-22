@@ -463,7 +463,7 @@ CommonWriter::write_physparams(ostream &out)
 		out << "\tkSPSfactor = " << PP->kspsfactor << endl;
 	}
 	if (NEEDS_EFFECTIVE_VISC(SP->rheologytype))
-		out << "\tlimiting visc = " << PP->limiting_visc << endl;
+		out << "\tlimiting visc = " << PP->limiting_kinvisc << endl;
 
 	for (uint f  = 0; f < PP->numFluids(); ++f) {
 		out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
