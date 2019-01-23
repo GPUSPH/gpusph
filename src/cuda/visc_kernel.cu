@@ -42,6 +42,7 @@
 // (also improves autocompletion and real-time error detection in smart editors)
 #include "sph_core.cu"
 #include "phys_core.cu"
+#include "device_core.cu"
 #include "buildneibs_kernel.cu"
 
 // TODO these block sizes should be autotuned
@@ -365,13 +366,33 @@ viscShearTerm(int fluid, float shrate, KP const& params)
 	return d_visccoeff[fluid]*expf( -d_visc_nonlinear_param[fluid]*shrate );
 }
 
+//! Compute the kinematic viscosity from the dynamic one
+/** This is only done if the computationa viscosity model is KINEMATIC,
+ * or if adaptive timestepping is enabled
+ */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< (KP::ViscSpec::compvisc == KINEMATIC) ||
+	(KP::simflags & ENABLE_DTADAPT)>
+compute_kinvisc(KP const& params, float effvisc, float rhotilde, int fluid,
+	float &kinvisc)
+{
+	kinvisc = effvisc/physical_density(rhotilde, fluid);
+}
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< (KP::ViscSpec::compvisc != KINEMATIC) &&
+	not (KP::simflags & ENABLE_DTADAPT)>
+compute_kinvisc(KP const& params, float effvisc, float rhotilde, int fluid,
+	float &kinvisc)
+{ /* do nothing */ }
+
 //! Store the effective viscosity (DYNAMIC computational model)
 /*! In this case we store the viscosity as-is, since we computed the dynamic viscosity */
 template<typename KP>
 __device__ __forceinline__
 enable_if_t< KP::ViscSpec::compvisc == DYNAMIC >
-store_effective_visc(KP const& params, int index, float effvisc,
-	float /* rhotilde */, int /* fluid */)
+store_effective_visc(KP const& params, int index, float effvisc, float /* kinvisc */)
 {
 	params.effvisc[index] = effvisc;
 }
@@ -381,15 +402,33 @@ store_effective_visc(KP const& params, int index, float effvisc,
 template<typename KP>
 __device__ __forceinline__
 enable_if_t< KP::ViscSpec::compvisc == KINEMATIC >
-store_effective_visc(KP const& params, int index, float effvisc,
-	float rhotilde, int fluid)
+store_effective_visc(KP const& params, int index, float /* effvisc */, float kinvisc)
 {
-	params.effvisc[index] = effvisc/physical_density(rhotilde, fluid);
+	params.effvisc[index] = kinvisc;
 }
+
+//! Reduce the kinematic viscosity, if ENABLE_DTADAPT
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< KP::simflags & ENABLE_DTADAPT >
+reduce_kinvisc(KP const& params, float kinvisc)
+{
+	__shared__ float sm_max[BLOCK_SIZE_SPS];
+	sm_max[threadIdx.x] = kinvisc;
+	maxBlockReduce(sm_max, params.cfl, 0);
+}
+//! Do nothing to reduce the kinematic viscosity, if not ENABLE_DTADAPT
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< not (KP::simflags & ENABLE_DTADAPT) >
+reduce_kinvisc(KP const& params, float kinvisc)
+{ /* do nothing */ }
 
 //! Per-particle effective viscosity computation
 /** The individual contributions are factored out in viscShearTerm and viscYieldTerm,
- * the common part (shear rate norm computation, clamping, storage) is in this kernel
+ * the common part (shear rate norm computation, clamping, storage) is in this kernel.
+ * Moreover, in the case of adaptive time-stepping, we want the kernel to return
+ * the maximum computed kinematic viscosity, so we do a pre-reduction to the CFL array.
  */
 template<typename KP,
 	KernelType kerneltype = KP::kerneltype,
@@ -399,53 +438,62 @@ effectiveViscDevice(KP params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= params.numParticles)
-		return;
+	float kinvisc = 0.0f;
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	// do { } while (0) around the main body so that we can bail out
+	// to the reduction
+	do {
+		if (index >= params.numParticles)
+			break;
 
-	// fluid number
-	const int fluid = fluid_num(info);
+		const particleinfo info = tex1Dfetch(infoTex, index);
 
-	// read particle data from sorted arrays
-	#if PREFER_L1
-	const float4 pos = params.posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+		// fluid number
+		const int fluid = fluid_num(info);
 
-	// skip inactive particles
-	if (INACTIVE(pos))
-		return;
+		// read particle data from sorted arrays
+#if PREFER_L1
+		const float4 pos = params.posArray[index];
+#else
+		const float4 pos = tex1Dfetch(posTex, index);
+#endif
 
-	const float4 vel = tex1Dfetch(velTex, index);
+		// skip inactive particles
+		if (INACTIVE(pos))
+			break;
 
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+		const float4 vel = tex1Dfetch(velTex, index);
 
-	// shear rate tensor
-	symtensor3 tau = shearRate<kerneltype, MIXED_TENSOR>(index, gridPos, pos, vel, params);
+		// Compute grid position of current particle
+		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
-	// shear rate norm
-	const float SijSij_bytwo = shearRateNorm2<MIXED_TENSOR>(tau);
-	const float S = sqrtf(SijSij_bytwo);
+		// shear rate tensor
+		symtensor3 tau = shearRate<kerneltype, MIXED_TENSOR>(index, gridPos, pos, vel, params);
 
-	float effvisc = 0.0f;
+		// shear rate norm
+		const float SijSij_bytwo = shearRateNorm2<MIXED_TENSOR>(tau);
+		const float S = sqrtf(SijSij_bytwo);
 
-	// effective viscosity contribution from the shear rate norm
-	// (e.g. k \dot\gamma^n for power law and Herschel–Bulkley)
-	if (d_visccoeff[fluid] != 0.0f)
-		effvisc += viscShearTerm(fluid, S, params);
+		float effvisc = 0.0f;
 
-	// add effective viscosity contribution from the yield strength
-	// (e.g. tau_0/\dot\gamma for Bingham and Herschel–Bulkley)
-	if (d_yield_strength[fluid] != 0.0f)
-		effvisc += viscYieldTerm(fluid, S, params);
+		// effective viscosity contribution from the shear rate norm
+		// (e.g. k \dot\gamma^n for power law and Herschel–Bulkley)
+		if (d_visccoeff[fluid] != 0.0f)
+			effvisc += viscShearTerm(fluid, S, params);
 
-	// Clamp to the user-set limiting viscosity
-	effvisc = fminf(effvisc, d_limiting_kinvisc*d_rho0[fluid]);
+		// add effective viscosity contribution from the yield strength
+		// (e.g. tau_0/\dot\gamma for Bingham and Herschel–Bulkley)
+		if (d_yield_strength[fluid] != 0.0f)
+			effvisc += viscYieldTerm(fluid, S, params);
 
-	store_effective_visc(params, index, effvisc, vel.w, fluid);
+		// Clamp to the user-set limiting viscosity
+		effvisc = fminf(effvisc, d_limiting_kinvisc*d_rho0[fluid]);
+
+		compute_kinvisc(params, effvisc, vel.w, fluid, kinvisc);
+		store_effective_visc(params, index, effvisc, kinvisc);
+	} while (0);
+
+	reduce_kinvisc(params, kinvisc);
 
 }
 

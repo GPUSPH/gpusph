@@ -417,6 +417,9 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 
 	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
 
+	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
+	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
+
 	// TODO get from integrator
 	// for both steps, the “starting point” for Euler and density summation is step n
 	const string base_state = "step n";
@@ -452,14 +455,19 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	}
 
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
-	if (sp->turbmodel == SPS || NEEDS_EFFECTIVE_VISC(sp->rheologytype)) {
+	if (sp->turbmodel == SPS || needs_effective_visc) {
 		this_phase->add_command(CALC_VISC)
 			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL)
 			.writing(current_state,
-				BUFFER_TAU | BUFFER_SPS_TURBVISC | BUFFER_EFFVISC);
+				BUFFER_TAU | BUFFER_SPS_TURBVISC | BUFFER_EFFVISC |
+				// When computing the effective viscosity, if adaptive time-stepping is enabled,
+				// CALC_VISC will also find the maximum viscosity, using the CFL buffers
+				// for the reduction
+				((needs_effective_visc && dtadapt) ?
+				 BUFFER_CFL | BUFFER_CFL_TEMP : BUFFER_NONE));
 
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)

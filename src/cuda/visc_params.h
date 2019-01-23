@@ -93,14 +93,29 @@ struct sps_params :
 	{}
 };
 
+//! Parameters needed when reducing the kinematic visc to find its maximum value
+struct visc_reduce_params
+{
+	float * __restrict__	cfl;
+	visc_reduce_params(float* __restrict__ _cfl) :
+		cfl(_cfl)
+	{}
+};
+
 //! Effective viscosity kernel parameters
 /** in addition to the standard neibs_list_params, it only includes
  * the array where the effective viscosity is written
  */
 template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
-	typename _ViscSpec>
-struct effvisc_params : neibs_list_params
+	typename _ViscSpec,
+	flag_t _simflags,
+	typename reduce_params =
+		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, visc_reduce_params)
+	>
+struct effvisc_params :
+	neibs_list_params,
+	reduce_params
 {
 	float * __restrict__	effvisc;
 
@@ -109,6 +124,7 @@ struct effvisc_params : neibs_list_params
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr BoundaryType boundarytype = _boundarytype;
 	static constexpr RheologyType rheologytype = ViscSpec::rheologytype;
+	static constexpr flag_t simflags = _simflags;
 
 	effvisc_params(
 		// common
@@ -120,9 +136,11 @@ struct effvisc_params : neibs_list_params
 			const	float		_slength,
 			const	float		_influenceradius,
 		// effective viscosity
-					float*	__restrict__	_effvisc) :
+					float*	__restrict__	_effvisc,
+					float*	__restrict__	_cfl) :
 	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
 		_slength, _influenceradius),
+	reduce_params(_cfl),
 	effvisc(_effvisc)
 	{}
 };

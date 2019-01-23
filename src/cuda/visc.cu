@@ -50,13 +50,15 @@
 
 template<typename _ViscSpec,
 	KernelType _kerneltype,
-	BoundaryType _boundarytype>
+	BoundaryType _boundarytype,
+	flag_t _simflags>
 class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 {
 	using ViscSpec = _ViscSpec;
 
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr BoundaryType boundarytype = _boundarytype;
+	static constexpr flag_t simflags = _simflags;
 
 	/// Viscous engine implementation, general case.
 	/// Note that the SFINAE is done on a generic typename,
@@ -64,7 +66,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	/// This is to avoid the issues associated with SFINAE not being possible
 	/// when the specializations can only be differentiate by return type.
 	template<typename This>
-	enable_if_t<This::turbmodel != SPS && !NEEDS_EFFECTIVE_VISC(This::rheologytype)>
+	enable_if_t<This::turbmodel != SPS && !NEEDS_EFFECTIVE_VISC(This::rheologytype), float>
 	calc_visc_implementation(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
@@ -73,11 +75,11 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	slength,
 		const	float	influenceradius,
 		const	This *)
-	{ /* do nothing */ }
+	{ return NAN; }
 
 	/// Viscous engine implementation, specialized for the generalized Newtonian rheologies
 	template<typename This>
-	enable_if_t<NEEDS_EFFECTIVE_VISC(This::rheologytype)>
+	enable_if_t<NEEDS_EFFECTIVE_VISC(This::rheologytype), float>
 	calc_visc_implementation(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
@@ -88,6 +90,23 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	This *)
 	{
 		float *effvisc = bufwrite.getData<BUFFER_EFFVISC>();
+		/* We recycle the CFL arrays to determine the maximum kinematic viscosity
+		 * in the adaptive timestepping case
+		 */
+		float *cfl = NULL;
+		float *tempCfl = NULL;
+
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		if (cfl_buf) {
+			auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+
+			cfl_buf->clobber();
+			tempCfl_buf->clobber();
+
+			// get the (typed) pointers
+			cfl = cfl_buf->get();
+			tempCfl = tempCfl_buf->get();
+		}
 
 		const float4 *pos = bufread.getData<BUFFER_POS>();
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
@@ -105,9 +124,9 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		effvisc_params<kerneltype, boundarytype, ViscSpec> params(
+		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
 			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
-			effvisc);
+			effvisc, cfl);
 
 		cuvisc::effectiveViscDevice<<<numBlocks, numThreads>>>(params);
 
@@ -119,11 +138,17 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 #endif
+
+		if (This::simflags & ENABLE_DTADAPT) {
+			return cflmax(numBlocks, cfl, tempCfl);
+		} else {
+			return NAN;
+		}
 	}
 
 	/// Viscous engine implementation, specialized for the SPS turbulence model.
 	template<typename This>
-	enable_if_t<This::turbmodel == SPS>
+	enable_if_t<This::turbmodel == SPS, float>
 	calc_visc_implementation(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
@@ -177,13 +202,16 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
+
+		// TODO return SPS turbvisc?
+		return NAN;
 	}
 
 	// TODO when we will be in a separate namespace from forces
 	void setconstants() {}
 	void getconstants() {}
 
-	void
+	float
 	calc_visc(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
@@ -192,7 +220,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	slength,
 		const	float	influenceradius)
 	{
-		calc_visc_implementation(bufread, bufwrite,
+		return calc_visc_implementation(bufread, bufwrite,
 			numParticles, particleRangeEnd, slength, influenceradius, this);
 	}
 

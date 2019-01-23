@@ -66,6 +66,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	filterEngines(gdata->simframework->getFilterEngines()),
 	postProcEngines(gdata->simframework->getPostProcEngines()),
 
+	m_max_kinvisc(NAN),
+	m_max_sound_speed(NAN),
+
 	m_deviceIndex(_deviceIndex),
 	m_globalDeviceIdx(GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex)),
 	m_cudaDeviceNumber(gdata->device[_deviceIndex]),
@@ -1990,27 +1993,11 @@ float GPUWorker::post_forces(CommandStruct const& cmd)
 	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("post-forces");
 
-	// TODO multifluid: dtreduce needs the maximum viscosity. We compute it
-	// here and pass it over. This is inefficient as we compute it every time,
-	// while it should be done, while it could be done once only. OTOH, for
-	// non-constant viscosities this should actually be done in-kernel to determine
-	// the _actual_ maximum viscosity
-
-	float max_kinematic = NAN;
-	if (m_simparams->rheologytype != INVISCID)
-		for (uint f = 0; f < m_physparams->numFluids(); ++f)
-			max_kinematic = fmaxf(max_kinematic, m_physparams->kinematicvisc[f]);
-
-	float sspeed_cfl = NAN;
-	for (uint f = 0; f < m_physparams->numFluids(); ++f)
-		sspeed_cfl = fmaxf(sspeed_cfl, m_physparams->sscoeff[f]);
-	sspeed_cfl *= 1.1;
-
 	auto ret = forcesEngine->dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
-		sspeed_cfl,
-		max_kinematic,
+		m_max_sound_speed,
+		m_max_kinvisc,
 		bufread,
 		bufwrite,
 		m_forcesKernelTotalNumBlocks,
@@ -2588,11 +2575,15 @@ void GPUWorker::runCommand<CALC_VISC>(CommandStruct const& cmd)
 	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("calc visc" + to_string(step));
 
-	viscEngine->calc_visc(bufread, bufwrite,
+	float max_kinvisc = viscEngine->calc_visc(bufread, bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
+
+	// was the maximum kinematic visc computed? store it
+	if (!isnan(max_kinvisc))
+		m_max_kinvisc = max_kinvisc;
 
 	bufwrite.clear_pending_state();
 }
@@ -2830,6 +2821,17 @@ void GPUWorker::uploadConstants()
 		m_numAllocatedParticles);
 	if(!postProcEngines.empty())
 		postProcEngines.begin()->second->setconstants(m_simparams, m_physparams, m_numAllocatedParticles);
+
+	// Compute maximum viscosity in Newtonian case
+	if (m_simparams->rheologytype == NEWTONIAN)
+		for (uint f = 0; f < m_physparams->numFluids(); ++f)
+			m_max_kinvisc = fmaxf(m_max_kinvisc, m_physparams->kinematicvisc[f]);
+
+	// Compute maximum sound speed, for CFL condition
+	for (uint f = 0; f < m_physparams->numFluids(); ++f)
+		m_max_sound_speed = fmaxf(m_max_sound_speed, m_physparams->sscoeff[f]);
+	m_max_sound_speed *= 1.1;
+
 }
 
 // Auxiliary method for debugging purposes: downloads on the host one or multiple field values of

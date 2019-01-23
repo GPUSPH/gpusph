@@ -77,6 +77,16 @@ private:
 	FilterEngineSet const& filterEngines;
 	PostProcessEngineSet const& postProcEngines;
 
+	//! maximum kinematic viscosity
+	/*! This is computed once for Newtonian fluids,
+	 * or every time CALC_VISC is run otherwise
+	 */
+	float m_max_kinvisc;
+	//! maximum sound speed
+	/*! Computed once (in uploadConstants), and passed to the dtreduce of the forces engine
+	 */
+	float m_max_sound_speed;
+
 	std::thread thread_id;
 	void simulationThread();
 
