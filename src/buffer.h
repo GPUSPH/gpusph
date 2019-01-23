@@ -238,6 +238,16 @@ public:
 
 	virtual ~GenericBuffer() {} ;
 
+	// typed getters
+	T *get(uint idx=0) {
+		if (idx >= N) return NULL;
+		return m_bufs[idx];
+	}
+	virtual const T *get(uint idx=0) const {
+		if (idx >= N) return NULL;
+		return m_bufs[idx];
+	}
+
 	// return an (untyped) pointer to the idx buffer,
 	// if valid. Must return void since we overload
 	// AbstractBuffer methods.
