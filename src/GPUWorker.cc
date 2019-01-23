@@ -1155,107 +1155,6 @@ GPUWorker::describeCommandFlagsBuffers()
 	return describeCommandFlagsBuffers(gdata->commandFlags);
 }
 
-void GPUWorker::clearBufferState(const flag_t flags)
-{
-	// get the bufferlist to set the data for
-	BufferList& buflist = getBufferListByCommandFlags(flags);
-	for (auto& iter : buflist) {
-		flag_t buf_to_get = iter.first;
-		if (!(buf_to_get & flags))
-			continue;
-
-		auto buf = iter.second;
-		buf->clear_state();
-	}
-}
-
-void GPUWorker::setBufferState(const flag_t flags, std::string const& state)
-{
-	// get the bufferlist to set the data for
-	BufferList& buflist = getBufferListByCommandFlags(flags);
-
-	for (auto& iter : buflist) {
-		flag_t buf_to_get = iter.first;
-		if (!(buf_to_get & flags))
-			continue;
-
-		auto buf = iter.second;
-		buf->set_state(state);
-	}
-}
-
-// Set the state of the given buffers
-template<>
-void GPUWorker::runCommand<SET_BUFFER_STATE>()
-// void GPUWorker::setBufferState()
-{
-	if (gdata->extraCommandArg.string.empty())
-		clearBufferState(gdata->commandFlags);
-	else
-		setBufferState(gdata->commandFlags, gdata->extraCommandArg.string);
-}
-
-void GPUWorker::addBufferState(const flag_t flags, std::string const& state)
-{
-	// get the bufferlist to set the data for
-	BufferList& buflist = getBufferListByCommandFlags(flags);
-
-	for (auto& iter : buflist) {
-		flag_t buf_to_get = iter.first;
-		if (!(buf_to_get & flags))
-			continue;
-
-		auto buf = iter.second;
-		buf->add_state(state);
-	}
-}
-
-// Add to the state of the given buffers
-template<>
-void GPUWorker::runCommand<ADD_BUFFER_STATE>()
-// void GPUWorker::addBufferState()
-{
-	addBufferState(gdata->commandFlags, gdata->extraCommandArg.string);
-}
-
-void setBufferValidity(BufferList& buflist, const flag_t keys, BufferValidity validity)
-{
-	for (auto& iter : buflist) {
-		flag_t buf_to_get = iter.first;
-		if (!(buf_to_get & keys))
-			continue;
-
-		shared_ptr<AbstractBuffer> buf = iter.second;
-		BufferValidity was_valid = buf->validity();
-		/* Invalid buffers should only be set valid (or dirty) by the kernels that write to them.
-		 * If an invalid buffer gets marked as valid due to this call, it means that a wrong swap
-		 * happened somewhere.
-		 */
-		if (validity == BUFFER_VALID && was_valid == BUFFER_INVALID) {
-			if (debug_inspect_buffer)
-				cout << "\t\t(forcing buffer validity for " << buf->inspect() << ")" << endl;
-			else
-				throw std::invalid_argument("forcing buffer validity on an invalid buffer");
-		}
-		buf->mark_valid(validity);
-	}
-}
-
-void GPUWorker::setBufferValidity(const flag_t flags, BufferValidity validity)
-{
-	// get the bufferlist to set the data for
-	BufferList& buflist = getBufferListByCommandFlags(flags);
-
-	::setBufferValidity(buflist, flags, validity);
-}
-
-template<>
-void GPUWorker::runCommand<SET_BUFFER_VALIDITY>()
-// void GPUWorker::setBufferValidity()
-{
-	setBufferValidity(gdata->commandFlags, BufferValidity(gdata->extraCommandArg.flag));
-}
-
 //! Upload subdomain to an “initial upload” state
 /*! Data is taken from the buffers allocated and sorted on host
  */
@@ -2017,7 +1916,6 @@ void GPUWorker::runCommand<REORDER>()
 							m_dNewNumParticles);
 
 	flag_t sorted_buffers = sorted.get_updated_buffers() & multi_buffered;
-	::setBufferValidity(unsorted, sorted_buffers, BUFFER_INVALID);
 
 	sorted.clear_pending_state();
 }
@@ -3119,15 +3017,6 @@ void GPUWorker::describeCommand()
 
 	// Add extra information, if needed
 	switch (Cmd) {
-	case SET_BUFFER_STATE:
-		desc += " <- " + gdata->extraCommandArg.string;
-		break;
-	case ADD_BUFFER_STATE:
-		desc += " += " + gdata->extraCommandArg.string;
-		break;
-	case SET_BUFFER_VALIDITY:
-		desc += " <- " + to_string(BufferValidity(gdata->extraCommandArg.flag));
-		break;
 	case FILTER:
 		desc += " " + string(FilterName[gdata->extraCommandArg.flag]);
 		break;

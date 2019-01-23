@@ -59,13 +59,6 @@ DEFINE_COMMAND_NOBUF(QUIT)
 
 /* Buffer state management */
 
-/// Set the state of the given buffers to the given string
-DEFINE_COMMAND_DYN(SET_BUFFER_STATE)
-/// Add the given state string to the state of the given buffers
-DEFINE_COMMAND_DYN(ADD_BUFFER_STATE)
-/// Set the validity of the given buffers
-DEFINE_COMMAND_DYN(SET_BUFFER_VALIDITY)
-
 /// Initialize a new (invalid) ParticleSystem state
 DEFINE_COMMAND_NOBUF(INIT_STATE)
 /// Synchronize an existing ParticleSystem state with a legacy buffer list

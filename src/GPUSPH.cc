@@ -2053,13 +2053,13 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 	// reorder everything else
 	doCommand(REORDER);
 
+	// we don't need the unsorted state anymore
+	doCommand(RELEASE_STATE, "unsorted");
 	// we don't need the PARTINDEX buffer anymore
 	// TODO since we only need PARTINDEX during sorting, and other ephemeral buffers
 	// such as FORCES only outside of sorting, we could spare some memory recycling
 	// one such ephemeral buffer in place of PARTINDEX
 	doCommand(REMOVE_STATE_BUFFERS, "sorted", BUFFER_PARTINDEX);
-	// we don't need the unsorted state anymore
-	doCommand(RELEASE_STATE, "unsorted");
 
 	// get the new number of particles: with inlet/outlets, they
 	// may have changed because of incoming/outgoing particle, otherwise
@@ -2561,56 +2561,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is 
 		// finished they are expected to be in the READ position, so swap them again:
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
-	}
-}
-
-void GPUSPH::markIntegrationStep(
-	std::string const& read_state, BufferValidity read_valid,
-	std::string const& write_state, BufferValidity write_valid)
-{
-	static const bool has_moving_bodies = (problem->simparams()->simflags & ENABLE_MOVING_BODIES);
-	static const bool using_sa = (problem->simparams()->boundarytype == SA_BOUNDARY);
-	static const flag_t shared_buffers =
-		BUFFER_INFO |
-		BUFFER_VERTICES |
-		BUFFER_NEXTID |
-		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
-	// the INFO buffer in the WRITE position should NOT be marked invalid, since it's actually shared
-	static const flag_t invalid_shared_buffers = shared_buffers & ~BUFFER_INFO;
-
-	static const flag_t read_buffers  = DBLBUFFER_READ  |  PARTICLE_PROPS_BUFFERS;
-	static const flag_t write_buffers = DBLBUFFER_WRITE | (PARTICLE_PROPS_BUFFERS & ~shared_buffers);
-
-	doCommand(SET_BUFFER_STATE, read_buffers, read_state);
-	doCommand(SET_BUFFER_VALIDITY, read_buffers, read_valid);
-
-	doCommand(SET_BUFFER_STATE, write_buffers, write_state);
-	doCommand(SET_BUFFER_VALIDITY, write_buffers, write_valid);
-
-	if (!write_state.empty())
-		doCommand(ADD_BUFFER_STATE, shared_buffers | DBLBUFFER_READ, write_state);
-	/* When not using SA, VERTICES, NEXTID and BOUNDELEMENTS aren't used at all, so
-	 * there's nothing to set as invalid
-	 */
-	if (using_sa)
-		doCommand(SET_BUFFER_VALIDITY, invalid_shared_buffers | DBLBUFFER_WRITE, BUFFER_INVALID);
-
-	// Ephemeral buffers are always reset, as they are always invalid for the next step
-	// TODO FIXME when the clobber invalid buffers option is enabled, this invalidates
-	// some ephemeral buffers that get stored (e.g. SPS turbulent viscosity, Grenier's sigma,
-	// forces with the appropriate debug options, etc). While this doesn't (or shouldn't)
-	// affect the simulation, it may create spurious differences in the written data.
-	//
-	// Find a clean way to handle this; possible options thought of so far:
-	// 1. moving the call to markIntegrationStep to _after_ the dump;
-	// 2. invalidating at the beginning of the step, but not at the end.
-	//
-	// We currently implement option 2, with the specific knowledge that
-	// the first markIntegrationStep has an empty+invalid write state.
-	// (Maybe we could also do it for the intermediate markIntegrationStep?)
-	if (write_state.empty() && write_valid == BUFFER_INVALID) {
-		doCommand(SET_BUFFER_STATE, EPHEMERAL_BUFFERS, "");
-		doCommand(SET_BUFFER_VALIDITY, EPHEMERAL_BUFFERS, BUFFER_INVALID);
 	}
 }
 

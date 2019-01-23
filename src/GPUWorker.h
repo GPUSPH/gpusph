@@ -224,17 +224,6 @@ private:
 	std::string describeCommandFlagsBuffers(flag_t flags);
 	std::string describeCommandFlagsBuffers();
 
-	// setting or adding to buffer states
-	void clearBufferState(const flag_t flags);
-	void setBufferState(const flag_t flags, std::string const& state);
-	// runCommand<SET_BUFFER_STATE> = void setBufferState(); // setBufferState() from commandFlags and extraCommandArg
-	void addBufferState(const flag_t flags, std::string const& state);
-	// runCommand<ADD_BUFFER_STATE> = void addBufferState(); // addBufferState() from commandFlags and extraCommandArg
-
-	// setting buffer validity
-	void setBufferValidity(const flag_t flags, BufferValidity validity);
-	// runCommand<SET_BUFFER_VALIDITY> = void setBufferValidity(); // setBufferValidity() from commandFlags and extraCommandArg
-
 	void uploadSubdomain();
 	// runCommand<DUMP> = void dumpBuffers();
 	// runCommand<SWAP_BUFFERS> = void swapBuffers();
