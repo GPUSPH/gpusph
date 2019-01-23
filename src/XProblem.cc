@@ -282,9 +282,15 @@ bool XProblem::initialize()
 	const float g = length(physparams()->gravity);
 	physparams()->dcoeff = 5.0f * g * m_maxFall;
 
-	// Disable hydrostatic filling if there is no gravity
-	if (g == 0)
+	// hydrostatic filling works only if gravity has only vertical component and
+	// there isn't a periodic boundary in the gravity direction
+	// TODO When hydrostatic filling will be implemented to work with all directions,
+	// the disabling condition below have to be changed
+	if (g == 0 || physparams()->gravity.x !=0 || physparams()->gravity.y !=0 ||
+		(simparams()->periodicbound & PERIODIC_Z))
+	{
 		m_hydrostaticFilling = false;
+	}
 
 	if (!isfinite(m_maxParticleSpeed)) {
 		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
