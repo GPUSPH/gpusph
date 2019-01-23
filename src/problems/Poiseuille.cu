@@ -52,9 +52,13 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 
 #endif
 
+#ifndef POISEUILLE_DEFAULT_RHEO
+#define POISEUILLE_DEFAULT_RHEO NEWTONIAN
+#endif
+
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		rheology<NEWTONIAN>,
+		rheology<POISEUILLE_DEFAULT_RHEO>,
 		turbulence_model<LAMINAR_FLOW>,
 		computational_visc<KINEMATIC>,
 		visc_model<MORRIS>,
@@ -83,6 +87,10 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 
 	auto fluid_idx = add_fluid(rho);
 	set_kinematic_visc(fluid_idx, kinvisc);
+
+	// Set yield strength (if needed) to get a plug which is about 1/2 of the channel height
+	if (YIELDING_RHEOLOGY(simparams()->rheologytype))
+		set_yield_strength(fluid_idx, driving_force*rho*lz/4);
 
 	printf("Reynolds number = %g\n", Re);
 	printf("Max flow velocity: %g m/s\n", max_vel);
