@@ -246,6 +246,29 @@ class Problem {
 		double get_deltap() const
 		{ return m_deltap; }
 
+		float3 const& set_gravity(const float3 gravity)
+		{
+			physparams()->gravity = gravity;
+			return physparams()->gravity;
+		}
+
+		float3 set_gravity(const float gravityX, const float gravityY, const float gravityZ)
+		{
+			return set_gravity(make_float3(gravityX, gravityY, gravityZ));
+		}
+
+		float3 const& get_gravity() const
+		{ return physparams()->gravity; }
+
+		float set_timestep(const float dt)
+		{
+			simparams()->dt = dt;
+			return dt;
+		}
+
+		float get_timestep() const
+		{ return simparams()->dt; }
+
 		// Compute the density diffusion coefficient
 		void calculateDensityDiffusionCoefficient();
 
