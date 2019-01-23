@@ -1658,10 +1658,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 				// "i" is the particle index in GPUSPH host arrays, "bi" the one in current HDF5 file)
 				const uint bi = i - tot_parts;
 
-				// TODO: define an invalid/unknown particle type?
+				// By default, set the particle type according to the geometry type
+				// (boundary unless geometry type is GT_FLUID). This will be overridden
+				// by the ParticleType field imported from the HDF5 file, if present/known.
+				ushort ptype = m_geometries[g]->type == GT_FLUID ? PT_FLUID : PT_BOUNDARY;
+
 				// NOTE: update particle counters here, since current_geometry_particles does not distinguish vertex/bound;
 				// tot_parts instead is updated in the outer loop
-				ushort ptype = PT_FLUID;
 				switch (hdf5Buffer[bi].ParticleType) {
 					case CRIXUS_FLUID:
 						// TODO: warn user if (m_geometries[g]->type != GT_FLUID)
