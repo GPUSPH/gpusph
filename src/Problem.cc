@@ -595,6 +595,117 @@ Problem::copy_planes(PlaneList& planes)
 	return;
 }
 
+enum YsContrib
+{
+	NO_YS, ///< no yield strength
+	STD_YS, ///< standard form
+	REG_YS ///< regularized
+};
+
+//! Statically determine the yield strength contribution for the given rheological model
+template<RheologyType rheologytype>
+constexpr YsContrib
+yield_strength_type()
+{
+	return
+		REGULARIZED_RHEOLOGY(rheologytype) ? REG_YS : // yield with regularization
+		YIELDING_RHEOLOGY(rheologytype) ? STD_YS : // yield without regularization
+			NO_YS; // everything else: should be just Newtonian and power-law
+}
+
+template<RheologyType rheologytype>
+enable_if_t< yield_strength_type<rheologytype>() == NO_YS, float >
+getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
+{
+	return 0.0f;
+}
+
+//! Standard contribution from the yield strength
+template<RheologyType rheologytype>
+enable_if_t< yield_strength_type<rheologytype>() == STD_YS, float >
+getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
+{
+	float maxViscYieldTerm = 0.0f;
+	for (uint f = 0; f < physparams->numFluids(); ++f)
+	{
+		if(physparams->yield_strength[f] != 0)
+			return physparams->limiting_kinvisc;
+	}
+	return maxViscYieldTerm;
+}
+
+//! Regularized contribution from the yield strength
+template<RheologyType rheologytype>
+enable_if_t< yield_strength_type<rheologytype>() == REG_YS, float >
+getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
+{
+	float maxViscYieldTerm = 0.0f;
+	for (uint f = 0; f < physparams->numFluids(); ++f)
+	{
+		maxViscYieldTerm = fmaxf(maxViscYieldTerm, physparams->visc_regularization_param[f]*physparams->yield_strength[f]/physparams->rho0[f]);
+	}
+	return maxViscYieldTerm;
+}
+
+//! Linear dependency on the shear rate
+/** For BINGHAM and PAPANASTASIOU */
+template<RheologyType rheologytype>
+enable_if_t<not NONLINEAR_RHEOLOGY(rheologytype), float >
+getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams)
+{
+	float maxViscShearTerm = 0.0f;
+	for (uint f = 0; f < physparams->numFluids(); ++f)
+	{
+		maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]/physparams->rho0[f]);
+	}
+	return maxViscShearTerm;
+}
+
+//! Power-law dependency on the shear rate
+/** For POWER_LAW, HERSCHEL_BULKLEY and ALEXANDROU */
+template<RheologyType rheologytype>
+enable_if_t<POWERLAW_RHEOLOGY(rheologytype), float >
+getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams)
+{
+	float maxViscShearTerm = 0.0f;
+	for (uint f = 0; f < physparams->numFluids(); ++f)
+	{
+		if(physparams->visc_nonlinear_param[f]==1)
+			maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]/physparams->rho0[f]);
+		else
+			return physparams->limiting_kinvisc;
+	}
+	return maxViscShearTerm;
+}
+
+//! Exponential dependency on the shear rate
+/** For DEKEE_TURCOTTE and ZHU */
+template<RheologyType rheologytype>
+enable_if_t<EXPONENTIAL_RHEOLOGY(rheologytype), float >
+getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams)
+{
+	float maxViscShearTerm = 0.0f;
+	for (uint f = 0; f < physparams->numFluids(); ++f)
+	{
+		if(physparams->visc_nonlinear_param[f] >= 0)
+			maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]/physparams->rho0[f]);
+		else
+			return physparams->limiting_kinvisc;
+	}
+	return maxViscShearTerm;
+}
+
+
+template<RheologyType rheologytype>
+float get_dt_from_visc(const SimParams *simparams, const PhysParams *physparams)
+{
+	float effvisc = getInitViscYieldTerm<rheologytype>(simparams, physparams);
+	if (effvisc < physparams->limiting_kinvisc)
+		effvisc += getInitViscShearTerm<rheologytype>(simparams, physparams);
+	effvisc = fminf(effvisc, physparams->limiting_kinvisc);
+	return simparams->slength*simparams->slength/effvisc;
+}
+
 void
 Problem::check_dt(void)
 {
@@ -616,9 +727,23 @@ Problem::check_dt(void)
 	dt_from_gravity *= simparams()->dtadaptfactor;
 
 	float dt_from_visc = NAN;
-	if (simparams()->rheologytype != INVISCID) {
-		for (uint f = 0; f < physparams()->numFluids(); ++f)
-			dt_from_visc = fminf(dt_from_visc, simparams()->slength*simparams()->slength/physparams()->kinematicvisc[f]);
+	if (simparams()->rheologytype != INVISCID)
+	{
+		const SimParams *sim = simparams();
+		const PhysParams *phys = physparams();
+
+#define GET_DT_FROM_VISC(rheologytype) case rheologytype: dt_from_visc = get_dt_from_visc<rheologytype>(sim, phys); break;
+		switch(simparams()->rheologytype)
+		{
+			GET_DT_FROM_VISC(NEWTONIAN)
+			GET_DT_FROM_VISC(BINGHAM)
+			GET_DT_FROM_VISC(PAPANASTASIOU)
+			GET_DT_FROM_VISC(POWER_LAW)
+			GET_DT_FROM_VISC(HERSCHEL_BULKLEY)
+			GET_DT_FROM_VISC(ALEXANDROU)
+			GET_DT_FROM_VISC(DEKEE_TURCOTTE)
+			GET_DT_FROM_VISC(ZHU)
+		}
 		dt_from_visc *= 0.125f; // TODO this should be configurable
 	}
 
