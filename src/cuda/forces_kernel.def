@@ -2602,7 +2602,7 @@ struct dyndt_forces_shared_data
 	__device__ __forceinline__ void
 	reduce(FP const& params)
 	{
-		dtadaptBlockReduce(this->sm_forces_max, params.cfl_forces, params.cflOffset);
+		maxBlockReduce(this->sm_forces_max, params.cfl_forces, params.cflOffset);
 	}
 };
 
@@ -2624,7 +2624,7 @@ struct dyndt_gamma_shared_data
 	__device__ __forceinline__ void
 	reduce(FP const& params)
 	{
-		dtadaptBlockReduce(sm_gamma_max, params.cfl_gamma, params.cflGammaOffset);
+		maxBlockReduce(sm_gamma_max, params.cfl_gamma, params.cflGammaOffset);
 	}
 };
 
@@ -2646,7 +2646,7 @@ struct dyndt_keps_shared_data
 	__device__ __forceinline__ void
 	reduce(FP const& params)
 	{
-		dtadaptBlockReduce(sm_keps_max, params.cfl_keps, params.cflOffset);
+		maxBlockReduce(sm_keps_max, params.cfl_keps, params.cflOffset);
 	}
 };
 
