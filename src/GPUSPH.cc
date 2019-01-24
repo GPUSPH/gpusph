@@ -687,17 +687,12 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	// TODO with boundary models requiring kernels for boundary conditions,
 	// this should be moved into prepareNextStep
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
-		// put READ vel in WRITE buffer
-		doCommand(SWAP_BUFFERS, BUFFER_VEL);
 		gdata->only_internal = true;
 		// compute density and sigma, updating WRITE vel in-place
 		doCommand(COMPUTE_DENSITY, integrator_step);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL,
-					BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
-
-		// restore vel buffer into READ position
-		doCommand(SWAP_BUFFERS, BUFFER_VEL);
+					BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
 	}
 
 	// for SPS viscosity, compute first array of tau and exchange with neighbors

@@ -2609,9 +2609,15 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const BufferList& bufread = m_dBuffers.getReadBufferList();
-	BufferList& bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_manipulator_on_write("compute density");
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const string current_state = getCurrentStateByCommandFlags(step_flag);
+
+	const BufferList bufread = m_dBuffers.state_subset(current_state,
+		BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+		BUFFER_VOLUME);
+	BufferList bufwrite = m_dBuffers.state_subset(current_state,
+		BUFFER_VEL | BUFFER_SIGMA);
+	bufwrite.add_manipulator_on_write("compute density" + to_string(get_step_number(step_flag)));
 
 	forcesEngine->compute_density(bufread, bufwrite,
 		numPartsToElaborate,
