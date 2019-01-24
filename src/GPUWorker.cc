@@ -2637,9 +2637,15 @@ void GPUWorker::runCommand<CALC_VISC>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_manipulator_on_write("calc visc");
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const string current_state = getCurrentStateByCommandFlags(step_flag);
+
+	const BufferList bufread = m_dBuffers.state_subset(current_state,
+		BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+		BUFFER_VEL);
+	BufferList bufwrite = m_dBuffers.state_subset(current_state,
+		BUFFER_TAU | BUFFER_SPS_TURBVISC);
+	bufwrite.add_manipulator_on_write("calc visc" + to_string(get_step_number(step_flag)));
 
 	viscEngine->calc_visc(bufread, bufwrite,
 		m_numParticles,
