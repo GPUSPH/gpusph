@@ -63,7 +63,7 @@
 
  *	\ingroup neibs
 */
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
+template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
 public:
@@ -471,7 +471,7 @@ const	float		boundNlSqInflRad)
 	buildneibs_params<boundarytype> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
 			vertPos, boundNlSqInflRad);
 
-	cuneibs::buildNeibsListDevice<sph_formulation, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
+	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
