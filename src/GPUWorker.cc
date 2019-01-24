@@ -1171,7 +1171,7 @@ void GPUWorker::uploadSubdomain() {
 	// The list of buffers to be imported: this is the same as the list used for
 	// APPEND_EXTERNAL, minus the skippable buffers above
 	m_dBuffers.initialize_state("initial upload",
-		(IMPORT_BUFFERS | BUFFER_COMPACT_DEV_MAP) & ~skip_bufs);
+		(IMPORT_BUFFERS | BUFFER_COMPACT_DEV_MAP | BUFFER_RB_KEYS) & ~skip_bufs);
 
 	// indices
 	const uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];

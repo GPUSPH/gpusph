@@ -932,11 +932,11 @@ reduceRbForces(	BufferList& bufwrite,
 {
 	float4 *forces = bufwrite.getData<BUFFER_RB_FORCES>();
 	float4 *torques = bufwrite.getData<BUFFER_RB_TORQUES>();
-	uint *rbnum = bufwrite.getData<BUFFER_RB_KEYS>();
+	const uint *rbnum = bufwrite.getConstData<BUFFER_RB_KEYS>();
 
 	thrust::device_ptr<float4> forces_devptr = thrust::device_pointer_cast(forces);
 	thrust::device_ptr<float4> torques_devptr = thrust::device_pointer_cast(torques);
-	thrust::device_ptr<uint> rbnum_devptr = thrust::device_pointer_cast(rbnum);
+	const thrust::device_ptr<const uint> rbnum_devptr = thrust::device_pointer_cast(rbnum);
 	thrust::equal_to<uint> binary_pred;
 	thrust::plus<float4> binary_op;
 

@@ -747,8 +747,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		/* The buffers (re)initialized during the neighbors list construction
 		 * and the INFO and HASH buffers are shared between states
 		 */
-		doCommand(SHARE_BUFFERS, "step n", "step n*",
-			shared_buffers | BUFFER_HASH | NEIBS_SEQUENCE_REFRESH_BUFFERS);
+		doCommand(SHARE_BUFFERS, "step n", "step n*", shared_buffers | SUPPORT_BUFFERS);
 	} else {
 		doCommand(RENAME_STATE, "step n*", "step n+1");
 	}
@@ -2040,9 +2039,17 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 		((PARTICLE_PROPS_BUFFERS | NEIBS_SEQUENCE_REFRESH_BUFFERS) & ~BUFFER_INFO)
 		& allowed_buffers);
 
+	static const flag_t has_forces_bodies = (problem->simparams()->numforcesbodies > 0);
+
+	static const flag_t sorting_shared_buffers =
 	// The compact device map (when present) carries over to the other state, unchanged
-	if (MULTI_DEVICE)
-		doCommand(SHARE_BUFFERS, "unsorted", "sorted", BUFFER_COMPACT_DEV_MAP);
+		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
+	// The object particle key buffer is static (precomputed on host, never changes),
+	// so we bring it across all particle states
+		(has_forces_bodies ? BUFFER_RB_KEYS : BUFFER_NONE);
+
+	if (sorting_shared_buffers != BUFFER_NONE)
+		doCommand(SHARE_BUFFERS, "unsorted", "sorted", sorting_shared_buffers);
 
 	// run most of the following commands on all particles
 	gdata->only_internal = false;

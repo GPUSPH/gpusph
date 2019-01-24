@@ -281,9 +281,10 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
  * not properties or support, plus the CFL buffers
  */
 #define EPHEMERAL_BUFFERS \
-	(ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS) | \
+	((ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS)) | \
 	 BUFFERS_CFL | \
-	 BUFFERS_RB_PARTICLES)
+	 (BUFFERS_RB_PARTICLES & ~BUFFER_RB_KEYS) \
+	)
 
 //! Buffers that hold data that is useful throughout a simulation step
 /*! A typical example is the neighbors list
