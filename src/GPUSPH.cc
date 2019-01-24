@@ -946,6 +946,10 @@ bool GPUSPH::runSimulation() {
 			runEnabledFilters(enabledFilters);
 		}
 
+		// Add ephemeral buffers to step n, except for PARTINDEX (it's only used when sorting)
+		// and VORTICITY (it's only used in post-processing)
+		doCommand(ADD_STATE_BUFFERS, "step n", EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS));
+
 		// run PREDICTOR step (INTEGRATOR_STEP_1)
 		runIntegratorStep(INTEGRATOR_STEP_1);
 
@@ -954,6 +958,8 @@ bool GPUSPH::runSimulation() {
 
 		// End of predictor step, start corrector step
 
+		// Move ephemeral buffers to step n*.
+		doCommand(MOVE_STATE_BUFFERS, "step n*", EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS));
 		// run CORRECTOR step (INTEGRATOR_STEP_2)
 		runIntegratorStep(INTEGRATOR_STEP_2);
 
@@ -1960,6 +1966,7 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 		flt != enabledPostProcess.end(); ++flt) {
 		PostProcessType filter = flt->first;
 		gdata->only_internal = true;
+
 		doCommand(POSTPROCESS, NO_FLAGS, filter);
 
 		flt->second->hostProcess(gdata);

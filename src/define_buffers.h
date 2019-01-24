@@ -286,6 +286,13 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 	 (BUFFERS_RB_PARTICLES & ~BUFFER_RB_KEYS) \
 	)
 
+//! Buffers selectable by CALC_PRIVATE post-processing filter
+#define BUFFERS_PRIVATE (BUFFER_PRIVATE | BUFFER_PRIVATE2 | BUFFER_PRIVATE4)
+
+//! Post-processing buffers
+/*! These buffers are ephemeral, and only used by post-processing filters */
+#define POST_PROCESS_BUFFERS (BUFFER_VORTICITY | BUFFERS_PRIVATE)
+
 //! Buffers that hold data that is useful throughout a simulation step
 /*! A typical example is the neighbors list
  */

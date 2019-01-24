@@ -2571,6 +2571,17 @@ void GPUWorker::runCommand<POSTPROCESS>()
 		throw invalid_argument("non-existing postprocess filter invoked");
 	}
 
+	/* Add POST_PROCESS_BUFFERS, as needed */
+	switch (proctype) {
+	case VORTICITY:
+		m_dBuffers.add_state_buffers("step n", BUFFER_VORTICITY); break;
+	case CALC_PRIVATE:
+		m_dBuffers.add_state_buffers("step n", BUFFERS_PRIVATE); break;
+	default:
+		/* nothing */
+		break;
+	}
+
 	// Post-process engines may do in-place updates,
 	// so set a state-on-write for them too
 	BufferList &bufread = m_dBuffers.getReadBufferList();
