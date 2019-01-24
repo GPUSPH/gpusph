@@ -1133,6 +1133,22 @@ GPUWorker::getCurrentStateByCommandFlags(flag_t flags)
 	}
 }
 
+std::string
+GPUWorker::getNextStateByCommandFlags(flag_t flags)
+{
+	switch (flags) {
+	case INITIALIZATION_STEP:
+		return "step n";
+	case INTEGRATOR_STEP_1:
+		return "step n*";
+	case INTEGRATOR_STEP_2:
+		return "step n+1";
+	default:
+		throw runtime_error("cannot determine next state from flags " + to_string(flags));
+	}
+}
+
+
 string
 GPUWorker::describeCommandFlagsBuffers(flag_t flags)
 {
