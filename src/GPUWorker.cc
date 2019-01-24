@@ -1119,6 +1119,20 @@ GPUWorker::getBufferListByCommandFlags(flag_t flags)
 		m_dBuffers.getWriteBufferList() : m_dBuffers.getBufferList(0));
 }
 
+std::string
+GPUWorker::getCurrentStateByCommandFlags(flag_t flags)
+{
+	switch (flags) {
+	case INITIALIZATION_STEP:
+	case INTEGRATOR_STEP_1:
+		return "step n";
+	case INTEGRATOR_STEP_2:
+		return "step n*";
+	default:
+		throw runtime_error("cannot determine current state from flags " + to_string(flags));
+	}
+}
+
 string
 GPUWorker::describeCommandFlagsBuffers(flag_t flags)
 {
