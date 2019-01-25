@@ -325,7 +325,10 @@ CommonWriter::write_simparams(ostream &out)
 	if (SP->rheologytype != INVISCID) {
 		out << "\tTurbulence model: " << TurbulenceName[SP->turbmodel] << endl;
 		out << "\tComputational viscosity type: " << ComputationalViscosityName[SP->compvisc] << endl;
-		out << "\tViscous model operator: " << ViscousModelName[SP->viscmodel] << endl;
+		out << "\tViscous model operator: " << ViscousModelName[SP->viscmodel];
+		if (SP->viscmodel == MONAGHAN)
+			out << ",\tcoefficient: " << m_problem->physparams()->monaghan_visc_coeff;
+		out << endl;
 		out << "\tViscous averaging operator: " << AverageOperatorName[SP->viscavgop] << endl;
 		if (SP->is_const_visc)
 			out << "\t(constant viscosity optimizations)" << endl;

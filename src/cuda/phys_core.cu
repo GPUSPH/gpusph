@@ -33,6 +33,7 @@ __constant__ float	d_visc_nonlinear_param[MAX_FLUID_TYPES]; ///< exponent for po
 __constant__ float	d_visc_regularization_param[MAX_FLUID_TYPES]; ///< Papanastasiou regularization parameter
 
 __constant__ float	d_limiting_kinvisc; ///< upper bound to the viscosity
+__constant__ float	d_monaghan_visc_coeff; ///< multiplicative coefficient in Monaghan's viscous model
 
 // Artificial viscosity parameters
 __constant__ float	d_artvisccoeff;					///< viscous coefficient for artificial viscosity

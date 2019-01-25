@@ -96,7 +96,14 @@ typedef struct PhysParams {
 	 *  Obviously the fluid dependent coefficients below are stored in an STL vector.
 	 * @{ */
 	float	artvisccoeff;				///< Artificial viscosity coefficient (one, for all fluids)
-	float	epsartvisc;					///< Small coefficient used to avoid singularity in artificial viscosity computation
+
+	//! Small coefficient used to avoid singularity in artificial viscosity computation
+	/*! Note that this is also used in other circumstances where we want avoid a division by
+	 * zero that depends on the inter-particle distance.
+	 * \todo rename variable, and differentiate between one which is based on slength
+	 * and one that is based on its square
+	 */
+	float	epsartvisc;
 
 	/** \name Newtonian fluids
 	 * @{ */
@@ -171,6 +178,22 @@ typedef struct PhysParams {
 	/** @} */
 
 	std::vector<float>	visccoeff;		///< Viscosity coefficient
+
+	//! Multiplicative coefficient in Monaghan's viscous model
+	/*! The Monaghan viscous operator can be described as
+	 *
+	 * \f[
+	 *  K \sum_b \frac{m_b}{\rho_a \rho_b} 2 A(\mu_a, \mu_b) F(r) \frac{r\cdot v}{r\cdor r} r
+	 * \f]
+	 *
+	 * where K is a (usually problem-dependent) constant, r is the particle distance vector, and v the
+	 * relative velocity vector. The main difference between Monaghan's and Morris' viscous operators
+	 * is therefore that Morris' is directed along the relative velocity, while Monaghan's is directed
+	 * along the relative particle position.
+	 * The constant K has to be determined experimentally, but K = 8 is a good default for 2D problems,
+	 * and K = 10 is a good default for 3D problems (K = 2(d+2))
+	 */
+	float monaghan_visc_coeff;
 	/** @} */
 
 	/** \name Lennard-Jones (LJ) boundary related parameters
@@ -263,6 +286,7 @@ IGNORE_WARNINGS(deprecated-declarations)
 		epsartvisc(NAN),
 
 		limiting_kinvisc(1.0e3),
+		monaghan_visc_coeff(10.0f), /* should be 2*(d+2) with d problem dimension; but currently we only support d=3 */
 
 		r0(NAN),
 		dcoeff(NAN),

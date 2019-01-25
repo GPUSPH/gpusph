@@ -46,6 +46,9 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 	// Allow user to set the rheology type;
 	const RheologyType want_rheology = get_option("rheology", NEWTONIAN);
 
+	// Allow use to set the viscous operator model: morris or monaghan
+	const ViscousModel viscmodel = get_option("viscmodel", MORRIS);
+
 #if !POISEUILLE_ALL_RHEO
 	if (want_rheology != NEWTONIAN)
 		throw std::invalid_argument("Poiseuille compiled without support for non-Newtonian rheology");
@@ -69,6 +72,7 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 		( RHODIFF  // switch to the user-selected density diffusion
 		, compvisc // switch to the user-selected computational viscosity
 		, viscavg  // switch to the user-selected viscous averaging operator
+		, viscmodel // switch to the user-selected viscous model
 #if POISEUILLE_ALL_RHEO
 		, want_rheology // switch to the user-selected rheology
 #endif

@@ -1993,11 +1993,20 @@ float GPUWorker::post_forces(CommandStruct const& cmd)
 	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("post-forces");
 
+	// TODO FIXME when using the MONAGHAN viscous model,
+	// there seems to be a need for stricter time-stepping conditions,
+	// or the simulations turns out to be unstable. Making this
+	// dependent on the additional coefficient for the viscous model
+	// seems to work, but a more detailed stability analysis is needed
+	float max_kinvisc_for_dt = m_max_kinvisc;
+	if (m_simparams->viscmodel == MONAGHAN)
+		max_kinvisc_for_dt *= m_physparams->monaghan_visc_coeff;
+
 	auto ret = forcesEngine->dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
 		m_max_sound_speed,
-		m_max_kinvisc,
+		max_kinvisc_for_dt,
 		bufread,
 		bufwrite,
 		m_forcesKernelTotalNumBlocks,

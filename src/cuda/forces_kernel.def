@@ -1866,6 +1866,58 @@ enable_if_t<not has_relEulerVel<N>(), float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel; } /* Standard case */
 
+/// Viscous vector component
+/*! Two choices can be made when computing the viscous contributions:
+ *
+ * 1. direct the viscous contributions along the relative velocity, which is consistent
+ *    with the continuum in the incompressible fluid case, but in the discrete
+ *    models does not conserve angular momentum; this is the choice made for
+ *    the MORRIS model;
+ * 2. direct the viscous contributions along the relative distance, which allows
+ *    conservation of angular momentum, but doesn't reflect the continuum model behavior
+ *    for incompressible fluids; this is the choice made in the MONAGHAN model;
+ * 3. consider contributions in both directions, as done e.g. by Español and Revenga.
+ *
+ * This is abstracted for us in this function
+ */
+template<typename FP, typename P, typename N, ViscousModel viscmodel = FP::viscmodel>
+__device__ __forceinline__
+enable_if_t<viscmodel == MORRIS, float3>
+viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
+{
+	return make_float3(get_viscous_relVel(ndata));
+}
+
+template<typename FP, typename P, typename N, ViscousModel viscmodel = FP::viscmodel>
+__device__ __forceinline__
+enable_if_t<viscmodel == MONAGHAN, float3>
+viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
+{
+	const float4 relVel = get_viscous_relVel(ndata);
+	// TODO instead of depending on epsartvisc, we could consider this:
+	// the formula we want is (r.v)/(r.r) r, and the division is needed
+	// to avoid underflow for very small (or null) r.
+	// We can rewrite the formula this way:
+	// \frac{ \abs{r} \abs{v} \cos \theta }{ \abs{r}^2 } \abs{r}\vers{r}
+	// where \theta is the angle between r and v and \vers{r} is the
+	// versor or r. This simplifies to:
+	//
+	// \abs{v} \cos \theta \vers{r}
+	//
+	// i.e. we are taking the projection of v in the direction of r,
+	// which is dot3(vers_r, relVel)*vers_r.
+	// Downside: computing vers_r is expensive: the norm would
+	// have to be computed with high accuracy (i.e. using hypot),
+	// and then we'd need to divide the components (unless the norm is
+	// exactly zero).
+	//
+	const float den = dot3(ndata.relPos, ndata.relPos) + d_epsartvisc;
+	float coeff = ndata.vel_dot_pos < 0 ?
+		d_monaghan_visc_coeff*ndata.vel_dot_pos/den :
+		0.0f;
+	return coeff*make_float3(ndata.relPos);
+}
+
 /*
  * Laminar contributions to the viscosity
  */
@@ -1900,7 +1952,7 @@ compute_laminar_visc_contrib
 	const float visc = visc_avg<typename FP::ViscSpec>(
 			get_visc_coeff(pdata), get_visc_coeff(ndata),
 			physical_density(pdata), physical_density(ndata), ndata.relPos.w);
-	nout.DvDt += visc*ndata.f*as_float3(get_viscous_relVel(ndata));
+	nout.DvDt += visc*ndata.f*viscous_vector_component(params, pdata, ndata);
 }
 
 /// Volumic viscous contribution, Grenier formulation
@@ -1920,7 +1972,7 @@ compute_laminar_visc_contrib
 			get_dynamic_visc(pdata), get_dynamic_visc(ndata));
 
 	const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
-	nout.DvDt += avg_mu*avg_sigma*ndata.f*as_float3(ndata.relVel);
+	nout.DvDt += avg_mu*avg_sigma*ndata.f*viscous_vector_component(params, pdata, ndata);
 }
 
 /// Boundary viscous contribution for semi-analytical boundaries
@@ -1933,6 +1985,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
+	FP::viscmodel == MORRIS &&
 	wants_boundary_visc_term<FP>()
 >
 compute_laminar_visc_contrib
