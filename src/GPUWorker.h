@@ -292,10 +292,17 @@ private:
 	// runCommand<FORCES_ENQUEUE> = void kernel_forces_async_enqueue();
 	// runCommand<FORCES_COMPLETE> = void kernel_forces_async_complete();
 
+	// A pair holding the read and write buffer lists
+	using BufferListPair = std::pair<const BufferList, BufferList>;
+
 	// aux methods for forces kernel striping
-	uint enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset);
-	// steps to do before launching a (set of) forces kernels: binding textures, resetting CFL, etc
-	void pre_forces();
+	uint enqueueForcesOnRange(BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset);
+	// steps to do before launching a (set of) forces kernels:
+	// * select the read and write buffer lists
+	// * reset CFL and object forces and torque arrays
+	// * bind textures
+	// Returns a pair with the read and write buffer lists
+	BufferListPair pre_forces();
 	// steps to do after launching a (set of) forces kernels: unbinding textures, get, adaptive dt, etc
 	float post_forces();
 

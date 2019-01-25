@@ -1978,16 +1978,17 @@ void GPUWorker::runCommand<BUILDNEIBS>()
 }
 
 // returns numBlocks as computed by forces()
-uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset)
+uint GPUWorker::enqueueForcesOnRange(BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset)
 {
 	const int step = get_step_number(gdata->commandFlags);
 	const bool firstStep = (step == 1);
 
-	BufferList& bufwrite(m_dBuffers.getWriteBufferList());
+	const BufferList& bufread = buffer_lists.first;
+	BufferList& bufwrite = buffer_lists.second;
 	bufwrite.add_manipulator_on_write("forces" + to_string(step));
 
 	auto ret = forcesEngine->basicstep(
-		m_dBuffers.getReadBufferList(),
+		bufread,
 		bufwrite,
 		m_numParticles,
 		fromParticle,
@@ -2010,18 +2011,44 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 /// Run the steps necessary for forces execution
 /** This includes things such as binding textures and clearing the CFL buffers
  */
-void GPUWorker::pre_forces()
+GPUWorker::BufferListPair GPUWorker::pre_forces()
 {
-	forcesEngine->bind_textures(m_dBuffers.getReadBufferList(),
-		m_numParticles);
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const string current_state = getCurrentStateByCommandFlags(step_flag);
 
-	if (m_simparams->simflags & ENABLE_DTADAPT) {
-		BufferList& bufwrite(m_dBuffers.getWriteBufferList());
-		bufwrite.add_manipulator_on_write("pre-forces");
+	const BufferList bufread = m_dBuffers.state_subset(current_state,
+		BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
+		BUFFER_RB_KEYS |
+		BUFFER_VOLUME | BUFFER_SIGMA |
+		BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | BUFFER_EULERVEL |
+		BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC);
 
-		forcesEngine->clear_cfl(bufwrite, m_numAllocatedParticles);
-		bufwrite.clear_pending_state();
+	BufferList bufwrite = m_dBuffers.state_subset(current_state,
+		BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP |
+		BUFFER_RB_FORCES | BUFFER_RB_TORQUES |
+		BUFFER_XSPH |
+		BUFFER_CFL_GAMMA |
+		BUFFER_DKDE | BUFFER_CFL_KEPS | BUFFER_TAU |
+		BUFFER_INTERNAL_ENERGY_UPD);
+
+	bufwrite.add_manipulator_on_write("pre-forces" + to_string(get_step_number(step_flag)));
+
+	// if we have objects potentially shared across different devices, must reset their forces
+	// and torques to avoid spurious contributions
+	if (m_simparams->numforcesbodies > 0 && MULTI_DEVICE) {
+		bufwrite.get<BUFFER_RB_FORCES>()->clobber();
+		bufwrite.get<BUFFER_RB_TORQUES>()->clobber();
 	}
+
+	if (m_simparams->simflags & ENABLE_DTADAPT)
+		forcesEngine->clear_cfl(bufwrite, m_numAllocatedParticles);
+
+	bufwrite.clear_pending_state();
+
+	forcesEngine->bind_textures(bufread, m_numParticles);
+
+	return make_pair(bufread, bufwrite);
+
 }
 
 /// Run the steps necessary to cleanup and complete forces execution
@@ -2119,19 +2146,14 @@ template<>
 void GPUWorker::runCommand<FORCES_ENQUEUE>()
 // void GPUWorker::kernel_forces_async_enqueue()
 {
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+
 	if (!gdata->only_internal)
 		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
 
 	uint numPartsToElaborate = m_particleRangeEnd;
 
 	m_forcesKernelTotalNumBlocks = 0;
-
-	// if we have objects potentially shared across different devices, must reset their forces
-	// and torques to avoid spurious contributions
-	if (m_simparams->numforcesbodies > 0 && MULTI_DEVICE) {
-		m_dBuffers.getWriteBufferList().get<BUFFER_RB_FORCES>()->clobber();
-		m_dBuffers.getWriteBufferList().get<BUFFER_RB_TORQUES>()->clobber();
-	}
 
 	// NOTE: the stripe containing the internal edge particles must be run first, so that the
 	// transfers can be performed in parallel with the second stripe. The size of the first
@@ -2171,18 +2193,19 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>()
 	edgingStripeSize = numPartsToElaborate - nonEdgingStripeSize;
 
 	if (numPartsToElaborate > 0 ) {
-
 		// setup for forces execution
-		pre_forces();
+		BufferListPair buffer_lists = pre_forces();
 
 		// enqueue the first kernel call (on the particles in edging cells)
-		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
+		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(buffer_lists,
+			nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
 
 		// the following event will be used to wait for the first stripe to complete
 		cudaEventRecord(m_halfForcesEvent, 0);
 
 		// enqueue the second kernel call (on the rest)
-		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(0, nonEdgingStripeSize, m_forcesKernelTotalNumBlocks);
+		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(buffer_lists,
+			0, nonEdgingStripeSize, m_forcesKernelTotalNumBlocks);
 
 		// We could think of synchronizing in UPDATE_EXTERNAL or APPEND_EXTERNAL instead of here, so that we do not
 		// cause any overhead (waiting here means waiting before next barrier, which means that devices which are
@@ -2225,6 +2248,8 @@ template<>
 void GPUWorker::runCommand<FORCES_SYNC>()
 // void GPUWorker::kernel_forces()
 {
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+
 	if (!gdata->only_internal)
 		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
 
@@ -2237,23 +2262,15 @@ void GPUWorker::runCommand<FORCES_SYNC>()
 
 	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
-	// if we have objects potentially shared across different devices, must reset their forces
-	// and torques to avoid spurious contributions
-	if (m_simparams->numforcesbodies > 0 && MULTI_DEVICE) {
-		m_dBuffers.getWriteBufferList().get<BUFFER_RB_FORCES>()->clobber();
-		m_dBuffers.getWriteBufferList().get<BUFFER_RB_TORQUES>()->clobber();
-	}
-
 	const uint fromParticle = 0;
 	const uint toParticle = numPartsToElaborate;
 
 	if (numPartsToElaborate > 0 ) {
-
 		// setup for forces execution
-		pre_forces();
+		BufferListPair buffer_lists = pre_forces();
 
 		// enqueue the kernel call
-		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(fromParticle, toParticle, 0);
+		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(buffer_lists, fromParticle, toParticle, 0);
 
 		// cleanup post forces and get dt
 		returned_dt = post_forces();
