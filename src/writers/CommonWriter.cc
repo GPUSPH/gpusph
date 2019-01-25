@@ -495,6 +495,7 @@ CommonWriter::write_options(ostream &out)
 	out << " dir: " << OP->dir << endl;
 	out << " deltap: " << OP->deltap << endl;
 	out << " tend: " << OP->tend << endl;
+	out << " dt: "<< OP->tend << endl;
 	out << " hosts: " << OP->num_hosts << endl;
 	out << " saving " << ED[!OP->nosave] << endl;
 	out << " GPUDirect " << ED[OP->gpudirect] << endl;

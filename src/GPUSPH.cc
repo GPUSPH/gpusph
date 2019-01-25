@@ -182,6 +182,15 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// initial dt (or, just dt in case adaptive is disabled)
 	gdata->dt = _sp->dt;
+	gdata->dtadapt = _sp->simflags & ENABLE_DTADAPT;
+	if (isfinite(gdata->clOptions->dt)) {
+		float new_dt = gdata->clOptions->dt;
+		printf("Time step %g specified on the command-line overrides %g\n", new_dt, gdata->dt);
+		if (gdata->dtadapt)
+			printf("\tfixed time-stepping will be used even though adapting time-stepping is enabled\n");
+		gdata->dt = new_dt;
+		gdata->dtadapt = false;
+	}
 
 	printf("Generating problem particles...\n");
 
@@ -865,7 +874,7 @@ bool GPUSPH::runSimulation() {
 		// buildneibs_freq?
 
 		// choose minimum dt among the devices
-		if (gdata->problem->simparams()->simflags & ENABLE_DTADAPT) {
+		if (gdata->dtadapt) {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
