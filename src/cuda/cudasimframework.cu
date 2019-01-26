@@ -147,6 +147,7 @@ template<
 		(_turbmodel == KEPSILON && _boundarytype != SA_BOUNDARY) || // k-epsilon only supported in SA currently
 		(_boundarytype == SA_BOUNDARY && (
 			// viscosity
+			_viscmodel != MORRIS			||	// untested
 			_viscavgop != ARITHMETIC		||	// untested
 			_turbmodel == SPS			||	// untested
 			_turbmodel == ARTIFICIAL		||	// untested (use is discouraged, use density diffusion instead)
