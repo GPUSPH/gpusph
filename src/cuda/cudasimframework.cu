@@ -166,11 +166,17 @@ template<
 												// enable density sum only works with the dynamic equation for gamma,
 												// so gamma quadrature must be disabled
 		)
-	)
-	||
-	(
+	) || (
 	!(_boundarytype == SA_BOUNDARY) && _simflags & ENABLE_DENSITY_SUM
 												// density sum is untested with boundary conditions other than SA
+	) || (
+	// For Español & Revenga, currently only support Newtonian fluids with
+	// arithmetic averaging and dynamic computational viscosity; to support
+	// other averaging operators or kinematic viscosities, we should first define
+	// how averaging is achieved (i.e. on the coefficients as a whole or for the
+	// individual viscosities); for non-Newtonian fluids we need a way to compute
+	// the bulk viscosities
+	_viscmodel == ESPANOL_REVENGA && _rheologytype != NEWTONIAN
 	)
 >
 class CUDASimFrameworkImpl : public SimFramework,

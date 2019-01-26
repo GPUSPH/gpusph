@@ -381,6 +381,8 @@ class Problem {
 		{ return physparams()->set_kinematic_visc(fluid_idx, nu); }
 		void set_dynamic_visc(size_t fluid_idx, float mu)
 		{ return physparams()->set_dynamic_visc(fluid_idx, mu); }
+		void set_bulk_visc(size_t fluid_idx, float zeta)
+		{ return physparams()->set_bulk_visc(fluid_idx, zeta); }
 		void set_consistency_index(size_t fluid_idx, float k)
 		{ return physparams()->set_consistency_index(fluid_idx, k); }
 		void set_yield_strength(size_t fluid_idx, float ys)

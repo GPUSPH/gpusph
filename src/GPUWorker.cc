@@ -1998,9 +1998,19 @@ float GPUWorker::post_forces(CommandStruct const& cmd)
 	// or the simulations turns out to be unstable. Making this
 	// dependent on the additional coefficient for the viscous model
 	// seems to work, but a more detailed stability analysis is needed
+	// TODO FIXME with ESPANOL_REVENGA we have a similar issue.
+	// Definitely need to investigate more.
 	float max_kinvisc_for_dt = m_max_kinvisc;
-	if (m_simparams->viscmodel == MONAGHAN)
+	switch (m_simparams->viscmodel)
+	{
+	case MORRIS: break; // nothing extra
+	case MONAGHAN:
 		max_kinvisc_for_dt *= m_physparams->monaghan_visc_coeff;
+		break;
+	case ESPANOL_REVENGA:
+		max_kinvisc_for_dt *= 5;
+		break;
+	}
 
 	auto ret = forcesEngine->dtreduce(
 		m_simparams->slength,

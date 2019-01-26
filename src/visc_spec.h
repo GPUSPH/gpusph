@@ -161,28 +161,27 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 DEFINE_OPTION_RANGE(ComputationalViscosityType, ComputationalViscosityName, KINEMATIC, DYNAMIC);
 
 //! Supported viscous models
-/*! Currently only MORRIS and MONAGHAN are available, with plans to add
- * Español & Revenga too
- */
 enum ViscousModel {
 	MORRIS, ///< Morris et al., JCP 1997
 	MONAGHAN, ///< Monaghan & Gingold, JCP 1983
+	ESPANOL_REVENGA, ///< Español & Revenga, Phys Rev E 2003
 };
 
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* ViscousModelName[MONAGHAN+1]
+const char* ViscousModelName[ESPANOL_REVENGA+1]
 #ifdef GPUSPH_MAIN
 = {
 	"Morris 1997",
 	"Monaghan & Gingold 1983",
+	"Español & Revenga 2003",
 }
 #endif
 ;
 
-DEFINE_OPTION_RANGE(ViscousModel, ViscousModelName, MORRIS, MONAGHAN);
+DEFINE_OPTION_RANGE(ViscousModel, ViscousModelName, MORRIS, ESPANOL_REVENGA);
 
 
 

@@ -289,6 +289,18 @@ get_dynamic_visc(P const& pdata)
 	return get_visc_coeff(pdata)*physical_density(pdata);
 }
 
+/// Bulk viscosity
+/*! This is used only by Español & Revenga, and is stored in
+ * d_visc2coeff. It is always the dynamic one
+ */
+template<typename P>
+__device__ __forceinline__
+float
+get_bulk_visc(P const& pdata)
+{
+	return d_visc2coeff[fluid_num(pdata.info)];
+}
+
 /// Kinematic viscosity of a particle
 /*! This will just be the visc coeff itself if working with kinematic visc,
  * or the kinematic viscosity divided by the particle density otherwise
@@ -1918,6 +1930,33 @@ viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
 	return coeff*make_float3(ndata.relPos);
 }
 
+/// Dynamic viscous parameter weighting
+/*! The main difference between Grenier's formulations and others,
+ * as far as the viscous contribution is concerned, is that
+ * the others have a weighting factor of m_b/(ρ_a ρ_b) where Grenier
+ * has ω_b(1/σ_a + 1/σ_b). In most viscous models this isn't
+ * important because when densities are in use we want to be able
+ * to simplify them with the ones in the viscous averaging (if possible).
+ * However, in the Español & Revenga viscous model, refactoring this
+ * allows us to refactor common code.
+ * \note in Grenier's case, we do not include the neighbor volume,
+ * as that will be post-multiplied at the end.
+ */
+template<typename FP, typename P, typename N>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation != SPH_GRENIER, float>
+viscous_volume_coefficient(FP const& params, P const& pdata, N const& ndata)
+{
+	return ndata.relPos.w/(physical_density(pdata)*physical_density(ndata));
+}
+template<typename FP, typename P, typename N>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation == SPH_GRENIER, float>
+viscous_volume_coefficient(FP const& params, P const& pdata, N const& ndata)
+{
+	return (1/pdata.sigma + 1/ndata.sigma);
+}
+
 /*
  * Laminar contributions to the viscosity
  */
@@ -1938,12 +1977,14 @@ compute_laminar_visc_contrib
 /// Standard volumic viscous contribution
 /*! This is used when the neighbor is not a boundary particle,
  * or for dynamic boundaries, but not with Grenier's formulation
+ * or Español & Revenga's viscous model
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
 	wants_volumic_visc_term<FP>() &&
+	FP::viscmodel != ESPANOL_REVENGA &&
 	FP::sph_formulation != SPH_GRENIER
 >
 compute_laminar_visc_contrib
@@ -1955,14 +1996,14 @@ compute_laminar_visc_contrib
 	nout.DvDt += visc*ndata.f*viscous_vector_component(params, pdata, ndata);
 }
 
-/// Volumic viscous contribution, Grenier formulation
-/*! Specialization for SPH_GRENIER formulation, which is based on Morris'
- */
+
+/// Volumic viscous contribution, Grenier formulation, Morris or Monaghan viscous model
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
 	wants_volumic_visc_term<FP>() &&
+	FP::viscmodel != ESPANOL_REVENGA &&
 	FP::sph_formulation == SPH_GRENIER
 >
 compute_laminar_visc_contrib
@@ -1971,9 +2012,42 @@ compute_laminar_visc_contrib
 	const float avg_mu = average<FP::ViscSpec::avgop>(
 			get_dynamic_visc(pdata), get_dynamic_visc(ndata));
 
-	const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
+	const float avg_sigma = viscous_volume_coefficient(params, pdata, ndata);
 	nout.DvDt += avg_mu*avg_sigma*ndata.f*viscous_vector_component(params, pdata, ndata);
 }
+
+/// Español & Revenga volumic viscous contribution
+/*! This is used when the neighbor is not a boundary particle,
+ * or for dynamic boundaries, in the case of Español & Revenga's viscous model
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(not FP::inviscid) &&
+	wants_volumic_visc_term<FP>() &&
+	FP::viscmodel == ESPANOL_REVENGA
+>
+compute_laminar_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	const float pvisc = get_dynamic_visc(pdata);
+	const float pbulk = get_bulk_visc(pdata);
+	const float nvisc = get_dynamic_visc(ndata);
+	const float nbulk = get_bulk_visc(ndata);
+
+	const float visc_thirds = average<FP::ViscSpec::avgop>(pvisc, nvisc)/3;
+	const float bulk = average<FP::ViscSpec::avgop>(pbulk, nbulk);
+
+	const float coeff = viscous_volume_coefficient(params, pdata, ndata)*ndata.f;
+
+	const float pos_den = dot3(ndata.relPos, ndata.relPos) + d_epsartvisc;
+
+	nout.DvDt += coeff*(
+		(5*visc_thirds-bulk)*as_float3(ndata.relVel) +
+		5*(visc_thirds+bulk)*ndata.vel_dot_pos/pos_den*as_float3(ndata.relPos)
+		);
+}
+
 
 /// Boundary viscous contribution for semi-analytical boundaries
 /*! Specialization for the semi-analytical boundary conditions,

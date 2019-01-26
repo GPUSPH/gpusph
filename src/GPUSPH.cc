@@ -1340,6 +1340,36 @@ void GPUSPH::setViscosityCoefficient()
 			pp->visccoeff[f] = pp->visc_consistency[f];
 	}
 
+	// Check and/or set bulk viscosity when using Español & Revenga
+	if (sp->viscmodel == ESPANOL_REVENGA) {
+		float shear, bulk;
+		for (uint f = 0; f < pp->numFluids(); ++f) {
+			shear = pp->visc_consistency[f];
+			bulk = pp->bulkvisc[f];
+			if (isnan(bulk)) pp->bulkvisc[f] = bulk = 0;
+			if (bulk*3 > shear*5)
+				throw runtime_error("fluid " + to_string(f) +
+					" with bulk viscosity " + to_string(bulk) +
+					" and shear viscosity " + to_string(shear) +
+					" cannot be modelled with Español & Revenga");
+			pp->visc2coeff[f] = bulk;
+			// For Español & Revenga, in the constant dynamic viscosity case,
+			// we can reduce device-side computations by storing
+			// in visccoeff the coefficient of the v part, and
+			// in visc2coeff the coefficient of the r part
+#if 0 // disabled until server side is implemented
+			if (sp->is_const_visc) {
+				pp->visccoeff[f] = 5*shear/3 - bulk;
+				pp->visc2coeff[f] = 5*(bulk+shear/3);
+				if (sp->compvisc == KINEMATIC) {
+					pp->visccoeff[f] /= pp->rho0[f];
+					pp->visc2coeff[f] /= pp->rho0[f];
+				}
+			}
+#endif
+		}
+	}
+
 	// Set SPS factors from coefficients, if they were not set
 	// by the problem
 	if (sp->turbmodel == SPS) {

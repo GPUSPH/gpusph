@@ -108,6 +108,7 @@ typedef struct PhysParams {
 	/** \name Newtonian fluids
 	 * @{ */
 	std::vector<float>	kinematicvisc;	///< Kinematic viscosity (\f$ \nu \f$). SI units: m²/s
+	std::vector<float>	bulkvisc;	///< Bulk viscosity used with ESPANOL_REVENGA
 	/** @} */
 
 	/** \name Generalized Newtonian parameters
@@ -178,6 +179,7 @@ typedef struct PhysParams {
 	/** @} */
 
 	std::vector<float>	visccoeff;		///< Viscosity coefficient
+	std::vector<float>	visc2coeff;		///< Second viscosity coefficient, for Español & Revenga
 
 	//! Multiplicative coefficient in Monaghan's viscous model
 	/*! The Monaghan viscous operator can be described as
@@ -351,7 +353,9 @@ protected:
 
 		// Prime the viscosity coefficient arrays, but do not initialize them
 		kinematicvisc.push_back(NAN);
+		bulkvisc.push_back(NAN);
 		visccoeff.push_back(NAN);
+		visc2coeff.push_back(NAN);
 
 		// We do initialize the generalized Newtonian parameters, with the values
 		// we would need to reduce back to a Newtonian rheology
@@ -493,6 +497,14 @@ protected:
 		kinematicvisc.at(fluid_idx) = mu/rho0[fluid_idx];
 		visc_consistency.at(fluid_idx) = mu;
 		update_limiting_kinvisc(fluid_idx);
+	}
+
+	/// Se the bulk viscosity of a given fluid
+	void set_bulk_visc(
+			size_t fluid_idx,	///< [in] fluid number
+			float zeta			///< [in] bulk viscosity \f$ \zeta \f$
+			) {
+		bulkvisc.at(fluid_idx) = zeta;
 	}
 
 	/// Set the consistency index of a given fluid

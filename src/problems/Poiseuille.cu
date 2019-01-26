@@ -12,6 +12,16 @@
 #define POISEUILLE_ALL_RHEO 0
 #endif
 
+// Some options are not compatible with non-Newtonian rheologies, so
+// make sure to skip them if it's enabled
+#ifndef POISEUILLE_DEFAULT_RHEO
+#	define POISEUILLE_DEFAULT_RHEO NEWTONIAN
+#	define HAS_NONNEWTONIAN POISEUILLE_ALL_RHEO
+#else
+#	define HAS_NONNEWTONIAN 1
+#endif
+
+
 Poiseuille::Poiseuille(GlobalData *_gdata) :
 	XProblem(_gdata),
 
@@ -49,14 +59,15 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 	// Allow use to set the viscous operator model: morris or monaghan
 	const ViscousModel viscmodel = get_option("viscmodel", MORRIS);
 
+	if (HAS_NONNEWTONIAN && viscmodel == ESPANOL_REVENGA)
+		throw std::invalid_argument("cannot use " +
+			string(ViscousModelName[viscmodel]) +
+			" with non-Newtonian rheologies");
+
 #if !POISEUILLE_ALL_RHEO
 	if (want_rheology != NEWTONIAN)
 		throw std::invalid_argument("Poiseuille compiled without support for non-Newtonian rheology");
 
-#endif
-
-#ifndef POISEUILLE_DEFAULT_RHEO
-#define POISEUILLE_DEFAULT_RHEO NEWTONIAN
 #endif
 
 	SETUP_FRAMEWORK(
@@ -72,7 +83,9 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 		( RHODIFF  // switch to the user-selected density diffusion
 		, compvisc // switch to the user-selected computational viscosity
 		, viscavg  // switch to the user-selected viscous averaging operator
+#if !HAS_NONNEWTONIAN
 		, viscmodel // switch to the user-selected viscous model
+#endif
 #if POISEUILLE_ALL_RHEO
 		, want_rheology // switch to the user-selected rheology
 #endif

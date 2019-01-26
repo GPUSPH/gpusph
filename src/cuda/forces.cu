@@ -324,6 +324,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_sqC0, sqC0, numFluids*sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visccoeff, &physparams->visccoeff[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visc2coeff, &physparams->visc2coeff[0], numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_yield_strength, &physparams->yield_strength[0], numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visc_nonlinear_param, &physparams->visc_nonlinear_param[0], numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visc_regularization_param, &physparams->visc_regularization_param[0], numFluids*sizeof(float)));

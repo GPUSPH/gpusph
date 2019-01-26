@@ -28,6 +28,7 @@ __constant__ float	d_MK_d;		///< This is typically the distance between boundary
 __constant__ float	d_MK_beta;	///< This is typically the ration between h and the distance between boundary particles
 
 __constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient or consistency index for laminar viscosity
+__constant__ float	d_visc2coeff[MAX_FLUID_TYPES]; ///< second viscous coefficient or bulk viscosity
 __constant__ float	d_yield_strength[MAX_FLUID_TYPES]; ///< yield strength for Bingham and Herschel–Bulkley rheology
 __constant__ float	d_visc_nonlinear_param[MAX_FLUID_TYPES]; ///< exponent for power-law and Herschel–Bulkley rheology, exponential coefficient for Zhu and DeKee & Turcotte
 __constant__ float	d_visc_regularization_param[MAX_FLUID_TYPES]; ///< Papanastasiou regularization parameter
