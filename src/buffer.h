@@ -485,6 +485,21 @@ public:
 		clear();
 	}
 
+	// add the other list buffers to this one
+	BufferList& operator|=(BufferList const& other)
+	{
+		for (auto kb : other.m_map)
+			this->addExistingBuffer(kb.first, kb.second);
+		return *this;
+	}
+
+	// list | list produces a new list
+	friend BufferList operator|(BufferList first, BufferList const& other)
+	{
+		first |= other;
+		return first;
+	}
+
 	// delete all buffers before clearing the hash
 	void clear() {
 		m_map.clear();
