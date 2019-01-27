@@ -106,36 +106,17 @@ struct xsph_euler_params
 };
 
 /// Additional parameters passed only to kernels with SA_BOUNDARY
-struct sa_boundary_euler_params
+struct euler_vel_euler_params
 {
 			float4	* __restrict__ newEulerVel;
-	const	float2	* __restrict__ vertPos0;
-	const	float2	* __restrict__ vertPos1;
-	const	float2	* __restrict__ vertPos2;
 	const	float4	* __restrict__ oldEulerVel;
-	const	float	slength;
-	const	float	influenceradius;
-	const	neibdata	* __restrict__ neibsList;
-	const	uint	* __restrict__ cellStart;
 
 	// Constructor / initializer
-	sa_boundary_euler_params(
+	euler_vel_euler_params(
 				float4	* __restrict__ _newEulerVel,
-		const	float2	* __restrict__  const _vertPos[],
-		const	float4	* __restrict__ _oldEulerVel,
-		const	float	_slength,
-		const	float	_influenceradius,
-		const	neibdata	* __restrict__ _neibsList,
-		const	uint	* __restrict__ _cellStart) :
+		const	float4	* __restrict__ _oldEulerVel) :
 		newEulerVel(_newEulerVel),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2]),
-		oldEulerVel(_oldEulerVel),
-		slength(_slength),
-		influenceradius(_influenceradius),
-		neibsList(_neibsList),
-		cellStart(_cellStart)
+		oldEulerVel(_oldEulerVel)
 	{}
 };
 
@@ -223,12 +204,16 @@ template<KernelType _kerneltype,
 	typename _ViscSpec,
 	flag_t _simflags,
 	int _step,
-	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_eulerVel =
+		_has_keps || (_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_INLET_OUTLET))
+	>
 struct euler_params :
 	common_euler_params,
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_euler_params),
-	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_euler_params),
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params),
+	COND_STRUCT(_has_eulerVel, euler_vel_euler_params),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES),
+		sa_boundary_moving_euler_params),
 	COND_STRUCT(_has_keps, keps_euler_params),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_euler_params),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)
@@ -240,6 +225,7 @@ struct euler_params :
 	static constexpr flag_t simflags = _simflags;
 	static constexpr int step = _step;
 	static constexpr bool has_keps = _has_keps;
+	static constexpr bool has_eulerVel = _has_eulerVel;
 
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the euler kernel.
@@ -265,13 +251,8 @@ struct euler_params :
 		// SA_BOUNDARY
 				float4	* __restrict__ _newEulerVel,
 				float4	* __restrict__ _newBoundElement,
-		const	float2	* __restrict__  const _vertPos[],
 		const	float4	* __restrict__ _oldEulerVel,
 		const	float4	* __restrict__ _oldBoundElement,
-		const	float	_slength,
-		const	float	_influenceradius,
-		const	neibdata	* __restrict__ _neibsList,
-		const	uint	* __restrict__ _cellStart,
 
 		// KEPSILON
 				float	* __restrict__ _newTKE,
@@ -293,8 +274,7 @@ struct euler_params :
 		common_euler_params(_newPos, _newVel, _oldPos, _particleHash,
 			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(_xsph),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_euler_params)
-			(_newEulerVel, _vertPos, _oldEulerVel, _slength, _influenceradius, _neibsList, _cellStart),
+		COND_STRUCT(has_eulerVel, euler_vel_euler_params)(_newEulerVel, _oldEulerVel),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params)
 			(_newBoundElement, _oldBoundElement),
 		COND_STRUCT(has_keps, keps_euler_params)(_newTKE, _newEps, _newTurbVisc, _oldTKE, _oldEps, _keps_dkde),

@@ -398,9 +398,6 @@ basicstep(
 	const float *oldTKE = bufread.getData<BUFFER_TKE>();
 	const float *oldEps = bufread.getData<BUFFER_EPSILON>();
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
 	const float4 *forces = bufread.getData<BUFFER_FORCES>();
 	const float *DEDt = bufread.getData<BUFFER_INTERNAL_ENERGY_UPD>();
@@ -433,7 +430,7 @@ basicstep(
 			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 1>(
 				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
 				xsph,
-				newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
+				newEulerVel, newBoundElement, oldEulerVel, oldBoundElement,
 				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
 				newVol, oldVol,
 				newEnergy, oldEnergy, DEDt));
@@ -442,7 +439,7 @@ basicstep(
 			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 2>(
 				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
 				xsph,
-				newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
+				newEulerVel, newBoundElement, oldEulerVel, oldBoundElement,
 				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
 				newVol, oldVol,
 				newEnergy, oldEnergy, DEDt));

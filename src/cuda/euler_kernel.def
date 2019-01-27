@@ -30,7 +30,7 @@ struct common_euler_particle_data
 	const	particleinfo	info;
 	const	ParticleType	ptype;
 	const	float4	force;
-	const	int3	gridPos;
+	const	int3	gridPos; // this is only needed for moving objects, actually
 	float4	pos;
 	float4	vel;
 	float4	velc;
@@ -47,12 +47,12 @@ struct common_euler_particle_data
 	{}
 };
 
-struct sa_boundary_particle_data
+struct euler_vel_particle_data
 {
 	float4	eulerVel;
 
 	__device__ __forceinline__
-	sa_boundary_particle_data(const uint index, sa_boundary_euler_params params) :
+	euler_vel_particle_data(const uint index, euler_vel_euler_params params) :
 		eulerVel(params.oldEulerVel[index])
 	{}
 };
@@ -107,11 +107,11 @@ template<typename EP, ///< euler_param template specialization
 	typename _ViscSpec = typename EP::ViscSpec,
 	flag_t _simflags = EP::simflags,
 	int _step = EP::step,
-	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_eulerVel = EP::has_eulerVel>
 struct euler_particle_data :
 	common_euler_particle_data,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_has_keps || _simflags & ENABLE_INLET_OUTLET),
-				sa_boundary_particle_data),
+	COND_STRUCT(_has_eulerVel, euler_vel_particle_data),
 	COND_STRUCT(_has_keps, keps_particle_data),
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
@@ -124,6 +124,7 @@ struct euler_particle_data :
 	static const flag_t simflags = _simflags;
 	static const int step = _step;
 	static const bool has_keps = _has_keps;
+	static const bool has_eulerVel = _has_eulerVel;
 
 	// shorthand for the type of the euler params
 	typedef EP params_t;
@@ -132,8 +133,7 @@ struct euler_particle_data :
 	__device__ __forceinline__
 	euler_particle_data(const uint _index, params_t const& params) :
 		common_euler_particle_data(_index, params),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && (has_keps || simflags & ENABLE_INLET_OUTLET),
-					sa_boundary_particle_data)(_index, params),
+		COND_STRUCT(has_eulerVel, euler_vel_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
@@ -296,29 +296,16 @@ write_energy(EP const& params, P &pdata, int index)
 { /* do nothing*/ }
 
 
-/// Writes out the eulerian velocity for SA boundaries
-/*! this variable needs to be written if:
- * 1.) k-eps turbulence (as vertices have a dv/dt for eulerVel), or
- * 2.) open boundaries (as this sets eulerVel = 0 for fluid)
- */
-template<typename EP>
-constexpr bool needs_eulerVel()
-{
-	return EP::has_keps ||
-		(EP::boundarytype == SA_BOUNDARY &&
-		 (EP::simflags & ENABLE_INLET_OUTLET));
-}
-
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<needs_eulerVel<EP>()>
+enable_if_t<EP::has_eulerVel>
 write_eulerVel(EP const& params, P &pdata, int index)
 {
 	params.newEulerVel[index] = pdata.eulerVel;
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not needs_eulerVel<EP>()>
+enable_if_t<not EP::has_eulerVel>
 write_eulerVel(EP const& params, P &pdata, int index)
 { /* do nothing*/ }
 
