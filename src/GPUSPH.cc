@@ -2447,12 +2447,9 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 		// modify particle mass on open boundaries
 		if (has_io) {
-			// identify all the corner vertex particles
-			doCommand(SWAP_BUFFERS, BUFFER_INFO);
 			doCommand(IDENTIFY_CORNER_VERTICES);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
-			doCommand(SWAP_BUFFERS, BUFFER_INFO);
+				doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_READ);
 
 			// first step: count the vertices that belong to IO and the same segment as each IO vertex
 			doCommand(INIT_IO_MASS_VERTEX_COUNT);

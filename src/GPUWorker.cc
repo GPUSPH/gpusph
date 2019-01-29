@@ -2930,8 +2930,10 @@ void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	const BufferList bufread = m_dBuffers.state_subset("step n",
+		BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+		BUFFER_VERTICES | BUFFER_BOUNDELEMENTS);
+	BufferList bufwrite = m_dBuffers.state_subset("step n", BUFFER_INFO);
 	bufwrite.add_manipulator_on_write("saIdentifyCornerVertices");
 
 	bcEngine->saIdentifyCornerVertices(
