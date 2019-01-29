@@ -2615,8 +2615,10 @@ void GPUWorker::runCommand<INIT_IO_MASS>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	const BufferList bufread = m_dBuffers.state_subset("step n",
+		BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+		BUFFER_VERTICES | BUFFER_FORCES);
+	BufferList bufwrite = m_dBuffers.state_subset("iomass", BUFFER_POS);
 	bufwrite.add_manipulator_on_write("initIOmass");
 
 	bcEngine->initIOmass(
