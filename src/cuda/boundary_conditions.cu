@@ -126,14 +126,14 @@ saSegmentBoundaryConditionsImpl(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
+	const	float4			*pos(bufread.getData<BUFFER_POS>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
 	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-	const	vertexinfo	*vertices(bufwrite.getConstData<BUFFER_VERTICES>());
+	const	vertexinfo	*vertices(bufread.getData<BUFFER_VERTICES>());
 
 	float4	*vel(bufwrite.getData<BUFFER_VEL>());
 	float	*tke(bufwrite.getData<BUFFER_TKE>());
@@ -230,8 +230,8 @@ findOutgoingSegment(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
-	const	float4			*vel(bufwrite.getConstData<BUFFER_VEL>());
+	const	float4			*pos(bufread.getData<BUFFER_POS>());
+	const	float4			*vel(bufread.getData<BUFFER_VEL>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
 	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
