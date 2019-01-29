@@ -2873,11 +2873,17 @@ void GPUWorker::runCommand<SA_COMPUTE_VERTEX_NORMAL>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	const BufferList bufread = m_dBuffers.state_subset("step n",
+		BUFFER_VERTICES |
+		BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST);
+
+	BufferList bufwrite = m_dBuffers.state_subset("step n",
+		BUFFER_BOUNDELEMENTS);
+
 	bufwrite.add_manipulator_on_write("saComputeVertexNormal");
 
 	bcEngine->computeVertexNormal(
-				m_dBuffers.getReadBufferList(),
+				bufread,
 				bufwrite,
 				m_numParticles,
 				numPartsToElaborate);

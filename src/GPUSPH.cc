@@ -2433,12 +2433,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	if (cFlag & INITIALIZATION_STEP) {
 
-		// we used to swap gamma here for SA_INIT_GAMMA, but
-		// we don't during this transition phase, because the state management
-		// for sorting actually makes it so that we want to work
-		// on the copy of GRADGAMMA that is already in the WRITE position
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
 		// compute normal for vertices
 		doCommand(SA_COMPUTE_VERTEX_NORMAL);
 		if (MULTI_DEVICE)
