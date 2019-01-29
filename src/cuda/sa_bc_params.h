@@ -233,7 +233,6 @@ struct sa_cloning_params
 	const uint numDevices; //! number of devices used for the simulation
 
 	sa_cloning_params(
-				BufferList& bufread_clone,
 				BufferList& bufwrite,
 				uint	* __restrict__ _newNumParticles,
 		const	 uint _totParticles,
@@ -241,13 +240,13 @@ struct sa_cloning_params
 		const	 uint _numDevices)
 	:
 		cloneForces(bufwrite.getData<BUFFER_FORCES>()),
-		cloneInfo(bufread_clone.getData<BUFFER_INFO,
+		cloneInfo(bufwrite.getData<BUFFER_INFO,
 			BufferList::AccessSafety::MULTISTATE_SAFE>()),
-		cloneParticleHash(bufread_clone.getData<BUFFER_HASH,
+		cloneParticleHash(bufwrite.getData<BUFFER_HASH,
 			BufferList::AccessSafety::MULTISTATE_SAFE>()),
 		cloneVertices(bufwrite.getData<BUFFER_VERTICES,
 			BufferList::AccessSafety::MULTISTATE_SAFE>()),
-		cloneBoundElems(bufread_clone.getData<BUFFER_BOUNDELEMENTS,
+		cloneBoundElems(bufwrite.getData<BUFFER_BOUNDELEMENTS,
 			BufferList::AccessSafety::MULTISTATE_SAFE>()),
 		nextIDs(bufwrite.getData<BUFFER_NEXTID,
 			// TODO FIXME rather than being multi-state safe,
@@ -310,19 +309,19 @@ struct sa_vertex_bc_params :
 		const	float	_dt)
 	:
 		common_sa_bc_params(
-			bufwrite.getConstData<BUFFER_POS>(),
+			bufread.getData<BUFFER_POS>(),
 			bufwrite.getData<BUFFER_VEL>(),
 			bufread.getData<BUFFER_HASH>(),
 			bufread.getData<BUFFER_CELLSTART>(),
 			bufread.getData<BUFFER_NEIBSLIST>(),
 			bufwrite.getData<BUFFER_GRADGAMMA>(),
-			bufwrite.getConstData<BUFFER_VERTICES>(),
+			bufread.getData<BUFFER_VERTICES>(),
 			bufread.getRawPtr<BUFFER_VERTPOS>(),
 			_numParticles, _deltap, _slength, _influenceradius),
 		eulervel_struct(bufwrite),
 		keps_struct(bufwrite),
 		io_struct(bufwrite, _dt),
-		clone_struct(const_cast<BufferList&>(bufread), bufwrite, _newNumParticles,
+		clone_struct(bufwrite, _newNumParticles,
 			_totParticles, _deviceId, _numDevices)
 	{}
 };

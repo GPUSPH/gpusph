@@ -2883,13 +2883,29 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const int step = get_step_number(gdata->commandFlags);
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const int step = get_step_number(step_flag);
+	const string current_state = getCurrentStateByCommandFlags(step_flag);
+	const string next_state = getNextStateByCommandFlags(step_flag);
 
-	// pos, vel, tke, eps are read from current*Read, except
-	// on the second step, whe they are read from current*Write
+	const bool has_io = (m_simparams->simflags & ENABLE_INLET_OUTLET);
 
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	const BufferList bufread = m_dBuffers.state_subset(next_state,
+		BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_INFO |
+		BUFFER_VERTPOS | BUFFER_VERTICES |
+		BUFFER_BOUNDELEMENTS);
+	BufferList bufwrite = m_dBuffers.state_subset(next_state,
+		(has_io ? BUFFER_POS : BUFFER_NONE) |
+		BUFFER_VEL | BUFFER_EULERVEL |
+		BUFFER_TKE | BUFFER_EPSILON |
+		BUFFER_GRADGAMMA /* this needs to be R/W only during init, for open boundaries and for moving objects */
+		);
+	if (has_io && (step == 2)) {
+		/* Add buffers for cloning */
+		bufwrite |= m_dBuffers.state_subset(next_state,
+			BUFFER_FORCES | BUFFER_INFO | BUFFER_HASH |
+			BUFFER_VERTICES | BUFFER_BOUNDELEMENTS | BUFFER_NEXTID);
+	}
 	bufwrite.add_manipulator_on_write("saVertexBoundaryConditions" + to_string(step));
 
 	bcEngine->saVertexBoundaryConditions(
