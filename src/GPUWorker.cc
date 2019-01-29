@@ -2589,8 +2589,11 @@ void GPUWorker::runCommand<INIT_IO_MASS_VERTEX_COUNT>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	const BufferList bufread = m_dBuffers.state_subset("step n",
+		BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+		BUFFER_VERTICES);
+	BufferList bufwrite = m_dBuffers.state_subset("step n",
+		BUFFER_FORCES);
 	bufwrite.add_manipulator_on_write("initIOmass vertex count");
 
 	bcEngine->initIOmass_vertexCount(

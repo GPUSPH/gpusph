@@ -2451,6 +2451,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_READ);
 
+			doCommand(ADD_STATE_BUFFERS, "step n", BUFFER_FORCES);
 			// first step: count the vertices that belong to IO and the same segment as each IO vertex
 			doCommand(INIT_IO_MASS_VERTEX_COUNT);
 			if (MULTI_DEVICE)
@@ -2460,6 +2461,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
 			doCommand(SWAP_BUFFERS, BUFFER_POS);
+			doCommand(REMOVE_STATE_BUFFERS, "step n", BUFFER_FORCES);
 		}
 
 		// the common part of saBoundaryConditions assumes that the relevant buffers are in the WRITE position,
