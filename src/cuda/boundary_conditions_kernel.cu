@@ -1661,7 +1661,7 @@ findOutgoingSegmentDevice(
  */
 template<KernelType kerneltype>
 __global__ void
-computeVertexNormal(
+computeVertexNormalDevice(
 						float4*			boundelement,
 				const	vertexinfo*		vertices,
 				const	particleinfo*	pinfo,
@@ -1786,7 +1786,7 @@ struct InitGammaVars {
  */
 template<KernelType kerneltype, ParticleType cptype>
 __global__ void
-initGamma(
+initGammaDevice(
 						float4*			newGGam,
 				const	float4*			oldPos,
 				const	float4*			boundElement,
@@ -1888,7 +1888,7 @@ initGamma(
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SA_BOUND, MIN_BLOCKS_SA_BOUND)
-initIOmass_vertexCount(
+initIOmass_vertexCountDevice(
 				const	vertexinfo*		vertices,
 				const	hashKey*		particleHash,
 				const	particleinfo*	pinfo,
@@ -1967,7 +1967,7 @@ initIOmass_vertexCount(
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SA_BOUND, MIN_BLOCKS_SA_BOUND)
-initIOmass(
+initIOmassDevice(
 				const	float4*			oldPos,
 				const	float4*			forces,
 				const	vertexinfo*		vertices,
@@ -2151,7 +2151,7 @@ saVertexBoundaryConditionsDevice(Params params)
  computation in saVertexBoundaryConditions.
 */
 __global__ void
-saIdentifyCornerVertices(
+saIdentifyCornerVerticesDevice(
 				const	float4*			oldPos,
 						particleinfo*	pinfo,
 				const	hashKey*		particleHash,

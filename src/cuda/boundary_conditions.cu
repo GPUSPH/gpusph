@@ -412,7 +412,7 @@ computeVertexNormal(
 	#endif
 
 	// execute the kernel
-	cubounds::computeVertexNormal<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::computeVertexNormalDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
 		boundelement,
 		vertices,
 		pinfo,
@@ -464,7 +464,7 @@ saInitGammaImpl(
 	#endif
 
 	// execute the kernel for fluid particles
-	cubounds::initGamma<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::initGammaDevice<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		oldPos,
 		boundelement,
@@ -482,7 +482,7 @@ saInitGammaImpl(
 		particleRangeEnd);
 
 	// execute the kernel for vertex particles
-	cubounds::initGamma<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		oldPos,
 		boundelement,
@@ -564,7 +564,7 @@ initIOmass_vertexCount(
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
 
 	// execute the kernel
-	cubounds::initIOmass_vertexCount<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cubounds::initIOmass_vertexCountDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
 		(vertices, pHash, info, cellStart, neibsList, forces, particleRangeEnd);
 
 	// check if kernel invocation generated an error
@@ -600,7 +600,7 @@ initIOmass(
 	float4 *newPos = bufwrite.getData<BUFFER_POS>();
 
 	// execute the kernel
-	cubounds::initIOmass<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cubounds::initIOmassDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
 		(oldPos, forces, vertices, pHash, info, cellStart, neibsList, newPos, particleRangeEnd, deltap);
 
 	// check if kernel invocation generated an error
@@ -659,7 +659,7 @@ saIdentifyCornerVertices(
 	dummy_shared = 2560;
 	#endif
 	// execute the kernel
-	cubounds::saIdentifyCornerVertices<<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::saIdentifyCornerVerticesDevice<<< numBlocks, numThreads, dummy_shared >>> (
 		oldPos,
 		info,
 		particleHash,
