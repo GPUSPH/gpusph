@@ -2579,9 +2579,19 @@ void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufwrite.add_manipulator_on_write("imposeBC");
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const int step = get_step_number(step_flag);
+	const string state = getNextStateByCommandFlags(step_flag);
+
+	// TODO see if more buffers are needed in the general case;
+	// the current SA example implementations only use these
+	const BufferList bufread = m_dBuffers.state_subset(state,
+		BUFFER_POS | BUFFER_HASH | BUFFER_INFO);
+
+	BufferList bufwrite = m_dBuffers.state_subset(state,
+		BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON);
+
+	bufwrite.add_manipulator_on_write("imposeBC" + to_string(step)) ;
 
 	gdata->problem->imposeBoundaryConditionHost(
 		bufwrite,
