@@ -769,25 +769,10 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		// when using density sum, density diffusion is applied _after_ the density sum
 		if (problem->simparams()->densitydiffusiontype
 				!= DENSITY_DIFFUSION_NONE) {
-			/* Put the new data into the READ position: this will be used to
-			 * compute the density diffusion based on the new data
-			 */
-			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
-			if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-				doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
 			doCommand(CALC_DENSITY_DIFFUSION, integrator_step);
-			/* Swap back the arrays that'll get updated in-place */
-			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 			doCommand(APPLY_DENSITY_DIFFUSION, integrator_step);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-
-			/* Swap back POS and GRADGAMMA (and BOUNDELEMENTS if needed) too,
-			 * to restore the overall situation */
-			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
-			if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-				doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 		}
 	} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
