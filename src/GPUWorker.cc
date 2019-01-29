@@ -2900,11 +2900,16 @@ void GPUWorker::runCommand<SA_INIT_GAMMA>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	const BufferList bufread = m_dBuffers.state_subset("step n",
+		BUFFER_BOUNDELEMENTS | BUFFER_VERTPOS |
+		BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST);
+
+	BufferList bufwrite = m_dBuffers.state_subset("step n", BUFFER_GRADGAMMA);
+
 	bufwrite.add_manipulator_on_write("saInitGamma");
 
 	bcEngine->saInitGamma(
-				m_dBuffers.getReadBufferList(),
+				bufread,
 				bufwrite,
 				m_simparams->slength,
 				m_simparams->influenceRadius,

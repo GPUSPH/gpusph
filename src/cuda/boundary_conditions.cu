@@ -481,6 +481,9 @@ saInitGammaImpl(
 		epsilon,
 		particleRangeEnd);
 
+	// TODO verify if this split kernele execution works in the multi-device case,
+	// or if we need to update_external the fluid data first
+
 	// execute the kernel for vertex particles
 	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
