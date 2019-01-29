@@ -2472,16 +2472,28 @@ void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const int step = get_step_number(gdata->commandFlags);
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	// Density diffusion works on the “new” data
+	const string base_state = "step n";
+	const string next_state = (step == 1 ? "step n*" : "step n+1");
+	// the forces were computed in the base state for the predictor,
+	// on the next state for the corrector
+	const string forces_state = (step == 1 ? base_state : next_state);
+
+	const BufferList bufread = m_dBuffers.state_subset(next_state, BUFFER_INFO)
+		| m_dBuffers.state_subset(forces_state, BUFFER_FORCES);
+
+	BufferList bufwrite = m_dBuffers.state_subset(next_state, BUFFER_VEL);
+
 	bufwrite.add_manipulator_on_write("applyDensityDiffusion" + to_string(step));
 
 	const float dt = (firstStep ? gdata->dt/2.0f : gdata->dt);
 
 	integrationEngine->apply_density_diffusion(
-		m_dBuffers.getReadBufferList(),
+		bufread,
 		bufwrite,
 		m_numParticles,
 		numPartsToElaborate,

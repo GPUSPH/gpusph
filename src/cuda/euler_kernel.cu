@@ -113,8 +113,8 @@ applyrot2(float* rot, float3 & pos, const float3 & cg)
 __global__ void
 updateDensityDevice(
 	const	particleinfo * __restrict__ pinfo,
-			float4 * __restrict__ vel,
 	const	float4 * __restrict__ forces,
+			float4 * __restrict__ vel,
 			uint numParticles,
 			uint particleRangeEnd,
 			float dt)

@@ -364,8 +364,8 @@ apply_density_diffusion(
 
 	// This is a trivial integration of the density in position write
 	cueuler::updateDensityDevice<<<numBlocks, numThreads>>>(
-		bufread.getData<BUFFER_INFO>(),
-		bufwrite.getData<BUFFER_VEL>(), bufwrite.getConstData<BUFFER_FORCES>(),
+		bufread.getData<BUFFER_INFO>(), bufread.getData<BUFFER_FORCES>(),
+		bufwrite.getData<BUFFER_VEL>(),
 		numParticles, particleRangeEnd, dt);
 
 	// check if kernel invocation generated an error
