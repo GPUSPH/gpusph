@@ -825,6 +825,7 @@ class MultiBufferList
 {
 public:
 	typedef BufferList::ptr_type ptr_type;
+	typedef BufferList::const_ptr_type const_ptr_type;
 
 private:
 	// buffer allocation policy
@@ -1273,6 +1274,12 @@ public:
 				ret.addExistingBuffer(kb.first, kb.second);
 		}
 		return ret;
+	}
+
+	//! Return a shared pointer to the given buffer in the given state
+	const_ptr_type get_state_buffer(std::string const& state, flag_t key) const
+	{
+		return m_state.at(state)[key];
 	}
 
 

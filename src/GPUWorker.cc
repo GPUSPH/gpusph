@@ -1776,6 +1776,12 @@ shared_ptr<const AbstractBuffer> GPUWorker::getBuffer(size_t list_idx, flag_t ke
 	return m_dBuffers.getBufferList(list_idx)[key];
 }
 
+shared_ptr<const AbstractBuffer> GPUWorker::getBuffer(std::string const& state, flag_t key) const
+{
+	return m_dBuffers.get_state_buffer(state, key);
+}
+
+
 #ifdef INSPECT_DEVICE_MEMORY
 const MultiBufferList& GPUWorker::getBufferList() const
 {
