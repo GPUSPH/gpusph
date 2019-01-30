@@ -1478,18 +1478,19 @@ void GPUWorker::runCommand<DUMP_CELLS>()
 
 	// TODO migrate s_dCellStarts to the device mechanism and provide an API
 	// to copy offset data between buffers (even of different types)
-	const uint * src = m_dBuffers.getReadBufferList().getConstData<BUFFER_CELLSTART>();
-	uint * dst = gdata->s_dCellStarts[m_deviceIndex];
+	const BufferList sorted = m_dBuffers.state_subset("sorted",
+		BUFFER_CELLSTART | BUFFER_CELLEND);
 
+	const uint *src;
+	uint *dst;
+
+	src = sorted.getData<BUFFER_CELLSTART>();
+	dst = gdata->s_dCellStarts[m_deviceIndex];
 	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyDeviceToHost));
 
-	src = m_dBuffers.getReadBufferList().getConstData<BUFFER_CELLEND>();
+	src = sorted.getData<BUFFER_CELLEND>();
 	dst = gdata->s_dCellEnds[m_deviceIndex];
 	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyDeviceToHost));
-	/*_size = 4 * sizeof(uint);
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dSegmentsStart[m_deviceIndex],
-								m_dSegmentStart,
-								_size, cudaMemcpyDeviceToHost));*/
 }
 
 void GPUWorker::downloadSegments()
