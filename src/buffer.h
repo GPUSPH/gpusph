@@ -472,13 +472,21 @@ protected:
 
 	friend class MultiBufferList;
 
+	// if this boolean is true, trying to get data
+	// from a non-existent key results in a throw
+	mutable bool m_validate_access;
 public:
 	BufferList() :
 		m_map(),
 		m_has_pending_state(NOT_PENDING),
 		m_pending_state(),
-		m_updated_buffers(0)
+		m_updated_buffers(0),
+		m_validate_access(false)
 	{};
+
+	void validate_access() const {
+		m_validate_access = true;
+	}
 
 	~BufferList() {
 		clear_pending_state();
@@ -611,8 +619,11 @@ public:
 		AccessSafety safety = NO_SAFETY> ///< 
 	DATA_TYPE(Key) *getData(uint num=0) {
 		map_type::iterator exists = m_map.find(Key);
-		if (exists == m_map.end())
+		if (exists == m_map.end()) {
+			if (m_validate_access)
+				throw std::runtime_error(std::to_string(Key) + " not found");
 			return NULL;
+		}
 
 		auto buf(exists->second);
 
@@ -656,8 +667,11 @@ public:
 	template<flag_t Key>
 	const DATA_TYPE(Key) *getData(uint num=0) const {
 		map_type::const_iterator exists = m_map.find(Key);
-		if (exists == m_map.end())
+		if (exists == m_map.end()) {
+			if (m_validate_access)
+				throw std::runtime_error(std::to_string(Key) + " not found");
 			return NULL;
+		}
 
 		auto buf(exists->second);
 		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [const]" << std::endl);
@@ -686,8 +700,11 @@ public:
 	template<flag_t Key>
 	DATA_TYPE(Key) **getRawPtr() {
 		buffer_ptr_type<Key> buf = this->get<Key>();
-		if (!buf)
+		if (!buf) {
+			if (m_validate_access)
+				throw std::runtime_error(std::to_string(Key) + " not found");
 			return NULL;
+		}
 
 		if (buf->num_states() > 1)
 			throw std::invalid_argument("trying to access multi-state buffer " +
@@ -720,8 +737,11 @@ public:
 	template<flag_t Key>
 	const DATA_TYPE(Key)* const* getRawPtr() const {
 		const_buffer_ptr_type<Key> buf = this->get<Key>();
-		if (!buf)
+		if (!buf) {
+			if (m_validate_access)
+				throw std::runtime_error(std::to_string(Key) + " not found");
 			return NULL;
+		}
 
 		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [const raw ptr]" << std::endl);
 		if (buf->is_invalid()) {
