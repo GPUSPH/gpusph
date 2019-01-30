@@ -186,14 +186,14 @@ private:
 	// runCommand<CROP> = void dropExternalParticles();
 
 	/// compare UPDATE_EXTERNAL arguments against list of updated buffers
-	void checkBufferUpdate();
+	void checkBufferUpdate(std::string const& state);
 
 	// compute list of bursts
 	void computeCellBursts();
 	// iterate on the list and send/receive/read cell sizes
 	void transferBurstsSizes();
 	// iterate on the list and send/receive/read bursts of particles
-	void transferBursts();
+	void transferBursts(std::string const& state);
 
 	/// append or update the external cells of other devices in the device memory
 	void importExternalCells(); // runCommand<APPEND_EXTERNAL> or runCommand<UPDATE_EXTERNAL>
@@ -220,11 +220,14 @@ private:
 	// select a BufferList based on the DBLBUFFER_* specification
 	// in the command flags
 	BufferList& getBufferListByCommandFlags(flag_t flags);
+
+public:
 	// select a state based on the integrator step specification
 	// TODO these will become a method in the integrator
 	std::string getCurrentStateByCommandFlags(flag_t flags);
 	std::string getNextStateByCommandFlags(flag_t flags);
 
+private:
 	// create a textual description of the list of buffers in the command flags
 	std::string describeCommandFlagsBuffers(flag_t flags);
 	std::string describeCommandFlagsBuffers();

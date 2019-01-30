@@ -683,6 +683,12 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
 		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
 
+	// TODO get from integrator
+	const string current_state =
+		gdata->GPUWORKERS[0]->getCurrentStateByCommandFlags(integrator_step);
+	const string next_state =
+		gdata->GPUWORKERS[0]->getNextStateByCommandFlags(integrator_step);
+
 	// for Grenier formulation, compute sigma and smoothed density
 	// TODO with boundary models requiring kernels for boundary conditions,
 	// this should be moved into prepareNextStep
@@ -691,7 +697,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		// compute density and sigma, updating WRITE vel in-place
 		doCommand(COMPUTE_DENSITY, integrator_step);
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL,
+			doCommand(UPDATE_EXTERNAL, current_state,
 					BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
 	}
 
@@ -700,7 +706,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		gdata->only_internal = true;
 		doCommand(CALC_VISC, integrator_step);
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
+			doCommand(UPDATE_EXTERNAL, current_state, BUFFER_TAU);
 	}
 	if (gdata->debug.inspect_preforce)
 		saveParticles(noPostProcess, integrator_step);
@@ -714,8 +720,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 
 	// update forces of external particles
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL,
-				POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+		doCommand(UPDATE_EXTERNAL, current_state, POST_FORCES_UPDATE_BUFFERS);
 
 	// if striping was active, now we want the kernels to complete
 	if (gdata->clOptions->striping && MULTI_DEVICE)
@@ -763,8 +768,8 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		// compute density based on an integral formulation
 		doCommand(DENSITY_SUM, integrator_step);
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL,
-					BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, next_state,
+					BUFFER_VEL | BUFFER_GRADGAMMA);
 
 		// when using density sum, density diffusion is applied _after_ the density sum
 		if (problem->simparams()->densitydiffusiontype
@@ -772,7 +777,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 			doCommand(CALC_DENSITY_DIFFUSION, integrator_step);
 			doCommand(APPLY_DENSITY_DIFFUSION, integrator_step);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, next_state, BUFFER_VEL);
 		}
 	} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
@@ -780,7 +785,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		// needs to be done after EULER
 		doCommand(INTEGRATE_GAMMA, integrator_step);
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, next_state, BUFFER_GRADGAMMA);
 	}
 
 	// upload gravity, boundary conditions, etc
@@ -805,7 +810,7 @@ void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 			doCommand(FILTER, NO_FLAGS, filter);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, "filtered",  BUFFER_VEL);
 
 			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 
@@ -1973,7 +1978,7 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 		 */
 #if 1
 		if (MULTI_DEVICE && need_update_and_swap)
-			doCommand(UPDATE_EXTERNAL, written_buffers | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, "processed", written_buffers);
 #endif
 		/* Swap the written buffers, so we can access the new data from
 		 * DBLBUFFER_READ.
@@ -2080,7 +2085,7 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 		// append fresh copies of the externals
 		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
 		// until next calchash; however, they are filtered out when using the particle hashes.
-		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
+		doCommand(APPEND_EXTERNAL, "sorted", IMPORT_BUFFERS);
 		// update the newNumParticles device counter
 		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
 			doCommand(UPLOAD_NEWNUMPARTS);
@@ -2092,7 +2097,7 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 	doCommand(BUILDNEIBS);
 
 	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VERTPOS);
+		doCommand(UPDATE_EXTERNAL, "sorted", BUFFER_VERTPOS);
 
 	// scan and check the peak number of neighbors and the estimated number of interactions
 	static const uint maxPossibleFluidBoundaryNeibs = problem->simparams()->neibboundpos;
@@ -2423,7 +2428,12 @@ void GPUSPH::prepareProblem()
 
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {
+	// TODO get from integrator
+	const string next_state =
+		gdata->GPUWORKERS[0]->getNextStateByCommandFlags(cFlag);
+
 	const bool has_io = (problem->simparams()->simflags & ENABLE_INLET_OUTLET);
+
 	// In the open boundary case, the last integration step is when we generate
 	// and destroy particles
 	const bool last_io_step = has_io && (cFlag & INTEGRATOR_STEP_2);
@@ -2436,20 +2446,19 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		// compute normal for vertices
 		doCommand(SA_COMPUTE_VERTEX_NORMAL);
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+			doCommand(UPDATE_EXTERNAL, "step n", BUFFER_BOUNDELEMENTS);
 
 		// compute initial value of gamma for fluid and vertices
 		doCommand(SA_INIT_GAMMA);
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, "step n", BUFFER_GRADGAMMA);
 		doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 
 		// modify particle mass on open boundaries
 		if (has_io) {
 			doCommand(IDENTIFY_CORNER_VERTICES);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_READ);
+				doCommand(UPDATE_EXTERNAL, "step n", BUFFER_INFO);
 
 			// we use BUFFER_FORCES as scratch buffer to store the computed
 			// IO masses, and since we cannot update POS in place we'll
@@ -2460,11 +2469,11 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			// first step: count the vertices that belong to IO and the same segment as each IO vertex
 			doCommand(INIT_IO_MASS_VERTEX_COUNT);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+				doCommand(UPDATE_EXTERNAL, "step n", BUFFER_FORCES);
 			// second step: modify the mass of the IO vertices
 			doCommand(INIT_IO_MASS);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, "iomass", BUFFER_POS);
 			doCommand(SWAP_BUFFERS, BUFFER_POS);
 			doCommand(SWAP_STATE_BUFFERS, "step n", "iomass", BUFFER_POS);
 			doCommand(REMOVE_STATE_BUFFERS, "step n", BUFFER_FORCES);
@@ -2521,7 +2530,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	// compute boundary conditions on segments and detect outgoing particles at open boundaries
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+		doCommand(UPDATE_EXTERNAL, next_state, POST_SA_SEGMENT_UPDATE_BUFFERS);
 
 	// compute boundary conditions on vertices including mass variation and
 	// create new particles at open boundaries.
@@ -2532,14 +2541,14 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+		doCommand(UPDATE_EXTERNAL, next_state, POST_SA_VERTEX_UPDATE_BUFFERS);
 
 	// check if we need to delete some particles which passed through open boundaries
 	if (last_io_step) {
 		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
 		doCommand(DISABLE_OUTGOING_PARTS);
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, "step n+1", BUFFER_POS | BUFFER_VERTICES);
 	}
 
 	if (!(cFlag & INITIALIZATION_STEP)) {

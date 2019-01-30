@@ -347,9 +347,9 @@ void GPUWorker::runCommand<CROP>()
 }
 
 /// compare UPDATE_EXTERNAL arguments against list of updated buffers
-void GPUWorker::checkBufferUpdate()
+void GPUWorker::checkBufferUpdate(std::string const& state)
 {
-	BufferList const& buflist = getBufferListByCommandFlags(gdata->commandFlags);
+	const BufferList buflist = m_dBuffers.state_subset(state, FLAG_MAX);
 	for (auto const& iter : buflist) {
 		auto const key = iter.first;
 		auto const buf = iter.second;
@@ -795,24 +795,12 @@ void GPUWorker::transferBurstsSizes()
 }
 
 // Iterate on the list and send/receive bursts of particles across different nodes
-void GPUWorker::transferBursts()
+void GPUWorker::transferBursts(string const& state)
 {
-	// Sanity check: if any of the buffers to transfer is double-buffered, then
-	// which of the copies needs to be transferred _must_ have been specified
-	const flag_t need_dbl_buffer_specified = gdata->allocPolicy->get_multi_buffered(gdata->commandFlags);
-	// was it specified?
-	const bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
+	if (state.empty())
+		throw runtime_error("transferBursts with empty state");
 
-	// The buffer list that we want to access depends on the double-buffer selection.
-	// The BufferList& works like a BufferList* , with the
-	// advantage that we can get the index of the BufferList by subtracting the
-	// iterator returned by getting the first BufferList
-	BufferList& buflist = getBufferListByCommandFlags(gdata->commandFlags);
-
-	// actual index of the buffer list in the multibufferlist (used to get the same
-	// buffer list from the peer)
-	// TODO FIXME buffer-state
-	const size_t buflist_idx = &buflist - &m_dBuffers.getBufferList(0);
+	BufferList buflist = m_dBuffers.state_subset(state, gdata->commandFlags);
 
 	// burst id counter, needed to correctly pair asynchronous network messages
 	uint bid[MAX_DEVICES_PER_CLUSTER];
@@ -851,20 +839,10 @@ void GPUWorker::transferBursts()
 			const BufferList::iterator stop = buflist.end();
 			for ( ; bufset != stop ; ++bufset) {
 				flag_t bufkey = bufset->first;
-				if (!(gdata->commandFlags & bufkey))
-					continue; // skip unwanted buffers
 
 				// here we use the explicit type instead of auto to better
 				// highlight the constness difference with peerbuf below
 				shared_ptr<AbstractBuffer> buf = bufset->second;
-
-				// TODO it would be better to have this check done in a doCommand() sanitizer
-				if ((bufkey & need_dbl_buffer_specified) && !dbl_buffer_specified) {
-					stringstream err_msg;
-					err_msg << "Import request for double-buffered " << buf->get_buffer_name()
-						<< " array without a specification of which buffer to use.";
-						throw runtime_error(err_msg.str());
-				}
 
 				const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
 
@@ -874,7 +852,7 @@ void GPUWorker::transferBursts()
 				if (m_bursts[i].scope == NODE_SCOPE) {
 					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
 					peerCudaDevNum = gdata->device[peerDevIdx];
-					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(buflist_idx, bufkey);
+					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(state, bufkey);
 				}
 
 				// send all the arrays of which this buffer is composed
@@ -913,12 +891,14 @@ void GPUWorker::transferBursts()
 // staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
 void GPUWorker::importExternalCells()
 {
-	if (gdata->debug.check_buffer_update) checkBufferUpdate();
+	const string state = gdata->extraCommandArg.string;
+
+	if (gdata->debug.check_buffer_update) checkBufferUpdate(state);
 
 	if (gdata->nextCommand == APPEND_EXTERNAL)
 		transferBurstsSizes();
 	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
-		transferBursts();
+		transferBursts(state);
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. If striping is disabled, we want to synchronize
 	// for the completion of the transfers. Otherwise, FORCES_COMPLETE will synchronize everything
