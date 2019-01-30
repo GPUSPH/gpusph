@@ -388,14 +388,19 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 
 	// TODO migrate s_dCellStarts to the device mechanism and provide an API
 	// to copy offset data between buffers (even of different types)
-	uint * dst = m_dBuffers.getWriteBufferList().getData<BUFFER_CELLSTART>() + fromCell;
-	const uint * src = gdata->s_dCellStarts[m_deviceIndex] + fromCell;
 
+	BufferList sorted = m_dBuffers.state_subset("sorted",
+		BUFFER_CELLSTART | BUFFER_CELLEND);
+
+	const uint *src;
+	uint *dst;
+
+	dst = sorted.getData<BUFFER_CELLSTART>() + fromCell;
+	src = gdata->s_dCellStarts[m_deviceIndex] + fromCell;
 	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 
-	dst = m_dBuffers.getWriteBufferList().getData<BUFFER_CELLEND>() + fromCell;
+	dst = sorted.getData<BUFFER_CELLEND>() + fromCell;
 	src = gdata->s_dCellEnds[m_deviceIndex] + fromCell;
-
 	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 }
 
