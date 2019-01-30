@@ -217,10 +217,6 @@ private:
 	void initialize();
 	void finalize();
 
-	// select a BufferList based on the DBLBUFFER_* specification
-	// in the command flags
-	BufferList& getBufferListByCommandFlags(flag_t flags);
-
 public:
 	// select a state based on the integrator step specification
 	// TODO these will become a method in the integrator

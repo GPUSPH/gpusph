@@ -1096,14 +1096,6 @@ void GPUWorker::printAllocatedMemory()
 			gdata->addSeparators(m_numParticles).c_str(), gdata->addSeparators(m_numAllocatedParticles).c_str());
 }
 
-BufferList&
-GPUWorker::getBufferListByCommandFlags(flag_t flags)
-{
-	return (flags & DBLBUFFER_READ ?
-		m_dBuffers.getReadBufferList() : flags & DBLBUFFER_WRITE ?
-		m_dBuffers.getWriteBufferList() : m_dBuffers.getBufferList(0));
-}
-
 std::string
 GPUWorker::getCurrentStateByCommandFlags(flag_t flags)
 {
