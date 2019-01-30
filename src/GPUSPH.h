@@ -134,7 +134,8 @@ private:
 	void doWrite(WriteFlags const& write_flags);
 
 	// save the particle system to disk
-	void saveParticles(PostProcessEngineSet const& enabledPostProcess, WriteFlags const& write_flags);
+	void saveParticles(PostProcessEngineSet const& enabledPostProcess,
+		std::string const& state, WriteFlags const& write_flags);
 
 	// callbacks for moving boundaries and variable gravity
 	void doCallBacks(const flag_t current_integrator_step);

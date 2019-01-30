@@ -709,7 +709,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 			doCommand(UPDATE_EXTERNAL, current_state, BUFFER_TAU);
 	}
 	if (gdata->debug.inspect_preforce)
-		saveParticles(noPostProcess, integrator_step);
+		saveParticles(noPostProcess, current_state, integrator_step);
 
 	// compute forces only on internal particles
 	gdata->only_internal = true;
@@ -762,7 +762,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	gdata->only_internal = true;
 
 	if (gdata->debug.inspect_pregamma)
-		saveParticles(noPostProcess, integrator_step);
+		saveParticles(noPostProcess, next_state, integrator_step);
 
 	if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
 		// compute density based on an integral formulation
@@ -920,7 +920,7 @@ bool GPUSPH::runSimulation() {
 		if (needs_new_neibs) {
 			buildNeibList();
 			if (Writer::HotWriterPending())
-				saveParticles(noPostProcess, HotWriteFlags);
+				saveParticles(noPostProcess, "step n", HotWriteFlags);
 		}
 
 		// when there will be an Integrator class, here (or after bneibs?) we will
@@ -1899,7 +1899,10 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
  * after running the defined post-process functions, and invokes the write-out
  * routine.
  */
-void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, WriteFlags const& write_flags)
+void GPUSPH::saveParticles(
+	PostProcessEngineSet const& enabledPostProcess,
+	string const& state,
+	WriteFlags const& write_flags)
 {
 	const SimParams * const simparams = problem->simparams();
 
@@ -2003,7 +2006,7 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 		which_buffers &= ~EPHEMERAL_BUFFERS;
 
 	// dump what we want to save
-	doCommand(DUMP, which_buffers);
+	doCommand(DUMP, state, which_buffers);
 
 	// triggers Writer->write()
 	doWrite(write_flags);
@@ -2378,7 +2381,7 @@ void GPUSPH::updateArrayIndices() {
 
 				// who is missing? if single-node, do a roll call
 				if (SINGLE_NODE) {
-					doCommand(DUMP, BUFFER_INFO | DBLBUFFER_READ);
+					doCommand(DUMP, "sorted", BUFFER_INFO);
 					rollCallParticles();
 				}
 			}
@@ -2595,7 +2598,7 @@ void GPUSPH::check_write(bool we_are_done)
 				// so pretend we actually saved
 				Writer::FakeMarkWritten(writers, gdata->t);
 			} else {
-				saveParticles(enabledPostProcess, force_write);
+				saveParticles(enabledPostProcess, "step n", force_write);
 
 				// we generally want to print the current status and reset the
 				// interval performance counter when writing. However, when writing

@@ -1350,9 +1350,10 @@ void GPUWorker::runCommand<DUMP>()
 	if (howManyParticles == 0) return;
 
 	const flag_t flags = gdata->commandFlags;
+	const string state = gdata->extraCommandArg.string;
 
 	// get the bufferlist to download data from
-	const BufferList& buflist = getBufferListByCommandFlags(flags);
+	const BufferList buflist = m_dBuffers.state_subset(state, flags);
 
 	// iterate over each array in the _host_ buffer list, and download data
 	// if it was requested
