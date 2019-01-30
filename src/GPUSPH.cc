@@ -2502,9 +2502,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(UPLOAD_IOWATERDEPTH);
 		}
 		gdata->only_internal = false;
-		doCommand(SWAP_BUFFERS, BUFFER_POS);
 		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION, cFlag);
-		doCommand(SWAP_BUFFERS, BUFFER_POS);
 	}
 
 	gdata->only_internal = true;
