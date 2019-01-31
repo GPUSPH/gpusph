@@ -122,7 +122,8 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
-		uint numBlocks = div_up(particleRangeEnd, numThreads);
+		// number of blocks, rounded up to next multiple of 4 to improve reductions
+		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
 
 		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
 			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
