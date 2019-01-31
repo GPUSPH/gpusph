@@ -2649,8 +2649,9 @@ void GPUWorker::runCommand<FILTER>()
 		throw invalid_argument("non-existing filter invoked");
 	}
 
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	// TODO be more selective
+	const BufferList bufread = m_dBuffers.state_subset("unfiltered", FLAG_MAX);
+	BufferList bufwrite = m_dBuffers.state_subset("filtered", BUFFER_VEL);
 
 	bufwrite.add_manipulator_on_write(string("filter/") + FilterName[filtertype]);
 
