@@ -726,18 +726,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	if (gdata->clOptions->striping && MULTI_DEVICE)
 		doCommand(FORCES_COMPLETE, integrator_step);
 
-	// --- ONLY CORRECTOR (STEP 2) -------------
-	// during the corrector step, we want to swap compute buffers to put n back
-	// into the READ position, and n* (that will be updated to n+1) into the
-	// WRITE position
-	if (integrator_step == INTEGRATOR_STEP_2) {
-		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
-		// boundelements is swapped because the normals are updated in the moving objects case
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-	}
-	// -----------------------------------------
-
 	// On the predictor, we need to (re)init the predicted status (n*),
 	// on the corrector this will be updated (in place) to the corrected status (n+1)
 	// TODO we need to better formalize the situation in which a kernel moves
@@ -790,11 +778,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 
 	// upload gravity, boundary conditions, etc
 	prepareNextStep(integrator_step);
-
-	// put all the updated stuff in the READ positions, ready for the next step
-	doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
-	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 }
 
 void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
@@ -811,8 +794,6 @@ void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, "filtered",  BUFFER_VEL);
-
-			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 
 			// swap buffers between filtered and unfiltered: this moves
 			// the filtered buffer into the unfiltered state (as in: unfiltered for the
@@ -1965,7 +1946,7 @@ void GPUSPH::saveParticles(
 
 		// If the post-process engine wrote something, we need to do
 		// a multi-device update as well as a buffer swap
-		const bool need_update_and_swap = (buffers_to_sync != NO_FLAGS);
+		const bool need_update = (buffers_to_sync != NO_FLAGS);
 
 		/* TODO FIXME ideally we would have a way to specify when,
 		 * after a post-processing, buffers need to be uploaded to other
@@ -1979,15 +1960,9 @@ void GPUSPH::saveParticles(
 		 * so let's do it here for the time being.
 		 */
 #if 1
-		if (MULTI_DEVICE && need_update_and_swap)
+		if (MULTI_DEVICE && need_update)
 			doCommand(UPDATE_EXTERNAL, "step n", buffers_to_sync);
 #endif
-		/* Swap the written buffers, so we can access the new data from
-		 * DBLBUFFER_READ.
-		 * TODO should also update buffer state and validity
-		 */
-		if (need_update_and_swap)
-			doCommand(SWAP_BUFFERS, written_buffers);
 
 		which_buffers |= buffers_to_sync;
 	}
@@ -2066,9 +2041,6 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 	// some particles might have been disabled (and discarded) for flying
 	// out of the domain
 	doCommand(DOWNLOAD_NEWNUMPARTS);
-
-	// swap all double buffers
-	doCommand(SWAP_BUFFERS, gdata->simframework->getAllocPolicy()->get_multi_buffered());
 
 	// if running on multiple GPUs, update the external cells
 	if (MULTI_DEVICE) {
@@ -2453,7 +2425,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		doCommand(SA_INIT_GAMMA);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, "step n", BUFFER_GRADGAMMA);
-		doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 
 		// modify particle mass on open boundaries
 		if (has_io) {
@@ -2475,16 +2446,10 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(INIT_IO_MASS);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, "iomass", BUFFER_POS);
-			doCommand(SWAP_BUFFERS, BUFFER_POS);
 			doCommand(SWAP_STATE_BUFFERS, "step n", "iomass", BUFFER_POS);
 			doCommand(REMOVE_STATE_BUFFERS, "step n", BUFFER_FORCES);
 			doCommand(RELEASE_STATE, "iomass");
 		}
-
-		// the common part of saBoundaryConditions assumes that the relevant buffers are in the WRITE position,
-		// but the INITIALIZATION_STEP is called with the relevant buffers in the READ position, hence the need
-		// to swap here, and then again at the end of saBoundaryConditions
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 	}
 
 	// impose open boundary conditions
@@ -2517,17 +2482,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	gdata->only_internal = true;
 
-	if (cFlag & INTEGRATOR_STEP_1)
-		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
-
-	if (!(cFlag & INITIALIZATION_STEP)) {
-		/* SA_CALC_SEGMENT_BOUNDARY_CONDITIONS and SA_CALC_VERTEX_BOUNDARY_CONDITIONS
-		 * get their normals from the READ position, but if we have moving bodies,
-		 * the new normals are in the WRITE position, so swap them */
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-	}
-
 	// compute boundary conditions on segments and detect outgoing particles at open boundaries
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
@@ -2538,31 +2492,15 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	// This updates the nextID buffer by vertices that generate new particles,
 	// which happens only during the last integration step in the IO case:
 	// so in this case it in the WRITE position, and swap it back afterwards.
-	if (last_io_step)
-		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, next_state, POST_SA_VERTEX_UPDATE_BUFFERS);
 
 	// check if we need to delete some particles which passed through open boundaries
 	if (last_io_step) {
-		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
 		doCommand(DISABLE_OUTGOING_PARTS);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, "step n+1", BUFFER_POS | BUFFER_VERTICES);
-	}
-
-	if (!(cFlag & INITIALIZATION_STEP)) {
-		/* Restore normals */
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-	}
-
-	if (cFlag & INITIALIZATION_STEP) {
-		// During the simulation, saBoundaryConditions operates on the WRITE buffers, because it's invoked before the post-compute buffer swap,
-		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is 
-		// finished they are expected to be in the READ position, so swap them again:
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 	}
 }
 
