@@ -904,9 +904,6 @@ bool GPUSPH::runSimulation() {
 	while (gdata->keep_going) try {
 		printStatus(m_info_stream);
 
-		// legacy bufferlist to states migration: resync "step n"
-		// state with the READ list
-		doCommand(RESYNC_STATE, "step n", DBLBUFFER_READ);
 		// remove ephemeral buffers from the particle system state
 		doCommand(REMOVE_STATE_BUFFERS, "step n", EPHEMERAL_BUFFERS);
 

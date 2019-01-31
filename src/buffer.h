@@ -1141,44 +1141,6 @@ public:
 
 	}
 
-	//! Realign a state with a legacy list (read or write)
-	/*! This is similar to initialize_state, except that it assumes
-	 * the state exists already and all it does is to replace individual
-	 * buffers that are different from the ones in the legacy list
-	 */
-	void resync_state(std::string const& state, BufferList& src)
-	{
-		// TODO more descriptive throw if not found
-		BufferList& dst = m_state.at(state);
-
-		for (auto& pair : dst) {
-			flag_t key = pair.first;
-			auto dst_buf = pair.second;
-			auto src_buf = src[key];
-			if (dst_buf->uid() != src_buf->uid()) {
-				/* remove src_buf from the pool */
-				auto& pooled = m_pool.at(key);
-				auto found = std::find(pooled.begin(), pooled.end(), src_buf);
-				if (found == pooled.end())
-					throw std::runtime_error(src_buf->get_buffer_name()
-						+ std::string(" not found in the pool"));
-				pooled.erase(found);
-
-				// replace che current dst buffer with the src buf
-				src_buf->set_state(state);
-				dst.replaceBuffer(key, src_buf);
-
-				// pool the current dst buffer
-				pool_buffer(key, dst_buf);
-			} else {
-				// if we are at the right place already, just ensure
-				// that we're tagged for the correct state
-				dst_buf->set_state(state);
-			}
-		}
-
-	}
-
 	//! Release all the buffers in a particular state back to the free pool
 	void release_state(std::string const& state)
 	{

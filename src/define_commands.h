@@ -61,8 +61,6 @@ DEFINE_COMMAND_NOBUF(QUIT)
 
 /// Initialize a new (invalid) ParticleSystem state
 DEFINE_COMMAND_NOBUF(INIT_STATE)
-/// Synchronize an existing ParticleSystem state with a legacy buffer list
-DEFINE_COMMAND_NOBUF(RESYNC_STATE)
 /// Change the name of a ParticleSystem state
 DEFINE_COMMAND_NOBUF(RENAME_STATE)
 /// Release a ParticleSystem state

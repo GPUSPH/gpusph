@@ -1255,16 +1255,6 @@ void GPUWorker::runCommand<INIT_STATE>()
 	}
 }
 
-// Synchronize a particle system state with a buffer list
-template<>
-void GPUWorker::runCommand<RESYNC_STATE>()
-{
-	BufferList& list = QUERY_ALL_FLAGS(gdata->commandFlags, DBLBUFFER_READ) ?
-		m_dBuffers.getReadBufferList() :
-		m_dBuffers.getWriteBufferList();
-	m_dBuffers.resync_state(gdata->extraCommandArg.string, list);
-}
-
 // Rename a particle state
 template<>
 void GPUWorker::runCommand<RENAME_STATE>()
