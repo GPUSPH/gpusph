@@ -2,7 +2,8 @@
 
 # Run each problem for maxiter iterations and check against the reference
 # Syntax: check-all-problems.sh [reference_suffix [maxiter [GPUSPH options]]]
-# default reference_suffix is 'reference'
+# default reference_suffix is 'reference', unless the environment variable GPUSPH_DEVICE includes a comma,
+#	in which case the default suffix is mgpu_reference
 # default maxiter is 1000
 # if they are present as arguments but empty, they will be kept at the default values
 
@@ -20,6 +21,12 @@ abort() {
 sfx=check
 ref=reference
 maxiter=1000
+
+case "$GPUSPH_DEVICE" in
+*,*)
+	sfx=mgpu-check
+	ref=mgpu-reference
+esac
 
 if [ 0 -lt "$#" ] ; then
 	[ -z "$1" ] || ref="$1"

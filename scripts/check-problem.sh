@@ -2,8 +2,10 @@
 
 # Run a specific problem for maxiter iterations and check against the reference
 # Syntax: check-problem problem [reference_suffix] [maxiter]
-# default reference_suffix is 'reference'
+# default reference_suffix is 'reference', unless the environment variable GPUSPH_DEVICE includes a comma,
+#	in which case the default suffix is mgpu_reference
 # default maxiter is 1000
+# if they are present as arguments but empty, they will be kept at the default values
 
 abort() {
 	echo "$@" >&2
@@ -11,12 +13,26 @@ abort() {
 }
 
 sfx=check
-problem="$1"
-ref="$2"
-maxiter="$3"
+ref=reference
+maxiter=1000
 
-[ -z "$ref" ] && ref=reference
-[ -z "$maxiter" ] && maxiter=1000
+case "$GPUSPH_DEVICE" in
+*,*)
+	sfx=mgpu-check
+	ref=mgpu-reference
+esac
+
+problem="$1"
+shift
+
+if [ 0 -lt "$#" ] ; then
+	[ -z "$1" ] || ref="$1"
+	shift
+	if [ 0 -lt "$#" ] ; then
+		[ -z "$1" ] || maxiter="$1"
+		shift
+	fi
+fi
 
 echo "Testing ${problem} ..."
 outdir="tests/${problem}_${sfx}"
