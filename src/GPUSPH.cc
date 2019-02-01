@@ -1958,12 +1958,14 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 
 		/* list of buffers that were updated in-place */
 		const flag_t updated_buffers = flt->second->get_updated_buffers();
-		/* list of buffers that were written in BUFFER_WRITE */
+		/* list of buffers that were written from scratch */
 		const flag_t written_buffers = flt->second->get_written_buffers();
+
+		const flag_t buffers_to_sync = updated_buffers | written_buffers;
 
 		// If the post-process engine wrote something, we need to do
 		// a multi-device update as well as a buffer swap
-		const bool need_update_and_swap = (written_buffers != NO_FLAGS);
+		const bool need_update_and_swap = (buffers_to_sync != NO_FLAGS);
 
 		/* TODO FIXME ideally we would have a way to specify when,
 		 * after a post-processing, buffers need to be uploaded to other
@@ -1978,7 +1980,7 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 		 */
 #if 1
 		if (MULTI_DEVICE && need_update_and_swap)
-			doCommand(UPDATE_EXTERNAL, "processed", written_buffers);
+			doCommand(UPDATE_EXTERNAL, "step n", buffers_to_sync);
 #endif
 		/* Swap the written buffers, so we can access the new data from
 		 * DBLBUFFER_READ.
@@ -1987,8 +1989,7 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 		if (need_update_and_swap)
 			doCommand(SWAP_BUFFERS, written_buffers);
 
-
-		which_buffers |= updated_buffers | written_buffers;
+		which_buffers |= buffers_to_sync;
 	}
 
 	// TODO: the performanceCounter could be "paused" here

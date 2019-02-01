@@ -2697,32 +2697,30 @@ void GPUWorker::runCommand<POSTPROCESS>()
 		throw invalid_argument("non-existing postprocess filter invoked");
 	}
 
-	/* Add POST_PROCESS_BUFFERS, as needed */
-	switch (proctype) {
-	case VORTICITY:
-		m_dBuffers.add_state_buffers("step n", BUFFER_VORTICITY); break;
-	case CALC_PRIVATE:
-		m_dBuffers.add_state_buffers("step n", BUFFERS_PRIVATE); break;
-	default:
-		/* nothing */
-		break;
-	}
+	auto& processor = procpair->second;
 
-	// Post-process engines may do in-place updates,
-	// so set a state-on-write for them too
-	BufferList &bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
-	bufread.add_manipulator_on_write(string("postprocess/") + PostProcessName[proctype] + "(in-place)");
+	const flag_t updated = processor->get_updated_buffers();
+	const flag_t written = processor->get_written_buffers();
+
+	/* Add POST_PROCESS_BUFFERS, as needed */
+	m_dBuffers.add_state_buffers("step n", written);
+
+	const BufferList bufread = m_dBuffers.state_subset("step n", FLAG_MAX);
+	/* TODO currently in post-processing we do not support ping-pong buffering,
+	 * so we don't actually differentiate meaningfully between in-place updates
+	 * and freshly written buffers */
+	BufferList bufwrite = m_dBuffers.state_subset("step n",
+		updated | written);
+
 	bufwrite.add_manipulator_on_write(string("postprocess/") + PostProcessName[proctype]);
 
-	procpair->second->process(
+	processor->process(
 		bufread, bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
 		m_deviceIndex,
 		gdata);
 
-	bufread.clear_pending_state();
 	bufwrite.clear_pending_state();
 }
 

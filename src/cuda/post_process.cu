@@ -171,9 +171,9 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, simflag
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* in-place update! */
-		float4 *newVel = const_cast<BufferList&>(bufread).getData<BUFFER_VEL>();
-		float *newTke = const_cast<BufferList&>(bufread).getData<BUFFER_TKE>();
-		float *newEpsilon = const_cast<BufferList&>(bufread).getData<BUFFER_EPSILON>();
+		float4 *newVel = bufwrite.getData<BUFFER_VEL>();
+		float *newTke = bufwrite.getData<BUFFER_TKE>();
+		float *newEpsilon = bufwrite.getData<BUFFER_EPSILON>();
 
 		#if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -247,7 +247,7 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* in-place update! */
-		particleinfo *newInfo = const_cast<BufferList&>(bufread).getData<BUFFER_INFO,
+		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO,
 			BufferList::AccessSafety::MULTISTATE_SAFE>();
 
 		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
