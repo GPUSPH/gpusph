@@ -6,6 +6,8 @@
 #	in which case the default suffix is mgpu_reference
 # default maxiter is 1000
 # if they are present as arguments but empty, they will be kept at the default values
+# if the environment variable CHECK_ALL is defined and set to 0, checking will stop at the first problem
+# that fails, otherwise all problems will be checked
 
 failed=
 
@@ -59,6 +61,7 @@ for problem in $problem_list ; do
 	else
 		add_failed "$problem" build
 	fi
+	[ "x$CHECK_ALL" = x0 ] && [ -n "$failed" ] && break
 done
 
 if [ -z "$failed" ] ; then
