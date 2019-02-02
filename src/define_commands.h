@@ -68,13 +68,26 @@ DEFINE_COMMAND_DYN(SET_BUFFER_VALIDITY)
 
 /// Initialize a new (invalid) ParticleSystem state
 DEFINE_COMMAND_NOBUF(INIT_STATE)
+/// Synchronize an existing ParticleSystem state with a legacy buffer list
+DEFINE_COMMAND_NOBUF(RESYNC_STATE)
 /// Change the name of a ParticleSystem state
 DEFINE_COMMAND_NOBUF(RENAME_STATE)
 /// Release a ParticleSystem state
 DEFINE_COMMAND_NOBUF(RELEASE_STATE)
 
+/// Add buffers from the pool to the given ParticleSystem state
+/*! Note that this is different from the legacy ADD_BUFFER_STATE,
+ * which only marks the internal buffer state
+ */
+DEFINE_COMMAND_DYN(ADD_STATE_BUFFERS)
+/// Remove buffers from a the given ParticleSystem state
+/*! Buffers are returned to the pool if they are not shared
+ * with other states
+ */
+DEFINE_COMMAND_DYN(REMOVE_STATE_BUFFERS)
+
 /// Share buffers between states
-/*! Arguments: buffers, “source” state, “destination” state
+/*! Arguments: “source” state, “destination” state, buffer
  */
 DEFINE_COMMAND_DYN(SHARE_BUFFERS)
 

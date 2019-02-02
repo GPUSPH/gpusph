@@ -103,6 +103,8 @@ protected:
 
 	void set_uid(std::string const& uid)
 	{ m_uid = uid; }
+	std::string const& uid() const
+	{ return m_uid; }
 
 	size_t set_allocated_elements(size_t allocs)
 	{
@@ -170,8 +172,8 @@ public:
 	inline size_t remove_state(std::string const& state) {
 		auto found = std::find(m_state.begin(), m_state.end(), state);
 		if (found == m_state.end())
-			throw std::runtime_error("trying to remove unassinged buffer state " +
-				state);
+			throw std::runtime_error("trying to remove unassigned buffer state " +
+				state + " from buffer " + this->inspect());
 		m_state.erase(found);
 		return m_state.size();
 	}
@@ -817,7 +819,7 @@ private:
 
 		/* Reset the buffer state */
 		buf->mark_invalid();
-		buf->set_state(std::string());
+		buf->clear_state();
 	}
 	inline void pool_buffer(std::pair<flag_t, ptr_type> const& key_buf)
 	{ pool_buffer(key_buf.first, key_buf.second); }
@@ -923,19 +925,11 @@ public:
 
 	}
 
-
-	//! Create a new State
-	/*! The State will hold an unitialized copy of each of the buffers
-	 * specified in keys. A buffer not being available will result in
-	 * failure.
-	 */
-	void initialize_state(std::string const& state, flag_t req_keys)
+	//! Add buffers from the pool to the given state
+	/*! The state is assumed to exist already */
+	void add_state_buffers(std::string const& state, flag_t req_keys)
 	{
-		auto ret = m_state.insert(std::make_pair(state, BufferList()));
-		if (!ret.second)
-			throw std::runtime_error("state " + state + " already exists");
-
-		BufferList& list = ret.first->second;
+		BufferList& dst = m_state.at(state);
 
 		// loop over all keys available in the pool, and only operate
 		// on the ones that have been requested too
@@ -944,6 +938,8 @@ public:
 		// in non-SA mode), but in the future it should be fine tuned
 		// to ensure that only the needed buffers are in req_keys
 		// (no extra buffers), and all of them can be loaded
+		// e.g. by ORing all operated buffers and checking that req_keys
+		// is equal rather than a superset.
 		for (auto key : m_buffer_keys) {
 			// skip unrequested keys
 			if ( !(key & req_keys) )
@@ -957,10 +953,79 @@ public:
 			}
 
 			auto buf = bufvec.back();
-			list.addExistingBuffer(key, buf);
+			dst.addExistingBuffer(key, buf);
 			buf->set_state(state);
 			bufvec.pop_back();
 		}
+	}
+
+	//! Move buffers from one state to another
+	void change_buffers_state(flag_t keys, std::string const& src_state, std::string const& dst_state)
+	{
+		BufferList& src = m_state.at(src_state);
+		BufferList& dst = m_state.at(dst_state);
+
+		std::vector<flag_t> processed;
+
+		for (auto pair : src) {
+			flag_t key = pair.first;
+			auto buf = pair.second;
+			if ( !(key & keys) )
+				continue;
+			ptr_type old = dst[key];
+			if (old)
+				throw std::runtime_error("trying to replace buffer "
+					+ std::string(old->get_buffer_name()) + " in state " +
+					dst_state + " with buffer moved from state " +
+					src_state);
+			buf->remove_state(src_state);
+			buf->set_state(dst_state);
+			dst.addExistingBuffer(key, buf);
+			processed.push_back(key);
+		}
+
+		// We remove all buffers from the src list at the end
+		for (auto& key : processed) {
+			src.removeBuffer(key);
+		}
+	}
+
+	//! Remove buffers from one state
+	void remove_state_buffers(std::string const& state, flag_t req_keys)
+	{
+		BufferList& list = m_state.at(state);
+
+		std::vector<flag_t> present;
+
+		for (auto kb : list) {
+			flag_t key = kb.first;
+			if (!(key & req_keys))
+				continue;
+			present.push_back(key);
+			/* remove the state from the buffer states, and
+			 * pool the buffer if there are no more states */
+			if (kb.second->remove_state(state) == 0)
+				pool_buffer(kb);
+		}
+
+		// We remove all buffers from the src list at the end
+		for (auto& key : present) {
+			list.removeBuffer(key);
+		}
+	}
+
+	//! Create a new State
+	/*! The State will hold an unitialized copy of each of the buffers
+	 * specified in keys. A buffer not being available will result in
+	 * failure.
+	 */
+	void initialize_state(std::string const& state, flag_t req_keys)
+	{
+		auto ret = m_state.insert(std::make_pair(state, BufferList()));
+		if (!ret.second)
+			throw std::runtime_error("state " + state + " already exists");
+
+		add_state_buffers(state, req_keys);
 	}
 
 	//! Create a new State from a legacy list (read or write)
@@ -1000,6 +1065,40 @@ public:
 
 	}
 
+	//! Realign a state with a legacy list (read or write)
+	/*! This is similar to initialize_state, except that it assumes
+	 * the state exists already and all it does is to replace individual
+	 * buffers that are different from the ones in the legacy list
+	 */
+	void resync_state(std::string const& state, BufferList& src)
+	{
+		// TODO more descriptive throw if not found
+		BufferList& dst = m_state.at(state);
+
+		for (auto& pair : dst) {
+			flag_t key = pair.first;
+			auto dst_buf = pair.second;
+			auto src_buf = src[key];
+			if (dst_buf->uid() != src_buf->uid()) {
+				/* remove src_buf from the pool */
+				auto& pooled = m_pool.at(key);
+				auto found = std::find(pooled.begin(), pooled.end(), src_buf);
+				if (found == pooled.end())
+					throw std::runtime_error(src_buf->get_buffer_name()
+						+ std::string(" not found in the pool"));
+				pooled.erase(found);
+
+				// replace che current dst buffer with the src buf
+				src_buf->set_state(state);
+				dst.replaceBuffer(key, src_buf);
+
+				// pool the current dst buffer
+				pool_buffer(key, dst_buf);
+			}
+		}
+
+	}
+
 	//! Release all the buffers in a particular state back to the free pool
 	void release_state(std::string const& state)
 	{
@@ -1017,6 +1116,7 @@ public:
 
 	//! Rename the state of a BufferList representing a ParticleSystem state
 	/*! \note assumes that the new state does not exist yet, throws if found
+	 * \note requires all buffer in the old state to be valid
 	 */
 	void rename_state(std::string const& old_state, std::string const& new_state)
 	{
@@ -1028,9 +1128,13 @@ public:
 		if (!ret.second)
 			throw std::runtime_error("state " + new_state + " exists already");
 
-		/* Reset the state for all buffers */
+		/* Reset the state for all buffers, and check if they are valid */
 		for (auto kb : list) {
 			ptr_type buf = kb.second;
+			// TODO should throw, when we're done with the migration
+			if (buf->is_invalid())
+				throw std::runtime_error("trying to rename state " + old_state
+					+ " with invalid buffer " + buf->inspect());
 
 			buf->set_state(new_state);
 		}
@@ -1070,7 +1174,7 @@ public:
 					dst_state + " with shared buffer from state " +
 					src_state);
 			if (!old->num_states() == 1)
-				throw std::runtime_error("trying to shared buffer "
+				throw std::runtime_error("trying to replace shared buffer "
 					+ std::string(old->get_buffer_name()) + " in state " +
 					dst_state + " with shared buffer from state " +
 					src_state);

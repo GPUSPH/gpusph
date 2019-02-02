@@ -1307,11 +1307,37 @@ void GPUWorker::uploadSubdomain() {
 	}
 }
 
-// Initialize a new particle system state, holding only the particle buffers
+//! Initialize a new particle system state
+/*! By default it will hold only the particle buffers, but this can be overridden
+ * by specifying in doCommand() which buffers to should compose the state 
+ */
 template<>
 void GPUWorker::runCommand<INIT_STATE>()
 {
-	m_dBuffers.initialize_state(gdata->extraCommandArg.string, PARTICLE_PROPS_BUFFERS);
+	const flag_t which_buffers = gdata->commandFlags == NO_FLAGS ?
+		PARTICLE_PROPS_BUFFERS :
+		gdata->commandFlags;
+
+	// if double-buffer specification was given, initialize the state from the given
+	// list
+	if (QUERY_ANY_FLAGS(which_buffers, DBLBUFFER_READ | DBLBUFFER_WRITE)) {
+		BufferList& list = QUERY_ALL_FLAGS(which_buffers, DBLBUFFER_READ) ?
+			m_dBuffers.getReadBufferList() :
+			m_dBuffers.getWriteBufferList();
+		m_dBuffers.initialize_state(gdata->extraCommandArg.string, list, which_buffers);
+	} else {
+		m_dBuffers.initialize_state(gdata->extraCommandArg.string, which_buffers);
+	}
+}
+
+// Synchronize a particle system state with a buffer list
+template<>
+void GPUWorker::runCommand<RESYNC_STATE>()
+{
+	BufferList& list = QUERY_ALL_FLAGS(gdata->commandFlags, DBLBUFFER_READ) ?
+		m_dBuffers.getReadBufferList() :
+		m_dBuffers.getWriteBufferList();
+	m_dBuffers.resync_state(gdata->extraCommandArg.string, list);
 }
 
 // Rename a particle state
@@ -1328,6 +1354,22 @@ void GPUWorker::runCommand<RELEASE_STATE>()
 {
 	m_dBuffers.release_state(gdata->extraCommandArg.string);
 }
+
+// Add pooled a buffer to a particle system state
+template<>
+void GPUWorker::runCommand<ADD_STATE_BUFFERS>()
+{
+	m_dBuffers.add_state_buffers(gdata->extraCommandArg.string, gdata->commandFlags);
+}
+
+// Remove buffers from a state, returning them to the pool if not shared
+template<>
+void GPUWorker::runCommand<REMOVE_STATE_BUFFERS>()
+{
+	m_dBuffers.remove_state_buffers(gdata->extraCommandArg.string, gdata->commandFlags);
+}
+
+
 
 // Share buffers between states
 template<>
@@ -3041,6 +3083,22 @@ void GPUWorker::describeCommand()
 		break;
 	case POSTPROCESS:
 		desc += " " + string(PostProcessName[gdata->extraCommandArg.flag]);
+		break;
+	case INIT_STATE:
+	case RELEASE_STATE:
+		desc += " " + gdata->extraCommandArg.string;
+		break;
+	case RENAME_STATE:
+		desc += " " + gdata->extraCommandArg.strings[0] + " -> " + gdata->extraCommandArg.strings[1];
+		break;
+	case ADD_STATE_BUFFERS:
+		desc += " > " + gdata->extraCommandArg.string;
+		break;
+	case REMOVE_STATE_BUFFERS:
+		desc += " < " + gdata->extraCommandArg.string;
+		break;
+	case SHARE_BUFFERS:
+		desc += " : " + gdata->extraCommandArg.strings[0] + " <> " + gdata->extraCommandArg.strings[1];
 		break;
 	}
 

@@ -557,17 +557,17 @@ GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
 }
 
 void
-GPUSPH::doCommand(CommandType cmd, flag_t flags, std::string const& src, std::string const& dst)
+GPUSPH::doCommand(CommandType cmd, std::string const& src, std::string const& dst, flag_t flags)
 {
 	setExtraCommandArg(gdata, src, dst);
 	doCommand(cmd, flags);
 }
 
 void
-GPUSPH::doCommand(CommandType cmd, std::string const& src)
+GPUSPH::doCommand(CommandType cmd, std::string const& src, flag_t flags)
 {
 	setExtraCommandArg(gdata, src);
-	doCommand(cmd, NO_FLAGS);
+	doCommand(cmd, flags);
 }
 
 // an empty set of PostProcessEngines, to be used when we want to save
