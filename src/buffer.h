@@ -1134,6 +1134,10 @@ public:
 
 				// pool the current dst buffer
 				pool_buffer(key, dst_buf);
+			} else {
+				// if we are at the right place already, just ensure
+				// that we're tagged for the correct state
+				dst_buf->set_state(state);
 			}
 		}
 
