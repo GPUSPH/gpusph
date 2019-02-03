@@ -1244,6 +1244,11 @@ public:
 		return m_state.at(state)[key];
 	}
 
+	//! Return a shared pointer to the given buffer in the given state
+	ptr_type get_state_buffer(std::string const& state, flag_t key)
+	{
+		return m_state.at(state)[key];
+	}
 
 	/* Get the set of Keys for which buffers have been added */
 	const std::set<flag_t>& get_keys() const

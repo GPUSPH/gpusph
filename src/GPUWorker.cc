@@ -987,6 +987,18 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		++iter;
 	}
 
+	// all workers begin with an "initial upload” state in their particle system,
+	// to hold all the buffers that will be initialized from host: this is
+	// built from all the buffers that are usually imported via APPEND_EXTERNAL
+	// (except for BUFFER_VERTPOS, which is computed on device), plus the
+	// compact device map (only available if MULTI_DEVICE, of course),
+	// and the rigid body index keys (only available if we have forces bodies,
+	// of course). State initialization must happen after buffer allocation,
+	// because allocation only happens for pooled buffers.
+	m_dBuffers.initialize_state("initial upload",
+		(IMPORT_BUFFERS & ~BUFFER_VERTPOS) |
+		BUFFER_COMPACT_DEV_MAP | BUFFER_RB_KEYS);
+
 	if (MULTI_DEVICE) {
 		// alloc segment only if not single_device
 		CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
@@ -1017,8 +1029,10 @@ size_t GPUWorker::allocateDeviceBuffers() {
 			offset += gdata->problem->get_body_numparts(i);
 		}
 		size_t  size = m_numForcesBodiesParticles*sizeof(uint);
-		CUDA_SAFE_CALL(cudaMemcpy(m_dBuffers.getReadBufferList().getData<BUFFER_RB_KEYS>(),
-				rbnum, size, cudaMemcpyHostToDevice));
+		auto buf = m_dBuffers.get_state_buffer( "initial upload", BUFFER_RB_KEYS);
+		CUDA_SAFE_CALL(cudaMemcpy(buf->get_buffer(), rbnum, size,
+				cudaMemcpyHostToDevice));
+		buf->mark_valid();
 
 		delete[] rbnum;
 	}
@@ -1161,11 +1175,6 @@ void GPUWorker::uploadSubdomain() {
 	// (note that HASH is _updated_ during the list, so we do need to upload it)
 	static const flag_t skip_bufs = BUFFER_POS_GLOBAL | EPHEMERAL_BUFFERS | BUFFER_VERTPOS;
 
-	// The list of buffers to be imported: this is the same as the list used for
-	// APPEND_EXTERNAL, minus the skippable buffers above
-	m_dBuffers.initialize_state("initial upload",
-		(IMPORT_BUFFERS | BUFFER_COMPACT_DEV_MAP | BUFFER_RB_KEYS) & ~skip_bufs);
-
 	// indices
 	const uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
 	const uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
@@ -1173,7 +1182,7 @@ void GPUWorker::uploadSubdomain() {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	// we upload data to the READ buffers
+	// we upload data to the "initial upload"
 	BufferList& buflist = m_dBuffers.getState("initial upload");
 
 	// iterate over each array in the _host_ buffer list, and upload data
@@ -1664,11 +1673,14 @@ void GPUWorker::createCompactDeviceMap() {
 
 // self-explanatory
 void GPUWorker::uploadCompactDeviceMap() {
-	uint *dst = m_dBuffers.getWriteBufferList().getData<BUFFER_COMPACT_DEV_MAP>();
+	auto buf = m_dBuffers.get_state_buffer(
+		"initial upload", BUFFER_COMPACT_DEV_MAP);
+	void *dst = buf->get_buffer();
 	const uint *src = m_hBuffers.getData<BUFFER_COMPACT_DEV_MAP>();
 
 	const size_t _size = m_nGridCells * sizeof(uint);
 	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyHostToDevice));
+	buf->mark_valid();
 }
 
 // this should be singleton, i.e. should check that no other thread has been started (mutex + counter or bool)
