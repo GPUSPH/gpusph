@@ -76,19 +76,9 @@ constexpr int get_step_number(flag_t flags)
 #endif
 }
 
-//! \name Double-buffer specifications
-/*! Flags to select which buffer to access, in case of double-buffered arrays.
- * These grow from the top.
- * @{
- */
-#define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type
-#define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
-/*! @} */
-
 //! \name Buffer key specifications
 /*! Flags that indicate which buffer shuld be accessed for swaps, uploads, updates, etc.
- * These start from the next available bit from the bottom (i.e. after the LAST_DEFINED_STEP),
- * and SHOULD NOT get past the highest bit available (i.e. end before DBLBUFFER_READ)
+ * These start from the next available bit from the bottom (i.e. after the LAST_DEFINED_STEP).
  * @{
  */
 

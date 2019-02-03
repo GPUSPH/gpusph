@@ -698,7 +698,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		doCommand(COMPUTE_DENSITY, integrator_step);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, current_state,
-					BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
+					BUFFER_SIGMA | BUFFER_VEL);
 	}
 
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
@@ -1886,9 +1886,6 @@ void GPUSPH::saveParticles(
 
 	// set the buffers to be dumped
 	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
-
-	// choose the read buffer for the double buffered arrays
-	which_buffers |= DBLBUFFER_READ;
 
 	if (gdata->debug.neibs)
 		which_buffers |= BUFFER_NEIBSLIST;

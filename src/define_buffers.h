@@ -309,7 +309,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 
 // particle-based buffers to be imported during the APPEND_EXTERNAL command
 // These are the particle property buffers plus the hash, from the READ list
-#define IMPORT_BUFFERS (PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS | DBLBUFFER_READ)
+#define IMPORT_BUFFERS (PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS)
 
 #define POST_FORCES_UPDATE_BUFFERS \
 	(	BUFFER_FORCES | \

@@ -1129,8 +1129,6 @@ GPUWorker::getNextStateByCommandFlags(flag_t flags)
 string
 GPUWorker::describeCommandFlagsBuffers(flag_t flags)
 {
-	static constexpr flag_t dbl_both = (DBLBUFFER_WRITE | DBLBUFFER_READ);
-
 	string s;
 	char sep[3] = { ' ', ' ', ' ' };
 	for (auto key : m_dBuffers.get_keys()) {
@@ -1139,18 +1137,6 @@ GPUWorker::describeCommandFlagsBuffers(flag_t flags)
 			s.append(getBuffer(0, key)->get_buffer_name());
 			sep[1] = '|';
 		}
-	}
-
-	const flag_t dbl_spec = ( flags & dbl_both );
-	if (dbl_spec) {
-		s.append(" [");
-		if (dbl_spec & DBLBUFFER_READ)
-			s.push_back('R');
-		if (dbl_spec == dbl_both)
-			s.push_back(',');
-		if (dbl_spec & DBLBUFFER_WRITE)
-			s.push_back('W');
-		s.append("]");
 	}
 
 	return s;
@@ -1243,16 +1229,7 @@ void GPUWorker::runCommand<INIT_STATE>()
 		PARTICLE_PROPS_BUFFERS :
 		gdata->commandFlags;
 
-	// if double-buffer specification was given, initialize the state from the given
-	// list
-	if (QUERY_ANY_FLAGS(which_buffers, DBLBUFFER_READ | DBLBUFFER_WRITE)) {
-		BufferList& list = QUERY_ALL_FLAGS(which_buffers, DBLBUFFER_READ) ?
-			m_dBuffers.getReadBufferList() :
-			m_dBuffers.getWriteBufferList();
-		m_dBuffers.initialize_state(gdata->extraCommandArg.string, list, which_buffers);
-	} else {
-		m_dBuffers.initialize_state(gdata->extraCommandArg.string, which_buffers);
-	}
+	m_dBuffers.initialize_state(gdata->extraCommandArg.string, which_buffers);
 }
 
 // Rename a particle state
