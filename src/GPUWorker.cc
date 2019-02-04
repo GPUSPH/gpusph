@@ -1183,7 +1183,7 @@ void GPUWorker::uploadSubdomain() {
 	if (howManyParticles == 0) return;
 
 	// we upload data to the "initial upload"
-	BufferList& buflist = m_dBuffers.getState("initial upload");
+	auto& buflist = m_dBuffers.getState("initial upload");
 
 	// iterate over each array in the _host_ buffer list, and upload data
 	// to the (first) read buffer
@@ -1867,8 +1867,8 @@ void GPUWorker::runCommand<REORDER>()
 
 	// TODO cherry pick the buffers from that state that are actually going
 	// to be needed
-	BufferList& unsorted = m_dBuffers.getState("unsorted");
-	BufferList& sorted = m_dBuffers.getState("sorted");
+	auto& unsorted = m_dBuffers.getState("unsorted");
+	auto& sorted = m_dBuffers.getState("sorted");
 
 	sorted.add_manipulator_on_write("reorder");
 
@@ -2625,7 +2625,7 @@ void GPUWorker::runCommand<FILTER>()
 	}
 
 	// TODO be more selective
-	const BufferList bufread = m_dBuffers.getState("unfiltered");
+	auto const& bufread = m_dBuffers.getState("unfiltered");
 	BufferList bufwrite = m_dBuffers.state_subset("filtered", BUFFER_VEL);
 
 	bufwrite.add_manipulator_on_write(string("filter/") + FilterName[filtertype]);
@@ -2664,7 +2664,7 @@ void GPUWorker::runCommand<POSTPROCESS>()
 	/* Add POST_PROCESS_BUFFERS, as needed */
 	m_dBuffers.add_state_buffers("step n", written);
 
-	const BufferList bufread = m_dBuffers.getState("step n");
+	auto const& bufread = m_dBuffers.getState("step n");
 	/* TODO currently in post-processing we do not support ping-pong buffering,
 	 * so we don't actually differentiate meaningfully between in-place updates
 	 * and freshly written buffers */

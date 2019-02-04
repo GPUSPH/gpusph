@@ -30,12 +30,41 @@
 #include <sstream>
 #include <iomanip>
 
+#include "buffer_traits.h"
 #include "ParticleSystem.h"
 
 using namespace std;
 
 using ptr_type = ParticleSystem::ptr_type;
 using const_ptr_type = ParticleSystem::const_ptr_type;
+using State = ParticleSystem::State;
+
+/* ParticleSystem::State implementation */
+
+ptr_type State::operator[](const flag_t key)
+{
+	ptr_type buf = this->at(key);
+	if (!buf)
+		buf = m_ps.add_buffer_to_state(*this, key);
+	return buf;
+}
+
+const_ptr_type State::operator[](const flag_t key) const
+{
+	const_ptr_type buf = this->at(key);
+	if (!buf)
+		throw runtime_error("cannot find key " + to_string(key)
+			+ "in state " + m_name);
+	return buf;
+}
+
+ptr_type State::at(const flag_t key)
+{ return BufferList::operator[](key); }
+const_ptr_type State::at(const flag_t key) const
+{ return BufferList::operator[](key); }
+
+
+/* ParticleSystem implementation */
 
 //! Put a buffer back into the pool
 void ParticleSystem::pool_buffer(flag_t key, ptr_type buf)
@@ -47,20 +76,19 @@ void ParticleSystem::pool_buffer(flag_t key, ptr_type buf)
 	buf->clear_state();
 }
 
-ptr_type ParticleSystem::add_buffer_to_state(
-	BufferList &dst, string const& state, flag_t key)
+ptr_type ParticleSystem::add_buffer_to_state(State& dst, flag_t key)
 {
 	auto& bufvec = m_pool.at(key);
 	if (bufvec.empty()) {
 		string errmsg = "no buffers with key "
 			+ to_string(key) + " available for state "
-			+ state;
+			+ dst.name();
 		throw runtime_error(errmsg);
 	}
 
 	auto buf = bufvec.back();
 	dst.addExistingBuffer(key, buf);
-	buf->set_state(state);
+	buf->set_state(dst.name());
 	bufvec.pop_back();
 	return buf;
 }
@@ -101,7 +129,7 @@ string ParticleSystem::inspect() const
 	key_width = to_string(max_key).size();
 
 	for (auto const& sv : m_state) {
-		_desc << "\tState " << sv.first << "\n";
+		_desc << "\tState " << sv.first << " (" << sv.second.name() << ")\n";
 		count = 0;
 		for (auto const& pair : sv.second) {
 			_desc << "\t\t\t";
@@ -126,7 +154,7 @@ string ParticleSystem::inspect() const
 
 void ParticleSystem::add_state_buffers(string const& state, flag_t req_keys)
 {
-	BufferList& dst = m_state.at(state);
+	State& dst = m_state.at(state);
 
 	// loop over all keys available in the pool, and only operate
 	// on the ones that have been requested too
@@ -141,7 +169,7 @@ void ParticleSystem::add_state_buffers(string const& state, flag_t req_keys)
 		// skip unrequested keys
 		if ( !(key & req_keys) )
 			continue;
-		auto buf = add_buffer_to_state(dst, state, key);
+		auto buf = add_buffer_to_state(dst, key);
 	}
 }
 
@@ -149,8 +177,8 @@ void ParticleSystem::change_buffers_state(flag_t keys,
 	string const& src_state,
 	string const& dst_state)
 {
-	BufferList& src = m_state.at(src_state);
-	BufferList& dst = m_state.at(dst_state);
+	State& src = m_state.at(src_state);
+	State& dst = m_state.at(dst_state);
 
 	vector<flag_t> processed;
 
@@ -159,10 +187,9 @@ void ParticleSystem::change_buffers_state(flag_t keys,
 		auto buf = pair.second;
 		if ( !(key & keys) )
 			continue;
-		ptr_type old = dst[key];
-		if (old)
+		if (dst.has(key))
 			throw runtime_error("trying to replace buffer "
-				+ string(old->get_buffer_name()) + " in state "
+				+ string(getBufferName(key)) + " in state "
 				+ dst_state + " with buffer moved from state "
 				+ src_state);
 		buf->remove_state(src_state);
@@ -182,14 +209,14 @@ void ParticleSystem::swap_state_buffers(
 	string const& dst_state,
 	flag_t keys)
 {
-	BufferList& src = m_state.at(src_state);
-	BufferList& dst = m_state.at(dst_state);
+	State& src = m_state.at(src_state);
+	State& dst = m_state.at(dst_state);
 
 	for (auto const key : m_buffer_keys) {
 		if ( !(key & keys) )
 			continue;
-		auto src_buf = src[key];
-		auto dst_buf = dst[key];
+		auto src_buf = src.at(key);
+		auto dst_buf = dst.at(key);
 
 		// if none is present, skip the key
 		if (!src_buf && !dst_buf)
@@ -212,7 +239,7 @@ void ParticleSystem::swap_state_buffers(
 
 void ParticleSystem::remove_state_buffers(string const& state, flag_t req_keys)
 {
-	BufferList& list = m_state.at(state);
+	State& list = m_state.at(state);
 
 	vector<flag_t> present;
 
@@ -233,9 +260,9 @@ void ParticleSystem::remove_state_buffers(string const& state, flag_t req_keys)
 	}
 }
 
-void ParticleSystem::initialize_state(string const& state, flag_t req_keys)
+State& ParticleSystem::initialize_state(string const& state, flag_t req_keys)
 {
-	auto ret = m_state.insert(make_pair(state, BufferList()));
+	auto ret = m_state.insert(make_pair(state, State(*this, state)));
 	if (!ret.second)
 		throw runtime_error("state " + state + " already exists");
 
@@ -246,7 +273,7 @@ void ParticleSystem::release_state(string const& state)
 {
 	// TODO throw a more explicative error than the default
 	// if the state is not found
-	BufferList& list = m_state.at(state);
+	State& list = m_state.at(state);
 	for (auto kb : list) {
 		/* remove the state from the buffer states, and
 		 * pool the buffer if there are no more states */
@@ -258,16 +285,17 @@ void ParticleSystem::release_state(string const& state)
 
 void ParticleSystem::rename_state(string const& old_state, string const& new_state)
 {
-	// TODO throw a more explicative error than the default
-	// if the state is not found
-	BufferList& list = m_state.at(old_state);
-
-	auto ret = m_state.insert(make_pair(new_state, list));
+	auto ret = m_state.insert(make_pair(new_state, m_state.at(old_state)));
 	if (!ret.second)
 		throw runtime_error("state " + new_state + " exists already");
 
+	m_state.erase(old_state);
+
+	State& st = m_state.at(new_state);
+	st.set_name(new_state);
+
 	/* Reset the state for all buffers, and check if they are valid */
-	for (auto kb : list) {
+	for (auto kb : st) {
 		ptr_type buf = kb.second;
 		// TODO should throw, when we're done with the migration
 		if (buf->is_invalid())
@@ -276,22 +304,20 @@ void ParticleSystem::rename_state(string const& old_state, string const& new_sta
 
 		buf->replace_state(old_state, new_state);
 	}
-
-	m_state.erase(old_state);
 }
 
 void ParticleSystem::share_buffers(string const& src_state, string const& dst_state,
 	flag_t shared_buffers)
 {
-	BufferList& src = m_state.at(src_state);
-	BufferList& dst = m_state.at(dst_state);
+	State& src = m_state.at(src_state);
+	State& dst = m_state.at(dst_state);
 
 	for (auto pair : src) {
 		flag_t key = pair.first;
 		if ( !(key & shared_buffers) )
 			continue;
-		ptr_type old = dst[key];
 		pair.second->add_state(dst_state);
+		ptr_type old = dst.at(key);
 		if (!old) {
 			dst.addExistingBuffer(key, pair.second);
 			continue;
@@ -315,16 +341,16 @@ void ParticleSystem::share_buffers(string const& src_state, string const& dst_st
 
 BufferList ParticleSystem::state_subset(string const& state, flag_t selection)
 {
-	BufferList& src = m_state.at(state);
+	State& src = m_state.at(state);
 	BufferList ret;
 	for (auto key : m_buffer_keys)
 	{
 		if (!(key & selection))
 			continue;
 
-		auto buf = src[key];
+		auto buf = src.at(key);
 		if (!buf)
-			buf = add_buffer_to_state(src, state, key);
+			buf = add_buffer_to_state(src, key);
 		ret.addExistingBuffer(key, buf);
 	}
 	return ret;
@@ -332,10 +358,10 @@ BufferList ParticleSystem::state_subset(string const& state, flag_t selection)
 
 ptr_type ParticleSystem::get_state_buffer(string const& state, flag_t key)
 {
-	BufferList &src = m_state.at(state);
-	ptr_type buf = src[key];
+	State& src = m_state.at(state);
+	ptr_type buf = src.at(key);
 	if (!buf)
-		buf = add_buffer_to_state(src, state, key);
+		buf = add_buffer_to_state(src, key);
 	return buf;
 }
 

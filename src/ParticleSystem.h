@@ -62,6 +62,46 @@ public:
 	typedef BufferList::ptr_type ptr_type;
 	typedef BufferList::const_ptr_type const_ptr_type;
 
+	/* A ParticleSystem::State is a BufferList with an associated
+	 * particle system
+	 */
+	class State : public BufferList
+	{
+		ParticleSystem& m_ps;
+		std::string m_name;
+
+	public:
+		State(ParticleSystem& ps, std::string const& name) :
+			m_ps(ps), m_name(name)
+		{}
+
+		inline std::string const& name() const
+		{ return m_name; }
+
+		inline std::string const& set_name(std::string const& name)
+		{ return m_name = name; }
+
+		/* The non-const [] accessor for the ParticleSystem::State is read-write:
+		 * if access to a buffer that is not present is requested,
+		 * a buffer with the given key will be fetched from the pool,
+		 * if possible
+		 */
+		ptr_type operator[](const flag_t key);
+
+		/* The const [] accessor for the ParticleSystem::State
+		 * throws if the buffer is not found
+		 */
+		const_ptr_type operator[](const flag_t key) const;
+
+		//! Get the buffer if present, return null otherwise
+		/*! This works like BufferList::operator[], i.e. it doesn't
+		 * try to add the buffer or throw if the buffer is missing
+		 */
+		ptr_type at(const flag_t key);
+		const_ptr_type at(const flag_t key) const;
+
+	};
+
 private:
 	// buffer allocation policy
 	std::shared_ptr<const BufferAllocPolicy> m_policy;
@@ -71,8 +111,8 @@ private:
 	std::map<flag_t, std::vector<ptr_type>> m_pool;
 
 	// Particle system states: indexed by the state name (currently a string),
-	// they map to a BufferList of the buffers in that state
-	std::map<std::string, BufferList> m_state;
+	// they map to a State BufferList holding the buffers in that state
+	std::map<std::string, State> m_state;
 
 	// Keys of Buffers added so far
 	// It's a set instead of a single flag_t to allow iteration on it
@@ -93,7 +133,7 @@ private:
 	 * presents itself).
 	 * Both the state name and the buffer list representing it are needed.
 	 */
-	ptr_type add_buffer_to_state(BufferList &dst, std::string const& state, flag_t key);
+	ptr_type add_buffer_to_state(State &dst, flag_t key);
 
 public:
 
@@ -162,7 +202,7 @@ public:
 	 * specified in keys. A buffer not being available will result in
 	 * failure.
 	 */
-	void initialize_state(std::string const& state, flag_t req_keys);
+	State& initialize_state(std::string const& state, flag_t req_keys);
 
 	//! Release all the buffers in a particular state back to the free pool
 	void release_state(std::string const& state);
@@ -219,10 +259,10 @@ public:
 	}
 
 	/* Get the buffer list of a specific state */
-	BufferList& getState(std::string const& str)
+	State& getState(std::string const& str)
 	{ return m_state.at(str); }
 	/* Get the buffer list of a specific state (const) */
-	const BufferList& getState(std::string const& str) const
+	const State& getState(std::string const& str) const
 	{ return m_state.at(str); }
 };
 
