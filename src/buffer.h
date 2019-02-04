@@ -557,6 +557,9 @@ public:
 	flag_t get_updated_buffers() const
 	{ return m_updated_buffers; }
 
+	//! Check if the BufferList has a given buffer
+	bool has(const flag_t Key)
+	{ return m_map.find(Key) != m_map.end(); }
 
 	/* Read-only [] accessor. Insertion of buffers should be done via the
 	 * addBuffer<>() method template.
