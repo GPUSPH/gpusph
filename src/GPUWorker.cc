@@ -1863,12 +1863,14 @@ template<>
 void GPUWorker::runCommand<REORDER>()
 // void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
-	static const flag_t multi_buffered = m_simframework->getAllocPolicy()->get_multi_buffered();
-
-	// TODO cherry pick the buffers from that state that are actually going
-	// to be needed
-	auto& unsorted = m_dBuffers.getState("unsorted");
-	auto& sorted = m_dBuffers.getState("sorted");
+	// for the unsorted list, pick whatever is left of the IMPORT_BUFFERS
+	const BufferList unsorted = m_dBuffers.state_subset_existing("unsorted",
+		IMPORT_BUFFERS);
+	BufferList sorted = m_dBuffers.state_subset("sorted",
+		unsorted.get_keys() |
+		/* these were sorted during SORT */
+		BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX |
+		BUFFERS_CELL);
 
 	sorted.add_manipulator_on_write("reorder");
 
@@ -1884,11 +1886,9 @@ void GPUWorker::runCommand<REORDER>()
 							// output: sorted buffers
 							sorted,
 							// input: unsorted buffers
-							(const BufferList &)unsorted,
+							unsorted,
 							m_numParticles,
 							m_dNewNumParticles);
-
-	flag_t sorted_buffers = sorted.get_updated_buffers() & multi_buffered;
 
 	sorted.clear_pending_state();
 }
