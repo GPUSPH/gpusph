@@ -1148,7 +1148,7 @@ GPUWorker::describeCommandFlagsBuffers(flag_t flags)
 	for (auto key : m_dBuffers.get_keys()) {
 		if (key & gdata->commandFlags) {
 			s.append(sep, 3);
-			s.append(getBuffer(0, key)->get_buffer_name());
+			s.append(getBufferName(key));
 			sep[1] = '|';
 		}
 	}
