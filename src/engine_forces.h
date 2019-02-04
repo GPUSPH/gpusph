@@ -174,6 +174,7 @@ public:
 				float	dtadaptfactor,
 				float	sspeed_cfl,
 				float	max_kinematic,
+				BufferList const& bufread,
 				BufferList& bufwrite,
 				uint	numBlocks,
 				uint	numParticles) = 0;

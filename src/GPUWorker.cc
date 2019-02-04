@@ -2031,13 +2031,19 @@ GPUWorker::BufferListPair GPUWorker::pre_forces()
  */
 float GPUWorker::post_forces()
 {
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const string current_state = getCurrentStateByCommandFlags(step_flag);
+
 	forcesEngine->unbind_textures();
 
 	// no reduction for fixed timestep
 	if (!(m_simparams->simflags & ENABLE_DTADAPT))
 		return m_simparams->dt;
 
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	const BufferList bufread = m_dBuffers.state_subset(current_state,
+		BUFFERS_CFL & ~BUFFER_CFL_TEMP);
+	BufferList bufwrite = m_dBuffers.state_subset(current_state,
+		BUFFER_CFL_TEMP);
 	bufwrite.add_manipulator_on_write("post-forces");
 
 	// TODO multifluid: dtreduce needs the maximum viscosity. We compute it
@@ -2061,6 +2067,7 @@ float GPUWorker::post_forces()
 		m_simparams->dtadaptfactor,
 		sspeed_cfl,
 		max_kinematic,
+		bufread,
 		bufwrite,
 		m_forcesKernelTotalNumBlocks,
 		m_numParticles);

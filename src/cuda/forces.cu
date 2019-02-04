@@ -539,13 +539,14 @@ dtreduce(	float	slength,
 			float	dtadaptfactor,
 			float	sspeed_cfl,
 			float	max_kinematic,
+			BufferList const& bufread,
 			BufferList& bufwrite,
 			uint	numBlocks,
 			uint	numParticles)
 {
-	const float *cfl_forces = bufwrite.getConstData<BUFFER_CFL>();
-	const float *cfl_gamma = bufwrite.getConstData<BUFFER_CFL_GAMMA>();
-	const float *cfl_keps = bufwrite.getConstData<BUFFER_CFL_KEPS>();
+	const float *cfl_forces = bufread.getData<BUFFER_CFL>();
+	const float *cfl_gamma = bufread.getData<BUFFER_CFL_GAMMA>();
+	const float *cfl_keps = bufread.getData<BUFFER_CFL_KEPS>();
 	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
 
 	// cfl holds one value per block in the forces kernel call,
