@@ -260,13 +260,13 @@ void ParticleSystem::remove_state_buffers(string const& state, flag_t req_keys)
 	}
 }
 
-State& ParticleSystem::initialize_state(string const& state, flag_t req_keys)
+State& ParticleSystem::initialize_state(string const& state)
 {
 	auto ret = m_state.insert(make_pair(state, State(*this, state)));
 	if (!ret.second)
 		throw runtime_error("state " + state + " already exists");
 
-	add_state_buffers(state, req_keys);
+	return m_state.at(state);
 }
 
 void ParticleSystem::release_state(string const& state)

@@ -734,7 +734,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	// TODO we need to better formalize the situation in which a kernel moves
 	// a buffer to one state to the other on update
 	if (integrator_step == INTEGRATOR_STEP_1) {
-		doCommand(INIT_STATE, "step n*", PARTICLE_PROPS_BUFFERS & ~shared_buffers);
+		doCommand(INIT_STATE, "step n*");
 		/* The buffers (re)initialized during the neighbors list construction
 		 * and the INFO and HASH buffers are shared between states
 		 */
@@ -784,7 +784,7 @@ void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 	FilterFreqList::const_iterator flt(enabledFilters.begin());
 	FilterFreqList::const_iterator flt_end(enabledFilters.end());
 	doCommand(RENAME_STATE, "step n", "unfiltered");
-	doCommand(INIT_STATE, "filtered", BUFFER_VEL);
+	doCommand(INIT_STATE, "filtered");
 	while (flt != flt_end) {
 		FilterType filter = flt->first;
 		uint freq = flt->second; // known to be > 0
@@ -2000,9 +2000,7 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 	// (except for BUFFER_INFO, which will be sorted in-place), plus the auxiliary buffers
 	// that get rebuilt during the sort and neighbors list construction
 	// (cell start/end, vertex relative positions and the neiblists itself)
-	doCommand(INIT_STATE, "sorted",
-		((PARTICLE_PROPS_BUFFERS | NEIBS_SEQUENCE_REFRESH_BUFFERS) & ~BUFFER_INFO)
-		& allowed_buffers);
+	doCommand(INIT_STATE, "sorted");
 
 	static const flag_t has_forces_bodies = (problem->simparams()->numforcesbodies > 0);
 
@@ -2433,7 +2431,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			// IO masses, and since we cannot update POS in place we'll
 			// do it via a provisional “iomass” state
 			doCommand(ADD_STATE_BUFFERS, "step n", BUFFER_FORCES);
-			doCommand(INIT_STATE, "iomass", BUFFER_POS);
+			doCommand(INIT_STATE, "iomass");
 
 			// first step: count the vertices that belong to IO and the same segment as each IO vertex
 			doCommand(INIT_IO_MASS_VERTEX_COUNT);

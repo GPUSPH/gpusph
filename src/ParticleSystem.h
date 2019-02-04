@@ -202,7 +202,7 @@ public:
 	 * specified in keys. A buffer not being available will result in
 	 * failure.
 	 */
-	State& initialize_state(std::string const& state, flag_t req_keys);
+	State& initialize_state(std::string const& state);
 
 	//! Release all the buffers in a particular state back to the free pool
 	void release_state(std::string const& state);

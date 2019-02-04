@@ -196,6 +196,10 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>();
 	}
 
+	// all workers begin with an "initial upload” state in their particle system,
+	// to hold all the buffers that will be initialized from host
+	m_dBuffers.initialize_state("initial upload");
+
 }
 
 GPUWorker::~GPUWorker() {
@@ -987,18 +991,6 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		++iter;
 	}
 
-	// all workers begin with an "initial upload” state in their particle system,
-	// to hold all the buffers that will be initialized from host: this is
-	// built from all the buffers that are usually imported via APPEND_EXTERNAL
-	// (except for BUFFER_VERTPOS, which is computed on device), plus the
-	// compact device map (only available if MULTI_DEVICE, of course),
-	// and the rigid body index keys (only available if we have forces bodies,
-	// of course). State initialization must happen after buffer allocation,
-	// because allocation only happens for pooled buffers.
-	m_dBuffers.initialize_state("initial upload",
-		(IMPORT_BUFFERS & ~BUFFER_VERTPOS) |
-		BUFFER_COMPACT_DEV_MAP | BUFFER_RB_KEYS);
-
 	if (MULTI_DEVICE) {
 		// alloc segment only if not single_device
 		CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
@@ -1228,17 +1220,10 @@ void GPUWorker::uploadSubdomain() {
 }
 
 //! Initialize a new particle system state
-/*! By default it will hold only the particle buffers, but this can be overridden
- * by specifying in doCommand() which buffers to should compose the state 
- */
 template<>
 void GPUWorker::runCommand<INIT_STATE>()
 {
-	const flag_t which_buffers = gdata->commandFlags == NO_FLAGS ?
-		PARTICLE_PROPS_BUFFERS :
-		gdata->commandFlags;
-
-	m_dBuffers.initialize_state(gdata->extraCommandArg.string, which_buffers);
+	m_dBuffers.initialize_state(gdata->extraCommandArg.string);
 }
 
 // Rename a particle state
