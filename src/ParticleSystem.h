@@ -82,14 +82,8 @@ private:
 	std::set<flag_t> m_buffer_keys;
 
 	//! Put a buffer back into the pool
-	void pool_buffer(flag_t key, ptr_type buf)
-	{
-		m_pool[key].push_back(buf);
+	void pool_buffer(flag_t key, ptr_type buf);
 
-		/* Reset the buffer state */
-		buf->mark_invalid();
-		buf->clear_state();
-	}
 	inline void pool_buffer(std::pair<flag_t, ptr_type> const& key_buf)
 	{ pool_buffer(key_buf.first, key_buf.second); }
 
@@ -99,24 +93,12 @@ private:
 	 * presents itself).
 	 * Both the state name and the buffer list representing it are needed.
 	 */
-	ptr_type add_buffer_to_state(BufferList &dst, std::string const& state, flag_t key)
-	{
-			auto& bufvec = m_pool.at(key);
-			if (bufvec.empty()) {
-				std::string errmsg = "no buffers with key "
-					+ std::to_string(key) + " available for state "
-					+ state;
-				throw std::runtime_error(errmsg);
-			}
-
-			auto buf = bufvec.back();
-			dst.addExistingBuffer(key, buf);
-			buf->set_state(state);
-			bufvec.pop_back();
-			return buf;
-	}
+	ptr_type add_buffer_to_state(BufferList &dst, std::string const& state, flag_t key);
 
 public:
+
+	//! Remove all buffers and states from the system
+	void clear();
 
 	~ParticleSystem() {
 		clear();
@@ -124,20 +106,7 @@ public:
 
 	std::string inspect() const;
 
-	void clear() {
-		// nothing to do, if the policy was never set
-		if (!m_policy)
-			return;
-
-		// clear the states and pool
-		m_state.clear();
-		m_pool.clear();
-
-		// and purge the list of keys too
-		m_buffer_keys.clear();
-	}
-
-	void setAllocPolicy(std::shared_ptr<const BufferAllocPolicy> _policy)
+	inline void setAllocPolicy(std::shared_ptr<const BufferAllocPolicy> _policy)
 	{
 		if (m_policy)
 			throw std::runtime_error("cannot change buffer allocation policy");
@@ -172,206 +141,37 @@ public:
 
 	//! Add buffers from the pool to the given state
 	/*! The state is assumed to exist already */
-	void add_state_buffers(std::string const& state, flag_t req_keys)
-	{
-		BufferList& dst = m_state.at(state);
-
-		// loop over all keys available in the pool, and only operate
-		// on the ones that have been requested too
-		// TODO we do it this way at the moment to allow a general
-		// req_keys specification for all models (e.g. SA buffers
-		// in non-SA mode), but in the future it should be fine tuned
-		// to ensure that only the needed buffers are in req_keys
-		// (no extra buffers), and all of them can be loaded
-		// e.g. by ORing all operated buffers and checking that req_keys
-		// is equal rather than a superset.
-		for (auto key : m_buffer_keys) {
-			// skip unrequested keys
-			if ( !(key & req_keys) )
-				continue;
-			auto buf = add_buffer_to_state(dst, state, key);
-		}
-	}
+	void add_state_buffers(std::string const& state, flag_t req_keys);
 
 	//! Move buffers from one state to another
-	void change_buffers_state(flag_t keys, std::string const& src_state, std::string const& dst_state)
-	{
-		BufferList& src = m_state.at(src_state);
-		BufferList& dst = m_state.at(dst_state);
-
-		std::vector<flag_t> processed;
-
-		for (auto pair : src) {
-			flag_t key = pair.first;
-			auto buf = pair.second;
-			if ( !(key & keys) )
-				continue;
-			ptr_type old = dst[key];
-			if (old)
-				throw std::runtime_error("trying to replace buffer "
-					+ std::string(old->get_buffer_name()) + " in state " +
-					dst_state + " with buffer moved from state " +
-					src_state);
-			buf->remove_state(src_state);
-			buf->set_state(dst_state);
-			dst.addExistingBuffer(key, buf);
-			processed.push_back(key);
-		}
-
-		// We remove all buffers from the src list at the end
-		for (auto& key : processed) {
-			src.removeBuffer(key);
-		}
-	}
+	void change_buffers_state(flag_t keys,
+		std::string const& src_state,
+		std::string const& dst_state);
 
 	//! Swap buffers between states, invalidating the destination ones
-	void swap_state_buffers(std::string const& src_state, std::string const& dst_state, flag_t keys)
-	{
-		BufferList& src = m_state.at(src_state);
-		BufferList& dst = m_state.at(dst_state);
-
-		for (auto const key : m_buffer_keys) {
-			if ( !(key & keys) )
-				continue;
-			auto src_buf = src[key];
-			auto dst_buf = dst[key];
-
-			// if none is present, skip the key
-			if (!src_buf && !dst_buf)
-				continue;
-			// at least one is present, but do we have both?
-			if (!src_buf)
-				throw std::runtime_error("trying to swap asymmetric buffer " +
-					std::string(dst_buf->get_buffer_name()));
-			if (!dst_buf)
-				throw std::runtime_error("trying to swap asymmetric buffer " +
-					std::string(src_buf->get_buffer_name()));
-
-			src.replaceBuffer(key, dst_buf);
-			dst.replaceBuffer(key, src_buf);
-			dst_buf->replace_state(dst_state, src_state);
-			src_buf->replace_state(src_state, dst_state);
-			src_buf->mark_invalid();
-		}
-	}
+	void swap_state_buffers(
+		std::string const& src_state,
+		std::string const& dst_state,
+		flag_t keys);
 
 	//! Remove buffers from one state
-	void remove_state_buffers(std::string const& state, flag_t req_keys)
-	{
-		BufferList& list = m_state.at(state);
-
-		std::vector<flag_t> present;
-
-		for (auto kb : list) {
-			flag_t key = kb.first;
-			if (!(key & req_keys))
-				continue;
-			present.push_back(key);
-			/* remove the state from the buffer states, and
-			 * pool the buffer if there are no more states */
-			if (kb.second->remove_state(state) == 0)
-				pool_buffer(kb);
-		}
-
-		// We remove all buffers from the src list at the end
-		for (auto& key : present) {
-			list.removeBuffer(key);
-		}
-	}
+	void remove_state_buffers(std::string const& state, flag_t req_keys);
 
 	//! Create a new State
 	/*! The State will hold an unitialized copy of each of the buffers
 	 * specified in keys. A buffer not being available will result in
 	 * failure.
 	 */
-	void initialize_state(std::string const& state, flag_t req_keys)
-	{
-		auto ret = m_state.insert(std::make_pair(state, BufferList()));
-		if (!ret.second)
-			throw std::runtime_error("state " + state + " already exists");
-
-		add_state_buffers(state, req_keys);
-	}
-
-	//! Create a new State from a legacy list (read or write)
-	/*! Similar to initialize_state(state, req_keys), but fetch buffers from
-	 * the given bufferlist instead of the pool. If any of the buffers is already in use
-	 * by a different state, abort.
-	 */
-	void initialize_state(std::string const& state, BufferList& src, flag_t req_keys)
-	{
-		auto ret = m_state.insert(std::make_pair(state, BufferList()));
-		if (!ret.second)
-			throw std::runtime_error("state " + state + " already exists");
-
-		BufferList& dst = ret.first->second;
-		for (auto pair : src) {
-			// skip unrequested keys
-			flag_t key = pair.first;
-			if ( !(key & req_keys) )
-				continue;
-			auto buf = pair.second;
-			if (buf->state().empty()) {
-				dst.addExistingBuffer(key, buf);
-				buf->set_state(state);
-				/* We still need to remove the buffer from the pool */
-				auto& pooled = m_pool.at(key);
-				auto found = std::find(pooled.begin(), pooled.end(), buf);
-				if (found == pooled.end())
-					throw std::runtime_error(buf->get_buffer_name()
-						+ std::string(" not found in the pool"));
-				pooled.erase(found);
-			} else {
-				throw std::runtime_error(buf->get_buffer_name()
-					+ std::string(" already in state")
-					+ buf->state()[0]);
-			}
-		}
-
-	}
+	void initialize_state(std::string const& state, flag_t req_keys);
 
 	//! Release all the buffers in a particular state back to the free pool
-	void release_state(std::string const& state)
-	{
-		// TODO throw a more explicative error than the default
-		// if the state is not found
-		BufferList& list = m_state.at(state);
-		for (auto kb : list) {
-			/* remove the state from the buffer states, and
-			 * pool the buffer if there are no more states */
-			if (kb.second->remove_state(state) == 0)
-				pool_buffer(kb);
-		}
-		m_state.erase(state);
-	}
+	void release_state(std::string const& state);
 
-	//! Rename the state of a BufferList representing a ParticleSystem state
+	//! Change the name of a ParticleSystem state
 	/*! \note assumes that the new state does not exist yet, throws if found
 	 * \note requires all buffer in the old state to be valid
 	 */
-	void rename_state(std::string const& old_state, std::string const& new_state)
-	{
-		// TODO throw a more explicative error than the default
-		// if the state is not found
-		BufferList& list = m_state.at(old_state);
-
-		auto ret = m_state.insert(std::make_pair(new_state, list));
-		if (!ret.second)
-			throw std::runtime_error("state " + new_state + " exists already");
-
-		/* Reset the state for all buffers, and check if they are valid */
-		for (auto kb : list) {
-			ptr_type buf = kb.second;
-			// TODO should throw, when we're done with the migration
-			if (buf->is_invalid())
-				throw std::runtime_error("trying to rename state " + old_state
-					+ " with invalid buffer " + buf->inspect());
-
-			buf->replace_state(old_state, new_state);
-		}
-
-		m_state.erase(old_state);
-	}
+	void rename_state(std::string const& old_state, std::string const& new_state);
 
 	//! Share a buffer between states
 	/*! In some circumstances, a buffer will consistently have the same value
@@ -382,75 +182,21 @@ public:
 	 * in a non-invalid state.
 	 */
 	void share_buffers(std::string const& src_state, std::string const& dst_state,
-		flag_t shared_buffers)
-	{
-		BufferList& src = m_state.at(src_state);
-		BufferList& dst = m_state.at(dst_state);
-
-		for (auto pair : src) {
-			flag_t key = pair.first;
-			if ( !(key & shared_buffers) )
-				continue;
-			ptr_type old = dst[key];
-			pair.second->add_state(dst_state);
-			if (!old) {
-				dst.addExistingBuffer(key, pair.second);
-				continue;
-			}
-			/* there was a buffer already: we pool it if it was invalid and not
-			 * shared already */
-			if (!old->is_invalid())
-				throw std::runtime_error("trying to replace valid buffer "
-					+ std::string(old->get_buffer_name()) + " in state " +
-					dst_state + " with shared buffer from state " +
-					src_state);
-			if (!old->num_states() == 1)
-				throw std::runtime_error("trying to replace shared buffer "
-					+ std::string(old->get_buffer_name()) + " in state " +
-					dst_state + " with shared buffer from state " +
-					src_state);
-			dst.replaceBuffer(key, pair.second);
-			pool_buffer(key, old);
-		}
-	}
+		flag_t shared_buffers);
 
 	//! Extract a buffer list holding a subset of the buffers in a given state
 	/*! If the state does not already hold the buffer, it will be added
 	 * from the pool if available
 	 */
-	BufferList state_subset(std::string const& state, flag_t selection)
-	{
-		BufferList& src = m_state.at(state);
-		BufferList ret;
-		for (auto key : m_buffer_keys)
-		{
-			if (!(key & selection))
-				continue;
-
-			auto buf = src[key];
-			if (!buf)
-				buf = add_buffer_to_state(src, state, key);
-			ret.addExistingBuffer(key, buf);
-		}
-		return ret;
-	}
+	BufferList state_subset(std::string const& state, flag_t selection);
 
 	//! Return a shared pointer to the given buffer in the given state
 	const_ptr_type get_state_buffer(std::string const& state, flag_t key) const
-	{
-		return m_state.at(state)[key];
-	}
+	{ return m_state.at(state)[key]; }
 
 	//! Return a shared pointer to the given buffer in the given state
 	/*! If the state doesn't hold the buffer yet, it will be added */
-	ptr_type get_state_buffer(std::string const& state, flag_t key)
-	{
-		BufferList &src = m_state.at(state);
-		ptr_type buf = src[key];
-		if (!buf)
-			buf = add_buffer_to_state(src, state, key);
-		return buf;
-	}
+	ptr_type get_state_buffer(std::string const& state, flag_t key);
 
 	/* Get the set of Keys for which buffers have been added */
 	const std::set<flag_t>& get_keys() const
@@ -458,29 +204,13 @@ public:
 
 	/* Get the amount of memory that would be taken by the given buffer
 	 * if it was allocated with the given number of elements */
-	size_t get_memory_occupation(flag_t Key, size_t nels) const
-	{
-		// return 0 unless the buffer was actually added
-		if (m_buffer_keys.find(Key) == m_buffer_keys.end())
-			return 0;
-
-		// get the corresponding buffer
-		const auto& vec = m_pool.at(Key);
-		const auto buf = vec.front();
-
-		size_t single = buf->get_element_size();
-		single *= buf->get_array_count();
-		single *= vec.size();
-
-		return single*nels;
-	}
+	size_t get_memory_occupation(flag_t Key, size_t nels) const;
 
 	/* Allocate all the necessary copies of the given buffer,
 	 * returning the total amount of memory used */
 	size_t alloc(flag_t Key, size_t nels)
 	{
 		// number of actual instances of the buffer
-		const size_t count = m_policy->get_buffer_count(Key);
 		auto& vec = m_pool.at(Key);
 		size_t allocated = 0;
 		for (auto buf : vec)
