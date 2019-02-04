@@ -28,6 +28,9 @@
  * defining the buffer printable names.
  */
 
+#include <stdexcept>
+#include <string>
+
 #include "GlobalData.h"
 
 // re-include define-buffers to set the printable name
@@ -38,3 +41,23 @@ const char BufferTraits<code>::name[] = _name
 #include "define_buffers.h"
 #undef SET_BUFFER_TRAITS
 
+
+using namespace std;
+
+const char * getBufferName(flag_t key)
+{
+#undef DEFINED_BUFFERS
+#define SET_BUFFER_TRAITS(code, _type, _nbufs, _name) \
+	case code: return BufferTraits<code>::name;
+
+	/* Reinclude the buffer definitions to build a switch table
+	 * for the buffer names
+	 */
+	switch (key) {
+#include "define_buffers.h"
+	default:
+		throw invalid_argument("unknown Buffer key " + to_string(key));
+	}
+
+#undef SET_BUFFER_TRAITS
+}

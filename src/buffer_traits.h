@@ -48,6 +48,15 @@ struct BufferTraits
 	static char name[];
 };
 
+/*! Convert a Buffer key to a Buffer string, at runtime.
+ *
+ * The BufferTraits<Key>::name property is only accessible
+ * when Key is known at compile time, so we also implement a function
+ * to access it a runtime
+ */
+
+const char * getBufferName(flag_t key);
+
 /*! Macro to define buffer keys and set buffer traits:
  *  * data type
  *  * number of arrays in buffer
