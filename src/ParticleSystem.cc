@@ -24,13 +24,13 @@
 */
 
 /*! \file
- * Implementation of methods for the Buffer (and related) classes
+ * Implementation of methods for the ParticleSystem (and related) classes
  */
 
 #include <sstream>
 #include <iomanip>
 
-#include "buffer.h"
+#include "ParticleSystem.h"
 
 using namespace std;
 

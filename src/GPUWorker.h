@@ -52,8 +52,8 @@
 #include "engine_forces.h"
 #include "engine_boundary_conditions.h"
 
-// buffers and buffer lists
-#include "buffer.h"
+// the particle system, cum suis
+#include "ParticleSystem.h"
 
 // Bursts handling
 #include "bursts.h"
