@@ -2625,7 +2625,7 @@ void GPUWorker::runCommand<FILTER>()
 	}
 
 	// TODO be more selective
-	const BufferList bufread = m_dBuffers.state_subset("unfiltered", FLAG_MAX);
+	const BufferList bufread = m_dBuffers.getState("unfiltered");
 	BufferList bufwrite = m_dBuffers.state_subset("filtered", BUFFER_VEL);
 
 	bufwrite.add_manipulator_on_write(string("filter/") + FilterName[filtertype]);
@@ -2664,7 +2664,7 @@ void GPUWorker::runCommand<POSTPROCESS>()
 	/* Add POST_PROCESS_BUFFERS, as needed */
 	m_dBuffers.add_state_buffers("step n", written);
 
-	const BufferList bufread = m_dBuffers.state_subset("step n", FLAG_MAX);
+	const BufferList bufread = m_dBuffers.getState("step n");
 	/* TODO currently in post-processing we do not support ping-pong buffering,
 	 * so we don't actually differentiate meaningfully between in-place updates
 	 * and freshly written buffers */

@@ -858,6 +858,29 @@ private:
 	inline void pool_buffer(std::pair<flag_t, ptr_type> const& key_buf)
 	{ pool_buffer(key_buf.first, key_buf.second); }
 
+	//! Add a buffer with a given key from the pool to the given BufferList
+	/*! This is used to un-pool individual buffers, when needed
+	 * (e.g. when initializing states or when the need to add a state
+	 * presents itself).
+	 * Both the state name and the buffer list representing it are needed.
+	 */
+	ptr_type add_buffer_to_state(BufferList &dst, std::string const& state, flag_t key)
+	{
+			auto& bufvec = m_pool.at(key);
+			if (bufvec.empty()) {
+				std::string errmsg = "no buffers with key "
+					+ std::to_string(key) + " available for state "
+					+ state;
+				throw std::runtime_error(errmsg);
+			}
+
+			auto buf = bufvec.back();
+			dst.addExistingBuffer(key, buf);
+			buf->set_state(state);
+			bufvec.pop_back();
+			return buf;
+	}
+
 public:
 
 	~MultiBufferList() {
@@ -931,18 +954,7 @@ public:
 			// skip unrequested keys
 			if ( !(key & req_keys) )
 				continue;
-			auto& bufvec = m_pool.at(key);
-			if (bufvec.empty()) {
-				std::string errmsg = "no buffers with key "
-					+ std::to_string(key) + " available for state "
-					+ state;
-				throw std::runtime_error(errmsg);
-			}
-
-			auto buf = bufvec.back();
-			dst.addExistingBuffer(key, buf);
-			buf->set_state(state);
-			bufvec.pop_back();
+			auto buf = add_buffer_to_state(dst, state, key);
 		}
 	}
 
@@ -1168,14 +1180,22 @@ public:
 	}
 
 	//! Extract a buffer list holding a subset of the buffers in a given state
+	/*! If the state does not already hold the buffer, it will be added
+	 * from the pool if available
+	 */
 	BufferList state_subset(std::string const& state, flag_t selection)
 	{
 		BufferList& src = m_state.at(state);
 		BufferList ret;
-		for (auto& kb : src)
+		for (auto key : m_buffer_keys)
 		{
-			if (kb.first & selection)
-				ret.addExistingBuffer(kb.first, kb.second);
+			if (!(key & selection))
+				continue;
+
+			auto buf = src[key];
+			if (!buf)
+				buf = add_buffer_to_state(src, state, key);
+			ret.addExistingBuffer(key, buf);
 		}
 		return ret;
 	}
@@ -1187,9 +1207,14 @@ public:
 	}
 
 	//! Return a shared pointer to the given buffer in the given state
+	/*! If the state doesn't hold the buffer yet, it will be added */
 	ptr_type get_state_buffer(std::string const& state, flag_t key)
 	{
-		return m_state.at(state)[key];
+		BufferList &src = m_state.at(state);
+		ptr_type buf = src[key];
+		if (!buf)
+			buf = add_buffer_to_state(src, state, key);
+		return buf;
 	}
 
 	/* Get the set of Keys for which buffers have been added */

@@ -2055,7 +2055,7 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 		// append fresh copies of the externals
 		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
 		// until next calchash; however, they are filtered out when using the particle hashes.
-		doCommand(APPEND_EXTERNAL, "sorted", IMPORT_BUFFERS);
+		doCommand(APPEND_EXTERNAL, "sorted", IMPORT_BUFFERS & allowed_buffers);
 		// update the newNumParticles device counter
 		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
 			doCommand(UPLOAD_NEWNUMPARTS);
