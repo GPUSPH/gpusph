@@ -230,6 +230,10 @@ public:
 	 */
 	BufferList state_subset(std::string const& state, flag_t selection);
 
+	//! A version of state_subset that only picks existing buffers
+	const BufferList
+		state_subset_existing(std::string const& state, flag_t selection) const;
+
 	//! Return a shared pointer to the given buffer in the given state
 	const_ptr_type get_state_buffer(std::string const& state, flag_t key) const
 	{ return m_state.at(state)[key]; }

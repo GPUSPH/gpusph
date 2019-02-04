@@ -356,6 +356,21 @@ BufferList ParticleSystem::state_subset(string const& state, flag_t selection)
 	return ret;
 }
 
+const BufferList
+ParticleSystem::state_subset_existing(string const& state, flag_t selection) const
+{
+	State const& src = m_state.at(state);
+	BufferList ret;
+	for (auto kb : src)
+	{
+		const flag_t key = kb.first;
+		if (!(key & selection))
+			continue;
+		ret.addExistingBuffer(key, kb.second);
+	}
+	return ret;
+}
+
 ptr_type ParticleSystem::get_state_buffer(string const& state, flag_t key)
 {
 	State& src = m_state.at(state);
