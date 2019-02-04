@@ -231,7 +231,6 @@ private:
 	void uploadSubdomain();
 	// runCommand<DUMP> = void dumpBuffers();
 	// runCommand<SWAP_BUFFERS> = void swapBuffers();
-	void setDeviceCellsAsEmpty();
 	// runCommand<DUMP_CELLS> = void downloadCellsIndices();
 	void downloadSegments();
 	void uploadSegments();

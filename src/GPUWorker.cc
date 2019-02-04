@@ -1365,12 +1365,6 @@ void GPUWorker::runCommand<SWAP_BUFFERS>()
 	m_dBuffers.swapBuffers(flags);
 }
 
-// Sets all cells as empty in device memory. Used before reorder
-void GPUWorker::setDeviceCellsAsEmpty()
-{
-	m_dBuffers.getReadBufferList().get<BUFFER_CELLSTART>()->clobber();
-}
-
 // if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
 void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 {
@@ -1872,7 +1866,7 @@ void GPUWorker::runCommand<SORT>()
 	bufwrite.add_manipulator_on_write("sort");
 
 	neibsEngine->sort(
-			m_dBuffers.getReadBufferList(),
+			BufferList(), /* there aren't any buffers that are only read by SORT */
 			bufwrite,
 			numPartsToElaborate);
 
@@ -1886,18 +1880,18 @@ void GPUWorker::runCommand<REORDER>()
 {
 	static const flag_t multi_buffered = m_simframework->getAllocPolicy()->get_multi_buffered();
 
-	// reset also if the device is empty (or we will download uninitialized values)
-	setDeviceCellsAsEmpty();
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (m_numParticles == 0) return;
-
 	// TODO cherry pick the buffers from that state that are actually going
 	// to be needed
 	BufferList& unsorted = m_dBuffers.getState("unsorted");
 	BufferList& sorted = m_dBuffers.getState("sorted");
 
 	sorted.add_manipulator_on_write("reorder");
+
+	// reset also if the device is empty (or we will download uninitialized values)
+	sorted.get<BUFFER_CELLSTART>()->clobber();
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (m_numParticles == 0) return;
 
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	neibsEngine->reorderDataAndFindCellStart(
