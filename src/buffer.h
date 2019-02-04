@@ -64,9 +64,9 @@ enum BufferValidity {
 	BUFFER_INVALID, //<! Buffer contains invalid data
 };
 
-// Forward-declare the BufferList and MultiBufferList classes, that need access to some Buffer protected methods
+// Forward-declare the BufferList and ParticleSystem classes, that need access to some Buffer protected methods
 class BufferList;
-class MultiBufferList;
+class ParticleSystem;
 
 
 /* Base class for the Buffer template class.
@@ -112,7 +112,7 @@ protected:
 		return allocs;
 	}
 
-	friend class MultiBufferList; // needs to be able to access set_uid
+	friend class ParticleSystem; // needs to be able to access set_uid
 
 public:
 	// default constructor: just ensure ptr is null
@@ -470,7 +470,7 @@ protected:
 		return old;
 	}
 
-	friend class MultiBufferList;
+	friend class ParticleSystem;
 
 	// if this boolean is true, trying to get data
 	// from a non-existent key results in a throw
@@ -800,7 +800,7 @@ public:
 	{ return m_map.size(); }
 };
 
-/* A MultiBufferList takes into account that some of the buffers are needed
+/* A ParticleSystem takes into account that some of the buffers are needed
  * in multiple copies (double-buffered or more.) It relies on a BufferAllocPolicy
  * object to determine which ones need multiple copies and which ones
  * do not.
@@ -821,7 +821,7 @@ public:
  * additional commands will also be introduced, to manage the parts of this synchronization
  * that cannot be modelled automatically.
  */
-class MultiBufferList
+class ParticleSystem
 {
 public:
 	typedef BufferList::ptr_type ptr_type;
@@ -883,7 +883,7 @@ private:
 
 public:
 
-	~MultiBufferList() {
+	~ParticleSystem() {
 		clear();
 	}
 

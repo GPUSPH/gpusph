@@ -139,7 +139,7 @@ private:
 	// TODO: CPU arrays used for debugging
 
 	// GPU arrays
-	MultiBufferList	m_dBuffers;
+	ParticleSystem	m_dBuffers;
 
 	// CPU arrays (for the workers, these only hold cell-based buffers:
 	// BUFFER_CELLSTART, BUFFER_CELLEND, BUFFER_COMPACT_DEV_MAP)

@@ -34,14 +34,14 @@
 
 using namespace std;
 
-string MultiBufferList::inspect() const
+string ParticleSystem::inspect() const
 {
 	stringstream _desc;
 	size_t count;
 	size_t key_width;
 	flag_t max_key = 0;
 
-	_desc << "MultiBufferList. ";
+	_desc << "ParticleSystem. ";
 	_desc << "Registered buffer keys: ";
 
 	count = 0;
