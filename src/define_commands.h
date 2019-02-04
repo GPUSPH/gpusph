@@ -94,10 +94,6 @@ DEFINE_COMMAND_DYN(MOVE_STATE_BUFFERS)
  */
 DEFINE_COMMAND_DYN(SHARE_BUFFERS)
 
-/// Swap double-buffered buffers
-DEFINE_COMMAND_DYN(SWAP_BUFFERS)
-
-
 /* Host-device data exchange */
 
 /// Dump (device) particle data arrays into shared host arrays

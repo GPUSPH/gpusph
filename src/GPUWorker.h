@@ -335,8 +335,6 @@ public:
 	cudaDeviceProp getDeviceProperties();
 	size_t getHostMemory();
 	size_t getDeviceMemory();
-	// for peer transfers: get the buffer `key` from the buffer list `list_idx`
-	std::shared_ptr<const AbstractBuffer> getBuffer(size_t list_idx, flag_t key) const;
 	// for peer transfers: get the buffer `key` from the given buffer state
 	std::shared_ptr<const AbstractBuffer> getBuffer(std::string const& state, flag_t key) const;
 

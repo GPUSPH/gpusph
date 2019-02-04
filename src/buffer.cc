@@ -32,11 +32,6 @@
 
 #include "buffer.h"
 
-// TODO FIXME these are defined in buffer.h, and then undefined, but we need them here
-// I'll be so glad when we switch to the new system
-#define READ_LIST 1
-#define WRITE_LIST 0
-
 using namespace std;
 
 string MultiBufferList::inspect() const
@@ -80,27 +75,6 @@ string MultiBufferList::inspect() const
 			++count;
 		}
 	}
-
-	_desc << "\tREAD list:\t";
-
-	count = 0;
-	for (auto const& pair : m_lists[READ_LIST]) {
-		if (count > 0) _desc << "\n\t\t\t";
-		_desc << setw(key_width) << right << pair.first;
-		_desc << "\t" + pair.second->inspect();
-		++count;
-	}
-	_desc << "\n\tWRITE list:\t";
-
-	count = 0;
-	for (auto const& pair : m_lists[WRITE_LIST]) {
-		if (count > 0) _desc << "\n\t\t\t";
-		_desc << setw(key_width) << right << pair.first;
-		_desc << "\t" + pair.second->inspect();
-		++count;
-	}
-
-	_desc << "\n";
 
 	return _desc.str();
 }

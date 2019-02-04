@@ -1355,16 +1355,6 @@ void GPUWorker::runCommand<DUMP>()
 	}
 }
 
-// Swap the given double-buffered buffers
-template<>
-void GPUWorker::runCommand<SWAP_BUFFERS>()
-// void GPUWorker::swapBuffers()
-{
-	const flag_t flags = gdata->commandFlags;
-
-	m_dBuffers.swapBuffers(flags);
-}
-
 // if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
 void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 {
@@ -1715,11 +1705,6 @@ size_t GPUWorker::getHostMemory() {
 
 size_t GPUWorker::getDeviceMemory() {
 	return m_deviceMemory;
-}
-
-shared_ptr<const AbstractBuffer> GPUWorker::getBuffer(size_t list_idx, flag_t key) const
-{
-	return m_dBuffers.getBufferList(list_idx)[key];
 }
 
 shared_ptr<const AbstractBuffer> GPUWorker::getBuffer(std::string const& state, flag_t key) const

@@ -846,17 +846,6 @@ private:
 	// of keys available in m_pool.
 	std::set<flag_t> m_buffer_keys;
 
-	// Legacy double-buffered list management:
-	// TODO FIXME this is for double-buffered lists only
-	// In general we would have N writable list (N=1 usually)
-	// and M read-only lists (M >= 1), with the number of each
-	// determined by the BufferAllocPolicy.
-#define READ_LIST 1
-#define WRITE_LIST 0
-
-	// list of BufferLists
-	std::array<BufferList, 2> m_lists;
-
 	//! Put a buffer back into the pool
 	void pool_buffer(flag_t key, ptr_type buf)
 	{
@@ -888,10 +877,6 @@ public:
 
 		// and purge the list of keys too
 		m_buffer_keys.clear();
-
-		// clear the lists
-		for (auto& list : m_lists)
-			list.clear();
 	}
 
 	void setAllocPolicy(std::shared_ptr<const BufferAllocPolicy> _policy)
@@ -899,11 +884,6 @@ public:
 		if (m_policy)
 			throw std::runtime_error("cannot change buffer allocation policy");
 		m_policy = _policy;
-
-		// add as many BufferLists as needed at most
-		// TODO would have made sense for > 2 copies,
-		// in which case m_lists would have been an std::vector
-		//m_lists.resize(m_policy->get_max_buffer_count());
 	}
 
 	/* Add a new buffer of the given BufferClass for position Key, with the provided
@@ -922,52 +902,14 @@ public:
 		// number of copies of this buffer
 		const size_t count = m_policy->get_buffer_count(Key);
 
-		if (count > 1) {
-			// We currently support only two possibilities for buffers:
-			// either there is a single instance, or there are as many instances
-			// as the maximum (e.g. if the alloc policy is triple-buffered,
-			// then a buffer has a count of either three or one)
-			// TODO redesign as appropriate when the need arises
-			if (count != m_lists.size())
-				throw std::runtime_error("buffer count less than max but bigger than 1 not supported");
-			// multi-buffered, allocate one instance in each buffer list
-			for (size_t c = 0; c < m_lists.size(); ++c) {
-				std::shared_ptr<AbstractBuffer> buff = std::make_shared<BufferClass<Key>>(_init);
-				/* R for Read, W for Write */
-				buff->set_uid((c == READ_LIST ? "0R" : "0W") + std::to_string(Key));
-				m_pool[Key].push_back(buff);
-
-				m_lists[c].addExistingBuffer(Key, buff);
-			}
-		} else {
-			// single-buffered, allocate once and put in all lists
+		for (size_t c = 0; c < count; ++c) {
 			std::shared_ptr<AbstractBuffer> buff = std::make_shared<BufferClass<Key>>(_init);
-			/* U for Unique */
-			buff->set_uid("0U" + std::to_string(Key));
+			if (count == 1)
+				buff->set_uid("0U" + std::to_string(Key));
+			else
+				buff->set_uid( std::string(1, 'A' + c) + std::to_string(Key) );
 			m_pool[Key].push_back(buff);
-
-			for (auto& list : m_lists)
-				list.addExistingBuffer(Key, buff);
 		}
-	}
-
-	//! Swap the READ/WRITE lists the given buffers belong to
-	// TODO make this a cyclic rotation for the case > 2
-	void swapBuffers(flag_t keys) {
-		std::set<flag_t>::const_iterator iter = m_buffer_keys.begin();
-		const std::set<flag_t>::const_iterator end = m_buffer_keys.end();
-		for (; iter != end ; ++iter) {
-			const flag_t key = *iter;
-			if (!(key & keys))
-				continue;
-
-			// get the old READ buffer, replace the one in WRITE
-			// with it and the one in READ with the old WRITE one
-			auto oldread = m_lists[READ_LIST][key];
-			auto oldwrite = m_lists[WRITE_LIST].replaceBuffer(key, oldread);
-			m_lists[READ_LIST].replaceBuffer(key, oldwrite);
-		}
-
 	}
 
 	//! Add buffers from the pool to the given state
@@ -1286,48 +1228,12 @@ public:
 		return allocated;
 	}
 
-	/* Get a specific buffer list */
-	BufferList& getBufferList(size_t idx)
-	{
-		if (idx > m_lists.size())
-			throw std::runtime_error("asked for non-existing buffer list");
-		return m_lists[idx];
-	}
-
-	/* Get a specific buffer list (const) */
-	const BufferList& getBufferList(size_t idx) const
-	{
-		if (idx > m_lists.size())
-			throw std::runtime_error("asked for non-existing buffer list");
-		return m_lists[idx];
-	}
-
 	/* Get the buffer list of a specific state */
 	BufferList& getState(std::string const& str)
 	{ return m_state.at(str); }
 	/* Get the buffer list of a specific state (const) */
 	const BufferList& getState(std::string const& str) const
 	{ return m_state.at(str); }
-
-
-	/* Get the read-only buffer list */
-	BufferList& getReadBufferList()
-	{ return getBufferList(READ_LIST); }
-	const BufferList& getReadBufferList() const
-	{ return getBufferList(READ_LIST); }
-
-	/* Get the read-write buffer list */
-	BufferList& getWriteBufferList()
-	{
-		return getBufferList(WRITE_LIST);
-	}
-	const BufferList& getWriteBufferList() const
-	{
-		return getBufferList(WRITE_LIST);
-	}
-
-#undef READ_LIST
-#undef WRITE_LIST
 };
 
 #undef DATA_TYPE
