@@ -804,7 +804,7 @@ void GPUWorker::transferBursts(string const& state)
 	if (state.empty())
 		throw runtime_error("transferBursts with empty state");
 
-	BufferList buflist = m_dBuffers.state_subset(state, gdata->commandFlags);
+	BufferList buflist = m_dBuffers.state_subset_existing(state, gdata->commandFlags);
 
 	// burst id counter, needed to correctly pair asynchronous network messages
 	uint bid[MAX_DEVICES_PER_CLUSTER];
