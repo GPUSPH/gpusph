@@ -726,6 +726,9 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	if (gdata->clOptions->striping && MULTI_DEVICE)
 		doCommand(FORCES_COMPLETE, integrator_step);
 
+	// Take care of moving bodies
+	move_bodies(integrator_step);
+
 	// On the predictor, we need to (re)init the predicted status (n*),
 	// on the corrector this will be updated (in place) to the corrected status (n+1)
 	// TODO we need to better formalize the situation in which a kernel moves
@@ -739,9 +742,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	} else {
 		doCommand(RENAME_STATE, "step n*", "step n+1");
 	}
-
-	// Take care of moving bodies
-	move_bodies(integrator_step);
 
 	// integrate also the externals
 	gdata->only_internal = false;
@@ -1038,7 +1038,7 @@ void GPUSPH::move_bodies(flag_t integrator_step)
 		// We have to reduce forces and torques only on bodies which requires it
 		const size_t numforcesbodies = problem->simparams()->numforcesbodies;
 		if (numforcesbodies > 0) {
-			doCommand(REDUCE_BODIES_FORCES);
+			doCommand(REDUCE_BODIES_FORCES, integrator_step);
 
 			// Now sum up the partial forces and momentums computed in each gpu
 			if (MULTI_GPU) {

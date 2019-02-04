@@ -2751,6 +2751,10 @@ template<>
 void GPUWorker::runCommand<REDUCE_BODIES_FORCES>()
 // void GPUWorker::kernel_reduceRBForces()
 {
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const int step = get_step_number(step_flag);
+	const string current_state = getCurrentStateByCommandFlags(step_flag);
+
 	const size_t numforcesbodies = m_simparams->numforcesbodies;
 
 	// make sure this device does not add any obsolete contribute to forces acting on objects
@@ -2768,11 +2772,14 @@ void GPUWorker::runCommand<REDUCE_BODIES_FORCES>()
 	// (possible? e.g. vector objects?)
 	if (m_numForcesBodiesParticles == 0) return;
 
-	if (numforcesbodies)
-		forcesEngine->reduceRbForces(m_dBuffers.getWriteBufferList(), gdata->s_hRbLastIndex,
+	if (numforcesbodies) {
+		BufferList bufwrite = m_dBuffers.state_subset(current_state, BUFFERS_RB_PARTICLES);
+		bufwrite.add_manipulator_on_write("reduceRBforces" + to_string(step));
+		forcesEngine->reduceRbForces(bufwrite, gdata->s_hRbLastIndex,
 				gdata->s_hRbDeviceTotalForce + m_deviceIndex*numforcesbodies,
 				gdata->s_hRbDeviceTotalTorque + m_deviceIndex*numforcesbodies,
 				numforcesbodies, m_numForcesBodiesParticles);
+	}
 
 }
 
