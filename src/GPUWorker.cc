@@ -3030,8 +3030,12 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
 	// if (m_deviceIndex == 1) return;
 
-	BufferList const& bufread = m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = m_dBuffers.getWriteBufferList();
+	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const string current_state = getCurrentStateByCommandFlags(step_flag);
+	const string next_state = getNextStateByCommandFlags(step_flag);
+
+	BufferList const& bufread = m_dBuffers.getState(current_state);
+	BufferList const& bufwrite = m_dBuffers.getState(next_state);
 
 	// get particle info
 	particleinfo pinfo;
