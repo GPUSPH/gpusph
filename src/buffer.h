@@ -430,6 +430,9 @@ private:
 
 	map_type m_map;
 
+	// An OR of all the keys present in the map
+	flag_t m_keys;
+
 	enum {
 		NOT_PENDING,
 		PENDING_SET,
@@ -442,21 +445,21 @@ private:
 protected:
 	void addExistingBuffer(flag_t Key, ptr_type buf)
 	{
-		// map.insert returns a pair<iterator, bool>
-		// where the bool tells if the insertion was successful
-		// (it fails if the key is present already)
-		auto ret = m_map.insert(std::make_pair(Key, buf));
-		if (!ret.second) {
+		if (m_keys & Key) {
 			std::string err = "double insertion of buffer " +
 				std::to_string(Key) + " (" + buf->get_buffer_name() + ")";
 			throw std::runtime_error(err);
 		}
-
+		m_map.insert(std::make_pair(Key, buf));
+		m_keys |= Key;
 	}
 
 	// remove a buffer
 	void removeBuffer(flag_t Key)
-	{ m_map.erase(Key); }
+	{
+		m_map.erase(Key);
+		m_keys &= ~Key;
+	}
 
 	// replace the buffer at position Key with buf, returning the
 	// old one
@@ -475,6 +478,7 @@ protected:
 public:
 	BufferList() :
 		m_map(),
+		m_keys(0),
 		m_has_pending_state(NOT_PENDING),
 		m_pending_state(),
 		m_updated_buffers(0),
@@ -508,6 +512,7 @@ public:
 	// delete all buffers before clearing the hash
 	void clear() {
 		m_map.clear();
+		m_keys = 0;
 	}
 
 	void clear_pending_state() {
@@ -557,9 +562,13 @@ public:
 	flag_t get_updated_buffers() const
 	{ return m_updated_buffers; }
 
+	//! Get the list of available keys
+	flag_t get_keys() const
+	{ return m_keys; }
+
 	//! Check if the BufferList has a given buffer
 	bool has(const flag_t Key)
-	{ return m_map.find(Key) != m_map.end(); }
+	{ return !!(m_keys & Key); }
 
 	/* Read-only [] accessor. Insertion of buffers should be done via the
 	 * addBuffer<>() method template.
@@ -772,6 +781,7 @@ public:
 			throw std::runtime_error("trying to add a buffer for an already-available key!");
 		} else {
 			m_map.insert(std::make_pair(Key, std::make_shared<BufferClass<Key>>(_init)));
+			m_keys |= Key;
 		}
 		return *this;
 	}
