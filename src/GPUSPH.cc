@@ -485,7 +485,7 @@ bool GPUSPH::finalize() {
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandType cmd, flag_t flags)
+void GPUSPH::doCommand(CommandName cmd, flag_t flags)
 {
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {
@@ -550,21 +550,21 @@ setExtraCommandArg(GlobalData *gdata, T arg)
 // set the extra arg for the next command
 template<typename T>
 void
-GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
+GPUSPH::doCommand(CommandName cmd, flag_t flags, T arg)
 {
 	setExtraCommandArg(gdata, arg);
 	doCommand(cmd, flags);
 }
 
 void
-GPUSPH::doCommand(CommandType cmd, std::string const& src, std::string const& dst, flag_t flags)
+GPUSPH::doCommand(CommandName cmd, std::string const& src, std::string const& dst, flag_t flags)
 {
 	setExtraCommandArg(gdata, src, dst);
 	doCommand(cmd, flags);
 }
 
 void
-GPUSPH::doCommand(CommandType cmd, std::string const& src, flag_t flags)
+GPUSPH::doCommand(CommandName cmd, std::string const& src, flag_t flags)
 {
 	setExtraCommandArg(gdata, src);
 	doCommand(cmd, flags);

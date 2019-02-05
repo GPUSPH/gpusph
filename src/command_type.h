@@ -39,7 +39,7 @@
  * scope (buffer management etc).
  */
 
-enum CommandType {
+enum CommandName {
 #define DEFINE_COMMAND(code, ...) code,
 #include "define_commands.h"
 #undef DEFINE_COMMAND
@@ -55,10 +55,10 @@ enum CommandBufferUsage
 
 extern const char* command_name[];
 
-template<CommandType T>
+template<CommandName T>
 struct CommandTraits
 {
-	static constexpr CommandType command = T;
+	static constexpr CommandName command = T;
 	static constexpr CommandBufferUsage buffer_usage = NO_BUFFER_USAGE;
 	static constexpr flag_t reads = BUFFER_NONE; ///< list of buffers read by this command
 	static constexpr flag_t updates = BUFFER_NONE; ///< list of buffers updated in-place by this command
@@ -71,7 +71,7 @@ struct CommandTraits
 template<> \
 struct CommandTraits<_command> \
 { \
-	static constexpr CommandType command = _command; \
+	static constexpr CommandName command = _command; \
 	static constexpr CommandBufferUsage buffer_usage = _usage; \
 	static constexpr flag_t reads = _reads; \
 	static constexpr flag_t updates = _updates; \
@@ -80,7 +80,7 @@ struct CommandTraits<_command> \
 
 #include "define_commands.h"
 
-inline const char * getCommandName(CommandType cmd)
+inline const char * getCommandName(CommandName cmd)
 {
 	if (cmd < NUM_COMMANDS)
 		return command_name[cmd];

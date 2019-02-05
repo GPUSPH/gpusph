@@ -3142,7 +3142,7 @@ void GPUWorker::runCommand<NUM_COMMANDS>()
 	unknownCommand(NUM_COMMANDS);
 }
 
-void GPUWorker::unknownCommand(CommandType cmd)
+void GPUWorker::unknownCommand(CommandName cmd)
 {
 	string err = "FATAL: command " + to_string(cmd)
 		+ " (" + getCommandName(cmd) + ") issued on device " + to_string(m_deviceIndex)
@@ -3151,7 +3151,7 @@ void GPUWorker::unknownCommand(CommandType cmd)
 }
 
 
-template<CommandType Cmd>
+template<CommandName Cmd>
 void GPUWorker::describeCommand()
 {
 	if (Cmd >= NUM_COMMANDS) {

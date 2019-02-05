@@ -233,7 +233,7 @@ struct GlobalData {
 	uint lastGlobalNumInteractions;
 
 	// next command to be executed by workers
-	CommandType nextCommand;
+	CommandName nextCommand;
 	// step parameter, e.g. for predictor/corrector scheme
 	// command flags, i.e. parameter for the command
 	flag_t commandFlags;

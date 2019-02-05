@@ -172,15 +172,15 @@ private:
 	/*! There should be a specialization of the template for each
 	 * (supported) command
 	 */
-	template<CommandType>
+	template<CommandName>
 	void runCommand();
 
 	/// Function template to show a specific command
-	template<CommandType>
+	template<CommandName>
 	void describeCommand();
 
 	/// Handle the case of an unknown command being invoked
-	void unknownCommand(CommandType);
+	void unknownCommand(CommandName);
 
 	// cuts all external particles
 	// runCommand<CROP> = void dropExternalParticles();
