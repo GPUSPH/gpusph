@@ -50,9 +50,6 @@
 // div_up
 #include "utils.h"
 
-/* Include only the problem selected at compile time */
-#include "problem_select.opt"
-
 // HotFile
 #include "HotFile.h"
 
