@@ -784,7 +784,7 @@ endif
 export CMDECHO
 
 .PHONY: all run showobjs show snapshot expand deps docs test help
-.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean
+.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean genclean
 .PHONY: dev-guide user-guide
 
 # target: all - Make subdirs, compile objects, link and produce $(TARGET)
@@ -802,8 +802,10 @@ run: all
 	$(TARGET)
 
 $(OPTSDIR)/%.gen.cc: $(SRCDIR)/problem_gen.tpl | $(PROBLEM_DIR)/%.h $(OPTSDIR)
+	$(call show_stage,GEN,$(@F))
 	@sed -e 's/PROBLEM/$*/g' $< > $@
 $(OPTSDIR)/%.gen.cc: $(SRCDIR)/problem_gen.tpl | $(USER_PROBLEM_DIR)/%.h $(OPTSDIR)
+	$(call show_stage,GEN,$(@F))
 	@sed -e 's/PROBLEM/$*/g' $< > $@
 
 # internal targets to (re)create the "selected option headers" if they're missing
@@ -925,6 +927,10 @@ computeclean:
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
 cookiesclean:
 	$(RM) -r $(OPTFILES) $(OPTSDIR)
+
+# target: genclean - Clean all problem generators
+genclean:
+	$(RM) $(OPTSDIR)/*.gen.cc
 
 # target: confclean - Clean all configuration options: like cookiesclean, but also purges Makefile.conf
 confclean: cookiesclean
