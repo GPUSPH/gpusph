@@ -269,6 +269,12 @@ else
 	PROBLEM ?= DamBreak3D
 endif
 
+PROBLEM_GEN_CC=$(OPTSDIR)/$(PROBLEM).gen.cc
+PROBLEM_GEN_OBJ=$(patsubst $(OPTSDIR)/%.cc,$(OBJDIR)/%.o,$(PROBLEM_GEN_CC))
+OPTFILES+=$(PROBLEM_GEN_CC)
+OBJS+=$(PROBLEM_GEN_OBJ)
+
+
 # option: dbg - 0 no debugging, 1 enable debugging
 # does dbg differ from last?
 ifdef dbg
@@ -795,6 +801,11 @@ all: $(OBJS) | $(DISTDIR)
 run: all
 	$(TARGET)
 
+$(OPTSDIR)/%.gen.cc: $(SRCDIR)/problem_gen.tpl | $(PROBLEM_DIR)/%.h $(OPTSDIR)
+	@sed -e 's/PROBLEM/$*/g' $< > $@
+$(OPTSDIR)/%.gen.cc: $(SRCDIR)/problem_gen.tpl | $(USER_PROBLEM_DIR)/%.h $(OPTSDIR)
+	@sed -e 's/PROBLEM/$*/g' $< > $@
+
 # internal targets to (re)create the "selected option headers" if they're missing
 $(PROBLEM_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define the problem compiled into the main executable. */" \
@@ -851,6 +862,9 @@ $(SRCDIR)/describe-debugflags.h: $(SCRIPTSDIR)/describe-debugflags.awk $(SRCDIR)
 
 # compile CPU objects
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
+	$(call show_stage,CC,$(@F))
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+$(PROBLEM_GEN_OBJ): $(OBJDIR)/%.o: $(OPTSDIR)/%.cc $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 

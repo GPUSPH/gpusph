@@ -38,8 +38,7 @@
 #include "GlobalData.h"
 #include "NetworkManager.h"
 
-// Include only the problem selected at compile time (PROBLEM, QUOTED_PROBLEM)
-#include "problem_select.opt"
+#include "problem_spec.h"
 
 /* Include all other opt file for show_version */
 #include "chrono_select.opt"
@@ -69,7 +68,7 @@ void show_version()
 	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
 	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
 	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
-	printf("Compiled for problem \"%s\"\n", QUOTED_PROBLEM);
+	printf("Compiled for problem \"%s\"\n", selected_problem.name);
 }
 
 
@@ -250,7 +249,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		++gdata->totDevices;
 	}
 
-	_clOptions->problem = string( QUOTED_PROBLEM );
+	_clOptions->problem = string( selected_problem.name );
 
 	// Left for future dynamic loading:
 	/*if (_clOptions->problem.empty()) {
@@ -382,7 +381,7 @@ int main(int argc, char** argv) {
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	try {
-		gdata.problem = new PROBLEM(&gdata);
+		gdata.problem = selected_problem.create(&gdata);
 		if (gdata.problem->simframework())
 			gdata.simframework = gdata.problem->simframework();
 		else
