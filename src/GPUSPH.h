@@ -93,9 +93,6 @@ private:
 	// check consistency of buffers across multiple GPUs
 	void checkBufferConsistency();
 
-	// return the keys of the buffers with invalid content on host
-	flag_t getInvalidHostBuffers();
-
 	// compute initial values for the IDs of the next generated particles,
 	// and return the number of open boundary vertices
 	uint initializeNextIDs(bool resumed);
@@ -141,11 +138,7 @@ private:
 	void doCallBacks(const flag_t current_integrator_step);
 
 	//! Rebuild the neighbor list
-	/** The optional argument can be set to exclude some buffers from sorting.
-	 * Since it's a mask of buffers that will be included, excluding buffers
-	 * is achieved by setting it to the negation of those buffers
-	 */
-	void buildNeibList(flag_t allowed_buffers = ALL_FLAGS);
+	void buildNeibList();
 
 	// setting of boundary conditions for the semi-analytical boundaries
 	void saBoundaryConditions(flag_t cFlag);

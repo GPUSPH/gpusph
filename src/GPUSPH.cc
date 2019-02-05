@@ -832,14 +832,6 @@ bool GPUSPH::runSimulation() {
 	// to produce the configuration at “step n+1”; the initial upload brings the particle
 	// into a particle system “initial upload”, which we rename to “step n” before
 	// entering the main simulation cycle.
-	// The state has an anomaly in the SA case though: on simulation start (but not
-	// on simulation resume) BUFFER_GRADGAMMA is uninitialized, so we will drop it
-	// from the state, and only reintroduce it before preparing the next step.
-	// To be more future proof, rather than using BUFFER_GRADAMMA specifically,
-	// we will get the list of invalid buffers on host and use that
-	flag_t invalid_host_buffers = getInvalidHostBuffers();
-	if (invalid_host_buffers)
-		doCommand(REMOVE_STATE_BUFFERS, "initial upload", invalid_host_buffers);
 	doCommand(RENAME_STATE, "initial upload", "step n");
 
 	// Some formulations require stuff to be done before the beginning of the
@@ -854,10 +846,7 @@ bool GPUSPH::runSimulation() {
 	// compute neighbour list for the first time. This is done regardless
 	// of preparations, since we need to do one anyway
 	// Exclude invalid buffers, if any
-	buildNeibList(~invalid_host_buffers);
-
-	if (invalid_host_buffers)
-		doCommand(ADD_STATE_BUFFERS, "step n", invalid_host_buffers);
+	buildNeibList();
 
 	if (needs_preparation) {
 		prepareNextStep(INITIALIZATION_STEP);
@@ -1421,19 +1410,6 @@ void GPUSPH::checkBufferConsistency()
 #endif
 }
 
-/// Get the list of invalid host buffers
-flag_t GPUSPH::getInvalidHostBuffers()
-{
-	flag_t invalid_host_buffers = NO_FLAGS;
-	for (auto const& kb : gdata->s_hBuffers) {
-		if (kb.second->is_invalid()) {
-			cout << kb.second->get_buffer_name() << " is invalid" << endl;
-			invalid_host_buffers |= kb.first;
-		}
-	}
-	return invalid_host_buffers;
-}
-
 /// Initialize the array holding the IDs of the next generated particles
 /*! Each open boundary vertex, when generating a new particle, will assign it
  * its nextID value, and update the nextID by adding the total count of open
@@ -1981,7 +1957,7 @@ void GPUSPH::saveParticles(
 	doWrite(write_flags);
 }
 
-void GPUSPH::buildNeibList(flag_t allowed_buffers)
+void GPUSPH::buildNeibList()
 {
 	// We want to sort the particles starting from the state “step n”.
 	// We remove the cell, neibslist and vertex position buffers, invalidating them.
@@ -2053,7 +2029,7 @@ void GPUSPH::buildNeibList(flag_t allowed_buffers)
 		// append fresh copies of the externals
 		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
 		// until next calchash; however, they are filtered out when using the particle hashes.
-		doCommand(APPEND_EXTERNAL, "sorted", IMPORT_BUFFERS & allowed_buffers);
+		doCommand(APPEND_EXTERNAL, "sorted", IMPORT_BUFFERS);
 		// update the newNumParticles device counter
 		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
 			doCommand(UPLOAD_NEWNUMPARTS);
