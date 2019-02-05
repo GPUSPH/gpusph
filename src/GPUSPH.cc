@@ -898,10 +898,6 @@ bool GPUSPH::runSimulation() {
 			runEnabledFilters(enabledFilters);
 		}
 
-		// Add ephemeral buffers to step n, except for PARTINDEX (it's only used when sorting)
-		// and VORTICITY (it's only used in post-processing)
-		doCommand(ADD_STATE_BUFFERS, "step n", EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS));
-
 		// run PREDICTOR step (INTEGRATOR_STEP_1)
 		runIntegratorStep(INTEGRATOR_STEP_1);
 
@@ -1968,10 +1964,6 @@ void GPUSPH::buildNeibList()
 	// Rename the state to “unsorted”
 	doCommand(RENAME_STATE, "step n", "unsorted");
 
-	// The particle index starts from the unsorted state, initialized by CALCHASH below,
-	// and will be released after the reorder (not needed anymore)
-	doCommand(ADD_STATE_BUFFERS, "unsorted", BUFFER_PARTINDEX);
-
 	// Initialize the new particle system state (“sorted”) with all particle properties
 	// (except for BUFFER_INFO, which will be sorted in-place), plus the auxiliary buffers
 	// that get rebuilt during the sort and neighbors list construction
@@ -2403,13 +2395,12 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, "step n", BUFFER_INFO);
 
-			// we use BUFFER_FORCES as scratch buffer to store the computed
-			// IO masses, and since we cannot update POS in place we'll
-			// do it via a provisional “iomass” state
-			doCommand(ADD_STATE_BUFFERS, "step n", BUFFER_FORCES);
 			doCommand(INIT_STATE, "iomass");
 
-			// first step: count the vertices that belong to IO and the same segment as each IO vertex
+			// first step: count the vertices that belong to IO and the same
+			// segment as each IO vertex
+			// we use BUFFER_FORCES as scratch buffer to store the computed
+			// IO masses
 			doCommand(INIT_IO_MASS_VERTEX_COUNT);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, "step n", BUFFER_FORCES);

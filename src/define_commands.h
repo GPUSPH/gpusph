@@ -66,11 +66,6 @@ DEFINE_COMMAND_NOBUF(RENAME_STATE)
 /// Release a ParticleSystem state
 DEFINE_COMMAND_NOBUF(RELEASE_STATE)
 
-/// Add buffers from the pool to the given ParticleSystem state
-/*! Note that this is different from the legacy ADD_BUFFER_STATE,
- * which only marks the internal buffer state
- */
-DEFINE_COMMAND_DYN(ADD_STATE_BUFFERS)
 /// Remove buffers from a the given ParticleSystem state
 /*! Buffers are returned to the pool if they are not shared
  * with other states

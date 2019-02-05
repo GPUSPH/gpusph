@@ -1241,13 +1241,6 @@ void GPUWorker::runCommand<RELEASE_STATE>()
 	m_dBuffers.release_state(gdata->extraCommandArg.string);
 }
 
-// Add pooled a buffer to a particle system state
-template<>
-void GPUWorker::runCommand<ADD_STATE_BUFFERS>()
-{
-	m_dBuffers.add_state_buffers(gdata->extraCommandArg.string, gdata->commandFlags);
-}
-
 // Remove buffers from a state, returning them to the pool if not shared
 template<>
 void GPUWorker::runCommand<REMOVE_STATE_BUFFERS>()
@@ -3189,9 +3182,6 @@ void GPUWorker::describeCommand()
 		break;
 	case RENAME_STATE:
 		desc += " " + gdata->extraCommandArg.strings[0] + " -> " + gdata->extraCommandArg.strings[1];
-		break;
-	case ADD_STATE_BUFFERS:
-		desc += " > " + gdata->extraCommandArg.string;
 		break;
 	case REMOVE_STATE_BUFFERS:
 		desc += " < " + gdata->extraCommandArg.string;
