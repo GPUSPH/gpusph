@@ -853,7 +853,7 @@ bool GPUSPH::runSimulation() {
 		// call Integrator -> setNextStep
 
 		// run enabled filters
-		if (gdata->iterations > 0) {
+		if (gdata->iterations > 0 && enabledFilters.size() > 0) {
 			runEnabledFilters(enabledFilters);
 		}
 
