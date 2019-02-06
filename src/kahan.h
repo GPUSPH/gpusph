@@ -5,7 +5,7 @@
 #ifndef _KAHAN_H_
 #define _KAHAN_H_
 
-#include <math_functions.h>
+#include "vector_math.h"
 #define __spec __host__ __device__
 
 //! Add n floating-point values stored in q
