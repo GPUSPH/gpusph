@@ -485,7 +485,7 @@ bool GPUSPH::finalize() {
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandName cmd, flag_t flags)
+void GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
 {
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {
@@ -496,8 +496,7 @@ void GPUSPH::doCommand(CommandName cmd, flag_t flags)
 	 memset(gdata->s_hInfo, 0, infoSize);
 	 } */
 
-	gdata->nextCommand = cmd;
-	gdata->commandFlags = flags;
+	gdata->nextCommand = cmd.set_flags(flags);
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 
@@ -518,56 +517,16 @@ void GPUSPH::doCommand(CommandName cmd, flag_t flags)
 #endif
 }
 
-// Auxiliary template selector for setExtraCommandArg
-template<typename T>
-using CanBeStoredInFlag = typename std::integral_constant<bool,
-	std::is_integral<T>::value || std::is_enum<T>::value>;
-
-// Function to specializa the setting of extraCommandArg
-void setExtraCommandArg(GlobalData *gdata, const char *arg)
-{ gdata->extraCommandArg.string = arg; }
-
-void setExtraCommandArg(GlobalData *gdata, std::string const& arg)
-{ gdata->extraCommandArg.string = arg; }
-
-void setExtraCommandArg(GlobalData *gdata, std::string const& arg1, std::string const& arg2)
-{
-	gdata->extraCommandArg.strings.clear();
-	gdata->extraCommandArg.strings.push_back(arg1);
-	gdata->extraCommandArg.strings.push_back(arg2);
-}
-
-template<typename T>
-enable_if_t<CanBeStoredInFlag<T>::value>
-setExtraCommandArg(GlobalData *gdata, T arg)
-{ gdata->extraCommandArg.flag = arg; }
-
-template<typename T>
-enable_if_t<std::is_floating_point<T>::value>
-setExtraCommandArg(GlobalData *gdata, T arg)
-{ gdata->extraCommandArg.fp32 = arg; }
-
-// set the extra arg for the next command
-template<typename T>
 void
-GPUSPH::doCommand(CommandName cmd, flag_t flags, T arg)
+GPUSPH::doCommand(CommandStruct cmd, std::string const& src, std::string const& dst, flag_t flags)
 {
-	setExtraCommandArg(gdata, arg);
-	doCommand(cmd, flags);
+	doCommand(cmd.set_src(src).set_dst(dst), flags);
 }
 
 void
-GPUSPH::doCommand(CommandName cmd, std::string const& src, std::string const& dst, flag_t flags)
+GPUSPH::doCommand(CommandStruct cmd, std::string const& src, flag_t flags)
 {
-	setExtraCommandArg(gdata, src, dst);
-	doCommand(cmd, flags);
-}
-
-void
-GPUSPH::doCommand(CommandName cmd, std::string const& src, flag_t flags)
-{
-	setExtraCommandArg(gdata, src);
-	doCommand(cmd, flags);
+	doCommand(cmd.set_src(src), flags);
 }
 
 // an empty set of PostProcessEngines, to be used when we want to save
@@ -790,7 +749,7 @@ void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 		uint freq = flt->second; // known to be > 0
 		if (gdata->iterations % freq == 0) {
 			gdata->only_internal = true;
-			doCommand(FILTER, NO_FLAGS, filter);
+			doCommand(FILTER, filter);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, "filtered",  BUFFER_VEL);
@@ -907,7 +866,8 @@ bool GPUSPH::runSimulation() {
 		// End of predictor step, start corrector step
 
 		// Move ephemeral buffers to step n*.
-		doCommand(MOVE_STATE_BUFFERS, "step n*", EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS));
+		doCommand(MOVE_STATE_BUFFERS, "step n", "step n*", EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS));
+
 		// run CORRECTOR step (INTEGRATOR_STEP_2)
 		runIntegratorStep(INTEGRATOR_STEP_2);
 
@@ -1902,7 +1862,7 @@ void GPUSPH::saveParticles(
 		PostProcessType filter = flt->first;
 		gdata->only_internal = true;
 
-		doCommand(POSTPROCESS, NO_FLAGS, filter);
+		doCommand(POSTPROCESS, filter);
 
 		flt->second->hostProcess(gdata);
 

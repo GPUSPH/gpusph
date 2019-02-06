@@ -233,22 +233,8 @@ struct GlobalData {
 	uint lastGlobalNumInteractions;
 
 	// next command to be executed by workers
-	CommandName nextCommand;
-	// step parameter, e.g. for predictor/corrector scheme
-	// command flags, i.e. parameter for the command
-	flag_t commandFlags;
-	// additional argument to be passed to the command.
-	// TODO FIXME a union won't cut it, because of std::string
-	struct ExtraCommandArg {
-		std::string string;
-		// TODO FIXME this is a hack to work around the fact that states are currently
-		// strings, and some state manipulation commands need to operate on two of them
-		std::vector<std::string> strings;
-		flag_t flag;
-		float  fp32;
-		ExtraCommandArg() : fp32(NAN) {}
-	};
-	ExtraCommandArg extraCommandArg;
+	CommandStruct nextCommand;
+
 	// set to true if next kernel has to be run only on internal particles
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
@@ -319,8 +305,6 @@ struct GlobalData {
 		lastGlobalPeakVertexNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
-		commandFlags(NO_FLAGS),
-		extraCommandArg(),
 		only_internal(false),
 		s_hRbFirstIndex(NULL),
 		s_hRbLastIndex(NULL),

@@ -109,14 +109,12 @@ private:
 	void prepareProblem();
 
 	// set nextCommand, unlock the threads and wait for them to complete
-	void doCommand(CommandName cmd, flag_t flags=NO_FLAGS);
-	template<typename T>
-	void doCommand(CommandName cmd, flag_t flags, T extra_arg);
+	void doCommand(CommandStruct cmd, flag_t flags=NO_FLAGS);
 
 	// TODO possibly temporary, while states are strings
-	void doCommand(CommandName cmd, std::string const& src, std::string const& dst,
+	void doCommand(CommandStruct cmd, std::string const& src, std::string const& dst,
 		flag_t flags = NO_FLAGS);
-	void doCommand(CommandName cmd, std::string const& dst, flag_t flags = NO_FLAGS);
+	void doCommand(CommandStruct cmd, std::string const& dst, flag_t flags = NO_FLAGS);
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();

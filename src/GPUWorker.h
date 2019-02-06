@@ -173,11 +173,11 @@ private:
 	 * (supported) command
 	 */
 	template<CommandName>
-	void runCommand();
+	void runCommand(CommandStruct const& cmd);
 
 	/// Function template to show a specific command
 	template<CommandName>
-	void describeCommand();
+	void describeCommand(CommandStruct const& cmd);
 
 	/// Handle the case of an unknown command being invoked
 	void unknownCommand(CommandName);
@@ -186,17 +186,17 @@ private:
 	// runCommand<CROP> = void dropExternalParticles();
 
 	/// compare UPDATE_EXTERNAL arguments against list of updated buffers
-	void checkBufferUpdate(std::string const& state);
+	void checkBufferUpdate(CommandStruct const& cmd);
 
 	// compute list of bursts
 	void computeCellBursts();
 	// iterate on the list and send/receive/read cell sizes
 	void transferBurstsSizes();
 	// iterate on the list and send/receive/read bursts of particles
-	void transferBursts(std::string const& state);
+	void transferBursts(CommandStruct const& cmd);
 
 	/// append or update the external cells of other devices in the device memory
-	void importExternalCells(); // runCommand<APPEND_EXTERNAL> or runCommand<UPDATE_EXTERNAL>
+	void importExternalCells(CommandStruct const& cmd); // runCommand<APPEND_EXTERNAL> or runCommand<UPDATE_EXTERNAL>
 	// aux methods for importPeerEdgeCells();
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 	void asyncCellIndicesUpload(uint fromCell, uint toCell);
@@ -226,7 +226,6 @@ public:
 private:
 	// create a textual description of the list of buffers in the command flags
 	std::string describeCommandFlagsBuffers(flag_t flags);
-	std::string describeCommandFlagsBuffers();
 
 	void uploadSubdomain();
 	// runCommand<DUMP> = void dumpBuffers();
@@ -286,7 +285,8 @@ private:
 	/*void uploadMbData();
 	// runCommand<UPLOAD_GRAVITY> = void uploadGravity();*/
 
-	void checkPartValByIndex(const char* printID, const uint pindex);
+	void checkPartValByIndex(CommandStruct const& cmd,
+		const char* printID, const uint pindex);
 
 	// asynchronous alternative to kernel_force
 	// runCommand<FORCES_ENQUEUE> = void kernel_forces_async_enqueue();
@@ -296,15 +296,16 @@ private:
 	using BufferListPair = std::pair<const BufferList, BufferList>;
 
 	// aux methods for forces kernel striping
-	uint enqueueForcesOnRange(BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset);
+	uint enqueueForcesOnRange(CommandStruct const& cmd,
+		BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset);
 	// steps to do before launching a (set of) forces kernels:
 	// * select the read and write buffer lists
 	// * reset CFL and object forces and torque arrays
 	// * bind textures
 	// Returns a pair with the read and write buffer lists
-	BufferListPair pre_forces();
+	BufferListPair pre_forces(CommandStruct const& cmd);
 	// steps to do after launching a (set of) forces kernels: unbinding textures, get, adaptive dt, etc
-	float post_forces();
+	float post_forces(CommandStruct const& cmd);
 
 	// aux method to warp signed cell coordinates when periodicity is enabled
 	void periodicityWarp(int &cx, int &cy, int &cz);

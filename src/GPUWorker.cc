@@ -342,7 +342,7 @@ void GPUWorker::computeAndSetAllocableParticles()
 // out. However, this would be quite inefficient. We leave them inconsistent for a
 // few time and we will update them when importing peer cells.
 template<>
-void GPUWorker::runCommand<CROP>()
+void GPUWorker::runCommand<CROP>(CommandStruct const&)
 // void GPUWorker::dropExternalParticles()
 {
 	m_particleRangeEnd =  m_numParticles = m_numInternalParticles;
@@ -351,14 +351,15 @@ void GPUWorker::runCommand<CROP>()
 }
 
 /// compare UPDATE_EXTERNAL arguments against list of updated buffers
-void GPUWorker::checkBufferUpdate(std::string const& state)
+void GPUWorker::checkBufferUpdate(CommandStruct const& cmd)
 {
-	const BufferList buflist = m_dBuffers.state_subset(state, FLAG_MAX);
+	// TODO UPDATE_EXTERNAL should operate on the updates command buffer argument
+	auto const& buflist = m_dBuffers.getState(cmd.src);
 	for (auto const& iter : buflist) {
 		auto const key = iter.first;
 		auto const buf = iter.second;
 		const bool need_update = buf->is_dirty();
-		const bool listed = !!(key & gdata->commandFlags);
+		const bool listed = !!(key & cmd.flags);
 
 		if (need_update && !listed)
 			cout <<  buf->get_buffer_name() << " needs update, but is NOT listed" << endl;
@@ -799,12 +800,14 @@ void GPUWorker::transferBurstsSizes()
 }
 
 // Iterate on the list and send/receive bursts of particles across different nodes
-void GPUWorker::transferBursts(string const& state)
+void GPUWorker::transferBursts(CommandStruct const& cmd)
 {
+	string const& state = cmd.src;
+
 	if (state.empty())
 		throw runtime_error("transferBursts with empty state");
 
-	BufferList buflist = m_dBuffers.state_subset_existing(state, gdata->commandFlags);
+	BufferList buflist = m_dBuffers.state_subset_existing(state, cmd.flags);
 
 	// burst id counter, needed to correctly pair asynchronous network messages
 	uint bid[MAX_DEVICES_PER_CLUSTER];
@@ -893,16 +896,14 @@ void GPUWorker::transferBursts(string const& state)
 // forces).
 // The data is transferred in bursts of consecutive cells when possible. Intra-node transfers are D2D if peer access is enabled,
 // staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
-void GPUWorker::importExternalCells()
+void GPUWorker::importExternalCells(CommandStruct const& cmd)
 {
-	const string state = gdata->extraCommandArg.string;
+	if (gdata->debug.check_buffer_update) checkBufferUpdate(cmd);
 
-	if (gdata->debug.check_buffer_update) checkBufferUpdate(state);
-
-	if (gdata->nextCommand == APPEND_EXTERNAL)
+	if (cmd.command == APPEND_EXTERNAL)
 		transferBurstsSizes();
-	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
-		transferBursts(state);
+	if ( (cmd.command == APPEND_EXTERNAL) || (cmd.command == UPDATE_EXTERNAL) )
+		transferBursts(cmd);
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. If striping is disabled, we want to synchronize
 	// for the completion of the transfers. Otherwise, FORCES_COMPLETE will synchronize everything
@@ -913,9 +914,9 @@ void GPUWorker::importExternalCells()
 	// if (!gdata->striping && MULTI_NODE)...
 }
 template<>
-void GPUWorker::runCommand<APPEND_EXTERNAL>() { importExternalCells(); }
+void GPUWorker::runCommand<APPEND_EXTERNAL>(CommandStruct const& cmd) { importExternalCells(cmd); }
 template<>
-void GPUWorker::runCommand<UPDATE_EXTERNAL>() { importExternalCells(); }
+void GPUWorker::runCommand<UPDATE_EXTERNAL>(CommandStruct const& cmd) { importExternalCells(cmd); }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
 // Later this will be changed since each thread does not need to allocate the global number of particles.
@@ -1138,7 +1139,7 @@ GPUWorker::describeCommandFlagsBuffers(flag_t flags)
 	string s;
 	char sep[3] = { ' ', ' ', ' ' };
 	for (auto key : m_dBuffers.get_keys()) {
-		if (key & gdata->commandFlags) {
+		if (key & flags) {
 			s.append(sep, 3);
 			s.append(getBufferName(key));
 			sep[1] = '|';
@@ -1146,12 +1147,6 @@ GPUWorker::describeCommandFlagsBuffers(flag_t flags)
 	}
 
 	return s;
-}
-
-string
-GPUWorker::describeCommandFlagsBuffers()
-{
-	return describeCommandFlagsBuffers(gdata->commandFlags);
 }
 
 //! Upload subdomain to an “initial upload” state
@@ -1221,62 +1216,52 @@ void GPUWorker::uploadSubdomain() {
 
 //! Initialize a new particle system state
 template<>
-void GPUWorker::runCommand<INIT_STATE>()
+void GPUWorker::runCommand<INIT_STATE>(CommandStruct const& cmd)
 {
-	m_dBuffers.initialize_state(gdata->extraCommandArg.string);
+	m_dBuffers.initialize_state(cmd.src);
 }
 
 // Rename a particle state
 template<>
-void GPUWorker::runCommand<RENAME_STATE>()
+void GPUWorker::runCommand<RENAME_STATE>(CommandStruct const& cmd)
 {
-	auto const& args(gdata->extraCommandArg.strings);
-	m_dBuffers.rename_state(args[0], args[1]);
+	m_dBuffers.rename_state(cmd.src, cmd.dst);
 }
 
 // Release a particle system state
 template<>
-void GPUWorker::runCommand<RELEASE_STATE>()
+void GPUWorker::runCommand<RELEASE_STATE>(CommandStruct const& cmd)
 {
-	m_dBuffers.release_state(gdata->extraCommandArg.string);
+	m_dBuffers.release_state(cmd.src);
 }
 
 // Remove buffers from a state, returning them to the pool if not shared
 template<>
-void GPUWorker::runCommand<REMOVE_STATE_BUFFERS>()
+void GPUWorker::runCommand<REMOVE_STATE_BUFFERS>(CommandStruct const& cmd)
 {
-	m_dBuffers.remove_state_buffers(gdata->extraCommandArg.string, gdata->commandFlags);
+	m_dBuffers.remove_state_buffers(cmd.src, cmd.flags);
 }
 
 // Swap buffers between state, invalidating the destination one
 template<>
-void GPUWorker::runCommand<SWAP_STATE_BUFFERS>()
+void GPUWorker::runCommand<SWAP_STATE_BUFFERS>(CommandStruct const& cmd)
 {
-	const flag_t flags = gdata->commandFlags;
-	const string& src = gdata->extraCommandArg.strings[0];
-	const string& dst = gdata->extraCommandArg.strings[1];
-
-	m_dBuffers.swap_state_buffers(src, dst, flags);
+	m_dBuffers.swap_state_buffers(cmd.src, cmd.dst, cmd.flags);
 }
 
 // Move buffers from one state to the other, invalidating them
 template<>
-void GPUWorker::runCommand<MOVE_STATE_BUFFERS>()
+void GPUWorker::runCommand<MOVE_STATE_BUFFERS>(CommandStruct const& cmd)
 {
-	const flag_t flags = gdata->commandFlags;
-	const string& src = gdata->extraCommandArg.strings[0];
-	const string& dst = gdata->extraCommandArg.strings[1];
-
-	m_dBuffers.remove_state_buffers(src, flags);
-	m_dBuffers.add_state_buffers(dst, flags);
+	m_dBuffers.remove_state_buffers(cmd.src, cmd.flags);
+	m_dBuffers.add_state_buffers(cmd.dst, cmd.flags);
 }
 
 // Share buffers between states
 template<>
-void GPUWorker::runCommand<SHARE_BUFFERS>()
+void GPUWorker::runCommand<SHARE_BUFFERS>(CommandStruct const& cmd)
 {
-	auto const& args(gdata->extraCommandArg.strings);
-	m_dBuffers.share_buffers(args[0], args[1], gdata->commandFlags);
+	m_dBuffers.share_buffers(cmd.src, cmd.dst, cmd.flags);
 }
 
 
@@ -1285,7 +1270,7 @@ void GPUWorker::runCommand<SHARE_BUFFERS>()
 // For double buffered arrays, uses the READ buffers unless otherwise specified. Can be
 // used for either the read or the write buffers, not both.
 template<>
-void GPUWorker::runCommand<DUMP>()
+void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 // void GPUWorker::dumpBuffers()
 {
 	// indices
@@ -1295,11 +1280,8 @@ void GPUWorker::runCommand<DUMP>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	const flag_t flags = gdata->commandFlags;
-	const string state = gdata->extraCommandArg.string;
-
-	// get the bufferlist to download data from
-	const BufferList buflist = m_dBuffers.state_subset(state, flags);
+	// TODO should use cmd.reads
+	auto const& buflist = m_dBuffers.state_subset_existing(cmd.src, cmd.flags);
 
 	// iterate over each array in the _host_ buffer list, and download data
 	// if it was requested
@@ -1307,7 +1289,7 @@ void GPUWorker::runCommand<DUMP>()
 	const BufferList::iterator stop = gdata->s_hBuffers.end();
 	for ( ; onhost != stop ; ++onhost) {
 		flag_t buf_to_get = onhost->first;
-		if (!(buf_to_get & flags))
+		if (!(buf_to_get & cmd.flags))
 			continue;
 
 		shared_ptr<const AbstractBuffer> buf = buflist[buf_to_get];
@@ -1387,13 +1369,14 @@ void GPUWorker::resizeNetworkTransferBuffer(size_t required_size)
 
 // download cellStart and cellEnd to the shared arrays
 template<>
-void GPUWorker::runCommand<DUMP_CELLS>()
+void GPUWorker::runCommand<DUMP_CELLS>(CommandStruct const& cmd)
 // void GPUWorker::downloadCellsIndices()
 {
 	const size_t _size = gdata->nGridCells * sizeof(uint);
 
 	// TODO migrate s_dCellStarts to the device mechanism and provide an API
 	// to copy offset data between buffers (even of different types)
+	// TODO encode this in the CommandStruct, ‘reads’ field
 	const BufferList sorted = m_dBuffers.state_subset("sorted",
 		BUFFER_CELLSTART | BUFFER_CELLEND);
 
@@ -1430,7 +1413,7 @@ void GPUWorker::uploadSegments()
 
 // download segments and update the number of internal particles
 template<>
-void GPUWorker::runCommand<UPDATE_SEGMENTS>()
+void GPUWorker::runCommand<UPDATE_SEGMENTS>(CommandStruct const& cmd)
 // void GPUWorker::updateSegments()
 {
 	// if the device is empty, set the host and device segments as empty
@@ -1469,7 +1452,7 @@ void GPUWorker::resetSegments()
 
 // download the updated number of particles (update by reorder and euler)
 template<>
-void GPUWorker::runCommand<DOWNLOAD_NEWNUMPARTS>()
+void GPUWorker::runCommand<DOWNLOAD_NEWNUMPARTS>(CommandStruct const& cmd)
 // void GPUWorker::downloadNewNumParticles()
 {
 	// is the device empty? (unlikely but possible before LB kicks in)
@@ -1516,7 +1499,7 @@ void GPUWorker::runCommand<DOWNLOAD_NEWNUMPARTS>()
 
 // upload the value m_numParticles to "newNumParticles" on device
 template<>
-void GPUWorker::runCommand<UPLOAD_NEWNUMPARTS>()
+void GPUWorker::runCommand<UPLOAD_NEWNUMPARTS>(CommandStruct const& cmd)
 // void GPUWorker::uploadNewNumParticles()
 {
 	// uploading even if empty (usually not, right after append)
@@ -1537,7 +1520,7 @@ void GPUWorker::uploadGravity()
 		forcesEngine->setgravity(gdata->s_varGravity);
 }
 template<>
-void GPUWorker::runCommand<UPLOAD_GRAVITY>() { uploadGravity(); }
+void GPUWorker::runCommand<UPLOAD_GRAVITY>(CommandStruct const& cmd) { uploadGravity(); }
 
 // upload planes (called once while planes are constant)
 void GPUWorker::uploadPlanes()
@@ -1547,7 +1530,7 @@ void GPUWorker::uploadPlanes()
 		forcesEngine->setplanes(gdata->s_hPlanes);
 }
 template<>
-void GPUWorker::runCommand<UPLOAD_PLANES>() { uploadPlanes(); }
+void GPUWorker::runCommand<UPLOAD_PLANES>(CommandStruct const& cmd) { uploadPlanes(); }
 
 
 // Create a compact device map, for this device, from the global one,
@@ -1785,7 +1768,7 @@ void GPUWorker::finalize()
 }
 
 template<>
-void GPUWorker::runCommand<CALCHASH>()
+void GPUWorker::runCommand<CALCHASH>(CommandStruct const& cmd)
 // void GPUWorker::kernel_calcHash()
 {
 	// is the device empty? (unlikely but possible before LB kicks in)
@@ -1816,7 +1799,7 @@ void GPUWorker::runCommand<CALCHASH>()
 }
 
 template<>
-void GPUWorker::runCommand<SORT>()
+void GPUWorker::runCommand<SORT>(CommandStruct const& cmd)
 // void GPUWorker::kernel_sort()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
@@ -1838,7 +1821,7 @@ void GPUWorker::runCommand<SORT>()
 }
 
 template<>
-void GPUWorker::runCommand<REORDER>()
+void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 // void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
 	// for the unsorted list, pick whatever is left of the IMPORT_BUFFERS
@@ -1872,7 +1855,7 @@ void GPUWorker::runCommand<REORDER>()
 }
 
 template<>
-void GPUWorker::runCommand<BUILDNEIBS>()
+void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_buildNeibsList()
 {
 	neibsEngine->resetinfo();
@@ -1915,9 +1898,10 @@ void GPUWorker::runCommand<BUILDNEIBS>()
 }
 
 // returns numBlocks as computed by forces()
-uint GPUWorker::enqueueForcesOnRange(BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset)
+uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
+	BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset)
 {
-	const int step = get_step_number(gdata->commandFlags);
+	const int step = get_step_number(cmd.flags);
 	const bool firstStep = (step == 1);
 
 	const BufferList& bufread = buffer_lists.first;
@@ -1948,10 +1932,10 @@ uint GPUWorker::enqueueForcesOnRange(BufferListPair& buffer_lists, uint fromPart
 /// Run the steps necessary for forces execution
 /** This includes things such as binding textures and clearing the CFL buffers
  */
-GPUWorker::BufferListPair GPUWorker::pre_forces()
+GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
 {
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
-	const string current_state = getCurrentStateByCommandFlags(step_flag);
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
+	const string current_state = getCurrentStateByCommandFlags(cmd.flags);
 
 	const BufferList bufread = m_dBuffers.state_subset(current_state,
 		BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
@@ -1992,9 +1976,9 @@ GPUWorker::BufferListPair GPUWorker::pre_forces()
 /** This includes things such as ubinding textures and getting the
  * maximum allowed time-step
  */
-float GPUWorker::post_forces()
+float GPUWorker::post_forces(CommandStruct const& cmd)
 {
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const string current_state = getCurrentStateByCommandFlags(step_flag);
 
 	forcesEngine->unbind_textures();
@@ -2087,10 +2071,10 @@ bool GPUWorker::isCellInsideProblemDomain(int cx, int cy, int cz)
 }
 
 template<>
-void GPUWorker::runCommand<FORCES_ENQUEUE>()
+void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 // void GPUWorker::kernel_forces_async_enqueue()
 {
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 
 	if (!gdata->only_internal)
 		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
@@ -2138,17 +2122,17 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>()
 
 	if (numPartsToElaborate > 0 ) {
 		// setup for forces execution
-		BufferListPair buffer_lists = pre_forces();
+		BufferListPair buffer_lists = pre_forces(cmd);
 
 		// enqueue the first kernel call (on the particles in edging cells)
-		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(buffer_lists,
+		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(cmd, buffer_lists,
 			nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
 
 		// the following event will be used to wait for the first stripe to complete
 		cudaEventRecord(m_halfForcesEvent, 0);
 
 		// enqueue the second kernel call (on the rest)
-		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(buffer_lists,
+		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(cmd, buffer_lists,
 			0, nonEdgingStripeSize, m_forcesKernelTotalNumBlocks);
 
 		// We could think of synchronizing in UPDATE_EXTERNAL or APPEND_EXTERNAL instead of here, so that we do not
@@ -2160,7 +2144,7 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>()
 }
 
 template<>
-void GPUWorker::runCommand<FORCES_COMPLETE>()
+void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 // void GPUWorker::kernel_forces_async_complete()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2168,14 +2152,14 @@ void GPUWorker::runCommand<FORCES_COMPLETE>()
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
 
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	bool firstStep = (cmd.flags & INTEGRATOR_STEP_1);
 
 	if (numPartsToElaborate > 0 ) {
 		// wait for the completion of the kernel
 		cudaDeviceSynchronize();
 
 		// unbind the textures
-		returned_dt = post_forces();
+		returned_dt = post_forces(cmd);
 	}
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
@@ -2189,10 +2173,10 @@ void GPUWorker::runCommand<FORCES_COMPLETE>()
 
 
 template<>
-void GPUWorker::runCommand<FORCES_SYNC>()
+void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 // void GPUWorker::kernel_forces()
 {
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 
 	if (!gdata->only_internal)
 		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
@@ -2204,20 +2188,21 @@ void GPUWorker::runCommand<FORCES_SYNC>()
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
 
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	bool firstStep = (cmd.flags & INTEGRATOR_STEP_1);
 
 	const uint fromParticle = 0;
 	const uint toParticle = numPartsToElaborate;
 
 	if (numPartsToElaborate > 0 ) {
 		// setup for forces execution
-		BufferListPair buffer_lists = pre_forces();
+		BufferListPair buffer_lists = pre_forces(cmd);
 
 		// enqueue the kernel call
-		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(buffer_lists, fromParticle, toParticle, 0);
+		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(cmd,
+			buffer_lists, fromParticle, toParticle, 0);
 
 		// cleanup post forces and get dt
-		returned_dt = post_forces();
+		returned_dt = post_forces(cmd);
 	}
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
@@ -2231,7 +2216,7 @@ void GPUWorker::runCommand<FORCES_SYNC>()
 }
 
 template<>
-void GPUWorker::runCommand<EULER>()
+void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 // void GPUWorker::kernel_euler()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2239,7 +2224,7 @@ void GPUWorker::runCommand<EULER>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
@@ -2282,7 +2267,7 @@ void GPUWorker::runCommand<EULER>()
 }
 
 template<>
-void GPUWorker::runCommand<DENSITY_SUM>()
+void GPUWorker::runCommand<DENSITY_SUM>(CommandStruct const& cmd)
 // void GPUWorker::kernel_density_sum()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2290,7 +2275,7 @@ void GPUWorker::runCommand<DENSITY_SUM>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
@@ -2333,7 +2318,7 @@ void GPUWorker::runCommand<DENSITY_SUM>()
 }
 
 template<>
-void GPUWorker::runCommand<INTEGRATE_GAMMA>()
+void GPUWorker::runCommand<INTEGRATE_GAMMA>(CommandStruct const& cmd)
 // void GPUWorker::kernel_integrate_gamma()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2341,7 +2326,7 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
@@ -2384,7 +2369,7 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>()
 }
 
 template<>
-void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>()
+void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 // void GPUWorker::kernel_calc_density_diffusion()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2392,7 +2377,7 @@ void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
@@ -2428,7 +2413,7 @@ void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>()
 }
 
 template<>
-void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>()
+void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 // void GPUWorker::kernel_apply_density_diffusion()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2436,7 +2421,7 @@ void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
@@ -2467,7 +2452,7 @@ void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>()
 }
 
 template<>
-void GPUWorker::runCommand<DOWNLOAD_IOWATERDEPTH>()
+void GPUWorker::runCommand<DOWNLOAD_IOWATERDEPTH>(CommandStruct const& cmd)
 // void GPUWorker::kernel_download_iowaterdepth()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2483,7 +2468,7 @@ void GPUWorker::runCommand<DOWNLOAD_IOWATERDEPTH>()
 }
 
 template<>
-void GPUWorker::runCommand<UPLOAD_IOWATERDEPTH>()
+void GPUWorker::runCommand<UPLOAD_IOWATERDEPTH>(CommandStruct const& cmd)
 // void GPUWorker::kernel_upload_iowaterdepth()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2499,7 +2484,7 @@ void GPUWorker::runCommand<UPLOAD_IOWATERDEPTH>()
 }
 
 template<>
-void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>()
+void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>(CommandStruct const& cmd)
 // void GPUWorker::kernel_imposeBoundaryCondition()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2507,7 +2492,7 @@ void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const string state = getNextStateByCommandFlags(step_flag);
 
@@ -2535,7 +2520,7 @@ void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>()
 }
 
 template<>
-void GPUWorker::runCommand<INIT_IO_MASS_VERTEX_COUNT>()
+void GPUWorker::runCommand<INIT_IO_MASS_VERTEX_COUNT>(CommandStruct const& cmd)
 // void GPUWorker::kernel_initIOmass_vertexCount()
 {
 	uint numPartsToElaborate = m_numParticles;
@@ -2561,7 +2546,7 @@ void GPUWorker::runCommand<INIT_IO_MASS_VERTEX_COUNT>()
 }
 
 template<>
-void GPUWorker::runCommand<INIT_IO_MASS>()
+void GPUWorker::runCommand<INIT_IO_MASS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_initIOmass()
 {
 	uint numPartsToElaborate = m_numParticles;
@@ -2587,7 +2572,7 @@ void GPUWorker::runCommand<INIT_IO_MASS>()
 }
 
 template<>
-void GPUWorker::runCommand<FILTER>()
+void GPUWorker::runCommand<FILTER>(CommandStruct const& cmd)
 // void GPUWorker::kernel_filter()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2595,7 +2580,7 @@ void GPUWorker::runCommand<FILTER>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	FilterType filtertype = FilterType(gdata->extraCommandArg.flag);
+	FilterType filtertype = FilterType(cmd.flags);
 	FilterEngineSet::const_iterator filterpair(filterEngines.find(filtertype));
 	// make sure we're going to call an instantiated filter
 	if (filterpair == filterEngines.end()) {
@@ -2619,7 +2604,7 @@ void GPUWorker::runCommand<FILTER>()
 }
 
 template<>
-void GPUWorker::runCommand<POSTPROCESS>()
+void GPUWorker::runCommand<POSTPROCESS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_postprocess()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2627,7 +2612,7 @@ void GPUWorker::runCommand<POSTPROCESS>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	PostProcessType proctype = PostProcessType(gdata->extraCommandArg.flag);
+	PostProcessType proctype = PostProcessType(cmd.flags);
 	PostProcessEngineSet::const_iterator procpair(postProcEngines.find(proctype));
 	// make sure we're going to call an instantiated filter
 	if (procpair == postProcEngines.end()) {
@@ -2662,7 +2647,7 @@ void GPUWorker::runCommand<POSTPROCESS>()
 }
 
 template<>
-void GPUWorker::runCommand<COMPUTE_DENSITY>()
+void GPUWorker::runCommand<COMPUTE_DENSITY>(CommandStruct const& cmd)
 // void GPUWorker::kernel_compute_density()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2670,7 +2655,7 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const string current_state = getCurrentStateByCommandFlags(step_flag);
 
 	const BufferList bufread = m_dBuffers.state_subset(current_state,
@@ -2690,7 +2675,7 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>()
 
 
 template<>
-void GPUWorker::runCommand<CALC_VISC>()
+void GPUWorker::runCommand<CALC_VISC>(CommandStruct const& cmd)
 // void GPUWorker::kernel_visc()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2698,7 +2683,7 @@ void GPUWorker::runCommand<CALC_VISC>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const string current_state = getCurrentStateByCommandFlags(step_flag);
 
 	const BufferList bufread = m_dBuffers.state_subset(current_state,
@@ -2718,10 +2703,10 @@ void GPUWorker::runCommand<CALC_VISC>()
 }
 
 template<>
-void GPUWorker::runCommand<REDUCE_BODIES_FORCES>()
+void GPUWorker::runCommand<REDUCE_BODIES_FORCES>(CommandStruct const& cmd)
 // void GPUWorker::kernel_reduceRBForces()
 {
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const string current_state = getCurrentStateByCommandFlags(step_flag);
 
@@ -2754,7 +2739,7 @@ void GPUWorker::runCommand<REDUCE_BODIES_FORCES>()
 }
 
 template<>
-void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>()
+void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saSegmentBoundaryConditions()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2762,7 +2747,7 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const string state = getNextStateByCommandFlags(step_flag);
 
@@ -2809,7 +2794,7 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>()
 }
 
 template<>
-void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>()
+void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saVertexBoundaryConditions()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2817,7 +2802,7 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
 	const string current_state = getCurrentStateByCommandFlags(step_flag);
 	const string next_state = getNextStateByCommandFlags(step_flag);
@@ -2861,7 +2846,7 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>()
 }
 
 template<>
-void GPUWorker::runCommand<SA_COMPUTE_VERTEX_NORMAL>()
+void GPUWorker::runCommand<SA_COMPUTE_VERTEX_NORMAL>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saComputeVertexNormal()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2888,7 +2873,7 @@ void GPUWorker::runCommand<SA_COMPUTE_VERTEX_NORMAL>()
 }
 
 template<>
-void GPUWorker::runCommand<SA_INIT_GAMMA>()
+void GPUWorker::runCommand<SA_INIT_GAMMA>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saInitGamma()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2918,7 +2903,7 @@ void GPUWorker::runCommand<SA_INIT_GAMMA>()
 }
 
 template<>
-void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>()
+void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saIdentifyCornerVertices()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2943,7 +2928,7 @@ void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>()
 }
 
 template<>
-void GPUWorker::runCommand<DISABLE_OUTGOING_PARTS>()
+void GPUWorker::runCommand<DISABLE_OUTGOING_PARTS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_disableOutgoingParts()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2987,13 +2972,14 @@ void GPUWorker::uploadConstants()
 // - pindex is the current index of the particle being investigated (to be found with BUFFER_VERTIDINDEX
 //   (when available) or in doWrite() after saving (if a save was performed after last reorder).
 // Possible improvement: make it accept buffer flags. But is it worth the time?
-void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
+void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
+	const char* printID, const uint pindex)
 {
 	// here it is possible to set a condition on the simulation state, device number, e.g.:
 	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
 	// if (m_deviceIndex == 1) return;
 
-	const flag_t step_flag = gdata->commandFlags & ALL_INTEGRATION_STEPS;
+	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const string current_state = getCurrentStateByCommandFlags(step_flag);
 	const string next_state = getNextStateByCommandFlags(step_flag);
 
@@ -3096,7 +3082,7 @@ void GPUWorker::uploadEulerBodiesCentersOfGravity()
 	integrationEngine->setrbcg(gdata->s_hRbCgGridPos, gdata->s_hRbCgPos, m_simparams->numbodies);
 }
 template<>
-void GPUWorker::runCommand<EULER_UPLOAD_OBJECTS_CG>()
+void GPUWorker::runCommand<EULER_UPLOAD_OBJECTS_CG>(CommandStruct const& cmd)
 { uploadEulerBodiesCentersOfGravity(); }
 
 void GPUWorker::uploadForcesBodiesCentersOfGravity()
@@ -3104,12 +3090,12 @@ void GPUWorker::uploadForcesBodiesCentersOfGravity()
 	forcesEngine->setrbcg(gdata->s_hRbCgGridPos, gdata->s_hRbCgPos, m_simparams->numbodies);
 }
 template<>
-void GPUWorker::runCommand<FORCES_UPLOAD_OBJECTS_CG>()
+void GPUWorker::runCommand<FORCES_UPLOAD_OBJECTS_CG>(CommandStruct const& cmd)
 { uploadForcesBodiesCentersOfGravity(); }
 
 
 template<>
-void GPUWorker::runCommand<UPLOAD_OBJECTS_MATRICES>()
+void GPUWorker::runCommand<UPLOAD_OBJECTS_MATRICES>(CommandStruct const& cmd)
 // void GPUWorker::uploadBodiesTransRotMatrices()
 {
 	integrationEngine->setrbtrans(gdata->s_hRbTranslations, m_simparams->numbodies);
@@ -3117,7 +3103,7 @@ void GPUWorker::runCommand<UPLOAD_OBJECTS_MATRICES>()
 }
 
 template<>
-void GPUWorker::runCommand<UPLOAD_OBJECTS_VELOCITIES>()
+void GPUWorker::runCommand<UPLOAD_OBJECTS_VELOCITIES>(CommandStruct const& cmd)
 // void GPUWorker::uploadBodiesVelocities()
 {
 	integrationEngine->setrblinearvel(gdata->s_hRbLinearVelocities, m_simparams->numbodies);
@@ -3125,11 +3111,11 @@ void GPUWorker::runCommand<UPLOAD_OBJECTS_VELOCITIES>()
 }
 
 template<>
-void GPUWorker::runCommand<IDLE>()
+void GPUWorker::runCommand<IDLE>(CommandStruct const& cmd)
 { /* do nothing */ }
 
 template<>
-void GPUWorker::runCommand<QUIT>()
+void GPUWorker::runCommand<QUIT>(CommandStruct const& cmd)
 {
 	/* TODO: this currently does nothing, but it should probably check
 	 * that gdata->keep_going has been set false
@@ -3137,7 +3123,7 @@ void GPUWorker::runCommand<QUIT>()
 }
 
 template<>
-void GPUWorker::runCommand<NUM_COMMANDS>()
+void GPUWorker::runCommand<NUM_COMMANDS>(CommandStruct const& cmd)
 {
 	unknownCommand(NUM_COMMANDS);
 }
@@ -3152,7 +3138,7 @@ void GPUWorker::unknownCommand(CommandName cmd)
 
 
 template<CommandName Cmd>
-void GPUWorker::describeCommand()
+void GPUWorker::describeCommand(CommandStruct const& cmd)
 {
 	if (Cmd >= NUM_COMMANDS) {
 		/* nothing to describe, this is an error condition;
@@ -3166,28 +3152,28 @@ void GPUWorker::describeCommand()
 
 	// Add buffer specification, if needed
 	if (CommandTraits<Cmd>::buffer_usage == DYNAMIC_BUFFER_USAGE)
-		desc += describeCommandFlagsBuffers();
+		desc += describeCommandFlagsBuffers(cmd.flags);
 
 	// Add extra information, if needed
 	switch (Cmd) {
 	case FILTER:
-		desc += " " + string(FilterName[gdata->extraCommandArg.flag]);
+		desc += " " + string(FilterName[cmd.flags]);
 		break;
 	case POSTPROCESS:
-		desc += " " + string(PostProcessName[gdata->extraCommandArg.flag]);
+		desc += " " + string(PostProcessName[cmd.flags]);
 		break;
 	case INIT_STATE:
 	case RELEASE_STATE:
-		desc += " " + gdata->extraCommandArg.string;
+		desc += " " + cmd.src;
 		break;
 	case RENAME_STATE:
-		desc += " " + gdata->extraCommandArg.strings[0] + " -> " + gdata->extraCommandArg.strings[1];
+		desc += " " + cmd.src + " -> " + cmd.dst;
 		break;
 	case REMOVE_STATE_BUFFERS:
-		desc += " < " + gdata->extraCommandArg.string;
+		desc += " < " + cmd.src;
 		break;
 	case SHARE_BUFFERS:
-		desc += " : " + gdata->extraCommandArg.strings[0] + " <> " + gdata->extraCommandArg.strings[1];
+		desc += " : " + cmd.src + " <> " + cmd.dst;
 		break;
 	}
 
@@ -3200,6 +3186,8 @@ void GPUWorker::describeCommand()
 // the specializations of runCommand
 void GPUWorker::simulationThread() {
 	// INITIALIZATION PHASE
+
+	CommandStruct cmd(IDLE);
 
 	try {
 
@@ -3231,15 +3219,17 @@ void GPUWorker::simulationThread() {
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
 		while (gdata->keep_going) {
 
-			switch (gdata->nextCommand) {
+			cmd = gdata->nextCommand;
+
+			switch (cmd.command) {
 #define DEFINE_COMMAND(code, ...) \
 			case code: \
-				if (dbg_step_printf) describeCommand<code>(); \
-				runCommand<code>(); \
+				if (dbg_step_printf) describeCommand<code>(cmd); \
+				runCommand<code>(cmd); \
 				break;
 #include "define_commands.h"
 			default:
-				unknownCommand(gdata->nextCommand);
+				unknownCommand(cmd.command);
 			}
 			if (dbg_buffer_lists)
 				cout << m_dBuffers.inspect() << endl;
@@ -3249,7 +3239,7 @@ void GPUWorker::simulationThread() {
 				// alternatively, can be used in the previous switch construct, to check who changes what
 				if (gdata->iterations >= 10) {
 				dbg_step_printf = true; // optional
-				checkPartValByIndex("test", 0);
+				checkPartValByIndex(cmd, "test", 0);
 				}
 				*/
 				// the first barrier waits for the main thread to set the next command; the second is to unlock
@@ -3260,7 +3250,7 @@ void GPUWorker::simulationThread() {
 	} catch (exception const& e) {
 		cerr << "Device " << (int)m_deviceIndex << " thread " << hex << this_thread::get_id() << dec
 			<< " iteration " << gdata->iterations
-			<< " last command: " << gdata->nextCommand << " (" << getCommandName(gdata->nextCommand)
+			<< " last command: " << cmd.command << " (" << getCommandName(cmd)
 			<< "). Exception: " << e.what() << endl;
 		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
