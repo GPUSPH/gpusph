@@ -592,7 +592,11 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 	// TODO when support for Grenier's formulation is added to models
 	// with boundary conditions, the computation of the new sigma and
 	// smoothed density should be moved here from the beginning of
-	// runIntegratorStep
+	// runIntegratorStep.
+	// TODO FIXME: the issue with moving steps such as COMPUTE_DENSITY
+	// and CALC_VISC here is that then we'll need to either reorder
+	// the SIGMA and SPS arrays, or recompute them anyway after a neighbors
+	// list rebuilt
 
 	// semi-analytical boundary conditions, but not during init if we resumed
 	if (!resumed) switch (problem->simparams()->boundarytype) {
