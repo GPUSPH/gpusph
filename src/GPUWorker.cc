@@ -3227,7 +3227,7 @@ void GPUWorker::simulationThread() {
 				if (dbg_step_printf) describeCommand<code>(cmd); \
 				runCommand<code>(cmd); \
 				break;
-#include "define_commands.h"
+#include "define_worker_commands.h"
 			default:
 				unknownCommand(cmd.command);
 			}

@@ -484,6 +484,26 @@ bool GPUSPH::finalize() {
 	return true;
 }
 
+// run a host command
+// TODO make it a template method like the worker dispatch
+void GPUSPH::runCommand(CommandStruct const& cmd)
+{
+	switch (cmd.command)
+	{
+	case UPDATE_ARRAY_INDICES:
+		updateArrayIndices();
+		break;
+	case RUN_CALLBACKS:
+		doCallBacks(cmd.flags);
+		break;
+	case MOVE_BODIES:
+		move_bodies(cmd.flags);
+		break;
+	default:
+		throw runtime_error("invalid host command");
+	}
+}
+
 // set nextCommand, unlock the threads and wait for them to complete
 void GPUSPH::doCommand(CommandStruct const& cmd)
 {
@@ -495,6 +515,11 @@ void GPUSPH::doCommand(CommandStruct const& cmd)
 	 memset(gdata->s_hVel, 0, float4Size);
 	 memset(gdata->s_hInfo, 0, infoSize);
 	 } */
+
+	if (cmd.command > NUM_WORKER_COMMANDS) {
+		runCommand(cmd);
+		return;
+	}
 
 	gdata->nextCommand = cmd;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
@@ -559,7 +584,7 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 	// variable gravity
 	if (problem->simparams()->gcallback) {
 		// ask the Problem to update gravity, one per process
-		doCallBacks(current_integrator_step);
+		doCommand(RUN_CALLBACKS, current_integrator_step);
 		// upload on the GPU, one per device
 		doCommand(UPLOAD_GRAVITY);
 	}
@@ -586,6 +611,8 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 		problem->simparams()->simflags & ENABLE_INLET_OUTLET)
 	{
 		doCommand(DOWNLOAD_NEWNUMPARTS);
+
+		// TODO turn the following sequence into a proper host command
 		gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
 		for (uint d = 1; d < gdata->devices; d++)
 			gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
@@ -692,7 +719,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		doCommand(FORCES_COMPLETE, integrator_step);
 
 	// Take care of moving bodies
-	move_bodies(integrator_step);
+	doCommand(MOVE_BODIES, integrator_step);
 
 	// On the predictor, we need to (re)init the predicted status (n*),
 	// on the corrector this will be updated (in place) to the corrected status (n+1)
@@ -1981,7 +2008,7 @@ void GPUSPH::buildNeibList()
 		// maybe overlapping with dumping cells (run async before dumping the cells)
 
 		// update particle offsets
-		updateArrayIndices();
+		doCommand(UPDATE_ARRAY_INDICES);
 		// crop external cells
 		doCommand(CROP);
 		// append fresh copies of the externals
@@ -1991,8 +2018,9 @@ void GPUSPH::buildNeibList()
 		// update the newNumParticles device counter
 		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
 			doCommand(UPLOAD_NEWNUMPARTS);
-	} else
-		updateArrayIndices();
+	} else {
+		doCommand(UPDATE_ARRAY_INDICES);
+	}
 
 	// build neib lists only for internal particles
 	gdata->only_internal = true;
@@ -2001,7 +2029,10 @@ void GPUSPH::buildNeibList()
 	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
 		doCommand(UPDATE_EXTERNAL, "sorted", BUFFER_VERTPOS);
 
+	doCommand(RENAME_STATE, "sorted", "step n");
+
 	// scan and check the peak number of neighbors and the estimated number of interactions
+	// TODO make into its own host command
 	static const uint maxPossibleFluidBoundaryNeibs = problem->simparams()->neibboundpos;
 	static const uint maxPossibleVertexNeibs = problem->simparams()->boundarytype == SA_BOUNDARY ? problem->simparams()->neiblistsize - problem->simparams()->neibboundpos - 2 : 0;
 	for (uint d = 0; d < gdata->devices; d++) {
@@ -2025,8 +2056,6 @@ void GPUSPH::buildNeibList()
 
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
-
-	doCommand(RENAME_STATE, "sorted", "step n");
 
 	gdata->last_buildneibs_iteration = gdata->iterations;
 }

@@ -108,7 +108,11 @@ private:
 	// perform post-filling operations
 	void prepareProblem();
 
-	// set nextCommand, unlock the threads and wait for them to complete
+	// run a host command
+	void runCommand(CommandStruct const& cmd);
+	// dispatch the command cmd, either by running it in GPUSPH itself,
+	// or by setting nextCommand, unlocking the threads and waiting for them
+	// to complete
 	void doCommand(CommandStruct const& cmd);
 	void doCommand(CommandStruct cmd, flag_t flags);
 
