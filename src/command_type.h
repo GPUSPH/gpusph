@@ -66,6 +66,54 @@ inline const char * getCommandName(CommandName cmd)
 }
 
 /*
+ * Command traits
+ */
+
+//! Specification of buffer usage by commands
+enum CommandBufferUsage
+{
+	NO_BUFFER_USAGE, ///< command does not touch any buffer
+	STATIC_BUFFER_USAGE, ///< command works on a fixed set of buffers
+	DYNAMIC_BUFFER_USAGE ///< command needs a parameter specifying the buffers to operate on
+};
+
+template<CommandName T>
+struct CommandTraits
+{
+	static constexpr CommandName command = T;
+	static constexpr CommandBufferUsage buffer_usage = NO_BUFFER_USAGE;
+	static constexpr bool only_internal = true;
+};
+
+
+/* Generic macro for the definition of a command traits structure */
+/* TODO reads, updates and writes specifications will be moved to the integrator */
+#define DEFINE_COMMAND(_command, _internal, _usage, _reads, _updates, _writes) \
+template<> \
+struct CommandTraits<_command> \
+{ \
+	static constexpr CommandName command = _command; \
+	static constexpr CommandBufferUsage buffer_usage = _usage; \
+	static constexpr bool only_internal = _internal; \
+};
+
+#include "define_commands.h"
+
+#undef DEFINE_COMMAND
+
+inline bool isCommandInternal(CommandName cmd)
+{
+	switch (cmd) {
+#define DEFINE_COMMAND(_command, _internal, _usage, _reads, _updates, _writes) \
+	case _command: return _internal;
+#include "define_commands.h"
+#undef DEFINE_COMMAND
+	default:
+		return false;
+	}
+}
+
+/*
  * Structures needed to specify command arguments
  */
 
@@ -95,14 +143,6 @@ struct StateBuffers
  */
 typedef std::vector<StateBuffers> CommandBufferArgument;
 
-//! Specification of buffer usage by commands
-enum CommandBufferUsage
-{
-	NO_BUFFER_USAGE, ///< command does not touch any buffer
-	STATIC_BUFFER_USAGE, ///< command works on a fixed set of buffers
-	DYNAMIC_BUFFER_USAGE ///< command needs a parameter specifying the buffers to operate on
-};
-
 //! A full command structure
 /*! The distinction between updates and writes specification
  * is that in the updates case the buffer(s) will also be read,
@@ -121,6 +161,7 @@ struct CommandStruct
 	CommandBufferArgument reads;
 	CommandBufferArgument updates;
 	CommandBufferArgument writes;
+	bool only_internal; ///< does the command run only on internal particles?
 
 	CommandStruct(CommandName cmd) :
 		command(cmd),
@@ -129,7 +170,8 @@ struct CommandStruct
 		flags(NO_FLAGS),
 		reads(),
 		updates(),
-		writes()
+		writes(),
+		only_internal(isCommandInternal(cmd))
 	{}
 
 	// setters
@@ -152,31 +194,5 @@ struct CommandStruct
 inline const char * getCommandName(CommandStruct const& cmd)
 { return getCommandName(cmd.command); }
 
-/*
- * Command traits
- */
-
-// TODO only_internal should be a command trait
-template<CommandName T>
-struct CommandTraits
-{
-	static constexpr CommandName command = T;
-	static constexpr CommandBufferUsage buffer_usage = NO_BUFFER_USAGE;
-};
-
-
-/* Generic macro for the definition of a command traits structure */
-/* TODO reads, updates and writes specifications will be moved to the integrator */
-#define DEFINE_COMMAND(_command, _usage, _reads, _updates, _writes) \
-template<> \
-struct CommandTraits<_command> \
-{ \
-	static constexpr CommandName command = _command; \
-	static constexpr CommandBufferUsage buffer_usage = _usage; \
-};
-
-#include "define_commands.h"
-
-#undef DEFINE_COMMAND
 
 #endif

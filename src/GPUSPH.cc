@@ -689,7 +689,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	// TODO with boundary models requiring kernels for boundary conditions,
 	// this should be moved into prepareNextStep
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
-		gdata->only_internal = true;
 		// compute density and sigma, updating WRITE vel in-place
 		doCommand(COMPUTE_DENSITY, integrator_step);
 		if (MULTI_DEVICE)
@@ -699,7 +698,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
 	if (problem->simparams()->turbmodel == SPS) {
-		gdata->only_internal = true;
 		doCommand(CALC_VISC, integrator_step);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, current_state, BUFFER_TAU);
@@ -708,7 +706,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		saveParticles(noPostProcess, current_state, integrator_step);
 
 	// compute forces only on internal particles
-	gdata->only_internal = true;
 	if (gdata->clOptions->striping && MULTI_DEVICE)
 		doCommand(FORCES_ENQUEUE, integrator_step);
 	else
@@ -739,11 +736,8 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		doCommand(RENAME_STATE, "step n*", "step n+1");
 	}
 
-	// integrate also the externals
-	gdata->only_internal = false;
 	// perform the euler integration step
 	doCommand(EULER, integrator_step);
-	gdata->only_internal = true;
 
 	if (gdata->debug.inspect_pregamma)
 		saveParticles(noPostProcess, next_state, integrator_step);
@@ -785,7 +779,6 @@ void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 		FilterType filter = flt->first;
 		uint freq = flt->second; // known to be > 0
 		if (gdata->iterations % freq == 0) {
-			gdata->only_internal = true;
 			doCommand(FILTER, filter);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
 			if (MULTI_DEVICE)
@@ -1897,7 +1890,6 @@ void GPUSPH::saveParticles(
 	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
 		flt != enabledPostProcess.end(); ++flt) {
 		PostProcessType filter = flt->first;
-		gdata->only_internal = true;
 
 		doCommand(POSTPROCESS, filter);
 
@@ -1979,9 +1971,6 @@ void GPUSPH::buildNeibList()
 	if (sorting_shared_buffers != BUFFER_NONE)
 		doCommand(SHARE_BUFFERS, "unsorted", "sorted", sorting_shared_buffers);
 
-	// run most of the following commands on all particles
-	gdata->only_internal = false;
-
 	doCommand(CALCHASH);
 	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
 	doCommand(SORT);
@@ -2026,8 +2015,6 @@ void GPUSPH::buildNeibList()
 		doCommand(UPDATE_ARRAY_INDICES);
 	}
 
-	// build neib lists only for internal particles
-	gdata->only_internal = true;
 	doCommand(BUILDNEIBS);
 
 	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
@@ -2437,11 +2424,8 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			// upload the global max value to the devices
 			doCommand(UPLOAD_IOWATERDEPTH);
 		}
-		gdata->only_internal = false;
 		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION, cFlag);
 	}
-
-	gdata->only_internal = true;
 
 	// compute boundary conditions on segments and detect outgoing particles at open boundaries
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);

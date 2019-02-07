@@ -235,10 +235,6 @@ struct GlobalData {
 	// next command to be executed by workers
 	CommandStruct nextCommand;
 
-	// set to true if next kernel has to be run only on internal particles
-	// (need support of the worker and/or the kernel)
-	bool only_internal;
-
 	// ODE objects
 	int* s_hRbFirstIndex; // first indices: so forces kernel knows where to write rigid body force
 	uint* s_hRbLastIndex; // last indices are the same for all workers
@@ -305,7 +301,6 @@ struct GlobalData {
 		lastGlobalPeakVertexNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
-		only_internal(false),
 		s_hRbFirstIndex(NULL),
 		s_hRbLastIndex(NULL),
 		s_hRbDeviceTotalForce(NULL),

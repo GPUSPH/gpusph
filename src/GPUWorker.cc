@@ -1485,7 +1485,7 @@ void GPUWorker::runCommand<DOWNLOAD_NEWNUMPARTS>(CommandStruct const& cmd)
 		//    might find trash there and crash. This is currently implemented.
 		// 2. This method is called in two phases: after the reorder and after euler. If we can distinguish between the two
 		//    phases, then we can update the m_particleRangeEnd/m_numInternalParticles only after the reorder and
-		//    m_numParticles in both. One way to do this is to use a command flag or to reuse gdata->only_internal. This
+		//    m_numParticles in both. One way to do this is to use a command flag or to reuse cmd.only_internal. This
 		//    would avoid calling forces and euler on the clones and might be undesired, since we will not apply the vel
 		//    field until next bneibs.
 		// Note: we would love to reset only the neibslists of the clones, but lists are interlaced and this would mean
@@ -1802,7 +1802,7 @@ template<>
 void GPUWorker::runCommand<SORT>(CommandStruct const& cmd)
 // void GPUWorker::kernel_sort()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_numInternalParticles : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -1860,7 +1860,7 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 {
 	neibsEngine->resetinfo();
 
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2076,7 +2076,7 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 {
 	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 
-	if (!gdata->only_internal)
+	if (!cmd.only_internal)
 		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
 
 	uint numPartsToElaborate = m_particleRangeEnd;
@@ -2147,7 +2147,7 @@ template<>
 void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 // void GPUWorker::kernel_forces_async_complete()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
@@ -2178,7 +2178,7 @@ void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 {
 	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 
-	if (!gdata->only_internal)
+	if (!cmd.only_internal)
 		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
 
 	uint numPartsToElaborate = m_particleRangeEnd;
@@ -2219,7 +2219,7 @@ template<>
 void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 // void GPUWorker::kernel_euler()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2270,7 +2270,7 @@ template<>
 void GPUWorker::runCommand<DENSITY_SUM>(CommandStruct const& cmd)
 // void GPUWorker::kernel_density_sum()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2321,7 +2321,7 @@ template<>
 void GPUWorker::runCommand<INTEGRATE_GAMMA>(CommandStruct const& cmd)
 // void GPUWorker::kernel_integrate_gamma()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2372,7 +2372,7 @@ template<>
 void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 // void GPUWorker::kernel_calc_density_diffusion()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2416,7 +2416,7 @@ template<>
 void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 // void GPUWorker::kernel_apply_density_diffusion()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2455,7 +2455,7 @@ template<>
 void GPUWorker::runCommand<DOWNLOAD_IOWATERDEPTH>(CommandStruct const& cmd)
 // void GPUWorker::kernel_download_iowaterdepth()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2471,7 +2471,7 @@ template<>
 void GPUWorker::runCommand<UPLOAD_IOWATERDEPTH>(CommandStruct const& cmd)
 // void GPUWorker::kernel_upload_iowaterdepth()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2487,7 +2487,7 @@ template<>
 void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>(CommandStruct const& cmd)
 // void GPUWorker::kernel_imposeBoundaryCondition()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2575,7 +2575,7 @@ template<>
 void GPUWorker::runCommand<FILTER>(CommandStruct const& cmd)
 // void GPUWorker::kernel_filter()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2607,7 +2607,7 @@ template<>
 void GPUWorker::runCommand<POSTPROCESS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_postprocess()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2650,7 +2650,7 @@ template<>
 void GPUWorker::runCommand<COMPUTE_DENSITY>(CommandStruct const& cmd)
 // void GPUWorker::kernel_compute_density()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2678,7 +2678,7 @@ template<>
 void GPUWorker::runCommand<CALC_VISC>(CommandStruct const& cmd)
 // void GPUWorker::kernel_visc()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2742,7 +2742,7 @@ template<>
 void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saSegmentBoundaryConditions()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2797,7 +2797,7 @@ template<>
 void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saVertexBoundaryConditions()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2849,7 +2849,7 @@ template<>
 void GPUWorker::runCommand<SA_COMPUTE_VERTEX_NORMAL>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saComputeVertexNormal()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2876,7 +2876,7 @@ template<>
 void GPUWorker::runCommand<SA_INIT_GAMMA>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saInitGamma()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2906,7 +2906,7 @@ template<>
 void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saIdentifyCornerVertices()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -2931,7 +2931,7 @@ template<>
 void GPUWorker::runCommand<DISABLE_OUTGOING_PARTS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_disableOutgoingParts()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
@@ -3228,6 +3228,7 @@ void GPUWorker::simulationThread() {
 				runCommand<code>(cmd); \
 				break;
 #include "define_worker_commands.h"
+#undef DEFINE_COMMAND
 			default:
 				unknownCommand(cmd.command);
 			}
