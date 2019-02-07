@@ -60,7 +60,7 @@ extern const char* command_name[];
  */
 inline const char * getCommandName(CommandName cmd)
 {
-	if (cmd < NUM_COMMANDS)
+	if (cmd < NUM_WORKER_COMMANDS)
 		return command_name[cmd];
 	return "<undefined command>";
 }

@@ -3123,9 +3123,9 @@ void GPUWorker::runCommand<QUIT>(CommandStruct const& cmd)
 }
 
 template<>
-void GPUWorker::runCommand<NUM_COMMANDS>(CommandStruct const& cmd)
+void GPUWorker::runCommand<NUM_WORKER_COMMANDS>(CommandStruct const& cmd)
 {
-	unknownCommand(NUM_COMMANDS);
+	unknownCommand(NUM_WORKER_COMMANDS);
 }
 
 void GPUWorker::unknownCommand(CommandName cmd)
@@ -3140,7 +3140,7 @@ void GPUWorker::unknownCommand(CommandName cmd)
 template<CommandName Cmd>
 void GPUWorker::describeCommand(CommandStruct const& cmd)
 {
-	if (Cmd >= NUM_COMMANDS) {
+	if (Cmd >= NUM_WORKER_COMMANDS) {
 		/* nothing to describe, this is an error condition;
 		 * it will be handled separately in the command dispatch switch
 		 */
