@@ -485,7 +485,7 @@ bool GPUSPH::finalize() {
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
+void GPUSPH::doCommand(CommandStruct const& cmd)
 {
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {
@@ -496,7 +496,7 @@ void GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
 	 memset(gdata->s_hInfo, 0, infoSize);
 	 } */
 
-	gdata->nextCommand = cmd.set_flags(flags);
+	gdata->nextCommand = cmd;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 
@@ -515,6 +515,12 @@ void GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
 	if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
 		checkBufferConsistency();
 #endif
+}
+
+void
+GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
+{
+	doCommand(cmd.set_flags(flags));
 }
 
 void

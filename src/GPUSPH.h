@@ -109,7 +109,8 @@ private:
 	void prepareProblem();
 
 	// set nextCommand, unlock the threads and wait for them to complete
-	void doCommand(CommandStruct cmd, flag_t flags=NO_FLAGS);
+	void doCommand(CommandStruct const& cmd);
+	void doCommand(CommandStruct cmd, flag_t flags);
 
 	// TODO possibly temporary, while states are strings
 	void doCommand(CommandStruct cmd, std::string const& src, std::string const& dst,
