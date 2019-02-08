@@ -834,7 +834,6 @@ bool GPUSPH::runSimulation() {
 
 	// compute neighbour list for the first time. This is done regardless
 	// of preparations, since we need to do one anyway
-	// Exclude invalid buffers, if any
 	buildNeibList();
 
 	if (needs_preparation) {
