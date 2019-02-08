@@ -799,10 +799,11 @@ bool GPUSPH::runSimulation() {
 		(problem->simparams()->boundarytype == SA_BOUNDARY)
 	);
 
-	if (needs_preparation) {
-		// compute neighbour list for the first time
-		buildNeibList();
+	// compute neighbour list for the first time. This is done regardless
+	// of preparations, since we need to do one anyway
+	buildNeibList();
 
+	if (needs_preparation) {
 		prepareNextStep(INITIALIZATION_STEP);
 	}
 
@@ -830,11 +831,15 @@ bool GPUSPH::runSimulation() {
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
 
-		// build neighbors list
-		if (gdata->iterations % problem->simparams()->buildneibsfreq == 0 ||
-			gdata->particlesCreated) {
+		// build neighbors list every buildneibsfreq or if we created
+		// particles, but only after the first iteration, because we have
+		// a buildNeibList() before entering this main loop
+		const bool needs_new_neibs = (gdata->iterations > 0) &&
+			((gdata->iterations % problem->simparams()->buildneibsfreq == 0) ||
+			 gdata->particlesCreated);
+
+		if (needs_new_neibs)
 			buildNeibList();
-		}
 
 		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
 
