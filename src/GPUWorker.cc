@@ -1825,14 +1825,15 @@ template<>
 void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 // void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
-	// for the unsorted list, pick whatever is left of the IMPORT_BUFFERS
-	const BufferList unsorted = m_dBuffers.state_subset_existing("unsorted",
-		IMPORT_BUFFERS);
-	BufferList sorted = m_dBuffers.state_subset("sorted",
-		unsorted.get_keys() |
-		/* these were sorted during SORT */
-		BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX |
-		BUFFERS_CELL);
+	const BufferList unsorted =
+		extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList sorted =
+		// updates holds the buffers sorted in SORT, which will only read actually
+		extractExistingBufferList(m_dBuffers, cmd.updates) |
+		// the writes specification includes a dynamic buffer selection,
+		// because the sorted state will have the buffers that were also
+		// present in unsorted
+		extractGeneralBufferList(m_dBuffers, cmd.writes, unsorted);
 
 	sorted.add_manipulator_on_write("reorder");
 

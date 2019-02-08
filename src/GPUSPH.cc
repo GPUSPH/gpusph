@@ -1971,9 +1971,6 @@ void GPUSPH::buildNeibList()
 	for (auto const& cmd : neibsListCommands)
 		doCommand(cmd);
 
-	// reorder everything else
-	doCommand(REORDER);
-
 	// we don't need the unsorted state anymore
 	doCommand(RELEASE_STATE, "unsorted");
 	// we don't need the PARTINDEX buffer anymore
@@ -2573,6 +2570,22 @@ GPUSPH::initializeCommandSequences()
 		.set_src("unsorted")
 		.set_dst("sorted")
 		.updating("unsorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX)
+		);
+
+	// reorder everything else
+	// note that, as a command, REORDER is a special case: one of the buffer specifications
+	// for the writing list is empty because it can only be determined at the runCommand<>
+	// level, by taking the buffers that were take from the reading list
+	neibsListCommands.push_back(
+		CommandStruct(REORDER)
+		// for the unsorted list, pick whatever is left of the IMPORT_BUFFERS
+		.reading("unsorted", IMPORT_BUFFERS)
+		// the buffers sorted in SORT are marked “updating”, but will actually be read-only
+		.updating("sorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX)
+		// no buffer specification, meaning “take the reading buffer list"
+		.writing("sorted", BUFFER_NONE)
+		// and we also want these
+		.writing("sorted", BUFFERS_CELL)
 		);
 
 
