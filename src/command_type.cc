@@ -29,9 +29,30 @@
  */
 
 #include "command_type.h"
+#include "ParticleSystem.h"
 
 const char* command_name[] = {
 #define DEFINE_COMMAND(_command, ...) #_command,
 #include "define_commands.h"
 #undef DEFINE_COMMAND
 };
+
+const BufferList extractExistingBufferList(
+	ParticleSystem const& ps,
+	CommandBufferArgument const& arg)
+{
+	BufferList ret;
+	for (auto const& sb : arg)
+		ret |= ps.state_subset_existing(sb.state, sb.buffers);
+	return ret;
+}
+
+BufferList extractGeneralBufferList(
+	ParticleSystem& ps,
+	CommandBufferArgument const& arg)
+{
+	BufferList ret;
+	for (auto const& sb : arg)
+		ret |= ps.state_subset(sb.state, sb.buffers);
+	return ret;
+}

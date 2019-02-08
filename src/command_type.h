@@ -37,6 +37,9 @@
 #include "common_types.h"
 #include "define_buffers.h"
 
+class BufferList;
+class ParticleSystem;
+
 //! Next step for workers.
 /*! The commands are grouped by category, depending on whether they reflect
  * actual parts of the integrator from those that have a purely “administrative”
@@ -142,6 +145,19 @@ struct StateBuffers
  * the command will read, update or write
  */
 typedef std::vector<StateBuffers> CommandBufferArgument;
+
+//! Extract the BufferList corresponding to a given CommandBufferArgument
+/*! All buffers are required to exist and be valid
+ */
+const BufferList extractExistingBufferList(
+	ParticleSystem const& ps,
+	CommandBufferArgument const& arg);
+//! Extract the BufferList corresponding to a given CommandBufferArgument
+/*! No check is done on the existence and validity of the buffers
+ */
+BufferList extractGeneralBufferList(
+	ParticleSystem& ps,
+	CommandBufferArgument const& arg);
 
 //! A full command structure
 /*! The distinction between updates and writes specification
