@@ -2512,27 +2512,21 @@ GPUSPH::initializeCommandSequences()
 	// We remove the cell, neibslist and vertex position buffers, invalidating them.
 	// They will be added to the sorted state, to be reinitialized during hash computation
 	// and neighbors list construction
-	neibsListCommands.push_back(
-		CommandStruct(REMOVE_STATE_BUFFERS)
+	neibsListCommands.push_back(REMOVE_STATE_BUFFERS)
 		.set_src("step n")
-		.set_flags(NEIBS_SEQUENCE_REFRESH_BUFFERS)
-		);
+		.set_flags(NEIBS_SEQUENCE_REFRESH_BUFFERS);
 
 	// Rename the state to “unsorted”
-	neibsListCommands.push_back(
-		CommandStruct(RENAME_STATE)
+	neibsListCommands.push_back(RENAME_STATE)
 		.set_src("step n")
-		.set_dst("unsorted")
-		);
+		.set_dst("unsorted");
 
 	// Initialize the new particle system state (“sorted”) with all particle properties
 	// (except for BUFFER_INFO, which will be sorted in-place), plus the auxiliary buffers
 	// that get rebuilt during the sort and neighbors list construction
 	// (cell start/end, vertex relative positions and the neiblists itself)
-	neibsListCommands.push_back(
-		CommandStruct(INIT_STATE)
-		.set_src("sorted")
-		);
+	neibsListCommands.push_back(INIT_STATE)
+		.set_src("sorted");
 
 	// Some buffers can be shared between the sorted and unsorted state, because
 	// they are not directly tied to the particles themselves, but the particle system
@@ -2548,36 +2542,29 @@ GPUSPH::initializeCommandSequences()
 		(has_forces_bodies ? BUFFER_RB_KEYS : BUFFER_NONE);
 
 	if (sorting_shared_buffers != BUFFER_NONE)
-		neibsListCommands.push_back(
-			CommandStruct(SHARE_BUFFERS)
+		neibsListCommands.push_back(SHARE_BUFFERS)
 			.set_src("unsorted")
 			.set_dst("sorted")
-			.set_flags(sorting_shared_buffers)
-			);
+			.set_flags(sorting_shared_buffers);
 
-	neibsListCommands.push_back(
-		CommandStruct(CALCHASH)
+	neibsListCommands.push_back(CALCHASH)
 		.reading("unsorted", BUFFER_INFO | BUFFER_COMPACT_DEV_MAP)
 		.updating("unsorted", BUFFER_POS | BUFFER_HASH)
-		.writing("unsorted", BUFFER_PARTINDEX)
-		);
+		.writing("unsorted", BUFFER_PARTINDEX);
 
 	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
 	// reordering is done in-place, so we also rename the state of these buffers
 	// from unsorted to sorted
-	neibsListCommands.push_back(
-		CommandStruct(SORT)
+	neibsListCommands.push_back(SORT)
 		.set_src("unsorted")
 		.set_dst("sorted")
-		.updating("unsorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX)
-		);
+		.updating("unsorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX);
 
 	// reorder everything else
 	// note that, as a command, REORDER is a special case: one of the buffer specifications
 	// for the writing list is empty because it can only be determined at the runCommand<>
 	// level, by taking the buffers that were take from the reading list
-	neibsListCommands.push_back(
-		CommandStruct(REORDER)
+	neibsListCommands.push_back(REORDER)
 		// for the unsorted list, pick whatever is left of the IMPORT_BUFFERS
 		.reading("unsorted", IMPORT_BUFFERS)
 		// the buffers sorted in SORT are marked “updating”, but will actually be read-only
@@ -2585,8 +2572,7 @@ GPUSPH::initializeCommandSequences()
 		// no buffer specification, meaning “take the reading buffer list"
 		.writing("sorted", BUFFER_NONE)
 		// and we also want these
-		.writing("sorted", BUFFERS_CELL)
-		);
+		.writing("sorted", BUFFERS_CELL);
 
 
 	/* TODO */
