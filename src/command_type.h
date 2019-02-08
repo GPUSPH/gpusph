@@ -195,16 +195,26 @@ struct CommandStruct
 	{ src = src_; return *this; }
 	CommandStruct& set_dst(std::string const& dst_)
 	{ dst = dst_; return *this; }
+
 	CommandStruct& set_flags(flag_t f)
 	{ flags |= f; return *this; }
 	CommandStruct& clear_flags(flag_t f)
 	{ flags &= ~f; return *this; }
+
 	CommandStruct& reading(StateBuffers const& buf)
 	{ reads.push_back(buf); return *this; }
+	CommandStruct& reading(std::string const& state, flag_t buffers)
+	{ reads.push_back(StateBuffers(state, buffers)); return *this; }
+
 	CommandStruct& updating(StateBuffers const& buf)
 	{ updates.push_back(buf); return *this; }
+	CommandStruct& updating(std::string const& state, flag_t buffers)
+	{ updates.push_back(StateBuffers(state, buffers)); return *this; }
+
 	CommandStruct& writing(StateBuffers const& buf)
 	{ writes.push_back(buf); return *this; }
+	CommandStruct& writing(std::string const& state, flag_t buffers)
+	{ writes.push_back(StateBuffers(state, buffers)); return *this; }
 };
 
 inline const char * getCommandName(CommandStruct const& cmd)
