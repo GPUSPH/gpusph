@@ -1971,33 +1971,6 @@ void GPUSPH::buildNeibList()
 	for (auto const& cmd : neibsListCommands)
 		doCommand(cmd);
 
-	// We want to sort the particles starting from the state “step n”.
-	// We remove the cell, neibslist and vertex position buffers, invalidating them.
-	// They will be added to the sorted state, to be reinitialized during hash computation
-	// and neighbors list construction
-	doCommand(REMOVE_STATE_BUFFERS, "step n", NEIBS_SEQUENCE_REFRESH_BUFFERS);
-
-	// Rename the state to “unsorted”
-	doCommand(RENAME_STATE, "step n", "unsorted");
-
-	// Initialize the new particle system state (“sorted”) with all particle properties
-	// (except for BUFFER_INFO, which will be sorted in-place), plus the auxiliary buffers
-	// that get rebuilt during the sort and neighbors list construction
-	// (cell start/end, vertex relative positions and the neiblists itself)
-	doCommand(INIT_STATE, "sorted");
-
-	static const flag_t has_forces_bodies = (problem->simparams()->numforcesbodies > 0);
-
-	static const flag_t sorting_shared_buffers =
-	// The compact device map (when present) carries over to the other state, unchanged
-		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
-	// The object particle key buffer is static (precomputed on host, never changes),
-	// so we bring it across all particle states
-		(has_forces_bodies ? BUFFER_RB_KEYS : BUFFER_NONE);
-
-	if (sorting_shared_buffers != BUFFER_NONE)
-		doCommand(SHARE_BUFFERS, "unsorted", "sorted", sorting_shared_buffers);
-
 	doCommand(CALCHASH);
 	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
 	doCommand(SORT);
@@ -2538,5 +2511,56 @@ void GPUSPH::check_write(bool we_are_done)
 void
 GPUSPH::initializeCommandSequences()
 {
+	/* Initialize the niebsList Commands */
+	neibsListCommands.reserve(20);
+
+	// We want to sort the particles starting from the state “step n”.
+	// We remove the cell, neibslist and vertex position buffers, invalidating them.
+	// They will be added to the sorted state, to be reinitialized during hash computation
+	// and neighbors list construction
+	neibsListCommands.push_back(
+		CommandStruct(REMOVE_STATE_BUFFERS)
+		.set_src("step n")
+		.set_flags(NEIBS_SEQUENCE_REFRESH_BUFFERS)
+		);
+
+	// Rename the state to “unsorted”
+	neibsListCommands.push_back(
+		CommandStruct(RENAME_STATE)
+		.set_src("step n")
+		.set_dst("unsorted")
+		);
+
+	// Initialize the new particle system state (“sorted”) with all particle properties
+	// (except for BUFFER_INFO, which will be sorted in-place), plus the auxiliary buffers
+	// that get rebuilt during the sort and neighbors list construction
+	// (cell start/end, vertex relative positions and the neiblists itself)
+	neibsListCommands.push_back(
+		CommandStruct(INIT_STATE)
+		.set_src("sorted")
+		);
+
+	// Some buffers can be shared between the sorted and unsorted state, because
+	// they are not directly tied to the particles themselves, but the particle system
+	// as a whole. The buffers that need to get shared depend on a number of conditions:
+
+	static const flag_t has_forces_bodies = (problem->simparams()->numforcesbodies > 0);
+
+	static const flag_t sorting_shared_buffers =
+	// The compact device map (when present) carries over to the other state, unchanged
+		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
+	// The object particle key buffer is static (precomputed on host, never changes),
+	// so we bring it across all particle states
+		(has_forces_bodies ? BUFFER_RB_KEYS : BUFFER_NONE);
+
+	if (sorting_shared_buffers != BUFFER_NONE)
+		neibsListCommands.push_back(
+			CommandStruct(SHARE_BUFFERS)
+			.set_src("unsorted")
+			.set_dst("sorted")
+			.set_flags(sorting_shared_buffers)
+			);
+
+
 	/* TODO */
 }
