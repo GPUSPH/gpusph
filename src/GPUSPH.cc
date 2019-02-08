@@ -62,15 +62,27 @@ GPUSPH* GPUSPH::getInstance() {
 	return &instance;
 }
 
-GPUSPH::GPUSPH() {
-	clOptions = NULL;
-	gdata = NULL;
-	problem = NULL;
+GPUSPH::GPUSPH() :
+	clOptions(NULL),
+	gdata(NULL),
+	problem(NULL),
 
-	initialized = false;
-	m_peakParticleSpeed = 0.0;
-	m_peakParticleSpeedTime = 0.0;
+	m_totalPerformanceCounter(NULL),
+	m_intervalPerformanceCounter(NULL),
+	m_multiNodePerformanceCounter(NULL),
 
+	m_info_stream_name(),
+	m_info_stream(NULL),
+
+	m_rcBitmap(NULL),
+	m_rcNotified(NULL),
+	m_rcAddrs(NULL),
+
+	m_peakParticleSpeed(0.0),
+	m_peakParticleSpeedTime(0.0),
+
+	initialized(false)
+{
 	openInfoStream();
 }
 
@@ -134,7 +146,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	m_totalPerformanceCounter = new IPPSCounter();
 	m_intervalPerformanceCounter = new IPPSCounter();
 	// only init if MULTI_NODE
-	m_multiNodePerformanceCounter = NULL;
 	if (MULTI_NODE)
 		m_multiNodePerformanceCounter = new IPPSCounter();
 
