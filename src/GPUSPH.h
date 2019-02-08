@@ -41,8 +41,32 @@
 // IPPSCounter
 #include "timing.h"
 
-// A sequence of commands, modelling a phase of the integrator
-using CommandSequence = std::vector<CommandStruct>;
+//! A sequence of commands, modelling a phase of the integrator
+/*! This is essentially an std::vector<CommandStruct>, with minor changes:
+ * it only exposes reserve(), constant begin() and end() methods, and
+ * a push_back() method that returns a reference to back()
+ */
+class CommandSequence
+{
+	using base = std::vector<CommandStruct>;
+	base m_seq;
+public:
+	CommandSequence() : m_seq() {}
+
+	void reserve(size_t sz)
+	{ m_seq.reserve(sz); }
+
+	base::const_iterator begin() const
+	{ return m_seq.begin(); }
+	base::const_iterator end() const
+	{ return m_seq.end(); }
+
+	CommandStruct& push_back(CommandStruct const& cmd)
+	{
+		m_seq.push_back(cmd);
+		return m_seq.back();
+	}
+};
 
 // The GPUSPH class is singleton. Wise tips about a correct singleton implementation are give here:
 // http://stackoverflow.com/questions/1008019/c-singleton-design-pattern
