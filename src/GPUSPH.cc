@@ -428,8 +428,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf(" - device at index %u has %s particles assigned and offset %s\n",
 			d, gdata->addSeparators(gdata->s_hPartsPerDevice[d]).c_str(), gdata->addSeparators(gdata->s_hStartPerDevice[d]).c_str());
 
-	// TODO
-	//		// > new Integrator
+	// TODO this is where we would instance the Integrator class
+	// for the time being, we will instead call a function that initializes
+	// our own CommandSequences
+	initializeCommandSequences();
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
@@ -586,6 +588,12 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 		!clOptions->resume_fname.empty()
 		);
 
+	const int step_num = get_step_number(current_integrator_step);
+	if (step_num < 0)
+		throw runtime_error("prepareNextStep called with invalid integrator step");
+	for (auto const& cmd : nextStepCommands[step_num])
+		doCommand(cmd);
+
 	if (current_integrator_step == INTEGRATOR_STEP_2) {
 		// Euler needs always cg(n)
 		if (problem->simparams()->numbodies > 0)
@@ -667,6 +675,12 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 void
 GPUSPH::runIntegratorStep(const flag_t integrator_step)
 {
+	const int step_num = get_step_number(integrator_step);
+	if (step_num < 0)
+		throw runtime_error("runIntegratorStep called with invalid integrator step");
+	for (auto const& cmd : predCorrCommands[step_num])
+		doCommand(cmd);
+
 	/* In the predictor/corrector scheme we use, there are four buffers that
 	 * need special treatment:
 	 * * the INFO buffer is always representative of both states —in fact, because of this
@@ -1954,6 +1968,9 @@ void GPUSPH::saveParticles(
 
 void GPUSPH::buildNeibList()
 {
+	for (auto const& cmd : neibsListCommands)
+		doCommand(cmd);
+
 	// We want to sort the particles starting from the state “step n”.
 	// We remove the cell, neibslist and vertex position buffers, invalidating them.
 	// They will be added to the sorted state, to be reinitialized during hash computation
@@ -2516,4 +2533,10 @@ void GPUSPH::check_write(bool we_are_done)
 			}
 		}
 
+}
+
+void
+GPUSPH::initializeCommandSequences()
+{
+	/* TODO */
 }

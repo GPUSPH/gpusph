@@ -41,6 +41,9 @@
 // IPPSCounter
 #include "timing.h"
 
+// A sequence of commands, modelling a phase of the integrator
+using CommandSequence = std::vector<CommandStruct>;
+
 // The GPUSPH class is singleton. Wise tips about a correct singleton implementation are give here:
 // http://stackoverflow.com/questions/1008019/c-singleton-design-pattern
 
@@ -77,6 +80,13 @@ private:
 	// other vars
 	bool initialized;
 
+	// Command sequences describing the major phases of the integration
+	// TODO these will be moved to an actual Integrator class once we're done
+	// with the refactoring
+	CommandSequence neibsListCommands; // steps implementing buildNeibList()
+	CommandSequence nextStepCommands[3]; // steps implementing prepareNextStep(), for each of the integrator steps
+	CommandSequence predCorrCommands[2]; // steps implementing the prediction and correction phases of the integrator
+
 	// constructor and copy/assignment: private for singleton scheme
 	GPUSPH();
 	GPUSPH(GPUSPH const&); // NOT implemented
@@ -96,6 +106,10 @@ private:
 	// compute initial values for the IDs of the next generated particles,
 	// and return the number of open boundary vertices
 	uint initializeNextIDs(bool resumed);
+
+	// initialize the command sequences
+	// TODO provisional during the refactoring
+	void initializeCommandSequences();
 
 	// sort particles by device before uploading
 	void sortParticlesByHash();
