@@ -1808,8 +1808,8 @@ void GPUWorker::runCommand<SORT>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList bufwrite = m_dBuffers.state_subset("unsorted",
-		BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX);
+	BufferList bufwrite =
+		extractExistingBufferList(m_dBuffers, cmd.updates);
 	bufwrite.add_manipulator_on_write("sort");
 
 	neibsEngine->sort(
@@ -1817,7 +1817,7 @@ void GPUWorker::runCommand<SORT>(CommandStruct const& cmd)
 			bufwrite,
 			numPartsToElaborate);
 
-	m_dBuffers.change_buffers_state(bufwrite.get_updated_buffers(), "unsorted", "sorted");
+	m_dBuffers.change_buffers_state(bufwrite.get_updated_buffers(), cmd.src, cmd.dst);
 	bufwrite.clear_pending_state();
 }
 
