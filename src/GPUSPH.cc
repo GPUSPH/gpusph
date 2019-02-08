@@ -1971,7 +1971,6 @@ void GPUSPH::buildNeibList()
 	for (auto const& cmd : neibsListCommands)
 		doCommand(cmd);
 
-	doCommand(CALCHASH);
 	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
 	doCommand(SORT);
 	// reorder everything else
@@ -2560,6 +2559,13 @@ GPUSPH::initializeCommandSequences()
 			.set_dst("sorted")
 			.set_flags(sorting_shared_buffers)
 			);
+
+	neibsListCommands.push_back(
+		CommandStruct(CALCHASH)
+		.reading({"unsorted", BUFFER_INFO | BUFFER_COMPACT_DEV_MAP })
+		.updating({"unsorted", BUFFER_POS | BUFFER_HASH })
+		.writing({"unsorted", BUFFER_PARTINDEX})
+		);
 
 
 	/* TODO */

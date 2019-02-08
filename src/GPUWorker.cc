@@ -1773,11 +1773,12 @@ void GPUWorker::runCommand<CALCHASH>(CommandStruct const& cmd)
 {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
-	BufferList const bufread = m_dBuffers.state_subset("unsorted",
-		BUFFER_INFO | BUFFER_COMPACT_DEV_MAP);
+	const BufferList bufread =
+		extractExistingBufferList(m_dBuffers, cmd.reads);
 
-	BufferList bufwrite = m_dBuffers.state_subset("unsorted",
-		BUFFER_POS | BUFFER_HASH | BUFFER_PARTINDEX);
+	BufferList bufwrite =
+		extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	// calcHashDevice() should use CPU-computed hashes at iteration 0, or some particles
 	// might be lost (if a GPU computes a different hash and does not recognize the particles
