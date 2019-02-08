@@ -2560,9 +2560,9 @@ GPUSPH::initializeCommandSequences()
 
 	neibsListCommands.push_back(
 		CommandStruct(CALCHASH)
-		.reading({"unsorted", BUFFER_INFO | BUFFER_COMPACT_DEV_MAP })
-		.updating({"unsorted", BUFFER_POS | BUFFER_HASH })
-		.writing({"unsorted", BUFFER_PARTINDEX})
+		.reading("unsorted", BUFFER_INFO | BUFFER_COMPACT_DEV_MAP)
+		.updating("unsorted", BUFFER_POS | BUFFER_HASH)
+		.writing("unsorted", BUFFER_PARTINDEX)
 		);
 
 	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
@@ -2572,7 +2572,7 @@ GPUSPH::initializeCommandSequences()
 		CommandStruct(SORT)
 		.set_src("unsorted")
 		.set_dst("sorted")
-		.updating({"unsorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX})
+		.updating("unsorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX)
 		);
 
 
