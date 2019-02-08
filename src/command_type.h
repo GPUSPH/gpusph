@@ -158,6 +158,14 @@ const BufferList extractExistingBufferList(
 BufferList extractGeneralBufferList(
 	ParticleSystem& ps,
 	CommandBufferArgument const& arg);
+//! Extract a buffer list with dynamic buffer specification
+/*! This is a version of extractGeneralBufferList that will map
+ * BUFFER_NONE specifications to “list of buffers present in the other list”
+ */
+BufferList extractGeneralBufferList(
+	ParticleSystem& ps,
+	CommandBufferArgument const& arg,
+	BufferList const& model);
 
 //! A full command structure
 /*! The distinction between updates and writes specification

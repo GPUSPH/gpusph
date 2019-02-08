@@ -42,8 +42,11 @@ const BufferList extractExistingBufferList(
 	CommandBufferArgument const& arg)
 {
 	BufferList ret;
-	for (auto const& sb : arg)
+	for (auto const& sb : arg) {
+		if (sb.buffers == BUFFER_NONE)
+			throw std::invalid_argument("no buffers specified for subsetting state " + sb.state);
 		ret |= ps.state_subset_existing(sb.state, sb.buffers);
+	}
 	return ret;
 }
 
@@ -52,7 +55,26 @@ BufferList extractGeneralBufferList(
 	CommandBufferArgument const& arg)
 {
 	BufferList ret;
-	for (auto const& sb : arg)
+	for (auto const& sb : arg) {
+		if (sb.buffers == BUFFER_NONE)
+			throw std::invalid_argument("no buffers specified for subsetting state " + sb.state);
 		ret |= ps.state_subset(sb.state, sb.buffers);
+	}
+	return ret;
+}
+
+BufferList extractGeneralBufferList(
+	ParticleSystem& ps,
+	CommandBufferArgument const& arg,
+	BufferList const& model)
+{
+	const flag_t missing_spec = model.get_keys();
+	BufferList ret;
+	for (auto const& sb : arg) {
+		flag_t buffers = sb.buffers;
+		if (sb.buffers == BUFFER_NONE)
+			buffers = missing_spec;
+		ret |= ps.state_subset(sb.state, buffers);
+	}
 	return ret;
 }
