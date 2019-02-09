@@ -60,6 +60,9 @@ DEFINE_COMMAND_NOBUF(RUN_CALLBACKS)
  */
 DEFINE_COMMAND_NOBUF(MOVE_BODIES)
 
+/// Check maximum number of neighbors and estimate number of interactions
+DEFINE_COMMAND_NOBUF(CHECK_NEIBSNUM)
+
 /// Not an actual command ;-)
 DEFINE_COMMAND_NOBUF(NUM_COMMANDS)
 

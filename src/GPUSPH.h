@@ -127,6 +127,9 @@ private:
 	// check consistency of buffers across multiple GPUs
 	void checkBufferConsistency();
 
+	// scan and check the peak number of neighbors and the estimated number of interactions
+	void checkNeibsNum();
+
 	// compute initial values for the IDs of the next generated particles,
 	// and return the number of open boundary vertices
 	uint initializeNextIDs(bool resumed);

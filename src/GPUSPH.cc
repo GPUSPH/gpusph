@@ -512,6 +512,9 @@ void GPUSPH::runCommand(CommandStruct const& cmd)
 	case MOVE_BODIES:
 		move_bodies(cmd.flags);
 		break;
+	case CHECK_NEIBSNUM:
+		checkNeibsNum();
+		break;
 	default:
 		throw runtime_error("invalid host command");
 	}
@@ -1966,13 +1969,9 @@ void GPUSPH::saveParticles(
 	doWrite(write_flags);
 }
 
-void GPUSPH::buildNeibList()
+// scan and check the peak number of neighbors and the estimated number of interactions
+void GPUSPH::checkNeibsNum()
 {
-	for (auto const& cmd : neibsListCommands)
-		doCommand(cmd);
-
-	// scan and check the peak number of neighbors and the estimated number of interactions
-	// TODO make into its own host command
 	static const uint maxPossibleFluidBoundaryNeibs = problem->simparams()->neibboundpos;
 	static const uint maxPossibleVertexNeibs = problem->simparams()->boundarytype == SA_BOUNDARY ? problem->simparams()->neiblistsize - problem->simparams()->neibboundpos - 2 : 0;
 	for (uint d = 0; d < gdata->devices; d++) {
@@ -1998,6 +1997,13 @@ void GPUSPH::buildNeibList()
 	}
 
 	gdata->last_buildneibs_iteration = gdata->iterations;
+}
+
+void GPUSPH::buildNeibList()
+{
+	for (auto const& cmd : neibsListCommands)
+		doCommand(cmd);
+
 }
 
 //! Invoke system callbacks
@@ -2595,6 +2601,8 @@ GPUSPH::initializeCommandSequences()
 		.set_src("sorted")
 		.set_dst("step n");
 
+	// host command: check we don't have too many neighbors
+	neibsListCommands.push_back(CHECK_NEIBSNUM);
 
 	/* TODO */
 }
