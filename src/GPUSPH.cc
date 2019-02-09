@@ -1971,11 +1971,6 @@ void GPUSPH::buildNeibList()
 	for (auto const& cmd : neibsListCommands)
 		doCommand(cmd);
 
-	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
-		doCommand(UPDATE_EXTERNAL, "sorted", BUFFER_VERTPOS);
-
-	doCommand(RENAME_STATE, "sorted", "step n");
-
 	// scan and check the peak number of neighbors and the estimated number of interactions
 	// TODO make into its own host command
 	static const uint maxPossibleFluidBoundaryNeibs = problem->simparams()->neibboundpos;
@@ -2590,6 +2585,15 @@ GPUSPH::initializeCommandSequences()
 			BUFFER_CELLSTART | BUFFER_CELLEND)
 		.writing("sorted",
 			BUFFER_NEIBSLIST | BUFFER_VERTPOS);
+
+	// BUFFER_VERTPOS needs to be synchronized with the adjacent devices
+	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
+		neibsListCommands.push_back(UPDATE_EXTERNAL).updating("sorted", BUFFER_VERTPOS);
+
+	// we're done, rename the state to “step n” for what follows
+	neibsListCommands.push_back(RENAME_STATE)
+		.set_src("sorted")
+		.set_dst("step n");
 
 
 	/* TODO */
