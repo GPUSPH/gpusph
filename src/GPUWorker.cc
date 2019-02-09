@@ -1882,12 +1882,10 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const BufferList bufread = m_dBuffers.state_subset("sorted",
-		BUFFER_POS | BUFFER_INFO | BUFFER_HASH |
-		BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
-		BUFFER_CELLSTART | BUFFER_CELLEND);
-	BufferList bufwrite = m_dBuffers.state_subset("sorted",
-		BUFFER_NEIBSLIST | BUFFER_VERTPOS);
+	const BufferList bufread =
+		extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite =
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("buildneibs");
 

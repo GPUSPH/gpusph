@@ -1971,8 +1971,6 @@ void GPUSPH::buildNeibList()
 	for (auto const& cmd : neibsListCommands)
 		doCommand(cmd);
 
-	doCommand(BUILDNEIBS);
-
 	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
 		doCommand(UPDATE_EXTERNAL, "sorted", BUFFER_VERTPOS);
 
@@ -2583,6 +2581,15 @@ GPUSPH::initializeCommandSequences()
 		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
 			neibsListCommands.push_back(UPLOAD_NEWNUMPARTS);
 	}
+
+	// run the actual neighbors list construction
+	neibsListCommands.push_back(BUILDNEIBS)
+		.reading("sorted",
+			BUFFER_POS | BUFFER_INFO | BUFFER_HASH |
+			BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
+			BUFFER_CELLSTART | BUFFER_CELLEND)
+		.writing("sorted",
+			BUFFER_NEIBSLIST | BUFFER_VERTPOS);
 
 
 	/* TODO */
