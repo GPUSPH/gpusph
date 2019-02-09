@@ -1971,44 +1971,6 @@ void GPUSPH::buildNeibList()
 	for (auto const& cmd : neibsListCommands)
 		doCommand(cmd);
 
-	// we don't need the unsorted state anymore
-	doCommand(RELEASE_STATE, "unsorted");
-	// we don't need the PARTINDEX buffer anymore
-	// TODO since we only need PARTINDEX during sorting, and other ephemeral buffers
-	// such as FORCES only outside of sorting, we could spare some memory recycling
-	// one such ephemeral buffer in place of PARTINDEX
-	doCommand(REMOVE_STATE_BUFFERS, "sorted", BUFFER_PARTINDEX);
-
-	// get the new number of particles: with inlet/outlets, they
-	// may have changed because of incoming/outgoing particle, otherwise
-	// some particles might have been disabled (and discarded) for flying
-	// out of the domain
-	doCommand(DOWNLOAD_NEWNUMPARTS);
-
-	// if running on multiple GPUs, update the external cells
-	if (MULTI_DEVICE) {
-		// copy cellStarts, cellEnds and segments on host
-		doCommand(DUMP_CELLS);
-		doCommand(UPDATE_SEGMENTS);
-
-		// here or later, before update indices: MPI_Allgather (&sendbuf,sendcount,sendtype,&recvbuf, recvcount,recvtype,comm)
-		// maybe overlapping with dumping cells (run async before dumping the cells)
-
-		// update particle offsets
-		doCommand(UPDATE_ARRAY_INDICES);
-		// crop external cells
-		doCommand(CROP);
-		// append fresh copies of the externals
-		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
-		// until next calchash; however, they are filtered out when using the particle hashes.
-		doCommand(APPEND_EXTERNAL, "sorted", IMPORT_BUFFERS);
-		// update the newNumParticles device counter
-		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
-			doCommand(UPLOAD_NEWNUMPARTS);
-	} else {
-		doCommand(UPDATE_ARRAY_INDICES);
-	}
-
 	doCommand(BUILDNEIBS);
 
 	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
@@ -2573,6 +2535,54 @@ GPUSPH::initializeCommandSequences()
 		.writing("sorted", BUFFER_NONE)
 		// and we also want these
 		.writing("sorted", BUFFERS_CELL);
+
+	// we don't need the unsorted state anymore
+	neibsListCommands.push_back(RELEASE_STATE)
+		.set_src("unsorted");
+
+	// we don't need the PARTINDEX buffer anymore
+	// TODO since we only need PARTINDEX during sorting, and other ephemeral buffers
+	// such as FORCES only outside of sorting, we could spare some memory recycling
+	// one such ephemeral buffer in place of PARTINDEX
+	neibsListCommands.push_back(REMOVE_STATE_BUFFERS)
+		.set_src("sorted")
+		.set_flags(BUFFER_PARTINDEX);
+
+	// get the new number of particles: with inlet/outlets, they
+	// may have changed because of incoming/outgoing particle, otherwise
+	// some particles might have been disabled (and discarded) for flying
+	// out of the domain
+	neibsListCommands.push_back(DOWNLOAD_NEWNUMPARTS);
+
+	// if running on multiple GPUs, update the external cells
+	if (MULTI_DEVICE) {
+		// copy cellStarts, cellEnds and segments on host
+		neibsListCommands.push_back(DUMP_CELLS)
+			.reading("sorted", BUFFER_CELLSTART | BUFFER_CELLEND);
+
+		neibsListCommands.push_back(UPDATE_SEGMENTS);
+
+		// here or later, before update indices: MPI_Allgather (&sendbuf,sendcount,sendtype,&recvbuf, recvcount,recvtype,comm)
+		// maybe overlapping with dumping cells (run async before dumping the cells)
+	}
+
+	// update particle offsets —this is a host command, and
+	// doesn't affect the device buffers directly. we do it in both the single- and multi-device case
+	neibsListCommands.push_back(UPDATE_ARRAY_INDICES);
+
+	// if running on multiple GPUs, rebuild the external copies
+	if (MULTI_DEVICE) {
+		// crop external cells
+		neibsListCommands.push_back(CROP);
+		// append fresh copies of the externals
+		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
+		// until next calchash; however, they are filtered out when using the particle hashes.
+		neibsListCommands.push_back(APPEND_EXTERNAL)
+			.updating("sorted", IMPORT_BUFFERS);
+		// update the newNumParticles device counter
+		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
+			neibsListCommands.push_back(UPLOAD_NEWNUMPARTS);
+	}
 
 
 	/* TODO */

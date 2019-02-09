@@ -353,13 +353,21 @@ void GPUWorker::runCommand<CROP>(CommandStruct const&)
 /// compare UPDATE_EXTERNAL arguments against list of updated buffers
 void GPUWorker::checkBufferUpdate(CommandStruct const& cmd)
 {
-	// TODO UPDATE_EXTERNAL should operate on the updates command buffer argument
-	auto const& buflist = m_dBuffers.getState(cmd.src);
+	// TODO support multiple StateBuffers
+	{
+		string const cmd_name = getCommandName(cmd);
+		if (cmd.updates.size() == 0)
+			throw invalid_argument(cmd_name + " without updates");
+		if (cmd.updates.size() > 1)
+			throw invalid_argument(cmd_name + " with multiple updates not implemented yet");
+	}
+	StateBuffers const& sb = cmd.updates[0];
+	auto const& buflist = m_dBuffers.getState(sb.state);
 	for (auto const& iter : buflist) {
 		auto const key = iter.first;
 		auto const buf = iter.second;
 		const bool need_update = buf->is_dirty();
-		const bool listed = !!(key & cmd.flags);
+		const bool listed = !!(key & sb.buffers);
 
 		if (need_update && !listed)
 			cout <<  buf->get_buffer_name() << " needs update, but is NOT listed" << endl;
@@ -802,12 +810,22 @@ void GPUWorker::transferBurstsSizes()
 // Iterate on the list and send/receive bursts of particles across different nodes
 void GPUWorker::transferBursts(CommandStruct const& cmd)
 {
-	string const& state = cmd.src;
+	if (cmd.updates.size() > 1)
+		throw invalid_argument(string(getCommandName(cmd)) + " with multiple updates not implemented yet");
+
+	// we support both the CommandBufferArgument updates syntax, and the src + flags syntax
+	// during this transition
+	const bool cmd_arg_syntax = (cmd.updates.size() == 1);
+
+	string const& state = cmd_arg_syntax ? cmd.updates[0].state : cmd.src;
+	const flag_t buf_spec = cmd_arg_syntax ? cmd.updates[0].buffers : cmd.flags;
 
 	if (state.empty())
 		throw runtime_error("transferBursts with empty state");
+	if (buf_spec == BUFFER_NONE)
+		throw runtime_error("transferBursts with no buffer specification");
 
-	BufferList buflist = m_dBuffers.state_subset_existing(state, cmd.flags);
+	BufferList buflist = m_dBuffers.state_subset_existing(state, buf_spec);
 
 	// burst id counter, needed to correctly pair asynchronous network messages
 	uint bid[MAX_DEVICES_PER_CLUSTER];
@@ -1374,11 +1392,8 @@ void GPUWorker::runCommand<DUMP_CELLS>(CommandStruct const& cmd)
 {
 	const size_t _size = gdata->nGridCells * sizeof(uint);
 
-	// TODO migrate s_dCellStarts to the device mechanism and provide an API
-	// to copy offset data between buffers (even of different types)
-	// TODO encode this in the CommandStruct, ‘reads’ field
-	const BufferList sorted = m_dBuffers.state_subset("sorted",
-		BUFFER_CELLSTART | BUFFER_CELLEND);
+	// TODO provide an API to copy offset data between buffers (even of different types)
+	const BufferList sorted = extractExistingBufferList(m_dBuffers, cmd.reads);
 
 	const uint *src;
 	uint *dst;
