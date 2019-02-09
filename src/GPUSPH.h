@@ -109,7 +109,7 @@ private:
 	// with the refactoring
 	CommandSequence neibsListCommands; // steps implementing buildNeibList()
 	CommandSequence nextStepCommands[3]; // steps implementing prepareNextStep(), for each of the integrator steps
-	CommandSequence predCorrCommands[2]; // steps implementing the prediction and correction phases of the integrator
+	CommandSequence predCorrCommands[3]; // steps implementing the prediction and correction phases of the integrator
 
 	// constructor and copy/assignment: private for singleton scheme
 	GPUSPH();
@@ -136,6 +136,9 @@ private:
 
 	// initialize the command sequences
 	// TODO provisional during the refactoring
+	void initializeBuildNeibsSequence();
+	void initializeNextStepSequence(int step_num);
+	void initializePredCorrSequence(int step_num);
 	void initializeCommandSequences();
 
 	// sort particles by device before uploading

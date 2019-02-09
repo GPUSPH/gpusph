@@ -2464,7 +2464,7 @@ void GPUSPH::check_write(bool we_are_done)
 }
 
 void
-GPUSPH::initializeCommandSequences()
+GPUSPH::initializeBuildNeibsSequence()
 {
 	/* Initialize the niebsList Commands */
 	neibsListCommands.reserve(20);
@@ -2603,6 +2603,29 @@ GPUSPH::initializeCommandSequences()
 
 	// host command: check we don't have too many neighbors
 	neibsListCommands.push_back(CHECK_NEIBSNUM);
+}
 
+void
+GPUSPH::initializeNextStepSequence(int step_num)
+{
 	/* TODO */
+}
+
+void
+GPUSPH::initializePredCorrSequence(int step_num)
+{
+	/* TODO */
+}
+
+void
+GPUSPH::initializeCommandSequences()
+{
+	initializeBuildNeibsSequence();
+	initializeNextStepSequence(0); // prepareNextStep(INITIALIZATION_STEP)
+	initializeNextStepSequence(1); // prepareNextStep(INTEGRATOR_STEP_1)
+	initializeNextStepSequence(2); // prepareNextStep(INTEGRATOR_STEP_2)
+	// There is no pred/corr step 0
+	//initializePredCorrSequence(0); // runIntegratorStep(INITIALIZATION_STEP)
+	initializePredCorrSequence(1); // runIntegratorStep(INTEGRATOR_STEP_1)
+	initializePredCorrSequence(2); // runIntegratorStep(INTEGRATOR_STEP_2)
 }
