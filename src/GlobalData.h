@@ -259,8 +259,12 @@ struct GlobalData {
 	float3* s_hRbLinearVelocities;
 	float3*	s_hRbAngularVelocities;
 
-	// waterdepth at pressure outflows
+	// waterdepth at pressure outflows: an array of numOpenBoundaries elements
+	// for each device
 	uint**	h_IOwaterdepth;
+	// an array of numOpenBoundaries elements holding the maximum water depth
+	// across all devices
+	uint*   h_maxIOwaterdepth;
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
@@ -314,7 +318,9 @@ struct GlobalData {
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
-		s_hRbAngularVelocities(NULL)
+		s_hRbAngularVelocities(NULL),
+		h_IOwaterdepth(NULL),
+		h_maxIOwaterdepth(NULL)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)

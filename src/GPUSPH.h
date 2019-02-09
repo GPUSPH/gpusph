@@ -173,6 +173,9 @@ private:
 	// Do the multi gpu/multi node forces reduction and move bodies
 	void move_bodies(flag_t integrator_step);
 
+	// Find the maximum water depth across devices for each open boundary
+	void findMaxWaterDepth();
+
 	// create the Writer
 	void createWriter();
 

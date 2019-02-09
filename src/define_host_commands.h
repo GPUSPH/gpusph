@@ -60,6 +60,11 @@ DEFINE_COMMAND_NOBUF(RUN_CALLBACKS)
  */
 DEFINE_COMMAND_NOBUF(MOVE_BODIES)
 
+/// Find maximum water depth
+/*! Find the maximum across all devices of the water depth for each open boundary
+ */
+DEFINE_COMMAND_NOBUF(FIND_MAX_IOWATERDEPTH)
+
 /// Check maximum number of neighbors and estimate number of interactions
 DEFINE_COMMAND_NOBUF(CHECK_NEIBSNUM)
 

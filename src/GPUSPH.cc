@@ -512,6 +512,9 @@ void GPUSPH::runCommand(CommandStruct const& cmd)
 	case MOVE_BODIES:
 		move_bodies(cmd.flags);
 		break;
+	case FIND_MAX_IOWATERDEPTH:
+		findMaxWaterDepth();
+		break;
 	case CHECK_NEIBSNUM:
 		checkNeibsNum();
 		break;
@@ -1207,6 +1210,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->h_IOwaterdepth = new uint* [MULTI_GPU ? MAX_DEVICES_PER_NODE : 1];
 		for (uint i=0; i<(MULTI_GPU ? MAX_DEVICES_PER_NODE : 1); i++)
 			gdata->h_IOwaterdepth[i] = new uint [numOpenBoundaries];
+		gdata->h_maxIOwaterdepth = new uint [numOpenBoundaries];
 	}
 
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
@@ -1252,6 +1256,12 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 // Deallocate the shared buffers, i.e. those accessed by all workers
 void GPUSPH::deallocateGlobalHostBuffers() {
 	gdata->s_hBuffers.clear();
+
+	// Deallocating waterdepth-related arrays
+	if (problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
+		delete[] gdata->h_maxIOwaterdepth;
+		delete[] gdata->h_IOwaterdepth;
+	}
 
 	// Deallocating rigid bodies related arrays
 	if (gdata->problem->simparams()->numbodies > 0) {
@@ -2278,6 +2288,27 @@ void GPUSPH::prepareProblem()
 	}
 }
 
+void GPUSPH::findMaxWaterDepth()
+{
+	static const uint numOpenBoundaries = problem->simparams()->numOpenBoundaries;
+	static uint *max_waterdepth = gdata->h_maxIOwaterdepth;
+
+	// max over all devices per node
+	for (uint ob = 0; ob < numOpenBoundaries; ob ++) {
+		max_waterdepth[ob] = 0;
+		for (uint d = 0; d < gdata->devices; d++)
+			max_waterdepth[ob] = max(max_waterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
+	}
+	// if we are in multi-node mode we need to run an mpi reduction over all nodes
+	if (MULTI_NODE) {
+		gdata->networkManager->networkIntReduction(
+			(int*)max_waterdepth, numOpenBoundaries, MAX_REDUCTION);
+	}
+	// copy global value back to one array so that we can upload it again
+	for (uint ob = 0; ob < numOpenBoundaries; ob ++)
+		gdata->h_IOwaterdepth[0][ob] = max_waterdepth[ob];
+}
+
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {
 	// TODO get from integrator
@@ -2299,20 +2330,8 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		if (MULTI_DEVICE && problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
 			// each device gets his waterdepth array from the gpu
 			doCommand(DOWNLOAD_IOWATERDEPTH);
-			int* n_IOwaterdepth = new int[problem->simparams()->numOpenBoundaries];
-			// max over all devices per node
-			for (uint ob = 0; ob < problem->simparams()->numOpenBoundaries; ob ++) {
-				n_IOwaterdepth[ob] = 0;
-				for (uint d = 0; d < gdata->devices; d++)
-					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], int(gdata->h_IOwaterdepth[d][ob]));
-			}
-			// if we are in multi-node mode we need to run an mpi reduction over all nodes
-			if (MULTI_NODE) {
-				gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->simparams()->numOpenBoundaries, MAX_REDUCTION);
-			}
-			// copy global value back to one array so that we can upload it again
-			for (uint ob = 0; ob < problem->simparams()->numOpenBoundaries; ob ++)
-				gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
+			// reduction across devices and if necessary across nodes
+			doCommand(FIND_MAX_IOWATERDEPTH);
 			// upload the global max value to the devices
 			doCommand(UPLOAD_IOWATERDEPTH);
 		}
