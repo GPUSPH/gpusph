@@ -597,29 +597,6 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 	for (auto const& cmd : nextStepCommands[step_num])
 		doCommand(cmd);
 
-	if (current_integrator_step == INTEGRATOR_STEP_2) {
-		// Euler needs always cg(n)
-		if (problem->simparams()->numbodies > 0)
-			doCommand(EULER_UPLOAD_OBJECTS_CG);
-	}
-
-	// variable gravity
-	if (problem->simparams()->gcallback) {
-		// ask the Problem to update gravity, one per process
-		doCommand(RUN_CALLBACKS, current_integrator_step);
-		// upload on the GPU, one per device
-		doCommand(UPLOAD_GRAVITY);
-	}
-
-	// TODO when support for Grenier's formulation is added to models
-	// with boundary conditions, the computation of the new sigma and
-	// smoothed density should be moved here from the beginning of
-	// runIntegratorStep.
-	// TODO FIXME: the issue with moving steps such as COMPUTE_DENSITY
-	// and CALC_VISC here is that then we'll need to either reorder
-	// the SIGMA and SPS arrays, or recompute them anyway after a neighbors
-	// list rebuilt
-
 	// semi-analytical boundary conditions, but not during init if we resumed
 	if (!resumed) switch (problem->simparams()->boundarytype) {
 	case LJ_BOUNDARY:
@@ -708,10 +685,8 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
 
 	// TODO get from integrator
-	const string current_state =
-		gdata->GPUWORKERS[0]->getCurrentStateByCommandFlags(integrator_step);
-	const string next_state =
-		gdata->GPUWORKERS[0]->getNextStateByCommandFlags(integrator_step);
+	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
+	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
 	// for Grenier formulation, compute sigma and smoothed density
 	// TODO with boundary models requiring kernels for boundary conditions,
@@ -2306,8 +2281,7 @@ void GPUSPH::prepareProblem()
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {
 	// TODO get from integrator
-	const string next_state =
-		gdata->GPUWORKERS[0]->getNextStateByCommandFlags(cFlag);
+	const string next_state = GPUWorker::getNextStateByCommandFlags(cFlag);
 
 	const bool has_io = (problem->simparams()->simflags & ENABLE_INLET_OUTLET);
 
@@ -2319,16 +2293,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		throw runtime_error("no boundary conditions engine loaded");
 
 	if (cFlag & INITIALIZATION_STEP) {
-
-		// compute normal for vertices
-		doCommand(SA_COMPUTE_VERTEX_NORMAL);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, "step n", BUFFER_BOUNDELEMENTS);
-
-		// compute initial value of gamma for fluid and vertices
-		doCommand(SA_INIT_GAMMA);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, "step n", BUFFER_GRADGAMMA);
 
 		// modify particle mass on open boundaries
 		if (has_io) {
@@ -2605,9 +2569,100 @@ GPUSPH::initializeBuildNeibsSequence()
 	neibsListCommands.push_back(CHECK_NEIBSNUM);
 }
 
+template<BoundaryType boundarytype>
+void GPUSPH::initializeBoundaryConditionsSequence(int step_num)
+{ /* for most boundary models, there's nothing to do */ }
+
+// formerly saBoundaryConditions()
+//! Initialize the sequence of commands needed to apply SA_BOUNDARY boundary conditions.
+/*! This will _not_ be called for the initialization step if we resumed,
+ * since the arrays were already correctly initialized before writing
+ */
+template<>
+void GPUSPH::initializeBoundaryConditionsSequence<SA_BOUNDARY>(int step_num)
+{
+	static const SimParams *sp = problem->simparams();
+	static const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
+
+	// In the open boundary case, the last integration step is when we generate
+	// and destroy particles
+	const bool last_io_step = has_io && (step_num == 2);
+	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
+	/* Boundary conditions are applied to step n during initialization step,
+	 * to step n* after the integrator, and to step n+1 after the corrector
+	 */
+	const string state = GPUWorker::getNextStateByCommandFlags(integrator_step);
+
+	CommandSequence& cmd_seq = nextStepCommands[step_num];
+
+	// initialization, only if not resuming
+	if (step_num == 0) {
+		// compute normal for vertices, updating BUFFER_BOUNDELEMENTS in-place
+		// (reads from boundaries, writes on vertices)
+		cmd_seq.push_back(SA_COMPUTE_VERTEX_NORMAL)
+			.reading(state, BUFFER_VERTICES |
+				BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
+			.updating(state, BUFFER_BOUNDELEMENTS);
+		if (MULTI_DEVICE)
+			cmd_seq.push_back(UPDATE_EXTERNAL)
+				.updating(state, BUFFER_BOUNDELEMENTS);
+
+		// compute initial value of gamma for fluid and vertices
+		cmd_seq.push_back(SA_INIT_GAMMA)
+			.reading(state, BUFFER_BOUNDELEMENTS | BUFFER_VERTPOS |
+				BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
+			.writing(state, BUFFER_GRADGAMMA);
+		if (MULTI_DEVICE)
+			cmd_seq.push_back(UPDATE_EXTERNAL)
+				.updating(state, BUFFER_GRADGAMMA);
+	}
+
+
+
+}
+
 void
 GPUSPH::initializeNextStepSequence(int step_num)
 {
+	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
+	SimParams const* sp = problem->simparams();
+	// “resumed” condition applies to the initializaiton step sequence,
+	// if we resumed
+	const bool resumed = (step_num == 0 && !clOptions->resume_fname.empty());
+	CommandSequence& cmd_seq = nextStepCommands[step_num];
+
+	if (step_num == 2 && sp->numbodies > 0)
+		cmd_seq.push_back(EULER_UPLOAD_OBJECTS_CG);
+
+	// variable gravity
+	if (sp->gcallback) {
+		cmd_seq.push_back(RUN_CALLBACKS)
+			.set_flags(integrator_step);
+		cmd_seq.push_back(UPLOAD_GRAVITY);
+	}
+
+	// TODO when support for Grenier's formulation is added to models
+	// with boundary conditions, the computation of the new sigma and
+	// smoothed density should be moved here from the beginning of
+	// runIntegratorStep.
+	// TODO FIXME: the issue with moving steps such as COMPUTE_DENSITY
+	// and CALC_VISC here is that then we'll need to either reorder
+	// the SIGMA and SPS arrays, or recompute them anyway after a neighbors
+	// list rebuilt
+
+	// boundary-model specific boundary conditions
+	if (!resumed) switch (problem->simparams()->boundarytype) {
+	case LJ_BOUNDARY:
+	case MK_BOUNDARY:
+	case DYN_BOUNDARY:
+		/* nothing to do for LJ, MK and dynamic boundaries */
+		break;
+	case SA_BOUNDARY:
+		initializeBoundaryConditionsSequence<SA_BOUNDARY>(step_num);
+		break;
+	}
+
+
 	/* TODO */
 }
 
@@ -2621,9 +2676,11 @@ void
 GPUSPH::initializeCommandSequences()
 {
 	initializeBuildNeibsSequence();
+
 	initializeNextStepSequence(0); // prepareNextStep(INITIALIZATION_STEP)
 	initializeNextStepSequence(1); // prepareNextStep(INTEGRATOR_STEP_1)
 	initializeNextStepSequence(2); // prepareNextStep(INTEGRATOR_STEP_2)
+
 	// There is no pred/corr step 0
 	//initializePredCorrSequence(0); // runIntegratorStep(INITIALIZATION_STEP)
 	initializePredCorrSequence(1); // runIntegratorStep(INTEGRATOR_STEP_1)

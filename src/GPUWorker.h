@@ -220,8 +220,8 @@ private:
 public:
 	// select a state based on the integrator step specification
 	// TODO these will become a method in the integrator
-	std::string getCurrentStateByCommandFlags(flag_t flags);
-	std::string getNextStateByCommandFlags(flag_t flags);
+	static std::string getCurrentStateByCommandFlags(flag_t flags);
+	static std::string getNextStateByCommandFlags(flag_t flags);
 
 private:
 	// create a textual description of the list of buffers in the command flags

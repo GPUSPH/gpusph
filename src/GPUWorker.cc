@@ -2869,12 +2869,9 @@ void GPUWorker::runCommand<SA_COMPUTE_VERTEX_NORMAL>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const BufferList bufread = m_dBuffers.state_subset("step n",
-		BUFFER_VERTICES |
-		BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 
-	BufferList bufwrite = m_dBuffers.state_subset("step n",
-		BUFFER_BOUNDELEMENTS);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
 
 	bufwrite.add_manipulator_on_write("saComputeVertexNormal");
 
@@ -2896,11 +2893,9 @@ void GPUWorker::runCommand<SA_INIT_GAMMA>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const BufferList bufread = m_dBuffers.state_subset("step n",
-		BUFFER_BOUNDELEMENTS | BUFFER_VERTPOS |
-		BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 
-	BufferList bufwrite = m_dBuffers.state_subset("step n", BUFFER_GRADGAMMA);
+	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("saInitGamma");
 

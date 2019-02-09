@@ -137,6 +137,8 @@ private:
 	// initialize the command sequences
 	// TODO provisional during the refactoring
 	void initializeBuildNeibsSequence();
+	template<BoundaryType boundarytype>
+	void initializeBoundaryConditionsSequence(int step_num);
 	void initializeNextStepSequence(int step_num);
 	void initializePredCorrSequence(int step_num);
 	void initializeCommandSequences();
