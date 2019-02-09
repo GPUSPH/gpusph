@@ -2323,21 +2323,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
-	// impose open boundary conditions
-	if (has_io) {
-		// reduce the water depth at pressure outlets if required
-		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE && problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
-			// each device gets his waterdepth array from the gpu
-			doCommand(DOWNLOAD_IOWATERDEPTH);
-			// reduction across devices and if necessary across nodes
-			doCommand(FIND_MAX_IOWATERDEPTH);
-			// upload the global max value to the devices
-			doCommand(UPLOAD_IOWATERDEPTH);
-		}
-		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION, cFlag);
-	}
-
 	// compute boundary conditions on segments and detect outgoing particles at open boundaries
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)
@@ -2653,6 +2638,28 @@ void GPUSPH::initializeBoundaryConditionsSequence<SA_BOUNDARY>(int step_num)
 				.set_src("iomass");
 		}
 
+	}
+
+	// impose open boundary conditions
+	if (has_io) {
+		// reduce the water depth at pressure outlets if required
+		// if we have multiple devices then we need to run a global max on the different gpus / nodes
+		if (MULTI_DEVICE && problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
+			// each device gets his waterdepth array from the gpu
+			cmd_seq.push_back(DOWNLOAD_IOWATERDEPTH);
+			// reduction across devices and if necessary across nodes
+			cmd_seq.push_back(FIND_MAX_IOWATERDEPTH);
+			// upload the global max value to the devices
+			cmd_seq.push_back(UPLOAD_IOWATERDEPTH);
+		}
+		// impose open boundary conditions, calling the problem-specific kernel
+		// TODO see if more buffers are needed in the general case;
+		// the current SA example implementations only use these
+		// might possibly need some way to get this information from the problem itself
+		cmd_seq.push_back(IMPOSE_OPEN_BOUNDARY_CONDITION)
+			.set_flags(integrator_step)
+			.reading(state, BUFFER_POS | BUFFER_HASH | BUFFER_INFO)
+			.updating(state, BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON);
 	}
 
 
