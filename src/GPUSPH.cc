@@ -2292,33 +2292,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
-	if (cFlag & INITIALIZATION_STEP) {
-
-		// modify particle mass on open boundaries
-		if (has_io) {
-			doCommand(IDENTIFY_CORNER_VERTICES);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, "step n", BUFFER_INFO);
-
-			doCommand(INIT_STATE, "iomass");
-
-			// first step: count the vertices that belong to IO and the same
-			// segment as each IO vertex
-			// we use BUFFER_FORCES as scratch buffer to store the computed
-			// IO masses
-			doCommand(INIT_IO_MASS_VERTEX_COUNT);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, "step n", BUFFER_FORCES);
-			// second step: modify the mass of the IO vertices
-			doCommand(INIT_IO_MASS);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, "iomass", BUFFER_POS);
-			doCommand(SWAP_STATE_BUFFERS, "step n", "iomass", BUFFER_POS);
-			doCommand(REMOVE_STATE_BUFFERS, "step n", BUFFER_FORCES);
-			doCommand(RELEASE_STATE, "iomass");
-		}
-	}
-
 	// impose open boundary conditions
 	if (has_io) {
 		// reduce the water depth at pressure outlets if required
@@ -2615,6 +2588,52 @@ void GPUSPH::initializeBoundaryConditionsSequence<SA_BOUNDARY>(int step_num)
 		if (MULTI_DEVICE)
 			cmd_seq.push_back(UPDATE_EXTERNAL)
 				.updating(state, BUFFER_GRADGAMMA);
+
+		// modify particle mass on open boundaries
+		if (has_io) {
+
+			cmd_seq.push_back(IDENTIFY_CORNER_VERTICES)
+				.reading(state, BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
+					BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
+				.updating(state, BUFFER_INFO);
+			if (MULTI_DEVICE)
+				cmd_seq.push_back(UPDATE_EXTERNAL)
+					.updating(state, BUFFER_INFO);
+
+			cmd_seq.push_back(INIT_STATE).set_src("iomass");
+
+			// first step: count the vertices that belong to IO and the same
+			// segment as each IO vertex
+			// we use BUFFER_FORCES as scratch buffer to store the computed
+			// IO masses
+			cmd_seq.push_back(INIT_IO_MASS_VERTEX_COUNT)
+				.reading(state, BUFFER_VERTICES | BUFFER_INFO |
+					BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
+				.writing(state, BUFFER_FORCES);
+			if (MULTI_DEVICE)
+				cmd_seq.push_back(UPDATE_EXTERNAL)
+					.updating(state, BUFFER_FORCES);
+
+			// second step: modify the mass of the IO vertices
+			cmd_seq.push_back(INIT_IO_MASS)
+				.reading(state, BUFFER_VERTICES | BUFFER_INFO | BUFFER_POS |
+					BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+					BUFFER_FORCES)
+				.writing("iomass", BUFFER_POS);
+			if (MULTI_DEVICE)
+				cmd_seq.push_back(UPDATE_EXTERNAL)
+					.updating("iomass", BUFFER_POS);
+			cmd_seq.push_back(SWAP_STATE_BUFFERS)
+				.set_src("step n")
+				.set_dst("iomass")
+				.set_flags(BUFFER_POS);
+			cmd_seq.push_back(REMOVE_STATE_BUFFERS)
+				.set_src("step n")
+				.set_flags(BUFFER_FORCES);
+			cmd_seq.push_back(RELEASE_STATE)
+				.set_src("iomass");
+		}
+
 	}
 
 

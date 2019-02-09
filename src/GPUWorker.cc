@@ -2543,11 +2543,8 @@ void GPUWorker::runCommand<INIT_IO_MASS_VERTEX_COUNT>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const BufferList bufread = m_dBuffers.state_subset("step n",
-		BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-		BUFFER_VERTICES);
-	BufferList bufwrite = m_dBuffers.state_subset("step n",
-		BUFFER_FORCES);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("initIOmass vertex count");
 
 	bcEngine->initIOmass_vertexCount(
@@ -2569,10 +2566,8 @@ void GPUWorker::runCommand<INIT_IO_MASS>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const BufferList bufread = m_dBuffers.state_subset("step n",
-		BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-		BUFFER_VERTICES | BUFFER_FORCES);
-	BufferList bufwrite = m_dBuffers.state_subset("iomass", BUFFER_POS);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("initIOmass");
 
 	bcEngine->initIOmass(
@@ -2921,10 +2916,8 @@ void GPUWorker::runCommand<IDENTIFY_CORNER_VERTICES>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const BufferList bufread = m_dBuffers.state_subset("step n",
-		BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-		BUFFER_VERTICES | BUFFER_BOUNDELEMENTS);
-	BufferList bufwrite = m_dBuffers.state_subset("step n", BUFFER_INFO);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
 	bufwrite.add_manipulator_on_write("saIdentifyCornerVertices");
 
 	bcEngine->saIdentifyCornerVertices(
