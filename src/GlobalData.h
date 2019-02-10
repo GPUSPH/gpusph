@@ -561,7 +561,7 @@ struct GlobalData {
 #define MULTI_NODE (gdata->mpi_nodes > 1)
 #define SINGLE_NODE (!MULTI_NODE)
 #define MULTI_GPU (gdata->devices > 1)
-#define SINGLE_GPU (gdata->devices > 1)
+#define SINGLE_GPU (!MULTI_GPU)
 #define MULTI_DEVICE (MULTI_GPU || MULTI_NODE)
 #define SINGLE_DEVICE (!MULTI_DEVICE)
 
