@@ -602,15 +602,6 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 		throw runtime_error("prepareNextStep called with invalid integrator step");
 	for (auto const& cmd : nextStepCommands[step_num])
 		doCommand(cmd);
-
-	// open boundaries: new particle generation, only during the corrector
-	if (current_integrator_step == INTEGRATOR_STEP_2 &&
-		problem->simparams()->simflags & ENABLE_INLET_OUTLET)
-	{
-		doCommand(DOWNLOAD_NEWNUMPARTS);
-		doCommand(CHECK_NEWNUMPARTS);
-	}
-
 }
 
 void
@@ -2739,8 +2730,13 @@ GPUSPH::initializeNextStepSequence(int step_num)
 		break;
 	}
 
+	// open boundaries: new particle generation, only at the end of the corrector
+	if (step_num == 2 && sp->simflags & ENABLE_INLET_OUTLET)
+	{
+		cmd_seq.push_back(DOWNLOAD_NEWNUMPARTS);
+		cmd_seq.push_back(CHECK_NEWNUMPARTS);
+	}
 
-	/* TODO */
 }
 
 void
