@@ -2323,11 +2323,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
-	// compute boundary conditions on segments and detect outgoing particles at open boundaries
-	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, next_state, POST_SA_SEGMENT_UPDATE_BUFFERS);
-
 	// compute boundary conditions on vertices including mass variation and
 	// create new particles at open boundaries.
 	// This updates the nextID buffer by vertices that generate new particles,
@@ -2661,6 +2656,30 @@ void GPUSPH::initializeBoundaryConditionsSequence<SA_BOUNDARY>(int step_num)
 			.reading(state, BUFFER_POS | BUFFER_HASH | BUFFER_INFO)
 			.updating(state, BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON);
 	}
+
+	// compute boundary conditions on segments and, during the last step of the integrator,
+	// also detect outgoing particles at open boundaries (the relevant information
+	// is stored in the BUFFER_VERTICES array, only gets swapped in these case)
+	cmd_seq.push_back(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS)
+		.set_flags(integrator_step)
+		.reading(state,
+			BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+			BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS | BUFFER_VERTICES)
+		.updating(state,
+			BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA);
+	if (last_io_step)
+		cmd_seq.push_back(FIND_OUTGOING_SEGMENT)
+			.reading(state,
+				BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL |
+				BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS)
+			.updating(state,
+				BUFFER_GRADGAMMA | BUFFER_VERTICES);
+	if (MULTI_DEVICE)
+		cmd_seq.push_back(UPDATE_EXTERNAL)
+			.updating(state,
+				BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA |
+				(last_io_step ? BUFFER_VERTICES : BUFFER_NONE));
 
 
 

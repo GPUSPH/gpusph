@@ -2754,48 +2754,45 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>(CommandStruct co
 
 	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
-	const string state = getNextStateByCommandFlags(step_flag);
 
-	{
-		const BufferList bufread = m_dBuffers.state_subset(state,
-			BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-			BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS | BUFFER_VERTICES);
-		BufferList bufwrite = m_dBuffers.state_subset(state,
-			BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
 
-		bufwrite.add_manipulator_on_write("saSegmentBoundaryConditions" + to_string(step));
+	bufwrite.add_manipulator_on_write("saSegmentBoundaryConditions" + to_string(step));
 
-		bcEngine->saSegmentBoundaryConditions(
-			bufwrite, bufread,
-			m_numParticles,
-			numPartsToElaborate,
-			gdata->problem->m_deltap,
-			m_simparams->slength,
-			m_simparams->influenceRadius,
-			step);
+	bcEngine->saSegmentBoundaryConditions(
+		bufwrite, bufread,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->influenceRadius,
+		step);
 
-		bufwrite.clear_pending_state();
-	}
+	bufwrite.clear_pending_state();
+}
 
-	if ( (m_simparams->simflags & ENABLE_INLET_OUTLET) && (step == 2)) {
-		const BufferList bufread = m_dBuffers.state_subset(state,
-			BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-			BUFFER_VEL |
-			BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS | BUFFER_VERTICES);
-		BufferList bufwrite = m_dBuffers.state_subset(state,
-			BUFFER_GRADGAMMA | BUFFER_VERTICES);
+template<>
+void GPUWorker::runCommand<FIND_OUTGOING_SEGMENT>(CommandStruct const& cmd)
+{
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-		bufwrite.add_manipulator_on_write("findOutgoingSegment");
-		bcEngine->findOutgoingSegment(
-			bufwrite, bufread,
-				m_numParticles,
-				numPartsToElaborate,
-				gdata->problem->m_deltap,
-				m_simparams->slength,
-				m_simparams->influenceRadius);
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
 
-		bufwrite.clear_pending_state();
-	}
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+
+	bufwrite.add_manipulator_on_write("findOutgoingSegment");
+	bcEngine->findOutgoingSegment(
+		bufwrite, bufread,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
 }
 
 template<>
