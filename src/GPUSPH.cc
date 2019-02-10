@@ -643,20 +643,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
-	// compute forces only on internal particles
-	if (gdata->clOptions->striping && MULTI_DEVICE)
-		doCommand(FORCES_ENQUEUE, integrator_step);
-	else
-		doCommand(FORCES_SYNC, integrator_step);
-
-	// update forces of external particles
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, current_state, POST_FORCES_UPDATE_BUFFERS);
-
-	// if striping was active, now we want the kernels to complete
-	if (gdata->clOptions->striping && MULTI_DEVICE)
-		doCommand(FORCES_COMPLETE, integrator_step);
-
 	// Take care of moving bodies
 	doCommand(MOVE_BODIES, integrator_step);
 
@@ -2752,6 +2738,8 @@ GPUSPH::initializePredCorrSequence(int step_num)
 		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
 		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
 
+	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
+
 	// TODO get from integrator
 	// current state is step n for the predictor, step n* for the corrector
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
@@ -2794,6 +2782,48 @@ GPUSPH::initializePredCorrSequence(int step_num)
 		cmd_seq.push_back(DEBUG_DUMP)
 			.set_src(current_state)
 			.set_flags(integrator_step);
+
+	// compute forces only on internal particles
+	CommandStruct& forces_cmd = cmd_seq.push_back(striping ? FORCES_ENQUEUE : FORCES_SYNC)
+		.set_flags(integrator_step)
+		.reading(current_state,
+			BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
+			BUFFER_RB_KEYS |
+			BUFFER_VOLUME | BUFFER_SIGMA |
+			BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | BUFFER_EULERVEL |
+			BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC)
+		.writing(current_state,
+			BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP |
+			BUFFER_CFL_GAMMA | BUFFER_CFL_KEPS |
+			BUFFER_RB_FORCES | BUFFER_RB_TORQUES |
+			BUFFER_XSPH |
+			/* TODO BUFFER_TAU is written by forces only in the k-epsilon case,
+			 * and it is not updated across devices, is this correct?
+			 */
+			BUFFER_DKDE | BUFFER_TAU |
+			BUFFER_INTERNAL_ENERGY_UPD);
+
+	/* When calling FORCES_SYNC, the CFL buffers must also be read in the final
+	 * post_forces() call (with FORCES_ENQUEUE, this is done by FORCES_COMPLETE below
+	 * instead */
+	if (!striping && gdata->dtadapt)
+		forces_cmd.reading(current_state, BUFFERS_CFL & ~BUFFER_CFL_TEMP);
+
+	if (MULTI_DEVICE)
+		cmd_seq.push_back(UPDATE_EXTERNAL)
+			.updating(current_state,
+				BUFFER_FORCES | BUFFER_XSPH | BUFFER_DKDE |
+				BUFFER_INTERNAL_ENERGY_UPD);
+
+	if (striping) {
+		CommandStruct& complete_cmd = cmd_seq.push_back(FORCES_COMPLETE)
+			.set_flags(integrator_step);
+		if (gdata->dtadapt)
+			complete_cmd
+				.reading(current_state, BUFFERS_CFL & ~BUFFER_CFL_TEMP)
+				.writing(current_state, BUFFER_CFL_TEMP);
+	}
+
 
 	/* TODO */
 }

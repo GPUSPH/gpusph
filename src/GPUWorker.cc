@@ -1950,22 +1950,10 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
 {
 	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const string current_state = getCurrentStateByCommandFlags(cmd.flags);
 
-	const BufferList bufread = m_dBuffers.state_subset(current_state,
-		BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
-		BUFFER_RB_KEYS |
-		BUFFER_VOLUME | BUFFER_SIGMA |
-		BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | BUFFER_EULERVEL |
-		BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 
-	BufferList bufwrite = m_dBuffers.state_subset(current_state,
-		BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP |
-		BUFFER_RB_FORCES | BUFFER_RB_TORQUES |
-		BUFFER_XSPH |
-		BUFFER_CFL_GAMMA |
-		BUFFER_DKDE | BUFFER_CFL_KEPS | BUFFER_TAU |
-		BUFFER_INTERNAL_ENERGY_UPD);
+	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("pre-forces" + to_string(get_step_number(step_flag)));
 
@@ -1994,7 +1982,6 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
 float GPUWorker::post_forces(CommandStruct const& cmd)
 {
 	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const string current_state = getCurrentStateByCommandFlags(step_flag);
 
 	forcesEngine->unbind_textures();
 
@@ -2002,10 +1989,8 @@ float GPUWorker::post_forces(CommandStruct const& cmd)
 	if (!(m_simparams->simflags & ENABLE_DTADAPT))
 		return m_simparams->dt;
 
-	const BufferList bufread = m_dBuffers.state_subset(current_state,
-		BUFFERS_CFL & ~BUFFER_CFL_TEMP);
-	BufferList bufwrite = m_dBuffers.state_subset(current_state,
-		BUFFER_CFL_TEMP);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("post-forces");
 
 	// TODO multifluid: dtreduce needs the maximum viscosity. We compute it
