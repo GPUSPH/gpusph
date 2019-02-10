@@ -192,9 +192,6 @@ private:
 	//! Rebuild the neighbor list
 	void buildNeibList();
 
-	// setting of boundary conditions for the semi-analytical boundaries
-	void saBoundaryConditions(flag_t cFlag);
-
 	// prepare for the next forces computation
 	void prepareNextStep(const flag_t current_integrator_step);
 

@@ -600,18 +600,6 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 	for (auto const& cmd : nextStepCommands[step_num])
 		doCommand(cmd);
 
-	// semi-analytical boundary conditions, but not during init if we resumed
-	if (!resumed) switch (problem->simparams()->boundarytype) {
-	case LJ_BOUNDARY:
-	case MK_BOUNDARY:
-	case DYN_BOUNDARY:
-		/* nothing to do for LJ, MK and dynamic boundaries */
-		break;
-	case SA_BOUNDARY:
-		saBoundaryConditions(current_integrator_step);
-		break;
-	}
-
 	// open boundaries: new particle generation, only during the corrector
 	if (current_integrator_step == INTEGRATOR_STEP_2 &&
 		problem->simparams()->simflags & ENABLE_INLET_OUTLET)
@@ -2309,21 +2297,6 @@ void GPUSPH::findMaxWaterDepth()
 		gdata->h_IOwaterdepth[0][ob] = max_waterdepth[ob];
 }
 
-void GPUSPH::saBoundaryConditions(flag_t cFlag)
-{
-	// TODO get from integrator
-	const string next_state = GPUWorker::getNextStateByCommandFlags(cFlag);
-
-	const bool has_io = (problem->simparams()->simflags & ENABLE_INLET_OUTLET);
-
-	// In the open boundary case, the last integration step is when we generate
-	// and destroy particles
-	const bool last_io_step = has_io && (cFlag & INTEGRATOR_STEP_2);
-
-	if (gdata->simframework->getBCEngine() == NULL)
-		throw runtime_error("no boundary conditions engine loaded");
-}
-
 void GPUSPH::check_write(bool we_are_done)
 {
 		static PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
@@ -2548,6 +2521,9 @@ void GPUSPH::initializeBoundaryConditionsSequence<SA_BOUNDARY>(int step_num)
 	 * to step n* after the integrator, and to step n+1 after the corrector
 	 */
 	const string state = GPUWorker::getNextStateByCommandFlags(integrator_step);
+
+	if (gdata->simframework->getBCEngine() == NULL)
+		throw runtime_error("no boundary conditions engine loaded");
 
 	CommandSequence& cmd_seq = nextStepCommands[step_num];
 
