@@ -643,9 +643,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
-	if (gdata->debug.inspect_preforce)
-		doCommand(DEBUG_DUMP, current_state, integrator_step);
-
 	// compute forces only on internal particles
 	if (gdata->clOptions->striping && MULTI_DEVICE)
 		doCommand(FORCES_ENQUEUE, integrator_step);
@@ -2792,6 +2789,11 @@ GPUSPH::initializePredCorrSequence(int step_num)
 			cmd_seq.push_back(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_TAU);
 	}
+
+	if (gdata->debug.inspect_preforce)
+		cmd_seq.push_back(DEBUG_DUMP)
+			.set_src(current_state)
+			.set_flags(integrator_step);
 
 	/* TODO */
 }
