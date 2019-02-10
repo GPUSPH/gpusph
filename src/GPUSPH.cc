@@ -640,12 +640,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
-	// for SPS viscosity, compute first array of tau and exchange with neighbors
-	if (problem->simparams()->turbmodel == SPS) {
-		doCommand(CALC_VISC, integrator_step);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, current_state, BUFFER_TAU);
-	}
 	if (gdata->debug.inspect_preforce)
 		saveParticles(noPostProcess, current_state, integrator_step);
 
@@ -2779,6 +2773,21 @@ GPUSPH::initializePredCorrSequence(int step_num)
 		if (MULTI_DEVICE)
 			cmd_seq.push_back(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_SIGMA | BUFFER_VEL);
+	}
+
+	// for SPS viscosity, compute first array of tau and exchange with neighbors
+	if (sp->turbmodel == SPS) {
+		cmd_seq.push_back(CALC_VISC)
+			.set_flags(integrator_step)
+			.reading(current_state,
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL)
+			.writing(current_state,
+				BUFFER_TAU | BUFFER_SPS_TURBVISC);
+
+		if (MULTI_DEVICE)
+			cmd_seq.push_back(UPDATE_EXTERNAL)
+				.updating(current_state, BUFFER_TAU);
 	}
 
 	/* TODO */
