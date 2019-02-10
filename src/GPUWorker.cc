@@ -2918,8 +2918,8 @@ void GPUWorker::runCommand<DISABLE_OUTGOING_PARTS>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const BufferList bufread = m_dBuffers.state_subset("step n+1", BUFFER_INFO);
-	BufferList bufwrite = m_dBuffers.state_subset("step n+1", BUFFER_POS | BUFFER_VERTICES);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
 	bufwrite.add_manipulator_on_write("disableOutgoingParts");
 
 	bcEngine->disableOutgoingParts(

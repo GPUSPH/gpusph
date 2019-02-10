@@ -2322,13 +2322,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
-
-	// check if we need to delete some particles which passed through open boundaries
-	if (last_io_step) {
-		doCommand(DISABLE_OUTGOING_PARTS);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, "step n+1", BUFFER_POS | BUFFER_VERTICES);
-	}
 }
 
 void GPUSPH::check_write(bool we_are_done)
@@ -2710,6 +2703,15 @@ void GPUSPH::initializeBoundaryConditionsSequence<SA_BOUNDARY>(int step_num)
 				BUFFER_TKE | BUFFER_EPSILON |
 				BUFFER_GRADGAMMA);
 
+	// check if we need to delete some particles which passed through open boundaries
+	if (last_io_step) {
+		cmd_seq.push_back(DISABLE_OUTGOING_PARTS)
+			.reading(state, BUFFER_INFO)
+			.updating(state, BUFFER_POS | BUFFER_VERTICES);
+		if (MULTI_DEVICE)
+			cmd_seq.push_back(UPDATE_EXTERNAL)
+				.updating(state, BUFFER_POS | BUFFER_VERTICES);
+	}
 }
 
 void
