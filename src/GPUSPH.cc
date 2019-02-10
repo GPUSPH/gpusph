@@ -640,17 +640,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
-	// for Grenier formulation, compute sigma and smoothed density
-	// TODO with boundary models requiring kernels for boundary conditions,
-	// this should be moved into prepareNextStep
-	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
-		// compute density and sigma, updating WRITE vel in-place
-		doCommand(COMPUTE_DENSITY, integrator_step);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, current_state,
-					BUFFER_SIGMA | BUFFER_VEL);
-	}
-
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
 	if (problem->simparams()->turbmodel == SPS) {
 		doCommand(CALC_VISC, integrator_step);
@@ -2742,6 +2731,56 @@ GPUSPH::initializeNextStepSequence(int step_num)
 void
 GPUSPH::initializePredCorrSequence(int step_num)
 {
+	CommandSequence& cmd_seq = predCorrCommands[step_num];
+	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
+	SimParams const* sp = problem->simparams();
+
+	/* In the predictor/corrector scheme we use, there are four buffers that
+	 * need special treatment:
+	 * * the INFO buffer is always representative of both states —in fact, because of this
+	 *   and because it's part of the sorting key, it's the only property buffer
+	 *   which is not double buffered;
+	 * * the VERTICES buffer is always representative of both states, even though it is used
+	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
+	 *   in-place;
+	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
+	 *   representative of the previous state only until it gets updated, when it is
+	 *   representative of the next state only;
+	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
+	 *   boundaries, otherwise is follows the behavior of the other buffers
+	 */
+
+	static const bool has_moving_bodies = (sp->simflags & ENABLE_MOVING_BODIES);
+	static const flag_t shared_buffers =
+		BUFFER_INFO |
+		BUFFER_VERTICES |
+		BUFFER_NEXTID |
+		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
+		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
+
+	// TODO get from integrator
+	// current state is step n for the predictor, step n* for the corrector
+	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
+	// next state is step n* for the predictor, step n+1 for the corrector
+	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
+
+	// for Grenier formulation, compute sigma and smoothed density
+	// TODO with boundary models requiring kernels for boundary conditions,
+	// this should be moved into prepareNextStep
+	if (sp->sph_formulation == SPH_GRENIER) {
+		// compute density and sigma, updating WRITE vel in-place
+		cmd_seq.push_back(COMPUTE_DENSITY)
+			.set_flags(integrator_step)
+			.reading(current_state,
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VOLUME)
+			.updating(current_state, BUFFER_VEL)
+			.writing(current_state, BUFFER_SIGMA);
+		if (MULTI_DEVICE)
+			cmd_seq.push_back(UPDATE_EXTERNAL)
+				.updating(current_state, BUFFER_SIGMA | BUFFER_VEL);
+	}
+
 	/* TODO */
 }
 
