@@ -2323,15 +2323,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
-	// compute boundary conditions on vertices including mass variation and
-	// create new particles at open boundaries.
-	// This updates the nextID buffer by vertices that generate new particles,
-	// which happens only during the last integration step in the IO case:
-	// so in this case it in the WRITE position, and swap it back afterwards.
-	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, next_state, POST_SA_VERTEX_UPDATE_BUFFERS);
-
 	// check if we need to delete some particles which passed through open boundaries
 	if (last_io_step) {
 		doCommand(DISABLE_OUTGOING_PARTS);
@@ -2681,7 +2672,43 @@ void GPUSPH::initializeBoundaryConditionsSequence<SA_BOUNDARY>(int step_num)
 				BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA |
 				(last_io_step ? BUFFER_VERTICES : BUFFER_NONE));
 
+	// compute boundary conditions on vertices including mass variation and
+	// create new particles at open boundaries.
+	// TODO FIXME considering splitting new particle creation/particle property reset
+	// into its own kernel, in order to provide cleaner interfaces and finer-grained
+	// buffer handling
+	CommandStruct& vertex_bc_cmd = cmd_seq.push_back(SA_CALC_VERTEX_BOUNDARY_CONDITIONS)
+		.set_flags(integrator_step)
+		.reading(state,
+			BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_INFO |
+			BUFFER_VERTPOS | BUFFER_VERTICES |
+			BUFFER_BOUNDELEMENTS)
+		.updating(state,
+			(has_io ? BUFFER_POS : BUFFER_NONE) |
+			BUFFER_VEL | BUFFER_EULERVEL |
+			BUFFER_TKE | BUFFER_EPSILON |
+			/* TODO FIXME this needs to be R/W only during init,
+			 * for open boundaries and for moving objects */
+			BUFFER_GRADGAMMA);
+	/* If this is the last step and open boundaries are enabled, also add the buffers
+	 * for cloning in the writing set
+	 */
+	if (last_io_step)
+		vertex_bc_cmd.writing(state,
+			BUFFER_FORCES | BUFFER_INFO | BUFFER_HASH |
+			BUFFER_VERTICES | BUFFER_BOUNDELEMENTS | BUFFER_NEXTID);
 
+	/* Note that we don't update the cloned particles buffers, because they'll be
+	 * refreshed at the next buildneibs anyway.
+	 * TODO consider not doing this update altogether when there are cloned particles.
+	 */
+	if (MULTI_DEVICE)
+		cmd_seq.push_back(UPDATE_EXTERNAL)
+			.updating(state,
+				(has_io ? BUFFER_POS : BUFFER_NONE) |
+				BUFFER_VEL | BUFFER_EULERVEL |
+				BUFFER_TKE | BUFFER_EPSILON |
+				BUFFER_GRADGAMMA);
 
 }
 

@@ -2806,27 +2806,14 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct con
 
 	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
-	const string current_state = getCurrentStateByCommandFlags(step_flag);
-	const string next_state = getNextStateByCommandFlags(step_flag);
 
-	const bool has_io = (m_simparams->simflags & ENABLE_INLET_OUTLET);
-
-	const BufferList bufread = m_dBuffers.state_subset(next_state,
-		BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_INFO |
-		BUFFER_VERTPOS | BUFFER_VERTICES |
-		BUFFER_BOUNDELEMENTS);
-	BufferList bufwrite = m_dBuffers.state_subset(next_state,
-		(has_io ? BUFFER_POS : BUFFER_NONE) |
-		BUFFER_VEL | BUFFER_EULERVEL |
-		BUFFER_TKE | BUFFER_EPSILON |
-		BUFFER_GRADGAMMA /* this needs to be R/W only during init, for open boundaries and for moving objects */
-		);
-	if (has_io && (step == 2)) {
-		/* Add buffers for cloning */
-		bufwrite |= m_dBuffers.state_subset(next_state,
-			BUFFER_FORCES | BUFFER_INFO | BUFFER_HASH |
-			BUFFER_VERTICES | BUFFER_BOUNDELEMENTS | BUFFER_NEXTID);
-	}
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		/* if this is the last step and we have open boundaries, we will also
+		 * be given the buffers needed for cloning in the writes list.
+		 * Otherwise this contribution will be empty.
+		 */
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("saVertexBoundaryConditions" + to_string(step));
 
 	bcEngine->saVertexBoundaryConditions(
