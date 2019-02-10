@@ -68,6 +68,9 @@ DEFINE_COMMAND_NOBUF(FIND_MAX_IOWATERDEPTH)
 /// Check maximum number of neighbors and estimate number of interactions
 DEFINE_COMMAND_NOBUF(CHECK_NEIBSNUM)
 
+/// Determine if particles were created in this iteration
+DEFINE_COMMAND_NOBUF(CHECK_NEWNUMPARTS)
+
 /// Not an actual command ;-)
 DEFINE_COMMAND_NOBUF(NUM_COMMANDS)
 

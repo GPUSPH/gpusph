@@ -130,6 +130,9 @@ private:
 	// scan and check the peak number of neighbors and the estimated number of interactions
 	void checkNeibsNum();
 
+	// find if new particles were created on any device
+	void checkNewNumParts();
+
 	// compute initial values for the IDs of the next generated particles,
 	// and return the number of open boundary vertices
 	uint initializeNextIDs(bool resumed);
