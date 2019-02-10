@@ -71,6 +71,9 @@ DEFINE_COMMAND_NOBUF(CHECK_NEIBSNUM)
 /// Determine if particles were created in this iteration
 DEFINE_COMMAND_NOBUF(CHECK_NEWNUMPARTS)
 
+/// Dump the particle system state for debugging
+DEFINE_COMMAND_NOBUF(DEBUG_DUMP)
+
 /// Not an actual command ;-)
 DEFINE_COMMAND_NOBUF(NUM_COMMANDS)
 

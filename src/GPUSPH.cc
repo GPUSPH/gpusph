@@ -497,6 +497,11 @@ bool GPUSPH::finalize() {
 	return true;
 }
 
+// an empty set of PostProcessEngines, to be used when we want to save
+// the particle system without running post-processing filters
+// (e.g. when inspecting the particle system before each forces computation)
+static const PostProcessEngineSet noPostProcess{};
+
 // run a host command
 // TODO make it a template method like the worker dispatch
 void GPUSPH::runCommand(CommandStruct const& cmd)
@@ -520,6 +525,9 @@ void GPUSPH::runCommand(CommandStruct const& cmd)
 		break;
 	case CHECK_NEWNUMPARTS:
 		checkNewNumParts();
+		break;
+	case DEBUG_DUMP:
+		saveParticles(noPostProcess, cmd.src, cmd.flags);
 		break;
 	default:
 		throw runtime_error("invalid host command");
@@ -582,11 +590,6 @@ GPUSPH::doCommand(CommandStruct cmd, std::string const& src, flag_t flags)
 	doCommand(cmd.set_src(src), flags);
 }
 
-// an empty set of PostProcessEngines, to be used when we want to save
-// the particle system without running post-processing filters
-// (e.g. when inspecting the particle system before each forces computation)
-static const PostProcessEngineSet noPostProcess{};
-
 void
 GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 {
@@ -641,7 +644,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
 	if (gdata->debug.inspect_preforce)
-		saveParticles(noPostProcess, current_state, integrator_step);
+		doCommand(DEBUG_DUMP, current_state, integrator_step);
 
 	// compute forces only on internal particles
 	if (gdata->clOptions->striping && MULTI_DEVICE)
@@ -678,7 +681,7 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	doCommand(EULER, integrator_step);
 
 	if (gdata->debug.inspect_pregamma)
-		saveParticles(noPostProcess, next_state, integrator_step);
+		doCommand(DEBUG_DUMP, next_state, integrator_step);
 
 	if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
 		// compute density based on an integral formulation
