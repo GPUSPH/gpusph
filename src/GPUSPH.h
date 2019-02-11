@@ -176,11 +176,6 @@ private:
 	void doCommand(CommandStruct const& cmd);
 	void doCommand(CommandStruct cmd, flag_t flags);
 
-	// TODO possibly temporary, while states are strings
-	void doCommand(CommandStruct cmd, std::string const& src, std::string const& dst,
-		flag_t flags = NO_FLAGS);
-	void doCommand(CommandStruct cmd, std::string const& dst, flag_t flags = NO_FLAGS);
-
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();
 

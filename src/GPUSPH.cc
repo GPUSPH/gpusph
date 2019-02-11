@@ -579,18 +579,6 @@ GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
 }
 
 void
-GPUSPH::doCommand(CommandStruct cmd, std::string const& src, std::string const& dst, flag_t flags)
-{
-	doCommand(cmd.set_src(src).set_dst(dst), flags);
-}
-
-void
-GPUSPH::doCommand(CommandStruct cmd, std::string const& src, flag_t flags)
-{
-	doCommand(cmd.set_src(src), flags);
-}
-
-void
 GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 {
 	// this is a “resumed” prepareNextStep if we're doing the “initialization”
@@ -844,6 +832,7 @@ bool GPUSPH::runSimulation() {
 
 void GPUSPH::move_bodies(flag_t integrator_step)
 {
+	// TODO this function should also be ported to the CommandSequence architecture
 	const uint step = get_step_number(integrator_step);
 
 	// Get moving bodies data (position, linear and angular velocity ...)
@@ -1732,18 +1721,19 @@ void GPUSPH::saveParticles(
 		which_buffers |= BUFFER_NEXTID;
 
 	// run post-process filters and dump their arrays
-	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
-		flt != enabledPostProcess.end(); ++flt) {
-		PostProcessType filter = flt->first;
+	// TODO migrate post-processing commands to command structure
+	for (auto const& flt : enabledPostProcess) {
+		PostProcessType filter = flt.first;
+		AbstractPostProcessEngine *engine = flt.second;
 
 		doCommand(POSTPROCESS, filter);
 
-		flt->second->hostProcess(gdata);
+		engine->hostProcess(gdata);
 
 		/* list of buffers that were updated in-place */
-		const flag_t updated_buffers = flt->second->get_updated_buffers();
+		const flag_t updated_buffers = engine->get_updated_buffers();
 		/* list of buffers that were written from scratch */
-		const flag_t written_buffers = flt->second->get_written_buffers();
+		const flag_t written_buffers = engine->get_written_buffers();
 
 		const flag_t buffers_to_sync = updated_buffers | written_buffers;
 
@@ -1763,8 +1753,11 @@ void GPUSPH::saveParticles(
 		 * so let's do it here for the time being.
 		 */
 #if 1
-		if (MULTI_DEVICE && need_update)
-			doCommand(UPDATE_EXTERNAL, "step n", buffers_to_sync);
+		if (MULTI_DEVICE && need_update) {
+			CommandStruct update(UPDATE_EXTERNAL);
+			update.updating("step n", buffers_to_sync);
+			doCommand(update);
+		}
 #endif
 
 		which_buffers |= buffers_to_sync;
@@ -1781,7 +1774,9 @@ void GPUSPH::saveParticles(
 		which_buffers &= ~EPHEMERAL_BUFFERS;
 
 	// dump what we want to save
-	doCommand(DUMP, state, which_buffers);
+	CommandStruct dump(DUMP);
+	dump.reading(state, which_buffers);
+	doCommand(dump);
 
 	// triggers Writer->write()
 	doWrite(write_flags);
@@ -2052,6 +2047,8 @@ void GPUSPH::rollCallParticles()
 // update s_hStartPerDevice, s_hPartsPerDevice and totParticles
 // Could go in GlobalData but would need another forward-declaration
 void GPUSPH::updateArrayIndices() {
+	static const auto debug_dump = CommandStruct(DUMP).reading("sorted", BUFFER_INFO);
+
 	uint processCount = 0;
 
 	// just store an incremental counter
@@ -2110,7 +2107,7 @@ void GPUSPH::updateArrayIndices() {
 
 				// who is missing? if single-node, do a roll call
 				if (SINGLE_NODE) {
-					doCommand(DUMP, "sorted", BUFFER_INFO);
+					doCommand(debug_dump);
 					rollCallParticles();
 				}
 			}

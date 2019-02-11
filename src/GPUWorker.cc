@@ -1298,8 +1298,8 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	// TODO should use cmd.reads
-	auto const& buflist = m_dBuffers.state_subset_existing(cmd.src, cmd.flags);
+	auto const buflist = extractExistingBufferList(m_dBuffers, cmd.reads);
+	const flag_t dev_keys = buflist.get_keys();
 
 	// iterate over each array in the _host_ buffer list, and download data
 	// if it was requested
@@ -1307,7 +1307,7 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 	const BufferList::iterator stop = gdata->s_hBuffers.end();
 	for ( ; onhost != stop ; ++onhost) {
 		flag_t buf_to_get = onhost->first;
-		if (!(buf_to_get & cmd.flags))
+		if (!(buf_to_get & dev_keys))
 			continue;
 
 		shared_ptr<const AbstractBuffer> buf = buflist[buf_to_get];
