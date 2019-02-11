@@ -740,24 +740,12 @@ bool GPUSPH::runSimulation() {
 		// run PREDICTOR step (INTEGRATOR_STEP_1)
 		runIntegratorStep(INTEGRATOR_STEP_1);
 
-		// Here the first part of our time integration scheme is complete. All updated values
-		// are now in the read buffers again
-
 		// End of predictor step, start corrector step
-
-		// Move ephemeral buffers to step n*.
-		doCommand(MOVE_STATE_BUFFERS, "step n", "step n*", EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS));
 
 		// run CORRECTOR step (INTEGRATOR_STEP_2)
 		runIntegratorStep(INTEGRATOR_STEP_2);
 
-		// Here the second part of our time integration scheme is complete, i.e. the time-step is
-		// fully computed. All updated values are now in the read buffers again:
-
 		// End of corrector step, finish iteration
-
-		doCommand(RELEASE_STATE, "step n");
-		doCommand(RENAME_STATE, "step n+1", "step n");
 
 		// increase counters
 		gdata->iterations++;
@@ -2675,6 +2663,16 @@ GPUSPH::initializeNextStepSequence(int step_num)
 		cmd_seq.push_back(CHECK_NEWNUMPARTS);
 	}
 
+	// at the end of the corrector we rename step n+1 to step n, in preparation
+	// for the next loop
+	if (step_num == 2) {
+		cmd_seq.push_back(RELEASE_STATE)
+			.set_src("step n");
+		cmd_seq.push_back(RENAME_STATE)
+			.set_src("step n+1")
+			.set_dst("step n");
+	}
+
 }
 
 void
@@ -2716,6 +2714,15 @@ GPUSPH::initializePredCorrSequence(int step_num)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	// next state is step n* for the predictor, step n+1 for the corrector
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
+
+	// at the beginning of the corrector, we move all ephemeral buffers from step n
+	// to the new step n*
+	if (step_num == 2)
+		cmd_seq.push_back(MOVE_STATE_BUFFERS)
+			.set_src("step n")
+			.set_dst("step n*")
+			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS) );
+
 
 	// for Grenier formulation, compute sigma and smoothed density
 	// TODO with boundary models requiring kernels for boundary conditions,
