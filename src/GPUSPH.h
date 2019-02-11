@@ -111,6 +111,12 @@ private:
 	CommandSequence nextStepCommands[3]; // steps implementing prepareNextStep(), for each of the integrator steps
 	CommandSequence predCorrCommands[3]; // steps implementing the prediction and correction phases of the integrator
 
+	// Command sequences that describe filters. This is split in three sequences:
+	// introduction, per-filter sequence, closure
+	CommandSequence filterIntroCommands; // commands to be called when preparing to run filters
+	CommandSequence filterCallCommands; // commands to be called when running a single filter
+	CommandSequence filterOutroCommands; // commands to be called after running all filters
+
 	// constructor and copy/assignment: private for singleton scheme
 	GPUSPH();
 	GPUSPH(GPUSPH const&); // NOT implemented
@@ -140,6 +146,9 @@ private:
 	// initialize the command sequences
 	// TODO provisional during the refactoring
 	void initializeBuildNeibsSequence();
+	// initialize the command sequences for filtering and post-processing
+	void initializeFilterSequence();
+	// initialize the command sequence for boundary models (one per boundary)
 	template<BoundaryType boundarytype>
 	void initializeBoundaryConditionsSequence(int step_num);
 	void initializeNextStepSequence(int step_num);

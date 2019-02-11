@@ -2516,8 +2516,8 @@ void GPUWorker::runCommand<FILTER>(CommandStruct const& cmd)
 	}
 
 	// TODO be more selective
-	auto const& bufread = m_dBuffers.getState("unfiltered");
-	BufferList bufwrite = m_dBuffers.state_subset("filtered", BUFFER_VEL);
+	auto const& bufread = m_dBuffers.getState(cmd.reads[0].state);
+	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write(string("filter/") + FilterName[filtertype]);
 

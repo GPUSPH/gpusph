@@ -621,31 +621,31 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 }
 
 void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
-	FilterFreqList::const_iterator flt(enabledFilters.begin());
-	FilterFreqList::const_iterator flt_end(enabledFilters.end());
-	doCommand(RENAME_STATE, "step n", "unfiltered");
-	doCommand(INIT_STATE, "filtered");
-	while (flt != flt_end) {
-		FilterType filter = flt->first;
-		uint freq = flt->second; // known to be > 0
-		if (gdata->iterations % freq == 0) {
-			doCommand(FILTER, filter);
-			// update before swapping, since UPDATE_EXTERNAL works on write buffers
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, "filtered",  BUFFER_VEL);
+	// run pre-filter commands
+	for (auto const& cmd : filterIntroCommands)
+		doCommand(cmd);
 
-			// swap buffers between filtered and unfiltered: this moves
-			// the filtered buffer into the unfiltered state (as in: unfiltered for the
-			// next filter, if any), and moves what was in the unfiltered state to filtered:
-			// the latter is marked invalid, in preparation for the next filter (if any)
-			doCommand(SWAP_STATE_BUFFERS, "unfiltered", "filtered", BUFFER_VEL);
+	const unsigned long iterations = gdata->iterations;
+
+	// for each filter ...
+	for (auto const& flt : enabledFilters) {
+		FilterType filter = flt.first;
+		uint freq = flt.second; // known to be > 0
+		if (iterations % freq != 0)
+			continue;
+		// ok, need to run this filter. 
+		// the first command should be FILTER, and we need to set the flags with the filter name
+		for (auto cmd : filterCallCommands) {
+			if (cmd.command == FILTER)
+				doCommand(cmd.set_flags(filter));
+			else
+				doCommand(cmd);
 		}
-		++flt;
 	}
-	// a bit of a paradox: the state rename is done for the unfiltered state,
-	// since this is where the previously filtered velocity has been moved with the last swap
-	doCommand(RENAME_STATE, "unfiltered", "step n");
-	doCommand(RELEASE_STATE, "filtered");
+
+	// run post-filter commands
+	for (auto const& cmd : filterOutroCommands)
+		doCommand(cmd);
 }
 
 bool GPUSPH::runSimulation() {
@@ -2251,6 +2251,48 @@ void GPUSPH::check_write(bool we_are_done)
 }
 
 void
+GPUSPH::initializeFilterSequence()
+{
+	/* Things to do before looping over any filter */
+	filterIntroCommands.push_back(RENAME_STATE)
+		.set_src("step n")
+		.set_dst("unfiltered");
+	filterIntroCommands.push_back(INIT_STATE)
+		.set_src("filtered");
+
+	/* Command sequence for a single filter
+	 * The caller should set the command flag with the filter name
+	 */
+	filterCallCommands.push_back(FILTER)
+		// TODO currently runCommand<FILTER> knows that it needs to get the whole state
+		// and there will be a single reading specification
+		.reading("unfiltered", BUFFER_NONE)
+		.writing("filtered", BUFFER_VEL);
+	if (MULTI_DEVICE)
+		filterCallCommands.push_back(UPDATE_EXTERNAL)
+			.updating("filtered", BUFFER_VEL);
+
+	// swap buffers between filtered and unfiltered: this moves
+	// the filtered buffer into the unfiltered state (as in: unfiltered for the
+	// next filter, if any), and moves what was in the unfiltered state to filtered:
+	// the latter is marked invalid, in preparation for the next filter (if any)
+	filterCallCommands.push_back(SWAP_STATE_BUFFERS)
+		.set_src("unfiltered")
+		.set_dst("filtered")
+		.set_flags(BUFFER_VEL);
+
+	/* Things to do after looping over filters */
+	// a bit of a paradox: the state rename is done for the unfiltered state,
+	// since this is where the previously filtered velocity has been moved with the last swap
+	filterOutroCommands.push_back(RENAME_STATE)
+		.set_src("unfiltered")
+		.set_dst("step n");
+	filterOutroCommands.push_back(RELEASE_STATE)
+		.set_src("filtered");
+
+}
+
+void
 GPUSPH::initializeBuildNeibsSequence()
 {
 	/* Initialize the niebsList Commands */
@@ -2868,6 +2910,8 @@ void
 GPUSPH::initializeCommandSequences()
 {
 	initializeBuildNeibsSequence();
+
+	initializeFilterSequence();
 
 	initializeNextStepSequence(0); // prepareNextStep(INITIALIZATION_STEP)
 	initializeNextStepSequence(1); // prepareNextStep(INTEGRATOR_STEP_1)
