@@ -643,9 +643,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
-	// Take care of moving bodies
-	doCommand(MOVE_BODIES, integrator_step);
-
 	// On the predictor, we need to (re)init the predicted status (n*),
 	// on the corrector this will be updated (in place) to the corrected status (n+1)
 	// TODO we need to better formalize the situation in which a kernel moves
@@ -2823,6 +2820,10 @@ GPUSPH::initializePredCorrSequence(int step_num)
 				.reading(current_state, BUFFERS_CFL & ~BUFFER_CFL_TEMP)
 				.writing(current_state, BUFFER_CFL_TEMP);
 	}
+
+	// Take care of moving bodies
+	cmd_seq.push_back(MOVE_BODIES)
+		.set_flags(integrator_step);
 
 
 	/* TODO */
