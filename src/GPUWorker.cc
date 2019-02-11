@@ -2228,25 +2228,9 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
-	// Integration always uses the step n state for starters,
-	// and will write to step n* or step n+1
-	const string base_state = "step n";
-	const string next_state = (step == 1 ? "step n*" : "step n+1");
-	// the forces were computed in the base state for the predictor,
-	// on the next state for the corrector
-	const string forces_state = (step == 1 ? base_state : next_state);
-
-	const BufferList bufread =
-		m_dBuffers.state_subset(base_state,
-			PARTICLE_PROPS_BUFFERS | BUFFER_HASH)
-		|
-		m_dBuffers.state_subset(forces_state,
-			BUFFER_FORCES | BUFFER_XSPH |
-			BUFFER_INTERNAL_ENERGY_UPD |
-			BUFFER_DKDE);
-
-	BufferList bufwrite = m_dBuffers.state_subset(next_state,
-		PARTICLE_PROPS_BUFFERS);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("euler" + to_string(step));
 
@@ -2261,6 +2245,10 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
 		m_simparams->slength,
 		m_simparams->influenceRadius);
+
+	// should we rename the state?
+	if (!cmd.src.empty() && !cmd.dst.empty())
+		m_dBuffers.rename_state(cmd.src, cmd.dst);
 
 	bufwrite.clear_pending_state();
 

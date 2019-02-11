@@ -643,23 +643,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
-	// On the predictor, we need to (re)init the predicted status (n*),
-	// on the corrector this will be updated (in place) to the corrected status (n+1)
-	// TODO we need to better formalize the situation in which a kernel moves
-	// a buffer to one state to the other on update
-	if (integrator_step == INTEGRATOR_STEP_1) {
-		doCommand(INIT_STATE, "step n*");
-		/* The buffers (re)initialized during the neighbors list construction
-		 * and the INFO and HASH buffers are shared between states
-		 */
-		doCommand(SHARE_BUFFERS, "step n", "step n*", shared_buffers | SUPPORT_BUFFERS);
-	} else {
-		doCommand(RENAME_STATE, "step n*", "step n+1");
-	}
-
-	// perform the euler integration step
-	doCommand(EULER, integrator_step);
-
 	if (gdata->debug.inspect_pregamma)
 		doCommand(DEBUG_DUMP, next_state, integrator_step);
 
@@ -2824,6 +2807,43 @@ GPUSPH::initializePredCorrSequence(int step_num)
 	// Take care of moving bodies
 	cmd_seq.push_back(MOVE_BODIES)
 		.set_flags(integrator_step);
+
+	// On the predictor, we need to (re)init the predicted status (n*),
+	// on the corrector this will be updated (in place) to the corrected status (n+1)
+	if (step_num == 1) {
+		cmd_seq.push_back(INIT_STATE)
+			.set_src("step n*");
+		/* The buffers (re)initialized during the neighbors list construction
+		 * and the INFO and HASH buffers are shared between states
+		 */
+		cmd_seq.push_back(SHARE_BUFFERS)
+			.set_src("step n")
+			.set_dst("step n*")
+			.set_flags(shared_buffers | SUPPORT_BUFFERS);
+	}
+
+	CommandStruct& euler_cmd = cmd_seq.push_back(EULER)
+		.set_flags(integrator_step)
+		// these are always taken from step n
+		.reading("step n", PARTICLE_PROPS_BUFFERS | BUFFER_HASH)
+		// these are always taken from the current step
+		.reading(current_state,
+			BUFFER_FORCES | BUFFER_XSPH |
+			BUFFER_INTERNAL_ENERGY_UPD |
+			BUFFER_DKDE);
+
+	// now, the difference:
+	if (step_num == 1) {
+		// predictor: the next state is empty, so we mark all the props buffer as writing:
+		euler_cmd.writing(next_state, PARTICLE_PROPS_BUFFERS);
+	} else {
+		// corrector: we update the “current” state (step n*)
+		euler_cmd.updating(current_state, PARTICLE_PROPS_BUFFERS)
+		// and then rename it to step n+1; for another usage of this syntax,
+		// see also the enqueue of the SORT command
+			.set_src(current_state)
+			.set_dst(next_state);
+	}
 
 
 	/* TODO */
