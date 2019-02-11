@@ -616,44 +616,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	for (auto const& cmd : predCorrCommands[step_num])
 		doCommand(cmd);
 
-	/* In the predictor/corrector scheme we use, there are four buffers that
-	 * need special treatment:
-	 * * the INFO buffer is always representative of both states —in fact, because of this
-	 *   and because it's part of the sorting key, it's the only property buffer
-	 *   which is not double buffered;
-	 * * the VERTICES buffer is always representative of both states, even though it is used
-	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
-	 *   in-place;
-	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
-	 *   representative of the previous state only until it gets updated, when it is
-	 *   representative of the next state only;
-	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
-	 *   boundaries, otherwise is follows the behavior of the other buffers
-	 */
-
-	static const bool has_moving_bodies = (problem->simparams()->simflags & ENABLE_MOVING_BODIES);
-	static const flag_t shared_buffers =
-		BUFFER_INFO |
-		BUFFER_VERTICES |
-		BUFFER_NEXTID |
-		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
-		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
-
-	// TODO get from integrator
-	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
-	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
-
-	if (! (problem->simparams()->simflags & ENABLE_DENSITY_SUM) &&
-		  (problem->simparams()->boundarytype == SA_BOUNDARY))
-	{
-		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
-		// but we still need to integrate gamma, which needs the new position and thus
-		// needs to be done after EULER
-		doCommand(INTEGRATE_GAMMA, integrator_step);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, next_state, BUFFER_GRADGAMMA);
-	}
-
 	// upload gravity, boundary conditions, etc
 	prepareNextStep(integrator_step);
 }
@@ -2878,10 +2840,28 @@ GPUSPH::initializePredCorrSequence(int step_num)
 				cmd_seq.push_back(UPDATE_EXTERNAL)
 					.updating(next_state, BUFFER_VEL);
 		}
+	} else if (sp->boundarytype == SA_BOUNDARY) {
+		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
+		// but we still need to integrate gamma, which needs the new position and thus
+		// needs to be done after EULER
+		cmd_seq.push_back(INTEGRATE_GAMMA)
+			.set_flags(integrator_step)
+			.reading(base_state, /* as in the EULER case, we always read from step n */
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL |
+				BUFFER_VERTPOS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
+			.updating(next_state,
+				BUFFER_POS /* this is only accessed for reading */ |
+				BUFFER_EULERVEL /* this is only accessed for reading */ |
+				BUFFER_BOUNDELEMENTS /* this is only accessed for reading */ |
+				BUFFER_VEL /* this is only accessed for reading */ |
+				BUFFER_GRADGAMMA);
+		if (MULTI_DEVICE)
+			cmd_seq.push_back(UPDATE_EXTERNAL)
+				.updating(next_state, BUFFER_GRADGAMMA);
+
 	}
 
-
-	/* TODO */
 }
 
 void
