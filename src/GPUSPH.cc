@@ -643,9 +643,6 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
-	if (gdata->debug.inspect_pregamma)
-		doCommand(DEBUG_DUMP, next_state, integrator_step);
-
 	if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
 		// compute density based on an integral formulation
 		doCommand(DENSITY_SUM, integrator_step);
@@ -2844,6 +2841,11 @@ GPUSPH::initializePredCorrSequence(int step_num)
 			.set_src(current_state)
 			.set_dst(next_state);
 	}
+
+	if (gdata->debug.inspect_preforce)
+		cmd_seq.push_back(DEBUG_DUMP)
+			.set_src(next_state)
+			.set_flags(integrator_step);
 
 
 	/* TODO */
