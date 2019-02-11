@@ -130,14 +130,6 @@ struct StateBuffers
 		state(state_),
 		buffers(buffers_)
 	{}
-	StateBuffers(std::string const& state_) :
-		state(state_),
-		buffers(BUFFER_NONE)
-	{}
-	StateBuffers(flag_t buffers_) :
-		state(),
-		buffers(buffers_)
-	{}
 };
 
 //! A command buffer usage specification
@@ -209,18 +201,12 @@ struct CommandStruct
 	CommandStruct& clear_flags(flag_t f)
 	{ flags &= ~f; return *this; }
 
-	CommandStruct& reading(StateBuffers const& buf)
-	{ reads.push_back(buf); return *this; }
 	CommandStruct& reading(std::string const& state, flag_t buffers)
 	{ reads.push_back(StateBuffers(state, buffers)); return *this; }
 
-	CommandStruct& updating(StateBuffers const& buf)
-	{ updates.push_back(buf); return *this; }
 	CommandStruct& updating(std::string const& state, flag_t buffers)
 	{ updates.push_back(StateBuffers(state, buffers)); return *this; }
 
-	CommandStruct& writing(StateBuffers const& buf)
-	{ writes.push_back(buf); return *this; }
 	CommandStruct& writing(std::string const& state, flag_t buffers)
 	{ writes.push_back(StateBuffers(state, buffers)); return *this; }
 };
