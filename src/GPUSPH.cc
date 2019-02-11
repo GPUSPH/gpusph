@@ -643,22 +643,9 @@ GPUSPH::runIntegratorStep(const flag_t integrator_step)
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
 
-	if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
-		// compute density based on an integral formulation
-		doCommand(DENSITY_SUM, integrator_step);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, next_state,
-					BUFFER_VEL | BUFFER_GRADGAMMA);
-
-		// when using density sum, density diffusion is applied _after_ the density sum
-		if (problem->simparams()->densitydiffusiontype
-				!= DENSITY_DIFFUSION_NONE) {
-			doCommand(CALC_DENSITY_DIFFUSION, integrator_step);
-			doCommand(APPLY_DENSITY_DIFFUSION, integrator_step);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, next_state, BUFFER_VEL);
-		}
-	} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+	if (! (problem->simparams()->simflags & ENABLE_DENSITY_SUM) &&
+		  (problem->simparams()->boundarytype == SA_BOUNDARY))
+	{
 		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
 		// but we still need to integrate gamma, which needs the new position and thus
 		// needs to be done after EULER
@@ -2718,6 +2705,8 @@ GPUSPH::initializePredCorrSequence(int step_num)
 	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
 
 	// TODO get from integrator
+	// for both steps, the “starting point” for Euler and density summation is step n
+	const string base_state = "step n";
 	// current state is step n for the predictor, step n* for the corrector
 	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
 	// next state is step n* for the predictor, step n+1 for the corrector
@@ -2822,7 +2811,7 @@ GPUSPH::initializePredCorrSequence(int step_num)
 	CommandStruct& euler_cmd = cmd_seq.push_back(EULER)
 		.set_flags(integrator_step)
 		// these are always taken from step n
-		.reading("step n", PARTICLE_PROPS_BUFFERS | BUFFER_HASH)
+		.reading(base_state, PARTICLE_PROPS_BUFFERS | BUFFER_HASH)
 		// these are always taken from the current step
 		.reading(current_state,
 			BUFFER_FORCES | BUFFER_XSPH |
@@ -2846,6 +2835,50 @@ GPUSPH::initializePredCorrSequence(int step_num)
 		cmd_seq.push_back(DEBUG_DUMP)
 			.set_src(next_state)
 			.set_flags(integrator_step);
+
+	if (sp->simflags & ENABLE_DENSITY_SUM) {
+		// the forces were computed in the base state for the predictor,
+		// on the next state for the corrector
+		// or as an alternative we could free BUFFER_FORCES from whatever state it's in
+		const string forces_state = (step_num == 1 ? base_state : next_state);
+
+		cmd_seq.push_back(DENSITY_SUM)
+			.set_flags(integrator_step)
+			.reading(base_state, /* always read the base state, like EULER */
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL |
+				BUFFER_VERTPOS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
+			.updating(next_state,
+				BUFFER_POS /* this is only accessed for reading */ |
+				BUFFER_EULERVEL /* this is only accessed for reading */ |
+				BUFFER_BOUNDELEMENTS /* this is only accessed for reading */ |
+				BUFFER_VEL | BUFFER_GRADGAMMA)
+			.writing(forces_state, BUFFER_FORCES);
+
+		if (MULTI_DEVICE)
+			cmd_seq.push_back(UPDATE_EXTERNAL)
+				.updating(next_state, BUFFER_VEL | BUFFER_GRADGAMMA);
+
+		// when using density sum, density diffusion is applied _after_ the density sum
+		if (sp->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
+			cmd_seq.push_back(CALC_DENSITY_DIFFUSION)
+				.set_flags(integrator_step)
+				.reading(next_state,
+					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+					BUFFER_VEL |
+					BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
+				.writing(forces_state, BUFFER_FORCES);
+			cmd_seq.push_back(APPLY_DENSITY_DIFFUSION)
+				.set_flags(integrator_step)
+				.reading(next_state, BUFFER_INFO)
+				.reading(forces_state, BUFFER_FORCES)
+				.updating(next_state, BUFFER_VEL);
+
+			if (MULTI_DEVICE)
+				cmd_seq.push_back(UPDATE_EXTERNAL)
+					.updating(next_state, BUFFER_VEL);
+		}
+	}
 
 
 	/* TODO */

@@ -2267,25 +2267,9 @@ void GPUWorker::runCommand<DENSITY_SUM>(CommandStruct const& cmd)
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
-	// Integration always uses the step n state for starters,
-	// and will write to step n* or step n+1
-	const string base_state = "step n";
-	const string next_state = (step == 1 ? "step n*" : "step n+1");
-	// the forces were computed in the base state for the predictor,
-	// on the next state for the corrector
-	const string forces_state = (step == 1 ? base_state : next_state);
-
-	const BufferList bufread = m_dBuffers.state_subset(base_state,
-		BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-		BUFFER_VEL |
-		BUFFER_VERTPOS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
-
-	BufferList bufwrite = m_dBuffers.state_subset(next_state,
-		BUFFER_POS /* this is only accessed for reading */ |
-		BUFFER_EULERVEL /* this is only accessed for reading */ |
-		BUFFER_BOUNDELEMENTS /* this is only accessed for reading */ |
-		BUFFER_VEL |
-		BUFFER_GRADGAMMA) | m_dBuffers.state_subset(forces_state, BUFFER_FORCES);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("densitySum" + to_string(step));
 
@@ -2369,19 +2353,9 @@ void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
-	// Density diffusion works on the “new” data
-	const string base_state = "step n";
-	const string next_state = (step == 1 ? "step n*" : "step n+1");
-	// the forces were computed in the base state for the predictor,
-	// on the next state for the corrector
-	const string forces_state = (step == 1 ? base_state : next_state);
-
-	const BufferList bufread = m_dBuffers.state_subset(next_state,
-		BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-		BUFFER_VEL |
-		BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS);
-
-	BufferList bufwrite = m_dBuffers.state_subset(forces_state, BUFFER_FORCES);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("calcDensityDiffusion" + to_string(step));
 
@@ -2413,17 +2387,9 @@ void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 	const int step = get_step_number(step_flag);
 	const bool firstStep = (step == 1);
 
-	// Density diffusion works on the “new” data
-	const string base_state = "step n";
-	const string next_state = (step == 1 ? "step n*" : "step n+1");
-	// the forces were computed in the base state for the predictor,
-	// on the next state for the corrector
-	const string forces_state = (step == 1 ? base_state : next_state);
-
-	const BufferList bufread = m_dBuffers.state_subset(next_state, BUFFER_INFO)
-		| m_dBuffers.state_subset(forces_state, BUFFER_FORCES);
-
-	BufferList bufwrite = m_dBuffers.state_subset(next_state, BUFFER_VEL);
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("applyDensityDiffusion" + to_string(step));
 
