@@ -671,7 +671,8 @@ bool GPUSPH::runSimulation() {
 	// to produce the configuration at “step n+1”; the initial upload brings the particle
 	// into a particle system “initial upload”, which we rename to “step n” before
 	// entering the main simulation cycle.
-	doCommand(RENAME_STATE, "initial upload", "step n");
+	for (auto const& cmd : postInitCommands)
+		doCommand(cmd);
 
 	// Some formulations require stuff to be done before the beginning of the
 	// main loop (partially, this is stuff that is also done at the end of each
@@ -712,8 +713,8 @@ bool GPUSPH::runSimulation() {
 	while (gdata->keep_going) try {
 		printStatus(m_info_stream);
 
-		// remove ephemeral buffers from the particle system state
-		doCommand(REMOVE_STATE_BUFFERS, "step n", EPHEMERAL_BUFFERS);
+		for (auto const& cmd : timeStepBeginCommands)
+			doCommand(cmd);
 
 		// build neighbors list every buildneibsfreq or if we created
 		// particles, but only after the first iteration, because we have
@@ -2909,6 +2910,18 @@ GPUSPH::initializePredCorrSequence(int step_num)
 void
 GPUSPH::initializeCommandSequences()
 {
+	// after initialization, and before running the first prepareNextStep,
+	// we need to rename the “initial upload” state into “step n”
+	postInitCommands.push_back(RENAME_STATE)
+		.set_src("initial upload")
+		.set_dst("step n");
+
+	// at the beginning of every full integration time-step there are some preparations to be done.
+	// currently, this is just cleaning up the current state to reset all ephemeral buffers
+	timeStepBeginCommands.push_back(REMOVE_STATE_BUFFERS)
+		.set_src("step n")
+		.set_flags(EPHEMERAL_BUFFERS);
+
 	initializeBuildNeibsSequence();
 
 	initializeFilterSequence();

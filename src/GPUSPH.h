@@ -107,6 +107,8 @@ private:
 	// Command sequences describing the major phases of the integration
 	// TODO these will be moved to an actual Integrator class once we're done
 	// with the refactoring
+	CommandSequence postInitCommands; // steps to be run after initialization, but before the simulation begins
+	CommandSequence timeStepBeginCommands; // steps to be run at the beginning of every full integration timestep
 	CommandSequence neibsListCommands; // steps implementing buildNeibList()
 	CommandSequence nextStepCommands[3]; // steps implementing prepareNextStep(), for each of the integrator steps
 	CommandSequence predCorrCommands[3]; // steps implementing the prediction and correction phases of the integrator
