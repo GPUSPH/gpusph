@@ -16,10 +16,13 @@ sfx=check
 ref=reference
 maxiter=1000
 
+mgpu=0
+
 case "$GPUSPH_DEVICE" in
 *,*)
 	sfx=mgpu-check
 	ref=mgpu-reference
+	mgpu=1
 esac
 
 problem="$1"
@@ -42,5 +45,12 @@ refdir="tests/${problem}_${ref}"
 
 rm -rf "$outdir"
 
-make $problem && ./GPUSPH --dir "$outdir" --maxiter $maxiter || abort "Failed!"
+make $problem && ./GPUSPH --dir "$outdir" --maxiter $maxiter || abort "$problem failed!"
 diff -q "${outdir}/data" "${refdir}/data" || abort "$problem differs!"
+
+if [ $mgpu -eq 1 ] ; then
+	make $problem && ./GPUSPH --dir "$outdir" --maxiter $maxiter --striping || abort "$problem failed! (striping)"
+	diff -q "${outdir}/data" "${refdir}/data" || abort "$problem differs! (striping)"
+fi
+
+echo "OK"
