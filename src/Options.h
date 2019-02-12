@@ -68,6 +68,7 @@ public:
 	std::string	dir; ///< directory where data will be saved
 	double	deltap; ///< deltap
 	float	tend; ///< simulation end
+	float	dt; ///< fixed time-step
 	unsigned long maxiter; ///< maximum number of iterations to run
 	uint repack_maxiter; ///< maximum number of iterations for repacking
 	float	checkpoint_freq; ///< frequency of hotstart checkpoints (in simulated seconds)
@@ -96,6 +97,7 @@ public:
 		dir(),
 		deltap(NAN),
 		tend(NAN),
+		dt(NAN),
 		maxiter(0),
 		repack_maxiter(0),
 		checkpoint_freq(NAN),

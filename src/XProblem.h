@@ -61,7 +61,8 @@ enum GeometryType {	GT_FLUID,
 enum FillType {	FT_NOFILL,
 				FT_SOLID,
 				FT_SOLID_BORDERLESS,
-				FT_BORDER
+				FT_BORDER,
+				FT_UNFILL
 };
 
 enum IntersectionType {	IT_NONE,
@@ -236,7 +237,7 @@ class XProblem: public Problem {
 		GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double major_radius, const double minor_radius);
 		GeometryID addPlane(
-			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff);
+			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff, const FillType ftype = FT_NOFILL);
 		GeometryID addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 			const char *fname);
 		GeometryID addOBJMesh(const GeometryType otype, const FillType ftype, const Point &origin,
@@ -254,9 +255,7 @@ class XProblem: public Problem {
 		// request to invert normals while loading - only for HDF5 files
 		void flipNormals(const GeometryID gid, bool flip = true);
 
-		/*! Method for deleting a geometry (actually disabling).
-		 *	NOTE: the geometry still use its IntersectionType to intersect preceding geometries.
-		 */
+		// method for deleting a geometry (actually disabling)
 		void deleteGeometry(const GeometryID gid);
 
 		// methods to enable/disable handling of dynamics/collisions for a specific geometry

@@ -39,7 +39,14 @@
 	- a parallel reduction for max neibs number is done inside neiblist, block
 	size for neiblist MUST BE A POWER OF 2
  */
-#if (__COMPUTE__ >= 20)
+#if (__COMPUTE == 75)
+	#define BLOCK_SIZE_CALCHASH		256
+	#define MIN_BLOCKS_CALCHASH		4
+	#define BLOCK_SIZE_REORDERDATA	256
+	#define MIN_BLOCKS_REORDERDATA	4
+	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define MIN_BLOCKS_BUILDNEIBS	4
+#elif (__COMPUTE__ >= 20)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		6
 	#define BLOCK_SIZE_REORDERDATA	256

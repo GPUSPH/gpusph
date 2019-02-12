@@ -50,9 +50,6 @@
 // div_up
 #include "utils.h"
 
-/* Include only the problem selected at compile time */
-#include "problem_select.opt"
-
 // HotFile
 #include "HotFile.h"
 
@@ -187,6 +184,15 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// initial dt (or, just dt in case adaptive is disabled)
 	gdata->dt = _sp->dt;
+	gdata->dtadapt = _sp->simflags & ENABLE_DTADAPT;
+	if (isfinite(gdata->clOptions->dt)) {
+		float new_dt = gdata->clOptions->dt;
+		printf("Time step %g specified on the command-line overrides %g\n", new_dt, gdata->dt);
+		if (gdata->dtadapt)
+			printf("\tfixed time-stepping will be used even though adapting time-stepping is enabled\n");
+		gdata->dt = new_dt;
+		gdata->dtadapt = false;
+	}
 
 	printf("Generating problem particles...\n");
 
@@ -477,9 +483,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Starting workers...\n");
 
 	// allocate workers
-	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
+	gdata->GPUWORKERS.reserve(gdata->devices);
 	for (uint d=0; d < gdata->devices; d++)
-		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
+		gdata->GPUWORKERS.push_back( make_shared<GPUWorker>(gdata, d) );
 
 	//	repack.SetParams();
 
@@ -513,10 +519,7 @@ bool GPUSPH::finalize() {
 	free(m_rcAddrs);
 
 	// workers
-	for (uint d = 0; d < gdata->devices; d++)
-		delete gdata->GPUWORKERS[d];
-
-	free(gdata->GPUWORKERS);
+	gdata->GPUWORKERS.clear();
 
 	// Synchronizer
 	delete gdata->threadSynchronizer;
@@ -1187,7 +1190,7 @@ bool GPUSPH::runSimulation() {
 			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
 
 		// choose minimum dt among the devices
-		if (gdata->problem->simparams()->simflags & ENABLE_DTADAPT) {
+		if (gdata->dtadapt) {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);

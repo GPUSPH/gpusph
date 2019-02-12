@@ -412,6 +412,13 @@ ushort fluid_num(const particleinfo &info)
 	return GET_FLUID_NUM(info.y);
 }
 
+inline __host__
+void set_fluid_num(particleinfo &info, ushort fluid_num)
+{
+	info.y = object(info) | SET_FLUID_NUM(fluid_num);
+}
+
+
 /// Returns particle global id
 /*! Returns the particle global id for a given particle info.
  *

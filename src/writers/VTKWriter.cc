@@ -100,7 +100,7 @@ void VTKWriter::start_writing(double t, flag_t write_flags)
 	Writer::start_writing(t, write_flags);
 
 	ostringstream time_repr;
-	time_repr << t;
+	time_repr << setprecision(16) << t;
 	m_current_time = time_repr.str();
 
 	// we append the current integrator step to the timestring,

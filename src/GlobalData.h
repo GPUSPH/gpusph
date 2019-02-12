@@ -229,7 +229,7 @@ struct GlobalData {
 	devcount_t totDevices;
 
 	// array of GPUWorkers, one per GPU
-	GPUWorker** GPUWORKERS;
+	std::vector<std::shared_ptr<GPUWorker>> GPUWORKERS;
 
 	Problem* problem;
 
@@ -332,6 +332,14 @@ struct GlobalData {
 	// TODO check how moving boundaries cope with this
 	double t;
 	float dt;
+	//! Will we use adaptive time-stepping?
+	/*! Adaptive time-stepping is enabled by default (ENABLE_DTADAPT in the framework
+	 * simulation flags) and can be disabled by adding the appropriate disable_flags<>
+	 * specification to the framework.
+	 * However, if the user specifies a time-step on the command-line, adaptive
+	 * time-stepping will be disabled unconditionally
+	 */
+	bool dtadapt;
 
 	// One TimingInfo per worker, currently used for statistics about neibs and interactions
 	TimingInfo timingInfo[MAX_DEVICES_PER_NODE];

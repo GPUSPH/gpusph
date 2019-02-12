@@ -29,6 +29,14 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
+// TODO this problem should be turned into a generic validation problem
+// similar to Poiseuille:
+// * allow runtime selection of density, kinematic visc and driving force;
+// * only use driving force in the direction of the flow (no vertical component)
+// * script to check the resulting profile against the expected (analytical) one
+// * when generalized Newtonian rheologies get implemented, we should make this
+//   default to a non-Newtonian rheology, so that checking all problems will
+//   have one such problem to verify against too
 OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 {
 	use_side_walls = get_option("sidewalls", true);

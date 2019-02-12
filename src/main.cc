@@ -38,8 +38,7 @@
 #include "GlobalData.h"
 #include "NetworkManager.h"
 
-// Include only the problem selected at compile time (PROBLEM, QUOTED_PROBLEM)
-#include "problem_select.opt"
+#include "problem_spec.h"
 
 /* Include all other opt file for show_version */
 #include "chrono_select.opt"
@@ -67,11 +66,11 @@ void show_version()
 		dbg_or_rel,
 		FASTMATH ? "with" : "without",
 		COMPUTE/10, COMPUTE%10);
-	printf("Chrono   : %s\n", USE_CHRONO ? "enabled" : "disabled");
-	printf("HDF5     : %s\n", USE_HDF5 ? "enabled" : "disabled");
-	printf("MPI      : %s\n", USE_MPI ? "enabled" : "disabled");
+	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
+	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
+	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
 	printf("Catalyst : %s\n", USE_CATALYST ? "enabled" : "disabled");
-	printf("Compiled for problem \"%s\"\n", QUOTED_PROBLEM);
+	printf("Compiled for problem \"%s\"\n", selected_problem.name);
 }
 
 
@@ -79,7 +78,7 @@ void show_version()
 void print_usage() {
 	show_version();
 	cout << "Syntax: " << endl;
-	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
+	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL] [--dt VAL]\n";
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
@@ -94,6 +93,7 @@ void print_usage() {
 	cout << " --dem : Use given DEM (if problem supports it)\n";
 	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
 	cout << " --tend : Break at given time (VAL is cast to float)\n";
+	cout << " --dt : Use the provided fixed time-step (VAL is cast to float)\n";
 	cout << " --maxiter : Break after this many iterations (integer VAL)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
@@ -169,6 +169,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		} else if (!strcmp(arg, "--tend")) {
 			/* read the next arg as a float */
 			sscanf(*argv, "%f", &(_clOptions->tend));
+			argv++;
+			argc--;
+		} else if (!strcmp(arg, "--dt")) {
+			/* read the next arg as a float */
+			sscanf(*argv, "%f", &(_clOptions->dt));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--maxiter")) {
@@ -294,7 +299,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		}
 	}
 
-	_clOptions->problem = string( QUOTED_PROBLEM );
+	_clOptions->problem = string( selected_problem.name );
 
 	// Left for future dynamic loading:
 	/*if (_clOptions->problem.empty()) {
@@ -344,24 +349,19 @@ enum RunMode {
 template<RunMode repack_or_run>
 void simulate(GlobalData *gdata)
 {
-	// the Problem could (should?) be initialized inside GPUSPH::initialize()
-	gdata->problem = new PROBLEM(gdata);
-	if (gdata->problem->simframework())
-		gdata->simframework = gdata->problem->simframework();
+	gdata.problem = selected_problem.create(&gdata);
+	if (gdata.problem->simframework())
+		gdata.simframework = gdata.problem->simframework();
 	else
-		throw invalid_argument("No simulation framework defined in the problem!");
-	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
+		throw invalid_argument("no simulation framework defined in the problem!");
+	gdata.allocPolicy = gdata.simframework->getAllocPolicy();
 
-	// check consistency of the repacking options
-	if ((gdata->clOptions->repack || gdata->clOptions->repack_only)
-		&& !(gdata->problem->simparams()->simflags & ENABLE_REPACKING))
-		throw invalid_argument("Repacking asked for but it is disabled in the simulation framework!");
 
 	// get - and actually instantiate - the existing instance of GPUSPH
 	GPUSPH *Simulator = GPUSPH::getInstance();
 
 	// initialize CUDA, start workers, allocate CPU and GPU buffers
-	bool initialized  = Simulator->initialize(gdata);
+	bool initialized  = Simulator->initialize(&gdata);
 
 	if (!initialized)
 		throw runtime_error("GPUSPH: problem during initialization");

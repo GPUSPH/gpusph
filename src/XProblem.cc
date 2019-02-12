@@ -297,9 +297,15 @@ bool XProblem::initialize()
 	const float g = length(physparams()->gravity);
 	physparams()->dcoeff = 5.0f * g * m_maxFall;
 
-	// Disable hydrostatic filling if there is no gravity
-	if (g == 0)
+	// hydrostatic filling works only if gravity has only vertical component and
+	// there isn't a periodic boundary in the gravity direction
+	// TODO When hydrostatic filling will be implemented to work with all directions,
+	// the disabling condition below have to be changed
+	if (g == 0 || physparams()->gravity.x !=0 || physparams()->gravity.y !=0 ||
+		(simparams()->periodicbound & PERIODIC_Z))
+	{
 		m_hydrostaticFilling = false;
+	}
 
 	if (!isfinite(m_maxParticleSpeed)) {
 		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
@@ -655,9 +661,9 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 }
 
 GeometryID XProblem::addPlane(
-	const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff)
+	const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff, const FillType ftype)
 {
-	return addGeometry(GT_PLANE, FT_NOFILL,
+	return addGeometry(GT_PLANE, ftype,
 		new Plane( a_coeff, b_coeff, c_coeff, d_coeff )
 	);
 }
@@ -1296,6 +1302,9 @@ int XProblem::fill_parts(bool fill)
 		PointVect* parts_vector = NULL;
 		double dx = 0.0;
 
+		// ignore deleted geometries
+		if (!m_geometries[g]->enabled) continue;
+
 		// set dx and recipient vector according to geometry type
 		switch (m_geometries[g]->type) {
 			case GT_FLUID:
@@ -1355,8 +1364,8 @@ int XProblem::fill_parts(bool fill)
 				m_geometries[g]->ptr->Intersect(m_boundaryParts, unfill_dx);
 		}
 
-		// ignore deleted geometries
-		if (!m_geometries[g]->enabled) continue;
+		if (m_geometries[g]->fill_type == FT_UNFILL)
+			continue;
 
 		// after making some space, fill
 		if (fill) {
@@ -1501,6 +1510,9 @@ void XProblem::copy_planes(PlaneList &planes)
 
 		// skip deleted
 		if (! m_geometries[gid]->enabled) continue;
+
+		if ( m_geometries[gid]->fill_type == FT_UNFILL)
+			continue;
 
 		// not a plane?
 		if (m_geometries[gid]->type != GT_PLANE) continue;
@@ -1704,10 +1716,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 				// "i" is the particle index in GPUSPH host arrays, "bi" the one in current HDF5 file)
 				const uint bi = i - tot_parts;
 
-				// TODO: define an invalid/unknown particle type?
+				// By default, set the particle type according to the geometry type
+				// (boundary unless geometry type is GT_FLUID). This will be overridden
+				// by the ParticleType field imported from the HDF5 file, if present/known.
+				ushort ptype = m_geometries[g]->type == GT_FLUID ? PT_FLUID : PT_BOUNDARY;
+
 				// NOTE: update particle counters here, since current_geometry_particles does not distinguish vertex/bound;
 				// tot_parts instead is updated in the outer loop
-				ushort ptype = PT_FLUID;
 				switch (hdf5Buffer[bi].ParticleType) {
 					case CRIXUS_FLUID:
 						// TODO: warn user if (m_geometries[g]->type != GT_FLUID)

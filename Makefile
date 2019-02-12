@@ -82,8 +82,13 @@ DOCSDIR = docs
 OPTSDIR = options
 
 # target binary
-TARGETNAME := GPUSPH$(TARGET_SFX)
-TARGET := $(DISTDIR)/$(TARGETNAME)
+exename = $(1)$(TARGET_SFX)
+exe = $(DISTDIR)/$(call exename,$1)
+
+dbgexename = $(1)$(DBG_SFX)
+dbgexe = $(DISTDIR)/$(call dbgexename,$1)
+nodbgexename = $(1)$(DBG_SFX)
+nodbgexe = $(DISTDIR)/$(call nodbgexename,$1)
 
 # binary to list compute capabilities of installed devices
 LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc
@@ -105,54 +110,51 @@ ifeq ($(USE_HDF5),2)
 	MPICXXFILES += $(SRCDIR)/HDF5SphWriter.cc
 endif
 
-PROBLEM_DIR=$(SRCDIR)/problems
-USER_PROBLEM_DIR=$(SRCDIR)/problems/user
+OUR_PROBLEM_DIRS=$(SRCDIR)/problems
+USER_PROBLEM_DIRS=$(SRCDIR)/problems/user
+PROBLEM_DIRS=$(OUR_PROBLEM_DIRS) $(USER_PROBLEM_DIRS)
 
-SRCSUBS=$(sort $(filter %/,$(wildcard $(SRCDIR)/*/)))
+SRCSUBS=$(sort $(filter-out $(PROBLEM_DIRS),\
+	$(filter %/,$(wildcard $(SRCDIR)/*/))))
 SRCSUBS:=$(SRCSUBS:/=)
-OBJSUBS=$(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS) $(USER_PROBLEM_DIR))
+OBJSUBS=$(sort $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
 
 # list of problems
-PROBLEM_LIST = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
+PROBLEM_LIST = $(foreach adir, $(PROBLEM_DIRS), \
 	$(notdir $(basename $(wildcard $(adir)/*.h))))
 
-# only one problem is active at a time, this is the list of all other problems
-INACTIVE_PROBLEMS = $(filter-out $(PROBLEM),$(PROBLEM_LIST))
-# we don't want to build inactive problems, so we will filter them out
-# from the sources list
-PROBLEM_FILTER = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
-	$(patsubst %,$(adir)/%.cc,$(INACTIVE_PROBLEMS)) \
-	$(patsubst %,$(adir)/%.cu,$(INACTIVE_PROBLEMS)) \
-	$(patsubst %,$(adir)/%_BC.cu,$(INACTIVE_PROBLEMS)))
+# list of problem executables, both debug and non-debug versions, for the clean target
+PROBLEM_EXES = $(foreach p, $(PROBLEM_LIST),$(call dbgexe,$p) $(CURDIR)/$(call dbgexename,$p)) \
+	       $(foreach p, $(PROBLEM_LIST),$(call nodbgexe,$p) $(CURDIR)/$(call nodbgexename,$p))
 
-# list of problem source files
-PROBLEM_SRCS = $(foreach adir, $(PROBLEM_DIR) $(USER_PROBLEM_DIR), \
-	$(filter \
-		$(adir)/$(PROBLEM).cc \
-		$(adir)/$(PROBLEM).cu \
-		$(adir)/$(PROBLEM)_BC.cu,\
+# use $(call problem_src,someproblem) to get the sources
+# needed for that problem
+problem_src = $(foreach adir, $(PROBLEM_DIRS), $(filter \
+		$(adir)/$(1).cu, \
 		$(wildcard $(adir)/*)))
+problem_gen = $(OPTSDIR)/$(1).gen.cc
 
-# list of .cc files, exclusing MPI sources and disabled problems
-CCFILES = $(filter-out $(PROBLEM_FILTER),\
-	  $(filter-out $(MPICXXFILES),\
+problem_obj = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(call problem_src,$1)) \
+	      $(patsubst $(OPTSDIR)/%.cc,$(OBJDIR)/%.o,$(call problem_gen,$1))
+
+# list of .cc files, exclusing MPI and problem sources
+CCFILES = $(filter-out $(MPICXXFILES),\
 	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
-	  $(wildcard $(adir)/*.cc))))
+	  $(wildcard $(adir)/*.cc)))
 
-
-# GPU source files: we only directly compile the current problem (if it's CUDA),
-# everything else gets in by nested includes
-CUFILES = $(filter %.cu,$(PROBLEM_SRCS))
+# list of .cu files: we only compile problems directly, all other
+# CUDA files are included via the cudasimframework
+CUFILES = $(foreach p,$(PROBLEM_LIST),$(call problem_src,$p))
 
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
 
 # object files via filename replacement
 MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
-CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES)) $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPPFILES))
+CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES))
 CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(CUFILES))
 
-OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
+OBJS = $(CCOBJS) $(MPICXXOBJS)
 
 # data files needed by some problems
 EXTRA_PROBLEM_FILES ?=
@@ -213,8 +215,7 @@ NVCC += -ccbin=$(CXX)
 # Get the include path(s) used by default by our compiler
 CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 | grep '^ ' | grep -v ' (framework directory)'))
 
-# files to store last compile options: problem, dbg, compute, fastmath, MPI usage, Chrono, linearization preference, Catalyst
-PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
+# files to store last compile options: dbg, compute, fastmath, MPI usage, Chrono, linearization preference, Catalyst
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
@@ -230,16 +231,16 @@ AUTOGEN_SRC=$(SRCDIR)/parse-debugflags.h $(SRCDIR)/describe-debugflags.h
 # this is not really an option, but it follows the same mechanism
 GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
 
-OPTFILES=$(PROBLEM_SELECT_OPTFILE) \
-		 $(DBG_SELECT_OPTFILE) \
-		 $(COMPUTE_SELECT_OPTFILE) \
-		 $(FASTMATH_SELECT_OPTFILE) \
-		 $(MPI_SELECT_OPTFILE) \
-		 $(HDF5_SELECT_OPTFILE) \
-		 $(CHRONO_SELECT_OPTFILE) \
-		 $(LINEARIZATION_SELECT_OPTFILE) \
-		 $(GPUSPH_VERSION_OPTFILE) \
-		 $(CATALYST_SELECT_OPTFILE)
+OPTFILES= \
+	  $(DBG_SELECT_OPTFILE) \
+	  $(COMPUTE_SELECT_OPTFILE) \
+	  $(FASTMATH_SELECT_OPTFILE) \
+	  $(MPI_SELECT_OPTFILE) \
+	  $(HDF5_SELECT_OPTFILE) \
+	  $(CHRONO_SELECT_OPTFILE) \
+	  $(LINEARIZATION_SELECT_OPTFILE) \
+	  $(GPUSPH_VERSION_OPTFILE) \
+	  $(CATALYST_SELECT_OPTFILE)
 
 # Let make know that .opt and .i dependencies are to be looked for in $(OPTSDIR)
 vpath %.opt $(OPTSDIR)
@@ -253,24 +254,30 @@ ifneq ($(LAST_GPUSPH_VERSION),$(GPUSPH_VERSION))
 		$(SED_COMMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
 endif
 
-
-# option: problem - Name of the problem. Default: $(PROBLEM) in makefile
-ifdef problem
-	# if choice differs from last...
-	ifneq ($(PROBLEM),$(problem))
-		# check that the problem is in the problem list
-		ifneq ($(filter $(problem),$(PROBLEM_LIST)),$(problem))
-			TMP:=$(error No such problem ‘$(problem)’. Known problems: $(PROBLEM_LIST))
-		endif
-		# empty string in sed for Mac compatibility
-		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's:$(PROBLEM):$(problem):' $(PROBLEM_SELECT_OPTFILE) )
-		# user choice
-		PROBLEM=$(problem)
-	endif
-else
-	PROBLEM ?= DamBreak3D
+# Selection of last built problem (rebuilt by `make` without
+# further specification
+LAST_BUILT_PROBLEM ?= DamBreak3D
+REQUESTED_PROBLEMS = $(filter $(PROBLEM_LIST),$(MAKECMDGOALS))
+CURRENT_LAST = $(lastword DamBreak3D $(LAST_BUILT_PROBLEM) $(REQUESTED_PROBLEMS))
+ifneq ($(CURRENT_LAST),$(LAST_BUILT_PROBLEM))
+	LAST_BUILT_PROBLEM:=$(CURRENT_LAST)
+	TMP:=$(shell test -e Makefile.conf && \
+		$(SED_COMMAND) '/LAST_BUILT_PROBLEM/c\LAST_BUILT_PROBLEM=$(LAST_BUILT_PROBLEM)' Makefile.conf)
 endif
+
+# A tricky dependency chain: if the user specified a problem to be built,
+# we want to also rebuild GPUSPH to link to it, so $(LAST_BUILT_PROBLEM)
+# must depend on GPUSPH. However, if the user did _not_ specify a problem,
+# then we want GPUSPH to depend on $(LAST_BUILT_PROBLEM)
+ifneq ($(REQUESTED_PROBLEMS),$(empty))
+	# problem was specified, it should depend on GPUSPH
+	PROBLEM_GPUSPH_DEP=GPUSPH
+	GPUSPH_PROBLEM_DEP=
+else
+	PROBLEM_GPUSPH_DEP=
+	GPUSPH_PROBLEM_DEP=$(LAST_BUILT_PROBLEM)
+endif
+#$(info => $(PROBLEM_GPUSPH_DEP) <= $(GPUSPH_PROBLEM_DEP))
 
 # option: dbg - 0 no debugging, 1 enable debugging
 # does dbg differ from last?
@@ -515,7 +522,10 @@ LDLIBS ?=
 
 # INCPATH
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
-INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(USER_PROBLEM_DIR) -I$(OPTSDIR)
+INCPATH += -I$(SRCDIR) \
+	   $(foreach adir,$(SRCSUBS),-I$(adir)) \
+	   $(foreach adir,$(PROBLEM_DIRS),-I$(adir)) \
+	   -I$(OPTSDIR)
 
 # access the CUDA include files from the C++ compiler too, but mark their path as a system include path
 # so that they can be skipped when generating dependencies. This must only be done for the host compiler,
@@ -811,30 +821,44 @@ endif
 export CMDECHO
 
 .PHONY: all run showobjs show snapshot expand deps docs test help
-.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean
+.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean genclean
 .PHONY: dev-guide user-guide
 
-# target: all - Make subdirs, compile objects, link and produce $(TARGET)
-# link objects in target
-all: $(OBJS) | $(DISTDIR)
-	@echo
-	@echo "Compiled with problem $(PROBLEM)"
-	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
-	$(call show_stage_nl,LINK,$(TARGET))
-	$(CMDECHO)$(LINKER) -o $(TARGET) $(OBJS) $(LDFLAGS) $(LDLIBS) && \
-	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
+# target: GPUSPH - A symlink to the last built problem, or the default problem (DamBreak3D)
+GPUSPH: $(GPUSPH_PROBLEM_DEP) Makefile.conf
+	$(call show_stage_nl,SYM,$@)
+	$(CMDECHO)ln -sf $(LAST_BUILT_PROBLEM) $(CURDIR)/$@
 
-# target: run - Make all && run
-run: all
-	$(TARGET)
+# Support for legacy/classic 'all' target
+all: GPUSPH
+
+# For each problem, we define the following target chain:
+# * the PROBLEM.gen.cc generator, from the template and the optsdir
+# * the binary in dist, from all the object files
+# * the symlink in the root directory, from the binary in dist
+#   this is a FORCEd target, so symlinking always happens, even when
+#   the target is fresh
+define problem_deps
+$(OPTSDIR)/$(1).gen.cc: $(SRCDIR)/problem_gen.tpl | $(OPTSDIR)
+	$(call show_stage,GEN,$$(@F))
+	$(CMDECHO)sed -e 's/PROBLEM/$1/g' $$< > $$@
+$(call exe,$1): $(call problem_obj,$1) $(OBJS) | $(DISTDIR)
+	$(call show_stage_nl,LINK,$(call exe,$$@))
+	$(CMDECHO)$(LINKER) -o $$@ $$^ $(LDFLAGS) $(LDLIBS)
+$1: $(call exe,$1)
+	@echo
+	@echo "Compiled with problem $$@"
+	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
+	$(call show_stage_nl,SYM,$$@)
+	$(CMDECHO)ln -sf $$< $(CURDIR)/$(call exename,$$@) && echo "Success"
+endef
+
+$(LAST_BUILT_PROBLEM): $(PROBLEM_GPUSPH_DEP)
+
+# target: <problem_name> - Compile the given problem
+$(foreach p,$(PROBLEM_LIST),$(eval $(call problem_deps,$p)))
 
 # internal targets to (re)create the "selected option headers" if they're missing
-$(PROBLEM_SELECT_OPTFILE): | $(OPTSDIR)
-	@echo "/* Define the problem compiled into the main executable. */" \
-		> $(PROBLEM_SELECT_OPTFILE)
-	@echo "#define PROBLEM $(PROBLEM)" >> $(PROBLEM_SELECT_OPTFILE)
-	@echo "#define QUOTED_PROBLEM \"$(PROBLEM)\"" >> $(PROBLEM_SELECT_OPTFILE)
-	@echo "#include \"$(PROBLEM).h\"" >> $(PROBLEM_SELECT_OPTFILE)
 $(DBG_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define if debug option is on. */" \
 		> $(DBG_SELECT_OPTFILE)
@@ -892,6 +916,9 @@ $(SRCDIR)/describe-debugflags.h: $(SCRIPTSDIR)/describe-debugflags.awk $(SRCDIR)
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+$(OBJDIR)/%.gen.o: $(OPTSDIR)/%.gen.cc | $(OBJSUBS)
+	$(call show_stage,CC,$(@F))
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
@@ -927,11 +954,10 @@ $(OPTSDIR):
 	$(CMDECHO)mkdir -p $(OPTSDIR)
 
 # target: clean - Clean everything but last compile choices
-# clean: cpuobjs, gpuobjs, deps makefiles, target, target symlink, dbg target
+# clean: cpuobjs, gpuobjs, deps makefiles, targets, target symlinks
 clean: cpuclean gpuclean
-	$(RM) $(TARGET) $(CURDIR)/$(TARGETNAME)
-	if [ -f $(TARGET)$(DBG_SFX) ] ; then \
-		$(RM) $(TARGET)$(DBG_SFX) $(CURDIR)/$(TARGETNAME)$(DBG_SFX) ; fi
+	$(CMDECHO)$(RM) -f $(PROBLEM_EXES) GPUSPH
+	$(CMDECHO)find $(CURDIR) -maxdepth 1 -lname $(DISTDIR)/\* -delete
 
 # target: cpuclean - Clean CPU stuff
 cpuclean:
@@ -950,6 +976,10 @@ computeclean:
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
 cookiesclean:
 	$(RM) -r $(OPTFILES) $(OPTSDIR)
+
+# target: genclean - Clean all problem generators
+genclean:
+	$(RM) $(OPTSDIR)/*.gen.cc
 
 # target: confclean - Clean all configuration options: like cookiesclean, but also purges Makefile.conf
 confclean: cookiesclean
@@ -982,7 +1012,7 @@ show:
 	@echo "Linearization:   $(LINEARIZATION)"
 #	@echo "   last:         $(LAST_PROBLEM)"
 	@echo "Snapshot file:   $(SNAPSHOT_FILE)"
-	@echo "Target binary:   $(TARGET)"
+	@echo "Last problem:    $(LAST_BUILT_PROBLEM)"
 	@echo "Sources dir:     $(SRCDIR) $(SRCSUBS)"
 	@echo "Options dir:     $(OPTSDIR)"
 	@echo "Objects dir:     $(OBJDIR) $(OBJSUBS)"
@@ -1050,8 +1080,8 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(CMDECHO)echo '# Run make with the appropriate option to change a configured value' >> $@
 	$(CMDECHO)echo '# Use `make help-options` to see a list of available options' >> $@
 	$(CMDECHO)echo '# Use `make confclean` to reset your configuration' >> $@
-	$(CMDECHO)# recover value of PROBLEM from OPTFILES
-	$(CMDECHO)grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of LAST_BUILT_PROBLEM
+	$(CMDECHO)echo 'LAST_BUILT_PROBLEM=$(LAST_BUILT_PROBLEM)' >> $@
 	$(CMDECHO)# recover value of _DEBUG_ from OPTFILES
 	$(CMDECHO)echo "DBG=$$(grep '\#define _DEBUG_' $(DBG_SELECT_OPTFILE) | wc -l)" >> $@
 	$(CMDECHO)# recover value of COMPUTE from OPTFILES
@@ -1144,20 +1174,12 @@ cscope.out: $(ALLSRCFILES)
 
 
 # target: test - Run GPUSPH with WaveTank. Compile it if needed
-test: all
-	$(CMDECHO)$(TARGET)
+test: $(LAST_BUILT_PROBLEM)
+	$(CMDECHO)$(CURDIR)/$(LAST_BUILT_PROBLEM)
 	@echo Do "$(SCRIPTSDIR)/rmtests" to remove all tests
 
 # target: compile-problems - Test that all problems compile
-compile-problems:
-	$(CMDECHO)pn=1 ; for prob in $(PROBLEM_LIST) ; do \
-		echo [TEST-BUILD $${pn}/$(words $(PROBLEM_LIST))] $${prob} ; \
-		$(MAKE) problem=$${prob} || exit 1 ; pn=$$(($$pn+1)) ; \
-		done
-
-# target: <problem_name> - Compile the given problem
-$(PROBLEM_LIST):
-	$(CMDECHO)$(MAKE) problem=$@
+compile-problems: $(PROBLEM_LIST)
 
 # target: list-problems - List available problems
 list-problems:

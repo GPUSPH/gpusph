@@ -2,8 +2,7 @@
 #define TENSOR_IMPL
 
 #include "tensor.h"
-
-#include <math_functions.h>
+#include "vector_math.h"
 #define __spec __device__ __forceinline__
 
 __spec
