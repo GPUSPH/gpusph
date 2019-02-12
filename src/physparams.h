@@ -182,6 +182,7 @@ IGNORE_WARNINGS(deprecated-declarations)
 		epsartvisc(NAN),
 
 		r0(NAN),
+		dcoeff(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
 

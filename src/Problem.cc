@@ -112,6 +112,19 @@ Problem::initialize()
 	check_neiblistsize();
 	calculateDensityDiffusionCoefficient();
 
+	/* Set LJ parameters that were not set by the user */
+	if (simparams()->boundarytype == LJ_BOUNDARY)
+	{
+		if (isnan(physparams()->r0)) {
+			printf("LJ r0 not set, using %g\n", m_deltap);
+			physparams()->r0 = m_deltap;
+		}
+		if (isnan(physparams()->dcoeff)) {
+			physparams()->dcoeff = 5.0f*length(physparams()->gravity);
+			printf("LJ D coefficient not set, using %g\n", physparams()->dcoeff);
+		}
+	}
+
 	/* Set artificial viscosity epsilon to h^2/10 if not set by the user.
 	 * For simplicity, we do this regardless of the viscosity model used,
 	 * it'll just be ignored otherwise */
