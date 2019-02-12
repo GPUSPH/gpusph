@@ -142,7 +142,7 @@ struct keps_sa_bc_params
 };
 
 //! Parameters needed by the \ref saSegmentBoundaryConditionsDevice kernel
-template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags, uint _step,
+template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags,
 	bool _has_io = !!(_simflags & ENABLE_INLET_OUTLET),
 	bool _has_keps = (_ViscSpec::turbmodel == KEPSILON),
 	bool _has_moving = !!(_simflags & ENABLE_MOVING_BODIES),
@@ -163,7 +163,6 @@ struct sa_segment_bc_params :
 	static constexpr bool has_io = _has_io; //! Open boundaries enabled?
 	static constexpr bool has_keps = _has_keps; //! Using the k-epsilon viscous model?
 	static constexpr bool has_moving = _has_moving; //! Do we have moving objects?
-	static constexpr uint step = _step; //! integration step
 
 	// TODO FIXME instead of using sa_segment_bc_params
 	// versus sa_vertex_bc_params, consider using sa_bc_params<PT_BOUNDARY>

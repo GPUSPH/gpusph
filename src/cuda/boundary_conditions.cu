@@ -108,7 +108,7 @@ saSegmentBoundaryConditions(
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	// step will be 0 for the initialization and repacking steps,
+	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
 	const	uint			step)
 {
@@ -138,15 +138,15 @@ saSegmentBoundaryConditions(
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
+	sa_segment_bc_params<kerneltype, ViscSpec, simflags> params(
+		pos, vel, particleHash, cellStart, neibsList,
+		gGam, vertices, vertPos,
+		eulerVel, tke, eps,
+		particleRangeEnd, deltap, slength, influenceradius);
+
 	// execute the kernel
 #define SA_SEGMENT_BC_STEP(step) case step: \
-	{	sa_segment_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-			pos, vel, particleHash, cellStart, neibsList, \
-			gGam, vertices, vertPos, \
-			eulerVel, tke, eps, \
-			particleRangeEnd, deltap, slength, influenceradius); \
-	cubounds::saSegmentBoundaryConditionsDevice<step><<< numBlocks, numThreads, dummy_shared >>>(params); \
-	} break
+	cubounds::saSegmentBoundaryConditionsDevice<step><<< numBlocks, numThreads, dummy_shared >>>(params); break
 
 	switch (step) {
 		SA_SEGMENT_BC_STEP(0);
@@ -249,8 +249,8 @@ saVertexBoundaryConditions(
 	// execute the kernel
 #define SA_VERTEX_BC_STEP(step) case step: \
 	{ sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-			bufread, bufwrite, cellStart, newNumParticles, numParticles, totParticles, \
-			deltap, slength, influenceradius, deviceId, numDevices, dt); \
+		bufread, bufwrite, cellStart, newNumParticles, numParticles, totParticles, \
+		deltap, slength, influenceradius, deviceId, numDevices, dt); \
 	  cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
 	} break
 

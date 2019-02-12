@@ -1043,7 +1043,7 @@ bool GPUSPH::runRepacking() {
 			if (problem->simparams()->boundarytype == SA_BOUNDARY) {
 				// re-set density and other values for bound. elements and vertices
 				// and set value of gamma for further simulation using the quadrature formula
-				saBoundaryConditions(REPACK_STEP);
+				saBoundaryConditions(INITIALIZATION_STEP);
 			}
 			// Write the final results
 			check_write(we_are_done);
@@ -1057,7 +1057,7 @@ bool GPUSPH::runRepacking() {
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata->keep_repacking = false;
-		gdata->keep_going = false;
+		//gdata->keep_going = false;
 		// the loop is being ended by some exception, so we cannot guarantee that
 		// all threads are alive. Force unlocks on all subsequent barriers to exit
 		// as cleanly as possible without stalling
@@ -2597,35 +2597,31 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
-	if (cFlag & INITIALIZATION_STEP || cFlag & REPACK_STEP) {
+	if (cFlag & INITIALIZATION_STEP) {
 
 		// If there is no restart, compute gamma.
-		// In case of repacking, saBoundaryConditions(REPACK_STEP)
+		// In case of repacking, saBoundaryConditions(INITIALIZATION_STEP)
 		// is called at the end of the repacking to fix gamma
 		// after the free-surface has been disabled
-		// First, put BOUNDELEMENTS AND GRADGAMMA in the WRITE position
-		if (clOptions->resume_fname.empty()) {
+		if (clOptions->resume_fname.empty() || gdata->keep_repacking) {
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
 
-			// Compute normal for vertices
+			// compute normal for vertices
 			doCommand(SA_COMPUTE_VERTEX_NORMAL);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-			// Put the normals back to READ position
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
-			// Compute initial value of gamma for fluid and vertices
+			// compute initial value of gamma for fluid and vertices
 			doCommand(SA_INIT_GAMMA);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-			// Put GRADGAMMA back to READ position
 			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 		}
 
 		// modify particle mass on open boundaries
-		// only if we really are at the initialisation stage
-		// and not at the end of repacking
-		if (has_io && !gdata->keep_repacking) {
+		if (gdata->clOptions->repack == false && gdata->clOptions->repack_only==false
+      && has_io) {
 			// identify all the corner vertex particles
 			doCommand(SWAP_BUFFERS, BUFFER_INFO);
 			doCommand(IDENTIFY_CORNER_VERTICES);
@@ -2638,7 +2634,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 			// second step: modify the mass of the IO vertices
-			doCommand(SWAP_BUFFERS, BUFFER_POS);
 			doCommand(INIT_IO_MASS);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
@@ -2686,7 +2681,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (cFlag & INTEGRATOR_STEP_1)
 		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
 
-	if (!(cFlag & INITIALIZATION_STEP) && !(cFlag & REPACK_STEP)) {
+	if (!(cFlag & INITIALIZATION_STEP)) {
 		/* SA_CALC_SEGMENT_BOUNDARY_CONDITIONS and SA_CALC_VERTEX_BOUNDARY_CONDITIONS
 		 * get their normals from the READ position, but if we have moving bodies,
 		 * the new normals are in the WRITE position, so swap them */
@@ -2718,13 +2713,13 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 	}
 
-	if (!(cFlag & INITIALIZATION_STEP) && !(cFlag & REPACK_STEP)) {
+	if (!(cFlag & INITIALIZATION_STEP)) {
 		/* Restore normals */
 		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 	}
 
-	if (cFlag & INITIALIZATION_STEP && cFlag & REPACK_STEP) {
+	if (cFlag & INITIALIZATION_STEP) {
 		// During the simulation, saBoundaryConditions operates on the WRITE buffers, because it's invoked before the post-compute buffer swap,
 		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is
 		// finished they are expected to be in the READ position, so swap them again:
