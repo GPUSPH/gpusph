@@ -56,7 +56,7 @@ for problem in $problem_list ; do
 	refdir="tests/${problem}_${ref}"
 	rm -rf "$outdir"
 	if make $problem ; then
-		if ./GPUSPH --dir "$outdir" --maxiter $maxiter "$@"; then
+		if ./$problem --dir "$outdir" --maxiter $maxiter "$@"; then
 			diff -q "${outdir}/data" "${refdir}/data" || add_failed "$problem" diff
 		else
 			add_failed "$problem" run
@@ -64,7 +64,7 @@ for problem in $problem_list ; do
 		[ "x$CHECK_ALL" = x0 ] && [ -n "$failed" ] && break
 		# In the multi-GPU case, also run with --striping, which should still give the same result
 		if [ $mgpu -eq 1 ] ; then
-			if ./GPUSPH --dir "$outdir" --maxiter $maxiter --striping "$@"; then
+			if ./$problem --dir "$outdir" --maxiter $maxiter --striping "$@"; then
 				diff -q "${outdir}/data" "${refdir}/data" || add_failed "$problem" "striping diff"
 			else
 				add_failed "$problem" "striping run"
