@@ -544,7 +544,8 @@ dtreduce(	float	slength,
 			float	*cfl_gamma,
 			float	*cfl_keps,
 			float	*tempCfl,
-			uint	numBlocks)
+			uint	numBlocks,
+			uint	numParticles)
 {
 	// cfl holds one value per block in the forces kernel call,
 	// so it holds numBlocks elements
@@ -552,11 +553,11 @@ dtreduce(	float	slength,
 	float dt = dtadaptfactor*fminf(sqrtf(slength/maxcfl), slength/sspeed_cfl);
 
 	if (boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags)) {
-		// TODO FIXME while cfl_gamma is allocated with numAllocatedParticles elements,
-		// the elements that we want to reduce are actually less than that, because
-		// the finalizeforcesDevice call actually does a preliminary reduction of it
-		// (just like with the other cfl arrays)
-		maxcfl = fmaxf(cflmax(numBlocks, cfl_gamma, tempCfl), 1e-5f/dt);
+		// TODO FIXME cfl_gamma is handled differently from the other arrays,
+		// because of the need to carry information across split forces kernel invokations.
+		// The "pre-reduced” numBlocks elements are thus found after numParticles elements.
+		size_t cfl_gamma_offset = round_up(numParticles, 4U);
+		maxcfl = fmaxf(cflmax(numBlocks, cfl_gamma + cfl_gamma_offset, tempCfl), 1e-5f/dt);
 		const float dt_gam = 0.001f/maxcfl;
 		if (dt_gam < dt)
 			dt = dt_gam;
@@ -648,6 +649,14 @@ void clear_cfl(BufferList& bufwrite, uint numAllocatedParticles)
 	const uint tempCflEls = getFmaxTempElements(fmaxElements);
 	const size_t fmax_size = fmaxElements*sizeof(float);
 	const size_t tempCfl_size = tempCflEls*sizeof(float);
+	// TODO FIXME BUFFER_CFL_GAMMA needs to be as large as the whole system,
+	// because it's updated progressively across split forces calls. We could
+	// do with sizing it just like that, but then during the finalizeforces
+	// reductions with striping we would risk overwriting some of the data.
+	// To solve this, we size it as the _sum_ of the two, and will use
+	// the first numAllocatedParticles for the split-force-calls accumulation,
+	// and the remaining fmaxElements for the finalize
+	const size_t cflGamma_size = (round_up(numAllocatedParticles, 4U) + fmaxElements)*sizeof(float);
 
 	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
 	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
@@ -661,8 +670,8 @@ void clear_cfl(BufferList& bufwrite, uint numAllocatedParticles)
 	CUDA_SAFE_CALL(cudaMemset(cfl_forces, val, fmax_size));
 	CUDA_SAFE_CALL(cudaMemset(tempCfl, val, tempCfl_size));
 
-	if (cfl_gamma) // TODO FIXME this is currently sized differently from the others
-		CUDA_SAFE_CALL(cudaMemset(cfl_gamma, val, numAllocatedParticles*sizeof(float)));
+	if (cfl_gamma)
+		CUDA_SAFE_CALL(cudaMemset(cfl_gamma, val, cflGamma_size));
 	if (cfl_keps)
 		CUDA_SAFE_CALL(cudaMemset(cfl_keps, val, fmax_size));
 }
@@ -873,7 +882,7 @@ basicstep(
 
 	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
 			forces, rbforces, rbtorques,
-			pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
+			pos, vel, particleHash, cellStart, numParticles, fromParticle, toParticle, slength,
 			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
 			sigma,
 			oldGGam,

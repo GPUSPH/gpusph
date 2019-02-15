@@ -964,9 +964,12 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		else if (key == BUFFER_CFL_TEMP)
 			nels = tempCflEls;
 		else if (key & BUFFERS_CFL) { // other CFL buffers
-			// TODO presently CFL_GAMMA has one entry per particle instead of one block
+			// TODO presently CFL_GAMMA has one entry per particle in addition to one per block,
+			// see also clear_cfl in forces for further information.
 			// this should be improved
-			if (key != BUFFER_CFL_GAMMA)
+			if (key == BUFFER_CFL_GAMMA)
+				nels += fmaxElements;
+			else
 				nels = fmaxElements;
 		}
 
@@ -2291,7 +2294,8 @@ float GPUWorker::post_forces()
 		bufwrite.getData<BUFFER_CFL_GAMMA>(),
 		bufwrite.getData<BUFFER_CFL_KEPS>(),
 		bufwrite.getData<BUFFER_CFL_TEMP>(),
-		m_forcesKernelTotalNumBlocks);
+		m_forcesKernelTotalNumBlocks,
+		m_numParticles);
 
 	bufwrite.clear_pending_state();
 	return ret;

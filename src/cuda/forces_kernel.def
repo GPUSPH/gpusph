@@ -2594,7 +2594,7 @@ struct dyndt_gamma_shared_data
 	__device__ __forceinline__ void
 	reduce(FP const& params)
 	{
-		dtadaptBlockReduce(sm_gamma_max, params.cfl_gamma, params.cflOffset);
+		dtadaptBlockReduce(sm_gamma_max, params.cfl_gamma, params.cflGammaOffset);
 	}
 };
 
