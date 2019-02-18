@@ -502,74 +502,18 @@ bool GPUSPH::finalize() {
 // (e.g. when inspecting the particle system before each forces computation)
 static const PostProcessEngineSet noPostProcess{};
 
-// run a host command
-// TODO make it a template method like the worker dispatch
-void GPUSPH::runCommand(CommandStruct const& cmd)
+void GPUSPH::unknownCommand(CommandName cmd)
 {
-	switch (cmd.command)
-	{
-	case UPDATE_ARRAY_INDICES:
-		updateArrayIndices();
-		break;
-	case RUN_CALLBACKS:
-		doCallBacks(cmd.flags);
-		break;
-	case MOVE_BODIES:
-		move_bodies(cmd.flags);
-		break;
-	case FIND_MAX_IOWATERDEPTH:
-		findMaxWaterDepth();
-		break;
-	case CHECK_NEIBSNUM:
-		checkNeibsNum();
-		break;
-	case CHECK_NEWNUMPARTS:
-		checkNewNumParts();
-		break;
-	case DEBUG_DUMP:
-		saveParticles(noPostProcess, cmd.src, cmd.flags);
-		break;
-	default:
-		throw runtime_error("invalid host command");
-	}
+	string err = "FATAL: command " + to_string(cmd)
+		+ " (" + getCommandName(cmd) + ") issued on host "
+		"is not implemented";
+	throw std::runtime_error(err);
 }
 
-// set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandStruct const& cmd)
+template<>
+void GPUSPH::runCommand<NUM_COMMANDS>(CommandStruct const& cmd)
 {
-	// resetting the host buffers is useful to check if the arrays are completely filled
-	/*/ if (cmd==DUMP) {
-	 const uint float4Size = sizeof(float4) * gdata->totParticles;
-	 const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
-	 memset(gdata->s_hPos, 0, float4Size);
-	 memset(gdata->s_hVel, 0, float4Size);
-	 memset(gdata->s_hInfo, 0, infoSize);
-	 } */
-
-	if (cmd.command > NUM_WORKER_COMMANDS) {
-		runCommand(cmd);
-		return;
-	}
-
-	gdata->nextCommand = cmd;
-	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
-	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
-
-	if (!gdata->keep_going)
-		throw runtime_error("GPUSPH aborted by worker thread");
-
-	// Check buffer consistency after every call.
-	// Don't even bother with the conditional if it's not enabled though.
-	// TODO as things are now, all the calls from the first APPEND_EXTERNAL
-	// to the first EULER will complain about inconsistency in the WRITE buffers.
-	// With knowledge about which buffers are read/written to by each command, we
-	// could restrict ourselves to check those buffers; with the upcoming new
-	// Integrator and ParticleSystem classes, this will be easier, so let's not
-	// waste too much time on it at the moment.
-#ifdef INSPECT_DEVICE_MEMORY
-	if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
-		checkBufferConsistency();
-#endif
+	unknownCommand(cmd.command);
 }
 
 void
@@ -830,8 +774,12 @@ bool GPUSPH::runSimulation() {
 }
 
 
-void GPUSPH::move_bodies(flag_t integrator_step)
+template<>
+void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
+// GPUSPH::move_bodies(flag_t integrator_step)
 {
+	const flag_t integrator_step = cmd.flags;
+
 	// TODO this function should also be ported to the CommandSequence architecture
 	const uint step = get_step_number(integrator_step);
 
@@ -1783,7 +1731,9 @@ void GPUSPH::saveParticles(
 }
 
 // scan and check the peak number of neighbors and the estimated number of interactions
-void GPUSPH::checkNeibsNum()
+template<>
+void GPUSPH::runCommand<CHECK_NEIBSNUM>(CommandStruct const& cmd)
+// GPUSPH::checkNeibsNum()
 {
 	static const uint maxPossibleFluidBoundaryNeibs = problem->simparams()->neibboundpos;
 	static const uint maxPossibleVertexNeibs = problem->simparams()->boundarytype == SA_BOUNDARY ? problem->simparams()->neiblistsize - problem->simparams()->neibboundpos - 2 : 0;
@@ -1813,8 +1763,9 @@ void GPUSPH::checkNeibsNum()
 }
 
 // find if new particles were created on any device
-void
-GPUSPH::checkNewNumParts()
+template<>
+void GPUSPH::runCommand<CHECK_NEWNUMPARTS>(CommandStruct const& cmd)
+// GPUSPH::checkNewNumParts()
 {
 	gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
 	for (uint d = 1; d < gdata->devices; d++)
@@ -1863,8 +1814,11 @@ void GPUSPH::buildNeibList()
  * for which the problem should be set up should be the one
  * for the next timestep
  */
-void GPUSPH::doCallBacks(const flag_t current_integrator_step)
+template<>
+void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
+// GPUSPH::doCallBacks(flag_t current_integrator_step)
 {
+	const flag_t current_integrator_step = cmd.flags;
 	Problem *pb = gdata->problem;
 
 	double t_callback;
@@ -2046,7 +2000,10 @@ void GPUSPH::rollCallParticles()
 
 // update s_hStartPerDevice, s_hPartsPerDevice and totParticles
 // Could go in GlobalData but would need another forward-declaration
-void GPUSPH::updateArrayIndices() {
+template<>
+void GPUSPH::runCommand<UPDATE_ARRAY_INDICES>(CommandStruct const& cmd)
+// GPUPSH::updateArrayIndices()
+{
 	static const auto debug_dump = CommandStruct(DUMP).reading("sorted", BUFFER_INFO);
 
 	uint processCount = 0;
@@ -2156,7 +2113,9 @@ void GPUSPH::prepareProblem()
 	}
 }
 
-void GPUSPH::findMaxWaterDepth()
+template<>
+void GPUSPH::runCommand<FIND_MAX_IOWATERDEPTH>(CommandStruct const& cmd)
+// GPUSPH::findMaxWaterDepth()
 {
 	static const uint numOpenBoundaries = problem->simparams()->numOpenBoundaries;
 	static uint *max_waterdepth = gdata->h_maxIOwaterdepth;
@@ -2175,6 +2134,12 @@ void GPUSPH::findMaxWaterDepth()
 	// copy global value back to one array so that we can upload it again
 	for (uint ob = 0; ob < numOpenBoundaries; ob ++)
 		gdata->h_IOwaterdepth[0][ob] = max_waterdepth[ob];
+}
+
+template<>
+void GPUSPH::runCommand<DEBUG_DUMP>(CommandStruct const& cmd)
+{
+	saveParticles(noPostProcess, cmd.src, cmd.flags);
 }
 
 void GPUSPH::check_write(bool we_are_done)
@@ -2939,3 +2904,52 @@ GPUSPH::initializeCommandSequences()
 	initializePredCorrSequence(1); // runIntegratorStep(INTEGRATOR_STEP_1)
 	initializePredCorrSequence(2); // runIntegratorStep(INTEGRATOR_STEP_2)
 }
+
+// set nextCommand, unlock the threads and wait for them to complete
+void GPUSPH::doCommand(CommandStruct const& cmd)
+{
+	// resetting the host buffers is useful to check if the arrays are completely filled
+	/*/ if (cmd==DUMP) {
+	 const uint float4Size = sizeof(float4) * gdata->totParticles;
+	 const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
+	 memset(gdata->s_hPos, 0, float4Size);
+	 memset(gdata->s_hVel, 0, float4Size);
+	 memset(gdata->s_hInfo, 0, infoSize);
+	 } */
+
+	if (cmd.command > NUM_WORKER_COMMANDS) {
+		switch (cmd.command) {
+#define DEFINE_COMMAND(code, ...) \
+			case code: \
+				/* TODO if (dbg_step_printf) describeCommand<code>(cmd); */ \
+				runCommand<code>(cmd); \
+				break;
+#include "define_host_commands.h"
+#undef DEFINE_COMMAND
+			default:
+				unknownCommand(cmd.command);
+		}
+		return;
+	}
+
+	gdata->nextCommand = cmd;
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
+	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
+
+	if (!gdata->keep_going)
+		throw runtime_error("GPUSPH aborted by worker thread");
+
+	// Check buffer consistency after every call.
+	// Don't even bother with the conditional if it's not enabled though.
+	// TODO as things are now, all the calls from the first APPEND_EXTERNAL
+	// to the first EULER will complain about inconsistency in the WRITE buffers.
+	// With knowledge about which buffers are read/written to by each command, we
+	// could restrict ourselves to check those buffers; with the upcoming new
+	// Integrator and ParticleSystem classes, this will be easier, so let's not
+	// waste too much time on it at the moment.
+#ifdef INSPECT_DEVICE_MEMORY
+	if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
+		checkBufferConsistency();
+#endif
+}
+

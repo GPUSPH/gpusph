@@ -135,12 +135,6 @@ private:
 	// check consistency of buffers across multiple GPUs
 	void checkBufferConsistency();
 
-	// scan and check the peak number of neighbors and the estimated number of interactions
-	void checkNeibsNum();
-
-	// find if new particles were created on any device
-	void checkNewNumParts();
-
 	// compute initial values for the IDs of the next generated particles,
 	// and return the number of open boundary vertices
 	uint initializeNextIDs(bool resumed);
@@ -162,14 +156,19 @@ private:
 	// aux function for sorting; swaps particles in s_hPos, s_hVel, s_hInfo
 	void particleSwap(uint idx1, uint idx2);
 
-	// update s_hStartPerDevice and s_hPartsPerDevice
-	void updateArrayIndices();
-
 	// perform post-filling operations
 	void prepareProblem();
 
-	// run a host command
+	/// Function template to run a specific command
+	/*! There should be a specialization of the template for each
+	 * (supported) command
+	 */
+	template<CommandName>
 	void runCommand(CommandStruct const& cmd);
+
+	/// Raise an errror about an unknown command
+	void unknownCommand(CommandName cmd);
+
 	// dispatch the command cmd, either by running it in GPUSPH itself,
 	// or by setting nextCommand, unlocking the threads and waiting for them
 	// to complete
@@ -178,12 +177,6 @@ private:
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();
-
-	// Do the multi gpu/multi node forces reduction and move bodies
-	void move_bodies(flag_t integrator_step);
-
-	// Find the maximum water depth across devices for each open boundary
-	void findMaxWaterDepth();
 
 	// create the Writer
 	void createWriter();
@@ -194,9 +187,6 @@ private:
 	// save the particle system to disk
 	void saveParticles(PostProcessEngineSet const& enabledPostProcess,
 		std::string const& state, WriteFlags const& write_flags);
-
-	// callbacks for moving boundaries and variable gravity
-	void doCallBacks(const flag_t current_integrator_step);
 
 	//! Rebuild the neighbor list
 	void buildNeibList();
