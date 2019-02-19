@@ -1986,7 +1986,7 @@ void GPUSPH::doCallBacks(const flag_t current_integrator_step)
 	{
 	case INITIALIZATION_STEP:
 		/* prepare for the simulation, so reset to 0 */
-		t_callback = 0;
+		t_callback = gdata->t;
 		break;
 	case INTEGRATOR_STEP_1:
 		/* end of predictor, prepare for corrector, where forces
