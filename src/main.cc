@@ -349,19 +349,19 @@ enum RunMode {
 template<RunMode repack_or_run>
 void simulate(GlobalData *gdata)
 {
-	gdata.problem = selected_problem.create(&gdata);
-	if (gdata.problem->simframework())
-		gdata.simframework = gdata.problem->simframework();
+	gdata->problem = selected_problem.create(gdata);
+	if (gdata->problem->simframework())
+		gdata->simframework = gdata->problem->simframework();
 	else
 		throw invalid_argument("no simulation framework defined in the problem!");
-	gdata.allocPolicy = gdata.simframework->getAllocPolicy();
+	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
 
 
 	// get - and actually instantiate - the existing instance of GPUSPH
 	GPUSPH *Simulator = GPUSPH::getInstance();
 
 	// initialize CUDA, start workers, allocate CPU and GPU buffers
-	bool initialized  = Simulator->initialize(&gdata);
+	bool initialized  = Simulator->initialize(gdata);
 
 	if (!initialized)
 		throw runtime_error("GPUSPH: problem during initialization");

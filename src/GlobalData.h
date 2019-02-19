@@ -692,7 +692,7 @@ struct GlobalData {
 	void cleanup() {
 		printf("Cleaning GlobalData...\n");
 
-		GPUWORKERS = NULL;
+		GPUWORKERS.clear();
 		threadSynchronizer = NULL;
 
 		s_hRbCgGridPos = NULL;
