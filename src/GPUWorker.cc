@@ -1459,6 +1459,14 @@ void GPUWorker::updateSegments()
 		if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] != EMPTY_SEGMENT)
 			newNumIntParts = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL];
 
+		// To debug particle migration between devices, change the preprocessor conditional
+		// into an #if 1
+#if 0
+		if (newNumIntParts != m_numInternalParticles)
+			printf("  Dev. index %u @ iteration %u: internal particles: %d => %d\n",
+				m_deviceIndex, gdata->iterations,
+				m_numInternalParticles, newNumIntParts);
+#endif
 		m_particleRangeEnd = m_numInternalParticles = newNumIntParts;
 	}
 }
