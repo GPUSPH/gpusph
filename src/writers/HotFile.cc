@@ -108,11 +108,11 @@ void HotFile::load() {
 	// TODO FIXME/ should be num ODE bodies
 	check_counts_match("body", _header.body_count, _gdata->problem->simparams()->numbodies);
 
-	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
-	while (iter != _gdata->s_hBuffers.end()) {
-		cout << "Will load buffer here..." << endl;
-		readBuffer(_fp.in, (AbstractBuffer*)iter->second, VERSION_1);
-		iter++;
+	for (auto& iter : _gdata->s_hBuffers) {
+		AbstractBuffer *buf = iter.second;
+		readBuffer(_fp.in, buf, VERSION_1);
+		buf->set_state("resumed");
+		buf->mark_valid();
 	}
 
 	for (uint b = 0; b < _header.body_count; ++b) {
