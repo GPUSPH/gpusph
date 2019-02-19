@@ -163,9 +163,12 @@ struct dyndt_finalize_forces_params
 	float	* __restrict__ cfl_gamma;
 	float	* __restrict__ cfl_keps;
 	uint	cflOffset;
+	uint	cflGammaOffset;
 
-	dyndt_finalize_forces_params(float * __restrict__ _cfl_forces, float * __restrict__ _cfl_gamma, float * __restrict__ _cfl_keps, uint _cflOffset) :
-		cfl_forces(_cfl_forces), cfl_gamma(_cfl_gamma), cfl_keps(_cfl_keps), cflOffset(_cflOffset)
+	dyndt_finalize_forces_params(uint _numParticles,
+		float * __restrict__ _cfl_forces, float * __restrict__ _cfl_gamma, float * __restrict__ _cfl_keps, uint _cflOffset) :
+		cfl_forces(_cfl_forces), cfl_gamma(_cfl_gamma), cfl_keps(_cfl_keps), cflOffset(_cflOffset),
+		cflGammaOffset(round_up(_numParticles, 4U) + cflOffset)
 	{}
 };
 
@@ -420,6 +423,7 @@ struct finalize_forces_params :
 		const	float4	*_velArray,
 		const	hashKey	*_particleHash,
 		const	uint	*_cellStart,
+				uint	_numParticles,
 				uint	_fromParticle,
 				uint	_toParticle,
 
@@ -450,9 +454,9 @@ struct finalize_forces_params :
 			_posArray, _velArray, _particleHash, _cellStart,
 			 _fromParticle, _toParticle, _slength),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params)
-			(_cfl_forces, _cfl_gamma, _cfl_keps, _cflOffset),
+			(_numParticles, _cfl_forces, _cfl_gamma, _cfl_keps, _cflOffset),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_forces_params)(_sigmaArray),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params)(_gGam),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(has_keps, keps_forces_params)(_keps_dkde, _turbvisc, tau),
 		COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_forces_params)(_DEDt)

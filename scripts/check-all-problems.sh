@@ -24,10 +24,13 @@ sfx=check
 ref=reference
 maxiter=1000
 
+mgpu=0
+
 case "$GPUSPH_DEVICE" in
 *,*)
 	sfx=mgpu-check
 	ref=mgpu-reference
+	mgpu=1
 esac
 
 if [ 0 -lt "$#" ] ; then
@@ -53,10 +56,19 @@ for problem in $problem_list ; do
 	refdir="tests/${problem}_${ref}"
 	rm -rf "$outdir"
 	if make $problem ; then
-		if ./GPUSPH --dir "$outdir" --maxiter $maxiter "$@"; then
+		if ./$problem --dir "$outdir" --maxiter $maxiter "$@"; then
 			diff -q "${outdir}/data" "${refdir}/data" || add_failed "$problem" diff
 		else
 			add_failed "$problem" run
+		fi
+		[ "x$CHECK_ALL" = x0 ] && [ -n "$failed" ] && break
+		# In the multi-GPU case, also run with --striping, which should still give the same result
+		if [ $mgpu -eq 1 ] ; then
+			if ./$problem --dir "$outdir" --maxiter $maxiter --striping "$@"; then
+				diff -q "${outdir}/data" "${refdir}/data" || add_failed "$problem" "striping diff"
+			else
+				add_failed "$problem" "striping run"
+			fi
 		fi
 	else
 		add_failed "$problem" build
