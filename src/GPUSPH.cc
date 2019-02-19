@@ -557,6 +557,13 @@ static const PostProcessEngineSet noPostProcess{};
 void
 GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 {
+	// this is a “resumed” prepareNextStep if we're doing the “initialization”
+	// preparation and a resume file is defined
+	const bool resumed = (
+		(current_integrator_step == INITIALIZATION_STEP) &&
+		!clOptions->resume_fname.empty()
+		);
+
 	if (current_integrator_step == INTEGRATOR_STEP_2) {
 		// Euler needs always cg(n)
 		if (problem->simparams()->numbodies > 0)
@@ -576,8 +583,8 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 	// smoothed density should be moved here from the beginning of
 	// runIntegratorStep
 
-	// semi-analytical boundary conditions
-	switch (problem->simparams()->boundarytype) {
+	// semi-analytical boundary conditions, but not during init if we resumed
+	if (!resumed) switch (problem->simparams()->boundarytype) {
 	case LJ_BOUNDARY:
 	case MK_BOUNDARY:
 	case DYN_BOUNDARY:
@@ -2273,22 +2280,19 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	if (cFlag & INITIALIZATION_STEP) {
 
-		// if no restart
-		if (clOptions->resume_fname.empty()) {
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
 
-			// compute normal for vertices
-			doCommand(SA_COMPUTE_VERTEX_NORMAL);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+		// compute normal for vertices
+		doCommand(SA_COMPUTE_VERTEX_NORMAL);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
-			// compute initial value of gamma for fluid and vertices
-			doCommand(SA_INIT_GAMMA);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
-		}
+		// compute initial value of gamma for fluid and vertices
+		doCommand(SA_INIT_GAMMA);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+		doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 
 		// modify particle mass on open boundaries
 		if (has_io) {
