@@ -834,7 +834,7 @@ bool GPUSPH::runSimulation() {
 		// build neighbors list every buildneibsfreq or if we created
 		// particles, but only after the first iteration, because we have
 		// a buildNeibList() before entering this main loop
-		const bool needs_new_neibs = (gdata->iterations > 0) &&
+		const bool needs_new_neibs = (gdata->iterations > gdata->last_buildneibs_iteration) &&
 			((gdata->iterations % problem->simparams()->buildneibsfreq == 0) ||
 			 gdata->particlesCreated);
 
@@ -1974,6 +1974,8 @@ void GPUSPH::buildNeibList()
 
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
+
+	gdata->last_buildneibs_iteration = gdata->iterations;
 }
 
 //! Invoke system callbacks
