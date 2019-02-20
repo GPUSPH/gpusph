@@ -35,5 +35,5 @@ for problem in $(make list-problems) ; do
 		echo "$outdir exists, skipping"
 		continue
 	fi
-	make $problem && ./GPUSPH --dir "$outdir" --maxiter $maxiter "$@" || abort "Failed! ($problem)"
+	make $problem && ./$problem --dir "$outdir" --maxiter $maxiter "$@" || abort "Failed! ($problem)"
 done
