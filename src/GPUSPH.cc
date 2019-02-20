@@ -838,8 +838,11 @@ bool GPUSPH::runSimulation() {
 			((gdata->iterations % problem->simparams()->buildneibsfreq == 0) ||
 			 gdata->particlesCreated);
 
-		if (needs_new_neibs)
+		if (needs_new_neibs) {
 			buildNeibList();
+			if (Writer::HotWriterPending())
+				saveParticles(noPostProcess, HotWriteFlags);
+		}
 
 		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
 
@@ -1639,6 +1642,8 @@ double GPUSPH::Wendland2D(const double r, const double h) {
 
 void GPUSPH::doWrite(WriteFlags const& write_flags)
 {
+	// TODO FIXME skip unnecessary work based on write_flags
+	// (e.g. do not run whatever isn't needed by the HotWriter during a hot write)
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
 	// WaveGages work by looking at neighboring SURFACE particles and averaging their z coordinates

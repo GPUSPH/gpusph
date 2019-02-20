@@ -92,28 +92,43 @@ struct WriteFlags
 	flag_t integrator_step;
 	//! was this write forced?
 	bool forced_write;
+	//! is this write needed to satisfy a pending hotwrite?
+	bool hot_write;
 
 	inline void clear()
 	{
 		integrator_step = NO_FLAGS;
 		forced_write = false;
+		hot_write = false;
 	}
 
 	WriteFlags() :
 		integrator_step(NO_FLAGS),
-		forced_write(false)
+		forced_write(false),
+		hot_write(false)
 	{}
 
 	WriteFlags(flag_t step) :
 		integrator_step(step),
-		forced_write(true)
+		forced_write(true),
+		hot_write(false)
 	{}
 
 	WriteFlags(bool force) :
 		integrator_step(NO_FLAGS),
-		forced_write(force)
+		forced_write(force),
+		hot_write(false)
+	{}
+
+	WriteFlags(bool force, bool hot_write) :
+		integrator_step(NO_FLAGS),
+		forced_write(force),
+		hot_write(hot_write)
 	{}
 };
+
+//! A predefined set of flags to be invoked to satisfy a pending hotwrite
+static const WriteFlags HotWriteFlags = WriteFlags(false, true);
 
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
@@ -127,6 +142,14 @@ class Writer
 
 	// Flags enabled for the current writing session
 	static WriteFlags m_write_flags;
+
+	//! Is HotWriter pending?
+	/*! HotWriter is handled in a special manner, because it only writes
+	 * at neighbors list construction time. When the HotWriter needs to write,
+	 * this flag will be set, and GPUSPH is expected to ask for writing again
+	 * right after the next buildNeibList()
+	 */
+	static bool m_pending_hotwriter;
 
 public:
 	// maximum number of files
@@ -142,6 +165,9 @@ public:
 	// return a WriterMap of the writers that need to write
 	static ConstWriterMap
 	NeedWrite(double t);
+
+	static bool HotWriterPending()
+	{ return m_pending_hotwriter; }
 
 	static const char* Name(WriterType key);
 
