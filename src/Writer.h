@@ -85,6 +85,36 @@ typedef std::map<WriterType, Writer*> WriterMap;
 // ditto, const
 typedef std::map<WriterType, const Writer*> ConstWriterMap;
 
+///! Flags to communicate special needs to the writer
+struct WriteFlags
+{
+	//! integrator step we're writing at
+	flag_t integrator_step;
+	//! was this write forced?
+	bool forced_write;
+
+	inline void clear()
+	{
+		integrator_step = NO_FLAGS;
+		forced_write = false;
+	}
+
+	WriteFlags() :
+		integrator_step(NO_FLAGS),
+		forced_write(false)
+	{}
+
+	WriteFlags(flag_t step) :
+		integrator_step(step),
+		forced_write(true)
+	{}
+
+	WriteFlags(bool force) :
+		integrator_step(NO_FLAGS),
+		forced_write(force)
+	{}
+};
+
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
  * (whose content is decided by the Problem) and passes all requests
@@ -96,11 +126,7 @@ class Writer
 	static WriterMap m_writers;
 
 	// Flags enabled for the current writing session
-	// NO_FLAGS indicate a standard write-out (saving
-	// at the normal frequency), other flags such as
-	// the current integration step are enabled during
-	// forced writes
-	static flag_t m_write_flags;
+	static WriteFlags m_write_flags;
 
 public:
 	// maximum number of files
@@ -122,7 +148,7 @@ public:
 	// tell writers that we're starting to send write requests
 	// returns the list of writers that will be involved
 	static WriterMap
-	StartWriting(double t, flag_t write_flags);
+	StartWriting(double t, WriteFlags const& write_flags);
 
 	// mark writers as done if they needed to save at the given time
 	static void
@@ -183,7 +209,7 @@ protected:
 	// Writers that need to do special things before starting to write
 	// should override this
 	virtual void
-	start_writing(double t, flag_t write_flags) {}
+	start_writing(double t, WriteFlags const& write_flags) {}
 
 	// finish writing. Writers that need to do special things when done
 	// can override this problem, but they should call Writer::mark_written

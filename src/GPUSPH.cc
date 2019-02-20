@@ -1637,7 +1637,7 @@ double GPUSPH::Wendland2D(const double r, const double h) {
 	return 7/(4*M_PI*h*h)*temp*(2*q + 1);
 }
 
-void GPUSPH::doWrite(flag_t write_flags)
+void GPUSPH::doWrite(WriteFlags const& write_flags)
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
@@ -1794,7 +1794,7 @@ void GPUSPH::doWrite(flag_t write_flags)
  * after running the defined post-process functions, and invokes the write-out
  * routine.
  */
-void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_t write_flags)
+void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, WriteFlags const& write_flags)
 {
 	const SimParams * const simparams = problem->simparams();
 
@@ -2499,12 +2499,7 @@ void GPUSPH::check_write(bool we_are_done)
 				// so pretend we actually saved
 				Writer::FakeMarkWritten(writers, gdata->t);
 			} else {
-				saveParticles(enabledPostProcess, force_write ?
-					// if the write is forced, indicate it with a flag
-					// hinting that all integration steps have been completed
-					ALL_INTEGRATION_STEPS :
-					// otherwise, no special flag
-					NO_FLAGS);
+				saveParticles(enabledPostProcess, force_write);
 
 				// we generally want to print the current status and reset the
 				// interval performance counter when writing. However, when writing

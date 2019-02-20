@@ -46,7 +46,7 @@
 using namespace std;
 
 WriterMap Writer::m_writers = WriterMap();
-flag_t Writer::m_write_flags = NO_FLAGS;
+WriteFlags Writer::m_write_flags = WriteFlags();
 
 static const char* WriterName[] = {
 	"CommonWriter",
@@ -224,17 +224,17 @@ Writer::NeedWrite(double t)
 }
 
 WriterMap
-Writer::StartWriting(double t, flag_t write_flags)
+Writer::StartWriting(double t, WriteFlags const& write_flags)
 {
 	WriterMap started;
 
 	m_write_flags = write_flags;
 
 	// if any flag is set, then this is a forced write
-	const bool forced = (write_flags != NO_FLAGS);
+	const bool forced = write_flags.forced_write;
 
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
@@ -261,7 +261,7 @@ void
 Writer::MarkWritten(WriterMap writers, double t)
 {
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -277,14 +277,14 @@ Writer::MarkWritten(WriterMap writers, double t)
 		m_writers[COMMONWRITER]->mark_written(t);
 
 	// clear the write flags
-	m_write_flags = NO_FLAGS;
+	m_write_flags.clear();
 }
 
 void
 Writer::FakeMarkWritten(ConstWriterMap writers, double t)
 {
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	ConstWriterMap::iterator it(writers.begin());
 	ConstWriterMap::iterator end(writers.end());
@@ -304,7 +304,7 @@ Writer::FakeMarkWritten(ConstWriterMap writers, double t)
 		m_writers[COMMONWRITER]->mark_written(t);
 
 	// clear the write flags
-	m_write_flags = NO_FLAGS;
+	m_write_flags.clear();
 }
 
 /* TODO FIXME C++11
@@ -318,7 +318,7 @@ Writer::Write(WriterMap writers, uint numParts, BufferList const& buffers,
 	uint node_offset, double t, const bool testpoints)
 {
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	// save it because it writes last
 	CallbackWriter *cbwriter = NULL;
@@ -356,7 +356,7 @@ void
 Writer::WriteWaveGage(WriterMap writers, double t, GageList const& gage)
 {
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -376,7 +376,7 @@ void
 Writer::WriteObjects(WriterMap writers, double t)
 {
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -396,7 +396,7 @@ void
 Writer::WriteEnergy(WriterMap writers, double t, double4 *energy)
 {
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -418,7 +418,7 @@ Writer::WriteObjectForces(WriterMap writers, double t, uint numobjects,
 		const float3* appliedforces, const float3* appliedtorques)
 {
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -442,7 +442,7 @@ void
 Writer::WriteFlux(WriterMap writers, double t, float* fluxes)
 {
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special = m_writers[COMMONWRITER]->is_special();
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());

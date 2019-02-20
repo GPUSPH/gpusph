@@ -57,7 +57,7 @@ public:
 	VTKWriter(const GlobalData *_gdata);
 	~VTKWriter();
 
-	void start_writing(double t, flag_t write_flags);
+	void start_writing(double t, WriteFlags const& write_flags);
 	void mark_written(double t);
 
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
