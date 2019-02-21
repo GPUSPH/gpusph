@@ -34,7 +34,7 @@ check_problem() {
 	problem="$1"
 	shift
 
-	src="$(find src/problems -name ${problem}.cu)"
+	src="$(find -L src/problems -name ${problem}.cu)"
 
 	if [ -z "$src" ] ; then
 		add_failed "$problem" "source not found"
