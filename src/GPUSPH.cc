@@ -482,8 +482,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	for (uint d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS.push_back( make_shared<GPUWorker>(gdata, d) );
 
-	//	repack.SetParams();
-
 	// actually start the threads
 	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->run_worker(); // begin of INITIALIZATION ***
@@ -918,11 +916,15 @@ bool GPUSPH::runRepacking() {
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
 	// this is where we invoke initialization routines that have to be
-	// run by the GPUWokers
+	// run by the GPUWorkers
+
 	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+
 		// compute neighbour list for the first time
 		buildNeibList();
 
+		// set density and other values for segments and vertices
+		// and set initial value of gamma using the quadrature formula
 		saBoundaryConditions(INITIALIZATION_STEP);
 	}
 
@@ -934,7 +936,7 @@ bool GPUSPH::runRepacking() {
 	if (MULTI_NODE)
 		m_multiNodePerformanceCounter->start();
 
-	// write some info. This could replace "Entering the main simulation cycle"
+	// write some info. This could replace "Entering the repacking cycle"
 	printStatus();
 
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
@@ -980,7 +982,7 @@ bool GPUSPH::runRepacking() {
 			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
 
 		// choose minimum dt among the devices
-		if (gdata->problem->simparams()->simflags & ENABLE_DTADAPT) {
+		if (gdata->dtadapt) {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
@@ -997,8 +999,16 @@ bool GPUSPH::runRepacking() {
 			gdata->quit_request = true;
 		}
 
-		// to check, later, that the simulation is actually progressing
+		// store previous time to check that the simulation is actually progressing
+		double previous_t = gdata->t;
+		// increase the simulation time
 		gdata->t += gdata->dt;
+
+		// check that dt is not too small (relative to t)
+		if (gdata->t == previous_t) {
+			fprintf(stderr, "FATAL: timestep %g too small at iteration %lu, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
+			gdata->quit_request = true;
+		}
 
 		float repackMinKe = 100;
 		// Compute the total kinetic energy to determine if repacking
@@ -1038,11 +1048,11 @@ bool GPUSPH::runRepacking() {
 			buildNeibList();
 			// In the SA case, gamma needs to be recomputed after
 			// the free-surface boundary has been removed
-			if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-				// re-set density and other values for bound. elements and vertices
-				// and set value of gamma for further simulation using the quadrature formula
-				saBoundaryConditions(INITIALIZATION_STEP);
-			}
+			//if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+			//	// re-set density and other values for bound. elements and vertices
+			//	// and set value of gamma for further simulation using the quadrature formula
+			//	saBoundaryConditions(REPACK_STEP);
+			//}
 			// Write the final results
 			check_write(we_are_done);
 
@@ -1055,7 +1065,7 @@ bool GPUSPH::runRepacking() {
 	} catch (exception &e) {
 		cerr << e.what() << endl;
 		gdata->keep_repacking = false;
-		//gdata->keep_going = false;
+		gdata->keep_going = false;
 		// the loop is being ended by some exception, so we cannot guarantee that
 		// all threads are alive. Force unlocks on all subsequent barriers to exit
 		// as cleanly as possible without stalling
@@ -1086,7 +1096,6 @@ bool GPUSPH::runRepacking() {
 	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
 
-	gdata->keep_going = true;
 	return (repacked = true);
 }
 
@@ -1189,7 +1198,7 @@ bool GPUSPH::runSimulation() {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// if runnin multinode, should also find the network minimum
+			// if running multinode, should also find the network minimum
 			if (MULTI_NODE)
 				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
@@ -2596,30 +2605,35 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		throw runtime_error("no boundary conditions engine loaded");
 
 	if (cFlag & INITIALIZATION_STEP) {
+	//if (cFlag & INITIALIZATION_STEP || cFlag & REPACK_STEP) {
 
 		// If there is no restart, compute gamma.
-		// In case of repacking, saBoundaryConditions(INITIALIZATION_STEP)
+		// In case of repacking, saBoundaryConditions(REPACK_STEP)
 		// is called at the end of the repacking to fix gamma
 		// after the free-surface has been disabled
-		if (clOptions->resume_fname.empty() || gdata->keep_repacking) {
+		// First, put BOUNDELEMENTS and GRADGAMMA in the WRITE position
+		if (clOptions->resume_fname.empty()) {
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
 
-			// compute normal for vertices
+			// Compute normal for vertices
 			doCommand(SA_COMPUTE_VERTEX_NORMAL);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
+			// Put the normals back to READ position
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
-			// compute initial value of gamma for fluid and vertices
+			// Compute initial value of gamma for fluid and vertices
 			doCommand(SA_INIT_GAMMA);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			// Put GRADGAMMA back to READ position
 			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 		}
 
 		// modify particle mass on open boundaries
-		if (gdata->clOptions->repack == false && gdata->clOptions->repack_only==false
-      && has_io) {
+		// only if we really are at the initialisation stage
+		// and not at the end of repacking
+		if (has_io && !gdata->keep_repacking) {
 			// identify all the corner vertex particles
 			doCommand(SWAP_BUFFERS, BUFFER_INFO);
 			doCommand(IDENTIFY_CORNER_VERTICES);
@@ -2679,7 +2693,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (cFlag & INTEGRATOR_STEP_1)
 		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
 
-	if (!(cFlag & INITIALIZATION_STEP)) {
+	if (!(cFlag & INITIALIZATION_STEP)) {// && !(cFlag & REPACK_STEP)) {
 		/* SA_CALC_SEGMENT_BOUNDARY_CONDITIONS and SA_CALC_VERTEX_BOUNDARY_CONDITIONS
 		 * get their normals from the READ position, but if we have moving bodies,
 		 * the new normals are in the WRITE position, so swap them */
@@ -2711,13 +2725,13 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 	}
 
-	if (!(cFlag & INITIALIZATION_STEP)) {
+	if	(!(cFlag & INITIALIZATION_STEP)) {// && !(cFlag & REPACK_STEP)) {
 		/* Restore normals */
 		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 	}
 
-	if (cFlag & INITIALIZATION_STEP) {
+	if ((cFlag & INITIALIZATION_STEP)) {// || (cFlag & REPACK_STEP)) {
 		// During the simulation, saBoundaryConditions operates on the WRITE buffers, because it's invoked before the post-compute buffer swap,
 		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is
 		// finished they are expected to be in the READ position, so swap them again:

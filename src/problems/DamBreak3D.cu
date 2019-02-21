@@ -76,7 +76,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	resize_neiblist(128);
 
 	// *** Initialization of minimal physical parameters
-	set_deltap(0.004f);
+	set_deltap(0.04f);
 	//simparams()->dt = 0.00005;
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
@@ -98,6 +98,9 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
+	simparams()->repack_a = 0.1f;
+	simparams()->repack_alpha = 0.01f;
+	simparams()->repack_maxiter = 10;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.05f);

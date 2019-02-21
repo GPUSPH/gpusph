@@ -412,8 +412,8 @@ struct common_segment_pout
 		gGam(make_float4(0, 0, 0, params.gGam[index].w)),
 		vel(make_float4(0)),
 		// Gamma always needs to be recomputed when moving bodies are enabled.
-		// If not, we only need to compute if it wasn't defined
-		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || !isfinite(gGam.w))
+		// If not, we only need to compute if we are at initialisation stage
+		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || Params::step == 0)
 	{
 		if (calcGam)
 			gGam.w = 0;
@@ -1416,9 +1416,8 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
  \note updates are made in-place because we only read from fluids and vertex particles and only write
  boundary particles data, and no conflict can thus occurr.
 */
-template<int step, typename Params,
-	// TODO FIXME initStep seems to be unused presently, but may be used to
-	// determine if calcGamma is needed or not (initStep || moving bodies || open boundaries)
+template<typename Params,
+	uint step = Params::step,
 	bool initStep = (step == 0)
 >
 __global__ void

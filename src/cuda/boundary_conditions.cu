@@ -140,15 +140,15 @@ saSegmentBoundaryConditionsImpl(
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	sa_segment_bc_params<kerneltype, ViscSpec, simflags> params(
-		pos, vel, particleHash, cellStart, neibsList,
-		gGam, vertices, vertPos,
-		eulerVel, tke, eps,
-		particleRangeEnd, deltap, slength, influenceradius);
-
 	// execute the kernel
 #define SA_SEGMENT_BC_STEP(step) case step: \
-	cubounds::saSegmentBoundaryConditionsDevice<step><<< numBlocks, numThreads, dummy_shared >>>(params); break
+	{ sa_segment_bc_params<kerneltype, ViscSpec, simflags, step> params( \
+		pos, vel, particleHash, cellStart, neibsList, \
+		gGam, vertices, vertPos, \
+		eulerVel, tke, eps, \
+		particleRangeEnd, deltap, slength, influenceradius); \
+		cubounds::saSegmentBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} break
 
 	switch (step) {
 		SA_SEGMENT_BC_STEP(0);

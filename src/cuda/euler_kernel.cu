@@ -170,7 +170,6 @@ disableFreeSurfPartsDevice(
 		if (SURFACE(info) && NOT_FLUID(info)) {
 			float4 pos = oldPos[index];
 			if (ACTIVE(pos)) {
-				printf("Disable me\n");
 				disable_particle(pos);
 				oldPos[index] = pos;
 			}
