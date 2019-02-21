@@ -36,6 +36,11 @@ check_problem() {
 
 	src="$(find src/problems -name ${problem}.cu)"
 
+	if [ -z "$src" ] ; then
+		add_failed "$problem" "source not found"
+		return
+	fi
+
 	echo "Testing ${problem} ($src)..."
 
 	# finish after 3 writes
