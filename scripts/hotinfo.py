@@ -25,7 +25,11 @@ for arg in sys.argv[1:]:
         nbodies = h1[3]
         for i in range(nbufs):
             sz = calcsize(buffer_enc)
-            h1 = unpack(buffer_enc, f1.read(sz))
+            buf = f1.read(sz)
+            if (len(buf) == 0):
+                print("End of file reached with pending buffers (ephemeral buffers were not stored)")
+                break
+            h1 = unpack(buffer_enc, buf)
             bufname = h1[1][:h1[0]]
             elsize = h1[2]
             bufcount = h1[3]

@@ -65,10 +65,23 @@ void HotFile::save() {
 	// write a header
 	writeHeader(_fp.out, VERSION_1);
 
-	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
-	while (iter != _gdata->s_hBuffers.end()) {
-		writeBuffer(_fp.out, iter->second, VERSION_1);
-		iter++;
+	// TODO instead of hardcoding this here, we might want to have save/load
+	// take a BufferList, so that the caller (GPUSPH) can manage which buffers
+	// will be loaded and which not
+	// TODO notice that since we skip ephemeral buffers, currnetly the header
+	// buffer_count (which is equal to the number of buffers in s_hBuffers)
+	// does not match the number of buffers stored in the HotFile.
+	// This is not a problem on resume, since we compare buffer_count with s_hBuffers
+	// size, but it is an issue for external tools used to inspect HotFiles.
+	// TODO consider changing the header (and remember to bump the version this time!)
+	// to include both the total buffer count and the stored buffer count.
+	const flag_t skip_bufs = EPHEMERAL_BUFFERS;
+
+	for (auto& iter : _gdata->s_hBuffers) {
+		if (iter.first & skip_bufs)
+			continue;
+
+		writeBuffer(_fp.out, iter.second, VERSION_1);
 	}
 
 	for (uint id = 0; id < _header.body_count; ++id) {
@@ -108,7 +121,15 @@ void HotFile::load() {
 	// TODO FIXME/ should be num ODE bodies
 	check_counts_match("body", _header.body_count, _gdata->problem->simparams()->numbodies);
 
+	// TODO instead of hardcoding this here, we might want to have save/load
+	// take a BufferList, so that the caller (GPUSPH) can manage which buffers
+	// will be loaded and which not
+	const flag_t skip_bufs = EPHEMERAL_BUFFERS;
+
 	for (auto& iter : _gdata->s_hBuffers) {
+		if (iter.first & skip_bufs)
+			continue;
+
 		AbstractBuffer *buf = iter.second;
 		readBuffer(_fp.in, buf, VERSION_1);
 		buf->set_state("resumed");
