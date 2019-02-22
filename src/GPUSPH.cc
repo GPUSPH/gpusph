@@ -1892,6 +1892,14 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 
 	// TODO: the performanceCounter could be "paused" here
 
+	// we do not care about ephemeral buffers during a hotwrite —
+	// they will not be saved anyway, so exclude them
+	// TODO a better solution would be to ask each involved writer
+	// during this saveParticles() call which buffers do they
+	// actually care about
+	if (write_flags.hot_write)
+		which_buffers &= ~EPHEMERAL_BUFFERS;
+
 	// dump what we want to save
 	doCommand(DUMP, which_buffers);
 
