@@ -217,12 +217,6 @@ private:
 	void initialize();
 	void finalize();
 
-public:
-	// select a state based on the integrator step specification
-	// TODO these will become a method in the integrator
-	static std::string getCurrentStateByCommandFlags(flag_t flags);
-	static std::string getNextStateByCommandFlags(flag_t flags);
-
 private:
 	// create a textual description of the list of buffers in the command flags
 	std::string describeCommandFlagsBuffers(flag_t flags);

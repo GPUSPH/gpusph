@@ -1121,36 +1121,6 @@ void GPUWorker::printAllocatedMemory()
 			gdata->addSeparators(m_numParticles).c_str(), gdata->addSeparators(m_numAllocatedParticles).c_str());
 }
 
-std::string
-GPUWorker::getCurrentStateByCommandFlags(flag_t flags)
-{
-	switch (flags) {
-	case INITIALIZATION_STEP:
-	case INTEGRATOR_STEP_1:
-		return "step n";
-	case INTEGRATOR_STEP_2:
-		return "step n*";
-	default:
-		throw runtime_error("cannot determine current state from flags " + to_string(flags));
-	}
-}
-
-std::string
-GPUWorker::getNextStateByCommandFlags(flag_t flags)
-{
-	switch (flags) {
-	case INITIALIZATION_STEP:
-		return "step n";
-	case INTEGRATOR_STEP_1:
-		return "step n*";
-	case INTEGRATOR_STEP_2:
-		return "step n+1";
-	default:
-		throw runtime_error("cannot determine next state from flags " + to_string(flags));
-	}
-}
-
-
 string
 GPUWorker::describeCommandFlagsBuffers(flag_t flags)
 {
@@ -2512,7 +2482,7 @@ void GPUWorker::runCommand<FILTER>(CommandStruct const& cmd)
 	FilterEngineSet::const_iterator filterpair(filterEngines.find(filtertype));
 	// make sure we're going to call an instantiated filter
 	if (filterpair == filterEngines.end()) {
-		throw invalid_argument("non-existing filter invoked");
+		throw invalid_argument("non-existing filter " + to_string(cmd.flags) + " invoked");
 	}
 
 	// TODO be more selective
@@ -2631,7 +2601,7 @@ void GPUWorker::runCommand<REDUCE_BODIES_FORCES>(CommandStruct const& cmd)
 {
 	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const int step = get_step_number(step_flag);
-	const string current_state = getCurrentStateByCommandFlags(step_flag);
+	const string current_state = cmd.src;
 
 	const size_t numforcesbodies = m_simparams->numforcesbodies;
 
@@ -2880,8 +2850,8 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 	// if (m_deviceIndex == 1) return;
 
 	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const string current_state = getCurrentStateByCommandFlags(step_flag);
-	const string next_state = getNextStateByCommandFlags(step_flag);
+	const string current_state = cmd.src;
+	const string next_state = cmd.dst;
 
 	BufferList const& bufread = m_dBuffers.getState(current_state);
 	BufferList const& bufwrite = m_dBuffers.getState(next_state);

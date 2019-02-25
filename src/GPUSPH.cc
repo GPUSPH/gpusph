@@ -55,6 +55,11 @@
 
 using namespace std;
 
+// an empty set of PostProcessEngines, to be used when we want to save
+// the particle system without running post-processing filters
+// (e.g. when inspecting the particle system before each forces computation)
+static const PostProcessEngineSet noPostProcess{};
+
 GPUSPH* GPUSPH::getInstance() {
 	// guaranteed to be destroyed; instantiated on first use
 	static GPUSPH instance;
@@ -431,7 +436,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO this is where we would instance the Integrator class
 	// for the time being, we will instead call a function that initializes
 	// our own CommandSequences
-	initializeCommandSequences();
+	integrator = make_shared<PredictorCorrector>(gdata);
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
@@ -497,10 +502,90 @@ bool GPUSPH::finalize() {
 	return true;
 }
 
-// an empty set of PostProcessEngines, to be used when we want to save
-// the particle system without running post-processing filters
-// (e.g. when inspecting the particle system before each forces computation)
-static const PostProcessEngineSet noPostProcess{};
+template<>
+void GPUSPH::runCommand<END_OF_INIT>(CommandStruct const& cmd)
+{
+	printf("Entering the main simulation cycle\n");
+
+	//  IPPS counter does not take the initial uploads into consideration
+	m_totalPerformanceCounter->start();
+	m_intervalPerformanceCounter->start();
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter->start();
+
+	// write some info. This could replace "Entering the main simulation cycle"
+	printStatus();
+}
+
+template<>
+void GPUSPH::runCommand<TIME_STEP_PRELUDE>(CommandStruct const& cmd)
+{
+	printStatus(m_info_stream);
+}
+
+template<>
+void GPUSPH::runCommand<HANDLE_HOTWRITE>(CommandStruct const& cmd)
+{
+	if (Writer::HotWriterPending())
+		saveParticles(noPostProcess, "step n", HotWriteFlags);
+}
+
+template<>
+void GPUSPH::runCommand<TIME_STEP_EPILOGUE>(CommandStruct const& cmd)
+{
+	// increase counters
+	gdata->iterations++;
+	m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+	m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
+	// to check, later, that the simulation is actually progressing
+	double previous_t = gdata->t;
+	gdata->t += gdata->dt;
+	// buildneibs_freq?
+
+	// choose minimum dt among the devices
+	if (gdata->dtadapt) {
+		gdata->dt = gdata->dts[0];
+		for (uint d = 1; d < gdata->devices; d++)
+			gdata->dt = min(gdata->dt, gdata->dts[d]);
+		// if runnin multinode, should also find the network minimum
+		if (MULTI_NODE)
+			gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
+	}
+
+	// check that dt is not too small (absolute)
+	if (!gdata->dt) {
+		throw DtZeroException(gdata->t, gdata->dt);
+	} else if (gdata->dt < FLT_EPSILON) {
+		fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
+		gdata->quit_request = true;
+	}
+
+	// check that dt is not too small (relative to t)
+	if (gdata->t == previous_t) {
+		fprintf(stderr, "FATAL: timestep %g too small at iteration %lu, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
+		gdata->quit_request = true;
+	}
+
+	//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
+
+	// are we done?
+	const bool we_are_done =
+		// ask the problem if we're done
+		gdata->problem->finished(gdata->t) ||
+		// if not, check if we've completed the number of iterations prescribed
+		// from the command line
+		(gdata->clOptions->maxiter && gdata->iterations >= gdata->clOptions->maxiter) ||
+		// and of course we're finished if a quit was requested
+		gdata->quit_request;
+
+	check_write(we_are_done);
+
+	if (we_are_done)
+		// NO doCommand() after keep_going has been unset!
+		gdata->keep_going = false;
+}
 
 void GPUSPH::unknownCommand(CommandName cmd)
 {
@@ -522,64 +607,6 @@ GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
 	doCommand(cmd.set_flags(flags));
 }
 
-void
-GPUSPH::prepareNextStep(const flag_t current_integrator_step)
-{
-	// this is a “resumed” prepareNextStep if we're doing the “initialization”
-	// preparation and a resume file is defined
-	const bool resumed = (
-		(current_integrator_step == INITIALIZATION_STEP) &&
-		!clOptions->resume_fname.empty()
-		);
-
-	const int step_num = get_step_number(current_integrator_step);
-	if (step_num < 0)
-		throw runtime_error("prepareNextStep called with invalid integrator step");
-	for (auto const& cmd : nextStepCommands[step_num])
-		doCommand(cmd);
-}
-
-void
-GPUSPH::runIntegratorStep(const flag_t integrator_step)
-{
-	const int step_num = get_step_number(integrator_step);
-	if (step_num < 0)
-		throw runtime_error("runIntegratorStep called with invalid integrator step");
-	for (auto const& cmd : predCorrCommands[step_num])
-		doCommand(cmd);
-
-	// upload gravity, boundary conditions, etc
-	prepareNextStep(integrator_step);
-}
-
-void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
-	// run pre-filter commands
-	for (auto const& cmd : filterIntroCommands)
-		doCommand(cmd);
-
-	const unsigned long iterations = gdata->iterations;
-
-	// for each filter ...
-	for (auto const& flt : enabledFilters) {
-		FilterType filter = flt.first;
-		uint freq = flt.second; // known to be > 0
-		if (iterations % freq != 0)
-			continue;
-		// ok, need to run this filter. 
-		// the first command should be FILTER, and we need to set the flags with the filter name
-		for (auto cmd : filterCallCommands) {
-			if (cmd.command == FILTER)
-				doCommand(cmd.set_flags(filter));
-			else
-				doCommand(cmd);
-		}
-	}
-
-	// run post-filter commands
-	for (auto const& cmd : filterOutroCommands)
-		doCommand(cmd);
-}
-
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
@@ -599,138 +626,11 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
-	// Each complete integration step operates reading the information from “step n”
-	// to produce the configuration at “step n+1”; the initial upload brings the particle
-	// into a particle system “initial upload”, which we rename to “step n” before
-	// entering the main simulation cycle.
-	for (auto const& cmd : postInitCommands)
-		doCommand(cmd);
+	integrator->start();
 
-	// Some formulations require stuff to be done before the beginning of the
-	// main loop (partially, this is stuff that is also done at the end of each
-	// time-step, but since there is no time-step preceding the first one,
-	// that's done here).
-	const bool needs_preparation = (
-		(problem->simparams()->gcallback) ||
-		(problem->simparams()->boundarytype == SA_BOUNDARY)
-	);
-
-	// compute neighbour list for the first time. This is done regardless
-	// of preparations, since we need to do one anyway
-	buildNeibList();
-
-	if (needs_preparation) {
-		prepareNextStep(INITIALIZATION_STEP);
-	}
-
-	printf("Entering the main simulation cycle\n");
-
-	//  IPPS counter does not take the initial uploads into consideration
-	m_totalPerformanceCounter->start();
-	m_intervalPerformanceCounter->start();
-	if (MULTI_NODE)
-		m_multiNodePerformanceCounter->start();
-
-	// write some info. This could replace "Entering the main simulation cycle"
-	printStatus();
-
-	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
-
-	// Run the actual simulation loop, by issuing the appropriate doCommand()s
-	// in sequence. keep_going will be set to false either by the loop itself
-	// if the simulation is finished, or by a Worker that fails in executing a
-	// command; in the latter case, doCommand itself will throw, to prevent
-	// the loop from issuing subsequent commands; hence, the body consists of a
-	// try/catch block --------v-----
-	while (gdata->keep_going) try {
-		printStatus(m_info_stream);
-
-		for (auto const& cmd : timeStepBeginCommands)
-			doCommand(cmd);
-
-		// build neighbors list every buildneibsfreq or if we created
-		// particles, but only after the first iteration, because we have
-		// a buildNeibList() before entering this main loop
-		const bool needs_new_neibs = (gdata->iterations > gdata->last_buildneibs_iteration) &&
-			((gdata->iterations % problem->simparams()->buildneibsfreq == 0) ||
-			 gdata->particlesCreated);
-
-		if (needs_new_neibs) {
-			buildNeibList();
-			if (Writer::HotWriterPending())
-				saveParticles(noPostProcess, "step n", HotWriteFlags);
-		}
-
-		// when there will be an Integrator class, here (or after bneibs?) we will
-		// call Integrator -> setNextStep
-
-		// run enabled filters
-		if (gdata->iterations > 0 && enabledFilters.size() > 0) {
-			runEnabledFilters(enabledFilters);
-		}
-
-		// run PREDICTOR step (INTEGRATOR_STEP_1)
-		runIntegratorStep(INTEGRATOR_STEP_1);
-
-		// End of predictor step, start corrector step
-
-		// run CORRECTOR step (INTEGRATOR_STEP_2)
-		runIntegratorStep(INTEGRATOR_STEP_2);
-
-		// End of corrector step, finish iteration
-
-		// increase counters
-		gdata->iterations++;
-		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
-		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
-		if (MULTI_NODE)
-			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
-		// to check, later, that the simulation is actually progressing
-		double previous_t = gdata->t;
-		gdata->t += gdata->dt;
-		// buildneibs_freq?
-
-		// choose minimum dt among the devices
-		if (gdata->dtadapt) {
-			gdata->dt = gdata->dts[0];
-			for (uint d = 1; d < gdata->devices; d++)
-				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// if runnin multinode, should also find the network minimum
-			if (MULTI_NODE)
-				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
-		}
-
-		// check that dt is not too small (absolute)
-		if (!gdata->dt) {
-			throw DtZeroException(gdata->t, gdata->dt);
-		} else if (gdata->dt < FLT_EPSILON) {
-			fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
-			gdata->quit_request = true;
-		}
-
-		// check that dt is not too small (relative to t)
-		if (gdata->t == previous_t) {
-			fprintf(stderr, "FATAL: timestep %g too small at iteration %lu, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
-			gdata->quit_request = true;
-		}
-
-		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
-
-		// are we done?
-		const bool we_are_done =
-			// ask the problem if we're done
-			gdata->problem->finished(gdata->t) ||
-			// if not, check if we've completed the number of iterations prescribed
-			// from the command line
-			(gdata->clOptions->maxiter && gdata->iterations >= gdata->clOptions->maxiter) ||
-			// and of course we're finished if a quit was requested
-			gdata->quit_request;
-
-		check_write(we_are_done);
-
-		if (we_are_done)
-			// NO doCommand() after keep_going has been unset!
-			gdata->keep_going = false;
+	const CommandStruct* cmd = nullptr;
+	while (gdata->keep_going && (cmd = integrator->next_command()) ) try {
+		doCommand(*cmd);
 	} catch (exception const& e) {
 		cerr << e.what() << endl;
 		gdata->keep_going = false;
@@ -788,7 +688,11 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 		// We have to reduce forces and torques only on bodies which requires it
 		const size_t numforcesbodies = problem->simparams()->numforcesbodies;
 		if (numforcesbodies > 0) {
-			doCommand(REDUCE_BODIES_FORCES, integrator_step);
+			const CommandStruct reduce_cmd = CommandStruct(REDUCE_BODIES_FORCES)
+				.set_flags(integrator_step)
+				.set_src(cmd.src);
+
+			doCommand(reduce_cmd);
 
 			// Now sum up the partial forces and momentums computed in each gpu
 			if (MULTI_GPU) {
@@ -1801,13 +1705,6 @@ void GPUSPH::runCommand<CHECK_NEWNUMPARTS>(CommandStruct const& cmd)
 	}
 }
 
-void GPUSPH::buildNeibList()
-{
-	for (auto const& cmd : neibsListCommands)
-		doCommand(cmd);
-
-}
-
 //! Invoke system callbacks
 /*! Currently this only calls the variable-gravity callback.
  * Since this is invoked in-between steps, the simulated time t
@@ -2199,710 +2096,6 @@ void GPUSPH::check_write(bool we_are_done)
 			}
 		}
 
-}
-
-void
-GPUSPH::initializeFilterSequence()
-{
-	/* Things to do before looping over any filter */
-	filterIntroCommands.push_back(RENAME_STATE)
-		.set_src("step n")
-		.set_dst("unfiltered");
-	filterIntroCommands.push_back(INIT_STATE)
-		.set_src("filtered");
-
-	/* Command sequence for a single filter
-	 * The caller should set the command flag with the filter name
-	 */
-	filterCallCommands.push_back(FILTER)
-		// TODO currently runCommand<FILTER> knows that it needs to get the whole state
-		// and there will be a single reading specification
-		.reading("unfiltered", BUFFER_NONE)
-		.writing("filtered", BUFFER_VEL);
-	if (MULTI_DEVICE)
-		filterCallCommands.push_back(UPDATE_EXTERNAL)
-			.updating("filtered", BUFFER_VEL);
-
-	// swap buffers between filtered and unfiltered: this moves
-	// the filtered buffer into the unfiltered state (as in: unfiltered for the
-	// next filter, if any), and moves what was in the unfiltered state to filtered:
-	// the latter is marked invalid, in preparation for the next filter (if any)
-	filterCallCommands.push_back(SWAP_STATE_BUFFERS)
-		.set_src("unfiltered")
-		.set_dst("filtered")
-		.set_flags(BUFFER_VEL);
-
-	/* Things to do after looping over filters */
-	// a bit of a paradox: the state rename is done for the unfiltered state,
-	// since this is where the previously filtered velocity has been moved with the last swap
-	filterOutroCommands.push_back(RENAME_STATE)
-		.set_src("unfiltered")
-		.set_dst("step n");
-	filterOutroCommands.push_back(RELEASE_STATE)
-		.set_src("filtered");
-
-}
-
-void
-GPUSPH::initializeBuildNeibsSequence()
-{
-	/* Initialize the niebsList Commands */
-	neibsListCommands.reserve(20);
-
-	// We want to sort the particles starting from the state “step n”.
-	// We remove the cell, neibslist and vertex position buffers, invalidating them.
-	// They will be added to the sorted state, to be reinitialized during hash computation
-	// and neighbors list construction
-	neibsListCommands.push_back(REMOVE_STATE_BUFFERS)
-		.set_src("step n")
-		.set_flags(NEIBS_SEQUENCE_REFRESH_BUFFERS);
-
-	// Rename the state to “unsorted”
-	neibsListCommands.push_back(RENAME_STATE)
-		.set_src("step n")
-		.set_dst("unsorted");
-
-	// Initialize the new particle system state (“sorted”) with all particle properties
-	// (except for BUFFER_INFO, which will be sorted in-place), plus the auxiliary buffers
-	// that get rebuilt during the sort and neighbors list construction
-	// (cell start/end, vertex relative positions and the neiblists itself)
-	neibsListCommands.push_back(INIT_STATE)
-		.set_src("sorted");
-
-	// Some buffers can be shared between the sorted and unsorted state, because
-	// they are not directly tied to the particles themselves, but the particle system
-	// as a whole. The buffers that need to get shared depend on a number of conditions:
-
-	static const flag_t has_forces_bodies = (problem->simparams()->numforcesbodies > 0);
-
-	static const flag_t sorting_shared_buffers =
-	// The compact device map (when present) carries over to the other state, unchanged
-		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
-	// The object particle key buffer is static (precomputed on host, never changes),
-	// so we bring it across all particle states
-		(has_forces_bodies ? BUFFER_RB_KEYS : BUFFER_NONE);
-
-	if (sorting_shared_buffers != BUFFER_NONE)
-		neibsListCommands.push_back(SHARE_BUFFERS)
-			.set_src("unsorted")
-			.set_dst("sorted")
-			.set_flags(sorting_shared_buffers);
-
-	neibsListCommands.push_back(CALCHASH)
-		.reading("unsorted", BUFFER_INFO | BUFFER_COMPACT_DEV_MAP)
-		.updating("unsorted", BUFFER_POS | BUFFER_HASH)
-		.writing("unsorted", BUFFER_PARTINDEX);
-
-	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
-	// reordering is done in-place, so we also rename the state of these buffers
-	// from unsorted to sorted
-	neibsListCommands.push_back(SORT)
-		.set_src("unsorted")
-		.set_dst("sorted")
-		.updating("unsorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX);
-
-	// reorder everything else
-	// note that, as a command, REORDER is a special case: one of the buffer specifications
-	// for the writing list is empty because it can only be determined at the runCommand<>
-	// level, by taking the buffers that were take from the reading list
-	neibsListCommands.push_back(REORDER)
-		// for the unsorted list, pick whatever is left of the IMPORT_BUFFERS
-		.reading("unsorted", IMPORT_BUFFERS)
-		// the buffers sorted in SORT are marked “updating”, but will actually be read-only
-		.updating("sorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX)
-		// no buffer specification, meaning “take the reading buffer list"
-		.writing("sorted", BUFFER_NONE)
-		// and we also want these
-		.writing("sorted", BUFFERS_CELL);
-
-	// we don't need the unsorted state anymore
-	neibsListCommands.push_back(RELEASE_STATE)
-		.set_src("unsorted");
-
-	// we don't need the PARTINDEX buffer anymore
-	// TODO since we only need PARTINDEX during sorting, and other ephemeral buffers
-	// such as FORCES only outside of sorting, we could spare some memory recycling
-	// one such ephemeral buffer in place of PARTINDEX
-	neibsListCommands.push_back(REMOVE_STATE_BUFFERS)
-		.set_src("sorted")
-		.set_flags(BUFFER_PARTINDEX);
-
-	// get the new number of particles: with inlet/outlets, they
-	// may have changed because of incoming/outgoing particle, otherwise
-	// some particles might have been disabled (and discarded) for flying
-	// out of the domain
-	neibsListCommands.push_back(DOWNLOAD_NEWNUMPARTS);
-
-	// if running on multiple GPUs, update the external cells
-	if (MULTI_DEVICE) {
-		// copy cellStarts, cellEnds and segments on host
-		neibsListCommands.push_back(DUMP_CELLS)
-			.reading("sorted", BUFFER_CELLSTART | BUFFER_CELLEND);
-
-		neibsListCommands.push_back(UPDATE_SEGMENTS);
-
-		// here or later, before update indices: MPI_Allgather (&sendbuf,sendcount,sendtype,&recvbuf, recvcount,recvtype,comm)
-		// maybe overlapping with dumping cells (run async before dumping the cells)
-	}
-
-	// update particle offsets —this is a host command, and
-	// doesn't affect the device buffers directly. we do it in both the single- and multi-device case
-	neibsListCommands.push_back(UPDATE_ARRAY_INDICES);
-
-	// if running on multiple GPUs, rebuild the external copies
-	if (MULTI_DEVICE) {
-		// crop external cells
-		neibsListCommands.push_back(CROP);
-		// append fresh copies of the externals
-		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
-		// until next calchash; however, they are filtered out when using the particle hashes.
-		neibsListCommands.push_back(APPEND_EXTERNAL)
-			.updating("sorted", IMPORT_BUFFERS);
-		// update the newNumParticles device counter
-		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
-			neibsListCommands.push_back(UPLOAD_NEWNUMPARTS);
-	}
-
-	// run the actual neighbors list construction
-	neibsListCommands.push_back(BUILDNEIBS)
-		.reading("sorted",
-			BUFFER_POS | BUFFER_INFO | BUFFER_HASH |
-			BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
-			BUFFER_CELLSTART | BUFFER_CELLEND)
-		.writing("sorted",
-			BUFFER_NEIBSLIST | BUFFER_VERTPOS);
-
-	// BUFFER_VERTPOS needs to be synchronized with the adjacent devices
-	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
-		neibsListCommands.push_back(UPDATE_EXTERNAL).updating("sorted", BUFFER_VERTPOS);
-
-	// we're done, rename the state to “step n” for what follows
-	neibsListCommands.push_back(RENAME_STATE)
-		.set_src("sorted")
-		.set_dst("step n");
-
-	// host command: check we don't have too many neighbors
-	neibsListCommands.push_back(CHECK_NEIBSNUM);
-}
-
-template<BoundaryType boundarytype>
-void GPUSPH::initializeBoundaryConditionsSequence(int step_num)
-{ /* for most boundary models, there's nothing to do */ }
-
-// formerly saBoundaryConditions()
-//! Initialize the sequence of commands needed to apply SA_BOUNDARY boundary conditions.
-/*! This will _not_ be called for the initialization step if we resumed,
- * since the arrays were already correctly initialized before writing
- */
-template<>
-void GPUSPH::initializeBoundaryConditionsSequence<SA_BOUNDARY>(int step_num)
-{
-	static const SimParams *sp = problem->simparams();
-	static const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
-
-	// In the open boundary case, the last integration step is when we generate
-	// and destroy particles
-	const bool last_io_step = has_io && (step_num == 2);
-	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
-	/* Boundary conditions are applied to step n during initialization step,
-	 * to step n* after the integrator, and to step n+1 after the corrector
-	 */
-	const string state = GPUWorker::getNextStateByCommandFlags(integrator_step);
-
-	if (gdata->simframework->getBCEngine() == NULL)
-		throw runtime_error("no boundary conditions engine loaded");
-
-	CommandSequence& cmd_seq = nextStepCommands[step_num];
-
-	// initialization, only if not resuming
-	if (step_num == 0) {
-		// compute normal for vertices, updating BUFFER_BOUNDELEMENTS in-place
-		// (reads from boundaries, writes on vertices)
-		cmd_seq.push_back(SA_COMPUTE_VERTEX_NORMAL)
-			.reading(state, BUFFER_VERTICES |
-				BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
-			.updating(state, BUFFER_BOUNDELEMENTS);
-		if (MULTI_DEVICE)
-			cmd_seq.push_back(UPDATE_EXTERNAL)
-				.updating(state, BUFFER_BOUNDELEMENTS);
-
-		// compute initial value of gamma for fluid and vertices
-		cmd_seq.push_back(SA_INIT_GAMMA)
-			.reading(state, BUFFER_BOUNDELEMENTS | BUFFER_VERTPOS |
-				BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
-			.writing(state, BUFFER_GRADGAMMA);
-		if (MULTI_DEVICE)
-			cmd_seq.push_back(UPDATE_EXTERNAL)
-				.updating(state, BUFFER_GRADGAMMA);
-
-		// modify particle mass on open boundaries
-		if (has_io) {
-
-			cmd_seq.push_back(IDENTIFY_CORNER_VERTICES)
-				.reading(state, BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
-					BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
-				.updating(state, BUFFER_INFO);
-			if (MULTI_DEVICE)
-				cmd_seq.push_back(UPDATE_EXTERNAL)
-					.updating(state, BUFFER_INFO);
-
-			cmd_seq.push_back(INIT_STATE).set_src("iomass");
-
-			// first step: count the vertices that belong to IO and the same
-			// segment as each IO vertex
-			// we use BUFFER_FORCES as scratch buffer to store the computed
-			// IO masses
-			cmd_seq.push_back(INIT_IO_MASS_VERTEX_COUNT)
-				.reading(state, BUFFER_VERTICES | BUFFER_INFO |
-					BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
-				.writing(state, BUFFER_FORCES);
-			if (MULTI_DEVICE)
-				cmd_seq.push_back(UPDATE_EXTERNAL)
-					.updating(state, BUFFER_FORCES);
-
-			// second step: modify the mass of the IO vertices
-			cmd_seq.push_back(INIT_IO_MASS)
-				.reading(state, BUFFER_VERTICES | BUFFER_INFO | BUFFER_POS |
-					BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-					BUFFER_FORCES)
-				.writing("iomass", BUFFER_POS);
-			if (MULTI_DEVICE)
-				cmd_seq.push_back(UPDATE_EXTERNAL)
-					.updating("iomass", BUFFER_POS);
-			cmd_seq.push_back(SWAP_STATE_BUFFERS)
-				.set_src("step n")
-				.set_dst("iomass")
-				.set_flags(BUFFER_POS);
-			cmd_seq.push_back(REMOVE_STATE_BUFFERS)
-				.set_src("step n")
-				.set_flags(BUFFER_FORCES);
-			cmd_seq.push_back(RELEASE_STATE)
-				.set_src("iomass");
-		}
-
-	}
-
-	// impose open boundary conditions
-	if (has_io) {
-		// reduce the water depth at pressure outlets if required
-		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE && problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
-			// each device gets his waterdepth array from the gpu
-			cmd_seq.push_back(DOWNLOAD_IOWATERDEPTH);
-			// reduction across devices and if necessary across nodes
-			cmd_seq.push_back(FIND_MAX_IOWATERDEPTH);
-			// upload the global max value to the devices
-			cmd_seq.push_back(UPLOAD_IOWATERDEPTH);
-		}
-		// impose open boundary conditions, calling the problem-specific kernel
-		// TODO see if more buffers are needed in the general case;
-		// the current SA example implementations only use these
-		// might possibly need some way to get this information from the problem itself
-		cmd_seq.push_back(IMPOSE_OPEN_BOUNDARY_CONDITION)
-			.set_flags(integrator_step)
-			.reading(state, BUFFER_POS | BUFFER_HASH | BUFFER_INFO)
-			.updating(state, BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON);
-	}
-
-	// compute boundary conditions on segments and, during the last step of the integrator,
-	// also detect outgoing particles at open boundaries (the relevant information
-	// is stored in the BUFFER_VERTICES array, only gets swapped in these case)
-	cmd_seq.push_back(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS)
-		.set_flags(integrator_step)
-		.reading(state,
-			BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-			BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS | BUFFER_VERTICES)
-		.updating(state,
-			BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA);
-	if (last_io_step)
-		cmd_seq.push_back(FIND_OUTGOING_SEGMENT)
-			.reading(state,
-				BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL |
-				BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS)
-			.updating(state,
-				BUFFER_GRADGAMMA | BUFFER_VERTICES);
-	if (MULTI_DEVICE)
-		cmd_seq.push_back(UPDATE_EXTERNAL)
-			.updating(state,
-				BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA |
-				(last_io_step ? BUFFER_VERTICES : BUFFER_NONE));
-
-	// compute boundary conditions on vertices including mass variation and
-	// create new particles at open boundaries.
-	// TODO FIXME considering splitting new particle creation/particle property reset
-	// into its own kernel, in order to provide cleaner interfaces and finer-grained
-	// buffer handling
-	CommandStruct& vertex_bc_cmd = cmd_seq.push_back(SA_CALC_VERTEX_BOUNDARY_CONDITIONS)
-		.set_flags(integrator_step)
-		.reading(state,
-			BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_INFO |
-			BUFFER_VERTPOS | BUFFER_VERTICES |
-			BUFFER_BOUNDELEMENTS)
-		.updating(state,
-			(has_io ? BUFFER_POS : BUFFER_NONE) |
-			BUFFER_VEL | BUFFER_EULERVEL |
-			BUFFER_TKE | BUFFER_EPSILON |
-			/* TODO FIXME this needs to be R/W only during init,
-			 * for open boundaries and for moving objects */
-			BUFFER_GRADGAMMA);
-	/* If this is the last step and open boundaries are enabled, also add the buffers
-	 * for cloning in the writing set
-	 */
-	if (last_io_step)
-		vertex_bc_cmd.writing(state,
-			BUFFER_FORCES | BUFFER_INFO | BUFFER_HASH |
-			BUFFER_VERTICES | BUFFER_BOUNDELEMENTS | BUFFER_NEXTID);
-
-	/* Note that we don't update the cloned particles buffers, because they'll be
-	 * refreshed at the next buildneibs anyway.
-	 * TODO consider not doing this update altogether when there are cloned particles.
-	 */
-	if (MULTI_DEVICE)
-		cmd_seq.push_back(UPDATE_EXTERNAL)
-			.updating(state,
-				(has_io ? BUFFER_POS : BUFFER_NONE) |
-				BUFFER_VEL | BUFFER_EULERVEL |
-				BUFFER_TKE | BUFFER_EPSILON |
-				BUFFER_GRADGAMMA);
-
-	// check if we need to delete some particles which passed through open boundaries
-	if (last_io_step) {
-		cmd_seq.push_back(DISABLE_OUTGOING_PARTS)
-			.reading(state, BUFFER_INFO)
-			.updating(state, BUFFER_POS | BUFFER_VERTICES);
-		if (MULTI_DEVICE)
-			cmd_seq.push_back(UPDATE_EXTERNAL)
-				.updating(state, BUFFER_POS | BUFFER_VERTICES);
-	}
-}
-
-void
-GPUSPH::initializeNextStepSequence(int step_num)
-{
-	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
-	SimParams const* sp = problem->simparams();
-	// “resumed” condition applies to the initializaiton step sequence,
-	// if we resumed
-	const bool resumed = (step_num == 0 && !clOptions->resume_fname.empty());
-	CommandSequence& cmd_seq = nextStepCommands[step_num];
-
-	if (step_num == 2 && sp->numbodies > 0)
-		cmd_seq.push_back(EULER_UPLOAD_OBJECTS_CG);
-
-	// variable gravity
-	if (sp->gcallback) {
-		cmd_seq.push_back(RUN_CALLBACKS)
-			.set_flags(integrator_step);
-		cmd_seq.push_back(UPLOAD_GRAVITY);
-	}
-
-	// TODO when support for Grenier's formulation is added to models
-	// with boundary conditions, the computation of the new sigma and
-	// smoothed density should be moved here from the beginning of
-	// runIntegratorStep.
-	// TODO FIXME: the issue with moving steps such as COMPUTE_DENSITY
-	// and CALC_VISC here is that then we'll need to either reorder
-	// the SIGMA and SPS arrays, or recompute them anyway after a neighbors
-	// list rebuilt
-
-	// boundary-model specific boundary conditions
-	if (!resumed) switch (problem->simparams()->boundarytype) {
-	case LJ_BOUNDARY:
-	case MK_BOUNDARY:
-	case DYN_BOUNDARY:
-		/* nothing to do for LJ, MK and dynamic boundaries */
-		break;
-	case SA_BOUNDARY:
-		initializeBoundaryConditionsSequence<SA_BOUNDARY>(step_num);
-		break;
-	}
-
-	// open boundaries: new particle generation, only at the end of the corrector
-	if (step_num == 2 && sp->simflags & ENABLE_INLET_OUTLET)
-	{
-		cmd_seq.push_back(DOWNLOAD_NEWNUMPARTS);
-		cmd_seq.push_back(CHECK_NEWNUMPARTS);
-	}
-
-	// at the end of the corrector we rename step n+1 to step n, in preparation
-	// for the next loop
-	if (step_num == 2) {
-		cmd_seq.push_back(RELEASE_STATE)
-			.set_src("step n");
-		cmd_seq.push_back(RENAME_STATE)
-			.set_src("step n+1")
-			.set_dst("step n");
-	}
-
-}
-
-void
-GPUSPH::initializePredCorrSequence(int step_num)
-{
-	CommandSequence& cmd_seq = predCorrCommands[step_num];
-	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
-	SimParams const* sp = problem->simparams();
-
-	/* In the predictor/corrector scheme we use, there are four buffers that
-	 * need special treatment:
-	 * * the INFO buffer is always representative of both states —in fact, because of this
-	 *   and because it's part of the sorting key, it's the only property buffer
-	 *   which is not double buffered;
-	 * * the VERTICES buffer is always representative of both states, even though it is used
-	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
-	 *   in-place;
-	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
-	 *   representative of the previous state only until it gets updated, when it is
-	 *   representative of the next state only;
-	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
-	 *   boundaries, otherwise is follows the behavior of the other buffers
-	 */
-
-	static const bool has_moving_bodies = (sp->simflags & ENABLE_MOVING_BODIES);
-	static const flag_t shared_buffers =
-		BUFFER_INFO |
-		BUFFER_VERTICES |
-		BUFFER_NEXTID |
-		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
-		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
-
-	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
-
-	// TODO get from integrator
-	// for both steps, the “starting point” for Euler and density summation is step n
-	const string base_state = "step n";
-	// current state is step n for the predictor, step n* for the corrector
-	const string current_state = GPUWorker::getCurrentStateByCommandFlags(integrator_step);
-	// next state is step n* for the predictor, step n+1 for the corrector
-	const string next_state = GPUWorker::getNextStateByCommandFlags(integrator_step);
-
-	// at the beginning of the corrector, we move all ephemeral buffers from step n
-	// to the new step n*
-	if (step_num == 2)
-		cmd_seq.push_back(MOVE_STATE_BUFFERS)
-			.set_src("step n")
-			.set_dst("step n*")
-			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS) );
-
-
-	// for Grenier formulation, compute sigma and smoothed density
-	// TODO with boundary models requiring kernels for boundary conditions,
-	// this should be moved into prepareNextStep
-	if (sp->sph_formulation == SPH_GRENIER) {
-		// compute density and sigma, updating WRITE vel in-place
-		cmd_seq.push_back(COMPUTE_DENSITY)
-			.set_flags(integrator_step)
-			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VOLUME)
-			.updating(current_state, BUFFER_VEL)
-			.writing(current_state, BUFFER_SIGMA);
-		if (MULTI_DEVICE)
-			cmd_seq.push_back(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_SIGMA | BUFFER_VEL);
-	}
-
-	// for SPS viscosity, compute first array of tau and exchange with neighbors
-	if (sp->turbmodel == SPS) {
-		cmd_seq.push_back(CALC_VISC)
-			.set_flags(integrator_step)
-			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL)
-			.writing(current_state,
-				BUFFER_TAU | BUFFER_SPS_TURBVISC);
-
-		if (MULTI_DEVICE)
-			cmd_seq.push_back(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_TAU);
-	}
-
-	if (gdata->debug.inspect_preforce)
-		cmd_seq.push_back(DEBUG_DUMP)
-			.set_src(current_state)
-			.set_flags(integrator_step);
-
-	// compute forces only on internal particles
-	CommandStruct& forces_cmd = cmd_seq.push_back(striping ? FORCES_ENQUEUE : FORCES_SYNC)
-		.set_flags(integrator_step)
-		.reading(current_state,
-			BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
-			BUFFER_RB_KEYS |
-			BUFFER_VOLUME | BUFFER_SIGMA |
-			BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | BUFFER_EULERVEL |
-			BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC)
-		.writing(current_state,
-			BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP |
-			BUFFER_CFL_GAMMA | BUFFER_CFL_KEPS |
-			BUFFER_RB_FORCES | BUFFER_RB_TORQUES |
-			BUFFER_XSPH |
-			/* TODO BUFFER_TAU is written by forces only in the k-epsilon case,
-			 * and it is not updated across devices, is this correct?
-			 */
-			BUFFER_DKDE | BUFFER_TAU |
-			BUFFER_INTERNAL_ENERGY_UPD);
-
-	/* When calling FORCES_SYNC, the CFL buffers must also be read in the final
-	 * post_forces() call (with FORCES_ENQUEUE, this is done by FORCES_COMPLETE below
-	 * instead */
-	if (!striping && gdata->dtadapt)
-		forces_cmd.reading(current_state, BUFFERS_CFL & ~BUFFER_CFL_TEMP);
-
-	if (MULTI_DEVICE)
-		cmd_seq.push_back(UPDATE_EXTERNAL)
-			.updating(current_state,
-				BUFFER_FORCES | BUFFER_XSPH | BUFFER_DKDE |
-				BUFFER_INTERNAL_ENERGY_UPD);
-
-	if (striping) {
-		CommandStruct& complete_cmd = cmd_seq.push_back(FORCES_COMPLETE)
-			.set_flags(integrator_step);
-		if (gdata->dtadapt)
-			complete_cmd
-				.reading(current_state, BUFFERS_CFL & ~BUFFER_CFL_TEMP)
-				.writing(current_state, BUFFER_CFL_TEMP);
-	}
-
-	// Take care of moving bodies
-	cmd_seq.push_back(MOVE_BODIES)
-		.set_flags(integrator_step);
-
-	// On the predictor, we need to (re)init the predicted status (n*),
-	// on the corrector this will be updated (in place) to the corrected status (n+1)
-	if (step_num == 1) {
-		cmd_seq.push_back(INIT_STATE)
-			.set_src("step n*");
-		/* The buffers (re)initialized during the neighbors list construction
-		 * and the INFO and HASH buffers are shared between states
-		 */
-		cmd_seq.push_back(SHARE_BUFFERS)
-			.set_src("step n")
-			.set_dst("step n*")
-			.set_flags(shared_buffers | SUPPORT_BUFFERS);
-	}
-
-	CommandStruct& euler_cmd = cmd_seq.push_back(EULER)
-		.set_flags(integrator_step)
-		// these are always taken from step n
-		.reading(base_state, PARTICLE_PROPS_BUFFERS | BUFFER_HASH)
-		// these are always taken from the current step
-		.reading(current_state,
-			BUFFER_FORCES | BUFFER_XSPH |
-			BUFFER_INTERNAL_ENERGY_UPD |
-			BUFFER_DKDE);
-
-	// now, the difference:
-	if (step_num == 1) {
-		// predictor: the next state is empty, so we mark all the props buffer as writing:
-		euler_cmd.writing(next_state, PARTICLE_PROPS_BUFFERS);
-	} else {
-		// corrector: we update the “current” state (step n*)
-		euler_cmd.updating(current_state, PARTICLE_PROPS_BUFFERS)
-		// and then rename it to step n+1; for another usage of this syntax,
-		// see also the enqueue of the SORT command
-			.set_src(current_state)
-			.set_dst(next_state);
-	}
-
-	if (gdata->debug.inspect_preforce)
-		cmd_seq.push_back(DEBUG_DUMP)
-			.set_src(next_state)
-			.set_flags(integrator_step);
-
-	if (sp->simflags & ENABLE_DENSITY_SUM) {
-		// the forces were computed in the base state for the predictor,
-		// on the next state for the corrector
-		// or as an alternative we could free BUFFER_FORCES from whatever state it's in
-		const string forces_state = (step_num == 1 ? base_state : next_state);
-
-		cmd_seq.push_back(DENSITY_SUM)
-			.set_flags(integrator_step)
-			.reading(base_state, /* always read the base state, like EULER */
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL |
-				BUFFER_VERTPOS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
-			.updating(next_state,
-				BUFFER_POS /* this is only accessed for reading */ |
-				BUFFER_EULERVEL /* this is only accessed for reading */ |
-				BUFFER_BOUNDELEMENTS /* this is only accessed for reading */ |
-				BUFFER_VEL | BUFFER_GRADGAMMA)
-			.writing(forces_state, BUFFER_FORCES);
-
-		if (MULTI_DEVICE)
-			cmd_seq.push_back(UPDATE_EXTERNAL)
-				.updating(next_state, BUFFER_VEL | BUFFER_GRADGAMMA);
-
-		// when using density sum, density diffusion is applied _after_ the density sum
-		if (sp->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
-			cmd_seq.push_back(CALC_DENSITY_DIFFUSION)
-				.set_flags(integrator_step)
-				.reading(next_state,
-					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-					BUFFER_VEL |
-					BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
-				.writing(forces_state, BUFFER_FORCES);
-			cmd_seq.push_back(APPLY_DENSITY_DIFFUSION)
-				.set_flags(integrator_step)
-				.reading(next_state, BUFFER_INFO)
-				.reading(forces_state, BUFFER_FORCES)
-				.updating(next_state, BUFFER_VEL);
-
-			if (MULTI_DEVICE)
-				cmd_seq.push_back(UPDATE_EXTERNAL)
-					.updating(next_state, BUFFER_VEL);
-		}
-	} else if (sp->boundarytype == SA_BOUNDARY) {
-		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
-		// but we still need to integrate gamma, which needs the new position and thus
-		// needs to be done after EULER
-		cmd_seq.push_back(INTEGRATE_GAMMA)
-			.set_flags(integrator_step)
-			.reading(base_state, /* as in the EULER case, we always read from step n */
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL |
-				BUFFER_VERTPOS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
-			.updating(next_state,
-				BUFFER_POS /* this is only accessed for reading */ |
-				BUFFER_EULERVEL /* this is only accessed for reading */ |
-				BUFFER_BOUNDELEMENTS /* this is only accessed for reading */ |
-				BUFFER_VEL /* this is only accessed for reading */ |
-				BUFFER_GRADGAMMA);
-		if (MULTI_DEVICE)
-			cmd_seq.push_back(UPDATE_EXTERNAL)
-				.updating(next_state, BUFFER_GRADGAMMA);
-
-	}
-
-}
-
-void
-GPUSPH::initializeCommandSequences()
-{
-	// after initialization, and before running the first prepareNextStep,
-	// we need to rename the “initial upload” state into “step n”
-	postInitCommands.push_back(RENAME_STATE)
-		.set_src("initial upload")
-		.set_dst("step n");
-
-	// at the beginning of every full integration time-step there are some preparations to be done.
-	// currently, this is just cleaning up the current state to reset all ephemeral buffers
-	timeStepBeginCommands.push_back(REMOVE_STATE_BUFFERS)
-		.set_src("step n")
-		.set_flags(EPHEMERAL_BUFFERS);
-
-	initializeBuildNeibsSequence();
-
-	initializeFilterSequence();
-
-	initializeNextStepSequence(0); // prepareNextStep(INITIALIZATION_STEP)
-	initializeNextStepSequence(1); // prepareNextStep(INTEGRATOR_STEP_1)
-	initializeNextStepSequence(2); // prepareNextStep(INTEGRATOR_STEP_2)
-
-	// There is no pred/corr step 0
-	//initializePredCorrSequence(0); // runIntegratorStep(INITIALIZATION_STEP)
-	initializePredCorrSequence(1); // runIntegratorStep(INTEGRATOR_STEP_1)
-	initializePredCorrSequence(2); // runIntegratorStep(INTEGRATOR_STEP_2)
 }
 
 // set nextCommand, unlock the threads and wait for them to complete

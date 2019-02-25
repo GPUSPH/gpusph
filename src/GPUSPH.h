@@ -37,36 +37,10 @@
 #include "GlobalData.h"
 #include "Problem.h"
 #include "cpp11_missing.h"
+#include "integrator.h"
 
 // IPPSCounter
 #include "timing.h"
-
-//! A sequence of commands, modelling a phase of the integrator
-/*! This is essentially an std::vector<CommandStruct>, with minor changes:
- * it only exposes reserve(), constant begin() and end() methods, and
- * a push_back() method that returns a reference to back()
- */
-class CommandSequence
-{
-	using base = std::vector<CommandStruct>;
-	base m_seq;
-public:
-	CommandSequence() : m_seq() {}
-
-	void reserve(size_t sz)
-	{ m_seq.reserve(sz); }
-
-	base::const_iterator begin() const
-	{ return m_seq.begin(); }
-	base::const_iterator end() const
-	{ return m_seq.end(); }
-
-	CommandStruct& push_back(CommandStruct const& cmd)
-	{
-		m_seq.push_back(cmd);
-		return m_seq.back();
-	}
-};
 
 // The GPUSPH class is singleton. Wise tips about a correct singleton implementation are give here:
 // http://stackoverflow.com/questions/1008019/c-singleton-design-pattern
@@ -104,20 +78,7 @@ private:
 	// other vars
 	bool initialized;
 
-	// Command sequences describing the major phases of the integration
-	// TODO these will be moved to an actual Integrator class once we're done
-	// with the refactoring
-	CommandSequence postInitCommands; // steps to be run after initialization, but before the simulation begins
-	CommandSequence timeStepBeginCommands; // steps to be run at the beginning of every full integration timestep
-	CommandSequence neibsListCommands; // steps implementing buildNeibList()
-	CommandSequence nextStepCommands[3]; // steps implementing prepareNextStep(), for each of the integrator steps
-	CommandSequence predCorrCommands[3]; // steps implementing the prediction and correction phases of the integrator
-
-	// Command sequences that describe filters. This is split in three sequences:
-	// introduction, per-filter sequence, closure
-	CommandSequence filterIntroCommands; // commands to be called when preparing to run filters
-	CommandSequence filterCallCommands; // commands to be called when running a single filter
-	CommandSequence filterOutroCommands; // commands to be called after running all filters
+	std::shared_ptr<Integrator> integrator;
 
 	// constructor and copy/assignment: private for singleton scheme
 	GPUSPH();
@@ -138,18 +99,6 @@ private:
 	// compute initial values for the IDs of the next generated particles,
 	// and return the number of open boundary vertices
 	uint initializeNextIDs(bool resumed);
-
-	// initialize the command sequences
-	// TODO provisional during the refactoring
-	void initializeBuildNeibsSequence();
-	// initialize the command sequences for filtering and post-processing
-	void initializeFilterSequence();
-	// initialize the command sequence for boundary models (one per boundary)
-	template<BoundaryType boundarytype>
-	void initializeBoundaryConditionsSequence(int step_num);
-	void initializeNextStepSequence(int step_num);
-	void initializePredCorrSequence(int step_num);
-	void initializeCommandSequences();
 
 	// sort particles by device before uploading
 	void sortParticlesByHash();
@@ -191,15 +140,6 @@ private:
 	//! Rebuild the neighbor list
 	void buildNeibList();
 
-	// prepare for the next forces computation
-	void prepareNextStep(const flag_t current_integrator_step);
-
-	// mark the beginning/end of a step, setting the state and validity
-	// of READ and WRITE buffers
-	void markIntegrationStep(
-		std::string const& read_state, BufferValidity read_valid,
-		std::string const& write_state, BufferValidity write_valid);
-
 	// print information about the status of the simulation
 	void printStatus(FILE *out = stdout);
 
@@ -218,10 +158,6 @@ private:
 	double Wendland2D(const double, const double);
 
 	void check_write(const bool);
-
-	// refactored code by splitting the two integrator steps
-	void runIntegratorStep(const flag_t integrator_step);
-	void runEnabledFilters(const FilterFreqList& enabledFilters);
 
 public:
 	// destructor

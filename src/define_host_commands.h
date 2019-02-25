@@ -53,6 +53,15 @@ DEFINE_COMMAND_NOBUF(UPDATE_ARRAY_INDICES)
  */
 DEFINE_COMMAND_NOBUF(RUN_CALLBACKS)
 
+/// End initialization sequence, ready to enter main cycle
+DEFINE_COMMAND_NOBUF(END_OF_INIT)
+
+/// Begin an integrator time-step
+DEFINE_COMMAND_NOBUF(TIME_STEP_PRELUDE)
+
+/// End an integrator time-step
+DEFINE_COMMAND_NOBUF(TIME_STEP_EPILOGUE)
+
 /// Move bodies
 /*! Determine new position and velocities for moving bodies
  * (eiter as prescribed by the problem, or by interaction with
@@ -67,6 +76,9 @@ DEFINE_COMMAND_NOBUF(FIND_MAX_IOWATERDEPTH)
 
 /// Check maximum number of neighbors and estimate number of interactions
 DEFINE_COMMAND_NOBUF(CHECK_NEIBSNUM)
+
+/// Hnadle pending hotwrites
+DEFINE_COMMAND_NOBUF(HANDLE_HOTWRITE)
 
 /// Determine if particles were created in this iteration
 DEFINE_COMMAND_NOBUF(CHECK_NEWNUMPARTS)
