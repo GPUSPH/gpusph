@@ -92,6 +92,7 @@ class Integrator
 public:
 	class Phase
 	{
+		Integrator const* m_owner; ///< Integrator owning this phase
 		std::string m_name; ///< name of this phase
 		CommandSequence m_command; ///< sequence of commands to execute for this phase
 		int m_cmd_idx; ///< current command
@@ -99,8 +100,14 @@ public:
 		///< type of the functions that determine if a phase should run
 		typedef bool (*should_run_t)(Phase const*, GlobalData const*);
 
+		///< type of the functions called on reset()
+		typedef void (*reset_t)(Phase*, Integrator const*);
+
 		///< the function that determines if this phase should run
 		should_run_t m_should_run;
+
+		///< the function called on reset
+		reset_t m_reset_func;
 
 		/* The next commands should actually be only accessible to Integrator and its
 		 * derived class, but there is no way to achieve that. We probably should look into
@@ -116,12 +123,20 @@ public:
 		CommandStruct& edit_command(size_t idx)
 		{ return m_command.at(idx); }
 
-		void reset()
+		// Reset the phase on enter.
+		void reset_index()
 		{ m_cmd_idx = 0; }
+
+		void reset()
+		{ m_reset_func(this, m_owner); }
 
 		//! Change the condition under which the phase should run
 		void should_run_if(should_run_t new_should_run_cond)
 		{ m_should_run = new_should_run_cond; }
+
+		//! Change the reset function
+		void set_reset_function(reset_t reset_func)
+		{ m_reset_func = reset_func; }
 
 	public:
 
@@ -140,11 +155,17 @@ public:
 		static bool should_run_default(Phase const* p, GlobalData const*)
 		{ return p->not_empty(); }
 
-		Phase(std::string && name) :
+		// by default the reset simply resets the index to the default
+		static void default_reset(Phase *p, Integrator const*)
+		{ p->reset_index(); }
+
+		Phase(Integrator const* owner, std::string && name) :
+			m_owner(owner),
 			m_name(name),
 			m_command(),
 			m_cmd_idx(0),
-			m_should_run(should_run_default)
+			m_should_run(should_run_default),
+			m_reset_func(default_reset)
 		{}
 
 		std::string const& name() const
@@ -285,4 +306,7 @@ public:
 	{ enter_phase(POST_UPLOAD); }
 
 	Phase *next_phase();
+
+	const FilterType current_filter() const
+	{ return m_current_filter->first; }
 };

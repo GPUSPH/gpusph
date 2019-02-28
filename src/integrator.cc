@@ -322,7 +322,7 @@ PredictorCorrector::initializeNextStepSequence(int step_num)
 	// if we resumed
 	const bool resumed = (step_num == 0 && !gdata->clOptions->resume_fname.empty());
 
-	Phase *this_phase = new Phase(
+	Phase *this_phase = new Phase(this,
 		step_num == 0 ? "initialization preparations" :
 		step_num == 1 ? "post-predictor preparations" :
 		step_num == 2 ? "post-corrector preparations" : "this can't happen");
@@ -391,7 +391,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 
 	const dt_operator_t dt_op = getDtOperatorForStep(step_num);
 
-	Phase *this_phase = new Phase(
+	Phase *this_phase = new Phase(this,
 		step_num == 1 ? "predictor" :
 		step_num == 2 ? "corrector" : "this can't happen");
 
@@ -642,7 +642,7 @@ void PredictorCorrector::initializePhase<PredictorCorrector::POST_UPLOAD>()
 {
 	// Upload puts stuff in the “initial upload” state, but
 	// our cycle starts from “step n”:
-	Phase *post_upload = new Phase("post-upload");
+	Phase *post_upload = new Phase(this, "post-upload");
 	post_upload->add_command(RENAME_STATE)
 		.set_src("initial upload")
 		.set_dst("step n");
@@ -653,7 +653,7 @@ void PredictorCorrector::initializePhase<PredictorCorrector::POST_UPLOAD>()
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::BEGIN_TIME_STEP>()
 {
-	Phase *ts_begin = new Phase("begin time-step");
+	Phase *ts_begin = new Phase(this, "begin time-step");
 
 	// Host-side prelude to a time-step
 	ts_begin->add_command(TIME_STEP_PRELUDE);
@@ -684,7 +684,7 @@ void PredictorCorrector::initializePhase<PredictorCorrector::NEIBS_LIST>()
 {
 	const SimParams* sp = gdata->problem->simparams();
 
-	Phase *neibs_phase = new Phase("build neighbors list");
+	Phase *neibs_phase = new Phase(this, "build neighbors list");
 
 	neibs_phase->should_run_if(needs_new_neibs);
 
@@ -854,7 +854,7 @@ void PredictorCorrector::initializePhase<PredictorCorrector::CORRECTOR_END>()
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::FILTER_INTRO>()
 {
-	Phase *filter_intro = new Phase("filter intro");
+	Phase *filter_intro = new Phase(this, "filter intro");
 
 	/* Things to do before looping over any filter */
 	filter_intro->add_command(RENAME_STATE)
@@ -866,10 +866,28 @@ void PredictorCorrector::initializePhase<PredictorCorrector::FILTER_INTRO>()
 	m_phase[FILTER_INTRO] = filter_intro;
 }
 
+// Entering the FILTER_CALL phase should give us the current filter to run
+// TODO FIXME this is still a pretty bad solution, but at least it's marginally
+// cleaner than the previous one, as we refactor the special handling in its own function
+void reset_filter_phase(Integrator::Phase *phase, Integrator const* _integrator)
+{
+	phase->reset_index();
+
+	PredictorCorrector const* integrator = static_cast<PredictorCorrector const*>(_integrator);
+
+	CommandStruct& filter_cmd = phase->edit_command(0);
+	if (filter_cmd.command != FILTER)
+		throw std::logic_error("mismatch FILTER_CALL command");
+
+	filter_cmd.flags = integrator->current_filter();
+}
+
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::FILTER_CALL>()
 {
-	Phase *filter_call = new Phase("filter call");
+	Phase *filter_call = new Phase(this, "filter call");
+
+	filter_call->set_reset_function(reset_filter_phase);
 
 	/* Command sequence for a single filter
 	 * The caller should set the command flag with the filter name
@@ -899,7 +917,7 @@ void PredictorCorrector::initializePhase<PredictorCorrector::FILTER_CALL>()
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::FILTER_OUTRO>()
 {
-	Phase *filter_outro = new Phase("filter outro");
+	Phase *filter_outro = new Phase(this, "filter outro");
 
 	/* Things to do after looping over filters */
 	// a bit of a paradox: the state rename is done for the unfiltered state,
@@ -953,18 +971,6 @@ PredictorCorrector::next_phase()
 	PhaseCode next = phase_after(PhaseCode(m_phase_idx));
 	if (next == BEGIN_TIME_STEP)
 		m_entered_main_cycle = true;
-
-	// set the flag of of the FILTER command
-	// TODO FIXME this is sub-optimal, but I cannot think of a better way to handle this,
-	// at least presently.
-	// A possible option for the future would be to make each FILTER_CALL a separate command,
-	// with its own properly-set flag, and use conditional invokation.
-	if (next == FILTER_CALL) {
-		CommandStruct& filter_cmd = m_phase[FILTER_CALL]->edit_command(0);
-		if (filter_cmd.command != FILTER)
-			throw std::logic_error("mismatch FILTER_CALL command");
-		filter_cmd.clear_flags(ALL_FLAGS).set_flags(m_current_filter->first);
-	}
 
 	Phase *phase = enter_phase(next);
 
