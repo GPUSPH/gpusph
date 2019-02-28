@@ -238,6 +238,10 @@ class PredictorCorrector : public Integrator
 	static std::string getCurrentStateForStep(int step_num);
 	static std::string getNextStateForStep(int step_num);
 
+	// A function that returns the appropriate time-step operator
+	// for the given step number (0 for init, dt/2 for predictor, dt for corrector)
+	dt_operator_t getDtOperatorForStep(int step_num);
+
 	// initialize the command sequence for boundary models (one per boundary)
 	template<BoundaryType boundarytype>
 	void initializeBoundaryConditionsSequence(Phase *this_phase, int step_num);

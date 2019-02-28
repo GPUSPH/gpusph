@@ -78,3 +78,6 @@ BufferList extractGeneralBufferList(
 	}
 	return ret;
 }
+
+float undefined_dt(GlobalData const*)
+{ return NAN; }

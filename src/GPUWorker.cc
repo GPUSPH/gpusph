@@ -1907,7 +1907,7 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 		m_dIOwaterdepth,
 		cflOffset,
 		step,
-		(firstStep ? 0.5f : 1.0f)*gdata->dt,
+		cmd.dt(gdata),
 		(m_simparams->numforcesbodies > 0) ? true : false);
 
 	bufwrite.clear_pending_state();
@@ -2204,15 +2204,18 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 
 	bufwrite.add_manipulator_on_write("euler" + to_string(step));
 
+	const float dt = cmd.dt(gdata);
+
 	integrationEngine->basicstep(
 		bufread,
 		bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
+		// TODO should use cmd.dt() here too?
 		gdata->dt, // m_dt,
 		gdata->dt/2.0f, // m_dt/2.0,
 		step,
-		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+		gdata->t + dt,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
 
@@ -2243,15 +2246,18 @@ void GPUWorker::runCommand<DENSITY_SUM>(CommandStruct const& cmd)
 
 	bufwrite.add_manipulator_on_write("densitySum" + to_string(step));
 
+	const float dt = cmd.dt(gdata);
+
 	integrationEngine->density_sum(
 		bufread,
 		bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
+		// TODO should use cmd.dt() here too?
 		gdata->dt, // m_dt,
 		gdata->dt/2.0f, // m_dt/2.0,
 		step,
-		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+		gdata->t + dt,
 		m_simparams->epsilon,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
@@ -2278,15 +2284,18 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>(CommandStruct const& cmd)
 
 	bufwrite.add_manipulator_on_write("integrateGamma" + to_string(step));
 
+	const float dt = cmd.dt(gdata);
+
 	integrationEngine->integrate_gamma(
 		bufread,
 		bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
+		// TODO should use cmd.dt() here too?
 		gdata->dt, // m_dt,
 		gdata->dt/2.0f, // m_dt/2.0,
 		step,
-		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+		gdata->t + dt,
 		m_simparams->epsilon,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
@@ -2313,7 +2322,7 @@ void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 
 	bufwrite.add_manipulator_on_write("calcDensityDiffusion" + to_string(step));
 
-	const float dt = (firstStep ? gdata->dt/2.0f : gdata->dt);
+	const float dt = cmd.dt(gdata);
 
 	forcesEngine->compute_density_diffusion(
 		bufread,
@@ -2347,7 +2356,7 @@ void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 
 	bufwrite.add_manipulator_on_write("applyDensityDiffusion" + to_string(step));
 
-	const float dt = (firstStep ? gdata->dt/2.0f : gdata->dt);
+	const float dt = cmd.dt(gdata);
 
 	integrationEngine->apply_density_diffusion(
 		bufread,
@@ -2713,7 +2722,7 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct con
 				m_simparams->influenceRadius,
 				step,
 				!gdata->clOptions->resume_fname.empty(),
-				(step == 1) ? gdata->dt / 2.0f : gdata->dt,
+				cmd.dt(gdata),
 				m_dNewNumParticles,
 				m_globalDeviceIdx,
 				gdata->totDevices,

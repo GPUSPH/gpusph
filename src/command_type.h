@@ -159,6 +159,18 @@ BufferList extractGeneralBufferList(
 	CommandBufferArgument const& arg,
 	BufferList const& model);
 
+class GlobalData;
+
+//! The type of the methods we use to determine the time-step to use for a command
+/** This is just a function that returns a float
+ */
+typedef float (*dt_operator_t)(GlobalData const*);
+
+//! The default dt operator, that returns NAN
+/** Defined in src/command_type.cc
+ */
+float undefined_dt(GlobalData const*);
+
 //! A full command structure
 /*! The distinction between updates and writes specification
  * is that in the updates case the buffer(s) will also be read,
@@ -173,6 +185,7 @@ struct CommandStruct
 	CommandName command; ///< the command
 	std::string src; ///< source state (if applicable)
 	std::string dst; ///< destination state (if applicable)
+	dt_operator_t dt; ///< function to determine the current time-step
 	flag_t flags; ///< command flag (e.g. integration step, shared flags, etc)
 	CommandBufferArgument reads;
 	CommandBufferArgument updates;
@@ -183,6 +196,7 @@ struct CommandStruct
 		command(cmd),
 		src(),
 		dst(),
+		dt(undefined_dt),
 		flags(NO_FLAGS),
 		reads(),
 		updates(),
@@ -195,6 +209,9 @@ struct CommandStruct
 	{ src = src_; return *this; }
 	CommandStruct& set_dst(std::string const& dst_)
 	{ dst = dst_; return *this; }
+
+	CommandStruct& set_dt(dt_operator_t func)
+	{ dt = func; return *this; }
 
 	CommandStruct& set_flags(flag_t f)
 	{ flags |= f; return *this; }

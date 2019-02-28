@@ -683,6 +683,8 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 	// TODO this function should also be ported to the CommandSequence architecture
 	const uint step = get_step_number(integrator_step);
 
+	const float dt = cmd.dt(gdata);
+
 	// Get moving bodies data (position, linear and angular velocity ...)
 	if (problem->simparams()->numbodies > 0) {
 		// We have to reduce forces and torques only on bodies which requires it
@@ -719,15 +721,13 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 			memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numforcesbodies*sizeof(float3));
 
 			double t0 = gdata->t;
-			double t1 = t0;
-			if (step == 1)
-				t1 += gdata->dt/2.0;
-			else
-				t1 += gdata->dt;
+			double t1 = t0 + dt;;
 			problem->bodies_forces_callback(t0, t1, step, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
 		}
 
 		// Let the problem compute the new moving bodies data
+		// TODO we pass step and gdata->dt, should be pass step and dt (which is already halved if necessary)
+		// instead?
 		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t,
 			gdata->s_hRbCgGridPos, gdata->s_hRbCgPos,
 			gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
@@ -1718,27 +1718,7 @@ void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 	const flag_t current_integrator_step = cmd.flags;
 	Problem *pb = gdata->problem;
 
-	double t_callback;
-	switch (current_integrator_step)
-	{
-	case INITIALIZATION_STEP:
-		/* prepare for the simulation, so reset to 0 */
-		t_callback = gdata->t;
-		break;
-	case INTEGRATOR_STEP_1:
-		/* end of predictor, prepare for corrector, where forces
-		 * will be computed at t + dt/2
-		 */
-		t_callback = gdata->t + gdata->dt/2;
-		break;
-	case INTEGRATOR_STEP_2:
-		/* end of corrector, prepare for next predictor, where forces
-		 * will be computed at t + dt (t and dt are still the one
-		 * for the current whole step
-		 */
-		t_callback = gdata->t + gdata->dt;
-		break;
-	}
+	double t_callback = gdata->t + cmd.dt(gdata);
 
 	if (pb->simparams()->gcallback)
 		gdata->s_varGravity = pb->g_callback(t_callback);
