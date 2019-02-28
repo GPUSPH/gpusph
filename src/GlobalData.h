@@ -299,6 +299,7 @@ struct GlobalData {
 		quit_request(false),
 		save_request(false),
 		iterations(0),
+		last_buildneibs_iteration(ULONG_MAX),
 		t(0.0),
 		dt(0.0f),
 		lastGlobalPeakFluidBoundaryNeibsNum(0),

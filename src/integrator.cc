@@ -666,12 +666,27 @@ void PredictorCorrector::initializePhase<PredictorCorrector::BEGIN_TIME_STEP>()
 	m_phase[BEGIN_TIME_STEP] = ts_begin;
 }
 
+//! A function that determines if we should build the neighbors list
+/**! This is only done every buildneibsfreq or if particles got created,
+ * but only if we didn't do it already in this iteration
+ */
+bool needs_new_neibs(Integrator::Phase const*, GlobalData const* gdata)
+{
+	const unsigned long iterations = gdata->iterations;
+	const SimParams* sp = gdata->problem->simparams();
+
+	return (iterations != gdata->last_buildneibs_iteration) &&
+		((iterations % sp->buildneibsfreq == 0) || gdata->particlesCreated);
+}
+
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::NEIBS_LIST>()
 {
 	const SimParams* sp = gdata->problem->simparams();
 
 	Phase *neibs_phase = new Phase("build neighbors list");
+
+	neibs_phase->should_run_if(needs_new_neibs);
 
 	/* Initialize the neibsList Commands */
 	neibs_phase->reserve(20);
@@ -979,6 +994,8 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 		return NEIBS_LIST;
 	case INITIALIZATION:
 		return BEGIN_TIME_STEP;
+	case BEGIN_TIME_STEP:
+		return NEIBS_LIST;
 	case PREDICTOR:
 		return PREDICTOR_END;
 	case PREDICTOR_END:
@@ -997,6 +1014,17 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	const SimParams *sp = gdata->problem->simparams();
 	const unsigned long iterations = gdata->iterations;
 	static const FilterFreqList::const_iterator filters_end = m_enabled_filters.cend();
+
+	// after the first NEIBS_LIST, run INITIALIZATION
+	// otherwise, run FILTER_INTRO (if appropriate)
+	// otherwise, run the PREDICTOR
+	if (cur == NEIBS_LIST) {
+		if (!m_entered_main_cycle)
+			return INITIALIZATION;
+		if (iterations > 0 && m_enabled_filters.size() > 0)
+			return FILTER_INTRO;
+		return PREDICTOR;
+	}
 
 	// following a FILTER_INTRO or a FILTER phase,
 	// we go to the next FILTER phase or to FILTER_OUTRO
@@ -1020,23 +1048,5 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 		return FILTER_CALL;
 	}
 
-	if (cur == NEIBS_LIST && !m_entered_main_cycle) {
-		return INITIALIZATION;
-	}
-
-	// build neighbors list every buildneibsfreq or if we created
-	// particles, but only after the first iteration, because we have
-	// a buildNeibList() before entering this main loop
-	const bool needs_new_neibs = (iterations > gdata->last_buildneibs_iteration) &&
-		((iterations % sp->buildneibsfreq == 0) || gdata->particlesCreated);
-
-	if (cur == BEGIN_TIME_STEP && needs_new_neibs)
-		return NEIBS_LIST;
-
-	if (cur == NEIBS_LIST || cur == BEGIN_TIME_STEP) {
-		if (gdata->iterations > 0 && m_enabled_filters.size() > 0)
-			return FILTER_INTRO;
-	}
-
-	return PREDICTOR;
+	throw logic_error("unknown condition after phase " + to_string(cur));
 }
