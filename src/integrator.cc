@@ -916,18 +916,11 @@ void PredictorCorrector::initializePhase<PredictorCorrector::FILTER_OUTRO>()
 
 PredictorCorrector::PredictorCorrector(GlobalData const* _gdata) :
 	Integrator(_gdata, "predictor/corrector"),
-	m_needs_preparation(false),
 	m_entered_main_cycle(false),
 	m_enabled_filters(_gdata->simframework->getFilterFreqList()),
 	m_current_filter(m_enabled_filters.cend())
 {
 	const SimParams *sp = gdata->problem->simparams();
-
-	// Some formulations require stuff to be done before the beginning of the
-	// main loop (partially, this is stuff that is also done at the end of each
-	// time-step, but since there is no time-step preceding the first one,
-	// we do it in the INITIALIZATION phase
-	m_needs_preparation = sp->gcallback || sp->boundarytype == SA_BOUNDARY;
 
 	// Preallocate room for all phases
 	m_phase.resize(NUM_PHASES);

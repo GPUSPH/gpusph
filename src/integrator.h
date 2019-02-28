@@ -251,7 +251,6 @@ class PredictorCorrector : public Integrator
 		NUM_PHASES, // number of phases
 	};
 
-	bool m_needs_preparation;
 	bool m_entered_main_cycle;
 
 	FilterFreqList const& m_enabled_filters;
