@@ -96,6 +96,12 @@ public:
 		CommandSequence m_command; ///< sequence of commands to execute for this phase
 		int m_cmd_idx; ///< current command
 
+		///< type of the functions that determine if a phase should run
+		typedef bool (*should_run_t)(Phase const*, GlobalData const*);
+
+		///< the function that determines if this phase should run
+		should_run_t m_should_run;
+
 		/* The next commands should actually be only accessible to Integrator and its
 		 * derived class, but there is no way to achieve that. We probably should look into
 		 * providing a different interface
@@ -113,20 +119,36 @@ public:
 		void reset()
 		{ m_cmd_idx = 0; }
 
+		//! Change the condition under which the phase should run
+		void should_run_if(should_run_t new_should_run_cond)
+		{ m_should_run = new_should_run_cond; }
+
 	public:
-
-		Phase(std::string && name) :
-			m_name(name),
-			m_command(),
-			m_cmd_idx(0)
-		{}
-
-		std::string const& name() const
-		{ return m_name; }
 
 		// is this phase empty?
 		bool empty() const
 		{ return m_command.empty(); }
+
+		// is this phase not empty?
+		bool not_empty() const
+		{ return !empty(); }
+
+		bool should_run(GlobalData const* gdata) const
+		{ return m_should_run(this, gdata); }
+
+		// by default the phase runs if it's not empty
+		static bool should_run_default(Phase const* p, GlobalData const*)
+		{ return p->not_empty(); }
+
+		Phase(std::string && name) :
+			m_name(name),
+			m_command(),
+			m_cmd_idx(0),
+			m_should_run(should_run_default)
+		{}
+
+		std::string const& name() const
+		{ return m_name; }
 
 		// Is this phase done? Simple phases will be done when the last step is reached,
 		// iterative phases will override this method with their more sophisticated checks

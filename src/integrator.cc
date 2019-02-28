@@ -960,7 +960,7 @@ PredictorCorrector::next_phase()
 
 	Phase *phase = enter_phase(next);
 
-	if (!phase->empty())
+	if (phase->should_run(gdata))
 		return phase;
 
 	// the phase is empty: let the user know in debug mode, and
