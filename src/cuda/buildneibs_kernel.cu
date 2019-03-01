@@ -698,8 +698,58 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
 		// Getting grid address of old cell (computed from old hash)
 		const int3 gridPos = calcGridPosFromCellHash(gridHash);
 
-		// Computing grid offset from new pos relative to old hash
-		int3 gridOffset = make_int3(floor((as_float3(pos) + 0.5f*d_cellSize)/d_cellSize));
+		// pos is the local position with respect to the cell center, and should always be
+		// in the range [-cellSize/2, cellSize/2[ —otherwise, it means that the particle moved
+		// to a different cell, and we should compute which one. The gridOffset computed below
+		// is essentially the delta to the original gridPos: gridPos+gridOffset (modulo periodicity)
+		// should be the 3D index of the new cell.
+		// The trivial approach to compute the offset would be
+		//     floor((pos + 0.5f*cellSize)/cellSize)
+		// but in critical circumstances this leads to a particle “vibrating” between two cells; rewriting
+		// the formula as
+		//     floor(pos/cellSize + 0.5f)
+		// reveals that the issue arises when pos/cellSize is _exactly_ 0.49999997f; why this magic value?
+		// because that's the representable value immediately preceding 0.5f, so that adding it to 0.5f
+		// (by rounding) leads to 1.0f.
+		//
+		// (A good writeup on this issue can be found in the three-part blog series starting from
+		// http://blog.frama-c.com/index.php?post/2013/05/02/nearbyintf1 etc.)
+		//
+		// In our case, the consequence of this is that the particle gets shifted to the next cell, except
+		// that on the next cell its gridOffset will be computed as -1.0f so it goes back to the original one,
+		// on the next hash refresh, even if it didn't move, etc. Under these circumstances,
+		// multiple consecutive hash computations would be unstable (something that reflects e.g.
+		// on the inability to resume exactly from a hotfile).
+		//
+		// There are a number of possible solutions to this issue. One, suggested by the above post,
+		// is to compute the offset as
+		//     floor(pos/cellSize + 0.49999997f)
+		// so that pos/cellSize needs to be at least 0.5f to become a positive offset, as required.
+		// However, this constant makes a particle wiggle when pos/cellSize == -0.5f (since the
+		// argument to the floor() function will then be -2.98023224e-08).
+		// Our solution is to use different constants for positive and negative pos
+		const float3 half_check = make_float3( // urgh I want select() with vector ops like in OpenCL 8-P
+			pos.x < 0 ? 0.5f : 0.49999997f,
+			pos.y < 0 ? 0.5f : 0.49999997f,
+			pos.z < 0 ? 0.5f : 0.49999997f);
+		int3 gridOffset = make_int3(floor(as_float3(pos)/d_cellSize + half_check));
+
+		// #if 1 and change the check if there's a need to further debug gridOffset computation
+#if 0
+		if (id(info) == 3060) {
+			printf(	"(%.9g %.9g %.9g) / "
+				"(%.9g %.9g %.9g) => "
+				"(%.9g %.9g %.9g) => "
+				"(%.9g %.9g %.9g) => "
+				"(%d %d %d)\n",
+				pos.x, pos.y, pos.z,
+				d_cellSize.x, d_cellSize.y, d_cellSize.z,
+				pos.x/d_cellSize.x, pos.y/d_cellSize.y, pos.z/d_cellSize.z,
+				pos.x/d_cellSize.x + half_check.x, pos.y/d_cellSize.y + half_check.y, pos.z/d_cellSize.z + half_check.y,
+				gridOffset.x, gridOffset.y, gridOffset.z);
+			printf("%.9g %.9g\n", floor(pos.y/d_cellSize.y), floor(pos.y/d_cellSize.y + half_check.y));
+		}
+#endif
 
 		// Has the particle flown out of the domain by more than a cell? Clamping
 		// its position will set this to true if necessary

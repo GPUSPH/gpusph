@@ -78,9 +78,13 @@ typedef size_t idx_t;
 // hashKey cum suis
 #include "hashkey.h"
 
-// flags type
-// could be made an uint_fast64_t if we were concerned about performance,
+//! Type used to hold flags
+//! We could make this into an uint_fast64_t if we were concerned about performance
 typedef uint64_t flag_t;
-#define FLAG_MAX UINT64_MAX
+//! Value 0 reserved as "no flags"
+#define NO_FLAGS	(UINT64_C(0))
+//! Maximum value representable by a flag_t
+#define FLAG_MAX	UINT64_MAX
+
 
 #endif

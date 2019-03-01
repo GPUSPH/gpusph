@@ -338,15 +338,17 @@ struct ptype_hash_compare :
 	__host__ __device__
 	bool operator()(const value_type& a, const value_type& b)
 	{
-		uint ha(cellHashFromParticleHash(thrust::get<0>(a), true)),
+		const hashKey ha(cellHashFromParticleHash(thrust::get<0>(a), true)),
 				hb(cellHashFromParticleHash(thrust::get<0>(b), true));
-		particleinfo pa(thrust::get<1>(a)),
+		const particleinfo pa(thrust::get<1>(a)),
 					 pb(thrust::get<1>(b));
 
 		if (ha == hb) {
-			if (PART_TYPE(pa) == PART_TYPE(pb))
+			const ParticleType pta = PART_TYPE(pa),
+				ptb = PART_TYPE(pb);
+			if (pta == ptb)
 				return id(pa) < id(pb);
-			return (PART_TYPE(pa) < PART_TYPE(pb));
+			return (pta < ptb);
 		}
 		return (ha < hb);
 	}

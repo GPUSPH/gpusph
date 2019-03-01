@@ -324,6 +324,7 @@ struct GlobalData {
 	bool quit_request;
 	bool save_request;
 	unsigned long iterations;
+	unsigned long last_buildneibs_iteration;
 
 	// on the host, the total simulation time is a double. on the device, it
 	// will be downconverted to a float. this ensures that we can run very long

@@ -6,6 +6,7 @@
 
 import sys
 from struct import unpack, calcsize
+from operator import sub
 
 # version, buffer_count, particle_count, body_count, numOpenBoundaries, reserved1, iterations, t, dt, reserved2 
 header_enc = '@IIIII48xLdf12x'
@@ -20,7 +21,7 @@ with open(sys.argv[1], "rb") as f1:
         h2 = unpack(header_enc, f2.read(sz))
         print("Version {}, {} buffers, {} particles, {} bodies, {} open boundaries, {} iterations, time {}/{}".format(*h1))
         if h1 != h2:
-            raise ValueError(h1-h2)
+            raise ValueError(tuple(map(sub, h1, h2)))
         nbufs = h1[1]
         nparts = h1[2]
         nbodies = h1[3]
@@ -33,7 +34,7 @@ with open(sys.argv[1], "rb") as f1:
             bufcount = h1[3]
             print("Buffer: {} ({}), element size {}, count {}".format(bufname, h1[0], elsize, bufcount))
             if h1 != h2:
-                raise ValueError(h1-h2)
+                raise ValueError(tuple(map(sub, h1, h2)))
             if bufcount > 1:
                 raise NotImplementedError("no support for multi-component buffers yet")
             sz = elsize*nparts

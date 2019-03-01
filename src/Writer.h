@@ -86,6 +86,51 @@ typedef std::map<WriterType, Writer*> WriterMap;
 // ditto, const
 typedef std::map<WriterType, const Writer*> ConstWriterMap;
 
+///! Flags to communicate special needs to the writer
+struct WriteFlags
+{
+	//! integrator step we're writing at
+	flag_t integrator_step;
+	//! was this write forced?
+	bool forced_write;
+	//! is this write needed to satisfy a pending hotwrite?
+	bool hot_write;
+
+	inline void clear()
+	{
+		integrator_step = NO_FLAGS;
+		forced_write = false;
+		hot_write = false;
+	}
+
+	WriteFlags() :
+		integrator_step(NO_FLAGS),
+		forced_write(false),
+		hot_write(false)
+	{}
+
+	WriteFlags(flag_t step) :
+		integrator_step(step),
+		forced_write(true),
+		hot_write(false)
+	{}
+
+	WriteFlags(bool force) :
+		integrator_step(NO_FLAGS),
+		forced_write(force),
+		hot_write(false)
+	{}
+
+	WriteFlags(bool force, bool hot_write) :
+		integrator_step(NO_FLAGS),
+		forced_write(force),
+		hot_write(hot_write)
+	{}
+};
+
+//! A predefined set of flags to be invoked to satisfy a pending hotwrite
+static const WriteFlags HotWriteFlags = WriteFlags(false, true);
+
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
  * (whose content is decided by the Problem) and passes all requests
@@ -97,11 +142,15 @@ class Writer
 	static WriterMap m_writers;
 
 	// Flags enabled for the current writing session
-	// NO_FLAGS indicate a standard write-out (saving
-	// at the normal frequency), other flags such as
-	// the current integration step are enabled during
-	// forced writes
-	static flag_t m_write_flags;
+	static WriteFlags m_write_flags;
+
+	//! Is HotWriter pending?
+	/*! HotWriter is handled in a special manner, because it only writes
+	 * at neighbors list construction time. When the HotWriter needs to write,
+	 * this flag will be set, and GPUSPH is expected to ask for writing again
+	 * right after the next buildNeibList()
+	 */
+	static bool m_pending_hotwriter;
 
 public:
 	// maximum number of files
@@ -118,12 +167,15 @@ public:
 	static ConstWriterMap
 	NeedWrite(double t);
 
+	static bool HotWriterPending()
+	{ return m_pending_hotwriter; }
+
 	static const char* Name(WriterType key);
 
 	// tell writers that we're starting to send write requests
 	// returns the list of writers that will be involved
 	static WriterMap
-	StartWriting(double t, flag_t write_flags);
+	StartWriting(double t, WriteFlags const& write_flags);
 
 	// mark writers as done if they needed to save at the given time
 	static void
@@ -184,7 +236,7 @@ protected:
 	// Writers that need to do special things before starting to write
 	// should override this
 	virtual void
-	start_writing(double t, flag_t write_flags) {}
+	start_writing(double t, WriteFlags const& write_flags) {}
 
 	// finish writing. Writers that need to do special things when done
 	// can override this problem, but they should call Writer::mark_written

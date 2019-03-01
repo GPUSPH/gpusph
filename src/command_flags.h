@@ -32,9 +32,6 @@
 
 #include "common_types.h"
 
-//! Value 0 reserved as "no flags"
-#define NO_FLAGS	((flag_t)0)
-
 //! \name Integrator steps
 /*! Flags for kernels that process arguments differently depending on which
  * step of the simulation we are at (e.g. forces, euler).

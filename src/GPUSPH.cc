@@ -640,6 +640,13 @@ static const PostProcessEngineSet noPostProcess{};
 void
 GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 {
+	// this is a “resumed” prepareNextStep if we're doing the “initialization”
+	// preparation and a resume file is defined
+	const bool resumed = (
+		(current_integrator_step == INITIALIZATION_STEP) &&
+		!clOptions->resume_fname.empty()
+		);
+
 	if (current_integrator_step == INTEGRATOR_STEP_2) {
 		// Euler needs always cg(n)
 		if (problem->simparams()->numbodies > 0)
@@ -659,8 +666,8 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 	// smoothed density should be moved here from the beginning of
 	// runIntegratorStep
 
-	// semi-analytical boundary conditions
-	switch (problem->simparams()->boundarytype) {
+	// semi-analytical boundary conditions, but not during init if we resumed
+	if (!resumed || gdata->keep_repacking) switch (problem->simparams()->boundarytype) {
 	case LJ_BOUNDARY:
 	case MK_BOUNDARY:
 	case DYN_BOUNDARY:
@@ -898,7 +905,6 @@ void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
 
 bool GPUSPH::runRepacking() {
 	if (!initialized) return false;
-
 	// doing first write
 	printf("Performing first write...\n");
 	doWrite(INITIALIZATION_STEP);
@@ -917,14 +923,17 @@ bool GPUSPH::runRepacking() {
 
 	// this is where we invoke initialization routines that have to be
 	// run by the GPUWorkers
+	const bool needs_preparation = (
+			(problem->simparams()->gcallback) ||
+			(problem->simparams()->boundarytype == SA_BOUNDARY)
+	);
 
-	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-		// compute neighbour list for the first time
-		buildNeibList();
+	// compute neighbour list for the first time. This is done regardless
+	// of preparations, since we need to do one anyway
+	buildNeibList();
 
-		// set density and other values for segments and vertices
-		// and set initial value of gamma using the quadrature formula
-		saBoundaryConditions(INITIALIZATION_STEP);
+	if (needs_preparation) {
+		prepareNextStep(INITIALIZATION_STEP);
 	}
 
 	printf("Entering the repacking cycle\n");
@@ -1047,10 +1056,14 @@ bool GPUSPH::runRepacking() {
 			buildNeibList();
 			// In the SA case, gamma needs to be recomputed after
 			// the free-surface boundary has been removed
-			if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+			const bool needs_preparation = (
+					(problem->simparams()->boundarytype == SA_BOUNDARY)
+					);
+
+			if (needs_preparation) {
 				// re-set density and other values for bound. elements and vertices
 				// and set value of gamma for further simulation using the quadrature formula
-				saBoundaryConditions(REPACK_STEP);
+				prepareNextStep(REPACK_STEP);
 			}
 			// Write the final results
 			check_write(we_are_done);
@@ -1117,17 +1130,18 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
 	// this is where we invoke initialization routines that have to be
-	// run by the GPUWokers
+	// run by the GPUWorkers
+	const bool needs_preparation = (
+			(problem->simparams()->gcallback) ||
+			(problem->simparams()->boundarytype == SA_BOUNDARY)
+	);
 
-	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+	// compute neighbour list for the first time. This is done regardless
+	// of preparations, since we need to do one anyway
+	buildNeibList();
 
-		// compute neighbour list for the first time
-		buildNeibList();
-
-		// set density and other values for segments and vertices
-		// and set initial value of gamma using the quadrature formula
-		saBoundaryConditions(INITIALIZATION_STEP);
-
+	if (needs_preparation) {
+		prepareNextStep(INITIALIZATION_STEP);
 	}
 
 	printf("Entering the main simulation cycle\n");
@@ -1154,10 +1168,17 @@ bool GPUSPH::runSimulation() {
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
 
-		// build neighbors list
-		if (gdata->iterations % problem->simparams()->buildneibsfreq == 0 ||
-			gdata->particlesCreated) {
+		// build neighbors list every buildneibsfreq or if we created
+		// particles, but only after the first iteration, because we have
+		// a buildNeibList() before entering this main loop
+		const bool needs_new_neibs = (gdata->iterations > gdata->last_buildneibs_iteration) &&
+			((gdata->iterations % problem->simparams()->buildneibsfreq == 0) ||
+			 gdata->particlesCreated);
+
+		if (needs_new_neibs) {
 			buildNeibList();
+			if (Writer::HotWriterPending())
+				saveParticles(noPostProcess, HotWriteFlags);
 		}
 
 		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
@@ -1956,8 +1977,10 @@ double GPUSPH::Wendland2D(const double r, const double h) {
 	return 7/(4*M_PI*h*h)*temp*(2*q + 1);
 }
 
-void GPUSPH::doWrite(flag_t write_flags)
+void GPUSPH::doWrite(WriteFlags const& write_flags)
 {
+	// TODO FIXME skip unnecessary work based on write_flags
+	// (e.g. do not run whatever isn't needed by the HotWriter during a hot write)
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
 	// WaveGages work by looking at neighboring SURFACE particles and averaging their z coordinates
@@ -2113,7 +2136,7 @@ void GPUSPH::doWrite(flag_t write_flags)
  * after running the defined post-process functions, and invokes the write-out
  * routine.
  */
-void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_t write_flags)
+void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, WriteFlags const& write_flags)
 {
 	const SimParams * const simparams = problem->simparams();
 
@@ -2206,6 +2229,14 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_
 
 	// TODO: the performanceCounter could be "paused" here
 
+	// we do not care about ephemeral buffers during a hotwrite —
+	// they will not be saved anyway, so exclude them
+	// TODO a better solution would be to ask each involved writer
+	// during this saveParticles() call which buffers do they
+	// actually care about
+	if (write_flags.hot_write)
+		which_buffers &= ~EPHEMERAL_BUFFERS;
+
 	// dump what we want to save
 	doCommand(DUMP, which_buffers);
 
@@ -2293,6 +2324,8 @@ void GPUSPH::buildNeibList()
 
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
+
+	gdata->last_buildneibs_iteration = gdata->iterations;
 }
 
 //! Invoke system callbacks
@@ -2310,7 +2343,7 @@ void GPUSPH::doCallBacks(const flag_t current_integrator_step)
 	{
 	case INITIALIZATION_STEP:
 		/* prepare for the simulation, so reset to 0 */
-		t_callback = 0;
+		t_callback = gdata->t;
 		break;
 	case INTEGRATOR_STEP_1:
 		/* end of predictor, prepare for corrector, where forces
@@ -2604,30 +2637,26 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	if ((cFlag & INITIALIZATION_STEP) || (cFlag & REPACK_STEP)) {
 
-		// If there is no restart, compute gamma.
-		// In case of repacking, saBoundaryConditions(REPACK_STEP)
-		// is called at the end of the repacking to fix gamma
-		// after the free-surface has been disabled. The resume_fname
-		// variable then contains the name of a repack file that is
-		// going to be used to start the simulation
-		// First, put BOUNDELEMENTS and GRADGAMMA in the WRITE position
-		if (clOptions->resume_fname.empty() || gdata->keep_repacking) {
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
+ 		// In case of repacking, saBoundaryConditions(REPACK_STEP)
+ 		// is called at the end of the repacking to fix gamma
+ 		// after the free-surface has been disabled. The resume_fname
+ 		// variable then contains the name of a repack file that is
+ 		// going to be used to start the simulation
+ 		// First, put BOUNDELEMENTS and GRADGAMMA in the WRITE position
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
 
-			// Compute normal for vertices
-			doCommand(SA_COMPUTE_VERTEX_NORMAL);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-			// Put the normals back to READ position
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
-			// Compute initial value of gamma for fluid and vertices
-			doCommand(SA_INIT_GAMMA);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-			// Put GRADGAMMA back to READ position
-			doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
-		}
+		// Compute normal for vertices
+		doCommand(SA_COMPUTE_VERTEX_NORMAL);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
+		// Put the normals back to READ position
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
+		// Compute initial value of gamma for fluid and vertices
+		doCommand(SA_INIT_GAMMA);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+		// Put GRADGAMMA back to READ position
+		doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 
 		// modify particle mass on open boundaries
 		// only if we really are at the initialisation stage
@@ -2831,12 +2860,7 @@ void GPUSPH::check_write(bool we_are_done)
 				// so pretend we actually saved
 				Writer::FakeMarkWritten(writers, gdata->t);
 			} else {
-				saveParticles(enabledPostProcess, force_write ?
-					// if the write is forced, indicate it with a flag
-					// hinting that all integration steps have been completed
-					ALL_INTEGRATION_STEPS :
-					// otherwise, no special flag
-					NO_FLAGS);
+				saveParticles(enabledPostProcess, force_write);
 
 				// we generally want to print the current status and reset the
 				// interval performance counter when writing. However, when writing

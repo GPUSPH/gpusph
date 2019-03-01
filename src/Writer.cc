@@ -51,7 +51,8 @@
 using namespace std;
 
 WriterMap Writer::m_writers = WriterMap();
-flag_t Writer::m_write_flags = NO_FLAGS;
+WriteFlags Writer::m_write_flags = WriteFlags();
+bool Writer::m_pending_hotwriter = false;
 
 static const char* WriterName[] = {
 	"CommonWriter",
@@ -228,28 +229,44 @@ Writer::NeedWrite(double t)
 	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
 		const Writer *writer = it->second;
-		if (writer->need_write(t))
-			need_write[it->first] = it->second;
+		if (writer->need_write(t)) {
+			if (it->first == HOTWRITER)
+				m_pending_hotwriter = true;
+			else
+				need_write[it->first] = it->second;
+		}
 	}
 	return need_write;
 }
 
 WriterMap
-Writer::StartWriting(double t, flag_t write_flags)
+Writer::StartWriting(double t, WriteFlags const& write_flags)
 {
 	WriterMap started;
 
 	m_write_flags = write_flags;
 
-	// if any flag is set, then this is a forced write
-	const bool forced = (write_flags != NO_FLAGS);
+	// is this a forced write?
+	const bool forced = write_flags.forced_write;
+	// is this a hot write?
+	const bool hot = write_flags.hot_write;
 
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	// (the common writer is not considered special during a hot write)
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
+		// The HotWriter only actually writes during a hot write (unless forced)
+		// and conversely it's the only writer that writes during a hot write
+		if (hot && it->first != HOTWRITER)
+			continue;
+		if (it->first == HOTWRITER && !hot && !forced)
+			continue;
+
 		// skip COMMONWRITER if special
 		if (common_special && it->first == COMMONWRITER)
 			continue;
@@ -271,8 +288,12 @@ Writer::StartWriting(double t, flag_t write_flags)
 void
 Writer::MarkWritten(WriterMap writers, double t)
 {
+	// is this a hot write?
+	const bool hot = m_write_flags.hot_write;
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -288,14 +309,20 @@ Writer::MarkWritten(WriterMap writers, double t)
 		m_writers[COMMONWRITER]->mark_written(t);
 
 	// clear the write flags
-	m_write_flags = NO_FLAGS;
+	m_write_flags.clear();
+	if (hot)
+		m_pending_hotwriter = false;
 }
 
 void
 Writer::FakeMarkWritten(ConstWriterMap writers, double t)
 {
+	// is this a hot write?
+	const bool hot = m_write_flags.hot_write;
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	ConstWriterMap::iterator it(writers.begin());
 	ConstWriterMap::iterator end(writers.end());
@@ -315,7 +342,9 @@ Writer::FakeMarkWritten(ConstWriterMap writers, double t)
 		m_writers[COMMONWRITER]->mark_written(t);
 
 	// clear the write flags
-	m_write_flags = NO_FLAGS;
+	m_write_flags.clear();
+	if (hot)
+		m_pending_hotwriter = false;
 }
 
 /* TODO FIXME C++11
@@ -328,8 +357,12 @@ void
 Writer::Write(WriterMap writers, uint numParts, BufferList const& buffers,
 	uint node_offset, double t, const bool testpoints)
 {
+	// is this a hot write?
+	const bool hot = m_write_flags.hot_write;
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	// save it because it writes last
 	CallbackWriter *cbwriter = NULL;
@@ -366,8 +399,12 @@ Writer::Write(WriterMap writers, uint numParts, BufferList const& buffers,
 void
 Writer::WriteWaveGage(WriterMap writers, double t, GageList const& gage)
 {
+	// is this a hot write?
+	const bool hot = m_write_flags.hot_write;
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -386,8 +423,12 @@ Writer::WriteWaveGage(WriterMap writers, double t, GageList const& gage)
 void
 Writer::WriteObjects(WriterMap writers, double t)
 {
+	// is this a hot write?
+	const bool hot = m_write_flags.hot_write;
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -406,8 +447,12 @@ Writer::WriteObjects(WriterMap writers, double t)
 void
 Writer::WriteEnergy(WriterMap writers, double t, double4 *energy)
 {
+	// is this a hot write?
+	const bool hot = m_write_flags.hot_write;
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -428,8 +473,12 @@ Writer::WriteObjectForces(WriterMap writers, double t, uint numobjects,
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques)
 {
+	// is this a hot write?
+	const bool hot = m_write_flags.hot_write;
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());
@@ -452,8 +501,12 @@ Writer::WriteObjectForces(WriterMap writers, double t, uint numobjects,
 void
 Writer::WriteFlux(WriterMap writers, double t, float* fluxes)
 {
+	// is this a hot write?
+	const bool hot = m_write_flags.hot_write;
 	// is the common writer special?
-	bool common_special = m_writers[COMMONWRITER]->is_special();
+	const bool common_special =
+		m_writers[COMMONWRITER]->is_special()
+		&& !hot;
 
 	WriterMap::iterator it(writers.begin());
 	WriterMap::iterator end(writers.end());

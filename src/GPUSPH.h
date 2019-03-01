@@ -123,15 +123,11 @@ private:
 	// create the Writer
 	void createWriter();
 
-	// use the writer, with additional options about forced writes:
-	// NO_FLAGS is used for standard writes, other flags such as
-	// the current integration step are used to indicate why/when
-	// a write is being forced
-	void doWrite(flag_t write_flags);
+	// use the writer, with additional options about forced writes
+	void doWrite(WriteFlags const& write_flags);
 
-	// save the particle system to disk; the meaning of the write_flags
-	// is as in doWrite()
-	void saveParticles(PostProcessEngineSet const& enabledPostProcess, flag_t write_flags);
+	// save the particle system to disk
+	void saveParticles(PostProcessEngineSet const& enabledPostProcess, WriteFlags const& write_flags);
 
 	// callbacks for moving boundaries and variable gravity
 	void doCallBacks(const flag_t current_integrator_step);

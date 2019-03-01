@@ -95,7 +95,7 @@ void VTKWriter::add_block(string const& blockname, string const& fname)
 		"' name='" << blockname << "' file='" << fname << "'/>" << endl;
 }
 
-void VTKWriter::start_writing(double t, flag_t write_flags)
+void VTKWriter::start_writing(double t, WriteFlags const& write_flags)
 {
 	Writer::start_writing(t, write_flags);
 
@@ -103,13 +103,17 @@ void VTKWriter::start_writing(double t, flag_t write_flags)
 	time_repr << setprecision(16) << t;
 	m_current_time = time_repr.str();
 
+	int step_num = get_step_number(write_flags.integrator_step);
+
 	// we append the current integrator step to the timestring,
 	// but we need to add a dot if there isn't one already
 	string dot = m_current_time.find('.') != string::npos ? "" : ".";
-	if (write_flags == INTEGRATOR_STEP_1)
-		m_current_time += dot + "00000001";
-	else if (write_flags == INTEGRATOR_STEP_2)
-		m_current_time += dot + "00000002";
+	if (step_num > 0) {
+		char buf[10];
+		snprintf(buf, 10, "%08u", step_num);
+		buf[9] = '\0';
+		m_current_time += dot + string(buf);
+	}
 
 	m_blockidx = -1;
 

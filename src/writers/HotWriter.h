@@ -37,11 +37,6 @@ public:
 	HotWriter(const GlobalData *_gdata);
 	~HotWriter();
 
-	/* HotFiles must be dumped right before a neiblist construction,
-	 * so we override need_write to ensure this: we write at the
-	 * buildneibs not earlier than our actual write time */
-	bool need_write(double t) const;
-
 	void write(uint numParts, const BufferList &buffers,
 		uint node_offset, double t, const bool testpoints);
 
