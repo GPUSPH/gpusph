@@ -70,23 +70,19 @@ struct common_euler_params
 
 	// Constructor / initializer
 	common_euler_params(
-				float4		* __restrict__ _newPos,
-				float4		* __restrict__ _newVel,
-		const	float4		* __restrict__ _oldPos,
-		const	hashKey		* __restrict__ _particleHash,
-		const	float4		* __restrict__ _oldVel,
-		const	particleinfo	* __restrict__ _info,
-		const	float4		* __restrict__ _forces,
-		const	uint			_numParticles,
+		BufferList const&	bufread,
+		BufferList&			bufwrite,
+		const	uint		_numParticles,
 		const	float		_dt,
-		const	float		_t) :
-		newPos(_newPos),
-		newVel(_newVel),
-		oldPos(_oldPos),
-		particleHash(_particleHash),
-		oldVel(_oldVel),
-		info(_info),
-		forces(_forces),
+		const	float		_t)
+	:
+		newPos(bufwrite.getData<BUFFER_POS>()),
+		newVel(bufwrite.getData<BUFFER_VEL>()),
+		oldPos(bufread.getData<BUFFER_POS>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		oldVel(bufread.getData<BUFFER_VEL>()),
+		info(bufread.getData<BUFFER_INFO>()),
+		forces(bufread.getData<BUFFER_FORCES>()),
 		numParticles(_numParticles),
 		dt(_dt),
 		t(_t)
@@ -97,8 +93,8 @@ struct common_euler_params
 struct xsph_euler_params
 {
 	const	float4	* __restrict__ xsph;
-	xsph_euler_params(const	float4 * __restrict__ _xsph) :
-		xsph(_xsph)
+	xsph_euler_params(BufferList const& bufread) :
+		xsph(bufread.getData<BUFFER_XSPH>())
 	{}
 };
 
@@ -110,10 +106,11 @@ struct euler_vel_euler_params
 
 	// Constructor / initializer
 	euler_vel_euler_params(
-				float4	* __restrict__ _newEulerVel,
-		const	float4	* __restrict__ _oldEulerVel) :
-		newEulerVel(_newEulerVel),
-		oldEulerVel(_oldEulerVel)
+		BufferList const&	bufread,
+		BufferList&			bufwrite)
+	:
+		newEulerVel(bufwrite.getData<BUFFER_EULERVEL>()),
+		oldEulerVel(bufread.getData<BUFFER_EULERVEL>())
 	{}
 };
 
@@ -124,11 +121,11 @@ struct sa_boundary_moving_euler_params
 	const	float4	* __restrict__ oldBoundElement;
 
 	sa_boundary_moving_euler_params(
-				float4	* __restrict__ _newBoundElement,
-		const	float4	* __restrict__ _oldBoundElement)
+		BufferList const&	bufread,
+		BufferList&			bufwrite)
 	:
-		newBoundElement(_newBoundElement),
-		oldBoundElement(_oldBoundElement)
+		newBoundElement(bufwrite.getData<BUFFER_BOUNDELEMENTS>()),
+		oldBoundElement(bufread.getData<BUFFER_BOUNDELEMENTS>())
 	{}
 };
 
@@ -145,18 +142,15 @@ struct keps_euler_params
 
 	// Constructor / initializer
 	keps_euler_params(
-			float		* __restrict__ _newTKE,
-			float		* __restrict__ _newEps,
-			float		* __restrict__ _newTurbVisc,
-			const float	* __restrict__ _oldTKE,
-			const float	* __restrict__ _oldEps,
-			const float3	* __restrict__ _keps_dkde):
-			newTKE(_newTKE),
-			newEps(_newEps),
-			newTurbVisc(_newTurbVisc),
-			oldTKE(_oldTKE),
-			oldEps(_oldEps),
-			keps_dkde(_keps_dkde)
+		BufferList const&	bufread,
+		BufferList&			bufwrite)
+	:
+		newTKE(bufwrite.getData<BUFFER_TKE>()),
+		newEps(bufwrite.getData<BUFFER_EPSILON>()),
+		newTurbVisc(bufwrite.getData<BUFFER_TURBVISC>()),
+		oldTKE(bufread.getData<BUFFER_TKE>()),
+		oldEps(bufread.getData<BUFFER_EPSILON>()),
+		keps_dkde(bufread.getData<BUFFER_DKDE>())
 	{}
 };
 
@@ -169,10 +163,11 @@ struct grenier_euler_params
 
 	// Constructor / initializer
 	grenier_euler_params(
-				float4 * __restrict__ _newVol,
-			const float4 * __restrict__ _oldVol) :
-			newVol(_newVol),
-			oldVol(_oldVol)
+		BufferList const&	bufread,
+		BufferList&			bufwrite)
+	:
+		newVol(bufwrite.getData<BUFFER_VOLUME>()),
+		oldVol(bufread.getData<BUFFER_VOLUME>())
 	{}
 };
 
@@ -185,12 +180,12 @@ struct energy_euler_params
 
 	// Constructor / initializer
 	energy_euler_params(
-				float * __restrict__ _newEnergy,
-		const	float * __restrict__ _oldEnergy,
-		const	float * __restrict__ _DEDt) :
-			newEnergy(_newEnergy),
-			oldEnergy(_oldEnergy),
-			DEDt(_DEDt)
+		BufferList const&	bufread,
+		BufferList&			bufwrite)
+	:
+		newEnergy(bufwrite.getData<BUFFER_INTERNAL_ENERGY>()),
+		oldEnergy(bufread.getData<BUFFER_INTERNAL_ENERGY>()),
+		DEDt(bufread.getData<BUFFER_INTERNAL_ENERGY_UPD>())
 	{}
 };
 
@@ -229,54 +224,20 @@ struct euler_params :
 	// It then delegates the appropriate subset of arguments to the appropriate
 	// structs it derives from, in the correct order
 	euler_params(
-		// common
-				float4		* __restrict__ _newPos,
-				float4		* __restrict__ _newVel,
-		const	float4		* __restrict__ _oldPos,
-		const	hashKey		* __restrict__ _particleHash,
-		const	float4		* __restrict__ _oldVel,
-		const	particleinfo	* __restrict__ _info,
-		const	float4		* __restrict__ _forces,
-		const	uint			_numParticles,
+		BufferList const&	bufread,
+		BufferList&			bufwrite,
+		const	uint		_numParticles,
 		const	float		_dt,
-		const	float		_t,
-
-		// XSPH
-		const	float4	* __restrict__ _xsph,
-
-		// SA_BOUNDARY
-				float4	* __restrict__ _newEulerVel,
-				float4	* __restrict__ _newBoundElement,
-		const	float4	* __restrict__ _oldEulerVel,
-		const	float4	* __restrict__ _oldBoundElement,
-
-		// KEPSILON
-				float	* __restrict__ _newTKE,
-				float	* __restrict__ _newEps,
-				float	* __restrict__ _newTurbVisc,
-		const	float	* __restrict__ _oldTKE,
-		const	float	* __restrict__ _oldEps,
-		const	float3	* __restrict__ _keps_dkde,
-
-		// SPH_GRENIER
-				float4	* __restrict__ _newVol,
-		const	float4	* __restrict__ _oldVol,
-
-		// ENABLE_INTERNAL_ENERGY
-				float	* __restrict__ _newEnergy,
-		const	float	* __restrict__ _oldEnergy,
-		const	float	* __restrict__ _DEDt) :
-
-		common_euler_params(_newPos, _newVel, _oldPos, _particleHash,
-			_oldVel, _info, _forces, _numParticles, _dt, _t),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(_xsph),
-		COND_STRUCT(has_eulerVel, euler_vel_euler_params)(_newEulerVel, _oldEulerVel),
+		const	float		_t)
+	:
+		common_euler_params(bufread, bufwrite, _numParticles, _dt, _t),
+		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(bufread),
+		COND_STRUCT(has_eulerVel, euler_vel_euler_params)(bufread, bufwrite),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params)
-			(_newBoundElement, _oldBoundElement),
-		COND_STRUCT(has_keps, keps_euler_params)(_newTKE, _newEps, _newTurbVisc, _oldTKE, _oldEps, _keps_dkde),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(_newVol, _oldVol),
-		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(_newEnergy, _oldEnergy, _DEDt)
-
+			(bufread, bufwrite),
+		COND_STRUCT(has_keps, keps_euler_params)(bufread, bufwrite),
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(bufread, bufwrite),
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(bufread, bufwrite)
 	{}
 };
 

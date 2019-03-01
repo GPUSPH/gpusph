@@ -383,59 +383,14 @@ basicstep(
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const float4  *oldPos = bufread.getData<BUFFER_POS>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const float4  *oldVol = bufread.getData<BUFFER_VOLUME>();
-	const float *oldEnergy = bufread.getData<BUFFER_INTERNAL_ENERGY>();
-	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
-	const float *oldTKE = bufread.getData<BUFFER_TKE>();
-	const float *oldEps = bufread.getData<BUFFER_EPSILON>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-
-	const float4 *forces = bufread.getData<BUFFER_FORCES>();
-	const float *DEDt = bufread.getData<BUFFER_INTERNAL_ENERGY_UPD>();
-	const float3 *keps_dkde = bufread.getData<BUFFER_DKDE>();
-	const float4 *xsph = bufread.getData<BUFFER_XSPH>();
-
-	// The following two arrays are update in case ENABLE_DENSITY_SUM is set
-	// so they are taken from the non-const bufreadUpdate
-	const float4  *oldVel = bufread.getData<BUFFER_VEL>();
-
-	float4 *newPos = bufwrite.getData<BUFFER_POS>();
-	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-	float4 *newVol = bufwrite.getData<BUFFER_VOLUME>();
-	float *newEnergy = bufwrite.getData<BUFFER_INTERNAL_ENERGY>();
-	float4 *newEulerVel = bufwrite.getData<BUFFER_EULERVEL>();
-	float *newTKE = bufwrite.getData<BUFFER_TKE>();
-	float *newEps = bufwrite.getData<BUFFER_EPSILON>();
-	float *newTurbVisc = bufwrite.getData<BUFFER_TURBVISC>();
-
-	const bool has_moving = (simflags & ENABLE_MOVING_BODIES);
-	const float4 *oldBoundElement = has_moving ?
-		bufread.getData<BUFFER_BOUNDELEMENTS>() :
-		NULL;
-	float4 *newBoundElement = has_moving ?
-		bufwrite.getData<BUFFER_BOUNDELEMENTS>() :
-		NULL;
-
 	if (step == 1)
 		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
 			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 1>(
-				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, t,
-				xsph,
-				newEulerVel, newBoundElement, oldEulerVel, oldBoundElement,
-				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
-				newVol, oldVol,
-				newEnergy, oldEnergy, DEDt));
+				bufread, bufwrite, numParticles, dt, t));
 	else if (step == 2)
 		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
 			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 2>(
-				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, t,
-				xsph,
-				newEulerVel, newBoundElement, oldEulerVel, oldBoundElement,
-				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
-				newVol, oldVol,
-				newEnergy, oldEnergy, DEDt));
+				bufread, bufwrite, numParticles, dt, t));
 	else
 		throw std::invalid_argument("unsupported predcorr timestep");
 
