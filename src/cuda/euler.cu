@@ -153,20 +153,12 @@ density_sum_impl(
 
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
 	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
-			oldPos, newPos, oldVel, newVel, oldgGam, newgGam,
-			particleHash, info, forces, particleRangeEnd, dt, t, step,
-			slength, influenceradius, neibsList, cellStart,
-			oldEulerVel, newEulerVel,
-			NULL, NULL, NULL);
+		bufread, bufwrite, particleRangeEnd, dt, t, step, slength, influenceradius);
 
 	cudensity_sum::densitySumVolumicDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
 
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
-			oldPos, newPos, oldVel, newVel, oldgGam, newgGam,
-			particleHash, info, forces, particleRangeEnd, dt, t, step,
-			slength, influenceradius, neibsList, cellStart,
-			oldEulerVel, newEulerVel,
-			oldBoundElement, newBoundElement, vertPos);
+		bufread, bufwrite, particleRangeEnd, dt, t, step, slength, influenceradius);
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 

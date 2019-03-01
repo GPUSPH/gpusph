@@ -65,52 +65,45 @@ struct common_density_sum_params
 			float4	*newgGam;
 	const	hashKey	*particleHash;		///< particle's hash (in)
 	const	particleinfo	*info;		///< particle's information
-			float4	*forces;			///< derivative of particle's velocity and density (in/out)
-	const	uint	numParticles;		///< total number of particles
-	const	float	dt;					///< time step (dt or dt/2 depending on integration phase
-	const	float	t;					///< simulation time
-	const	uint	step;			///< integrator step //parametro template di euler params struttura collettiva
-	const	float	slength;
-	const	float	influenceradius;
 	const	neibdata	*neibsList;
 	const	uint	*cellStart;
+			float4	*forces;			///< derivative of particle's velocity and density (in/out)
+
+	const	uint	numParticles;		///< total number of particles
+	const	float	dt;					///< time step (dt or dt/2 depending on integration phase)
+	const	float	t;					///< simulation time
+	const	uint	step;				///< integrator step
+	const	float	slength;
+	const	float	influenceradius;
 
 	// Constructor / initializer
 	common_density_sum_params(
-		const	float4		*_oldPos,
-		const	float4		*_newPos,
-		const	float4		*_oldVel,
-				float4		*_newVel,
-		const	float4		*_oldgGam,
-				float4		*_newgGam,
-		const	hashKey		*_particleHash,
-		const	particleinfo	*_info,
-				float4		*_forces,
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
 		const	uint		_numParticles,
 		const	float		_dt,
 		const	float		_t,
 		const	uint		_step,
 		const	float		_slength,
-		const	float		_influenceradius,
-		const	neibdata	*_neibsList,
-		const	uint		*_cellStart) :
-		oldPos(_oldPos),
-		newPos(_newPos),
-		oldVel(_oldVel),
-		newVel(_newVel),
-		oldgGam(_oldgGam),
-		newgGam(_newgGam),
-		particleHash(_particleHash),
-		info(_info),
-		forces(_forces),
+		const	float		_influenceradius)
+	:
+		oldPos(bufread.getData<BUFFER_POS>()),
+		newPos(bufwrite.getConstData<BUFFER_POS>()),
+		oldVel(bufread.getData<BUFFER_VEL>()),
+		newVel(bufwrite.getData<BUFFER_VEL>()),
+		oldgGam(bufread.getData<BUFFER_GRADGAMMA>()),
+		newgGam(bufwrite.getData<BUFFER_GRADGAMMA>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		info(bufread.getData<BUFFER_INFO>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		forces(bufwrite.getData<BUFFER_FORCES>()),
 		numParticles(_numParticles),
 		dt(_dt),
 		t(_t),
 		step(_step),
 		slength(_slength),
-		influenceradius(_influenceradius),
-		neibsList(_neibsList),
-		cellStart(_cellStart)
+		influenceradius(_influenceradius)
 	{}
 };
 
@@ -121,33 +114,46 @@ struct io_density_sum_params
 	const float4 * __restrict__ newEulerVel;
 
 	io_density_sum_params(
-		const float4 * __restrict__ _oldEulerVel,
-		const float4 * __restrict__ _newEulerVel)
+		BufferList const&	bufread,
+		BufferList const&	bufwrite) // the ‘write’ copy is read-onl too, actually
 	:
-		oldEulerVel(_oldEulerVel),
-		newEulerVel(_newEulerVel)
+		oldEulerVel(bufread.getData<BUFFER_EULERVEL>()),
+		newEulerVel(bufwrite.getData<BUFFER_EULERVEL>())
 	{}
 };
 
-/// Additional parameters passed only to the kernel with BOUNDARY neighbors
-struct boundary_density_sum_params
+struct const_vertpos_params
 {
-	const	float4	* __restrict__ oldBoundElement;
-	const	float4	* __restrict__ newBoundElement;
 	const	float2	* __restrict__ vertPos0;
 	const	float2	* __restrict__ vertPos1;
 	const	float2	* __restrict__ vertPos2;
 
+	const_vertpos_params(const float2 * const* vertPos_ptr) :
+		vertPos0(vertPos_ptr[0]),
+		vertPos1(vertPos_ptr[1]),
+		vertPos2(vertPos_ptr[2])
+	{}
+
+};
+
+/// Additional parameters passed only to the kernel with BOUNDARY neighbors
+template<flag_t simflags,
+	bool enable_moving = !!(simflags & ENABLE_MOVING_BODIES)>
+struct boundary_density_sum_params : public const_vertpos_params
+{
+	const	float4	* __restrict__ oldBoundElement;
+	const	float4	* __restrict__ newBoundElement;
+
 	// Constructor / initializer
 	boundary_density_sum_params(
-		const	float4	*_oldBoundElement,
-		const	float4	*_newBoundElement,
-		const	float2	* const _vertPos[]) :
-		oldBoundElement(_oldBoundElement),
-		newBoundElement(_newBoundElement),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2])
+		BufferList const&	bufread,
+		BufferList const&	bufwrite) // the ‘write’ copy is read-onl too, actually
+	:
+		const_vertpos_params(bufread.getRawPtr<BUFFER_VERTPOS>()),
+		oldBoundElement(bufread.getData<BUFFER_BOUNDELEMENTS>()),
+		newBoundElement(enable_moving ?
+			bufwrite.getData<BUFFER_BOUNDELEMENTS>() :
+			oldBoundElement)
 	{}
 };
 
@@ -158,7 +164,7 @@ template<KernelType _kerneltype,
 struct density_sum_params :
 	common_density_sum_params,
 	COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_density_sum_params),
-	COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
+	COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params<_simflags>)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const ParticleType ntype = _ntype;
@@ -169,40 +175,21 @@ struct density_sum_params :
 	// It then delegates the appropriate subset of arguments to the appropriate
 	// structs it derives from, in the correct order
 	density_sum_params(
-		// common
-		const	float4		*_oldPos,
-		const	float4		*_newPos,
-		const	float4		*_oldVel,
-				float4		*_newVel,
-		const	float4		*_oldgGam,
-				float4		*_newgGam,
-		const	hashKey		*_particleHash,
-		const	particleinfo	*_info,
-				float4		*_forces,
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
 		const	uint		_numParticles,
 		const	float		_dt,
 		const	float		_t,
 		const	uint		_step,
 		const	float		_slength,
-		const	float		_influenceradius,
-		const	neibdata	*_neibsList,
-		const	uint		*_cellStart,
-
-		// ENABLE_INLET_OUTLET
-		const float4 * __restrict__ _oldEulerVel,
-		const float4 * __restrict__ _newEulerVel,
-
-		// SA_BOUNDARY
-		const	float4*		_oldBoundElement,
-		const	float4*		_newBoundElement,
-		const	float2*		const _vertPos[]) :
-
-		common_density_sum_params(_oldPos, _newPos, _oldVel, _newVel, _oldgGam, _newgGam,
-			_particleHash, _info, _forces, _numParticles, _dt, _t, _step, _slength, _influenceradius, _neibsList, _cellStart),
+		const	float		_influenceradius)
+	:
+		common_density_sum_params(bufread, bufwrite,
+			_numParticles, _dt, _t, _step, _slength, _influenceradius),
 		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_density_sum_params)
-			(_oldEulerVel, _newEulerVel),
-		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
-			(_oldBoundElement, _newBoundElement, _vertPos)
+			(bufread, bufwrite),
+		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params<simflags>)
+			(bufread, bufwrite)
 	{}
 };
 
