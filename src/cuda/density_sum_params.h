@@ -43,7 +43,7 @@
    specialization.
 */
 
-#include "cond_params.h"
+#include "common_params.h"
 
 // We now have the tools to assemble the structure that will be used to pass parameters to the density_sum kernel
 
@@ -55,14 +55,11 @@
 */
 
 /// Parameters common to all density_sum kernel specializations
-struct common_density_sum_params
+struct common_density_sum_params :
+	Pos_params<false>, ///< old (in) and new (in) position
+	Vel_params<true>, ///< old (in) and new (in/out) velocity
+	gGam_params<true> ///< old (in) and new (in/out) gamma and its gradient
 {
-	const	float4	*oldPos;			///< previous particle's position (in)
-	const	float4	*newPos;			///< updated particle's position (in)
-	const	float4	*oldVel;			///< previous particle's velocity (in/out)
-			float4	*newVel;			///< updated particle's velocity (out)
-	const	float4	*oldgGam;
-			float4	*newgGam;
 	const	hashKey	*particleHash;		///< particle's hash (in)
 	const	particleinfo	*info;		///< particle's information
 	const	neibdata	*neibsList;
@@ -87,12 +84,9 @@ struct common_density_sum_params
 		const	float		_slength,
 		const	float		_influenceradius)
 	:
-		oldPos(bufread.getData<BUFFER_POS>()),
-		newPos(bufwrite.getConstData<BUFFER_POS>()),
-		oldVel(bufread.getData<BUFFER_VEL>()),
-		newVel(bufwrite.getData<BUFFER_VEL>()),
-		oldgGam(bufread.getData<BUFFER_GRADGAMMA>()),
-		newgGam(bufwrite.getData<BUFFER_GRADGAMMA>()),
+		Pos_params<false>(bufread, bufwrite),
+		Vel_params<true>(bufread, bufwrite),
+		gGam_params<true>(bufread, bufwrite),
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		info(bufread.getData<BUFFER_INFO>()),
 		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
@@ -104,21 +98,6 @@ struct common_density_sum_params
 		step(_step),
 		slength(_slength),
 		influenceradius(_influenceradius)
-	{}
-};
-
-/// Additional parameters passed only to the kernel with open boundaries neighbors
-struct io_density_sum_params
-{
-	const float4 * __restrict__ oldEulerVel;
-	const float4 * __restrict__ newEulerVel;
-
-	io_density_sum_params(
-		BufferList const&	bufread,
-		BufferList const&	bufwrite) // the ‘write’ copy is read-onl too, actually
-	:
-		oldEulerVel(bufread.getData<BUFFER_EULERVEL>()),
-		newEulerVel(bufwrite.getData<BUFFER_EULERVEL>())
 	{}
 };
 
@@ -134,36 +113,42 @@ struct const_vertpos_params
 		vertPos2(vertPos_ptr[2])
 	{}
 
+	const_vertpos_params(BufferList const& bufread) :
+		const_vertpos_params(bufread.getRawPtr<BUFFER_VERTPOS>())
+	{}
+
 };
 
 /// Additional parameters passed only to the kernel with BOUNDARY neighbors
 template<flag_t simflags,
 	bool enable_moving = !!(simflags & ENABLE_MOVING_BODIES)>
-struct boundary_density_sum_params : public const_vertpos_params
+struct boundary_density_sum_params :
+	BoundElement_params<false>,
+	const_vertpos_params
 {
-	const	float4	* __restrict__ oldBoundElement;
-	const	float4	* __restrict__ newBoundElement;
-
-	// Constructor / initializer
 	boundary_density_sum_params(
 		BufferList const&	bufread,
 		BufferList const&	bufwrite) // the ‘write’ copy is read-onl too, actually
 	:
-		const_vertpos_params(bufread.getRawPtr<BUFFER_VERTPOS>()),
-		oldBoundElement(bufread.getData<BUFFER_BOUNDELEMENTS>()),
-		newBoundElement(enable_moving ?
-			bufwrite.getData<BUFFER_BOUNDELEMENTS>() :
-			oldBoundElement)
+		// if we have moving boundaries, we want both the old and new boundary elements,
+		// otherwise we know they'll be the same
+		BoundElement_params<false>(bufread, enable_moving ? bufwrite : bufread),
+		const_vertpos_params(bufread)
 	{}
 };
 
 /// The actual density_sum_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	ParticleType _ntype,
-	flag_t _simflags>
+	flag_t _simflags,
+	// if we have open boundaries, we also want the old and new Eulerian velocity
+	// (read-only)
+	typename io_params = typename
+		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, EulerVel_params<false>)
+	>
 struct density_sum_params :
 	common_density_sum_params,
-	COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_density_sum_params),
+	io_params,
 	COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params<_simflags>)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -186,8 +171,7 @@ struct density_sum_params :
 	:
 		common_density_sum_params(bufread, bufwrite,
 			_numParticles, _dt, _t, _step, _slength, _influenceradius),
-		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_density_sum_params)
-			(bufread, bufwrite),
+		io_params(bufread, bufwrite),
 		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params<simflags>)
 			(bufread, bufwrite)
 	{}

@@ -79,6 +79,9 @@ DEFINE_PAIR_PARAM(float4, Vol, BUFFER_VOLUME);
 // BoundElement_params oldBoundElement, newBoundElement
 DEFINE_PAIR_PARAM(float4, BoundElement, BUFFER_BOUNDELEMENTS);
 
+// gGam_params oldgGam, newgGam
+DEFINE_PAIR_PARAM(float4, gGam, BUFFER_GRADGAMMA);
+
 // Eps_params oldEps, newEps
 DEFINE_PAIR_PARAM(float, Eps, BUFFER_EPSILON);
 

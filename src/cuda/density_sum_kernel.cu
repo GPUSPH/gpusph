@@ -84,7 +84,7 @@ struct open_boundary_particle_data
 	const	float4	eulerVel;
 
 	__device__ __forceinline__
-	open_boundary_particle_data(const uint index, io_density_sum_params const& params) :
+	open_boundary_particle_data(const uint index, EulerVel_params<false> const& params) :
 		eulerVel(params.oldEulerVel[index])
 	{}
 };
