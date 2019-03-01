@@ -667,6 +667,12 @@ GPUSPH::prepareNextStep(const flag_t current_integrator_step)
 	// runIntegratorStep
 
 	// semi-analytical boundary conditions, but not during init if we resumed
+	// In case of repacking, saBoundaryConditions(REPACK_STEP)
+	// is called at the end of the repacking to fix gamma
+	// after the free-surface has been disabled. The resume_fname
+	// variable then contains the name of a repack file that is
+	// going to be used to start the simulation
+	// hence this test on the keep_repacking variable
 	if (!resumed || gdata->keep_repacking) switch (problem->simparams()->boundarytype) {
 	case LJ_BOUNDARY:
 	case MK_BOUNDARY:
@@ -2637,25 +2643,18 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	if ((cFlag & INITIALIZATION_STEP) || (cFlag & REPACK_STEP)) {
 
- 		// In case of repacking, saBoundaryConditions(REPACK_STEP)
- 		// is called at the end of the repacking to fix gamma
- 		// after the free-surface has been disabled. The resume_fname
- 		// variable then contains the name of a repack file that is
- 		// going to be used to start the simulation
- 		// First, put BOUNDELEMENTS and GRADGAMMA in the WRITE position
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
 
-		// Compute normal for vertices
+		// compute normal for vertices
 		doCommand(SA_COMPUTE_VERTEX_NORMAL);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-		// Put the normals back to READ position
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-		// Compute initial value of gamma for fluid and vertices
+
+		// compute initial value of gamma for fluid and vertices
 		doCommand(SA_INIT_GAMMA);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-		// Put GRADGAMMA back to READ position
 		doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
 
 		// modify particle mass on open boundaries
