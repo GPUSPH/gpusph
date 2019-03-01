@@ -612,7 +612,7 @@ bool GPUSPH::runSimulation() {
 
 	// doing first write
 	printf("Performing first write...\n");
-	doWrite(INITIALIZATION_STEP);
+	doWrite(StepInfo(0));
 
 	printf("Letting threads upload the subdomains...\n");
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
@@ -678,10 +678,8 @@ template<>
 void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 // GPUSPH::move_bodies(flag_t integrator_step)
 {
-	const flag_t integrator_step = cmd.flags;
-
 	// TODO this function should also be ported to the CommandSequence architecture
-	const uint step = get_step_number(integrator_step);
+	const int step = cmd.step.number;
 
 	const float dt = cmd.dt(gdata);
 
@@ -691,7 +689,7 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 		const size_t numforcesbodies = problem->simparams()->numforcesbodies;
 		if (numforcesbodies > 0) {
 			const CommandStruct reduce_cmd = CommandStruct(REDUCE_BODIES_FORCES)
-				.set_flags(integrator_step)
+				.set_step(cmd.step)
 				.set_src(cmd.src);
 
 			doCommand(reduce_cmd);
@@ -732,7 +730,7 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 			gdata->s_hRbCgGridPos, gdata->s_hRbCgPos,
 			gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
-		if (step == 2)
+		if (cmd.step.last)
 			problem->post_timestep_callback(gdata->t);
 
 		// Upload translation vectors and rotation matrices; will upload CGs after euler
@@ -1715,7 +1713,6 @@ template<>
 void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 // GPUSPH::doCallBacks(flag_t current_integrator_step)
 {
-	const flag_t current_integrator_step = cmd.flags;
 	Problem *pb = gdata->problem;
 
 	double t_callback = gdata->t + cmd.dt(gdata);
@@ -2016,7 +2013,7 @@ void GPUSPH::runCommand<FIND_MAX_IOWATERDEPTH>(CommandStruct const& cmd)
 template<>
 void GPUSPH::runCommand<DEBUG_DUMP>(CommandStruct const& cmd)
 {
-	saveParticles(noPostProcess, cmd.src, cmd.flags);
+	saveParticles(noPostProcess, cmd.src, cmd.step);
 }
 
 void GPUSPH::check_write(bool we_are_done)

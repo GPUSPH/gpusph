@@ -115,9 +115,19 @@ PredictorCorrector::getNextStateForStep(int step_num)
 	}
 }
 
+//! Fill in the StepInfo for a given step number
+StepInfo step_info(int step_num)
+{
+	StepInfo step(step_num);
+	if (step_num == 2)
+		step.last = true;
+
+	return step;
+}
+
 template<BoundaryType boundarytype>
 void PredictorCorrector::initializeBoundaryConditionsSequence
-	(Integrator::Phase *this_phase, int step_num)
+	(Integrator::Phase *this_phase, StepInfo const& step)
 { /* for most boundary models, there's nothing to do */ }
 
 // formerly saBoundaryConditions()
@@ -127,27 +137,28 @@ void PredictorCorrector::initializeBoundaryConditionsSequence
  */
 template<>
 void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
-	(Integrator::Phase *this_phase, int step_num)
+	(Integrator::Phase *this_phase, StepInfo const& step)
 {
+	const bool init_step = (step.number == 0);
 	const SimParams *sp = gdata->problem->simparams();
 	const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
 
-	const dt_operator_t dt_op = getDtOperatorForStep(step_num);
+	const dt_operator_t dt_op = getDtOperatorForStep(step.number);
 
 	// In the open boundary case, the last integration step is when we generate
 	// and destroy particles
-	const bool last_io_step = has_io && (step_num == 2);
-	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
+	const bool last_io_step = has_io && step.last;
+
 	/* Boundary conditions are applied to step n during initialization step,
 	 * to step n* after the integrator, and to step n+1 after the corrector
 	 */
-	const string state = getNextStateForStep(step_num);
+	const string state = getNextStateForStep(step.number);
 
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
 	// initialization, only if not resuming
-	if (step_num == 0) {
+	if (init_step) {
 		// compute normal for vertices, updating BUFFER_BOUNDELEMENTS in-place
 		// (reads from boundaries, writes on vertices)
 		this_phase->add_command(SA_COMPUTE_VERTEX_NORMAL)
@@ -231,7 +242,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 		// the current SA example implementations only use these
 		// might possibly need some way to get this information from the problem itself
 		this_phase->add_command(IMPOSE_OPEN_BOUNDARY_CONDITION)
-			.set_flags(integrator_step)
+			.set_step(step)
 			.reading(state, BUFFER_POS | BUFFER_HASH | BUFFER_INFO)
 			.updating(state, BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON);
 	}
@@ -240,7 +251,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	// also detect outgoing particles at open boundaries (the relevant information
 	// is stored in the BUFFER_VERTICES array, only gets swapped in these case)
 	this_phase->add_command(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS)
-		.set_flags(integrator_step)
+		.set_step(step)
 		.reading(state,
 			BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 			BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS | BUFFER_VERTICES)
@@ -266,7 +277,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	// into its own kernel, in order to provide cleaner interfaces and finer-grained
 	// buffer handling
 	CommandStruct& vertex_bc_cmd = this_phase->add_command(SA_CALC_VERTEX_BOUNDARY_CONDITIONS)
-		.set_flags(integrator_step)
+		.set_step(step)
 		.set_dt(dt_op)
 		.reading(state,
 			BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_INFO |
@@ -311,29 +322,35 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 }
 
 Integrator::Phase *
-PredictorCorrector::initializeNextStepSequence(int step_num)
+PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 {
-	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
+	const bool init_step = (step.number == 0);
 	const SimParams *sp = gdata->problem->simparams();
+	const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
+	const bool has_bodies = (sp->numbodies > 0);
 
-	const dt_operator_t dt_op = getDtOperatorForStep(step_num);
+	const dt_operator_t dt_op = getDtOperatorForStep(step.number);
+
+	// In the open boundary case, the last integration step is when we generate
+	// and destroy particles
+	const bool last_io_step = has_io && step.last;
+	const bool last_bodies_step = has_bodies && step.last;
 
 	// “resumed” condition applies to the initializaiton step sequence,
 	// if we resumed
-	const bool resumed = (step_num == 0 && !gdata->clOptions->resume_fname.empty());
+	const bool resumed = (init_step && !gdata->clOptions->resume_fname.empty());
 
 	Phase *this_phase = new Phase(this,
-		step_num == 0 ? "initialization preparations" :
-		step_num == 1 ? "post-predictor preparations" :
-		step_num == 2 ? "post-corrector preparations" : "this can't happen");
+		step.number == 0 ? "initialization preparations" :
+		step.number == 1 ? "post-predictor preparations" :
+		step.number == 2 ? "post-corrector preparations" : "this can't happen");
 
-	if (step_num == 2 && sp->numbodies > 0)
+	if (last_bodies_step)
 		this_phase->add_command(EULER_UPLOAD_OBJECTS_CG);
 
 	// variable gravity
 	if (sp->gcallback) {
 		this_phase->add_command(RUN_CALLBACKS)
-			.set_flags(integrator_step)
 			.set_dt(dt_op);
 		this_phase->add_command(UPLOAD_GRAVITY);
 	}
@@ -355,12 +372,12 @@ PredictorCorrector::initializeNextStepSequence(int step_num)
 		/* nothing to do for LJ, MK and dynamic boundaries */
 		break;
 	case SA_BOUNDARY:
-		initializeBoundaryConditionsSequence<SA_BOUNDARY>(this_phase, step_num);
+		initializeBoundaryConditionsSequence<SA_BOUNDARY>(this_phase, step);
 		break;
 	}
 
 	// open boundaries: new particle generation, only at the end of the corrector
-	if (step_num == 2 && sp->simflags & ENABLE_INLET_OUTLET)
+	if (last_io_step)
 	{
 		this_phase->add_command(DOWNLOAD_NEWNUMPARTS);
 		this_phase->add_command(CHECK_NEWNUMPARTS);
@@ -368,7 +385,7 @@ PredictorCorrector::initializeNextStepSequence(int step_num)
 
 	// at the end of the corrector we rename step n+1 to step n, in preparation
 	// for the next loop
-	if (step_num == 2) {
+	if (step.last) {
 		this_phase->add_command(RELEASE_STATE)
 			.set_src("step n");
 		this_phase->add_command(RENAME_STATE)
@@ -377,23 +394,22 @@ PredictorCorrector::initializeNextStepSequence(int step_num)
 		this_phase->add_command(TIME_STEP_EPILOGUE);
 	}
 
-	if (step_num == 0)
+	if (init_step)
 		this_phase->add_command(END_OF_INIT);
 
 	return this_phase;
 }
 
 Integrator::Phase *
-PredictorCorrector::initializePredCorrSequence(int step_num)
+PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 {
-	const flag_t integrator_step = INITIALIZATION_STEP << step_num;
 	SimParams const* sp = gdata->problem->simparams();
 
-	const dt_operator_t dt_op = getDtOperatorForStep(step_num);
+	const dt_operator_t dt_op = getDtOperatorForStep(step.number);
 
 	Phase *this_phase = new Phase(this,
-		step_num == 1 ? "predictor" :
-		step_num == 2 ? "corrector" : "this can't happen");
+		step.number == 1 ? "predictor" :
+		step.number == 2 ? "corrector" : "this can't happen");
 
 	/* In the predictor/corrector scheme we use, there are four buffers that
 	 * need special treatment:
@@ -424,13 +440,13 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 	// for both steps, the “starting point” for Euler and density summation is step n
 	const string base_state = "step n";
 	// current state is step n for the predictor, step n* for the corrector
-	const string current_state = getCurrentStateForStep(step_num);
+	const string current_state = getCurrentStateForStep(step.number);
 	// next state is step n* for the predictor, step n+1 for the corrector
-	const string next_state = getNextStateForStep(step_num);
+	const string next_state = getNextStateForStep(step.number);
 
 	// at the beginning of the corrector, we move all ephemeral buffers from step n
 	// to the new step n*
-	if (step_num == 2)
+	if (step.last)
 		this_phase->add_command(MOVE_STATE_BUFFERS)
 			.set_src("step n")
 			.set_dst("step n*")
@@ -443,7 +459,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 	if (sp->sph_formulation == SPH_GRENIER) {
 		// compute density and sigma, updating WRITE vel in-place
 		this_phase->add_command(COMPUTE_DENSITY)
-			.set_flags(integrator_step)
+			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VOLUME)
@@ -457,7 +473,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
 	if (sp->turbmodel == SPS) {
 		this_phase->add_command(CALC_VISC)
-			.set_flags(integrator_step)
+			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL)
@@ -471,12 +487,12 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 
 	if (gdata->debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
-			.set_src(current_state)
-			.set_flags(integrator_step);
+			.set_step(step)
+			.set_src(current_state);
 
 	// compute forces only on internal particles
 	CommandStruct& forces_cmd = this_phase->add_command(striping ? FORCES_ENQUEUE : FORCES_SYNC)
-		.set_flags(integrator_step)
+		.set_step(step)
 		.set_dt(dt_op)
 		.reading(current_state,
 			BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
@@ -510,7 +526,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 
 	if (striping) {
 		CommandStruct& complete_cmd = this_phase->add_command(FORCES_COMPLETE)
-			.set_flags(integrator_step);
+			.set_step(step);
 		if (gdata->dtadapt)
 			complete_cmd
 				.reading(current_state, BUFFERS_CFL & ~BUFFER_CFL_TEMP)
@@ -519,13 +535,13 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 
 	// Take care of moving bodies
 	this_phase->add_command(MOVE_BODIES)
-		.set_flags(integrator_step)
+		.set_step(step)
 		.set_dt(dt_op)
 		.set_src(current_state);
 
 	// On the predictor, we need to (re)init the predicted status (n*),
 	// on the corrector this will be updated (in place) to the corrected status (n+1)
-	if (step_num == 1) {
+	if (step.number == 1) {
 		this_phase->add_command(INIT_STATE)
 			.set_src("step n*");
 		/* The buffers (re)initialized during the neighbors list construction
@@ -538,7 +554,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 	}
 
 	CommandStruct& euler_cmd = this_phase->add_command(EULER)
-		.set_flags(integrator_step)
+		.set_step(step)
 		.set_dt(dt_op)
 		// these are always taken from step n
 		.reading(base_state, PARTICLE_PROPS_BUFFERS | BUFFER_HASH)
@@ -549,7 +565,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 			BUFFER_DKDE);
 
 	// now, the difference:
-	if (step_num == 1) {
+	if (step.number == 1) {
 		// predictor: the next state is empty, so we mark all the props buffer as writing:
 		euler_cmd.writing(next_state, PARTICLE_PROPS_BUFFERS);
 	} else {
@@ -563,17 +579,17 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 
 	if (gdata->debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
-			.set_src(next_state)
-			.set_flags(integrator_step);
+			.set_step(step)
+			.set_src(next_state);
 
 	if (sp->simflags & ENABLE_DENSITY_SUM) {
 		// the forces were computed in the base state for the predictor,
 		// on the next state for the corrector
 		// or as an alternative we could free BUFFER_FORCES from whatever state it's in
-		const string forces_state = (step_num == 1 ? base_state : next_state);
+		const string forces_state = (step.number == 1 ? base_state : next_state);
 
 		this_phase->add_command(DENSITY_SUM)
-			.set_flags(integrator_step)
+			.set_step(step)
 			.set_dt(dt_op)
 			.reading(base_state, /* always read the base state, like EULER */
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
@@ -593,7 +609,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 		// when using density sum, density diffusion is applied _after_ the density sum
 		if (sp->densitydiffusiontype != DENSITY_DIFFUSION_NONE) {
 			this_phase->add_command(CALC_DENSITY_DIFFUSION)
-				.set_flags(integrator_step)
+				.set_step(step)
 				.set_dt(dt_op)
 				.reading(next_state,
 					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
@@ -601,7 +617,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 					BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
 				.writing(forces_state, BUFFER_FORCES);
 			this_phase->add_command(APPLY_DENSITY_DIFFUSION)
-				.set_flags(integrator_step)
+				.set_step(step)
 				.set_dt(dt_op)
 				.reading(next_state, BUFFER_INFO)
 				.reading(forces_state, BUFFER_FORCES)
@@ -616,7 +632,7 @@ PredictorCorrector::initializePredCorrSequence(int step_num)
 		// but we still need to integrate gamma, which needs the new position and thus
 		// needs to be done after EULER
 		this_phase->add_command(INTEGRATE_GAMMA)
-			.set_flags(integrator_step)
+			.set_step(step)
 			.set_dt(dt_op)
 			.reading(base_state, /* as in the EULER case, we always read from step n */
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
@@ -833,23 +849,38 @@ void PredictorCorrector::initializePhase<PredictorCorrector::NEIBS_LIST>()
 
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::INITIALIZATION>()
-{ m_phase[INITIALIZATION] = initializeNextStepSequence(0); }
+{
+	StepInfo step = step_info(0);
+	m_phase[INITIALIZATION] = initializeNextStepSequence(step);
+}
 
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::PREDICTOR>()
-{ m_phase[PREDICTOR] = initializePredCorrSequence(1); }
+{
+	StepInfo step = step_info(1);
+	m_phase[PREDICTOR] = initializePredCorrSequence(step);
+}
 
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::PREDICTOR_END>()
-{ m_phase[PREDICTOR_END] = initializeNextStepSequence(1); }
+{
+	StepInfo step = step_info(1);
+	m_phase[PREDICTOR_END] = initializeNextStepSequence(step);
+}
 
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::CORRECTOR>()
-{ m_phase[CORRECTOR] = initializePredCorrSequence(2); }
+{
+	StepInfo step = step_info(2);
+	m_phase[CORRECTOR] = initializePredCorrSequence(step);
+}
 
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::CORRECTOR_END>()
-{ m_phase[CORRECTOR_END] = initializeNextStepSequence(2); }
+{
+	StepInfo step = step_info(2);
+	m_phase[CORRECTOR_END] = initializeNextStepSequence(step);
+}
 
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::FILTER_INTRO>()

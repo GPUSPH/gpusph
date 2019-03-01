@@ -286,10 +286,10 @@ class PredictorCorrector : public Integrator
 
 	// initialize the command sequence for boundary models (one per boundary)
 	template<BoundaryType boundarytype>
-	void initializeBoundaryConditionsSequence(Phase *this_phase, int step_num);
+	void initializeBoundaryConditionsSequence(Phase *this_phase, StepInfo const& step);
 
-	Phase* initializeNextStepSequence(int step_num);
-	Phase* initializePredCorrSequence(int step_num);
+	Phase* initializeNextStepSequence(StepInfo const& step_num);
+	Phase* initializePredCorrSequence(StepInfo const& step_num);
 
 	template<PhaseCode phase>
 	void initializePhase();

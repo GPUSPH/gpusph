@@ -50,6 +50,9 @@
 // Object
 #include "Object.h"
 
+// StepInfo
+#include "command_type.h"
+
 // deprecation macros
 // #include "deprecation.h"
 
@@ -89,7 +92,7 @@ typedef std::map<WriterType, const Writer*> ConstWriterMap;
 struct WriteFlags
 {
 	//! integrator step we're writing at
-	flag_t integrator_step;
+	StepInfo step;
 	//! was this write forced?
 	bool forced_write;
 	//! is this write needed to satisfy a pending hotwrite?
@@ -97,31 +100,31 @@ struct WriteFlags
 
 	inline void clear()
 	{
-		integrator_step = NO_FLAGS;
+		step = StepInfo();
 		forced_write = false;
 		hot_write = false;
 	}
 
 	WriteFlags() :
-		integrator_step(NO_FLAGS),
+		step(),
 		forced_write(false),
 		hot_write(false)
 	{}
 
-	WriteFlags(flag_t step) :
-		integrator_step(step),
+	WriteFlags(StepInfo const& step_) :
+		step(step_),
 		forced_write(true),
 		hot_write(false)
 	{}
 
 	WriteFlags(bool force) :
-		integrator_step(NO_FLAGS),
+		step(),
 		forced_write(force),
 		hot_write(false)
 	{}
 
 	WriteFlags(bool force, bool hot_write) :
-		integrator_step(NO_FLAGS),
+		step(),
 		forced_write(force),
 		hot_write(hot_write)
 	{}

@@ -1886,8 +1886,7 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 	BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset)
 {
-	const int step = get_step_number(cmd.flags);
-	const bool firstStep = (step == 1);
+	const int step = cmd.step.number;
 
 	const BufferList& bufread = buffer_lists.first;
 	BufferList& bufwrite = buffer_lists.second;
@@ -1919,13 +1918,11 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
  */
 GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
 {
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 
 	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 
-	bufwrite.add_manipulator_on_write("pre-forces" + to_string(get_step_number(step_flag)));
+	bufwrite.add_manipulator_on_write("pre-forces" + to_string(cmd.step.number));
 
 	// if we have objects potentially shared across different devices, must reset their forces
 	// and torques to avoid spurious contributions
@@ -1951,8 +1948,6 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
  */
 float GPUWorker::post_forces(CommandStruct const& cmd)
 {
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-
 	forcesEngine->unbind_textures();
 
 	// no reduction for fixed timestep
@@ -2044,8 +2039,6 @@ template<>
 void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 // void GPUWorker::kernel_forces_async_enqueue()
 {
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-
 	if (!cmd.only_internal)
 		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
 
@@ -2122,8 +2115,6 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
 
-	bool firstStep = (cmd.flags & INTEGRATOR_STEP_1);
-
 	if (numPartsToElaborate > 0 ) {
 		// wait for the completion of the kernel
 		cudaDeviceSynchronize();
@@ -2132,13 +2123,10 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 		returned_dt = post_forces(cmd);
 	}
 
-	// gdata->dts is directly used instead of handling dt1 and dt2
-	//printf(" Step %d, bool %d, returned %g, current %g, ",
-	//	gdata->step, firstStep, returned_dt, gdata->dts[devnum]);
-	if (firstStep)
-		gdata->dts[m_deviceIndex] = returned_dt;
-	else
+	if (cmd.step.last)
 		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
+	else
+		gdata->dts[m_deviceIndex] = returned_dt;
 }
 
 
@@ -2146,8 +2134,6 @@ template<>
 void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 // void GPUWorker::kernel_forces()
 {
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-
 	if (!cmd.only_internal)
 		printf("WARNING: forces kernel called with only_internal == false, ignoring flag!\n");
 
@@ -2157,8 +2143,6 @@ void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
-
-	bool firstStep = (cmd.flags & INTEGRATOR_STEP_1);
 
 	const uint fromParticle = 0;
 	const uint toParticle = numPartsToElaborate;
@@ -2175,14 +2159,10 @@ void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 		returned_dt = post_forces(cmd);
 	}
 
-	// gdata->dts is directly used instead of handling dt1 and dt2
-	//printf(" Step %d, bool %d, returned %g, current %g, ",
-	//	gdata->step, firstStep, returned_dt, gdata->dts[devnum]);
-	if (firstStep)
-		gdata->dts[m_deviceIndex] = returned_dt;
-	else
+	if (cmd.step.last)
 		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
-	//printf("set to %g\n",gdata->dts[m_deviceIndex]);
+	else
+		gdata->dts[m_deviceIndex] = returned_dt;
 }
 
 template<>
@@ -2194,9 +2174,7 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
-	const bool firstStep = (step == 1);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
@@ -2236,9 +2214,7 @@ void GPUWorker::runCommand<DENSITY_SUM>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
-	const bool firstStep = (step == 1);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
@@ -2274,9 +2250,7 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
-	const bool firstStep = (step == 1);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
@@ -2312,9 +2286,7 @@ void GPUWorker::runCommand<CALC_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
-	const bool firstStep = (step == 1);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
@@ -2346,9 +2318,7 @@ void GPUWorker::runCommand<APPLY_DENSITY_DIFFUSION>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
-	const bool firstStep = (step == 1);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
@@ -2409,8 +2379,7 @@ void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>(CommandStruct const& 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 
@@ -2562,8 +2531,7 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
@@ -2588,8 +2556,7 @@ void GPUWorker::runCommand<CALC_VISC>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
@@ -2608,8 +2575,7 @@ template<>
 void GPUWorker::runCommand<REDUCE_BODIES_FORCES>(CommandStruct const& cmd)
 // void GPUWorker::kernel_reduceRBForces()
 {
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
+	const int step = cmd.step.number;
 	const string current_state = cmd.src;
 
 	const size_t numforcesbodies = m_simparams->numforcesbodies;
@@ -2649,8 +2615,7 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>(CommandStruct co
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
@@ -2701,8 +2666,7 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct con
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
-	const int step = get_step_number(step_flag);
+	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
@@ -2858,7 +2822,6 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
 	// if (m_deviceIndex == 1) return;
 
-	const flag_t step_flag = cmd.flags & ALL_INTEGRATION_STEPS;
 	const string current_state = cmd.src;
 	const string next_state = cmd.dst;
 

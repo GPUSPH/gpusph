@@ -103,7 +103,7 @@ void VTKWriter::start_writing(double t, WriteFlags const& write_flags)
 	time_repr << setprecision(16) << t;
 	m_current_time = time_repr.str();
 
-	int step_num = get_step_number(write_flags.integrator_step);
+	const int step_num = write_flags.step.number;
 
 	// we append the current integrator step to the timestring,
 	// but we need to add a dot if there isn't one already

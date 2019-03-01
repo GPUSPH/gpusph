@@ -171,6 +171,31 @@ typedef float (*dt_operator_t)(GlobalData const*);
  */
 float undefined_dt(GlobalData const*);
 
+//! Information about the integrator step this command belongs to
+/*! This structure includes information such as the step number,
+ * whether this is the last step or not, etc.
+ */
+struct StepInfo
+{
+	//! Step number
+	/*! Conventionally, -1 is used to mean 'undetermined',
+	 * 0 to indicate the initialization (before entering the main loop)
+	 * and sequential numbers from 1 onwards indicate different steps
+	 * in the integration (e.g. predictor, corrector)
+	 */
+	int number;
+
+	bool last; ///< is this the last step?
+
+	StepInfo(int n = -1) :
+		number(n),
+		last(false)
+	{}
+
+	operator int() const
+	{ return number; }
+};
+
 //! A full command structure
 /*! The distinction between updates and writes specification
  * is that in the updates case the buffer(s) will also be read,
@@ -183,6 +208,7 @@ float undefined_dt(GlobalData const*);
 struct CommandStruct
 {
 	CommandName command; ///< the command
+	StepInfo step; ///< the step this command belongs to
 	std::string src; ///< source state (if applicable)
 	std::string dst; ///< destination state (if applicable)
 	dt_operator_t dt; ///< function to determine the current time-step
@@ -194,6 +220,7 @@ struct CommandStruct
 
 	CommandStruct(CommandName cmd) :
 		command(cmd),
+		step(),
 		src(),
 		dst(),
 		dt(undefined_dt),
@@ -205,6 +232,10 @@ struct CommandStruct
 	{}
 
 	// setters
+
+	CommandStruct& set_step(StepInfo const& step_)
+	{ step = step_ ; return *this; }
+
 	CommandStruct& set_src(std::string const& src_)
 	{ src = src_; return *this; }
 	CommandStruct& set_dst(std::string const& dst_)
