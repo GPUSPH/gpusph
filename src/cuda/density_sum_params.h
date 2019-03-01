@@ -101,30 +101,12 @@ struct common_density_sum_params :
 	{}
 };
 
-struct const_vertpos_params
-{
-	const	float2	* __restrict__ vertPos0;
-	const	float2	* __restrict__ vertPos1;
-	const	float2	* __restrict__ vertPos2;
-
-	const_vertpos_params(const float2 * const* vertPos_ptr) :
-		vertPos0(vertPos_ptr[0]),
-		vertPos1(vertPos_ptr[1]),
-		vertPos2(vertPos_ptr[2])
-	{}
-
-	const_vertpos_params(BufferList const& bufread) :
-		const_vertpos_params(bufread.getRawPtr<BUFFER_VERTPOS>())
-	{}
-
-};
-
 /// Additional parameters passed only to the kernel with BOUNDARY neighbors
 template<flag_t simflags,
 	bool enable_moving = !!(simflags & ENABLE_MOVING_BODIES)>
 struct boundary_density_sum_params :
 	BoundElement_params<false>,
-	const_vertpos_params
+	vertPos_params<false>
 {
 	boundary_density_sum_params(
 		BufferList const&	bufread,
@@ -133,7 +115,7 @@ struct boundary_density_sum_params :
 		// if we have moving boundaries, we want both the old and new boundary elements,
 		// otherwise we know they'll be the same
 		BoundElement_params<false>(bufread, enable_moving ? bufwrite : bufread),
-		const_vertpos_params(bufread)
+		vertPos_params<false>(bufread)
 	{}
 };
 
