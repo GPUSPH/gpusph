@@ -117,6 +117,8 @@ struct boundary_density_sum_params :
 		BoundElement_params<false>(bufread, enable_moving ? bufwrite : bufread),
 		vertPos_params<false>(bufread)
 	{}
+
+	boundary_density_sum_params(boundary_density_sum_params const&) = default;
 };
 
 /// The actual density_sum_params struct, which concatenates all of the above, as appropriate.
@@ -126,12 +128,14 @@ template<KernelType _kerneltype,
 	// if we have open boundaries, we also want the old and new Eulerian velocity
 	// (read-only)
 	typename io_params = typename
-		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, EulerVel_params<false>)
+		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, EulerVel_params<false>),
+	typename boundary_params = typename
+		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params<_simflags>)
 	>
 struct density_sum_params :
 	common_density_sum_params,
 	io_params,
-	COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params<_simflags>)
+	boundary_params
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const ParticleType ntype = _ntype;
@@ -154,8 +158,7 @@ struct density_sum_params :
 		common_density_sum_params(bufread, bufwrite,
 			_numParticles, _dt, _t, _step, _slength, _influenceradius),
 		io_params(bufread, bufwrite),
-		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params<simflags>)
-			(bufread, bufwrite)
+		boundary_params(bufread, bufwrite)
 	{}
 };
 

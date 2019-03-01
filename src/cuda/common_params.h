@@ -115,6 +115,7 @@ struct vertPos_params
 		vertPos_params(bufread.template getRawPtr<BUFFER_VERTPOS>())
 	{}
 
+	vertPos_params(vertPos_params const&) = default;
 };
 
 #endif
