@@ -413,7 +413,8 @@ struct common_segment_pout
 		vel(make_float4(0)),
 		// Gamma always needs to be recomputed when moving bodies are enabled.
 		// If not, we only need to compute if we are at initialisation stage
-		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || Params::step == 0)
+		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || !isfinite(gGam.w)
+				|| Params::step == 0)
 	{
 		if (calcGam)
 			gGam.w = 0;
@@ -1787,6 +1788,7 @@ template<KernelType kerneltype, ParticleType cptype>
 __global__ void
 initGamma(
 						float4*			newGGam,
+				const	float4*			oldGGam,
 				const	float4*			oldPos,
 				const	float4*			boundElement,
 				const	float2*			vertPos0,
@@ -1862,6 +1864,9 @@ initGamma(
 		gam -= gamma_as;
 	}
 
+//	if (cptype == PT_FLUID && newGGam[index].w == newGGam[index].w)
+//		newGGam[index] = oldGGam[index];
+//	else
 	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 }
 

@@ -114,15 +114,18 @@ saSegmentBoundaryConditionsImpl(
 	// and 1 or 2 for the first and second step during integration
 	const	uint			step)
 {
+	int dummy_shared = 0;
+
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
+	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
+
+	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 	const	vertexinfo	*vertices(bufwrite.getConstData<BUFFER_VERTICES>());
 
 	float4	*vel(bufwrite.getData<BUFFER_VEL>());
@@ -131,14 +134,13 @@ saSegmentBoundaryConditionsImpl(
 	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
 	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
 
-	int dummy_shared = 0;
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
 #define SA_SEGMENT_BC_STEP(step) case step: \
@@ -157,12 +159,12 @@ saSegmentBoundaryConditionsImpl(
 	default:
 		throw std::runtime_error("unsupported step");
 	}
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
-	// check if kernel invocation generated an error
-	KERNEL_CHECK_ERROR;
 }
 //! Non-SA case for the implementation of saSegmentBoundaryConditions
 /** In this case, we should never be called, so throw
@@ -443,6 +445,7 @@ saInitGammaImpl(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	float4 *newGGam = bufwrite.getData<BUFFER_GRADGAMMA>();
+	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
 
 	const float4 *oldPos = bufread.getData<BUFFER_POS>();
 	const float4 *boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
@@ -459,6 +462,7 @@ saInitGammaImpl(
 	// execute the kernel for fluid particles
 	cubounds::initGamma<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
+		oldGGam,
 		oldPos,
 		boundelement,
 		vertPos[0],
@@ -477,6 +481,7 @@ saInitGammaImpl(
 	// execute the kernel for vertex particles
 	cubounds::initGamma<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
+		oldGGam,
 		oldPos,
 		boundelement,
 		vertPos[0],

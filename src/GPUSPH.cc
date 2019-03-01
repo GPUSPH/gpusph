@@ -919,7 +919,6 @@ bool GPUSPH::runRepacking() {
 	// run by the GPUWorkers
 
 	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-
 		// compute neighbour list for the first time
 		buildNeibList();
 
@@ -1048,11 +1047,11 @@ bool GPUSPH::runRepacking() {
 			buildNeibList();
 			// In the SA case, gamma needs to be recomputed after
 			// the free-surface boundary has been removed
-			//if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-			//	// re-set density and other values for bound. elements and vertices
-			//	// and set value of gamma for further simulation using the quadrature formula
-			//	saBoundaryConditions(REPACK_STEP);
-			//}
+			if (problem->simparams()->boundarytype == SA_BOUNDARY) {
+				// re-set density and other values for bound. elements and vertices
+				// and set value of gamma for further simulation using the quadrature formula
+				saBoundaryConditions(REPACK_STEP);
+			}
 			// Write the final results
 			check_write(we_are_done);
 
@@ -2604,15 +2603,16 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (gdata->simframework->getBCEngine() == NULL)
 		throw runtime_error("no boundary conditions engine loaded");
 
-	if (cFlag & INITIALIZATION_STEP) {
-	//if (cFlag & INITIALIZATION_STEP || cFlag & REPACK_STEP) {
+	if ((cFlag & INITIALIZATION_STEP) || (cFlag & REPACK_STEP)) {
 
 		// If there is no restart, compute gamma.
 		// In case of repacking, saBoundaryConditions(REPACK_STEP)
 		// is called at the end of the repacking to fix gamma
-		// after the free-surface has been disabled
+		// after the free-surface has been disabled. The resume_fname
+		// variable then contains the name of a repack file that is
+		// going to be used to start the simulation
 		// First, put BOUNDELEMENTS and GRADGAMMA in the WRITE position
-		if (clOptions->resume_fname.empty()) {
+		if (clOptions->resume_fname.empty() || gdata->keep_repacking) {
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
 
 			// Compute normal for vertices
@@ -2693,7 +2693,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (cFlag & INTEGRATOR_STEP_1)
 		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
 
-	if (!(cFlag & INITIALIZATION_STEP)) {// && !(cFlag & REPACK_STEP)) {
+	if (!(cFlag & INITIALIZATION_STEP) && !(cFlag & REPACK_STEP)) {
 		/* SA_CALC_SEGMENT_BOUNDARY_CONDITIONS and SA_CALC_VERTEX_BOUNDARY_CONDITIONS
 		 * get their normals from the READ position, but if we have moving bodies,
 		 * the new normals are in the WRITE position, so swap them */
@@ -2725,13 +2725,13 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 	}
 
-	if	(!(cFlag & INITIALIZATION_STEP)) {// && !(cFlag & REPACK_STEP)) {
+	if (!(cFlag & INITIALIZATION_STEP) && !(cFlag & REPACK_STEP)) {
 		/* Restore normals */
 		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
 			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 	}
 
-	if ((cFlag & INITIALIZATION_STEP)) {// || (cFlag & REPACK_STEP)) {
+	if ((cFlag & INITIALIZATION_STEP) || (cFlag & REPACK_STEP)) {
 		// During the simulation, saBoundaryConditions operates on the WRITE buffers, because it's invoked before the post-compute buffer swap,
 		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is
 		// finished they are expected to be in the READ position, so swap them again:
