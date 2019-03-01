@@ -106,7 +106,6 @@ template<typename EP, ///< euler_param template specialization
 	BoundaryType _boundarytype = EP::boundarytype,
 	typename _ViscSpec = typename EP::ViscSpec,
 	flag_t _simflags = EP::simflags,
-	int _step = EP::step,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _has_eulerVel = EP::has_eulerVel>
 struct euler_particle_data :
@@ -122,7 +121,6 @@ struct euler_particle_data :
 	static const BoundaryType boundarytype = _boundarytype;
 	using ViscSpec = _ViscSpec;
 	static const flag_t simflags = _simflags;
-	static const int step = _step;
 	static const bool has_keps = _has_keps;
 	static const bool has_eulerVel = _has_eulerVel;
 
@@ -149,7 +147,16 @@ __device__ __forceinline__
 void
 standard_corrected_velocity(EP const& params, P &pdata)
 {
-	pdata.velc = pdata.vel + (params.step - 1)*pdata.force*params.half_dt;
+	pdata.velc = pdata.vel;
+
+	/* TODO: the order of the multiplication and division
+	 * has been chosen purely to ensure consistency with the results
+	 * from when we had separate full_dt and half_dt members in params.
+	 * In the future we should reevaluate them in terms of accuracy.
+	 * TODO also verify if precomputing half_dt again on host is worth it.
+	 */
+	if (EP::step == 2)
+		pdata.velc += pdata.force*(params.dt/2);
 }
 template<typename EP, typename P>
 __device__ __forceinline__
@@ -397,8 +404,8 @@ eulerDevice(EP params)
 	if (index >= params.numParticles)
 		return;
 
-	// We use dt/2 on the first step, the actual dt on the second step
-	const float dt = (step == 1) ? params.half_dt : params.full_dt;
+	// this is dt or dt/2, depending on the integrator step
+	const float dt = params.dt;
 
 	euler_particle_data<EP> pdata(index, params);
 

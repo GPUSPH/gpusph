@@ -67,8 +67,7 @@ struct common_density_sum_params
 	const	particleinfo	*info;		///< particle's information
 			float4	*forces;			///< derivative of particle's velocity and density (in/out)
 	const	uint	numParticles;		///< total number of particles
-	const	float	full_dt;			///< time step (dt)
-	const	float	half_dt;			///< half of time step (dt/2)
+	const	float	dt;					///< time step (dt or dt/2 depending on integration phase
 	const	float	t;					///< simulation time
 	const	uint	step;			///< integrator step //parametro template di euler params struttura collettiva
 	const	float	slength;
@@ -88,8 +87,7 @@ struct common_density_sum_params
 		const	particleinfo	*_info,
 				float4		*_forces,
 		const	uint		_numParticles,
-		const	float		_full_dt,
-		const	float		_half_dt,
+		const	float		_dt,
 		const	float		_t,
 		const	uint		_step,
 		const	float		_slength,
@@ -106,8 +104,7 @@ struct common_density_sum_params
 		info(_info),
 		forces(_forces),
 		numParticles(_numParticles),
-		full_dt(_full_dt),
-		half_dt(_half_dt),
+		dt(_dt),
 		t(_t),
 		step(_step),
 		slength(_slength),
@@ -183,8 +180,7 @@ struct density_sum_params :
 		const	particleinfo	*_info,
 				float4		*_forces,
 		const	uint		_numParticles,
-		const	float		_full_dt,
-		const	float		_half_dt,
+		const	float		_dt,
 		const	float		_t,
 		const	uint		_step,
 		const	float		_slength,
@@ -202,7 +198,7 @@ struct density_sum_params :
 		const	float2*		const _vertPos[]) :
 
 		common_density_sum_params(_oldPos, _newPos, _oldVel, _newVel, _oldgGam, _newgGam,
-			_particleHash, _info, _forces, _numParticles, _full_dt, _half_dt, _t, _step, _slength, _influenceradius, _neibsList, _cellStart),
+			_particleHash, _info, _forces, _numParticles, _dt, _t, _step, _slength, _influenceradius, _neibsList, _cellStart),
 		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, io_density_sum_params)
 			(_oldEulerVel, _newEulerVel),
 		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params)
@@ -229,8 +225,7 @@ struct common_dynamic_integrate_gamma_params
 	const	neibdata *__restrict__ neibsList;
 	const	uint	* __restrict__ cellStart;
 	const	uint	particleRangeEnd; ///< max number of particles
-	const	float	full_dt; ///< time step (dt)
-	const	float	half_dt; ///< half of time step (dt/2)
+	const	float	dt; ///< time step (dt or dt/2 depending on integrator step)
 	const	float	t; ///< simulation time
 	const	uint	step; ///< integrator step
 	const	float	slength;
@@ -251,8 +246,7 @@ struct common_dynamic_integrate_gamma_params
 		const	neibdata *__restrict__ _neibsList,
 		const	uint	* __restrict__ _cellStart,
 		const	uint	_particleRangeEnd, ///< max number of particles
-		const	float	_full_dt, ///< time step (dt)
-		const	float	_half_dt, ///< half of time step (dt/2)
+		const	float	_dt, ///< time step (dt or dt/2)
 		const	float	_t, ///< simulation time
 		const	uint	_step, ///< integrator step
 		const	float	_slength,
@@ -274,7 +268,7 @@ struct common_dynamic_integrate_gamma_params
 		neibsList(_neibsList),
 		cellStart(_cellStart),
 		particleRangeEnd(_particleRangeEnd),
-		full_dt(_full_dt), half_dt(_half_dt), t(_t), step(_step),
+		dt(_dt), t(_t), step(_step),
 		slength(_slength), influenceradius(_influenceradius)
 	{}
 
@@ -390,8 +384,7 @@ struct integrate_gamma_params :
 		const	neibdata *__restrict__ _neibsList,
 		const	uint	* __restrict__ _cellStart,
 		const	uint	_particleRangeEnd, ///< max number of particles
-		const	float	_full_dt, ///< time step (dt)
-		const	float	_half_dt, ///< half of time step (dt/2)
+		const	float	_dt, ///< time step (dt or dt/2)
 		const	float	_t, ///< simulation time
 		const	uint	_step, ///< integrator step
 		const	float	_epsilon, ///< epsilon for gamma tolerance
@@ -405,7 +398,7 @@ struct integrate_gamma_params :
 				_vertPos,
 				_neibsList, _cellStart,
 				_particleRangeEnd,
-				_full_dt, _half_dt, _t, _step,
+				_dt, _t, _step,
 				_slength, _influenceradius),
 		dynamic_io_gamma_params(_oldEulerVel, _newEulerVel),
 		quadrature_params(_newPos, _info, _particleHash,

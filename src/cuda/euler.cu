@@ -115,7 +115,6 @@ density_sum_impl(
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -155,7 +154,7 @@ density_sum_impl(
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
 	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
 			oldPos, newPos, oldVel, newVel, oldgGam, newgGam,
-			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
+			particleHash, info, forces, particleRangeEnd, dt, t, step,
 			slength, influenceradius, neibsList, cellStart,
 			oldEulerVel, newEulerVel,
 			NULL, NULL, NULL);
@@ -164,7 +163,7 @@ density_sum_impl(
 
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
 			oldPos, newPos, oldVel, newVel, oldgGam, newgGam,
-			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
+			particleHash, info, forces, particleRangeEnd, dt, t, step,
 			slength, influenceradius, neibsList, cellStart,
 			oldEulerVel, newEulerVel,
 			oldBoundElement, newBoundElement, vertPos);
@@ -190,7 +189,7 @@ density_sum_impl(
 			neibsList,
 			cellStart,
 			particleRangeEnd,
-			dt, dt2, t, step,
+			dt, t, step,
 			epsilon, slength, influenceradius);
 		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
 	} else {
@@ -211,7 +210,6 @@ density_sum_impl(
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -228,7 +226,6 @@ density_sum(
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -237,7 +234,7 @@ density_sum(
 {
 	density_sum_impl<boundarytype>(bufread, bufwrite,
 		numParticles, particleRangeEnd,
-		dt, dt2, step, t, epsilon, slength, influenceradius);
+		dt, step, t, epsilon, slength, influenceradius);
 }
 
 // SFINAE implementation of integrate_gamma
@@ -249,7 +246,6 @@ integrate_gamma_impl(
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -293,7 +289,7 @@ integrate_gamma_impl(
 		bufread.getData<BUFFER_NEIBSLIST>(),
 		bufread.getData<BUFFER_CELLSTART>(),
 		particleRangeEnd,
-		dt, dt2, t, step,
+		dt, t, step,
 		epsilon, slength, influenceradius);
 
 	// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
@@ -320,7 +316,6 @@ integrate_gamma_impl(
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -337,7 +332,6 @@ integrate_gamma(
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -346,7 +340,7 @@ integrate_gamma(
 {
 	integrate_gamma_impl<boundarytype>(bufread, bufwrite,
 		numParticles, particleRangeEnd,
-		dt, dt2, step, t, epsilon, slength, influenceradius);
+		dt, step, t, epsilon, slength, influenceradius);
 }
 
 
@@ -380,7 +374,6 @@ basicstep(
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	slength,
@@ -428,7 +421,7 @@ basicstep(
 	if (step == 1)
 		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
 			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 1>(
-				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
+				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, t,
 				xsph,
 				newEulerVel, newBoundElement, oldEulerVel, oldBoundElement,
 				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
@@ -437,7 +430,7 @@ basicstep(
 	else if (step == 2)
 		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
 			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 2>(
-				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
+				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, t,
 				xsph,
 				newEulerVel, newBoundElement, oldEulerVel, oldBoundElement,
 				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,

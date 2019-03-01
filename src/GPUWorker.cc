@@ -2189,9 +2189,7 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 		bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
-		// TODO should use cmd.dt() here too?
-		gdata->dt, // m_dt,
-		gdata->dt/2.0f, // m_dt/2.0,
+		dt,
 		step,
 		gdata->t + dt,
 		m_simparams->slength,
@@ -2229,9 +2227,7 @@ void GPUWorker::runCommand<DENSITY_SUM>(CommandStruct const& cmd)
 		bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
-		// TODO should use cmd.dt() here too?
-		gdata->dt, // m_dt,
-		gdata->dt/2.0f, // m_dt/2.0,
+		dt,
 		step,
 		gdata->t + dt,
 		m_simparams->epsilon,
@@ -2265,9 +2261,7 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>(CommandStruct const& cmd)
 		bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
-		// TODO should use cmd.dt() here too?
-		gdata->dt, // m_dt,
-		gdata->dt/2.0f, // m_dt/2.0,
+		dt,
 		step,
 		gdata->t + dt,
 		m_simparams->epsilon,

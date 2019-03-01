@@ -65,8 +65,7 @@ struct common_euler_params
 	const	particleinfo	* __restrict__ info;		///< particle's information
 	const	float4	* __restrict__ forces;			///< derivative of particle's velocity and density (in)
 	const	uint	numParticles;			///< total number of particles
-	const	float	full_dt;			///< time step (dt)
-	const	float	half_dt;			///< half of time step (dt/2)
+	const	float	dt;			///< time step (dt or dt/2, depending on integrator step)
 	const	float	t;				///< simulation time
 
 	// Constructor / initializer
@@ -79,8 +78,7 @@ struct common_euler_params
 		const	particleinfo	* __restrict__ _info,
 		const	float4		* __restrict__ _forces,
 		const	uint			_numParticles,
-		const	float		_full_dt,
-		const	float		_half_dt,
+		const	float		_dt,
 		const	float		_t) :
 		newPos(_newPos),
 		newVel(_newVel),
@@ -90,8 +88,7 @@ struct common_euler_params
 		info(_info),
 		forces(_forces),
 		numParticles(_numParticles),
-		full_dt(_full_dt),
-		half_dt(_half_dt),
+		dt(_dt),
 		t(_t)
 	{}
 };
@@ -241,8 +238,7 @@ struct euler_params :
 		const	particleinfo	* __restrict__ _info,
 		const	float4		* __restrict__ _forces,
 		const	uint			_numParticles,
-		const	float		_full_dt,
-		const	float		_half_dt,
+		const	float		_dt,
 		const	float		_t,
 
 		// XSPH
@@ -272,7 +268,7 @@ struct euler_params :
 		const	float	* __restrict__ _DEDt) :
 
 		common_euler_params(_newPos, _newVel, _oldPos, _particleHash,
-			_oldVel, _info, _forces, _numParticles, _full_dt, _half_dt, _t),
+			_oldVel, _info, _forces, _numParticles, _dt, _t),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(_xsph),
 		COND_STRUCT(has_eulerVel, euler_vel_euler_params)(_newEulerVel, _oldEulerVel),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params)

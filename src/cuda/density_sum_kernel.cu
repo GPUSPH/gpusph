@@ -382,8 +382,7 @@ computeDensitySumBoundaryTerms(
  *	\param[out] newEps : updated values of e, for k-e model
  *	\param[in,out] newBoundElement : ??? <- TODO
  *	\param[in] numParticles : total number of particles
- *	\param[in] full_dt  : time step (dt)
- *	\param[in] half_dt : half of time step (dt/2)
+ *	\param[in] dt  : time step (dt or dt/2, depending on the integration step)
  *	\param[in] t : simualation time
  *
  *	\tparam step : integration step (1, 2)
@@ -405,8 +404,8 @@ densitySumVolumicDevice(
 	if (index >= params.numParticles || !FLUID(params.info[index]))
 		return;
 
-	// We use dt/2 on the first step, the actual dt on the second step
-	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
+	// this is either dt or dt/2, depending on the integrator step
+	const float dt = params.dt;
 
 	density_sum_particle_data<kerneltype, PT_FLUID, simflags> pdata(index, params);
 
@@ -487,8 +486,8 @@ densitySumBoundaryDevice(
 	if (index >= params.numParticles || !FLUID(params.info[index]))
 		return;
 
-	// We use dt/2 on the first step, the actual dt on the second step
-	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
+	// this is either dt or dt/2, depending on the integrator step
+	const float dt = params.dt;
 
 	density_sum_particle_data<kerneltype, PT_BOUNDARY, simflags> pdata(index, params);
 
@@ -546,8 +545,8 @@ __device__ __forceinline__
 enable_if_t<USING_DYNAMIC_GAMMA(Params::simflags)>
 integrateGammaDeviceFunc(Params params, uint index)
 {
-	// We use dt/2 on the first step, the actual dt on the second step
-	const float dt = (params.step == 1) ? params.half_dt : params.full_dt;
+	// this is dt or dt/2, depending on the integrator step
+	const float dt = params.dt;
 
 	integrate_gamma_particle_data pdata(index, params);
 
