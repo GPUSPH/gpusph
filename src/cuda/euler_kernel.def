@@ -52,7 +52,7 @@ struct euler_vel_particle_data
 	float4	eulerVel;
 
 	__device__ __forceinline__
-	euler_vel_particle_data(const uint index, euler_vel_euler_params params) :
+	euler_vel_particle_data(const uint index, EulerVel_params<> const& params) :
 		eulerVel(params.oldEulerVel[index])
 	{}
 };
@@ -84,7 +84,7 @@ struct grenier_particle_data
 	float4	vol;
 
 	__device__ __forceinline__
-	grenier_particle_data(const uint index, grenier_euler_params params) :
+	grenier_particle_data(const uint index, Vol_params<> const& params) :
 		vol(params.oldVol[index])
 	{}
 };

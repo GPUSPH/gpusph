@@ -45,6 +45,8 @@
 
 #include "cond_params.h"
 
+#include "common_params.h"
+
 // We now have the tools to assemble the structure that will be used to pass parameters to the euler kernel
 
 /* Now we define structures that hold the parameters to be passed
@@ -55,13 +57,11 @@
 */
 
 /// Parameters common to all forces kernel specializations
-struct common_euler_params
+struct common_euler_params :
+	Pos_params<>,
+	Vel_params<>
 {
-			float4	* __restrict__ newPos;		///< updated particle's position (out)
-			float4	* __restrict__ newVel;			///< updated particle's velocity (out)
-	const	float4	* __restrict__ oldPos;			///< previous particle's position (in)
 	const	hashKey	* __restrict__ particleHash;	///< particle's hash (in)
-	const	float4	* __restrict__ oldVel;			///< previous particle's velocity (in/out)
 	const	particleinfo	* __restrict__ info;		///< particle's information
 	const	float4	* __restrict__ forces;			///< derivative of particle's velocity and density (in)
 	const	uint	numParticles;			///< total number of particles
@@ -76,11 +76,9 @@ struct common_euler_params
 		const	float		_dt,
 		const	float		_t)
 	:
-		newPos(bufwrite.getData<BUFFER_POS>()),
-		newVel(bufwrite.getData<BUFFER_VEL>()),
-		oldPos(bufread.getData<BUFFER_POS>()),
+		Pos_params<>(bufread, bufwrite),
+		Vel_params<>(bufread, bufwrite),
 		particleHash(bufread.getData<BUFFER_HASH>()),
-		oldVel(bufread.getData<BUFFER_VEL>()),
 		info(bufread.getData<BUFFER_INFO>()),
 		forces(bufread.getData<BUFFER_FORCES>()),
 		numParticles(_numParticles),
@@ -98,46 +96,12 @@ struct xsph_euler_params
 	{}
 };
 
-/// Additional parameters passed only to kernels with SA_BOUNDARY
-struct euler_vel_euler_params
-{
-			float4	* __restrict__ newEulerVel;
-	const	float4	* __restrict__ oldEulerVel;
-
-	// Constructor / initializer
-	euler_vel_euler_params(
-		BufferList const&	bufread,
-		BufferList&			bufwrite)
-	:
-		newEulerVel(bufwrite.getData<BUFFER_EULERVEL>()),
-		oldEulerVel(bufread.getData<BUFFER_EULERVEL>())
-	{}
-};
-
-/// Additional parameters passed only to kernels with SA_BOUNDARY and moving objects
-struct sa_boundary_moving_euler_params
-{
-			float4	* __restrict__ newBoundElement;
-	const	float4	* __restrict__ oldBoundElement;
-
-	sa_boundary_moving_euler_params(
-		BufferList const&	bufread,
-		BufferList&			bufwrite)
-	:
-		newBoundElement(bufwrite.getData<BUFFER_BOUNDELEMENTS>()),
-		oldBoundElement(bufread.getData<BUFFER_BOUNDELEMENTS>())
-	{}
-};
-
-
 /// Additional parameters passed only to kernels with KEPSILON
-struct keps_euler_params
+struct keps_euler_params :
+	TKE_params<>, ///< old and new k, for k-e model
+	Eps_params<>  ///< old and new e, for k-emodel
 {
-	float			* __restrict__ newTKE;	///< updated values of k, for k-e model (out)
-	float			* __restrict__ newEps;	///< updated values of e, for k-e model (out)
 	float			* __restrict__ newTurbVisc; ///< updated value of the eddy viscosity (out)
-	const	float	* __restrict__ oldTKE;		///< previous values of k, for k-e model (in)
-	const	float	* __restrict__ oldEps;		///< previous values of e, for k-e model
 	const	float3	* __restrict__ keps_dkde;	///< derivative of ??? (in)
 
 	// Constructor / initializer
@@ -145,37 +109,16 @@ struct keps_euler_params
 		BufferList const&	bufread,
 		BufferList&			bufwrite)
 	:
-		newTKE(bufwrite.getData<BUFFER_TKE>()),
-		newEps(bufwrite.getData<BUFFER_EPSILON>()),
+		TKE_params<>(bufread, bufwrite),
+		Eps_params<>(bufread, bufwrite),
 		newTurbVisc(bufwrite.getData<BUFFER_TURBVISC>()),
-		oldTKE(bufread.getData<BUFFER_TKE>()),
-		oldEps(bufread.getData<BUFFER_EPSILON>()),
 		keps_dkde(bufread.getData<BUFFER_DKDE>())
 	{}
 };
 
-
-/// Additional parameters passed only to kernels with SPH_GRENIER formulation
-struct grenier_euler_params
-{
-			float4	* __restrict__ newVol;			///< updated particle's voume (out)
-	const	float4	* __restrict__ oldVol;			///< previous particle's volume (in)
-
-	// Constructor / initializer
-	grenier_euler_params(
-		BufferList const&	bufread,
-		BufferList&			bufwrite)
-	:
-		newVol(bufwrite.getData<BUFFER_VOLUME>()),
-		oldVol(bufread.getData<BUFFER_VOLUME>())
-	{}
-};
-
 /// Additional parameters passed only to kernels with ENABLE_INTERNAL_ENERGY
-struct energy_euler_params
+struct energy_euler_params : Energy_params<>
 {
-			float	* __restrict__ newEnergy;			///< updated particle's internal energy (out)
-	const	float	* __restrict__ oldEnergy;			///< previous particle's internal energy (in)
 	const	float	* __restrict__ DEDt;				///< internal energy derivative with respect to time (in)
 
 	// Constructor / initializer
@@ -183,8 +126,7 @@ struct energy_euler_params
 		BufferList const&	bufread,
 		BufferList&			bufwrite)
 	:
-		newEnergy(bufwrite.getData<BUFFER_INTERNAL_ENERGY>()),
-		oldEnergy(bufread.getData<BUFFER_INTERNAL_ENERGY>()),
+		Energy_params<>(bufread, bufwrite),
 		DEDt(bufread.getData<BUFFER_INTERNAL_ENERGY_UPD>())
 	{}
 };
@@ -198,16 +140,22 @@ template<KernelType _kerneltype,
 	int _step,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _has_eulerVel =
-		_has_keps || (_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_INLET_OUTLET))
+		_has_keps || (_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_INLET_OUTLET)),
+	typename eulerVel_params = typename
+		COND_STRUCT(_has_eulerVel, EulerVel_params<>),
+	typename sa_boundary_moving_params = typename
+		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES),
+			BoundElement_params<>),
+	typename grenier_params = typename
+		COND_STRUCT(_sph_formulation == SPH_GRENIER, Vol_params<>)
 	>
 struct euler_params :
 	common_euler_params,
 	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_euler_params),
-	COND_STRUCT(_has_eulerVel, euler_vel_euler_params),
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES),
-		sa_boundary_moving_euler_params),
+	eulerVel_params,
+	sa_boundary_moving_params,
 	COND_STRUCT(_has_keps, keps_euler_params),
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_euler_params),
+	grenier_params,
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
@@ -232,11 +180,10 @@ struct euler_params :
 	:
 		common_euler_params(bufread, bufwrite, _numParticles, _dt, _t),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(bufread),
-		COND_STRUCT(has_eulerVel, euler_vel_euler_params)(bufread, bufwrite),
-		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES), sa_boundary_moving_euler_params)
-			(bufread, bufwrite),
+		eulerVel_params(bufread, bufwrite),
+		sa_boundary_moving_params(bufread, bufwrite),
 		COND_STRUCT(has_keps, keps_euler_params)(bufread, bufwrite),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_euler_params)(bufread, bufwrite),
+		grenier_params(bufread, bufwrite),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(bufread, bufwrite)
 	{}
 };
