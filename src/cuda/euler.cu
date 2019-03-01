@@ -125,32 +125,6 @@ density_sum_impl(
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const float4 *oldPos = bufread.getData<BUFFER_POS>();
-	const float4 *newPos = bufwrite.getConstData<BUFFER_POS>();
-
-	const float4  *oldVel = bufread.getData<BUFFER_VEL>();
-	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-
-	const float4 *oldgGam = bufread.getData<BUFFER_GRADGAMMA>();
-	float4 *newgGam = bufwrite.getData<BUFFER_GRADGAMMA>();
-
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-
-	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-
-	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
-	const float4 *newEulerVel = bufwrite.getConstData<BUFFER_EULERVEL>();
-
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-	const float4 *oldBoundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	const float4 *newBoundElement = (simflags & ENABLE_MOVING_BODIES) ?
-		bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
-		oldBoundElement;
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
 	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
 		bufread, bufwrite, particleRangeEnd, dt, t, step, slength, influenceradius);
@@ -171,6 +145,11 @@ density_sum_impl(
 			epsilon, slength, influenceradius);
 		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
 	} else {
+		/* We got them from the buffer lists already, reuse the params structure members.
+		 */
+		const particleinfo *info = volumic_params.info;
+		const float4 *oldgGam = volumic_params.oldgGam;
+			  float4 *newgGam = volumic_params.newgGam;
 		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);
 		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
@@ -234,22 +213,6 @@ integrate_gamma_impl(
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-
-	const particleinfo * info = bufread.getData<BUFFER_INFO>();
-
-	// boundary elements at step n
-	const float4 *oldBoundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	// boundary elements at step n+1, different only if ENABLE_MOVING_BODIES
-	const float4 *newBoundElement = (simflags & ENABLE_MOVING_BODIES) ?
-		bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
-		oldBoundElement;
-
-	// gamma at step n
-	const float4 *oldgGam = bufread.getData<BUFFER_GRADGAMMA>();
-	// gamma at step n+1 (output)
-	float4 *newgGam = bufwrite.getData<BUFFER_GRADGAMMA>();
-
 	integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
 		bufread, bufwrite,
 		particleRangeEnd,
@@ -264,6 +227,11 @@ integrate_gamma_impl(
 		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
 		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
 	} else {
+		/* We got them from the buffer lists already, reuse the params structure members.
+		 */
+		const particleinfo *info = fluid_params.info;
+		const float4 *oldgGam = fluid_params.oldgGam;
+			  float4 *newgGam = fluid_params.newgGam;
 		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);
 		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
