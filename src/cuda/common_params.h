@@ -62,6 +62,7 @@ template<bool writable_new = true> struct member ## _params { \
 		old ## member(bufread.getData<buffer>()), \
 		new ## member(bufwrite.template getData<buffer>()) \
 	{} \
+	member ## _params(member ## _params const&) = default; \
 }
 
 // Pos_params oldPos, newPos

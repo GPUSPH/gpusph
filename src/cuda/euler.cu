@@ -165,21 +165,7 @@ density_sum_impl(
 	if (simflags & ENABLE_MOVING_BODIES) {
 		// VERTEX gamma is always integrated directly
 		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(
-			oldPos, // pos at step n
-			newPos, // pos at step n+1
-			oldVel, // vel at step n
-			newVel, // vel at step n+1
-			info, // particle info
-			particleHash, // particle hash
-			oldgGam,
-			newgGam,
-			oldBoundElement,
-			newBoundElement,
-			oldEulerVel, // eulerian vel at step n
-			newEulerVel, // eulerian vel at step n+1
-			vertPos,
-			neibsList,
-			cellStart,
+			bufread, bufwrite,
 			particleRangeEnd,
 			dt, t, step,
 			epsilon, slength, influenceradius);
@@ -265,21 +251,7 @@ integrate_gamma_impl(
 	float4 *newgGam = bufwrite.getData<BUFFER_GRADGAMMA>();
 
 	integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
-		bufread.getData<BUFFER_POS>(), // pos at step n
-		bufwrite.getConstData<BUFFER_POS>(), // pos at step n+1
-		bufread.getData<BUFFER_VEL>(), // vel at step n
-		bufwrite.getConstData<BUFFER_VEL>(), // vel at step n+1
-		info, // particle info
-		bufread.getData<BUFFER_HASH>(), // particle hash
-		oldgGam,
-		newgGam,
-		oldBoundElement,
-		newBoundElement,
-		bufread.getData<BUFFER_EULERVEL>(), // eulerian vel at step n
-		bufwrite.getConstData<BUFFER_EULERVEL>(), // eulerian vel at step n+1
-		vertPos,
-		bufread.getData<BUFFER_NEIBSLIST>(),
-		bufread.getData<BUFFER_CELLSTART>(),
+		bufread, bufwrite,
 		particleRangeEnd,
 		dt, t, step,
 		epsilon, slength, influenceradius);

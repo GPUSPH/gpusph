@@ -160,21 +160,15 @@ struct density_sum_params :
 };
 
 /// Common params for integrateGammaDevice in the dynamic gamma case
-struct common_dynamic_integrate_gamma_params
+template<flag_t simflags>
+struct common_dynamic_integrate_gamma_params :
+	Pos_params<false>, ///< old (in) and new (in) position
+	Vel_params<false>, ///< old (in) and new (in) position
+	gGam_params<true>, ///< old (in) and new (in/out) gamma and its gradient
+	boundary_density_sum_params<simflags> ///< boundary elements (old and new) and vert pos
 {
-	const	float4	* __restrict__ oldPos; ///< positions at step n
-	const	float4	* __restrict__ newPos; ///< positions at step n+1
-	const	float4	* __restrict__ oldVel; ///< velocities at step n
-	const	float4	* __restrict__ newVel; ///< velocities at step n+1
 	const	particleinfo * __restrict__ info; ///< particle info
 	const	hashKey	* __restrict__ particleHash; ///< particle hash
-	const	float4	* __restrict__ oldgGam; ///< previous gamma and its gradient
-			float4	* __restrict__ newgGam; ///< [out] new gamma and its gradient
-	const	float4	* __restrict__ oldBoundElement; ///< boundary elements at step n
-	const	float4	* __restrict__ newBoundElement; ///< boundary elements at step n+1
-	const	float2	* __restrict__ vertPos0;
-	const	float2	* __restrict__ vertPos1;
-	const	float2	* __restrict__ vertPos2;
 	const	neibdata *__restrict__ neibsList;
 	const	uint	* __restrict__ cellStart;
 	const	uint	particleRangeEnd; ///< max number of particles
@@ -185,19 +179,8 @@ struct common_dynamic_integrate_gamma_params
 	const	float	influenceradius;
 
 	common_dynamic_integrate_gamma_params(
-		const	float4	* __restrict__ _oldPos, ///< positions at step n
-		const	float4	* __restrict__ _newPos, ///< positions at step n+1
-		const	float4	* __restrict__ _oldVel, ///< velocities at step n
-		const	float4	* __restrict__ _newVel, ///< velocities at step n+1
-		const	particleinfo * __restrict__ _info, ///< particle info
-		const	hashKey	* __restrict__ _particleHash, ///< particle hash
-		const	float4	* __restrict__ _oldgGam, ///< previous gamma and its gradient
-				float4	* __restrict__ _newgGam, ///< [out] new gamma and its gradient
-		const	float4	* __restrict__ _oldBoundElement, ///< boundary elements at step n
-		const	float4	* __restrict__ _newBoundElement, ///< boundary elements at step n+1
-		const	float2	* const _vertPos[],
-		const	neibdata *__restrict__ _neibsList,
-		const	uint	* __restrict__ _cellStart,
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
 		const	uint	_particleRangeEnd, ///< max number of particles
 		const	float	_dt, ///< time step (dt or dt/2)
 		const	float	_t, ///< simulation time
@@ -205,21 +188,14 @@ struct common_dynamic_integrate_gamma_params
 		const	float	_slength,
 		const	float	_influenceradius)
 	:
-		oldPos(_oldPos),
-		newPos(_newPos),
-		oldVel(_oldVel),
-		newVel(_newVel),
-		info(_info),
-		particleHash(_particleHash),
-		oldgGam(_oldgGam),
-		newgGam(_newgGam),
-		oldBoundElement(_oldBoundElement),
-		newBoundElement(_newBoundElement),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2]),
-		neibsList(_neibsList),
-		cellStart(_cellStart),
+		Pos_params<false>(bufread, bufwrite),
+		Vel_params<false>(bufread, bufwrite),
+		gGam_params<true>(bufread, bufwrite),
+		boundary_density_sum_params<simflags>(bufread, bufwrite),
+		info(bufread.getData<BUFFER_INFO>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
 		particleRangeEnd(_particleRangeEnd),
 		dt(_dt), t(_t), step(_step),
 		slength(_slength), influenceradius(_influenceradius)
@@ -228,37 +204,18 @@ struct common_dynamic_integrate_gamma_params
 	common_dynamic_integrate_gamma_params(common_dynamic_integrate_gamma_params const&) = default;
 };
 
-/// integrateGammaDevice parameters specific for I/O
-struct io_integrate_gamma_params
-{
-	const float4 * __restrict__ oldEulerVel;
-	const float4 * __restrict__ newEulerVel;
-
-	io_integrate_gamma_params(
-		const float4 * __restrict__ _oldEulerVel,
-		const float4 * __restrict__ _newEulerVel)
-	:
-		oldEulerVel(_oldEulerVel),
-		newEulerVel(_newEulerVel)
-	{}
-
-	io_integrate_gamma_params(io_integrate_gamma_params const&) = default;
-};
-
 /// integrateGammaDevice parameters specific for !USING_DYNAMIC_GAMMA
 /* TODO merge common elements betwene common_dynamic_integrate_gamma_params
  * and quadrature_gamma_params */
-struct quadrature_gamma_params
+template<flag_t simflags, bool has_moving_bodies = !!(simflags & ENABLE_MOVING_BODIES)>
+struct quadrature_gamma_params :
+	gGam_params<true>, ///< old (in) and new (in/out) gamma and its gradient
+	vertPos_params<false>
 {
 	const	float4	* __restrict__ newPos; ///< positions at step n+1
 	const	particleinfo * __restrict__ info; ///< particle info
-	const	hashKey	* __restrict__ particleHash; ///< particle hash
-	const	float4	* __restrict__ oldgGam; ///< previous gamma and its gradient
-			float4	* __restrict__ newgGam; ///< [out] new gamma and its gradient
 	const	float4	* __restrict__ newBoundElement; ///< boundary elements at step n+1
-	const	float2	* __restrict__ vertPos0;
-	const	float2	* __restrict__ vertPos1;
-	const	float2	* __restrict__ vertPos2;
+	const	hashKey	* __restrict__ particleHash; ///< particle hash
 	const	neibdata *__restrict__ neibsList;
 	const	uint	* __restrict__ cellStart;
 	const	uint	particleRangeEnd; ///< max number of particles
@@ -267,30 +224,23 @@ struct quadrature_gamma_params
 	const	float	influenceradius;
 
 	quadrature_gamma_params(
-		const	float4	* __restrict__ _newPos, ///< positions at step n+1
-		const	particleinfo * __restrict__ _info, ///< particle info
-		const	hashKey	* __restrict__ _particleHash, ///< particle hash
-		const	float4	* __restrict__ _oldgGam, ///< previous gamma and its gradient
-				float4	* __restrict__ _newgGam, ///< [out] new gamma and its gradient
-		const	float4	* __restrict__ _newBoundElement, ///< boundary elements at step n+1
-		const	float2	* const *_vertPos,
-		const	neibdata *__restrict__ _neibsList,
-		const	uint	* __restrict__ _cellStart,
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
 		const	uint	_particleRangeEnd, ///< max number of particles
 		const	float	_epsilon,
 		const	float	_slength,
-		const	float	_influenceradius) :
-		newPos(_newPos),
-		info(_info),
-		particleHash(_particleHash),
-		oldgGam(_oldgGam),
-		newgGam(_newgGam),
-		newBoundElement(_newBoundElement),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2]),
-		neibsList(_neibsList),
-		cellStart(_cellStart),
+		const	float	_influenceradius)
+	:
+		gGam_params<true>(bufread, bufwrite),
+		vertPos_params<false>(bufread),
+		newPos(bufwrite.getData<BUFFER_POS>()),
+		info(bufread.getData<BUFFER_INFO>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		newBoundElement(has_moving_bodies ?
+			bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
+			bufread.getData<BUFFER_BOUNDELEMENTS>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
 		particleRangeEnd(_particleRangeEnd),
 		epsilon(_epsilon),
 		slength(_slength),
@@ -304,12 +254,14 @@ struct quadrature_gamma_params
 
 template<ParticleType _cptype, KernelType _kerneltype, flag_t _simflags,
 	bool dynamic = USING_DYNAMIC_GAMMA(_simflags),
+	bool has_io = !!(_simflags & ENABLE_INLET_OUTLET),
 	typename dynamic_gamma_params = typename
-		COND_STRUCT(dynamic, common_dynamic_integrate_gamma_params),
+		COND_STRUCT(dynamic, common_dynamic_integrate_gamma_params<_simflags>),
+	// for open boundaries we also want the old and new Euler vel
 	typename dynamic_io_gamma_params = typename
-		COND_STRUCT(dynamic && (_simflags & ENABLE_INLET_OUTLET), io_integrate_gamma_params),
+		COND_STRUCT(dynamic && has_io, EulerVel_params<false>),
 	typename quadrature_params = typename
-		COND_STRUCT(!dynamic, quadrature_gamma_params)
+		COND_STRUCT(!dynamic, quadrature_gamma_params<_simflags>)
 	>
 struct integrate_gamma_params :
 	dynamic_gamma_params,
@@ -321,21 +273,8 @@ struct integrate_gamma_params :
 	static constexpr flag_t simflags = _simflags;
 
 	integrate_gamma_params(
-		const	float4	* __restrict__ _oldPos, ///< positions at step n
-		const	float4	* __restrict__ _newPos, ///< positions at step n+1
-		const	float4	* __restrict__ _oldVel, ///< velocities at step n
-		const	float4	* __restrict__ _newVel, ///< velocities at step n+1
-		const	particleinfo * __restrict__ _info, ///< particle info
-		const	hashKey	* __restrict__ _particleHash, ///< particle hash
-		const	float4	* __restrict__ _oldgGam, ///< previous gamma and its gradient
-				float4	* __restrict__ _newgGam, ///< [out] new gamma and its gradient
-		const	float4	* __restrict__ _oldBoundElement, ///< boundary elements at step n
-		const	float4	* __restrict__ _newBoundElement, ///< boundary elements at step n+1
-		const	float4	* __restrict__ _oldEulerVel,
-		const	float4	* __restrict__ _newEulerVel,
-		const	float2	* const _vertPos[],
-		const	neibdata *__restrict__ _neibsList,
-		const	uint	* __restrict__ _cellStart,
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
 		const	uint	_particleRangeEnd, ///< max number of particles
 		const	float	_dt, ///< time step (dt or dt/2)
 		const	float	_t, ///< simulation time
@@ -344,19 +283,13 @@ struct integrate_gamma_params :
 		const	float	_slength,
 		const	float	_influenceradius)
 	:
-		dynamic_gamma_params(
-				_oldPos, _newPos, _oldVel, _newVel,
-				_info, _particleHash,
-				_oldgGam, _newgGam, _oldBoundElement, _newBoundElement,
-				_vertPos,
-				_neibsList, _cellStart,
+		dynamic_gamma_params(bufread, bufwrite,
 				_particleRangeEnd,
 				_dt, _t, _step,
 				_slength, _influenceradius),
-		dynamic_io_gamma_params(_oldEulerVel, _newEulerVel),
-		quadrature_params(_newPos, _info, _particleHash,
-			_oldgGam, _newgGam, _newBoundElement, _vertPos,
-			_neibsList, _cellStart, _particleRangeEnd, _epsilon, _slength, _influenceradius)
+		dynamic_io_gamma_params(bufread, bufwrite),
+		quadrature_params(bufread, bufwrite,
+			_particleRangeEnd, _epsilon, _slength, _influenceradius)
 	{}
 
 	/* Constructor from an integrate_gamma_params with different cptype */
