@@ -403,11 +403,9 @@ __device__ __forceinline__
 enable_if_t<Pt::sph_formulation == SPH_F1, float>
 precalc_pressure(Pt const& pdata)
 {
-
-        const float rho = physical_density(pdata);
+	const float rho = physical_density(pdata);
 
 	return pressure_for_precalc(pdata)/(rho*rho);
-
 }
 
 /// Precompute pressure contribution to momentum equation
