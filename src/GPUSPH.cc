@@ -1191,6 +1191,10 @@ bool GPUSPH::runSimulation() {
 		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
 		if (MULTI_NODE)
 			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
+		// to check, later, that the simulation is actually progressing
+		double previous_t = gdata->t;
+		gdata->t += gdata->dt;
+		// buildneibs_freq?
 
 		// choose minimum dt among the devices
 		if (gdata->dtadapt) {
@@ -1209,11 +1213,6 @@ bool GPUSPH::runSimulation() {
 			fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
 			gdata->quit_request = true;
 		}
-
-		// store previous time to check that the simulation is actually progressing
-		double previous_t = gdata->t;
-		// increase the simulation time
-		gdata->t += gdata->dt;
 
 		// check that dt is not too small (relative to t)
 		if (gdata->t == previous_t) {
@@ -2860,7 +2859,6 @@ void GPUSPH::check_write(bool we_are_done)
 				}
 				if (force_write || maxfreq > 0) {
 					printStatus();
-
 					m_intervalPerformanceCounter->restart();
 				}
 			}

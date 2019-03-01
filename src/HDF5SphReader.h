@@ -12,12 +12,6 @@
 
 #include "Reader.h"
 
-// Name of dataset_id to create in loc_id
-#define DATASETNAME "Compound"
-
-// Dataset dimensions
-#define D_RANK 1
-
 class HDF5SphReader : public Reader
 {
 public:
@@ -26,8 +20,6 @@ public:
 
 	// allocates the buffer and reads the data from the h5sph file
 	void read(void) override;
-
-	static int createType();
 };
 
 #endif

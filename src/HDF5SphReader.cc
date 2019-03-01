@@ -22,6 +22,12 @@
 
 #include "HDF5SphReader.h"
 
+// Name of dataset_id to create in loc_id
+#define DATASETNAME "Compound"
+
+// Dataset dimensions
+#define RANK 1
+
 using namespace std;
 
 size_t
@@ -53,10 +59,29 @@ HDF5SphReader::getNParts()
 #endif
 }
 
-int
-HDF5SphReader::createType() 
+void
+HDF5SphReader::read()
 {
-	int mem_type_id = H5Tcreate (H5T_COMPOUND, sizeof(ReadParticles));
+#if USE_HDF5
+	// read npart if it was yet uninitialized
+	if (npart == UINT_MAX)
+		getNParts();
+	cout << "Reading particle data from the input: " << filename << endl;
+	if(buf == NULL)
+		buf = new ReadParticles[npart];
+	else{
+		delete [] buf;
+		buf = new ReadParticles[npart];
+	}
+	hid_t		mem_type_id, loc_id, dataset_id, file_space_id, mem_space_id;
+	hsize_t		count[RANK], offset[RANK];
+	herr_t		status;
+
+	loc_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, H5P_DEFAULT);
+	dataset_id = H5Dopen2(loc_id, DATASETNAME, H5P_DEFAULT);
+
+	// Create the memory data type
+	mem_type_id = H5Tcreate (H5T_COMPOUND, sizeof(ReadParticles));
 	H5Tinsert(mem_type_id, "Coords_0"       , HOFFSET(ReadParticles, Coords_0),        H5T_NATIVE_DOUBLE);
 	H5Tinsert(mem_type_id, "Coords_1"       , HOFFSET(ReadParticles, Coords_1),        H5T_NATIVE_DOUBLE);
 	H5Tinsert(mem_type_id, "Coords_2"       , HOFFSET(ReadParticles, Coords_2),        H5T_NATIVE_DOUBLE);
@@ -73,37 +98,11 @@ HDF5SphReader::createType()
 	H5Tinsert(mem_type_id, "VertexParticle1", HOFFSET(ReadParticles, VertexParticle1), H5T_NATIVE_INT);
 	H5Tinsert(mem_type_id, "VertexParticle2", HOFFSET(ReadParticles, VertexParticle2), H5T_NATIVE_INT);
 	H5Tinsert(mem_type_id, "VertexParticle3", HOFFSET(ReadParticles, VertexParticle3), H5T_NATIVE_INT);
-	return mem_type_id;
-}
-
-void
-HDF5SphReader::read()
-{
-#if USE_HDF5
-	// read npart if it was yet uninitialized
-	if (npart == UINT_MAX)
-		getNParts();
-	cout << "Reading particle data from the input: " << filename << endl;
-	if(buf == NULL)
-		buf = new ReadParticles[npart];
-	else{
-		delete [] buf;
-		buf = new ReadParticles[npart];
-	}
-	hid_t		mem_type_id, loc_id, dataset_id, file_space_id, mem_space_id;
-	hsize_t		count[D_RANK], offset[D_RANK];
-	herr_t		status;
-
-	loc_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, H5P_DEFAULT);
-	dataset_id = H5Dopen2(loc_id, DATASETNAME, H5P_DEFAULT);
-
-	// Create the memory data type
-	mem_type_id = createType();
 
 	//create a memory file_space_id independently
 	count[0] = npart;
 	offset[0] = 0;
-	mem_space_id = H5Screate_simple (D_RANK, count, NULL);
+	mem_space_id = H5Screate_simple (RANK, count, NULL);
 
 	// set up dimensions of the slab this process accesses
 	file_space_id = H5Dget_space(dataset_id);
