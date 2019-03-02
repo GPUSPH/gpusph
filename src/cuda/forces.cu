@@ -714,36 +714,9 @@ basicstep(
 	const	float	dt,
 	const	bool compute_object_forces)
 {
-	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-	float4 *xsph = bufwrite.getData<BUFFER_XSPH>();
-
-	// TODO FIXME temporary k-eps needs TAU only for temporary storage
-	// across the split kernel calls in forces
-	float2 **tau = bufwrite.getRawPtr<BUFFER_TAU>();
-
-	float3 *keps_dkde = bufwrite.getData<BUFFER_DKDE>();
-	float *DEDt = bufwrite.getData<BUFFER_INTERNAL_ENERGY_UPD>();
-
-	const float4 *volume = bufread.getData<BUFFER_VOLUME>();
-	const float *sigma = bufread.getData<BUFFER_SIGMA>();
-
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
-	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
-	if (keps_dkde) {
-		// KEPS buffers need to be cleared too, as they will be built progressively
-		CUDA_SAFE_CALL(cudaMemset(keps_dkde + fromParticle, 0, numParticlesInRange*sizeof(float3)));
-		// TODO tau currently is reset in KEPSILON, but must NOT be reset if SPS
-		// ideally tau should be computed in its own kernel in the KEPSILON case too
-		CUDA_SAFE_CALL(cudaMemset(tau[0] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
-		CUDA_SAFE_CALL(cudaMemset(tau[1] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
-		CUDA_SAFE_CALL(cudaMemset(tau[2] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
-	}
-	if (DEDt) {
-		CUDA_SAFE_CALL(cudaMemset(DEDt + fromParticle, 0, numParticlesInRange*sizeof(float)));
-	}
-
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;

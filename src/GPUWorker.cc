@@ -110,7 +110,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_POS>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_VEL>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_INFO>();
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>(0);
 
 	if (m_simparams->numforcesbodies) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_FORCES>(0);
@@ -130,14 +130,14 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
 	if (m_simparams->simflags & ENABLE_XSPH)
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
 
 	// If the user enabled a(n actual) turbulence model, enable BUFFER_TAU, to
 	// store the shear stress tensor.
 	// TODO FIXME temporary: k-eps needs TAU only for temporary storage
 	// across the split kernel calls in forces
 	if (m_simparams->turbmodel > ARTIFICIAL)
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TAU>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TAU>(0);
 
 	if (m_simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NORMALS>();
@@ -164,7 +164,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TKE>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EPSILON>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TURBVISC>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DKDE>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DKDE>(0);
 	}
 
 	if (m_simparams->turbmodel == SPS) {
@@ -193,7 +193,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simparams->simflags & ENABLE_INTERNAL_ENERGY) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>(0);
 	}
 
 	// all workers begin with an "initial upload” state in their particle system,
@@ -1928,6 +1928,24 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
 	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("pre-forces" + to_string(cmd.step.number));
+
+
+	// clear out the buffers computed by forces
+	bufwrite.get<BUFFER_FORCES>()->clobber();
+
+	if (m_simparams->simflags & ENABLE_XSPH)
+		bufwrite.get<BUFFER_XSPH>()->clobber();
+
+	if (m_simparams->turbmodel == KEPSILON) {
+		bufwrite.get<BUFFER_DKDE>()->clobber();
+		// TODO tau currently is reset in KEPSILON, but must NOT be reset if SPS
+		// ideally tau should be computed in its own kernel in the KEPSILON case too
+		bufwrite.get<BUFFER_TAU>()->clobber();
+	}
+
+	if (m_simparams->simflags & ENABLE_INTERNAL_ENERGY) {
+		bufwrite.get<BUFFER_INTERNAL_ENERGY_UPD>()->clobber();
+	}
 
 	// if we have objects potentially shared across different devices, must reset their forces
 	// and torques to avoid spurious contributions
