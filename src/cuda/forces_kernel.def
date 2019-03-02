@@ -96,6 +96,9 @@ constexpr bool
 needs_gamma_cfl()
 {
 	return
+		FP::boundarytype == SA_BOUNDARY && // only needed with SA
+		// only computed when fluid interacts with boundary
+		FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY &&
 		USING_DYNAMIC_GAMMA(FP::simflags) && // only needed when using dynamic gamma
 		(FP::simflags & ENABLE_DTADAPT); // with adaptive time-stepping
 }
@@ -1261,7 +1264,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype == SA_BOUNDARY &&
-	FP::cptype == PT_FLUID
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
 >
 compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1272,7 +1275,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype != SA_BOUNDARY ||
-	FP::cptype != PT_FLUID
+	FP::cptype != PT_FLUID || FP::nptype != PT_BOUNDARY
 >
 compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
@@ -2674,6 +2677,45 @@ struct forces_shared_data :
  * the function that computes all of the contributions from a neighbor to the central particle
  */
 
+/// Reference implementation
+/**! This is the particle-particle computation implementation that includes
+ * all contributions,and is used for fluid/fluid interaction as well as several
+ * fluid/boundary interactions. Which of the contributions actually does anything
+ * depends on the specific SFINAE of the individual contribution
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+void
+compute_all_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	// Compute gamma_as and |grad gamma_as| and add it to the respective values
+	// of the focal particle
+	compute_gamma_gradient(params, pdata, ndata, pout, nout);
+
+	compute_density_derivative(params, pdata, ndata, pout, nout);
+
+	// Compute pressure part of acceleration
+	compute_pressure_contrib(params, pdata, ndata, pout, nout);
+
+	// Compute viscous forces
+	compute_viscous_contrib(params, pdata, ndata, pout, nout);
+
+	// Compute diffusion terms for k-epsilon and the strain rate tensor
+	compute_keps_term(params, pdata, ndata, pout, nout);
+
+	// Compute gamma CFL
+	compute_gamma_cfl(params, pdata, ndata, pout, nout);
+
+	// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
+	compute_mean_vel(params, pdata, ndata, pout, nout);
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy(params, pdata, ndata, pout, nout);
+}
+
 /*
  * Fluid central, fluid neighbors
  */
@@ -2686,25 +2728,7 @@ __device__ __forceinline__
 enable_if_t<FP::cptype == PT_FLUID && FP::nptype == PT_FLUID>
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	compute_density_derivative(params, pdata, ndata, pout, nout);
-
-	// Compute pressure part of acceleration
-	compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute viscous forces
-	compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute diffusion terms for k-epsilon and the strain rate tensor
-	compute_keps_term(params, pdata, ndata, pout, nout);
-
-	// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
-	compute_mean_vel(params, pdata, ndata, pout, nout);
-
-	// Sum all contributions from the neighbors in the force array
-	as_float3(pout.force) += nout.DvDt;
-
-	// Summ all internal energy contributions from the neighbors
-	add_internal_energy(params, pdata, ndata, pout, nout);
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
 /*
@@ -2807,7 +2831,8 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 /// Particle-particle interaction
 /** Specialization in case of boundary neighbors to fluid particles,
  * with DYN_BOUNDARY model. In this case the interaction is the same
- * as fluid/fluid, except that XSPH contribution is not considered.
+ * as fluid/fluid, except that XSPH contribution is not considered
+ * (but this is excluded by having compute_mean_vel do nothing for the fluid/boundary case)
  * TODO: check if we need to compute the mean vel for XSPH including the boundary particles
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -2818,28 +2843,13 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	compute_density_derivative(params, pdata, ndata, pout, nout);
-
-	// Compute pressure part of acceleration
-	compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute viscous forces
-	compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute diffusion terms for k-epsilon and the strain rate tensor
-	compute_keps_term(params, pdata, ndata, pout, nout);
-	// TODO : implement keps for dynamic boundaries
-
-	// Sum all contributions from the neighbors in the force array
-	as_float3(pout.force) += nout.DvDt;
-
-	// Summ all internal energy contributions from the neighbors
-	add_internal_energy(params, pdata, ndata, pout, nout);
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
 /// Particle-particle interaction
 /** Specialization in case of boundary neighbors to fluid particles,
  * with SA_BOUNDARY model.
+ * This takes all contributions into account too.
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
@@ -2849,29 +2859,7 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	// Compute gamma_as and |grad gamma_as| and add it to the respective values
-	// of the focal particle
-	compute_gamma_gradient(params, pdata, ndata, pout, nout);
-
-	compute_density_derivative(params, pdata, ndata, pout, nout);
-
-	// Compute pressure part of acceleration
-	compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute viscous forces
-	compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute diffusion terms for k-epsilon and the strain rate tensor
-	compute_keps_term(params, pdata, ndata, pout, nout);
-
-	// Compute gamma CFL
-	compute_gamma_cfl(params, pdata, ndata, pout, nout);
-
-	// Sum all contributions from the neighbors in the force array
-	as_float3(pout.force) += nout.DvDt;
-
-	// Summ all internal energy contributions from the neighbors
-	add_internal_energy(params, pdata, ndata, pout, nout);
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
 /*
@@ -2931,22 +2919,7 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	compute_density_derivative(params, pdata, ndata, pout, nout);
-
-	// Compute pressure part of acceleration
-	compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute viscous forces
-	compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute diffusion terms for k-epsilon and the strain rate tensor
-	compute_keps_term(params, pdata, ndata, pout, nout);
-
-	// Sum all contributions from the neighbors in the force array
-	as_float3(pout.force) += nout.DvDt;
-
-	// Summ all internal energy contributions from the neighbors
-	add_internal_energy(params, pdata, ndata, pout, nout);
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
 /************************************************************************************************************/
