@@ -997,11 +997,16 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		else if (key == BUFFER_CFL_TEMP)
 			nels = tempCflEls;
 		else if (key & BUFFERS_CFL) { // other CFL buffers
-			// TODO presently CFL_GAMMA has one entry per particle in addition to one per block,
-			// see also clear_cfl in forces for further information.
+			// TODO FIXME BUFFER_CFL_GAMMA needs to be as large as the whole system,
+			// because it's updated progressively across split forces calls. We could
+			// do with sizing it just like that, but then during the finalizeforces
+			// reductions with striping we would risk overwriting some of the data.
+			// To solve this, we size it as the _sum_ of the two, and will use
+			// the first numAllocatedParticles for the split-force-calls accumulation,
+			// and the remaining fmaxElements for the finalize.
 			// this should be improved
 			if (key == BUFFER_CFL_GAMMA)
-				nels += fmaxElements;
+				nels = round_up(nels, size_t(4)) + fmaxElements;
 			else
 				nels = fmaxElements;
 		}
@@ -1931,8 +1936,14 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
 		bufwrite.get<BUFFER_RB_TORQUES>()->clobber();
 	}
 
-	if (m_simparams->simflags & ENABLE_DTADAPT)
-		forcesEngine->clear_cfl(bufwrite, m_numAllocatedParticles);
+	if (m_simparams->simflags & ENABLE_DTADAPT) {
+		bufwrite.get<BUFFER_CFL>()->clobber();
+		bufwrite.get<BUFFER_CFL_TEMP>()->clobber();
+		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
+			bufwrite.get<BUFFER_CFL_GAMMA>()->clobber();
+		if (m_simparams->turbmodel == KEPSILON)
+			bufwrite.get<BUFFER_CFL_KEPS>()->clobber();
+	}
 
 	bufwrite.clear_pending_state();
 

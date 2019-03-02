@@ -93,11 +93,6 @@ public:
 	bind_textures(const BufferList& bufread,
 		uint	numParticles) = 0;
 
-	/// Reset the CFL buffers before each group of forces kernel calls
-	virtual void
-	clear_cfl(BufferList& bufwrite,
-		uint	numAllocatedParticles) = 0;
-
 	/// Unbind the textures after the forces kernel execution
 	virtual void
 	unbind_textures() = 0;

@@ -641,41 +641,6 @@ compute_density_diffusion(
 
 }
 
-// Clear the CFL buffers
-// TODO maybe we should clear forces here too?
-void clear_cfl(BufferList& bufwrite, uint numAllocatedParticles)
-{
-	const uint fmaxElements = getFmaxElements(numAllocatedParticles);
-	const uint tempCflEls = getFmaxTempElements(fmaxElements);
-	const size_t fmax_size = fmaxElements*sizeof(float);
-	const size_t tempCfl_size = tempCflEls*sizeof(float);
-	// TODO FIXME BUFFER_CFL_GAMMA needs to be as large as the whole system,
-	// because it's updated progressively across split forces calls. We could
-	// do with sizing it just like that, but then during the finalizeforces
-	// reductions with striping we would risk overwriting some of the data.
-	// To solve this, we size it as the _sum_ of the two, and will use
-	// the first numAllocatedParticles for the split-force-calls accumulation,
-	// and the remaining fmaxElements for the finalize
-	const size_t cflGamma_size = (round_up(numAllocatedParticles, 4U) + fmaxElements)*sizeof(float);
-
-	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
-	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
-	float *cfl_keps = bufwrite.getData<BUFFER_CFL_KEPS>();
-	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
-
-	// Clear the CFL buffers by setting all bits to 1 (i.e. NAN)
-	int val = ~0;
-
-	// these are always here
-	CUDA_SAFE_CALL(cudaMemset(cfl_forces, val, fmax_size));
-	CUDA_SAFE_CALL(cudaMemset(tempCfl, val, tempCfl_size));
-
-	if (cfl_gamma)
-		CUDA_SAFE_CALL(cudaMemset(cfl_gamma, val, cflGamma_size));
-	if (cfl_keps)
-		CUDA_SAFE_CALL(cudaMemset(cfl_keps, val, fmax_size));
-}
-
 /* forcesDevice kernel calls that involve vertex particles
  * are factored out here in this separate member function, that
  * does nothing in the non-SA_BOUNDARY case
