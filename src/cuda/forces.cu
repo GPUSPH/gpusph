@@ -749,33 +749,14 @@ basicstep(
 	const	float	dt,
 	const	bool compute_object_forces)
 {
-	const float4 *pos = bufread.getData<BUFFER_POS>();
-	const float4 *vel = bufread.getData<BUFFER_VEL>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
-	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
-
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-	float4 *rbforces = bufwrite.getData<BUFFER_RB_FORCES>();
-	float4 *rbtorques = bufwrite.getData<BUFFER_RB_TORQUES>();
 	float4 *xsph = bufwrite.getData<BUFFER_XSPH>();
-
-	const float *turbvisc = bufread.getData<BUFFER_TURBVISC>();
 
 	// TODO FIXME temporary k-eps needs TAU only for temporary storage
 	// across the split kernel calls in forces
 	float2 **tau = bufwrite.getRawPtr<BUFFER_TAU>();
 
 	float3 *keps_dkde = bufwrite.getData<BUFFER_DKDE>();
-	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
-	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
-	float *cfl_keps = bufwrite.getData<BUFFER_CFL_KEPS>();
-	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
 	float *DEDt = bufwrite.getData<BUFFER_INTERNAL_ENERGY_UPD>();
 
 	const float4 *volume = bufread.getData<BUFFER_VOLUME>();
@@ -812,82 +793,57 @@ basicstep(
 	#endif
 
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_FLUID> params_ff(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
-
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
-
-
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
-
+		bufread, bufwrite,
+		fromParticle, toParticle,
+		deltap, slength, influenceradius, step, dt,
+		epsilon,
+		IOwaterdepth);
 
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
 	{
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_VERTEX> params_fv(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			bufread, bufwrite,
+			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
+			epsilon,
+			IOwaterdepth);
 
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_VERTEX, PT_FLUID> params_vf(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			bufread, bufwrite,
+			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
+			epsilon,
+			IOwaterdepth);
 
 		vertex_forces(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
 	}
 
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+		bufread, bufwrite,
+		fromParticle, toParticle,
+		deltap, slength, influenceradius, step, dt,
+		epsilon,
+		IOwaterdepth);
+
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
+	if (compute_object_forces || (boundarytype == DYN_BOUNDARY)) {
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+			bufread, bufwrite,
+			fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			epsilon,
+			IOwaterdepth);
 
-	if (compute_object_forces || (boundarytype == DYN_BOUNDARY))
 		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
+	}
 
 	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
-			forces, rbforces, rbtorques,
-			pos, vel, particleHash, cellStart, numParticles, fromParticle, toParticle, slength,
-			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
-			sigma,
-			oldGGam,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau, DEDt);
+			bufread, bufwrite,
+			numParticles, fromParticle, toParticle, slength,
+			cflOffset,
+			IOwaterdepth);
 
 	cuforces::finalizeforcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
 

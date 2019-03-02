@@ -560,7 +560,7 @@ struct grenier_finalize_particle_data
 
 	__device__ __forceinline__
 	grenier_finalize_particle_data(const uint index,
-		grenier_finalize_forces_params const& params) :
+		grenier_forces_params const& params) :
 		sigma(params.sigmaArray[index])
 	{}
 };

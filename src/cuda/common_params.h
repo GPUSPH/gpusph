@@ -123,4 +123,29 @@ struct vertPos_params
 	vertPos_params(vertPos_params const&) = default;
 };
 
+template<bool writable = true>
+struct tau_params
+{
+	using type = writable_type<writable, float2>;
+	using src_ptr_type = typename std::conditional<writable,
+		float2 **, const float2 * const *>::type;
+	using src_buf_type = writable_type<writable, BufferList>;
+
+	type* __restrict__ tau0;
+	type* __restrict__ tau1;
+	type* __restrict__ tau2;
+
+	tau_params(src_ptr_type tau_ptr) :
+		tau0(tau_ptr[0]),
+		tau1(tau_ptr[1]),
+		tau2(tau_ptr[2])
+	{}
+
+	tau_params(src_buf_type& bufread) :
+		tau_params(bufread.template getRawPtr<BUFFER_TAU>())
+	{}
+
+	tau_params(tau_params const&) = default;
+};
+
 #endif
