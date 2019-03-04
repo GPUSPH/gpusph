@@ -222,11 +222,19 @@ protected:
 
 	Phase* enter_phase(size_t phase_idx);
 
-	// Move on to the next phase
-	// Derived classes should override this to properly implement
-	// transition to different phases
+	//! Move on to the next phase
+	//! Derived classes should override this to properly implement
+	//! transition to different phases
 	virtual Phase* next_phase()
 	{ return enter_phase(m_phase_idx + 1); }
+
+	//! Define the standard neighbors list construction phase.
+	//! It's then up to the individual integrators to put it in the
+	//! correct place of the sequence
+	Phase * buildNeibsPhase();
+
+	// TODO we should move here phase generators that are common between (most)
+	// integrators
 
 public:
 
