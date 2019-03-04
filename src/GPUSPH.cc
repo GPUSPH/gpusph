@@ -673,6 +673,35 @@ bool GPUSPH::runSimulation() {
 	return true;
 }
 
+// Finalize the computation of the total force and torque acting on moving bodies
+// Add up the partial reductions obtained for each device
+template<>
+void GPUSPH::runCommand<REDUCE_BODIES_FORCES_HOST>(CommandStruct const& cmd)
+{
+	const size_t numforcesbodies = problem->simparams()->numforcesbodies;
+
+	// Now sum up the partial forces and momentums computed in each gpu
+	if (MULTI_GPU) {
+		for (uint ob = 0; ob < numforcesbodies; ob ++) {
+			gdata->s_hRbTotalForce[ob] = make_float3( 0.0f );
+			gdata->s_hRbTotalTorque[ob] = make_float3( 0.0f );
+
+			for (uint d = 0; d < gdata->devices; d++) {
+				gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d*numforcesbodies + ob];
+				gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d*numforcesbodies + ob];
+			} // Iterate on devices
+		} // Iterate on objects on which we compute forces
+	}
+
+	// if running multinode, also reduce across nodes
+	if (MULTI_NODE) {
+		// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+		gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numforcesbodies, SUM_REDUCTION);
+		gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numforcesbodies, SUM_REDUCTION);
+	}
+
+}
+
 
 template<>
 void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
@@ -688,31 +717,15 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 		// We have to reduce forces and torques only on bodies which requires it
 		const size_t numforcesbodies = problem->simparams()->numforcesbodies;
 		if (numforcesbodies > 0) {
-			const CommandStruct reduce_cmd = CommandStruct(REDUCE_BODIES_FORCES)
+			const CommandStruct reduce_cmd_dev = CommandStruct(REDUCE_BODIES_FORCES)
+				.set_step(cmd.step)
+				.set_src(cmd.src);
+			const CommandStruct reduce_cmd_host = CommandStruct(REDUCE_BODIES_FORCES_HOST)
 				.set_step(cmd.step)
 				.set_src(cmd.src);
 
-			doCommand(reduce_cmd);
-
-			// Now sum up the partial forces and momentums computed in each gpu
-			if (MULTI_GPU) {
-				for (uint ob = 0; ob < numforcesbodies; ob ++) {
-					gdata->s_hRbTotalForce[ob] = make_float3( 0.0f );
-					gdata->s_hRbTotalTorque[ob] = make_float3( 0.0f );
-
-					for (uint d = 0; d < gdata->devices; d++) {
-						gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d*numforcesbodies + ob];
-						gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d*numforcesbodies + ob];
-					} // Iterate on devices
-				} // Iterate on objects on which we compute forces
-			}
-
-			// if running multinode, also reduce across nodes
-			if (MULTI_NODE) {
-				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
-				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numforcesbodies, SUM_REDUCTION);
-				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numforcesbodies, SUM_REDUCTION);
-			}
+			doCommand(reduce_cmd_dev);
+			doCommand(reduce_cmd_host);
 
 			/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
 			memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numforcesbodies*sizeof(float3));

@@ -62,6 +62,11 @@ DEFINE_COMMAND_NOBUF(TIME_STEP_PRELUDE)
 /// End an integrator time-step
 DEFINE_COMMAND_NOBUF(TIME_STEP_EPILOGUE)
 
+/// Complete the computation of the total force acting on moving bodies
+/*! Additional reduction steps needed in the multi-GPU and multi-host cases
+ */
+DEFINE_COMMAND_NOBUF(REDUCE_BODIES_FORCES_HOST)
+
 /// Move bodies
 /*! Determine new position and velocities for moving bodies
  * (eiter as prescribed by the problem, or by interaction with
