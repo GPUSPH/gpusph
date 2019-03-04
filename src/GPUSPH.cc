@@ -702,6 +702,22 @@ void GPUSPH::runCommand<REDUCE_BODIES_FORCES_HOST>(CommandStruct const& cmd)
 
 }
 
+/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
+template<>
+void GPUSPH::runCommand<BODY_FORCES_CALLBACK>(CommandStruct const& cmd)
+{
+	const int step = cmd.step.number;
+	const float dt = cmd.dt(gdata);
+
+	const size_t numforcesbodies = problem->simparams()->numforcesbodies;
+
+	memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numforcesbodies*sizeof(float3));
+	memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numforcesbodies*sizeof(float3));
+
+	double t0 = gdata->t;
+	double t1 = t0 + dt;;
+	problem->bodies_forces_callback(t0, t1, step, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
+}
 
 template<>
 void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
@@ -727,13 +743,11 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 			doCommand(reduce_cmd_dev);
 			doCommand(reduce_cmd_host);
 
-			/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
-			memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numforcesbodies*sizeof(float3));
-			memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numforcesbodies*sizeof(float3));
+			const CommandStruct problem_callback = CommandStruct(BODY_FORCES_CALLBACK)
+				.set_step(cmd.step)
+				.set_dt(cmd.dt);
 
-			double t0 = gdata->t;
-			double t1 = t0 + dt;;
-			problem->bodies_forces_callback(t0, t1, step, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
+			doCommand(problem_callback);
 		}
 
 		// Let the problem compute the new moving bodies data

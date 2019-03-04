@@ -67,6 +67,9 @@ DEFINE_COMMAND_NOBUF(TIME_STEP_EPILOGUE)
  */
 DEFINE_COMMAND_NOBUF(REDUCE_BODIES_FORCES_HOST)
 
+/// Problem-specific body forces callback
+DEFINE_COMMAND_NOBUF(BODY_FORCES_CALLBACK)
+
 /// Move bodies
 /*! Determine new position and velocities for moving bodies
  * (eiter as prescribed by the problem, or by interaction with
