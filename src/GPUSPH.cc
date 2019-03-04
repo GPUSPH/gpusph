@@ -728,46 +728,15 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 
 	const float dt = cmd.dt(gdata);
 
-	// Get moving bodies data (position, linear and angular velocity ...)
-	if (problem->simparams()->numbodies > 0) {
-		// We have to reduce forces and torques only on bodies which requires it
-		const size_t numforcesbodies = problem->simparams()->numforcesbodies;
-		if (numforcesbodies > 0) {
-			const CommandStruct reduce_cmd_dev = CommandStruct(REDUCE_BODIES_FORCES)
-				.set_step(cmd.step)
-				.set_src(cmd.src);
-			const CommandStruct reduce_cmd_host = CommandStruct(REDUCE_BODIES_FORCES_HOST)
-				.set_step(cmd.step)
-				.set_src(cmd.src);
+	// Let the problem compute the new moving bodies data
+	// TODO we pass step and gdata->dt, should be pass step and dt (which is already halved if necessary)?
+	// instead?
+	problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t,
+		gdata->s_hRbCgGridPos, gdata->s_hRbCgPos,
+		gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
-			doCommand(reduce_cmd_dev);
-			doCommand(reduce_cmd_host);
-
-			const CommandStruct problem_callback = CommandStruct(BODY_FORCES_CALLBACK)
-				.set_step(cmd.step)
-				.set_dt(cmd.dt);
-
-			doCommand(problem_callback);
-		}
-
-		// Let the problem compute the new moving bodies data
-		// TODO we pass step and gdata->dt, should be pass step and dt (which is already halved if necessary)
-		// instead?
-		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t,
-			gdata->s_hRbCgGridPos, gdata->s_hRbCgPos,
-			gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
-
-		if (cmd.step.last)
-			problem->post_timestep_callback(gdata->t);
-
-		// Upload translation vectors and rotation matrices; will upload CGs after euler
-		doCommand(UPLOAD_OBJECTS_MATRICES);
-		// Upload objects linear and angular velocities
-		doCommand(UPLOAD_OBJECTS_VELOCITIES);
-		// Upload objects CG in forces only
-		if (numforcesbodies)
-			doCommand(FORCES_UPLOAD_OBJECTS_CG);
-	} // if there are objects
+	if (cmd.step.last)
+		problem->post_timestep_callback(gdata->t);
 }
 
 // Allocate the shared buffers, i.e. those accessed by all workers

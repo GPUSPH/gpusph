@@ -516,10 +516,45 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 
 	// Take care of moving bodies, if there are any
 	if (sp->numbodies > 0) {
+
+		// Compute total force and torque acting on each body
+		if (sp->numforcesbodies > 0) {
+			this_phase->add_command(REDUCE_BODIES_FORCES)
+				.set_step(step)
+				.set_dt(dt_op)
+				.set_src(current_state);
+
+			// multi-GPU or multi-node simulations require a further reduction
+			// on host
+			if (MULTI_DEVICE)
+				this_phase->add_command(REDUCE_BODIES_FORCES_HOST)
+					.set_step(step)
+					.set_dt(dt_op)
+					.set_src(current_state);
+
+			// problem-specific override (if any)
+			this_phase->add_command(BODY_FORCES_CALLBACK)
+				.set_step(step)
+				.set_dt(dt_op)
+				.set_src(current_state);
+		}
+
+		// call the actual time-stepping for the bodies
 		this_phase->add_command(MOVE_BODIES)
 			.set_step(step)
 			.set_dt(dt_op)
 			.set_src(current_state);
+
+		// Upload translation vectors and rotation matrices; will upload CGs after euler
+		this_phase->add_command(UPLOAD_OBJECTS_MATRICES);
+		// Upload objects linear and angular velocities
+		this_phase->add_command(UPLOAD_OBJECTS_VELOCITIES);
+
+		// TODO FIXME why the discrepancy in handling CGs between forces and non-forces bodies?
+		// Upload objects CG in forces only
+		if (sp->numforcesbodies > 0) {
+			this_phase->add_command(FORCES_UPLOAD_OBJECTS_CG);
+		}
 	}
 
 	// On the predictor, we need to (re)init the predicted status (n*),
