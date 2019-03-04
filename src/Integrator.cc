@@ -31,7 +31,7 @@
 // remove after migration is complete
 #include "GPUWorker.h"
 
-#include "integrator.h"
+#include "Integrator.h"
 
 /*! \file
  * Integrator implementation. For the time being this implements the predictor/corrector integration scheme only,

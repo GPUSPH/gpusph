@@ -36,8 +36,8 @@
 #include "Options.h"
 #include "GlobalData.h"
 #include "Problem.h"
+#include "Integrator.h"
 #include "cpp11_missing.h"
-#include "integrator.h"
 
 // IPPSCounter
 #include "timing.h"
