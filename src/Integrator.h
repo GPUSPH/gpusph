@@ -27,7 +27,16 @@
  * Interface for the integrator
  */
 
+#ifndef INTEGRATOR_H
+#define INTEGRATOR_H
+
+#include <memory> // shared_ptr
 #include "command_type.h"
+
+enum IntegratorType
+{
+	PREDITOR_CORRECTOR
+};
 
 class GlobalData;
 
@@ -221,6 +230,11 @@ protected:
 
 public:
 
+	// Instance the integrator defined by the given IntegratorType, constructing it
+	// from the given gdata
+	static
+	std::shared_ptr<Integrator> instance(IntegratorType, GlobalData const* _gdata);
+
 	Integrator(GlobalData const* _gdata, std::string && name) :
 		gdata(_gdata),
 		m_name(name),
@@ -248,65 +262,4 @@ public:
 	}
 };
 
-class PredictorCorrector : public Integrator
-{
-	// Phases implemented in this integrator, will be used as index
-	// in the m_phase list
-	enum PhaseCode {
-		POST_UPLOAD, // post-upload phase
-
-		NEIBS_LIST, // neibs list construction phase
-
-		INITIALIZATION, // initialization phase, after upload and neibs list, but before the main integrator loop
-
-		BEGIN_TIME_STEP, // integrator step initialization phase
-		PREDICTOR, // predictor phase
-		PREDICTOR_END, // end of predictor, prepare for corrector
-		CORRECTOR, // corrector phase
-		CORRECTOR_END, // end of corrector, prepare for predictor
-
-		FILTER_INTRO, // prepare to run filters
-		FILTER_CALL, // call a single filter
-		FILTER_OUTRO, // finish running filters
-
-		NUM_PHASES, // number of phases
-	};
-
-	bool m_entered_main_cycle;
-
-	FilterFreqList const& m_enabled_filters;
-	FilterFreqList::const_iterator m_current_filter;
-
-	static std::string getCurrentStateForStep(int step_num);
-	static std::string getNextStateForStep(int step_num);
-
-	// A function that returns the appropriate time-step operator
-	// for the given step number (0 for init, dt/2 for predictor, dt for corrector)
-	dt_operator_t getDtOperatorForStep(int step_num);
-
-	// initialize the command sequence for boundary models (one per boundary)
-	template<BoundaryType boundarytype>
-	void initializeBoundaryConditionsSequence(Phase *this_phase, StepInfo const& step);
-
-	Phase* initializeNextStepSequence(StepInfo const& step_num);
-	Phase* initializePredCorrSequence(StepInfo const& step_num);
-
-	template<PhaseCode phase>
-	void initializePhase();
-
-	// Determine the phase following phase cur
-	PhaseCode phase_after(PhaseCode cur);
-
-public:
-	// From the generic Integrator we only reimplement
-	// the constructor, that will initialize the integrator phases
-	PredictorCorrector(GlobalData const* _gdata);
-
-	void start() override
-	{ enter_phase(POST_UPLOAD); }
-
-	Phase *next_phase();
-
-	const FilterType current_filter() const
-	{ return m_current_filter->first; }
-};
+#endif

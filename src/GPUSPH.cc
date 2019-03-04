@@ -436,7 +436,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO this is where we would instance the Integrator class
 	// for the time being, we will instead call a function that initializes
 	// our own CommandSequences
-	integrator = make_shared<PredictorCorrector>(gdata);
+	integrator = Integrator::instance(PREDITOR_CORRECTOR, gdata);
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
