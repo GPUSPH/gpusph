@@ -91,7 +91,7 @@ struct CommandTraits
 
 /* Generic macro for the definition of a command traits structure */
 /* TODO reads, updates and writes specifications will be moved to the integrator */
-#define DEFINE_COMMAND(_command, _internal, _usage, _reads, _updates, _writes) \
+#define DEFINE_COMMAND(_command, _internal, _usage) \
 template<> \
 struct CommandTraits<_command> \
 { \
@@ -107,7 +107,7 @@ struct CommandTraits<_command> \
 inline bool isCommandInternal(CommandName cmd)
 {
 	switch (cmd) {
-#define DEFINE_COMMAND(_command, _internal, _usage, _reads, _updates, _writes) \
+#define DEFINE_COMMAND(_command, _internal, _usage) \
 	case _command: return _internal;
 #include "define_commands.h"
 #undef DEFINE_COMMAND

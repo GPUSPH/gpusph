@@ -34,7 +34,7 @@
 #endif
 
 /* Macro to define a command with no buffer usage */
-#define DEFINE_COMMAND_NOBUF(_command) DEFINE_COMMAND(_command, false, NO_BUFFER_USAGE, BUFFER_NONE, BUFFER_NONE, BUFFER_NONE)
+#define DEFINE_COMMAND_NOBUF(_command) DEFINE_COMMAND(_command, false, NO_BUFFER_USAGE)
 
 /** \name Host commands
  *

@@ -34,13 +34,13 @@
 #endif
 
 /* Macro to define a command with no buffer usage */
-#define DEFINE_COMMAND_NOBUF(_command) DEFINE_COMMAND(_command, false, NO_BUFFER_USAGE, BUFFER_NONE, BUFFER_NONE, BUFFER_NONE)
+#define DEFINE_COMMAND_NOBUF(_command) DEFINE_COMMAND(_command, false, NO_BUFFER_USAGE)
 
 /* Macro to define a command with dynamic buffer usage */
-#define DEFINE_COMMAND_DYN(_command) DEFINE_COMMAND(_command, true, DYNAMIC_BUFFER_USAGE, BUFFER_NONE, BUFFER_NONE, BUFFER_NONE)
+#define DEFINE_COMMAND_DYN(_command) DEFINE_COMMAND(_command, true, DYNAMIC_BUFFER_USAGE)
 
 /* Macro to define a command with static buffer usage */
-#define DEFINE_COMMAND_BUF(_command, _internal, _reads, _updates, _writes) DEFINE_COMMAND(_command, _internal, STATIC_BUFFER_USAGE, _reads, _updates, _writes)
+#define DEFINE_COMMAND_BUF(_command, _internal) DEFINE_COMMAND(_command, _internal, STATIC_BUFFER_USAGE)
 
 /** \name Worker commands
  *
@@ -162,15 +162,9 @@ DEFINE_COMMAND_NOBUF(UPLOAD_OBJECTS_VELOCITIES)
  */
 
 /// Compute particle hashes
-DEFINE_COMMAND_BUF(CALCHASH, false,
-	BUFFER_INFO, // reads
-	BUFFER_POS | BUFFER_HASH | BUFFER_PARTINDEX, // updates in-place
-	BUFFER_NONE) // writes
+DEFINE_COMMAND_BUF(CALCHASH, false)
 /// Sort particles by hash
-DEFINE_COMMAND_BUF(SORT, false,
-	BUFFER_INFO | BUFFER_HASH, // reads
-	BUFFER_PARTINDEX, // updates in-place
-	BUFFER_NONE) // writes
+DEFINE_COMMAND_BUF(SORT, false)
 /// Reorder particle data according to the latest SORT, and find the start of each cell
 /*! \todo check buffer usage, there might be a discrepancy between IMPORT_BUFFERS and
  * the policy's get_multi_buffered()
@@ -179,12 +173,9 @@ DEFINE_COMMAND_BUF(SORT, false,
  * equations etc ) or ephemeral (i.e. computed specifically for their immediate
  * usage, e.g. per-particle viscosity)
  */
-DEFINE_COMMAND_BUF(REORDER, false, IMPORT_BUFFERS, BUFFER_NONE, IMPORT_BUFFERS)
+DEFINE_COMMAND_BUF(REORDER, false)
 /// Build the neighbors list
-DEFINE_COMMAND_BUF(BUILDNEIBS, true,
-	BUFFER_POS | BUFFER_INFO | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS | BUFFER_HASH,
-	BUFFER_NONE,
-	BUFFER_NEIBSLIST | BUFFER_VERTPOS)
+DEFINE_COMMAND_BUF(BUILDNEIBS, true)
 
 /** @} */
 
@@ -198,23 +189,14 @@ DEFINE_COMMAND_BUF(BUILDNEIBS, true,
  */
 
 /// Run smoothing filters (e.g. Shepard, MLS)
-DEFINE_COMMAND_BUF(FILTER, true,
-	BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST,
-	BUFFER_NONE,
-	BUFFER_VEL)
+DEFINE_COMMAND_BUF(FILTER, true)
 
 /* SA_BOUNDARY boundary conditions kernels */
 
 /// SA_BOUNDARY only: compute segment boundary conditions and identify fluid particles
 /// that leave open boundaries
-DEFINE_COMMAND_BUF(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, true,
-	BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS | BUFFER_VERTICES,
-	BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA,
-	BUFFER_NONE)
-DEFINE_COMMAND_BUF(FIND_OUTGOING_SEGMENT, true,
-	BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL | BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS,
-	BUFFER_GRADGAMMA | BUFFER_VERTICES,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, true)
+DEFINE_COMMAND_BUF(FIND_OUTGOING_SEGMENT, true)
 
 /// SA_BOUNDARY only: compute vertex boundary conditions, including mass update
 /// and generation of new fluid particles at open boundaries.
@@ -222,63 +204,33 @@ DEFINE_COMMAND_BUF(FIND_OUTGOING_SEGMENT, true,
 /// TODO FIXME this generates new particles if open boundaries are enabled,
 /// and to achieve this it touches arrays that should be read-only.
 /// Find a way to describe this.
-DEFINE_COMMAND_BUF(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, true,
-	BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_VERTPOS | BUFFER_BOUNDELEMENTS | BUFFER_VERTICES | BUFFER_GRADGAMMA,
-	BUFFER_FORCES | BUFFER_POS | BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_NEXTID | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, true)
 	/// Compute the normal of a vertex in the initialization step
-DEFINE_COMMAND_BUF(SA_COMPUTE_VERTEX_NORMAL, true,
-	BUFFER_VERTICES | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST,
-	BUFFER_BOUNDELEMENTS,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(SA_COMPUTE_VERTEX_NORMAL, true)
 	/// Initialize gamma for dynamic gamma computation
-DEFINE_COMMAND_BUF(SA_INIT_GAMMA, true,
-	BUFFER_POS | BUFFER_BOUNDELEMENTS | BUFFER_INFO | BUFFER_HASH | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_VERTPOS,
-	BUFFER_GRADGAMMA,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(SA_INIT_GAMMA, true)
 
 	/* Open boundary conditions kernels (currently SA-only) */
 
 	/// Count vertices that belong to the same IO and the same segment as an IO vertex
-DEFINE_COMMAND_BUF(INIT_IO_MASS_VERTEX_COUNT, true,
-	BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_VERTICES,
-	BUFFER_FORCES,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(INIT_IO_MASS_VERTEX_COUNT, true)
 	/// Modifiy initial mass of open boundaries
-DEFINE_COMMAND_BUF(INIT_IO_MASS, true,
-	BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_VERTICES | BUFFER_FORCES,
-	BUFFER_NONE,
-	BUFFER_POS)
+DEFINE_COMMAND_BUF(INIT_IO_MASS, true)
 	/// Impose problem-specific velocity/pressure on open boundaries
 	/// (should update the WRITE buffer in-place)
-DEFINE_COMMAND_BUF(IMPOSE_OPEN_BOUNDARY_CONDITION, false,
-	BUFFER_POS | BUFFER_INFO | BUFFER_HASH,
-	BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(IMPOSE_OPEN_BOUNDARY_CONDITION, false)
 
 	/// SA_BOUNDARY only: identify vertices at corner of open boundaries.
 	/// (Corner vertices do not generate new particles)
-DEFINE_COMMAND_BUF(IDENTIFY_CORNER_VERTICES, true,
-	BUFFER_POS | BUFFER_BOUNDELEMENTS | BUFFER_HASH | BUFFER_VERTICES | BUFFER_NEIBSLIST,
-	BUFFER_INFO,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(IDENTIFY_CORNER_VERTICES, true)
 	/// SA_BOUNDARY only: disable particles that went through an open boundary
-DEFINE_COMMAND_BUF(DISABLE_OUTGOING_PARTS, true,
-	BUFFER_INFO,
-	BUFFER_POS | BUFFER_VERTICES,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(DISABLE_OUTGOING_PARTS, true)
 
 	/// SPH_GRENIER only: compute density
-DEFINE_COMMAND_BUF(COMPUTE_DENSITY, true,
-	BUFFER_POS | BUFFER_VOLUME | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST,
-	BUFFER_VEL | BUFFER_SIGMA,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(COMPUTE_DENSITY, true)
 
 	/// Compute per-particle viscosity and SPS stress matrix
-DEFINE_COMMAND_BUF(CALC_VISC, true,
-	BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_VEL,
-	BUFFER_NONE,
-	BUFFER_EFFVISC)
+DEFINE_COMMAND_BUF(CALC_VISC, true)
 
 	/** @} */
 
@@ -302,20 +254,11 @@ DEFINE_COMMAND_BUF(CALC_VISC, true,
 
 	/// Compute forces, blocking; this runs the whole forces sequence (texture bind, kernele execution, texture
 	/// unbinding, dt reduction) and only proceeds on completion
-DEFINE_COMMAND_BUF(FORCES_SYNC, true,
-	FORCES_INPUT_BUFFERS,
-	FORCES_UPDATE_BUFFERS,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(FORCES_SYNC, true)
 	/// Compute forces, asynchronously: bind textures, launch kernel and return without waiting for kernel completion
-DEFINE_COMMAND_BUF(FORCES_ENQUEUE, true,
-	FORCES_INPUT_BUFFERS,
-	FORCES_UPDATE_BUFFERS,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(FORCES_ENQUEUE, true)
 	/// Wait for completion of the forces kernel unbind texture, reduce dt
-DEFINE_COMMAND_BUF(FORCES_COMPLETE, true,
-	FORCES_INPUT_BUFFERS,
-	FORCES_UPDATE_BUFFERS,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(FORCES_COMPLETE, true)
 
 	/** @} */
 
@@ -338,10 +281,7 @@ DEFINE_COMMAND_BUF(FORCES_COMPLETE, true,
 		 BUFFER_EPSILON | BUFFER_TURBVISC)
 
 	/// Integration (runs the Euler kernel)
-DEFINE_COMMAND_BUF(EULER, false,
-	EULER_INPUT_BUFFERS,
-	BUFFER_NONE,
-	EULER_OUTPUT_BUFFERS)
+DEFINE_COMMAND_BUF(EULER, false)
 
 #define GAMMMA_AND_DENSITY_SUM_INPUT_BUFFERS \
 		(BUFFER_POS /* old and new! */ | \
@@ -351,27 +291,15 @@ DEFINE_COMMAND_BUF(EULER, false,
 		 BUFFER_VERTPOS | BUFFER_HASH | BUFFER_INFO | BUFFER_VEL | BUFFER_GRADGAMMA)
 
 	/// Integration of SABOUNDARY's gamma
-DEFINE_COMMAND_BUF(INTEGRATE_GAMMA, true,
-	GAMMMA_AND_DENSITY_SUM_INPUT_BUFFERS | BUFFER_NEIBSLIST,
-	BUFFER_GRADGAMMA,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(INTEGRATE_GAMMA, true)
 
 	/// Integration of the density using an integral formulation
-DEFINE_COMMAND_BUF(DENSITY_SUM, true,
-	GAMMMA_AND_DENSITY_SUM_INPUT_BUFFERS,
-	BUFFER_VEL | BUFFER_GRADGAMMA,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(DENSITY_SUM, true)
 
 	/// Compute the density diffusion term in the case of density sum:
-DEFINE_COMMAND_BUF(CALC_DENSITY_DIFFUSION, true,
-	BUFFER_BOUNDELEMENTS | BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_GRADGAMMA | BUFFER_VERTPOS,
-	BUFFER_FORCES,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(CALC_DENSITY_DIFFUSION, true)
 	/// Apply density diffusion term in the case of density sum:
-DEFINE_COMMAND_BUF(APPLY_DENSITY_DIFFUSION, true,
-	BUFFER_INFO | BUFFER_FORCES,
-	BUFFER_VEL,
-	BUFFER_NONE)
+DEFINE_COMMAND_BUF(APPLY_DENSITY_DIFFUSION, true)
 
 	/** @} */
 
