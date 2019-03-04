@@ -514,11 +514,13 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 				.writing(current_state, BUFFER_CFL_TEMP);
 	}
 
-	// Take care of moving bodies
-	this_phase->add_command(MOVE_BODIES)
-		.set_step(step)
-		.set_dt(dt_op)
-		.set_src(current_state);
+	// Take care of moving bodies, if there are any
+	if (sp->numbodies > 0) {
+		this_phase->add_command(MOVE_BODIES)
+			.set_step(step)
+			.set_dt(dt_op)
+			.set_src(current_state);
+	}
 
 	// On the predictor, we need to (re)init the predicted status (n*),
 	// on the corrector this will be updated (in place) to the corrected status (n+1)
