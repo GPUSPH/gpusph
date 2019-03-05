@@ -14,9 +14,26 @@
 # - CUDA C++ headers have extension .cuh
 
 
+# need for some substitutions
+comma:=,
+empty:=
+space:=$(empty) $(empty)
+
+# When running a `make clean`, we do not want to generate the files that we are going to remove
+# anyway. Let us do an early check on this case, by checking if MAKECMDGOALS is one of the clean targets.
+# We only do this if a single target was specified
+cleaning:=0
+ifeq ($(words $(MAKECMDGOALS)),1)
+ifeq ($(findstring clean,$(MAKECMDGOALS)),clean)
+	cleaning:=1
+endif
+endif
+
 # Cached configuration. All settings that should be persistent across compilation
 # (until changed) should be stored here.
+ifneq ($(cleaning),1)
 sinclude Makefile.conf
+endif
 
 # Include, if present, a local Makefile.
 # This can be used by the user to set additional include paths
@@ -27,12 +44,9 @@ sinclude Makefile.conf
 # (LIBS = ...)
 # and general flags
 # CPPFLAGS, CXXFLAGS, CUFLAGS, LDFLAGS,
+ifneq ($(cleaning),1)
 sinclude Makefile.local
-
-# need for some substitutions
-comma:=,
-empty:=
-space:=$(empty) $(empty)
+endif
 
 # GPUSPH version
 GPUSPH_VERSION=$(shell git describe --tags --dirty=+custom 2> /dev/null | sed -e 's/-\([0-9]\+\)/+\1/' -e 's/-g/-/' 2> /dev/null)
@@ -790,6 +804,7 @@ export CMDECHO
 .PHONY: all run showobjs show snapshot expand deps docs test help
 .PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean genclean
 .PHONY: dev-guide user-guide
+.PHONY: FORCE
 
 # target: GPUSPH - A symlink to the last built problem, or the default problem (DamBreak3D)
 GPUSPH: $(GPUSPH_PROBLEM_DEP) Makefile.conf
@@ -931,7 +946,7 @@ gpuclean: computeclean
 # target: computeclean - Clean compute capability selection stuff
 computeclean:
 	$(RM) $(LIST_CUDA_CC) $(COMPUTE_SELECT_OPTFILE)
-	$(SED_COMMAND) '/COMPUTE=/d' Makefile.conf
+	if [ -e Makefile.conf ] ; then $(SED_COMMAND) '/COMPUTE=/d' Makefile.conf ; fi
 
 # target: cookiesclean - Clean last dbg, problem, compute and fastmath choices,
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
@@ -1184,6 +1199,8 @@ FORCE:
 # "sinclude" instead of "include" tells make not to print errors if files are missing.
 # This is necessary because during the first processing of the makefile, make complains
 # before creating them.
+ifneq ($(cleaning),1)
 sinclude $(GPUDEPS)
 sinclude $(CPUDEPS)
+endif
 
