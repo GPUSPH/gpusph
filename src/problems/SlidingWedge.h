@@ -41,7 +41,7 @@ class SlidingWedge: public Problem {
 		double		h_length, height, slope_length, beta, tan_beta;
 		double		H;		// still water level
 		double		lx, ly, lz;		// dimension of water tank
-		double 		x0, t0;
+		double		x0, t0;
 		double		periodic_offset_y;
 		double		cyl_xpos, cyl_height, cyl_diam, cyl_rho;
 
@@ -50,7 +50,7 @@ class SlidingWedge: public Problem {
 		double3     piston_origin;
 		double		piston_tstart, piston_tend;
 
-		int 		layers;		// Number of particles layers for dynamic boundaries
+		int			layers;		// Number of particles layers for dynamic boundaries
 	public:
 		SlidingWedge(GlobalData *);
 		~SlidingWedge(void);

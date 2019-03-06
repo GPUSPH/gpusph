@@ -27,11 +27,6 @@
 #define	_WAVETANK_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
-#include "Cylinder.h"
-#include "Rect.h"
-#include "Vector.h"
 
 
 class WaveTank: public XProblem {
@@ -45,7 +40,7 @@ class WaveTank: public XProblem {
 
 		// Moving boundary data
 		double		paddle_amplitude, paddle_omega;
-		double3     paddle_origin;
+		double3		paddle_origin;
 		double		paddle_tstart, paddle_tend;
 
 	public:

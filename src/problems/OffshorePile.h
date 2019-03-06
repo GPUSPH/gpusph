@@ -34,16 +34,16 @@ class OffshorePile: public XProblem {
 		double		h_length, height, slope_length, beta;
 		double		H;		// still water level
 		double		lx, ly, lz;		// dimension of water tank
-		double 		x0;
+		double		x0;
 		double		periodic_offset_y;
 		double		cyl_xpos, cyl_height, cyl_diam, cyl_rho;
 
 		// Moving boundary data
 		double		piston_amplitude, piston_omega;
-		double3   piston_origin;
+		double3		piston_origin;
 		double		piston_tstart, piston_tend;
 
-		int 		layers;		// Number of particles layers for dynamic boundaries
+		int			layers;		// Number of particles layers for dynamic boundaries
 	public:
 		OffshorePile(GlobalData *);
 		virtual void moving_bodies_callback(const uint index, Object* object,

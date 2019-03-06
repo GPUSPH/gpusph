@@ -34,9 +34,6 @@
 #define	_DAMBREAKGATE_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
-#include "Vector.h"
 
 class DamBreakGate: public XProblem {
 	private:
@@ -45,8 +42,8 @@ class DamBreakGate: public XProblem {
 	public:
 		DamBreakGate(GlobalData *);
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
-			 	 	 	 	 	 	const float3&, const KinematicData &, KinematicData &,
-			 	 	 	 	 	 	double3&, EulerParameters&);
+									const float3&, const KinematicData &, KinematicData &,
+									double3&, EulerParameters&);
 };
 #endif	/* _DAMBREAKGATE_H */
 

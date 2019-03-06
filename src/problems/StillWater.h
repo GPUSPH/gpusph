@@ -2,8 +2,6 @@
 #define	_STILLWATER_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
 
 class StillWater: public XProblem {
 	private:

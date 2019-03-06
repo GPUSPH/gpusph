@@ -9,10 +9,6 @@
 #define BUOYANCYTEST_H_
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
-#include "Sphere.h"
-#include "Torus.h"
 
 class BuoyancyTest: public XProblem {
 

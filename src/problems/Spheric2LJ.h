@@ -27,8 +27,6 @@
 #define	_SPHERIC2LJ_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
 
 class Spheric2LJ: public XProblem {
 	private:

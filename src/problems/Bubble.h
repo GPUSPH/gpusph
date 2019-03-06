@@ -27,8 +27,6 @@
 #define	_BUBBLE_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
 
 class Bubble: public XProblem {
 	private:
