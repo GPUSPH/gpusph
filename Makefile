@@ -216,10 +216,6 @@ ifeq ($(OLD_CUDA),1)
 $(error CUDA version too old)
 endif
 
-# override: CUDA_SDK_PATH - location for the CUDA SDK samples
-# override:                 defaults to $(CUDA_INSTALL_PATH)/samples
-CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
-
 # Make sure nvcc uses the same host compile that we use for the host
 # code.
 # Note that this requires the compiler to be supported by nvcc.
@@ -558,13 +554,6 @@ LIBS += -lpthread
 # Realtime Extensions library (for clock_gettime) (not on Mac)
 ifneq ($(platform), Darwin)
 	LIBS += -lrt
-endif
-
-# search paths are platform-specific
-ifeq ($(platform), Darwin)
-	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/
-else
-	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 endif
 
 # override: CHRONO_PATH         - where Chrono is installed
