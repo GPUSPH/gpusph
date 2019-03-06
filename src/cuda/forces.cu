@@ -119,7 +119,7 @@ reducefmax(
 	//   so on the first run we must not produce more than BLOCK_SIZE_FMAX*4 elements;
 	if (numBlocks > 1) {
 		numBlocks = round_up(numBlocks, 4U);
-		numBlocks = min(numBlocks, BLOCK_SIZE_FMAX*4);
+		numBlocks = std::min(numBlocks, BLOCK_SIZE_FMAX*4U);
 	}
 
 	// Only run the actual reduction if there's anything to reduce
