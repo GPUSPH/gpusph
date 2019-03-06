@@ -29,6 +29,10 @@
  * Template implementation of the NeibsEngine in CUDA
  */
 
+#if CLANG_CUDA
+#define _CubLog(format, ...) /* nothing */
+#endif
+
 #include <stdexcept>
 
 #include <stdio.h>
