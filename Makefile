@@ -703,14 +703,6 @@ endif
 
 # nvcc-specific flags
 
-# We want to know the version of NVCC in the code because
-# the GCC pragma support depends on NVCC version. Sadly,
-# the pre-defined macros __NVCC__ and __CUDACC__ do not
-# give us anything about the version, so we will define our own
-# macros
-
-CUFLAGS += -D__NVCC_VERSION__=$(CUDA_MAJOR)$(CUDA_MINOR)
-
 # compute capability specification, if defined
 ifneq ($(COMPUTE),)
 	CUFLAGS += -arch=sm_$(COMPUTE)
