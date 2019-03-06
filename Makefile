@@ -185,6 +185,12 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 
 # --------------- Locate and set up compilers and flags
 
+# override: CLANG_CUDA - set to 1 if you want to build GPUSPH using Clang's support for CUDA
+CLANG_CUDA ?= 0
+
+# override: CLANG_CUDA_VERSION - set to the Clang version to use to build CUDA code
+CLANG_CUDA_VERSION ?=
+
 # override: CUDA_INSTALL_PATH - where CUDA is installed
 # override:                     defaults /usr/local/cuda,
 # override:                     validity is checked by looking for bin/nvcc under it,
@@ -199,6 +205,12 @@ ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
 	ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
 $(error Could not find CUDA, please set CUDA_INSTALL_PATH)
 	endif
+
+# At least on Debian, when CUDA is installed via distro packages, Clang
+# needs to be directed at /usr/lib/cuda instead
+	ifeq ($(CLANG_CUDA),1)
+	CUDA_INSTALL_PATH = /usr/lib/cuda
+	endif
 endif
 
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
@@ -210,30 +222,43 @@ endif
 #CUDA_INSTALL_PATH=$(shell \
 #	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
 
-# nvcc info
-NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
-NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
-versions_tmp  := $(subst ., ,$(NVCC_VER))
-CUDA_MAJOR := $(firstword  $(versions_tmp))
-CUDA_MINOR := $(lastword  $(versions_tmp))
+ifeq ($(CLANG_CUDA),1)
+	ifeq ($(CLANG_CUDA_VERSION),$(empty))
+		CXX=clang++
+	else
+		CXX=clang++-$(CLANG_CUDA_VERSION)
+	endif
+	NVCC=$(CXX) --cuda-path=$(CUDA_INSTALL_PATH)
 
-# We only support CUDA 7 onwards, error out if this is an earlier version
-# NOTE: the test is reversed because test returns 0 for true (shell-like)
-OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
+	NO_CUDA_ARCH_VERSION_CHECK=--no-cuda-version-check
+else
+	# nvcc info
+	NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
+	NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
+	versions_tmp  := $(subst ., ,$(NVCC_VER))
+	CUDA_MAJOR := $(firstword  $(versions_tmp))
+	CUDA_MINOR := $(lastword  $(versions_tmp))
 
-# Some libraries shipped CUDA 11 require C++14, so we want to know if
-# the CUDA version is at least 11
-# NOTE: the test is reversed because test returns 0 for true (shell-like)
-CUDA_11=$(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
+	# We only support CUDA 7 onwards, error out if this is an earlier version
+	# NOTE: the test is reversed because test returns 0 for true (shell-like)
+	OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
 
-ifeq ($(OLD_CUDA),1)
-$(error CUDA version too old)
+	# Some libraries shipped CUDA 11 require C++14, so we want to know if
+	# the CUDA version is at least 11
+	# NOTE: the test is reversed because test returns 0 for true (shell-like)
+	CUDA_11=$(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
+
+	ifeq ($(OLD_CUDA),1)
+	$(error CUDA version too old)
+	endif
+
+	# Make sure nvcc uses the same host compile that we use for the host
+	# code.
+	# Note that this requires the compiler to be supported by nvcc.
+	NVCC += -ccbin=$(CXX)
+
+	NO_CUDA_ARCH_VERSION_CHECK=-Wno-deprecated-gpu-targets
 endif
-
-# Make sure nvcc uses the same host compile that we use for the host
-# code.
-# Note that this requires the compiler to be supported by nvcc.
-NVCC += -ccbin=$(CXX)
 
 # Get the include path(s) used by default by our compiler
 CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 | grep '^ ' | grep -v ' (framework directory)'))
@@ -424,6 +449,8 @@ ifeq ($(USE_MPI),0)
 	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
 	LINKER ?= $(NVCC)
 
+else ifeq ($(CLANG_CUDA),1)
+	LINKER ?= OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" $(MPICXX)
 else
 	# Also try to detect implementation-specific version.
 	# OpenMPI exposes the version via individual numeric macros
@@ -629,7 +656,11 @@ endif
 
 # CUDA libaries
 LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+ifeq ($(CLANG_CUDA),1)
+LDFLAGS += -rpath $(CUDA_INSTALL_PATH)
+else
 LDFLAGS += --linker-options -rpath,$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+endif
 
 # link to the CUDA runtime library
 LIBS += -lcudart
@@ -723,7 +754,11 @@ ifneq ($(USE_CHRONO),0)
 
 	LIBPATH += -L$(CHRONO_LIB_PATH)
 	LIBS += -lChronoEngine
-	LDFLAGS += --linker-options -rpath,$(CHRONO_LIB_PATH)
+	ifeq ($(CLANG_CUDA),1)
+		LDFLAGS += -rpath $(CHRONO_LIB_PATH)
+	else
+		LDFLAGS += --linker-options -rpath,$(CHRONO_LIB_PATH)
+	endif
 endif
 LDFLAGS += $(LIBPATH)
 
@@ -745,8 +780,15 @@ CXXFLAGS ?=
 # override: CUFLAGS - nvcc compiler options
 CUFLAGS  ?=
 
+# Let the code know if we're using Clang to compile the CUDA device code too
+CPPFLAGS += -DCLANG_CUDA=$(CLANG_CUDA)
+ifeq ($(CLANG_CUDA),1)
+	CPPFLAGS += -DDISABLE_ALL_TEXTURES=1
+endif
+
 # First of all, put the include paths into the CPPFLAGS
 CPPFLAGS += $(INCPATH)
+
 
 # We use type limits and constants (e.g. UINT64_MAX), which are defined
 # in C99 but not in C++ versions before C++11, so on (very) old compilers
@@ -803,16 +845,29 @@ endif
 
 # compute capability specification, if defined
 ifneq ($(COMPUTE),)
-	CUFLAGS += -arch=sm_$(COMPUTE)
-	LDFLAGS += -arch=sm_$(COMPUTE)
+	ifeq ($(CLANG_CUDA),1)
+		CU_ARCH_SPEC += --cuda-gpu-arch=sm_$(COMPUTE)
+	else
+		CU_ARCH_SPEC += -arch=sm_$(COMPUTE)
+	endif
 endif
 
-# generate line info
-# TODO this should only be done in debug mode
-CUFLAGS += --generate-line-info
+CUFLAGS += $(CU_ARCH_SPEC)
+LDFLAGS += $(CU_ARCH_SPEC)
+
+# Clang does not support --generate-line-info
+ifneq ($(CLANG_CUDA),1)
+	# generate line info
+	# TODO this should only be done in debug mode
+	CUFLAGS += --generate-line-info
+endif
 
 ifeq ($(FASTMATH),1)
-	CUFLAGS += --use_fast_math
+	ifeq ($(CLANG_CUDA),1)
+		CUFLAGS += -ffast-math
+	else
+		CUFLAGS += --use_fast_math
+	endif
 endif
 
 
@@ -827,11 +882,13 @@ else
 endif
 
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
-ifeq ($(verbose), 1)
-	CUFLAGS += --ptxas-options=-v
-else ifeq ($(verbose), 2)
-	CUFLAGS += --ptxas-options=-v
-	CXXFLAGS += -Wall
+ifneq ($(CLANG_CUDA),1)
+	ifeq ($(verbose), 1)
+		CUFLAGS += --ptxas-options=-v
+	else ifeq ($(verbose), 2)
+		CUFLAGS += --ptxas-options=-v
+		CXXFLAGS += -Wall
+	endif
 endif
 
 # Enable host profile with gprof. Pipeline to profile:
@@ -841,9 +898,12 @@ endif
 # LDFLAGS += -pg
 
 # Finally, add CXXFLAGS to CUFLAGS, except for -std, which gets moved outside
-
-CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
-	   $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
+ifeq ($(CLANG_CUDA),1)
+	CUFLAGS += $(CXXFLAGS)
+else
+	CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
+		   $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
+endif
 
 # CFLAGS notes
 # * Architecture (sm_XX and compute_XX):
@@ -1011,37 +1071,45 @@ $(SRCDIR)/describe-debugflags.h: $(SCRIPTSDIR)/describe-debugflags.awk $(SRCDIR)
 # However, we do not use the "generate dependencies while compiling” feature of GCC.
 
 # We _do_ hack the dependency files so that all dependencies are added to an empty rule,
-# that ensures that make doesn't bother us about missing dependencies when one is added or removed
+# that ensures that make doesn't bother us about missing dependencies when one is added or removed.
+# Note that for some reason Clang doubles the output, so we we need to dedup them.
+# We achieve this by loading the file into x using an awk trick that doesn't print an already-printed line.
 define redupdep
-@x="$$(cat $1)" ; printf '%s\n\n:%s:\n' "$$x" "$$x" | sed 's/^:[^:]*: //' > $1
+@x="$$(awk '!seen[$$0]++' $1)" ; printf '%s\n\n:%s:\n' "$$x" "$$x" | sed 's/^:[^:]*: //' > $1
 endef
+
+CXX_DEPGEN_FLAGS=-MG -MM -MT $@
+ifeq ($(CLANG_CUDA),1)
+	CU_DEPGEN_FLAGS=$(CXX_DEPGEN_FLAGS)
+else
+	CU_DEPGEN_FLAGS=--compiler-options $(subst $(space),$(comma),$(CXX_DEPGEN_FLAGS))
+endif
 
 # The -MM flag is used to not include system includes.
 # The -MG flag is used to add missing includes (useful to depend on the .opt files).
 # The -MT flag is used to define the object file.
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
-	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
 	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 $(GENOBJS): $(OBJDIR)/%.gen.o: $(OPTSDIR)/%.gen.cc $(DEPDIR)/%.gen.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
-	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
 	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
-	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
-		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" \
+		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
 	$(call redupdep,$(word 2,$^))
-	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
+	$(CMDECHO)OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" \
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d $(DEVCODE_OPTFILES) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< \
-		 --compiler-options -MG,-MM,-MT,$@ > $(word 2,$^)
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< $(CU_DEPGEN_FLAGS) > $(word 2,$^)
 	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
@@ -1057,7 +1125,7 @@ $(CUDEPS): | $(DEPSUBS) $(OPTFILES) ;
 # not supported in the most recent version of the SDK)
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cc
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) -Wno-deprecated-gpu-targets $(filter-out -arch=sm_%,$(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS)))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(NO_CUDA_ARCH_VERSION_CHECK) -lcudart $(filter-out $(CU_ARCH_SPEC),$(CUFLAGS)) -o $@ $< $(filter-out $(CU_ARCH_SPEC),$(LDFLAGS))
 
 # create distdir
 $(DISTDIR):
