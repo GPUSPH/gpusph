@@ -124,7 +124,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 			// but this needs to be done correctly for multifluids
 			value = NAN;
 		else
-			value = vel[i].w;
+			value = m_problem->physical_density(vel[i].w, fluid_num(info[i]));
 		fid << value << endl;
 	}
 	fid << endl;

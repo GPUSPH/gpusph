@@ -61,6 +61,8 @@ CustomTextWriter::write(uint numParts, BufferList const& buffers, uint node_offs
 	// Modify this part to match your requirements
 	// Writing datas
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
+		int fluid = fluid_num(info[i]);
+
 		// id, type, object, position
 		fid << id(info[i]) << "\t" << type(info[i]) << "\t" << object(info[i]) << "\t";
 		fid << pos[i].x << "\t" << pos[i].y << "\t" << pos[i].z << "\t";
@@ -76,13 +78,13 @@ CustomTextWriter::write(uint numParts, BufferList const& buffers, uint node_offs
 
 		// density
 		if (FLUID(info[i]))
-			fid << vel[i].w << "\t";
+			fid << m_problem->physical_density(vel[i].w, fluid) << "\t";
 		else
 			fid << "0.0\t";
 
 		// pressure
 		if (FLUID(info[i]))
-			fid << m_problem->pressure(vel[i].w, fluid_num(info[i])) << "\t";
+			fid << m_problem->pressure(vel[i].w, fluid) << "\t";
 		else
 			fid << "0.0\t";
 
