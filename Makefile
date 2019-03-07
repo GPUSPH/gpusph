@@ -931,7 +931,7 @@ $(OPTSDIR):
 
 # target: clean - Clean everything but last compile choices
 # clean: cpuobjs, gpuobjs, deps makefiles, targets, target symlinks
-clean: cpuclean gpuclean
+clean: cpuclean gpuclean genclean
 	$(CMDECHO)$(RM) -f $(PROBLEM_EXES) GPUSPH
 	$(CMDECHO)find $(CURDIR) -maxdepth 1 -lname $(DISTDIR)/\* -delete
 
