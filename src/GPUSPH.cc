@@ -1024,20 +1024,11 @@ bool GPUSPH::runRepacking() {
 			gdata->quit_request = true;
 		}
 
-		float repackMinKe = 100;
-		// Compute the total kinetic energy to determine if repacking
-		// should stop or not
-		float kineticEnergy = computeKineticEnergy();
-
-		if (kineticEnergy > 0)
-			gdata->repackPositiveKe = true;
-
 		// are we done?
+		// TODO: add a criterion on the decrease of kinetic energy
 		const bool we_are_done =
 			// have we reached the maximum number of repacking iterations?
 			gdata->iterations >= gdata->problem->simparams()->repack_maxiter ||
-			// have we sufficiently decreased the kinetic energy?
-			//gdata->repackPositiveKe && kineticEnergy < repackMinKe ||
 			// and of course we're finished if a quit was requested
 			gdata->quit_request;
 
@@ -2832,87 +2823,59 @@ void GPUSPH::markIntegrationStep(
 
 void GPUSPH::check_write(bool we_are_done)
 {
-		PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
-		// list of writers that need to write at this timestep
-		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	// list of writers that need to write at this timestep
+	ConstWriterMap writers = Writer::NeedWrite(gdata->t);
 
-		// we need to write if any writer is configured to write at this timestep
-		// i.e. if the writers list is not empty
-		const bool need_write = !writers.empty();
+	// we need to write if any writer is configured to write at this timestep
+	// i.e. if the writers list is not empty
+	const bool need_write = !writers.empty();
 
-		// do we want to write even if no writer is asking to?
-		const bool force_write =
-			// ask the problem if we want to write anyway
-			gdata->problem->need_write(gdata->t) ||
-			// always write if we're done with the simulation
-			we_are_done ||
-			// write if it was requested
-			gdata->save_request;
+	// do we want to write even if no writer is asking to?
+	const bool force_write =
+		// ask the problem if we want to write anyway
+		gdata->problem->need_write(gdata->t) ||
+		// always write if we're done with the simulation
+		we_are_done ||
+		// write if it was requested
+		gdata->save_request;
 
-		// reset save_request, we're going to satisfy it anyway
-		if (force_write)
-			gdata->save_request = false;
+	// reset save_request, we're going to satisfy it anyway
+	if (force_write)
+		gdata->save_request = false;
 
-		if (need_write || force_write) {
-			if (gdata->clOptions->nosave && !force_write) {
-				// we want to avoid writers insisting we need to save,
-				// so pretend we actually saved
-				Writer::FakeMarkWritten(writers, gdata->t);
-			} else {
-				saveParticles(enabledPostProcess, force_write);
+	if (need_write || force_write) {
+		if (gdata->clOptions->nosave && !force_write) {
+			// we want to avoid writers insisting we need to save,
+			// so pretend we actually saved
+			Writer::FakeMarkWritten(writers, gdata->t);
+		} else {
+			saveParticles(enabledPostProcess, force_write);
 
-				// we generally want to print the current status and reset the
-				// interval performance counter when writing. However, when writing
-				// at every timestep, this can be very bothersome (lots and lots of
-				// output) so we do not print the status if the only writer(s) that
-				// have been writing have a frequency of 0 (write every timestep)
-				// TODO the logic here could be improved; for example, we are not
-				// considering the case of a single writer that writes at every timestep:
-				// when do we print the status then?
-				// TODO other enhancements would be to print who is writing (what)
-				// during the print status
-				double maxfreq = 0;
-				ConstWriterMap::iterator it(writers.begin());
-				ConstWriterMap::iterator end(writers.end());
-				while (it != end) {
-					double freq = it->second->get_write_freq();
-					if (freq > maxfreq)
-						maxfreq = freq;
-					++it;
-				}
-				if (force_write || maxfreq > 0) {
-					printStatus();
-					m_intervalPerformanceCounter->restart();
-				}
+			// we generally want to print the current status and reset the
+			// interval performance counter when writing. However, when writing
+			// at every timestep, this can be very bothersome (lots and lots of
+			// output) so we do not print the status if the only writer(s) that
+			// have been writing have a frequency of 0 (write every timestep)
+			// TODO the logic here could be improved; for example, we are not
+			// considering the case of a single writer that writes at every timestep:
+			// when do we print the status then?
+			// TODO other enhancements would be to print who is writing (what)
+			// during the print status
+			double maxfreq = 0;
+			ConstWriterMap::iterator it(writers.begin());
+			ConstWriterMap::iterator end(writers.end());
+			while (it != end) {
+				double freq = it->second->get_write_freq();
+				if (freq > maxfreq)
+					maxfreq = freq;
+				++it;
+			}
+			if (force_write || maxfreq > 0) {
+				printStatus();
+				m_intervalPerformanceCounter->restart();
 			}
 		}
-
-}
-
-float GPUSPH::computeKineticEnergy()
-{
-	uint node_offset = gdata->s_hStartPerDevice[0];
-	// Kinetic energy computed on one node
-	float kineticEnergy = 0.0f;
-
-	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
-	const float4 *lpos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
-	const hashKey* hash = gdata->s_hBuffers.getConstData<BUFFER_HASH>();
-	/* vel is only used to compute kinetic energy */
-	const float4 *vel = gdata->s_hBuffers.getConstData<BUFFER_VEL>();
-
-	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
-		const float4 pos = lpos[i];
-		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(hash[i]) );
-
-		// we're interested in the kinetic energy in the system
-		// to determine whether to continue repacking or not
-		const float kineticEnergies = lpos[i].w*sqlength3(vel[i])/2;
-		kineticEnergy += kineticEnergies;
 	}
-	if (MULTI_NODE)
-		// after this, kineticEnergy actually becomes the total kinetic energy over all nodes
-		gdata->networkManager->networkFloatReduction(&(kineticEnergy), 1, SUM_REDUCTION);
-
-	return kineticEnergy;
 }
+

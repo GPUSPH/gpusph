@@ -233,7 +233,6 @@ typedef struct SimParams {
 	float			repack_alpha;	//< repacking parameter 'alpha' for velocity damping, recommended value: 0.1
 	/** @} */
 
-
 	template<typename Framework>
 	SimParams(Framework *simframework) :
 		kerneltype(Framework::kerneltype),

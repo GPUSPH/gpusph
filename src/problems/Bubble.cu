@@ -60,7 +60,7 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	);
 
 	// Repacking options
-	simparams()->repack_maxiter = 10;
+	simparams()->repack_maxiter = 1000;
 	simparams()->repack_a = 1;
 	simparams()->repack_alpha = 1;
 

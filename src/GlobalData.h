@@ -396,9 +396,6 @@ struct GlobalData {
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
-	// repacking parameter, true if the kinetic energy is positive
-	bool repackPositiveKe;
-
 	GlobalData(void):
 		ret(0),
 		debug(),
@@ -452,8 +449,7 @@ struct GlobalData {
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
-		s_hRbAngularVelocities(NULL),
-		repackPositiveKe(false)
+		s_hRbAngularVelocities(NULL)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
@@ -741,7 +737,6 @@ struct GlobalData {
 		lastGlobalPeakVertexNeibsNum = 0;
 		lastGlobalNumInteractions = 0;
 		only_internal = false;
-		repackPositiveKe = false;
 		nextCommand = IDLE;
 		commandFlags = NO_FLAGS;
 	}
