@@ -595,6 +595,10 @@ Problem::copy_planes(PlaneList& planes)
 	return;
 }
 
+/* Auxiliary functions used to compute the maximum viscosity for any given
+ * rheological models, used by check_dt() to determine the initial proposed dt.
+ */
+
 enum YsContrib
 {
 	NO_YS, ///< no yield strength
@@ -613,6 +617,7 @@ yield_strength_type()
 			NO_YS; // everything else: should be just Newtonian and power-law
 }
 
+//! No yield strength contribution
 template<RheologyType rheologytype>
 enable_if_t< yield_strength_type<rheologytype>() == NO_YS, float >
 getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
@@ -621,6 +626,9 @@ getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
 }
 
 //! Standard contribution from the yield strength
+/*! In this case, if there is a yield strength, the maximum viscosity can be infinite
+ * (for null shear-rate), so we pick the limiting value
+ */
 template<RheologyType rheologytype>
 enable_if_t< yield_strength_type<rheologytype>() == STD_YS, float >
 getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
@@ -628,13 +636,15 @@ getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
 	float maxViscYieldTerm = 0.0f;
 	for (uint f = 0; f < physparams->numFluids(); ++f)
 	{
-		if(physparams->yield_strength[f] != 0)
+		if (physparams->yield_strength[f] != 0)
 			return physparams->limiting_kinvisc;
 	}
 	return maxViscYieldTerm;
 }
 
 //! Regularized contribution from the yield strength
+/*! In this case, the yield strength contribution to the viscosity is computed as m*tau/rho
+ */
 template<RheologyType rheologytype>
 enable_if_t< yield_strength_type<rheologytype>() == REG_YS, float >
 getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
@@ -647,50 +657,61 @@ getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
 	return maxViscYieldTerm;
 }
 
-//! Linear dependency on the shear rate
-/** For BINGHAM and PAPANASTASIOU */
+//! Shear rate contribution in the linear case
+/** For NEWTON, BINGHAM and PAPANASTASIOU */
 template<RheologyType rheologytype>
 enable_if_t<not NONLINEAR_RHEOLOGY(rheologytype), float >
-getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams)
+getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams, const float max_shear_rate)
 {
 	float maxViscShearTerm = 0.0f;
 	for (uint f = 0; f < physparams->numFluids(); ++f)
 	{
-		maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]/physparams->rho0[f]);
+		maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]);
 	}
 	return maxViscShearTerm;
 }
 
-//! Power-law dependency on the shear rate
+//! Shear rate contribution in the power-law case
 /** For POWER_LAW, HERSCHEL_BULKLEY and ALEXANDROU */
 template<RheologyType rheologytype>
 enable_if_t<POWERLAW_RHEOLOGY(rheologytype), float >
-getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams)
+getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams, const float max_shear_rate)
 {
 	float maxViscShearTerm = 0.0f;
 	for (uint f = 0; f < physparams->numFluids(); ++f)
 	{
-		if(physparams->visc_nonlinear_param[f]==1)
-			maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]/physparams->rho0[f]);
+		// exponent of the power law
+		const float n = physparams->visc_nonlinear_param[f];
+		// actually linear case
+		if (n == 1)
+			maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]);
+		// dilatant fluid (n > 1): visc grows with growing shear rate, limit according to the maximum (expected) shear rate
+		else if (n > 1)
+			maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]*pow(max_shear_rate, n));
+		// shear-thinning fluid (n < 1): visc becomes infinite for vanishing shear rate
 		else
 			return physparams->limiting_kinvisc;
 	}
 	return maxViscShearTerm;
 }
 
-//! Exponential dependency on the shear rate
+//! Shear rate contribution in the exponential case
 /** For DEKEE_TURCOTTE and ZHU */
 template<RheologyType rheologytype>
 enable_if_t<EXPONENTIAL_RHEOLOGY(rheologytype), float >
-getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams)
+getInitViscShearTerm(const SimParams * simparams, const PhysParams * physparams, const float max_shear_rate)
 {
 	float maxViscShearTerm = 0.0f;
 	for (uint f = 0; f < physparams->numFluids(); ++f)
 	{
-		if(physparams->visc_nonlinear_param[f] >= 0)
-			maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]/physparams->rho0[f]);
+		const float t1 = physparams->visc_nonlinear_param[f];
+		// linear case and shear-thinning (t1 > 0) case: maximum viscosity is achieved for vanishing shear rate,
+		// and it's equal to the kinematic coefficient
+		if (t1 >= 0)
+			maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]);
+		// dilatant fluid (t1 < 0): visc grows with growing shear rate, limit according to the maximum (expected) shear rate
 		else
-			return physparams->limiting_kinvisc;
+			maxViscShearTerm = fmaxf(maxViscShearTerm, physparams->kinematicvisc[f]*exp(-t1*max_shear_rate));
 	}
 	return maxViscShearTerm;
 }
@@ -700,8 +721,18 @@ template<RheologyType rheologytype>
 float get_dt_from_visc(const SimParams *simparams, const PhysParams *physparams)
 {
 	float effvisc = getInitViscYieldTerm<rheologytype>(simparams, physparams);
-	if (effvisc < physparams->limiting_kinvisc)
-		effvisc += getInitViscShearTerm<rheologytype>(simparams, physparams);
+	if (effvisc < physparams->limiting_kinvisc) {
+		float max_shear_rate = 0;
+		// we assume that the maximum shear rate we can expect is given by
+		// a velocity difference equal to the speed of sound, over a smoothing length
+		// (given that the maximum speed should be an order of magnitude lower than the speed of sound
+		// of any fluid, this shouldn't be a strong assumption)
+		for (uint f = 0; f < physparams->numFluids(); ++f)
+			max_shear_rate = fmaxf(max_shear_rate, physparams->sscoeff[f]/simparams->slength);
+
+		printf("Expected maximum shear rate: %g 1/s\n", max_shear_rate);
+		effvisc += getInitViscShearTerm<rheologytype>(simparams, physparams, max_shear_rate);
+	}
 	effvisc = fminf(effvisc, physparams->limiting_kinvisc);
 	return simparams->slength*simparams->slength/effvisc;
 }
