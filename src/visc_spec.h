@@ -33,6 +33,8 @@
 #ifndef _VISC_SPEC_H
 #define _VISC_SPEC_H
 
+#include "option_range.h"
+
 #include "simflags.h"
 
 #include "average.h"
@@ -45,26 +47,97 @@
 /** @defpsubsection{rheology, RHEOLOGY}
  * @inpsection{viscous_options}
  * @default{Newtonian}
- * @values{inviscid, Newtonian}
+ * @values{inviscid, Newtonian, Bingham, Papanastasious, Power Law, Herschel–Bulkley, Alexandrou, DeKee & Turcotte, Zhu}
  * TLT_RHEOLOGY
  */
 enum RheologyType {
 	INVISCID, ///< No (laminar) viscosity
 	NEWTONIAN, ///< Viscosity independent of strain rate
+	BINGHAM, ///< Bingham model (Newtonian + yield strength)
+	PAPANASTASIOU, ///< Regularized Bingham model
+	POWER_LAW, ///< Viscosity depends on a power of the strain rate
+	HERSCHEL_BULKLEY, ///< Power law + yield strength
+	ALEXANDROU, ///< Regularized Herschel–Bulkley
+	DEKEE_TURCOTTE, ///< Exponential + yield strength
+	ZHU, ///< Regularized De Kee and Turcotte
 };
 
 //! Name of the rheology type
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* RheologyTypeName[NEWTONIAN+1]
+const char* RheologyName[ZHU+1]
 #ifdef GPUSPH_MAIN
 = {
 	"Inviscid",
 	"Newtonian",
+	"Bingham",
+	"Papanastasiou",
+	"Power-law",
+	"Herschel–Bulkley",
+	"Alexandrou",
+	"De Kee & Turcotte",
+	"Zhu"
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(RheologyType, RheologyName, INVISCID, ZHU);
+
+/** Macros and function to programmatically determine rheology traits
+ * @{
+ */
+
+//! Check if an effective viscosity needs to be computed
+#define NEEDS_EFFECTIVE_VISC(rheology) ((rheology) > NEWTONIAN)
+
+//! Check if the rheology is non-linear (aside from the yield strength)
+#define NONLINEAR_RHEOLOGY(rheology) ((rheology) >= POWER_LAW)
+
+//! Check if the rheology has a yield strength
+#define YIELDING_RHEOLOGY(rheology) (NEEDS_EFFECTIVE_VISC(rheology) && ((rheology) != POWER_LAW))
+
+//! Check if the rheology uses the regularization parameter
+#define REGULARIZED_RHEOLOGY(rheology) ( \
+	((rheology) == PAPANASTASIOU) || \
+	((rheology) == ALEXANDROU) || \
+	((rheology) == ZHU) \
+	)
+
+//! Check if the rheology has an exponential behavior
+#define EXPONENTIAL_RHEOLOGY(rheology) ((rheology) >= DEKEE_TURCOTTE)
+
+//! Check if the rheology has a power-law behavior
+/*! This includes rheology with yield strength
+ */
+#define POWERLAW_RHEOLOGY(rheology) (NONLINEAR_RHEOLOGY(rheology) && (rheology) < DEKEE_TURCOTTE)
+
+//! Forms of yield strength contribution
+/** We have three forms for the yield strengt contribution:
+ * - no contribution (e.g. from power law)
+ * - standard contribution (y_s/\dot\gamma), which can become infinite
+ * - regularized contribution (Papanastasiou etc)
+ */
+enum YsContrib
+{
+	NO_YS, ///< no yield strength
+	STD_YS, ///< standard form
+	REG_YS ///< regularized
+};
+
+//! Statically determine the yield strength contribution for the given rheological model
+template<RheologyType rheologytype>
+__host__ __device__ __forceinline__
+constexpr YsContrib
+yield_strength_type()
+{
+	return
+		REGULARIZED_RHEOLOGY(rheologytype) ? REG_YS : // yield with regularization
+		YIELDING_RHEOLOGY(rheologytype) ? STD_YS : // yield without regularization
+			NO_YS; // everything else: should be just Newtonian and power-law
+}
+
+//! @}
 
 //! Turbulence model
 /** @defpsubsection{turbulence, TURBULENCE}
@@ -103,6 +176,8 @@ const char* TurbulenceName[INVALID_TURBULENCE+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(TurbulenceModel, TurbulenceName, LAMINAR_FLOW, KEPSILON);
+
 //! Kind of viscosity used within the simulation
 /*! This can be either KINEMATIC or DYNAMIC, depending on whether
  * the preference is to work in terms of the kinematic viscosity ν,
@@ -132,6 +207,8 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(ComputationalViscosityType, ComputationalViscosityName, KINEMATIC, DYNAMIC);
+
 //! Supported viscous models
 /*! Currently only MORRIS is available, with plans to add Monaghan's and
  * Español & Revenga too
@@ -139,23 +216,30 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 /** @defpsubsection{viscousModel, VISCOUS_MODEL}
  * @inpsection{viscous_options}
  * @default{Morris}
- * @values{Morris}
+ * @values{Morris, Monaghan, Españo & Revenga}
  * TLT_VISCOUS_MODEL
  */
 enum ViscousModel {
 	MORRIS, ///< Morris et al., JCP 1997
+	MONAGHAN, ///< Monaghan & Gingold, JCP 1983
+	ESPANOL_REVENGA, ///< Español & Revenga, Phys Rev E 2003
 };
+
 //! Name of the viscous model
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* ViscousModelName[MORRIS+1]
+const char* ViscousModelName[ESPANOL_REVENGA+1]
 #ifdef GPUSPH_MAIN
 = {
 	"Morris 1997",
+	"Monaghan & Gingold 1983",
+	"Español & Revenga 2003",
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(ViscousModel, ViscousModelName, MORRIS, ESPANOL_REVENGA);
 
 
 

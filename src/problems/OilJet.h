@@ -28,15 +28,11 @@
 #define OILJET_H_
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cylinder.h"
-#include "Vector.h"
-#include "Cube.h"
 
 class OilJet: public XProblem {
 	private:
 		double		lx, ly, lz;		// dimension of water tank
-		double 		water_level;	// water level
+		double		water_level;	// water level
 		double		inner_diam;		// pipe inner diameter
 		double		pipe_length;	// pipe length
 
@@ -46,7 +42,7 @@ class OilJet: public XProblem {
 		double		piston_tstart, piston_tend;
 		double		piston_vel;
 
-		int 		layers;		// Number of particles layers for dynamic boundaries
+		int			layers;		// Number of particles layers for dynamic boundaries
 	public:
 		OilJet(GlobalData *);
 

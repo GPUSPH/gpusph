@@ -29,7 +29,7 @@
  */
 
 class Problem;
-class GlobalData;
+struct GlobalData;
 
 struct problem_spec
 {

@@ -2080,13 +2080,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 	cout << "Tot: " << tot_parts << " particles\n";
 	flush(cout);
 
-	// initialize values of k and e for k-e model
-	if (simparams()->turbmodel == KEPSILON)
-		init_keps(buffers, tot_parts);
-
-	// call user-set initialization routine, if any
-	if (!gdata->keep_repacking)
-		initializeParticles(buffers, tot_parts);
+	if (tot_parts != gdata->totParticles)
+		throw logic_error("particle count mismatch: fill = " + to_string(gdata->totParticles) +
+			", copy =  " + to_string(tot_parts));
 }
 
 // callback for filtering out points before they become particles (e.g. unfills/cuts)

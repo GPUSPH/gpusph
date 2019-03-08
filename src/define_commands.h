@@ -1,4 +1,4 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2018 Giuseppe Bilotta, Alexis Herault, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -24,20 +24,9 @@
 */
 
 /*! \file
- * Timing info implementation
+ * Actual definition of the commands that GPUSPH can issue to workers
+ * or to itself
  */
 
-#include "timing.h"
-
-#ifdef __APPLE__
-//! Pseudo-implementation of clock_gettime() on Mac OS X
-//! NOTE: assuming this behaves similarly to CLOCK_MONOTONIC. This should be tested on a multi-GPU mac.
-int clock_gettime(int /*clk_id*/, struct timespec* t) {
-	struct timeval now;
-	int rv = gettimeofday(&now, NULL);
-	if (rv) return rv;
-	t->tv_sec  = now.tv_sec;
-	t->tv_nsec = now.tv_usec * 1000;
-	return 0;
-}
-#endif
+#include "define_worker_commands.h"
+#include "define_host_commands.h"

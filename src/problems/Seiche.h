@@ -34,9 +34,6 @@
 #define	SEICHE_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Rect.h"
-#include "Cube.h"
 
 class Seiche: public XProblem {
 	private:

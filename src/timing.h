@@ -30,20 +30,10 @@
 #ifndef _TIMING_H
 #define _TIMING_H
 
-#include <time.h>
+#include <chrono>
 #include <exception>
 #include <cmath> // NAN
 #include "particleinfo.h"
-
-// clock_gettime() is not implemented on OSX, so we declare it here and
-// implement it in timing.cc
-#ifdef __APPLE__
-// missing defines, we don't really care about the values
-#define CLOCK_REALTIME				0
-#define CLOCK_MONOTONIC				0
-#include <sys/time.h>
-int clock_gettime(int /*clk_id*/, struct timespec* t);
-#endif
 
 typedef unsigned int uint;
 typedef unsigned long ulong;
@@ -110,28 +100,34 @@ typedef struct TimingInfo {
 
 class IPPSCounter
 {
+	// we track runtime using the default monotonic clock
+	using clock = std::chrono::steady_clock;
+	using time_point = clock::time_point;
+	// we track runtime in seconds (floating-point)
+	using duration = std::chrono::duration<double>;
+	static constexpr auto now = clock::now;
+
 	private:
-		timespec	m_startTime;
+		time_point m_startTime;
 		bool m_started;
 		ulong m_iterPerParts;
 	public:
 		IPPSCounter():
 			m_started(false),
-			m_iterPerParts(0)
-		{
-			m_startTime.tv_sec = m_startTime.tv_nsec = 0;
-		};
+			m_iterPerParts(0),
+			m_startTime()
+		{};
 
 		// start the counter
-		timespec start() {
-			clock_gettime(CLOCK_MONOTONIC, &m_startTime);
+		time_point start() {
+			m_startTime = now();
 			m_started = true;
 			m_iterPerParts = 0;
 			return m_startTime;
 		}
 
 		// reset the counter
-		timespec restart() {
+		time_point restart() {
 			return start();
 		}
 
@@ -140,34 +136,11 @@ class IPPSCounter
 			m_iterPerParts += increment;
 		}
 
-		// compute the difference between two timespecs and store it in ret
-		inline
-		void timespec_diff(timespec &end, timespec &start, timespec &ret)
-		{
-			ret.tv_sec = end.tv_sec - start.tv_sec;
-			if (end.tv_nsec < start.tv_nsec) {
-				ret.tv_sec -= 1;
-				ret.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
-			} else {
-				ret.tv_nsec = end.tv_nsec - start.tv_nsec;
-			}
-		}
-
-		// compute the difference between two timespecs (in seconds)
-		inline
-		double diff_seconds(timespec &end, timespec &start) {
-			timespec diff;
-			timespec_diff(end, start, diff);
-			/* explicit casts to silence -Wconversion */
-			return double(diff.tv_sec) + double(diff.tv_nsec)/1.0e9;
-		}
-
 		// returns the elapsed seconds since [re]start() was called
 		double getElapsedSeconds() {
 			if (!m_started) return 0;
-			timespec now;
-			clock_gettime(CLOCK_MONOTONIC, &now);
-			double timeInterval = diff_seconds(now, m_startTime);
+			duration elapsed_seconds = now() - m_startTime;
+			double timeInterval = elapsed_seconds.count();
 			if (timeInterval <= 0.0)
 				return 0.0;
 			else
@@ -180,7 +153,7 @@ class IPPSCounter
 			if (timeInterval <= 0.0)
 				return 0.0;
 			else
-				return (double(m_iterPerParts) / timeInterval);
+				return (m_iterPerParts / timeInterval);
 		}
 
 		// almost all devices get at least 1MIPPS, so:

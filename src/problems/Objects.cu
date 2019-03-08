@@ -48,7 +48,7 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
 	// density diffusion terms, see DensityDiffusionType
-	const int RHODIFF = get_option("density-diffusion", 1);
+	const DensityDiffusionType RHODIFF = get_option("density-diffusion", FERRARI);
 
 	// ** framework setup TODO newvisc update
 	// viscosities: KINEMATICVISC*, DYNAMICVISC*
@@ -59,8 +59,7 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>
 	).select_options(
-		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		RHODIFF,
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
 

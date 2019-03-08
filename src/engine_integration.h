@@ -82,11 +82,9 @@ public:
 	density_sum(
 		const BufferList& bufread,	// this is the read only arrays
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -98,11 +96,9 @@ public:
 	integrate_gamma(
 		const BufferList& bufread,	// particle system at state n
 		BufferList& bufreadUpdate,	// particle system at state n+1
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -114,7 +110,6 @@ public:
 	apply_density_diffusion(
 		const BufferList& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt) = 0;
@@ -126,11 +121,9 @@ public:
 	basicstep(
 		const BufferList& bufread,	// this is the read only arrays
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	slength,

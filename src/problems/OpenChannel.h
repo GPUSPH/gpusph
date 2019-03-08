@@ -27,9 +27,6 @@
 #define	_OPENCHANNEL_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Rect.h"
-#include "Cube.h"
 
 class OpenChannel: public XProblem {
 	private:

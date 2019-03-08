@@ -55,6 +55,11 @@
 
 using namespace std;
 
+// an empty set of PostProcessEngines, to be used when we want to save
+// the particle system without running post-processing filters
+// (e.g. when inspecting the particle system before each forces computation)
+static const PostProcessEngineSet noPostProcess{};
+
 GPUSPH* GPUSPH::getInstance() {
 	// guaranteed to be destroyed; instantiated on first use
 	static GPUSPH instance;
@@ -62,25 +67,65 @@ GPUSPH* GPUSPH::getInstance() {
 	return &instance;
 }
 
-GPUSPH::GPUSPH()
+GPUSPH::GPUSPH() :
+	clOptions(NULL),
+	gdata(NULL),
+	problem(NULL),
+
+	m_totalPerformanceCounter(NULL),
+	m_intervalPerformanceCounter(NULL),
+	m_multiNodePerformanceCounter(NULL),
+
+	m_info_stream_name(),
+	m_info_stream(NULL),
+
+	m_rcBitmap(NULL),
+	m_rcNotified(NULL),
+	m_rcAddrs(NULL),
+
+	m_peakParticleSpeed(0.0),
+	m_peakParticleSpeedTime(0.0),
+
+	initialized(false),
+	repacked(false)
 {
-	clOptions = NULL;
-	gdata = NULL;
-	problem = NULL;
-
-	initialized = false;
-	repacked = false;
-	m_peakParticleSpeed = 0.0;
-	m_peakParticleSpeedTime = 0.0;
-
 	openInfoStream();
+	resetCommandTimes();
 }
 
 GPUSPH::~GPUSPH() {
+	if (gdata->debug.benchmark_command_runtimes)
+		showCommandTimes();
+
 	closeInfoStream();
 	// it would be useful to have a "fallback" deallocation but we have to check
 	// that main did not do that already
 	if (initialized) finalize();
+}
+
+void GPUSPH::resetCommandTimes()
+{
+	for (CommandName cmd = IDLE; cmd < NUM_COMMANDS; cmd = CommandName(cmd+1))
+	{
+		max_cmd_time[cmd] = cmd_time_duration(0);
+		tot_cmd_time[cmd] = cmd_time_duration(0);
+		cmd_calls[cmd] = 0;
+	}
+}
+
+void GPUSPH::showCommandTimes()
+{
+	cout << "CMDTIMES:COMMAND\tCMD_NUM\tCALLS\tMAX(ms)\tTOT(ms)\n";
+	for (CommandName cmd = IDLE; cmd < NUM_COMMANDS; cmd = CommandName(cmd+1))
+	{
+		if (!cmd_calls[cmd])
+			continue;
+		std::chrono::duration<double, std::milli> max_ms = max_cmd_time[cmd];
+		std::chrono::duration<double, std::milli> tot_ms = tot_cmd_time[cmd];
+		cout << "CMDTIMES:" << command_name[cmd] << "\t" << cmd << "\t"
+			<< cmd_calls[cmd] << "\t"
+			<< max_ms.count() << "\t" << tot_ms.count() << "\n";
+	}
 }
 
 void GPUSPH::openInfoStream() {
@@ -136,7 +181,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	m_totalPerformanceCounter = new IPPSCounter();
 	m_intervalPerformanceCounter = new IPPSCounter();
 	// only init if MULTI_NODE
-	m_multiNodePerformanceCounter = NULL;
 	if (MULTI_NODE)
 		m_multiNodePerformanceCounter = new IPPSCounter();
 
@@ -149,6 +193,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	if (clOptions->repack_maxiter)
 		_sp->repack_maxiter = clOptions->repack_maxiter;
+
+	// Update GlobalData's maxiter based on the run mode
+	if (gdata->run_mode == REPACK)
+		gdata->maxiter = _sp->repack_maxiter;
+	else if (clOptions->maxiter > 0)
+		gdata->maxiter = clOptions->maxiter;
 
 	// update the GlobalData copies of the sizes of the domain
 	gdata->worldOrigin = make_float3(problem->get_worldorigin());
@@ -332,21 +382,17 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	 */
 	bool resumed = false;
 
-	// Prepare for repacking if necessary
-	if ((gdata->clOptions->repack || gdata->clOptions->repack_only) && !repacked) {
-		gdata->keep_repacking = true;
-		gdata->keep_going = false;
-	} else {
-		gdata->keep_repacking = false;
-		if (!gdata->quit_request) gdata->keep_going = true;
-	}
-
 	// initialize the buffers
 	if (clOptions->resume_fname.empty()) {
 		gdata->s_hBuffers.set_state_on_write("problem init");
 		printf("Copying the particles to shared arrays...\n");
 		printf("---\n");
 		problem->copy_to_array(gdata->s_hBuffers);
+		if (gdata->run_mode != REPACK) {
+			if (problem->simparams()->turbmodel == KEPSILON)
+				problem->init_keps(gdata->s_hBuffers, gdata->totParticles);
+			problem->initializeParticles(gdata->s_hBuffers, gdata->totParticles);
+		}
 		printf("---\n");
 	} else {
 		gdata->t = hf[0]->get_t();
@@ -469,8 +515,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf(" - device at index %u has %s particles assigned and offset %s\n",
 			d, gdata->addSeparators(gdata->s_hPartsPerDevice[d]).c_str(), gdata->addSeparators(gdata->s_hStartPerDevice[d]).c_str());
 
-	// TODO
-	//		// > new Integrator
+	// TODO this is where we would instance the Integrator class
+	// for the time being, we will instead call a function that initializes
+	// our own CommandSequences
+	// Note that if gdata->run_mode == REPACK, the REPACKING_INTEGRATOR will be instantiated instead
+	integrator = Integrator::instance(PREDITOR_CORRECTOR, gdata);
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
@@ -490,7 +539,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
-	if (!gdata->keep_going && !gdata->keep_repacking)
+	if (!gdata->keep_going)
 		return false;
 
 	// peer accessibility is checked and set in the initialization phase
@@ -534,614 +583,11 @@ bool GPUSPH::finalize() {
 	return true;
 }
 
-// set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandType cmd, flag_t flags)
+template<>
+void GPUSPH::runCommand<END_OF_INIT>(CommandStruct const& cmd)
 {
-	// resetting the host buffers is useful to check if the arrays are completely filled
-	/*/ if (cmd==DUMP) {
-	 const uint float4Size = sizeof(float4) * gdata->totParticles;
-	 const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
-	 memset(gdata->s_hPos, 0, float4Size);
-	 memset(gdata->s_hVel, 0, float4Size);
-	 memset(gdata->s_hInfo, 0, infoSize);
-	 } */
-
-	gdata->nextCommand = cmd;
-	gdata->commandFlags = flags;
-	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
-	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
-
-	if (gdata->clOptions->repack || gdata->clOptions->repack_only) {
-    if (!repacked && !gdata->keep_repacking) {
-      throw runtime_error("GPUSPH repacking aborted by worker thread");
-      // Check buffer consistency after every call.
-      // Don't even bother with the conditional if it's not enabled though.
-      // TODO as things are now, all the calls from the first APPEND_EXTERNAL
-      // to the first EULER will complain about inconsistency in the WRITE buffers.
-      // With knowledge about which buffers are read/written to by each command, we
-      // could restrict ourselves to check those buffers; with the upcoming new
-      // Integrator and ParticleSystem classes, this will be easier, so let's not
-      // waste too much time on it at the moment.
-#ifdef INSPECT_DEVICE_MEMORY
-      if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
-        checkBufferConsistency();
-#endif
-    }
-    if (repacked && !gdata->keep_going) {
-      throw runtime_error("GPUSPH aborted by worker thread");
-      // Check buffer consistency after every call.
-      // Don't even bother with the conditional if it's not enabled though.
-      // TODO as things are now, all the calls from the first APPEND_EXTERNAL
-      // to the first EULER will complain about inconsistency in the WRITE buffers.
-      // With knowledge about which buffers are read/written to by each command, we
-      // could restrict ourselves to check those buffers; with the upcoming new
-      // Integrator and ParticleSystem classes, this will be easier, so let's not
-      // waste too much time on it at the moment.
-#ifdef INSPECT_DEVICE_MEMORY
-      if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
-        checkBufferConsistency();
-#endif
-    }
-	} else {
-    if (!gdata->keep_going) {
-      throw runtime_error("GPUSPH aborted by worker thread");
-      // Check buffer consistency after every call.
-      // Don't even bother with the conditional if it's not enabled though.
-      // TODO as things are now, all the calls from the first APPEND_EXTERNAL
-      // to the first EULER will complain about inconsistency in the WRITE buffers.
-      // With knowledge about which buffers are read/written to by each command, we
-      // could restrict ourselves to check those buffers; with the upcoming new
-      // Integrator and ParticleSystem classes, this will be easier, so let's not
-      // waste too much time on it at the moment.
-#ifdef INSPECT_DEVICE_MEMORY
-      if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
-        checkBufferConsistency();
-#endif
-    }
-	}
-}
-
-// Auxiliary template selector for setExtraCommandArg
-template<typename T>
-using CanBeStoredInFlag = typename std::integral_constant<bool,
-	std::is_integral<T>::value || std::is_enum<T>::value>;
-
-// Function to specializa the setting of extraCommandArg
-void setExtraCommandArg(GlobalData *gdata, const char *arg)
-{ gdata->extraCommandArg.string = arg; }
-
-void setExtraCommandArg(GlobalData *gdata, std::string const& arg)
-{ gdata->extraCommandArg.string = arg; }
-
-template<typename T>
-enable_if_t<CanBeStoredInFlag<T>::value>
-setExtraCommandArg(GlobalData *gdata, T arg)
-{ gdata->extraCommandArg.flag = arg; }
-
-template<typename T>
-enable_if_t<std::is_floating_point<T>::value>
-setExtraCommandArg(GlobalData *gdata, T arg)
-{ gdata->extraCommandArg.fp32 = arg; }
-
-// set the extra arg for the next command
-template<typename T>
-void
-GPUSPH::doCommand(CommandType cmd, flag_t flags, T arg)
-{
-	setExtraCommandArg(gdata, arg);
-	doCommand(cmd, flags);
-}
-
-// an empty set of PostProcessEngines, to be used when we want to save
-// the particle system without running post-processing filters
-// (e.g. when inspecting the particle system before each forces computation)
-static const PostProcessEngineSet noPostProcess{};
-
-void
-GPUSPH::prepareNextStep(const flag_t current_integrator_step)
-{
-	// this is a “resumed” prepareNextStep if we're doing the “initialization”
-	// preparation and a resume file is defined
-	const bool resumed = (
-		(current_integrator_step == INITIALIZATION_STEP) &&
-		!clOptions->resume_fname.empty()
-		);
-
-	if (current_integrator_step == INTEGRATOR_STEP_2) {
-		// Euler needs always cg(n)
-		if (problem->simparams()->numbodies > 0)
-			doCommand(EULER_UPLOAD_OBJECTS_CG);
-	}
-
-	// variable gravity
-	if (problem->simparams()->gcallback) {
-		// ask the Problem to update gravity, one per process
-		doCallBacks(current_integrator_step);
-		// upload on the GPU, one per device
-		doCommand(UPLOAD_GRAVITY);
-	}
-
-	// TODO when support for Grenier's formulation is added to models
-	// with boundary conditions, the computation of the new sigma and
-	// smoothed density should be moved here from the beginning of
-	// runIntegratorStep
-
-	// semi-analytical boundary conditions, but not during init if we resumed
-	// In case of repacking, saBoundaryConditions(REPACK_STEP)
-	// is called at the end of the repacking to fix gamma
-	// after the free-surface has been disabled. The resume_fname
-	// variable then contains the name of a repack file that is
-	// going to be used to start the simulation
-	// hence this test on the keep_repacking variable
-	if (!resumed || gdata->keep_repacking) switch (problem->simparams()->boundarytype) {
-	case LJ_BOUNDARY:
-	case MK_BOUNDARY:
-	case DYN_BOUNDARY:
-		/* nothing to do for LJ, MK and dynamic boundaries */
-		break;
-	case SA_BOUNDARY:
-		saBoundaryConditions(current_integrator_step);
-		break;
-	}
-
-	// open boundaries: new particle generation, only during the corrector
-	if (current_integrator_step == INTEGRATOR_STEP_2 &&
-		problem->simparams()->simflags & ENABLE_INLET_OUTLET)
-	{
-		doCommand(DOWNLOAD_NEWNUMPARTS);
-		gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
-		for (uint d = 1; d < gdata->devices; d++)
-			gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
-		// if runnign multinode, should also find the network minimum
-		if (MULTI_NODE)
-			gdata->networkManager->networkBoolReduction(
-				&(gdata->particlesCreated), 1);
-
-		// update the it counter if new particles are created
-		if (gdata->particlesCreated) {
-			gdata->createdParticlesIterations++;
-
-			/*** IMPORTANT: updateArrayIndices() is only useful to be able to dump
-			 * the newly generated particles on the upcoming (if any) save. HOWEVER,
-			 * it introduces significant issued when used in multi-GPU, due
-			 * to the fact that generated particles are appended after the externals.
-			 * A method to handle this better needs to be devised (at worst enabling
-			 * this only as a debug feature in single-GPU mode). For the time being
-			 * the code section is disabled.
-			 */
-#if 0
-			// we also update the array indices, so that e.g. when saving
-			// the newly created particles are visible
-			// TODO this doesn't seem to impact performance noticeably
-			// in single-GPU. If it is found to be too expensive on
-			// multi-GPU (or especially multi-node) it might be necessary
-			// to only do it when saving. It does not affect the simulation
-			// anyway, since it will be done during the next buildNeibList()
-			// call
-			updateArrayIndices();
-#endif
-		}
-	}
-
-}
-
-void
-GPUSPH::runIntegratorStep(const flag_t integrator_step)
-{
-	// for Grenier formulation, compute sigma and smoothed density
-	// TODO with boundary models requiring kernels for boundary conditions,
-	// this should be moved into prepareNextStep
-	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
-		// put READ vel in WRITE buffer
-		doCommand(SWAP_BUFFERS, BUFFER_VEL);
-		gdata->only_internal = true;
-		// compute density and sigma, updating WRITE vel in-place
-		doCommand(COMPUTE_DENSITY, integrator_step);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL,
-					BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
-
-		// restore vel buffer into READ position
-		doCommand(SWAP_BUFFERS, BUFFER_VEL);
-	}
-
-	// for SPS viscosity, compute first array of tau and exchange with neighbors
-	if (problem->simparams()->turbmodel == SPS) {
-		gdata->only_internal = true;
-		doCommand(CALC_VISC, integrator_step);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
-	}
-	if (gdata->debug.inspect_preforce)
-		saveParticles(noPostProcess, integrator_step);
-
-	// compute forces only on internal particles
-	gdata->only_internal = true;
-	if (gdata->clOptions->striping && MULTI_DEVICE)
-		doCommand(FORCES_ENQUEUE, integrator_step);
-	else
-		doCommand(FORCES_SYNC, integrator_step);
-
-	// update forces of external particles
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL,
-				POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-	// if striping was active, now we want the kernels to complete
-	if (gdata->clOptions->striping && MULTI_DEVICE)
-		doCommand(FORCES_COMPLETE, integrator_step);
-
-	// --- ONLY CORRECTOR (STEP 2) -------------
-	// during the corrector step, we want to swap compute buffers to put n back
-	// into the READ position, and n* (that will be updated to n+1) into the
-	// WRITE position
-	if (integrator_step == INTEGRATOR_STEP_2) {
-		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
-		// boundelements is swapped because the normals are updated in the moving objects case
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-	}
-	// -----------------------------------------
-
-	// Take care of moving bodies
-	move_bodies(integrator_step);
-
-	// integrate also the externals
-	gdata->only_internal = false;
-	// perform the euler integration step
-	doCommand(EULER, integrator_step);
-	gdata->only_internal = true;
-
-	if (gdata->debug.inspect_pregamma)
-		saveParticles(noPostProcess, integrator_step);
-
-	if (problem->simparams()->simflags & ENABLE_DENSITY_SUM) {
-		// compute density based on an integral formulation
-		doCommand(DENSITY_SUM, integrator_step);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL,
-					BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-
-		// when using density sum, density diffusion is applied _after_ the density sum
-		if (problem->simparams()->densitydiffusiontype
-				!= DENSITY_DIFFUSION_NONE) {
-			/* Put the new data into the READ position: this will be used to
-			 * compute the density diffusion based on the new data
-			 */
-			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
-			if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-				doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
-			doCommand(CALC_DENSITY_DIFFUSION, integrator_step);
-			/* Swap back the arrays that'll get updated in-place */
-			doCommand(SWAP_BUFFERS, BUFFER_VEL);
-			doCommand(APPLY_DENSITY_DIFFUSION, integrator_step);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-
-			/* Swap back POS and GRADGAMMA (and BOUNDELEMENTS if needed) too,
-			 * to restore the overall situation */
-			doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_GRADGAMMA);
-			if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-				doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-		}
-	} else if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-		// with SA_BOUNDARY, if not using DENSITY_SUM, rho is integrated in EULER,
-		// but we still need to integrate gamma, which needs the new position and thus
-		// needs to be done after EULER
-		doCommand(INTEGRATE_GAMMA, integrator_step);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-	}
-
-	// upload gravity, boundary conditions, etc
-	prepareNextStep(integrator_step);
-
-	// put all the updated stuff in the READ positions, ready for the next step
-	doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
-	if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-}
-
-void
-GPUSPH::runRepackingStep(const flag_t integrator_step) {
-
-	if (gdata->debug.inspect_preforce)
-		saveParticles(noPostProcess, integrator_step);
-
-	// compute forces only on internal particles
-	gdata->only_internal = true;
-	if (gdata->clOptions->striping && MULTI_DEVICE)
-		doCommand(FORCES_ENQUEUE, integrator_step);
-	else
-		doCommand(FORCES_SYNC, integrator_step);
-
-	// update forces of external particles
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | DBLBUFFER_WRITE);
-
-	// if striping was active, now we want the kernels to complete
-	if (gdata->clOptions->striping && MULTI_DEVICE)
-		doCommand(FORCES_COMPLETE, integrator_step);
-
-	// -----------------------------------------
-
-	// integrate also the externals
-	gdata->only_internal = false;
-	// perform the euler integration step
-	doCommand(EULER, integrator_step);
-	gdata->only_internal = true;
-
-	if (gdata->debug.inspect_pregamma)
-		saveParticles(noPostProcess, integrator_step);
-
-	if (problem->simparams()->boundarytype == SA_BOUNDARY) {
-		// with SA_BOUNDARY we need to integrate gamma,
-		// which needs the new position and thus
-		// needs to be done after EULER
-		// we do it as if we were in step 2 of predictor-corrector
-		doCommand(INTEGRATE_GAMMA, INTEGRATOR_STEP_2);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-	}
-	// -----------------------------------------
-
-	// put all the updated stuff in the READ position, ready for the next step
-	doCommand(SWAP_BUFFERS, POST_REPACK_SWAP_BUFFERS);
-}
-
-void GPUSPH::runEnabledFilters(const FilterFreqList& enabledFilters) {
-	FilterFreqList::const_iterator flt(enabledFilters.begin());
-	FilterFreqList::const_iterator flt_end(enabledFilters.end());
-	while (flt != flt_end) {
-		FilterType filter = flt->first;
-		uint freq = flt->second; // known to be > 0
-		if (gdata->iterations % freq == 0) {
-			gdata->only_internal = true;
-			doCommand(FILTER, NO_FLAGS, filter);
-			// update before swapping, since UPDATE_EXTERNAL works on write buffers
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-
-			doCommand(SWAP_BUFFERS, BUFFER_VEL);
-		}
-		++flt;
-	}
-}
-
-bool GPUSPH::runRepacking() {
-	if (!initialized) return false;
-	// doing first write
-	printf("Performing first write...\n");
-	doWrite(INITIALIZATION_STEP);
-
-	printf("Letting threads upload the subdomains...\n");
-	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
-
-	// here the Workers are uploading their subdomains
-
-	// After next barrier, the workers will enter their simulation cycle, so it is recommended to set
-	// nextCommand properly before the barrier (although should be already initialized to IDLE).
-	// doCommand(IDLE) would be equivalent, but this is more clear
-	gdata->nextCommand = IDLE;
-	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
-	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
-
-	// this is where we invoke initialization routines that have to be
-	// run by the GPUWorkers
-	const bool needs_preparation = (
-			(problem->simparams()->gcallback) ||
-			(problem->simparams()->boundarytype == SA_BOUNDARY)
-	);
-
-	// compute neighbour list for the first time. This is done regardless
-	// of preparations, since we need to do one anyway
-	buildNeibList();
-
-	if (needs_preparation) {
-		prepareNextStep(INITIALIZATION_STEP);
-	}
-
-	printf("Entering the repacking cycle\n");
-
-	//  IPPS counter does not take the initial uploads into consideration
-	m_totalPerformanceCounter->start();
-	m_intervalPerformanceCounter->start();
-	if (MULTI_NODE)
-		m_multiNodePerformanceCounter->start();
-
-	// write some info. This could replace "Entering the repacking cycle"
-	printStatus();
-
-	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
-
-	// Run the repacking loop, by issuing the appropriate doCommand()s
-	// in sequence. keep_repacking will be set to false either by the loop itself
-	// if the repacking is finished, or by a Worker that fails in executing a
-	// command; in the latter case, doCommand itself will throw, to prevent
-	// the loop from issuing subsequent commands; hence, the body consists of a
-	// try/catch block --------v-----
-	while (gdata->keep_repacking) try {
-		printStatus(m_info_stream);
-		// when there will be an Integrator class, here (or after bneibs?) we will
-		// call Integrator -> setNextStep
-
-		// build neighbors list
-		if (gdata->iterations % problem->simparams()->buildneibsfreq == 0 ||
-				gdata->particlesCreated) {
-			buildNeibList();
-		}
-
-		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
-
-		// run enabled filters
-		if (gdata->iterations > 0) {
-			runEnabledFilters(enabledFilters);
-		}
-
-		// run REPACK step
-		runRepackingStep(REPACK_STEP);
-
-		// Here the repacking step is complete. All updated values
-		// are now in the read buffers again: mark the READ buffers as valid repack,
-		// and the WRITE buffers as valid n
-		markIntegrationStep("repack", BUFFER_VALID, "n", BUFFER_VALID);
-		// End of repacking step
-
-		// increase counters
-		gdata->iterations++;
-		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
-		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
-		if (MULTI_NODE)
-			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
-
-		// choose minimum dt among the devices
-		if (gdata->dtadapt) {
-			gdata->dt = gdata->dts[0];
-			for (uint d = 1; d < gdata->devices; d++)
-				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// if running multinode, should also find the network minimum
-			if (MULTI_NODE)
-				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
-		}
-
-		// check that dt is not too small (absolute)
-		if (!gdata->dt) {
-			throw DtZeroException(gdata->t, gdata->dt);
-		} else if (gdata->dt < FLT_EPSILON) {
-			fprintf(stderr, "FATAL: repacking timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
-			gdata->quit_request = true;
-		}
-
-		// store previous time to check that the simulation is actually progressing
-		double previous_t = gdata->t;
-		// increase the simulation time
-		gdata->t += gdata->dt;
-
-		// check that dt is not too small (relative to t)
-		if (gdata->t == previous_t) {
-			fprintf(stderr, "FATAL: timestep %g too small at iteration %lu, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
-			gdata->quit_request = true;
-		}
-
-		// are we done?
-		// TODO: add a criterion on the decrease of kinetic energy
-		const bool we_are_done =
-			// have we reached the maximum number of repacking iterations?
-			gdata->iterations >= gdata->problem->simparams()->repack_maxiter ||
-			// and of course we're finished if a quit was requested
-			gdata->quit_request;
-
-		if (!we_are_done) {
-			// Save the intermediate results if required
-			check_write(we_are_done);
-		} else {
-			gdata->t = -1.;
-			printf("Disable free-surface particles\n");
-			// First, put POS in the write position
-			doCommand(SWAP_BUFFERS, BUFFER_POS);
-			// Disable the free surface boundary particles
-			doCommand(DISABLE_FREE_SURF_PARTS);
-
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
-			// Put new POS in the read position
-			doCommand(SWAP_BUFFERS, BUFFER_POS);
-
-			// The free-surface particles are actually deleted in the calcHash and
-			// reorderDataAndFindCellStart functions, so call buildNeibList now
-			buildNeibList();
-			// In the SA case, gamma needs to be recomputed after
-			// the free-surface boundary has been removed
-			const bool needs_preparation = (
-					(problem->simparams()->boundarytype == SA_BOUNDARY)
-					);
-
-			if (needs_preparation) {
-				// re-set density and other values for bound. elements and vertices
-				// and set value of gamma for further simulation using the quadrature formula
-				prepareNextStep(REPACK_STEP);
-			}
-			// Write the final results
-			check_write(we_are_done);
-
-			printf("Repacking algorithm is finished\n");
-
-			// No command after keep_repacking has been unset
-			gdata->keep_repacking = false;
-		}
-
-	} catch (exception &e) {
-		cerr << e.what() << endl;
-		gdata->keep_repacking = false;
-		gdata->keep_going = false;
-		// the loop is being ended by some exception, so we cannot guarantee that
-		// all threads are alive. Force unlocks on all subsequent barriers to exit
-		// as cleanly as possible without stalling
-		gdata->threadSynchronizer->forceUnlock();
-	}
-
-	// elapsed time, excluding the initialization
-	printf("Elapsed time of repacking cycle: %.2gs\n", m_totalPerformanceCounter->getElapsedSeconds());
-
-	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
-	// the condition (gdata->mpi_rank == 0)
-	if (MULTI_NODE)
-		printf("Global performance of the multinode repacking: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
-
-	printf("Repacking end, cleaning up...\n");
-
-	// doCommand(QUIT) would be equivalent, but this is more clear
-	gdata->nextCommand = QUIT;
-	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
-	gdata->threadSynchronizer->barrier(); // end of SIMULATION, begins FINALIZATION ***
-
-	//// just wait or...?
-
-	gdata->threadSynchronizer->barrier(); // end of FINALIZATION ***
-
-	// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
-	// we wait for the threads to actually exit
-	for (uint d = 0; d < gdata->devices; d++)
-		gdata->GPUWORKERS[d]->join_worker();
-
-	return (repacked = true);
-}
-
-bool GPUSPH::runSimulation() {
-	if (!initialized) return false;
-	// doing first write
-	printf("Performing first write...\n");
-	doWrite(INITIALIZATION_STEP);
-
-	printf("Letting threads upload the subdomains...\n");
-	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
-
-	// here the Workers are uploading their subdomains
-
-	// After next barrier, the workers will enter their simulation cycle, so it is recommended to set
-	// nextCommand properly before the barrier (although should be already initialized to IDLE).
-	// doCommand(IDLE) would be equivalent, but this is more clear
-	gdata->nextCommand = IDLE;
-	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
-	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
-
-	// this is where we invoke initialization routines that have to be
-	// run by the GPUWorkers
-	const bool needs_preparation = (
-			(problem->simparams()->gcallback) ||
-			(problem->simparams()->boundarytype == SA_BOUNDARY)
-	);
-
-	// compute neighbour list for the first time. This is done regardless
-	// of preparations, since we need to do one anyway
-	buildNeibList();
-
-	if (needs_preparation) {
-		prepareNextStep(INITIALIZATION_STEP);
-	}
-
-	printf("Entering the main simulation cycle\n");
+	printf("Entering the main %s cycle\n",
+		gdata->run_mode == REPACK ? "repacking" : "simulation");
 
 	//  IPPS counter does not take the initial uploads into consideration
 	m_totalPerformanceCounter->start();
@@ -1151,112 +597,149 @@ bool GPUSPH::runSimulation() {
 
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
+}
 
-	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
+template<>
+void GPUSPH::runCommand<END_OF_REPACKING>(CommandStruct const& cmd)
+{
+	gdata->t = -1;
+	gdata->iterations = 0;
+	repacked = true;
+	check_write(true);
+	gdata->keep_going = false;
+	printf("Repacking algorithm is finished\n");
+}
 
-	// Run the actual simulation loop, by issuing the appropriate doCommand()s
-	// in sequence. keep_going will be set to false either by the loop itself
-	// if the simulation is finished, or by a Worker that fails in executing a
-	// command; in the latter case, doCommand itself will throw, to prevent
-	// the loop from issuing subsequent commands; hence, the body consists of a
-	// try/catch block --------v-----
-	while (gdata->keep_going) try {
-		printStatus(m_info_stream);
-		// when there will be an Integrator class, here (or after bneibs?) we will
-		// call Integrator -> setNextStep
+template<>
+void GPUSPH::runCommand<TIME_STEP_PRELUDE>(CommandStruct const& cmd)
+{
+	printStatus(m_info_stream);
+}
 
-		// build neighbors list every buildneibsfreq or if we created
-		// particles, but only after the first iteration, because we have
-		// a buildNeibList() before entering this main loop
-		const bool needs_new_neibs = (gdata->iterations > gdata->last_buildneibs_iteration) &&
-			((gdata->iterations % problem->simparams()->buildneibsfreq == 0) ||
-			 gdata->particlesCreated);
+template<>
+void GPUSPH::runCommand<HANDLE_HOTWRITE>(CommandStruct const& cmd)
+{
+	if (Writer::HotWriterPending())
+		saveParticles(noPostProcess, "step n", HotWriteFlags);
+}
 
-		if (needs_new_neibs) {
-			buildNeibList();
-			if (Writer::HotWriterPending())
-				saveParticles(noPostProcess, HotWriteFlags);
-		}
+template<>
+void GPUSPH::runCommand<TIME_STEP_EPILOGUE>(CommandStruct const& cmd)
+{
+	// increase counters
+	gdata->iterations++;
+	m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+	m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
+	// to check, later, that the simulation is actually progressing
+	double previous_t = gdata->t;
+	gdata->t += gdata->dt;
+	// buildneibs_freq?
 
-		markIntegrationStep("n", BUFFER_VALID, "", BUFFER_INVALID);
-
-		// run enabled filters
-		if (gdata->iterations > 0) {
-			runEnabledFilters(enabledFilters);
-		}
-
-		// run PREDICTOR step (INTEGRATOR_STEP_1)
-		runIntegratorStep(INTEGRATOR_STEP_1);
-
-		// Here the first part of our time integration scheme is complete. All updated values
-		// are now in the read buffers again: mark the READ buffers as valid n*,
-		// and the WRITE buffers as valid n
-		markIntegrationStep("n*", BUFFER_VALID, "n", BUFFER_VALID);
-		// End of predictor step, start corrector step
-
-		// run CORRECTOR step (INTEGRATOR_STEP_2)
-		runIntegratorStep(INTEGRATOR_STEP_2);
-
-		// Here the second part of our time integration scheme is complete, i.e. the time-step is
-		// fully computed. All updated values are now in the read buffers again:
-		// mark the READ buffers as valid n+1, and the WRITE buffers as valid n
-		markIntegrationStep("n+1", BUFFER_VALID, "n", BUFFER_VALID);
-		// End of corrector step, finish iteration
-
-		// increase counters
-		gdata->iterations++;
-		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
-		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+	// choose minimum dt among the devices
+	if (gdata->dtadapt) {
+		gdata->dt = gdata->dts[0];
+		for (uint d = 1; d < gdata->devices; d++)
+			gdata->dt = min(gdata->dt, gdata->dts[d]);
+		// if runnin multinode, should also find the network minimum
 		if (MULTI_NODE)
-			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
-		// to check, later, that the simulation is actually progressing
-		double previous_t = gdata->t;
-		gdata->t += gdata->dt;
-		// buildneibs_freq?
+			gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
+	}
 
-		// choose minimum dt among the devices
-		if (gdata->dtadapt) {
-			gdata->dt = gdata->dts[0];
-			for (uint d = 1; d < gdata->devices; d++)
-				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// if running multinode, should also find the network minimum
-			if (MULTI_NODE)
-				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
-		}
+	// check that dt is not too small (absolute)
+	if (!gdata->dt) {
+		throw DtZeroException(gdata->t, gdata->dt);
+	} else if (gdata->dt < FLT_EPSILON) {
+		fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
+		gdata->quit_request = true;
+	}
 
-		// check that dt is not too small (absolute)
-		if (!gdata->dt) {
-			throw DtZeroException(gdata->t, gdata->dt);
-		} else if (gdata->dt < FLT_EPSILON) {
-			fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
-			gdata->quit_request = true;
-		}
+	// check that dt is not too small (relative to t)
+	if (gdata->t == previous_t) {
+		fprintf(stderr, "FATAL: timestep %g too small at iteration %lu, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
+		gdata->quit_request = true;
+	}
 
-		// check that dt is not too small (relative to t)
-		if (gdata->t == previous_t) {
-			fprintf(stderr, "FATAL: timestep %g too small at iteration %lu, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
-			gdata->quit_request = true;
-		}
+	//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
-		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
+	// are we done?
+	const bool we_are_done =
+		// during simulation, ask the problem if we're done
+		(gdata->run_mode == SIMULATE && gdata->problem->finished(gdata->t)) ||
+		// if not, check if we've completed the number of iterations prescribed
+		// (for repacking, or from the command line during simulation)
+		gdata->iterations >= gdata->maxiter ||
+		// and of course we're finished if a quit was requested
+		gdata->quit_request;
 
-		// are we done?
-		const bool we_are_done =
-			// ask the problem if we're done
-			gdata->problem->finished(gdata->t) ||
-			// if not, check if we've completed the number of iterations prescribed
-			// from the command line
-			(gdata->clOptions->maxiter && gdata->iterations >= gdata->clOptions->maxiter) ||
-			// and of course we're finished if a quit was requested
-			gdata->quit_request;
-
+	if (gdata->run_mode == REPACK && we_are_done) {
+		// signal to the integrator that we are done with the repacking,
+		// so we can proceed with the final
+		integrator->we_are_done();
+		// but don't keep going if a quit was requested
+		if (gdata->quit_request)
+			gdata->keep_going = false;
+	} else {
 		check_write(we_are_done);
 
 		if (we_are_done)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
+	}
+}
+
+void GPUSPH::unknownCommand(CommandName cmd)
+{
+	string err = "FATAL: command " + to_string(cmd)
+		+ " (" + getCommandName(cmd) + ") issued on host "
+		"is not implemented";
+	throw std::runtime_error(err);
+}
+
+template<>
+void GPUSPH::runCommand<NUM_COMMANDS>(CommandStruct const& cmd)
+{
+	unknownCommand(cmd.command);
+}
+
+void
+GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
+{
+	doCommand(cmd.set_flags(flags));
+}
+
+bool GPUSPH::runSimulation() {
+	bool all_ok = false;
+
+	if (!initialized) return all_ok;
+
+	all_ok = true;
+
+	// doing first write
+	printf("Performing first write...\n");
+	doWrite(StepInfo(0));
+
+	printf("Letting threads upload the subdomains...\n");
+	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
+
+	// here the Workers are uploading their subdomains
+
+	// After next barrier, the workers will enter their simulation cycle, so it is recommended to set
+	// nextCommand properly before the barrier (although should be already initialized to IDLE).
+	// doCommand(IDLE) would be equivalent, but this is more clear
+	gdata->nextCommand = IDLE;
+	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
+
+	integrator->start();
+
+	const CommandStruct* cmd = nullptr;
+	while (gdata->keep_going && (cmd = integrator->next_command()) ) try {
+		doCommand(*cmd);
 	} catch (exception const& e) {
 		cerr << e.what() << endl;
+		all_ok = false;
 		gdata->keep_going = false;
 		// the loop is being ended by some exception, so we cannot guarantee that
 		// all threads are alive. Force unlocks on all subsequent barriers to exit
@@ -1264,13 +747,18 @@ bool GPUSPH::runSimulation() {
 		gdata->threadSynchronizer->forceUnlock();
 	}
 
+	const char* run_desc = gdata->run_mode == REPACK ? "repacking" : "simulation";
+	const char* run_desc_title = gdata->run_mode == REPACK ? "Repacking" : "Simulation";
+
 	// elapsed time, excluding the initialization
-	printf("Elapsed time of simulation cycle: %.2gs\n", m_totalPerformanceCounter->getElapsedSeconds());
+	printf("Elapsed time of %s cycle: %.2gs\n", run_desc,
+		m_totalPerformanceCounter->getElapsedSeconds());
 
 	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
 	// the condition (gdata->mpi_rank == 0)
 	if (MULTI_NODE)
-		printf("Global performance of the multinode simulation: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
+		printf("Global performance of the multinode %s: %.2g MIPPS\n", run_desc,
+			m_multiNodePerformanceCounter->getMIPPS());
 
 	// suggest max speed for next runs
 	printf("Peak particle speed was ~%g m/s at %g s -> can set maximum vel %.2g for this problem\n",
@@ -1278,7 +766,7 @@ bool GPUSPH::runSimulation() {
 
 	// NO doCommand() nor other barriers than the standard ones after the
 
-	printf("Simulation end, cleaning up...\n");
+	printf("%s end, cleaning up...\n", run_desc_title);
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
 	gdata->nextCommand = QUIT;
@@ -1294,70 +782,73 @@ bool GPUSPH::runSimulation() {
 	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
 
-	return true;
+	return all_ok;
 }
 
-
-void GPUSPH::move_bodies(flag_t integrator_step)
+// Finalize the computation of the total force and torque acting on moving bodies
+// Add up the partial reductions obtained for each device
+template<>
+void GPUSPH::runCommand<REDUCE_BODIES_FORCES_HOST>(CommandStruct const& cmd)
 {
-	const uint step = get_step_number(integrator_step);
+	const size_t numforcesbodies = problem->simparams()->numforcesbodies;
 
-	// Get moving bodies data (position, linear and angular velocity ...)
-	if (problem->simparams()->numbodies > 0) {
-		// We have to reduce forces and torques only on bodies which requires it
-		const size_t numforcesbodies = problem->simparams()->numforcesbodies;
-		if (numforcesbodies > 0) {
-			doCommand(REDUCE_BODIES_FORCES);
+	// Now sum up the partial forces and momentums computed in each gpu
+	if (MULTI_GPU) {
+		for (uint ob = 0; ob < numforcesbodies; ob ++) {
+			gdata->s_hRbTotalForce[ob] = make_float3( 0.0f );
+			gdata->s_hRbTotalTorque[ob] = make_float3( 0.0f );
 
-			// Now sum up the partial forces and momentums computed in each gpu
-			if (MULTI_GPU) {
-				for (uint ob = 0; ob < numforcesbodies; ob ++) {
-					gdata->s_hRbTotalForce[ob] = make_float3( 0.0f );
-					gdata->s_hRbTotalTorque[ob] = make_float3( 0.0f );
+			for (uint d = 0; d < gdata->devices; d++) {
+				gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d*numforcesbodies + ob];
+				gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d*numforcesbodies + ob];
+			} // Iterate on devices
+		} // Iterate on objects on which we compute forces
+	}
 
-					for (uint d = 0; d < gdata->devices; d++) {
-						gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d*numforcesbodies + ob];
-						gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d*numforcesbodies + ob];
-					} // Iterate on devices
-				} // Iterate on objects on which we compute forces
-			}
+	// if running multinode, also reduce across nodes
+	if (MULTI_NODE) {
+		// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+		gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numforcesbodies, SUM_REDUCTION);
+		gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numforcesbodies, SUM_REDUCTION);
+	}
 
-			// if running multinode, also reduce across nodes
-			if (MULTI_NODE) {
-				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
-				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numforcesbodies, SUM_REDUCTION);
-				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numforcesbodies, SUM_REDUCTION);
-			}
+}
 
-			/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
-			memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numforcesbodies*sizeof(float3));
-			memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numforcesbodies*sizeof(float3));
+/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
+template<>
+void GPUSPH::runCommand<BODY_FORCES_CALLBACK>(CommandStruct const& cmd)
+{
+	const int step = cmd.step.number;
+	const float dt = cmd.dt(gdata);
 
-			double t0 = gdata->t;
-			double t1 = t0;
-			if (step == 1)
-				t1 += gdata->dt/2.0;
-			else
-				t1 += gdata->dt;
-			problem->bodies_forces_callback(t0, t1, step, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
-		}
+	const size_t numforcesbodies = problem->simparams()->numforcesbodies;
 
-		// Let the problem compute the new moving bodies data
-		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t,
-			gdata->s_hRbCgGridPos, gdata->s_hRbCgPos,
-			gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
+	memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numforcesbodies*sizeof(float3));
+	memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numforcesbodies*sizeof(float3));
 
-		if (step == 2)
-			problem->post_timestep_callback(gdata->t);
+	double t0 = gdata->t;
+	double t1 = t0 + dt;;
+	problem->bodies_forces_callback(t0, t1, step, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
+}
 
-		// Upload translation vectors and rotation matrices; will upload CGs after euler
-		doCommand(UPLOAD_OBJECTS_MATRICES);
-		// Upload objects linear and angular velocities
-		doCommand(UPLOAD_OBJECTS_VELOCITIES);
-		// Upload objects CG in forces only
-		if (numforcesbodies)
-			doCommand(FORCES_UPLOAD_OBJECTS_CG);
-	} // if there are objects
+template<>
+void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
+// GPUSPH::move_bodies(flag_t integrator_step)
+{
+	// TODO this function should also be ported to the CommandSequence architecture
+	const int step = cmd.step.number;
+
+	const float dt = cmd.dt(gdata);
+
+	// Let the problem compute the new moving bodies data
+	// TODO we pass step and gdata->dt, should be pass step and dt (which is already halved if necessary)?
+	// instead?
+	problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t,
+		gdata->s_hRbCgGridPos, gdata->s_hRbCgPos,
+		gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
+
+	if (cmd.step.last)
+		problem->post_timestep_callback(gdata->t);
 }
 
 // Allocate the shared buffers, i.e. those accessed by all workers
@@ -1405,6 +896,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (problem->simparams()->turbmodel == SPS)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SPS_TURBVISC>();
+
+	if (NEEDS_EFFECTIVE_VISC(problem->simparams()->rheologytype))
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EFFVISC>();
 
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
@@ -1499,6 +993,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->h_IOwaterdepth = new uint* [MULTI_GPU ? MAX_DEVICES_PER_NODE : 1];
 		for (uint i=0; i<(MULTI_GPU ? MAX_DEVICES_PER_NODE : 1); i++)
 			gdata->h_IOwaterdepth[i] = new uint [numOpenBoundaries];
+		gdata->h_maxIOwaterdepth = new uint [numOpenBoundaries];
 	}
 
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
@@ -1544,6 +1039,12 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 // Deallocate the shared buffers, i.e. those accessed by all workers
 void GPUSPH::deallocateGlobalHostBuffers() {
 	gdata->s_hBuffers.clear();
+
+	// Deallocating waterdepth-related arrays
+	if (problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
+		delete[] gdata->h_maxIOwaterdepth;
+		delete[] gdata->h_IOwaterdepth;
+	}
 
 	// Deallocating rigid bodies related arrays
 	if (gdata->problem->simparams()->numbodies > 0) {
@@ -1928,19 +1429,57 @@ void GPUSPH::setViscosityCoefficient()
 	const SimParams *sp = gdata->problem->simparams();
 
 	// Set visccoeff based on the viscosity model used
-	if (sp->rheologytype == INVISCID) {
+	switch (sp->rheologytype) {
+	case INVISCID:
 		// ensure that the viscous coefficients are NaN: they should never be used,
 		// and if they are it's an error
 		for (uint f = 0; f < pp->numFluids(); ++f)
 			pp->visccoeff[f] = NAN;
-	} else if (sp->compvisc == KINEMATIC) {
+		break;
+	case NEWTONIAN:
+		if (sp->compvisc == KINEMATIC) {
+			for (uint f = 0; f < pp->numFluids(); ++f)
+				pp->visccoeff[f] = pp->kinematicvisc[f];
+		} else if (sp->compvisc == DYNAMIC) {
+			for (uint f = 0; f < pp->numFluids(); ++f)
+				pp->visccoeff[f] = pp->visc_consistency[f];
+		}
+		break;
+	default:
+		/* Generalized Newtonian: the stored coefficients are always the dynamic value
+		 */
 		for (uint f = 0; f < pp->numFluids(); ++f)
-			pp->visccoeff[f] = pp->kinematicvisc[f];
-	} else if (sp->compvisc == DYNAMIC) {
-		for (uint f = 0; f < pp->numFluids(); ++f)
-			pp->visccoeff[f] = pp->kinematicvisc[f]*pp->rho0[f];
-	} else {
-		throw runtime_error("Don't know how to set viscosity coefficient for chosen viscosity type!");
+			pp->visccoeff[f] = pp->visc_consistency[f];
+	}
+
+	// Check and/or set bulk viscosity when using Español & Revenga
+	if (sp->viscmodel == ESPANOL_REVENGA) {
+		float shear, bulk;
+		for (uint f = 0; f < pp->numFluids(); ++f) {
+			shear = pp->visc_consistency[f];
+			bulk = pp->bulkvisc[f];
+			if (isnan(bulk)) pp->bulkvisc[f] = bulk = 0;
+			if (bulk*3 > shear*5)
+				throw runtime_error("fluid " + to_string(f) +
+					" with bulk viscosity " + to_string(bulk) +
+					" and shear viscosity " + to_string(shear) +
+					" cannot be modelled with Español & Revenga");
+			pp->visc2coeff[f] = bulk;
+			// For Español & Revenga, in the constant dynamic viscosity case,
+			// we can reduce device-side computations by storing
+			// in visccoeff the coefficient of the v part, and
+			// in visc2coeff the coefficient of the r part
+#if 0 // disabled until server side is implemented
+			if (sp->is_const_visc) {
+				pp->visccoeff[f] = 5*shear/3 - bulk;
+				pp->visc2coeff[f] = 5*(bulk+shear/3);
+				if (sp->compvisc == KINEMATIC) {
+					pp->visccoeff[f] /= pp->rho0[f];
+					pp->visc2coeff[f] /= pp->rho0[f];
+				}
+			}
+#endif
+		}
 	}
 
 	// Set SPS factors from coefficients, if they were not set
@@ -2133,15 +1672,15 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
  * after running the defined post-process functions, and invokes the write-out
  * routine.
  */
-void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, WriteFlags const& write_flags)
+void GPUSPH::saveParticles(
+	PostProcessEngineSet const& enabledPostProcess,
+	string const& state,
+	WriteFlags const& write_flags)
 {
 	const SimParams * const simparams = problem->simparams();
 
 	// set the buffers to be dumped
 	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
-
-	// choose the read buffer for the double buffered arrays
-	which_buffers |= DBLBUFFER_READ;
 
 	if (gdata->debug.neibs)
 		which_buffers |= BUFFER_NEIBSLIST;
@@ -2166,6 +1705,10 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 	if (simparams->turbmodel == SPS)
 		which_buffers |= BUFFER_SPS_TURBVISC;
 
+	// Get effective viscocity
+	if (NEEDS_EFFECTIVE_VISC(simparams->rheologytype))
+		which_buffers |= BUFFER_EFFVISC;
+
 	// get Eulerian velocity
 	if (simparams->simflags & ENABLE_INLET_OUTLET ||
 		simparams->turbmodel == KEPSILON)
@@ -2181,22 +1724,25 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 		which_buffers |= BUFFER_NEXTID;
 
 	// run post-process filters and dump their arrays
-	for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
-		flt != enabledPostProcess.end(); ++flt) {
-		PostProcessType filter = flt->first;
-		gdata->only_internal = true;
-		doCommand(POSTPROCESS, NO_FLAGS, filter);
+	// TODO migrate post-processing commands to command structure
+	for (auto const& flt : enabledPostProcess) {
+		PostProcessType filter = flt.first;
+		AbstractPostProcessEngine *engine = flt.second;
 
-		flt->second->hostProcess(gdata);
+		doCommand(POSTPROCESS, filter);
+
+		engine->hostProcess(gdata);
 
 		/* list of buffers that were updated in-place */
-		const flag_t updated_buffers = flt->second->get_updated_buffers();
-		/* list of buffers that were written in BUFFER_WRITE */
-		const flag_t written_buffers = flt->second->get_written_buffers();
+		const flag_t updated_buffers = engine->get_updated_buffers();
+		/* list of buffers that were written from scratch */
+		const flag_t written_buffers = engine->get_written_buffers();
+
+		const flag_t buffers_to_sync = updated_buffers | written_buffers;
 
 		// If the post-process engine wrote something, we need to do
 		// a multi-device update as well as a buffer swap
-		const bool need_update_and_swap = (written_buffers != NO_FLAGS);
+		const bool need_update = (buffers_to_sync != NO_FLAGS);
 
 		/* TODO FIXME ideally we would have a way to specify when,
 		 * after a post-processing, buffers need to be uploaded to other
@@ -2210,18 +1756,14 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 		 * so let's do it here for the time being.
 		 */
 #if 1
-		if (MULTI_DEVICE && need_update_and_swap)
-			doCommand(UPDATE_EXTERNAL, written_buffers | DBLBUFFER_WRITE);
+		if (MULTI_DEVICE && need_update) {
+			CommandStruct update(UPDATE_EXTERNAL);
+			update.updating("step n", buffers_to_sync);
+			doCommand(update);
+		}
 #endif
-		/* Swap the written buffers, so we can access the new data from
-		 * DBLBUFFER_READ.
-		 * TODO should also update buffer state and validity
-		 */
-		if (need_update_and_swap)
-			doCommand(SWAP_BUFFERS, written_buffers);
 
-
-		which_buffers |= updated_buffers | written_buffers;
+		which_buffers |= buffers_to_sync;
 	}
 
 	// TODO: the performanceCounter could be "paused" here
@@ -2235,69 +1777,19 @@ void GPUSPH::saveParticles(PostProcessEngineSet const& enabledPostProcess, Write
 		which_buffers &= ~EPHEMERAL_BUFFERS;
 
 	// dump what we want to save
-	doCommand(DUMP, which_buffers);
+	CommandStruct dump(DUMP);
+	dump.reading(state, which_buffers);
+	doCommand(dump);
 
 	// triggers Writer->write()
 	doWrite(write_flags);
 }
 
-void GPUSPH::buildNeibList()
+// scan and check the peak number of neighbors and the estimated number of interactions
+template<>
+void GPUSPH::runCommand<CHECK_NEIBSNUM>(CommandStruct const& cmd)
+// GPUSPH::checkNeibsNum()
 {
-	// run most of the following commands on all particles
-	gdata->only_internal = false;
-
-	doCommand(SWAP_BUFFERS, BUFFER_POS);
-	doCommand(CALCHASH);
-	// restore POS back in the READ position,
-	// and put INFO into the WRITE position as it will be
-	// reoreded by the SORT
-	doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_INFO);
-	// reorder PARTINDEX by HASH and INFO (also sorts HASH and INFO)
-	// in-place in WRITE
-	doCommand(SORT);
-	// reorder everything else
-	doCommand(REORDER);
-
-	// get the new number of particles: with inlet/outlets, they
-	// may have changed because of incoming/outgoing particle, otherwise
-	// some particles might have been disabled (and discarded) for flying
-	// out of the domain
-	doCommand(DOWNLOAD_NEWNUMPARTS);
-
-	// swap all double buffers
-	doCommand(SWAP_BUFFERS, gdata->simframework->getAllocPolicy()->get_multi_buffered());
-
-	// if running on multiple GPUs, update the external cells
-	if (MULTI_DEVICE) {
-		// copy cellStarts, cellEnds and segments on host
-		doCommand(DUMP_CELLS);
-		doCommand(UPDATE_SEGMENTS);
-
-		// here or later, before update indices: MPI_Allgather (&sendbuf,sendcount,sendtype,&recvbuf, recvcount,recvtype,comm)
-		// maybe overlapping with dumping cells (run async before dumping the cells)
-
-		// update particle offsets
-		updateArrayIndices();
-		// crop external cells
-		doCommand(CROP);
-		// append fresh copies of the externals
-		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
-		// until next calchash; however, they are filtered out when using the particle hashes.
-		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
-		// update the newNumParticles device counter
-		if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
-			doCommand(UPLOAD_NEWNUMPARTS);
-	} else
-		updateArrayIndices();
-
-	// build neib lists only for internal particles
-	gdata->only_internal = true;
-	doCommand(BUILDNEIBS);
-
-	if (MULTI_DEVICE && problem->simparams()->boundarytype == SA_BOUNDARY)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VERTPOS);
-
-	// scan and check the peak number of neighbors and the estimated number of interactions
 	static const uint maxPossibleFluidBoundaryNeibs = problem->simparams()->neibboundpos;
 	static const uint maxPossibleVertexNeibs = problem->simparams()->boundarytype == SA_BOUNDARY ? problem->simparams()->neiblistsize - problem->simparams()->neibboundpos - 2 : 0;
 	for (uint d = 0; d < gdata->devices; d++) {
@@ -2325,37 +1817,58 @@ void GPUSPH::buildNeibList()
 	gdata->last_buildneibs_iteration = gdata->iterations;
 }
 
+// find if new particles were created on any device
+template<>
+void GPUSPH::runCommand<CHECK_NEWNUMPARTS>(CommandStruct const& cmd)
+// GPUSPH::checkNewNumParts()
+{
+	gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
+	for (uint d = 1; d < gdata->devices; d++)
+		gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
+	// if runnign multinode, should also find the network minimum
+	if (MULTI_NODE)
+		gdata->networkManager->networkBoolReduction(
+			&(gdata->particlesCreated), 1);
+
+	// update the it counter if new particles are created
+	if (gdata->particlesCreated) {
+		gdata->createdParticlesIterations++;
+
+		/*** IMPORTANT: updateArrayIndices() is only useful to be able to dump
+		 * the newly generated particles on the upcoming (if any) save. HOWEVER,
+		 * it introduces significant issued when used in multi-GPU, due
+		 * to the fact that generated particles are appended after the externals.
+		 * A method to handle this better needs to be devised (at worst enabling
+		 * this only as a debug feature in single-GPU mode). For the time being
+		 * the code section is disabled.
+		 */
+#if 0
+		// we also update the array indices, so that e.g. when saving
+		// the newly created particles are visible
+		// TODO this doesn't seem to impact performance noticeably
+		// in single-GPU. If it is found to be too expensive on
+		// multi-GPU (or especially multi-node) it might be necessary
+		// to only do it when saving. It does not affect the simulation
+		// anyway, since it will be done during the next buildNeibList()
+		// call
+		updateArrayIndices();
+#endif
+	}
+}
+
 //! Invoke system callbacks
 /*! Currently this only calls the variable-gravity callback.
  * Since this is invoked in-between steps, the simulated time t
  * for which the problem should be set up should be the one
  * for the next timestep
  */
-void GPUSPH::doCallBacks(const flag_t current_integrator_step)
+template<>
+void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
+// GPUSPH::doCallBacks(flag_t current_integrator_step)
 {
 	Problem *pb = gdata->problem;
 
-	double t_callback;
-	switch (current_integrator_step)
-	{
-	case INITIALIZATION_STEP:
-		/* prepare for the simulation, so reset to 0 */
-		t_callback = gdata->t;
-		break;
-	case INTEGRATOR_STEP_1:
-		/* end of predictor, prepare for corrector, where forces
-		 * will be computed at t + dt/2
-		 */
-		t_callback = gdata->t + gdata->dt/2;
-		break;
-	case INTEGRATOR_STEP_2:
-		/* end of corrector, prepare for next predictor, where forces
-		 * will be computed at t + dt (t and dt are still the one
-		 * for the current whole step
-		 */
-		t_callback = gdata->t + gdata->dt;
-		break;
-	}
+	double t_callback = gdata->t + cmd.dt(gdata);
 
 	if (pb->simparams()->gcallback)
 		gdata->s_varGravity = pb->g_callback(t_callback);
@@ -2514,7 +2027,12 @@ void GPUSPH::rollCallParticles()
 
 // update s_hStartPerDevice, s_hPartsPerDevice and totParticles
 // Could go in GlobalData but would need another forward-declaration
-void GPUSPH::updateArrayIndices() {
+template<>
+void GPUSPH::runCommand<UPDATE_ARRAY_INDICES>(CommandStruct const& cmd)
+// GPUPSH::updateArrayIndices()
+{
+	static const auto debug_dump = CommandStruct(DUMP).reading("sorted", BUFFER_INFO);
+
 	uint processCount = 0;
 
 	// just store an incremental counter
@@ -2573,7 +2091,7 @@ void GPUSPH::updateArrayIndices() {
 
 				// who is missing? if single-node, do a roll call
 				if (SINGLE_NODE) {
-					doCommand(DUMP, BUFFER_INFO | DBLBUFFER_READ);
+					doCommand(debug_dump);
 					rollCallParticles();
 				}
 			}
@@ -2622,208 +2140,38 @@ void GPUSPH::prepareProblem()
 	}
 }
 
-void GPUSPH::saBoundaryConditions(flag_t cFlag)
+template<>
+void GPUSPH::runCommand<FIND_MAX_IOWATERDEPTH>(CommandStruct const& cmd)
+// GPUSPH::findMaxWaterDepth()
 {
-	const bool has_io = (problem->simparams()->simflags & ENABLE_INLET_OUTLET);
-	// In the open boundary case, the last integration step is when we generate
-	// and destroy particles
-	const bool last_io_step = has_io && (cFlag & INTEGRATOR_STEP_2);
+	static const uint numOpenBoundaries = problem->simparams()->numOpenBoundaries;
+	static uint *max_waterdepth = gdata->h_maxIOwaterdepth;
 
-	if (gdata->simframework->getBCEngine() == NULL)
-		throw runtime_error("no boundary conditions engine loaded");
-
-	if ((cFlag & INITIALIZATION_STEP) || (cFlag & REPACK_STEP)) {
-
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA);
-
-		// compute normal for vertices
-		doCommand(SA_COMPUTE_VERTEX_NORMAL);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_BOUNDELEMENTS | DBLBUFFER_WRITE);
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
-		// compute initial value of gamma for fluid and vertices
-		doCommand(SA_INIT_GAMMA);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-		doCommand(SWAP_BUFFERS, BUFFER_GRADGAMMA);
-
-		// modify particle mass on open boundaries
-		// only if we really are at the initialisation stage
-		// and not at the end of repacking
-		if (has_io && !gdata->keep_repacking) {
-			// identify all the corner vertex particles
-			doCommand(SWAP_BUFFERS, BUFFER_INFO);
-			doCommand(IDENTIFY_CORNER_VERTICES);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
-			doCommand(SWAP_BUFFERS, BUFFER_INFO);
-
-			// first step: count the vertices that belong to IO and the same segment as each IO vertex
-			doCommand(INIT_IO_MASS_VERTEX_COUNT);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
-			// second step: modify the mass of the IO vertices
-			doCommand(INIT_IO_MASS);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
-			doCommand(SWAP_BUFFERS, BUFFER_POS);
-		}
-
-		// the common part of saBoundaryConditions assumes that the relevant buffers are in the WRITE position,
-		// but the INITIALIZATION_STEP is called with the relevant buffers in the READ position, hence the need
-		// to swap here, and then again at the end of saBoundaryConditions
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
+	// max over all devices per node
+	for (uint ob = 0; ob < numOpenBoundaries; ob ++) {
+		max_waterdepth[ob] = 0;
+		for (uint d = 0; d < gdata->devices; d++)
+			max_waterdepth[ob] = max(max_waterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
 	}
-
-	// impose open boundary conditions
-	if (has_io && !gdata->keep_repacking) {
-		// reduce the water depth at pressure outlets if required
-		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE && problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
-			// each device gets his waterdepth array from the gpu
-			doCommand(DOWNLOAD_IOWATERDEPTH);
-			int* n_IOwaterdepth = new int[problem->simparams()->numOpenBoundaries];
-			// max over all devices per node
-			for (uint ob = 0; ob < problem->simparams()->numOpenBoundaries; ob ++) {
-				n_IOwaterdepth[ob] = 0;
-				for (uint d = 0; d < gdata->devices; d++)
-					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], int(gdata->h_IOwaterdepth[d][ob]));
-			}
-			// if we are in multi-node mode we need to run an mpi reduction over all nodes
-			if (MULTI_NODE) {
-				gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->simparams()->numOpenBoundaries, MAX_REDUCTION);
-			}
-			// copy global value back to one array so that we can upload it again
-			for (uint ob = 0; ob < problem->simparams()->numOpenBoundaries; ob ++)
-				gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
-			// upload the global max value to the devices
-			doCommand(UPLOAD_IOWATERDEPTH);
-		}
-		gdata->only_internal = false;
-		doCommand(SWAP_BUFFERS, BUFFER_POS);
-		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
-		doCommand(SWAP_BUFFERS, BUFFER_POS);
+	// if we are in multi-node mode we need to run an mpi reduction over all nodes
+	if (MULTI_NODE) {
+		gdata->networkManager->networkIntReduction(
+			(int*)max_waterdepth, numOpenBoundaries, MAX_REDUCTION);
 	}
-
-	gdata->only_internal = true;
-
-	if (cFlag & INTEGRATOR_STEP_1)
-		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
-
-	if (!(cFlag & INITIALIZATION_STEP) && !(cFlag & REPACK_STEP)) {
-		/* SA_CALC_SEGMENT_BOUNDARY_CONDITIONS and SA_CALC_VERTEX_BOUNDARY_CONDITIONS
-		 * get their normals from the READ position, but if we have moving bodies,
-		 * the new normals are in the WRITE position, so swap them */
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-	}
-
-	// compute boundary conditions on segments and detect outgoing particles at open boundaries
-	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-	// compute boundary conditions on vertices including mass variation and
-	// create new particles at open boundaries.
-	// This updates the nextID buffer by vertices that generate new particles,
-	// which happens only during the last integration step in the IO case:
-	// so in this case it in the WRITE position, and swap it back afterwards.
-	if (last_io_step)
-		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
-	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-	// check if we need to delete some particles which passed through open boundaries
-	if (last_io_step) {
-		doCommand(SWAP_BUFFERS, BUFFER_NEXTID);
-		doCommand(DISABLE_OUTGOING_PARTS);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
-	}
-
-	if (!(cFlag & INITIALIZATION_STEP) && !(cFlag & REPACK_STEP)) {
-		/* Restore normals */
-		if (problem->simparams()->simflags & ENABLE_MOVING_BODIES)
-			doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-	}
-
-	if ((cFlag & INITIALIZATION_STEP) || (cFlag & REPACK_STEP)) {
-		// During the simulation, saBoundaryConditions operates on the WRITE buffers, because it's invoked before the post-compute buffer swap,
-		// but in the INITIALIZATION_STEP the relevant buffers are in the READ position, so we swapped them earlier on. After initialization is
-		// finished they are expected to be in the READ position, so swap them again:
-		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
-	}
+	// copy global value back to one array so that we can upload it again
+	for (uint ob = 0; ob < numOpenBoundaries; ob ++)
+		gdata->h_IOwaterdepth[0][ob] = max_waterdepth[ob];
 }
 
-void GPUSPH::markIntegrationStep(
-	std::string const& read_state, BufferValidity read_valid,
-	std::string const& write_state, BufferValidity write_valid)
+template<>
+void GPUSPH::runCommand<DEBUG_DUMP>(CommandStruct const& cmd)
 {
-	/* There are four buffers that need special treatment:
-	 * * the INFO buffer is always representative of both states —in fact, because of this
-	 *   and because it's part of the sorting key, it's the only property buffer
-	 *   which is not double buffered;
-	 * * the VERTICES buffer is always representative of both states, even though it is used
-	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
-	 *   in-place;
-	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
-	 *   representative of the previous state only until it gets updated, when it is
-	 *   representative of the next state only; due to the way we use markIntegrationStep,
-	 *   we count it as a 'shared' buffer;
-	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
-	 *   boundaries, otherwise is follows the behavior of the other buffers
-	 */
-
-	static const bool has_moving_bodies = (problem->simparams()->simflags & ENABLE_MOVING_BODIES);
-	static const bool using_sa = (problem->simparams()->boundarytype == SA_BOUNDARY);
-	static const flag_t shared_buffers =
-		BUFFER_INFO |
-		BUFFER_VERTICES |
-		BUFFER_NEXTID |
-		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
-	// the INFO buffer in the WRITE position should NOT be marked invalid, since it's actually shared
-	static const flag_t invalid_shared_buffers = shared_buffers & ~BUFFER_INFO;
-
-	static const flag_t read_buffers  = DBLBUFFER_READ  |  PARTICLE_PROPS_BUFFERS;
-	static const flag_t write_buffers = DBLBUFFER_WRITE | (PARTICLE_PROPS_BUFFERS & ~shared_buffers);
-
-	doCommand(SET_BUFFER_STATE, read_buffers, read_state);
-	doCommand(SET_BUFFER_VALIDITY, read_buffers, read_valid);
-
-	doCommand(SET_BUFFER_STATE, write_buffers, write_state);
-	doCommand(SET_BUFFER_VALIDITY, write_buffers, write_valid);
-
-	doCommand(ADD_BUFFER_STATE, shared_buffers | DBLBUFFER_READ, write_state);
-	/* When not using SA, VERTICES, NEXTID and BOUNDELEMENTS aren't used at all, so
-	 * there's nothing to set as invalid
-	 */
-	if (using_sa)
-		doCommand(SET_BUFFER_VALIDITY, invalid_shared_buffers | DBLBUFFER_WRITE, BUFFER_INVALID);
-
-	// Ephemeral buffers are always reset, as they are always invalid for the next step
-	// TODO FIXME when the clobber invalid buffers option is enabled, this invalidates
-	// some ephemeral buffers that get stored (e.g. SPS turbulent viscosity, Grenier's sigma,
-	// forces with the appropriate debug options, etc). While this doesn't (or shouldn't)
-	// affect the simulation, it may create spurious differences in the written data.
-	//
-	// Find a clean way to handle this; possible options thought of so far:
-	// 1. moving the call to markIntegrationStep to _after_ the dump;
-	// 2. invalidating at the beginning of the step, but not at the end.
-	//
-	// We currently implement option 2, with the specific knowledge that
-	// the first markIntegrationStep has an empty+invalid write state.
-	// (Maybe we could also do it for the intermediate markIntegrationStep?)
-	if (write_state.empty() && write_valid == BUFFER_INVALID) {
-		doCommand(SET_BUFFER_STATE, EPHEMERAL_BUFFERS, "");
-		doCommand(SET_BUFFER_VALIDITY, EPHEMERAL_BUFFERS, BUFFER_INVALID);
-	}
+	saveParticles(noPostProcess, cmd.src, cmd.step);
 }
 
 void GPUSPH::check_write(bool we_are_done)
 {
-	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	static PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 	// list of writers that need to write at this timestep
 	ConstWriterMap writers = Writer::NeedWrite(gdata->t);
 
@@ -2850,7 +2198,7 @@ void GPUSPH::check_write(bool we_are_done)
 			// so pretend we actually saved
 			Writer::FakeMarkWritten(writers, gdata->t);
 		} else {
-			saveParticles(enabledPostProcess, force_write);
+			saveParticles(enabledPostProcess, "step n", force_write);
 
 			// we generally want to print the current status and reset the
 			// interval performance counter when writing. However, when writing
@@ -2879,3 +2227,90 @@ void GPUSPH::check_write(bool we_are_done)
 	}
 }
 
+//! Auxiliary class to time a command execution
+//! The TimerObject itself checks the time from its own creation to its own destruction,
+//! and updates two associated durations (max and total).
+//! doCommand() leverages this by creating a TimerObject before issuing the command,
+//! so that on return from doCommand() the TimerObject destructor updates the effective
+//! runtime of the corresponding object.
+//! \note Nested commands contribute to the calling command runtimes.
+struct TimerObject
+{
+	using clock = GPUSPH::cmd_time_clock;
+	using duration = GPUSPH::cmd_time_duration;
+
+	duration &max_ref;
+	duration &tot_ref;
+	std::chrono::time_point<clock> start;
+
+	TimerObject(duration &max_ref_, duration &tot_ref_) :
+		max_ref(max_ref_),
+		tot_ref(tot_ref_),
+		start(clock::now())
+	{ }
+
+	~TimerObject()
+	{
+		auto stop = clock::now();
+		auto duration = stop - start;
+		tot_ref += duration;
+		if (duration > max_ref)
+			max_ref = duration;
+	}
+};
+
+// set nextCommand, unlock the threads and wait for them to complete
+void GPUSPH::doCommand(CommandStruct const& cmd)
+{
+	shared_ptr<TimerObject> timer;
+	if (gdata->debug.benchmark_command_runtimes) {
+		++cmd_calls[cmd.command];
+		timer = make_shared<TimerObject>(
+			max_cmd_time[cmd.command],
+			tot_cmd_time[cmd.command]);
+	}
+
+	// resetting the host buffers is useful to check if the arrays are completely filled
+	/*/ if (cmd==DUMP) {
+	 const uint float4Size = sizeof(float4) * gdata->totParticles;
+	 const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
+	 memset(gdata->s_hPos, 0, float4Size);
+	 memset(gdata->s_hVel, 0, float4Size);
+	 memset(gdata->s_hInfo, 0, infoSize);
+	 } */
+
+	if (cmd.command > NUM_WORKER_COMMANDS) {
+		switch (cmd.command) {
+#define DEFINE_COMMAND(code, ...) \
+			case code: \
+				/* TODO if (dbg_step_printf) describeCommand<code>(cmd); */ \
+				runCommand<code>(cmd); \
+				break;
+#include "define_host_commands.h"
+#undef DEFINE_COMMAND
+			default:
+				unknownCommand(cmd.command);
+		}
+		return;
+	}
+
+	gdata->nextCommand = cmd;
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
+	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
+
+	if (!gdata->keep_going)
+		throw runtime_error("GPUSPH aborted by worker thread");
+
+	// Check buffer consistency after every call.
+	// Don't even bother with the conditional if it's not enabled though.
+	// TODO as things are now, all the calls from the first APPEND_EXTERNAL
+	// to the first EULER will complain about inconsistency in the WRITE buffers.
+	// With knowledge about which buffers are read/written to by each command, we
+	// could restrict ourselves to check those buffers; with the upcoming new
+	// Integrator and ParticleSystem classes, this will be easier, so let's not
+	// waste too much time on it at the moment.
+#ifdef INSPECT_DEVICE_MEMORY
+	if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
+		checkBufferConsistency();
+#endif
+}

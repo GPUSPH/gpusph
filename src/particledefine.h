@@ -96,6 +96,8 @@ const char* KernelName[INVALID_KERNEL+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(KernelType, KernelName, CUBICSPLINE, GAUSSIAN);
+
 //! SPH formulations
 /*!
 *! \defpsubsection{sph_formulation,SPH_FORMULATION}
@@ -127,6 +129,8 @@ const char* SPHFormulationName[SPH_INVALID+1]
 #endif
 ;
 
+DEFINE_OPTION_RANGE(SPHFormulation, SPHFormulationName, SPH_F1, SPH_GRENIER);
+
 //! Density diffusion models
 /*! \defpsubsection{density_diff_type,DENSITY_DIFF_TYPE}
  *  \inpsection{density_calculation}
@@ -135,10 +139,10 @@ const char* SPHFormulationName[SPH_INVALID+1]
  * TLT_DENSITY_DIFFUSION_TYPE
  */
 enum DensityDiffusionType {
-	FERRARI = 1,
+	DENSITY_DIFFUSION_NONE,
+	FERRARI,
 	COLAGROSSI,
 	BREZZI,
-	DENSITY_DIFFUSION_NONE,
 	INVALID_DENSITY_DIFFUSION
 } ;
 
@@ -146,18 +150,19 @@ enum DensityDiffusionType {
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* DensityDiffusionTypeName[INVALID_DENSITY_DIFFUSION+1]
+const char* DensityDiffusionName[INVALID_DENSITY_DIFFUSION+1]
 #ifdef GPUSPH_MAIN
 = {
-	"(null)",
+	"none",
 	"Ferrari",
 	"Colagrossi",
 	"Brezzi",
-	"none",
 	"(invalid)"
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(DensityDiffusionType, DensityDiffusionName, DENSITY_DIFFUSION_NONE, BREZZI);
 
 
 //! Physical boundary models
@@ -184,6 +189,8 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(BoundaryType, BoundaryName, LJ_BOUNDARY, DYN_BOUNDARY);
 
 //! Epsilon for MLS determinant
 #define EPSDETMLS				0.05f
@@ -227,6 +234,8 @@ const char* PeriodicityName[PERIODIC_XYZ+1]
 }
 #endif
 ;
+
+DEFINE_OPTION_RANGE(Periodicity, PeriodicityName, PERIODIC_NONE, PERIODIC_XYZ);
 
 //! Density filters
 //! we define FIRST and INVALID filters to make iterating over all filters easier

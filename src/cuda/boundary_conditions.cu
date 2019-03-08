@@ -36,6 +36,7 @@
 #include "utils.h"
 #include "cuda_call.h"
 
+#include "buffer.h"
 #include "define_buffers.h"
 
 #include "sa_bc_params.h"
@@ -70,12 +71,21 @@ uploadNumOpenVertices(const uint &numOpenVertices)
 
 /// Disables particles that went through boundaries when open boundaries are used
 void
-disableOutgoingParts(		float4*			pos,
-							vertexinfo*		vertices,
-					const	particleinfo*	info,
+disableOutgoingParts(const	BufferList& bufread,
+							BufferList& bufwrite,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd)
 {
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	float4 *pos = bufwrite.getData<BUFFER_POS>();
+	// We abuse the VERTICES array, which is otherwise unused by fluid particles,
+	// to store the vertices of the boundary element crossed by outgoing particles.
+	// Since the VERTICES array is shared across states unless we also have moving
+	// objects, accessing it for writing here would not be allowed; but we know
+	// we can do it anyway, so we use the “unsafe” version of getData
+	vertexinfo *vertices = bufwrite.getData<BUFFER_VERTICES,
+		BufferList::AccessSafety::MULTISTATE_SAFE>();
+
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
@@ -104,7 +114,6 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 saSegmentBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -112,21 +121,22 @@ saSegmentBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step)
+	const	int			step)
 {
 	int dummy_shared = 0;
 
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+	const	float4			*pos(bufread.getData<BUFFER_POS>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 
-	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
+	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
-	const	vertexinfo	*vertices(bufwrite.getConstData<BUFFER_VERTICES>());
+	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+	const	vertexinfo	*vertices(bufread.getData<BUFFER_VERTICES>());
 
 	float4	*vel(bufwrite.getData<BUFFER_VEL>());
 	float	*tke(bufwrite.getData<BUFFER_TKE>());
@@ -153,6 +163,7 @@ saSegmentBoundaryConditionsImpl(
 	} break
 
 	switch (step) {
+	case -1: // step -1 is the same as step 0 (initialization, but at the end of the repacking
 		SA_SEGMENT_BC_STEP(0);
 		SA_SEGMENT_BC_STEP(1);
 		SA_SEGMENT_BC_STEP(2);
@@ -174,7 +185,6 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 saSegmentBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -182,7 +192,7 @@ saSegmentBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step)
+	const	int			step)
 {
 	throw std::runtime_error("saSegmentBoundaryConditions called without SA_BOUNDARY");
 }
@@ -196,7 +206,6 @@ void
 saSegmentBoundaryConditions(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -204,9 +213,9 @@ saSegmentBoundaryConditions(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step)
+	const	int			step)
 {
-	saSegmentBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, cellStart, numParticles,
+	saSegmentBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, numParticles,
 		particleRangeEnd, deltap, slength, influenceradius, step);
 }
 
@@ -215,7 +224,6 @@ void
 findOutgoingSegment(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -225,16 +233,19 @@ findOutgoingSegment(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4			*pos(bufwrite.getConstData<BUFFER_POS>());
-	const	float4			*vel(bufwrite.getConstData<BUFFER_VEL>());
+	const	float4			*pos(bufread.getData<BUFFER_POS>());
+	const	float4			*vel(bufread.getData<BUFFER_VEL>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
+	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
 	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 
 	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES>());
+	// See note about vertices in disableOutgoingParts
+	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES,
+		BufferList::AccessSafety::MULTISTATE_SAFE>());
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
@@ -263,7 +274,6 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 saVertexBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -271,7 +281,7 @@ saVertexBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step,
+	const	int				step,
 	const	bool			resume, // TODO FIXME check if still needed
 	const	float			dt, // for open boundaries
 	// These are the cloning-related members
@@ -286,7 +296,7 @@ saVertexBoundaryConditionsImpl(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-	const	particleinfo	*info(const_cast<BufferList&>(bufread).getData<BUFFER_INFO>());
+	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
@@ -299,12 +309,13 @@ saVertexBoundaryConditionsImpl(
 	// execute the kernel
 #define SA_VERTEX_BC_STEP(step) case step: \
 	{ sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-		bufread, bufwrite, cellStart, newNumParticles, numParticles, totParticles, \
+		bufread, bufwrite, newNumParticles, numParticles, totParticles, \
 		deltap, slength, influenceradius, deviceId, numDevices, dt); \
 	  cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
 	} break
 
 	switch (step) {
+	case -1: // step -1 is the same as step 0 (initialization, but at the end of the repacking
 		SA_VERTEX_BC_STEP(0);
 		SA_VERTEX_BC_STEP(1);
 		SA_VERTEX_BC_STEP(2);
@@ -323,7 +334,6 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 saVertexBoundaryConditionsImpl(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -331,7 +341,7 @@ saVertexBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step,
+	const	int				step,
 	const	bool			resume, // TODO FIXME check if still needed
 	const	float			dt, // for open boundaries
 	// These are the cloning-related members
@@ -351,7 +361,6 @@ void
 saVertexBoundaryConditions(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -359,7 +368,7 @@ saVertexBoundaryConditions(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step,
+	const	int				step,
 	const	bool			resume, // TODO FIXME check if still needed
 	const	float			dt, // for open boundaries
 	// These are the cloning-related members
@@ -368,7 +377,7 @@ saVertexBoundaryConditions(
 	const	uint			numDevices,
 	const	uint			totParticles)
 {
-	saVertexBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, cellStart,
+	saVertexBoundaryConditionsImpl<boundarytype>(bufwrite, bufread,
 		numParticles, particleRangeEnd, deltap, slength, influenceradius,
 		step, resume, dt,
 		newNumParticles, deviceId, numDevices, totParticles);
@@ -385,7 +394,6 @@ void
 computeVertexNormal(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd)
 {
@@ -399,6 +407,7 @@ computeVertexNormal(
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
 	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
@@ -407,7 +416,7 @@ computeVertexNormal(
 	#endif
 
 	// execute the kernel
-	cubounds::computeVertexNormal<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::computeVertexNormalDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
 		boundelement,
 		vertices,
 		pinfo,
@@ -431,7 +440,6 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 saInitGammaImpl(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
 	const	float			deltap,
@@ -451,6 +459,7 @@ saInitGammaImpl(
 	const float4 *boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
 	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
 	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 
@@ -460,7 +469,7 @@ saInitGammaImpl(
 	#endif
 
 	// execute the kernel for fluid particles
-	cubounds::initGamma<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::initGammaDevice<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		oldGGam,
 		oldPos,
@@ -478,8 +487,11 @@ saInitGammaImpl(
 		epsilon,
 		particleRangeEnd);
 
+	// TODO verify if this split kernele execution works in the multi-device case,
+	// or if we need to update_external the fluid data first
+
 	// execute the kernel for vertex particles
-	cubounds::initGamma<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
 		oldGGam,
 		oldPos,
@@ -507,7 +519,6 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 saInitGammaImpl(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
 	const	float			deltap,
@@ -524,7 +535,6 @@ void
 saInitGamma(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
 	const	float			deltap,
@@ -532,7 +542,7 @@ saInitGamma(
 	const	uint			numParticles,
 	const	uint			particleRangeEnd)
 {
-	saInitGammaImpl<boundarytype>(bufread, bufwrite, cellStart,
+	saInitGammaImpl<boundarytype>(bufread, bufwrite,
 		slength, influenceradius, deltap, epsilon,
 		numParticles, particleRangeEnd);
 }
@@ -545,7 +555,6 @@ initIOmass_vertexCount(
 	BufferList& bufwrite,
 	BufferList const& bufread,
 	const	uint			numParticles,
-	const	uint*			cellStart,
 	const	uint			particleRangeEnd)
 {
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
@@ -559,12 +568,13 @@ initIOmass_vertexCount(
 
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
 
 	// execute the kernel
-	cubounds::initIOmass_vertexCount<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cubounds::initIOmass_vertexCountDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
 		(vertices, pHash, info, cellStart, neibsList, forces, particleRangeEnd);
 
 	// check if kernel invocation generated an error
@@ -577,7 +587,6 @@ initIOmass(
 	BufferList& bufwrite,
 	BufferList const& bufread,
 	const	uint			numParticles,
-	const	uint*			cellStart,
 	const	uint			particleRangeEnd,
 	const	float			deltap)
 {
@@ -594,13 +603,14 @@ initIOmass(
 	const float4 *forces = bufread.getData<BUFFER_FORCES>();
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 
 	float4 *newPos = bufwrite.getData<BUFFER_POS>();
 
 	// execute the kernel
-	cubounds::initIOmass<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cubounds::initIOmassDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
 		(oldPos, forces, vertices, pHash, info, cellStart, neibsList, newPos, particleRangeEnd, deltap);
 
 	// check if kernel invocation generated an error
@@ -631,18 +641,22 @@ uploadIOwaterdepth(
 // Identifies vertices at the corners of open boundaries
 void
 saIdentifyCornerVertices(
-	const	float4*			oldPos,
-	const	float4*			boundelement,
-			particleinfo*	info,
-	const	hashKey*		particleHash,
-	const	vertexinfo*		vertices,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
+	const	BufferList&	bufread,
+			BufferList&	bufwrite,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
 	const	float			eps)
 {
+	const float4* oldPos = bufread.getData<BUFFER_POS>();
+	const float4* boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
+	const hashKey* particleHash = bufread.getData<BUFFER_HASH>();
+	const vertexinfo* vertices = bufread.getData<BUFFER_VERTICES>();
+	const uint* cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const neibdata* neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+	particleinfo*	info = bufwrite.getData<BUFFER_INFO>();
+
 	int dummy_shared = 0;
 
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
@@ -655,7 +669,7 @@ saIdentifyCornerVertices(
 	dummy_shared = 2560;
 	#endif
 	// execute the kernel
-	cubounds::saIdentifyCornerVertices<<< numBlocks, numThreads, dummy_shared >>> (
+	cubounds::saIdentifyCornerVerticesDevice<<< numBlocks, numThreads, dummy_shared >>> (
 		oldPos,
 		info,
 		particleHash,

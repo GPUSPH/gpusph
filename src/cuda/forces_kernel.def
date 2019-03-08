@@ -96,6 +96,9 @@ constexpr bool
 needs_gamma_cfl()
 {
 	return
+		FP::boundarytype == SA_BOUNDARY && // only needed with SA
+		// only computed when fluid interacts with boundary
+		FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY &&
 		USING_DYNAMIC_GAMMA(FP::simflags) && // only needed when using dynamic gamma
 		(FP::simflags & ENABLE_DTADAPT); // with adaptive time-stepping
 }
@@ -247,9 +250,15 @@ using cuphys::physical_density;
  */
 template<typename P>
 __device__ __forceinline__
-float // TODO this will be overloaded for non-constant viscosity (e.g. temperature dependent or non-Newtonian)
+enable_if_t<not P::has_effective_visc, float>
 get_laminar_visc_coeff(P const& pdata)
 { return d_visccoeff[fluid_num(pdata.info)]; }
+template<typename P>
+__device__ __forceinline__
+enable_if_t<P::has_effective_visc, float>
+get_laminar_visc_coeff(P const& pdata)
+{ return pdata.effective_visc; }
+
 template<typename P>
 __device__ __forceinline__
 enable_if_t<not P::has_keps, float>
@@ -278,6 +287,18 @@ enable_if_t<P::compvisc == KINEMATIC, float>
 get_dynamic_visc(P const& pdata)
 {
 	return get_visc_coeff(pdata)*physical_density(pdata);
+}
+
+/// Bulk viscosity
+/*! This is used only by Español & Revenga, and is stored in
+ * d_visc2coeff. It is always the dynamic one
+ */
+template<typename P>
+__device__ __forceinline__
+float
+get_bulk_visc(P const& pdata)
+{
+	return d_visc2coeff[fluid_num(pdata.info)];
 }
 
 /// Kinematic viscosity of a particle
@@ -403,11 +424,9 @@ __device__ __forceinline__
 enable_if_t<Pt::sph_formulation == SPH_F1, float>
 precalc_pressure(Pt const& pdata)
 {
-
-        const float rho = physical_density(pdata);
+	const float rho = physical_density(pdata);
 
 	return pressure_for_precalc(pdata)/(rho*rho);
-
 }
 
 /// Precompute pressure contribution to momentum equation
@@ -559,7 +578,7 @@ struct grenier_finalize_particle_data
 
 	__device__ __forceinline__
 	grenier_finalize_particle_data(const uint index,
-		grenier_finalize_forces_params const& params) :
+		grenier_forces_params const& params) :
 		sigma(params.sigmaArray[index])
 	{}
 };
@@ -637,6 +656,16 @@ struct keps_particle_data
 	{}
 };
 
+// Effective visc particle data
+struct effective_visc_particle_data
+{
+	const	float	effective_visc;
+
+	__device__ __forceinline__
+	effective_visc_particle_data(const uint index, effective_visc_forces_params const& params) :
+		effective_visc(params.effective_visc[index]) {}
+};
+
 // Precomputed pressure contribution
 // Automatic initialization of this beast is a bit messy because
 // (1) we want it to be const
@@ -670,8 +699,9 @@ struct keps_precalc_particle_data
 
 	// TODO double-check compvisc == DYNAMIC vs compvisc == KINEMATIC case for this
 	// initialization
+	template<typename Pt>
 	__device__ __forceinline__
-	keps_precalc_particle_data(float rho, common_particle_data const& pdata, keps_particle_data const& ke) :
+	keps_precalc_particle_data(float rho, Pt const& pdata, keps_particle_data const& ke) :
 		dkdt_precalc(rho*(get_laminar_visc_coeff(pdata) + ke.turbVisc)),
 		dedt_precalc(rho*(get_laminar_visc_coeff(pdata) + ke.turbVisc/1.3f))
 	{}
@@ -690,7 +720,8 @@ template<KernelType _kerneltype,
 	ParticleType _cptype,
 	ParticleType _nptype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
-	bool _has_sps = _ViscSpec::turbmodel == SPS>
+	bool _has_sps = _ViscSpec::turbmodel == SPS,
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -716,6 +747,7 @@ struct forces_particle_data :
 	// everything else is just for PT_FLUID
 	COND_STRUCT(_has_sps, sps_particle_data),
 	p_precalc_particle_data,
+	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
 	COND_STRUCT(_has_keps, keps_precalc_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -730,6 +762,7 @@ struct forces_particle_data :
 	static const ParticleType cptype = _cptype;
 	static const ParticleType nptype = _nptype;
 	static const bool has_keps = _has_keps;
+	static const bool has_effective_visc = _has_effective_visc;
 	static const bool has_sps = _has_sps;
 
 	// shorthand for the type of the forces params
@@ -754,6 +787,7 @@ struct forces_particle_data :
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
 		COND_STRUCT(has_sps, sps_particle_data)(_index),
 		p_precalc_particle_data(*this),
+		COND_STRUCT(_has_effective_visc, effective_visc_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_precalc_particle_data)(
 			physical_density(vel.w, fluid_num(_info)), *this, *this)
 	{}
@@ -787,7 +821,8 @@ template<SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	typename _ViscSpec,
 	flag_t _simflags,
-	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype)>
 struct finalize_forces_particle_data :
 	// included unconditionally for all particles:
 	common_finalize_particle_data,
@@ -795,6 +830,7 @@ struct finalize_forces_particle_data :
 	rb_particle_data,
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_particle_data),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data),
+	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
 	COND_STRUCT(_has_keps, keps_particle_data)
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -805,6 +841,7 @@ struct finalize_forces_particle_data :
 
 	static const flag_t simflags = _simflags;
 	static const bool has_keps = _has_keps;
+	static const bool has_effective_visc = _has_effective_visc;
 
 	// shorthand for the type of the forces params
 	typedef finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_t;
@@ -819,6 +856,7 @@ struct finalize_forces_particle_data :
 		rb_particle_data(_info),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params),
+		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params)
 		{}
 };
@@ -1173,7 +1211,8 @@ template<KernelType kerneltype,
 	ParticleType cptype,
 	ParticleType _nptype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
-	bool _has_sps = _ViscSpec::turbmodel == SPS>
+	bool _has_sps = _ViscSpec::turbmodel == SPS,
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype) >
 struct forces_neib_data :
 	common_neib_data,
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
@@ -1185,6 +1224,7 @@ struct forces_neib_data :
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || simflags & ENABLE_INLET_OUTLET),
 		eulerVel_neib_data),
+	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
 	// these are the same as the particle data
 	COND_STRUCT(_has_keps, keps_particle_data),
 	// precalculated pressure
@@ -1198,6 +1238,7 @@ struct forces_neib_data :
 
 	static constexpr ParticleType	nptype = _nptype;
 	static const bool has_keps = _has_keps;
+	static const bool has_effective_visc = _has_effective_visc;
 	static const bool has_sps = _has_sps;
 
 	// shortcut typedefs
@@ -1225,6 +1266,7 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
+		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
 		COND_STRUCT(has_sps, sps_particle_data)(_index),
 		p_precalc_particle_data(*this)
@@ -1429,7 +1471,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype == SA_BOUNDARY &&
-	FP::cptype == PT_FLUID
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
 >
 compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1440,7 +1482,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype != SA_BOUNDARY ||
-	FP::cptype != PT_FLUID
+	FP::cptype != PT_FLUID || FP::nptype != PT_BOUNDARY
 >
 compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
@@ -2002,6 +2044,85 @@ enable_if_t<not has_relEulerVel<N>(), float4>
 get_viscous_relVel(N const& ndata)
 { return ndata.relVel; } /* Standard case */
 
+/// Viscous vector component
+/*! Two choices can be made when computing the viscous contributions:
+ *
+ * 1. direct the viscous contributions along the relative velocity, which is consistent
+ *    with the continuum in the incompressible fluid case, but in the discrete
+ *    models does not conserve angular momentum; this is the choice made for
+ *    the MORRIS model;
+ * 2. direct the viscous contributions along the relative distance, which allows
+ *    conservation of angular momentum, but doesn't reflect the continuum model behavior
+ *    for incompressible fluids; this is the choice made in the MONAGHAN model;
+ * 3. consider contributions in both directions, as done e.g. by Español and Revenga.
+ *
+ * This is abstracted for us in this function
+ */
+template<typename FP, typename P, typename N, ViscousModel viscmodel = FP::viscmodel>
+__device__ __forceinline__
+enable_if_t<viscmodel == MORRIS, float3>
+viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
+{
+	return make_float3(get_viscous_relVel(ndata));
+}
+
+template<typename FP, typename P, typename N, ViscousModel viscmodel = FP::viscmodel>
+__device__ __forceinline__
+enable_if_t<viscmodel == MONAGHAN, float3>
+viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
+{
+	const float4 relVel = get_viscous_relVel(ndata);
+	// TODO instead of depending on epsartvisc, we could consider this:
+	// the formula we want is (r.v)/(r.r) r, and the division is needed
+	// to avoid underflow for very small (or null) r.
+	// We can rewrite the formula this way:
+	// \frac{ \abs{r} \abs{v} \cos \theta }{ \abs{r}^2 } \abs{r}\vers{r}
+	// where \theta is the angle between r and v and \vers{r} is the
+	// versor or r. This simplifies to:
+	//
+	// \abs{v} \cos \theta \vers{r}
+	//
+	// i.e. we are taking the projection of v in the direction of r,
+	// which is dot3(vers_r, relVel)*vers_r.
+	// Downside: computing vers_r is expensive: the norm would
+	// have to be computed with high accuracy (i.e. using hypot),
+	// and then we'd need to divide the components (unless the norm is
+	// exactly zero).
+	//
+	const float den = dot3(ndata.relPos, ndata.relPos) + d_epsartvisc;
+	float coeff = ndata.vel_dot_pos < 0 ?
+		d_monaghan_visc_coeff*ndata.vel_dot_pos/den :
+		0.0f;
+	return coeff*make_float3(ndata.relPos);
+}
+
+/// Dynamic viscous parameter weighting
+/*! The main difference between Grenier's formulations and others,
+ * as far as the viscous contribution is concerned, is that
+ * the others have a weighting factor of m_b/(ρ_a ρ_b) where Grenier
+ * has ω_b(1/σ_a + 1/σ_b). In most viscous models this isn't
+ * important because when densities are in use we want to be able
+ * to simplify them with the ones in the viscous averaging (if possible).
+ * However, in the Español & Revenga viscous model, refactoring this
+ * allows us to refactor common code.
+ * \note in Grenier's case, we do not include the neighbor volume,
+ * as that will be post-multiplied at the end.
+ */
+template<typename FP, typename P, typename N>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation != SPH_GRENIER, float>
+viscous_volume_coefficient(FP const& params, P const& pdata, N const& ndata)
+{
+	return ndata.relPos.w/(physical_density(pdata)*physical_density(ndata));
+}
+template<typename FP, typename P, typename N>
+__device__ __forceinline__
+enable_if_t<FP::sph_formulation == SPH_GRENIER, float>
+viscous_volume_coefficient(FP const& params, P const& pdata, N const& ndata)
+{
+	return (1/pdata.sigma + 1/ndata.sigma);
+}
+
 /*
  * Laminar contributions to the viscosity
  */
@@ -2022,12 +2143,14 @@ compute_laminar_visc_contrib
 /// Standard volumic viscous contribution
 /*! This is used when the neighbor is not a boundary particle,
  * or for dynamic boundaries, but not with Grenier's formulation
+ * or Español & Revenga's viscous model
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
 	wants_volumic_visc_term<FP>() &&
+	FP::viscmodel != ESPANOL_REVENGA &&
 	FP::sph_formulation != SPH_GRENIER
 >
 compute_laminar_visc_contrib
@@ -2036,17 +2159,17 @@ compute_laminar_visc_contrib
 	const float visc = visc_avg<typename FP::ViscSpec>(
 			get_visc_coeff(pdata), get_visc_coeff(ndata),
 			physical_density(pdata), physical_density(ndata), ndata.relPos.w);
-	nout.DvDt += visc*ndata.f*as_float3(get_viscous_relVel(ndata));
+	nout.DvDt += visc*ndata.f*viscous_vector_component(params, pdata, ndata);
 }
 
-/// Volumic viscous contribution, Grenier formulation
-/*! Specialization for SPH_GRENIER formulation, which is based on Morris'
- */
+
+/// Volumic viscous contribution, Grenier formulation, Morris or Monaghan viscous model
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
 	wants_volumic_visc_term<FP>() &&
+	FP::viscmodel != ESPANOL_REVENGA &&
 	FP::sph_formulation == SPH_GRENIER
 >
 compute_laminar_visc_contrib
@@ -2055,9 +2178,42 @@ compute_laminar_visc_contrib
 	const float avg_mu = average<FP::ViscSpec::avgop>(
 			get_dynamic_visc(pdata), get_dynamic_visc(ndata));
 
-	const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
-	nout.DvDt += avg_mu*avg_sigma*ndata.f*as_float3(ndata.relVel);
+	const float avg_sigma = viscous_volume_coefficient(params, pdata, ndata);
+	nout.DvDt += avg_mu*avg_sigma*ndata.f*viscous_vector_component(params, pdata, ndata);
 }
+
+/// Español & Revenga volumic viscous contribution
+/*! This is used when the neighbor is not a boundary particle,
+ * or for dynamic boundaries, in the case of Español & Revenga's viscous model
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(not FP::inviscid) &&
+	wants_volumic_visc_term<FP>() &&
+	FP::viscmodel == ESPANOL_REVENGA
+>
+compute_laminar_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	const float pvisc = get_dynamic_visc(pdata);
+	const float pbulk = get_bulk_visc(pdata);
+	const float nvisc = get_dynamic_visc(ndata);
+	const float nbulk = get_bulk_visc(ndata);
+
+	const float visc_thirds = average<FP::ViscSpec::avgop>(pvisc, nvisc)/3;
+	const float bulk = average<FP::ViscSpec::avgop>(pbulk, nbulk);
+
+	const float coeff = viscous_volume_coefficient(params, pdata, ndata)*ndata.f;
+
+	const float pos_den = dot3(ndata.relPos, ndata.relPos) + d_epsartvisc;
+
+	nout.DvDt += coeff*(
+		(5*visc_thirds-bulk)*as_float3(ndata.relVel) +
+		5*(visc_thirds+bulk)*ndata.vel_dot_pos/pos_den*as_float3(ndata.relPos)
+		);
+}
+
 
 /// Boundary viscous contribution for semi-analytical boundaries
 /*! Specialization for the semi-analytical boundary conditions,
@@ -2069,6 +2225,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	(not FP::inviscid) &&
+	FP::viscmodel == MORRIS &&
 	wants_boundary_visc_term<FP>()
 >
 compute_laminar_visc_contrib
@@ -2833,7 +2990,7 @@ struct dyndt_forces_shared_data
 	__device__ __forceinline__ void
 	reduce(FP const& params)
 	{
-		dtadaptBlockReduce(this->sm_forces_max, params.cfl_forces, params.cflOffset);
+		maxBlockReduce(this->sm_forces_max, params.cfl_forces, params.cflOffset);
 	}
 };
 
@@ -2855,7 +3012,7 @@ struct dyndt_gamma_shared_data
 	__device__ __forceinline__ void
 	reduce(FP const& params)
 	{
-		dtadaptBlockReduce(sm_gamma_max, params.cfl_gamma, params.cflGammaOffset);
+		maxBlockReduce(sm_gamma_max, params.cfl_gamma, params.cflGammaOffset);
 	}
 };
 
@@ -2877,7 +3034,7 @@ struct dyndt_keps_shared_data
 	__device__ __forceinline__ void
 	reduce(FP const& params)
 	{
-		dtadaptBlockReduce(sm_keps_max, params.cfl_keps, params.cflOffset);
+		maxBlockReduce(sm_keps_max, params.cfl_keps, params.cflOffset);
 	}
 };
 
@@ -2937,6 +3094,45 @@ struct forces_shared_data :
  * the function that computes all of the contributions from a neighbor to the central particle
  */
 
+/// Reference implementation
+/**! This is the particle-particle computation implementation that includes
+ * all contributions,and is used for fluid/fluid interaction as well as several
+ * fluid/boundary interactions. Which of the contributions actually does anything
+ * depends on the specific SFINAE of the individual contribution
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+void
+compute_all_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	// Compute gamma_as and |grad gamma_as| and add it to the respective values
+	// of the focal particle
+	compute_gamma_gradient(params, pdata, ndata, pout, nout);
+
+	compute_density_derivative(params, pdata, ndata, pout, nout);
+
+	// Compute pressure part of acceleration
+	compute_pressure_contrib(params, pdata, ndata, pout, nout);
+
+	// Compute viscous forces
+	compute_viscous_contrib(params, pdata, ndata, pout, nout);
+
+	// Compute diffusion terms for k-epsilon and the strain rate tensor
+	compute_keps_term(params, pdata, ndata, pout, nout);
+
+	// Compute gamma CFL
+	compute_gamma_cfl(params, pdata, ndata, pout, nout);
+
+	// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
+	compute_mean_vel(params, pdata, ndata, pout, nout);
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+
+	// Summ all internal energy contributions from the neighbors
+	add_internal_energy(params, pdata, ndata, pout, nout);
+}
+
 /*
  * Fluid central, fluid neighbors
  */
@@ -2949,25 +3145,7 @@ __device__ __forceinline__
 enable_if_t<FP::cptype == PT_FLUID && FP::nptype == PT_FLUID>
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	compute_density_derivative(params, pdata, ndata, pout, nout);
-
-	// Compute pressure part of acceleration
-	compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute viscous forces
-	compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute diffusion terms for k-epsilon and the strain rate tensor
-	compute_keps_term(params, pdata, ndata, pout, nout);
-
-	// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
-	compute_mean_vel(params, pdata, ndata, pout, nout);
-
-	// Sum all contributions from the neighbors in the force array
-	as_float3(pout.force) += nout.DvDt;
-
-	// Summ all internal energy contributions from the neighbors
-	add_internal_energy(params, pdata, ndata, pout, nout);
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
 /*
@@ -3070,7 +3248,8 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 /// Particle-particle interaction
 /** Specialization in case of boundary neighbors to fluid particles,
  * with DYN_BOUNDARY model. In this case the interaction is the same
- * as fluid/fluid, except that XSPH contribution is not considered.
+ * as fluid/fluid, except that XSPH contribution is not considered
+ * (but this is excluded by having compute_mean_vel do nothing for the fluid/boundary case)
  * TODO: check if we need to compute the mean vel for XSPH including the boundary particles
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -3081,28 +3260,13 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	compute_density_derivative(params, pdata, ndata, pout, nout);
-
-	// Compute pressure part of acceleration
-	compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute viscous forces
-	compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute diffusion terms for k-epsilon and the strain rate tensor
-	compute_keps_term(params, pdata, ndata, pout, nout);
-	// TODO : implement keps for dynamic boundaries
-
-	// Sum all contributions from the neighbors in the force array
-	as_float3(pout.force) += nout.DvDt;
-
-	// Summ all internal energy contributions from the neighbors
-	add_internal_energy(params, pdata, ndata, pout, nout);
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
 /// Particle-particle interaction
 /** Specialization in case of boundary neighbors to fluid particles,
  * with SA_BOUNDARY model.
+ * This takes all contributions into account too.
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
@@ -3112,29 +3276,7 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	// Compute gamma_as and |grad gamma_as| and add it to the respective values
-	// of the focal particle
-	compute_gamma_gradient(params, pdata, ndata, pout, nout);
-
-	compute_density_derivative(params, pdata, ndata, pout, nout);
-
-	// Compute pressure part of acceleration
-	compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute viscous forces
-	compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute diffusion terms for k-epsilon and the strain rate tensor
-	compute_keps_term(params, pdata, ndata, pout, nout);
-
-	// Compute gamma CFL
-	compute_gamma_cfl(params, pdata, ndata, pout, nout);
-
-	// Sum all contributions from the neighbors in the force array
-	as_float3(pout.force) += nout.DvDt;
-
-	// Summ all internal energy contributions from the neighbors
-	add_internal_energy(params, pdata, ndata, pout, nout);
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
 /*
@@ -3194,22 +3336,7 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	compute_density_derivative(params, pdata, ndata, pout, nout);
-
-	// Compute pressure part of acceleration
-	compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute viscous forces
-	compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-	// Compute diffusion terms for k-epsilon and the strain rate tensor
-	compute_keps_term(params, pdata, ndata, pout, nout);
-
-	// Sum all contributions from the neighbors in the force array
-	as_float3(pout.force) += nout.DvDt;
-
-	// Summ all internal energy contributions from the neighbors
-	add_internal_energy(params, pdata, ndata, pout, nout);
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
 /************************************************************************************************************/

@@ -70,127 +70,11 @@ class GPUWorker;
 // NetworkManager
 #include "NetworkManager.h"
 
-
 // IGNORE_WARNINGS
 #include "deprecation.h"
 
-// Next step for workers. It could be replaced by a struct with the list of parameters to be used.
-// A few explanations: DUMP requests to download pos, vel and info on shared arrays; DUMP_CELLS
-// requests to download cellStart and cellEnd
-
-/*!
- * List of possible commands that GPUSPH can issue to workers via doCommand() calls
- */
-enum CommandType {
-	/// Dummy cycle (do nothing)
-	IDLE,
-	/// Set the state of the given buffers to the given string
-	SET_BUFFER_STATE,
-	/// Add the given state string to the state of the given buffers
-	ADD_BUFFER_STATE,
-	/// Set the validity of the given buffers
-	SET_BUFFER_VALIDITY,
-	/// Swap double-buffered buffers
-	SWAP_BUFFERS,
-	/// Compute particle hashes
-	CALCHASH,
-	/// Sort particles by hash
-	SORT,
-	/// Crop particle list, dropping all external particles
-	CROP,
-	/// Reorder particle data according to the latest SORT, and find the start of each cell
-	REORDER,
-	/// Build the neighbors list
-	BUILDNEIBS,
-	/// Compute forces, blocking; this runs the whole forces sequence (texture bind, kernele execution, texture
-	/// unbinding, dt reduction) and only proceeds on completion
-	FORCES_SYNC,
-	/// Compute forces, asynchronously: bind textures, launch kernel and return without waiting for kernel completion
-	FORCES_ENQUEUE,
-	/// Wait for completion of the forces kernel unbind texture, reduce dt
-	FORCES_COMPLETE,
-	/// Integration (runs the Euler kernel)
-	EULER,
-	/// Integration of SABOUNDARY's gamma
-	INTEGRATE_GAMMA,
-	/// Integration of the density using an integral formulation
-	DENSITY_SUM,
-	/// Compute the density diffusion term in the case of density sum:
-	CALC_DENSITY_DIFFUSION,
-	/// Apply density diffusion term in the case of density sum:
-	APPLY_DENSITY_DIFFUSION,
-	/// Dump (device) particle data arrays into shared host arrays
-	DUMP,
-	/// Dump (device) cellStart and cellEnd into shared host arrays
-	DUMP_CELLS,
-	/// Dump device segments to shared host arrays, and update number of internal particles
-	UPDATE_SEGMENTS,
-	/// Download the number of particles on device (in case of inlets/outlets)
-	DOWNLOAD_NEWNUMPARTS,
-	/// Upload the number of particles to the device
-	UPLOAD_NEWNUMPARTS,
-	/// Append a copy of the external cells to the end of self device arrays
-	APPEND_EXTERNAL,
-	///	Update the read-only copy of the external cells
-	UPDATE_EXTERNAL,
-	/// Run smoothing filters (e.g. Shepard, MLS)
-	FILTER,
-	/// Run post-processing filters (e.g. vorticity, testpoints)
-	POSTPROCESS,
-	/// SA_BOUNDARY only: compute segment boundary conditions and identify fluid particles
-	/// that leave open boundaries
-	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,
-	/// SA_BOUNDARY only: compute vertex boundary conditions, including mass update
-	/// and generation of new fluid particles at open boundaries.
-	/// During initialization, also compute a preliminary ∇γ direction vector
-	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,
-	/// Compute the normal of a vertex in the initialization step
-	SA_COMPUTE_VERTEX_NORMAL,
-	/// Initialize gamma for dynamic gamma computation
-	SA_INIT_GAMMA,
-	/// SA_BOUNDARY only: identify vertices at corner of open boundaries.
-	/// Corner vertices do not generate new particles,
-	IDENTIFY_CORNER_VERTICES,
-	/// SA_BOUNDARY only: disable particles that went through an open boundary
-	DISABLE_OUTGOING_PARTS,
-	/// SPH_GRENIER only: compute density
-	COMPUTE_DENSITY,
-	/// Compute per-particle viscosity and SPS stress matrix
-	CALC_VISC,
-	/// Compute total force acting on a moving body
-	REDUCE_BODIES_FORCES,
-	/// Upload new value of gravity, after problem callback
-	UPLOAD_GRAVITY,
-	/// Upload planes to devices
-	UPLOAD_PLANES,
-	/// Upload centers of gravity of moving bodies for the integration engine
-	/// TODO FIXME there shouldn't be a need for separate EULER_ and FORCES_ version
-	/// of this, the moving body data should be put in its own namespace
-	EULER_UPLOAD_OBJECTS_CG,
-	/// Upload centers of gravity of moving bodies for forces computation
-	/// TODO FIXME there shouldn't be a need for separate EULER_ and FORCES_ version
-	/// of this, the moving body data should be put in its own namespace
-	FORCES_UPLOAD_OBJECTS_CG,
-	/// Upload translation vector and rotation matrices for moving bodies
-	UPLOAD_OBJECTS_MATRICES,
-	/// Upload linear and angular velocity of moving bodies
-	UPLOAD_OBJECTS_VELOCITIES,
-	/// Impose problem-specific velocity/pressure on open boundaries
-	/// (should update the WRITE buffer in-place)
-	IMPOSE_OPEN_BOUNDARY_CONDITION,
-	/// Download (partial) computed water depth from device to host
-	DOWNLOAD_IOWATERDEPTH,
-	/// Upload (total)computed water depth from host to device
-	UPLOAD_IOWATERDEPTH,
-	/// Count vertices that belong to the same IO and the same segment as an IO vertex
-	INIT_IO_MASS_VERTEX_COUNT,
-	/// Modifiy initial mass of open boundaries
-	INIT_IO_MASS,
-	/// Option for repacking only: disable free surface particles after the repacking is done
-	DISABLE_FREE_SURF_PARTS,
-	/// Quit the simulation cycle
-	QUIT
-};
+// commands that GPUSPH can issue to workers
+#include "command_type.h"
 
 // command flags are defined in their own include files
 #include "command_flags.h"
@@ -204,6 +88,11 @@ class Writer;
 class Problem;
 
 #include "debugflags.h"
+
+enum RunMode {
+	REPACK,
+	SIMULATE
+};
 
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
@@ -234,7 +123,7 @@ struct GlobalData {
 	Problem* problem;
 
 	SimFramework *simframework;
-	BufferAllocPolicy *allocPolicy;
+	std::shared_ptr<BufferAllocPolicy> allocPolicy;
 
 	Options* clOptions;
 
@@ -288,6 +177,7 @@ struct GlobalData {
 
 	// cellStart, cellEnd, segmentStart (limits of cells of the sam type) for each device.
 	// Note the s(shared)_d(device) prefix, since they're device pointers
+	// TODO migrate them to the buffer mechanism as well
 	uint** s_dCellStarts;
 	uint** s_dCellEnds;
 	uint** s_dSegmentsStart;
@@ -319,12 +209,17 @@ struct GlobalData {
 	float3 s_varGravity;
 
 	// simulation time control
-	bool keep_repacking;
+	RunMode run_mode;
 	bool keep_going;
 	bool quit_request;
 	bool save_request;
 	unsigned long iterations;
 	unsigned long last_buildneibs_iteration;
+	//! Maximum number of iterations to run for during this phase.
+	//! This will be set to the problem-specific SimParams' repack_maxiter
+	//! during the repack phase, and to clOptions' maxiter (if specified by the user)
+	//! during actual simulation
+	unsigned long maxiter;
 
 	// on the host, the total simulation time is a double. on the device, it
 	// will be downconverted to a float. this ensures that we can run very long
@@ -349,22 +244,7 @@ struct GlobalData {
 	uint lastGlobalNumInteractions;
 
 	// next command to be executed by workers
-	CommandType nextCommand;
-	// step parameter, e.g. for predictor/corrector scheme
-	// command flags, i.e. parameter for the command
-	flag_t commandFlags;
-	// additional argument to be passed to the command.
-	// TODO FIXME a union won't cut it, because of std::string
-	struct ExtraCommandArg {
-		std::string string;
-		flag_t flag;
-		float  fp32;
-		ExtraCommandArg() : fp32(NAN) {}
-	};
-	ExtraCommandArg extraCommandArg;
-	// set to true if next kernel has to be run only on internal particles
-	// (need support of the worker and/or the kernel)
-	bool only_internal;
+	CommandStruct nextCommand;
 
 	// ODE objects
 	int* s_hRbFirstIndex; // first indices: so forces kernel knows where to write rigid body force
@@ -390,8 +270,12 @@ struct GlobalData {
 	float3* s_hRbLinearVelocities;
 	float3*	s_hRbAngularVelocities;
 
-	// waterdepth at pressure outflows
+	// waterdepth at pressure outflows: an array of numOpenBoundaries elements
+	// for each device
 	uint**	h_IOwaterdepth;
+	// an array of numOpenBoundaries elements holding the maximum water depth
+	// across all devices
+	uint*   h_maxIOwaterdepth;
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
@@ -422,20 +306,19 @@ struct GlobalData {
 		particlesCreated(false),
 		createdParticlesIterations(0),
 		s_hPlanes(),
-		keep_repacking(false),
+		run_mode(SIMULATE),
 		keep_going(true),
 		quit_request(false),
 		save_request(false),
 		iterations(0),
+		last_buildneibs_iteration(ULONG_MAX),
+		maxiter(ULONG_MAX),
 		t(0.0),
 		dt(0.0f),
 		lastGlobalPeakFluidBoundaryNeibsNum(0),
 		lastGlobalPeakVertexNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
-		commandFlags(NO_FLAGS),
-		extraCommandArg(),
-		only_internal(false),
 		s_hRbFirstIndex(NULL),
 		s_hRbLastIndex(NULL),
 		s_hRbDeviceTotalForce(NULL),
@@ -449,7 +332,9 @@ struct GlobalData {
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
-		s_hRbAngularVelocities(NULL)
+		s_hRbAngularVelocities(NULL),
+		h_IOwaterdepth(NULL),
+		h_maxIOwaterdepth(NULL)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
@@ -726,19 +611,17 @@ struct GlobalData {
 		nGridCells = 0;
 		particlesCreated = false;
 		createdParticlesIterations = 0;
-		keep_repacking = false;
 		keep_going = true;
 		quit_request = false;
 		save_request = false;
 		iterations = 0;
+		maxiter = ULONG_MAX;
 		t = 0.0;
 		dt = 0.0f;
 		lastGlobalPeakFluidBoundaryNeibsNum = 0;
 		lastGlobalPeakVertexNeibsNum = 0;
 		lastGlobalNumInteractions = 0;
-		only_internal = false;
 		nextCommand = IDLE;
-		commandFlags = NO_FLAGS;
 	}
 };
 
@@ -746,7 +629,7 @@ struct GlobalData {
 #define MULTI_NODE (gdata->mpi_nodes > 1)
 #define SINGLE_NODE (!MULTI_NODE)
 #define MULTI_GPU (gdata->devices > 1)
-#define SINGLE_GPU (gdata->devices > 1)
+#define SINGLE_GPU (!MULTI_GPU)
 #define MULTI_DEVICE (MULTI_GPU || MULTI_NODE)
 #define SINGLE_DEVICE (!MULTI_DEVICE)
 

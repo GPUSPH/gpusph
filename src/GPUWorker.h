@@ -52,8 +52,8 @@
 #include "engine_forces.h"
 #include "engine_boundary_conditions.h"
 
-// buffers and buffer lists
-#include "buffer.h"
+// the particle system, cum suis
+#include "ParticleSystem.h"
 
 // Bursts handling
 #include "bursts.h"
@@ -64,6 +64,11 @@ class GPUWorker {
 private:
 	GlobalData* gdata;
 
+	// utility pointers - the actual structures are in Problem
+	const SimFramework *m_simframework;
+	PhysParams*	m_physparams;
+	SimParams*	m_simparams;
+
 	AbstractNeibsEngine *neibsEngine;
 	AbstractViscEngine *viscEngine;
 	AbstractForcesEngine *forcesEngine;
@@ -72,12 +77,22 @@ private:
 	FilterEngineSet const& filterEngines;
 	PostProcessEngineSet const& postProcEngines;
 
+	//! maximum kinematic viscosity
+	/*! This is computed once for Newtonian fluids,
+	 * or every time CALC_VISC is run otherwise
+	 */
+	float m_max_kinvisc;
+	//! maximum sound speed
+	/*! Computed once (in uploadConstants), and passed to the dtreduce of the forces engine
+	 */
+	float m_max_sound_speed;
+
 	std::thread thread_id;
 	void simulationThread();
 
-	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;
 	devcount_t m_globalDeviceIdx;
+	unsigned int m_cudaDeviceNumber;
 	GlobalData* getGlobalData();
 	unsigned int getCUDADeviceNumber();
 	devcount_t getDeviceIndex();
@@ -90,6 +105,8 @@ private:
 	uint m_numAllocatedParticles;
 	// number of internal particles, used for multi-GPU
 	uint m_numInternalParticles;
+	// Total number of particles belonging to rigid bodies on which we compute forces
+	uint		m_numForcesBodiesParticles;
 
 	// range of particles the kernels should write to
 	uint m_particleRangeBegin; // inclusive
@@ -120,11 +137,6 @@ private:
 	size_t m_hNetworkTransferBufferSize;
 	void resizeNetworkTransferBuffer(size_t required_size);
 
-	// utility pointers - the actual structures are in Problem
-	PhysParams*	m_physparams;
-	SimParams*	m_simparams;
-	const SimFramework *m_simframework;
-
 	// CPU arrays
 	//float4*			m_hPos;					// postions array
 	//float4*			m_hVel;					// velocity array
@@ -137,21 +149,11 @@ private:
 	// TODO: CPU arrays used for debugging
 
 	// GPU arrays
-	MultiBufferList	m_dBuffers;
+	ParticleSystem	m_dBuffers;
 
-	uint*		m_dCellStart;			// index of cell start in sorted order
-	uint*		m_dCellEnd;				// index of cell end in sorted order
-
-	// GPU arrays for rigid bodies (CPU ones are in GlobalData)
-	uint		m_numForcesBodiesParticles;		// Total number of particles belonging to rigid bodies on which we compute forces
-	float4*		m_dRbForces;					// Forces on particles belonging to rigid bodies
-	float4*		m_dRbTorques;					// Torques on particles belonging to rigid bodies
-	uint*		m_dRbNum;						// Key used in segmented scan
-
-
-	// CPU/GPU buffers for the compact device map (2 bits per cell)
-	uint*		m_hCompactDeviceMap;
-	uint*		m_dCompactDeviceMap;
+	// CPU arrays (for the workers, these only hold cell-based buffers:
+	// BUFFER_CELLSTART, BUFFER_CELLEND, BUFFER_COMPACT_DEV_MAP)
+	BufferList m_hBuffers;
 
 	// bursts of cells to be transferred
 	BurstList	m_bursts;
@@ -176,21 +178,35 @@ private:
 	// event to synchronize striping
 	cudaEvent_t m_halfForcesEvent;
 
+	/// Function template to run a specific command
+	/*! There should be a specialization of the template for each
+	 * (supported) command
+	 */
+	template<CommandName>
+	void runCommand(CommandStruct const& cmd);
+
+	/// Function template to show a specific command
+	template<CommandName>
+	void describeCommand(CommandStruct const& cmd);
+
+	/// Handle the case of an unknown command being invoked
+	void unknownCommand(CommandName);
+
 	// cuts all external particles
-	void dropExternalParticles();
+	// runCommand<CROP> = void dropExternalParticles();
 
 	/// compare UPDATE_EXTERNAL arguments against list of updated buffers
-	void checkBufferUpdate();
+	void checkBufferUpdate(CommandStruct const& cmd);
 
 	// compute list of bursts
 	void computeCellBursts();
 	// iterate on the list and send/receive/read cell sizes
 	void transferBurstsSizes();
 	// iterate on the list and send/receive/read bursts of particles
-	void transferBursts();
+	void transferBursts(CommandStruct const& cmd);
 
-	// append or update the external cells of other devices in the device memory
-	void importExternalCells();
+	/// append or update the external cells of other devices in the device memory
+	void importExternalCells(CommandStruct const& cmd); // runCommand<APPEND_EXTERNAL> or runCommand<UPDATE_EXTERNAL>
 	// aux methods for importPeerEdgeCells();
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 	void asyncCellIndicesUpload(uint fromCell, uint toCell);
@@ -211,95 +227,90 @@ private:
 	void initialize();
 	void finalize();
 
-	// select a BufferList based on the DBLBUFFER_* specification
-	// in the command flags
-	BufferList& getBufferListByCommandFlags(flag_t flags);
+private:
 	// create a textual description of the list of buffers in the command flags
 	std::string describeCommandFlagsBuffers(flag_t flags);
-	std::string describeCommandFlagsBuffers();
-
-	// setting or adding to buffer states
-	void setBufferState(const flag_t flags, std::string const& state);
-	void setBufferState(); // setBufferState() from commandFlags and extraCommandArg
-	void addBufferState(const flag_t flags, std::string const& state);
-	void addBufferState(); // addBufferState() from commandFlags and extraCommandArg
-
-	// setting buffer validity
-	void setBufferValidity(const flag_t flags, BufferValidity validity);
-	void setBufferValidity(); // setBufferValidity() from commandFlags and extraCommandArg
 
 	void uploadSubdomain();
-	void dumpBuffers();
-	void swapBuffers();
-	void setDeviceCellsAsEmpty();
-	void downloadCellsIndices();
+	// runCommand<DUMP> = void dumpBuffers();
+	// runCommand<SWAP_BUFFERS> = void swapBuffers();
+	// runCommand<DUMP_CELLS> = void downloadCellsIndices();
 	void downloadSegments();
 	void uploadSegments();
-	void updateSegments();
+	// runCommand<UPDATE_SEGMENTS> = void updateSegments();
 	void resetSegments();
 	void uploadNumOpenVertices();
-	void uploadNewNumParticles();
-	void downloadNewNumParticles();
+	// runCommand<UPLOAD_NEWNUMPARTS> = void uploadNewNumParticles();
+	// runCommand<DOWNLOAD_NEWNUMPARTS> = void downloadNewNumParticles();
 
 	// moving boundaries, gravity, planes
-	void uploadGravity();
-	void uploadPlanes();
+	void uploadGravity(); // also runCommand<UPLOAD_GRAVITY>
+	void uploadPlanes(); // also runCommand<UPLOAD_PLANES>
 
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
 	void uploadConstants();
 
 	// bodies
-	void uploadForcesBodiesCentersOfGravity();
-	void uploadEulerBodiesCentersOfGravity();
-	void uploadBodiesTransRotMatrices();
-	void uploadBodiesVelocities();
+	void uploadForcesBodiesCentersOfGravity(); // also runCommand<FORCES_UPLOAD_OBJECTS_CG>
+	void uploadEulerBodiesCentersOfGravity(); // runCommand<EULER_UPLOAD_OBJECTS_CG> 
+	// runCommand<UPLOAD_OBJECTS_MATRICES> = void uploadBodiesTransRotMatrices();
+	// runCommand<UPLOAD_OBJECTS_VELOCITIES> = void uploadBodiesVelocities();
 
 	// kernels
-	void kernel_calcHash();
-	void kernel_sort();
-	void kernel_reorderDataAndFindCellStart();
-	void kernel_buildNeibsList();
-	void kernel_forces();
-	void kernel_euler();
-	void kernel_density_sum();
-	void kernel_integrate_gamma();
-	void kernel_calc_density_diffusion();
-	void kernel_apply_density_diffusion();
-	void kernel_filter();
-	void kernel_postprocess();
-	void kernel_compute_density();
-	void kernel_visc();
+	// runCommand<CALCHASH> = void kernel_calcHash();
+	// runCommand<SORT> = void kernel_sort();
+	// runCommand<REORDER> = void kernel_reorderDataAndFindCellStart();
+	// runCommand<BUILDNEIBS> = void kernel_buildNeibsList();
+	// runCommand<FORCES_SYNC> = void kernel_forces();
+	// runCommand<EULER> = void kernel_euler();
+	// runCommand<DENSITY_SUM> = void kernel_density_sum();
+	// runCommand<INTEGRATE_GAMMA> = void kernel_integrate_gamma();
+	// runCommand<CALC_DENSITY_DIFFUSION> = void kernel_calc_density_diffusion();
+	// runCommand<APPLY_DENSITY_DIFFUSION> = void kernel_apply_density_diffusion();
+	// runCommand<FILTER> = void kernel_filter();
+	// runCommand<POSTPROCESS> = void kernel_postprocess();
+	// runCommand<COMPUTE_DENSITY> = void kernel_compute_density();
+	// runCommand<CALC_VISC> = void kernel_visc();
 	void kernel_meanStrain();
-	void kernel_reduceRBForces();
-	void kernel_saSegmentBoundaryConditions();
-	void kernel_saVertexBoundaryConditions();
-	void kernel_saComputeVertexNormal();
-	void kernel_saInitGamma();
-	void kernel_saIdentifyCornerVertices();
+	// runCommand<REDUCE_BODIES_FORCES> = void kernel_reduceRBForces();
+	// runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS> = void kernel_saSegmentBoundaryConditions();
+	// runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS> = void kernel_saVertexBoundaryConditions();
+	// runCommand<SA_COMPUTE_VERTEX_NORMAL> = void kernel_saComputeVertexNormal();
+	// runCommand<SA_INIT_GAMMA> = void kernel_saInitGamma();
+	// runCommand<IDENTIFY_CORNER_VERTICES> = void kernel_saIdentifyCornerVertices();
 	void kernel_updatePositions();
-	void kernel_disableOutgoingParts();
-	void kernel_disableFreeSurfParts();
-	void kernel_imposeBoundaryCondition();
-	void kernel_initIOmass_vertexCount();
-	void kernel_initIOmass();
-	void kernel_download_iowaterdepth();
-	void kernel_upload_iowaterdepth();
+	// runCommand<DISABLE_OUTGOING_PARTS> = void kernel_disableOutgoingParts();
+	// runCommand<DISABLE_FREE_SURF_PARTS> = void kernel_disableFreeSurfParts();
+	// runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION> = void kernel_imposeBoundaryCondition();
+	// runCommand<INIT_IO_MASS_VERTEX_COUNT> = void kernel_initIOmass_vertexCount();
+	// runCommand<INIT_IO_MASS> = void kernel_initIOmass();
+	// runCommand<DOWNLOAD_IOWATERDEPTH> = void kernel_download_iowaterdepth();
+	// runCommand<UPLOAD_IOWATERDEPTH> = void kernel_upload_iowaterdepth();
 	/*void uploadMbData();
-	void uploadGravity();*/
+	// runCommand<UPLOAD_GRAVITY> = void uploadGravity();*/
 
-	void checkPartValByIndex(const char* printID, const uint pindex);
+	void checkPartValByIndex(CommandStruct const& cmd,
+		const char* printID, const uint pindex);
 
 	// asynchronous alternative to kernel_force
-	void kernel_forces_async_enqueue();
-	void kernel_forces_async_complete();
+	// runCommand<FORCES_ENQUEUE> = void kernel_forces_async_enqueue();
+	// runCommand<FORCES_COMPLETE> = void kernel_forces_async_complete();
+
+	// A pair holding the read and write buffer lists
+	using BufferListPair = std::pair<const BufferList, BufferList>;
 
 	// aux methods for forces kernel striping
-	uint enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset);
-	// steps to do before launching a (set of) forces kernels: binding textures, resetting CFL, etc
-	void pre_forces();
+	uint enqueueForcesOnRange(CommandStruct const& cmd,
+		BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset);
+	// steps to do before launching a (set of) forces kernels:
+	// * select the read and write buffer lists
+	// * reset CFL and object forces and torque arrays
+	// * bind textures
+	// Returns a pair with the read and write buffer lists
+	BufferListPair pre_forces(CommandStruct const& cmd);
 	// steps to do after launching a (set of) forces kernels: unbinding textures, get, adaptive dt, etc
-	float post_forces();
+	float post_forces(CommandStruct const& cmd);
 
 	// aux method to warp signed cell coordinates when periodicity is enabled
 	void periodicityWarp(int &cx, int &cy, int &cz);
@@ -330,8 +341,8 @@ public:
 	cudaDeviceProp getDeviceProperties();
 	size_t getHostMemory();
 	size_t getDeviceMemory();
-	// for peer transfers: get the buffer `key` from the buffer list `list_idx`
-	const AbstractBuffer* getBuffer(size_t list_idx, flag_t key) const;
+	// for peer transfers: get the buffer `key` from the given buffer state
+	std::shared_ptr<const AbstractBuffer> getBuffer(std::string const& state, flag_t key) const;
 
 #ifdef INSPECT_DEVICE_MEMORY
 	const MultiBufferList& getBufferList() const;

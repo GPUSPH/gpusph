@@ -76,7 +76,6 @@ public:
 	process(
 		const BufferList&	bufread,
 		BufferList&		bufwrite,
-		const	uint					*cellStart,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,

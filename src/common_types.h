@@ -85,6 +85,7 @@ typedef uint64_t flag_t;
 #define NO_FLAGS	(UINT64_C(0))
 //! Maximum value representable by a flag_t
 #define FLAG_MAX	UINT64_MAX
+#define ALL_FLAGS	FLAG_MAX
 
 
 #endif

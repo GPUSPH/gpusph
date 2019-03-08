@@ -4,6 +4,24 @@
 
 #include "cudasimframework.cu"
 
+/* By default, we only compile for the Newtonian rheology.
+ * The user can support a more complete Poiseuille example
+ * by putting CPPFLAGS += -DPOISEUILLE_ALL_RHEO in Makefile.local
+ */
+#ifndef POISEUILLE_ALL_RHEO
+#define POISEUILLE_ALL_RHEO 0
+#endif
+
+// Some options are not compatible with non-Newtonian rheologies, so
+// make sure to skip them if it's enabled
+#ifndef POISEUILLE_DEFAULT_RHEO
+#	define POISEUILLE_DEFAULT_RHEO NEWTONIAN
+#	define HAS_NONNEWTONIAN POISEUILLE_ALL_RHEO
+#else
+#	define HAS_NONNEWTONIAN 1
+#endif
+
+
 Poiseuille::Poiseuille(GlobalData *_gdata) :
 	XProblem(_gdata),
 
@@ -25,40 +43,53 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 	const int ppH = get_option("ppH", 32);
 
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
-	const int RHODIFF = get_option("density-diffusion", 0);
+	const DensityDiffusionType RHODIFF = get_option("density-diffusion", DENSITY_DIFFUSION_NONE);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 (no MLS).
 	const int mlsIters = get_option("mls", 0);
 
 	// Allow user to set the computational viscosity; accepted values: dyn, kin
-	const string compvisc = get_option("compvisc", "kin");
+	const ComputationalViscosityType compvisc = get_option("compvisc", KINEMATIC);
 
-	if (compvisc != "kin" && compvisc != "dyn")
-		throw std::invalid_argument("unknown compvisc value " + compvisc);
+	const AverageOperator viscavg = get_option("viscavg", ARITHMETIC);
 
-	// Allow user to set the viscous averaging; accepted values: arithmetic, harmonic, geometric
-	const string viscavg = get_option("viscavg", "arithmetic");
+	// Allow user to set the rheology type;
+	const RheologyType want_rheology = get_option("rheology", NEWTONIAN);
 
-	if (viscavg != "arithmetic" && viscavg != "harmonic" && viscavg != "geometric")
-		throw std::invalid_argument("unknown viscavg value " + viscavg);
+	// Allow use to set the viscous operator model: morris or monaghan
+	const ViscousModel viscmodel = get_option("viscmodel", MORRIS);
+
+	if (HAS_NONNEWTONIAN && viscmodel == ESPANOL_REVENGA)
+		throw std::invalid_argument("cannot use " +
+			string(ViscousModelName[viscmodel]) +
+			" with non-Newtonian rheologies");
+
+#if !POISEUILLE_ALL_RHEO
+	if (want_rheology != NEWTONIAN)
+		throw std::invalid_argument("Poiseuille compiled without support for non-Newtonian rheology");
+
+#endif
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		rheology<NEWTONIAN>,
+		rheology<POISEUILLE_DEFAULT_RHEO>,
 		turbulence_model<LAMINAR_FLOW>,
 		computational_visc<KINEMATIC>,
 		visc_model<MORRIS>,
 		visc_average<ARITHMETIC>,
 		periodicity<PERIODIC_XY>,
 		boundary<DYN_BOUNDARY>
-	).select_options(
-		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
-		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
-		compvisc == "dyn", computational_visc<DYNAMIC>(),
-		viscavg == "harmonic", visc_average<HARMONIC>(),
-		viscavg == "geometric", visc_average<GEOMETRIC>()
-	);
+	).select_options
+		( RHODIFF  // switch to the user-selected density diffusion
+		, compvisc // switch to the user-selected computational viscosity
+		, viscavg  // switch to the user-selected viscous averaging operator
+#if !HAS_NONNEWTONIAN
+		, viscmodel // switch to the user-selected viscous model
+#endif
+#if POISEUILLE_ALL_RHEO
+		, want_rheology // switch to the user-selected rheology
+#endif
+		);
 
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
@@ -73,6 +104,10 @@ Poiseuille::Poiseuille(GlobalData *_gdata) :
 
 	auto fluid_idx = add_fluid(rho);
 	set_kinematic_visc(fluid_idx, kinvisc);
+
+	// Set yield strength (if needed) to get a plug which is about 1/2 of the channel height
+	if (YIELDING_RHEOLOGY(simparams()->rheologytype))
+		set_yield_strength(fluid_idx, driving_force*rho*lz/4);
 
 	printf("Reynolds number = %g\n", Re);
 	printf("Max flow velocity: %g m/s\n", max_vel);

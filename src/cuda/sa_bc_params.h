@@ -143,7 +143,7 @@ struct keps_sa_bc_params
 
 //! Parameters needed by the \ref saSegmentBoundaryConditionsDevice kernel
 template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags,
-	uint _step,
+	int _step,
 	bool _has_io = !!(_simflags & ENABLE_INLET_OUTLET),
 	bool _has_keps = (_ViscSpec::turbmodel == KEPSILON),
 	bool _has_moving = !!(_simflags & ENABLE_MOVING_BODIES),
@@ -161,7 +161,7 @@ struct sa_segment_bc_params :
 	static constexpr KernelType kerneltype = _kerneltype; //! kernel type
 	using ViscSpec = _ViscSpec; //! viscous model specification
 	static constexpr flag_t simflags = _simflags; //! simulation flags
-	static constexpr uint step = _step; //! integration step
+	static constexpr int step = _step; //! integration step
 	static constexpr bool has_io = _has_io; //! Open boundaries enabled?
 	static constexpr bool has_keps = _has_keps; //! Using the k-epsilon viscous model?
 	static constexpr bool has_moving = _has_moving; //! Do we have moving objects?
@@ -213,6 +213,12 @@ struct sa_io_params
 };
 
 //! Parameters needed when cloning particles
+/*! Note that to initialize some of the data for the new particles we might
+ * need to access for writing some buffers that should otherwise be read-only,
+ * and may even write to buffers shared between states of the particle system.
+ * This is OK, but we need to inform the system about the safety of these
+ * accesses.
+ */
 struct sa_cloning_params
 {
 	// vel, gGam, eulerVel, tke and eps are already writeable in the mother structure,
@@ -229,7 +235,6 @@ struct sa_cloning_params
 	const uint numDevices; //! number of devices used for the simulation
 
 	sa_cloning_params(
-				BufferList& bufread_clone,
 				BufferList& bufwrite,
 				uint	* __restrict__ _newNumParticles,
 		const	 uint _totParticles,
@@ -237,11 +242,18 @@ struct sa_cloning_params
 		const	 uint _numDevices)
 	:
 		cloneForces(bufwrite.getData<BUFFER_FORCES>()),
-		cloneInfo(bufread_clone.getData<BUFFER_INFO>()),
-		cloneParticleHash(bufread_clone.getData<BUFFER_HASH>()),
-		cloneVertices(bufwrite.getData<BUFFER_VERTICES>()),
-		cloneBoundElems(bufread_clone.getData<BUFFER_BOUNDELEMENTS>()),
-		nextIDs(bufwrite.getData<BUFFER_NEXTID>()),
+		cloneInfo(bufwrite.getData<BUFFER_INFO,
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		cloneParticleHash(bufwrite.getData<BUFFER_HASH,
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		cloneVertices(bufwrite.getData<BUFFER_VERTICES,
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		cloneBoundElems(bufwrite.getData<BUFFER_BOUNDELEMENTS,
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		nextIDs(bufwrite.getData<BUFFER_NEXTID,
+			// TODO FIXME rather than being multi-state safe,
+			// access to nextIDs should simply set the n+1 state
+			BufferList::AccessSafety::MULTISTATE_SAFE>()),
 		newNumParticles(_newNumParticles),
 		totParticles(_totParticles),
 		deviceId(_deviceId),
@@ -250,7 +262,7 @@ struct sa_cloning_params
 };
 
 //! Parameters needed by the \ref saVertexBoundaryConditionsDevice kernel
-template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags, uint _step,
+template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags, int _step,
 	bool _has_io = !!(_simflags & ENABLE_INLET_OUTLET),
 	bool _has_keps = (_ViscSpec::turbmodel == KEPSILON),
 	bool _has_moving = !!(_simflags & ENABLE_MOVING_BODIES),
@@ -275,7 +287,7 @@ struct sa_vertex_bc_params :
 	static constexpr KernelType kerneltype = _kerneltype; //! kernel type
 	using ViscSpec = _ViscSpec;
 	static constexpr flag_t simflags = _simflags; //! simulation flags
-	static constexpr uint step = _step; //! integration step
+	static constexpr int step = _step; //! integration step
 	static constexpr bool has_io = _has_io; //! Open boundaries enabled?
 	static constexpr bool has_keps = _has_keps; //! Using the k-epsilon viscous model?
 	static constexpr bool has_moving = _has_moving; //! Do we have moving objects?
@@ -288,7 +300,6 @@ struct sa_vertex_bc_params :
 	sa_vertex_bc_params(
 		const	BufferList&	bufread,
 				BufferList&	bufwrite,
-		const	uint	* __restrict__ _cellStart,
 				uint	* __restrict__ _newNumParticles,
 		const	uint	_numParticles,
 		const	uint	_totParticles,
@@ -300,19 +311,19 @@ struct sa_vertex_bc_params :
 		const	float	_dt)
 	:
 		common_sa_bc_params(
-			bufwrite.getConstData<BUFFER_POS>(),
+			bufread.getData<BUFFER_POS>(),
 			bufwrite.getData<BUFFER_VEL>(),
 			bufread.getData<BUFFER_HASH>(),
-			_cellStart,
+			bufread.getData<BUFFER_CELLSTART>(),
 			bufread.getData<BUFFER_NEIBSLIST>(),
 			bufwrite.getData<BUFFER_GRADGAMMA>(),
-			bufwrite.getConstData<BUFFER_VERTICES>(),
+			bufread.getData<BUFFER_VERTICES>(),
 			bufread.getRawPtr<BUFFER_VERTPOS>(),
 			_numParticles, _deltap, _slength, _influenceradius),
 		eulervel_struct(bufwrite),
 		keps_struct(bufwrite),
 		io_struct(bufwrite, _dt),
-		clone_struct(const_cast<BufferList&>(bufread), bufwrite, _newNumParticles,
+		clone_struct(bufwrite, _newNumParticles,
 			_totParticles, _deviceId, _numDevices)
 	{}
 };

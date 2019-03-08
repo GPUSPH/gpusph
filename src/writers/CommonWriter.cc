@@ -31,6 +31,10 @@
 #include "simflags.h"
 #include "vector_print.h"
 
+#include "gpusph_version.opt"
+#include "make_show.opt"
+#include "git_info.opt"
+
 using namespace std;
 
 CommonWriter::CommonWriter(const GlobalData *_gdata)
@@ -321,19 +325,17 @@ CommonWriter::write_simparams(ostream &out)
 	out << " influenceRadius = " << SP->influenceRadius << endl;
 	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
 	out << " multi-fluid support: " << ED[!!(SP->simflags & ENABLE_MULTIFLUID)] << endl;
-	out << " Rheology: " << RheologyTypeName[SP->rheologytype] << endl;
-	switch (SP->rheologytype) {
-	case INVISCID: break; /* nothing to show */
-	case NEWTONIAN:
-		       out << "\tTurbulence model: " << TurbulenceName[SP->turbmodel] << endl;
-		       out << "\tComputational viscosity type: " << ComputationalViscosityName[SP->compvisc] << endl;
-		       out << "\tViscous model operator: " << ViscousModelName[SP->viscmodel] << endl;
-		       out << "\tViscous averaging operator: " << AverageOperatorName[SP->viscavgop] << endl;
-		       if (SP->is_const_visc)
-			       out << "\t(constant viscosity optimizations)" << endl;
-		       break;
-	default:
-		       throw runtime_error("unimplemented rheology parameter printout");
+	out << " Rheology: " << RheologyName[SP->rheologytype] << endl;
+	if (SP->rheologytype != INVISCID) {
+		out << "\tTurbulence model: " << TurbulenceName[SP->turbmodel] << endl;
+		out << "\tComputational viscosity type: " << ComputationalViscosityName[SP->compvisc] << endl;
+		out << "\tViscous model operator: " << ViscousModelName[SP->viscmodel];
+		if (SP->viscmodel == MONAGHAN)
+			out << ",\tcoefficient: " << m_problem->physparams()->monaghan_visc_coeff;
+		out << endl;
+		out << "\tViscous averaging operator: " << AverageOperatorName[SP->viscavgop] << endl;
+		if (SP->is_const_visc)
+			out << "\t(constant viscosity optimizations)" << endl;
 	}
 	out << " periodicity: " << SP->periodicbound << " (" << PeriodicityName[SP->periodicbound] << ")" << endl;
 
@@ -458,7 +460,7 @@ CommonWriter::write_physparams(ostream &out)
 			break;
 	}
 
-	out << RheologyTypeName[SP->rheologytype] << " rheology with "
+	out << RheologyName[SP->rheologytype] << " rheology with "
 		<< TurbulenceName[SP->turbmodel] << " turbulence model. Parameters:" << endl;
 	if (SP->turbmodel == ARTIFICIAL) {
 		out << "\tartvisccoeff = " << PP->artvisccoeff << "" << endl;
@@ -467,9 +469,20 @@ CommonWriter::write_physparams(ostream &out)
 		out << "\tSmagfactor = " << PP->smagfactor << endl;
 		out << "\tkSPSfactor = " << PP->kspsfactor << endl;
 	}
+	if (NEEDS_EFFECTIVE_VISC(SP->rheologytype))
+		out << "\tlimiting visc = " << PP->limiting_kinvisc << endl;
 
-	for (uint f  = 0; f < PP->numFluids(); ++f)
+	for (uint f  = 0; f < PP->numFluids(); ++f) {
 		out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
+		out << "\tvisc_consistency[ " << f << " ] = " << PP->visc_consistency[f] << " (Pa^n s)" << endl;
+
+		if (NONLINEAR_RHEOLOGY(SP->rheologytype))
+			out << "\tvisc_nonlinear_param[ " << f << " ] = " << PP->visc_nonlinear_param[f] << endl;
+		if (YIELDING_RHEOLOGY(SP->rheologytype))
+			out << "\tyield_strength[ " << f << " ] = " << PP->yield_strength[f] << " (Pa s)" << endl;
+		if (REGULARIZED_RHEOLOGY(SP->rheologytype))
+			out << "\tvisc_regularization_param[ " << f << " ] = " << PP->visc_regularization_param[f] << " (Pa s)" << endl;
+	}
 	for (uint f  = 0; f < PP->numFluids(); ++f)
 		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f]
 			<< (SP->compvisc == KINEMATIC ? " (m^2/s)" : " (Pa s)") <<endl;
@@ -525,10 +538,13 @@ CommonWriter::write_summary(void)
 	out.close();
 
 	// Writing out make show result
-	string command = "make show >>" + m_problem->get_dirname() + "/make_show.txt";
-	system(command.c_str());
-	command = "git describe --tags --dirty=+custom && git branch -vv >>" + m_problem->get_dirname() + "/git_branch.txt";
-	system(command.c_str());
+	out.open((m_problem->get_dirname() + "/make_show.txt").c_str());
+	out << MAKE_SHOW_OUTPUT << endl;
+	out.close();
+
+	out.open((m_problem->get_dirname() + "/git_branch.txt").c_str());
+	out << GPUSPH_VERSION << endl << GIT_INFO_OUTPUT << endl;
+	out.close();
 }
 
 

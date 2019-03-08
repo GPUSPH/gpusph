@@ -81,7 +81,7 @@ void HotFile::save() {
 		if (iter.first & skip_bufs)
 			continue;
 
-		writeBuffer(_fp.out, iter.second, VERSION_1);
+		writeBuffer(_fp.out, iter.second.get(), VERSION_1);
 	}
 
 	for (uint id = 0; id < _header.body_count; ++id) {
@@ -130,8 +130,8 @@ void HotFile::load() {
 		if (iter.first & skip_bufs)
 			continue;
 
-		AbstractBuffer *buf = iter.second;
-		readBuffer(_fp.in, buf, VERSION_1);
+		const auto& buf = iter.second;
+		readBuffer(_fp.in, buf.get(), VERSION_1);
 		buf->set_state("resumed");
 		buf->mark_valid();
 	}

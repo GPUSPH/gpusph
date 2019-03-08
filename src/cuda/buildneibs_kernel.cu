@@ -664,7 +664,6 @@ neibsInCell(
  * 	object particles
  * 	- fill the particle's indexes array with current indexes
  *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- *	\todo compactDeviceMap seems to be read-only, constify-it
  */
 template <Periodicity periodicbound>
 __global__ void
@@ -675,7 +674,7 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
 				hashKey*			particleHash,		///< [in,out] particle's hashes
 				uint*				particleIndex,		///< [out] particle's indexes
 				const particleinfo*	particelInfo,		///< [in] particle's informations
-				uint				*compactDeviceMap,	///< [in] type of the cells belonging to the device
+				const uint*			compactDeviceMap,	///< [in] type of the cells belonging to the device
 				const uint			numParticles		///< [in] total number of particles
 				)
 {
@@ -792,16 +791,15 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
  * 	He computes the high bits of particle hash according to the
  * 	compact device map. Also initialize particleIndex.
  * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\todo compactDeviceMap seems to be read-only, constify-it
  */
 __global__ void
 /*! \cond */
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 /*! \endcond */
-fixHashDevice(	hashKey*			particleHash,		///< [in,out] particle's hashes
+fixHashDevice(	hashKey*		particleHash,			///< [in,out] particle's hashes
 				uint*				particleIndex,		///< [out] particle's indexes
 				const particleinfo* particelInfo,		///< [in] particle's informations
-				uint				*compactDeviceMap,	///< [in] type of the cells belonging to the device
+				const uint*			compactDeviceMap,	///< [in] type of the cells belonging to the device
 				const uint			numParticles		///< [in] total number of particles
 				)
 {

@@ -74,9 +74,7 @@ public:
 
 	/// Compute total force and torque acting on each rigid body
 	virtual void
-	reduceRbForces(	float4	*forces,
-					float4	*torques,
-					uint	*rbnum,
+	reduceRbForces(	BufferList& bufwrite,
 					uint	*lastindex,
 					float3	*totalforce,
 					float3	*totaltorque,
@@ -94,11 +92,6 @@ public:
 	virtual void
 	bind_textures(const BufferList& bufread,
 		uint	numParticles) = 0;
-
-	/// Reset the CFL buffers before each group of forces kernel calls
-	virtual void
-	clear_cfl(BufferList& bufwrite,
-		uint	numAllocatedParticles) = 0;
 
 	/// Unbind the textures after the forces kernel execution
 	virtual void
@@ -123,7 +116,6 @@ public:
 	virtual void
 	compute_density(const BufferList& bufread,
 		BufferList& bufwrite,
-		const uint *cellStart,
 		uint numParticles,
 		float slength,
 		float influenceradius) = 0;
@@ -133,7 +125,6 @@ public:
 	compute_density_diffusion(
 		const BufferList& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	deltap,
@@ -148,9 +139,6 @@ public:
 	basicstep(
 		const BufferList& bufread,
 		BufferList& bufwrite,
-				float4	*rbforces,
-				float4	*rbtorques,
-		const	uint	*cellStart,
 				uint	numParticles,
 				uint	fromParticle,
 				uint	toParticle,
@@ -161,28 +149,9 @@ public:
 		const	float	epsilon,
 				uint	*IOwaterdepth,
 				uint	cflOffset,
-		const	uint	step,
+		const	int	step, ///< Integrator step, negative for repacking
 		const	float	dt,
 		const	bool compute_object_forces) = 0;
-
-	/// Repack forces step.
-	/// \return the number of blocks launched (which is the number of blocks to
-	/// launch dtreduce on)
-	virtual uint
-	repackstep(
-		const BufferList& bufread,
-		BufferList& bufwrite,
-		const	uint	*cellStart,
-				uint	numParticles,
-				uint	fromParticle,
-				uint	toParticle,
-				float	deltap,
-				float	slength,
-				float	dtadaptfactor,
-				float	influenceradius,
-		const	float	epsilon,
-				uint	cflOffset,
-		const	float	dt) = 0;
 
 	// Reduction methods
 
@@ -200,10 +169,8 @@ public:
 				float	dtadaptfactor,
 				float	sspeed_cfl,
 				float	max_kinematic,
-				float	*cfl_forces,
-				float	*cfl_gamma,
-				float	*cfl_keps,
-				float	*tempCfl,
+				BufferList const& bufread,
+				BufferList& bufwrite,
 				uint	numBlocks,
 				uint	numParticles) = 0;
 

@@ -70,7 +70,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 
 	// Header
 	fid << "# vtk DataFile Version 2.0\n" << m_dirname << endl;
-	fid << "ASCII\nDATASET UNSTRUCTURED_GRID" << endl;
+	fid << "ASCII\nDATASET POLYDATA" << endl;
 
 	fid << "POINTS " << numParts << "double" << endl;
 
@@ -79,16 +79,13 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 		fid << pos[i].x << " " << pos[i].y << " " << pos[i].z << endl;
 	fid << endl;
 
-	// Cells = particles
-	fid << "CELLS " << numParts << " " << (2*numParts) << endl;
+	// All “cells” are vertices
+	fid << "VERTICES " << numParts << " " << (2*numParts) << endl;
+
 	for (uint i=0; i < numParts; ++i)
-		fid << "1  " << i << endl;
+		fid << "1 " << i << endl;
 	fid << endl;
 
-	fid << "CELL_TYPES " << numParts << endl;
-	for (uint i=0; i < numParts; ++i)
-		fid << "1\n";
-	fid << endl;
 
 	// Now, the data
 	fid << "POINT_DATA " << numParts << endl;
@@ -118,13 +115,13 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	print_lookup(fid);
 	for (uint i=0; i < numParts; ++i) {
 		float value = 0.0;
-		if (TESTPOINT(info[i]))
-			// TODO FIXME: Testpoints compute pressure only
-			// In the future we would like to have a density here
-			// but this needs to be done correctly for multifluids
-			value = NAN;
-		else
-			value = vel[i].w;
+		if (!TESTPOINT(info[i]))
+			value = m_problem->physical_density(vel[i].w, fluid_num(info[i]));
+		// TODO FIXME: Testpoints compute pressure only
+		// In the future we would like to have a density here
+		// but this needs to be done correctly for multifluids
+		// In the mean time, the value should be NAN, but that breaks Paraview,
+		// so we use the 0.0 as default.
 		fid << value << endl;
 	}
 	fid << endl;

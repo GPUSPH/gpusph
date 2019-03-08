@@ -36,6 +36,7 @@
 #include "Options.h"
 #include "GlobalData.h"
 #include "Problem.h"
+#include "Integrator.h"
 #include "cpp11_missing.h"
 
 // IPPSCounter
@@ -78,10 +79,28 @@ private:
 	bool initialized;
 	bool repacked;
 
+	std::shared_ptr<Integrator> integrator;
+
+protected:
+	friend class TimerObject;
+
+	using cmd_time_clock = std::chrono::steady_clock;
+	using cmd_time_duration = cmd_time_clock::duration;
+
+	// Maximum time taken to dispatch each command
+	cmd_time_duration max_cmd_time[NUM_COMMANDS];
+	// Total time spent executing each command
+	cmd_time_duration tot_cmd_time[NUM_COMMANDS];
+	unsigned long cmd_calls[NUM_COMMANDS];
+
+private:
 	// constructor and copy/assignment: private for singleton scheme
 	GPUSPH();
 	GPUSPH(GPUSPH const&); // NOT implemented
 	void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
+
+	void resetCommandTimes();
+	void showCommandTimes();
 
 	// open/close/write the info stream
 	void openInfoStream();
@@ -103,22 +122,27 @@ private:
 	// aux function for sorting; swaps particles in s_hPos, s_hVel, s_hInfo
 	void particleSwap(uint idx1, uint idx2);
 
-	// update s_hStartPerDevice and s_hPartsPerDevice
-	void updateArrayIndices();
-
 	// perform post-filling operations
 	void prepareProblem();
 
-	// set nextCommand, unlock the threads and wait for them to complete
-	void doCommand(CommandType cmd, flag_t flags=NO_FLAGS);
-	template<typename T>
-	void doCommand(CommandType cmd, flag_t flags, T extra_arg);
+	/// Function template to run a specific command
+	/*! There should be a specialization of the template for each
+	 * (supported) command
+	 */
+	template<CommandName>
+	void runCommand(CommandStruct const& cmd);
+
+	/// Raise an errror about an unknown command
+	void unknownCommand(CommandName cmd);
+
+	// dispatch the command cmd, either by running it in GPUSPH itself,
+	// or by setting nextCommand, unlocking the threads and waiting for them
+	// to complete
+	void doCommand(CommandStruct const& cmd);
+	void doCommand(CommandStruct cmd, flag_t flags);
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();
-
-	// Do the multi gpu/multi node forces reduction and move bodies
-	void move_bodies(flag_t integrator_step);
 
 	// create the Writer
 	void createWriter();
@@ -127,25 +151,11 @@ private:
 	void doWrite(WriteFlags const& write_flags);
 
 	// save the particle system to disk
-	void saveParticles(PostProcessEngineSet const& enabledPostProcess, WriteFlags const& write_flags);
+	void saveParticles(PostProcessEngineSet const& enabledPostProcess,
+		std::string const& state, WriteFlags const& write_flags);
 
-	// callbacks for moving boundaries and variable gravity
-	void doCallBacks(const flag_t current_integrator_step);
-
-	// rebuild the neighbor list
+	//! Rebuild the neighbor list
 	void buildNeibList();
-
-	// setting of boundary conditions for the semi-analytical boundaries
-	void saBoundaryConditions(flag_t cFlag);
-
-	// prepare for the next forces computation
-	void prepareNextStep(const flag_t current_integrator_step);
-
-	// mark the beginning/end of a step, setting the state and validity
-	// of READ and WRITE buffers
-	void markIntegrationStep(
-		std::string const& read_state, BufferValidity read_valid,
-		std::string const& write_state, BufferValidity write_valid);
 
 	// print information about the status of the simulation
 	void printStatus(FILE *out = stdout);
@@ -166,14 +176,6 @@ private:
 
 	void check_write(const bool);
 
-	// perform a repacking step
-	void runRepackingStep(const flag_t integrator_step);
-	// compute the total kinetic energy for repacking
-	float computeKineticEnergy();
-	// refactored code by splitting the two integrator steps
-	void runIntegratorStep(const flag_t integrator_step);
-	void runEnabledFilters(const FilterFreqList& enabledFilters);
-
 public:
 	// destructor
 	~GPUSPH();
@@ -183,7 +185,6 @@ public:
 
 	// (de)initialization (include allocation)
 	bool initialize(GlobalData* _gdata);
-	bool runRepacking();
 	bool finalize();
 
 	/*static*/ bool runSimulation();

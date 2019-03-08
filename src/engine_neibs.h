@@ -67,30 +67,21 @@ public:
 	/// Compute the particle hash, and disable particles that have
 	/// flown out of the domain.
 	virtual void
-	calcHash(float4*	pos,
-			hashKey*	particleHash,
-			uint*		particleIndex,
-			const particleinfo* particleInfo,
-			uint*		compactDeviceMap,
+	calcHash(const BufferList& bufread,
+			BufferList& bufwrite,
 			const uint	numParticles) = 0;
 
 	/// Update the particle hash computed on host.
 	/// This is done to mark cells and particles that belong to other devices
 	virtual void
-	fixHash(hashKey*	particleHash,
-			uint*		particleIndex,
-			const particleinfo* particleInfo,
-			uint*		compactDeviceMap,
+	fixHash(const BufferList& bufread,
+			BufferList& bufwrite,
 			const uint	numParticles) = 0;
 
 	/// Sort the data to match the new particle order
 	virtual void
 	reorderDataAndFindCellStart(
-			uint*		cellStart,
-			uint*		cellEnd,
 			uint*		segmentStart,
-			const hashKey*	particleHash,
-			const uint*	particleIndex,
 			BufferList& sorted_buffers,
 			const BufferList& unsorted_buffers,
 			const uint		numParticles,
@@ -104,15 +95,8 @@ public:
 
 	/// Build the neighbors list
 	virtual void
-	buildNeibsList(	neibdata*			neibsList,
-					const float4*		pos,
-					const particleinfo*	info,
-					const vertexinfo*	vertices,
-					const float4		*boundelem,
-					float2*				vertPos[],
-					const hashKey*		particleHash,
-					const uint*			cellStart,
-					const uint*			cellEnd,
+	buildNeibsList( const BufferList&	bufread,
+						  BufferList&	bufwrite,
 					const uint			numParticles,
 					const uint			particleRangeEnd,
 					const uint			gridCells,

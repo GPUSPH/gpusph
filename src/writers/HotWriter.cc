@@ -28,7 +28,7 @@ void HotWriter::write(uint numParts, const BufferList &buffers,
 	// generate filename with iterative integer
 	ofstream out;
 	string filename;
-	if (gdata->keep_repacking) {
+	if (gdata->run_mode == REPACK) {
 		filename = open_data_file(out, "repack", current_filenum());
 		gdata->clOptions->resume_fname = m_dirname + "/" + filename;
 	}

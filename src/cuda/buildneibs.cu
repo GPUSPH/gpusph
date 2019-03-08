@@ -148,28 +148,25 @@ getinfo(TimingInfo & timingInfo)	// timing info (in, out)
  *  @{ */
 
 /// Launch the compute hash kernel
-/*!	CPU part responsible of launching the compute hash kernel
- * 	(cuneibs::calcHashDevice) on the device.
- * 	\param[in,out] posArray : particle's positions
- *	\param[in,out] particleHash : particle's hashes
- *	\param[out] particleIndex : particle's indexes
- *	\param[in] particleInfo : particle's information
- *	\param[out] compactDeviceMap : TODO
- *	\param[in] numParticles : total number of particles
+/*!	Update the particle position and cell hash,
+ * compute the particle index for sorting,
+ * update the compact device map
  */
 void
-calcHash(float4		*pos,					// particle's positions (in, out)
-		hashKey		*particleHash,			// particle's hashes (in, out)
-		uint		*particleIndex,			// particle's indexes (out)
-		const particleinfo	*particleInfo,	// particle's information (in)
-		uint		*compactDeviceMap,		// TODO
-		const uint	numParticles)			// total number of particles
+calcHash(	const BufferList& bufread, ///< input buffers (INFO, COMPACT_DEV_MAP)
+			BufferList& bufwrite, ///< output buffers: HASH, POS (updated in place), PARTINDEX
+			const uint	numParticles)			///< total number of particles
 {
 	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	cuneibs::calcHashDevice<periodicbound><<< numBlocks, numThreads >>>
-		(pos, particleHash, particleIndex, particleInfo, compactDeviceMap, numParticles);
+		(bufwrite.getData<BUFFER_POS>(),
+		 bufwrite.getData<BUFFER_HASH>(),
+		 bufwrite.getData<BUFFER_PARTINDEX>(),
+		 bufread.getData<BUFFER_INFO>(),
+		 bufread.getData<BUFFER_COMPACT_DEV_MAP>(),
+		 numParticles);
 
 	// Check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -177,26 +174,23 @@ calcHash(float4		*pos,					// particle's positions (in, out)
 
 
 /// Launch the fix hash kernel
-/*!	CPU part responsible of launching the fix hash kernel
- * 	(cuneibs::fixHashDevice) on the device.
- * 	\param[in,out] particleHash : particle's hashes
- * 	\param[out] particleIndex : particle's indexes
- * 	\param[in] particleInfo : particle's informations
- * 	\param[out] compactDeviceMap : ???
- * 	\param[in] numParticles : total number of particles
+/*!	Restricted version of \seealso calcHash, assuming the hash was already computed on host
+ * and only needs a fixup to include the cell type specified in the COMPACT_DEV_MAP
  */
 void
-fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
-		uint	*particleIndex,				// particle's indexes (out)
-		const particleinfo* particleInfo,	// particle's information (in)
-		uint	*compactDeviceMap,			// TODO
-		const uint	numParticles)			// total number of particles
+fixHash(	const BufferList& bufread, ///< input buffers (INFO, COMPACT_DEV_MAP)
+			BufferList& bufwrite, ///< output buffers: HASH (updated in place), PARTINDEX
+			const uint	numParticles)			///< total number of particles
 {
 	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
-	cuneibs::fixHashDevice<<< numBlocks, numThreads >>>(particleHash, particleIndex,
-				particleInfo, compactDeviceMap, numParticles);
+	cuneibs::fixHashDevice<<< numBlocks, numThreads >>>(
+		bufwrite.getData<BUFFER_HASH>(),
+		bufwrite.getData<BUFFER_PARTINDEX>(),
+		bufread.getData<BUFFER_INFO>(),
+		bufread.getData<BUFFER_COMPACT_DEV_MAP>(),
+		numParticles);
 
 	// Check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -216,78 +210,98 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
  */
 void
 reorderDataAndFindCellStart(
-		uint*				cellStart,			// index of cells first particle (out)
-		uint*				cellEnd,			// index of cells last particle (out)
 		uint*				segmentStart,		// TODO
-		const hashKey*		particleHash,		// sorted particle hashes (in)
-		const uint*			particleIndex,		// sorted particle indices (in)
 		BufferList& sorted_buffers,			// list of sorted buffers (out)
 		BufferList const& unsorted_buffers,	// list of buffers to sort (in)
 		const uint			numParticles,		// total number of particles in input buffers (in)
 		uint*				newNumParticles)	// device pointer to number of active particles found (out)
 {
+
+#if 0
+#define MUST_HAVE(ar) \
+	if (!ar) throw std::invalid_argument(#ar " is null")
+#else
+#define MUST_HAVE(ar) do { /* nothing */ } while (0)
+#endif
+
+#define BIND_CHECK(old_, new_, tex_) \
+	if (old_) { \
+		CUDA_SAFE_CALL(cudaBindTexture(0, tex_, old_, numParticles*sizeof(*old_))); \
+		MUST_HAVE(new_); \
+	} \
+	if (new_) MUST_HAVE(old_)
+
 	const uint numThreads = BLOCK_SIZE_REORDERDATA;
 	const uint numBlocks = div_up(numParticles, numThreads);
+
+	const hashKey *particleHash = sorted_buffers.getConstData<BUFFER_HASH>();
+	const uint *particleIndex = sorted_buffers.getConstData<BUFFER_PARTINDEX>();
+
+	MUST_HAVE(particleHash);
+	MUST_HAVE(particleIndex);
+
+	// index of cells first and last particles (computed by the kernel)
+	uint *cellStart = sorted_buffers.getData<BUFFER_CELLSTART>();
+	uint *cellEnd = sorted_buffers.getData<BUFFER_CELLEND>();
+
+	MUST_HAVE(cellStart);
+	MUST_HAVE(cellEnd);
 
 	// TODO find a smarter way to do this
 	const float4 *oldPos = unsorted_buffers.getData<BUFFER_POS>();
 	float4 *newPos = sorted_buffers.getData<BUFFER_POS>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	MUST_HAVE(newPos);
 
 	const float4 *oldVel = unsorted_buffers.getData<BUFFER_VEL>();
 	float4 *newVel = sorted_buffers.getData<BUFFER_VEL>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
+	MUST_HAVE(newVel);
 
 	const float4 *oldVol = unsorted_buffers.getData<BUFFER_VOLUME>();
 	float4 *newVol = sorted_buffers.getData<BUFFER_VOLUME>();
-	if (oldVol)
-		CUDA_SAFE_CALL(cudaBindTexture(0, volTex, oldVol, numParticles*sizeof(float4)));
+	BIND_CHECK(oldVol, newVol, volTex);
 
 	const float *oldEnergy = unsorted_buffers.getData<BUFFER_INTERNAL_ENERGY>();
 	float *newEnergy = sorted_buffers.getData<BUFFER_INTERNAL_ENERGY>();
-	if (oldEnergy)
-		CUDA_SAFE_CALL(cudaBindTexture(0, energyTex, oldEnergy, numParticles*sizeof(float)));
+	BIND_CHECK(oldEnergy, newEnergy, energyTex);
 
 	// sorted already
 	const particleinfo *particleInfo = sorted_buffers.getConstData<BUFFER_INFO>();
+	MUST_HAVE(particleInfo);
 
 	const float4 *oldBoundElement = unsorted_buffers.getData<BUFFER_BOUNDELEMENTS>();
 	float4 *newBoundElement = sorted_buffers.getData<BUFFER_BOUNDELEMENTS>();
-	if (oldBoundElement)
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, oldBoundElement, numParticles*sizeof(float4)));
+	BIND_CHECK(oldBoundElement, newBoundElement, boundTex);
 
 	const float4 *oldGradGamma = unsorted_buffers.getData<BUFFER_GRADGAMMA>();
 	float4 *newGradGamma = sorted_buffers.getData<BUFFER_GRADGAMMA>();
-	if (oldGradGamma)
-		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
+	BIND_CHECK(oldGradGamma, newGradGamma, gamTex);
 
 	const vertexinfo *oldVertices = unsorted_buffers.getData<BUFFER_VERTICES>();
 	vertexinfo *newVertices = sorted_buffers.getData<BUFFER_VERTICES>();
-	if (oldVertices)
-		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
+	BIND_CHECK(oldVertices, newVertices, vertTex);
 
 	const float *oldTKE = unsorted_buffers.getData<BUFFER_TKE>();
 	float *newTKE = sorted_buffers.getData<BUFFER_TKE>();
-	if (oldTKE)
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, oldTKE, numParticles*sizeof(float)));
+	BIND_CHECK(oldTKE, newTKE, keps_kTex);
 
 	const float *oldEps = unsorted_buffers.getData<BUFFER_EPSILON>();
 	float *newEps = sorted_buffers.getData<BUFFER_EPSILON>();
-	if (oldEps)
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
+	BIND_CHECK(oldEps, newEps, keps_eTex);
 
 	const float *oldTurbVisc = unsorted_buffers.getData<BUFFER_TURBVISC>();
 	float *newTurbVisc = sorted_buffers.getData<BUFFER_TURBVISC>();
-	if (oldTurbVisc)
-		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
+	BIND_CHECK(oldTurbVisc, newTurbVisc, tviscTex);
 
 	const float4 *oldEulerVel = unsorted_buffers.getData<BUFFER_EULERVEL>();
 	float4 *newEulerVel = sorted_buffers.getData<BUFFER_EULERVEL>();
-	if (oldEulerVel)
-		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, oldEulerVel, numParticles*sizeof(float4)));
+	BIND_CHECK(oldEulerVel, newEulerVel, eulerVelTex);
 
 	const uint *oldNextIDs = unsorted_buffers.getData<BUFFER_NEXTID>();
 	uint *newNextIDs = sorted_buffers.getData<BUFFER_NEXTID>();
+	if (oldNextIDs && !newNextIDs)
+		throw std::invalid_argument("newNextIDs is null");
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
@@ -323,6 +337,9 @@ reorderDataAndFindCellStart(
 
 	if (oldEulerVel)
 		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
+
+#undef BIND_CHECK
+#undef MUST_HAVE
 }
 
 /// Functor to sort particles by hash (cell), and
@@ -390,21 +407,25 @@ sort(	BufferList const& bufread,
 /// Build neibs list
 void
 buildNeibsList(
-		neibdata	*neibsList,
-const	float4		*pos,
-const	particleinfo*info,
-const	vertexinfo	*vertices,
-const	float4		*boundelem,
-		float2		*vertPos[],
-const	hashKey		*particleHash,
-const	uint		*cellStart,
-const	uint		*cellEnd,
+const	BufferList&	bufread,
+		BufferList&	bufwrite,
 const	uint		numParticles,
 const	uint		particleRangeEnd,
 const	uint		gridCells,
 const	float		sqinfluenceradius,
 const	float		boundNlSqInflRad)
 {
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
+	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const uint *cellEnd = bufread.getData<BUFFER_CELLEND>();
+
+	neibdata	*neibsList = bufwrite.getData<BUFFER_NEIBSLIST>();
+	float2		**vertPos  = bufwrite.getRawPtr<BUFFER_VERTPOS>();
+
 	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
 	// throw otherwise
 	if (vertices || boundelem || vertPos) {

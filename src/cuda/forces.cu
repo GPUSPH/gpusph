@@ -85,14 +85,14 @@
 #endif
 
 
-cudaArray*  dDem = NULL;
+thread_local cudaArray*  dDem = NULL;
 
 /* Auxiliary data for parallel reductions */
-size_t	reduce_blocks = 0;
-size_t	reduce_blocksize_max = 0;
-size_t	reduce_bs2 = 0;
-size_t	reduce_shmem_max = 0;
-void*	reduce_buffer = NULL;
+thread_local size_t	reduce_blocks = 0;
+thread_local size_t	reduce_blocksize_max = 0;
+thread_local size_t	reduce_bs2 = 0;
+thread_local size_t	reduce_shmem_max = 0;
+thread_local void*	reduce_buffer = NULL;
 
 #include "forces_kernel.cu"
 
@@ -150,7 +150,7 @@ static inline uint nextPow2(uint x )
 
 static inline float
 cflmax( const uint	n,
-		float*		cfl,
+const	float*		cfl,
 		float*		tempCfl)
 {
 	const int numBlocks = reducefmax(tempCfl, cfl, n);
@@ -198,7 +198,6 @@ struct CUDADensityHelper {
 	static void
 	process(BufferList const& bufread,
 		BufferList& bufwrite,
-		const uint *cellStart,
 		const uint numParticles,
 		float slength,
 		float influenceradius)
@@ -213,7 +212,6 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 	static void
 	process(BufferList const& bufread,
 		BufferList& bufwrite,
-		const uint *cellStart,
 		const uint numParticles,
 		float slength,
 		float influenceradius)
@@ -225,6 +223,7 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		const float4 *vol = bufread.getData<BUFFER_VOLUME>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		/* Update WRITE vel in place, caller should do a swap before and after */
@@ -246,154 +245,6 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		KERNEL_CHECK_ERROR;
 	}
 };
-
-/// Repacking computation is a no-op unless repacking is enabled. Since C++ does not
-/// allow partial template specialization for methods, we rely on a CUDARepackingHelper
-/// auxiliary functor, that we can re-define with partial specialization as needed.
-
-/// General case: do nothing
-template<KernelType kerneltype,
-	BoundaryType boundarytype,
-	flag_t simflags,
-	bool repacking_enabled>
-struct CUDARepackingHelper {
-	static uint
-	process(
-		BufferList const& bufread,
-		BufferList& bufwrite,
-		const	uint	*cellStart,
-		uint	numParticles,
-		uint	fromParticle,
-		uint	toParticle,
-		float	deltap,
-		float	slength,
-		float	dtadaptfactor,
-		float	influenceradius,
-		const	float	epsilon,
-		uint	cflOffset,
-		const	float	dt)
-	{ /* do nothing by default */
-		return 0;
-	}
-};
-
-/// Repacking case
-template<KernelType kerneltype,
-	BoundaryType boundarytype,
-	flag_t simflags>
-struct CUDARepackingHelper<kerneltype, boundarytype, simflags, true> {
-	/* repackDevice kernel calls that involve vertex particles
-	 * are factored out here in this separate member function, that
-	 * does nothing in the non-SA_BOUNDARY case
-	 */
-	template<typename FluidVertexParams>
-		enable_if_t<FluidVertexParams::boundarytype == SA_BOUNDARY>
-		static vertex_repack(
-				uint numBlocks, uint numThreads, int dummy_shared,
-				FluidVertexParams const& params_fv)
-		{
-			cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
-
-		}
-	template<typename FluidVertexParams>
-		enable_if_t<FluidVertexParams::boundarytype != SA_BOUNDARY>
-		static vertex_repack(
-				uint numBlocks, uint numThreads, int dummy_shared,
-				FluidVertexParams const& params_fv)
-		{ /* do nothing */ }
-
-	static uint
-	process(
-		BufferList const& bufread,
-		BufferList& bufwrite,
-		const	uint	*cellStart,
-		uint	numParticles,
-		uint	fromParticle,
-		uint	toParticle,
-		float	deltap,
-		float	slength,
-		float	dtadaptfactor,
-		float	influenceradius,
-		const	float	epsilon,
-		uint	cflOffset,
-		const	float	dt)
-	{
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-		const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-		const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
-		const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
-
-		float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-		float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
-		float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
-		float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
-
-		int dummy_shared = 0;
-
-		const uint numParticlesInRange = toParticle - fromParticle;
-		// reset forces to 0
-		CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
-
-		// thread per particle
-		uint numThreads = BLOCK_SIZE_FORCES;
-		// number of blocks, rounded up to next multiple of 4 to improve reductions
-		uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
-#if (__COMPUTE__ == 20)
-		int dtadapt = !!(simflags & ENABLE_DTADAPT);
-		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
-#endif
-
-		repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_FLUID> params_ff(
-				forces,
-				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, dt,
-				cfl_gamma, vertPos, epsilon);
-
-		repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
-				forces,
-				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, dt,
-				cfl_gamma, vertPos, epsilon);
-
-
-		repack_params<kerneltype, boundarytype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
-				forces,
-				pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-				deltap, slength, influenceradius, dt,
-				cfl_gamma, vertPos, epsilon);
-
-		cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
-
-		{
-			repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX> params_fv(
-					forces,
-					pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-					deltap, slength, influenceradius, dt,
-					cfl_gamma, vertPos, epsilon);
-
-			vertex_repack(numBlocks, numThreads, dummy_shared, params_fv);
-		}
-
-		cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
-
-
-		finalize_repack_params<boundarytype, simflags> params_finalize(
-				forces,
-				pos, vel, particleHash, cellStart, fromParticle, toParticle, slength,
-				deltap, cfl_forces, cfl_gamma, cflOffset,
-				oldGGam);
-
-		cuforces::finalizeRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
-
-		return numBlocks;
-	}
-};
-
 
 /// CUDAForcesEngine
 
@@ -471,7 +322,16 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 		sqC0[i] *= sqC0[i];
 	}
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_sqC0, sqC0, numFluids*sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visccoeff, &physparams->visccoeff[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visc2coeff, &physparams->visc2coeff[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_yield_strength, &physparams->yield_strength[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visc_nonlinear_param, &physparams->visc_nonlinear_param[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_visc_regularization_param, &physparams->visc_regularization_param[0], numFluids*sizeof(float)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_limiting_kinvisc, &physparams->limiting_kinvisc, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_monaghan_visc_coeff, &physparams->monaghan_visc_coeff, sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_artvisccoeff, &physparams->artvisccoeff, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_gravity, &physparams->gravity, sizeof(float3)));
@@ -545,7 +405,11 @@ getconstants(PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&numFluids, cuforces::d_numfluids, sizeof(uint)));
 	if (numFluids != physparams->numFluids())
 		throw std::runtime_error("wrong number of fluids");
+
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visccoeff[0], cuforces::d_visccoeff, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->yield_strength[0], cuforces::d_yield_strength, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visc_nonlinear_param[0], cuforces::d_visc_nonlinear_param, numFluids*sizeof(float), 0));
+
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->rho0[0], cuforces::d_rho0, numFluids*sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->bcoeff[0], cuforces::d_bcoeff, numFluids*sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->gammacoeff[0], cuforces::d_gammacoeff, numFluids*sizeof(float), 0));
@@ -692,13 +556,16 @@ dtreduce(	float	slength,
 			float	dtadaptfactor,
 			float	sspeed_cfl,
 			float	max_kinematic,
-			float	*cfl_forces,
-			float	*cfl_gamma,
-			float	*cfl_keps,
-			float	*tempCfl,
+			BufferList const& bufread,
+			BufferList& bufwrite,
 			uint	numBlocks,
 			uint	numParticles)
 {
+	const float *cfl_forces = bufread.getData<BUFFER_CFL>();
+	const float *cfl_gamma = bufread.getData<BUFFER_CFL_GAMMA>();
+	const float *cfl_keps = bufread.getData<BUFFER_CFL_KEPS>();
+	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
+
 	// cfl holds one value per block in the forces kernel call,
 	// so it holds numBlocks elements
 	float maxcfl = cflmax(numBlocks, cfl_forces, tempCfl);
@@ -739,13 +606,12 @@ dtreduce(	float	slength,
 void
 compute_density(BufferList const& bufread,
 	BufferList& bufwrite,
-	const uint *cellStart,
 	uint numParticles,
 	float slength,
 	float influenceradius)
 {
 	CUDADensityHelper<kerneltype, sph_formulation, boundarytype>::process(bufread,
-		bufwrite, cellStart, numParticles, slength, influenceradius);
+		bufwrite, numParticles, slength, influenceradius);
 	return;
 }
 
@@ -753,7 +619,6 @@ void
 compute_density_diffusion(
 	BufferList const& bufread,
 	BufferList& bufwrite,
-	const	uint	*cellStart,
 	const	uint	numParticles,
 	const	uint	particleRangeEnd,
 	const	float	deltap,
@@ -773,7 +638,7 @@ compute_density_diffusion(
 			bufread.getData<BUFFER_VEL>(),
 			bufread.getData<BUFFER_INFO>(),
 			bufread.getData<BUFFER_HASH>(),
-			cellStart,
+			bufread.getData<BUFFER_CELLSTART>(),
 			bufread.getData<BUFFER_NEIBSLIST>(),
 			bufread.getData<BUFFER_GRADGAMMA>(),
 			bufread.getRawPtr<BUFFER_VERTPOS>(),
@@ -791,41 +656,6 @@ compute_density_diffusion(
 	if (boundarytype == SA_BOUNDARY)
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
-}
-
-// Clear the CFL buffers
-// TODO maybe we should clear forces here too?
-void clear_cfl(BufferList& bufwrite, uint numAllocatedParticles)
-{
-	const uint fmaxElements = getFmaxElements(numAllocatedParticles);
-	const uint tempCflEls = getFmaxTempElements(fmaxElements);
-	const size_t fmax_size = fmaxElements*sizeof(float);
-	const size_t tempCfl_size = tempCflEls*sizeof(float);
-	// TODO FIXME BUFFER_CFL_GAMMA needs to be as large as the whole system,
-	// because it's updated progressively across split forces calls. We could
-	// do with sizing it just like that, but then during the finalizeforces
-	// reductions with striping we would risk overwriting some of the data.
-	// To solve this, we size it as the _sum_ of the two, and will use
-	// the first numAllocatedParticles for the split-force-calls accumulation,
-	// and the remaining fmaxElements for the finalize
-	const size_t cflGamma_size = (round_up(numAllocatedParticles, 4U) + fmaxElements)*sizeof(float);
-
-	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
-	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
-	float *cfl_keps = bufwrite.getData<BUFFER_CFL_KEPS>();
-	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
-
-	// Clear the CFL buffers by setting all bits to 1 (i.e. NAN)
-	int val = ~0;
-
-	// these are always here
-	CUDA_SAFE_CALL(cudaMemset(cfl_forces, val, fmax_size));
-	CUDA_SAFE_CALL(cudaMemset(tempCfl, val, tempCfl_size));
-
-	if (cfl_gamma)
-		CUDA_SAFE_CALL(cudaMemset(cfl_gamma, val, cflGamma_size));
-	if (cfl_keps)
-		CUDA_SAFE_CALL(cudaMemset(cfl_keps, val, fmax_size));
 }
 
 /* forcesDevice kernel calls that involve vertex particles
@@ -883,12 +713,9 @@ boundary_forces(
 
 // Returns numBlock for delayed dt reduction in case of striping
 uint
-basicstep(
+run_forces(
 	BufferList const& bufread,
 	BufferList& bufwrite,
-	float4	*rbforces,
-	float4	*rbtorques,
-	const	uint	*cellStart,
 	uint	numParticles,
 	uint	fromParticle,
 	uint	toParticle,
@@ -903,53 +730,9 @@ basicstep(
 	const	float	dt,
 	const	bool compute_object_forces)
 {
-	const float4 *pos = bufread.getData<BUFFER_POS>();
-	const float4 *vel = bufread.getData<BUFFER_VEL>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
-	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
-
-	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-	float4 *xsph = bufwrite.getData<BUFFER_XSPH>();
-
-	const float *turbvisc = bufread.getData<BUFFER_TURBVISC>();
-
-	// TODO FIXME temporary k-eps needs TAU only for temporary storage
-	// across the split kernel calls in forces
-	float2 **tau = bufwrite.getRawPtr<BUFFER_TAU>();
-
-	float3 *keps_dkde = bufwrite.getData<BUFFER_DKDE>();
-	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
-	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
-	float *cfl_keps = bufwrite.getData<BUFFER_CFL_KEPS>();
-	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
-	float *DEDt = bufwrite.getData<BUFFER_INTERNAL_ENERGY_UPD>();
-
-	const float4 *volume = bufread.getData<BUFFER_VOLUME>();
-	const float *sigma = bufread.getData<BUFFER_SIGMA>();
-
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
-	// reset forces to zero
-	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
-	if (keps_dkde) {
-		// KEPS buffers need to be cleared too, as they will be built progressively
-		CUDA_SAFE_CALL(cudaMemset(keps_dkde + fromParticle, 0, numParticlesInRange*sizeof(float3)));
-		// TODO tau currently is reset in KEPSILON, but must NOT be reset if SPS
-		// ideally tau should be computed in its own kernel in the KEPSILON case too
-		CUDA_SAFE_CALL(cudaMemset(tau[0] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
-		CUDA_SAFE_CALL(cudaMemset(tau[1] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
-		CUDA_SAFE_CALL(cudaMemset(tau[2] + fromParticle, 0, numParticlesInRange*sizeof(float2)));
-	}
-	if (DEDt) {
-		CUDA_SAFE_CALL(cudaMemset(DEDt + fromParticle, 0, numParticlesInRange*sizeof(float)));
-	}
-
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
@@ -964,94 +747,180 @@ basicstep(
 	#endif
 
 	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_FLUID> params_ff(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
-
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
-
-
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
-
+		bufread, bufwrite,
+		fromParticle, toParticle,
+		deltap, slength, influenceradius, step, dt,
+		epsilon,
+		IOwaterdepth);
 
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
 	{
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_VERTEX> params_fv(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			bufread, bufwrite,
+			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
+			epsilon,
+			IOwaterdepth);
 
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_VERTEX, PT_FLUID> params_vf(
-			forces, rbforces, rbtorques,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			bufread, bufwrite,
+			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
-			xsph,
-			volume, sigma,
-			cfl_gamma, vertPos, epsilon,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau,
-			DEDt);
+			epsilon,
+			IOwaterdepth);
 
 		vertex_forces(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
 	}
 
+	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+		bufread, bufwrite,
+		fromParticle, toParticle,
+		deltap, slength, influenceradius, step, dt,
+		epsilon,
+		IOwaterdepth);
+
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
+	if (compute_object_forces || (boundarytype == DYN_BOUNDARY)) {
+		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+			bufread, bufwrite,
+			fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			epsilon,
+			IOwaterdepth);
 
-	if (compute_object_forces || (boundarytype == DYN_BOUNDARY))
 		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
+	}
 
 	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
-			forces, rbforces, rbtorques,
-			pos, vel, particleHash, cellStart, numParticles, fromParticle, toParticle, slength,
-			cfl_forces, cfl_gamma, cfl_keps, cflOffset,
-			sigma,
-			oldGGam,
-			IOwaterdepth,
-			keps_dkde, turbvisc, tau, DEDt);
+			bufread, bufwrite,
+			numParticles, fromParticle, toParticle, slength,
+			cflOffset,
+			IOwaterdepth);
 
 	cuforces::finalizeforcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
 
 	return numBlocks;
 }
 
+/* repackDevice kernel calls that involve vertex particles
+ * are factored out here in this separate member function, that
+ * does nothing in the non-SA_BOUNDARY case
+ */
+template<typename FluidVertexParams>
+enable_if_t<FluidVertexParams::boundarytype == SA_BOUNDARY>
+vertex_repack(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	FluidVertexParams const& params_fv)
+{
+	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+}
+
+template<typename FluidVertexParams>
+enable_if_t<FluidVertexParams::boundarytype != SA_BOUNDARY>
+vertex_repack(
+	uint numBlocks, uint numThreads, int dummy_shared,
+	FluidVertexParams const& params_fv)
+{ /* do nothing */ }
+
+uint
+run_repack(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		uint	numParticles,
+		uint	fromParticle,
+		uint	toParticle,
+		float	deltap,
+		float	slength,
+		float	dtadaptfactor,
+		float	influenceradius,
+		const	float	epsilon,
+		uint	cflOffset,
+		const	float	dt)
+{
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const float4 *vel = bufread.getData<BUFFER_VEL>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
+	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
+
+	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
+	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
+	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
+	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
+
+	int dummy_shared = 0;
+
+	const uint numParticlesInRange = toParticle - fromParticle;
+	// reset forces to 0
+	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
+
+	// thread per particle
+	uint numThreads = BLOCK_SIZE_FORCES;
+	// number of blocks, rounded up to next multiple of 4 to improve reductions
+	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
+#if (__COMPUTE__ == 20)
+	int dtadapt = !!(simflags & ENABLE_DTADAPT);
+	dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
+#endif
+
+	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_FLUID> params_ff(
+		forces,
+		pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+		deltap, slength, influenceradius, dt,
+		cfl_gamma, vertPos, epsilon);
+
+	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+		forces,
+		pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+		deltap, slength, influenceradius, dt,
+		cfl_gamma, vertPos, epsilon);
+
+
+	repack_params<kerneltype, boundarytype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+		forces,
+		pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+		deltap, slength, influenceradius, dt,
+		cfl_gamma, vertPos, epsilon);
+
+	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+
+	{
+		repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+			forces,
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
+			deltap, slength, influenceradius, dt,
+			cfl_gamma, vertPos, epsilon);
+
+		vertex_repack(numBlocks, numThreads, dummy_shared, params_fv);
+	}
+
+	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+
+
+	finalize_repack_params<boundarytype, simflags> params_finalize(
+		forces,
+		pos, vel, particleHash, cellStart, numParticles, fromParticle, toParticle, slength,
+		deltap, cfl_forces, cfl_gamma, cflOffset,
+		oldGGam);
+
+	cuforces::finalizeRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
+
+	return numBlocks;
+}
+
+
 // Returns numBlock for delayed dt reduction in case of striping
 uint
-repackstep(
+basicstep(
 	BufferList const& bufread,
 	BufferList& bufwrite,
-	const	uint	*cellStart,
 	uint	numParticles,
 	uint	fromParticle,
 	uint	toParticle,
@@ -1060,13 +929,26 @@ repackstep(
 	float	dtadaptfactor,
 	float	influenceradius,
 	const	float	epsilon,
+	uint	*IOwaterdepth,
 	uint	cflOffset,
-	const	float	dt)
+	const	int	step, /* a negative step indicates repacking */
+	const	float	dt,
+	const	bool compute_object_forces)
 {
-	uint numBlocks = CUDARepackingHelper<kerneltype, boundarytype, simflags, !!(simflags & ENABLE_REPACKING)>::process(bufread,
-		bufwrite, cellStart, numParticles, fromParticle, toParticle, deltap, slength,
-		dtadaptfactor, influenceradius, epsilon, cflOffset, dt);
-	return numBlocks;
+	if (step < 0)
+		return run_repack(bufread, bufwrite,
+			numParticles, fromParticle, toParticle,
+			deltap, slength, dtadaptfactor,
+			influenceradius, epsilon,
+			cflOffset, dt);
+	else
+		return run_forces(bufread, bufwrite,
+			numParticles, fromParticle, toParticle,
+			deltap, slength, dtadaptfactor,
+			influenceradius, epsilon,
+			IOwaterdepth,
+			cflOffset,
+			step, dt, compute_object_forces);
 }
 
 void
@@ -1099,18 +981,20 @@ round_particles(uint numparts)
 }
 
 void
-reduceRbForces(	float4	*forces,
-				float4	*torques,
-				uint	*rbnum,
+reduceRbForces(	BufferList& bufwrite,
 				uint	*lastindex,
 				float3	*totalforce,
 				float3	*totaltorque,
 				uint	numforcesbodies,
 				uint	numForcesBodiesParticles)
 {
+	float4 *forces = bufwrite.getData<BUFFER_RB_FORCES>();
+	float4 *torques = bufwrite.getData<BUFFER_RB_TORQUES>();
+	const uint *rbnum = bufwrite.getConstData<BUFFER_RB_KEYS>();
+
 	thrust::device_ptr<float4> forces_devptr = thrust::device_pointer_cast(forces);
 	thrust::device_ptr<float4> torques_devptr = thrust::device_pointer_cast(torques);
-	thrust::device_ptr<uint> rbnum_devptr = thrust::device_pointer_cast(rbnum);
+	const thrust::device_ptr<const uint> rbnum_devptr = thrust::device_pointer_cast(rbnum);
 	thrust::equal_to<uint> binary_pred;
 	thrust::plus<float4> binary_op;
 
@@ -1146,13 +1030,8 @@ template<FilterType filtertype, KernelType kerneltype, BoundaryType boundarytype
 struct CUDAFilterEngineHelper
 {
 	static void process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
@@ -1164,18 +1043,21 @@ template<KernelType kerneltype, BoundaryType boundarytype>
 struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 {
 	static void process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
 				float	influenceradius)
 {
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const float4 *oldVel = bufread.getData<BUFFER_VEL>();
+	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const neibdata*neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
 	int dummy_shared = 0;
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_SHEPARD;
@@ -1211,18 +1093,21 @@ template<KernelType kerneltype, BoundaryType boundarytype>
 struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 {
 	static void process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
 				float	influenceradius)
 {
+	const float4 *pos = bufread.getData<BUFFER_POS>();
+	const float4 *oldVel = bufread.getData<BUFFER_VEL>();
+	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
+	const particleinfo *info = bufread.getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+	const neibdata*neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
 	int dummy_shared = 0;
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_MLS;
@@ -1265,20 +1150,15 @@ public:
 
 	void
 	process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
 				float	influenceradius)
 	{
 		CUDAFilterEngineHelper<filtertype, kerneltype, boundarytype>::process
-			(pos, oldVel, newVel, info, particleHash, cellStart, neibsList,
+			(bufread, bufwrite,
 			 numParticles, particleRangeEnd, slength, influenceradius);
 	}
 };

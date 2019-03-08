@@ -146,9 +146,12 @@ struct dyndt_finalize_repack_params
 	float	* __restrict__ cfl_forces;
 	float	* __restrict__ cfl_gamma;
 	uint	cflOffset;
+	uint	cflGammaOffset;
 
-	dyndt_finalize_repack_params(float * __restrict__ _cfl_forces, float * __restrict__ _cfl_gamma, uint _cflOffset) :
-		cfl_forces(_cfl_forces), cfl_gamma(_cfl_gamma), cflOffset(_cflOffset)
+	dyndt_finalize_repack_params(float * __restrict__ _cfl_forces, float * __restrict__ _cfl_gamma,
+		uint _numParticles, uint _cflOffset) :
+		cfl_forces(_cfl_forces), cfl_gamma(_cfl_gamma), cflOffset(_cflOffset),
+		cflGammaOffset(round_up(_numParticles, 4U) + cflOffset)
 	{}
 };
 
@@ -264,6 +267,7 @@ struct finalize_repack_params :
 		const	float4	*_velArray,
 		const	hashKey	*_particleHash,
 		const	uint	*_cellStart,
+				uint	_numParticles,
 				uint	_fromParticle,
 				uint	_toParticle,
 
@@ -281,7 +285,7 @@ struct finalize_repack_params :
 			_posArray, _velArray, _particleHash, _cellStart,
 			 _fromParticle, _toParticle, _slength,_deltap),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_finalize_repack_params)
-			(_cfl_forces, _cfl_gamma, _cflOffset),
+			(_cfl_forces, _cfl_gamma, _numParticles, _cflOffset),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_repack_params) (_gGam)
 	{}
 };

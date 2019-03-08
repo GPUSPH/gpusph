@@ -30,15 +30,15 @@
 #ifndef _BUFFER_H
 #define _BUFFER_H
 
-#include <array>
+#include <algorithm>
 #include <map>
-#include <set>
-
+#include <memory>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "common_types.h"
 #include "buffer_traits.h"
-#include "buffer_alloc_policy.h"
 
 #define DEBUG_BUFFER_ACCESS 1
 
@@ -61,9 +61,9 @@ enum BufferValidity {
 	BUFFER_INVALID, //<! Buffer contains invalid data
 };
 
-// Forward-declare the BufferList and MultiBufferList classes, that need access to some Buffer protected methods
+// Forward-declare the BufferList and ParticleSystem classes, that need access to some Buffer protected methods
 class BufferList;
-class MultiBufferList;
+class ParticleSystem;
 
 
 /* Base class for the Buffer template class.
@@ -72,15 +72,16 @@ class MultiBufferList;
  */
 class AbstractBuffer
 {
-public:
-private:
 	void **m_ptr;
 
 	size_t m_allocated_elements;
 
 	BufferValidity m_validity;
 
-	std::string m_state;
+	// The state(s) of the buffer
+	std::vector<std::string> m_state;
+	// the list of kernels that have manipulated the buffer since the last state change
+	std::vector<std::string> m_manipulators;
 
 	// unique buffer ID, used to track the buffer handling across states and buffer lists
 	// we could use the pointer, but this isn't invariant across runs, while we can set
@@ -99,6 +100,8 @@ protected:
 
 	void set_uid(std::string const& uid)
 	{ m_uid = uid; }
+	std::string const& uid() const
+	{ return m_uid; }
 
 	size_t set_allocated_elements(size_t allocs)
 	{
@@ -106,9 +109,9 @@ protected:
 		return allocs;
 	}
 
-	friend class MultiBufferList; // needs to be able to access set_uid
-public:
+	friend class ParticleSystem; // needs to be able to access set_uid
 
+public:
 	// default constructor: just ensure ptr is null
 	AbstractBuffer() :
 		m_ptr(NULL),
@@ -139,14 +142,58 @@ public:
 	inline void mark_invalid() { mark_valid(BUFFER_INVALID); }
 
 	// get buffer state
-	inline std::string state() const { return m_state; }
+	inline std::vector<std::string> const& state() const { return m_state; }
+
+	// get number of states
+	inline size_t num_states() const { return m_state.size(); }
 
 	// change buffer state
-	inline void set_state(std::string const& state) { m_state = state; }
-	inline void add_state(std::string const& state) {
-		if (m_state.size() > 0)
-			m_state += ", ";
-		m_state += state;
+	inline void clear_state()
+	{
+		m_state.clear();
+		m_manipulators.clear();
+	}
+	inline void set_state(std::string const& state)
+	{
+		clear_state();
+		m_state.push_back(state);
+	}
+	inline void add_state(std::string const& state)
+	{
+		if (m_state.size() == 0)
+			throw std::runtime_error("adding state " + state +
+				" to buffer " + get_buffer_name() + " without state");
+		m_state.push_back(state);
+	}
+	// remove buffer state, return number of states still present
+	inline size_t remove_state(std::string const& state) {
+		auto found = std::find(m_state.begin(), m_state.end(), state);
+		if (found == m_state.end())
+			throw std::runtime_error("trying to remove unassigned buffer state " +
+				state + " from buffer " + this->inspect());
+		m_state.erase(found);
+		m_manipulators.clear();
+		return m_state.size();
+	}
+	// replace a state with  different one
+	inline void replace_state(std::string const& old_s, std::string const& new_s) {
+		auto found = std::find(m_state.begin(), m_state.end(), old_s);
+		if (found == m_state.end())
+			throw std::runtime_error("trying to replace unassigned buffer state " +
+				old_s + " from buffer " + this->inspect());
+		found->replace(0, found->size(), new_s);
+	}
+
+	inline void copy_state(AbstractBuffer const* other)
+	{
+		clear_state();
+		for (auto const& s : other->state())
+			m_state.push_back(s);
+	}
+
+	inline void add_manipulator(std::string const& manip)
+	{
+		m_manipulators.push_back(manip);
 	}
 
 	// element size of the arrays
@@ -194,8 +241,16 @@ public:
 		_desc += ", id " + m_uid;
 		_desc += ", validity ";
 		_desc +=	std::to_string(m_validity);
-		_desc += ", state: ";
-		_desc += state();
+		_desc += ", state:";
+		for (auto const& s : m_state) {
+			_desc += " " + s;
+		}
+		if (m_manipulators.size() > 0) {
+			_desc += ", manipulators:";
+			for (auto const& m : m_manipulators) {
+				_desc += " " + m;
+			}
+		}
 
 		return _desc;
 	}
@@ -361,9 +416,22 @@ public:
  */
 class BufferList
 {
-	typedef std::map<flag_t, AbstractBuffer*> map_type;
+public:
+	typedef std::shared_ptr<AbstractBuffer> ptr_type;
+	typedef std::shared_ptr<const AbstractBuffer> const_ptr_type;
+
+private:
+	template<flag_t Key>
+	using buffer_ptr_type = std::shared_ptr<Buffer<Key>>;
+	template<flag_t Key>
+	using const_buffer_ptr_type = std::shared_ptr<const Buffer<Key>>;
+
+	typedef std::map<flag_t, ptr_type> map_type;
 
 	map_type m_map;
+
+	// An OR of all the keys present in the map
+	flag_t m_keys;
 
 	enum {
 		NOT_PENDING,
@@ -375,48 +443,76 @@ class BufferList
 	flag_t m_updated_buffers;
 
 protected:
-	void addExistingBuffer(flag_t Key, AbstractBuffer* buf)
-	{ m_map[Key] = buf; }
+	void addExistingBuffer(flag_t Key, ptr_type buf)
+	{
+		if (m_keys & Key) {
+			std::string err = "double insertion of buffer " +
+				std::to_string(Key) + " (" + buf->get_buffer_name() + ")";
+			throw std::runtime_error(err);
+		}
+		m_map.insert(std::make_pair(Key, buf));
+		m_keys |= Key;
+	}
+
+	// remove a buffer
+	void removeBuffer(flag_t Key)
+	{
+		m_map.erase(Key);
+		m_keys &= ~Key;
+	}
 
 	// replace the buffer at position Key with buf, returning the
 	// old one
-	AbstractBuffer *replaceBuffer(flag_t Key, AbstractBuffer *buf)
+	ptr_type replaceBuffer(flag_t Key, ptr_type buf)
 	{
-		AbstractBuffer *old = m_map[Key];
+		ptr_type old = m_map.at(Key);
 		m_map[Key] = buf;
 		return old;
 	}
 
-	// remove a buffer without deallocating it
-	// used by the MultiBufferList to remove buffers shared
-	// by multiple lists
-	// TODO this would be all oh so much better using C++11 shared_ptr ...
-	void removeBuffer(flag_t Key)
-	{ m_map.erase(Key); }
+	friend class ParticleSystem;
 
-
-	friend class MultiBufferList;
+	// if this boolean is true, trying to get data
+	// from a non-existent key results in a throw
+	mutable bool m_validate_access;
 public:
 	BufferList() :
 		m_map(),
+		m_keys(0),
 		m_has_pending_state(NOT_PENDING),
 		m_pending_state(),
-		m_updated_buffers(0)
+		m_updated_buffers(0),
+		m_validate_access(false)
 	{};
+
+	void validate_access() const {
+		m_validate_access = true;
+	}
 
 	~BufferList() {
 		clear_pending_state();
 		clear();
 	}
 
+	// add the other list buffers to this one
+	BufferList& operator|=(BufferList const& other)
+	{
+		for (auto kb : other.m_map)
+			this->addExistingBuffer(kb.first, kb.second);
+		return *this;
+	}
+
+	// list | list produces a new list
+	friend BufferList operator|(BufferList first, BufferList const& other)
+	{
+		first |= other;
+		return first;
+	}
+
 	// delete all buffers before clearing the hash
 	void clear() {
-		map_type::iterator buf = m_map.begin();
-		while (buf != m_map.end()) {
-			delete buf->second;
-			++buf;
-		}
 		m_map.clear();
+		m_keys = 0;
 	}
 
 	void clear_pending_state() {
@@ -442,6 +538,10 @@ public:
 		for (auto& iter : m_map)
 			iter.second->add_state(state);
 	}
+	inline void add_manipulator(std::string const& manip) {
+		for (auto& iter : m_map)
+			iter.second->add_manipulator(manip);
+	}
 	// set state only for buffers that get accessed for writing
 	void set_state_on_write(std::string const& state)
 	{
@@ -450,8 +550,8 @@ public:
 		m_has_pending_state = PENDING_SET;
 		m_pending_state = state;
 	}
-	// add state only for buffers that get accessed for writing
-	void add_state_on_write(std::string const& state)
+	// add manipulator for buffers that get accessed for writing
+	void add_manipulator_on_write(std::string const& state)
 	{
 		if (m_has_pending_state > NOT_PENDING)
 			DEBUG_INSPECT_BUFFER("setting pending state addition without previous reset!" << std::endl);
@@ -462,17 +562,24 @@ public:
 	flag_t get_updated_buffers() const
 	{ return m_updated_buffers; }
 
+	//! Get the list of available keys
+	flag_t get_keys() const
+	{ return m_keys; }
+
+	//! Check if the BufferList has a given buffer
+	bool has(const flag_t Key)
+	{ return !!(m_keys & Key); }
 
 	/* Read-only [] accessor. Insertion of buffers should be done via the
 	 * addBuffer<>() method template.
 	 */
-	AbstractBuffer* operator[](const flag_t& Key) {
+	ptr_type operator[](const flag_t& Key) {
 		map_type::const_iterator exists = m_map.find(Key);
 		if (exists != m_map.end())
 			return exists->second;
 		else return NULL;
 	}
-	const AbstractBuffer* operator[](const flag_t& Key) const {
+	const_ptr_type operator[](const flag_t& Key) const {
 		map_type::const_iterator exists = m_map.find(Key);
 		if (exists != m_map.end())
 			return exists->second;
@@ -481,23 +588,33 @@ public:
 
 	/* Templatized getter to allow the user to access the Buffers in the list
 	 * with proper typing (so e.g .get<BUFFER_POS>() will return a
-	 * Buffer<BUFFER_POS>* instead of an AbstractBuffer*)
+	 * shared pointer to Buffer<BUFFER_POS> instead of an AbstractBuffer)
 	 */
 	template<flag_t Key>
-	Buffer<Key> *get() {
+	buffer_ptr_type<Key> get() {
 		map_type::iterator exists = m_map.find(Key);
 		if (exists != m_map.end())
-			return static_cast<Buffer<Key>*>(exists->second);
+			return std::static_pointer_cast<Buffer<Key>>(exists->second);
 		else return NULL;
 	}
 	// const version
 	template<flag_t Key>
-	const Buffer<Key> *get() const {
+	const_buffer_ptr_type<Key> get() const {
 		map_type::const_iterator exists = m_map.find(Key);
 		if (exists != m_map.end())
-			return static_cast<const Buffer<Key>*>(exists->second);
+			return std::static_pointer_cast<const Buffer<Key>>(exists->second);
 		else return NULL;
 	}
+
+	/*! In some circumstances, we might want to access a buffer under conditions
+	 * that should normally raise an error. This can be overridden by allowing
+	 * manually specifying that we know we are violating some constratins, so the
+	 * error should not be flagged
+	 */
+	enum AccessSafety {
+		NO_SAFETY, ///< No special safety consideration
+		MULTISTATE_SAFE, ///< Safe to access multi-state buffers for writing
+	};
 
 
 	/* In most cases, user wants access directly to a specific array of a given buffer
@@ -507,11 +624,15 @@ public:
 	 * The static cast is necessary because the get_buffer() method must return a void*
 	 * due to overloading rules.
 	 */
-	template<flag_t Key>
+	template<flag_t Key, ///< key of the buffer to retrieve
+		AccessSafety safety = NO_SAFETY> ///< 
 	DATA_TYPE(Key) *getData(uint num=0) {
 		map_type::iterator exists = m_map.find(Key);
-		if (exists == m_map.end())
+		if (exists == m_map.end()) {
+			if (m_validate_access)
+				throw std::runtime_error(std::to_string(Key) + " not found");
 			return NULL;
+		}
 
 		auto buf(exists->second);
 
@@ -526,11 +647,24 @@ public:
 			buf->set_state(m_pending_state);
 			break;
 		case PENDING_ADD:
-			DEBUG_INSPECT_BUFFER("state add " << m_pending_state);
-			buf->add_state(m_pending_state);
+			DEBUG_INSPECT_BUFFER("manipulator add " << m_pending_state);
+			buf->add_manipulator(m_pending_state);
 			break;
 		}
 		DEBUG_INSPECT_BUFFER("]" << std::endl);
+
+		// Multi-state buffers shouldn't be accessed for writing,
+		// under normal conditions.
+		if (buf->state().size() > 1) {
+			std::string errmsg = "access multi-state buffer " +
+				buf->inspect() + " for writing";
+			if (safety & MULTISTATE_SAFE) {
+				DEBUG_INSPECT_BUFFER(errmsg);
+			} else {
+				throw std::invalid_argument(errmsg);
+			}
+		}
+
 
 		m_updated_buffers |= Key;
 		buf->mark_dirty();
@@ -542,8 +676,11 @@ public:
 	template<flag_t Key>
 	const DATA_TYPE(Key) *getData(uint num=0) const {
 		map_type::const_iterator exists = m_map.find(Key);
-		if (exists == m_map.end())
+		if (exists == m_map.end()) {
+			if (m_validate_access)
+				throw std::runtime_error(std::to_string(Key) + " not found");
 			return NULL;
+		}
 
 		auto buf(exists->second);
 		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [const]" << std::endl);
@@ -571,9 +708,16 @@ public:
 	 */
 	template<flag_t Key>
 	DATA_TYPE(Key) **getRawPtr() {
-		Buffer<Key> *buf = this->get<Key>();
-		if (!buf)
+		buffer_ptr_type<Key> buf = this->get<Key>();
+		if (!buf) {
+			if (m_validate_access)
+				throw std::runtime_error(std::to_string(Key) + " not found");
 			return NULL;
+		}
+
+		if (buf->num_states() > 1)
+			throw std::invalid_argument("trying to access multi-state buffer " +
+				buf->inspect() + " for writing");
 
 		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [raw ptr ");
 		switch (m_has_pending_state) {
@@ -585,8 +729,8 @@ public:
 			buf->set_state(m_pending_state);
 			break;
 		case PENDING_ADD:
-			DEBUG_INSPECT_BUFFER("state add " << m_pending_state);
-			buf->add_state(m_pending_state);
+			DEBUG_INSPECT_BUFFER("manipulator add " << m_pending_state);
+			buf->add_manipulator(m_pending_state);
 			break;
 		}
 
@@ -601,9 +745,12 @@ public:
 	// const version
 	template<flag_t Key>
 	const DATA_TYPE(Key)* const* getRawPtr() const {
-		const Buffer<Key> *buf = this->get<Key>();
-		if (!buf)
+		const_buffer_ptr_type<Key> buf = this->get<Key>();
+		if (!buf) {
+			if (m_validate_access)
+				throw std::runtime_error(std::to_string(Key) + " not found");
 			return NULL;
+		}
 
 		DEBUG_INSPECT_BUFFER("\t" << buf->inspect() << " [const raw ptr]" << std::endl);
 		if (buf->is_invalid()) {
@@ -633,7 +780,8 @@ public:
 		if (exists != m_map.end()) {
 			throw std::runtime_error("trying to add a buffer for an already-available key!");
 		} else {
-			m_map[Key] = new BufferClass<Key>(_init);
+			m_map.insert(std::make_pair(Key, std::make_shared<BufferClass<Key>>(_init)));
+			m_keys |= Key;
 		}
 		return *this;
 	}
@@ -660,232 +808,6 @@ public:
 
 	size_type size() const
 	{ return m_map.size(); }
-
-};
-
-/* A MultiBufferList takes into account that some of the buffers are needed
- * in multiple copies (double-buffered or more.) It relies on a BufferAllocPolicy
- * object to determine which ones need multiple copies and which ones
- * do not.
- *
- * TODO FIXME the code currently assumes that buffers are _at most_ double-buffered.
- * This whole thing will soon be removed by the ParticleSystem::State mechanism.
- */
-class MultiBufferList
-{
-public:
-	// buffer allocation policy
-	const BufferAllocPolicy *m_policy;
-
-	// TODO FIXME this is for double-buffered lists only
-	// In general we would have N writable list (N=1 usually)
-	// and M read-only lists (M >= 1), with the number of each
-	// determined by the BufferAllocPolicy.
-#define READ_LIST 1
-#define WRITE_LIST 0
-
-	// list of BufferLists
-	std::array<BufferList, 2> m_lists;
-
-	// Keys of Buffers added so far
-	// It's a set instead of a single flag_t to allow iteration on it
-	// without bit-shuffling. Might change.
-	std::set<flag_t> m_buffer_keys;
-
-public:
-
-	MultiBufferList(): m_policy(NULL)
-	{}
-
-	~MultiBufferList() {
-		clear();
-	}
-
-	std::string inspect() const;
-
-	void clear() {
-		// nothing to do, if the policy was never set
-		if (m_policy == NULL)
-			return;
-
-		// we cannot just clear() the lists, because that would
-		// lead to a double-free of the shared pointers. In C++11
-		// this could be fixed with shared_ptrs, but we can't rely
-		// on C++11, so we have to do the management manually.
-
-		// To avoid the double free, first do a manual deallocation
-		// and removal of the shared buffers:
-		std::set<flag_t>::const_iterator iter = m_buffer_keys.begin();
-		const std::set<flag_t>::const_iterator end = m_buffer_keys.end();
-		for ( ; iter != end ; ++iter) {
-			const flag_t key = *iter;
-			const size_t count = m_policy->get_buffer_count(key);
-			if (count != 1)
-				continue;
-			// ok, the buffer had a count of 1, so it was not
-			// double buffered, and is shared among lists:
-			// we deallocated it ourselves, and remove it
-			// from the lists, in order to avoid double deletions
-			AbstractBuffer *buf = m_lists[0][key];
-
-			for (auto& list : m_lists)
-				list.removeBuffer(key);
-			delete buf;
-		}
-
-		// now clear the lists
-		for (auto& list : m_lists)
-			list.clear();
-
-		// and purge the list of keys too
-		m_buffer_keys.clear();
-	}
-
-	void setAllocPolicy(const BufferAllocPolicy* _policy)
-	{
-		if (m_policy != NULL)
-			throw std::runtime_error("cannot change buffer allocation policy");
-		m_policy = _policy;
-
-		// add as many BufferLists as needed at most
-		// TODO would have made sense for > 2 copies,
-		// in which case m_lists would have been an std::vector
-		//m_lists.resize(m_policy->get_max_buffer_count());
-	}
-
-	/* Add a new buffer of the given BufferClass for position Key, with the provided
-	 * initialization value as initializer.
-	 */
-	template<template<flag_t> class BufferClass, flag_t Key>
-	void addBuffer(int _init=-1)
-	{
-		if (m_policy == NULL)
-			throw std::runtime_error("trying to add buffers before setting policy");
-		if (m_buffer_keys.find(Key) != m_buffer_keys.end())
-			throw std::runtime_error("trying to re-add buffer");
-
-		m_buffer_keys.insert(Key);
-
-		// number of copies of this buffer
-		const size_t count = m_policy->get_buffer_count(Key);
-
-		if (count > 1) {
-			// We currently support only two possibilities for buffers:
-			// either there is a single instance, or there are as many instances
-			// as the maximum (e.g. if the alloc policy is triple-buffered,
-			// then a buffer has a count of either three or one)
-			// TODO redesign as appropriate when the need arises
-			if (count != m_lists.size())
-				throw std::runtime_error("buffer count less than max but bigger than 1 not supported");
-			// multi-buffered, allocate one instance in each buffer list
-			for (size_t c = 0; c < m_lists.size(); ++c) {
-				AbstractBuffer *buff = new BufferClass<Key>(_init);
-				/* R for Read, W for Write */
-				buff->set_uid((c == READ_LIST ? "0R" : "0W") +
-					(std::to_string(Key)));
-				m_lists[c].addExistingBuffer(Key, buff);
-			}
-		} else {
-			// single-buffered, allocate once and put in all lists
-			AbstractBuffer *buff = new BufferClass<Key>(_init);
-			/* U for Unique */
-			buff->set_uid("0U" + (std::to_string(Key)));
-
-			for (auto& list : m_lists)
-				list.addExistingBuffer(Key, buff);
-		}
-	}
-
-	/* Swap the lists the given buffers belong to */
-	// TODO make this a cyclic rotation for the case > 2
-	void swapBuffers(flag_t keys) {
-		std::set<flag_t>::const_iterator iter = m_buffer_keys.begin();
-		const std::set<flag_t>::const_iterator end = m_buffer_keys.end();
-		for (; iter != end ; ++iter) {
-			const flag_t key = *iter;
-			if (!(key & keys))
-				continue;
-
-			// get the old READ buffer, replace the one in WRITE
-			// with it and the one in READ with the old WRITE one
-			AbstractBuffer *oldread = m_lists[READ_LIST][key];
-			AbstractBuffer *oldwrite = m_lists[WRITE_LIST].replaceBuffer(key, oldread);
-			m_lists[READ_LIST].replaceBuffer(key, oldwrite);
-		}
-
-	}
-
-	/* Get the set of Keys for which buffers have been added */
-	const std::set<flag_t>& get_keys() const
-	{ return m_buffer_keys; }
-
-	/* Get the amount of memory that would be taken by the given buffer
-	 * if it was allocated with the given number of elements */
-	size_t get_memory_occupation(flag_t Key, size_t nels) const
-	{
-		// return 0 unless the buffer was actually added
-		if (m_buffer_keys.find(Key) == m_buffer_keys.end())
-			return 0;
-
-		// get the corresponding buffer
-		const AbstractBuffer *buf = m_lists[0][Key];
-
-		size_t single = buf->get_element_size();
-		single *= buf->get_array_count();
-		single *= m_policy->get_buffer_count(Key);
-
-		return single*nels;
-	}
-
-	/* Allocate all the necessary copies of the given buffer,
-	 * returning the total amount of memory used */
-	size_t alloc(flag_t Key, size_t nels)
-	{
-		// number of actual instances of the buffer
-		const size_t count = m_policy->get_buffer_count(Key);
-		size_t list_idx = 0;
-		size_t allocated = 0;
-		while (list_idx < count) {
-			allocated += m_lists[list_idx][Key]->alloc(nels);
-			++list_idx;
-		}
-		return allocated;
-	}
-
-	/* Get a specific buffer list */
-	BufferList& getBufferList(size_t idx)
-	{
-		if (idx > m_lists.size())
-			throw std::runtime_error("asked for non-existing buffer list");
-		return m_lists[idx];
-	}
-
-	/* Get a specific buffer list (const) */
-	const BufferList& getBufferList(size_t idx) const
-	{
-		if (idx > m_lists.size())
-			throw std::runtime_error("asked for non-existing buffer list");
-		return m_lists[idx];
-	}
-
-	/* Get the read-only buffer list */
-	BufferList& getReadBufferList()
-	{ return getBufferList(READ_LIST); }
-	const BufferList& getReadBufferList() const
-	{ return getBufferList(READ_LIST); }
-
-	/* Get the read-write buffer list */
-	BufferList& getWriteBufferList()
-	{
-		return getBufferList(WRITE_LIST);
-	}
-	const BufferList& getWriteBufferList() const
-	{
-		return getBufferList(WRITE_LIST);
-	}
-
-#undef READ_LIST
-#undef WRITE_LIST
 };
 
 #undef DATA_TYPE

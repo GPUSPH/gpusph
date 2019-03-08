@@ -30,6 +30,7 @@
  * Contains the abstract interface for filter engines.
  */
 
+#include "buffer.h"
 #include "particledefine.h"
 
 /* Abstract class that defines the interface for each FilterEngine
@@ -60,19 +61,16 @@ public:
 	//! @}
 
 
-	//! Run the filter. Currently this is designed to only filter
-	//! velocity and/or density.
-	//! \todo provide a more general interface, accepting
-	//! the usual pair of read and write BufferList
+	//! Run the filter
+	/*! \note the surrounding code currently assumes that only the velocity
+	 * and/or density will be filtered, and will not swap other buffers.
+	 * If the need arise, we can extend the engine API to include a method
+	 * where the read/written/updated buffers can be specified.
+	 */
 	virtual void
 	process(
-		const	float4	*pos,
-		const	float4	*oldVel,
-				float4	*newVel,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
-		const	uint	*cellStart,
-		const	neibdata*neibsList,
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,

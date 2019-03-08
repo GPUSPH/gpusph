@@ -12,7 +12,7 @@ if [ -z "$CC" ] ; then
 		$(${lister} | cut -f2- | sort -n | head -1)
 	AVOID_SUBSHELL_PROBLEM
 	if [ -z "$CC" ] ; then
-		CC=2.0
+		CC=3.0
 		echo "Unable to determine Compute Capability, assuming ${CC}"  >&2
 		card="fallback, default"
 	else

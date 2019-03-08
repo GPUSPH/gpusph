@@ -58,20 +58,41 @@ SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 #define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
 SET_BUFFER_TRAITS(BUFFER_PARTINDEX, uint, 1, "Particle Index");
 
-// not used for the time being. evaluate if they should be migrated to the buffer mechanism
-// too or not
+/* Cell-related buffers: index of the first and last particle in each cell */
 #define BUFFER_CELLSTART	(BUFFER_PARTINDEX << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLSTART, uint, 1, "Cell Start");
 #define BUFFER_CELLEND		(BUFFER_CELLSTART << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLEND, uint, 1, "Cell End");
 
-#define BUFFER_NEIBSLIST	(BUFFER_CELLEND << 1)
+/* Compact device map
+ * (we only use 2 bits per cell, a single uchar might be sufficient)
+ */
+#define BUFFER_COMPACT_DEV_MAP		(BUFFER_CELLEND << 1)
+SET_BUFFER_TRAITS(BUFFER_COMPACT_DEV_MAP, uint, 1, "Compact device map");
+
+#define BUFFER_NEIBSLIST	(BUFFER_COMPACT_DEV_MAP << 1)
 SET_BUFFER_TRAITS(BUFFER_NEIBSLIST, neibdata, 1, "Neighbor List");
 
 #define BUFFER_FORCES		(BUFFER_NEIBSLIST << 1)
 SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
-#define BUFFER_INTERNAL_ENERGY (BUFFER_FORCES << 1)
+/* Forces and torques acting on rigid body particles only
+ * Note that these are sized according to the number of object particles,
+ * not with the entire particle system
+ */
+#define BUFFER_RB_FORCES	(BUFFER_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_RB_FORCES, float4, 1, "Object forces");
+#define BUFFER_RB_TORQUES	(BUFFER_RB_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_RB_TORQUES, float4, 1, "Object torques");
+
+/* Object number for each object particle
+ * TODO this is already present in the INFO buffer, rewrite the segmented scan
+ * to use that?
+ */
+#define BUFFER_RB_KEYS	(BUFFER_RB_TORQUES << 1)
+SET_BUFFER_TRAITS(BUFFER_RB_KEYS, uint, 1, "Object particle key");
+
+#define BUFFER_INTERNAL_ENERGY (BUFFER_RB_KEYS << 1)
 SET_BUFFER_TRAITS(BUFFER_INTERNAL_ENERGY, float, 1, "Internal Energy");
 
 #define BUFFER_INTERNAL_ENERGY_UPD (BUFFER_INTERNAL_ENERGY << 1)
@@ -199,14 +220,18 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define BUFFERS_CFL			( BUFFER_CFL | BUFFER_CFL_TEMP | BUFFER_CFL_KEPS | BUFFER_CFL_GAMMA)
 
 // all CELL buffers
-#define BUFFERS_CELL		( BUFFER_CELLSTART | BUFFER_CELLEND )
+#define BUFFERS_CELL		( BUFFER_CELLSTART | BUFFER_CELLEND | BUFFER_COMPACT_DEV_MAP)
 
 // elegant way to set to 1 all bits in between the first and the last buffers
 // NOTE: READ or WRITE specification must be added for double buffers
 #define ALL_DEFINED_BUFFERS		(((FIRST_DEFINED_BUFFER-1) ^ (LAST_DEFINED_BUFFER-1)) | LAST_DEFINED_BUFFER )
 
+// all object particle buffers
+#define BUFFERS_RB_PARTICLES (BUFFER_RB_FORCES | BUFFER_RB_TORQUES | BUFFER_RB_KEYS)
+
 // all particle-based buffers
-#define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & ~(BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
+#define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & \
+	~(BUFFERS_RB_PARTICLES | BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
 
 // TODO we need a better form of buffer classification, distinguishing:
 // * “permanent” buffers for particle properties (which need to be sorted):
@@ -256,8 +281,17 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
  * not properties or support, plus the CFL buffers
  */
 #define EPHEMERAL_BUFFERS \
-	(ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS) | \
-	 BUFFERS_CFL)
+	((ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS)) | \
+	 BUFFERS_CFL | \
+	 (BUFFERS_RB_PARTICLES & ~BUFFER_RB_KEYS) \
+	)
+
+//! Buffers selectable by CALC_PRIVATE post-processing filter
+#define BUFFERS_PRIVATE (BUFFER_PRIVATE | BUFFER_PRIVATE2 | BUFFER_PRIVATE4)
+
+//! Post-processing buffers
+/*! These buffers are ephemeral, and only used by post-processing filters */
+#define POST_PROCESS_BUFFERS (BUFFER_VORTICITY | BUFFERS_PRIVATE)
 
 //! Buffers that hold data that is useful throughout a simulation step
 /*! A typical example is the neighbors list
@@ -265,44 +299,17 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define SUPPORT_BUFFERS \
 	(ALL_DEFINED_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | EPHEMERAL_BUFFERS))
 
+//! Buffers that get (re)initialized during the neighbors list construction
+/*! These are otherwise immutable, shouldn't be sorted, and are shared between states.
+ * Note that BUFFER_COMPACT_DEV_MAP is excluded from these buffers because it's
+ * generated once at the beginning of the simulation and never updated.
+ */
+#define NEIBS_SEQUENCE_REFRESH_BUFFERS \
+	( (BUFFERS_CELL & ~BUFFER_COMPACT_DEV_MAP) | BUFFER_NEIBSLIST | BUFFER_VERTPOS)
+
 // particle-based buffers to be imported during the APPEND_EXTERNAL command
 // These are the particle property buffers plus the hash, from the READ list
-#define IMPORT_BUFFERS (PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS | DBLBUFFER_READ)
-
-#define POST_FORCES_UPDATE_BUFFERS \
-	(	BUFFER_FORCES | \
-		BUFFER_INTERNAL_ENERGY_UPD | \
-		BUFFER_XSPH | \
-		BUFFER_DKDE)
-
-#define POST_SA_SEGMENT_UPDATE_BUFFERS \
-	(	BUFFER_POS | \
-		BUFFER_VEL | \
-		BUFFER_TKE | \
-		BUFFER_EPSILON | \
-		BUFFER_VERTICES | \
-		BUFFER_EULERVEL | \
-		BUFFER_GRADGAMMA)
-
-#define POST_SA_VERTEX_UPDATE_BUFFERS \
-	(	BUFFER_POS | \
-		BUFFER_VEL | \
-		BUFFER_TKE | \
-		BUFFER_EPSILON | \
-		BUFFER_EULERVEL | \
-		BUFFER_GRADGAMMA)
-
-#define POST_COMPUTE_SWAP_BUFFERS \
-	(	BUFFER_POS | \
-		BUFFER_VEL | \
-		BUFFER_INTERNAL_ENERGY | \
-		BUFFER_TKE | \
-		BUFFER_EPSILON | \
-		BUFFER_TURBVISC | \
-		BUFFER_EULERVEL | \
-		BUFFER_GRADGAMMA | \
-		BUFFER_VOLUME | \
-		BUFFER_VERTICES)
+#define IMPORT_BUFFERS (PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS)
 
 #define POST_REPACK_SWAP_BUFFERS \
 	(	BUFFER_POS | \

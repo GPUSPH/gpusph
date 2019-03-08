@@ -239,7 +239,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			_clOptions->repack_only = true;
 		} else if (!strcmp(arg, "--repack-maxiter")) {
 			/* read the next arg as an unsigned long */
-			sscanf(*argv, "%lu", &(_clOptions->repack_maxiter));
+			sscanf(*argv, "%u", &(_clOptions->repack_maxiter));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--from-repack")) {
@@ -341,20 +341,19 @@ void sigusr1_handler(int signum) {
 	gdata_static_pointer->save_request = true;
 }
 
-enum RunMode {
-		REPACKING,
-		STANDARD
-};
-
-template<RunMode repack_or_run>
-void simulate(GlobalData *gdata)
+void simulate(GlobalData *gdata, RunMode repack_or_run)
 {
+	gdata->run_mode = repack_or_run;
+
 	gdata->problem = selected_problem.create(gdata);
 	if (gdata->problem->simframework())
 		gdata->simframework = gdata->problem->simframework();
 	else
 		throw invalid_argument("no simulation framework defined in the problem!");
 	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
+
+	if (gdata->run_mode == REPACK && !(gdata->problem->simparams()->simflags & ENABLE_REPACKING))
+		throw invalid_argument("Repacking is not enabled in the " + gdata->clOptions->problem + " problem");
 
 
 	// get - and actually instantiate - the existing instance of GPUSPH
@@ -369,18 +368,16 @@ void simulate(GlobalData *gdata)
 	printf("GPUSPH: initialized\n");
 
 	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-	switch (repack_or_run) {
-		case REPACKING:
-			Simulator->runRepacking();
-			break;
-		case STANDARD:
-			Simulator->runSimulation();
-			break;
-	}
+	bool all_ok = Simulator->runSimulation();
+
 	// finalize everything
 	Simulator->finalize();
-	if (repack_or_run == REPACKING)
+
+	if (repack_or_run == REPACK)
 		gdata->cleanup();
+
+	if (!all_ok)
+		gdata->ret = 1;
 }
 
 int main(int argc, char** argv) {
@@ -471,9 +468,9 @@ int main(int argc, char** argv) {
 
 	try {
 		if (gdata.clOptions->repack || gdata.clOptions->repack_only)
-			simulate<REPACKING>(&gdata);
-		if (!gdata.clOptions->repack_only) {
-			simulate<STANDARD>(&gdata);
+			simulate(&gdata, REPACK);
+		if (!gdata.ret && !gdata.clOptions->repack_only) {
+			simulate(&gdata, SIMULATE);
 		}
 	} catch (exception const& e) {
 		cerr << e.what() << endl;

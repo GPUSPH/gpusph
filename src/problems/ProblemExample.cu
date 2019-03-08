@@ -181,7 +181,6 @@ calcPrivateDevice(
 void ProblemExample::calcPrivate(flag_t options,
 	BufferList const& bufread,
 	BufferList & bufwrite,
-	uint const *cellStart,
 	uint numParticles,
 	uint particleRangeEnd,
 	uint deviceIndex,
@@ -197,6 +196,7 @@ void ProblemExample::calcPrivate(flag_t options,
 	const float4 *vel = bufread.getData<BUFFER_VEL>();
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 	float *priv = bufwrite.getData<BUFFER_PRIVATE>();

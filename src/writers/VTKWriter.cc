@@ -103,7 +103,7 @@ void VTKWriter::start_writing(double t, WriteFlags const& write_flags)
 	time_repr << setprecision(16) << t;
 	m_current_time = time_repr.str();
 
-	int step_num = get_step_number(write_flags.integrator_step);
+	const int step_num = write_flags.step.number;
 
 	// we append the current integrator step to the timestring,
 	// but we need to add a dot if there isn't one already
@@ -454,6 +454,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float4 *gradGamma = buffers.getData<BUFFER_GRADGAMMA>();
 	const float *tke = buffers.getData<BUFFER_TKE>();
 	const float *eps = buffers.getData<BUFFER_EPSILON>();
+	const float *effvisc = buffers.getData<BUFFER_EFFVISC>();
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float *spsturbvisc = buffers.getData<BUFFER_SPS_TURBVISC>();
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
@@ -502,7 +503,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	string filename;
 
 	ofstream fid;
-	if (gdata->keep_repacking)
+	if (gdata->run_mode == REPACK)
 		filename = open_data_file(fid, "REPACK", current_filenum());
 	else
 		filename = open_data_file(fid, "PART", current_filenum());
@@ -562,6 +563,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// gamma and its gradient
 	if (gradGamma) {
 		appender.append_data(gradGamma, "Gradient Gamma", "Gamma");
+	}
+
+	// Effective viscosity
+	if (effvisc) {
+		appender.append_data(effvisc, "Effective viscosity");
 	}
 
 	// turbulent kinetic energy

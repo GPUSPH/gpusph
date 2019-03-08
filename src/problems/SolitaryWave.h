@@ -34,12 +34,6 @@
 #define	SolitaryWave_H
 
 #include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
-#include "Cylinder.h"
-#include "Vector.h"
-#include "Rect.h"
-//#include "Cone.h"
 
 class SolitaryWave: public XProblem {
 	private:
@@ -67,8 +61,8 @@ class SolitaryWave: public XProblem {
 		void copy_planes(PlaneList &);
 
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
-			 	 	 	 	 	 	const float3&, const KinematicData &, KinematicData &,
-			 	 	 	 	 	 	double3&, EulerParameters&);
+									const float3&, const KinematicData &, KinematicData &,
+									double3&, EulerParameters&);
 
 };
 #endif	/* _SolitaryWave_H */

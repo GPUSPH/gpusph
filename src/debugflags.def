@@ -79,4 +79,7 @@ unsigned clobber_invalid_buffers : 1;
 /// Throw (instead of just warn) if a particle is out of bounds during init
 unsigned validate_init_positions : 1;
 
+/// Measure (and show) command runtimes
+unsigned benchmark_command_runtimes : 1;
+
 /* vim: set ft=cpp: */

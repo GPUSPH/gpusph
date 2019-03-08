@@ -111,14 +111,14 @@
 		<li> compute the <tt>gridPos</tt> position of particle \f$ i \f$ form it's <tt>gridHash</tt> </li>
 		<li> compute the change in grid coordinates, <tt>gridOffset</tt>, from postion \f$ (x_{old}, y_{old}) \f$ to \f$ (x, y) \f$ </li>
 		<li> compute grid hash according to <tt>gridPos</tt> and <tt>gridOffset</tt>. Without periodicity we have: <br>
-			<tt>gridHash = (griPos.y + gridOffset.y)*gridSize.x + griPos.x + gridOffset.x</tt> </li>
+			<tt>gridHash = (gridPos.y + gridOffset.y)*gridSize.x + griPos.x + gridOffset.x</tt> </li>
 		<li> adjust particle coordinates respect to the cell containing the particle:<br>
 			<tt>x = x - gridOffset.x*cellSize.x</tt><br>
 			<tt>y = y - gridOffset.y*cellSize.y</tt> </li>
 	</ul>
 	</p>
 	
-	\todo Fix variable naming: use griPos and gridHash or cellPos and cellHash but not both !
+	\todo Fix variable naming: use gridPos and gridHash or cellPos and cellHash but not both !
 	
 	\subsection neiblist_sort Sort
 	<p>When particles are created an absolute identifier, <tt>id</tt>, is assigned to each particle. This <tt>id</tt> will never be altered

@@ -31,7 +31,7 @@
 
 #include "PROBLEM.h"
 
-class GlobalData;
+struct GlobalData;
 
 static const char * name_ = "PROBLEM";
 

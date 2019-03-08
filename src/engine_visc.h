@@ -51,13 +51,14 @@ public:
 	/*! This method runs the necessary computations needed for
 	 * viscous computation, such as the stress tensor correction for SPS,
 	 * or the viscosity itself in case of per-particle viscosity.
-	 * (\see{BUFFER_EFFVISC})
+	 * (\see{BUFFER_EFFVISC}).
+	 * In the non-Newtonian case, it also returns the maximum kinematic
+	 * viscosity.
 	 */
-	virtual void
+	virtual float
 	calc_visc(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	slength,

@@ -37,7 +37,7 @@ SimFramework::SimFramework() :
 	m_viscEngine(NULL),
 	m_forcesEngine(NULL),
 	m_bcEngine(NULL),
-	m_allocPolicy(NULL),
+	m_allocPolicy(),
 	m_filterEngines(),
 	m_filterFreqList(),
 	m_postProcessEngines(),
@@ -59,7 +59,6 @@ SimFramework::~SimFramework()
 	m_filterFreqList.clear();
 	m_filterEngines.clear();
 
-	delete m_allocPolicy;
 	delete m_bcEngine;
 	delete m_forcesEngine;
 	delete m_viscEngine;

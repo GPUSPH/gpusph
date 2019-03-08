@@ -49,7 +49,7 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 	const int ppH = get_option("ppH", 16); // --ppH N to change deltap to H/N
 
 	// density diffusion terms, see DensityDiffusionType
-	const int rhodiff = get_option("density-diffusion", 1);
+	const DensityDiffusionType rhodiff = get_option("density-diffusion", FERRARI);
 
 	SETUP_FRAMEWORK(
 		//viscosity<KINEMATICVISC>,
@@ -58,8 +58,7 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<DYN_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
 	).select_options(
-		rhodiff == FERRARI, densitydiffusion<FERRARI>(),
-		rhodiff == COLAGROSSI, densitydiffusion<COLAGROSSI>(),
+		rhodiff,
 		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 

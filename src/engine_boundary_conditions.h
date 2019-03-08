@@ -35,7 +35,6 @@ virtual void
 saSegmentBoundaryConditions(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -43,14 +42,13 @@ saSegmentBoundaryConditions(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step) = 0;
+	const	int			step) = 0;
 
 /// Detect particles that cross an open boundary and find the boundary element they have crossed
 virtual void
 findOutgoingSegment(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -66,7 +64,6 @@ virtual void
 saVertexBoundaryConditions(
 	BufferList &bufwrite,
 	BufferList const& bufread,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
@@ -74,7 +71,7 @@ saVertexBoundaryConditions(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step,
+	const	int				step,
 	const	bool			resume, // TODO FIXME splitneibs-merge check if still needed
 	const	float			dt, // for open boundaries
 	// These are the cloning-related members
@@ -88,7 +85,6 @@ virtual void
 computeVertexNormal(
 	const BufferList&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd) = 0;
 
@@ -97,7 +93,6 @@ virtual void
 saInitGamma(
 	const BufferList&	bufread,
 	BufferList&		bufwrite,
-	const	uint*			cellStart,
 	const	float			slength,
 	const	float			influenceradius,
 	const	float			deltap,
@@ -112,7 +107,6 @@ initIOmass_vertexCount(
 	BufferList& bufwrite,
 	const BufferList& bufread,
 	const	uint			numParticles,
-	const	uint*			cellStart,
 	const	uint			particleRangeEnd) = 0;
 
 //! Distribute initial mass for open boundary vertices
@@ -122,15 +116,13 @@ initIOmass(
 	BufferList& bufwrite,
 	const BufferList& bufread,
 	const	uint			numParticles,
-	const	uint*			cellStart,
 	const	uint			particleRangeEnd,
 	const	float			deltap) = 0;
 
 //! Disables particles that went through boundaries when open boundaries are used
 virtual void
-disableOutgoingParts(		float4*			pos,
-							vertexinfo*		vertices,
-					const	particleinfo*	info,
+disableOutgoingParts(const	BufferList& bufread,
+							BufferList& bufwrite,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd) = 0;
 
@@ -151,13 +143,8 @@ uploadIOwaterdepth(
 //! Identifies vertices at the corners of open boundaries
 virtual void
 saIdentifyCornerVertices(
-	const	float4*			oldPos,
-	const	float4*			boundelement,
-			particleinfo*	info,
-	const	hashKey*		particleHash,
-	const	vertexinfo*		vertices,
-	const	uint*			cellStart,
-	const	neibdata*		neibsList,
+	const	BufferList&	bufread,
+			BufferList&	bufwrite,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,

@@ -112,11 +112,9 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 density_sum_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -127,73 +125,31 @@ density_sum_impl(
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const float4 *oldPos = bufread.getData<BUFFER_POS>();
-	const float4 *newPos = bufwrite.getConstData<BUFFER_POS>();
-
-	const float4  *oldVel = bufread.getData<BUFFER_VEL>();
-	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-
-	const float4 *oldgGam = bufread.getData<BUFFER_GRADGAMMA>();
-	float4 *newgGam = bufwrite.getData<BUFFER_GRADGAMMA>();
-
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-
-	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-
-	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
-	const float4 *newEulerVel = bufwrite.getConstData<BUFFER_EULERVEL>();
-
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-	const float4 *oldBoundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	const float4 *newBoundElement = (simflags & ENABLE_MOVING_BODIES) ?
-		bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
-		oldBoundElement;
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-
 	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
 	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
-			oldPos, newPos, oldVel, newVel, oldgGam, newgGam,
-			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
-			slength, influenceradius, neibsList, cellStart,
-			oldEulerVel, newEulerVel,
-			NULL, NULL, NULL);
+		bufread, bufwrite, particleRangeEnd, dt, t, step, slength, influenceradius);
 
 	cudensity_sum::densitySumVolumicDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
 
 	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
-			oldPos, newPos, oldVel, newVel, oldgGam, newgGam,
-			particleHash, info, forces, particleRangeEnd, dt, dt2, t, step,
-			slength, influenceradius, neibsList, cellStart,
-			oldEulerVel, newEulerVel,
-			oldBoundElement, newBoundElement, vertPos);
+		bufread, bufwrite, particleRangeEnd, dt, t, step, slength, influenceradius);
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 
 	if (simflags & ENABLE_MOVING_BODIES) {
 		// VERTEX gamma is always integrated directly
 		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(
-			oldPos, // pos at step n
-			newPos, // pos at step n+1
-			oldVel, // vel at step n
-			newVel, // vel at step n+1
-			info, // particle info
-			particleHash, // particle hash
-			oldgGam,
-			newgGam,
-			oldBoundElement,
-			newBoundElement,
-			oldEulerVel, // eulerian vel at step n
-			newEulerVel, // eulerian vel at step n+1
-			vertPos,
-			neibsList,
-			cellStart,
+			bufread, bufwrite,
 			particleRangeEnd,
-			dt, dt2, t, step,
+			dt, t, step,
 			epsilon, slength, influenceradius);
 		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
 	} else {
+		/* We got them from the buffer lists already, reuse the params structure members.
+		 */
+		const particleinfo *info = volumic_params.info;
+		const float4 *oldgGam = volumic_params.oldgGam;
+			  float4 *newgGam = volumic_params.newgGam;
 		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);
 		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
@@ -208,11 +164,9 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 density_sum_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -226,20 +180,18 @@ void
 density_sum(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
 		const	float	slength,
 		const	float	influenceradius)
 {
-	density_sum_impl<boundarytype>(bufread, bufwrite, cellStart,
+	density_sum_impl<boundarytype>(bufread, bufwrite,
 		numParticles, particleRangeEnd,
-		dt, dt2, step, t, epsilon, slength, influenceradius);
+		dt, step, t, epsilon, slength, influenceradius);
 }
 
 // SFINAE implementation of integrate_gamma
@@ -248,11 +200,9 @@ enable_if_t<_boundarytype == SA_BOUNDARY>
 integrate_gamma_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -263,40 +213,10 @@ integrate_gamma_impl(
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-
-	const particleinfo * info = bufread.getData<BUFFER_INFO>();
-
-	// boundary elements at step n
-	const float4 *oldBoundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	// boundary elements at step n+1, different only if ENABLE_MOVING_BODIES
-	const float4 *newBoundElement = (simflags & ENABLE_MOVING_BODIES) ?
-		bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
-		oldBoundElement;
-
-	// gamma at step n
-	const float4 *oldgGam = bufread.getData<BUFFER_GRADGAMMA>();
-	// gamma at step n+1 (output)
-	float4 *newgGam = bufwrite.getData<BUFFER_GRADGAMMA>();
-
 	integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
-		bufread.getData<BUFFER_POS>(), // pos at step n
-		bufwrite.getConstData<BUFFER_POS>(), // pos at step n+1
-		bufread.getData<BUFFER_VEL>(), // vel at step n
-		bufwrite.getConstData<BUFFER_VEL>(), // vel at step n+1
-		info, // particle info
-		bufread.getData<BUFFER_HASH>(), // particle hash
-		oldgGam,
-		newgGam,
-		oldBoundElement,
-		newBoundElement,
-		bufread.getData<BUFFER_EULERVEL>(), // eulerian vel at step n
-		bufwrite.getConstData<BUFFER_EULERVEL>(), // eulerian vel at step n+1
-		vertPos,
-		bufread.getData<BUFFER_NEIBSLIST>(),
-		cellStart,
+		bufread, bufwrite,
 		particleRangeEnd,
-		dt, dt2, t, step,
+		dt, t, step,
 		epsilon, slength, influenceradius);
 
 	// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
@@ -307,6 +227,11 @@ integrate_gamma_impl(
 		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
 		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
 	} else {
+		/* We got them from the buffer lists already, reuse the params structure members.
+		 */
+		const particleinfo *info = fluid_params.info;
+		const float4 *oldgGam = fluid_params.oldgGam;
+			  float4 *newgGam = fluid_params.newgGam;
 		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);
 		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
@@ -320,11 +245,9 @@ enable_if_t<_boundarytype != SA_BOUNDARY>
 integrate_gamma_impl(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
@@ -338,20 +261,18 @@ void
 integrate_gamma(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	epsilon,
 		const	float	slength,
 		const	float	influenceradius)
 {
-	integrate_gamma_impl<boundarytype>(bufread, bufwrite, cellStart,
+	integrate_gamma_impl<boundarytype>(bufread, bufwrite,
 		numParticles, particleRangeEnd,
-		dt, dt2, step, t, epsilon, slength, influenceradius);
+		dt, step, t, epsilon, slength, influenceradius);
 }
 
 
@@ -359,7 +280,6 @@ void
 apply_density_diffusion(
 	BufferList const& bufread,
 	BufferList& bufwrite,
-	const	uint	*cellStart,
 	const	uint	numParticles,
 	const	uint	particleRangeEnd,
 	const	float	dt)
@@ -370,8 +290,8 @@ apply_density_diffusion(
 
 	// This is a trivial integration of the density in position write
 	cueuler::updateDensityDevice<<<numBlocks, numThreads>>>(
-		bufread.getData<BUFFER_INFO>(),
-		bufwrite.getData<BUFFER_VEL>(), bufwrite.getConstData<BUFFER_FORCES>(),
+		bufread.getData<BUFFER_INFO>(), bufread.getData<BUFFER_FORCES>(),
+		bufwrite.getData<BUFFER_VEL>(),
 		numParticles, particleRangeEnd, dt);
 
 	// check if kernel invocation generated an error
@@ -383,11 +303,9 @@ void
 basicstep(
 		BufferList const& bufread,
 		BufferList& bufwrite,
-		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
-		const	float	dt2,
 		const	int		step,
 		const	float	t,
 		const	float	slength,
@@ -397,61 +315,14 @@ basicstep(
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const float4  *oldPos = bufread.getData<BUFFER_POS>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const float4  *oldVol = bufread.getData<BUFFER_VOLUME>();
-	const float *oldEnergy = bufread.getData<BUFFER_INTERNAL_ENERGY>();
-	const float4 *oldEulerVel = bufread.getData<BUFFER_EULERVEL>();
-	const float *oldTKE = bufread.getData<BUFFER_TKE>();
-	const float *oldEps = bufread.getData<BUFFER_EPSILON>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-
-	const float4 *forces = bufread.getData<BUFFER_FORCES>();
-	const float *DEDt = bufread.getData<BUFFER_INTERNAL_ENERGY_UPD>();
-	const float3 *keps_dkde = bufread.getData<BUFFER_DKDE>();
-	const float4 *xsph = bufread.getData<BUFFER_XSPH>();
-
-	// The following two arrays are update in case ENABLE_DENSITY_SUM is set
-	// so they are taken from the non-const bufreadUpdate
-	const float4  *oldVel = bufread.getData<BUFFER_VEL>();
-
-	float4 *newPos = bufwrite.getData<BUFFER_POS>();
-	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-	float4 *newVol = bufwrite.getData<BUFFER_VOLUME>();
-	float *newEnergy = bufwrite.getData<BUFFER_INTERNAL_ENERGY>();
-	float4 *newEulerVel = bufwrite.getData<BUFFER_EULERVEL>();
-	float *newTKE = bufwrite.getData<BUFFER_TKE>();
-	float *newEps = bufwrite.getData<BUFFER_EPSILON>();
-	float *newTurbVisc = bufwrite.getData<BUFFER_TURBVISC>();
-
-	const bool has_moving = (simflags & ENABLE_MOVING_BODIES);
-	const float4 *oldBoundElement = has_moving ?
-		bufread.getData<BUFFER_BOUNDELEMENTS>() :
-		NULL;
-	float4 *newBoundElement = has_moving ?
-		bufwrite.getData<BUFFER_BOUNDELEMENTS>() :
-		NULL;
-
 	if (step == 1)
 		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
 			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 1>(
-				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
-				xsph,
-				newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
-				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
-				newVol, oldVol,
-				newEnergy, oldEnergy, DEDt));
+				bufread, bufwrite, numParticles, dt, t));
 	else if (step == 2)
 		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
 			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 2>(
-				newPos, newVel, oldPos, particleHash, oldVel, info, forces, numParticles, dt, dt2, t,
-				xsph,
-				newEulerVel, newBoundElement, vertPos, oldEulerVel, oldBoundElement, slength, influenceradius, neibsList, cellStart,
-				newTKE, newEps, newTurbVisc, oldTKE, oldEps, keps_dkde,
-				newVol, oldVol,
-				newEnergy, oldEnergy, DEDt));
+				bufread, bufwrite, numParticles, dt, t));
 	else
 		throw std::invalid_argument("unsupported predcorr timestep");
 

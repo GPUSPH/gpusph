@@ -150,7 +150,7 @@ void UDPWriter::heartbeat_thread_main() {
         if(d > (PTP_HEARTBEAT_TTL_S * 2)) {
             mClientAddressLen = 0;
         }
-        if(gdata->keep_going || gdata->keep_repacking){
+        if(gdata->keep_going){
             usleep(1);
         }
         else {

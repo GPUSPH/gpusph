@@ -4,7 +4,6 @@
 #include <string>
 
 #include "XProblem.h"
-#include "HDF5SphReader.h"
 
 class Spheric2SA: public XProblem {
 	private:
