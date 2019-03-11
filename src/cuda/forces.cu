@@ -84,14 +84,14 @@
 #endif
 
 
-cudaArray*  dDem = NULL;
+thread_local cudaArray*  dDem = NULL;
 
 /* Auxiliary data for parallel reductions */
-size_t	reduce_blocks = 0;
-size_t	reduce_blocksize_max = 0;
-size_t	reduce_bs2 = 0;
-size_t	reduce_shmem_max = 0;
-void*	reduce_buffer = NULL;
+thread_local size_t	reduce_blocks = 0;
+thread_local size_t	reduce_blocksize_max = 0;
+thread_local size_t	reduce_bs2 = 0;
+thread_local size_t	reduce_shmem_max = 0;
+thread_local void*	reduce_buffer = NULL;
 
 #include "forces_kernel.cu"
 
