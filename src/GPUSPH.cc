@@ -89,13 +89,42 @@ GPUSPH::GPUSPH() :
 	initialized(false)
 {
 	openInfoStream();
+	resetCommandTimes();
 }
 
 GPUSPH::~GPUSPH() {
+	if (gdata->debug.benchmark_command_runtimes)
+		showCommandTimes();
+
 	closeInfoStream();
 	// it would be useful to have a "fallback" deallocation but we have to check
 	// that main did not do that already
 	if (initialized) finalize();
+}
+
+void GPUSPH::resetCommandTimes()
+{
+	for (CommandName cmd = IDLE; cmd < NUM_COMMANDS; cmd = CommandName(cmd+1))
+	{
+		max_cmd_time[cmd] = cmd_time_duration(0);
+		tot_cmd_time[cmd] = cmd_time_duration(0);
+		cmd_calls[cmd] = 0;
+	}
+}
+
+void GPUSPH::showCommandTimes()
+{
+	cout << "CMDTIMES:COMMAND\tCMD_NUM\tCALLS\tMAX(ms)\tTOT(ms)\n";
+	for (CommandName cmd = IDLE; cmd < NUM_COMMANDS; cmd = CommandName(cmd+1))
+	{
+		if (!cmd_calls[cmd])
+			continue;
+		std::chrono::duration<double, std::milli> max_ms = max_cmd_time[cmd];
+		std::chrono::duration<double, std::milli> tot_ms = tot_cmd_time[cmd];
+		cout << "CMDTIMES:" << command_name[cmd] << "\t" << cmd << "\t"
+			<< cmd_calls[cmd] << "\t"
+			<< max_ms.count() << "\t" << tot_ms.count() << "\n";
+	}
 }
 
 void GPUSPH::openInfoStream() {
@@ -2116,9 +2145,49 @@ void GPUSPH::check_write(bool we_are_done)
 
 }
 
+//! Auxiliary class to time a command execution
+//! The TimerObject itself checks the time from its own creation to its own destruction,
+//! and updates two associated durations (max and total).
+//! doCommand() leverages this by creating a TimerObject before issuing the command,
+//! so that on return from doCommand() the TimerObject destructor updates the effective
+//! runtime of the corresponding object.
+//! \note Nested commands contribute to the calling command runtimes.
+struct TimerObject
+{
+	using clock = GPUSPH::cmd_time_clock;
+	using duration = GPUSPH::cmd_time_duration;
+
+	duration &max_ref;
+	duration &tot_ref;
+	std::chrono::time_point<clock> start;
+
+	TimerObject(duration &max_ref_, duration &tot_ref_) :
+		max_ref(max_ref_),
+		tot_ref(tot_ref_),
+		start(clock::now())
+	{ }
+
+	~TimerObject()
+	{
+		auto stop = clock::now();
+		auto duration = stop - start;
+		tot_ref += duration;
+		if (duration > max_ref)
+			max_ref = duration;
+	}
+};
+
 // set nextCommand, unlock the threads and wait for them to complete
 void GPUSPH::doCommand(CommandStruct const& cmd)
 {
+	shared_ptr<TimerObject> timer;
+	if (gdata->debug.benchmark_command_runtimes) {
+		++cmd_calls[cmd.command];
+		timer = make_shared<TimerObject>(
+			max_cmd_time[cmd.command],
+			tot_cmd_time[cmd.command]);
+	}
+
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {
 	 const uint float4Size = sizeof(float4) * gdata->totParticles;

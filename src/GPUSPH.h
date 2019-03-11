@@ -80,10 +80,26 @@ private:
 
 	std::shared_ptr<Integrator> integrator;
 
+protected:
+	friend class TimerObject;
+
+	using cmd_time_clock = std::chrono::steady_clock;
+	using cmd_time_duration = cmd_time_clock::duration;
+
+	// Maximum time taken to dispatch each command
+	cmd_time_duration max_cmd_time[NUM_COMMANDS];
+	// Total time spent executing each command
+	cmd_time_duration tot_cmd_time[NUM_COMMANDS];
+	unsigned long cmd_calls[NUM_COMMANDS];
+
+private:
 	// constructor and copy/assignment: private for singleton scheme
 	GPUSPH();
 	GPUSPH(GPUSPH const&); // NOT implemented
 	void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
+
+	void resetCommandTimes();
+	void showCommandTimes();
 
 	// open/close/write the info stream
 	void openInfoStream();
