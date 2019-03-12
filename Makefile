@@ -44,9 +44,7 @@ endif
 # (LIBS = ...)
 # and general flags
 # CPPFLAGS, CXXFLAGS, CUFLAGS, LDFLAGS,
-ifneq ($(cleaning),1)
 sinclude Makefile.local
-endif
 
 # GPUSPH version
 GPUSPH_VERSION=$(shell git describe --tags --dirty=+custom 2> /dev/null | sed -e 's/-\([0-9]\+\)/+\1/' -e 's/-g/-/' 2> /dev/null)
