@@ -545,11 +545,6 @@ CommonWriter::write_summary(void)
 	out.open((m_problem->get_dirname() + "/git_branch.txt").c_str());
 	out << GPUSPH_VERSION << endl << GIT_INFO_OUTPUT << endl;
 	out.close();
-
-/* 	string command = "make show >>" + m_problem->get_dirname() + "/make_show.txt";
-	system(command.c_str());
-	command = "git describe --tags --dirty=+custom && git branch -vv >>" + m_problem->get_dirname() + "/git_branch.txt";
-	system(command.c_str()); */
 }
 
 

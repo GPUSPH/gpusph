@@ -240,10 +240,12 @@ AUTOGEN_SRC=$(SRCDIR)/parse-debugflags.h $(SRCDIR)/describe-debugflags.h
 
 # these are not really options, but they follow the same mechanism
 GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
+MAKE_SHOW_TXT=$(INFODIR)/show.txt
 MAKE_SHOW_OPTFILE=$(OPTSDIR)/make_show.opt
 GIT_INFO_OPTFILE=$(OPTSDIR)/git_info.opt
 
-OPTFILES= \
+# Actual optfiles, that define specific options
+ACTUAL_OPTFILES= \
 	  $(DBG_SELECT_OPTFILE) \
 	  $(COMPUTE_SELECT_OPTFILE) \
 	  $(FASTMATH_SELECT_OPTFILE) \
@@ -251,9 +253,15 @@ OPTFILES= \
 	  $(HDF5_SELECT_OPTFILE) \
 	  $(CHRONO_SELECT_OPTFILE) \
 	  $(LINEARIZATION_SELECT_OPTFILE) \
+
+# Pseudo-optfiles, documentig GPUSPH version and build environment
+PSEUDO_OPTFILES= \
 	  $(GPUSPH_VERSION_OPTFILE) \
 	  $(MAKE_SHOW_OPTFILE) \
 	  $(GIT_INFO_OPTFILE)
+
+# Both of them
+OPTFILES=$(ACTUAL_OPTFILES) $(PSEUDO_OPTFILES)
 
 # Let make know that .opt and .i dependencies are to be looked for in $(OPTSDIR)
 vpath %.opt $(OPTSDIR)
@@ -788,7 +796,7 @@ else
 endif
 export CMDECHO
 
-.PHONY: all run showobjs show writeshow snapshot expand deps docs test help
+.PHONY: all run showobjs show snapshot expand deps docs test help
 .PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean genclean
 .PHONY: dev-guide user-guide
 .PHONY: FORCE
@@ -866,16 +874,19 @@ $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 		> $@
 	@echo "#define GPUSPH_VERSION \"$(GPUSPH_VERSION)\"" >> $@
 
+# TODO proper escaping for special characters in the GIT_INFO_OUTPUT
 $(GIT_INFO_OPTFILE): | $(OPTSDIR)
 	@echo "/* git branch --v. */" > $@
 	@echo -n "#define GIT_INFO_OUTPUT \"" >> $@
 	@echo -n "$(GIT_INFO_OUTPUT)" >> $@
 	@echo "\"" >> $@
 
-$(MAKE_SHOW_OPTFILE): | $(OPTSDIR)
+# TODO proper escaping for special characters in the MAKE_SHOW_TXT
+# Presently we only handle EOL and double-quotes
+$(MAKE_SHOW_OPTFILE): $(MAKE_SHOW_TXT) | $(OPTSDIR)
 	@echo "/* make show of GPUSPH. */" > $@
 	@echo -n "#define MAKE_SHOW_OUTPUT \"" >> $@
-	@cat $(INFODIR)/show.txt | sed -e 's/$$/\\n\\/' >> $@
+	@sed -e 's/"/\\"/' -e 's/$$/\\n\\/' $(MAKE_SHOW_TXT) >> $@
 	@echo "\"" >> $@
 
 $(OBJS): $(DBG_SELECT_OPTFILE)
@@ -954,7 +965,7 @@ computeclean:
 # target: cookiesclean - Clean last dbg, problem, compute and fastmath choices,
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
 cookiesclean:
-	$(RM) -r $(OPTFILES) $(OPTSDIR)
+	$(RM) -r $(OPTFILES) $(OPTSDIR) $(INFODIR)
 
 # target: genclean - Clean all problem generators
 genclean:
@@ -980,49 +991,50 @@ showobjs:
 	@echo " --- "
 	@echo "> OBJS: $(OBJS)"
 
-show: writeshow
-	@cat $(INFODIR)/show.txt
+show: $(MAKE_SHOW_TXT)
+	@cat $(MAKE_SHOW_TXT)
 	
 # target: show - Show platform info and compiling options
-writeshow: | $(INFODIR)
-	@echo "GPUSPH version:  $(GPUSPH_VERSION)"							 > $(INFODIR)/show.txt
-	@echo "Platform:        $(platform)"								>> $(INFODIR)/show.txt
-	@echo "Architecture:    $(arch)"									>> $(INFODIR)/show.txt
-	@echo "Current dir:     $(CURDIR)"									>> $(INFODIR)/show.txt
-	@echo "This Makefile:   $(MAKEFILE)"								>> $(INFODIR)/show.txt
-	@echo "Problem:         $(PROBLEM)"									>> $(INFODIR)/show.txt
-	@echo "Linearization:   $(LINEARIZATION)"							>> $(INFODIR)/show.txt
-#	@echo "   last:         $(LAST_PROBLEM)"							>> $(INFODIR)/show.txt
-	@echo "Snapshot file:   $(SNAPSHOT_FILE)"							>> $(INFODIR)/show.txt
-	@echo "Last problem:    $(LAST_BUILT_PROBLEM)"						>> $(INFODIR)/show.txt
-	@echo "Sources dir:     $(SRCDIR) $(SRCSUBS)"						>> $(INFODIR)/show.txt
-	@echo "Options dir:     $(OPTSDIR)"									>> $(INFODIR)/show.txt
-	@echo "Objects dir:     $(OBJDIR) $(OBJSUBS)"						>> $(INFODIR)/show.txt
-	@echo "Scripts dir:     $(SCRIPTSDIR)"								>> $(INFODIR)/show.txt
-	@echo "Docs dir:        $(DOCSDIR)"									>> $(INFODIR)/show.txt
-	@echo "Doxygen conf:    $(DOXYCONF)"								>> $(INFODIR)/show.txt
-	@echo "Verbose:         $(verbose)"									>> $(INFODIR)/show.txt
-	@echo "Debug:           $(DBG)"										>> $(INFODIR)/show.txt
-	@echo "CXX:             $(CXX)"										>> $(INFODIR)/show.txt
-	@echo "CXX version:     $(shell $(CXX) --version | head -1)"		>> $(INFODIR)/show.txt
-	@echo "MPICXX:          $(MPICXX)"									>> $(INFODIR)/show.txt
-	@echo "nvcc:            $(NVCC)"									>> $(INFODIR)/show.txt
-	@echo "nvcc version:    $(NVCC_VER)"								>> $(INFODIR)/show.txt
-	@echo "LINKER:          $(LINKER)"									>> $(INFODIR)/show.txt
-	@echo "Compute cap.:    $(COMPUTE)"									>> $(INFODIR)/show.txt
-	@echo "Fastmath:        $(FASTMATH)"								>> $(INFODIR)/show.txt
-	@echo "USE_MPI:         $(USE_MPI)"									>> $(INFODIR)/show.txt
-	@echo "USE_HDF5:        $(USE_HDF5)"								>> $(INFODIR)/show.txt
-	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $(INFODIR)/show.txt
-	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $(INFODIR)/show.txt
-	@echo "INCPATH:         $(INCPATH)"									>> $(INFODIR)/show.txt
-	@echo "LIBPATH:         $(LIBPATH)"									>> $(INFODIR)/show.txt
-	@echo "LIBS:            $(LIBS)"									>> $(INFODIR)/show.txt
-	@echo "LDFLAGS:         $(LDFLAGS)"									>> $(INFODIR)/show.txt
-	@echo "CPPFLAGS:        $(CPPFLAGS)"								>> $(INFODIR)/show.txt
-	@echo "CXXFLAGS:        $(CXXFLAGS)"								>> $(INFODIR)/show.txt
-	@echo "CUFLAGS:         $(CUFLAGS)"									>> $(INFODIR)/show.txt
-#	@echo "Suffixes:        $(SUFFIXES)"								>> $(INFODIR)/show.txt
+$(MAKE_SHOW_TXT): Makefile Makefile.conf Makefile.local FORCE | $(INFODIR)
+	$(call show_stage,CONF,make show)
+	@echo "GPUSPH version:  $(GPUSPH_VERSION)"							 > $(MAKE_SHOW_TXT)
+	@echo "Platform:        $(platform)"								>> $(MAKE_SHOW_TXT)
+	@echo "Architecture:    $(arch)"									>> $(MAKE_SHOW_TXT)
+	@echo "Current dir:     $(CURDIR)"									>> $(MAKE_SHOW_TXT)
+	@echo "This Makefile:   $(MAKEFILE)"								>> $(MAKE_SHOW_TXT)
+	@echo "Problem:         $(PROBLEM)"									>> $(MAKE_SHOW_TXT)
+	@echo "Linearization:   $(LINEARIZATION)"							>> $(MAKE_SHOW_TXT)
+#	@echo "   last:         $(LAST_PROBLEM)"							>> $(MAKE_SHOW_TXT)
+	@echo "Snapshot file:   $(SNAPSHOT_FILE)"							>> $(MAKE_SHOW_TXT)
+	@echo "Last problem:    $(LAST_BUILT_PROBLEM)"						>> $(MAKE_SHOW_TXT)
+	@echo "Sources dir:     $(SRCDIR) $(SRCSUBS)"						>> $(MAKE_SHOW_TXT)
+	@echo "Options dir:     $(OPTSDIR)"									>> $(MAKE_SHOW_TXT)
+	@echo "Objects dir:     $(OBJDIR) $(OBJSUBS)"						>> $(MAKE_SHOW_TXT)
+	@echo "Scripts dir:     $(SCRIPTSDIR)"								>> $(MAKE_SHOW_TXT)
+	@echo "Docs dir:        $(DOCSDIR)"									>> $(MAKE_SHOW_TXT)
+	@echo "Doxygen conf:    $(DOXYCONF)"								>> $(MAKE_SHOW_TXT)
+	@echo "Verbose:         $(verbose)"									>> $(MAKE_SHOW_TXT)
+	@echo "Debug:           $(DBG)"										>> $(MAKE_SHOW_TXT)
+	@echo "CXX:             $(CXX)"										>> $(MAKE_SHOW_TXT)
+	@echo "CXX version:     $(shell $(CXX) --version | head -1)"		>> $(MAKE_SHOW_TXT)
+	@echo "MPICXX:          $(MPICXX)"									>> $(MAKE_SHOW_TXT)
+	@echo "nvcc:            $(NVCC)"									>> $(MAKE_SHOW_TXT)
+	@echo "nvcc version:    $(NVCC_VER)"								>> $(MAKE_SHOW_TXT)
+	@echo "LINKER:          $(LINKER)"									>> $(MAKE_SHOW_TXT)
+	@echo "Compute cap.:    $(COMPUTE)"									>> $(MAKE_SHOW_TXT)
+	@echo "Fastmath:        $(FASTMATH)"								>> $(MAKE_SHOW_TXT)
+	@echo "USE_MPI:         $(USE_MPI)"									>> $(MAKE_SHOW_TXT)
+	@echo "USE_HDF5:        $(USE_HDF5)"								>> $(MAKE_SHOW_TXT)
+	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $(MAKE_SHOW_TXT)
+	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $(MAKE_SHOW_TXT)
+	@echo "INCPATH:         $(INCPATH)"									>> $(MAKE_SHOW_TXT)
+	@echo "LIBPATH:         $(LIBPATH)"									>> $(MAKE_SHOW_TXT)
+	@echo "LIBS:            $(LIBS)"									>> $(MAKE_SHOW_TXT)
+	@echo "LDFLAGS:         $(LDFLAGS)"									>> $(MAKE_SHOW_TXT)
+	@echo "CPPFLAGS:        $(CPPFLAGS)"								>> $(MAKE_SHOW_TXT)
+	@echo "CXXFLAGS:        $(CXXFLAGS)"								>> $(MAKE_SHOW_TXT)
+	@echo "CUFLAGS:         $(CUFLAGS)"									>> $(MAKE_SHOW_TXT)
+#	@echo "Suffixes:        $(SUFFIXES)"								>> $(MAKE_SHOW_TXT)
 
 # target: snapshot - Make a snapshot of current sourcecode in $(SNAPSHOT_FILE)
 # it seems tar option --totals doesn't work
@@ -1055,7 +1067,7 @@ deps: $(GPUDEPS) $(CPUDEPS)
 
 # We want all of the OPTFILES to be built before anything else, which we achieve by
 # making Makefile.conf depend on them.
-Makefile.conf: Makefile $(OPTFILES)
+Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(call show_stage,CONF,$@)
 	$(CMDECHO)# Create Makefile.conf with standard disclaimer
 	$(CMDECHO)echo '# This is an autogenerated configuration file. Please DO NOT edit it manually' > $@
