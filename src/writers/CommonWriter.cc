@@ -31,6 +31,10 @@
 #include "simflags.h"
 #include "vector_print.h"
 
+#include "gpusph_version.opt"
+#include "make_show.opt"
+#include "git_info.opt"
+
 using namespace std;
 
 CommonWriter::CommonWriter(const GlobalData *_gdata)
@@ -534,10 +538,18 @@ CommonWriter::write_summary(void)
 	out.close();
 
 	// Writing out make show result
-	string command = "make show >>" + m_problem->get_dirname() + "/make_show.txt";
+	out.open((m_problem->get_dirname() + "/make_show.txt").c_str());
+	out << MAKE_SHOW_OUTPUT << endl;
+	out.close();
+
+	out.open((m_problem->get_dirname() + "/git_branch.txt").c_str());
+	out << GPUSPH_VERSION << endl << GIT_INFO_OUTPUT << endl;
+	out.close();
+
+/* 	string command = "make show >>" + m_problem->get_dirname() + "/make_show.txt";
 	system(command.c_str());
 	command = "git describe --tags --dirty=+custom && git branch -vv >>" + m_problem->get_dirname() + "/git_branch.txt";
-	system(command.c_str());
+	system(command.c_str()); */
 }
 
 
