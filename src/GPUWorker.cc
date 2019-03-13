@@ -2161,7 +2161,9 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 		returned_dt = post_forces(cmd);
 	}
 
-	if (cmd.step.last)
+	// for multi-step integrators, use the minumum of the estimations across all timesteps
+	// otherwise use the currently computed one
+	if (cmd.step > 1)
 		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
 	else
 		gdata->dts[m_deviceIndex] = returned_dt;
@@ -2197,7 +2199,9 @@ void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 		returned_dt = post_forces(cmd);
 	}
 
-	if (cmd.step.last)
+	// for multi-step integrators, use the minumum of the estimations across all timesteps
+	// otherwise use the currently computed one
+	if (cmd.step > 1)
 		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
 	else
 		gdata->dts[m_deviceIndex] = returned_dt;
