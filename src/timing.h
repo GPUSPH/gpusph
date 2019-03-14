@@ -100,10 +100,12 @@ typedef struct TimingInfo {
 
 class IPPSCounter
 {
-	using time_point = std::chrono::system_clock::time_point;
-	template<typename T> using duration = std::chrono::duration<T>;
-	static constexpr auto now = std::chrono::system_clock::now;
-	//time_point (* static const now) () = std::chrono::system_clock::now;
+	// we track runtime using the default monotonic clock
+	using clock = std::chrono::steady_clock;
+	using time_point = clock::time_point;
+	// we track runtime in seconds (floating-point)
+	using duration = std::chrono::duration<double>;
+	static constexpr auto now = clock::now;
 
 	private:
 		time_point m_startTime;
@@ -137,7 +139,7 @@ class IPPSCounter
 		// returns the elapsed seconds since [re]start() was called
 		double getElapsedSeconds() {
 			if (!m_started) return 0;
-			duration<double> elapsed_seconds = now()-m_startTime;
+			duration elapsed_seconds = now() - m_startTime;
 			double timeInterval = elapsed_seconds.count();
 			if (timeInterval <= 0.0)
 				return 0.0;
@@ -151,7 +153,7 @@ class IPPSCounter
 			if (timeInterval <= 0.0)
 				return 0.0;
 			else
-				return (double(m_iterPerParts) / timeInterval);
+				return (m_iterPerParts / timeInterval);
 		}
 
 		// almost all devices get at least 1MIPPS, so:
