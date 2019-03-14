@@ -816,7 +816,7 @@ all: GPUSPH
 #   this is a FORCEd target, so symlinking always happens, even when
 #   the target is fresh
 define problem_deps
-$(OPTSDIR)/$(1).gen.cc: $(SRCDIR)/problem_gen.tpl | $(OPTSDIR)
+$(call problem_gen,$1): $(SRCDIR)/problem_gen.tpl | $(OPTSDIR)
 	$(call show_stage,GEN,$$(@F))
 	$(CMDECHO)sed -e 's/PROBLEM/$1/g' $$< > $$@
 $(call exe,$1): $(call problem_obj,$1) $(OBJS) | $(DISTDIR)
@@ -969,7 +969,7 @@ cookiesclean:
 
 # target: genclean - Clean all problem generators
 genclean:
-	$(RM) $(OPTSDIR)/*.gen.cc
+	$(RM) $(OBJDIR)/*.gen.o $(OPTSDIR)/*.gen.cc
 
 # target: confclean - Clean all configuration options: like cookiesclean, but also purges Makefile.conf
 confclean: cookiesclean
