@@ -241,6 +241,7 @@ AUTOGEN_SRC=$(SRCDIR)/parse-debugflags.h $(SRCDIR)/describe-debugflags.h
 # these are not really options, but they follow the same mechanism
 GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
 MAKE_SHOW_TXT=$(INFODIR)/show.txt
+MAKE_SHOW_TMP=$(INFODIR)/show.tmp
 MAKE_SHOW_OPTFILE=$(OPTSDIR)/make_show.opt
 GIT_INFO_OPTFILE=$(OPTSDIR)/git_info.opt
 
@@ -991,51 +992,56 @@ showobjs:
 	@echo " --- "
 	@echo "> OBJS: $(OBJS)"
 
+# target: show - Show platform info and compiling options
 show: $(MAKE_SHOW_TXT)
 	@cat $(MAKE_SHOW_TXT)
-	
-# target: show - Show platform info and compiling options
-$(MAKE_SHOW_TXT): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST)) FORCE | $(INFODIR)
+
+# To avoid infinite recursions in dependencies, we create the show output
+# as a separate temporary file, and overwrite the current one if different
+$(MAKE_SHOW_TXT): $(MAKE_SHOW_TMP)
+	@cmp -s $< $@ 2> /dev/null || cp $< $@ ; $(RM) $<
+
+$(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST)) FORCE | $(INFODIR)
 	$(call show_stage,CONF,make show)
-	@echo "GPUSPH version:  $(GPUSPH_VERSION)"							 > $(MAKE_SHOW_TXT)
-	@echo "Platform:        $(platform)"								>> $(MAKE_SHOW_TXT)
-	@echo "Architecture:    $(arch)"									>> $(MAKE_SHOW_TXT)
-	@echo "Current dir:     $(CURDIR)"									>> $(MAKE_SHOW_TXT)
-	@echo "This Makefile:   $(MAKEFILE)"								>> $(MAKE_SHOW_TXT)
-	@echo "Used Makefiles:  $(MAKEFILE_LIST)"							>> $(MAKE_SHOW_TXT)
-	@echo "Problem:         $(PROBLEM)"									>> $(MAKE_SHOW_TXT)
-	@echo "Linearization:   $(LINEARIZATION)"							>> $(MAKE_SHOW_TXT)
-#	@echo "   last:         $(LAST_PROBLEM)"							>> $(MAKE_SHOW_TXT)
-	@echo "Snapshot file:   $(SNAPSHOT_FILE)"							>> $(MAKE_SHOW_TXT)
-	@echo "Last problem:    $(LAST_BUILT_PROBLEM)"						>> $(MAKE_SHOW_TXT)
-	@echo "Sources dir:     $(SRCDIR) $(SRCSUBS)"						>> $(MAKE_SHOW_TXT)
-	@echo "Options dir:     $(OPTSDIR)"									>> $(MAKE_SHOW_TXT)
-	@echo "Objects dir:     $(OBJDIR) $(OBJSUBS)"						>> $(MAKE_SHOW_TXT)
-	@echo "Scripts dir:     $(SCRIPTSDIR)"								>> $(MAKE_SHOW_TXT)
-	@echo "Docs dir:        $(DOCSDIR)"									>> $(MAKE_SHOW_TXT)
-	@echo "Doxygen conf:    $(DOXYCONF)"								>> $(MAKE_SHOW_TXT)
-	@echo "Verbose:         $(verbose)"									>> $(MAKE_SHOW_TXT)
-	@echo "Debug:           $(DBG)"										>> $(MAKE_SHOW_TXT)
-	@echo "CXX:             $(CXX)"										>> $(MAKE_SHOW_TXT)
-	@echo "CXX version:     $(shell $(CXX) --version | head -1)"		>> $(MAKE_SHOW_TXT)
-	@echo "MPICXX:          $(MPICXX)"									>> $(MAKE_SHOW_TXT)
-	@echo "nvcc:            $(NVCC)"									>> $(MAKE_SHOW_TXT)
-	@echo "nvcc version:    $(NVCC_VER)"								>> $(MAKE_SHOW_TXT)
-	@echo "LINKER:          $(LINKER)"									>> $(MAKE_SHOW_TXT)
-	@echo "Compute cap.:    $(COMPUTE)"									>> $(MAKE_SHOW_TXT)
-	@echo "Fastmath:        $(FASTMATH)"								>> $(MAKE_SHOW_TXT)
-	@echo "USE_MPI:         $(USE_MPI)"									>> $(MAKE_SHOW_TXT)
-	@echo "USE_HDF5:        $(USE_HDF5)"								>> $(MAKE_SHOW_TXT)
-	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $(MAKE_SHOW_TXT)
-	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $(MAKE_SHOW_TXT)
-	@echo "INCPATH:         $(INCPATH)"									>> $(MAKE_SHOW_TXT)
-	@echo "LIBPATH:         $(LIBPATH)"									>> $(MAKE_SHOW_TXT)
-	@echo "LIBS:            $(LIBS)"									>> $(MAKE_SHOW_TXT)
-	@echo "LDFLAGS:         $(LDFLAGS)"									>> $(MAKE_SHOW_TXT)
-	@echo "CPPFLAGS:        $(CPPFLAGS)"								>> $(MAKE_SHOW_TXT)
-	@echo "CXXFLAGS:        $(CXXFLAGS)"								>> $(MAKE_SHOW_TXT)
-	@echo "CUFLAGS:         $(CUFLAGS)"									>> $(MAKE_SHOW_TXT)
-#	@echo "Suffixes:        $(SUFFIXES)"								>> $(MAKE_SHOW_TXT)
+	@echo "GPUSPH version:  $(GPUSPH_VERSION)"							 > $@
+	@echo "Platform:        $(platform)"								>> $@
+	@echo "Architecture:    $(arch)"									>> $@
+	@echo "Current dir:     $(CURDIR)"									>> $@
+	@echo "This Makefile:   $(MAKEFILE)"								>> $@
+	@echo "Used Makefiles:  $(MAKEFILE_LIST)"							>> $@
+	@echo "Problem:         $(PROBLEM)"									>> $@
+	@echo "Linearization:   $(LINEARIZATION)"							>> $@
+#	@echo "   last:         $(LAST_PROBLEM)"							>> $@
+	@echo "Snapshot file:   $(SNAPSHOT_FILE)"							>> $@
+	@echo "Last problem:    $(LAST_BUILT_PROBLEM)"						>> $@
+	@echo "Sources dir:     $(SRCDIR) $(SRCSUBS)"						>> $@
+	@echo "Options dir:     $(OPTSDIR)"									>> $@
+	@echo "Objects dir:     $(OBJDIR) $(OBJSUBS)"						>> $@
+	@echo "Scripts dir:     $(SCRIPTSDIR)"								>> $@
+	@echo "Docs dir:        $(DOCSDIR)"									>> $@
+	@echo "Doxygen conf:    $(DOXYCONF)"								>> $@
+	@echo "Verbose:         $(verbose)"									>> $@
+	@echo "Debug:           $(DBG)"										>> $@
+	@echo "CXX:             $(CXX)"										>> $@
+	@echo "CXX version:     $(shell $(CXX) --version | head -1)"		>> $@
+	@echo "MPICXX:          $(MPICXX)"									>> $@
+	@echo "nvcc:            $(NVCC)"									>> $@
+	@echo "nvcc version:    $(NVCC_VER)"								>> $@
+	@echo "LINKER:          $(LINKER)"									>> $@
+	@echo "Compute cap.:    $(COMPUTE)"									>> $@
+	@echo "Fastmath:        $(FASTMATH)"								>> $@
+	@echo "USE_MPI:         $(USE_MPI)"									>> $@
+	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
+	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $@
+	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $@
+	@echo "INCPATH:         $(INCPATH)"									>> $@
+	@echo "LIBPATH:         $(LIBPATH)"									>> $@
+	@echo "LIBS:            $(LIBS)"									>> $@
+	@echo "LDFLAGS:         $(LDFLAGS)"									>> $@
+	@echo "CPPFLAGS:        $(CPPFLAGS)"								>> $@
+	@echo "CXXFLAGS:        $(CXXFLAGS)"								>> $@
+	@echo "CUFLAGS:         $(CUFLAGS)"									>> $@
+#	@echo "Suffixes:        $(SUFFIXES)"								>> $@
 
 # target: snapshot - Make a snapshot of current sourcecode in $(SNAPSHOT_FILE)
 # it seems tar option --totals doesn't work
