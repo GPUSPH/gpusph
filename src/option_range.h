@@ -90,6 +90,13 @@ is_in_range(Option const& value)
 	return true;
 }
 
+//! Workaround for buggy MSVC
+template<typename Option, Option arg>
+struct is_in_range_t
+{
+	static constexpr bool value = is_in_range(arg);
+};
+
 template<typename Option>
 void throw_if_out_of_range(Option const& value)
 {

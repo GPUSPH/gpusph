@@ -562,7 +562,7 @@ public:
 
 	/// Select a run-time override based on an option value
 	template<typename Option, Option check = option_range<Option>::min>
-	enable_if_t<option_range<Option>::defined && is_in_range(check), SimFramework *>
+	enable_if_t<option_range<Option>::defined && is_in_range_t<Option, check>::value, SimFramework *>
 	select_options(Option selector)
 	{
 		if (selector == check)
@@ -571,7 +571,7 @@ public:
 	}
 
 	template<typename Option, Option check>
-	enable_if_t<not is_in_range(check), SimFramework *>
+	enable_if_t<not is_in_range_t<Option, check>::value, SimFramework *>
 	select_options(Option selector)
 	{
 		throw runtime_error("invalid selector value");
@@ -588,7 +588,7 @@ public:
 
 	/// Chained selectors (for multiple overrides)
 	template<typename Option, Option check = option_range<Option>::min, typename ...Rest>
-	enable_if_t<option_range<Option>::defined && is_in_range(check), SimFramework *>
+	enable_if_t<option_range<Option>::defined && is_in_range_t<Option, check>::value, SimFramework *>
 	select_options(Option selector, Rest...rest)
 	{
 		if (selector == check)
@@ -597,7 +597,7 @@ public:
 	}
 
 	template<typename Option, Option check, typename ...Rest>
-	enable_if_t<not is_in_range(check), SimFramework *>
+	enable_if_t<not is_in_range_t<Option, check>::value, SimFramework *>
 	select_options(Option selector, Rest...rest)
 	{
 		throw runtime_error("invalid selector value");
