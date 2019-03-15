@@ -966,6 +966,10 @@ snap_date := $(shell git log -1 --format='%cd' --date=iso 2> /dev/null | cut -f1
 # snapshot tarball filename
 SNAPSHOT_FILE = ./GPUSPH-$(GPUSPH_VERSION)-$(snap_date).tgz
 
+# by default, use plain output in WSL because the MS compiler prints a lot of stuff
+# that cannot be hidden trivially
+plain ?= $(wsl)
+
 # option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
 ifeq ($(plain), 1)
 	show_stage=@printf "[$(1)] $(2)\n"
