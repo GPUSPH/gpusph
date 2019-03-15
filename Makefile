@@ -78,6 +78,9 @@ ifeq ($(target_arch), 32)
 	arch=i686
 endif
 
+# fix in case current directory has spaces
+CURDIR:=$(subst $(space),\ ,$(CURDIR))
+
 # name of the top-level Makefile (this file)
 MFILE_NAME = $(firstword $(MAKEFILE_LIST))
 MAKEFILE = $(CURDIR)/$(MFILE_NAME)
