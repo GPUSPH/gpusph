@@ -96,6 +96,7 @@ endif
 # - Executables have .exe extension on Windows
 # - Object file is .obj on MSVC and .o on gcc
 ifeq ($(wsl), 1)
+	CURDIR_WIN=$(shell cmd.exe /c 'cd' | tr '[:upper:]\\' '[:lower:]/')/
 	EXE_SFX=.exe
 	OBJ_EXT=.obj
 else
@@ -191,6 +192,30 @@ CUFILES = $(foreach p,$(PROBLEM_LIST),$(call problem_src,$p))
 CCDEPS = $(patsubst $(SRCDIR)/%.cc,$(DEPDIR)/%.d,$(CCFILES) $(MPICXXFILES))
 CUDEPS = $(patsubst $(SRCDIR)/%.cu,$(DEPDIR)/%.d,$(CUFILES))
 GENDEPS = $(foreach p,$(PROBLEM_LIST),$(DEPDIR)/$(p).gen.d)
+
+# Generating .d files depends on the compiler
+# the gendep macro is called with the object as first argument,
+# the source as econd argument and the .d file as third argument
+ifeq ($(wsl),1)
+define gendep_CXX
+	echo "$1: $2 \\" > $3 && \
+	$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) /w $2 /P /FiNUL  /showIncludes 2>&1 | tr -d '\r' | \
+		grep '^Not' | cut -f4- -d' ' | \
+		sed -e 's/^ \+//' \
+			-e 's!\\!/!g' \
+			-e 's!^$(CURDIR_WIN)!!' \
+			-e '/^[A-Za-z]:/d' \
+			-e 's/.*/\t\0 \\/' >> $3 && \
+	$(SED_COMMAND) '$$s/ \\//' $3
+endef
+define gendep_CU
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -M $2 -MT $1 | sed -e 's!^$(CURDIR_WIN)!!' -e '/^\s\+[A-Za-z]:/d' > $3 && \
+	$(SED_COMMAND) '$$s/ \\//' $3
+endef
+else
+	gendep_CXX = $(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $1 $2 > $3
+	gendel_CU = $(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $2 --compiler-options -MG,-MM,-MT,$1 > $3
+endif
 
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
@@ -1083,24 +1108,22 @@ $(SRCDIR)/describe-debugflags.h: $(SCRIPTSDIR)/describe-debugflags.awk $(SRCDIR)
 # The -MT flag is used to define the object file.
 $(CCOBJS): $(OBJDIR)/%$(OBJ_EXT): $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
-	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)$(call gendep_CXX,$@,$<,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(OBJ_OUT)$@ $<
 $(GENOBJS): $(OBJDIR)/%.gen$(OBJ_EXT): $(OPTSDIR)/%.gen.cc $(DEPDIR)/%.gen.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
-	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)$(call gendep_CXX,$@,$<,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(OBJ_OUT)$@ $<
 $(MPICXXOBJS): $(OBJDIR)/%$(OBJ_EXT): $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
-	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
-		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) $(call gendep_CXX,$@,$<,$(word 2,$^))
 	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(OBJ_OUT)$@ $<
 
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%$(OBJ_EXT): $(SRCDIR)/%.cu $(DEPDIR)/%.d $(DEVCODE_OPTFILES) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< \
-		 --compiler-options -MG,-MM,-MT,$@ > $(word 2,$^)
+	$(CMDECHO)$(call gendep_CU,$@,$<,$(word 2,$^))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
 # deps: empty rule, but require the directories and optfiles to be present
