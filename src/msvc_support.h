@@ -17,6 +17,9 @@
 // not is not defined and will be replaced by !
 #define not !
 
+// strncasecmp is not defined, but we have _strnicmp
+#define strncasecmp _strnicmp
+
 #endif // _MSVC_SUPPORT
 
 #endif
