@@ -215,6 +215,10 @@ ifeq ($(wsl),1)
 	CXX_VERSION_FLAG= 2>&1 > /dev/null | grep C/C++
 endif
 
+ifeq ($(shell which $(CXX)),$(empty))
+$(error cannot find CXX compiler $(CXX))
+endif
+
 # override: CUDA_INSTALL_PATH - where CUDA is installed
 # override:                     defaults to nvcc path, if found in PATH
 #                               falls back to /usr/local/cuda otherwise
