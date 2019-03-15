@@ -38,7 +38,7 @@ enum IntegratorType
 	PREDITOR_CORRECTOR
 };
 
-class GlobalData;
+struct GlobalData;
 
 class Integrator;
 

@@ -159,7 +159,7 @@ BufferList extractGeneralBufferList(
 	CommandBufferArgument const& arg,
 	BufferList const& model);
 
-class GlobalData;
+struct GlobalData;
 
 //! The type of the methods we use to determine the time-step to use for a command
 /** This is just a function that returns a float
