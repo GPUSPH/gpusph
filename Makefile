@@ -779,8 +779,8 @@ ifeq ($(plain), 1)
 	show_stage=@printf "[$(1)] $(2)\n"
 	show_stage_nl=$(show_stage)
 else
-	show_stage=@printf "\r                                 \r[$(1)] $(2)"
-	show_stage_nl=@printf "\r                                 \r[$(1)] $(2)\n"
+	show_stage   =@printf "\r                                                                  \r[$(1)] $(2)"
+	show_stage_nl=@printf "\r                                                                  \r[$(1)] $(2)\n"
 endif
 
 # when listing problems, we don't want debug info to show anywhere
