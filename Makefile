@@ -639,11 +639,13 @@ INCPATH += -I$(SRCDIR) \
 # is /usr/include, since otherwise GCC 6 (and later) will fail to find standard
 # includes such as stdint.h
 ifeq ($(wsl),1)
-	CUDA_INCLUDE_PATH=$(CUDA_INSTALL_PATH)/include
+$(info Detecting CUDA_INCLUDE_PATH for $(CXX)...)
+	CUDA_INCLUDE_PATH:=$(shell echo '\#include <cuda_runtime.h>' | $(NVCC) -x c++ -M - | grep cuda_runtime.h | sed -e 's/cuda_runtime.h.*//' -e 's/^ \+//' 2> /dev/null)
+	CC_INCPATH += -I$(CUDA_INCLUDE_PATH)
 else
 	CUDA_INCLUDE_PATH = $(abspath $(CUDA_INSTALL_PATH)/include)
 	ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
-		CC_INCPATH += -I $(CUDA_INCLUDE_PATH)
+		CC_INCPATH += -I$(CUDA_INCLUDE_PATH)
 	endif
 endif
 
