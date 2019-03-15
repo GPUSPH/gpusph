@@ -626,7 +626,7 @@ ProblemCore::copy_planes(PlaneList& planes)
 
 //! No yield strength contribution
 template<RheologyType rheologytype>
-enable_if_t< yield_strength_type<rheologytype>() == NO_YS, float >
+enable_if_t< yield_strength_type<rheologytype>::value == NO_YS, float >
 getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
 {
 	return 0.0f;
@@ -637,7 +637,7 @@ getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
  * (for null shear-rate), so we pick the limiting value
  */
 template<RheologyType rheologytype>
-enable_if_t< yield_strength_type<rheologytype>() == STD_YS, float >
+enable_if_t< yield_strength_type<rheologytype>::value == STD_YS, float >
 getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
 {
 	float maxViscYieldTerm = 0.0f;
@@ -653,7 +653,7 @@ getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
 /*! In this case, the yield strength contribution to the viscosity is computed as m*tau/rho
  */
 template<RheologyType rheologytype>
-enable_if_t< yield_strength_type<rheologytype>() == REG_YS, float >
+enable_if_t< yield_strength_type<rheologytype>::value == REG_YS, float >
 getInitViscYieldTerm(const SimParams * simparams, const PhysParams * physparams)
 {
 	float maxViscYieldTerm = 0.0f;

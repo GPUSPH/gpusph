@@ -133,15 +133,15 @@ enum YsContrib
 
 //! Statically determine the yield strength contribution for the given rheological model
 template<RheologyType rheologytype>
-__host__ __device__ __forceinline__
-constexpr YsContrib
-yield_strength_type()
+struct
+yield_strength_type
 {
-	return
+	static constexpr YsContrib value =
 		REGULARIZED_RHEOLOGY(rheologytype) ? REG_YS : // yield with regularization
 		YIELDING_RHEOLOGY(rheologytype) ? STD_YS : // yield without regularization
 			NO_YS; // everything else: should be just Newtonian and power-law
-}
+};
+
 
 //! @}
 
