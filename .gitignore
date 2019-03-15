@@ -12,6 +12,7 @@ docs/user-guide/src/*out
 docs/user-guide/src/*log
 docs/user-guide/src/*toc
 build
+dep
 info
 dist
 nbproject

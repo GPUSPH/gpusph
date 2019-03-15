@@ -89,6 +89,7 @@ endif
 
 # directories: binary, objects, sources, expanded sources
 DISTDIR = dist/$(platform_lcase)/$(arch)
+DEPDIR = dep
 OBJDIR = build
 SRCDIR = src
 EXPDIR = $(SRCDIR)/expanded
@@ -112,10 +113,6 @@ LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc
 
 # --------------- File lists
 
-# makedepend will generate dependencies in these file
-GPUDEPS = $(MAKEFILE).gpu
-CPUDEPS = $(MAKEFILE).cpu
-
 # all files under $(SRCDIR), needed by tags files
 ALLSRCFILES = $(shell find $(SRCDIR) -type f)
 
@@ -133,6 +130,7 @@ SRCSUBS=$(sort $(filter-out $(PROBLEM_DIRS),\
 	$(filter %/,$(wildcard $(SRCDIR)/*/))))
 SRCSUBS:=$(SRCSUBS:/=)
 OBJSUBS=$(sort $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
+DEPSUBS=$(sort $(patsubst $(SRCDIR)/%,$(DEPDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
 
 # list of problems
 PROBLEM_LIST = $(foreach adir, $(PROBLEM_DIRS), \
@@ -147,10 +145,11 @@ PROBLEM_EXES = $(foreach p, $(PROBLEM_LIST),$(call dbgexe,$p) $(CURDIR)/$(call d
 problem_src = $(foreach adir, $(PROBLEM_DIRS), $(filter \
 		$(adir)/$(1).cu, \
 		$(wildcard $(adir)/*)))
+problem_obj = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(call problem_src,$1))
 problem_gen = $(OPTSDIR)/$(1).gen.cc
+problem_gen_obj = $(OBJDIR)/$(1).gen.o
 
-problem_obj = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(call problem_src,$1)) \
-	      $(patsubst $(OPTSDIR)/%.cc,$(OBJDIR)/%.o,$(call problem_gen,$1))
+problem_objs = $(call problem_obj,$1) $(call problem_gen_obj,$1)
 
 # list of .cc files, exclusing MPI and problem sources
 CCFILES = $(filter-out $(MPICXXFILES),\
@@ -161,6 +160,10 @@ CCFILES = $(filter-out $(MPICXXFILES),\
 # CUDA files are included via the cudasimframework
 CUFILES = $(foreach p,$(PROBLEM_LIST),$(call problem_src,$p))
 
+# dependency files via filename replacement
+CCDEPS = $(patsubst $(SRCDIR)/%.cc,$(DEPDIR)/%.d,$(CCFILES) $(MPICXXFILES))
+CUDEPS = $(patsubst $(SRCDIR)/%.cu,$(DEPDIR)/%.d,$(CUFILES))
+
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
 
@@ -168,6 +171,7 @@ HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
 MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
 CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES))
 CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(CUFILES))
+GENOBJS = $(foreach p,$(PROBLEM_LIST),$(call problem_gen_obj,$p))
 
 OBJS = $(CCOBJS) $(MPICXXOBJS)
 
@@ -798,7 +802,7 @@ endif
 export CMDECHO
 
 .PHONY: all run showobjs show snapshot expand deps docs test help
-.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean genclean
+.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean genclean depsclean
 .PHONY: dev-guide user-guide
 .PHONY: FORCE
 
@@ -820,7 +824,7 @@ define problem_deps
 $(call problem_gen,$1): $(SRCDIR)/problem_gen.tpl | $(OPTSDIR)
 	$(call show_stage,GEN,$$(@F))
 	$(CMDECHO)sed -e 's/PROBLEM/$1/g' $$< > $$@
-$(call exe,$1): $(call problem_obj,$1) $(OBJS) | $(DISTDIR)
+$(call exe,$1): $(call problem_objs,$1) $(OBJS) | $(DISTDIR)
 	$(call show_stage_nl,LINK,$(call exe,$$@))
 	$(CMDECHO)$(LINKER) -o $$@ $$^ $(LDFLAGS) $(LDLIBS)
 $1: $(call exe,$1)
@@ -899,25 +903,43 @@ $(SRCDIR)/parse-debugflags.h: $(SCRIPTSDIR)/parse-debugflags.awk $(SRCDIR)/debug
 $(SRCDIR)/describe-debugflags.h: $(SCRIPTSDIR)/describe-debugflags.awk $(SRCDIR)/debugflags.def
 	$(CMDECHO)awk -f $^ > $@
 
-# compile CPU objects
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
+# compile CPU objects and generate dependencies
+# we use here a trick discussed at
+# http://make.mad-scientist.net/papers/advanced-auto-dependency-generation/#depdelete
+# The idea is that to avoid restarting make when the .d files change,
+# and to avoid issues with deleted dependency files, the .d files themselves
+# have an empty rule, and they are generated when the object files are generated.
+# However, we do not use the "generate dependencies while compiling” feature of GCC
+# The -MM flag is used to not include system includes.
+# The -MG flag is used to add missing includes (useful to depend on the .opt files).
+# The -MT flag is used to define the object file.
+$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
-$(OBJDIR)/%.gen.o: $(OPTSDIR)/%.gen.cc | $(OBJSUBS)
+$(GENOBJS): $(OBJDIR)/%.gen.o: $(OPTSDIR)/%.gen.cc $(DEPDIR)/%.gen.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
-
-$(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
+$(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
-	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) $(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
+		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
+		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< \
+		 --compiler-options -MG,-MM,-MT,$@ > $(word 2,$^)
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 $(OBJDIR)/cuda/%.o: $(SRCDIR)/cuda/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
-	$(call show_stage,CU,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
+
+# deps: empty rule, but require the directories and optfiles to be present
+$(CCDEPS): | $(DEPSUBS) $(OPTFILES) ;
+$(DEPDIR)/%.gen.d: | $(DEPSUBS) $(OPTFILES) ;
+$(CUDEPS): | $(DEPSUBS) $(OPTFILES) ;
 
 # compile program to list compute capabilities of installed devices.
 # Filter out all architecture specification flags (-arch=sm_*), since they
@@ -946,17 +968,17 @@ $(INFODIR):
 
 # target: clean - Clean everything but last compile choices
 # clean: cpuobjs, gpuobjs, deps makefiles, targets, target symlinks
-clean: cpuclean gpuclean genclean
+clean: genclean depsclean
 	$(CMDECHO)$(RM) -f $(PROBLEM_EXES) GPUSPH
 	$(CMDECHO)find $(CURDIR) -maxdepth 1 -lname $(DISTDIR)/\* -delete
 
 # target: cpuclean - Clean CPU stuff
 cpuclean:
-	$(RM) $(CCOBJS) $(MPICXXOBJS) $(CPUDEPS)
+	$(RM) $(CCOBJS) $(MPICXXOBJS) $(CCDEPS)
 
 # target: gpuclean - Clean GPU stuff
 gpuclean: computeclean
-	$(RM) $(CUOBJS) $(GPUDEPS)
+	$(RM) $(CUOBJS) $(CUDEPS)
 
 # target: computeclean - Clean compute capability selection stuff
 computeclean:
@@ -975,6 +997,10 @@ genclean:
 # target: confclean - Clean all configuration options: like cookiesclean, but also purges Makefile.conf
 confclean: cookiesclean
 	$(RM) -f Makefile.conf
+
+# target: depsclean - Clean all dependencies
+depsclean:
+	$(RM) -rf $(DEPDIR)
 
 # target: showobjs - List detected sources and target objects
 showobjs:
@@ -1069,8 +1095,10 @@ expand:
 	echo "euler* and forces* expanded in $(EXPDIR)."
 
 # target: deps - Update dependencies in $(MAKEFILE)
-deps: $(GPUDEPS) $(CPUDEPS)
-	@true
+deps: $(CCDEPS) $(CUDEPS) ;
+
+$(DEPDIR) $(DEPSUBS):
+	$(CMDECHO)mkdir -p $@
 
 # We want all of the OPTFILES to be built before anything else, which we achieve by
 # making Makefile.conf depend on them.
@@ -1097,50 +1125,6 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)grep "\#define USE_CHRONO" $(CHRONO_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of LINEARIZATION from OPTFILES
 	$(CMDECHO)grep "\#define LINEARIZATION" $(LINEARIZATION_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' | tr -d '"'>> $@
-
-# Dependecies are generated by the C++ compiler, since nvcc does not understand the
-# more sophisticated -MM and -MT dependency generation options.
-# The -MM flag is used to not include system includes.
-# The -MG flag is used to add missing includes (useful to depend on the .opt files).
-# The -MT flag is used to define the object file.
-#
-# We need to process each source file independently because of the way -MT works.
-#
-# When generating the dependencies for the .cu files, we must specify that they are
-# to be interpeted as C++ files and not some other funky format. We also need
-# to define __CUDA_INTERNAL_COMPILATION__ to mute an error during traversal of
-# some CUDA system includes
-#
-# Both GPUDEPS and CPUS also depend from Makefile.conf, to ensure they are rebuilt when
-# e.g. the problem changes. This avoids a situation like the following:
-# * developer builds with problem A
-# * developer builds with problem B
-# * developer changes e.g. a kernel file
-# * developer builds with problem B => it gets compiled new
-# * developer builds with problem A => A doesn't get recompiled because the deps
-#   file only have the deps for B, not A, and the .o file for A is there already
-# This is particularly important to ensure that `make compile-problems` works correctly.
-# Of course, Makefile.conf has to be stripped from the list of dependencies before passing them
-# to the loop that builds the deps.
-$(GPUDEPS): $(CUFILES) Makefile.conf | $(CHRONO_SELECT_OPTFILE)
-	$(call show_stage,DEPS,GPU)
-	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
-	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
-		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
-		objfile="$${objfile%.*}.o" ; \
-		$(NVCC) $(CC_INCPATH) $(CPPFLAGS) $(CUFLAGS) -E \
-		$$srcfile --compiler-options -MG,-MM,-MT,$$objfile >> $@ ; \
-		done
-
-$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(AUTOGEN_SRC) $(CHRONO_SELECT_OPTFILE)
-	$(call show_stage,DEPS,CPU)
-	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
-	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
-		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
-		objfile="$${objfile%.*}.o" ; \
-		OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) $(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) \
-		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
-		done
 
 # TODO docs should also build the user-guide, but since we don't ship images
 # this can't be normally done, so let's not include this for the time being.
@@ -1225,7 +1209,7 @@ FORCE:
 # This is necessary because during the first processing of the makefile, make complains
 # before creating them.
 ifneq ($(cleaning),1)
-sinclude $(GPUDEPS)
-sinclude $(CPUDEPS)
+sinclude $(CCDEPS)
+sinclude $(CUDEPS)
 endif
 
