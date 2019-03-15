@@ -825,7 +825,7 @@ $(call problem_gen,$1): $(SRCDIR)/problem_gen.tpl | $(OPTSDIR)
 	$(call show_stage,GEN,$$(@F))
 	$(CMDECHO)sed -e 's/PROBLEM/$1/g' $$< > $$@
 $(call exe,$1): $(call problem_objs,$1) $(OBJS) | $(DISTDIR)
-	$(call show_stage_nl,LINK,$(call exe,$$@))
+	$(call show_stage_nl,LINK,$$@)
 	$(CMDECHO)$(LINKER) -o $$@ $$^ $(LDFLAGS) $(LDLIBS)
 $1: $(call exe,$1)
 	@echo
