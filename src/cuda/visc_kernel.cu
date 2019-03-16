@@ -267,30 +267,6 @@ horner_one_minus_exp_minus_over<1>(float x)
 	return fmaf(x, -0.5f, 1.0f);
 }
 
-//! Forms of yield strength contribution
-/** We have three forms for the yield strengt contribution:
- * - no contribution (e.g. from power law)
- * - standard contribution (y_s/\dot\gamma), which can become infinite
- * - regularized contribution (Papanastasiou etc)
- */
-enum YsContrib
-{
-	NO_YS, ///< no yield strength
-	STD_YS, ///< standard form
-	REG_YS ///< regularized
-};
-
-//! Statically determine the yield strength contribution for the given rheological model
-template<RheologyType rheologytype>
-__device__ __forceinline__
-constexpr YsContrib
-yield_strength_type()
-{
-	return
-		REGULARIZED_RHEOLOGY(rheologytype) ? REG_YS : // yield with regularization
-		YIELDING_RHEOLOGY(rheologytype) ? STD_YS : // yield without regularization
-			NO_YS; // everything else: should be just Newtonian and power-law
-}
 template<typename KP>
 __device__ __forceinline__
 enable_if_t< yield_strength_type<KP::rheologytype>() == NO_YS, float >

@@ -595,28 +595,6 @@ Problem::copy_planes(PlaneList& planes)
 	return;
 }
 
-/* Auxiliary functions used to compute the maximum viscosity for any given
- * rheological models, used by check_dt() to determine the initial proposed dt.
- */
-
-enum YsContrib
-{
-	NO_YS, ///< no yield strength
-	STD_YS, ///< standard form
-	REG_YS ///< regularized
-};
-
-//! Statically determine the yield strength contribution for the given rheological model
-template<RheologyType rheologytype>
-constexpr YsContrib
-yield_strength_type()
-{
-	return
-		REGULARIZED_RHEOLOGY(rheologytype) ? REG_YS : // yield with regularization
-		YIELDING_RHEOLOGY(rheologytype) ? STD_YS : // yield without regularization
-			NO_YS; // everything else: should be just Newtonian and power-law
-}
-
 //! No yield strength contribution
 template<RheologyType rheologytype>
 enable_if_t< yield_strength_type<rheologytype>() == NO_YS, float >

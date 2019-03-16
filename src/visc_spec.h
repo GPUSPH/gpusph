@@ -56,6 +56,32 @@ enum RheologyType {
 	ZHU, ///< Regularized De Kee and Turcotte
 };
 
+//! Name of the rheology type
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* RheologyName[ZHU+1]
+#ifdef GPUSPH_MAIN
+= {
+	"Inviscid",
+	"Newtonian",
+	"Bingham",
+	"Papanastasiou",
+	"Power-law",
+	"Herschel–Bulkley",
+	"Alexandrou",
+	"De Kee & Turcotte",
+	"Zhu"
+}
+#endif
+;
+
+DEFINE_OPTION_RANGE(RheologyType, RheologyName, INVISCID, ZHU);
+
+/** Macros and function to programmatically determine rheology traits
+ * @{
+ */
+
 //! Check if an effective viscosity needs to be computed
 #define NEEDS_EFFECTIVE_VISC(rheology) ((rheology) > NEWTONIAN)
 
@@ -80,27 +106,32 @@ enum RheologyType {
  */
 #define POWERLAW_RHEOLOGY(rheology) (NONLINEAR_RHEOLOGY(rheology) && (rheology) < DEKEE_TURCOTTE)
 
-//! Name of the rheology type
-#ifndef GPUSPH_MAIN
-extern
-#endif
-const char* RheologyName[ZHU+1]
-#ifdef GPUSPH_MAIN
-= {
-	"Inviscid",
-	"Newtonian",
-	"Bingham",
-	"Papanastasiou",
-	"Power-law",
-	"Herschel–Bulkley",
-	"Alexandrou",
-	"De Kee & Turcotte",
-	"Zhu"
-}
-#endif
-;
+//! Forms of yield strength contribution
+/** We have three forms for the yield strengt contribution:
+ * - no contribution (e.g. from power law)
+ * - standard contribution (y_s/\dot\gamma), which can become infinite
+ * - regularized contribution (Papanastasiou etc)
+ */
+enum YsContrib
+{
+	NO_YS, ///< no yield strength
+	STD_YS, ///< standard form
+	REG_YS ///< regularized
+};
 
-DEFINE_OPTION_RANGE(RheologyType, RheologyName, INVISCID, ZHU);
+//! Statically determine the yield strength contribution for the given rheological model
+template<RheologyType rheologytype>
+__host__ __device__ __forceinline__
+constexpr YsContrib
+yield_strength_type()
+{
+	return
+		REGULARIZED_RHEOLOGY(rheologytype) ? REG_YS : // yield with regularization
+		YIELDING_RHEOLOGY(rheologytype) ? STD_YS : // yield without regularization
+			NO_YS; // everything else: should be just Newtonian and power-law
+}
+
+//! @}
 
 //! Turbulence model
 /*!
