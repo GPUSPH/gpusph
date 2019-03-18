@@ -999,9 +999,14 @@ export CMDECHO
 .PHONY: FORCE
 
 # target: GPUSPH - A symlink to the last built problem, or the default problem (DamBreak3D)
-GPUSPH: $(GPUSPH_PROBLEM_DEP) Makefile.conf
+$(call exename,GPUSPH): $(GPUSPH_PROBLEM_DEP) Makefile.conf
 	$(call show_stage_nl,SYM,$@)
-	$(CMDECHO)ln -sf $(LAST_BUILT_PROBLEM) $(CURDIR)/$@
+	$(CMDECHO)ln -sf $(call exename,$(LAST_BUILT_PROBLEM)) $(CURDIR)/$@
+
+# If executables have an extension, map the extensionless target to the one with extension
+ifneq ($(call exename,GPUSPH),GPUSPH)
+GPUSPH: $(call exename,GPUSPH) ;
+endif
 
 # Support for legacy/classic 'all' target
 all: GPUSPH
@@ -1019,12 +1024,16 @@ $(call problem_gen,$1): $(SRCDIR)/problem_gen.tpl | $(OPTSDIR)
 $(call exe,$1): $(call problem_objs,$1) $(OBJS) | $(DISTDIR)
 	$(call show_stage_nl,LINK,$$@)
 	$(CMDECHO)$(LINKER) -o $$@ $$^ $(LDFLAGS) $(LDLIBS)
-$1: $(call exe,$1)
+$(call exename,$1): $(call exe,$1)
 	@echo
 	@echo "Compiled with problem $$@"
 	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
 	$(call show_stage_nl,SYM,$$@)
-	$(CMDECHO)ln -sf $$< $(CURDIR)/$(call exename,$$@) && echo "Success"
+	$(CMDECHO)ln -sf $$< $(CURDIR)/$$@ && echo "Success"
+# If executables have an extension, map the extensionless target to the one with extension
+ifneq ($(call exename,$1),$1)
+$1: $(call exename,$1) ;
+endif
 endef
 
 $(LAST_BUILT_PROBLEM): $(PROBLEM_GPUSPH_DEP)
