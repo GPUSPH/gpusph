@@ -350,6 +350,14 @@ struct GlobalData {
 
 	};
 
+	//! Textual description of the current run mode (lowercase)
+	const char * run_mode_desc() const
+	{ return run_mode == REPACK ? "repacking" : "simulation"; }
+
+	//! Textual description of the current run mode (Title Case)
+	const char * run_mode_Desc() const
+	{ return run_mode == REPACK ? "Repacking" : "Simulation"; }
+
 	// compute the global position from grid and local pos. note that the
 	// world origin needs to be added to this
 	template<typename T> // T should be uint3 or int3

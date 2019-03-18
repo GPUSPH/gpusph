@@ -586,8 +586,7 @@ bool GPUSPH::finalize() {
 template<>
 void GPUSPH::runCommand<END_OF_INIT>(CommandStruct const& cmd)
 {
-	printf("Entering the main %s cycle\n",
-		gdata->run_mode == REPACK ? "repacking" : "simulation");
+	printf("Entering the main %s cycle\n", gdata->run_mode_desc());
 
 	//  IPPS counter does not take the initial uploads into consideration
 	m_totalPerformanceCounter->start();
@@ -747,8 +746,8 @@ bool GPUSPH::runSimulation() {
 		gdata->threadSynchronizer->forceUnlock();
 	}
 
-	const char* run_desc = gdata->run_mode == REPACK ? "repacking" : "simulation";
-	const char* run_desc_title = gdata->run_mode == REPACK ? "Repacking" : "Simulation";
+	const char* run_desc = gdata->run_mode_desc();
+	const char* run_desc_title = gdata->run_mode_Desc();
 
 	// elapsed time, excluding the initialization
 	printf("Elapsed time of %s cycle: %.2gs\n", run_desc,
@@ -1877,7 +1876,8 @@ void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 void GPUSPH::printStatus(FILE *out)
 {
 //#define ti timingInfo
-	fprintf(out, "Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
+	fprintf(out, "%s time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
+		gdata->run_mode_Desc(),
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
