@@ -110,7 +110,7 @@ __device__ __forceinline__
 constexpr bool
 needs_io_gamma_cfl()
 {
-	return needs_gamma_cfl<FP>() && (FP::simflags & ENABLE_INLET_OUTLET);
+	return needs_gamma_cfl<FP>() && (FP::simflags & ENABLE_INLET_OUTLET) && !FP::repacking;
 }
 
 /// Selector to check if the simplified surface tension correction should be applied

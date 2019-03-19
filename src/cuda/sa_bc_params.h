@@ -263,19 +263,21 @@ struct sa_cloning_params
 
 //! Parameters needed by the \ref saVertexBoundaryConditionsDevice kernel
 template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags, int _step,
+	RunMode _run_mode = SIMULATE,
+	bool _repacking = (_run_mode == REPACK),
 	bool _has_io = !!(_simflags & ENABLE_INLET_OUTLET),
 	bool _has_keps = (_ViscSpec::turbmodel == KEPSILON),
 	bool _has_moving = !!(_simflags & ENABLE_MOVING_BODIES),
 	bool _last_io_step = (_has_io && (_step == 2)),
 	bool has_eulerVel = (_has_io || _has_keps),
 	typename eulervel_struct =
-		typename COND_STRUCT(has_eulerVel, eulervel_sa_bc_params),
+		typename COND_STRUCT(has_eulerVel && !_repacking, eulervel_sa_bc_params),
 	typename keps_struct =
-		typename COND_STRUCT(_has_keps, keps_sa_bc_params),
+		typename COND_STRUCT(_has_keps && !_repacking, keps_sa_bc_params),
 	typename io_struct =
-		typename COND_STRUCT(_has_io, sa_io_params),
+		typename COND_STRUCT(_has_io && !_repacking, sa_io_params),
 	typename clone_struct =
-		typename COND_STRUCT(_last_io_step, sa_cloning_params)
+		typename COND_STRUCT(_last_io_step && !_repacking, sa_cloning_params)
 	>
 struct sa_vertex_bc_params :
 	common_sa_bc_params,
@@ -291,6 +293,8 @@ struct sa_vertex_bc_params :
 	static constexpr bool has_io = _has_io; //! Open boundaries enabled?
 	static constexpr bool has_keps = _has_keps; //! Using the k-epsilon viscous model?
 	static constexpr bool has_moving = _has_moving; //! Do we have moving objects?
+	static constexpr RunMode run_mode = _run_mode; //! run mode: SIMULATE or REPACK
+	static constexpr bool repacking = _repacking; //! true if run_mode is REPACK
 
 	// TODO FIXME instead of using sa_segment_bc_params
 	// versus sa_vertex_bc_params, consider using sa_bc_params<PT_BOUNDARY>
@@ -327,6 +331,16 @@ struct sa_vertex_bc_params :
 			_totParticles, _deviceId, _numDevices)
 	{}
 };
+
+template<flag_t simflags>
+using repackViscSpec = FullViscSpec<NEWTONIAN, LAMINAR_FLOW, KINEMATIC, MORRIS, ARITHMETIC, simflags, true>;
+
+template<KernelType _kerneltype,
+	typename _ViscSpec,
+	flag_t _simflags,
+	int _step>
+using sa_vertex_bc_repack_params = sa_vertex_bc_params<_kerneltype, repackViscSpec<_simflags>,
+	  _simflags, _step>;
 
 #endif // _SA_BC_PARAMS_H
 

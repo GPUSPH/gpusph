@@ -2148,6 +2148,63 @@ saVertexBoundaryConditionsDevice(Params params)
 	impose_vertex_io_bc(params, pdata, pout);
 }
 
+/// Compute boundary conditions for vertex particles in the semi-analytical boundary case
+/*! This function determines the physical properties of vertex particles in the
+ * semi-analytical boundary case. The properties of fluid particles are used to
+ * compute the properties of the vertices. Due to this most arrays are read
+ * from (the fluid info) and written to (the vertex info) simultaneously inside
+ * this function. In the case of open boundaries the vertex mass is updated in
+ * this routine and new fluid particles are created on demand. Additionally,
+ * the mass of outgoing fluid particles is redistributed to vertex particles
+ * herein.
+ */
+template<typename Params,
+	int step = Params::step,
+	bool initStep = (step <= 0), // handle both step 0 (initialization) and -1 (reinit after repacking)
+	bool lastStep = (step == 2)
+>
+__global__ void
+saVertexBoundaryConditionsRepackDevice(Params params)
+{
+	using namespace sa_bc;
+
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (!VERTEX(info))
+		return;
+
+	const sa_bc::vertex_pdata<Params> pdata(params, index, info);
+	sa_bc::vertex_pout<Params>	pout(params, index, info);
+
+	// Loop over all FLUID neighbors
+	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		const uint neib_index = neib_iter.neib_index();
+
+		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+
+		if (INACTIVE(relPos))
+			continue;
+
+		const sa_bc::vertex_fluid_ndata ndata(params, neib_index, relPos);
+
+		if (ndata.r < params.influenceradius) {
+			pout.sumpWall += fmax(ndata.press + physical_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
+			pout.shepard_div += ndata.w;
+		}
+	}
+
+	pout.shepard_div = fmax(pout.shepard_div, 0.1f*pdata.gam); // avoid division by 0
+
+	// standard boundary condition
+	params.vel[index].w = RHO(pout.sumpWall/pout.shepard_div,fluid_num(info));
+
+}
 //! Identify corner vertices on open boundaries
 /*!
  Corner vertices are vertices that have segments that are not part of an open boundary. These

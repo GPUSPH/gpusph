@@ -288,7 +288,8 @@ saVertexBoundaryConditionsImpl(
 			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
-	const	uint			totParticles)
+	const	uint			totParticles,
+	const	RunMode			run_mode)
 {
 	int dummy_shared = 0;
 
@@ -308,19 +309,26 @@ saVertexBoundaryConditionsImpl(
 
 	// execute the kernel
 #define SA_VERTEX_BC_STEP(step) case step: \
-	{ sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-		bufread, bufwrite, newNumParticles, numParticles, totParticles, \
-		deltap, slength, influenceradius, deviceId, numDevices, dt); \
-	  cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
-	} break
+	if (run_mode == REPACK) { \
+		sa_vertex_bc_repack_params<kerneltype, ViscSpec, simflags, step> params( \
+				bufread, bufwrite, newNumParticles, numParticles, totParticles, \
+				deltap, slength, influenceradius, deviceId, numDevices, dt); \
+		cubounds::saVertexBoundaryConditionsRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} else { \
+		sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
+				bufread, bufwrite, newNumParticles, numParticles, totParticles, \
+				deltap, slength, influenceradius, deviceId, numDevices, dt); \
+		cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} \
+	break;
 
 	switch (step) {
-	case -1: // step -1 is the same as step 0 (initialization, but at the end of the repacking
-		SA_VERTEX_BC_STEP(0);
-		SA_VERTEX_BC_STEP(1);
-		SA_VERTEX_BC_STEP(2);
-	default:
-		throw std::runtime_error("unsupported step");
+		case -1: // step -1 is the same as step 0 (initialization, but at the end of the repacking
+			SA_VERTEX_BC_STEP(0);
+			SA_VERTEX_BC_STEP(1);
+			SA_VERTEX_BC_STEP(2);
+		default:
+			throw std::runtime_error("unsupported step");
 	}
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -329,6 +337,7 @@ saVertexBoundaryConditionsImpl(
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 }
+
 template<BoundaryType _boundarytype>
 enable_if_t<_boundarytype != SA_BOUNDARY>
 saVertexBoundaryConditionsImpl(
@@ -348,7 +357,8 @@ saVertexBoundaryConditionsImpl(
 			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
-	const	uint			totParticles)
+	const	uint			totParticles,
+	const	RunMode			run_mode)
 {
 	throw std::runtime_error("saVertexBoundaryConditions called without SA_BOUNDARY");
 }
@@ -375,12 +385,13 @@ saVertexBoundaryConditions(
 			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
-	const	uint			totParticles)
+	const	uint			totParticles,
+	const RunMode   		run_mode)
 {
 	saVertexBoundaryConditionsImpl<boundarytype>(bufwrite, bufread,
 		numParticles, particleRangeEnd, deltap, slength, influenceradius,
 		step, resume, dt,
-		newNumParticles, deviceId, numDevices, totParticles);
+		newNumParticles, deviceId, numDevices, totParticles, run_mode);
 }
 
 /// Compute normal for vertices in initialization step

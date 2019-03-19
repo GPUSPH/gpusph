@@ -78,7 +78,8 @@ saVertexBoundaryConditions(
 			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
-	const	uint			totParticles) = 0;
+	const	uint			totParticles,
+	const	RunMode			run_mode) = 0;
 
 //! Computes a normal for vertices in the initialization step
 virtual void

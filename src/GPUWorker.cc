@@ -2726,7 +2726,8 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct con
 				m_dNewNumParticles,
 				m_globalDeviceIdx,
 				gdata->totDevices,
-				gdata->totParticles);
+				gdata->totParticles,
+				gdata->run_mode);
 
 	bufwrite.clear_pending_state();
 }

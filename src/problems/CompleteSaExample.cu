@@ -41,7 +41,8 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
 		densitydiffusion<BREZZI>,
-		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES>
+		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES |
+			ENABLE_REPACKING>
 	);
 
 	// *** Initialization of minimal physical parameters
