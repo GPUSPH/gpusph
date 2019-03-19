@@ -46,7 +46,6 @@
 #include "define_buffers.h"
 
 #include "forces_params.h"
-#include "repack_params.h"
 #include "density_diffusion_params.h"
 
 /* Important notes on block sizes:
@@ -795,7 +794,7 @@ run_forces(
 
 	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
 			bufread, bufwrite,
-			numParticles, fromParticle, toParticle, slength,
+			numParticles, fromParticle, toParticle, slength, deltap,
 			cflOffset,
 			IOwaterdepth);
 
@@ -836,30 +835,14 @@ run_repack(
 		float	dtadaptfactor,
 		float	influenceradius,
 		const	float	epsilon,
+		uint	*IOwaterdepth,
 		uint	cflOffset,
+		const	uint	step,
 		const	float	dt)
 {
-	const float4 *pos = bufread.getData<BUFFER_POS>();
-	const float4 *vel = bufread.getData<BUFFER_VEL>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
-	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
-
-	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-	float *cfl_forces = bufwrite.getData<BUFFER_CFL>();
-	float *cfl_gamma = bufwrite.getData<BUFFER_CFL_GAMMA>();
-	float *tempCfl = bufwrite.getData<BUFFER_CFL_TEMP>();
-
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
-	// reset forces to 0
-	CUDA_SAFE_CALL(cudaMemset(forces + fromParticle, 0, numParticlesInRange*sizeof(float4)));
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
@@ -871,44 +854,39 @@ run_repack(
 #endif
 
 	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_FLUID> params_ff(
-		forces,
-		pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-		deltap, slength, influenceradius, dt,
-		cfl_gamma, vertPos, epsilon);
-
-	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
-		forces,
-		pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-		deltap, slength, influenceradius, dt,
-		cfl_gamma, vertPos, epsilon);
-
-
-	repack_params<kerneltype, boundarytype, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
-		forces,
-		pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-		deltap, slength, influenceradius, dt,
-		cfl_gamma, vertPos, epsilon);
+		bufread, bufwrite,
+		fromParticle, toParticle,
+		deltap, slength, influenceradius, step, dt,
+		epsilon,
+		IOwaterdepth);
 
 	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
 
 	{
 		repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX> params_fv(
-			forces,
-			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius, dt,
-			cfl_gamma, vertPos, epsilon);
+			bufread, bufwrite,
+			fromParticle, toParticle,
+			deltap, slength, influenceradius, step, dt,
+			epsilon,
+			IOwaterdepth);
 
 		vertex_repack(numBlocks, numThreads, dummy_shared, params_fv);
 	}
 
+	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+		bufread, bufwrite,
+		fromParticle, toParticle,
+		deltap, slength, influenceradius, step, dt,
+		epsilon,
+		IOwaterdepth);
+
 	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
-
 	finalize_repack_params<boundarytype, simflags> params_finalize(
-		forces,
-		pos, vel, particleHash, cellStart, numParticles, fromParticle, toParticle, slength,
-		deltap, cfl_forces, cfl_gamma, cflOffset,
-		oldGGam);
+		bufread, bufwrite,
+		numParticles, fromParticle, toParticle, slength, deltap,
+		cflOffset,
+		IOwaterdepth);
 
 	cuforces::finalizeRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
 
@@ -931,16 +909,19 @@ basicstep(
 	const	float	epsilon,
 	uint	*IOwaterdepth,
 	uint	cflOffset,
-	const	int	step, /* a negative step indicates repacking */
+	const	RunMode	run_mode,
+	const	int	step,
 	const	float	dt,
 	const	bool compute_object_forces)
 {
-	if (step < 0)
+	if (run_mode == REPACK)
 		return run_repack(bufread, bufwrite,
 			numParticles, fromParticle, toParticle,
 			deltap, slength, dtadaptfactor,
 			influenceradius, epsilon,
-			cflOffset, dt);
+			IOwaterdepth,
+			cflOffset,
+			step, dt);
 	else
 		return run_forces(bufread, bufwrite,
 			numParticles, fromParticle, toParticle,

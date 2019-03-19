@@ -64,6 +64,12 @@
 
 #include "visc_spec.h"
 
+//! Execution mode: repacking or normal simulation
+enum RunMode {
+	REPACK,
+	SIMULATE
+};
+
 //! Smoothing kernels
 /*! \defpsubsection{kernel_type,KERNEL_TYPE}
  * \inpsection{discretisation}

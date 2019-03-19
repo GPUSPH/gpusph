@@ -149,9 +149,10 @@ public:
 		const	float	epsilon,
 				uint	*IOwaterdepth,
 				uint	cflOffset,
-		const	int	step, ///< Integrator step, negative for repacking
+		const	RunMode	run_mode,
+		const	int		step,
 		const	float	dt,
-		const	bool compute_object_forces) = 0;
+		const	bool	compute_object_forces) = 0;
 
 	// Reduction methods
 

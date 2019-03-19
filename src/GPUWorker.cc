@@ -1903,10 +1903,6 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 	BufferList& bufwrite = buffer_lists.second;
 	bufwrite.add_manipulator_on_write("forces" + to_string(step));
 
-	// TODO FIXME less hacky solution
-	// the basicstep differentiate between simulation and repacking steps by the sign
-	int step_sign = gdata->run_mode == REPACK ? -1 : 1;
-
 	return forcesEngine->basicstep(
 		bufread,
 		bufwrite,
@@ -1920,7 +1916,8 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 		m_simparams->epsilon,
 		m_dIOwaterdepth,
 		cflOffset,
-		step_sign*step,
+		gdata->run_mode,
+		step,
 		cmd.dt(gdata),
 		(m_simparams->numforcesbodies > 0) ? true : false);
 }
