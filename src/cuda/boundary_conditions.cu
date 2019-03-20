@@ -121,7 +121,8 @@ saSegmentBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	int			step)
+	const	int			step,
+	const	RunMode		run_mode)
 {
 	int dummy_shared = 0;
 
@@ -154,13 +155,22 @@ saSegmentBoundaryConditionsImpl(
 
 	// execute the kernel
 #define SA_SEGMENT_BC_STEP(step) case step: \
-	{ sa_segment_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-		pos, vel, particleHash, cellStart, neibsList, \
-		gGam, vertices, vertPos, \
-		eulerVel, tke, eps, \
-		particleRangeEnd, deltap, slength, influenceradius); \
+	if (run_mode == REPACK) { \
+		sa_segment_bc_repack_params<kerneltype, ViscSpec, simflags, step> params( \
+			pos, vel, particleHash, cellStart, neibsList, \
+			gGam, vertices, vertPos, \
+			eulerVel, tke, eps, \
+			particleRangeEnd, deltap, slength, influenceradius); \
+		cubounds::saSegmentBoundaryConditionsRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} else { \
+		sa_segment_bc_params<kerneltype, ViscSpec, simflags, step> params( \
+			pos, vel, particleHash, cellStart, neibsList, \
+			gGam, vertices, vertPos, \
+			eulerVel, tke, eps, \
+			particleRangeEnd, deltap, slength, influenceradius); \
 		cubounds::saSegmentBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
-	} break
+	} \
+	break;
 
 	switch (step) {
 	case -1: // step -1 is the same as step 0 (initialization, but at the end of the repacking
@@ -192,7 +202,8 @@ saSegmentBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	int			step)
+	const	int			step,
+	const	RunMode		run_mode)
 {
 	throw std::runtime_error("saSegmentBoundaryConditions called without SA_BOUNDARY");
 }
@@ -213,10 +224,11 @@ saSegmentBoundaryConditions(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	int			step)
+	const	int			step,
+	const	RunMode		run_mode)
 {
 	saSegmentBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, numParticles,
-		particleRangeEnd, deltap, slength, influenceradius, step);
+		particleRangeEnd, deltap, slength, influenceradius, step, run_mode);
 }
 
 /// Detect particles that cross an open boundary and find the boundary element they have crossed

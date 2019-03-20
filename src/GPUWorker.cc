@@ -2665,7 +2665,8 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>(CommandStruct co
 		gdata->problem->m_deltap,
 		m_simparams->slength,
 		m_simparams->influenceRadius,
-		step);
+		step,
+		gdata->run_mode);
 
 	bufwrite.clear_pending_state();
 }

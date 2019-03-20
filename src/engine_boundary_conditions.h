@@ -42,7 +42,8 @@ saSegmentBoundaryConditions(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	int			step) = 0;
+	const	int				step,
+	const	RunMode			run_mode) = 0;
 
 /// Detect particles that cross an open boundary and find the boundary element they have crossed
 virtual void
