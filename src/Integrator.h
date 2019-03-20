@@ -161,7 +161,7 @@ public:
 		{ return m_should_run(this, gdata); }
 
 		// by default the phase runs if it's not empty
-		static bool should_run_default(Phase const* p, GlobalData const*)
+		static bool default_should_run(Phase const* p, GlobalData const*)
 		{ return p->not_empty(); }
 
 		// by default the reset simply resets the index to the default
@@ -173,7 +173,7 @@ public:
 			m_name(name),
 			m_command(),
 			m_cmd_idx(0),
-			m_should_run(should_run_default),
+			m_should_run(default_should_run),
 			m_reset_func(default_reset)
 		{}
 
