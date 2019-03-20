@@ -937,7 +937,7 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d | $(OBJSUBS)
 $(OBJDIR)/cuda/%.o: $(SRCDIR)/cuda/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
 
 # deps: empty rule, but require the directories and optfiles to be present
-$(CCDEPS): | $(DEPSUBS) $(OPTFILES) ;
+$(CCDEPS): | $(DEPSUBS) $(OPTFILES) $(AUTOGEN_SRC) ;
 $(DEPDIR)/%.gen.d: | $(DEPSUBS) $(OPTFILES) ;
 $(CUDEPS): | $(DEPSUBS) $(OPTFILES) ;
 
