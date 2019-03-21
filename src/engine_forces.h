@@ -90,12 +90,12 @@ public:
 
 	/// Bind textures needed in the forces kernel execution
 	virtual void
-	bind_textures(const BufferList& bufread,
-		uint	numParticles) = 0;
+	bind_textures(const BufferList& bufread, uint numParticles,
+		RunMode run_mode) = 0;
 
 	/// Unbind the textures after the forces kernel execution
 	virtual void
-	unbind_textures() = 0;
+	unbind_textures(RunMode run_mode) = 0;
 
 	/// Set the DEM
 	/// TODO set/unsetDEM should be moved to the BC engine,

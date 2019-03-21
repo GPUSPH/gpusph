@@ -467,7 +467,8 @@ setrbstart(const int* rbfirstindex, int numbodies)
 void
 bind_textures(
 	BufferList const& bufread,
-	uint	numParticles)
+	uint	numParticles,
+	RunMode	run_mode)
 {
 	// bind textures to read all particles, not only internal ones
 	#if !PREFER_L1
@@ -477,7 +478,7 @@ bind_textures(
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, bufread.getData<BUFFER_INFO>(), numParticles*sizeof(particleinfo)));
 
 	const float4 *eulerVel = bufread.getData<BUFFER_EULERVEL>();
-	if (needs_eulerVel) {
+	if (run_mode != REPACK && needs_eulerVel) {
 		if (!eulerVel)
 			throw std::invalid_argument("eulerVel not set but needed");
 		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, eulerVel, numParticles*sizeof(float4)));
@@ -491,24 +492,24 @@ bind_textures(
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 	}
 
-	if (turbmodel == KEPSILON) {
+	if (run_mode != REPACK && turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread.getData<BUFFER_TKE>(), numParticles*sizeof(float)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread.getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
 	}
 }
 
 void
-unbind_textures()
+unbind_textures(RunMode run_mode)
 {
 	// TODO FIXME why are SPS textures unbound here but bound in sps?
 	// shouldn't we bind them in bind_textures() instead?
-	if (turbmodel == SPS) {
+	if (run_mode != REPACK && turbmodel == SPS) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
 	}
 
-	if (turbmodel == KEPSILON) {
+	if (run_mode != REPACK && turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	}
@@ -518,7 +519,7 @@ unbind_textures()
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	}
 
-	if (needs_eulerVel)
+	if (run_mode != REPACK && needs_eulerVel)
 		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
