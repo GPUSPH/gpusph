@@ -166,6 +166,8 @@ struct common_finalize_forces_params<REPACK> :
 {
 	const	float4	* __restrict__ velArray;
 	const	float	deltap;
+			float4	* __restrict__ rbforces;
+			float4	* __restrict__ rbtorques;
 
 	// Constructor / initializer
 	common_finalize_forces_params(
@@ -179,7 +181,9 @@ struct common_finalize_forces_params<REPACK> :
 		stage_common_forces_params(bufread, bufwrite,
 			_fromParticle, _toParticle, _slength),
 		velArray(bufread.getData<BUFFER_VEL>()),
-		deltap(_deltap)
+		deltap(_deltap),
+		rbforces(bufwrite.getData<BUFFER_RB_FORCES>()),
+		rbtorques(bufwrite.getData<BUFFER_RB_TORQUES>())
 	{}
 };
 

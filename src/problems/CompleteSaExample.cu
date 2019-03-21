@@ -62,7 +62,7 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->buildneibsfreq = 1;
 
 	// *** Other parameters and settings
-	add_writer(VTKWRITER, 1e-2f);
+	add_writer(VTKWRITER, 1e-5f);
 	m_name = "CompleteSaExample";
 
 		m_origin = make_double3(-1, -1, -1);

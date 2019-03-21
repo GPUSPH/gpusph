@@ -317,7 +317,7 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 	const bool last_io_step = has_io && step.last;
 	const bool last_bodies_step = has_bodies && step.last;
 
-	// “resumed” condition applies to the initializaiton step sequence,
+	// “resumed” condition applies to the initialization step sequence,
 	// if we resumed
 	const bool resumed = (init_step && !gdata->clOptions->resume_fname.empty());
 

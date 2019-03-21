@@ -3805,6 +3805,11 @@ finalizeRepackDevice(FP params)
 			shared.store(params, pdata, pout);
 		}
 
+		if (COMPUTE_FORCE(pdata.info) && !VERTEX(pdata.info)) {
+			params.rbforces[pdata.rbindex] = make_float4(0.f);
+			params.rbtorques[pdata.rbindex] = make_float4(0.f);
+		}
+
 		params.forces[index] = pout.force;
 
 	} while (0);

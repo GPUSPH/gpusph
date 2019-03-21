@@ -256,6 +256,8 @@ struct quadrature_gamma_params :
 
 
 template<ParticleType _cptype, KernelType _kerneltype, flag_t _simflags,
+	RunMode _run_mode = SIMULATE,
+	bool _repacking = (_run_mode == REPACK),
 	bool dynamic = USING_DYNAMIC_GAMMA(_simflags),
 	bool has_io = !!(_simflags & ENABLE_INLET_OUTLET),
 	typename dynamic_gamma_params = typename
@@ -274,6 +276,8 @@ struct integrate_gamma_params :
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr ParticleType cptype = _cptype;
 	static constexpr flag_t simflags = _simflags;
+	static constexpr RunMode run_mode = _run_mode;
+	static constexpr bool repacking = _repacking;
 
 	integrate_gamma_params(
 		BufferList const&	bufread,
@@ -303,6 +307,10 @@ struct integrate_gamma_params :
 		quadrature_params(p)
 	{}
 };
+
+template<ParticleType _cptype, KernelType _kerneltype, flag_t _simflags>
+using integrate_gamma_repack_params = integrate_gamma_params<_cptype, _kerneltype,
+	  _simflags, REPACK>;
 
 #endif // _DENSITY_SUM_PARAMS_H
 

@@ -106,14 +106,14 @@ template<typename EP, ///< euler_param template specialization
 	BoundaryType _boundarytype = EP::boundarytype,
 	typename _ViscSpec = typename EP::ViscSpec,
 	flag_t _simflags = EP::simflags,
-	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON && ! EP::repacking,
 	bool _has_eulerVel = EP::has_eulerVel>
 struct euler_particle_data :
 	common_euler_particle_data,
 	COND_STRUCT(_has_eulerVel, euler_vel_particle_data),
 	COND_STRUCT(_has_keps, keps_particle_data),
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_data),
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
+	COND_STRUCT(_simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -133,8 +133,8 @@ struct euler_particle_data :
 		common_euler_particle_data(_index, params),
 		COND_STRUCT(has_eulerVel, euler_vel_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, params),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_data)(_index, params),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
+		COND_STRUCT(simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data)(_index, params),
+		COND_STRUCT(sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)(_index, params)
 	{}
 };
@@ -160,14 +160,14 @@ standard_corrected_velocity(EP const& params, P &pdata)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not (EP::simflags & ENABLE_XSPH)>
+enable_if_t<not (EP::simflags & ENABLE_XSPH) || EP::repacking>
 compute_corrected_velocity(EP const& params, P &pdata)
 {
 	standard_corrected_velocity(params, pdata);
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::simflags & ENABLE_XSPH>
+enable_if_t<(EP::simflags & ENABLE_XSPH) && !EP::repacking>
 compute_corrected_velocity(EP const& params, P &pdata)
 {
 	standard_corrected_velocity(params, pdata);
@@ -529,4 +529,81 @@ eulerDevice(EP params)
 	update_normals(params, pdata, index);
 }
 
+/// Performs a basic Euler integration step at repacking stage
+/*! Updates positions, velocities and other quantities of fluid partcles
+ *  according to their previous values and derivatives :
+ *  - for velocity \f$u(x, t + \Delta t) = u(x, t) + \Delta t.\frac{du}{dt}(x, t*)\f$
+ *  - for positions \f$x(t + \Delta t) = x(t) + \Delta t.u_(x, t)\f$
+ *	All other quantities are integrated like velocity.
+ */
+//TODO templatize vars like other kernels
+template<typename EP, ///< euler_params template instantiation type
+	KernelType kerneltype = EP::kerneltype,
+	SPHFormulation sph_formulation = EP::sph_formulation,
+	BoundaryType boundarytype = EP::boundarytype,
+	typename ViscSpec = typename EP::ViscSpec,
+	flag_t simflags = EP::simflags,
+	int step = EP::step>
+__global__ void
+eulerRepackDevice(EP params)
+{
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	// this is dt or dt/2, depending on the integrator step
+	const float dt = params.dt;
+
+	euler_particle_data<EP> pdata(index, params);
+
+	do {
+		if (!ACTIVE(pdata.pos))
+			break;
+
+		// velc = vel if step == 1, but
+		// velc = vel + forces[index]*dt/2.0f if step == 2
+		// in the XSPH case we also add the mean velocity (pdata.xsph)
+		compute_corrected_velocity(params, pdata);
+
+		// Updating particle position
+		switch (pdata.ptype) {
+			case PT_FLUID:
+				// Add weighted mean_vel only in xsphcorr case.
+				// The compiler is smart enough to optimize it out
+				// in the xsphcorr == false case
+				pdata.pos.x += pdata.velc.x*dt;
+				pdata.pos.y += pdata.velc.y*dt;
+				pdata.pos.z += pdata.velc.z*dt;
+
+				as_float3(pdata.vel) += dt*as_float3(pdata.force);
+
+				// updating internal energy
+				integrate_energy(params, pdata, index, dt);
+
+				break;
+
+		/* BOUNDARY and VERTEX particles behave in nearly the same way, so they are
+		   handled in the same switch case (VERTEX particles are only preset in SA_BOUNDARY
+		   case)
+		 */
+		case PT_VERTEX:
+		case PT_BOUNDARY:
+			// DYN_BOUNDARY: integrate internal energy
+			if (boundarytype == DYN_BOUNDARY) {
+				integrate_energy(params, pdata, index, dt);
+			}
+			break;
+
+		case PT_TESTPOINT:
+			/* TODO */
+			break;
+		}
+	} while (0);
+
+	params.newPos[index] = pdata.pos;
+	params.newVel[index] = pdata.vel;
+	write_energy(params, pdata, index);
+
+}
 /* vi:set ft=cuda: */

@@ -138,20 +138,23 @@ template<KernelType _kerneltype,
 	typename _ViscSpec,
 	flag_t _simflags,
 	int _step,
-	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	RunMode _run_mode = SIMULATE,
+	bool _repacking = (_run_mode == REPACK),
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON && !_repacking,
 	bool _has_eulerVel =
-		_has_keps || (_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_INLET_OUTLET)),
+		(_has_keps || (_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_INLET_OUTLET)))
+		&& !_repacking,
 	typename eulerVel_params = typename
 		COND_STRUCT(_has_eulerVel, EulerVel_params<>),
 	typename sa_boundary_moving_params = typename
-		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES),
-			BoundElement_params<>),
+		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES) &&
+				!_repacking, BoundElement_params<>),
 	typename grenier_params = typename
-		COND_STRUCT(_sph_formulation == SPH_GRENIER, Vol_params<>)
+		COND_STRUCT(_sph_formulation == SPH_GRENIER && !_repacking, Vol_params<>)
 	>
 struct euler_params :
 	common_euler_params,
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_euler_params),
+	COND_STRUCT(_simflags & ENABLE_XSPH && !_repacking, xsph_euler_params),
 	eulerVel_params,
 	sa_boundary_moving_params,
 	COND_STRUCT(_has_keps, keps_euler_params),
@@ -164,6 +167,8 @@ struct euler_params :
 	using ViscSpec = _ViscSpec;
 	static constexpr flag_t simflags = _simflags;
 	static constexpr int step = _step;
+	static const RunMode run_mode = _run_mode;
+	static const bool repacking = _repacking;
 	static constexpr bool has_keps = _has_keps;
 	static constexpr bool has_eulerVel = _has_eulerVel;
 
@@ -179,7 +184,7 @@ struct euler_params :
 		const	float		_t)
 	:
 		common_euler_params(bufread, bufwrite, _numParticles, _dt, _t),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_euler_params)(bufread),
+		COND_STRUCT((simflags & ENABLE_XSPH) && !_repacking, xsph_euler_params)(bufread),
 		eulerVel_params(bufread, bufwrite),
 		sa_boundary_moving_params(bufread, bufwrite),
 		COND_STRUCT(has_keps, keps_euler_params)(bufread, bufwrite),
@@ -187,6 +192,13 @@ struct euler_params :
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(bufread, bufwrite)
 	{}
 };
+
+template<KernelType _kerneltype,
+	BoundaryType _boundarytype,
+	flag_t _simflags,
+	int _step>
+using euler_repack_params = euler_params<_kerneltype, SPH_F1,
+	  _boundarytype, repackViscSpec<_simflags>, _simflags, _step, REPACK>;
 
 #endif // _EULER_PARAMS_H
 

@@ -2232,7 +2232,8 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 		step,
 		gdata->t + dt,
 		m_simparams->slength,
-		m_simparams->influenceRadius);
+		m_simparams->influenceRadius,
+		gdata->run_mode);
 
 	// should we rename the state?
 	if (!cmd.src.empty() && !cmd.dst.empty())
@@ -2304,7 +2305,8 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>(CommandStruct const& cmd)
 		gdata->t + dt,
 		m_simparams->epsilon,
 		m_simparams->slength,
-		m_simparams->influenceRadius);
+		m_simparams->influenceRadius,
+		gdata->run_mode);
 
 	bufwrite.clear_pending_state();
 }

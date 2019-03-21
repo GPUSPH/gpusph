@@ -124,6 +124,7 @@ void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 			.updating(state, BUFFER_GRADGAMMA);
 
 	// modify particle mass on open boundaries, after repacking
+	// and impose open boundary conditions, after repacking is finished
 	if (prepare_io_step) {
 		this_phase->add_command(IDENTIFY_CORNER_VERTICES)
 			.reading(state, BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
@@ -165,10 +166,7 @@ void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 			.set_flags(BUFFER_FORCES);
 		this_phase->add_command(RELEASE_STATE)
 			.set_src("iomass");
-	}
 
-	// impose open boundary conditions, after repacking is finished
-	if (prepare_io_step) {
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
 		if (MULTI_DEVICE && sp->simflags & ENABLE_WATER_DEPTH) {
@@ -284,7 +282,7 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 
 	Phase *this_phase = new Phase(this, "repacking");
 
-	/* In the predictor/corrector scheme we use, there are four buffers that
+	/* In the scheme we use, there are four buffers that
 	 * need special treatment:
 	 * * the INFO buffer is always representative of both states —in fact, because of this
 	 *   and because it's part of the sorting key, it's the only property buffer
@@ -292,65 +290,22 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 	 * * the VERTICES buffer is always representative of both states, even though it is used
 	 *   as an ephemeral buffer by FLUID particles in the open boundary case, where it's updated
 	 *   in-place;
-	 * * the NEXTID buffer is only ever updated at the end of the second step, and it is
-	 *   representative of the previous state only until it gets updated, when it is
-	 *   representative of the next state only;
-	 * * the BOUNDELEMENTS buffer is representative of both states if there are no moving
-	 *   boundaries, otherwise is follows the behavior of the other buffers
+	 * * the BOUNDELEMENTS buffer is representative of both states
 	 */
 
-	static const bool has_moving_bodies = (sp->simflags & ENABLE_MOVING_BODIES);
 	static const flag_t shared_buffers =
 		BUFFER_INFO |
 		BUFFER_VERTICES |
 		BUFFER_NEXTID |
 		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
-		(has_moving_bodies ? BUFFER_NONE : BUFFER_BOUNDELEMENTS);
+		BUFFER_BOUNDELEMENTS;
 
 	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
 
-	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
 
 	const string current_state = getCurrentStateForStep(step.number);
 	const string next_state = getNextStateForStep(step.number);
-
-	// for Grenier formulation, compute sigma and smoothed density
-	// TODO with boundary models requiring kernels for boundary conditions,
-	// this should be moved into prepareNextStep
-	if (sp->sph_formulation == SPH_GRENIER) {
-		// compute density and sigma, updating WRITE vel in-place
-		this_phase->add_command(COMPUTE_DENSITY)
-			.set_step(step)
-			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VOLUME)
-			.updating(current_state, BUFFER_VEL)
-			.writing(current_state, BUFFER_SIGMA);
-		if (MULTI_DEVICE)
-			this_phase->add_command(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_SIGMA | BUFFER_VEL);
-	}
-
-	// for SPS viscosity, compute first array of tau and exchange with neighbors
-	if (sp->turbmodel == SPS || needs_effective_visc) {
-		this_phase->add_command(CALC_VISC)
-			.set_step(step)
-			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL)
-			.writing(current_state,
-				BUFFER_TAU | BUFFER_SPS_TURBVISC | BUFFER_EFFVISC |
-				// When computing the effective viscosity, if adaptive time-stepping is enabled,
-				// CALC_VISC will also find the maximum viscosity, using the CFL buffers
-				// for the reduction
-				((needs_effective_visc && dtadapt) ?
-				 BUFFER_CFL | BUFFER_CFL_TEMP : BUFFER_NONE));
-
-		if (MULTI_DEVICE)
-			this_phase->add_command(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_TAU | BUFFER_EFFVISC);
-	}
 
 	if (gdata->debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
@@ -436,10 +391,9 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL |
-				BUFFER_VERTPOS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
+				BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS)
 			.updating(next_state,
 				BUFFER_POS /* this is only accessed for reading */ |
-				BUFFER_EULERVEL /* this is only accessed for reading */ |
 				BUFFER_BOUNDELEMENTS /* this is only accessed for reading */ |
 				BUFFER_VEL /* this is only accessed for reading */ |
 				BUFFER_GRADGAMMA);
