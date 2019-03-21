@@ -90,9 +90,24 @@ bool needs_new_neibs(Integrator::Phase const*, GlobalData const* gdata)
 }
 
 Integrator::Phase *
-Integrator::buildNeibsPhase()
+Integrator::buildNeibsPhase(flag_t import_buffers)
 {
 	const SimParams* sp = gdata->problem->simparams();
+
+	import_buffers |= PARTICLE_SUPPORT_BUFFERS;
+
+	// Some buffers can be shared between the sorted and unsorted state, because
+	// they are not directly tied to the particles themselves, but the particle system
+	// as a whole. The buffers that need to get shared depend on a number of conditions:
+	static const flag_t has_forces_bodies = (sp->numforcesbodies > 0);
+
+	static const flag_t sorting_shared_buffers =
+	// The compact device map (when present) carries over to the other state, unchanged
+		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
+	// The object particle key buffer is static (precomputed on host, never changes),
+	// so we bring it across all particle states
+		(has_forces_bodies ? BUFFER_RB_KEYS : BUFFER_NONE);
+
 
 	Phase *neibs_phase = new Phase(this, "build neighbors list");
 
@@ -104,10 +119,14 @@ Integrator::buildNeibsPhase()
 	// We want to sort the particles starting from the state “step n”.
 	// We remove the cell, neibslist and vertex position buffers, invalidating them.
 	// They will be added to the sorted state, to be reinitialized during hash computation
-	// and neighbors list construction
+	// and neighbors list construction.
+	// We also drop everything which isn't an import buffer or a shared buffer.
+	// (Note that we need both specifications because of some buffers (such as BUFFER_VERTPOS)
+	// that would be not dropped otherwise.)
 	neibs_phase->add_command(REMOVE_STATE_BUFFERS)
 		.set_src("step n")
-		.set_flags(NEIBS_SEQUENCE_REFRESH_BUFFERS);
+		.set_flags(NEIBS_SEQUENCE_REFRESH_BUFFERS |
+			~(import_buffers | sorting_shared_buffers));
 
 	// Rename the state to “unsorted”
 	neibs_phase->add_command(RENAME_STATE)
@@ -120,19 +139,6 @@ Integrator::buildNeibsPhase()
 	// (cell start/end, vertex relative positions and the neiblists itself)
 	neibs_phase->add_command(INIT_STATE)
 		.set_src("sorted");
-
-	// Some buffers can be shared between the sorted and unsorted state, because
-	// they are not directly tied to the particles themselves, but the particle system
-	// as a whole. The buffers that need to get shared depend on a number of conditions:
-
-	static const flag_t has_forces_bodies = (sp->numforcesbodies > 0);
-
-	static const flag_t sorting_shared_buffers =
-	// The compact device map (when present) carries over to the other state, unchanged
-		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
-	// The object particle key buffer is static (precomputed on host, never changes),
-	// so we bring it across all particle states
-		(has_forces_bodies ? BUFFER_RB_KEYS : BUFFER_NONE);
 
 	if (sorting_shared_buffers != BUFFER_NONE)
 		neibs_phase->add_command(SHARE_BUFFERS)
@@ -158,8 +164,8 @@ Integrator::buildNeibsPhase()
 	// for the writing list is empty because it can only be determined at the runCommand<>
 	// level, by taking the buffers that were take from the reading list
 	neibs_phase->add_command(REORDER)
-		// for the unsorted list, pick whatever is left of the IMPORT_BUFFERS
-		.reading("unsorted", IMPORT_BUFFERS)
+		// for the unsorted list, pick whatever is left of the import_buffers
+		.reading("unsorted", import_buffers)
 		// the buffers sorted in SORT are marked “updating”, but will actually be read-only
 		.updating("sorted", BUFFER_INFO | BUFFER_HASH | BUFFER_PARTINDEX)
 		// no buffer specification, meaning “take the reading buffer list"
@@ -209,7 +215,7 @@ Integrator::buildNeibsPhase()
 		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
 		// until next calchash; however, they are filtered out when using the particle hashes.
 		neibs_phase->add_command(APPEND_EXTERNAL)
-			.updating("sorted", IMPORT_BUFFERS);
+			.updating("sorted", import_buffers);
 		// update the newNumParticles device counter
 		if (sp->simflags & ENABLE_INLET_OUTLET)
 			neibs_phase->add_command(UPLOAD_NEWNUMPARTS);

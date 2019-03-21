@@ -711,7 +711,7 @@ void PredictorCorrector::initializePhase<PredictorCorrector::BEGIN_TIME_STEP>()
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::NEIBS_LIST>()
 {
-	m_phase[NEIBS_LIST] = buildNeibsPhase();
+	m_phase[NEIBS_LIST] = buildNeibsPhase(PARTICLE_PROPS_BUFFERS);
 }
 
 template<>

@@ -370,11 +370,11 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 		.set_step(step)
 		.set_dt(dt_op)
 		.reading(current_state,
-			PARTICLE_PROPS_BUFFERS | BUFFER_HASH |
+			REPACKING_PROPS_BUFFERS | BUFFER_HASH |
 			BUFFER_FORCES | BUFFER_XSPH |
 			BUFFER_INTERNAL_ENERGY_UPD |
 			BUFFER_DKDE)
-		.writing(next_state, PARTICLE_PROPS_BUFFERS);
+		.writing(next_state, REPACKING_PROPS_BUFFERS);
 
 	if (gdata->debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
@@ -450,7 +450,7 @@ void RepackingIntegrator::initializePhase<RepackingIntegrator::BEGIN_TIME_STEP>(
 template<>
 void RepackingIntegrator::initializePhase<RepackingIntegrator::NEIBS_LIST>()
 {
-	m_phase[NEIBS_LIST] = buildNeibsPhase();
+	m_phase[NEIBS_LIST] = buildNeibsPhase(REPACKING_PROPS_BUFFERS);
 }
 
 template<>

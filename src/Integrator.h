@@ -229,9 +229,13 @@ protected:
 	{ return enter_phase(m_phase_idx + 1); }
 
 	//! Define the standard neighbors list construction phase.
-	//! It's then up to the individual integrators to put it in the
-	//! correct place of the sequence
-	Phase * buildNeibsPhase();
+	/*! The buffers to be sorted, and then imported across devices, is passed
+	 *  by the calling integrator (aside from PARTICLE_SUPPORT_BUFFERs which are
+	 *  always included).
+	 *  It's also up to the individual integratos to put this sequence of steps
+	 *  in the correct place of the sequence
+	 */
+	Phase * buildNeibsPhase(flag_t import_buffers);
 
 	// TODO we should move here phase generators that are common between (most)
 	// integrators

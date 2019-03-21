@@ -265,6 +265,19 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 		BUFFER_TURBVISC | \
 		BUFFER_VOLUME)
 
+//! Buffers that evolve during the repacking
+//! TODO FIXME these should be per-integrator definitions, and handled by the
+//! corresponding allocation policy
+#define REPACKING_PROPS_BUFFERS \
+	(	BUFFER_POS | \
+		BUFFER_VEL | \
+		BUFFER_INFO | \
+		BUFFER_INTERNAL_ENERGY | \
+		BUFFER_NEXTID | \
+		BUFFER_VERTICES | \
+		BUFFER_BOUNDELEMENTS | \
+		BUFFER_GRADGAMMA)
+
 //! Auxiliary buffers
 /*! These are not physical particle properties, but the buffers are used
  * as support for other things, and generally recomputed or updated only
@@ -306,10 +319,6 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
  */
 #define NEIBS_SEQUENCE_REFRESH_BUFFERS \
 	( (BUFFERS_CELL & ~BUFFER_COMPACT_DEV_MAP) | BUFFER_NEIBSLIST | BUFFER_VERTPOS)
-
-// particle-based buffers to be imported during the APPEND_EXTERNAL command
-// These are the particle property buffers plus the hash, from the READ list
-#define IMPORT_BUFFERS (PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS)
 
 #define POST_REPACK_SWAP_BUFFERS \
 	(	BUFFER_POS | \
