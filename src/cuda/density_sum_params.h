@@ -125,6 +125,8 @@ struct boundary_density_sum_params :
 template<KernelType _kerneltype,
 	ParticleType _ntype,
 	flag_t _simflags,
+	RunMode _run_mode = SIMULATE,
+	bool _repacking = (_run_mode == REPACK),
 	// if we have open boundaries, we also want the old and new Eulerian velocity
 	// (read-only)
 	typename io_params = typename
@@ -140,6 +142,8 @@ struct density_sum_params :
 	static const KernelType kerneltype = _kerneltype;
 	static const ParticleType ntype = _ntype;
 	static const flag_t simflags = _simflags;
+	static constexpr RunMode run_mode = _run_mode;
+	static constexpr bool repacking = _repacking;
 
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the density_sum kernel.
@@ -161,6 +165,10 @@ struct density_sum_params :
 		boundary_params(bufread, bufwrite)
 	{}
 };
+
+template<KernelType _kerneltype, ParticleType _nptype, flag_t _simflags>
+using density_sum_repack_params = density_sum_params<_kerneltype,_nptype,
+	  _simflags, REPACK>;
 
 /// Common params for integrateGammaDevice in the dynamic gamma case
 template<flag_t simflags>

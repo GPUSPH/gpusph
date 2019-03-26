@@ -195,8 +195,9 @@ computeDensitySumVolumicTerms(
 		if (rNp1 < params.influenceradius)
 			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
 
-		densitySumOpenBoundaryContribution(params, pdata, dt,
-			neib_index, neib_info, relPosN, sumVmwDelta);
+		if (!params.repacking)
+			densitySumOpenBoundaryContribution(params, pdata, dt,
+				neib_index, neib_info, relPosN, sumVmwDelta);
 	}
 }
 
@@ -356,8 +357,9 @@ computeDensitySumBoundaryTerms(
 		/* TODO check if we need the old or the new normal here, in case of
 		 * moving open boundaries (for fixed open boundaries, it makes no difference)
 		 */
-		//io_gamma_contrib(sumGam, neib_index, neib_info, params,
-		//	make_float3(qN), nsN, vertexRelPos, dt, gGamN);
+		if (!params.repacking)
+			io_gamma_contrib(sumGam, neib_index, neib_info, params,
+				make_float3(qN), nsN, vertexRelPos, dt, gGamN);
 	}
 	sumGam.gGamDotR *= params.slength;
 }
