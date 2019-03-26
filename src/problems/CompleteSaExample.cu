@@ -41,8 +41,7 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
 		densitydiffusion<BREZZI>,
-		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES |
-			ENABLE_REPACKING>
+		add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_MOVING_BODIES>
 	);
 
 	// *** Initialization of minimal physical parameters
@@ -62,7 +61,7 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->buildneibsfreq = 1;
 
 	// *** Other parameters and settings
-	add_writer(VTKWRITER, 1e-5f);
+	add_writer(VTKWRITER, 1e-2f);
 	m_name = "CompleteSaExample";
 
 		m_origin = make_double3(-1, -1, -1);
