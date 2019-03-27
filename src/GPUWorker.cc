@@ -1929,7 +1929,7 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 /// Run the steps necessary for forces execution
 /** This includes things such as binding textures and clearing the CFL buffers
  */
-GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
+GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint numPartsToElaborate)
 {
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 
@@ -1973,7 +1973,8 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
 
 	bufwrite.clear_pending_state();
 
-	forcesEngine->bind_textures(bufread, m_numParticles);
+	if (numPartsToElaborate > 0)
+		forcesEngine->bind_textures(bufread, m_numParticles);
 
 	return make_pair(bufread, bufwrite);
 
@@ -2123,10 +2124,10 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 	nonEdgingStripeSize = forcesEngine->round_particles(nonEdgingStripeSize);
 	edgingStripeSize = numPartsToElaborate - nonEdgingStripeSize;
 
-	if (numPartsToElaborate > 0 ) {
-		// setup for forces execution
-		BufferListPair buffer_lists = pre_forces(cmd);
+	// setup for forces execution
+	BufferListPair buffer_lists = pre_forces(cmd, numPartsToElaborate);
 
+	if (numPartsToElaborate > 0 ) {
 		// enqueue the first kernel call (on the particles in edging cells)
 		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(cmd, buffer_lists,
 			nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
@@ -2143,6 +2144,11 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 		// faster in the computation of the first stripe have to wait the others before issuing the second). However,
 		// we need to ensure that the first stripe is finished in the *other* devices, before importing their cells.
 		cudaEventSynchronize(m_halfForcesEvent);
+	} else {
+		// we didn't call forces because we didn't have particles,
+		// but let's mark the write buffers as dirty to be consistent with the workers
+		// that did do the work
+		buffer_lists.second.mark_dirty();
 	}
 }
 
@@ -2189,16 +2195,23 @@ void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 	const uint fromParticle = 0;
 	const uint toParticle = numPartsToElaborate;
 
-	if (numPartsToElaborate > 0 ) {
-		// setup for forces execution
-		BufferListPair buffer_lists = pre_forces(cmd);
+	// setup for forces execution
+	BufferListPair buffer_lists = pre_forces(cmd, numPartsToElaborate);
 
+	if (numPartsToElaborate > 0 ) {
 		// enqueue the kernel call
 		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(cmd,
 			buffer_lists, fromParticle, toParticle, 0);
 
 		// cleanup post forces and get dt
 		returned_dt = post_forces(cmd);
+	} else {
+		// we didn't call forces because we didn't have particles,
+		// but let's mark the write buffers as dirty to be consistent with the workers
+		// that did do the work
+		for (auto buf_iter : buffer_lists.second) {
+			buf_iter.second->mark_dirty();
+		}
 	}
 
 	// for multi-step integrators, use the minumum of the estimations across all timesteps
