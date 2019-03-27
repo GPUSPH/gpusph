@@ -1804,9 +1804,6 @@ void GPUWorker::runCommand<SORT>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_numInternalParticles : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	BufferList bufwrite =
 		extractExistingBufferList(m_dBuffers, cmd.updates);
 	bufwrite.add_manipulator_on_write("sort");
