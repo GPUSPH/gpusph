@@ -2228,9 +2228,6 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2241,16 +2238,22 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 
 	const float dt = cmd.dt(gdata);
 
-	integrationEngine->basicstep(
-		bufread,
-		bufwrite,
-		m_numParticles,
-		numPartsToElaborate,
-		dt,
-		step,
-		gdata->t + dt,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
+	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
+	// otherwise just mark the buffers
+	if (numPartsToElaborate > 0) {
+		integrationEngine->basicstep(
+			bufread,
+			bufwrite,
+			m_numParticles,
+			numPartsToElaborate,
+			dt,
+			step,
+			gdata->t + dt,
+			m_simparams->slength,
+			m_simparams->influenceRadius);
+	} else {
+		bufwrite.mark_dirty();
+	}
 
 	// should we rename the state?
 	if (!cmd.src.empty() && !cmd.dst.empty())
