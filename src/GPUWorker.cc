@@ -2539,9 +2539,6 @@ void GPUWorker::runCommand<POSTPROCESS>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	PostProcessType proctype = PostProcessType(cmd.flags);
 	PostProcessEngineSet::const_iterator procpair(postProcEngines.find(proctype));
 	// make sure we're going to call an instantiated filter
@@ -2566,12 +2563,18 @@ void GPUWorker::runCommand<POSTPROCESS>(CommandStruct const& cmd)
 
 	bufwrite.add_manipulator_on_write(string("postprocess/") + PostProcessName[proctype]);
 
-	processor->process(
-		bufread, bufwrite,
-		m_numParticles,
-		numPartsToElaborate,
-		m_deviceIndex,
-		gdata);
+	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
+	// otherwise just mark the buffers
+	if (numPartsToElaborate > 0) {
+		processor->process(
+			bufread, bufwrite,
+			m_numParticles,
+			numPartsToElaborate,
+			m_deviceIndex,
+			gdata);
+	} else {
+		bufwrite.mark_dirty();
+	}
 
 	bufwrite.clear_pending_state();
 }
