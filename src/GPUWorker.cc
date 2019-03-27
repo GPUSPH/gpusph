@@ -1836,11 +1836,9 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 	// reset also if the device is empty (or we will download uninitialized values)
 	sorted.get<BUFFER_CELLSTART>()->clobber();
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (m_numParticles == 0) return;
-
-	// TODO this kernel needs a thorough reworking to only pass the needed buffers
-	neibsEngine->reorderDataAndFindCellStart(
+	// if the device is not empty, do the actual sorting. Otherwise, just mark the buffers as updated
+	if (m_numParticles > 0) {
+		neibsEngine->reorderDataAndFindCellStart(
 							m_dSegmentStart,
 							// output: sorted buffers
 							sorted,
@@ -1848,6 +1846,9 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 							unsorted,
 							m_numParticles,
 							m_dNewNumParticles);
+	} else {
+		sorted.mark_dirty();
+	}
 
 	sorted.clear_pending_state();
 }
