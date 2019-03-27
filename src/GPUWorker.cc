@@ -1165,9 +1165,6 @@ void GPUWorker::uploadSubdomain() {
 	const uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
 	const uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (howManyParticles == 0) return;
-
 	// we upload data to the "initial upload"
 	auto& buflist = m_dBuffers.getState("initial upload");
 
@@ -1199,13 +1196,19 @@ void GPUWorker::uploadSubdomain() {
 				m_deviceIndex, howManyParticles, buf->get_buffer_name(),
 				gdata->memString(_size).c_str(), m_cudaDeviceNumber, firstInnerParticle);
 
-		// get all the arrays of which this buffer is composed
-		// (actually currently all arrays are simple, since the only complex arrays (TAU
-		// and VERTPOS) have no host counterpart)
-		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-			void *dstptr = buf->get_buffer(ai);
-			const void *srcptr = host_buf->get_offset_buffer(ai, firstInnerParticle);
-			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
+		// only do the actual upload if the device is not empty
+		// (unlikely but possible before LB kicks in)
+		// Note that we don't do an early bail-out because we still want to
+		// mark the buffer as valid and belonging to the correct state
+		if (howManyParticles > 0) {
+			// get all the arrays of which this buffer is composed
+			// (actually currently all arrays are simple, since the only complex arrays (TAU
+			// and VERTPOS) have no host counterpart)
+			for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+				void *dstptr = buf->get_buffer(ai);
+				const void *srcptr = host_buf->get_offset_buffer(ai, firstInnerParticle);
+				CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
+			}
 		}
 
 		buf->set_state("initial upload");
