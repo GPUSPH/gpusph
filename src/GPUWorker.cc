@@ -3125,8 +3125,10 @@ void GPUWorker::simulationThread() {
 			default:
 				unknownCommand(cmd.command);
 			}
-			if (dbg_buffer_lists)
-				cout << m_dBuffers.inspect() << endl;
+			if (dbg_buffer_lists) {
+				string desc = " T " + to_string(m_deviceIndex) + " " + m_dBuffers.inspect();
+				cout << desc << endl;
+			}
 			if (gdata->keep_going) {
 				/*
 				// example usage of checkPartValBy*()
