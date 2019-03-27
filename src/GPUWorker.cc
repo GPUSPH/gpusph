@@ -849,9 +849,6 @@ void GPUWorker::transferBursts(CommandStruct const& cmd)
 			// transfer bursts of one scope at a time
 			if (m_bursts[i].scope != current_scope) continue;
 
-			// transfer the data if burst is not empty
-			if (m_bursts[i].numParticles == 0) continue;
-
 			/*
 			printf("IT %u D %u burst %u #parts %u dir %s (%u -> %u) scope %s\n",
 				gdata->iterations, m_deviceIndex, i, m_bursts[i].numParticles,
@@ -886,16 +883,20 @@ void GPUWorker::transferBursts(CommandStruct const& cmd)
 					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(state, bufkey);
 				}
 
-				// send all the arrays of which this buffer is composed
-				for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-					void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
-					if (m_bursts[i].scope == NODE_SCOPE) {
-						// node scope: just read it
-						const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
-						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
-					} else {
-						// network scope: SND or RCV
-						networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
+
+				// transfer the data if burst is not empty
+				if (m_bursts[i].numParticles > 0) {
+					// send all the arrays of which this buffer is composed
+					for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+						void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
+						if (m_bursts[i].scope == NODE_SCOPE) {
+							// node scope: just read it
+							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
+							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
+						} else {
+							// network scope: SND or RCV
+							networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
+						}
 					}
 				}
 
