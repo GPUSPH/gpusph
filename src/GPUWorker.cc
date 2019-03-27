@@ -2613,24 +2613,28 @@ void GPUWorker::runCommand<CALC_VISC>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("calc visc" + to_string(step));
 
-	float max_kinvisc = viscEngine->calc_visc(bufread, bufwrite,
-		m_numParticles,
-		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
+	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
+	// otherwise just mark the buffers
+	if (numPartsToElaborate > 0)  {
+		float max_kinvisc = viscEngine->calc_visc(bufread, bufwrite,
+			m_numParticles,
+			numPartsToElaborate,
+			m_simparams->slength,
+			m_simparams->influenceRadius);
 
-	// was the maximum kinematic visc computed? store it
-	if (!isnan(max_kinvisc))
-		m_max_kinvisc = max_kinvisc;
+		// was the maximum kinematic visc computed? store it
+		if (!isnan(max_kinvisc))
+			m_max_kinvisc = max_kinvisc;
+	} else {
+		bufwrite.mark_dirty();
+		m_max_kinvisc = 0.0f;
+	}
 
 	bufwrite.clear_pending_state();
 }
