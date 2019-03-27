@@ -2585,9 +2585,6 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2595,10 +2592,16 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>(CommandStruct const& cmd)
 		extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("compute density" + to_string(step));
 
-	forcesEngine->compute_density(bufread, bufwrite,
-		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
+	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
+	// otherwise just mark the buffers
+	if (numPartsToElaborate > 0) {
+		forcesEngine->compute_density(bufread, bufwrite,
+			numPartsToElaborate,
+			m_simparams->slength,
+			m_simparams->influenceRadius);
+	} else {
+		bufwrite.mark_dirty();
+	}
 
 	bufwrite.clear_pending_state();
 }
