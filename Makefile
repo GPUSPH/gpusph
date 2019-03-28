@@ -134,8 +134,9 @@ OBJSUBS=$(sort $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
 DEPSUBS=$(sort $(patsubst $(SRCDIR)/%,$(DEPDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
 
 # list of problems
-PROBLEM_LIST = $(foreach adir, $(PROBLEM_DIRS), \
-	$(notdir $(basename $(wildcard $(adir)/*.h))))
+PROBLEM_LIST = $(filter-out GenericProblem, \
+	$(foreach adir, $(PROBLEM_DIRS), \
+	$(notdir $(basename $(wildcard $(adir)/*.h)))))
 
 # list of problem executables, both debug and non-debug versions, for the clean target
 PROBLEM_EXES = $(foreach p, $(PROBLEM_LIST),$(call dbgexe,$p) $(CURDIR)/$(call dbgexename,$p)) \
@@ -1203,7 +1204,7 @@ test: $(LAST_BUILT_PROBLEM)
 	@echo Do "$(SCRIPTSDIR)/rmtests" to remove all tests
 
 # target: compile-problems - Test that all problems compile
-compile-problems: $(filter-out GenericProblem,$(PROBLEM_LIST))
+compile-problems: $(PROBLEM_LIST)
 
 # target: list-problems - List available problems
 list-problems:
