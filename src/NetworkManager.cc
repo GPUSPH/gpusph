@@ -506,6 +506,51 @@ void NetworkManager::networkBarrier()
 	MPI_Barrier(MPI_COMM_WORLD);
 #endif
 }
+
+#if USE_MPI
+// We send the maximum allowed tag value to denote the kill request
+static const unsigned int kill_tag = MPI_TAG_UB;
+static const unsigned char kill_payload = 0xFFU;
+#endif
+
+void NetworkManager::sendKillRequest()
+{
+#if USE_MPI
+	// We want to broadcast the kill request, which is usually handled by the root process,
+	// so we would have to send the kill request from the dying process to the root, and then the root
+	// would broadcast, but we don't care about being efficient or clean in this case, so let's just
+	// do the broadcast ourselves “manually”
+
+	// printf("Sending out MPI kill request ...\n");
+	for (int target_rank = 0; target_rank < world_size; ++target_rank) {
+		if (target_rank != process_rank) {
+			MPI_Request dont_care;
+			MPI_Isend(&kill_payload, 1, MPI_CHAR, target_rank, kill_tag, MPI_COMM_WORLD, &dont_care);
+			MPI_Request_free(&dont_care);
+		}
+	}
+	// printf("... done. Cya on the other side.\n");
+#endif
+}
+
+bool NetworkManager::checkKillRequest()
+{
+#if USE_MPI
+	int found = 0;
+	MPI_Status status;
+	int mpi_err = MPI_Iprobe(MPI_ANY_SOURCE, kill_tag, MPI_COMM_WORLD, &found, &status);
+	if (mpi_err == MPI_SUCCESS && found) {
+		// recycle found to find the number of bytes of the request.
+		mpi_err |= MPI_Get_count(&status, MPI_CHAR, &found);
+	}
+	// return true if found is exactly 1 and no errors
+	return mpi_err == MPI_SUCCESS && found == 1;
+#else
+	return false;
+#endif
+}
+
+
 #ifdef DBG_PRINTF
 #undef DBG_PRINTF
 #endif

@@ -3172,6 +3172,8 @@ void GPUWorker::simulationThread() {
 		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
 		const_cast<GlobalData*>(gdata)->ret |= 1;
+		if (MULTI_NODE)
+			gdata->networkManager->sendKillRequest();
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
@@ -3183,6 +3185,8 @@ void GPUWorker::simulationThread() {
 		// so just show the error and carry on
 		cerr << e.what() << endl;
 		const_cast<GlobalData*>(gdata)->ret |= 1;
+		if (MULTI_NODE)
+			gdata->networkManager->sendKillRequest();
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***

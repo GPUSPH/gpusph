@@ -663,6 +663,8 @@ bool GPUSPH::runSimulation() {
 	} catch (exception const& e) {
 		cerr << e.what() << endl;
 		gdata->keep_going = false;
+		if (MULTI_NODE)
+			gdata->networkManager->sendKillRequest();
 		// the loop is being ended by some exception, so we cannot guarantee that
 		// all threads are alive. Force unlocks on all subsequent barriers to exit
 		// as cleanly as possible without stalling
@@ -2196,6 +2198,9 @@ void GPUSPH::doCommand(CommandStruct const& cmd)
 	 memset(gdata->s_hVel, 0, float4Size);
 	 memset(gdata->s_hInfo, 0, infoSize);
 	 } */
+
+	if (MULTI_NODE && gdata->networkManager->checkKillRequest())
+		throw runtime_error("GPUSPH killed by MPI kill request");
 
 	if (cmd.command > NUM_WORKER_COMMANDS) {
 		switch (cmd.command) {
