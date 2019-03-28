@@ -337,6 +337,13 @@ struct GlobalData {
 
 	};
 
+	~GlobalData() {
+		delete problem;
+		if (networkManager)
+			networkManager->finalizeNetwork(ret);
+		delete networkManager;
+	}
+
 	// compute the global position from grid and local pos. note that the
 	// world origin needs to be added to this
 	template<typename T> // T should be uint3 or int3
