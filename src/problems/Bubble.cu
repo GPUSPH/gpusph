@@ -59,15 +59,10 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
               ENABLE_REPACKING>
 	);
 
-	// Repacking options
-	simparams()->repack_maxiter = 1000;
-	simparams()->repack_a = 1;
-	simparams()->repack_alpha = 1;
-
 	// SPH parameters
 	// Grenier sets h/R = 0.128
 	//set_deltap(6.72e-4/1.3);
-	set_deltap(0.128*R/1.3*4);
+	set_deltap(0.128*R/1.3);
 
 	if (simparams()->boundarytype == DYN_BOUNDARY) {
 		dyn_layers = simparams()->get_influence_layers() + 1;
@@ -106,9 +101,10 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	set_equation_of_state(air,  1.4, c0_air);
 	set_equation_of_state(water,  7.0f, c0_water);
 
+	// Repacking options
+	simparams()->repack_maxiter = 1000;
 	simparams()->repack_a = 100/(2.*c0_air*c0_air);
 	simparams()->repack_alpha = 2*m_deltap/c0_air;
-
 
 	set_kinematic_visc(air, 4.5e-3f);
 	set_kinematic_visc(water, 3.5e-5f);
