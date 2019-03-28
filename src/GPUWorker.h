@@ -308,7 +308,7 @@ private:
 	// * reset CFL and object forces and torque arrays
 	// * bind textures
 	// Returns a pair with the read and write buffer lists
-	BufferListPair pre_forces(CommandStruct const& cmd);
+	BufferListPair pre_forces(CommandStruct const& cmd, uint numPartsToElaborate);
 	// steps to do after launching a (set of) forces kernels: unbinding textures, get, adaptive dt, etc
 	float post_forces(CommandStruct const& cmd);
 

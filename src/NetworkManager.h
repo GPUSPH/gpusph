@@ -35,7 +35,10 @@ public:
 	NetworkManager();
 	~NetworkManager();
 	void initNetwork();
-	void finalizeNetwork();
+	//! Finalize the MPI network connections, with the given return value
+	/*! If ret !=, MPI will be aborted, otherwise it will be finalized
+	 */
+	void finalizeNetwork(int ret);
 	int getWorldSize();
 	int getProcessRank();
 	char* getProcessorName();
@@ -68,6 +71,11 @@ public:
 	void allGatherUints(unsigned int *datum, unsigned int *recv_buffer);
 	// synchronization barrier among all the nodes of the network
 	void networkBarrier();
+
+	//! Send a message to all other processes letting them know that this process is aborting
+	void sendKillRequest();
+	//! Check if any process is aborting
+	bool checkKillRequest();
 };
 
 #endif /* NETWORKMANAGER_H_ */

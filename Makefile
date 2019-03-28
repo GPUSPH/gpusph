@@ -251,15 +251,19 @@ MAKE_SHOW_TMP=$(INFODIR)/show.tmp
 MAKE_SHOW_OPTFILE=$(OPTSDIR)/make_show.opt
 GIT_INFO_OPTFILE=$(OPTSDIR)/git_info.opt
 
-# Actual optfiles, that define specific options
-ACTUAL_OPTFILES= \
+# Optfile that influence the device code
+DEVCODE_OPTFILES = \
 	  $(DBG_SELECT_OPTFILE) \
 	  $(COMPUTE_SELECT_OPTFILE) \
 	  $(FASTMATH_SELECT_OPTFILE) \
+	  $(LINEARIZATION_SELECT_OPTFILE) \
+
+# Actual optfiles, that define specific options
+ACTUAL_OPTFILES= \
+	  $(DEVCODE_OPTFILES) \
 	  $(MPI_SELECT_OPTFILE) \
 	  $(HDF5_SELECT_OPTFILE) \
 	  $(CHRONO_SELECT_OPTFILE) \
-	  $(LINEARIZATION_SELECT_OPTFILE) \
 	  $(CATALYST_SELECT_OPTFILE)
 
 # Pseudo-optfiles, documentig GPUSPH version and build environment
@@ -967,15 +971,14 @@ $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d | $(OBJSUBS)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d $(DEVCODE_OPTFILES) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< \
 		 --compiler-options -MG,-MM,-MT,$@ > $(word 2,$^)
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
-$(OBJDIR)/cuda/%.o: $(SRCDIR)/cuda/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
 
 # deps: empty rule, but require the directories and optfiles to be present
-$(CCDEPS): | $(DEPSUBS) $(OPTFILES) ;
+$(CCDEPS): | $(DEPSUBS) $(OPTFILES) $(AUTOGEN_SRC) ;
 $(DEPDIR)/%.gen.d: | $(DEPSUBS) $(OPTFILES) ;
 $(CUDEPS): | $(DEPSUBS) $(OPTFILES) ;
 

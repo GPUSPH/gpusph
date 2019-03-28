@@ -849,9 +849,6 @@ void GPUWorker::transferBursts(CommandStruct const& cmd)
 			// transfer bursts of one scope at a time
 			if (m_bursts[i].scope != current_scope) continue;
 
-			// transfer the data if burst is not empty
-			if (m_bursts[i].numParticles == 0) continue;
-
 			/*
 			printf("IT %u D %u burst %u #parts %u dir %s (%u -> %u) scope %s\n",
 				gdata->iterations, m_deviceIndex, i, m_bursts[i].numParticles,
@@ -886,16 +883,20 @@ void GPUWorker::transferBursts(CommandStruct const& cmd)
 					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(state, bufkey);
 				}
 
-				// send all the arrays of which this buffer is composed
-				for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-					void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
-					if (m_bursts[i].scope == NODE_SCOPE) {
-						// node scope: just read it
-						const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
-						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
-					} else {
-						// network scope: SND or RCV
-						networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
+
+				// transfer the data if burst is not empty
+				if (m_bursts[i].numParticles > 0) {
+					// send all the arrays of which this buffer is composed
+					for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+						void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
+						if (m_bursts[i].scope == NODE_SCOPE) {
+							// node scope: just read it
+							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
+							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
+						} else {
+							// network scope: SND or RCV
+							networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
+						}
 					}
 				}
 
@@ -1165,9 +1166,6 @@ void GPUWorker::uploadSubdomain() {
 	const uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
 	const uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (howManyParticles == 0) return;
-
 	// we upload data to the "initial upload"
 	auto& buflist = m_dBuffers.getState("initial upload");
 
@@ -1199,13 +1197,19 @@ void GPUWorker::uploadSubdomain() {
 				m_deviceIndex, howManyParticles, buf->get_buffer_name(),
 				gdata->memString(_size).c_str(), m_cudaDeviceNumber, firstInnerParticle);
 
-		// get all the arrays of which this buffer is composed
-		// (actually currently all arrays are simple, since the only complex arrays (TAU
-		// and VERTPOS) have no host counterpart)
-		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-			void *dstptr = buf->get_buffer(ai);
-			const void *srcptr = host_buf->get_offset_buffer(ai, firstInnerParticle);
-			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
+		// only do the actual upload if the device is not empty
+		// (unlikely but possible before LB kicks in)
+		// Note that we don't do an early bail-out because we still want to
+		// mark the buffer as valid and belonging to the correct state
+		if (howManyParticles > 0) {
+			// get all the arrays of which this buffer is composed
+			// (actually currently all arrays are simple, since the only complex arrays (TAU
+			// and VERTPOS) have no host counterpart)
+			for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+				void *dstptr = buf->get_buffer(ai);
+				const void *srcptr = host_buf->get_offset_buffer(ai, firstInnerParticle);
+				CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
+			}
 		}
 
 		buf->set_state("initial upload");
@@ -1801,9 +1805,6 @@ void GPUWorker::runCommand<SORT>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_numInternalParticles : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	BufferList bufwrite =
 		extractExistingBufferList(m_dBuffers, cmd.updates);
 	bufwrite.add_manipulator_on_write("sort");
@@ -1836,11 +1837,9 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 	// reset also if the device is empty (or we will download uninitialized values)
 	sorted.get<BUFFER_CELLSTART>()->clobber();
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (m_numParticles == 0) return;
-
-	// TODO this kernel needs a thorough reworking to only pass the needed buffers
-	neibsEngine->reorderDataAndFindCellStart(
+	// if the device is not empty, do the actual sorting. Otherwise, just mark the buffers as updated
+	if (m_numParticles > 0) {
+		neibsEngine->reorderDataAndFindCellStart(
 							m_dSegmentStart,
 							// output: sorted buffers
 							sorted,
@@ -1848,6 +1847,9 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 							unsorted,
 							m_numParticles,
 							m_dNewNumParticles);
+	} else {
+		sorted.mark_dirty();
+	}
 
 	sorted.clear_pending_state();
 }
@@ -1925,7 +1927,7 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 /// Run the steps necessary for forces execution
 /** This includes things such as binding textures and clearing the CFL buffers
  */
-GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
+GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint numPartsToElaborate)
 {
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 
@@ -1969,7 +1971,8 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd)
 
 	bufwrite.clear_pending_state();
 
-	forcesEngine->bind_textures(bufread, m_numParticles, gdata->run_mode);
+	if (numPartsToElaborate > 0)
+		forcesEngine->bind_textures(bufread, m_numParticles, gdata->run_mode);
 
 	return make_pair(bufread, bufwrite);
 
@@ -2119,10 +2122,10 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 	nonEdgingStripeSize = forcesEngine->round_particles(nonEdgingStripeSize);
 	edgingStripeSize = numPartsToElaborate - nonEdgingStripeSize;
 
-	if (numPartsToElaborate > 0 ) {
-		// setup for forces execution
-		BufferListPair buffer_lists = pre_forces(cmd);
+	// setup for forces execution
+	BufferListPair buffer_lists = pre_forces(cmd, numPartsToElaborate);
 
+	if (numPartsToElaborate > 0 ) {
 		// enqueue the first kernel call (on the particles in edging cells)
 		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(cmd, buffer_lists,
 			nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
@@ -2139,6 +2142,11 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 		// faster in the computation of the first stripe have to wait the others before issuing the second). However,
 		// we need to ensure that the first stripe is finished in the *other* devices, before importing their cells.
 		cudaEventSynchronize(m_halfForcesEvent);
+	} else {
+		// we didn't call forces because we didn't have particles,
+		// but let's mark the write buffers as dirty to be consistent with the workers
+		// that did do the work
+		buffer_lists.second.mark_dirty();
 	}
 }
 
@@ -2185,16 +2193,23 @@ void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 	const uint fromParticle = 0;
 	const uint toParticle = numPartsToElaborate;
 
-	if (numPartsToElaborate > 0 ) {
-		// setup for forces execution
-		BufferListPair buffer_lists = pre_forces(cmd);
+	// setup for forces execution
+	BufferListPair buffer_lists = pre_forces(cmd, numPartsToElaborate);
 
+	if (numPartsToElaborate > 0 ) {
 		// enqueue the kernel call
 		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(cmd,
 			buffer_lists, fromParticle, toParticle, 0);
 
 		// cleanup post forces and get dt
 		returned_dt = post_forces(cmd);
+	} else {
+		// we didn't call forces because we didn't have particles,
+		// but let's mark the write buffers as dirty to be consistent with the workers
+		// that did do the work
+		for (auto buf_iter : buffer_lists.second) {
+			buf_iter.second->mark_dirty();
+		}
 	}
 
 	// for multi-step integrators, use the minumum of the estimations across all timesteps
@@ -2211,9 +2226,6 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2223,17 +2235,23 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 
 	const float dt = cmd.dt(gdata);
 
-	integrationEngine->basicstep(
-		bufread,
-		bufwrite,
-		m_numParticles,
-		numPartsToElaborate,
-		dt,
-		step,
-		gdata->t + dt,
-		m_simparams->slength,
-		m_simparams->influenceRadius,
-		gdata->run_mode);
+	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
+	// otherwise just mark the buffers
+	if (numPartsToElaborate > 0) {
+		integrationEngine->basicstep(
+			bufread,
+			bufwrite,
+			m_numParticles,
+			numPartsToElaborate,
+			dt,
+			step,
+			gdata->t + dt,
+			m_simparams->slength,
+			m_simparams->influenceRadius,
+			gdata->run_mode);
+	} else {
+		bufwrite.mark_dirty();
+	}
 
 	// should we rename the state?
 	if (!cmd.src.empty() && !cmd.dst.empty())
@@ -2519,9 +2537,6 @@ void GPUWorker::runCommand<POSTPROCESS>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	PostProcessType proctype = PostProcessType(cmd.flags);
 	PostProcessEngineSet::const_iterator procpair(postProcEngines.find(proctype));
 	// make sure we're going to call an instantiated filter
@@ -2546,12 +2561,18 @@ void GPUWorker::runCommand<POSTPROCESS>(CommandStruct const& cmd)
 
 	bufwrite.add_manipulator_on_write(string("postprocess/") + PostProcessName[proctype]);
 
-	processor->process(
-		bufread, bufwrite,
-		m_numParticles,
-		numPartsToElaborate,
-		m_deviceIndex,
-		gdata);
+	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
+	// otherwise just mark the buffers
+	if (numPartsToElaborate > 0) {
+		processor->process(
+			bufread, bufwrite,
+			m_numParticles,
+			numPartsToElaborate,
+			m_deviceIndex,
+			gdata);
+	} else {
+		bufwrite.mark_dirty();
+	}
 
 	bufwrite.clear_pending_state();
 }
@@ -2562,9 +2583,6 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2572,10 +2590,16 @@ void GPUWorker::runCommand<COMPUTE_DENSITY>(CommandStruct const& cmd)
 		extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("compute density" + to_string(step));
 
-	forcesEngine->compute_density(bufread, bufwrite,
-		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
+	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
+	// otherwise just mark the buffers
+	if (numPartsToElaborate > 0) {
+		forcesEngine->compute_density(bufread, bufwrite,
+			numPartsToElaborate,
+			m_simparams->slength,
+			m_simparams->influenceRadius);
+	} else {
+		bufwrite.mark_dirty();
+	}
 
 	bufwrite.clear_pending_state();
 }
@@ -2587,24 +2611,28 @@ void GPUWorker::runCommand<CALC_VISC>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("calc visc" + to_string(step));
 
-	float max_kinvisc = viscEngine->calc_visc(bufread, bufwrite,
-		m_numParticles,
-		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
+	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
+	// otherwise just mark the buffers
+	if (numPartsToElaborate > 0)  {
+		float max_kinvisc = viscEngine->calc_visc(bufread, bufwrite,
+			m_numParticles,
+			numPartsToElaborate,
+			m_simparams->slength,
+			m_simparams->influenceRadius);
 
-	// was the maximum kinematic visc computed? store it
-	if (!isnan(max_kinvisc))
-		m_max_kinvisc = max_kinvisc;
+		// was the maximum kinematic visc computed? store it
+		if (!isnan(max_kinvisc))
+			m_max_kinvisc = max_kinvisc;
+	} else {
+		bufwrite.mark_dirty();
+		m_max_kinvisc = 0.0f;
+	}
 
 	bufwrite.clear_pending_state();
 }
@@ -3146,8 +3174,10 @@ void GPUWorker::simulationThread() {
 			default:
 				unknownCommand(cmd.command);
 			}
-			if (dbg_buffer_lists)
-				cout << m_dBuffers.inspect() << endl;
+			if (dbg_buffer_lists) {
+				string desc = " T " + to_string(m_deviceIndex) + " " + m_dBuffers.inspect();
+				cout << desc << endl;
+			}
 			if (gdata->keep_going) {
 				/*
 				// example usage of checkPartValBy*()
@@ -3170,6 +3200,8 @@ void GPUWorker::simulationThread() {
 		// TODO FIXME cleaner way to handle this
 		const_cast<GlobalData*>(gdata)->keep_going = false;
 		const_cast<GlobalData*>(gdata)->ret |= 1;
+		if (MULTI_NODE)
+			gdata->networkManager->sendKillRequest();
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
@@ -3181,6 +3213,8 @@ void GPUWorker::simulationThread() {
 		// so just show the error and carry on
 		cerr << e.what() << endl;
 		const_cast<GlobalData*>(gdata)->ret |= 1;
+		if (MULTI_NODE)
+			gdata->networkManager->sendKillRequest();
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***

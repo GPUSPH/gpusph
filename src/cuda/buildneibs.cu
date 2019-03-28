@@ -385,15 +385,17 @@ sort(	BufferList const& bufread,
 
 	ptype_hash_compare comp;
 
-	// Sort of the particle indices by cell, fluid number, id and
-	// particle type (PT_FLUID < PT_BOUNDARY < PT_VERTEX)
-	// There is no need for a stable sort due to the id sort
-	thrust::sort_by_key(
-		thrust::make_zip_iterator(thrust::make_tuple(particleHash, particleInfo)),
-		thrust::make_zip_iterator(thrust::make_tuple(
-			particleHash + numParticles,
-			particleInfo + numParticles)),
-		particleIndex, comp);
+	if (numParticles > 0) {
+		// Sort of the particle indices by cell, fluid number, id and
+		// particle type (PT_FLUID < PT_BOUNDARY < PT_VERTEX)
+		// There is no need for a stable sort due to the id sort
+		thrust::sort_by_key(
+			thrust::make_zip_iterator(thrust::make_tuple(particleHash, particleInfo)),
+			thrust::make_zip_iterator(thrust::make_tuple(
+				particleHash + numParticles,
+				particleInfo + numParticles)),
+			particleIndex, comp);
+	}
 
 	KERNEL_CHECK_ERROR;
 }

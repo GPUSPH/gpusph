@@ -91,6 +91,15 @@ protected:
 
 public:
 
+	//! Neighbor sequential offset
+	/*! Any structure which is addressed like the neighbor list can find
+	 * the current neighbor data adding the central particle index to the neib_list_offset()
+	 */
+	__device__ __forceinline__
+	idx_t neib_list_offset() const
+	{ return i; }
+
+	//! Neighbor index (i.e. the particle index of the neighbor)
 	__device__ __forceinline__
 	uint const& neib_index() const {
 		return _neib_index;
@@ -131,14 +140,22 @@ protected:
 public:
 	__device__ __forceinline__
 	void reset()
-	{ i = neib_list_start<ptype>(); }
+	{
+		// We start “behind” the official start, because every fetch
+		// does an increment first
+		// TODO FIXME this is ugly, but can work as a stop-gap measure
+		// until we find the best way to map the complexities of neighbors
+		// iteration to the STL iterator interface; C++20 with the Sentinel
+		// concept should make it much easier.
+		i = neib_list_start<ptype>() - neib_list_step<ptype>();
+	}
 
 	__device__ __forceinline__
 	bool next()
 	{
+		i += neib_list_step<ptype>();
 		neibdata neib_data = neibsList[i + index];
 		if (neib_data == NEIBS_END) return false;
-		i += neib_list_step<ptype>();
 
 		update_neib_index(neib_data);
 		return true;
@@ -217,20 +234,20 @@ class neiblist_iterator :
 	template<ParticleType try_type, ParticleType ...other_types>
 	__device__ __forceinline__
 	enable_if_t<sizeof...(other_types) != 0, bool>
-	try_next(ParticleType current) {
-		if (try_type == current) {
+	try_next() {
+		if (try_type == current_type) {
 			if (neiblist_iterator_simple<try_type>::next())
 				return true;
 			next_type<other_types...>();
 		}
-		return try_next<other_types...>(current);
+		return try_next<other_types...>();
 	}
 
 	// For the last type, just return whatever the next neighbor is
 	// (or none if we're done)
 	template<ParticleType try_type>
 	__device__ __forceinline__
-	bool try_next(ParticleType current) {
+	bool try_next() {
 		return neiblist_iterator_simple<try_type>::next();
 	}
 
@@ -240,7 +257,7 @@ public:
 
 	__device__ __forceinline__
 	bool next() {
-		return try_next<ptypes...>(current_type);
+		return try_next<ptypes...>();
 	}
 
 	__device__ __forceinline__

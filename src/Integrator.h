@@ -109,11 +109,18 @@ public:
 		///< type of the functions that determine if a phase should run
 		typedef bool (*should_run_t)(Phase const*, GlobalData const*);
 
+		///< type of the functions that determine if a phase is done
+		/* Currently this is the same as should_run_t */
+		using is_done_t = should_run_t;
+
 		///< type of the functions called on reset()
 		typedef void (*reset_t)(Phase*, Integrator const*);
 
 		///< the function that determines if this phase should run
 		should_run_t m_should_run;
+
+		///< the function that determines if this phase is done
+		is_done_t m_is_done;
 
 		///< the function called on reset
 		reset_t m_reset_func;
@@ -143,6 +150,10 @@ public:
 		void should_run_if(should_run_t new_should_run_cond)
 		{ m_should_run = new_should_run_cond; }
 
+		//! Change the condition under which the phase is done
+		void is_done_if(is_done_t new_is_done_cond)
+		{ m_is_done = new_is_done_cond; }
+
 		//! Change the reset function
 		void set_reset_function(reset_t reset_func)
 		{ m_reset_func = reset_func; }
@@ -157,12 +168,26 @@ public:
 		bool not_empty() const
 		{ return !empty(); }
 
+		// has this phase run all commands?
+		bool finished_commands() const
+		{ return m_cmd_idx == m_command.size(); }
+
 		bool should_run(GlobalData const* gdata) const
 		{ return m_should_run(this, gdata); }
 
+		// Is this phase done?
+		bool done(GlobalData const* gdata) const
+		{ return m_is_done(this, gdata); }
+
 		// by default the phase runs if it's not empty
-		static bool should_run_default(Phase const* p, GlobalData const*)
+		static bool default_should_run(Phase const* p, GlobalData const*)
 		{ return p->not_empty(); }
+
+		// by default the phase is done if it has finished the commands
+		// iterative phases may restart under appropriate conditions
+		// or bail out early
+		static bool default_is_done(Phase const* p, GlobalData const*)
+		{ return p->finished_commands(); }
 
 		// by default the reset simply resets the index to the default
 		static void default_reset(Phase *p, Integrator const*)
@@ -173,17 +198,13 @@ public:
 			m_name(name),
 			m_command(),
 			m_cmd_idx(0),
-			m_should_run(should_run_default),
+			m_should_run(default_should_run),
+			m_is_done(default_is_done),
 			m_reset_func(default_reset)
 		{}
 
 		std::string const& name() const
 		{ return m_name; }
-
-		// Is this phase done? Simple phases will be done when the last step is reached,
-		// iterative phases will override this method with their more sophisticated checks
-		virtual bool done() const
-		{ return m_cmd_idx == m_command.size(); }
 
 		CommandStruct const* current_command() const
 		{ return &m_command.at(m_cmd_idx); }
@@ -274,7 +295,7 @@ public:
 	CommandStruct const* next_command()
 	{
 		Phase* phase = current_phase();
-		if (phase->done())
+		if (phase->done(gdata))
 			phase = next_phase();
 		return phase->next_command();
 	}

@@ -96,10 +96,13 @@ void NetworkManager::initNetwork() {
 #endif
 }
 
-void NetworkManager::finalizeNetwork() {
+void NetworkManager::finalizeNetwork(int ret) {
 	// finalize the MPI environment
 #if USE_MPI
-	MPI_Finalize();
+	if (ret)
+		MPI_Abort(MPI_COMM_WORLD, ret);
+	else
+		MPI_Finalize();
 #endif
 }
 
@@ -115,6 +118,23 @@ char* NetworkManager::getProcessorName() {
 	return processor_name;
 }
 
+//! Combine a source and destination global device index into an MPI message tag
+static inline
+unsigned int
+exchange_tag(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx)
+{
+	return (((unsigned int)src_globalDevIdx) << GLOBAL_DEVICE_BITS) | dst_globalDevIdx;
+}
+
+//! Combine a source and destination global device index and a buffer id into an MPI message tag
+static inline
+unsigned int
+async_exchange_tag(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, uint bid)
+{
+	unsigned int base_tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
+	return (bid << (2*GLOBAL_DEVICE_BITS)) | base_tag;
+}
+
 // print world size,process name and rank
 void NetworkManager::printInfo()
 {
@@ -124,7 +144,7 @@ void NetworkManager::printInfo()
 void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
 {
 #if USE_MPI
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 #ifdef DBG_PRINTF
 	printf("  ---- MPI UINT src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, 4, tag);
@@ -142,7 +162,7 @@ void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_
 void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
 {
 #if USE_MPI
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 #ifdef DBG_PRINTF
 	printf("  ---- MPI UINT src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, 4, tag);
@@ -170,7 +190,7 @@ void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char d
 void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data)
 {
 #if USE_MPI
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 #ifdef DBG_PRINTF
 	printf("  ---- MPI BUFFER src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, count, tag);
@@ -188,7 +208,7 @@ void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char ds
 void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data)
 {
 #if USE_MPI
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 #ifdef DBG_PRINTF
 	printf("  ---- MPI BUFFER src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, count, tag);
@@ -216,7 +236,7 @@ void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char
 void NetworkManager::sendBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data, uint bid)
 {
 #if USE_MPI
-	unsigned int tag = (bid << 16) | ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = async_exchange_tag(src_globalDevIdx, dst_globalDevIdx, bid);
 	int mpi_err = 0;
 
 	#ifdef DBG_PRINTF
@@ -240,7 +260,7 @@ void NetworkManager::sendBufferAsync(unsigned char src_globalDevIdx, unsigned ch
 void NetworkManager::receiveBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data, uint bid)
 {
 #if USE_MPI
-	unsigned int tag = (bid << 16) | ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = async_exchange_tag(src_globalDevIdx, dst_globalDevIdx, bid);
 	int mpi_err = 0;
 
 	#ifdef DBG_PRINTF
@@ -301,7 +321,7 @@ void NetworkManager::waitAsyncTransfers()
 #if 0
 void NetworkManager::sendUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, uint *src_data)
 {
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 	int mpi_err = MPI_Send(src_data, count, MPI_UNSIGNED, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD);
 
@@ -311,7 +331,7 @@ void NetworkManager::sendUints(unsigned char src_globalDevIdx, unsigned char dst
 
 void NetworkManager::receiveUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, uint *dst_data)
 {
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 	MPI_Status status;
 	int mpi_err = MPI_Recv(dst_data, count, MPI_UNSIGNED, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD, &status);
@@ -331,7 +351,7 @@ void NetworkManager::receiveUints(unsigned char src_globalDevIdx, unsigned char 
 
 void NetworkManager::sendFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *src_data)
 {
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 	int mpi_err = MPI_Send(src_data, count, MPI_FLOAT, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD);
 
@@ -341,7 +361,7 @@ void NetworkManager::sendFloats(unsigned char src_globalDevIdx, unsigned char ds
 
 void NetworkManager::receiveFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *dst_data)
 {
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 	MPI_Status status;
 	int mpi_err = MPI_Recv(dst_data, count, MPI_FLOAT, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD, &status);
@@ -361,7 +381,7 @@ void NetworkManager::receiveFloats(unsigned char src_globalDevIdx, unsigned char
 
 void NetworkManager::sendShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *src_data)
 {
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 	int mpi_err = MPI_Send(src_data, count, MPI_SHORT, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD);
 
@@ -371,7 +391,7 @@ void NetworkManager::sendShorts(unsigned char src_globalDevIdx, unsigned char ds
 
 void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *dst_data)
 {
-	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
 	MPI_Status status;
 	int mpi_err = MPI_Recv(dst_data, count, MPI_SHORT, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD, &status);
@@ -486,6 +506,51 @@ void NetworkManager::networkBarrier()
 	MPI_Barrier(MPI_COMM_WORLD);
 #endif
 }
+
+#if USE_MPI
+// We send the maximum allowed tag value to denote the kill request
+static const unsigned int kill_tag = MPI_TAG_UB;
+static const unsigned char kill_payload = 0xFFU;
+#endif
+
+void NetworkManager::sendKillRequest()
+{
+#if USE_MPI
+	// We want to broadcast the kill request, which is usually handled by the root process,
+	// so we would have to send the kill request from the dying process to the root, and then the root
+	// would broadcast, but we don't care about being efficient or clean in this case, so let's just
+	// do the broadcast ourselves “manually”
+
+	// printf("Sending out MPI kill request ...\n");
+	for (int target_rank = 0; target_rank < world_size; ++target_rank) {
+		if (target_rank != process_rank) {
+			MPI_Request dont_care;
+			MPI_Isend(&kill_payload, 1, MPI_CHAR, target_rank, kill_tag, MPI_COMM_WORLD, &dont_care);
+			MPI_Request_free(&dont_care);
+		}
+	}
+	// printf("... done. Cya on the other side.\n");
+#endif
+}
+
+bool NetworkManager::checkKillRequest()
+{
+#if USE_MPI
+	int found = 0;
+	MPI_Status status;
+	int mpi_err = MPI_Iprobe(MPI_ANY_SOURCE, kill_tag, MPI_COMM_WORLD, &found, &status);
+	if (mpi_err == MPI_SUCCESS && found) {
+		// recycle found to find the number of bytes of the request.
+		mpi_err |= MPI_Get_count(&status, MPI_CHAR, &found);
+	}
+	// return true if found is exactly 1 and no errors
+	return mpi_err == MPI_SUCCESS && found == 1;
+#else
+	return false;
+#endif
+}
+
+
 #ifdef DBG_PRINTF
 #undef DBG_PRINTF
 #endif

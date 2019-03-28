@@ -448,41 +448,28 @@ int main(int argc, char** argv) {
 	if (gdata.clOptions->num_hosts > 0)
 		printf(" num-hosts was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
 
-	if (gdata.clOptions->asyncNetworkTransfers) {
-
-		if (!gdata.clOptions->gpudirect) {
-			// since H2D and D2H transfers have to wait for network transfers
-			fprintf(stderr, "FATAL: asynchronous network transfers require --gpudirect\n");
-			gdata.networkManager->finalizeNetwork();
-			return 1;
-		}
-
-		if (gdata.devices > 1) {
-			// since we were too lazy to implement a more complex mechanism
-			fprintf(stderr, "FATAL: asynchronous network transfers only supported with 1 process per device\n");
-			gdata.networkManager->finalizeNetwork();
-			return 1;
-		}
-
-	}
-
+	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	try {
+		if (gdata.clOptions->asyncNetworkTransfers) {
+
+			// since H2D and D2H transfers have to wait for network transfers
+			if (!gdata.clOptions->gpudirect)
+				throw invalid_argument("asynchronous network transfers require --gpudirect");
+
+			// since we were too lazy to implement a more complex mechanism
+			if (gdata.devices > 1)
+				throw invalid_argument("asynchronous network transfers only supported with 1 process per device");
+		}
+
 		if (gdata.clOptions->repack || gdata.clOptions->repack_only)
 			simulate(&gdata, REPACK);
 		if (!gdata.ret && !gdata.clOptions->repack_only) {
 			simulate(&gdata, SIMULATE);
 		}
 	} catch (exception const& e) {
-		cerr << e.what() << endl;
+		cerr << "FATAL: " << e.what() << endl;
 		gdata.ret = 1;
 	}
-
-	// The next three steps should go in GlobalData's destructor
-	gdata.networkManager->finalizeNetwork();
-
-	delete gdata.problem;
-
-	delete gdata.networkManager;
 
 	return gdata.ret;
 }

@@ -345,6 +345,13 @@ struct GlobalData {
 
 	};
 
+	~GlobalData() {
+		delete problem;
+		if (networkManager)
+			networkManager->finalizeNetwork(ret);
+		delete networkManager;
+	}
+
 	//! Textual description of the current run mode (lowercase)
 	const char * run_mode_desc() const
 	{ return run_mode == REPACK ? "repacking" : "simulation"; }
