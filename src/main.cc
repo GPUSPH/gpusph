@@ -404,7 +404,7 @@ int main(int argc, char** argv) {
 	}
 
 	// The next three steps should go in GlobalData's destructor
-	gdata.networkManager->finalizeNetwork();
+	gdata.networkManager->finalizeNetwork(gdata.ret);
 
 	delete gdata.problem;
 

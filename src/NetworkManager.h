@@ -35,7 +35,10 @@ public:
 	NetworkManager();
 	~NetworkManager();
 	void initNetwork();
-	void finalizeNetwork();
+	//! Finalize the MPI network connections, with the given return value
+	/*! If ret !=, MPI will be aborted, otherwise it will be finalized
+	 */
+	void finalizeNetwork(int ret);
 	int getWorldSize();
 	int getProcessRank();
 	char* getProcessorName();

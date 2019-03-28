@@ -96,10 +96,13 @@ void NetworkManager::initNetwork() {
 #endif
 }
 
-void NetworkManager::finalizeNetwork() {
+void NetworkManager::finalizeNetwork(int ret) {
 	// finalize the MPI environment
 #if USE_MPI
-	MPI_Finalize();
+	if (ret)
+		MPI_Abort(MPI_COMM_WORLD, ret);
+	else
+		MPI_Finalize();
 #endif
 }
 
