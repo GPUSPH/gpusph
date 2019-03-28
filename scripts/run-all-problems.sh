@@ -6,6 +6,7 @@
 #	in which case the default suffix is mgpu_reference
 # default maxiter is 1000
 # if they are present as arguments but empty, they will be kept at the default values
+# TODO generate repacking references where supported too
 
 abort() {
 	echo "$@" >&2
