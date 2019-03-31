@@ -163,6 +163,7 @@ CUFILES = $(foreach p,$(PROBLEM_LIST),$(call problem_src,$p))
 # dependency files via filename replacement
 CCDEPS = $(patsubst $(SRCDIR)/%.cc,$(DEPDIR)/%.d,$(CCFILES) $(MPICXXFILES))
 CUDEPS = $(patsubst $(SRCDIR)/%.cu,$(DEPDIR)/%.d,$(CUFILES))
+GENDEPS = $(foreach p,$(PROBLEM_LIST),$(DEPDIR)/$(p).gen.d)
 
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
@@ -1214,5 +1215,6 @@ FORCE:
 ifneq ($(cleaning),1)
 sinclude $(CCDEPS)
 sinclude $(CUDEPS)
+sinclude $(GENDEPS)
 endif
 
