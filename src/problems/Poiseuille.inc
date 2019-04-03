@@ -44,6 +44,7 @@ POISEUILLE_PROBLEM::POISEUILLE_PROBLEM(GlobalData *_gdata) :
 	kinvisc(get_option("kinvisc", 0.1f)),
 	driving_force(get_option("driving-force", 0.05f)),
 
+	ys( YIELDING_RHEOLOGY(POISEUILLE_RHEOLOGY) ? driving_force*rho*lz/4 : 0 ),
 	max_vel(compute_poiseuille_vel(0)),
 	Re(lz*max_vel/kinvisc)
 {
@@ -105,11 +106,13 @@ POISEUILLE_PROBLEM::POISEUILLE_PROBLEM(GlobalData *_gdata) :
 	set_kinematic_visc(fluid_idx, kinvisc);
 
 	// Set yield strength (if needed) to get a plug which is about 1/2 of the channel height
-	if (YIELDING_RHEOLOGY(simparams()->rheologytype))
-		set_yield_strength(fluid_idx, driving_force*rho*lz/4);
+	if (YIELDING_RHEOLOGY(POISEUILLE_RHEOLOGY))
+		set_yield_strength(fluid_idx, ys);
 
-	printf("Reynolds number = %g\n", Re);
-	printf("Max flow velocity: %g m/s\n", max_vel);
+	printf("Reynolds number : %g\n", Re);
+	if (YIELDING_RHEOLOGY(POISEUILLE_RHEOLOGY))
+		printf("Yield strength : %g Pa.s\n", ys);
+	printf("Max flow velocity : %g m/s\n", max_vel);
 
 	const double hydrostatic_vel = sqrt(2*driving_force*lz);
 	printf("Hydrostatic velocity : %g m/s\n", hydrostatic_vel);
@@ -155,12 +158,49 @@ void POISEUILLE_PROBLEM::initializeParticles(BufferList &buffer, const uint numP
 	}
 }
 
-float POISEUILLE_PROBLEM::compute_poiseuille_vel(float pos_z)
+float POISEUILLE_PROBLEM::compute_poiseuille_vel(float pos_z) const
 {
-	float A = driving_force/(2*kinvisc);
-	float B = (lz/2)*(lz/2);
-	float vel = A*(B - pos_z*pos_z);
-	return vel;
+	if (EXPONENTIAL_RHEOLOGY(POISEUILLE_RHEOLOGY))
+		throw invalid_argument("Exponential rheology profile computation not yet supported");
+
+	const float n = NONLINEAR_RHEOLOGY(POISEUILLE_RHEOLOGY) ?
+		physparams()->visc_nonlinear_param[0] :
+		1.0f;
+	const float n1n = 1.0 + 1.0/n;
+
+	const float plug_limit = ys/(rho*driving_force);
+
+	// The formula is A ( B - C(z) ) where:
+	//
+	// A = n / (n+1) * (driving_force/kinvisc)^(1/n)
+	// B = (h/2 - plug_limit)^n1n
+	// C(z) = (abs(z) - plug_limit)^n1n
+	// TODO A and B should be computed only once
+
+	// Compute A
+	float A = driving_force/kinvisc;
+	if (n != 1)
+		A = powf(A, 1.0/n);
+	A = (n*A)/(n+1);
+
+	// Compute B
+	float B = lz/2 - plug_limit;
+	if (n == 1)
+		B *= B;
+	else
+		B = powf(B, n1n);
+
+	if (fabs(pos_z) < plug_limit)
+		return A*B;
+
+	// Compute C
+	float C = pos_z - plug_limit;
+	if (n == 1)
+		C *= C;
+	else
+		C = powf(C, n1n);
+
+	return A*(B - C);
 }
 
 /* vim: set ft=cuda */

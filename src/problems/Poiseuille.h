@@ -23,6 +23,10 @@ class POISEUILLE_PROBLEM: public XProblem {
 		// different Reynolds numbers
 		const float driving_force;
 
+		// yield strength of the fluid
+		// this will be autocomputed (if appropriate for the rheology)
+		// to achieve a plug about half the channel height
+		const float ys;
 		// maximum theoretical flow velocity (computed from other flow parameters)
 		const float max_vel;
 		// Reynolds number (computed from other flow parameters)
@@ -31,7 +35,7 @@ class POISEUILLE_PROBLEM: public XProblem {
 	public:
 		POISEUILLE_PROBLEM(GlobalData *);
 		void initializeParticles(BufferList &, const uint);
-		float compute_poiseuille_vel(float);
+		float compute_poiseuille_vel(float) const;
 };
 #endif
 
