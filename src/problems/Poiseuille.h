@@ -3,7 +3,11 @@
 
 #include "XProblem.h"
 
-class Poiseuille: public XProblem {
+#ifndef POISEUILLE_PROBLEM
+#define POISEUILLE_PROBLEM Poiseuille
+#endif
+
+class POISEUILLE_PROBLEM: public XProblem {
 
 	private:
 		// box dimensions. The origin is assumed to be in the middle,
@@ -25,7 +29,7 @@ class Poiseuille: public XProblem {
 		const float Re;
 
 	public:
-		Poiseuille(GlobalData *);
+		POISEUILLE_PROBLEM(GlobalData *);
 		void initializeParticles(BufferList &, const uint);
 		float compute_poiseuille_vel(float);
 };
