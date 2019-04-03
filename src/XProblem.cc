@@ -307,6 +307,11 @@ bool XProblem::initialize()
 		m_hydrostaticFilling = false;
 	}
 
+	// if multiple fluids, hydrostatic filling should be done by hand
+	// in the problem-specific initilizeParticles
+	if (physparams()->numFluids() > 1)
+		m_hydrostaticFilling = false;
+
 	if (!isfinite(m_maxParticleSpeed)) {
 		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
 		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
@@ -1327,7 +1332,8 @@ int XProblem::fill_parts(bool fill)
 
 		// Now will set the particle and object mass if still unset
 		const double DEFAULT_DENSITY = atrest_density(0);
-		const double DEFAULT_PHYSICAL_DENSITY = physical_density(DEFAULT_DENSITY, 0);
+		const double DEFAULT_PHYSICAL_DENSITY = physparams()->numFluids() > 1 ?
+			1 : physical_density(DEFAULT_DENSITY, 0);
 		// Setting particle mass by means of dx and default density only. This leads to same mass
 		// everywhere but possibly slightly different densities.
 		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * DEFAULT_PHYSICAL_DENSITY;
