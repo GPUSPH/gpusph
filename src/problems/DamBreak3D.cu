@@ -74,7 +74,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	resize_neiblist(128);
 
 	// *** Initialization of minimal physical parameters
-	set_deltap(0.04f);
+	set_deltap(0.015f);
 	//simparams()->dt = 0.00005;
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
@@ -101,7 +101,9 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->repack_maxiter = 10;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.05f);
+	add_writer(VTKWRITER, 0.005f);
+	//addPostProcess(VORTICITY);
+	// *** Other parameters and settings
 	m_name = "DamBreak3D";
 
 	// *** Geometrical parameters, starting from the size of the domain

@@ -73,7 +73,7 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
 	// ratio h / deltap (needs to be defined before calling set_deltap)
 	simparams()->sfactor = 1.3;
 	// set deltap (automatically computes h based on sfactor * deltap)
-	set_deltap(0.01); //0.008
+	set_deltap(0.02); //0.008
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
 	simparams()->densityDiffCoeff = 0.1;

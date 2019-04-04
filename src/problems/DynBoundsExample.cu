@@ -50,7 +50,7 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 		add_flags<ENABLE_REPACKING>
 	);
 
-	set_deltap(W/20);
+	set_deltap(W/64);
 	resize_neiblist(128);
 
 	w = m_deltap*4;
