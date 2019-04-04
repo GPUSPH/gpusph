@@ -158,6 +158,8 @@ struct GeometryInfo {
 		custom_inertia[1] = NAN;
 		custom_inertia[2] = NAN;
 
+		custom_cg = make_double3(NAN);
+
 		mass_was_set = false;
 		particle_mass_was_set = false;
 
