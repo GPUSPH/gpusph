@@ -75,7 +75,17 @@ SET_BUFFER_TRAITS(BUFFER_COMPACT_DEV_MAP, uint, 1, "Compact device map");
 #define BUFFER_NEIBSLIST	(BUFFER_COMPACT_DEV_MAP << 1)
 SET_BUFFER_TRAITS(BUFFER_NEIBSLIST, neibdata, 1, "Neighbor List");
 
-#define BUFFER_FORCES		(BUFFER_NEIBSLIST << 1)
+/* Corrective Smoothed Particle Method (CSPM) kernel and gradient
+ * coefficients. For W we have a scalar correction, for the gradient
+ * we have a symmetric tensor (stored as 3 float2).
+ */
+#define BUFFER_WCOEFF		(BUFFER_NEIBSLIST << 1)
+SET_BUFFER_TRAITS(BUFFER_WCOEFF, float, 1, "CSPM coefficient for W");
+
+#define BUFFER_FCOEFF		(BUFFER_WCOEFF << 1)
+SET_BUFFER_TRAITS(BUFFER_FCOEFF, float2, 3, "CSPM coefficient for F");
+
+#define BUFFER_FORCES		(BUFFER_FCOEFF << 1)
 SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
 /* Forces and torques acting on rigid body particles only

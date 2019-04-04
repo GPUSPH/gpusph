@@ -79,8 +79,11 @@
  */
 #define ENABLE_XSPH				(ENABLE_DTADAPT << 1)
 
+//! CSPM
+#define  ENABLE_CSPM				(ENABLE_XSPH << 1)
+
 //! planes
-#define ENABLE_PLANES			(ENABLE_XSPH << 1)
+#define ENABLE_PLANES				(ENABLE_CSPM << 1)
 
 //! DEM
 #define ENABLE_DEM				(ENABLE_PLANES << 1)

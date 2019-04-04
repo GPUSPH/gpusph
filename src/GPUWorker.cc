@@ -135,6 +135,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simparams->simflags & ENABLE_XSPH)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
 
+	if (m_simparams->simflags & ENABLE_CSPM) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_WCOEFF>(0);
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FCOEFF>(0);
+	}
+
 	// If the user enabled a(n actual) turbulence model, enable BUFFER_TAU, to
 	// store the shear stress tensor.
 	// TODO FIXME temporary: k-eps needs TAU only for temporary storage
