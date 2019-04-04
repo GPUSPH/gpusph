@@ -1,10 +1,10 @@
 \documentclass{../GPUSPHtemplate}
 
-\title{GPUSPH Validation basis}
+\title{GPUSPH: user interface reception document}
 
 \author{}
 
-\date{\currentver\ --- November 2018}
+\date{\currentver\ --- April 2018}
 
 \begin{document}
 
@@ -301,7 +301,7 @@ The idea is to let the particles reorganise themselves before the beginning of t
 make the initial repartition of particles as homogeneous as possible. In order to do that, when performing a simulation
 of a free-surface flow, it is necessary to provide GPUSPH with a particle file corresponding to the initial free-surface
 position. These particles will be considered as a boundary and the repacking will happen within the solid, open and free-surface
-boundaries of the domain. As soon as the repacking if finished, the free-surface particles are removed from the simulation
+boundaries of the domain. As soon as the repacking is finished, the free-surface particles are removed from the simulation
 domain and the simulation can begin. Thus, during pre-processing the free-surface is considered as a boundary.
 It is inputed as a special boundary and there is no need anymore to define a separate free-surface like in the Spheric2 case.
 The following steps can be followed:
@@ -837,7 +837,294 @@ for (uint i = 0; i < numParticles; i++) {
 \end{enumerate}
 
 \subsection{Results}
+The results are not yet available for this case.
 
+\section{Oscillating cube}
+
+This case consists in simulating the free heave decay of a cube in a
+tank. It is based on the work of Crespo \textit{et al.} on
+the survivability of floating moored offshore structures with DualSPHysics
+\cite{CubeExp}. In their work, the open-source code DualSPHysics is applied
+to simulate the interaction of sea waves with floating and offshore
+structures which are typically moored to the sea bottom.
+They coupled DualSPHysics with MoorDyn (a lumped-mass mooring dynamics model).
+The objective was to validate the coupled model against experimental data
+generated during the experimental campaigns of the European MaRINET2 EsfLOWC
+project in 2017.
+The primary objective of the European MaRINET2 EsfLOWC porject is to study
+the interaction between ocean and moored floating structures.
+Within the EsfLOWC project a floating OWC (Oscillating Water Column)
+WEC (Wave Energy Converter) and a floating closed box have been tested
+under wave action. The main objective of the EsfLOWC project is to generate
+an experimental database, freely available for public use by the
+scientific community.
+
+\subsection{Case Study Setup and Details}
+
+This case reproduces experimental tests that were carried out in the the wave flume of the Coastal
+Engineering Research Group of Ghent University in Belgium (UGENT) and
+secondly in the wave flume of Laboratorio di Ingegneria Maritima of Firenze
+University in Italy (LABIMA). The floating model considered here is a closed
+box with dimensions:
+\begin{itemize}
+  \item 20 cm long;
+  \item 20 cm wide;
+  \item 13.2 cm high.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../fig/OscillatingCube/floatingboxSetUp.png}
+    \caption{Photograph of the floating box set-up, from \cite{CubeExp}}
+    \label{fig:picturesetup}
+\end{figure}
+The box is made of PVC material with a density of $570\ kg/m^3$ and a weight of
+$3\ kg$. The box center of gravity is (0, 0, -1.26 cm). We will reproduce the
+experiments of LABIMA, therefore, the water depth is 60 cm.
+The mooring system will not be thoroughly described and not simulated
+with GPUSPH at this stage.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../fig/OscillatingCube/schemaFloatingBox.png}
+    \caption{Initial numerical setup from \cite{CubeExp} that correspond to the experimental setup used in the wave flume of UGENT}
+    \label{fig:schematicsetup}
+\end{figure}
+
+Multiple tests were performed during the experiments, and also simulated with
+DualSPHysics. However, we only consider here the free heave decay (not-moored)
+test and simulations in this section. The heave decay test was performed
+with an initial drift in the z-direction: $z_{initial} = + 5 cm$. The box was
+lifted 5 cm and then it was released, resulting in its heave decay motion.
+The numerical results from DualSPHysics \cite{CubeExp} were obtained
+for three different resolutions (DP1 = 0.25 cm, DP2 = 0.5 cm, DP3 = 1 cm).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{../fig/OscillatingCube/HeavedecayFreeFloatingBox.png}
+    \caption{Comparison between the experimental and numerical (DualSPHysics) heave decay motion of the not-moored (freely heaving) floating box, from \cite{CubeExp}}
+    \label{fig:heaveexpDual}
+\end{figure}
+
+The results obtained using the highest resolution (DP1) show acceptable
+agreement with the box's heave motion recorded during the experiment,
+thus the convergence is proven when increasing the resolution.
+The numerical domain was designed shorter in GPUSPH. 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../fig/OscillatingCube/schema1.png}
+    \caption{Sketch of the numerical domain from the top view}
+    \label{fig:shema1}
+\end{figure}
+For the smallest size of particle (DP1 = O.25 cm) with Dynamic boundaries, the size of the domain was reduced in the x-direction to 0.8 m instead of 2 m.
+The number of particle was then affordable and the the computing time reasonable.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../fig/OscillatingCube/schema2.png}
+    \caption{Sketch of the numerical domain and the floating cube from the side view}
+    \label{fig:shema2}
+\end{figure}
+
+Following, some additional characteristics of the cube necessary for the simulations with GPUSPH are provided:
+\begin{itemize}
+  \item Draft $T = 7.5 cm$
+  \item Position of the Center of Gravity relative to the sea bed $CoG = 58.74\ cm$ 
+  \item Initial position of the Center of Gravity ($z = +5\ cm$) relative to the sea bed $CoG_{ini} = 63.75\ cm$
+  \item Cube's inertia $I_{xx} = I_{yy} = 0.083\ kg.m^2$ and $I_{zz} = 0.1\ kg.m^2$
+\end{itemize}
+
+The Cube is considered homogeneous. The following formulas were used to calculate the inertia:
+\begin{equation}
+I_{xx} = \rho \int_{-a/2}^{a/2} \int_{-b/2}^{b/2} \int_{-c/2}^{c/2} [y^2 + z^2]  \, \mathrm dx\mathrm dy\mathrm dz = \rho abc \bigg[\frac{b^2}{12} + \frac{c^2}{12}\bigg]
+\end{equation}
+\begin{equation}
+I_{yy} = \rho \int_{-a/2}^{a/2} \int_{-b/2}^{b/2} \int_{-c/2}^{c/2} [x^2 + z^2]  \, \mathrm dx\mathrm dy\mathrm dz = \rho abc \bigg[\frac{a^2}{12} + \frac{c^2}{12}\bigg]
+\end{equation}
+\begin{equation}
+I_{zz} = \rho \int_{-a/2}^{a/2} \int_{-b/2}^{b/2} \int_{-c/2}^{c/2} [x^2 + y^2]  \, \mathrm dx\mathrm dy\mathrm dz = \rho abc \bigg[\frac{a^2}{12} + \frac{b^2}{12}\bigg]
+\end{equation}
+
+This case was treated with dynamic boundary conditions. The characteristics of the simulation are presented in the table \ref{table:CubeDYN}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ c|c} 
+\hline
+Dimensions of the tank & $2m \times 0.8m \times 0.8m$  \\
+\hline
+Water depth & 0.60 m \\
+\hline
+Mass & 3 kg \\
+\hline
+Physical simulated time & 5 s \\
+\hline
+N. speed of sound & $25\ m.s^{-1}$ \\
+\hline
+Particle size & 1 cm \\
+\hline
+Periodicity & None \\
+\hline
+Boundary type & Dynamic \\
+\hline
+Number of layers & 3 \\
+\hline
+sfactor & 1.3 \\
+\hline
+\end{tabular}
+\caption{Characteristics for the oscillating cube heave decay tests simulated with dynamic boundaries.}
+\label{table:CubeDYN}
+\end{table}
+
+\subsection{Setup in Salome}
+
+For this test-case, the geometrical setup only contains the basin, the cube and the initial free-surface shape.
+We will not use the repacking feature of GPUSPH, so the free-surface is a separate shell from the
+main boundary (basin + cube) and it will not be an input particle file for GPUSPH. It is only a limit considered for
+fluid particle filling. Follow the steps below to build the case:
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the basin, the cube and free-surface \\
+    \textbf{New entity $\to$ Basic $\to$ Point}\smallskip\\
+    \includegraphics[scale=0.4,trim={20cm 10cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/vertices_creation.png}
+  \item Create the lines linking the vertices together, considering the free-surface, the basin and the cube as separate objects
+    (there is no connectivity between them)\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\smallskip\\
+    \includegraphics[scale=0.4,trim={18cm 10cm 18cm 12cm}, clip]{../fig/OscillatingCube/Salome/lines_creation.png}
+  \item Create the faces of the basin and free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Face}\smallskip\\
+    \includegraphics[scale=0.35,trim={17.5cm 10cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/faces_creation.png}
+  \item Create a shell with the faces of the cube\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/cube_shell.png}
+  \item Create a shell with the faces of the basin\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/basin_shell.png}
+  \item Check the normals orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/check_normals.png}
+  \item The cube's normals should point towards the interior of the cube, whereas the basin's normals should point
+    towards the outside of the domain, so change the normals orientation if necessary\\
+    \textbf{Repair $\to$ Change orientation}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/revert_normals.png}
+  \item Create a compound shell with the cube and the basin, which is our main boundary\\
+    \textbf{New entity $\to$ Build $\to$ Compound}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/basin_cube_compound.png}
+    \item Create a group from the cube's faces inside the compound \\
+    \textbf{New entity $\to$ Group $\to$ Create group}\smallskip\\
+    \includegraphics[scale=0.35,trim={17cm 3cm 15cm 8cm}, clip]{../fig/OscillatingCube/Salome/cube_group.png}
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 52cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create the case\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 23cm 35cm 2cm}, clip]{../fig/OscillatingCube/Salome/create_prepro_case.png}
+  \item Then, define the main boundary\\
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\smallskip\\
+    \includegraphics[scale=0.35,trim={0cm 14cm 30cm 14cm}, clip]{../fig/OscillatingCube/Salome/define_main_boundary.png}
+  \item Define the free-surface boundary\\
+    \textbf{SPH Preprocessor $\to$ Define free surface}\smallskip\\
+    \includegraphics[scale=0.35,trim={0cm 17cm 30cm 10cm}, clip]{../fig/OscillatingCube/Salome/define_free_surface.png}
+  \item Define the cube special boundary, taking care to define it as a Floating object\\
+    \textbf{SPH Preprocessor $\to$ Define special boundary}\smallskip\\
+    \includegraphics[scale=0.35,trim={0cm 12cm 30cm 14cm}, clip]{../fig/OscillatingCube/Salome/define_cube.png}
+  \item Edit the cases parameters, taking care to choose the corresponding boundary formulation\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={19cm 5cm 20cm 5cm}, clip]{../fig/OscillatingCube/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\smallskip\\
+    \includegraphics[scale=0.3,trim={1cm 10cm 23cm 10cm}, clip]{../fig/OscillatingCube/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis:\\
+    \begin{center}\includegraphics[scale=0.3,trim={7cm 1cm 0cm 1cm}, clip]{../fig/OscillatingCube/Salome/cube-particles.png}\end{center}
+    
+    For each study, Salome creates a folder with the study name underscore presph at the same location as the hdf file.
+    This is where the preprocessor files are stored: for example, let us assume that the \cmd{OscillatingCube.hdf} file
+    is located at \cmd{$MY_STUDY_PATH/OscillatingCube.hdf}.
+    Then, the particle files for the case with semi-analytical boundaries are located in:\\
+    \cmd{$MY_STUDY_PATH/OscillatingCube_presph/OscillatingCubeDyn}. \\
+    The files are the following:\\
+    - \cmd{OscillatingCubeDyn.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{OscillatingCubeDyn.basin_cube_outwards_normals.h5sph}: GPUSPH file for the basin\\
+    - \cmd{OscillatingCubeDyn.cube.h5sph}:  GPUSPH file for the cube\\
+    - \cmd{OscillatingCubeDyn.fluid.vtu}: vtu file of the fluid, can be opened in Paravis\\
+    - \cmd{OscillatingCubeDyn.basin_cube_outwards_normals.vtu}: vtu file of the basin, can be opened in Paravis\\
+    - \cmd{OscillatingCubeDyn.cube.vtu}: vtu file of the cube, can be opened in Paravis\\
+    - \cmd{basin_cube_outwards_normals.stl}: stl file of the basin, can be used for visualisation purposes\\
+    - \cmd{basin_cube_outwards_normals.obj}: file for handling collisions with the basin in GPUSPH\\
+    - \cmd{cube.stl}: stl file of the cube, can be used for visualisation purposes\\
+    - \cmd{cube.obj}: file for handling collisions with the cube in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create four cases, one for each of the tests of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 23cm 48cm 2cm}, clip]{../fig/OscillatingCube/Salome/create_solver_case.png}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary formulation\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={8cm 10cm 28cm 6cm}, clip]{../fig/OscillatingCube/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters and set them to the ones of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
+    \includegraphics[scale=0.4,trim={5cm 1cm 28cm 3cm}, clip]{../fig/OscillatingCube/Salome/edit_simulation_parameters1.png}\\
+    \includegraphics[scale=0.4,trim={5cm 1cm 28cm 3cm}, clip]{../fig/OscillatingCube/Salome/edit_simulation_parameters2.png}\\
+    \includegraphics[scale=0.4,trim={5cm 1cm 28cm 3cm}, clip]{../fig/OscillatingCube/Salome/edit_simulation_parameters3.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
+    \cmd{$MY_STUDY_PATH/OscillatingCube_gpusph/OscillatingCubeDyn}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/OscillatingCube_gpusph/OscillatingCubeDyn/}\\
+    \cmd{gpusph/dist/linux/x86_64}.
+  \end{itemize}
+\end{enumerate}
+
+\subsection{Results}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../fig/OscillatingCube/Cube_CoGz_0p01.png}
+    \caption{Heave of the Cube for the discretization DP3 = 0.01 m.}
+    \label{fig:CubeDYN0p01}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../fig/OscillatingCube/Cube_CoGz_0p005.png}
+    \caption{Heave of the Cube for the discretization DP2 = 0.005 m.}
+    \label{fig:CubeDYN0p005}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../fig/OscillatingCube/Cube_CoGz_0p0025.png}
+    \caption{Heave of the Cube for the discretization DP3 = 0.0025 m.}
+    \label{fig:CubeDYN0p0025}
+\end{figure}
+
+The results presented here correspond to 3 discretisations: 0.01~m, 0.005~m and 0.0025~m.
+For the finest discretization, the results are in good agreement with the experiment.
+The results from GPUSPH are converging with the particle size.
+However, the period of the oscillations is a little bit smaller in the simulation with GPUSPH compared to
+the experiments or to the simulation with DualSPHysics. This can be explain by a lack of information concerning
+the free decay tests. In fact the weight is said to be 3 kg + 0.6 kg of extra weight. That extra weight comes
+from the wood plate (used for motion tracking) and the chain attachments (for the mooring lines).
+During the free (not-moored) decay tests the wood plate was surely there but the chain attachments were probably not.
+Thus, the weight is surely not equal to 3.6 kg but might be slightly higher than 3 kg; thus explaining the
+differences between GPUSPH results and the experiment.\\  
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../fig/OscillatingCube/Cube_CoGz_DYN_all.png}
+    \caption{GPUSPH results for the heave of the Cube compared to the experiment.}
+    \label{fig:CubeDYNall}
+\end{figure}
 
   
 \bibliography{../gpusph-manual.bib}
