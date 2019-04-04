@@ -242,7 +242,7 @@ integrate_gamma_impl(
 		// of the kernel
 		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(fluid_params);
 
-		if ((simflags & ENABLE_MOVING_BODIES) && run_mode != REPACK) {
+		if (simflags & ENABLE_MOVING_BODIES) {
 			integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
 			cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
 		} else {
@@ -341,7 +341,7 @@ basicstep(
 	// execute the kernel
 #define EULER_STEP(step) case step: \
 	if (run_mode == REPACK) { \
-		cueuler::eulerRepackDevice<<< numBlocks, numThreads >>>( \
+		cueuler::eulerDevice<<< numBlocks, numThreads >>>( \
 			euler_repack_params<kerneltype, boundarytype, simflags, step>( \
 			bufread, bufwrite, numParticles, dt, t)); \
 	} else { \
