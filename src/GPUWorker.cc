@@ -123,7 +123,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CELLSTART>(-1);
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CELLEND>(-1);
-	if (MULTI_GPU) {
+	if (MULTI_DEVICE) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_COMPACT_DEV_MAP>();
 		m_hBuffers.addBuffer<HostBuffer, BUFFER_COMPACT_DEV_MAP>();
 	}
