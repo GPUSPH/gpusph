@@ -48,6 +48,21 @@ clear(symtensor4& T)
 		T.zz = T.zw = T.ww = 0.0f;
 }
 
+__spec
+void
+set_identity(symtensor3& T)
+{
+	T.xx = T.yy = T.zz = 1;
+	T.xy = T.xz = T.yz = 0;
+}
+
+__spec
+void
+set_identity(symtensor4& T)
+{
+	T.xx = T.yy = T.zz = T.ww = 1;
+	T.xy = T.xz = T.xw = T.yz = T.yw = T.zw = 0;
+}
 
 // determinant of a 3x3 symmetric tensor
 __spec
