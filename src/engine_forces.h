@@ -134,6 +134,18 @@ public:
 		const	float	influenceRadius,
 		const	float	dt) = 0;
 
+	/// Compute CSPM coefficients 
+	virtual void
+	compute_cspm_coeff(
+		const BufferList& bufread,
+		BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceRadius) = 0;
+
+
 	/// Basic forces step.
 	/// \return the number of blocks launched (which is the number of blocks to
 	/// launch dtreduce on)

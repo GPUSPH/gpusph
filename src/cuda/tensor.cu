@@ -131,12 +131,12 @@ norm_inf(symtensor4 const& T)
 	return m;
 }
 
+// compute inverse of tensor when the determinant has been computed already
 __spec
 symtensor3
-inverse(symtensor3 const& T)
+inverse(symtensor3 const& T, const float D)
 {
 	symtensor3 R;
-	float D(det(T));
 	R.xx = (T.yy*T.zz - T.yz*T.yz)/D;
 	R.xy = (T.xz*T.yz - T.xy*T.zz)/D;
 	R.xz = (T.xy*T.yz - T.xz*T.yy)/D;
@@ -145,6 +145,14 @@ inverse(symtensor3 const& T)
 	R.zz = (T.xx*T.yy - T.xy*T.xy)/D;
 
 	return R;
+}
+
+// compute inverse of a tensor when the determinant has not been computed already
+__spec
+symtensor3
+inverse(symtensor3 const& T)
+{
+	return inverse(T, det(T));
 }
 
 __spec

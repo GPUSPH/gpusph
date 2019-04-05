@@ -265,6 +265,117 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 /** \name Kernels
  *  @{ */
 
+__device__ __forceinline__ void
+fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol, symtensor3& fcoeff)
+{
+	float f_times_vol = F*vol;
+
+	fcoeff.xx += rp.x*rp.x*f_times_vol;
+	fcoeff.xy += rp.x*rp.y*f_times_vol;
+	fcoeff.xz += rp.x*rp.z*f_times_vol;
+	fcoeff.yy += rp.y*rp.y*f_times_vol;
+	fcoeff.yz += rp.y*rp.z*f_times_vol;
+	fcoeff.zz += rp.z*rp.z*f_times_vol;
+}
+
+/************************************************************************************************************/
+
+/************************************************************************************************************/
+/*	CSPM coefficients       */
+/************************************************************************************************************/
+template<KernelType kerneltype, BoundaryType boundarytype>
+__global__ void
+cspmCoeffDevice(
+	float*	__restrict__		wcoeffArray,
+	float2*	__restrict__		fcoeff0,
+	float2*	__restrict__		fcoeff1,
+	float2*	__restrict__		fcoeff2,
+	const	float4* __restrict__	posArray,
+	const	float4* __restrict__	velArray,
+	const	particleinfo* __restrict__	infoArray,
+	const	hashKey* __restrict__	particleHash,
+	const	uint* __restrict__		cellStart,
+	const	neibdata* __restrict__	neibsList,
+	const	uint	numParticles,
+	const	float	slength,
+	const	float	influenceradius)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = infoArray[index];
+
+	const float4 pos = posArray[index];
+
+	if (INACTIVE(pos))
+		return;
+
+	float4 vel = velArray[index];
+
+	// Kernel correction is just the Shepard normalization, that has a self-contribution
+	float corr = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w, fluid_num(info));
+
+	// Gradient correction is a symmetric 3x3 tensor, with no self-contribution
+	symtensor3 fcoeff;
+	clear(fcoeff);
+
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	bool has_neibs = false;
+
+	// Loop over all FLUID neighbors and BOUNDARY neighbors
+	// TODO check what to do for SA
+	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+
+		const uint neib_index = neib_iter.neib_index();
+
+		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
+		#if PREFER_L1
+			posArray[neib_index]
+		#else
+			tex1Dfetch(posTex, neib_index)
+		#endif
+			);
+
+		const float4 neib_vel = velArray[neib_index];
+		const particleinfo neib_info = infoArray[neib_index];
+		const float r = length(as_float3(relPos));
+
+		if (INACTIVE(relPos) || r >= influenceradius)
+			continue;
+
+		const float volume = relPos.w/physical_density(neib_vel.w, fluid_num(neib_info));
+		corr += W<kerneltype>(r, slength)*volume;
+
+		const float f = F<kerneltype>(r, slength);
+		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff);
+
+		has_neibs = true;
+
+	}
+
+	symtensor3 a_inverse;
+
+	const float D = det(fcoeff);
+	if (has_neibs && D)
+		a_inverse = inverse(fcoeff, D);
+	else
+		set_identity(a_inverse);
+
+	wcoeffArray[index] = 1.0f/corr;
+	storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
+}
+
+
+/*  @} */
+
+/** \name Kernels
+ *  @{ */
+
 /************************************************************************************************************/
 
 /************************************************************************************************************/

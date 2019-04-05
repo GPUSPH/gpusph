@@ -39,6 +39,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// *** user parameters from command line
 	const bool WET = get_option("wet", false);
 	const bool USE_PLANES = get_option("use_planes", false);
+	const bool USE_CSPM = get_option("use_cspm", true);
 	const uint NUM_OBSTACLES = get_option("num_obstacles", 1);
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
@@ -56,7 +57,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 		add_flags<ENABLE_REPACKING>
 	).select_options(
 		RHODIFF,
-		USE_PLANES, add_flags<ENABLE_PLANES>()
+		USE_PLANES, add_flags<ENABLE_PLANES>(),
+		USE_CSPM, add_flags<ENABLE_CSPM>()
 	);
 
 	// will dump testpoints separately

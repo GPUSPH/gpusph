@@ -237,6 +237,9 @@ DEFINE_COMMAND_BUF(COMPUTE_DENSITY, true)
 	/// Compute per-particle viscosity and SPS stress matrix
 DEFINE_COMMAND_BUF(CALC_VISC, true)
 
+	/// Compute the normalization coefficinets for CSPM
+DEFINE_COMMAND_BUF(CALC_CSPM_COEFF, true)
+
 	/** @} */
 
 	/** \name Forces computation commands
