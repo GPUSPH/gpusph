@@ -63,7 +63,7 @@ POISEUILLE_PROBLEM::POISEUILLE_PROBLEM(GlobalData *_gdata) :
 	// Allow user to set the computational viscosity; accepted values: dyn, kin
 	const ComputationalViscosityType compvisc = get_option("compvisc", KINEMATIC);
 
-	const AverageOperator viscavg = get_option("viscavg", ARITHMETIC);
+	const AverageOperator viscavg = get_option("viscavg", HARMONIC);
 
 	// Allow use to set the viscous operator model: morris or monaghan
 	const ViscousModel viscmodel = get_option("viscmodel", MORRIS);
