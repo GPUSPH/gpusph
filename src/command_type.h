@@ -24,7 +24,7 @@
 */
 
 /*! \file
- * Commands that GPUSPH can issue to workers via doCommand() calls
+ * Commands that GPUSPH can issue to workers via dispatchCommand() calls
  */
 
 #ifndef COMMAND_TYPE_H

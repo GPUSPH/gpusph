@@ -138,8 +138,8 @@ private:
 	// dispatch the command cmd, either by running it in GPUSPH itself,
 	// or by setting nextCommand, unlocking the threads and waiting for them
 	// to complete
-	void doCommand(CommandStruct const& cmd);
-	void doCommand(CommandStruct cmd, flag_t flags);
+	void dispatchCommand(CommandStruct const& cmd);
+	void dispatchCommand(CommandStruct cmd, flag_t flags);
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();

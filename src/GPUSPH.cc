@@ -683,7 +683,7 @@ void GPUSPH::runCommand<TIME_STEP_EPILOGUE>(CommandStruct const& cmd)
 		check_write(we_are_done);
 
 		if (we_are_done)
-			// NO doCommand() after keep_going has been unset!
+			// NO dispatchCommand() after keep_going has been unset!
 			gdata->keep_going = false;
 	}
 }
@@ -703,9 +703,9 @@ void GPUSPH::runCommand<NUM_COMMANDS>(CommandStruct const& cmd)
 }
 
 void
-GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
+GPUSPH::dispatchCommand(CommandStruct cmd, flag_t flags)
 {
-	doCommand(cmd.set_flags(flags));
+	dispatchCommand(cmd.set_flags(flags));
 }
 
 bool GPUSPH::runSimulation() {
@@ -726,7 +726,7 @@ bool GPUSPH::runSimulation() {
 
 	// After next barrier, the workers will enter their simulation cycle, so it is recommended to set
 	// nextCommand properly before the barrier (although should be already initialized to IDLE).
-	// doCommand(IDLE) would be equivalent, but this is more clear
+	// dispatchCommand(IDLE) would be equivalent, but this is more clear
 	gdata->nextCommand = IDLE;
 	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
@@ -735,7 +735,7 @@ bool GPUSPH::runSimulation() {
 
 	const CommandStruct* cmd = nullptr;
 	while (gdata->keep_going && (cmd = integrator->next_command()) ) try {
-		doCommand(*cmd);
+		dispatchCommand(*cmd);
 	} catch (exception const& e) {
 		cerr << e.what() << endl;
 		all_ok = false;
@@ -765,11 +765,11 @@ bool GPUSPH::runSimulation() {
 	printf("Peak particle speed was ~%g m/s at %g s -> can set maximum vel %.2g for this problem\n",
 		m_peakParticleSpeed, m_peakParticleSpeedTime, (m_peakParticleSpeed*1.1));
 
-	// NO doCommand() nor other barriers than the standard ones after the
+	// NO dispatchCommand() nor other barriers than the standard ones after the
 
 	printf("%s end, cleaning up...\n", run_desc_title);
 
-	// doCommand(QUIT) would be equivalent, but this is more clear
+	// dispatchCommand(QUIT) would be equivalent, but this is more clear
 	gdata->nextCommand = QUIT;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // end of SIMULATION, begins FINALIZATION ***
@@ -1730,7 +1730,7 @@ void GPUSPH::saveParticles(
 		PostProcessType filter = flt.first;
 		AbstractPostProcessEngine *engine = flt.second;
 
-		doCommand(POSTPROCESS, filter);
+		dispatchCommand(POSTPROCESS, filter);
 
 		engine->hostProcess(gdata);
 
@@ -1760,7 +1760,7 @@ void GPUSPH::saveParticles(
 		if (MULTI_DEVICE && need_update) {
 			CommandStruct update(UPDATE_EXTERNAL);
 			update.updating("step n", buffers_to_sync);
-			doCommand(update);
+			dispatchCommand(update);
 		}
 #endif
 
@@ -1780,7 +1780,7 @@ void GPUSPH::saveParticles(
 	// dump what we want to save
 	CommandStruct dump(DUMP);
 	dump.reading(state, which_buffers);
-	doCommand(dump);
+	dispatchCommand(dump);
 
 	// triggers Writer->write()
 	doWrite(write_flags);
@@ -2093,7 +2093,7 @@ void GPUSPH::runCommand<UPDATE_ARRAY_INDICES>(CommandStruct const& cmd)
 
 				// who is missing? if single-node, do a roll call
 				if (SINGLE_NODE) {
-					doCommand(debug_dump);
+					dispatchCommand(debug_dump);
 					rollCallParticles();
 				}
 			}
@@ -2232,8 +2232,8 @@ void GPUSPH::check_write(bool we_are_done)
 //! Auxiliary class to time a command execution
 //! The TimerObject itself checks the time from its own creation to its own destruction,
 //! and updates two associated durations (max and total).
-//! doCommand() leverages this by creating a TimerObject before issuing the command,
-//! so that on return from doCommand() the TimerObject destructor updates the effective
+//! dispatchCommand() leverages this by creating a TimerObject before issuing the command,
+//! so that on return from dispatchCommand() the TimerObject destructor updates the effective
 //! runtime of the corresponding object.
 //! \note Nested commands contribute to the calling command runtimes.
 struct TimerObject
@@ -2262,7 +2262,7 @@ struct TimerObject
 };
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandStruct const& cmd)
+void GPUSPH::dispatchCommand(CommandStruct const& cmd)
 {
 	shared_ptr<TimerObject> timer;
 	if (gdata->debug.benchmark_command_runtimes) {
