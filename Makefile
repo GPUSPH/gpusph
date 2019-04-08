@@ -401,6 +401,17 @@ ifeq ($(USE_MPI),0)
 	LINKER ?= $(NVCC)
 
 else
+	# Also try to detect implementation-specific version.
+	# OpenMPI exposes the version via individual numeric macros
+	OMPI_VERSION = $(shell printf '\#include <mpi.h>\nversion/OMPI_MAJOR_VERSION/OMPI_MINOR_VERSION/OMPI_RELEASE_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'OMPI_' | cut -d/ -f2- | tr '/' '.')
+	# MPICH exposes a version string macro
+	MPICH_VERSION = $(shell printf '\#include <mpi.h>\nversion/MPICH_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MPICH_' | cut -d\" -f2 )
+	# MVAPICH2 exposes its own version string (MVAPICH 1.x apparently does not)
+	MVAPICH_VERSION = $(shell printf '\#include <mpi.h>\nversion/MVAPICH2_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MVAPICH2_' | cut -d\" -f2 )
+
+	MPI_VERSION :=$(MPI_VERSION)$(if $(OMPI_VERSION),$(space)(OpenMPI $(OMPI_VERSION)))
+	MPI_VERSION :=$(MPI_VERSION)$(if $(MPICH_VERSION),$(space)(MPICH $(MPICH_VERSION)))
+	MPI_VERSION :=$(MPI_VERSION)$(if $(MVAPICH_VERSION),$(space)(MVAPICH $(MVAPICH_VERSION)))
 
 	# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
 	# but we also need to link with MPICXX, so we would like to use:
