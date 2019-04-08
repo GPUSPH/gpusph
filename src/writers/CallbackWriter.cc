@@ -24,7 +24,7 @@
 */
 
 #include "CallbackWriter.h"
-#include "Problem.h"
+#include "ProblemCore.h"
 
 using namespace std;
 

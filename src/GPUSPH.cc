@@ -1867,7 +1867,7 @@ template<>
 void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 // GPUSPH::doCallBacks(flag_t current_integrator_step)
 {
-	Problem *pb = gdata->problem;
+	ProblemCore *pb = gdata->problem;
 
 	double t_callback = gdata->t + cmd.dt(gdata);
 

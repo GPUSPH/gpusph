@@ -46,7 +46,7 @@
 
 #include "deprecation.h"
 
-class Problem;
+class ProblemCore;
 class XProblem;
 class GPUWorker;
 class GPUSPH;
@@ -61,7 +61,7 @@ typedef struct PhysParams {
 	 * physparams.h is scanned by the SALOME user interface.
 	 * To change the user interface, it is only necessary to
 	 * modify the appropriate comments in simparams.h, physparams.h,
-	 * Problem.h, XProblem.h, particledefine.h and simflags.h
+	 * ProblemCore.h, XProblem.h, particledefine.h and simflags.h
 	 * The variable labels and tooltips are
 	 * defined in the user interface files themselves, so
 	 * ease follow the convention we adopted: use placeholders
@@ -414,10 +414,10 @@ IGNORE_WARNINGS(deprecated-declarations)
 		objectboundarydf(1.0f)
 	{};
 
-	// Problem, XProblem (but not their derivatives —luckily, friendship is not inherited)
+	// ProblemCore, XProblem (but not their derivatives —luckily, friendship is not inherited)
 	// GPUWorker and GPUSPH should be the only ones
 	// that access the physparams manipulator methods
-	friend class Problem;
+	friend class ProblemCore;
 	friend class XProblem;
 	friend class GPUWorker;
 	friend class GPUSPH;

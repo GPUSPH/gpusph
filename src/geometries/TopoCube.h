@@ -36,8 +36,6 @@
 #include "Point.h"
 #include "Vector.h"
 
-class Problem;
-
 class TopoCube: public Object {
 	private:
 		Point	m_origin;

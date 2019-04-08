@@ -44,8 +44,6 @@
 #include "common_types.h"
 // planes
 #include "planes.h"
-// Problem
-#include "Problem.h"
 // Options
 #include "Options.h"
 // TimingInfo
@@ -85,7 +83,7 @@ class GPUWorker;
 // forward declaration of Writer
 class Writer;
 
-class Problem;
+#include "ProblemCore.h"
 
 #include "debugflags.h"
 
@@ -115,7 +113,7 @@ struct GlobalData {
 	// array of GPUWorkers, one per GPU
 	std::vector<std::shared_ptr<GPUWorker>> GPUWORKERS;
 
-	Problem* problem;
+	ProblemCore* problem;
 
 	SimFramework *simframework;
 	std::shared_ptr<BufferAllocPolicy> allocPolicy;

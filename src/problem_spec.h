@@ -28,13 +28,13 @@
  * and a function to construct it
  */
 
-class Problem;
+class ProblemCore;
 struct GlobalData;
 
 struct problem_spec
 {
 	const char *name;
-	Problem* (*create)(GlobalData *gdata);
+	ProblemCore* (*create)(GlobalData *gdata);
 };
 
 extern const problem_spec selected_problem;

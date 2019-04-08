@@ -74,7 +74,7 @@ const char* Writer::Name(WriterType key)
 void
 Writer::Create(GlobalData *_gdata)
 {
-	const Problem *problem = _gdata->problem;
+	const ProblemCore *problem = _gdata->problem;
 	const Options *options = _gdata->clOptions;
 
 	WriterList const& wl = problem->get_writers();

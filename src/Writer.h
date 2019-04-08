@@ -60,7 +60,7 @@
 // of the respective headers, to avoid cross-include messes
 
 struct GlobalData;
-class Problem;
+class ProblemCore;
 
 // Writer types. Define new ones here and remember to include the corresponding
 // header in Writer.cc and the switch case in the implementation of Writer::Create
@@ -310,7 +310,7 @@ protected:
 	uint			m_FileCounter;
 	std::ofstream	m_timefile;
 
-	const Problem	*m_problem;
+	const ProblemCore	*m_problem;
 	std::string		current_filenum() const;
 	const GlobalData*		gdata;
 };

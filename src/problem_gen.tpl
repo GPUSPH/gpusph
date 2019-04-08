@@ -35,7 +35,7 @@ struct GlobalData;
 
 static const char * name_ = "PROBLEM";
 
-Problem *create_(GlobalData *gdata)
+ProblemCore *create_(GlobalData *gdata)
 {
 	return new PROBLEM(gdata);
 }

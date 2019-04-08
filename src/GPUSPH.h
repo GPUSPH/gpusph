@@ -35,7 +35,7 @@
 
 #include "Options.h"
 #include "GlobalData.h"
-#include "Problem.h"
+#include "ProblemCore.h"
 #include "Integrator.h"
 #include "cpp11_missing.h"
 
@@ -53,7 +53,7 @@ private:
 	// some pointers
 	Options* clOptions;
 	GlobalData* gdata;
-	Problem* problem;
+	ProblemCore* problem;
 
 	// performance counters (in MIPPS)
 	IPPSCounter *m_totalPerformanceCounter;

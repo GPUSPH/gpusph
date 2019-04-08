@@ -40,7 +40,7 @@
 // shared_ptr
 #include <memory>
 
-#include "Problem.h"
+#include "ProblemCore.h"
 #include "vector_math.h"
 #include "vector_print.h"
 #include "utils.h"
@@ -66,7 +66,7 @@
 
 using namespace std;
 
-Problem::Problem(GlobalData *_gdata) :
+ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_problem_dir(_gdata->clOptions->dir),
 	m_dem(NULL),
 	m_physparams(NULL),
@@ -86,7 +86,7 @@ Problem::Problem(GlobalData *_gdata) :
 }
 
 bool
-Problem::initialize()
+ProblemCore::initialize()
 {
 	SimParams const* _sp(simparams());
 	PhysParams const* _pp(physparams());
@@ -148,7 +148,7 @@ Problem::initialize()
 	return true;
 }
 
-Problem::~Problem(void)
+ProblemCore::~ProblemCore(void)
 {
 	delete [] m_bodies_storage;
 	delete m_simframework;
@@ -156,7 +156,7 @@ Problem::~Problem(void)
 }
 
 void
-Problem::InitializeChrono()
+ProblemCore::InitializeChrono()
 {
 #if USE_CHRONO == 1
 	m_bodies_physical_system = new ::chrono::ChSystemNSC();
@@ -173,22 +173,22 @@ Problem::InitializeChrono()
 	::chrono::collision::ChCollisionModel::SetDefaultSuggestedMargin(chronoSuggMarg / 10.0);
 	*/
 #else
-	throw runtime_error ("Problem::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
+	throw runtime_error ("ProblemCore::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
 }
 
-void Problem::FinalizeChrono(void)
+void ProblemCore::FinalizeChrono(void)
 {
 #if USE_CHRONO == 1
 	if (m_bodies_physical_system)
 		delete m_bodies_physical_system;
 #else
-	throw runtime_error ("Problem::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
+	throw runtime_error ("ProblemCore::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
 }
 
 // callback for initializing joints between Chrono bodies
-void Problem::initializeObjectJoints()
+void ProblemCore::initializeObjectJoints()
 {
 	// Default: do nothing
 
@@ -198,7 +198,7 @@ void Problem::initializeObjectJoints()
 /// Allocate storage required for the integration of the kinematic data
 /// of moving bodies.
 void
-Problem::allocate_bodies_storage()
+ProblemCore::allocate_bodies_storage()
 {
 	const uint nbodies = simparams()->numbodies;
 
@@ -209,7 +209,7 @@ Problem::allocate_bodies_storage()
 }
 
 void
-Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
+ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
 {
 	// Moving bodies are put at the end of the bodies vector,
 	// ODE bodies and moving bodies for which we want a force feedback
@@ -219,7 +219,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	// force computing must have consecutive ids.
 	const uint index = m_bodies.size();
 	if (index >= MAX_BODIES)
-		throw runtime_error ("Problem::add_moving_body Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
+		throw runtime_error ("ProblemCore::add_moving_body Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
 	MovingBodyData *mbdata = new MovingBodyData;
 	mbdata->index = index;
 	mbdata->type = mbtype;
@@ -243,7 +243,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			simparams()->numODEbodies++;
 			simparams()->numforcesbodies++;
 #else
-			throw runtime_error ("Problem::add_moving_body Cannot add a floating body without CHRONO\n");
+			throw runtime_error ("ProblemCore::add_moving_body Cannot add a floating body without CHRONO\n");
 #endif
 			break;
 		}
@@ -268,7 +268,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 }
 
 void
-Problem::restore_moving_body(const MovingBodyData & saved_mbdata, const uint numparts, const int firstindex, const int lastindex)
+ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint numparts, const int firstindex, const int lastindex)
 {
 	const uint id = saved_mbdata.id;
 	MovingBodyData *mbdata = m_bodies[id];
@@ -288,13 +288,13 @@ Problem::restore_moving_body(const MovingBodyData & saved_mbdata, const uint num
 		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
 		body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
 #else
-		throw runtime_error ("Problem::restore_moving_body Cannot restore a floating body without CHRONO\n");
+		throw runtime_error ("ProblemCore::restore_moving_body Cannot restore a floating body without CHRONO\n");
 #endif
 		}
 }
 
 MovingBodyData *
-Problem::get_mbdata(const uint index)
+ProblemCore::get_mbdata(const uint index)
 {
 	if (index >= m_bodies.size()) {
 		stringstream ss;
@@ -310,7 +310,7 @@ Problem::get_mbdata(const uint index)
 
 
 MovingBodyData *
-Problem::get_mbdata(const Object* object)
+ProblemCore::get_mbdata(const Object* object)
 {
 	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
 		if ((*it)->object == object)
@@ -321,7 +321,7 @@ Problem::get_mbdata(const Object* object)
 }
 
 size_t
-Problem::get_bodies_numparts(void)
+ProblemCore::get_bodies_numparts(void)
 {
 	size_t total_parts = 0;
 	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
@@ -333,7 +333,7 @@ Problem::get_bodies_numparts(void)
 
 
 size_t
-Problem::get_forces_bodies_numparts(void)
+ProblemCore::get_forces_bodies_numparts(void)
 {
 	size_t total_parts = 0;
 	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
@@ -345,20 +345,20 @@ Problem::get_forces_bodies_numparts(void)
 
 
 size_t
-Problem::get_body_numparts(const int index)
+ProblemCore::get_body_numparts(const int index)
 {
 	return m_bodies[index]->object->GetNumParts();
 }
 
 
 size_t
-Problem::get_body_numparts(const Object* object)
+ProblemCore::get_body_numparts(const Object* object)
 {
 	return get_mbdata(object)->object->GetNumParts();
 }
 
 void
-Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const
+ProblemCore::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const
 {
 	int3 _gridPos = calc_grid_pos(globalPos);
 	*gridPos = _gridPos;
@@ -367,7 +367,7 @@ Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3
 }
 
 void
-Problem::get_bodies_cg(void)
+ProblemCore::get_bodies_cg(void)
 {
 	for (uint i = 0; i < simparams()->numbodies; i++) {
 		calc_grid_and_local_pos(m_bodies[i]->kdata.crot,
@@ -381,72 +381,72 @@ Problem::get_bodies_cg(void)
 
 
 void
-Problem::set_body_cg(const double3& crot, MovingBodyData* mbdata) {
+ProblemCore::set_body_cg(const double3& crot, MovingBodyData* mbdata) {
 	mbdata->kdata.crot = crot;
 }
 
 
 void
-Problem::set_body_cg(const uint index, const double3& crot) {
+ProblemCore::set_body_cg(const uint index, const double3& crot) {
 	set_body_cg(crot, m_bodies[index]);
 }
 
 
 void
-Problem::set_body_cg(const Object *object, const double3& crot) {
+ProblemCore::set_body_cg(const Object *object, const double3& crot) {
 	set_body_cg(crot, get_mbdata(object));
 }
 
 
 void
-Problem::set_body_linearvel(const double3& lvel, MovingBodyData* mbdata) {
+ProblemCore::set_body_linearvel(const double3& lvel, MovingBodyData* mbdata) {
 	mbdata->kdata.lvel = lvel;
 }
 
 
 void
-Problem::set_body_linearvel(const uint index, const double3& lvel) {
+ProblemCore::set_body_linearvel(const uint index, const double3& lvel) {
 	set_body_linearvel(lvel, m_bodies[index]);
 }
 
 
 void
-Problem::set_body_linearvel(const Object *object, const double3& lvel)
+ProblemCore::set_body_linearvel(const Object *object, const double3& lvel)
 {
 	set_body_linearvel(lvel, get_mbdata(object));
 }
 
 
 void
-Problem::set_body_angularvel(const double3& avel, MovingBodyData* mbdata) {
+ProblemCore::set_body_angularvel(const double3& avel, MovingBodyData* mbdata) {
 	mbdata->kdata.avel = avel;
 }
 
 void
-Problem::set_body_angularvel(const uint index, const double3& avel) {
+ProblemCore::set_body_angularvel(const uint index, const double3& avel) {
 	set_body_angularvel(avel, m_bodies[index]);
 }
 
 
 void
-Problem::set_body_angularvel(const Object *object, const double3& avel)
+ProblemCore::set_body_angularvel(const Object *object, const double3& avel)
 {
 	set_body_angularvel(avel, get_mbdata(object));
 }
 
 
 void
-Problem::bodies_forces_callback(const double t0, const double t1, const uint step, float3 *forces, float3 *torques)
+ProblemCore::bodies_forces_callback(const double t0, const double t1, const uint step, float3 *forces, float3 *torques)
 { /* default does nothing */ }
 
 
 void
-Problem::post_timestep_callback(const double t)
+ProblemCore::post_timestep_callback(const double t)
 { /* default does nothing */ }
 
 
 void
-Problem::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+ProblemCore::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
 		const float3& force, const float3& torque, const KinematicData& initial_kdata,
 		KinematicData& kdata, double3& dx, EulerParameters& dr)
 { /* default does nothing */ }
@@ -454,7 +454,7 @@ Problem::moving_bodies_callback(const uint index, Object* object, const double t
 // input: force, torque, step number, dt
 // output: cg, trans, steprot (can be input uninitialized)
 void
-Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int step,
+ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const int step,
 		const double dt, const double t,
 		int3 * & cgGridPos, float3 * & cgPos, float3 * & trans, float * & steprot,
 		float3 * & linearvel, float3 * & angularvel)
@@ -592,7 +592,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 // Copy planes for upload
 void
-Problem::copy_planes(PlaneList& planes)
+ProblemCore::copy_planes(PlaneList& planes)
 {
 	return;
 }
@@ -718,7 +718,7 @@ float get_dt_from_visc(const SimParams *simparams, const PhysParams *physparams)
 }
 
 void
-Problem::check_dt(void)
+ProblemCore::check_dt(void)
 {
 	// warn if dt was set by the user but adaptive dt is enable
 	if (simparams()->dt && simparams()->simflags & ENABLE_DTADAPT)
@@ -777,7 +777,7 @@ Problem::check_dt(void)
 }
 
 void
-Problem::check_neiblistsize(void)
+ProblemCore::check_neiblistsize(void)
 {
 	// kernel radius times smoothing factor, rounded to the next integer
 	double r = simparams()->sfactor*simparams()->kernelradius;
@@ -860,7 +860,7 @@ Problem::check_neiblistsize(void)
 }
 
 float
-Problem::hydrostatic_density(float h, int i) const
+ProblemCore::hydrostatic_density(float h, int i) const
 {
 	float density = atrest_density(i);
 
@@ -875,13 +875,13 @@ Problem::hydrostatic_density(float h, int i) const
 }
 
 float
-Problem::density_for_pressure(float P, int i) const
+ProblemCore::density_for_pressure(float P, int i) const
 {
 	return  pow(P/physparams()->bcoeff[i] + 1,1/physparams()->gammacoeff[i])-1.0;
 }
 
 float
-Problem::soundspeed(float rho_tilde, int i) const
+ProblemCore::soundspeed(float rho_tilde, int i) const
 {
 	const float rho_ratio = rho_tilde + 1;
 
@@ -889,7 +889,7 @@ Problem::soundspeed(float rho_tilde, int i) const
 }
 
 float
-Problem::pressure(float rho_tilde, int i) const
+ProblemCore::pressure(float rho_tilde, int i) const
 {
 	const float rho_ratio = rho_tilde + 1;
 
@@ -897,25 +897,25 @@ Problem::pressure(float rho_tilde, int i) const
 }
 
 float
-Problem::physical_density( float rho_tilde, int i) const
+ProblemCore::physical_density( float rho_tilde, int i) const
 {
 	return (rho_tilde + 1)*physparams()->rho0[i];
 }
 
 float
-Problem::numerical_density( float rho, int i) const
+ProblemCore::numerical_density( float rho, int i) const
 {
 	return rho/physparams()->rho0[i] - 1;
 }
 
 void
-Problem::add_gage(double3 const& pt)
+ProblemCore::add_gage(double3 const& pt)
 {
 	simparams()->gage.push_back(make_double4(pt.x, pt.y, 0., pt.z));
 }
 
 plane_t
-Problem::implicit_plane(double4 const& p)
+ProblemCore::implicit_plane(double4 const& p)
 {
 	const double4 midPoint = make_double4(m_origin + m_size/2, 1.0);
 
@@ -936,7 +936,7 @@ Problem::implicit_plane(double4 const& p)
 }
 
 plane_t
-Problem::make_plane(Point const& pt, Vector const& normal)
+ProblemCore::make_plane(Point const& pt, Vector const& normal)
 {
 	plane_t plane;
 
@@ -947,7 +947,7 @@ Problem::make_plane(Point const& pt, Vector const& normal)
 }
 
 string const&
-Problem::create_problem_dir(void)
+ProblemCore::create_problem_dir(void)
 {
 	// if no data save directory was specified, default to a name
 	// composed of problem name followed by date and time
@@ -973,7 +973,7 @@ Problem::create_problem_dir(void)
 }
 
 void
-Problem::add_writer(WriterType wt, double freq)
+ProblemCore::add_writer(WriterType wt, double freq)
 {
 	m_writers.push_back(make_pair(wt, freq));
 }
@@ -982,7 +982,7 @@ Problem::add_writer(WriterType wt, double freq)
 // override in problems where you want to save
 // at specific times regardless of standard conditions
 bool
-Problem::need_write(double t) const
+ProblemCore::need_write(double t) const
 {
 	return false;
 }
@@ -990,7 +990,7 @@ Problem::need_write(double t) const
 // overridden in subclasses if they want to write custom stuff
 // using the CALLBACKWRITER
 void
-Problem::writer_callback(CallbackWriter *,
+ProblemCore::writer_callback(CallbackWriter *,
 	uint numParts, BufferList const&, uint node_offset, double t,
 	const bool testpoints) const
 {
@@ -1000,7 +1000,7 @@ Problem::writer_callback(CallbackWriter *,
 
 // is the simulation finished at the given time?
 bool
-Problem::finished(double t) const
+ProblemCore::finished(double t) const
 {
 	double tend(simparams()->tend);
 	return tend && (t > tend);
@@ -1008,7 +1008,7 @@ Problem::finished(double t) const
 
 
 float3
-Problem::g_callback(const double t)
+ProblemCore::g_callback(const double t)
 {
 	throw std::runtime_error("default g_callback invoked! did you forget to override g_callback(double)");
 }
@@ -1016,13 +1016,13 @@ Problem::g_callback(const double t)
 
 // Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
 // Default algorithm: split along the longest axis
-void Problem::fillDeviceMap()
+void ProblemCore::fillDeviceMap()
 {
 	fillDeviceMapByAxis(LONGEST_AXIS);
 }
 
 // partition by splitting the cells according to their linearized hash.
-void Problem::fillDeviceMapByCellHash()
+void ProblemCore::fillDeviceMapByCellHash()
 {
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
@@ -1031,7 +1031,7 @@ void Problem::fillDeviceMapByCellHash()
 }
 
 // partition by splitting along the specified axis
-void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
+void ProblemCore::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 {
 	// select the longest axis
 	if (preferred_split_axis == LONGEST_AXIS) {
@@ -1089,7 +1089,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 }
 
 // Like fillDeviceMapByAxis(), but splits are proportional to the contained fluid particles
-void Problem::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
+void ProblemCore::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
 {
 	// Select the longest axis
 	if (preferred_split_axis == LONGEST_AXIS) {
@@ -1196,7 +1196,7 @@ void Problem::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
 	} // iterate on split axis
 }
 
-void Problem::fillDeviceMapByEquation()
+void ProblemCore::fillDeviceMapByEquation()
 {
 	// 1st equation: diagonal plane. (x+y+z)=coeff
 	//uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
@@ -1232,7 +1232,7 @@ void Problem::fillDeviceMapByEquation()
 // This is not meant to be called directly by a problem since the number of splits (and thus the devices)
 // would be hardocded. A wrapper method (like fillDeviceMapByRegularGrid) can provide an algorithm to
 // properly factorize a given number of GPUs in 2 or 3 values.
-void Problem::fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices)
+void ProblemCore::fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices)
 {
 	// is any of these zero?
 	if (Xslices * Yslices * Zslices == 0)
@@ -1273,7 +1273,7 @@ void Problem::fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices
 
 // Wrapper for fillDeviceMapByAxesSplits() computing the number of cuts along each axis.
 // WARNING: assumes the total number of devices is divided by a combination of 2, 3 and 5
-void Problem::fillDeviceMapByRegularGrid()
+void ProblemCore::fillDeviceMapByRegularGrid()
 {
 	float Xsize = gdata->worldSize.x;
 	float Ysize = gdata->worldSize.y;
@@ -1320,7 +1320,7 @@ void Problem::fillDeviceMapByRegularGrid()
 
 
 uint
-Problem::max_parts(uint numParts)
+ProblemCore::max_parts(uint numParts)
 {
 	if (!(simparams()->simflags & ENABLE_INLET_OUTLET))
 		return numParts;
@@ -1347,7 +1347,7 @@ Problem::max_parts(uint numParts)
 // The Colagrossi coefficient is 0.1 by default and is pre-multiplied with 2*h in order to avoid this
 // multiplication during the kernel runs.
 void
-Problem::calculateDensityDiffusionCoefficient()
+ProblemCore::calculateDensityDiffusionCoefficient()
 {
 	switch (simparams()->densitydiffusiontype)
 	{
@@ -1403,7 +1403,7 @@ Problem::calculateDensityDiffusionCoefficient()
  * found at most one cell away in each direction.
  */
 void
-Problem::set_grid_params(void)
+ProblemCore::set_grid_params(void)
 {
 	/* When using periodicity, it's important that the world size in the periodic
 	 * direction is an exact multiple of the deltap: if this is not the case,
@@ -1483,7 +1483,7 @@ Problem::set_grid_params(void)
 
 // Compute position in uniform grid (clamping to edges)
 int3
-Problem::calc_grid_pos(const Point& pos) const
+ProblemCore::calc_grid_pos(const Point& pos) const
 {
 	int3 gridPos;
 	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
@@ -1498,7 +1498,7 @@ Problem::calc_grid_pos(const Point& pos) const
 
 /// Compute the uniform grid components of a vector
 int3
-Problem::calc_grid_offset(double3 const& vec) const
+ProblemCore::calc_grid_offset(double3 const& vec) const
 {
 	int3 gridOff;
 	gridOff = make_int3(floor(vec/m_cellsize));
@@ -1509,7 +1509,7 @@ Problem::calc_grid_offset(double3 const& vec) const
 /// Compute the local (fractional grid cell) components of a vector,
 /// given the vector and its grid offset
 double3
-Problem::calc_local_offset(double3 const& vec, int3 const& gridOff) const
+ProblemCore::calc_local_offset(double3 const& vec, int3 const& gridOff) const
 {
 	return vec - (make_double3(gridOff) + 0.5)*m_cellsize;
 }
@@ -1517,14 +1517,14 @@ Problem::calc_local_offset(double3 const& vec, int3 const& gridOff) const
 
 // Compute address in grid from position
 uint
-Problem::calc_grid_hash(int3 gridPos) const
+ProblemCore::calc_grid_hash(int3 gridPos) const
 {
 	return gridPos.COORD3 * m_gridsize.COORD2 * m_gridsize.COORD1 + gridPos.COORD2 * m_gridsize.COORD1 + gridPos.COORD1;
 }
 
 
 void
-Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash) const
+ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash) const
 {
 	static bool warned_out_of_bounds = false;
 	// check if the particle is actually inside the domain
@@ -1557,7 +1557,7 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 
 /* Initialize the particle volumes from their masses and densities. */
 void
-Problem::init_volume(BufferList &buffers, uint numParticles)
+ProblemCore::init_volume(BufferList &buffers, uint numParticles)
 {
 	const float4 *pos = buffers.getConstData<BUFFER_POS>();
 	const float4 *vel = buffers.getConstData<BUFFER_VEL>();
@@ -1581,7 +1581,7 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 
 /* Initialize the particle internal energy. */
 void
-Problem::init_internal_energy(BufferList &buffers, uint numParticles)
+ProblemCore::init_internal_energy(BufferList &buffers, uint numParticles)
 {
 	float *int_eng = buffers.getData<BUFFER_INTERNAL_ENERGY>();
 
@@ -1593,7 +1593,7 @@ Problem::init_internal_energy(BufferList &buffers, uint numParticles)
 
 /* Default initialization for k and epsilon  */
 void
-Problem::init_keps(BufferList &buffers, uint numParticles)
+ProblemCore::init_keps(BufferList &buffers, uint numParticles)
 {
 	float *k = buffers.getData<BUFFER_TKE>();
 	float *e = buffers.getData<BUFFER_EPSILON>();
@@ -1614,7 +1614,7 @@ Problem::init_keps(BufferList &buffers, uint numParticles)
  * mode, but it only does something in the KEPSILON case
  */
 void
-Problem::init_turbvisc(BufferList &buffers, uint numParticles)
+ProblemCore::init_turbvisc(BufferList &buffers, uint numParticles)
 {
 	if (simparams()->turbmodel != KEPSILON)
 		return;
@@ -1633,7 +1633,7 @@ Problem::init_turbvisc(BufferList &buffers, uint numParticles)
 
 
 void
-Problem::imposeBoundaryConditionHost(
+ProblemCore::imposeBoundaryConditionHost(
 			BufferList&		bufwrite,
 			BufferList const&	bufread,
 					uint*			IOwaterdepth,
@@ -1646,7 +1646,7 @@ Problem::imposeBoundaryConditionHost(
 	return;
 }
 
-void Problem::imposeForcedMovingObjects(
+void ProblemCore::imposeForcedMovingObjects(
 			float3	&gravityCenters,
 			float3	&translations,
 			float*	rotationMatrices,
@@ -1658,7 +1658,7 @@ void Problem::imposeForcedMovingObjects(
 	return;
 }
 
-void Problem::calcPrivate(
+void ProblemCore::calcPrivate(
 	flag_t options,
 	BufferList const& bufread,
 	BufferList & bufwrite,
@@ -1670,7 +1670,7 @@ void Problem::calcPrivate(
 	throw invalid_argument("CALC_PRIVATE requested, but calcPrivate() not implemented in problem");
 }
 
-std::string Problem::get_private_name(flag_t buffer) const
+std::string ProblemCore::get_private_name(flag_t buffer) const
 {
 	switch (buffer) {
 	case BUFFER_PRIVATE:
@@ -1685,7 +1685,7 @@ std::string Problem::get_private_name(flag_t buffer) const
 	}
 }
 
-void Problem::PlaneCut(PointVect& points, const double a, const double b,
+void ProblemCore::PlaneCut(PointVect& points, const double a, const double b,
 			const double c, const double d)
 {
 	PointVect new_points;
@@ -1704,7 +1704,7 @@ void Problem::PlaneCut(PointVect& points, const double a, const double b,
 }
 
 // callback for initializing particles with custom values
-void Problem::initializeParticles(BufferList &buffers, const uint numParticles)
+void ProblemCore::initializeParticles(BufferList &buffers, const uint numParticles)
 {
 	// Default: do nothing
 
@@ -1728,7 +1728,7 @@ void Problem::initializeParticles(BufferList &buffers, const uint numParticles)
 	*/
 }
 
-void Problem::resetBuffers(BufferList &buffers, const uint numParticles)
+void ProblemCore::resetBuffers(BufferList &buffers, const uint numParticles)
 {
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 	double4 *globalPos = buffers.getData<BUFFER_POS_GLOBAL>();

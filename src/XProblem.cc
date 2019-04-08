@@ -52,7 +52,7 @@
 
 using namespace std;
 
-XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
+XProblem::XProblem(GlobalData *_gdata) : ProblemCore(_gdata)
 {
 	// *** XProblem initialization
 	m_numActiveGeometries = 0;
@@ -382,7 +382,7 @@ bool XProblem::initialize()
 	// Call Problem's initialization that takes care of the common
 	// initialization functions (checking dt, preparing the grid,
 	// creating the problem dir, etc)
-	return Problem::initialize();
+	return ProblemCore::initialize();
 }
 
 void XProblem::initializeChrono()

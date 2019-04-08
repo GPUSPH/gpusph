@@ -42,7 +42,10 @@
 // SIZE_MAX
 #include <limits.h>
 
-#include "Problem.h"
+// XProblem is version 1 of the Problem API
+#define PROBLEM_API 1
+
+#include "ProblemCore.h"
 
 // HDF5 and XYF file readers
 #include "HDF5SphReader.h"
@@ -175,7 +178,7 @@ typedef std::vector<GeometryInfo*> GeometryVector;
 typedef size_t GeometryID;
 #define INVALID_GEOMETRY	SIZE_MAX
 
-class XProblem: public Problem {
+class XProblem: public ProblemCore {
 	private:
 		GeometryVector m_geometries;
 		PointVect m_fluidParts;
