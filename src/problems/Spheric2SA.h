@@ -12,7 +12,7 @@ class Spheric2SA: public XProblem {
 
 	public:
 		Spheric2SA(GlobalData *);
-		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+		void initializeParticles(BufferList &buffers, const uint numParticles);
 		
 		uint max_parts(uint);
 		void fillDeviceMap();

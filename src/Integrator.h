@@ -35,7 +35,8 @@
 
 enum IntegratorType
 {
-	PREDITOR_CORRECTOR
+	REPACKING_INTEGRATOR, ///< Integrator that implements the repacking algorithm
+	PREDITOR_CORRECTOR ///< Standard GPUSPH predictor/corrector integration scheme
 };
 
 struct GlobalData;
@@ -86,7 +87,6 @@ public:
 		return m_seq.back();
 	}
 };
-
 
 /*! An integrator is a sequence of phases, where each phase is a sequence of commands.
  * Phases can be both simple (once the sequence of commands is over, we move on to the next phase)
@@ -250,9 +250,13 @@ protected:
 	{ return enter_phase(m_phase_idx + 1); }
 
 	//! Define the standard neighbors list construction phase.
-	//! It's then up to the individual integrators to put it in the
-	//! correct place of the sequence
-	Phase * buildNeibsPhase();
+	/*! The buffers to be sorted, and then imported across devices, is passed
+	 *  by the calling integrator (aside from PARTICLE_SUPPORT_BUFFERs which are
+	 *  always included).
+	 *  It's also up to the individual integratos to put this sequence of steps
+	 *  in the correct place of the sequence
+	 */
+	Phase * buildNeibsPhase(flag_t import_buffers);
 
 	// TODO we should move here phase generators that are common between (most)
 	// integrators
@@ -280,6 +284,12 @@ public:
 	// Start the integrator
 	virtual void start()
 	{ enter_phase(0); }
+
+	// Called from GPUSPH to indicate that we are finished.
+	// Most integrators will do nothing at this point, but the RepackingIntegrator
+	// can use this to get out of the main loop as switch to the end-of-repacking phase
+	virtual void we_are_done()
+	{ }
 
 	// Fetch the next command
 	CommandStruct const* next_command()

@@ -74,7 +74,8 @@ enum WriterType
 	CALLBACKWRITER,
 	CUSTOMTEXTWRITER,
 	UDPWRITER,
-	HOTWRITER
+	HOTWRITER,
+	DISPLAYWRITER
 };
 
 // list of writer type, write freq pairs

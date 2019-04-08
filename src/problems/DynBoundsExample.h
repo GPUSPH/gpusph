@@ -37,7 +37,7 @@ class DynBoundsExample: public XProblem
 
 public:
 	DynBoundsExample(GlobalData *);
-	virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+	void initializeParticles(BufferList &buffers, const uint numParticles);
 };
 
 #endif

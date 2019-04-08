@@ -153,5 +153,29 @@ copyTypeDataDevice(
 	newVal[index] = oldVal[index];
 }
 
+/*!
+ This kernel is only used for repacking in combination with the free surface particle identification.
+ As soon as repacking is finished the free surface particles are removed by this kernel.
+*/
+	__global__ void
+disableFreeSurfPartsDevice(
+		float4*		oldPos,
+		const	uint		numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index < numParticles) {
+		const particleinfo info = tex1Dfetch(infoTex, index);
+
+		if (SURFACE(info) && NOT_FLUID(info)) {
+			float4 pos = oldPos[index];
+			if (ACTIVE(pos)) {
+				disable_particle(pos);
+				oldPos[index] = pos;
+			}
+		}
+	}
+}
+
 }
 #endif

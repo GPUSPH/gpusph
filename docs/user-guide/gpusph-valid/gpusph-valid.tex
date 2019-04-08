@@ -1,0 +1,1133 @@
+\documentclass{../GPUSPHtemplate}
+
+\title{GPUSPH: user interface reception document}
+
+\author{}
+
+\date{\currentver\ --- April 2018}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\clearpage
+\section{Introduction}
+
+In the present document the various validation cases tested to check GPUSPH works as expected
+are described, together with their setup in the user interface.
+
+\section{Spheric2}
+
+
+\subsection{Case Study Setup and Details}
+%\vspace*{2pt}
+   
+\begin{itemize}
+\item \textbf{Description of the case}: This case is based on the experimental setup of Kleefsman et al. \citep{Kleefsman}
+  in their work on modeling hydraulics problems with wave impact.
+  In fact, this case study has become a classic validation problem in the literature and has been reiterated multiple times,
+  as can be seen in Issa and Violeau's paper \citep{SPHERIC} and in Leroy's thesis \citep{AgnesLeroy}. This case study is well
+  suited for the study of strong surface deformation capabilities on an algorithm. The problem entails a model dam break
+  problem with a model rigid obstacle upstream of the dam's collapse. There is no analytical solution to a problem of this type,
+  so the numerical results will be compared to the measurements done by Kleefsman et al. \citep{Kleefsman}.
+  Since the mathematical setup of the problem is out of the scope of this report, most variables and parameters are not non-dimensionalized except for: 
+  \begin{equation}
+    \begin{array}{l}
+      \displaystyle{  t^{+} \doteq \frac{t}{\sqrt{L/g}} } \medskip \\ 
+    \end{array}
+    \end{equation}  
+
+  \begin{figure}[h!]
+    \includegraphics[scale =0.5]{../fig/SPHERIC2/SPHERIC_GEOMETRY}
+    \centering
+    \caption{ The 3-D geometric details of the Spheric2 case can be seen in this figure. The dimensions and the locations of the height probes can be seen here. The numbering of the fluid height sensors is from H1 to H4, as can be seen above the vertical lines in red indicating the location of the sensors.}
+    \label{fig:SphericGeometry}
+  \end{figure}
+  
+  \begin{figure}[h!]
+    \includegraphics[scale =0.6]{../fig/SPHERIC2/SPHERIC_NODES}
+    \centering
+    \caption{ The geometric details of the obstacle used in Spheric2 can be seen in this figure. The locations of the pressure probes can be seen here. The numbering of the pressure sensors is from P1 to P8, as can be seen to the left of the crosses in red indicating the location of the sensors.}
+    \label{fig:Spheric_Nodes}
+  \end{figure}
+  
+\item \textbf{Case Setup}: This case involves the study of the deviation of numerical results from the experimental results available.
+  Following Kleefsman's work, we setup numerical pressure sensors along the rigid obstacle, as can be seen in the figure \ref{fig:Spheric_Nodes}.
+  We also place numerical wave height gauges, whose locations can be seen in the figure \ref{fig:SphericGeometry}.
+  The geometric details can be seen in the figure \ref{fig:SphericGeometry}. Note that figures \ref{fig:SphericGeometry},
+  \ref{fig:Spheric_Nodes} for this test case have been imported from Kleefsman et al. \citep{Kleefsman}.
+  The experimental results contain data on the pressure variation in time along the sensors seen in figure \ref{fig:Spheric_Nodes}
+  and data on the fluid height along the gauges shown in figure \ref{fig:SphericGeometry}. The analysis on the results of this
+  test case will be based on a visual comparison of the numerical versus the experimental results.    
+  
+\item \textbf{The numerical and physical parameters studied:} The tests run for this case are designed to study the performance
+  of the free surface deformation capabilities of the solver. The simulations have a fluid particle number
+  of about 3 million particles. It is important to note that our numerical
+  setups do not model a physical gate, and thus the dam's fluid falls instantaneouly, and this is not the case in
+  Kleefsman et al.'s work. The following parameters were used for the four test cases presented in the table \ref{tab:spheric2-setup}:   
+  \begin{itemize}
+  \item numerical speed of sound: ${c_n} = 40 \; m/s$
+  \item smoothing length to particle size ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item gravity field: $g = -9.81.0 \; {m}/{s^2}$
+  \item density: $\rho = 1000 \; {kg}/{m^3} $
+  \item length scale: $L = 0.55 \; m$
+  \item simulation time: $t^+ = 26 $
+  \item particle size: $0.01m$
+  \item kinematic viscosity: $\nu = 1 \times 10^{-6} (m^2/s)$
+  \item whatever the density diffusion formulation, a density diffusion coefficient of 0.1
+  \item with semi-analytical boundaries, a density equation based on the summation definition of the density
+  \end{itemize}
+  
+  \begin{table}[h]\caption{Numerical tests performed on the Spheric-2 test-case}
+    \label{tab:spheric2-setup}
+    \begin{tabular}{ |p{3cm}|p{4cm}|p{3.5cm}|p{3cm}|  } 
+      \hline
+      Numerical Test & Boundary formulation & Turbulent Model & Density diffusion \\
+      \hline
+      Test 1 & Lennard-Jones      & none         & Colagrossi \\
+      Test 2 & Lennard-Jones      & SPS          & Colagrossi \\
+      Test 3 & Dynamic (3 layers) & SPS          & Colagrossi \\
+      Test 4 & Semi-analytical    & $k-\epsilon$ & Brezzi \\
+      \hline
+    \end{tabular}
+  \end{table}
+\end{itemize}
+
+\subsection{Setup in Salome}\label{sec:salome_spheric2}
+For this test-case, the geometrical setup only contains the basin and the initial free-surface shape.
+We will not use the repacking feature of GPUSPH, so the free-surface is a separate shell from the
+main boundary and it will not be an input particle file for GPUSPH. It is only a limit considered for
+fluid particle filling. Follow the steps below to build the case:
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the basin and free-surface, following the coordinates of the figure \ref{fig:SphericGeometry}\\
+    \textbf{New entity $\to$ Basic $\to$ Point}\smallskip\\
+    \includegraphics[scale=0.4,trim={0 13cm 40cm 7cm}, clip]{../fig/SPHERIC2/Salome/vertices_creation.png}
+  \item Create the lines linking the vertices together, considering the free-surface and the basin as two separate objects
+    (there is no connectivity between them)\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\smallskip\\
+    \includegraphics[scale=0.4,trim={40cm 10cm 0cm 11cm}, clip]{../fig/SPHERIC2/Salome/lines_creation.png}
+  \item Create the faces of the basin and free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Face}\smallskip\\
+    \includegraphics[scale=0.28,trim={18cm 3cm 15cm 7cm}, clip]{../fig/SPHERIC2/Salome/faces_creation.png}
+  \item Create a shell with the two faces of the free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.3,trim={12cm 8cm 15cm 7cm}, clip]{../fig/SPHERIC2/Salome/free_surf_shell.png}
+  \item Create a shell with the faces of the basin\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.35,trim={22cm 3cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/basin_shell.png}
+  \item Check the normals orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\smallskip\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/SPHERIC2/Salome/check_normals.png}
+  \item For the case with dynamic boundaries, we want the layers ot be created outwards, so we need to
+    create a second shell of the basin with reversed normals\\
+    \textbf{Repair $\to$ Change orientation}\smallskip\\
+    \includegraphics[scale=0.4,trim={32cm 7cm 15cm 8cm}, clip]{../fig/SPHERIC2/Salome/revert_normals.png}
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create three cases, one for each type of boundary conditions\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.5,trim={0cm 26.5cm 45cm 1cm}, clip]{../fig/SPHERIC2/Salome/create_prepro_case.png}
+  \item Then, define the main boundary for each case, taking care to select the basin with reversed normals for the dynamic boundaries\\
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 6cm 40cm 26.5cm}, clip]{../fig/SPHERIC2/Salome/define_main_boundary.png}
+  \item Define the free-surface for the three cases\\
+    \textbf{SPH Preprocessor $\to$ Define free surface}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 6cm 40cm 26.5cm}, clip]{../fig/SPHERIC2/Salome/define_free_surface.png}
+  \item Edit the cases parameters, taking care to choose the corresponding boundary formulation\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={0cm 11cm 35cm 2cm}, clip]{../fig/SPHERIC2/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\smallskip\\
+    \includegraphics[scale=0.3,trim={0cm 15cm 28cm 2cm}, clip]{../fig/SPHERIC2/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis:\\
+    \begin{center}\includegraphics[scale=0.3,trim={17cm 6cm 18cm 15cm}, clip]{../fig/SPHERIC2/Salome/spheric2-particles.png}\end{center}
+    
+    For each study, Salome creates a folder with the study name underscore presph at the same location as the hdf file.
+    This is where the preprocessor files are stored: for example, let us assume that the \cmd{Spheric2.hdf} file
+    is located at \cmd{$MY_STUDY_PATH/Spheric2.hdf}.
+    Then, the particle files for the case with semi-analytical boundaries are located in:\\
+    \cmd{$MY_STUDY_PATH/Spheric2_presph/Spheric2SA}. \\
+    The files are the following:\\
+    - \cmd{Spheric2SA.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{Spheric2SA.basin.h5sph}: GPUSPH file for the basin\\
+    - \cmd{Spheric2SA.basin.vtu}: vtu file of the basin, can be opened in Paravis\\
+    - \cmd{Spheric2SA.fluid.vtu}: vtu file of the fluid, can be opened in Paravis\\
+    - \cmd{basin.stl}: stl file of the basin, can be used for visualisation purposes\\
+    - \cmd{basin.obj}: file for handling collisions with the basin in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create four cases, one for each of the tests of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 25cm 48cm 2cm}, clip]{../fig/SPHERIC2/Salome/create_solver_case.png}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary formulation\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/SPHERIC2/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters and set them to the ones of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 5cm 44cm 1cm}, clip]{../fig/SPHERIC2/Salome/edit_simulation_parameters.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
+    \cmd{$MY_STUDY_PATH/Spheric2_gpusph/Spheric2SA}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/Spheric2_gpusph/Spheric2SA/gpusph/dist/linux/x86_64}.
+  \end{itemize}
+\end{enumerate}
+
+\subsection{Results}
+
+The results of this case are compared with the experimental results from Kleefsman et al. \citep{Kleefsman}.
+The results of the tests are in the form of pressure values recorded in time at the different sensors
+and in values of fluid height at the different height sensors in time.
+Figure (\ref{fig:Crash}) shows a snapshot at the time $t^+=2.95$ of the simulation with semi-analytical boundaries.
+
+%%%%%%%%%% CRASH
+\begin{figure}[H]
+  \begin{subfigure}[b]{0.7\linewidth}
+    \centering
+    \hspace*{3.3cm} \includegraphics[scale=0.45]{../fig/SPHERIC2/Nahed_results/ScaleCrash.png}
+  \end{subfigure}	
+  
+  
+  \begin{subfigure}[b]{1\linewidth}
+    \centering
+    \includegraphics[width=1\linewidth]{../fig/SPHERIC2/Nahed_results/CoarseCrash3.png} 
+  \end{subfigure} 
+  
+  \caption{The image shown above is a snapshot of the Spheric2 simulation at $t^+ = 2.95 $ using semi-analytical boundaries.
+    The velocities follow the color scale  seen above.}
+  \label{fig:Crash}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%Experiments 2 to 5
+\begin{figure}[H]
+  \centering 	
+    \includegraphics[width=1\linewidth]{../fig/SPHERIC2/Nahed_results/B_P2_P5_H2_H4.png}
+    \caption{This figure shows the results obtained for the Spheric2 case, with semi-analytical boundaries and the $k-\epsilon$ turbulence model.
+      The data from P2 and P5, are on the top 2 sub-plots, and the data from H2 and H4 on the bottom 2 sub-plots.
+      The red lines display the data as obtained from GPUSPH, while the black lines represent the experiments.}
+\label{fig:TestpointsAll}
+\end{figure}
+%%%%%%%%%%%%%%%%%
+
+
+In analyzing the tests compared against Kleefsman et al.'s experiments,
+it is important to note that the simulation was run with the $k$--$\epsilon$
+turbulent model turned on, which improves the results compared to a simulation without
+a turbulence model since it reduces the noise, especially in the pressure signals. 
+It is also noteworthy that with a finer discretisation, the results would improve significantly at all probes
+and wave gages.
+
+\section{Hydrostatic basin}
+
+\subsection{Case Study Setup and Details}
+\vspace*{2pt}
+\begin{itemize}
+\item \textbf{Description of the case}: We consider a simple 3-dimensional rectangular basin which is
+  filled with fluid particles, and subjected to a gravity-like field force acting in a parallel and
+  opposite manner with respect to the bottom's normal. The case is non-dimensionalized by using the system's scale length $L$
+  and other physical parameters. The non-dimensional parameters and variables are as seen below:   
+  \begin{equation}
+    \begin{array}{l}
+      \displaystyle{  z^{+} \doteq \frac{z}{L} } \medskip \\ 
+      \displaystyle{  t^{+} \doteq \frac{t}{\sqrt{L/g}} } \medskip \\ 
+      \displaystyle{  P^{+} \doteq \frac{P}{\rho gL} } \medskip \\ 
+      \displaystyle{  F^{+} \doteq \frac{F}{\rho g} } 
+    \end{array}
+  \end{equation}  
+  
+\item \textbf{Case Study}:  This case involves the study of the deviation of numerical results
+  from the analytical solution. The solution is based on the hydrostatic equation which can be
+  derived from the RANS equation projected along the vertical z-axis: 
+  
+  \begin{equation}\label{eq:HydroDifferential}
+    0 = F^{+}+ \frac{d P^+}{d z^+}
+  \end{equation}
+  
+  with the differential equation being an ordinary differential equation presented as a boundary value problem.
+  The wall boundaries are solid and the velocity is nullified. The resulting pressure profiles
+  depend on the gravity-like force field. The chosen parameters and
+  the solution to equation (\ref{eq:HydroDifferential}) are presented below.
+  
+  The forcing function is chosen to be: $ F^+ = \text{C}  $  
+    
+  \begin{equation}\label{eq:HydroStatic}
+    P^+(z^+) =  -F^{+} z^+  + C
+  \end{equation}
+  
+  The constant in equations (\ref{eq:HydroStatic}) is defined as:\\
+  $C = P^+(z^+ = 0) = 1$
+  
+\item \textbf{The numerical and physical parameters studied:} This study sets up three tests.
+  We look to study the stability of hydrostatic iterations in GPUSPH with three boundary formulations available in GPUSPH:
+  Lennard-Jones, Dynamic boundaries and Semi-analytical boundaries.
+  The particle size of this case is related to particle number in the case through the following representation,
+  where \textit{N} is the particle number per unit
+  \textit{L}\footnote{The basin's boundaries slightly reduce the expected number of particles (per unit $L$)
+    along the \textit{x} and \textit{y} axes due to the fluid being constrained from multiple sides,
+    as opposed to the number of particles along \textit{z}. }:
+  \begin{equation}
+    \delta r = \frac{L}{N} 
+  \end{equation}            
+  
+  \begin{itemize}
+  \item numerical speed of sound: ${c_n} = 40 \; m/s$
+  \item smoothing length to particle size ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item kinematic viscosity: $\nu = 0.05 \; {m^2}/{s}$
+  \item gravity field: $g = -1.0 \; {m}/{s^2}$
+  \item fluid density: $\rho = 1.0 \; {kg}/{m^3} $
+  \item length scale: $L = 1.0 \; m$
+  \item simulation time: $t^+ = 600 $ 
+  \end{itemize}
+\end{itemize}
+
+\subsection{Setup in Salome}
+
+For this case we show the use of the repacking feature of GPUSPH, following Colagrossi \textit{et al.}'s work.
+There are three cases: one for each boundary type (dynamic, Lennard-Jones and semi-analytical).
+The idea is to let the particles reorganise themselves before the beginning of the simulation so as to
+make the initial repartition of particles as homogeneous as possible. In order to do that, when performing a simulation
+of a free-surface flow, it is necessary to provide GPUSPH with a particle file corresponding to the initial free-surface
+position. These particles will be considered as a boundary and the repacking will happen within the solid, open and free-surface
+boundaries of the domain. As soon as the repacking is finished, the free-surface particles are removed from the simulation
+domain and the simulation can begin. Thus, during pre-processing the free-surface is considered as a boundary.
+It is inputed as a special boundary and there is no need anymore to define a separate free-surface like in the Spheric2 case.
+The following steps can be followed:
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the basin and free-surface\\
+    \textbf{New entity $\to$ Basic $\to$ Point} \\
+    \includegraphics[scale=0.4,trim={23cm 3cm 15cm 10cm}, clip]{../fig/HydrostaticBasin/Salome/vertices_creation.png}
+  \item Create the lines linking the vertices together, for the basin on the one hand, and for the free-surface on the other hand\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\\
+    \includegraphics[scale=0.35,trim={20cm 3cm 15cm 11cm}, clip]{../fig/HydrostaticBasin/Salome/lines_creation.png}
+  \item Create the faces of the basin and free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Face}\\
+    \includegraphics[scale=0.28,trim={18cm 3cm 15cm 7cm}, clip]{../fig/HydrostaticBasin/Salome/faces_creation.png}
+  \item Create a shell with the faces of the basin\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\\
+    \includegraphics[scale=0.35,trim={22cm 3cm 15cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/basin_shell.png}
+  \item Check the basin's normals orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/check_normals.png}
+  \item For the case with semi-analytical boundaries, we want the normals to be oriented inwards, so we need to
+    create a second shell of the basin with reversed normals\\
+    \textbf{Repair $\to$ Change orientation}\\
+    \includegraphics[scale=0.4,trim={22cm 7cm 15cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/revert_normals.png}
+  \item Rename the basin into \cmd{basin\_outwards\_normals} by selecting it in the object tree and pressing F2
+  \item Check the free-surface face's orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/check_fs_normals.png}
+  \item Rename the free-surface face into \cmd{free\_surface\_outwards\_normals}
+  \item For semi-analytical boundaries, we will need a free-surface with normals pointing towards the fluid, so
+    create another free-surface face with reverted normals:\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/revert_fs_normals.png}
+  \item Cut the \cmd{basin\_outwards\_normals} using \cmd{free\_surface\_outwards\_normals} as a tool\\
+    \textbf{Operations $\to$ Boolean $\to$ Cut}\\
+    \includegraphics[scale=0.35,trim={22cm 3cm 15cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/basin_cut.png}
+  \item Create a shell comprising \cmd{basin\_outwards\_normals\_cut} and \\
+    \cmd{free\_surface\_outwards\_normals}\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\\
+    \includegraphics[scale=0.35,trim={22cm 3cm 15cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/basin_fs_shell.png}
+  \item Create a group of faces with the free-surface face in \\
+    \cmd{basin\_with\_free\_surf\_outwards\_normals}\\
+    \textbf{New entity $\to$ Group $\to$ Create group}\\
+    \includegraphics[scale=0.35,trim={25cm 3cm 11cm 8cm}, clip]{../fig/HydrostaticBasin/Salome/fs_group.png}
+  \item Repeat the last three steps with \cmd{basin\_inwards\_normals} and \\
+    \cmd{free\_surface\_inwards\_normals}.
+
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create three cases, one for each type of boundary conditions\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\\
+    Name them \cmd{HydrostaticLJ}, \cmd{HydrostaticDyn} and \cmd{HydrostaticSA}    
+  \item Then, define the main boundary for each case, taking care to select \cmd{basin\_with\_free\_surf\_outwards\_normals}
+    for the dynamic boundaries and \cmd{basin\_with\_free\_surf\_inwards\_normals} for semi-analytical boundaries. For
+    Lennard-Jones boundaries it does not matter.
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\\
+    \includegraphics[scale=0.45,trim={0cm 6cm 40cm 20cm}, clip]{../fig/HydrostaticBasin/Salome/define_main_boundary.png}
+  \item Define a special boundary using the free-surface group for each case, specifying it is a free-surface type special
+    boundary\\
+    \textbf{SPH Preprocessor $\to$ Define special boundary grid}\\
+    \includegraphics[scale=0.45,trim={0cm 6cm 40cm 25cm}, clip]{../fig/HydrostaticBasin/Salome/define_free_surface.png}
+  \item Edit the cases parameters, taking care to choose the corresponding boundary formulation for each case\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={15cm 5cm 30cm 10cm}, clip]{../fig/HydrostaticBasin/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\\
+    \includegraphics[scale=0.3,trim={0cm 15cm 28cm 2cm}, clip]{../fig/HydrostaticBasin/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis:\\
+    \begin{center}\includegraphics[scale=0.3,trim={17cm 2cm 18cm 9cm}, clip]{../fig/HydrostaticBasin/Salome/hydrostaticBasin-particles.png}\end{center}
+    
+    For each study, Salome creates a folder with the study name underscore presph at the same location as the hdf file.
+    This is where the preprocessor files are stored: for example, let us assume that the \cmd{HydrostaticBasin.hdf} file
+    is located at \cmd{$MY_STUDY_PATH/HydrostaticBasin.hdf}.
+    Then, the particle files for the case with Lennard-Jones boundaries are located in:\\
+    \cmd{$MY_STUDY_PATH/HydrostaticBasin_presph/HydrostaticBasinLJ}. \\
+    The files are the following:\\
+    - \cmd{HydrostaticBasinLJ.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{HydrostaticBasinLJ.basin_with_free_surf_outwards_normals.h5sph}: GPUSPH file for the basin\\
+    - \cmd{HydrostaticBasinLJ.basin_free_surface.h5sph}: GPUSPH file for the free-surface\\
+    - \cmd{HydrostaticBasinLJ.basin_with_free_surf_outwards_normals.vtu}: vtu file of the basin, can be opened in Paravis\\
+    - \cmd{HydrostaticBasinLJ.fluid.vtu}: vtu file of the fluid, can be opened in Paravis\\
+    - \cmd{HydrostaticBasinLJ.basin_free_surface.vtu}: vtu file of the free-surface, can be opened in Paravis\\
+    - \cmd{basin_with_free_surf_outwards_normals.stl}: stl file of the basin, can be used for visualisation purposes\\
+    - \cmd{basin_with_free_surf_outwards_normals.obj}: file for handling collisions with the basin in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create three cases, one for each boundary formulation.\\
+    \textbf{GPUSPH $\to$ Add a case}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary
+    formulation and boundary type for each file\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/HydrostaticBasin/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters, taking care to enable repacking\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\\
+    \includegraphics[scale=0.4,trim={0cm 5cm 40cm 1cm}, clip]{../fig/HydrostaticBasin/Salome/edit_simulation_parameters.png}
+  \item Edit the execution parameters, choosing to enable the repack and run option\\
+    \textbf{GPUSPH $\to$ Edit execution parameters}\\
+    \includegraphics[scale=0.4,trim={0cm 10cm 40cm 1cm}, clip]{../fig/HydrostaticBasin/Salome/edit_execution_parameters.png}
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder:\\
+    \cmd{$MY_STUDY_PATH/HydrostaticBasin_gpusph/HydrostaticBasinLJ}.\\ While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/HydrostaticBasin_gpusph/HydrostaticBasinLJ/}\\
+    \cmd{gpusph/dist/linux/x86_64}\\
+    The repacking results are stored with names
+    \cmd{REPACK_*.vtu} while the simulation results are stored with names \cmd{PART_*.vtu}.
+  \end{itemize}
+\end{enumerate}
+
+\subsection{Results}
+Modeling hydrostatic phenomenon is not trivial in SPH due to the tendency of the particles
+to reorder themselves at every temporal iteration, and assign to themselves small random velocities;
+thus perturbing the static hypothesis required for resolving hydrostatic systems. However, with accurate
+mathematical models in SPH and efficient algorithms, hydrostatic phenomena can be effectively modeled.\\
+%Before GPUSPH incorporated the SA solid boundary model, hydrostatic systems almost always had issues with particle stability near a basin's wall. \\
+
+The results of this case show GPUSPH's capacity at resolving hydrostatic phenomena. The results obtained show
+both the pressure profiles at a their initial and final conditions, and the L$_2$ error's progression in time.
+The L$_2$ error is important as it shows whether
+GPUSPH displays converging numerical results for hydrostatic phenomena.
+The results with semi-analytical boundaries are shiwn in the figures \ref{fig:HydroExp2} and \ref{fig:HydroExp2L2}.
+The pressure profiles at the initial state $t^+=0$ and the final state $t^+=600$ are displayed in the figure \ref{fig:HydroExp2}.
+The initial state of the particles in the basin is initialized with a hydrostatic profile, where the particles are arranged
+on a Cartesian grid\footnote{As our figures are two dimensional, they do not explicity show the total
+  number of particles in the basin, since most of the particles exist initially alongside each other on flat planes.
+  At later time steps however, the particles rearrange and are found at different positions, as is evident
+  by the plots at the final iteration.} at every $\delta r$.
+
+Test 2 in figure (\ref{fig:HydroExp2}b) shows that the particles exhibit a deviation
+in their pressure distribution, and reveals a small drift in position. The drift in vertical position
+is also away from the initially defined surface at $z^+=0$ and under the initially lowest particle layer
+at $z^+=0.05$. To quantify how these deviations effect the convergence of the model, the L$_2$ error, in time,
+is analyzed from figure (\ref{fig:HydroExp2L2}). The results show an overall good behaviour of GPUSPH.\\
+
+The analysis of the results of this case study show that GPUSPH is effectively capable of simulating
+hydrostatic phenomena since it shows a convergent behavior. 
+\vfill
+
+\begin{figure}[H]
+  \begin{subfigure}{.5\textwidth}
+    \centering
+    \includegraphics[trim={1.5cm 0 1.8cm 0}, clip, width=.9\linewidth]{../fig/Hydrostatic/20Particles/Pressure_20particles_Initial.png}
+    \vspace*{5pt}
+    \caption{Initial State}
+  \end{subfigure}%
+  \begin{subfigure}{.5\textwidth}
+    \centering 
+    \includegraphics[trim={1.5cm 0 1.8cm 0}, clip, width=.9\linewidth]{../fig/Hydrostatic/20Particles/Pressure_20particles_Final.png}
+    \caption{Final State}        
+  \end{subfigure}
+  \caption{Hydrostatic basin case: numerical and theoretical pressure profiles along the basin's height.
+    The initial profile at $t^+=0$ is seen at the top and with the final pressure profile at $t^+=600$ in the image just under.
+    The results are for semi-analytical boundaries. It is important to note that the theoretical profile is
+    based on the initial distribution of the particles and thus extends from the particles at the surface of the
+    basin at $z^+=1$ to the bottom particle's postion at a distance $\delta r = 0.05 $ from the floor at $z^+=0$. }
+  \label{fig:HydroExp2}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[scale=0.6]{../fig/Hydrostatic/20Particles/L2_Hydrostatic20Part.png}
+  \caption{The plot seen above represents the L$_2$ error as it progresses in time for test 2 of section 2.2.1, where we note the decreasing trend of the error in time. The data is presented as a semi-log plot. }
+  \label{fig:HydroExp2L2}
+\end{figure}
+
+\section{Channel IO}
+
+\subsection{Case Study Setup and Details}
+%\vspace*{2pt}
+   
+\begin{itemize}
+\item \textbf{Description of the case}: this is a schematic case of a laminar channel flow with an inflow and an outflow boundary.
+  The channel has a rectangular section of size $1m \times 1m$ and a length of $4m$, with a water depth of $0.5m$.
+  The case is non-dimensionalized using the water depth $h$ and the gravity. The non-dimensional parameters and variables are as thus:   
+  \begin{equation}
+    \begin{array}{l}
+      \displaystyle{  z^{+} \doteq \frac{z}{h} } \medskip \\ 
+      \displaystyle{  t^{+} \doteq \frac{t}{\sqrt{h/g}} } \medskip \\ 
+      \displaystyle{  P^{+} \doteq \frac{P}{\rho gh} } \medskip \\ 
+      \displaystyle{  F^{+} \doteq \frac{F}{\rho g} } 
+    \end{array}
+  \end{equation}
+  The dimensionless channel length is $L^+=8$, and the dimensionless channel width is $l^+=2$.
+
+\item \textbf{The numerical and physical parameters studied:} This study sets up only one test: indeed, the only
+  boundary formulation making it possible to use inflow/outflow boundaries in GPUSPH, at the moment, is the semi-analytical
+  formulation.
+  \begin{itemize}
+  \item numerical speed of sound: ${c_n} = 10\sqrt{gh} \; m/s$
+  \item smoothing length to particle size ratio: $\dfrac{h}{\delta r}=1.3$ 
+  \item kinematic viscosity: $\nu = 0.01 \; {m^2}/{s}$
+  \item gravity field: $g = -9.81 \; {m}/{s^2}$
+  \item fluid density: $\rho = 1000 \; {kg}/{m^3} $
+  \item length scale: $h = 0.5 \; m$
+  \item simulation time: $t^+ = 10 $ 
+  \end{itemize}
+\end{itemize}
+
+\subsection{Setup in Salome}
+For this test-case, the geometrical setup only contains the channel walls and open boundaries, and the initial free-surface shape.
+We will not use any repacking, so it is not necessary to intersect the solid and open boundaries with the free-surface and to include the
+free-surface in the main boundary shell.
+The main boundary shell thus comprises the walls, and also the inflow and outflow boundaries of the channel.
+They shall have to be included in groups of faces corresponding to the inlet and outlet frontiers.
+The steps below are performed:
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the basin and free-surface\\
+    \textbf{New entity $\to$ Basic $\to$ Point}\smallskip\\
+    \includegraphics[scale=0.4,trim={0 13cm 40cm 7cm}, clip]{../fig/ChannelIO/Salome/vertices_creation.png}
+  \item Create the lines linking the vertices together\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\smallskip\\
+    \includegraphics[scale=0.4,trim={40cm 10cm 0cm 11cm}, clip]{../fig/ChannelIO/Salome/lines_creation.png}
+  \item Create the faces of the basin and free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Face}\smallskip\\
+    \includegraphics[scale=0.28,trim={18cm 8cm 5cm 7cm}, clip]{../fig/ChannelIO/Salome/faces_creation.png}
+  \item Create a shell with the faces of the basin\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.3,trim={20cm 7cm 10cm 8cm}, clip]{../fig/ChannelIO/Salome/basin_shell.png}
+  \item Check the normals orientation (they should be oriented towards the fluid)\\
+    \textbf{Inspection $\to$ Normal to a face}\smallskip\\
+    \includegraphics[scale=0.28,trim={20cm 7cm 10cm 8cm}, clip]{../fig/ChannelIO/Salome/check_normals.png}
+  \item If not, change their orientation at this stage in the GEOM module\\
+    \textbf{Repair $\to$ Change orientation}\smallskip\\
+    \includegraphics[scale=0.3,trim={20cm 7cm 10cm 8cm}, clip]{../fig/ChannelIO/Salome/revert_normals.png}
+  \item Create groups of faces for the inflow and outflow boundaries, in the basin object:
+    \textbf{New entity $\to$ Group $\to$ Create group}\smallskip\\
+    - Select the face type group in the Shape type section\\
+    - Name the group, for example \textbf{inflow}\\
+    - Select the two faces of the inflow from the GUI and click on the Add button\\
+    - Click on Apply and Close\\
+    \includegraphics[scale=0.4,trim={25cm 7cm 15cm 8cm}, clip]{../fig/ChannelIO/Salome/create_inflow_group.png}
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create a new case:\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.5,trim={0cm 26.5cm 45cm 1cm}, clip]{../fig/ChannelIO/Salome/create_prepro_case.png}
+  \item Then, define the main boundary for this case\\
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_main_boundary.png}
+  \item Define the free-surface for particle filling\\
+    \textbf{SPH Preprocessor $\to$ Define free surface}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_free_surface.png}
+  \item Define the inflow and outflow boundaries as special boundaries\\
+    \textbf{SPH Preprocessor $\to$ Define special boundary grid}\smallskip\\
+    Select the \textbf{inlet} group of the basin\\
+    Choose the \textbf{Surface type} as \textbf{Open boundary}\\
+    Do the same for the outlet\\
+    \includegraphics[scale=0.45,trim={0cm 10cm 42cm 20.5cm}, clip]{../fig/ChannelIO/Salome/define_inlet.png}
+  \item Edit the case parameters, taking care to choose the semi-analytical boundary formulation and using a particle size of $0.1m$,
+    which is a coarse discretisation\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={15cm 14cm 30cm 5cm}, clip]{../fig/ChannelIO/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\smallskip\\
+    \includegraphics[scale=0.3,trim={0cm 10cm 28cm 12cm}, clip]{../fig/ChannelIO/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis.
+    The field KENT makes it possible to visualize the index of the different boundaries: 0 for the main wall, 1 for the inlet,
+    2 for the outlet:\\
+    \begin{center}\includegraphics[scale=0.3,trim={13cm 6cm 18cm 10cm}, clip]{../fig/ChannelIO/Salome/channelIO_particles.png}\end{center}
+    
+    Assuming that the \cmd{ChannlIO.hdf} file is located at \cmd{$MY_STUDY_PATH/ChannelIO.hdf}.
+    Then, the particle files for the case are located in:\\
+    \cmd{$MY_STUDY_PATH/ChannelIO_presph/ChannelIO}. \\
+    The files are the following:\\
+    - \cmd{ChannelIO.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{ChannelIO.basin.h5sph}: GPUSPH file for the walls of the channel\\
+    - \cmd{ChannelIO.inlet.h5sph}: GPUSPH file for the inlet boundary\\
+    - \cmd{ChannelIO.outlet.h5sph}: GPUSPH file for the outlet boundary\\
+    - \cmd{ChannelIO.fluid.vtu}:  vtu file for the fluid, can be opened in Paravis\\
+    - \cmd{ChannelIO.basin.vtu}: vtu file for the walls of the channel, can be opened in Paravis\\
+    - \cmd{ChannelIO.inlet.vtu}: vtu file for the inlet boundary, can be opened in Paravis\\
+    - \cmd{ChannelIO.outlet.h5sph}: vtu file for the outlet boundary, can be opened in Paravis\\
+    - \cmd{basin.stl}: stl file of the channel walls, can be used for visualisation purposes\\
+    - \cmd{basin.obj}: file for handling collisions with the channel walls in GPUSPH\\
+    - \cmd{inlet.stl}: stl file of the inlet boundary, can be used for visualisation purposes\\
+    - \cmd{inlet.obj}: file for handling collisions with the inlet boundary in GPUSPH\\
+    - \cmd{outlet.stl}: stl file of the outlet boundary, can be used for visualisation purposes\\
+    - \cmd{outlet.obj}: file for handling collisions with the outlet boundary in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create a new case\\
+    \textbf{GPUSPH $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 25cm 48cm 2cm}, clip]{../fig/ChannelIO/Salome/create_solver_case.png}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary formulation
+    and boundary types\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/ChannelIO/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 18cm 38cm 2cm}, clip]{../fig/ChannelIO/Salome/edit_simulation_parameters.png}\medskip
+  \item Choose to prescribe a constant velocity at the inlet and a constant water level at the outlet in the simulation parameters,
+    and enable the user function imposeBoundaryConditionsHost:\\
+    \includegraphics[scale=0.4,trim={0cm 5cm 38cm 15cm}, clip]{../fig/ChannelIO/Salome/edit_inlet_outlet.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
+    \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIO}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIO/gpusph/dist/linux/x86_64}.
+  \item It is visible in the results that a wave is created at the inlet because the constant velocity is imposed on
+    the whole height of the channel, even above the free surface. Also, the $0.5m/s$ velocity is directly prescribed
+    from the first iteration, while the fluid is initially at rest, which generates a wave in the domain.\\
+    \includegraphics[scale=0.3,trim={20cm 5cm 10cm 10cm}, clip]{../fig/ChannelIO/Salome/ChannelIO_results.png}\medskip\\
+    To improve this, it is possible to modify the imposition of boundary conditions at the inflow so that the inlet velocity
+    follows a parabolic vertical profile between the bed and the free-surface, and its maximum varies from 0 to 0.5 m/s
+    within a given time. This is detailed below. 
+  \end{itemize}
+\item \textbf{Create a new case with more advanced boundary conditions in the GPUSPH solver module}
+  \begin{itemize}
+  \item Copy the previous ChannelIO case to ChannelIOFade\\
+    \textbf{GPUSPH $\to$ Copy a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 25cm 48cm 2cm}, clip]{../fig/ChannelIO/Salome/copy_solver_case.png}
+  \item In the simulation parameters dialog, edit the imposeBoundaryConditionsHost user function\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\\
+    \textbf{imposeBoundaryConditionsHost $\to$ Edit...}\\
+    A dialog opens, which contains the function's definition\smallskip\\
+    \includegraphics[scale=0.4,trim={17cm 5cm 25cm 10cm}, clip]{../fig/ChannelIO/Salome/edit_imposeBoundaryConditions.png}\medskip
+  \item In the function editor, replace the line \cmd{IMPOSE\_VELOCITY} by:
+    \begin{lstlisting}
+// define the water level as equal to 0.5m
+const float h = 0.5;
+if (absPos.z < 0.5) {
+  // define the fading time as 2 seconds
+  const float time_fade = 2.;
+  // define the maximum velocity at the inflow,
+  // which varies from 0 to 0.5m/s in 2s
+  const float U = 0.5 * fminf(t/time_fade, 1.);
+  // define the horizontal velocity at the inflow
+  // through a vertical parabolic profile
+  eulerVel.x = U * (1 - powf(absPos.z,2.)/powf(h,2.));
+}
+    \end{lstlisting}
+    \includegraphics[scale=0.5,trim={19cm 5cm 28cm 10cm}, clip]{../fig/ChannelIO/Salome/change_eulerVel.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
+    \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIOFade}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/ChannelIO_gpusph/ChannelIOFade/gpusph/dist/linux/x86_64}.
+  \item The result is definitely improved compared to the previous simulation (here the picture is a simulation with
+    $dr = 0.05m$).\smallskip\\
+    \includegraphics[scale=0.3,trim={20cm 5cm 10cm 10cm}, clip]{../fig/ChannelIO/Salome/ChannelIOFade_results.png}\medskip\\
+  \end{itemize}
+\end{enumerate}
+
+\section{Turbulent Poiseuille channel flow}
+
+
+\subsection{Case Study Setup and Details}
+%\vspace*{2pt}
+   
+\begin{itemize}
+\item \textbf{Description of the case}: 
+  In order to test the performance of the $k-\epsilon$ model in GPUSPH, a turbulent Poiseuille channel flow is part of the validation basis. 
+  The half-height of the channel is the characteristic length of the flow, $L$, and periodic conditions are applied along the horizontal in the $x$ and $y$ directions.
+  The friction velocity $u_*$ is set to $1ms^{-1}$ by imposing a horizontal volumetric force of constant magnitude, $F = 1.0 m.s^ {-2}$%
+  \footnote{The friction velocity can be calculated by writing a balance of the forces and is equal to $\sqrt{f L}=1~m.s^{-1}$.}.
+  At the initial time, the particles are aligned along horizontal lines.
+  The dimensionless variables are defined by:
+  %the ones of equation~\eqref{eq:dimensionlessVariables} with $U = u_*$.
+  \begin{equation}\label{eq:dimensionlessVariables}
+    \left\{
+    \begin{array}{llll}
+      x^+=\dfrac{x}{L}, & z^+=\dfrac{z}{L}, & \vec{u}^+=\dfrac{\vec u}{u_*}, & \nu_T^+=\dfrac{\nu_T}{L u_*}\medskip \\
+      k^+=\dfrac{k}{u_*^2}, & \epsilon^+=\dfrac{\epsilon L}{u_*^3}, & p^+=\dfrac{p}{\rho u_*^2/2}, & t^+ = \dfrac{t}{u_*}
+    \end{array}
+    \right.
+\end{equation}
+
+  Besides, the dimensionless distance to the lower wall is defined as: 
+  \begin{equation}
+    y^+=\dfrac{y u_*}{\nu}
+  \end{equation}
+  where $y$ is the distance to the lower wall. The friction Reynolds number defined through:
+  \begin{equation}
+    Re_*=\dfrac{u_* L}{\nu}
+  \end{equation}
+  The friction Reynolds number is equal to the dimensionless vertical coordinate at the centre of the channel,
+  and is equal to $640$, so that the molecular viscosity of the fluid is equal to $1.5625 \times 10^{-3}m^2.s^{-1}$. 
+  The initial interparticular spacing is equal to $0.05L$. \\
+  
+\item \textbf{The numerical and physical parameters studied:} 
+  The semi-analytical boundary conditions are used for this case, since it is the only formulation
+  that makes it possible to accurately represent friction, and the only one to possess a $k-\epsilon$ turbulence
+  model. The Brezzi density diffusion is used, with a coefficient of 1. The numerical speed of sound is taken equal
+  to $40u_*$. The summation formulation for the density calculation is used. The velocity, $k$ and $\epsilon$
+  are initialised using a log profile to start the simulation.
+\end{itemize}
+
+\subsection{Setup in Salome}\label{sec:salome_turbulentPoiseuille}
+For this test-case, the geometrical setup only contains the upper and lower walls of the plane channel,
+since the domain is periodic in the $x$ and $y$ directions.
+Follow the steps below to build the case:
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the upper and lower walls\\
+    \textbf{New entity $\to$ Basic $\to$ Point}\smallskip\\
+    \includegraphics[scale=0.28,trim={22cm 3cm 13cm 7cm}, clip]{../fig/TurbulentPoiseuille/Salome/create_vertices.png}
+  \item Create the lines linking the vertices together for each of the faces\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\smallskip\\
+    \includegraphics[scale=0.28,trim={22cm 3cm 13cm 7cm}, clip]{../fig/TurbulentPoiseuille/Salome/create_lines.png}
+  \item Create the upper and lower faces\\
+    \textbf{New entity $\to$ Build $\to$ Face}\smallskip\\
+    \includegraphics[scale=0.28,trim={18cm 3cm 15cm 7cm}, clip]{../fig/TurbulentPoiseuille/Salome/create_faces.png}
+  \item Check the normals orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\smallskip\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 10cm 8cm}, clip]{../fig/TurbulentPoiseuille/Salome/check_normals.png}
+  \item The upper face has a normal oriented upwards, but we need it to point towards the fluid with semi-analytical boundaries
+    so change the orientation of the upper face\\
+    \textbf{Repair $\to$ Change orientation}\smallskip\\
+    \includegraphics[scale=0.32,trim={22cm 3cm 15cm 8cm}, clip]{../fig/TurbulentPoiseuille/Salome/revert_normals.png}
+  \item Create a shell with the two faces\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.3,trim={18cm 8cm 15cm 7cm}, clip]{../fig/TurbulentPoiseuille/Salome/create_shell.png}
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create the case\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.5,trim={0cm 16.5cm 45cm 20cm}, clip]{../fig/TurbulentPoiseuille/Salome/create_prepro_case.png}
+  \item Then, define the main boundary using the previously created shell\\
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 15.5cm 40cm 16cm}, clip]{../fig/TurbulentPoiseuille/Salome/define_main_boundary.png}
+  \item Edit the case parameters, taking care to choose the semi-analytical boundary formulation, and to
+    enable periodicity in the $x$ and $y$ directions\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={0cm 11cm 35cm 2cm}, clip]{../fig/TurbulentPoiseuille/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\smallskip\\
+    \includegraphics[scale=0.3,trim={0cm 15cm 28cm 2cm}, clip]{../fig/TurbulentPoiseuille/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis:\\
+    \begin{center}\includegraphics[scale=0.3,trim={17cm 5cm 18cm 10cm}, clip]{../fig/TurbulentPoiseuille/Salome/turbulentpoiseuille-particles.png}\end{center}
+    
+    For each study, Salome creates a folder with the study name underscore presph at the same location as the hdf file.
+    This is where the preprocessor files are stored: for example, let us assume that the \cmd{TurbulentPoiseuille.hdf} file
+    is located at \cmd{$MY_STUDY_PATH/TurbulentPoiseuille.hdf}.
+    Then, the particle files for the case are located in:\\
+    \cmd{$MY_STUDY_PATH/TurbulentPoiseuille_presph/TurbulentPoiseuilleSA}. \\
+    The files are the following:\\
+    - \cmd{TurbulentPoiseuilleSA.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{TurbulentPoiseuilleSA.upper_and_lower_walls.h5sph}: GPUSPH file for the walls\\
+    - \cmd{TurbulentPoiseuilleSA.upper_and_lower_walls.vtu}: vtu file of the walls, can be opened in Paravis\\
+    - \cmd{TurbulentPoiseuilleSA.fluid.vtu}: vtu file of the fluid, can be opened in Paravis\\
+    - \cmd{upper_and_lower_walls.stl}: stl file of the walls, can be used for visualisation purposes\\
+    - \cmd{upper_and_lower_walls.obj}: file for handling collisions with the walls in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create a GPUSPH solver case\\
+    \textbf{GPUSPH $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 8cm 48cm 22cm}, clip]{../fig/TurbulentPoiseuille/Salome/create_solver_case.png}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the semi-analytical boundary formulation\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 6cm 37cm 18cm}, clip]{../fig/TurbulentPoiseuille/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters, taking care to enable the $k-\epsilon$ turbulence model \\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 1cm 41cm 2cm}, clip]{../fig/TurbulentPoiseuille/Salome/edit_simulation_parameters.png}\medskip
+  \item In the simulation parameters dialog, edit the initializeParticles user function\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\\
+    \textbf{initializeParticles $\to$ Edit...}\\
+    A dialog opens, which contains the function's definition\smallskip\\
+    \includegraphics[scale=0.4,trim={2cm 1cm 41cm 2cm}, clip]{../fig/TurbulentPoiseuille/Salome/edit_initializeParticles.png}\medskip
+\item In the function editor, replace the comments by:
+    \begin{lstlisting}
+float4 *vel = buffers.getData<BUFFER_VEL>();
+float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
+particleinfo *info = buffers.getData<BUFFER_INFO>();
+double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
+float *k = buffers.getData<BUFFER_TKE>();
+float *epsilon = buffers.getData<BUFFER_EPSILON>();
+float r0 = physparams()->r0;
+float nu = physparams()->visccoeff[0];
+for (uint i = 0; i < numParticles; i++) {
+  if (FLUID(info[i])) {
+    vel[i].x = logf(fmax(1.0-(fabs(pos[i].z-1.)),
+                    0.5*r0)/nu)/0.41+5.2;
+    vel[i].y = 0.f;
+    vel[i].z = 0.f;
+  } else if (eulerVel &&
+  (VERTEX(info[i]) || BOUNDARY(info[i]))) {
+    eulerVel[i].x = logf(fmax(1.0-(fabs(pos[i].z-1.)),
+                         0.5*r0)/nu)/0.41+5.2;
+    eulerVel[i].y = 0.f;
+    eulerVel[i].z = 0.f;
+  }
+  vel[i].w = atrest_density(fluid_num(info[i]));
+  if (k && epsilon) {
+    k[i] = 1./sqrtf(0.09f); // C_mu = 0.09
+    epsilon[i] = 1./0.41/max(1.- (fabs(pos[i].z-1.)),
+                             0.5*r0);
+  }
+}
+    \end{lstlisting}
+    \includegraphics[scale=0.4,trim={17cm 5cm 25cm 10cm}, clip]{../fig/TurbulentPoiseuille/Salome/edit_initializeParticles1.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder:\\
+    \cmd{$MY_STUDY_PATH/TurbulentPoiseuille_gpusph/TurbulentPoiseuilleSA}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/TurbulentPoiseuille_gpusph/}\\
+    \cmd{TurbulentPoiseuilleSA/gpusph/dist/linux/x86_64}.
+  \end{itemize}
+\end{enumerate}
+
+\subsection{Results}
+The results are not yet available for this case.
+
+\section{Oscillating cube}
+
+This case consists in simulating the free heave decay of a cube in a
+tank. It is based on the work of Crespo \textit{et al.} on
+the survivability of floating moored offshore structures with DualSPHysics
+\cite{CubeExp}. In their work, the open-source code DualSPHysics is applied
+to simulate the interaction of sea waves with floating and offshore
+structures which are typically moored to the sea bottom.
+They coupled DualSPHysics with MoorDyn (a lumped-mass mooring dynamics model).
+The objective was to validate the coupled model against experimental data
+generated during the experimental campaigns of the European MaRINET2 EsfLOWC
+project in 2017.
+The primary objective of the European MaRINET2 EsfLOWC porject is to study
+the interaction between ocean and moored floating structures.
+Within the EsfLOWC project a floating OWC (Oscillating Water Column)
+WEC (Wave Energy Converter) and a floating closed box have been tested
+under wave action. The main objective of the EsfLOWC project is to generate
+an experimental database, freely available for public use by the
+scientific community.
+
+\subsection{Case Study Setup and Details}
+
+This case reproduces experimental tests that were carried out in the the wave flume of the Coastal
+Engineering Research Group of Ghent University in Belgium (UGENT) and
+secondly in the wave flume of Laboratorio di Ingegneria Maritima of Firenze
+University in Italy (LABIMA). The floating model considered here is a closed
+box with dimensions:
+\begin{itemize}
+  \item 20 cm long;
+  \item 20 cm wide;
+  \item 13.2 cm high.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../fig/OscillatingCube/floatingboxSetUp.png}
+    \caption{Photograph of the floating box set-up, from \cite{CubeExp}}
+    \label{fig:picturesetup}
+\end{figure}
+The box is made of PVC material with a density of $570\ kg/m^3$ and a weight of
+$3\ kg$. The box center of gravity is (0, 0, -1.26 cm). We will reproduce the
+experiments of LABIMA, therefore, the water depth is 60 cm.
+The mooring system will not be thoroughly described and not simulated
+with GPUSPH at this stage.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../fig/OscillatingCube/schemaFloatingBox.png}
+    \caption{Initial numerical setup from \cite{CubeExp} that correspond to the experimental setup used in the wave flume of UGENT}
+    \label{fig:schematicsetup}
+\end{figure}
+
+Multiple tests were performed during the experiments, and also simulated with
+DualSPHysics. However, we only consider here the free heave decay (not-moored)
+test and simulations in this section. The heave decay test was performed
+with an initial drift in the z-direction: $z_{initial} = + 5 cm$. The box was
+lifted 5 cm and then it was released, resulting in its heave decay motion.
+The numerical results from DualSPHysics \cite{CubeExp} were obtained
+for three different resolutions (DP1 = 0.25 cm, DP2 = 0.5 cm, DP3 = 1 cm).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{../fig/OscillatingCube/HeavedecayFreeFloatingBox.png}
+    \caption{Comparison between the experimental and numerical (DualSPHysics) heave decay motion of the not-moored (freely heaving) floating box, from \cite{CubeExp}}
+    \label{fig:heaveexpDual}
+\end{figure}
+
+The results obtained using the highest resolution (DP1) show acceptable
+agreement with the box's heave motion recorded during the experiment,
+thus the convergence is proven when increasing the resolution.
+The numerical domain was designed shorter in GPUSPH. 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../fig/OscillatingCube/schema1.png}
+    \caption{Sketch of the numerical domain from the top view}
+    \label{fig:shema1}
+\end{figure}
+For the smallest size of particle (DP1 = O.25 cm) with Dynamic boundaries, the size of the domain was reduced in the x-direction to 0.8 m instead of 2 m.
+The number of particle was then affordable and the the computing time reasonable.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../fig/OscillatingCube/schema2.png}
+    \caption{Sketch of the numerical domain and the floating cube from the side view}
+    \label{fig:shema2}
+\end{figure}
+
+Following, some additional characteristics of the cube necessary for the simulations with GPUSPH are provided:
+\begin{itemize}
+  \item Draft $T = 7.5 cm$
+  \item Position of the Center of Gravity relative to the sea bed $CoG = 58.74\ cm$ 
+  \item Initial position of the Center of Gravity ($z = +5\ cm$) relative to the sea bed $CoG_{ini} = 63.75\ cm$
+  \item Cube's inertia $I_{xx} = I_{yy} = 0.083\ kg.m^2$ and $I_{zz} = 0.1\ kg.m^2$
+\end{itemize}
+
+The Cube is considered homogeneous. The following formulas were used to calculate the inertia:
+\begin{equation}
+I_{xx} = \rho \int_{-a/2}^{a/2} \int_{-b/2}^{b/2} \int_{-c/2}^{c/2} [y^2 + z^2]  \, \mathrm dx\mathrm dy\mathrm dz = \rho abc \bigg[\frac{b^2}{12} + \frac{c^2}{12}\bigg]
+\end{equation}
+\begin{equation}
+I_{yy} = \rho \int_{-a/2}^{a/2} \int_{-b/2}^{b/2} \int_{-c/2}^{c/2} [x^2 + z^2]  \, \mathrm dx\mathrm dy\mathrm dz = \rho abc \bigg[\frac{a^2}{12} + \frac{c^2}{12}\bigg]
+\end{equation}
+\begin{equation}
+I_{zz} = \rho \int_{-a/2}^{a/2} \int_{-b/2}^{b/2} \int_{-c/2}^{c/2} [x^2 + y^2]  \, \mathrm dx\mathrm dy\mathrm dz = \rho abc \bigg[\frac{a^2}{12} + \frac{b^2}{12}\bigg]
+\end{equation}
+
+This case was treated with dynamic boundary conditions. The characteristics of the simulation are presented in the table \ref{table:CubeDYN}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ c|c} 
+\hline
+Dimensions of the tank & $2m \times 0.8m \times 0.8m$  \\
+\hline
+Water depth & 0.60 m \\
+\hline
+Mass & 3 kg \\
+\hline
+Physical simulated time & 5 s \\
+\hline
+N. speed of sound & $25\ m.s^{-1}$ \\
+\hline
+Particle size & 1 cm \\
+\hline
+Periodicity & None \\
+\hline
+Boundary type & Dynamic \\
+\hline
+Number of layers & 3 \\
+\hline
+sfactor & 1.3 \\
+\hline
+\end{tabular}
+\caption{Characteristics for the oscillating cube heave decay tests simulated with dynamic boundaries.}
+\label{table:CubeDYN}
+\end{table}
+
+\subsection{Setup in Salome}
+
+For this test-case, the geometrical setup only contains the basin, the cube and the initial free-surface shape.
+We will not use the repacking feature of GPUSPH, so the free-surface is a separate shell from the
+main boundary (basin + cube) and it will not be an input particle file for GPUSPH. It is only a limit considered for
+fluid particle filling. Follow the steps below to build the case:
+\begin{enumerate}
+\item \textbf{Create the geometry using the Salome GEOM module}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/geom_switch.png}
+  \begin{itemize}
+  \item Create the vertices of the basin, the cube and free-surface \\
+    \textbf{New entity $\to$ Basic $\to$ Point}\smallskip\\
+    \includegraphics[scale=0.4,trim={20cm 10cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/vertices_creation.png}
+  \item Create the lines linking the vertices together, considering the free-surface, the basin and the cube as separate objects
+    (there is no connectivity between them)\\
+    \textbf{New entity $\to$ Basic $\to$ Line}\smallskip\\
+    \includegraphics[scale=0.4,trim={18cm 10cm 18cm 12cm}, clip]{../fig/OscillatingCube/Salome/lines_creation.png}
+  \item Create the faces of the basin and free-surface\\
+    \textbf{New entity $\to$ Build $\to$ Face}\smallskip\\
+    \includegraphics[scale=0.35,trim={17.5cm 10cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/faces_creation.png}
+  \item Create a shell with the faces of the cube\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/cube_shell.png}
+  \item Create a shell with the faces of the basin\\
+    \textbf{New entity $\to$ Build $\to$ Shell}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/basin_shell.png}
+  \item Check the normals orientation\\
+    \textbf{Inspection $\to$ Normal to a face}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/check_normals.png}
+  \item The cube's normals should point towards the interior of the cube, whereas the basin's normals should point
+    towards the outside of the domain, so change the normals orientation if necessary\\
+    \textbf{Repair $\to$ Change orientation}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/revert_normals.png}
+  \item Create a compound shell with the cube and the basin, which is our main boundary\\
+    \textbf{New entity $\to$ Build $\to$ Compound}\smallskip\\
+    \includegraphics[scale=0.35,trim={18cm 8cm 15cm 12cm}, clip]{../fig/OscillatingCube/Salome/basin_cube_compound.png}
+    \item Create a group from the cube's faces inside the compound \\
+    \textbf{New entity $\to$ Group $\to$ Create group}\smallskip\\
+    \includegraphics[scale=0.35,trim={17cm 3cm 15cm 8cm}, clip]{../fig/OscillatingCube/Salome/cube_group.png}
+  \end{itemize}
+\item \textbf{Switch to the Particle preprocessor module to fill the domain with particles}\smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 52cm 1cm}, clip]{../fig/SPHERIC2/Salome/prepro_switch.png}
+  \begin{itemize}
+  \item First we have to create the case\\
+    \textbf{SPH Preprocessor $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.4,trim={0cm 23cm 35cm 2cm}, clip]{../fig/OscillatingCube/Salome/create_prepro_case.png}
+  \item Then, define the main boundary\\
+    \textbf{SPH Preprocessor $\to$ Define the main boundary}\smallskip\\
+    \includegraphics[scale=0.35,trim={0cm 14cm 30cm 14cm}, clip]{../fig/OscillatingCube/Salome/define_main_boundary.png}
+  \item Define the free-surface boundary\\
+    \textbf{SPH Preprocessor $\to$ Define free surface}\smallskip\\
+    \includegraphics[scale=0.35,trim={0cm 17cm 30cm 10cm}, clip]{../fig/OscillatingCube/Salome/define_free_surface.png}
+  \item Define the cube special boundary, taking care to define it as a Floating object\\
+    \textbf{SPH Preprocessor $\to$ Define special boundary}\smallskip\\
+    \includegraphics[scale=0.35,trim={0cm 12cm 30cm 14cm}, clip]{../fig/OscillatingCube/Salome/define_cube.png}
+  \item Edit the cases parameters, taking care to choose the corresponding boundary formulation\\
+    \textbf{SPH Preprocessor $\to$ Edit filling parameters}\\
+    \includegraphics[scale=0.35,trim={19cm 5cm 20cm 5cm}, clip]{../fig/OscillatingCube/Salome/edit_filling_parameters.png}
+  \item Execute the preprocessor\\
+    \textbf{SPH Preprocessor $\to$ Execute preprocessor}\smallskip\\
+    \includegraphics[scale=0.3,trim={1cm 10cm 23cm 10cm}, clip]{../fig/OscillatingCube/Salome/execute_preprocessor.png}
+  \item At this stage, it is possible to visualize the generated files by opening the corresponding vtu files in Paravis:\\
+    \begin{center}\includegraphics[scale=0.3,trim={7cm 1cm 0cm 1cm}, clip]{../fig/OscillatingCube/Salome/cube-particles.png}\end{center}
+    
+    For each study, Salome creates a folder with the study name underscore presph at the same location as the hdf file.
+    This is where the preprocessor files are stored: for example, let us assume that the \cmd{OscillatingCube.hdf} file
+    is located at \cmd{$MY_STUDY_PATH/OscillatingCube.hdf}.
+    Then, the particle files for the case with semi-analytical boundaries are located in:\\
+    \cmd{$MY_STUDY_PATH/OscillatingCube_presph/OscillatingCubeDyn}. \\
+    The files are the following:\\
+    - \cmd{OscillatingCubeDyn.fluid.h5sph}:  GPUSPH file for the fluid\\
+    - \cmd{OscillatingCubeDyn.basin_cube_outwards_normals.h5sph}: GPUSPH file for the basin\\
+    - \cmd{OscillatingCubeDyn.cube.h5sph}:  GPUSPH file for the cube\\
+    - \cmd{OscillatingCubeDyn.fluid.vtu}: vtu file of the fluid, can be opened in Paravis\\
+    - \cmd{OscillatingCubeDyn.basin_cube_outwards_normals.vtu}: vtu file of the basin, can be opened in Paravis\\
+    - \cmd{OscillatingCubeDyn.cube.vtu}: vtu file of the cube, can be opened in Paravis\\
+    - \cmd{basin_cube_outwards_normals.stl}: stl file of the basin, can be used for visualisation purposes\\
+    - \cmd{basin_cube_outwards_normals.obj}: file for handling collisions with the basin in GPUSPH\\
+    - \cmd{cube.stl}: stl file of the cube, can be used for visualisation purposes\\
+    - \cmd{cube.obj}: file for handling collisions with the cube in GPUSPH\\
+    - \cmd{stl_to_obj.log}: log file of the conversion from stl to obj\\
+    - \cmd{stl_to_obj.sh}: script to convert the stl file to obj format
+  \end{itemize}
+  
+\item \textbf{Switch to the GPUSPH solver module}  \smallskip\\
+  \includegraphics[scale=0.55,trim={0cm 36.5cm 50cm 1cm}, clip]{../fig/SPHERIC2/Salome/solver_switch.png}
+  \begin{itemize}
+  \item First we need to create four cases, one for each of the tests of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Add a case}\smallskip\\
+    \includegraphics[scale=0.45,trim={0cm 23cm 48cm 2cm}, clip]{../fig/OscillatingCube/Salome/create_solver_case.png}
+  \item Define the boundaries by selecting the corresponding Particle preprocessor case and choosing the correct boundary formulation\\
+    \textbf{GPUSPH $\to$ Define boundaries}\smallskip\\
+    \includegraphics[scale=0.4,trim={8cm 10cm 28cm 6cm}, clip]{../fig/OscillatingCube/Salome/define_gpusph_boundaries.png}
+  \item Edit the simulation parameters and set them to the ones of the table \ref{tab:spheric2-setup}.\\
+    \textbf{GPUSPH $\to$ Edit simulation parameters}\smallskip\\
+    \includegraphics[scale=0.4,trim={5cm 1cm 28cm 3cm}, clip]{../fig/OscillatingCube/Salome/edit_simulation_parameters1.png}\\
+    \includegraphics[scale=0.4,trim={5cm 1cm 28cm 3cm}, clip]{../fig/OscillatingCube/Salome/edit_simulation_parameters2.png}\\
+    \includegraphics[scale=0.4,trim={5cm 1cm 28cm 3cm}, clip]{../fig/OscillatingCube/Salome/edit_simulation_parameters3.png}\medskip
+  \item Now we are ready to build the case and run the simulation: right click on the case or from the GPUSPH menu:\\
+    1. Generate the sources\\
+    2. Build solver\\
+    3. Run solver
+  \item Finally, visualize the results using the Paravis module. The result files are copied into the folder
+    \cmd{$MY_STUDY_PATH/OscillatingCube_gpusph/OscillatingCubeDyn}. While the solver is still running, they are temporarily stored in:\\
+    \cmd{$MY_STUDY_PATH/OscillatingCube_gpusph/OscillatingCubeDyn/}\\
+    \cmd{gpusph/dist/linux/x86_64}.
+  \end{itemize}
+\end{enumerate}
+
+\subsection{Results}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../fig/OscillatingCube/Cube_CoGz_0p01.png}
+    \caption{Heave of the Cube for the discretization DP3 = 0.01 m.}
+    \label{fig:CubeDYN0p01}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../fig/OscillatingCube/Cube_CoGz_0p005.png}
+    \caption{Heave of the Cube for the discretization DP2 = 0.005 m.}
+    \label{fig:CubeDYN0p005}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../fig/OscillatingCube/Cube_CoGz_0p0025.png}
+    \caption{Heave of the Cube for the discretization DP3 = 0.0025 m.}
+    \label{fig:CubeDYN0p0025}
+\end{figure}
+
+The results presented here correspond to 3 discretisations: 0.01~m, 0.005~m and 0.0025~m.
+For the finest discretization, the results are in good agreement with the experiment.
+The results from GPUSPH are converging with the particle size.
+However, the period of the oscillations is a little bit smaller in the simulation with GPUSPH compared to
+the experiments or to the simulation with DualSPHysics. This can be explain by a lack of information concerning
+the free decay tests. In fact the weight is said to be 3 kg + 0.6 kg of extra weight. That extra weight comes
+from the wood plate (used for motion tracking) and the chain attachments (for the mooring lines).
+During the free (not-moored) decay tests the wood plate was surely there but the chain attachments were probably not.
+Thus, the weight is surely not equal to 3.6 kg but might be slightly higher than 3 kg; thus explaining the
+differences between GPUSPH results and the experiment.\\  
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../fig/OscillatingCube/Cube_CoGz_DYN_all.png}
+    \caption{GPUSPH results for the heave of the Cube compared to the experiment.}
+    \label{fig:CubeDYNall}
+\end{figure}
+
+  
+\bibliography{../gpusph-manual.bib}
+
+\end{document}
+

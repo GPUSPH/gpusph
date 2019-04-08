@@ -90,12 +90,12 @@ public:
 
 	/// Bind textures needed in the forces kernel execution
 	virtual void
-	bind_textures(const BufferList& bufread,
-		uint	numParticles) = 0;
+	bind_textures(const BufferList& bufread, uint numParticles,
+		RunMode run_mode) = 0;
 
 	/// Unbind the textures after the forces kernel execution
 	virtual void
-	unbind_textures() = 0;
+	unbind_textures(RunMode run_mode) = 0;
 
 	/// Set the DEM
 	/// TODO set/unsetDEM should be moved to the BC engine,
@@ -149,9 +149,10 @@ public:
 		const	float	epsilon,
 				uint	*IOwaterdepth,
 				uint	cflOffset,
-		const	uint	step,
+		const	RunMode	run_mode,
+		const	int		step,
 		const	float	dt,
-		const	bool compute_object_forces) = 0;
+		const	bool	compute_object_forces) = 0;
 
 	// Reduction methods
 

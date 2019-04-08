@@ -86,7 +86,8 @@ GPUSPH::GPUSPH() :
 	m_peakParticleSpeed(0.0),
 	m_peakParticleSpeedTime(0.0),
 
-	initialized(false)
+	initialized(false),
+	repacked(false)
 {
 	openInfoStream();
 	resetCommandTimes();
@@ -190,6 +191,15 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (isfinite(clOptions->tend))
 		_sp->tend = clOptions->tend;
 
+	if (clOptions->repack_maxiter)
+		_sp->repack_maxiter = clOptions->repack_maxiter;
+
+	// Update GlobalData's maxiter based on the run mode
+	if (gdata->run_mode == REPACK)
+		gdata->maxiter = _sp->repack_maxiter;
+	else if (clOptions->maxiter > 0)
+		gdata->maxiter = clOptions->maxiter;
+
 	// update the GlobalData copies of the sizes of the domain
 	gdata->worldOrigin = make_float3(problem->get_worldorigin());
 	gdata->worldSize = make_float3(problem->get_worldsize());
@@ -259,6 +269,19 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			size_t found2 = resume_file.find_first_of("_", 5);
 			if (found == string::npos || found2 == string::npos || found > found2) {
 				err_msg << "Malformed Hot start filename: " << resume_file << "\nNeeds to be of the form \"hot_nX.Y_ZZZZZ.bin\"";
+				throw runtime_error(err_msg.str());
+			}
+			istringstream (resume_file.substr(found,found2-found)) >> hot_nrank;
+			post_fname = resume_file.substr(found-1);
+			cout << "Hot start has been written from a multi-node simulation with " << hot_nrank << " processes" << endl;
+		}
+		if(resume_file.compare(0,8,"repack_n") == 0) {
+			// get number of ranks from previous simulation
+			pre_fname = clOptions->resume_fname.substr(0, found+8);
+			found = resume_file.find_first_of(".")+1;
+			size_t found2 = resume_file.find_first_of("_", 8);
+			if (found == string::npos || found2 == string::npos || found > found2) {
+				err_msg << "Malformed Repack filename: " << resume_file << "\nNeeds to be of the form \"repack_nX.Y_ZZZZZ.bin\"";
 				throw runtime_error(err_msg.str());
 			}
 			istringstream (resume_file.substr(found,found2-found)) >> hot_nrank;
@@ -359,34 +382,64 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	 */
 	bool resumed = false;
 
+	// initialize the buffers
 	if (clOptions->resume_fname.empty()) {
 		gdata->s_hBuffers.set_state_on_write("problem init");
 		printf("Copying the particles to shared arrays...\n");
 		printf("---\n");
 		problem->copy_to_array(gdata->s_hBuffers);
+		if (gdata->run_mode != REPACK) {
+			if (problem->simparams()->turbmodel == KEPSILON)
+				problem->init_keps(gdata->s_hBuffers, gdata->totParticles);
+			problem->initializeParticles(gdata->s_hBuffers, gdata->totParticles);
+		}
 		printf("---\n");
 	} else {
-		gdata->s_hBuffers.set_state_on_write("resumed");
-		gdata->iterations = hf[0]->get_iterations();
-		gdata->dt = hf[0]->get_dt();
 		gdata->t = hf[0]->get_t();
-		for (uint i = 0; i < hot_nrank; i++) {
-			hf[i]->load();
+		if (gdata->t > 0) {
+			gdata->s_hBuffers.set_state_on_write("resumed");
+			gdata->iterations = hf[0]->get_iterations();
+			gdata->dt = hf[0]->get_dt();
+			for (uint i = 0; i < hot_nrank; i++) {
+				hf[i]->load();
 #if 0
-			// for debugging, enable this and inspect contents
-			const float4 *pos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
-			const particleinfo *info = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
+				// for debugging, enable this and inspect contents
+				const float4 *pos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
+				const particleinfo *info = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
 #endif
-			hot_in[i].close();
-			cerr << "Successfully restored hot start file " << i+1 << " / " << hot_nrank << endl;
-			cerr << *hf[i];
-		}
-		cerr << "Restarting from t=" << gdata->t
-			<< ", iteration=" << gdata->iterations
-			<< ", dt=" << gdata->dt << endl;
-		// warn about possible discrepancies in case of ODE objects
-		if (problem->simparams()->numbodies) {
-			cerr << "WARNING: simulation has rigid bodies and/or moving boundaries, resume will not give identical results" << endl;
+				hot_in[i].close();
+				cerr << "Successfully restored hot start file " << i+1 << " / " << hot_nrank << endl;
+				cerr << *hf[i];
+			}
+
+			cerr << "Restarting from t=" << gdata->t
+				<< ", iteration=" << gdata->iterations
+				<< ", dt=" << gdata->dt << endl;
+			// warn about possible discrepancies in case of ODE objects
+			if (problem->simparams()->numbodies) {
+				cerr << "WARNING: simulation has rigid bodies and/or moving boundaries, resume will not give identical results" << endl;
+			}
+		} else {
+			gdata->s_hBuffers.set_state_on_write("resumed from repack");
+			gdata->iterations = 0;
+			gdata->t = 0;
+			for (uint i = 0; i < hot_nrank; i++) {
+				hf[i]->load();
+#if 0
+				// for debugging, enable this and inspect contents
+				const float4 *pos = gdata->s_hBuffers.getConstData<BUFFER_POS>();
+				const particleinfo *info = gdata->s_hBuffers.getConstData<BUFFER_INFO>();
+#endif
+				hot_in[i].close();
+				cerr << "Successfully restored repack file " << i+1 << " / " << hot_nrank << endl;
+				cerr << *hf[i];
+			}
+
+			// Reset the arrays
+			problem->resetBuffers(gdata->s_hBuffers, gdata->totParticles);
+
+			cerr << "Restarting from a repack file"
+				<< ", dt=" << gdata->dt << endl;
 		}
 		delete[] hf;
 		delete[] hot_in;
@@ -465,6 +518,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO this is where we would instance the Integrator class
 	// for the time being, we will instead call a function that initializes
 	// our own CommandSequences
+	// Note that if gdata->run_mode == REPACK, the REPACKING_INTEGRATOR will be instantiated instead
 	integrator = Integrator::instance(PREDITOR_CORRECTOR, gdata);
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
@@ -476,8 +530,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->GPUWORKERS.reserve(gdata->devices);
 	for (uint d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS.push_back( make_shared<GPUWorker>(gdata, d) );
-
-	gdata->keep_going = true;
 
 	// actually start the threads
 	for (uint d = 0; d < gdata->devices; d++)
@@ -534,7 +586,7 @@ bool GPUSPH::finalize() {
 template<>
 void GPUSPH::runCommand<END_OF_INIT>(CommandStruct const& cmd)
 {
-	printf("Entering the main simulation cycle\n");
+	printf("Entering the main %s cycle\n", gdata->run_mode_desc());
 
 	//  IPPS counter does not take the initial uploads into consideration
 	m_totalPerformanceCounter->start();
@@ -544,6 +596,17 @@ void GPUSPH::runCommand<END_OF_INIT>(CommandStruct const& cmd)
 
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
+}
+
+template<>
+void GPUSPH::runCommand<END_OF_REPACKING>(CommandStruct const& cmd)
+{
+	gdata->t = -1;
+	gdata->iterations = 0;
+	repacked = true;
+	check_write(true);
+	gdata->keep_going = false;
+	printf("Repacking algorithm is finished\n");
 }
 
 template<>
@@ -601,19 +664,28 @@ void GPUSPH::runCommand<TIME_STEP_EPILOGUE>(CommandStruct const& cmd)
 
 	// are we done?
 	const bool we_are_done =
-		// ask the problem if we're done
-		gdata->problem->finished(gdata->t) ||
+		// during simulation, ask the problem if we're done
+		(gdata->run_mode == SIMULATE && gdata->problem->finished(gdata->t)) ||
 		// if not, check if we've completed the number of iterations prescribed
-		// from the command line
-		(gdata->clOptions->maxiter && gdata->iterations >= gdata->clOptions->maxiter) ||
+		// (for repacking, or from the command line during simulation)
+		gdata->iterations >= gdata->maxiter ||
 		// and of course we're finished if a quit was requested
 		gdata->quit_request;
 
-	check_write(we_are_done);
+	if (gdata->run_mode == REPACK && we_are_done) {
+		// signal to the integrator that we are done with the repacking,
+		// so we can proceed with the final
+		integrator->we_are_done();
+		// but don't keep going if a quit was requested
+		if (gdata->quit_request)
+			gdata->keep_going = false;
+	} else {
+		check_write(we_are_done);
 
-	if (we_are_done)
-		// NO doCommand() after keep_going has been unset!
-		gdata->keep_going = false;
+		if (we_are_done)
+			// NO doCommand() after keep_going has been unset!
+			gdata->keep_going = false;
+	}
 }
 
 void GPUSPH::unknownCommand(CommandName cmd)
@@ -637,7 +709,11 @@ GPUSPH::doCommand(CommandStruct cmd, flag_t flags)
 }
 
 bool GPUSPH::runSimulation() {
-	if (!initialized) return false;
+	bool all_ok = false;
+
+	if (!initialized) return all_ok;
+
+	all_ok = true;
 
 	// doing first write
 	printf("Performing first write...\n");
@@ -662,6 +738,7 @@ bool GPUSPH::runSimulation() {
 		doCommand(*cmd);
 	} catch (exception const& e) {
 		cerr << e.what() << endl;
+		all_ok = false;
 		gdata->keep_going = false;
 		if (MULTI_NODE)
 			gdata->networkManager->sendKillRequest();
@@ -671,13 +748,18 @@ bool GPUSPH::runSimulation() {
 		gdata->threadSynchronizer->forceUnlock();
 	}
 
+	const char* run_desc = gdata->run_mode_desc();
+	const char* run_desc_title = gdata->run_mode_Desc();
+
 	// elapsed time, excluding the initialization
-	printf("Elapsed time of simulation cycle: %.2gs\n", m_totalPerformanceCounter->getElapsedSeconds());
+	printf("Elapsed time of %s cycle: %.2gs\n", run_desc,
+		m_totalPerformanceCounter->getElapsedSeconds());
 
 	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
 	// the condition (gdata->mpi_rank == 0)
 	if (MULTI_NODE)
-		printf("Global performance of the multinode simulation: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
+		printf("Global performance of the multinode %s: %.2g MIPPS\n", run_desc,
+			m_multiNodePerformanceCounter->getMIPPS());
 
 	// suggest max speed for next runs
 	printf("Peak particle speed was ~%g m/s at %g s -> can set maximum vel %.2g for this problem\n",
@@ -685,7 +767,7 @@ bool GPUSPH::runSimulation() {
 
 	// NO doCommand() nor other barriers than the standard ones after the
 
-	printf("Simulation end, cleaning up...\n");
+	printf("%s end, cleaning up...\n", run_desc_title);
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
 	gdata->nextCommand = QUIT;
@@ -701,7 +783,7 @@ bool GPUSPH::runSimulation() {
 	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
 
-	return true;
+	return all_ok;
 }
 
 // Finalize the computation of the total force and torque acting on moving bodies
@@ -1796,7 +1878,8 @@ void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 void GPUSPH::printStatus(FILE *out)
 {
 //#define ti timingInfo
-	fprintf(out, "Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
+	fprintf(out, "%s time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u+%u\n",
+		gdata->run_mode_Desc(),
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
@@ -2090,61 +2173,60 @@ void GPUSPH::runCommand<DEBUG_DUMP>(CommandStruct const& cmd)
 
 void GPUSPH::check_write(bool we_are_done)
 {
-		static PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
-		// list of writers that need to write at this timestep
-		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
+	static PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
+	// list of writers that need to write at this timestep
+	ConstWriterMap writers = Writer::NeedWrite(gdata->t);
 
-		// we need to write if any writer is configured to write at this timestep
-		// i.e. if the writers list is not empty
-		const bool need_write = !writers.empty();
+	// we need to write if any writer is configured to write at this timestep
+	// i.e. if the writers list is not empty
+	const bool need_write = !writers.empty();
 
-		// do we want to write even if no writer is asking to?
-		const bool force_write =
-			// ask the problem if we want to write anyway
-			gdata->problem->need_write(gdata->t) ||
-			// always write if we're done with the simulation
-			we_are_done ||
-			// write if it was requested
-			gdata->save_request;
+	// do we want to write even if no writer is asking to?
+	const bool force_write =
+		// ask the problem if we want to write anyway
+		gdata->problem->need_write(gdata->t) ||
+		// always write if we're done with the simulation
+		we_are_done ||
+		// write if it was requested
+		gdata->save_request;
 
-		// reset save_request, we're going to satisfy it anyway
-		if (force_write)
-			gdata->save_request = false;
+	// reset save_request, we're going to satisfy it anyway
+	if (force_write)
+		gdata->save_request = false;
 
-		if (need_write || force_write) {
-			if (gdata->clOptions->nosave && !force_write) {
-				// we want to avoid writers insisting we need to save,
-				// so pretend we actually saved
-				Writer::FakeMarkWritten(writers, gdata->t);
-			} else {
-				saveParticles(enabledPostProcess, "step n", force_write);
+	if (need_write || force_write) {
+		if (gdata->clOptions->nosave && !force_write) {
+			// we want to avoid writers insisting we need to save,
+			// so pretend we actually saved
+			Writer::FakeMarkWritten(writers, gdata->t);
+		} else {
+			saveParticles(enabledPostProcess, "step n", force_write);
 
-				// we generally want to print the current status and reset the
-				// interval performance counter when writing. However, when writing
-				// at every timestep, this can be very bothersome (lots and lots of
-				// output) so we do not print the status if the only writer(s) that
-				// have been writing have a frequency of 0 (write every timestep)
-				// TODO the logic here could be improved; for example, we are not
-				// considering the case of a single writer that writes at every timestep:
-				// when do we print the status then?
-				// TODO other enhancements would be to print who is writing (what)
-				// during the print status
-				double maxfreq = 0;
-				ConstWriterMap::iterator it(writers.begin());
-				ConstWriterMap::iterator end(writers.end());
-				while (it != end) {
-					double freq = it->second->get_write_freq();
-					if (freq > maxfreq)
-						maxfreq = freq;
-					++it;
-				}
-				if (force_write || maxfreq > 0) {
-					printStatus();
-					m_intervalPerformanceCounter->restart();
-				}
+			// we generally want to print the current status and reset the
+			// interval performance counter when writing. However, when writing
+			// at every timestep, this can be very bothersome (lots and lots of
+			// output) so we do not print the status if the only writer(s) that
+			// have been writing have a frequency of 0 (write every timestep)
+			// TODO the logic here could be improved; for example, we are not
+			// considering the case of a single writer that writes at every timestep:
+			// when do we print the status then?
+			// TODO other enhancements would be to print who is writing (what)
+			// during the print status
+			double maxfreq = 0;
+			ConstWriterMap::iterator it(writers.begin());
+			ConstWriterMap::iterator end(writers.end());
+			while (it != end) {
+				double freq = it->second->get_write_freq();
+				if (freq > maxfreq)
+					maxfreq = freq;
+				++it;
+			}
+			if (force_write || maxfreq > 0) {
+				printStatus();
+				m_intervalPerformanceCounter->restart();
 			}
 		}
-
+	}
 }
 
 //! Auxiliary class to time a command execution
@@ -2237,4 +2319,3 @@ void GPUSPH::doCommand(CommandStruct const& cmd)
 		checkBufferConsistency();
 #endif
 }
-

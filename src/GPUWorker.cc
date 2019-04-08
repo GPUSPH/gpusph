@@ -1905,7 +1905,7 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 	BufferList& bufwrite = buffer_lists.second;
 	bufwrite.add_manipulator_on_write("forces" + to_string(step));
 
-	auto ret = forcesEngine->basicstep(
+	return forcesEngine->basicstep(
 		bufread,
 		bufwrite,
 		m_numParticles,
@@ -1918,12 +1918,10 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 		m_simparams->epsilon,
 		m_dIOwaterdepth,
 		cflOffset,
+		gdata->run_mode,
 		step,
 		cmd.dt(gdata),
 		(m_simparams->numforcesbodies > 0) ? true : false);
-
-	bufwrite.clear_pending_state();
-	return ret;
 }
 
 /// Run the steps necessary for forces execution
@@ -1974,7 +1972,7 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 	bufwrite.clear_pending_state();
 
 	if (numPartsToElaborate > 0)
-		forcesEngine->bind_textures(bufread, m_numParticles);
+		forcesEngine->bind_textures(bufread, m_numParticles, gdata->run_mode);
 
 	return make_pair(bufread, bufwrite);
 
@@ -1986,7 +1984,7 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
  */
 float GPUWorker::post_forces(CommandStruct const& cmd)
 {
-	forcesEngine->unbind_textures();
+	forcesEngine->unbind_textures(gdata->run_mode);
 
 	// no reduction for fixed timestep
 	if (!(m_simparams->simflags & ENABLE_DTADAPT))
@@ -2233,7 +2231,6 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
 		extractGeneralBufferList(m_dBuffers, cmd.writes);
-
 	bufwrite.add_manipulator_on_write("euler" + to_string(step));
 
 	const float dt = cmd.dt(gdata);
@@ -2250,7 +2247,8 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 			step,
 			gdata->t + dt,
 			m_simparams->slength,
-			m_simparams->influenceRadius);
+			m_simparams->influenceRadius,
+			gdata->run_mode);
 	} else {
 		bufwrite.mark_dirty();
 	}
@@ -2258,7 +2256,6 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	// should we rename the state?
 	if (!cmd.src.empty() && !cmd.dst.empty())
 		m_dBuffers.rename_state(cmd.src, cmd.dst);
-
 	bufwrite.clear_pending_state();
 
 }
@@ -2326,7 +2323,8 @@ void GPUWorker::runCommand<INTEGRATE_GAMMA>(CommandStruct const& cmd)
 		gdata->t + dt,
 		m_simparams->epsilon,
 		m_simparams->slength,
-		m_simparams->influenceRadius);
+		m_simparams->influenceRadius,
+		gdata->run_mode);
 
 	bufwrite.clear_pending_state();
 }
@@ -2697,7 +2695,8 @@ void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>(CommandStruct co
 		gdata->problem->m_deltap,
 		m_simparams->slength,
 		m_simparams->influenceRadius,
-		step);
+		step,
+		gdata->run_mode);
 
 	bufwrite.clear_pending_state();
 }
@@ -2758,7 +2757,8 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct con
 				m_dNewNumParticles,
 				m_globalDeviceIdx,
 				gdata->totDevices,
-				gdata->totParticles);
+				gdata->totParticles,
+				gdata->run_mode);
 
 	bufwrite.clear_pending_state();
 }
@@ -2855,6 +2855,27 @@ void GPUWorker::runCommand<DISABLE_OUTGOING_PARTS>(CommandStruct const& cmd)
 		bufread, bufwrite,
 				m_numParticles,
 				numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
+}
+
+template<>
+void GPUWorker::runCommand<DISABLE_FREE_SURF_PARTS>(CommandStruct const& cmd)
+{
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+	bufwrite.add_manipulator_on_write("disableFreeSurfParts");
+
+	integrationEngine->disableFreeSurfParts(
+			bufwrite.getData<BUFFER_POS>(),
+			bufread.getData<BUFFER_INFO>(),
+			m_numParticles,
+			numPartsToElaborate);
 
 	bufwrite.clear_pending_state();
 }

@@ -1,4 +1,5 @@
 /*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+* TLT_EOS_EXPONENT
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -38,8 +39,7 @@
 
 typedef std::vector<double4> GageList;
 
-/// Structure holding all simulation related parameters
-/*! This structure holds all the simulation related parameters
+/** The SimParams structure holds all the simulation related parameters
  *  along with some basic initialization functions.
  *
  *	\ingroup datastructs
@@ -63,8 +63,35 @@ typedef struct SimParams {
 	const flag_t			simflags;					///< Simulation flags
 	/** @} */
 
+	/* \note
+	 * simparams.h is scanned by the SALOME user interface.
+	 * To change the user interface, it is only necessary to
+	 * modify the appropriate comments in simparams.h, physparams.h,
+	 * Problem.h, XProblem.h, particledefine.h and simflags.h
+	 * The variable labels and tooltips are
+	 * defined in the user interface files themselves, so
+	 * ease follow the convention we adopted: use placeholders
+	 * in the GPUSPH files and define them in GPUSPHGUI.
+	 * The tooltips are the comments appearing when sliding
+	 * the mouse over a variable in the interface. They are
+	 * contained in the TLT_ variables. All the placeholders
+	 * contents are defined in:
+	 * gpusphgui/SGPUSPH_SRC/src/SGPUSPHGUI/resources/SGPUSPH_msg_en.ts
+	 * The sections to be used in the user interface are
+	 * defined in gpusphgui/SGPUSPH/resources/params.xml.
+	 * To assign a parameter to a section, the command
+	 * \inpsection is used.
+	 * Please consult this file for the list of sections.
+	 */
+
 	/** \name Kernel and neighbor list related parameters
 	 * @{ */
+	/**
+	 * \inpsection{discretisation}
+	 * \default{1.3}
+	 * \label{SMOOTHING_FACTOR}
+	 * TLT_SMOOTHING_FACTOR
+	 */
 	double			sfactor;				///< Smoothing factor
 	double			slength;				///< Smoothing length \f$ h \f$ (smoothing factor * \f$ \Delta p \f$)
 	double			kernelradius;			///< Kernel radius \f$ \kappa \f$
@@ -72,29 +99,97 @@ typedef struct SimParams {
 	double			nlexpansionfactor;		///< Expansion factor to apply to influenceradius for the neighbor list construction
 	double			nlInfluenceRadius;		///< Influence radius ( = \f$ \kappa h \f$ * nlexpansionfactor) used in neighbor list construction
 	double			nlSqInfluenceRadius;	///< Square influence radius for neighbor list construction
+	/*!
+	 * \inpsection{neighbours}
+	 * \default{1}
+	 * \label{NEIB_FREQ}
+	 * TLT_NEIB_FREQ
+	 */
 	uint			buildneibsfreq;			///< Frequency (in iterations) of neighbor list rebuilding
+	/*!
+	 * \inpsection{neighbours}
+	 * \default{256}
+	 * \label{NEIB_LIST_SIZE}
+	 * TLT_NEIB_LIST_SIZE
+	 */
 	uint			neiblistsize;			///< Total size of the neighbor list (per particle)
+	/*!
+	 * \inpsection{neighbours}
+	 * \default{256}
+	 * \label{NEIB_BOUND_POS}
+	 * TLT_NEIB_BOUND_POS
+	 */
 	uint			neibboundpos;			///< Marker for boundary parts section of the neighbor list
 	/** @} */
 
-	/** \name Time related parameters
-	 * @{ */
+	/*! \inpsection{variable_dt, disable}
+	 * \label{DT}
+	 * \default{1e-5}
+	 * TLT_DT
+	 */
 	float			dt;						///< Time step (initial when using adaptive time stepping)
+
+	/*! \inpsection{time}
+	 * \label{SIMULATION_END_TIME}
+	 * \default{10.}
+	 * TLT_SIMULATION_END_TIME
+	 */
 	double			tend;					///< Simulation end time (0 means run forever)
+
+	/*! \inpsection{variable_dt, enable}
+	 * \label{DT_FACTOR}
+	 * \default{0.3}
+	 * \max{1.}
+	 * TLT_DT_FACTOR
+	 */
 	float			dtadaptfactor;			///< Safety factor used in adaptive time step computation
-	/** @} */
 
 	/** \name Density diffusion related parameters
 	 * @{ */
+	/*!
+	 * \inpsection{density_diff_type, Colagrossi}
+	 * \label{DENSITY_DIFFUSION_COEF}
+	 * \default{0.1}
+	 * \min{0}
+	 * \max{1}
+	 * TLT_DENSITY_DIFF_COEF
+	 */
 	float			densityDiffCoeff;		///< Coefficient for density diffusion TODO: be more precise
+	/*!
+	 * \inpsection{density_diff_type, Brezzi}
+	 * \label{DENSITY_DIFFUSION_COEF}
+	 * \default{0.1}
+	 * \min{0}
+	 * \max{1}
+	 * TLT_DENSITY_DIFF_COEF
+	 */
+	// For brezziDiffCoeff to appear in the GUI we need to define it here explicitely.
+	// However, do not try to set its value in your Problem: it is not used by GPUSPH, only
+	// densityDiffCoeff is used, for all types of densityDiffusion.
+	// In GenericProblem, densityDiffCoeff is set equal to brezziDiffCoeff.
+	float			brezziDiffCoeff; //< Dummy coefficient for Brezzi density diffusion, only for the user interface
+	/*!
+	 * \inpsection{density_diff_type, Ferrari}
+	 * \label{DENSITY_DIFFUSION_COEF}
+	 * \default{0.1}
+	 * \min{0}
+	 * \max{1}
+	 * TLT_DENSITY_DIFF_COEF
+	 */
+	// For ferrariDiffCoeff to appear in the GUI we need to define it here explicitely.
+	// However, do not try to set its value in your Problem: it is not used by GPUSPH, only
+	// densityDiffCoeff is used, for all types of densityDiffusion.
+	// In GenericProblem, densityDiffCoeff is set equal to ferrariDiffCoeff.
+	float			ferrariDiffCoeff;		///< Dummy coefficient for Ferrari density diffusion, only for the user interface
+
 	float			ferrariLengthScale;		///< Length scale for Ferrari correction
 	/** @} */
 
 	/** \name Call back and post-processing related parameters
 	 * @{ */
-	bool			gcallback;				///< True if using a variable gravity set trough a callback function
-	bool			calc_energy;			///< True if we want to compute system energy at save time
-	GageList		gage;					///< Water gages list
+	bool			gcallback;		///< True if using a variable gravity set trough a callback function
+	bool			calc_energy;		///< True if we want to compute system energy at save time
+	GageList		gage;			///< Water gages list
 	/** @} */
 
 	/** \name Floating/moving bodies related parameters
@@ -112,6 +207,30 @@ typedef struct SimParams {
 	/** \name Other parameters
 	 * @{ */
 	float			epsilon;				///< If \f$ |r_a - r_b| < \epsilon \f$ two positions are considered identical. TODO: check that the test is done on a relative quantity
+	/** @} */
+	/** \name Repacking parameters
+	 * @{ */
+	/*!
+	 * \inpsection{repacking, enable}
+	 * \label{REPACK_MAX_ITER}
+	 * \default{200}
+	 * TLT_REPACK_MAX_ITER
+	 */
+	uint			repack_maxiter; //< maximum number of iterations for repacking
+	/*!
+	 * \inpsection{repacking, enable}
+	 * \label{REPACK_A}
+	 * \default{0.1}
+	 * TLT_REPACK_A
+	 */
+	float			repack_a;	//< repacking parameter 'a' for mixing intensity, recommended value: 1
+	/*!
+	 * \inpsection{repacking, enable}
+	 * \label{REPACK_ALPHA}
+	 * \default{0.01}
+	 * TLT_REPACK_ALPHA
+	 */
+	float			repack_alpha;	//< repacking parameter 'alpha' for velocity damping, recommended value: 0.1
 	/** @} */
 
 	template<typename Framework>
@@ -160,7 +279,10 @@ typedef struct SimParams {
 		numforcesbodies(0),
 		numbodies(0),
 		numOpenBoundaries(0),
-		epsilon(5e-5f)
+		epsilon(5e-5f),
+		repack_maxiter(2000),
+		repack_a(0.1f),
+		repack_alpha(0.01f)
 	{}
 
 	/** \name Kernel parameters related methods
@@ -173,7 +295,7 @@ typedef struct SimParams {
 	 */
 	inline double
 	set_smoothing(
-			double smooth, 	///< [in]Êsmoothing factor
+			double smooth, 	///< [in] smoothing factor
 			double deltap	///< [in] particle spacing \f$ \Delta p \f$
 			)
 	{

@@ -33,6 +33,12 @@
  * Core Problem class interface and related definitions
  */
 
+/* \note
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * Please consult this file for the list of sections.
+*/
+
 #ifndef _PROBLEM_H
 #define	_PROBLEM_H
 
@@ -123,11 +129,41 @@ class Problem {
 		void *m_bodies_physical_system;
 #endif
 
-		double3	m_size;			// Size of computational domain
-		double3	m_origin;		// Origin of computational domain
+		/*! \inpsection{geometry}
+		 * \label{SIZE}
+		 * \default{1e9,1e9,1e9}
+		 * \mandatory
+     * TLT_SIZE
+		 */
+		double3	m_size;			// Size of the computational domain
+
+		/*! \inpsection{geometry}
+		 * \label{ORIGIN}
+		 * \default{0,0,0}
+		 * \mandatory
+     * TLT_ORIGIN
+		 */
+		double3	m_origin;		// Origin of the computational domain
+
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
+
+		//! \inpsection{discretisation}
+		//! \default{-1}
+		//! \label{SPH_DR}
+		//! TLT_SPH_DR
 		double	m_deltap;		// Initial particle spacing
+
+		/*!
+		 * \inpsection{c0_input_method, calculation}
+		 * \label{FLUID_WATER_LEVEL}
+		 * \default{0}
+		 * used for hydrostatic filling (absolute value) and to set the speed of sound
+		 */
+		double m_waterLevel;
+
+		// enable hydrostatic filling already during fill - uses m_waterLevel
+		bool m_hydrostaticFilling;
 
 		const float*	get_dem() const { return m_dem; }
 		int		get_dem_ncols() const { return m_ncols; }
@@ -151,13 +187,15 @@ class Problem {
 
 		virtual ~Problem(void);
 
-		/* a function to check if the (initial or fixed) timestep
-		 * is compatible with the CFL conditions */
+		/*! a function to check if the (initial or fixed) timestep
+		 * is compatible with the CFL conditions
+		 */
 		virtual void check_dt();
-		/* Find the minimum amount of maximum number of neighbors
+		/*! Find the minimum amount of maximum number of neighbors
 		 * per particle based on the kernel and boundary choice,
 		 * and compare against the user-set value (if any), or
-		 * just set it by default */
+		 * just set it by default
+		 */
 		virtual void check_neiblistsize();
 
 		std::string const& create_problem_dir();
@@ -328,7 +366,6 @@ class Problem {
 		inline
 		SimFramework*& simframework(void)
 		{ return m_simframework; }
-
 		// add a filter (MLS, SHEPARD), with given frequency
 		inline AbstractFilterEngine*
 		addFilter(FilterType filtertype, int frequency)
@@ -426,6 +463,92 @@ class Problem {
 
 		plane_t make_plane(Point const& pt, Vector const& normal);
 
+		/**@inpsection{output}
+		 * @label{VTK_WRITER_INTERVAL}
+		 * @default{1.0}
+		 * TLT_VTK_WRITER_INTERVAL
+		 */
+		double vtk_frequency;
+
+		/**@inpsection{output}
+		 * @label{COMMON_WRITER_INTERVAL}
+		 * @default{}
+		 * TLT_COMMON_WRITER_INTERVAL
+		 */
+		double commonwriter;
+
+		/**@inpsection{discretisation}
+		 * @label{PARTICLES_MAX_FACTOR}
+		 * @default{1}
+		 * TLT_PARTICLES_MAX_FACTOR
+		 */
+		double particles_max_factor;
+
+		/* \inpsection{periodicity, enable}
+		* \label{X}
+		* \default{false}
+		* TLT_PERIODICITY_X
+		*/
+		bool periodicity_x;
+
+		/* \inpsection{periodicity, enable}
+		* \label{Y}
+		* \default{false}
+		* TLT_PERIODICITY_Y
+		*/
+		bool periodicity_y;
+
+		/* \inpsection{periodicity, enable}
+		* \label{Z}
+		* \default{false}
+		* TLT_PERIODICITY_Z
+		*/
+		bool periodicity_z;
+
+		/* \inpsection{probe}
+		* \label{PROBE_X}
+		* \default{0.0}
+		* TLT_PROBE_X
+		*/
+		std::vector<float> x;
+
+		/* \inpsection{probe}
+		* \label{PROBE_Y}
+		* \default{0.0}
+		* TLT_PROBE_Y
+		*/
+		std::vector<float> y;
+
+		/* \inpsection{probe}
+		* \label{PROBE_Z}
+		* \default{0.0}
+		* TLT_PROBE_Z
+		*/
+		std::vector<float> z;
+
+		/* \inpsection{wave_gage}
+		* \label{WAVE_GAGE_X}
+		* \default{0.0}
+		* TLT_WAVE_GAGE_X
+		*/
+		std::vector<float> gage_x;
+
+		/* \inpsection{wave_gage}
+		* \label{WAVE_GAGE_Y}
+		* \default{0.0}
+		* TLT_WAVE_GAGE_Y
+		*/
+		std::vector<float> gage_y;
+
+		/* \inpsection{wave_gage}
+		* \label{WAVE_GAGE_Z}
+		* \default{0.0}
+		* TLT_WAVE_GAGE_Z
+		*/
+		std::vector<float> gage_z;
+
+		/* End of pseudo parameters definition */
+
 		// add a new writer, with the given write frequency in (fractions of) seconds
 		void add_writer(WriterType wt, double freq);
 
@@ -433,28 +556,42 @@ class Problem {
 		WriterList const& get_writers() const
 		{ return m_writers; }
 
-		// overridden in subclasses if they want explicit writes
-		// beyond those controlled by the writer(s) periodic time
+		/*!
+		 overridden in subclasses if they want explicit writes
+		 beyond those controlled by the writer(s) periodic time
+		 */
 		virtual bool need_write(double) const;
 
-		// overridden in subclasses if they want to write custom stuff
-		// using the CALLBACKWRITER
+
+		/*!
+		 overridden in subclasses if they want to write custom stuff
+		 using the CALLBACKWRITER
+		 */
 		virtual void writer_callback(CallbackWriter *,
 			uint numParts, BufferList const&, uint node_offset, double t,
 			const bool testpoints) const;
 
-		// is the simulation running at the given time?
+		//! is the simulation running at the given time?
 		virtual bool finished(double) const;
 
+		//!
 		virtual int fill_parts(bool fill = true) = 0;
-		// maximum number of particles that may be generated
+		//! maximum number of particles that may be generated
+		//! @userfunc
+		//! User function for setting the maximum number of particles with IO.
+		//! Activate it with IO boundaries.
 		virtual uint max_parts(uint numParts);
+		//!
 		virtual void copy_to_array(BufferList & ) = 0;
+		//!
 		virtual void release_memory(void) = 0;
 
+		//!
 		virtual void copy_planes(PlaneList& planes);
 
-		/* moving boundary and gravity callbacks */
+		/*! moving boundary and gravity callbacks */
+		//! @userfunc
+		//! Variable gravity definition
 		virtual float3 g_callback(const double t);
 
 		void allocate_bodies_storage();
@@ -489,7 +626,8 @@ class Problem {
 		// callback for initializing joints between Chrono bodies
 		virtual void initializeObjectJoints();
 
-		/* This method can be overridden in problems when the object
+		//!
+		/*! This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
 		 */
 		virtual void
@@ -498,6 +636,8 @@ class Problem {
 		virtual void
 		post_timestep_callback(const double t);
 
+		//! @userfunc
+		//! @label{Prescribe objects' motion}
 		virtual void
 		moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
 							const float3& force, const float3& torque, const KinematicData& initial_kdata,
@@ -509,7 +649,7 @@ class Problem {
 							float3 * & trans, float * & steprot,
 							float3 * & linearvel, float3 * & angularvel);
 
-		/* Initialize the particle volumes */
+		/*! Initialize the particle volumes */
 		virtual void init_volume(BufferList &, uint numParticles);
 
 		/* Initialize the internal energy */
@@ -521,6 +661,8 @@ class Problem {
 		/* Initialize eddy viscosity */
 		virtual void init_turbvisc(BufferList &, uint numParticles);
 
+		//! @userfunc
+		//! @label{Prescribe custom open boundary conditions}
 		virtual void imposeBoundaryConditionHost(
 			BufferList&		bufwrite,
 			const BufferList&	bufread,
@@ -542,6 +684,8 @@ class Problem {
 		/*! A problem requesting the CALC_PRIVATE post-processing filter
 		 * MUST override this
 		 */
+		//! @userfunc
+		//! @label{Custom user function}
 		virtual void calcPrivate(flag_t options,
 			BufferList const& bufread,
 			BufferList & bufwrite,
@@ -553,16 +697,25 @@ class Problem {
 		/// Get the name to give to the private buffer(s)
 		/*! A problem requesting the CALC_PRIVATE post-processing filter
 		 * can override this if they want to provide a meaningful name
-		 * ofr the BUFFER_PRIVATE ( and ...2 and ...4 variant, if used)
+		 * for the BUFFER_PRIVATE ( and ...2 and ...4 variant, if used)
 		 * buffer(s).
 		 */
 		virtual std::string get_private_name(flag_t buffer) const;
 
-		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
+		//! Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
+		//! @userfunc
+		//! @label{User function for the mutli-GPU domain splitting. Activate it if you have chosen a splitting option.}
 		virtual void fillDeviceMap();
 		// partition by splitting the cells according to their linearized hash
 		void fillDeviceMapByCellHash();
 		// partition by splitting along an axis. Default: along the longest
+
+		/** @defpsubsection{split_axis, SPLIT_AXIS}
+		 * @inpsection{domain_splitting}
+		 * @default{x}
+		 * @values{x,y,z}
+		 * TLT_SPLIT_AXIS
+		 */
 		void fillDeviceMapByAxis(SplitAxis preferred_split_axis);
 		// like fillDeviceMapByAxis(), but splits are proportional to the contained fluid particles
 		void fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis);
@@ -574,6 +727,13 @@ class Problem {
 		void fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices);
 
 		void PlaneCut(PointVect&, const double, const double, const double, const double);
+
+		//! @userfunc
+		//! callback for initializing particles with custom values
+		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+		//! callback for resetting the buffer values after resuming from a repack file
+		virtual void resetBuffers(BufferList &buffers, const uint numParticles);
+
 
 };
 #endif

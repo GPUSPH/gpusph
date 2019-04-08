@@ -127,7 +127,7 @@ calculateIOboundaryCondition(
 			riemannR = rInt + (unExt - unInt);
 		else { // Shock wave
 		       // TODO Check case of multifluid for a = fluid_num(info)
-			float riemannRho = RHO(P(rhoInt, a) + physical_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative		
+			float riemannRho = RHO(P(rhoInt, a) + physical_density(rhoInt,a) * unInt * (unInt - unExt), a); // returns relative
 			riemannR = R(riemannRho, a);
 
 			float riemannC = soundSpeed(riemannRho, a);
@@ -412,8 +412,9 @@ struct common_segment_pout
 		gGam(make_float4(0, 0, 0, params.gGam[index].w)),
 		vel(make_float4(0)),
 		// Gamma always needs to be recomputed when moving bodies are enabled.
-		// If not, we only need to compute if it wasn't defined
-		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || !isfinite(gGam.w))
+		// If not, we only need to compute if we are at initialisation stage
+		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || !isfinite(gGam.w)
+				|| Params::step == 0)
 	{
 		if (calcGam)
 			gGam.w = 0;
@@ -1250,13 +1251,13 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
-enable_if_t<!Params::has_keps>
+enable_if_t<!Params::has_keps || Params::repacking>
 impose_solid_keps_bc(Params const& params, PData const& pdata, POut &pout)
 { /* do nothing */ }
 
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
-enable_if_t<Params::has_keps>
+enable_if_t<Params::has_keps && !Params::repacking>
 impose_solid_keps_bc(Params const& params, PData const& pdata, POut &pout)
 {
 	// k condition
@@ -1277,13 +1278,13 @@ impose_solid_keps_bc(Params const& params, PData const& pdata, POut &pout)
 /** This is necessary only if open boundaries are enabled */
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
-enable_if_t<!Params::has_io>
+enable_if_t<!Params::has_io || Params::repacking>
 impose_solid_eulerVel(Params const& params, PData const& pdata, POut &pout)
 { /* do nothing */ }
 
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
-enable_if_t<Params::has_io>
+enable_if_t<Params::has_io && !Params::repacking>
 impose_solid_eulerVel(Params const& params, PData const& pdata, POut &pout)
 {
 	params.eulerVel[pdata.index] = make_float4(0.0f);
@@ -1416,10 +1417,9 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
  \note updates are made in-place because we only read from fluids and vertex particles and only write
  boundary particles data, and no conflict can thus occurr.
 */
-template<int step, typename Params,
-	// TODO FIXME initStep seems to be unused presently, but may be used to
-	// determine if calcGamma is needed or not (initStep || moving bodies || open boundaries)
-	bool initStep = (step == 0)
+template<typename Params,
+	int step = Params::step,
+	bool initStep = (step <= 0) // handle both step 0 (initialization) and -1 (reinit after repacking)
 >
 __global__ void
 saSegmentBoundaryConditionsDevice(Params params)
@@ -1529,6 +1529,108 @@ saSegmentBoundaryConditionsDevice(Params params)
 	// segments
 }
 
+//! Computes the boundary condition on segments for SA boundaries during repacking
+/*!
+ This function computes the boundary condition for density/pressure on segments if the SA boundary type
+ is selected.
+ \note updates are made in-place because we only read from fluids and vertex particles and only write
+ boundary particles data, and no conflict can thus occurr.
+*/
+template<typename Params,
+	int step = Params::step,
+	bool initStep = (step <= 0) // handle both step 0 (initialization) and -1 (reinit after repacking)
+>
+__global__ void
+saSegmentBoundaryConditionsRepackDevice(Params params)
+{
+
+	using namespace sa_bc;
+
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	const particleinfo info = tex1Dfetch(infoTex, index);
+
+	if (!BOUNDARY(info))
+		return;
+
+	const sa_bc::segment_pdata	pdata(params, index, info);
+	sa_bc::segment_pout<Params>	pout(params, index, info);
+
+	// Loop over VERTEX neighbors.
+	// TODO this is only needed
+	// (1) to compute gamma (i.e. init step or moving objects if they get too close)
+	// (2) to compute the velocity for boundary of moving objects
+	// (3) to compute the eulerian velocity for non-IO boundaries in the KEPS case
+	// TODO skip this whole block (loop + calcGam update) when not needed, if possible
+	// at compile time
+	{
+		for_each_neib(PT_VERTEX, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+			const uint neib_index = neib_iter.neib_index();
+
+			// Compute relative position vector and distance
+			const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+			if (has_vertex(pdata.verts, id(neib_info))) {
+
+				if (pout.calcGam)
+					pout.gGam += params.gGam[neib_index];
+			}
+		}
+
+		// finalize gamma computation and store it
+		if (pout.calcGam) {
+			pout.gGam /= 3;
+			params.gGam[index] = pout.gGam;
+			pout.gGam.w = fmaxf(pout.gGam.w, 1e-5f);
+		}
+	}
+
+	// Loop over FLUID neighbors
+	// This is needed:
+	// (0) to compute sumPwall _always_
+	// (1) k-epsilon in TKE case
+	// (2) in IO case, to compute velocity and pressure against wall
+	// The contributions are factored out and enabled only when needed
+	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos,
+		params.cellStart, params.neibsList) {
+		const uint neib_index = neib_iter.neib_index();
+
+		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
+		const segment_ndata<Params> ndata(params, pdata, neib_index, relPos);
+
+		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, relPos) < 0.0f) )
+			continue;
+
+		pout.sumpWall += fmax(ndata.press + physical_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
+
+		pout.shepard_div += ndata.w;
+	}
+
+	// impose solid-wall boundary conditions if open boundaries are not enabled
+	// (if they are enabled, solid-wall BC are imposed in impose_io_bc
+	impose_solid_bc<!Params::has_io || Params::repacking>(params, pdata, pout);
+
+	// store recomputed velocity + pressure
+	params.vel[index] = pout.vel;
+
+}
 /// Mark fluid particles that have crossed an open boundary
 /** For each fluid particle, detect if it has crossed an open boundary and
  * identify the boundary element that it moved through. The vertices of this element
@@ -1788,6 +1890,7 @@ template<KernelType kerneltype, ParticleType cptype>
 __global__ void
 initGammaDevice(
 						float4*			newGGam,
+				const	float4*			oldGGam,
 				const	float4*			oldPos,
 				const	float4*			boundElement,
 				const	float2*			vertPos0,
@@ -1863,6 +1966,9 @@ initGammaDevice(
 		gam -= gamma_as;
 	}
 
+//	if (cptype == PT_FLUID && newGGam[index].w == newGGam[index].w)
+//		newGGam[index] = oldGGam[index];
+//	else
 	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 }
 
@@ -2081,8 +2187,8 @@ initIOmassDevice(
  * herein.
  */
 template<typename Params,
-	uint step = Params::step,
-	bool initStep = (step == 0),
+	int step = Params::step,
+	bool initStep = (step <= 0), // handle both step 0 (initialization) and -1 (reinit after repacking)
 	bool lastStep = (step == 2)
 >
 __global__ void
@@ -2144,6 +2250,63 @@ saVertexBoundaryConditionsDevice(Params params)
 	impose_vertex_io_bc(params, pdata, pout);
 }
 
+/// Compute boundary conditions for vertex particles in the semi-analytical boundary case
+/*! This function determines the physical properties of vertex particles in the
+ * semi-analytical boundary case. The properties of fluid particles are used to
+ * compute the properties of the vertices. Due to this most arrays are read
+ * from (the fluid info) and written to (the vertex info) simultaneously inside
+ * this function. In the case of open boundaries the vertex mass is updated in
+ * this routine and new fluid particles are created on demand. Additionally,
+ * the mass of outgoing fluid particles is redistributed to vertex particles
+ * herein.
+ */
+template<typename Params,
+	int step = Params::step,
+	bool initStep = (step <= 0), // handle both step 0 (initialization) and -1 (reinit after repacking)
+	bool lastStep = (step == 2)
+>
+__global__ void
+saVertexBoundaryConditionsRepackDevice(Params params)
+{
+	using namespace sa_bc;
+
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (!VERTEX(info))
+		return;
+
+	const sa_bc::vertex_pdata<Params> pdata(params, index, info);
+	sa_bc::vertex_pout<Params>	pout(params, index, info);
+
+	// Loop over all FLUID neighbors
+	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		const uint neib_index = neib_iter.neib_index();
+
+		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+
+		if (INACTIVE(relPos))
+			continue;
+
+		const sa_bc::vertex_fluid_ndata ndata(params, neib_index, relPos);
+
+		if (ndata.r < params.influenceradius) {
+			pout.sumpWall += fmax(ndata.press + physical_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
+			pout.shepard_div += ndata.w;
+		}
+	}
+
+	pout.shepard_div = fmax(pout.shepard_div, 0.1f*pdata.gam); // avoid division by 0
+
+	// standard boundary condition
+	params.vel[index].w = RHO(pout.sumpWall/pout.shepard_div,fluid_num(info));
+
+}
 //! Identify corner vertices on open boundaries
 /*!
  Corner vertices are vertices that have segments that are not part of an open boundary. These

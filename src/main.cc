@@ -48,6 +48,7 @@
 #include "gpusph_version.opt"
 #include "hdf5_select.opt"
 #include "mpi_select.opt"
+#include "catalyst_select.opt"
 
 using namespace std;
 
@@ -68,6 +69,7 @@ void show_version()
 	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
 	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
 	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
+	printf("Catalyst : %s\n", USE_CATALYST ? "enabled" : "disabled");
 	printf("Compiled for problem \"%s\"\n", selected_problem.name);
 }
 
@@ -80,6 +82,7 @@ void print_usage() {
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
+	cout << "\t       [--display [--display-every VAL] --display-script VAL]\n";
 	cout << "\t       [--debug FLAGS]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
@@ -102,8 +105,16 @@ void print_usage() {
 	cout << " --no-leak-warning : do not warn if #particles decreases without outlets (e.g. overtopping, leaking)\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
+	cout << " --display : Enable co-processing visulaization\n";
+	cout << " --display-every : Simulation data will be passed to visualization every VAL seconds\n";
+	cout << "                   of simulated time (VAL is cast to double, 0 or not defined - visualization for each iteration)\n";
+	cout << " --display-script : Path to co-processing Python script\n";
 	cout << " --debug : enable debug flags FLAGS\n";
 #include "describe-debugflags.h"
+	cout << " --repack : run the repacking before the simulation, beware to enable repacking in the simulation framework\n";
+	cout << " --repack-only : run the repacking and stop\n";
+	cout << " --repack-maxiter : repacking breaks after this many iterations (integer VAL)\n";
+	cout << " --from-repack : run from a previous repack file\n";
 	cout << " --help: Show this help and exit\n";
 }
 
@@ -207,8 +218,32 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 #endif
+		} else if (!strcmp(arg, "--display")) {
+		        _clOptions->visualization = true;
+		} else if (!strcmp(arg, "--display-every")) {
+			/* read the next arg as a double */
+			sscanf(*argv, "%lf", &(_clOptions->visu_freq));
+			argv++;
+			argc--;
+		} else if (!strcmp(arg, "--display-script")) {
+			_clOptions->pipeline_fpath = string(*argv);
+			argv++;
+			argc--;
 		} else if (!strcmp(arg, "--debug")) {
 			gdata->debug = parse_debug_flags(*argv);
+			argv++;
+			argc--;
+		} else if (!strcmp(arg, "--repack")) {
+			_clOptions->repack = true;
+		} else if (!strcmp(arg, "--repack-only")) {
+			_clOptions->repack_only = true;
+		} else if (!strcmp(arg, "--repack-maxiter")) {
+			/* read the next arg as an unsigned long */
+			sscanf(*argv, "%u", &(_clOptions->repack_maxiter));
+			argv++;
+			argc--;
+		} else if (!strcmp(arg, "--from-repack")) {
+			_clOptions->resume_fname = string(*argv);
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--help")) {
@@ -238,6 +273,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		_clOptions->devices = get_default_devices();
 	}
 
+
 	for (auto dev : _clOptions->devices) {
 		if (gdata->devices == MAX_DEVICES_PER_NODE) {
 			printf("WARNING: devices exceeding number %u will be ignored\n",
@@ -247,6 +283,20 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		gdata->device[gdata->devices] = dev;
 		++gdata->devices;
 		++gdata->totDevices;
+	}
+
+	// Check if pipeline script path is defined and the file exists
+	if (_clOptions->visualization) {
+		std::string script_path = _clOptions->pipeline_fpath;
+
+		if (script_path.empty()) {
+			printf("WARNING: pipeline script is not defined, visualization will be disabled.\n");
+		} else {
+			ifstream f(script_path.c_str());
+			if (!f.good()) {
+				printf("WARNING: pipeline script could not be opened, visualization will be disabled.\n");
+			}
+		}
 	}
 
 	_clOptions->problem = string( selected_problem.name );
@@ -291,13 +341,50 @@ void sigusr1_handler(int signum) {
 	gdata_static_pointer->save_request = true;
 }
 
+void simulate(GlobalData *gdata, RunMode repack_or_run)
+{
+	gdata->run_mode = repack_or_run;
+
+	gdata->problem = selected_problem.create(gdata);
+	if (gdata->problem->simframework())
+		gdata->simframework = gdata->problem->simframework();
+	else
+		throw invalid_argument("no simulation framework defined in the problem!");
+	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
+
+	if (gdata->run_mode == REPACK && !(gdata->problem->simparams()->simflags & ENABLE_REPACKING))
+		throw invalid_argument("Repacking is not enabled in the " + gdata->clOptions->problem + " problem");
+
+
+	// get - and actually instantiate - the existing instance of GPUSPH
+	GPUSPH *Simulator = GPUSPH::getInstance();
+
+	// initialize CUDA, start workers, allocate CPU and GPU buffers
+	bool initialized  = Simulator->initialize(gdata);
+
+	if (!initialized)
+		throw runtime_error("GPUSPH: problem during initialization");
+
+	printf("GPUSPH: initialized\n");
+
+	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
+	bool all_ok = Simulator->runSimulation();
+
+	// finalize everything
+	Simulator->finalize();
+
+	if (repack_or_run == REPACK)
+		gdata->cleanup();
+
+	if (!all_ok)
+		gdata->ret = 1;
+}
+
 int main(int argc, char** argv) {
 	if (!check_short_length()) {
 		printf("Fatal: this architecture does not have uint = 2 short\n");
 		exit(1);
 	}
-
-
 
 	GlobalData gdata;
 	gdata_static_pointer = &gdata;
@@ -374,30 +461,11 @@ int main(int argc, char** argv) {
 				throw invalid_argument("asynchronous network transfers only supported with 1 process per device");
 		}
 
-		gdata.problem = selected_problem.create(&gdata);
-		if (gdata.problem->simframework())
-			gdata.simframework = gdata.problem->simframework();
-		else
-			throw invalid_argument("no simulation framework defined in the problem!");
-		gdata.allocPolicy = gdata.simframework->getAllocPolicy();
-
-
-		// get - and actually instantiate - the existing instance of GPUSPH
-		GPUSPH *Simulator = GPUSPH::getInstance();
-
-		// initialize CUDA, start workers, allocate CPU and GPU buffers
-		bool initialized  = Simulator->initialize(&gdata);
-
-		if (!initialized)
-			throw runtime_error("GPUSPH: problem during initialization");
-
-		printf("GPUSPH: initialized\n");
-
-		// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-		Simulator->runSimulation();
-
-		// finalize everything
-		Simulator->finalize();
+		if (gdata.clOptions->repack || gdata.clOptions->repack_only)
+			simulate(&gdata, REPACK);
+		if (!gdata.ret && !gdata.clOptions->repack_only) {
+			simulate(&gdata, SIMULATE);
+		}
 	} catch (exception const& e) {
 		cerr << "FATAL: " << e.what() << endl;
 		gdata.ret = 1;

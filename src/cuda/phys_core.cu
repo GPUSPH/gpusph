@@ -59,6 +59,9 @@ __constant__ float	d_gammacoeff[MAX_FLUID_TYPES];	// \gamma
 __constant__ float	d_sscoeff[MAX_FLUID_TYPES];		// c_0
 __constant__ float	d_sspowercoeff[MAX_FLUID_TYPES];// (\gamma - 1)/2
 
+// repacking constants
+__constant__ float d_repack_alpha; // parameter alpha for repacking, controls the damping
+__constant__ float d_repack_a; // parameter a for repacking, controls the mixing
 
 /********************** Equation of state, speed of sound, repulsive force **********************************/
 // Equation of state: pressure from density, where i is the fluid kind, not particle_id
@@ -75,7 +78,7 @@ P(const float rho_tilde, const ushort i)
 __device__ __forceinline__ float
 RHO(const float p, const ushort i)
 {
-	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1.0; 
+	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1.0;
 }
 
 // Riemann celerity

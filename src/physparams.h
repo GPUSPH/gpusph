@@ -27,6 +27,12 @@
  * Physical parameters for problems
  */
 
+/* \note
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * Please consult this file for the list of sections.
+*/
+
 #ifndef _PHYSPARAMS_H
 #define _PHYSPARAMS_H
 
@@ -45,56 +51,100 @@ class XProblem;
 class GPUWorker;
 class GPUSPH;
 
-/// Structure holding all physical parameters
-/*! This structure holds all the physical parameters needed by the simulation
+/* The PhysParams structure holds all the physical parameters needed by the simulation
  *  along with some basic initialization functions.
  *
  *	\ingroup datastructs
  */
 typedef struct PhysParams {
+	/* \note
+	 * physparams.h is scanned by the SALOME user interface.
+	 * To change the user interface, it is only necessary to
+	 * modify the appropriate comments in simparams.h, physparams.h,
+	 * Problem.h, XProblem.h, particledefine.h and simflags.h
+	 * The variable labels and tooltips are
+	 * defined in the user interface files themselves, so
+	 * ease follow the convention we adopted: use placeholders
+	 * in the GPUSPH files and define them in GPUSPHGUI.
+	 * The tooltips are the comments appearing when sliding
+	 * the mouse over a variable in the interface. They are
+	 * contained in the TLT_ variables. All the placeholders
+	 * contents are defined in:
+	 * gpusphgui/SGPUSPH_SRC/src/SGPUSPHGUI/resources/SGPUSPH_msg_en.ts
+	 * The sections to be used in the user interface are
+	 * defined in gpusphgui/SGPUSPH/resources/params.xml.
+	 * To assign a parameter to a section, the command
+	 * \inpsection is used.
+	 * Please consult this file for the list of sections.
+	 */
+
 	//! Rheology type
 	/*! This is initialized at structure construction, and is used to determine how
 	 * to use some of the viscous options
 	 */
 	const RheologyType rheologytype;
 
-	/** \name Equation of state related parameters
-	 *  The relation between pressure and density is given for Cole's equation of state
-	 *	\f[
-	 *		P(\rho) = B\left(\left(\frac{\rho}{\rho_0}\right)^\gamma - 1\right)
-	 *	\f]
-	 *	where \f$\rho_0\f$ is the at-rest density,
-	 *	\f$\gamma\f$ is the adiabatic index and
-	 *	\f$B = \rho_0 c_0^2/\gamma\f$ for a given
-	 *	at-rest sound speed \f$c_0\f$.
-	 *	The sound speed for a given density \f$\rho\f$ can thus be computed as
-	 *	\f[
-	 *		c(\rho) = c_0 \left(\frac{\rho}{\rho_0}\right)^{(\gamma -1)/2},
-	 *	\f]
-	 *	Obviously all of the coefficients below are fluid dependent and are then stored in an
-	 *	STL vector.
-	 *  @{ */
+	/*! Equation of state related parameters
+		The relation between pressure and density is given for Cole's equation of state
+		\f[
+		P(\rho) = B\left(\left(\frac{\rho}{\rho_0}\right)^\gamma - 1\right)
+		\f]
+		where \f$\rho_0\f$ is the at-rest density,
+		\f$\gamma\f$ is the adiabatic index and
+		\f$B = \rho_0 c_0^2/\gamma\f$ for a given
+		at-rest sound speed \f$c_0\f$.
+		The sound speed for a given density \f$\rho\f$ can thus be computed as
+		\f[
+		c(\rho) = c_0 \left(\frac{\rho}{\rho_0}\right)^{(\gamma -1)/2},
+		\f]
+		Obviously all of the coefficients below are fluid dependent and are then stored in an
+		STL vector.
+	 */
+	//! @{
+
+  /*!
+	 * \inpsection{fluid}
+	 * \label{FLUID_DENSITY}
+	 * \default{1000}
+	 */
 	std::vector<float> rho0; 			///< At-rest density, \f$\rho_0\f$
+
 	std::vector<float> bcoeff; 			///< Pressure parameter, \f$ B \f$
+  /*!
+	 * \inpsection{fluid}
+	 * \label{EOS_EXPONENT}
+	 * \default{7}
+   * TLT_EOS_EXPONENT
+	 */
 	std::vector<float> gammacoeff;		///< Adiabatic index, \f$\gamma\f$
+  /*!
+	 * \defpsubsection{c0_input_method, C0_INPUT_METHOD}
+	 * \inpsection{fluid,0}
+	 * \values{direct_input, calculation}
+	 * \default{direct_input}
+	 * TLT_C0_INPUT_METHOD
+	 */
+	/*!
+	 * \inpsection{c0_input_method, direct_input}
+	 * \label{FLUID_C0}
+	 * \default{0}
+	 * TLT_FLUID_C0
+	 */
 	std::vector<float> sscoeff; 		///< Sound speed coefficient ( = sound speed at rest density, \f$ c_0 \f$)
+
 	std::vector<float> sspowercoeff; 	///< Sound speed equation exponent ( = \f$(\gamma -1)/2\f$ )
 	/** @} */
 
 	/** \name Viscosity related parameters
-	 *  Viscosity coefficient used in the viscous contribution functions, depends on
-	 *  viscosity model (TODO FIXME for new viscous specification):
-	 *		- for ARTVSIC: artificial viscosity coefficient
-	 *  	- for KINEMATICVISC: 4xkinematic viscosity,
-	 *   	- for DYNAMICVISC: kinematic viscosity
-	 *
-	 *  (The choice might seem paradoxical, but with DYNAMICVISC the dynamic viscosity
-	 *  coefficient is obtained multiplying visccoeff by the particle density, while
-	 *  with the KINEMATICVISC model the kinematic viscosity is used directly, in a
-	 *  formula what also includes a harmonic average from which the factor 4 emerges).
-	 *
-	 *  Obviously the fluid dependent coefficients below are stored in an STL vector.
-	 * @{ */
+	 */
+	//! Artifical viscosity
+	//! @{
+	/*!
+	 * \inpsection{turbulence, artificial_viscosity}
+	 * \label{ARTIFICIAL_VISCOSITY_VALUE}
+	 * \default{0.3}
+	 * TLT_ARIFICIAL_VISCOSITY_VALUE
+	 */
 	float	artvisccoeff;				///< Artificial viscosity coefficient (one, for all fluids)
 
 	//! Small coefficient used to avoid singularity in artificial viscosity computation
@@ -103,10 +153,22 @@ typedef struct PhysParams {
 	 * \todo rename variable, and differentiate between one which is based on slength
 	 * and one that is based on its square
 	 */
+	/*!
+	 * \inpsection{turbulence, artificial_viscosity}
+	 * \label{EPSILON_ARTVISC_VALUE}
+	 * \default{NAN}
+	 * TLT_EPSILON_ARTVISC_VALUE
+	 */
 	float	epsartvisc;
 
 	/** \name Newtonian fluids
 	 * @{ */
+	/*!
+	 * \inpsection{fluid}
+	 * \label{FLUID_VISCOSITY}
+	 * \default{10e-6}
+	 * TLT_FLUID_VISCOSITY
+	 */
 	std::vector<float>	kinematicvisc;	///< Kinematic viscosity (\f$ \nu \f$). SI units: m²/s
 	std::vector<float>	bulkvisc;	///< Bulk viscosity used with ESPANOL_REVENGA
 	/** @} */
@@ -212,18 +274,44 @@ typedef struct PhysParams {
 	 *	the influence radius of the repulsive force (typically equal to initial inter-particle distance \f$ \Delta p \f$),
 	 *	usually \f$ p_1 = 12 \f$, \f$p_2 = 6\f$ and \f$ D \f$ is a problem dependent parameter.
 	 * @{ */
+  /*!
+   * \defpsubsection{Lennard_Jones_formulation, LENNARD_JONES_PARAMETERS}
+   * \inpsection{boundaries}
+	 * \values{enable, disable}
+	 * \default{disable}
+   * TLT_LENNARD_JONES_PARAMETERS
+	 */
+  /*!
+   * \inpsection{Lennard_Jones_formulation, enable}
+	 * \label{LJ_R0}
+	 * \default{0.}
+	 * TLT_LJ_R0
+   */
 	float	r0;			///< Influence radius of LJ repulsive force, \f$ r_0 \f$
+
 	float	dcoeff;		///< \f$ D \f$
+  /*!
+   * \inpsection{Lennard_Jones_formulation, enable}
+	 * \label{LJ_P1_COEFF}
+	 * \default{12.}
+	 * TLT_LJ_P1COEFF
+   */
 	float	p1coeff;	///< \f$ p_1 \f$
+  /*!
+   * \inpsection{Lennard_Jones_formulation, enable}
+	 * \label{LJ_P2_COEFF}
+	 * \default{6.}
+	 * TLT_LJ_P2COEFF
+   */
 	float	p2coeff;	///< \f$ p_2 \f$
 	/** @} */
 
 
-	/** \name Geometrical LJ boundary related parameters
+	/** \name Geometrical DEM and LJ boundary related parameters
 	 *  When boundaries can be built using a set of plane or when simulating flows over a real topography
 	 *  we can directly compute a boundary normal repulsive force without using boundary particles.
 	 *  With a real topography we directly use the Digital Elevation Model (DEM).
-	 *  The parameters needed in those case are describe below.
+	 *  The parameters needed in those cases are described below.
 	 * @{ */
 	float	ewres;			///< DEM east-west resolution
 	float	nsres;			///< DEM north-south resolution
@@ -246,6 +334,12 @@ typedef struct PhysParams {
 
 	/** \name XSPH related parameter
 	 * @{ */
+  /*!
+   * \inpsection{xsph, enable}
+	 * \label{XSPH_COEFF}
+	 * \default{0.5}
+	 * TLT_XSPH_COEFF
+   */
 	float	epsxsph;		///< \f$ \epsilon \f$ coefficient for XSPH correction
 	/** @} */
 
@@ -269,6 +363,13 @@ typedef struct PhysParams {
 
 	/** \name Other parameters
 	 * @{ */
+  /*!
+   * \inpsection{physics}
+   * \default{0,0,-9.81}
+   * \label{GRAVITY}
+	 * \mandatory
+	 * TLT_GRAVITY
+   */
 	float3	gravity;		///< Gravity
 	/** @} */
 

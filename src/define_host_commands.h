@@ -56,6 +56,9 @@ DEFINE_COMMAND_NOBUF(RUN_CALLBACKS)
 /// End initialization sequence, ready to enter main cycle
 DEFINE_COMMAND_NOBUF(END_OF_INIT)
 
+/// End repacking sequence, ready to enter main cycle
+DEFINE_COMMAND_NOBUF(END_OF_REPACKING)
+
 /// Begin an integrator time-step
 DEFINE_COMMAND_NOBUF(TIME_STEP_PRELUDE)
 
@@ -81,6 +84,11 @@ DEFINE_COMMAND_NOBUF(MOVE_BODIES)
 /*! Find the maximum across all devices of the water depth for each open boundary
  */
 DEFINE_COMMAND_NOBUF(FIND_MAX_IOWATERDEPTH)
+
+#if 0 // TODO
+/// Compute the total kinetic energy for repacking
+DEFINE_COMMAND_NOBUF(COMPUTE_KINETIC_ENERGY)
+#endif
 
 /// Check maximum number of neighbors and estimate number of interactions
 DEFINE_COMMAND_NOBUF(CHECK_NEIBSNUM)

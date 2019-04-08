@@ -56,3 +56,5 @@ src/problems/user
 
 src/parse-debugflags.h
 src/describe-debugflags.h
+
+.nfs*

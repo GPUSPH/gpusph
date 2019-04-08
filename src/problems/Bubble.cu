@@ -55,7 +55,8 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 		//formulation<SPH_F2>,
 		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
-		add_flags<ENABLE_MULTIFLUID | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE)>
+		add_flags<ENABLE_MULTIFLUID | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE) |
+              ENABLE_REPACKING>
 	);
 
 	// SPH parameters
@@ -91,12 +92,19 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	float maxvel = sqrt(g*H);
 	float rho0 = 1;
 	float rho1 = 1000;
+	float c0_air = 198*maxvel;
+	float c0_water = 14*maxvel;
 
 	air = add_fluid(rho0);
 	water = add_fluid(rho1);
 
-	set_equation_of_state(air,  1.4, 198*maxvel);
-	set_equation_of_state(water,  7.0f, 14*maxvel);
+	set_equation_of_state(air,  1.4, c0_air);
+	set_equation_of_state(water,  7.0f, c0_water);
+
+	// Repacking options
+	simparams()->repack_maxiter = 1000;
+	simparams()->repack_a = 100/(2.*c0_air*c0_air);
+	simparams()->repack_alpha = 2*m_deltap/c0_air;
 
 	set_kinematic_visc(air, 4.5e-3f);
 	set_kinematic_visc(water, 3.5e-5f);
@@ -161,7 +169,7 @@ bool is_inside(double3 const& origin, float R, double4 const& pt)
 }
 
 // Mass and density initialization
-	void
+void
 Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 {
 	// Example usage

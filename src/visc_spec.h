@@ -44,6 +44,12 @@
  * this will be extended to include things such as temperature dependency
  * and generalized Newtonian rheologies.
  */
+/** @defpsubsection{rheology, RHEOLOGY}
+ * @inpsection{viscous_options}
+ * @default{Newtonian}
+ * @values{inviscid, Newtonian, Bingham, Papanastasious, Power Law, Herschel–Bulkley, Alexandrou, DeKee & Turcotte, Zhu}
+ * TLT_RHEOLOGY
+ */
 enum RheologyType {
 	INVISCID, ///< No (laminar) viscosity
 	NEWTONIAN, ///< Viscosity independent of strain rate
@@ -134,6 +140,12 @@ yield_strength_type()
 //! @}
 
 //! Turbulence model
+/** @defpsubsection{turbulence, TURBULENCE}
+ * @inpsection{viscous_options}
+ * @default{disable}
+ * @values{disable, artificial_viscosity, k_epsilon, SPS_model}
+ * TLT_TURBULENCE
+ */
 /*!
  * While strictly speaking not a turbulence model, artificial viscosity is considered
  * among the turbulence models, since its behavior can be assimilated to it (i.e.
@@ -171,6 +183,12 @@ DEFINE_OPTION_RANGE(TurbulenceModel, TurbulenceName, LAMINAR_FLOW, KEPSILON);
  * the preference is to work in terms of the kinematic viscosity ν,
  * or in terms of the dynamic viscosity µ = ρν
  */
+/** @defpsubsection{viscosityType, VISCOSITY_TYPE}
+ * @inpsection{viscous_options}
+ * @default{kinematic}
+ * @values{kinematic, dynamic}
+ * TLT_VISCOSITY_TYPE
+ */
 enum ComputationalViscosityType {
 	KINEMATIC, ///< Kinematic viscosity (SI units: m²/s)
 	DYNAMIC, ///< Dynamic viscosity (SI units: Pa s)
@@ -192,6 +210,15 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 DEFINE_OPTION_RANGE(ComputationalViscosityType, ComputationalViscosityName, KINEMATIC, DYNAMIC);
 
 //! Supported viscous models
+/*! Currently only MORRIS is available, with plans to add Monaghan's and
+ * Español & Revenga too
+ */
+/** @defpsubsection{viscousModel, VISCOUS_MODEL}
+ * @inpsection{viscous_options}
+ * @default{Morris}
+ * @values{Morris, Monaghan, Españo & Revenga}
+ * TLT_VISCOUS_MODEL
+ */
 enum ViscousModel {
 	MORRIS, ///< Morris et al., JCP 1997
 	MONAGHAN, ///< Monaghan & Gingold, JCP 1983

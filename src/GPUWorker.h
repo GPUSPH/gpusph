@@ -281,6 +281,7 @@ private:
 	// runCommand<IDENTIFY_CORNER_VERTICES> = void kernel_saIdentifyCornerVertices();
 	void kernel_updatePositions();
 	// runCommand<DISABLE_OUTGOING_PARTS> = void kernel_disableOutgoingParts();
+	// runCommand<DISABLE_FREE_SURF_PARTS> = void kernel_disableFreeSurfParts();
 	// runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION> = void kernel_imposeBoundaryCondition();
 	// runCommand<INIT_IO_MASS_VERTEX_COUNT> = void kernel_initIOmass_vertexCount();
 	// runCommand<INIT_IO_MASS> = void kernel_initIOmass();

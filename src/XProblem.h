@@ -27,6 +27,12 @@
  * High-level interface for Problem defintions
  */
 
+/* \note
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * Please consult this file for the list of sections.
+*/
+
 #ifndef _XPROBLEM_H
 #define	_XPROBLEM_H
 
@@ -48,7 +54,8 @@ enum GeometryType {	GT_FLUID,
 					GT_FLOATING_BODY,
 					GT_MOVING_BODY,
 					GT_PLANE,
-					GT_TESTPOINTS
+					GT_TESTPOINTS,
+					GT_FREE_SURFACE
 };
 
 enum FillType {	FT_NOFILL,
@@ -108,6 +115,9 @@ struct GeometryInfo {
 	// user-set inertia
 	double custom_inertia[3];
 
+	// user-set center of gravity
+	double3 custom_cg;
+
 	// aux vars to check if user set what he/she should
 	bool mass_was_set;
 	bool particle_mass_was_set;
@@ -147,6 +157,8 @@ struct GeometryInfo {
 		custom_inertia[0] = NAN;
 		custom_inertia[1] = NAN;
 		custom_inertia[2] = NAN;
+
+		custom_cg = make_double3(NAN);
 
 		mass_was_set = false;
 		particle_mass_was_set = false;
@@ -194,18 +206,19 @@ class XProblem: public Problem {
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);
 
-		// used for hydrostatic filling (absolute value)
-		double m_waterLevel;
 		// used to set LJ dcoeff and sound speed if m_maxParticleSpeed is unset
 		double m_maxFall;
-		// used to set sound of speed
+		/*!
+		 * \inpsection{c0_input_method, calculation}
+		 * \label{FLUID_MAX_SPEED}
+		 * \default{0}
+		 * used to set the numerical speed of sound
+		 */
 		double m_maxParticleSpeed;
 
 		// number of layers for filling dynamic boundaries
 		uint m_numDynBoundLayers;
 
-		// enable hydrostatic filling already during fill - uses m_waterLevel
-		bool m_hydrostaticFilling;
 
 	protected:
 		// methods for creation of new objects
@@ -260,6 +273,9 @@ class XProblem: public Problem {
 		// methods to set a custom inertia matrix (and overwrite the precomputed one)
 		void setInertia(const GeometryID gid, const double i11, const double i22, const double i33);
 		void setInertia(const GeometryID gid, const double* mainDiagonal);
+
+		// method to set a custom center of gravity (and overwrite the precomputed one)
+		void setCenterOfGravity(const GeometryID gid, const double3 cg);
 
 		// methods for rotating an existing object
 		void setOrientation(const GeometryID gid, const EulerParameters &ep);
@@ -321,11 +337,9 @@ class XProblem: public Problem {
 		// get current value (NOTE: not yet autocomputed in problem constructor)
 		uint getDynamicBoundariesLayers() { return m_numDynBoundLayers; }
 
-		// callback for filtering out points before they become particles
+		//! callback for filtering out points before they become particles during
+		//! GPUSPH internal pre-processing
 		virtual void filterPoints(PointVect &fluidParts, PointVect &boundaryParts);
-
-		// callback for initializing particles with custom values
-		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 
 	public:
 		XProblem(GlobalData *);

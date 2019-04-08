@@ -10,6 +10,7 @@
 # If the environment variable CHECK_ALL is defined and set to 0, checking will stop at the first problem
 # that fails, otherwise all problems will be checked.
 # To run GPUSPH with additiona options, set the GPUSPH_OPTIONS environment variable
+# TODO support repacking in our tests
 
 . scripts/common.sh
 

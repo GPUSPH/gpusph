@@ -77,6 +77,7 @@ private:
 
 	// other vars
 	bool initialized;
+	bool repacked;
 
 	std::shared_ptr<Integrator> integrator;
 

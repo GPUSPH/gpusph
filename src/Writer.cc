@@ -43,6 +43,11 @@
 #include "Writer.h"
 #include "HotWriter.h"
 
+#include "catalyst_select.opt"
+#if USE_CATALYST == 1
+#include "DisplayWriter.h"
+#endif
+
 using namespace std;
 
 WriterMap Writer::m_writers = WriterMap();
@@ -57,7 +62,8 @@ static const char* WriterName[] = {
 	"CallbackWriter",
 	"CustomTextWriter",
 	"UDPWriter",
-	"HotWriter"
+	"HotWriter",
+	"DisplayWriter"
 };
 
 const char* Writer::Name(WriterType key)
@@ -120,6 +126,11 @@ Writer::Create(GlobalData *_gdata)
 			case CALLBACKWRITER:
 				writer = new CallbackWriter(_gdata);
 				break;
+#if USE_CATALYST == 1
+			case DISPLAYWRITER:
+				writer = new DisplayWriter(_gdata);
+				break;
+#endif
 			default:
 				stringstream ss;
 				ss << "Unknown writer type " << wt;

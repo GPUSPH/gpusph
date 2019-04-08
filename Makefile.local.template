@@ -1,0 +1,13 @@
+# This is example of Makefile.local file
+
+# Set flags for Chrono
+CHRONO_INCLUDE_PATH=[path to Chrono installation folder]/include
+CHRONO_LIB_PATH=[path to Chrono installation folder]/lib
+
+# Set flags for HDF
+HDF5_CXX = -I/[path to HDF installation folder]/include
+HDF5_LD = -L/[path to HDF installation folder]/lib -lhdf5
+
+# Set flags for Catalyst
+CATALYST_CXX = -I/[path to Paraview 5.1 installation folder]/include/paraview-5.1
+CATALYST_LD = -L/[path to Paraview 5.1 installation folder]/lib/paraview-5.1 -lvtkCommonCore-pv5.1 -lvtkCommonDataModel-pv5.1 -lvtkPVCatalyst-pv5.1 -lvtkPVPythonCatalyst-pv5.1 -lvtkPVCatalystPython27D-pv5.1

@@ -238,8 +238,25 @@ TAB_SIZE               = 4
 # "Side Effects:". You can put \n's in the value part of an alias to insert
 # newlines.
 
-ALIASES                = 
-
+ALIASES                = \
+defpsection{2}="@defgroup \1 Parameters section [\2]\n@ingroup params" \
+defpsection{3}="@defgroup \1 \2: the sequence of [\3] sections\n@ingroup params" \
+defpsubsection{2}="@defgroup \1 Parameters subsection \2" \
+inpsection{1}="@ingroup \1" \
+inpsection{2}="@ingroup \1" \
+values="Possible values: " \
+values{1}="Possible values: \1\n" \
+values{2}="Possible values: \1, \2\n" \
+values{3}="Possible values: \1, \2, \3\n" \
+values{4}="Possible values: \1, \2, \3, \4\n" \
+flag="Flag: " \
+mandatory="Mandatory\n" \
+label{1}="Parameter label: \1\n" \
+default{1}="Default value: \1\n" \
+min{1}="Minimal value: \1\n" \
+max{1}="Maximal value: \1\n" \
+userfunc="@ingroup user_functions"
+      
 # This tag can be used to specify a number of word-keyword mappings (TCL only).
 # A mapping has the form "name=value". For example adding "class=itcl::class"
 # will allow you to use the command class in the itcl::class meaning.
@@ -901,7 +918,7 @@ EXCLUDE_SYMBOLS        = __launch_bounds__(*) \
 # that contain example code fragments that are included (see the \include
 # command).
 
-EXAMPLE_PATH           = 
+EXAMPLE_PATH           = src
 
 # If the value of the EXAMPLE_PATH tag contains directories, you can use the
 # EXAMPLE_PATTERNS tag to specify one or more wildcard pattern (like *.cpp and
@@ -1004,7 +1021,7 @@ INLINE_SOURCES         = NO
 # Fortran comments will always remain visible.
 # The default value is: YES.
 
-STRIP_CODE_COMMENTS    = YES
+STRIP_CODE_COMMENTS    = NO
 
 # If the REFERENCED_BY_RELATION tag is set to YES then for each documented
 # function all documented functions referencing it will be listed.

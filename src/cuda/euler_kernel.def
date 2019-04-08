@@ -106,14 +106,14 @@ template<typename EP, ///< euler_param template specialization
 	BoundaryType _boundarytype = EP::boundarytype,
 	typename _ViscSpec = typename EP::ViscSpec,
 	flag_t _simflags = EP::simflags,
-	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_keps = _ViscSpec::turbmodel == KEPSILON && ! EP::repacking,
 	bool _has_eulerVel = EP::has_eulerVel>
 struct euler_particle_data :
 	common_euler_particle_data,
 	COND_STRUCT(_has_eulerVel, euler_vel_particle_data),
 	COND_STRUCT(_has_keps, keps_particle_data),
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_data),
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
+	COND_STRUCT(_simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -133,8 +133,8 @@ struct euler_particle_data :
 		common_euler_particle_data(_index, params),
 		COND_STRUCT(has_eulerVel, euler_vel_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, params),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_data)(_index, params),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
+		COND_STRUCT(simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data)(_index, params),
+		COND_STRUCT(sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)(_index, params)
 	{}
 };
@@ -160,14 +160,14 @@ standard_corrected_velocity(EP const& params, P &pdata)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not (EP::simflags & ENABLE_XSPH)>
+enable_if_t<not (EP::simflags & ENABLE_XSPH) || EP::repacking>
 compute_corrected_velocity(EP const& params, P &pdata)
 {
 	standard_corrected_velocity(params, pdata);
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::simflags & ENABLE_XSPH>
+enable_if_t<(EP::simflags & ENABLE_XSPH) && !EP::repacking>
 compute_corrected_velocity(EP const& params, P &pdata)
 {
 	standard_corrected_velocity(params, pdata);
@@ -237,7 +237,8 @@ template<typename EP, typename P>
 __device__ __forceinline__
 enable_if_t<(
 	(EP::boundarytype == SA_BOUNDARY) &&
-	(EP::simflags & ENABLE_MOVING_BODIES)
+	(EP::simflags & ENABLE_MOVING_BODIES) &&
+	!(EP::repacking)
 )>
 update_normals(EP const& params, P &pdata, int index)
 {
@@ -251,7 +252,8 @@ template<typename EP, typename P>
 __device__ __forceinline__
 enable_if_t<not (
 	(EP::boundarytype == SA_BOUNDARY) &&
-	(EP::simflags & ENABLE_MOVING_BODIES)
+	(EP::simflags & ENABLE_MOVING_BODIES) &&
+	 !(EP::repacking)
 )>
 update_normals(EP const& params, P &pdata, int index)
 { /* do nothing */ }
@@ -419,7 +421,8 @@ eulerDevice(EP params)
 		//		  also evolved
 		//		* with SA boundaries and .....
 		// TODO: complete previous comment
-		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
+		const bool integrateBoundary = !(params.repacking) &&
+			(boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
 		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
 		if (!ACTIVE(pdata.pos) || (pdata.ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pdata.info)) )
 			break;
@@ -444,7 +447,8 @@ eulerDevice(EP params)
 
 				// Grenier evolves the volume, not the density,
 				// all other evolve the density directly.
-				continuity_integration(params, pdata, index, dt);
+				if (!params.repacking)
+					continuity_integration(params, pdata, index, dt);
 
 				as_float3(pdata.vel) += dt*as_float3(pdata.force);
 
@@ -452,7 +456,8 @@ eulerDevice(EP params)
 				integrate_energy(params, pdata, index, dt);
 
 				// Updating k and e for k-e model
-				integrate_k_e(params, pdata, index, dt);
+				if (!params.repacking)
+					integrate_k_e(params, pdata, index, dt);
 
 				break;
 
@@ -464,7 +469,7 @@ eulerDevice(EP params)
 		case PT_BOUNDARY:
 
 			// integration pos and vel for moving objects
-			if (MOVING(pdata.info)) {
+			if (!params.repacking && MOVING(pdata.info)) {
 				#ifdef _DEBUG_OBJ_FORCES_
 				if (id(pinfo) == 0 && obj == 1 && d_rblinearvel[obj].x != 0.0) {
 					printf("Euler device, object %d\n", obj);
@@ -516,17 +521,18 @@ eulerDevice(EP params)
 
 	params.newPos[index] = pdata.pos;
 	params.newVel[index] = pdata.vel;
-	write_volume(params, pdata, index);
 	write_energy(params, pdata, index);
 	// the condition should just be “if the euler velocity is there”,
 	// which is currently for KEPSILON or open boundaries, but we don't have an easy way
 	// to check for struct membership, so let's do it by enumerating the cases
 	// TODO FIXME
-	write_eulerVel(params, pdata, index);
-	write_viscosity_coeff(params, pdata, index);
-
-	// update normal of boundary element, if using SA_BOUNDARY and we have moving bodies
-	update_normals(params, pdata, index);
+	if (!params.repacking) {
+		write_volume(params, pdata, index);
+		write_eulerVel(params, pdata, index);
+		write_viscosity_coeff(params, pdata, index);
+		// update normal of boundary element, if using SA_BOUNDARY and we have moving bodies
+		update_normals(params, pdata, index);
+	}
 }
 
 /* vi:set ft=cuda: */

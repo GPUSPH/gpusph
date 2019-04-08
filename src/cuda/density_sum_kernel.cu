@@ -95,7 +95,7 @@ template<KernelType _kerneltype,
 	flag_t _simflags>
 struct density_sum_particle_data :
 	common_density_sum_particle_data,
-	COND_STRUCT(_simflags & ENABLE_INLET_OUTLET,
+	COND_STRUCT((_simflags & ENABLE_INLET_OUTLET),
 				open_boundary_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -109,14 +109,14 @@ struct density_sum_particle_data :
 	__device__ __forceinline__
 	density_sum_particle_data(const uint _index, params_t const& params) :
 		common_density_sum_particle_data(_index, params),
-		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET,
+		COND_STRUCT((_simflags & ENABLE_INLET_OUTLET),
 					open_boundary_particle_data)(_index, params)
 	{}
 };
 
 template<class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<Params::simflags & ENABLE_INLET_OUTLET>
+enable_if_t<(Params::simflags & ENABLE_INLET_OUTLET)>
 densitySumOpenBoundaryContribution(
 	Params			const&	params,
 	ParticleData	const&	pdata,
@@ -195,8 +195,9 @@ computeDensitySumVolumicTerms(
 		if (rNp1 < params.influenceradius)
 			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
 
-		densitySumOpenBoundaryContribution(params, pdata, dt,
-			neib_index, neib_info, relPosN, sumVmwDelta);
+		if (!params.repacking)
+			densitySumOpenBoundaryContribution(params, pdata, dt,
+				neib_index, neib_info, relPosN, sumVmwDelta);
 	}
 }
 
@@ -227,7 +228,9 @@ struct io_gamma_sum_terms {
 	{}
 };
 
-template<KernelType _kerneltype, flag_t simflags, bool _has_io = !!(simflags & ENABLE_INLET_OUTLET)>
+template<KernelType _kerneltype,
+	flag_t simflags,
+	bool _has_io = !!(simflags & ENABLE_INLET_OUTLET)>
 struct gamma_sum_terms :
 	common_gamma_sum_terms,
 	COND_STRUCT(_has_io, io_gamma_sum_terms)
@@ -354,8 +357,9 @@ computeDensitySumBoundaryTerms(
 		/* TODO check if we need the old or the new normal here, in case of
 		 * moving open boundaries (for fixed open boundaries, it makes no difference)
 		 */
-		io_gamma_contrib(sumGam, neib_index, neib_info, params,
-			make_float3(qN), nsN, vertexRelPos, dt, gGamN);
+		if (!params.repacking)
+			io_gamma_contrib(sumGam, neib_index, neib_info, params,
+				make_float3(qN), nsN, vertexRelPos, dt, gGamN);
 	}
 	sumGam.gGamDotR *= params.slength;
 }

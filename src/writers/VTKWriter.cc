@@ -503,8 +503,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	string filename;
 
 	ofstream fid;
-	filename = open_data_file(fid, "PART", current_filenum());
-
+	if (gdata->run_mode == REPACK)
+		filename = open_data_file(fid, "REPACK", current_filenum());
+	else
+		filename = open_data_file(fid, "PART", current_filenum());
 	VTKAppender appender(fid, info, gdata, node_offset, numParts);
 
 	// Header

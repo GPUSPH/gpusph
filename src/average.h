@@ -14,6 +14,12 @@
 #endif
 
 //! Averaging operator names
+/**@defpsubsection{viscosityAveraging, VISCOUS_AVERAGING}
+ * @inpsection{viscous_options}
+ * @default{harmonic}
+ * @values{arithmetic, harmonic, geometric}
+ * TLT_VISCOUS_AVERAGING
+ */
 enum AverageOperator
 {
 	ARITHMETIC, //! (a+b)/2

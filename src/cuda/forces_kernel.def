@@ -110,7 +110,7 @@ __device__ __forceinline__
 constexpr bool
 needs_io_gamma_cfl()
 {
-	return needs_gamma_cfl<FP>() && (FP::simflags & ENABLE_INLET_OUTLET);
+	return needs_gamma_cfl<FP>() && (FP::simflags & ENABLE_INLET_OUTLET) && !FP::repacking;
 }
 
 /// Selector to check if the simplified surface tension correction should be applied
@@ -706,9 +706,30 @@ template<KernelType _kerneltype,
 	flag_t _simflags,
 	ParticleType _cptype,
 	ParticleType _nptype,
+	RunMode _run_mode = SIMULATE,
+	bool _repacking = (_run_mode == REPACK),
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _has_sps = _ViscSpec::turbmodel == SPS,
-	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype)>
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
+	typename vol_cond = typename COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER &&
+			(_densitydiffusiontype == COLAGROSSI), volume_particle_data),
+	typename grenier_cond = typename
+		COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER, grenier_particle_data),
+	// eulerian velocity only used in case of keps or with open boundaries
+	typename eulerVel_cond = typename
+		COND_STRUCT(!_repacking && _boundarytype == SA_BOUNDARY && _cptype != _nptype
+				&& (_has_keps || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
+			eulerVel_particle_data),
+	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
+	// appear with SA_BOUNDARY)
+	typename sa_cond = typename COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype,
+		sa_boundary_particle_data),
+	// KEPSILON data, needed by both PT_FLUID and PT_VERTEX
+	typename keps_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_particle_data),
+	// everything else is just for PT_FLUID
+	typename sps_cond = typename COND_STRUCT(!_repacking && _has_sps, sps_particle_data),
+	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
+	typename keps_precalc_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_precalc_particle_data)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -718,24 +739,15 @@ struct forces_particle_data :
 	// PT_VERTEX only use them for KEPSILON, and
 	// PT_OBJECT don't use them
 	vel_particle_data,
-	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
-		(_densitydiffusiontype == COLAGROSSI), volume_particle_data),
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
-	// eulerian velocity only used in case of keps or with open boundaries
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype
-			&& (_has_keps || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
-		eulerVel_particle_data),
-	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
-	// appear with SA_BOUNDARY)
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype,
-		sa_boundary_particle_data),
-	// KEPSILON data, needed by both PT_FLUID and PT_VERTEX
-	COND_STRUCT(_has_keps, keps_particle_data),
-	// everything else is just for PT_FLUID
-	COND_STRUCT(_has_sps, sps_particle_data),
+	vol_cond,
+	grenier_cond,
+	eulerVel_cond,
+	sa_cond,
+	keps_cond,
+	sps_cond,
 	p_precalc_particle_data,
-	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
-	COND_STRUCT(_has_keps, keps_precalc_particle_data)
+	visc_cond,
+	keps_precalc_cond
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -752,33 +764,33 @@ struct forces_particle_data :
 	static const bool has_effective_visc = _has_effective_visc;
 	static const bool has_sps = _has_sps;
 
-	// shorthand for the type of the forces params
-	typedef forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, cptype, nptype> params_t;
-
 	// determine specialization automatically based on info and params
+	template<typename ForcesParams>
 	__device__ __forceinline__
 	forces_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info,
-		params_t const& params) :
+		ForcesParams const& params) :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
 		vel_particle_data(_index, _info),
-		COND_STRUCT(_sph_formulation == SPH_GRENIER &&
-			(_densitydiffusiontype == COLAGROSSI), volume_particle_data)
-			(_index, params),
-		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype &&
-				(has_keps || simflags & ENABLE_INLET_OUTLET),
-			eulerVel_particle_data)(_index),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != nptype,
-			sa_boundary_particle_data)(_index, _info, params),
-		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
-		COND_STRUCT(has_sps, sps_particle_data)(_index),
+		vol_cond(_index, params),
+		grenier_cond(_index, params),
+		eulerVel_cond(_index),
+		sa_cond(_index, _info, params),
+		keps_cond(_index, _info, params),
+		sps_cond(_index),
 		p_precalc_particle_data(*this),
-		COND_STRUCT(_has_effective_visc, effective_visc_particle_data)(_index, params),
-		COND_STRUCT(has_keps, keps_precalc_particle_data)(
-			physical_density(vel.w, fluid_num(_info)), *this, *this)
+		visc_cond(_index, params),
+		keps_precalc_cond(physical_density(vel.w, fluid_num(_info)), *this, *this)
 	{}
 };
+
+template<KernelType _kerneltype,
+	BoundaryType _boundarytype,
+	flag_t _simflags,
+	ParticleType _cptype,
+	ParticleType _nptype>
+using repack_particle_data = forces_particle_data<_kerneltype, SPH_F1, DENSITY_DIFFUSION_NONE, _boundarytype,
+	  repackViscSpec<_simflags>, _simflags, _cptype, _nptype, REPACK>;
 
 struct sa_finalize_particle_data
 {
@@ -796,6 +808,8 @@ template<SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	typename _ViscSpec,
 	flag_t _simflags,
+	RunMode _run_mode = SIMULATE,
+	bool _repacking = (_run_mode == REPACK),
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype)>
 struct finalize_forces_particle_data :
@@ -803,10 +817,10 @@ struct finalize_forces_particle_data :
 	common_finalize_particle_data,
 	// the next is only needed for PT_OBJECT, which in fact need no other data
 	rb_particle_data,
-	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_finalize_particle_data),
+	COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER, grenier_finalize_particle_data),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data),
-	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
-	COND_STRUCT(_has_keps, keps_particle_data)
+	COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
+	COND_STRUCT(!_repacking && _has_keps, keps_particle_data)
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
@@ -818,15 +832,13 @@ struct finalize_forces_particle_data :
 	static const bool has_keps = _has_keps;
 	static const bool has_effective_visc = _has_effective_visc;
 
-	// shorthand for the type of the forces params
-	typedef finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_t;
-
 	ParticleType	ptype;
 
 	// determine specialization automatically based on info and params
+	template<typename FinalizeForcesParams>
 	__device__ __forceinline__
 	finalize_forces_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info,
-		params_t const& params) :
+		FinalizeForcesParams const& params) :
 		common_finalize_particle_data(_index, _pos, params.velArray[_index], _info, params.particleHash),
 		rb_particle_data(_info),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params),
@@ -835,6 +847,11 @@ struct finalize_forces_particle_data :
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params)
 		{}
 };
+
+template<BoundaryType _boundarytype,
+	flag_t _simflags>
+using finalize_repack_particle_data =
+	finalize_forces_particle_data<SPH_F1, _boundarytype, repackViscSpec<_simflags>, _simflags, REPACK>;
 
 /// Similarly for the output variables
 
@@ -983,6 +1000,44 @@ struct finalize_particle_output :
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
 			gamma_cfl_particle_output)(params, index),
 		COND_STRUCT(ViscSpec::turbmodel == KEPSILON, keps_particle_output)(params, index)
+	{}
+};
+
+template<BoundaryType _boundarytype,
+	flag_t _simflags,
+	ParticleType cptype,
+	ParticleType nptype>
+struct repack_particle_output :
+	common_particle_output,
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT) &&
+		cptype == PT_FLUID && nptype == PT_BOUNDARY,
+		gamma_cfl_particle_output)
+{
+	static const BoundaryType boundarytype = _boundarytype;
+	static const flag_t simflags = _simflags;
+
+	template<typename FP>
+	__device__ __forceinline__
+	repack_particle_output(FP const& params, const uint index) :
+		common_particle_output(params, index),
+		COND_STRUCT(boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && (simflags & ENABLE_DTADAPT) &&
+			cptype == PT_FLUID && nptype == PT_BOUNDARY,
+			gamma_cfl_particle_output)()
+	{}
+};
+
+template<BoundaryType _boundarytype, flag_t _simflags>
+struct finalize_repack_particle_output :
+	common_particle_output,
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
+		gamma_cfl_particle_output)
+{
+	template<typename FP>
+	__device__ __forceinline__
+	finalize_repack_particle_output(FP const& params, const uint index) :
+		common_particle_output(params, index),
+		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
+			gamma_cfl_particle_output)(params, index)
 	{}
 };
 
@@ -1149,6 +1204,36 @@ struct forces_neib_data :
 	{}
 };
 
+template<KernelType kerneltype,
+	BoundaryType boundarytype,
+	flag_t simflags,
+	ParticleType cptype,
+	ParticleType _nptype>
+struct repack_neib_data :
+	common_neib_data,
+	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
+		sa_boundary_neib_data)
+{
+	static constexpr ParticleType	nptype = _nptype;
+
+	// shortcut typedefs
+	typedef
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
+			sa_boundary_neib_data)
+		_sa_boundary_neib_data;
+
+	/* The constructor is templatized on the particle data type and on the
+	   kernel params type */
+	template<typename Pt, typename FP>
+	__device__ __forceinline__
+	repack_neib_data(Pt const& pdata, FP const& params,
+		const uint _index, particleinfo const& _info,
+		float4 const& _relPos, const float _r) :
+		common_neib_data(pdata, params, _index, _info, _relPos, _r),
+		_sa_boundary_neib_data(pdata, params, _index, _relPos)
+	{}
+};
+
 /// And finally the neib contribution to the current particle forces
 struct common_neib_output
 {
@@ -1182,6 +1267,18 @@ struct forces_neib_output :
 {
 	__device__ __forceinline__
 	forces_neib_output() :
+		common_neib_output(),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, ggam_neib_output)()
+	{}
+};
+
+template<BoundaryType boundarytype>
+struct repack_neib_output :
+	common_neib_output,
+	COND_STRUCT(boundarytype == SA_BOUNDARY, ggam_neib_output)
+{
+	__device__ __forceinline__
+	repack_neib_output() :
 		common_neib_output(),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, ggam_neib_output)()
 	{}
@@ -2178,7 +2275,7 @@ compute_turb_visc_contrib
 /// Volumic viscous contribution, KEPSILON turbulence model
 /*! Specialization for the KEPSILON contribution to the volumic term.
  * This is effectively empty, since the only volumic turbulent contribution for
- * KEPSILON is in the kinematic viscosity, which is taken 
+ * KEPSILON is in the kinematic viscosity, which is taken
  * into account in get_visc_coeff(), used for the laminar visc
  * contribution.
  */
@@ -2389,6 +2486,75 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
 	}
 }
 
+/*
+ * Repacking contribution
+ */
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::cptype == PT_FLUID && FP::nptype == PT_FLUID>
+compute_repacking_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	/* Mixing force for repacking: \f$ F = -ac^2\nabla\Gamma \f$
+		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
+	*/
+	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*d_sscoeff[fluid_num(pdata.info)]
+		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.f*as_float3(ndata.relPos);
+
+}
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype != SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_repacking_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	/* Mixing force for repacking: \f$ F = -ac^2\nabla\Gamma \f$
+		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
+	*/
+	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*d_sscoeff[fluid_num(pdata.info)]
+		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.f*as_float3(ndata.relPos);
+}
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_VERTEX
+>
+compute_repacking_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	/* Mixing force for repacking: \f$ F = -ac^2\nabla\Gamma \f$
+		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
+	*/
+	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.f*as_float3(ndata.relPos);
+}
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_repacking_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	/* Boundary term for repacking: \f$ F_s = -ac^2\sum_s \nabla\gamma_{as} \f$*/
+	nout.DvDt += d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*d_sscoeff[fluid_num(pdata.info)]*nout.ggamAS*ndata.normal_s;
+}
+
 
 /*
  * Post-processing and saving
@@ -2505,7 +2671,7 @@ forces_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.force.y /= pdata.gGam.w;
 	pout.force.z /= pdata.gGam.w;
 	pout.force.w /= pdata.gGam.w;
-	pout.force.w /= d_rho0[fluid_num(pdata.info)]; // divide by 1/rho0 mass equation 
+	pout.force.w /= d_rho0[fluid_num(pdata.info)]; // divide by 1/rho0 mass equation
 
 	// TODO FIXME GB: double-check, this doesn't look right to me
 	if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
@@ -2516,7 +2682,33 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__
 enable_if_t<FP::sph_formulation != SPH_GRENIER && FP::boundarytype != SA_BOUNDARY>
 forces_fixup(FP const& params, P const& pdata, OP &pout)
-{ // divide by 1/rho0 mass equation 
+{ // divide by 1/rho0 mass equation
+	pout.force.w /= d_rho0[fluid_num(pdata.info)];
+}
+
+/// Division by gamm for SA in repack_fixup
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::boundarytype == SA_BOUNDARY>
+repack_fixup(FP const& params, P const& pdata, OP &pout)
+{
+	/* Only applies to fluid particles */
+	if (!FLUID(pdata.info))
+		return;
+
+	pout.force.x /= pdata.gGam.w;
+	pout.force.y /= pdata.gGam.w;
+	pout.force.z /= pdata.gGam.w;
+	pout.force.w /= pdata.gGam.w;
+	pout.force.w /= d_rho0[fluid_num(pdata.info)]; // divide by 1/rho0 mass equation
+
+}
+
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::boundarytype != SA_BOUNDARY>
+repack_fixup(FP const& params, P const& pdata, OP &pout)
+{ // divide by 1/rho0 mass equation
 	pout.force.w /= d_rho0[fluid_num(pdata.info)];
 }
 
@@ -3079,6 +3271,113 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 }
 
 /************************************************************************************************************/
+/*		   Particle-particle repacking interaction											                        */
+/************************************************************************************************************/
+
+/* This section holds all the SFINAE specializations of compute_repack_pp_interaction,
+ * the function that computes all of the contributions from a neighbor to the central particle
+ */
+
+/*
+ * Fluid central, fluid neighbors
+ */
+
+/// Particle-particle interaction
+/** Specialization in case of fluid neighbors to fluid particles
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<FP::cptype == PT_FLUID && FP::nptype == PT_FLUID>
+compute_repack_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+
+	// Compute mixing force
+	compute_repacking_contrib(params, pdata, ndata, pout, nout);
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+
+}
+
+/*
+ * Fluid central, boundary neighbors
+ *
+ * Specializations depend on the boundary model
+ */
+
+/// Particle-particle interaction
+/** Specialization in case of boundary neighbors to fluid particles,
+ * with SA_BOUNDARY model.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_repack_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	// Compute gamma_as and |grad gamma_as| and add it to the respective values
+	// of the focal particle
+	compute_gamma_gradient(params, pdata, ndata, pout, nout);
+
+	// Compute mixing force
+	compute_repacking_contrib(params, pdata, ndata, pout, nout);
+
+	// Compute gamma CFL
+	compute_gamma_cfl(params, pdata, ndata, pout, nout);
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+
+}
+
+/// Particle-particle interaction
+/** Specialization in case of boundary neighbors to fluid particles,
+ * with non SA_BOUNDARY models.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t
+<
+	FP::boundarytype != SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_repack_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	// Compute mixing force
+	compute_repacking_contrib(params, pdata, ndata, pout, nout);
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+
+}
+
+/*
+ * Fluid central, vertex neighbor
+ */
+
+/// Particle-particle interaction
+/** Specialization in case of vertex neighbors to fluid particles,
+ * with SA_BOUNDARY model.
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::boundarytype == SA_BOUNDARY &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_VERTEX
+>
+compute_repack_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	// Compute repacking force
+	compute_repacking_contrib(params, pdata, ndata, pout, nout);
+
+	// Sum all contributions from the neighbors in the force array
+	as_float3(pout.force) += nout.DvDt;
+
+}
+
+/************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
 /************************************************************************************************************/
 template<typename FP, /* forces_params<kerneltype, sph_formulation, etc> */
@@ -3198,7 +3497,6 @@ forcesDevice(FP params)
 	} while (0);
 }
 
-
 // TODO FIXME splitneibs merge: load partial internal energy and store final
 template<typename FP, /* finalize_forces_params<...> */
 	SPHFormulation sph_formulation = FP::sph_formulation,
@@ -3314,6 +3612,205 @@ finalizeforcesDevice(FP params)
 
 		params.forces[index] = pout.force;
 		write_keps(params, pdata, pout);
+
+	} while (0);
+
+	shared.reduce(params);
+}
+
+/************************************************************************************************************/
+/*		   Kernels for computing repacking forces with the different options											*/
+/************************************************************************************************************/
+template<typename FP, /* repack_params<kerneltype, sph_formulation, etc> */
+	KernelType kerneltype = FP::kerneltype,
+	BoundaryType boundarytype = FP::boundarytype,
+	flag_t simflags = FP::simflags,
+	ParticleType cptype = FP::cptype,
+	ParticleType nptype = FP::nptype>
+__global__ void
+repackDevice(FP params)
+{
+	// Global particle index
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
+
+
+	// The body of this kernel easily gets a lot of indentation. to prevent that,
+	// we wrap the main part into a do { } while(0); so that rather than
+	// if (c1) { if (c2) { if (c3) { stuff } } } we can do
+	// if (!c1) break; if (!c2) break ; if (!c3) break; stuff
+	// to do stuff only if c1, c2, c3 are satisfied.
+	// This makes the code more readable and collects common data retrieval operations
+	// into one place.
+	// (The alternative would have been a label before the reduction and a
+	// bunch of goto label, but that would skip across initializations, which is an error.
+	// and some people still don't like goto's, so this is actually a better alternative).
+#pragma unroll
+	do {
+		if (index >= params.toParticle) break;
+
+		// Particle info struct, always stored in a texture
+		const particleinfo info = tex1Dfetch(infoTex, index);
+
+		// Skip if the current particle is not of the type for which we are computing interactions
+		if (PART_TYPE(info) != cptype) break;
+
+
+		// Cell-local position of the particle, stored in texture
+		// or global memory depending on architecture
+		#if PREFER_L1
+		const float4 pos = params.posArray[index];
+		#else
+		const float4 pos = tex1Dfetch(posTex, index);
+		#endif
+
+		// Nothing to do if the particle is inactive
+		if (INACTIVE(pos))
+			break;
+
+		// Loading the rest of particle data
+		repack_particle_data<kerneltype, boundarytype, simflags, cptype, nptype> const
+			pdata(index, pos, info, params);
+
+		// Preparing particle output variables
+		repack_particle_output<boundarytype, simflags, cptype, nptype> pout(params, index);
+
+		/* And finally the neighbors list traversal support */
+
+		// Loop over all neighbors of type nptype
+		for_each_neib(nptype, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+			const uint neib_index = neib_iter.neib_index();
+
+			// Compute relative position vector and distance
+			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
+			#if PREFER_L1
+				params.posArray[neib_index]
+			#else
+				tex1Dfetch(posTex, neib_index)
+			#endif
+				);
+
+			// Skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
+			const float r = length3(relPos);
+
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+			// Bail out if we do not interact with this neighbor
+			if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
+				if (r >= params.influenceradius + params.deltap)
+					continue;
+			}
+			else if (r >= params.influenceradius)
+				continue;
+
+			// Load rest of neib data
+			repack_neib_data<kerneltype, boundarytype, simflags, cptype, nptype> const
+				ndata(pdata, params, neib_index, neib_info, relPos, r);
+
+			// Contributions from this neighbor
+			repack_neib_output<boundarytype> nout;
+
+			// Now compute the interactions based on pdata.info and ndata.info
+			compute_repack_pp_interaction(params, pdata, ndata, pout, nout);
+
+		} // End of loop over neighbors
+
+		write_gamma_cfl(params, pdata, pout);
+
+		params.forces[pdata.index] = pout.force;
+
+
+	} while (0);
+}
+
+// TODO FIXME compute total kinetic energy
+template<typename FP, /* finalize_forces_params<...> */
+	BoundaryType boundarytype = FP::boundarytype,
+	flag_t simflags = FP::simflags>
+__global__ void
+finalizeRepackDevice(FP params)
+{
+	// Global particle index
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
+
+	// Allocating shared data in case of adaptive time step
+	__shared__ forces_shared_data<boundarytype, repackViscSpec<simflags>, simflags> shared;
+	shared.init();
+
+#pragma unroll
+	do {
+		if (index >= params.toParticle) break;
+
+		// Particle info struct, always stored in a texture
+		const particleinfo info = tex1Dfetch(infoTex, index);
+
+		const ParticleType part_type = PART_TYPE(info);
+
+		// Cell-local position of the particle, stored in texture
+		// or global memory depending on architecture
+		#if PREFER_L1
+		const float4 pos = params.posArray[index];
+		#else
+		const float4 pos = tex1Dfetch(posTex, index);
+		#endif
+
+		// Nothing to do if the particle is inactive
+		if (INACTIVE(pos))
+			break;
+
+		// Loading the rest of particle data
+		finalize_repack_particle_data<boundarytype, simflags> const
+			pdata(index, pos, info, params);
+
+		// Preparing particle output variables
+		finalize_repack_particle_output<boundarytype, simflags> pout(params, index);
+
+		// common division or multiplication
+		repack_fixup(params, pdata, pout);
+
+		// External forces
+		if (FLUID(pdata.info)) {
+
+			// Adding the repacking damping term T(zeta) from Colagrossi et al.
+			const uint fType =  fluid_num(pdata.info);
+			as_float3(pout.force) += d_repack_alpha*d_sscoeff[fType]/params.deltap*as_float3(pdata.vel);
+
+			// Post-processing for viscous terms, returns viscous coefficient
+			// to be used with planes/DEM
+			const float dynvisc = d_visccoeff[fluid_num(pdata.info)]*physical_density(pdata.vel.w,fluid_num(pdata.info));
+			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
+			// for viscous fluids
+			float geom_coeff = 0.0f;
+			// Adding repulsive force computed from DEM
+			if (simflags & ENABLE_DEM) {
+				switch (boundarytype) {
+				case LJ_BOUNDARY:
+					geom_coeff = DemLJForce(demTex, pdata.gridPos, as_float3(pdata.pos),
+						pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
+					break;
+				default:
+					break;
+				}
+			}
+			// Adding repulsive force computed from geometric boundaries
+			if (simflags & ENABLE_PLANES && d_numplanes) {
+				geom_coeff = max(geom_coeff,
+					GeometryForce(pdata.gridPos, as_float3(pdata.pos),
+							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
+			}
+
+			shared.store(params, pdata, pout);
+		}
+
+		if (COMPUTE_FORCE(pdata.info) && !VERTEX(pdata.info)) {
+			params.rbforces[pdata.rbindex] = make_float4(0.f);
+			params.rbtorques[pdata.rbindex] = make_float4(0.f);
+		}
+
+		params.forces[index] = pout.force;
 
 	} while (0);
 

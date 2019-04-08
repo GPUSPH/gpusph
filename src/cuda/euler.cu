@@ -207,26 +207,22 @@ integrate_gamma_impl(
 		const	float	t,
 		const	float	epsilon,
 		const	float	slength,
-		const	float	influenceradius)
+		const	float	influenceradius,
+		const	RunMode	run_mode)
 {
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
-		bufread, bufwrite,
-		particleRangeEnd,
-		dt, t, step,
-		epsilon, slength, influenceradius);
-
-	// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
-	// of the kernel
-	cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(fluid_params);
-
-	if (simflags & ENABLE_MOVING_BODIES) {
-		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
-		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
-	} else {
+	if (run_mode == REPACK) {
+		integrate_gamma_repack_params<PT_FLUID, kerneltype, simflags> fluid_params(
+				bufread, bufwrite,
+				particleRangeEnd,
+				dt, t, step,
+				epsilon, slength, influenceradius);
+		// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
+		// of the kernel
+		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(fluid_params);
 		/* We got them from the buffer lists already, reuse the params structure members.
 		 */
 		const particleinfo *info = fluid_params.info;
@@ -236,6 +232,30 @@ integrate_gamma_impl(
 			info, oldgGam, newgGam, particleRangeEnd);
 		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);
+	} else {
+		integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
+				bufread, bufwrite,
+				particleRangeEnd,
+				dt, t, step,
+				epsilon, slength, influenceradius);
+		// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
+		// of the kernel
+		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(fluid_params);
+
+		if (simflags & ENABLE_MOVING_BODIES) {
+			integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
+			cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
+		} else {
+			/* We got them from the buffer lists already, reuse the params structure members.
+			 */
+			const particleinfo *info = fluid_params.info;
+			const float4 *oldgGam = fluid_params.oldgGam;
+			float4 *newgGam = fluid_params.newgGam;
+			cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
+					info, oldgGam, newgGam, particleRangeEnd);
+			cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
+					info, oldgGam, newgGam, particleRangeEnd);
+		}
 	}
 
 	KERNEL_CHECK_ERROR;
@@ -252,7 +272,8 @@ integrate_gamma_impl(
 		const	float	t,
 		const	float	epsilon,
 		const	float	slength,
-		const	float	influenceradius)
+		const	float	influenceradius,
+		const	RunMode	run_mode)
 {
 	throw std::runtime_error("integrate_gamma called without SA_BOUNDARY");
 }
@@ -268,11 +289,12 @@ integrate_gamma(
 		const	float	t,
 		const	float	epsilon,
 		const	float	slength,
-		const	float	influenceradius)
+		const	float	influenceradius,
+		const	RunMode	run_mode)
 {
 	integrate_gamma_impl<boundarytype>(bufread, bufwrite,
 		numParticles, particleRangeEnd,
-		dt, step, t, epsilon, slength, influenceradius);
+		dt, step, t, epsilon, slength, influenceradius, run_mode);
 }
 
 
@@ -309,26 +331,58 @@ basicstep(
 		const	int		step,
 		const	float	t,
 		const	float	slength,
-		const	float	influenceradius)
+		const	float	influenceradius,
+		const	RunMode	run_mode)
 {
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	if (step == 1)
-		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
-			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 1>(
-				bufread, bufwrite, numParticles, dt, t));
-	else if (step == 2)
-		cueuler::eulerDevice<<< numBlocks, numThreads >>>(
-			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, 2>(
-				bufread, bufwrite, numParticles, dt, t));
-	else
+	// execute the kernel
+#define EULER_STEP(step) case step: \
+	if (run_mode == REPACK) { \
+		cueuler::eulerDevice<<< numBlocks, numThreads >>>( \
+			euler_repack_params<kerneltype, boundarytype, simflags, step>( \
+			bufread, bufwrite, numParticles, dt, t)); \
+	} else { \
+		cueuler::eulerDevice<<< numBlocks, numThreads >>>( \
+			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, step>( \
+			bufread, bufwrite, numParticles, dt, t)); \
+	} \
+	break;
+	switch (step) {
+		EULER_STEP(1);
+		EULER_STEP(2);
+	default:
 		throw std::invalid_argument("unsupported predcorr timestep");
+	}
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+
+/// Disables free surface boundary particles during the repacking process
+	void
+disableFreeSurfParts(		float4*			pos,
+		const	particleinfo*	info,
+		const	uint			numParticles,
+		const	uint			particleRangeEnd)
+{
+	uint numThreads = BLOCK_SIZE_INTEGRATE;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	//execute kernel
+	cueuler::disableFreeSurfPartsDevice<<<numBlocks, numThreads>>>
+		(	pos,
+			numParticles);
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
 }
+
 
 };
 

@@ -23,6 +23,12 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/* \note
+ * The sections to be used in the user interface are
+ * defined in gpusphgui/SGPUSPH/resources/params.xml.
+ * Please consult this file for the list of sections.
+*/
+
 #ifndef _CUDASIMFRAMEWORK_H
 #define _CUDASIMFRAMEWORK_H
 
@@ -197,7 +203,7 @@ public:
 	static const AverageOperator viscavgop = (
 		((_sph_formulation == SPH_GRENIER) && // when using Grenier's formulation
 		(_legacyvisctype != INVALID_VISCOSITY)) ? // was there a legacy specification?
-		AverageOperator::HARMONIC : // yes, assume harmonic averaging 
+		AverageOperator::HARMONIC : // yes, assume harmonic averaging
 		_viscavgop // no, take what the user gave us
 	);
 	static const bool is_const_visc = _is_const_visc;

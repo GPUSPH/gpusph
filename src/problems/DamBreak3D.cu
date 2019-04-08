@@ -50,7 +50,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		add_flags<ENABLE_REPACKING>
 	).select_options(
 		RHODIFF,
 		USE_PLANES, add_flags<ENABLE_PLANES>()
@@ -95,6 +96,9 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
+	simparams()->repack_a = 0.1f;
+	simparams()->repack_alpha = 0.01f;
+	simparams()->repack_maxiter = 10;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.005f);

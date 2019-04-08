@@ -103,7 +103,8 @@ public:
 		const	float	t,
 		const	float	epsilon,
 		const	float	slength,
-		const	float	influenceRadius) = 0;
+		const	float	influenceRadius,
+		const	RunMode	run_mode) = 0;
 
 	/// Apply density diffusion
 	virtual void
@@ -127,8 +128,15 @@ public:
 		const	int		step,
 		const	float	t,
 		const	float	slength,
-		const	float	influenceRadius)
-	= 0;
+		const	float	influenceRadius,
+		const	RunMode	run_mode) = 0;
+
+	// Disable free surface boundary particles after the repacking is achieved
+	virtual void
+		disableFreeSurfParts(		float4*			pos,
+				const	particleinfo*	info,
+				const	uint			numParticles,
+				const	uint			particleRangeEnd) = 0;
 
 };
 #endif

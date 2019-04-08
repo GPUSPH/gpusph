@@ -306,11 +306,13 @@ DEFINE_COMMAND_BUF(APPLY_DENSITY_DIFFUSION, true)
 	/** \name Additional computational kernels
 	 *
 	 * This should include any computational kernel that does not (or at least should not)
-	 * impact the simulation results, and currently is limited to the post-processing
-	 * kernel invokation
+	 * impact the simulation results
 	 *
 	 * @{
 	 */
+
+	/// Disable free surface particles after repacking is done
+DEFINE_COMMAND_NOBUF(DISABLE_FREE_SURF_PARTS)
 
 	/// Run post-processing filters (e.g. vorticity, testpoints)
 	/*! Special case of dynamic buffer: the buffer specification is directed

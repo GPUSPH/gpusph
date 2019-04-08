@@ -39,15 +39,15 @@ using namespace std;
 /** \note this is different from undefined_dt, and is used e.g.
  * for the callback dt during the initialization step
  */
-float null_timestep(GlobalData const* gdata)
+static float null_timestep(GlobalData const* gdata)
 { return 0.0f; }
 
 //! Function that returns half the current time-step
-float half_timestep(GlobalData const* gdata)
+static float half_timestep(GlobalData const* gdata)
 { return gdata->dt/2; }
 
 //! Function that returns the full current time-step
-float full_timestep(GlobalData const* gdata)
+static float full_timestep(GlobalData const* gdata)
 { return gdata->dt; }
 
 dt_operator_t
@@ -97,7 +97,7 @@ PredictorCorrector::getNextStateForStep(int step_num)
 }
 
 //! Fill in the StepInfo for a given step number
-StepInfo step_info(int step_num)
+static StepInfo step_info(int step_num)
 {
 	StepInfo step(step_num);
 	if (step_num == 2)
@@ -317,7 +317,7 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 	const bool last_io_step = has_io && step.last;
 	const bool last_bodies_step = has_bodies && step.last;
 
-	// “resumed” condition applies to the initializaiton step sequence,
+	// “resumed” condition applies to the initialization step sequence,
 	// if we resumed
 	const bool resumed = (init_step && !gdata->clOptions->resume_fname.empty());
 
@@ -711,7 +711,7 @@ void PredictorCorrector::initializePhase<PredictorCorrector::BEGIN_TIME_STEP>()
 template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::NEIBS_LIST>()
 {
-	m_phase[NEIBS_LIST] = buildNeibsPhase();
+	m_phase[NEIBS_LIST] = buildNeibsPhase(PARTICLE_PROPS_BUFFERS);
 }
 
 template<>

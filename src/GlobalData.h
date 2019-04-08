@@ -204,11 +204,17 @@ struct GlobalData {
 	float3 s_varGravity;
 
 	// simulation time control
+	RunMode run_mode;
 	bool keep_going;
 	bool quit_request;
 	bool save_request;
 	unsigned long iterations;
 	unsigned long last_buildneibs_iteration;
+	//! Maximum number of iterations to run for during this phase.
+	//! This will be set to the problem-specific SimParams' repack_maxiter
+	//! during the repack phase, and to clOptions' maxiter (if specified by the user)
+	//! during actual simulation
+	unsigned long maxiter;
 
 	// on the host, the total simulation time is a double. on the device, it
 	// will be downconverted to a float. this ensures that we can run very long
@@ -295,11 +301,13 @@ struct GlobalData {
 		particlesCreated(false),
 		createdParticlesIterations(0),
 		s_hPlanes(),
+		run_mode(SIMULATE),
 		keep_going(true),
 		quit_request(false),
 		save_request(false),
 		iterations(0),
 		last_buildneibs_iteration(ULONG_MAX),
+		maxiter(ULONG_MAX),
 		t(0.0),
 		dt(0.0f),
 		lastGlobalPeakFluidBoundaryNeibsNum(0),
@@ -343,6 +351,14 @@ struct GlobalData {
 			networkManager->finalizeNetwork(ret);
 		delete networkManager;
 	}
+
+	//! Textual description of the current run mode (lowercase)
+	const char * run_mode_desc() const
+	{ return run_mode == REPACK ? "repacking" : "simulation"; }
+
+	//! Textual description of the current run mode (Title Case)
+	const char * run_mode_Desc() const
+	{ return run_mode == REPACK ? "Repacking" : "Simulation"; }
 
 	// compute the global position from grid and local pos. note that the
 	// world origin needs to be added to this
@@ -562,6 +578,60 @@ struct GlobalData {
 					}
 		fclose(fid);
 		printf(" > compact device map dumped to file %s\n",fname.c_str());
+	}
+
+	// function for cleanup between the repacking and the standard run
+	void cleanup() {
+		printf("Cleaning GlobalData...\n");
+
+		GPUWORKERS.clear();
+		threadSynchronizer = NULL;
+
+		s_hRbCgGridPos = NULL;
+		s_hRbCgPos = NULL;
+		s_hRbTranslations = NULL;
+		s_hRbLinearVelocities = NULL;
+		s_hRbAngularVelocities = NULL;
+		s_hRbRotationMatrices = NULL;
+
+		s_hRbFirstIndex = NULL;
+		s_hRbLastIndex = NULL;
+		s_hRbTotalForce = NULL;
+		s_hRbAppliedForce = NULL;
+		s_hRbTotalTorque = NULL;
+		s_hRbAppliedTorque = NULL;
+		s_hRbDeviceTotalForce = NULL;
+		s_hRbDeviceTotalTorque = NULL;
+
+		s_hDeviceMap = NULL;
+		s_hPartsPerSliceAlongX = NULL;
+		s_hPartsPerSliceAlongY = NULL;
+		s_hPartsPerSliceAlongZ = NULL;
+		s_dCellEnds = NULL;
+		s_dCellStarts = NULL;
+		s_dSegmentsStart = NULL;
+
+		allocPolicy = NULL;
+		simframework = NULL;
+		delete problem;
+		problem = NULL;
+		totParticles = 0;
+		numOpenVertices = 0;
+		allocatedParticles = 0;
+		nGridCells = 0;
+		particlesCreated = false;
+		createdParticlesIterations = 0;
+		keep_going = true;
+		quit_request = false;
+		save_request = false;
+		iterations = 0;
+		maxiter = ULONG_MAX;
+		t = 0.0;
+		dt = 0.0f;
+		lastGlobalPeakFluidBoundaryNeibsNum = 0;
+		lastGlobalPeakVertexNeibsNum = 0;
+		lastGlobalNumInteractions = 0;
+		nextCommand = IDLE;
 	}
 };
 

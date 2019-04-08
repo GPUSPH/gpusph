@@ -121,13 +121,17 @@ saSegmentBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step)
+	const	int			step,
+	const	RunMode		run_mode)
 {
+	int dummy_shared = 0;
+
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	const	float4			*pos(bufread.getData<BUFFER_POS>());
 	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
+
 	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
 	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
 	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
@@ -141,38 +145,47 @@ saSegmentBoundaryConditionsImpl(
 	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
 	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
 
-	int dummy_shared = 0;
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
-	sa_segment_bc_params<kerneltype, ViscSpec, simflags> params(
-		pos, vel, particleHash, cellStart, neibsList,
-		gGam, vertices, vertPos,
-		eulerVel, tke, eps,
-		particleRangeEnd, deltap, slength, influenceradius);
-
 	// execute the kernel
 #define SA_SEGMENT_BC_STEP(step) case step: \
-	cubounds::saSegmentBoundaryConditionsDevice<step><<< numBlocks, numThreads, dummy_shared >>>(params); break
+	if (run_mode == REPACK) { \
+		sa_segment_bc_repack_params<kerneltype, ViscSpec, simflags, step> params( \
+			pos, vel, particleHash, cellStart, neibsList, \
+			gGam, vertices, vertPos, \
+			eulerVel, tke, eps, \
+			particleRangeEnd, deltap, slength, influenceradius); \
+		cubounds::saSegmentBoundaryConditionsRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} else { \
+		sa_segment_bc_params<kerneltype, ViscSpec, simflags, step> params( \
+			pos, vel, particleHash, cellStart, neibsList, \
+			gGam, vertices, vertPos, \
+			eulerVel, tke, eps, \
+			particleRangeEnd, deltap, slength, influenceradius); \
+		cubounds::saSegmentBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} \
+	break;
 
 	switch (step) {
+	case -1: // step -1 is the same as step 0 (initialization, but at the end of the repacking
 		SA_SEGMENT_BC_STEP(0);
 		SA_SEGMENT_BC_STEP(1);
 		SA_SEGMENT_BC_STEP(2);
 	default:
 		throw std::runtime_error("unsupported step");
 	}
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
-	// check if kernel invocation generated an error
-	KERNEL_CHECK_ERROR;
 }
 //! Non-SA case for the implementation of saSegmentBoundaryConditions
 /** In this case, we should never be called, so throw
@@ -189,7 +202,8 @@ saSegmentBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step)
+	const	int			step,
+	const	RunMode		run_mode)
 {
 	throw std::runtime_error("saSegmentBoundaryConditions called without SA_BOUNDARY");
 }
@@ -210,10 +224,11 @@ saSegmentBoundaryConditions(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step)
+	const	int			step,
+	const	RunMode		run_mode)
 {
 	saSegmentBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, numParticles,
-		particleRangeEnd, deltap, slength, influenceradius, step);
+		particleRangeEnd, deltap, slength, influenceradius, step, run_mode);
 }
 
 /// Detect particles that cross an open boundary and find the boundary element they have crossed
@@ -278,14 +293,15 @@ saVertexBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step,
+	const	int				step,
 	const	bool			resume, // TODO FIXME check if still needed
 	const	float			dt, // for open boundaries
 	// These are the cloning-related members
 			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
-	const	uint			totParticles)
+	const	uint			totParticles,
+	const	RunMode			run_mode)
 {
 	int dummy_shared = 0;
 
@@ -305,18 +321,26 @@ saVertexBoundaryConditionsImpl(
 
 	// execute the kernel
 #define SA_VERTEX_BC_STEP(step) case step: \
-	{ sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-		bufread, bufwrite, newNumParticles, numParticles, totParticles, \
-		deltap, slength, influenceradius, deviceId, numDevices, dt); \
-	  cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
-	} break
+	if (run_mode == REPACK) { \
+		sa_vertex_bc_repack_params<kerneltype, ViscSpec, simflags, step> params( \
+				bufread, bufwrite, newNumParticles, numParticles, totParticles, \
+				deltap, slength, influenceradius, deviceId, numDevices, dt); \
+		cubounds::saVertexBoundaryConditionsRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} else { \
+		sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
+				bufread, bufwrite, newNumParticles, numParticles, totParticles, \
+				deltap, slength, influenceradius, deviceId, numDevices, dt); \
+		cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+	} \
+	break;
 
 	switch (step) {
-		SA_VERTEX_BC_STEP(0);
-		SA_VERTEX_BC_STEP(1);
-		SA_VERTEX_BC_STEP(2);
-	default:
-		throw std::runtime_error("unsupported step");
+		case -1: // step -1 is the same as step 0 (initialization, but at the end of the repacking
+			SA_VERTEX_BC_STEP(0);
+			SA_VERTEX_BC_STEP(1);
+			SA_VERTEX_BC_STEP(2);
+		default:
+			throw std::runtime_error("unsupported step");
 	}
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -325,6 +349,7 @@ saVertexBoundaryConditionsImpl(
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 }
+
 template<BoundaryType _boundarytype>
 enable_if_t<_boundarytype != SA_BOUNDARY>
 saVertexBoundaryConditionsImpl(
@@ -337,14 +362,15 @@ saVertexBoundaryConditionsImpl(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step,
+	const	int				step,
 	const	bool			resume, // TODO FIXME check if still needed
 	const	float			dt, // for open boundaries
 	// These are the cloning-related members
 			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
-	const	uint			totParticles)
+	const	uint			totParticles,
+	const	RunMode			run_mode)
 {
 	throw std::runtime_error("saVertexBoundaryConditions called without SA_BOUNDARY");
 }
@@ -364,19 +390,20 @@ saVertexBoundaryConditions(
 	const	float			influenceradius,
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
-	const	uint			step,
+	const	int				step,
 	const	bool			resume, // TODO FIXME check if still needed
 	const	float			dt, // for open boundaries
 	// These are the cloning-related members
 			uint*			newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
-	const	uint			totParticles)
+	const	uint			totParticles,
+	const RunMode   		run_mode)
 {
 	saVertexBoundaryConditionsImpl<boundarytype>(bufwrite, bufread,
 		numParticles, particleRangeEnd, deltap, slength, influenceradius,
 		step, resume, dt,
-		newNumParticles, deviceId, numDevices, totParticles);
+		newNumParticles, deviceId, numDevices, totParticles, run_mode);
 }
 
 /// Compute normal for vertices in initialization step
@@ -449,6 +476,7 @@ saInitGammaImpl(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	float4 *newGGam = bufwrite.getData<BUFFER_GRADGAMMA>();
+	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
 
 	const float4 *oldPos = bufread.getData<BUFFER_POS>();
 	const float4 *boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
@@ -466,6 +494,7 @@ saInitGammaImpl(
 	// execute the kernel for fluid particles
 	cubounds::initGammaDevice<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
+		oldGGam,
 		oldPos,
 		boundelement,
 		vertPos[0],
@@ -487,6 +516,7 @@ saInitGammaImpl(
 	// execute the kernel for vertex particles
 	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
 		newGGam,
+		oldGGam,
 		oldPos,
 		boundelement,
 		vertPos[0],
