@@ -324,6 +324,24 @@ struct effective_visc_forces_params
 	{}
 };
 
+/// Buffers with coefficinets for CSPM normalization
+struct cspm_forces_params
+{
+	const float2 * __restrict__ fcoeff0;
+	const float2 * __restrict__ fcoeff1;
+	const float2 * __restrict__ fcoeff2;
+
+	cspm_forces_params(const float2 * const *fcoeff_ptr) :
+		fcoeff0(fcoeff_ptr[0]),
+		fcoeff1(fcoeff_ptr[1]),
+		fcoeff2(fcoeff_ptr[2])
+	{}
+
+	cspm_forces_params(BufferList const& bufread) :
+		cspm_forces_params(bufread.getRawPtr<BUFFER_FCOEFF>())
+	{}
+};
+
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -356,7 +374,9 @@ template<KernelType _kerneltype,
 		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_INTERNAL_ENERGY),
 			internal_energy_forces_params),
 	typename visc_cond =
-		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params)
+		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params),
+	typename cspm_cond =
+		typename COND_STRUCT(_simflags & ENABLE_CSPM, cspm_forces_params)
 	>
 struct forces_params : _ViscSpec,
 	common_forces_params,
@@ -368,7 +388,8 @@ struct forces_params : _ViscSpec,
 	water_depth_cond,
 	keps_cond,
 	energy_cond,
-	visc_cond
+	visc_cond,
+	cspm_cond
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -423,7 +444,8 @@ struct forces_params : _ViscSpec,
 		water_depth_cond(_IOwaterdepth),
 		keps_cond(bufread, bufwrite),
 		energy_cond(bufwrite),
-		visc_cond(bufread)
+		visc_cond(bufread),
+		cspm_cond(bufread)
 	{}
 };
 

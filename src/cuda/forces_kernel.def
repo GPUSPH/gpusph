@@ -729,6 +729,21 @@ struct keps_precalc_particle_data
 	{}
 };
 
+// Coefficient for kernel and kernel grandient normalization (Corrective Smoothed Particle Method)
+struct cspm_particle_data
+{
+	const	symtensor3	fcoeffTens;
+
+	template<typename FP>
+	__device__ __forceinline__
+	cspm_particle_data(const uint index, FP const& params):
+		fcoeffTens(fetchTau(index,
+				params.fcoeff0,
+				params.fcoeff1,
+				params.fcoeff2))
+	{}
+};
+
 // And now we assemble them. Not all particle types require all particle data,
 // but for the time being we don't optimize this far and just limit ourselves
 // to conditional inclusions based on kernel specialization only, not particle type
@@ -764,7 +779,8 @@ template<KernelType _kerneltype,
 	// everything else is just for PT_FLUID
 	typename sps_cond = typename COND_STRUCT(!_repacking && _has_sps, sps_particle_data),
 	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
-	typename keps_precalc_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_precalc_particle_data)>
+	typename keps_precalc_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_precalc_particle_data),
+	typename cspm_cond = typename COND_STRUCT( _simflags & ENABLE_CSPM, cspm_particle_data)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -782,7 +798,8 @@ struct forces_particle_data :
 	sps_cond,
 	p_precalc_particle_data,
 	visc_cond,
-	keps_precalc_cond
+	keps_precalc_cond,
+	cspm_cond
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -816,7 +833,8 @@ struct forces_particle_data :
 		sps_cond(_index),
 		p_precalc_particle_data(*this),
 		visc_cond(_index, params),
-		keps_precalc_cond(physical_density(vel.w, fluid_num(_info)), *this, *this)
+		keps_precalc_cond(physical_density(vel.w, fluid_num(_info)), *this, *this),
+		cspm_cond(_index, params)
 	{}
 };
 
@@ -2050,7 +2068,9 @@ mass_continuity_div_vel_term
 	// for Grenier's formulation, DrDt is actually DJ/Dt.
 	// The division by sigma needed by the formulation will be handled
 	// in the fixup at the end of the neighbor loop cycle
+
 	nout.DrDt -= ndata.vel_dot_pos*ndata.f;
+	//nout.DrDt -= dot3(ndata.relVel, dot3(pdata.fcoeff, ndata.relPos))*ndata.f;
 }
 
 /// Mass continuity: divergence of velocity term
