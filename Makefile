@@ -368,7 +368,7 @@ MPICXX ?= $(shell which mpicxx 2> /dev/null)
 
 ifeq ($(MPICXX),)
 	ifeq ($(USE_MPI),1)
-		TMP := $(error MPI use for requested, but no MPI compiler was found, aborting)
+		TMP := $(error MPI use requested, but no MPI compiler was found, aborting)
 	else
 		ifeq ($(USE_MPI),)
 			TMP := $(info MPI compiler not found, multi-node will NOT be supported)
@@ -376,6 +376,17 @@ ifeq ($(MPICXX),)
 		endif
 	endif
 else
+	# autodetect the MPI version
+	MPI_VERSION = $(shell printf '\#include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
+
+	# if we have USE_MPI, but MPI_VERSION is empty, abort because it means we couldn't successfully get the
+	# MPI version from mpi.h (e.g. because the development headers were not installed)
+	# Note that if MPI version is defined, it will have a dot inside, so $(USE_MPI)$(MPI_VERSION) cannot be
+	# equal to the string 1 in that case, so the following condition is only for USE_MPI=1 and MPI_VERSION empty
+	ifeq ($(USE_MPI)$(MPI_VERSION),1)
+		TMP := $(error MPI use requested, but the MPI version could not be determined, aborting)
+	endif
+
 	ifeq ($(USE_MPI),)
 		USE_MPI = 1
 	endif
@@ -1061,6 +1072,7 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	@echo "Compute cap.:    $(COMPUTE)"									>> $@
 	@echo "Fastmath:        $(FASTMATH)"								>> $@
 	@echo "USE_MPI:         $(USE_MPI)"									>> $@
+	@[ 1 = $(USE_MPI) ] && echo "    MPI version: $(MPI_VERSION)"					>> $@ || true
 	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
 	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $@
 	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $@
