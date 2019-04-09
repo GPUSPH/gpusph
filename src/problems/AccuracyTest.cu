@@ -52,7 +52,7 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : XProblem(_gdata)
 	// SPH parameters
 	set_deltap(0.02); //0.008
 
-	simparams()->dt = 1e-5f;
+	set_timestep(1e-5f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 1.5f; //0.00036f

@@ -54,7 +54,7 @@ OilJet::OilJet(GlobalData *_gdata) : XProblem(_gdata)
 	  //MLS_FILTER
 
 	// SPH parameters
-	simparams()->dt = 0.00013;
+	set_timestep(0.00013);
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 2.; //seconds

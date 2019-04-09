@@ -72,7 +72,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	addPostProcess(SURFACE_DETECTION);
 
 	// SPH parameters
-	simparams()->dt = 0.00013;
+	set_timestep(0.00013);
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->tend = 120; //seconds
 

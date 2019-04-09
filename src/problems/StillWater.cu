@@ -76,7 +76,7 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	// SPH parameters
-	simparams()->dt = 0.00004f;
+	set_timestep(0.00004f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 20;
 	simparams()->ferrariLengthScale = H;

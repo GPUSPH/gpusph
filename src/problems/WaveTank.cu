@@ -77,7 +77,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.03f);  //0.005f;
-	simparams()->dt = 0.0001;
+	set_timestep(0.0001);
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 10.0f; //seconds

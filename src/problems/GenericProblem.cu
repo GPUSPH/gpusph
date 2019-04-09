@@ -79,7 +79,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 
 	// Time parameters
 #if ISDEF(time,dt)
-	simparams()->dt = PVAL( time, dt );
+	set_timestep(PVAL( time, dt ));
 #endif
 #if ISDEF(time,dtadaptfactor)
 	simparams()->dtadaptfactor = PVAL( time, dtadaptfactor );

@@ -68,7 +68,7 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	resize_neiblist(128);
-	simparams()->dt = 0.00013;
+	set_timestep(0.00013);
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->buildneibsfreq = 10;
 	t0 = 0.4;

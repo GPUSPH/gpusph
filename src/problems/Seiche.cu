@@ -54,7 +54,7 @@ Seiche::Seiche(GlobalData *_gdata) : XProblem(_gdata)
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	// SPH parameters
-	simparams()->dt = 0.00004f;
+	set_timestep(0.00004f);
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend=10.0f;

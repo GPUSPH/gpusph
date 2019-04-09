@@ -52,7 +52,7 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.02f);
-	simparams()->dt = 0.00004f;
+	set_timestep(0.00004f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 20;

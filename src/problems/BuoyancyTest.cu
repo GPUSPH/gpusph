@@ -33,7 +33,7 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.04); //0.008
-	simparams()->dt = 0.0003f;
+	set_timestep(0.0003f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 5.0f; //0.00036f

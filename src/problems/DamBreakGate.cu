@@ -59,7 +59,7 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.02f);
-	simparams()->dt = 0.0001f;
+	set_timestep(0.0001f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 1.5f;

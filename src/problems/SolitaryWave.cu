@@ -68,7 +68,7 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.01f);  //0.005f;
-	simparams()->dt = 0.00013f;
+	set_timestep(0.00013f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 10.0;
