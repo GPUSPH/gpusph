@@ -52,7 +52,7 @@
 
 using namespace std;
 
-XProblem::XProblem(GlobalData *_gdata) : ProblemCore(_gdata)
+ProblemAPI<1>::ProblemAPI(GlobalData *_gdata) : ProblemCore(_gdata)
 {
 	// *** XProblem initialization
 	m_numActiveGeometries = 0;
@@ -79,7 +79,7 @@ XProblem::XProblem(GlobalData *_gdata) : ProblemCore(_gdata)
 
 }
 
-void XProblem::release_memory()
+void ProblemAPI<1>::release_memory()
 {
 	m_fluidParts.clear();
 	m_boundaryParts.clear();
@@ -95,19 +95,19 @@ void XProblem::release_memory()
 	}
 }
 
-uint XProblem::suggestedDynamicBoundaryLayers()
+uint ProblemAPI<1>::suggestedDynamicBoundaryLayers()
 {
 	return (uint)simparams()->get_influence_layers() + 1;
 }
 
-XProblem::~XProblem()
+ProblemAPI<1>::~ProblemAPI<1>()
 {
 	release_memory();
 	if (m_numFloatingBodies > 0)
 		cleanupChrono();
 }
 
-bool XProblem::initialize()
+bool ProblemAPI<1>::initialize()
 {
 	// setup the framework if the subclass did not do it; will have all defaults
 	if (!simframework()) {
@@ -385,21 +385,21 @@ bool XProblem::initialize()
 	return ProblemCore::initialize();
 }
 
-void XProblem::initializeChrono()
+void ProblemAPI<1>::initializeChrono()
 {
 #if USE_CHRONO == 1
 	InitializeChrono();
 #endif
 }
 
-void XProblem::cleanupChrono()
+void ProblemAPI<1>::cleanupChrono()
 {
 #if USE_CHRONO == 1
 	FinalizeChrono();
 #endif
 }
 
-GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
+GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
 	const char *hdf5_fname, const char *xyz_fname, const char *stl_fname)
 {
 	// TODO: before even creating the new GeometryInfo we should check the compatibility of
@@ -522,7 +522,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	return (m_geometries.size() - 1);
 }
 
-bool XProblem::validGeometry(GeometryID gid)
+bool ProblemAPI<1>::validGeometry(GeometryID gid)
 {
 	// ensure gid refers to a valid position
 	if (gid >= m_geometries.size()) {
@@ -539,7 +539,7 @@ bool XProblem::validGeometry(GeometryID gid)
 	return true;
 }
 
-GeometryID XProblem::addRect(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addRect(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double side1, const double side2)
 {
 	double offsetX = 0, offsetY = 0;
@@ -554,7 +554,7 @@ GeometryID XProblem::addRect(const GeometryType otype, const FillType ftype, con
 	);
 }
 
-GeometryID XProblem::addDisk(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addDisk(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double radius)
 {
 	double offsetX = 0, offsetY = 0;
@@ -567,7 +567,7 @@ GeometryID XProblem::addDisk(const GeometryType otype, const FillType ftype, con
 	);
 }
 
-GeometryID XProblem::addCube(const GeometryType otype, const FillType ftype, const Point &origin, const double side)
+GeometryID ProblemAPI<1>::addCube(const GeometryType otype, const FillType ftype, const Point &origin, const double side)
 {
 	double offsetXY = 0, offsetZ = 0;
 	if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER)
@@ -581,7 +581,7 @@ GeometryID XProblem::addCube(const GeometryType otype, const FillType ftype, con
 	);
 }
 
-GeometryID XProblem::addBox(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addBox(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side1, const double side2, const double side3)
 {
 	double offsetX = 0, offsetY = 0, offsetZ = 0;
@@ -598,7 +598,7 @@ GeometryID XProblem::addBox(const GeometryType otype, const FillType ftype, cons
 	);
 }
 
-GeometryID XProblem::addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double radius, const double height)
 {
 	double offsetXY = 0, offsetZ = 0;
@@ -614,7 +614,7 @@ GeometryID XProblem::addCylinder(const GeometryType otype, const FillType ftype,
 	);
 }
 
-GeometryID XProblem::addCone(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addCone(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double bottom_radius, const double top_radius, const double height)
 {
 	double offsetXY = 0, offsetZ = 0;
@@ -636,7 +636,7 @@ GeometryID XProblem::addCone(const GeometryType otype, const FillType ftype, con
 	);
 }
 
-GeometryID XProblem::addSphere(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addSphere(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double radius)
 {
 	double offsetXY = 0, offsetZ = 0;
@@ -651,7 +651,7 @@ GeometryID XProblem::addSphere(const GeometryType otype, const FillType ftype, c
 	);
 }
 
-GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double major_radius, const double minor_radius)
 {
 	double offsetXY = 0, offsetZ = 0;
@@ -665,7 +665,7 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 	);
 }
 
-GeometryID XProblem::addPlane(
+GeometryID ProblemAPI<1>::addPlane(
 	const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff, const FillType ftype)
 {
 	return addGeometry(GT_PLANE, ftype,
@@ -676,7 +676,7 @@ GeometryID XProblem::addPlane(
 // NOTE: "origin" has a slightly different meaning than for the other primitives: here it is actually
 // an offset to shift the STL coordinates. Use 0 to import STL coords as they are.
 // If positioning is PP_NONE and origin is (0,0,0), mesh coordinates are imported unaltered.
-GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 	const char *filename)
 {
 	STLMesh *stlmesh = STLMesh::load_stl(filename);
@@ -720,7 +720,7 @@ GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, 
 // NOTE: "origin" has a slightly different meaning than for the other primitives: here it is actually
 // an offset to shift the STL coordinates. Use 0 to import STL coords as they are.
 // If positioning is PP_NONE and origin is (0,0,0), mesh coordinates are imported unaltered.
-GeometryID XProblem::addOBJMesh(const GeometryType otype, const FillType ftype, const Point &origin,
+GeometryID ProblemAPI<1>::addOBJMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 	const char *filename)
 {
 	STLMesh *stlmesh = new STLMesh();
@@ -767,7 +767,7 @@ GeometryID XProblem::addOBJMesh(const GeometryType otype, const FillType ftype, 
 // NOTE: particles loaded from HDF5 files will not be erased!
 // To enable erase-like interaction we need to copy them to the particle vectors, which
 // requires unnecessary memory allocation
-GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
+GeometryID ProblemAPI<1>::addHDF5File(const GeometryType otype, const Point &origin,
 	const char *fname_hdf5, const char *fname_obj)
 {
 	// NOTES about HDF5 files
@@ -823,7 +823,7 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 // NOTE: particles loaded from XYZ files will not be erased!
 // To enable erase-like interaction we need to copy them to the global particle vectors, by passing an
 // existing vector to loadPointCloudFromXYZFile(). We can implement this if needed.
-GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
+GeometryID ProblemAPI<1>::addXYZFile(const GeometryType otype, const Point &origin,
 			const char *fname_xyz, const char *fname_obj)
 {
 	// NOTE: fill type is FT_NOFILL since particles are read from file
@@ -874,20 +874,20 @@ GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
 // Add a single testpoint; returns the position of the testpoint in the vector of
 // testpoints, which will correspond to its particle id.
 // NOTE: testpoints should be assigned with consecutive particle ids starting from 0
-size_t XProblem::addTestPoint(const Point &coordinates)
+size_t ProblemAPI<1>::addTestPoint(const Point &coordinates)
 {
 	m_testpointParts.push_back(coordinates);
 	return (m_testpointParts.size() - 1);
 }
 
 // Simple overload
-size_t XProblem::addTestPoint(const double posx, const double posy, const double posz)
+size_t ProblemAPI<1>::addTestPoint(const double posx, const double posy, const double posz)
 {
 	return addTestPoint(Point(posx, posy, posz));
 }
 
 // request to invert normals while loading - only for HDF5 files
-void XProblem::flipNormals(const GeometryID gid, bool flip)
+void ProblemAPI<1>::flipNormals(const GeometryID gid, bool flip)
 {
 	if (!validGeometry(gid)) return;
 
@@ -901,7 +901,7 @@ void XProblem::flipNormals(const GeometryID gid, bool flip)
 	m_geometries[gid]->flip_normals = flip;
 }
 
-void XProblem::deleteGeometry(const GeometryID gid)
+void ProblemAPI<1>::deleteGeometry(const GeometryID gid)
 {
 	if (!validGeometry(gid)) return;
 
@@ -925,7 +925,7 @@ void XProblem::deleteGeometry(const GeometryID gid)
 	// TODO: print a warning if deletion is requested after fill_parts
 }
 
-void XProblem::enableDynamics(const GeometryID gid)
+void ProblemAPI<1>::enableDynamics(const GeometryID gid)
 {
 	if (!validGeometry(gid)) return;
 
@@ -941,7 +941,7 @@ void XProblem::enableDynamics(const GeometryID gid)
 	m_geometries[gid]->handle_dynamics = true;
 }
 
-void XProblem::enableCollisions(const GeometryID gid)
+void ProblemAPI<1>::enableCollisions(const GeometryID gid)
 {
 	if (!validGeometry(gid)) return;
 
@@ -956,7 +956,7 @@ void XProblem::enableCollisions(const GeometryID gid)
 	m_geometries[gid]->handle_collisions = true;
 }
 
-void XProblem::disableDynamics(const GeometryID gid)
+void ProblemAPI<1>::disableDynamics(const GeometryID gid)
 {
 	if (!validGeometry(gid)) return;
 
@@ -971,7 +971,7 @@ void XProblem::disableDynamics(const GeometryID gid)
 	m_geometries[gid]->handle_dynamics = false;
 }
 
-void XProblem::disableCollisions(const GeometryID gid)
+void ProblemAPI<1>::disableCollisions(const GeometryID gid)
 {
 	if (!validGeometry(gid)) return;
 
@@ -979,7 +979,7 @@ void XProblem::disableCollisions(const GeometryID gid)
 	m_geometries[gid]->handle_collisions = false;
 }
 
-void XProblem::enableFeedback(const GeometryID gid)
+void ProblemAPI<1>::enableFeedback(const GeometryID gid)
 {
 	if (!validGeometry(gid)) return;
 
@@ -996,7 +996,7 @@ void XProblem::enableFeedback(const GeometryID gid)
 	m_geometries[gid]->measure_forces = true;
 }
 
-void XProblem::disableFeedback(const GeometryID gid)
+void ProblemAPI<1>::disableFeedback(const GeometryID gid)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1012,7 +1012,7 @@ void XProblem::disableFeedback(const GeometryID gid)
 }
 
 // Set a custom inertia matrix (main diagonal only). Will overwrite the precomputed one
-void XProblem::setInertia(const GeometryID gid, const double i11, const double i22, const double i33)
+void ProblemAPI<1>::setInertia(const GeometryID gid, const double i11, const double i22, const double i33)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1027,13 +1027,13 @@ void XProblem::setInertia(const GeometryID gid, const double i11, const double i
 }
 
 // overload
-void XProblem::setInertia(const GeometryID gid, const double* mainDiagonal)
+void ProblemAPI<1>::setInertia(const GeometryID gid, const double* mainDiagonal)
 {
 	setInertia(gid, mainDiagonal[0], mainDiagonal[1], mainDiagonal[2]);
 }
 
 // Set a custom center of gravity. Will overwrite the precomputed one
-void XProblem::setCenterOfGravity(const GeometryID gid, const double3 cg)
+void ProblemAPI<1>::setCenterOfGravity(const GeometryID gid, const double3 cg)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1049,7 +1049,7 @@ void XProblem::setCenterOfGravity(const GeometryID gid, const double3 cg)
 
 // NOTE: GPUSPH uses ZXZ angles counterclockwise, ODE used XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
 // We should check what's used by Chrono
-void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
+void ProblemAPI<1>::setOrientation(const GeometryID gid, const EulerParameters &ep)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1057,7 +1057,7 @@ void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
 }
 
 // DEPRECATED until we'll have a GPUSPH Quaternion class
-void XProblem::rotate(const GeometryID gid, const EulerParameters ep)
+void ProblemAPI<1>::rotate(const GeometryID gid, const EulerParameters ep)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1066,7 +1066,7 @@ void XProblem::rotate(const GeometryID gid, const EulerParameters ep)
 }
 
 // NOTE: rotates X first, then Y, then Z
-void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
+void ProblemAPI<1>::rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1107,7 +1107,7 @@ void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot
 	rotate( gid, rotXYZ );
 }
 
-void XProblem::shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset)
+void ProblemAPI<1>::shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1119,21 +1119,21 @@ void XProblem::shift(const GeometryID gid, const double Xoffset, const double Yo
 	m_geometries[gid]->ptr->shift(make_double3(Xoffset, Yoffset, Zoffset));
 }
 
-void XProblem::setIntersectionType(const GeometryID gid, IntersectionType i_type)
+void ProblemAPI<1>::setIntersectionType(const GeometryID gid, IntersectionType i_type)
 {
 	if (!validGeometry(gid)) return;
 
 	m_geometries[gid]->intersection_type = i_type;
 }
 
-void XProblem::setEraseOperation(const GeometryID gid, EraseOperation e_operation)
+void ProblemAPI<1>::setEraseOperation(const GeometryID gid, EraseOperation e_operation)
 {
 	if (!validGeometry(gid)) return;
 
 	m_geometries[gid]->erase_operation = e_operation;
 }
 
-void XProblem::setMass(const GeometryID gid, const double mass)
+void ProblemAPI<1>::setMass(const GeometryID gid, const double mass)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1143,7 +1143,7 @@ void XProblem::setMass(const GeometryID gid, const double mass)
 	m_geometries[gid]->mass_was_set = true;
 }
 
-double XProblem::setMassByDensity(const GeometryID gid, const double density)
+double ProblemAPI<1>::setMassByDensity(const GeometryID gid, const double density)
 {
 	if (!validGeometry(gid)) return NAN;
 
@@ -1156,7 +1156,7 @@ double XProblem::setMassByDensity(const GeometryID gid, const double density)
 	return mass;
 }
 
-void XProblem::setParticleMass(const GeometryID gid, const double mass)
+void ProblemAPI<1>::setParticleMass(const GeometryID gid, const double mass)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1166,7 +1166,7 @@ void XProblem::setParticleMass(const GeometryID gid, const double mass)
 	m_geometries[gid]->particle_mass_was_set = true;
 }
 
-double XProblem::setParticleMassByDensity(const GeometryID gid, const double density)
+double ProblemAPI<1>::setParticleMassByDensity(const GeometryID gid, const double density)
 {
 	if (!validGeometry(gid)) return NAN;
 
@@ -1184,7 +1184,7 @@ double XProblem::setParticleMassByDensity(const GeometryID gid, const double den
 // Flag an open boundary as velocity driven, so its particles will be flagged with
 // as VEL_IO during fill. Use with false to revert to pressure driven.
 // Only makes sense with GT_OPENBOUNDARY geometries.
-void XProblem::setVelocityDriven(const GeometryID gid, bool isVelocityDriven)
+void ProblemAPI<1>::setVelocityDriven(const GeometryID gid, bool isVelocityDriven)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1197,14 +1197,14 @@ void XProblem::setVelocityDriven(const GeometryID gid, bool isVelocityDriven)
 }
 
 // Set custom radius for unfill operations. NAN means: use dp
-void XProblem::setUnfillRadius(const GeometryID gid, double unfillRadius)
+void ProblemAPI<1>::setUnfillRadius(const GeometryID gid, double unfillRadius)
 {
 	if (!validGeometry(gid)) return;
 
 	m_geometries[gid]->unfill_radius = unfillRadius;
 }
 
-const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
+const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid)
 {
 	// NOTE: not checking validGeometry() to allow for deleted geometries
 
@@ -1219,14 +1219,14 @@ const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 }
 
 // set the positioning policy for geometries added after the call
-void XProblem::setPositioning(PositioningPolicy positioning)
+void ProblemAPI<1>::setPositioning(PositioningPolicy positioning)
 {
 	m_positioning = positioning;
 }
 
 // Create 6 planes delimiting the box defined by the two points and update (overwrite) the world origin and size.
 // Write their GeometryIDs in planesIds, if given, so that it is possible to delete one or more of them afterwards.
-vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double3 corner2)
+vector<GeometryID> ProblemAPI<1>::makeUniverseBox(const double3 corner1, const double3 corner2)
 {
 	vector<GeometryID> planes;
 
@@ -1264,7 +1264,7 @@ vector<GeometryID> XProblem::makeUniverseBox(const double3 corner1, const double
 	return planes;
 }
 
-void XProblem::addExtraWorldMargin(const double margin)
+void ProblemAPI<1>::addExtraWorldMargin(const double margin)
 {
 	if (margin >= 0.0)
 		m_extra_world_margin = margin;
@@ -1273,7 +1273,7 @@ void XProblem::addExtraWorldMargin(const double margin)
 }
 
 // set number of layers for dynamic boundaries. Default is 0, which means: autocompute
-void XProblem::setDynamicBoundariesLayers(const uint numLayers)
+void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 {
 	if (simparams()->boundarytype != DYN_BOUNDARY)
 		printf("WARNING: setting number of layers for dynamic boundaries but not using DYN_BOUNDARY!\n");
@@ -1287,7 +1287,7 @@ void XProblem::setDynamicBoundariesLayers(const uint numLayers)
 	m_numDynBoundLayers = numLayers;
 }
 
-int XProblem::fill_parts(bool fill)
+int ProblemAPI<1>::fill_parts(bool fill)
 {
 	// if for debug reason we need to test the position and verse of a plane, we can ask ODE to
 	// compute the distance of a probe point from a plane (positive if penetrated, negative out)
@@ -1506,7 +1506,7 @@ int XProblem::fill_parts(bool fill)
 		bodies_parts_counter + hdf5file_parts_counter + xyzfile_parts_counter;
 }
 
-void XProblem::copy_planes(PlaneList &planes)
+void ProblemAPI<1>::copy_planes(PlaneList &planes)
 {
 	if (m_numPlanes == 0) return;
 	// look for planes
@@ -1531,7 +1531,7 @@ void XProblem::copy_planes(PlaneList &planes)
 	}
 }
 
-void XProblem::copy_to_array(BufferList &buffers)
+void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 {
 	float4 *pos = buffers.getData<BUFFER_POS>();
 	double4 *globalPos = buffers.getData<BUFFER_POS_GLOBAL>();
@@ -2092,7 +2092,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 }
 
 // callback for filtering out points before they become particles (e.g. unfills/cuts)
-void XProblem::filterPoints(PointVect &fluidParts, PointVect &boundaryParts)
+void ProblemAPI<1>::filterPoints(PointVect &fluidParts, PointVect &boundaryParts)
 {
 		// Default: do nothing
 

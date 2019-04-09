@@ -47,7 +47,8 @@
 #include "deprecation.h"
 
 class ProblemCore;
-class XProblem;
+template<int version>
+class ProblemAPI;
 class GPUWorker;
 class GPUSPH;
 
@@ -414,11 +415,12 @@ IGNORE_WARNINGS(deprecated-declarations)
 		objectboundarydf(1.0f)
 	{};
 
-	// ProblemCore, XProblem (but not their derivatives —luckily, friendship is not inherited)
+	// ProblemCore and all ProblemAPI specialization
+	// (but not their derivatives —luckily, friendship is not inherited)
 	// GPUWorker and GPUSPH should be the only ones
 	// that access the physparams manipulator methods
 	friend class ProblemCore;
-	friend class XProblem;
+	template<int version> friend class ProblemAPI;
 	friend class GPUWorker;
 	friend class GPUSPH;
 

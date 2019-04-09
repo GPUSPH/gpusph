@@ -1,4 +1,4 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2019 Giuseppe Bilotta, Alexis Herault, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,26 +23,23 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/*! \file
- * High-level interface for Problem defintions
- */
+#ifndef PROBLEM_API_H
+#define PROBLEM_API_H
 
-/* \note
- * The sections to be used in the user interface are
- * defined in gpusphgui/SGPUSPH/resources/params.xml.
- * Please consult this file for the list of sections.
-*/
+// Problem API version 0 is the “first” Problem API, which exposed what is
+// currently the ProblemCore directly
+// It should not normally be used directly, as it is an intrinsically unstable
+// interface
 
-#ifndef _XPROBLEM_H
-#define	_XPROBLEM_H
-
-// XProblem is version 1 of the Problem API
-// We keep XProblem as a backwards compatible name, the actual
-#define PROBLEM_API 1
-
+#define PROBLEM_API 0
 #include "Problem.h"
 
-using XProblem = ProblemAPI<1>;
+template<>
+class ProblemAPI<0> : public ProblemCore
+{
+	using ProblemCore::ProblemCore; // inherit the constructor
+};
+
+#endif
 
 
-#endif	/* _XPROBLEM_H */
