@@ -64,7 +64,7 @@ public:
  * new IDs.
  */
 virtual void
-uploadNumOpenVertices(const uint &numOpenVertices)
+uploadNumOpenVertices(const uint &numOpenVertices) override
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_numOpenVertices, &numOpenVertices, sizeof(uint)));
 }
@@ -74,7 +74,7 @@ void
 disableOutgoingParts(const	BufferList& bufread,
 							BufferList& bufwrite,
 					const	uint			numParticles,
-					const	uint			particleRangeEnd)
+					const	uint			particleRangeEnd) override
 {
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	float4 *pos = bufwrite.getData<BUFFER_POS>();
@@ -225,7 +225,7 @@ saSegmentBoundaryConditions(
 	// step will be 0 for the initialization step,
 	// and 1 or 2 for the first and second step during integration
 	const	int			step,
-	const	RunMode		run_mode)
+	const	RunMode		run_mode) override
 {
 	saSegmentBoundaryConditionsImpl<boundarytype>(bufwrite, bufread, numParticles,
 		particleRangeEnd, deltap, slength, influenceradius, step, run_mode);
@@ -398,7 +398,7 @@ saVertexBoundaryConditions(
 	const	uint			deviceId,
 	const	uint			numDevices,
 	const	uint			totParticles,
-	const RunMode   		run_mode)
+	const RunMode			run_mode) override
 {
 	saVertexBoundaryConditionsImpl<boundarytype>(bufwrite, bufread,
 		numParticles, particleRangeEnd, deltap, slength, influenceradius,
@@ -418,7 +418,7 @@ computeVertexNormal(
 	BufferList const&	bufread,
 	BufferList&		bufwrite,
 	const	uint			numParticles,
-	const	uint			particleRangeEnd)
+	const	uint			particleRangeEnd) override
 {
 	int dummy_shared = 0;
 
@@ -563,7 +563,7 @@ saInitGamma(
 	const	float			deltap,
 	const	float			epsilon,
 	const	uint			numParticles,
-	const	uint			particleRangeEnd)
+	const	uint			particleRangeEnd) override
 {
 	saInitGammaImpl<boundarytype>(bufread, bufwrite,
 		slength, influenceradius, deltap, epsilon,
@@ -572,13 +572,12 @@ saInitGamma(
 
 
 // counts vertices that belong to IO and same segment as other IO vertex
-virtual
 void
 initIOmass_vertexCount(
 	BufferList& bufwrite,
 	BufferList const& bufread,
 	const	uint			numParticles,
-	const	uint			particleRangeEnd)
+	const	uint			particleRangeEnd) override
 {
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -611,7 +610,7 @@ initIOmass(
 	BufferList const& bufread,
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
-	const	float			deltap)
+	const	float			deltap) override
 {
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -645,7 +644,7 @@ void
 downloadIOwaterdepth(
 			uint*	h_IOwaterdepth,
 	const	uint*	d_IOwaterdepth,
-	const	uint	numOpenBoundaries)
+	const	uint	numOpenBoundaries) override
 {
 	CUDA_SAFE_CALL(cudaMemcpy(h_IOwaterdepth, d_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyDeviceToHost));
 }
@@ -656,7 +655,7 @@ void
 uploadIOwaterdepth(
 	const	uint*	h_IOwaterdepth,
 			uint*	d_IOwaterdepth,
-	const	uint	numOpenBoundaries)
+	const	uint	numOpenBoundaries) override
 {
 	CUDA_SAFE_CALL(cudaMemcpy(d_IOwaterdepth, h_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyHostToDevice));
 }
@@ -669,7 +668,7 @@ saIdentifyCornerVertices(
 	const	uint			numParticles,
 	const	uint			particleRangeEnd,
 	const	float			deltap,
-	const	float			eps)
+	const	float			eps) override
 {
 	const float4* oldPos = bufread.getData<BUFFER_POS>();
 	const float4* boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
