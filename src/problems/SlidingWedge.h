@@ -26,6 +26,7 @@
 #ifndef _SLIDINGWEDGE_H
 #define	_SLIDINGWEDGE_H
 
+#define PROBLEM_API 0
 #include "Problem.h"
 #include "Point.h"
 #include "Vector.h"
