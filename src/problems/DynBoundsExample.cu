@@ -95,7 +95,7 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 	disableCollisions(bp2);
 
 	// Print information
-	float flowvel = H*H*fabs(physparams()->gravity.x)/(8*physparams()->kinematicvisc[0]);
+	float flowvel = H*H*fabs(get_gravity().x)/(8*physparams()->kinematicvisc[0]);
 	printf("Expected maximum flow velocity: %f\n", flowvel);
 }
 

@@ -109,7 +109,7 @@ float3 Seiche::g_callback(const double t)
 		set_gravity(2.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);
 	else
 		set_gravity(0.,0.,-9.81f);
-	return physparams()->gravity;
+	return get_gravity();
 }
 
 void Seiche::copy_planes(PlaneList& planes)
