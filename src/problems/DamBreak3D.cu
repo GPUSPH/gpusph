@@ -78,7 +78,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	//simparams()->dt = 0.00005;
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
-	const float g = length(physparams()->gravity);
+	const float g = get_gravity_magnitude();
 	const double H = 0.4;
 	physparams()->dcoeff = 5.0f * g * H;
 	add_fluid(1000.0);

@@ -87,7 +87,7 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
 
 	// Physical parameters
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(physparams()->gravity);
+	float g = get_gravity_magnitude();
 
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);

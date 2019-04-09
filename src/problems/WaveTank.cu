@@ -91,7 +91,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 	// Physical parameters
 	H = 0.45;
 	physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);
-	float g = length(physparams()->gravity);
+	float g = get_gravity_magnitude();
 
 	float r0 = m_deltap;
 	physparams()->r0 = r0;

@@ -48,7 +48,7 @@ ProblemExample::ProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 	set_deltap(0.02f);
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
-	float g = length(physparams()->gravity);
+	float g = get_gravity_magnitude();
 	double H = 3;
 	physparams()->dcoeff = 5.0f*g*H;
 	add_fluid(1000.0);

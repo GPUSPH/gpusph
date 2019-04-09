@@ -82,7 +82,7 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 
 	// Physical parameters
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(physparams()->gravity);
+	float g = get_gravity_magnitude();
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	physparams()->dcoeff = 5.0f*g*H;
@@ -208,7 +208,7 @@ Bubble::initializeParticles(BufferList &buffers, const uint numParticles)
 						- (pos_global[i].y)*(pos_global[i].y)
 						);
 				// pressure at interface, from heavy fluid
-				float g = length(physparams()->gravity);
+				float g = get_gravity_magnitude();
 				float P = physparams()->rho0[water]*(H - z_intf)*g;
 				// plus hydrostatic pressure from _our_ fluid
 				P += physparams()->rho0[air]*(z_intf - pos_global[i].z + m_origin.z)*g;

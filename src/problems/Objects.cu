@@ -78,7 +78,7 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 	set_deltap(0.02f);
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
-	const float g = length(physparams()->gravity);
+	const float g = get_gravity_magnitude();
 	const double H = 0.5;
 	physparams()->dcoeff = 5.0f * g * H;
 	add_fluid(1000.0);

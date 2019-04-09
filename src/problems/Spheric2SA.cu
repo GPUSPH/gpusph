@@ -46,7 +46,7 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 	m_size = make_double3(l, w ,h);
 
 	// Physical parameters
-	float g = length(physparams()->gravity);
+	float g = get_gravity_magnitude();
 
 	physparams()->dcoeff = 5.0f*g*H;
 

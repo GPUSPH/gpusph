@@ -71,7 +71,7 @@ RTInstability::RTInstability(GlobalData *_gdata) : XProblem(_gdata)
 	//simparams()->dt = 0.00005;
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
-	const float g = length(physparams()->gravity);
+	const float g = get_gravity_magnitude();
 	physparams()->epsinterface = 0.08;
 
 	//const double dimX = 1.82;
@@ -192,7 +192,7 @@ RTInstability::initializeParticles(BufferList &buffers, const uint numParticles)
 				// interested in deltas
 				float z_intf =  dimZ/2 + 0.05*sin(2*M_PI/dimX*pos_global[i].x );
 				// pressure at interface, from heavy fluid
-				float g = length(physparams()->gravity);
+				float g = get_gravity_magnitude();
 				float P = physparams()->rho0[heavy]*(H - z_intf)*g;
 				// plus hydrostatic pressure from _our_ fluid
 				P += physparams()->rho0[light]*(z_intf - pos_global[i].z)*g;

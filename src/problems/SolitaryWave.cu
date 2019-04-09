@@ -78,7 +78,7 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 	// Physical parameters
 	H = 0.45f;
 	physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);
-	float g = length(physparams()->gravity);
+	float g = get_gravity_magnitude();
 
 	add_fluid(1000.0f);
 	set_equation_of_state(0,  7.0f, 20.f);
