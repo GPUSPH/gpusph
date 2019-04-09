@@ -306,6 +306,8 @@ class ProblemCore
 
 		float3 const& get_gravity() const
 		{ return physparams()->gravity; }
+		float get_gravity_magnitude() const
+		{ return length(get_gravity()); }
 
 		float set_timestep(const float dt)
 		{
