@@ -77,7 +77,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->tend = 120; //seconds
 
 	// Physical parameters
-	physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);
+	set_gravity(-9.81f);
 	float g = get_gravity_magnitude();
 	physparams()->dcoeff = 5.0f * g * H;
 

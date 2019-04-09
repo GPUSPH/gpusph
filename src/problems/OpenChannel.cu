@@ -84,7 +84,7 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 	// Physical parameters
 	const double angle = 4.5; // angle in degrees
 	const float g = 9.81f;
-	physparams()->gravity = make_float3(g*sin(M_PI*angle/180), 0.0, -g*cos(M_PI*angle/180));
+	set_gravity(g*sin(M_PI*angle/180), 0.0, -g*cos(M_PI*angle/180));
 
 	add_fluid(2650.0f);
 	set_equation_of_state(0,  2.0f, 20.f);

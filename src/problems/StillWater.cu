@@ -101,7 +101,7 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 	};
 
 	// Physical parameters
-	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	set_gravity(-9.81f);
 	const float g = get_gravity_magnitude();
 	const float maxvel = sqrt(2*g*H);
 	// purely for cosmetic reason, let's round the soundspeed to the next

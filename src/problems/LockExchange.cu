@@ -77,7 +77,7 @@ LockExchange::LockExchange(GlobalData *_gdata) : XProblem(_gdata)
 	set_deltap(H/32);
 	//simparams()->dt = 0.00005;
 	physparams()->r0 = m_deltap;
-	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
+	set_gravity(-9.81);
 	const float g = get_gravity_magnitude();
 	physparams()->epsinterface = 0.08;
 

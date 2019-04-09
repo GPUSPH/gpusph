@@ -86,7 +86,7 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
 	addPostProcess(TESTPOINTS);
 
 	// Physical parameters
-	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	set_gravity(-9.81f);
 	float g = get_gravity_magnitude();
 
 	add_fluid(1000.0);

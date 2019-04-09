@@ -67,7 +67,7 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 	alpha = M_PI*degs/180; /* radians */
 
 	float g = 9.81f;
-	physparams()->gravity = make_float3(g*sin(alpha), 0, -g*cos(alpha));
+	set_gravity(g*sin(alpha), 0, -g*cos(alpha));
 
 	float maxvel = sqrt(g*H);
 

@@ -100,7 +100,7 @@ POISEUILLE_PROBLEM::POISEUILLE_PROBLEM(GlobalData *_gdata) :
 	simparams()->tend = 100;
 
 	// Physical parameters
-	physparams()->gravity = make_float3(driving_force, 0.0, 0.0);
+	set_gravity(driving_force, 0.0, 0.0);
 
 	auto fluid_idx = add_fluid(rho);
 	set_kinematic_visc(fluid_idx, kinvisc);

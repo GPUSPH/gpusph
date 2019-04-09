@@ -98,7 +98,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 #endif
 
   // Gravity
-	physparams()->gravity = make_float3(PVAL(physics, gravity_1), PVAL(physics, gravity_2), PVAL(physics, gravity_3));
+	set_gravity(PVAL(physics, gravity_1), PVAL(physics, gravity_2), PVAL(physics, gravity_3));
 
 
 	// Writer settings

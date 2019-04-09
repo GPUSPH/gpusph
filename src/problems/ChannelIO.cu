@@ -47,7 +47,7 @@ ChannelIO::ChannelIO(GlobalData *_gdata) : XProblem(_gdata)
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.07f);
 	physparams()->r0 = m_deltap;
-	physparams()->gravity = make_float3(0.0, 0.0,-9.81);
+	set_gravity(0.0, 0.0,-9.81);
 
 	// *** Initialization of minimal simulation parameters
 	simparams()->tend = 20.f;

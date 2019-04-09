@@ -62,7 +62,7 @@ OilJet::OilJet(GlobalData *_gdata) : XProblem(_gdata)
 	resize_neiblist(512);
 
 	// Physical parameters
-	physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);
+	set_gravity(-9.81f);
 	float g = get_gravity_magnitude();
 
 	add_fluid(1000.0);

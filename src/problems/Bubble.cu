@@ -81,7 +81,7 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	physparams()->epsinterface = 0.08;
 
 	// Physical parameters
-	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	set_gravity(-9.81f);
 	float g = get_gravity_magnitude();
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5

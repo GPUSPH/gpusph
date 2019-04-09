@@ -39,7 +39,7 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->tend = 5.0f; //0.00036f
 
 	// Physical parameters
-	physparams()->gravity = make_float3(0.0, 0.0, -9.81f);
+	set_gravity(-9.81f);
 	double g = get_gravity_magnitude();
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);

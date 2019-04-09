@@ -61,7 +61,7 @@ Seiche::Seiche(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->gcallback=true;
 
 	// Physical parameters
-	physparams()->gravity = make_float3(0.0, 0.0, -9.81f); //must be set first
+	set_gravity(-9.81f); //must be set first
 	float g = get_gravity_magnitude();
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);
@@ -106,9 +106,9 @@ Seiche::Seiche(GlobalData *_gdata) : XProblem(_gdata)
 float3 Seiche::g_callback(const double t)
 {
 	if(t > m_gtstart && t < m_gtend)
-		physparams()->gravity=make_float3(2.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);
+		set_gravity(2.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);
 	else
-		physparams()->gravity=make_float3(0.,0.,-9.81f);
+		set_gravity(0.,0.,-9.81f);
 	return physparams()->gravity;
 }
 

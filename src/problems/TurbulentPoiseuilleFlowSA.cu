@@ -23,7 +23,7 @@ TurbulentPoiseuilleFlowSA::TurbulentPoiseuilleFlowSA(GlobalData *_gdata) : XProb
 	set_deltap(0.025);
 	set_smoothing(1.3);
 	physparams()->r0 = m_deltap;
-	physparams()->gravity = make_float3(1.0, 0.0, 0.0);
+	set_gravity(1.0, 0.0, 0.0);
 
 	// *** Initialization of minimal simulation parameters
 	resize_neiblist(128+128, 128);
