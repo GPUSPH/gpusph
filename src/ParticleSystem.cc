@@ -329,7 +329,7 @@ void ParticleSystem::share_buffers(string const& src_state, string const& dst_st
 				+ string(old->get_buffer_name()) + " in state " +
 				dst_state + " with shared buffer from state " +
 				src_state);
-		if (!old->num_states() == 1)
+		if (old->num_states() != 1)
 			throw runtime_error("trying to replace shared buffer "
 				+ string(old->get_buffer_name()) + " in state " +
 				dst_state + " with shared buffer from state " +
