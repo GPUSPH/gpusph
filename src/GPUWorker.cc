@@ -3116,6 +3116,9 @@ void GPUWorker::describeCommand(CommandStruct const& cmd)
 	case SHARE_BUFFERS:
 		desc += " : " + cmd.src + " <> " + cmd.dst;
 		break;
+	default:
+		/* no other special cases */
+		break;
 	}
 
 	cout << desc << endl;
