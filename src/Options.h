@@ -70,7 +70,7 @@ public:
 	float	tend; ///< simulation end
 	float	dt; ///< fixed time-step
 	unsigned long maxiter; ///< maximum number of iterations to run
-	uint repack_maxiter; ///< maximum number of iterations for repacking
+	unsigned int repack_maxiter; ///< maximum number of iterations for repacking
 	float	checkpoint_freq; ///< frequency of hotstart checkpoints (in simulated seconds)
 	int		checkpoints; ///< number of hotstart checkpoints to keep
 	bool	nosave; ///< disable saving
