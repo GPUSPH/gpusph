@@ -133,7 +133,7 @@ void GPUSPH::openInfoStream() {
 	ss << "GPUSPH-" << getpid();
 	m_info_stream_name = ss.str();
 	m_info_stream = NULL;
-	int ret = shm_open(m_info_stream_name.c_str(), O_RDWR | O_CREAT, S_IRWXU);
+	int ret = shm_open(m_info_stream_name.c_str(), O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IROTH);
 	if (ret < 0) {
 		cerr << "WARNING: unable to open info stream " << m_info_stream_name << endl;
 		return;
