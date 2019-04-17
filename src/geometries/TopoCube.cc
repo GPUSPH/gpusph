@@ -217,7 +217,7 @@ TopoCube *TopoCube::load_vtk_file(const char* fname)
 	}
 
 	getline(fdem, s);
-	if (s.compare(0, 22, "# vtk DataFile Version") == string::npos) {
+	if (s.compare(0, 22, "# vtk DataFile Version") != 0) {
 		err_msg	<< fname << " is not a VTK data file";
 		throw runtime_error(err_msg.str());
 	}
