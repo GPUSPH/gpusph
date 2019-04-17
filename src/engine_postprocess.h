@@ -57,6 +57,9 @@ public:
 		m_options(options)
 	{}
 
+	// destructor must be virtual
+	virtual ~AbstractPostProcessEngine() {}
+
 	/// Get the options set when the engine was created
 	flag_t const& get_options() const
 	{ return m_options; }

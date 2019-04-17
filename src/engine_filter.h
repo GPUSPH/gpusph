@@ -46,6 +46,9 @@ public:
 	AbstractFilterEngine(uint _frequency) : m_frequency(_frequency)
 	{}
 
+	// destructor must be virtual
+	virtual ~AbstractFilterEngine() {}
+
 	//! Override the frequency
 	void set_frequency(uint _frequency)
 	{ m_frequency = _frequency; }
