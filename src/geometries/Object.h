@@ -90,11 +90,11 @@ class Object {
 
 		/// \name Mass related functions
 		//@{
-		virtual double SetPartMass(const double, const double);
-		virtual void SetPartMass(const double);
+		virtual double SetPartMass(const double dx, const double rho);
+		virtual void SetPartMass(const double mass);
 		double GetPartMass();
-		virtual double SetMass(const double, const double);
-		virtual void SetMass(const double);
+		virtual double SetMass(const double dx, const double rho);
+		virtual void SetMass(const double mass);
 		double GetMass();
 		virtual double Volume(const double dx) const = 0;
 		//@}

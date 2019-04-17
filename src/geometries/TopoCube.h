@@ -89,7 +89,7 @@ class TopoCube: public Object {
 		static TopoCube* load_vtk_file(const char *fname);
 		static TopoCube* load_xyz_file(const char *fname);
 
-		double SetPartMass(const double, const double);
+		double SetPartMass(const double dx, const double rho);
 		double Volume(const double dx) const
 		{
 			return 0.0;
