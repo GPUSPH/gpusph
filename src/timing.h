@@ -109,13 +109,13 @@ class IPPSCounter
 
 	private:
 		time_point m_startTime;
-		bool m_started;
 		ulong m_iterPerParts;
+		bool m_started;
 	public:
 		IPPSCounter():
-			m_started(false),
+			m_startTime(),
 			m_iterPerParts(0),
-			m_startTime()
+			m_started(false)
 		{};
 
 		// start the counter
