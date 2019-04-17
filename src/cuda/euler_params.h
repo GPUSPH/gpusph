@@ -99,7 +99,7 @@ struct xsph_euler_params
 /// Additional parameters passed only to kernels with KEPSILON
 struct keps_euler_params :
 	TKE_params<>, ///< old and new k, for k-e model
-	Eps_params<>  ///< old and new e, for k-emodel
+	Eps_params<>  ///< old and new e, for k-e model
 {
 	float			* __restrict__ newTurbVisc; ///< updated value of the eddy viscosity (out)
 	const	float3	* __restrict__ keps_dkde;	///< derivative of ??? (in)
@@ -154,7 +154,7 @@ template<KernelType _kerneltype,
 	>
 struct euler_params :
 	common_euler_params,
-	COND_STRUCT(_simflags & ENABLE_XSPH && !_repacking, xsph_euler_params),
+	COND_STRUCT((_simflags & ENABLE_XSPH) && !_repacking, xsph_euler_params),
 	eulerVel_params,
 	sa_boundary_moving_params,
 	COND_STRUCT(_has_keps, keps_euler_params),
