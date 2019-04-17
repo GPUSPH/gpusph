@@ -225,7 +225,10 @@ class Problem {
 		{ return m_gridsize; }
 
 		//! Returns the at-rest (numerical) density
-		float atrest_density(int i) const
+		/*! This function takes a fluid number like all fluid-related functions,
+		 * even if the numerical at-rest density is always 0
+		 */
+		float atrest_density(int /* i */) const
 		{ return 0; }
 
 		//! Returns the at-rest physical density
