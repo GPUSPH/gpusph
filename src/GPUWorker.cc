@@ -977,7 +977,6 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	// common sizes
 	// compute common sizes (in bytes)
 
-	const size_t uintCellsSize = sizeof(uint) * m_nGridCells;
 	const size_t segmentsSize = sizeof(uint) * 4; // 4 = types of cells
 
 	size_t allocated = 0;
