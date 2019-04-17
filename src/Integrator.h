@@ -104,7 +104,7 @@ public:
 		Integrator const* m_owner; ///< Integrator owning this phase
 		std::string m_name; ///< name of this phase
 		CommandSequence m_command; ///< sequence of commands to execute for this phase
-		int m_cmd_idx; ///< current command
+		size_t m_cmd_idx; ///< current command
 
 		///< type of the functions that determine if a phase should run
 		typedef bool (*should_run_t)(Phase const*, GlobalData const*);
