@@ -90,6 +90,6 @@ public:
 
 	Phase *next_phase() override;
 
-	const FilterType current_filter() const
+	FilterType current_filter() const
 	{ return m_current_filter->first; }
 };
