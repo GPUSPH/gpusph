@@ -89,24 +89,27 @@ class TopoCube: public Object {
 		static TopoCube* load_vtk_file(const char *fname);
 		static TopoCube* load_xyz_file(const char *fname);
 
-		double SetPartMass(const double dx, const double rho);
-		double Volume(const double dx) const
+		using Object::SetPartMass;
+		double SetPartMass(const double dx, const double rho) override;
+		double Volume(const double dx) const override
 		{
 			return 0.0;
 		}
-		void SetInertia(const double dx)
+		void SetInertia(const double dx) override
 		{
 			m_inertia[0] = 0.0;
 			m_inertia[1] = 0.0;
 			m_inertia[2] = 0.0;
 		}
 
-		void setEulerParameters(const EulerParameters &ep);
-		void getBoundingBox(Point &output_min, Point &output_max);
-		void shift(const double3 &offset);
+		void setEulerParameters(const EulerParameters &ep) override;
+		void getBoundingBox(Point &output_min, Point &output_max) override;
+		void shift(const double3 &offset) override;
 
-		void FillBorder(PointVect&, const double, const int, const bool);
-		void FillBorder(PointVect& points, const double dx)
+		//! Fill a single face of the cube, optionally including its edges
+		void FillBorder(PointVect&, const double dx, const int face_num, const bool fill_edges);
+
+		void FillBorder(PointVect& points, const double dx) override
 		{
 			FillBorder(points, dx, 0, true);
 			FillBorder(points, dx, 1, false);
@@ -123,23 +126,16 @@ class TopoCube: public Object {
 		{
 			return Fill(points, H, dx, faces_filled, true);
 		}
-		int Fill(PointVect& points, const double dx, const bool fill = true)
+		int Fill(PointVect& points, const double dx, const bool fill = true) override
 		{
 			return Fill(points, m_H, dx, false, fill);
 		}
 
-		void FillIn(PointVect& points, const double dx, const int layers)
+		void FillIn(PointVect& points, const double dx, const int layers) override
 		{ throw std::runtime_error("TopoCube::FillIn not implemented !"); }
 
-		bool IsInside(const Point&, const double) const;
+		bool IsInside(const Point&, const double) const override;
 
-#if USE_CHRONO == 1
-		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
-		{ throw std::runtime_error("TOpoCube::BodyCreate not implemented !"); }
-#else
-		void BodyCreate(void *p1, const double p2, const bool p3)
-		{ Object::BodyCreate(p1, p2, p3); }
-#endif
 };
 
 #endif	/* _CUBE_H */
