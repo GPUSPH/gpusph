@@ -469,7 +469,7 @@ TopoCube::FillDem(PointVect& points, double dx)
 
 
 double
-TopoCube::DemInterpol(const double x, const double y)  // x and y ranging in [0, ncols/ewres]x[0, nrows/nsres]
+TopoCube::DemInterpol(const double x, const double y) const  // x and y ranging in [0, ncols/ewres]x[0, nrows/nsres]
 {
 	const double xb = x/m_ewres;
 	const double yb = y/m_nsres;
@@ -489,7 +489,7 @@ TopoCube::DemInterpol(const double x, const double y)  // x and y ranging in [0,
 
 
 double
-TopoCube::DemDist(const double x, const double y, const double z, double dx)
+TopoCube::DemDist(const double x, const double y, const double z, double dx) const
 {
 	if (dx > 0.5*min(m_nsres, m_ewres))
 		dx = 0.5*min(m_nsres, m_ewres);
@@ -555,9 +555,9 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 }
 
 
-// TODO:: FIXME
 bool
-TopoCube::IsInside(const Point&, const double) const
+TopoCube::IsInside(const Point& pt, const double dx) const
 {
-	return false;
+	// TODO should check that pt falls within the DEM area
+	return DemDist(pt(0), pt(1), pt(3), dx) < dx;
 }

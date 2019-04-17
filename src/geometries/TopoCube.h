@@ -118,8 +118,8 @@ class TopoCube: public Object {
 		}
 
 		void FillDem(PointVect&, const double);
-		double DemInterpol(const double, const double);
-		double DemDist(const double, const double, const double, const double);
+		double DemInterpol(const double, const double) const;
+		double DemDist(const double, const double, const double, const double) const;
 
 		int Fill(PointVect&, const double, const double, const bool, const bool);
 		int Fill(PointVect& points, const double H, const double dx, const bool faces_filled)
