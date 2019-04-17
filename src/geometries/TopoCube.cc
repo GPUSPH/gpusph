@@ -438,7 +438,7 @@ TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, con
 		const double y = rorigin(1) + (double) i/((double) n)*v(1);
 		float z = m_H;
 		while (DemDist(x, y, z, dx) > 0) {
-			Point p(x, y, z, m_origin(3));
+			Point p(x, y, z, m_center(3));
 			points.push_back(p);
 			z -= dx;
 		}
@@ -461,7 +461,7 @@ TopoCube::FillDem(PointVect& points, double dx)
 			const double x = m_origin(0) + (double) i/((double) nx)*m_vx(0) + (double) j/((double) ny)*m_vy(0);
 			const double y = m_origin(1) + (double) i/((double) nx)*m_vx(1) + (double) j/((double) ny)*m_vy(1);
 			const double z = DemInterpol(x, y);
-			Point p(x, y, z, m_origin(3));
+			Point p(x, y, z, m_center(3));
 			points.push_back(p);
 			}
 		}
@@ -542,7 +542,7 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 			float y = m_origin(1) + (float) i/((float) nx)*m_vx(1) + (float) j/((float) ny)*m_vy(1);
 			float z = H;
 			while (DemDist(x, y, z, dx) > dx) {
-				Point p(x, y, z, m_origin(3));
+				Point p(x, y, z, m_center(3));
 				nparts ++;
 				if (fill)
 					points.push_back(p);
