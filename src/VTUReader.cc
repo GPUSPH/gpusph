@@ -445,6 +445,7 @@ VTUReader::readAsciiData(	pugi::xml_node	da,
 							uint			sizeofHeader,
 							uint			sizeofData)
 {
+	throw std::runtime_error("Inline ASCII data is not supported");
 }
 
 template<typename T>
@@ -458,6 +459,7 @@ VTUReader::readBinaryData(	pugi::xml_node	da,
 							uint			sizeofHeader,
 							uint			sizeofData)
 {
+	throw std::runtime_error("Inline binary data is not supported");
 }
 
 template<typename IN, typename OUT>
