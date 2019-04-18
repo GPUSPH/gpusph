@@ -336,6 +336,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 				throw runtime_error(err.str().c_str());
 			}
 		}
+		if ((problem->simparams()->simflags & ENABLE_DEM) &&
+			(problem->get_dem() == NULL))
+		{
+			throw invalid_argument("DEM support enabled, but no DEM defined!");
+		}
 	}
 
 	// Create the Writers according to the WriterType
