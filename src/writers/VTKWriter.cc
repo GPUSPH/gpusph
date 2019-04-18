@@ -125,6 +125,13 @@ void VTKWriter::start_writing(double t, WriteFlags const& write_flags)
 		}
 		add_block("Planes", m_planes_fname);
 	}
+
+	if (gdata->problem->get_dem()) {
+		if (m_dem_fname.size() == 0) {
+			save_dem();
+		}
+		add_block("Topography", m_dem_fname);
+	}
 }
 
 void VTKWriter::mark_written(double t)
@@ -988,6 +995,54 @@ VTKWriter::save_planes()
 	fp << "  </Piece>" << endl;
 	fp << " </UnstructuredGrid>" << endl;
 	fp << "</VTKFile>" <<endl;
+
+	fp.close();
+}
+
+void
+VTKWriter::save_dem()
+{
+	ofstream fp;
+	m_dem_fname = open_data_file(fp, "DEM", "", ".vts");
+
+	const float *dem = gdata->problem->get_dem();
+	const int cols = gdata->problem->get_dem_ncols();
+	const int rows = gdata->problem->get_dem_nrows();
+
+	const float ewres = gdata->problem->physparams()->ewres;
+	const float nsres = gdata->problem->physparams()->nsres;
+
+	const double3 wo = gdata->problem->get_worldorigin();
+
+	// The VTK has points at the center of each cell:
+	const float west_off = wo.x + ewres/2;
+	const float south_off = wo.y + nsres/2;
+
+	fp	<< "<?xml version='1.0'?>\n"
+		<< "<VTKFile type='StructuredGrid'  version='0.1'  byte_order='" << endianness[*(char*)&endian_int & 1] << "'>\n"
+		<< " <StructuredGrid WholeExtent='0 " << cols << " 0 " << rows << " 0 0'>\n"
+		<< "  <Piece Extent='1 " << cols << " 1 " << rows << " 0 0'>\n"
+		<< "   <Points><DataArray type='Float32' NumberOfComponents='3' format='appended' offset='0'/></Points>\n"
+		<< "  </Piece>\n"
+		<< " </StructuredGrid>\n"
+		<< " <AppendedData encoding='raw'>_";
+
+	uint numbytes = 3*sizeof(float)*cols*rows;
+	fp.write(reinterpret_cast<char*>(&numbytes), sizeof(numbytes));
+
+	uint i = 0;
+	float3 pt;
+	for (int row = 0; row < rows; ++row) {
+		pt.y = south_off + row*nsres;
+		for (int col = 0; col < cols; ++col) {
+			pt.x = west_off + col*ewres;
+			pt.z = dem[i];
+			fp.write(reinterpret_cast<char*>(&pt), sizeof(pt));
+			++i;
+		}
+	}
+
+	fp	<< " <AppendedData>\n</VTKFile>" << endl;
 
 	fp.close();
 }

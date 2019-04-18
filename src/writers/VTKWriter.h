@@ -33,6 +33,8 @@ class VTKWriter : public Writer
 	// name of the planes file. since planes are static (currently),
 	// we only save one and reference it at each timestep
 	std::string m_planes_fname;
+	// name of the saved DEM file. again, only one, for all timesteps
+	std::string m_dem_fname;
 
 	// string representation of the current time of writing;
 	// this includes an (optional) indication of the current integration
@@ -44,6 +46,8 @@ class VTKWriter : public Writer
 
 	// Save planes to a VTU file
 	void save_planes();
+	// Save DEM to a VTS file
+	void save_dem();
 
 	// Add a block (.vtp file) to the timefile
 	void add_block(std::string const& blockname, std::string const& fname);
