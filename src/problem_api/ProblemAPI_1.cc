@@ -34,6 +34,8 @@
 #include <cfloat>
 #include <limits>
 
+#include "ProblemAPI_1.h"
+
 #include "Rect.h"
 #include "Disk.h"
 #include "Cube.h"
@@ -43,7 +45,6 @@
 #include "Torus.h"
 #include "Plane.h"
 #include "STLMesh.h"
-#include "XProblem.h"
 #include "GlobalData.h"
 
 #include "catalyst_select.opt"
