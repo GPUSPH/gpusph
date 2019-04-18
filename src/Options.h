@@ -126,7 +126,7 @@ public:
 		m_options[key] = value;
 	}
 
-	//! get the value of an option, providing default is option is not set
+	//! get the value of an option, providing default if option is not set
 	template<typename T> T
 	get(std::string const& key, T const& _default) const
 	{
