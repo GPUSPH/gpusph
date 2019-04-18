@@ -45,6 +45,7 @@
 #include "Torus.h"
 #include "Plane.h"
 #include "STLMesh.h"
+#include "TopoCube.h"
 #include "GlobalData.h"
 
 #include "catalyst_select.opt"
@@ -67,6 +68,11 @@ ProblemAPI<1>::ProblemAPI(GlobalData *_gdata) : ProblemCore(_gdata)
 	m_extra_world_margin = 0.0;
 
 	m_positioning = PP_CENTER;
+
+	m_dem_geometry = INVALID_GEOMETRY;
+	m_dem_zmin_scale = 5.0;
+	m_dem_dx_scale = 5.0;
+	m_dem_dy_scale = 5.0;
 
 	// NAN water level and max fall: will autocompute if user doesn't define them
 	m_maxFall = NAN;
@@ -519,6 +525,19 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 	if (geomInfo->type == GT_OPENBOUNDARY)
 		m_numOpenBoundaries++;
 
+	// For DEMs, check that we don't have an existing DEM already
+	if (geomInfo->type == GT_DEM) {
+		// FillType UNFILL indicates that this topography will only be used to “carve out”
+		// other geometries, and we can have more than one of these
+		if (geomInfo->fill_type != FT_UNFILL)
+		{
+			if (m_dem_geometry != INVALID_GEOMETRY)
+				throw std::invalid_argument("cannot add a second DEM");
+			m_dem_geometry = m_geometries.size();
+		}
+	}
+
+
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }
@@ -872,6 +891,24 @@ GeometryID ProblemAPI<1>::addXYZFile(const GeometryType otype, const Point &orig
 	);
 }
 
+GeometryID
+ProblemAPI<1>::addDEM(const char * fname_dem, const TopographyFormat dem_fmt, const FillType fill_type)
+{
+	TopoCube::Format tc_fmt = (TopoCube::Format)dem_fmt;
+	TopoCube * dem = TopoCube::load_file(fname_dem, tc_fmt);
+	GeometryID ret = addGeometry(
+		GT_DEM,
+		fill_type,
+		dem,
+		NULL,
+		NULL,
+		fname_dem);
+
+	m_geometries[ret]->dem_fmt = dem_fmt;
+
+	return ret;
+}
+
 // Add a single testpoint; returns the position of the testpoint in the vector of
 // testpoints, which will correspond to its particle id.
 // NOTE: testpoints should be assigned with consecutive particle ids starting from 0
@@ -922,6 +959,9 @@ void ProblemAPI<1>::deleteGeometry(const GeometryID gid)
 
 	if (m_geometries[gid]->type == GT_OPENBOUNDARY)
 		m_numOpenBoundaries--;
+
+	if (gid == m_dem_geometry)
+		m_dem_geometry = INVALID_GEOMETRY;
 
 	// TODO: print a warning if deletion is requested after fill_parts
 }
@@ -1273,6 +1313,57 @@ void ProblemAPI<1>::addExtraWorldMargin(const double margin)
 		printf("WARNING: tried to add negative world margin! Ignoring\n");
 }
 
+void ProblemAPI<1>::computeDEMphysparams()
+{
+	if (!validGeometry(m_dem_geometry))
+		throw std::runtime_error("cannot compute DEM physical parameters without a valid DEM");
+
+	TopoCube *dem = static_cast<TopoCube*>(m_geometries[m_dem_geometry]->ptr);
+
+	set_dem(dem->get_dem(), dem->get_ncols(), dem->get_nrows());
+
+	PhysParams *pp = physparams();
+
+	float ewres = dem->get_ewres();
+	float nsres = dem->get_nsres();
+	pp->ewres = ewres;
+	pp->nsres = nsres;
+	if (isfinite(m_dem_dx_scale)) pp->demdx = ewres/m_dem_dx_scale;
+	if (isfinite(m_dem_dy_scale)) pp->demdy = nsres/m_dem_dy_scale;
+	pp->demdxdy = pp->demdx*pp->demdy;
+	if (isfinite(m_dem_zmin_scale)) pp->demzmin = m_dem_zmin_scale*m_deltap;
+}
+
+void ProblemAPI<1>::setDEMZminScale(double scale)
+{
+	m_dem_zmin_scale = scale;
+	computeDEMphysparams();
+}
+
+void ProblemAPI<1>::setDEMZmin(double demzmin)
+{
+	m_dem_zmin_scale = NAN; // disable automatic computation
+	physparams()->demzmin = demzmin;
+}
+
+void ProblemAPI<1>::setDEMNormalDisplacementScale(double scalex, double scaley)
+{
+	if (!isfinite(scaley)) scaley = scalex;
+	m_dem_dx_scale = scalex;
+	m_dem_dy_scale = scaley;
+	computeDEMphysparams();
+}
+
+void ProblemAPI<1>::setDEMNormalDisplacement(double demdx, double demdy)
+{
+	if (!isfinite(demdy)) demdy = demdx;
+	m_dem_dx_scale = NAN;
+	m_dem_dy_scale = NAN;
+	physparams()->demdx = demdx;
+	physparams()->demdy = demdy;
+}
+
+
 // set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 {
@@ -1326,6 +1417,9 @@ int ProblemAPI<1>::fill_parts(bool fill)
 				parts_vector = &(m_geometries[g]->ptr->GetParts());
 				dx = physparams()->r0;
 				break;
+			case GT_DEM:
+				if (g == m_dem_geometry)
+					computeDEMphysparams();
 			default:
 				parts_vector = &m_boundaryParts;
 				dx = physparams()->r0;

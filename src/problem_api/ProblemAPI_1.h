@@ -49,6 +49,7 @@ enum GeometryType {	GT_FLUID,
 					GT_FLOATING_BODY,
 					GT_MOVING_BODY,
 					GT_PLANE,
+					GT_DEM,
 					GT_TESTPOINTS,
 					GT_FREE_SURFACE
 };
@@ -63,6 +64,20 @@ enum FillType {	FT_NOFILL,
 enum IntersectionType {	IT_NONE,
 						IT_INTERSECT,
 						IT_SUBTRACT
+};
+
+// TODO currently we need to keep this in sync with the
+// definitions in TopoCube.h, ideally this shouldn't be needed.
+// We don't want to just do using TopographyFormat = TopoCube::Format
+// for two reasons:
+// 1. it requires the inclusion of TopoCube.h, which would make it an anomaly
+//    compared to other geometries (for which no inclusion is needed)
+// 2. we can't specify the DEM file format simply as DEM_FMT_*, but we would need to do
+//    TopographyFormat::DEM_FMT_*, which is extremely verbose
+// So for the time being this enum replicates TopoCube::Format explicitly
+enum TopographyFormat {	DEM_FMT_ASCII,
+						DEM_FMT_VTK,
+						DEM_FMT_XYZ
 };
 
 // NOTE: erasing is always done with fluid or boundary point vectors.
@@ -105,7 +120,9 @@ struct GeometryInfo {
 	XYZReader *xyz_reader;
 
 	bool has_mesh_file; // ditto
+	// STL mesh or topography file name
 	std::string stl_filename;
+	TopographyFormat dem_fmt; // file format for the DEM topography file
 
 	// user-set inertia
 	double custom_inertia[3];
@@ -148,6 +165,7 @@ struct GeometryInfo {
 
 		has_mesh_file = false;
 		stl_filename = "";
+		dem_fmt = DEM_FMT_ASCII;
 
 		custom_inertia[0] = NAN;
 		custom_inertia[1] = NAN;
@@ -190,6 +208,11 @@ class ProblemAPI<1> : public ProblemCore
 		double m_extra_world_margin;
 
 		PositioningPolicy m_positioning;
+
+		GeometryID m_dem_geometry; // the ID of the (only) DEM, if defined
+		double m_dem_zmin_scale; // used to compute demzmin from ∆p
+		double m_dem_dx_scale; // used to compute demdx from DEM resolution
+		double m_dem_dy_scale; // used to compute demdy from DEM resolution
 
 		// initialize Chrono
 		void initializeChrono();
@@ -236,7 +259,8 @@ class ProblemAPI<1> : public ProblemCore
 		GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double major_radius, const double minor_radius);
 		GeometryID addPlane(
-			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff, const FillType ftype = FT_NOFILL);
+			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff,
+			const FillType ftype = FT_NOFILL);
 		GeometryID addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 			const char *fname);
 		GeometryID addOBJMesh(const GeometryType otype, const FillType ftype, const Point &origin,
@@ -245,6 +269,11 @@ class ProblemAPI<1> : public ProblemCore
 			const char *fname_hdf5, const char *fname_stl = NULL);
 		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
 			const char *fname_xyz, const char *fname_stl = NULL);
+		GeometryID addDEM(const char *fname_dem, const TopographyFormat dem_fmt = DEM_FMT_ASCII,
+			const FillType fill_type = FT_NOFILL);
+		GeometryID addDEM(std::string const& fname_dem, const TopographyFormat dem_fmt = DEM_FMT_ASCII,
+			const FillType fill_type = FT_NOFILL)
+		{ return addDEM(fname_dem.c_str(), dem_fmt, fill_type); }
 
 		// Method to add a single testpoint.
 		// NOTE: does not create a geometry since Point does not derive from Object
@@ -328,6 +357,23 @@ class ProblemAPI<1> : public ProblemCore
 		// Enable/disable automatic hydrostatic filling
 		void enableHydrostaticFilling() { m_hydrostaticFilling = true; }
 		void disableHydrostaticFilling()  { m_hydrostaticFilling = false; }
+
+		//! demzmin will be computed as scale*m_deltap
+		void setDEMZminScale(double scale);
+		//! set demzmin to the given value
+		void setDEMZmin(double demzmin);
+		//! demdx and demdy will be computed as resolution/scale
+		//! if scaley is not set, scalex will be used for both directions
+		void setDEMNormalDisplacementScale(double scalex, double scaley=NAN);
+		//! set demdx and demdy to the given values
+		//! if demdy is not set, demdx will be used for both directions
+		void setDEMNormalDisplacement(double demdx, double demdy=NAN);
+
+		//! Compute DEM physical parameters.
+		//! This is normally done automatically during the filling phase, but can be forced earlier
+		//! if the user wants the information for other purposes
+		void computeDEMphysparams();
+
 
 		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 		void setDynamicBoundariesLayers(const uint numLayers);
