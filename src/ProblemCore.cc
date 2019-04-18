@@ -37,6 +37,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+// For the automatic name determination
+#include <typeinfo>
+#include <cxxabi.h>
+
 // shared_ptr
 #include <memory>
 
@@ -88,6 +92,11 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 bool
 ProblemCore::initialize()
 {
+	if (m_name.empty()) {
+		m_name = abi::__cxa_demangle(typeid(*this).name(), NULL, 0, NULL);
+		printf("Problem name set to '%s' automatically\n", m_name.c_str());
+	}
+
 	SimParams const* _sp(simparams());
 	PhysParams const* _pp(physparams());
 

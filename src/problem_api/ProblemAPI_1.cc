@@ -78,9 +78,6 @@ ProblemAPI<1>::ProblemAPI(GlobalData *_gdata) : ProblemCore(_gdata)
 	m_maxFall = NAN;
 	m_maxParticleSpeed = NAN;
 
-	// *** Other parameters and settings
-	m_name = "XProblem";
-
 	// We don't initialize simparams because it will be done by the SETUP_FRAMEWORK
 	// in the subclass
 
