@@ -72,6 +72,8 @@ Options::get(string const& key, string const& _default) const
 	if (found != m_options.end()) {
 		return found->second;
 	}
+	if ((key == "dem") && !dem.empty())
+		return dem;
 	return _default;
 }
 
