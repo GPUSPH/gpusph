@@ -85,6 +85,22 @@ class TopoCube: public Object {
 		double get_west()	{ return m_west; }
 		double get_voff()	{ return m_voff; }
 
+		//! Supported file formats
+		enum Format {
+			DEM_FMT_ASCII, /* GRASS ASCII grid format */
+			DEM_FMT_VTK, /* VTK Structured Grid */
+			DEM_FMT_XYZ /* XYZ file with header */
+		};
+
+		//! Load a topography from the file, given the file name and format
+		//! \seealso TopoCube::Format
+		static TopoCube* load_file(const char *fname, Format fmt);
+
+		//! Format-specific implementation of topography loader
+		template<Format>
+		static TopoCube* load_file(const char *fname);
+
+		/* Legacy loader names */
 		static TopoCube* load_ascii_grid(const char *fname);
 		static TopoCube* load_vtk_file(const char *fname);
 		static TopoCube* load_xyz_file(const char *fname);

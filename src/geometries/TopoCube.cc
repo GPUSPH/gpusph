@@ -144,7 +144,8 @@ void TopoCube::SetCubeDem(const float *dem,
 }
 
 /* Create a TopoCube from a (GRASS) ASCII grid file */
-TopoCube *TopoCube::load_ascii_grid(const char* fname)
+template<>
+TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_ASCII>(const char* fname)
 {
 	ifstream fdem(fname);
 	if (!fdem.good()) {
@@ -198,8 +199,12 @@ TopoCube *TopoCube::load_ascii_grid(const char* fname)
 	return ret;
 }
 
+TopoCube *TopoCube::load_ascii_grid(const char *fname)
+{ return load_file<DEM_FMT_ASCII>(fname); }
+
 /* Create a TopoCube from a VTK Structure Points datafile */
-TopoCube *TopoCube::load_vtk_file(const char* fname)
+template<>
+TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_VTK>(const char* fname)
 {
 	string s;
 	stringstream err_msg;
@@ -292,6 +297,9 @@ TopoCube *TopoCube::load_vtk_file(const char* fname)
 	return ret;
 }
 
+TopoCube *TopoCube::load_vtk_file(const char* fname)
+{ return load_file<DEM_FMT_VTK>(fname); }
+
 
 /* Create a TopoCube from a (xyz) sorted ASCII elevation file.
  * The format of the file must be:
@@ -306,7 +314,8 @@ TopoCube *TopoCube::load_vtk_file(const char* fname)
  * - The underlying grid must be regular : constant and same
  * resolution along x and y.
  */
-TopoCube *TopoCube::load_xyz_file(const char* fname)
+template<>
+TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname)
 {
 	ifstream fdem(fname);
 	if (!fdem.good()) {
@@ -369,6 +378,19 @@ TopoCube *TopoCube::load_xyz_file(const char* fname)
 	delete [] dem;
 
 	return ret;
+}
+
+TopoCube *TopoCube::load_xyz_file(const char* fname)
+{ return load_file<DEM_FMT_XYZ>(fname); }
+
+TopoCube *TopoCube::load_file(const char *fname, Format fmt)
+{
+	switch (fmt)
+	{
+	case DEM_FMT_ASCII: return load_file<DEM_FMT_ASCII>(fname);
+	case DEM_FMT_VTK: return load_file<DEM_FMT_VTK>(fname);
+	case DEM_FMT_XYZ: return load_file<DEM_FMT_XYZ>(fname);
+	}
 }
 
 
