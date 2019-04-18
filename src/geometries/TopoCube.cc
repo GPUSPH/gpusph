@@ -79,7 +79,7 @@ void TopoCube::SetGeoLocation(double north, double south,
 /* Add wall planes to the planes array; the
  * given array should be able to hold at least 4 elements each
  */
-vector<double4> TopoCube::get_planes()
+vector<double4> TopoCube::get_planes() const
 {
 
 	vector<double4> planes;

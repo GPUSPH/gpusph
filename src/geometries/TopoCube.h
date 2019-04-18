@@ -54,7 +54,7 @@ class TopoCube: public Object {
 		virtual ~TopoCube(void);
 
 		/// return list of planes in implicit form as double4
-		std::vector<double4> get_planes();
+		std::vector<double4> get_planes() const;
 
 		void SetCubeDem(const float *dem,
 				double sizex, double sizey, double H,
