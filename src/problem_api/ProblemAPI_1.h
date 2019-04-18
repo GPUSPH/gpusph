@@ -344,6 +344,14 @@ class ProblemAPI<1> : public ProblemCore
 		 */
 		std::vector<GeometryID> makeUniverseBox(const double3 corner1, const double3 corner2);
 
+		/*! Create a plane for each of the four sides of the specified DEM.
+		 * The dem_gid refers to the GeometryID of the DEM to use as reference.
+		 * It can be omitted, in which case the current DEM is used automatically.
+		 * The planes will have the same filltype as the DEM.
+		 */
+		std::vector<GeometryID> addDEMPlanes(GeometryID gid = INVALID_GEOMETRY);
+		std::vector<GeometryID> addDEMPlanes(GeometryID gid, FillType ftype);
+
 		// world size will be increased by the given margin in each dimension and direction
 		void addExtraWorldMargin(const double margin);
 

@@ -1305,6 +1305,30 @@ vector<GeometryID> ProblemAPI<1>::makeUniverseBox(const double3 corner1, const d
 	return planes;
 }
 
+vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid)
+{
+	if (gid == INVALID_GEOMETRY) gid = m_dem_geometry;
+	FillType ftype = gid < m_geometries.size() ? m_geometries[gid]->fill_type : FT_NOFILL;
+	return addDEMPlanes(gid, ftype);
+}
+
+vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid, FillType ftype)
+{
+	vector<GeometryID> planes;
+	planes.reserve(4);
+	if (gid == INVALID_GEOMETRY) gid = m_dem_geometry;
+	const GeometryInfo *gi = getGeometryInfo(gid);
+	if (!gi)
+		throw std::invalid_argument("no DEM to add planes from");
+	if (gi->type != GT_DEM)
+		throw std::invalid_argument("adding planes from a geometry that is not a DEM");
+	vector<double4> coeffs = static_cast<const TopoCube*>(gi->ptr)->get_planes();
+	for (auto c : coeffs) {
+		planes.push_back( addPlane(c.x, c.y, c.z, c.w, ftype) );
+	}
+	return planes;
+}
+
 void ProblemAPI<1>::addExtraWorldMargin(const double margin)
 {
 	if (margin >= 0.0)
