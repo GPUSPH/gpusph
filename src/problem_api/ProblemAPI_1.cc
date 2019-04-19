@@ -121,6 +121,15 @@ bool ProblemAPI<1>::initialize()
 		throw runtime_error("no simulation framework defined");
 	}
 
+	// If we have a DEM, and it's set to not fill, the simulation framework must have
+	// the ENABLE_DEM flag, otherwise there will be no interaction with the topography
+	if (m_dem_geometry != INVALID_GEOMETRY)
+	{
+		if ((m_geometries[m_dem_geometry]->fill_type == FT_NOFILL) &&
+			!(simparams()->simflags & ENABLE_DEM))
+			throw invalid_argument("DEM with FT_NOFILL requires ENABLE_DEM flag");
+	}
+
 	// *** Add a writer, if none was specified
 	if (get_writers().size() == 0)
 		add_writer(VTKWRITER, 1e-2f);

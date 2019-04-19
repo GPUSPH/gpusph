@@ -272,6 +272,16 @@ class ProblemAPI<1> : public ProblemCore
 			const char *fname_hdf5, const char *fname_stl = NULL);
 		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
 			const char *fname_xyz, const char *fname_stl = NULL);
+
+		//! Add a Digital Elevation Model (topography) from the given file (in the given format)
+		/*! Topography is its own GeometryType (GT_DEM) and by default does not produce any particles
+		 * (it is handled geometrically); note however that this needs ENABLE_DEM in the framework
+		 * simulation flags.
+		 * There can only be one “active” DEM in the simulation, but you can add other DEMs if they are
+		 * only used for cutting (fill type FT_UNFILL).
+		 * It is also possible to get additional geometries associated with the topography, see e.g.
+		 * addDEMPlanes
+		 */
 		GeometryID addDEM(const char *fname_dem, const TopographyFormat dem_fmt = DEM_FMT_ASCII,
 			const FillType fill_type = FT_NOFILL);
 		GeometryID addDEM(std::string const& fname_dem, const TopographyFormat dem_fmt = DEM_FMT_ASCII,
