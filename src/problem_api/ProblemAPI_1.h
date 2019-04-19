@@ -280,13 +280,18 @@ class ProblemAPI<1> : public ProblemCore
 		 * There can only be one “active” DEM in the simulation, but you can add other DEMs if they are
 		 * only used for cutting (fill type FT_UNFILL).
 		 * It is also possible to get additional geometries associated with the topography, see e.g.
-		 * addDEMPlanes
+		 * addDEMPlanes, addDEMFluidBox
 		 */
 		GeometryID addDEM(const char *fname_dem, const TopographyFormat dem_fmt = DEM_FMT_ASCII,
 			const FillType fill_type = FT_NOFILL);
 		GeometryID addDEM(std::string const& fname_dem, const TopographyFormat dem_fmt = DEM_FMT_ASCII,
 			const FillType fill_type = FT_NOFILL)
 		{ return addDEM(fname_dem.c_str(), dem_fmt, fill_type); }
+
+		//! Add a box of fluid on top of the DEM, with the given fluid height
+		/*! The fluid height is considered from the bottom of the DEM
+		 */
+		GeometryID addDEMFluidBox(double height, GeometryID dem_gid = INVALID_GEOMETRY);
 
 		// Method to add a single testpoint.
 		// NOTE: does not create a geometry since Point does not derive from Object

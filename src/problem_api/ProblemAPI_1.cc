@@ -915,6 +915,31 @@ ProblemAPI<1>::addDEM(const char * fname_dem, const TopographyFormat dem_fmt, co
 	return ret;
 }
 
+GeometryID
+ProblemAPI<1>::addDEMFluidBox(double height, GeometryID dem_gid)
+{
+	if (dem_gid == INVALID_GEOMETRY) dem_gid = m_dem_geometry;
+	if (dem_gid == INVALID_GEOMETRY)
+		throw invalid_argument("invalid DEM geometry ID");
+
+	GeometryInfo *gdem = m_geometries.at(dem_gid);
+
+	if (!gdem || (gdem->type != GT_DEM))
+		throw invalid_argument("invalid DEM geometry ID");
+
+	auto dem = static_pointer_cast<TopoCube>(gdem->ptr);
+
+	dem->SetCubeHeight(height);
+
+	GeometryID ret = addGeometry(
+		GT_FLUID,
+		FT_SOLID,
+		dem,
+		NULL, NULL, NULL);
+
+	return ret;
+}
+
 // Add a single testpoint; returns the position of the testpoint in the vector of
 // testpoints, which will correspond to its particle id.
 // NOTE: testpoints should be assigned with consecutive particle ids starting from 0
