@@ -403,7 +403,7 @@ void ProblemAPI<1>::cleanupChrono()
 #endif
 }
 
-GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
+GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType ftype, ObjectPtr obj_ptr,
 	const char *hdf5_fname, const char *xyz_fname, const char *stl_fname)
 {
 	// TODO: before even creating the new GeometryInfo we should check the compatibility of
@@ -566,7 +566,7 @@ GeometryID ProblemAPI<1>::addRect(const GeometryType otype, const FillType ftype
 	}
 
 	return addGeometry(otype, ftype,
-		new Rect( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) ),
+		make_shared<Rect>( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) ),
 			side1, side2, EulerParameters() )
 	);
 }
@@ -579,7 +579,7 @@ GeometryID ProblemAPI<1>::addDisk(const GeometryType otype, const FillType ftype
 		offsetX = offsetY = radius;
 
 	return addGeometry(otype, ftype,
-		new Disk( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) ),
+		make_shared<Disk>( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) ),
 			radius, EulerParameters() )
 	);
 }
@@ -593,7 +593,7 @@ GeometryID ProblemAPI<1>::addCube(const GeometryType otype, const FillType ftype
 		offsetZ = - side / 2.0;
 
 	return addGeometry(otype, ftype,
-		new Cube( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
+		make_shared<Cube>( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
 			side, side, side, EulerParameters() )
 	);
 }
@@ -610,7 +610,7 @@ GeometryID ProblemAPI<1>::addBox(const GeometryType otype, const FillType ftype,
 		offsetZ = - side3 / 2.0;
 
 	return addGeometry(otype, ftype,
-		new Cube( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ ),
+		make_shared<Cube>( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ ),
 			side1, side2, side3, EulerParameters() )
 	);
 }
@@ -626,7 +626,7 @@ GeometryID ProblemAPI<1>::addCylinder(const GeometryType otype, const FillType f
 		offsetZ = - height / 2.0;
 
 	return addGeometry(otype, ftype,
-		new Cylinder( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
+		make_shared<Cylinder>( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
 			radius, height, EulerParameters() )
 	);
 }
@@ -648,7 +648,7 @@ GeometryID ProblemAPI<1>::addCone(const GeometryType otype, const FillType ftype
 	}
 
 	return addGeometry(otype, ftype,
-		new Cone( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
+		make_shared<Cone>( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
 			bottom_radius, top_radius, height, EulerParameters() )
 	);
 }
@@ -663,7 +663,7 @@ GeometryID ProblemAPI<1>::addSphere(const GeometryType otype, const FillType fty
 		offsetXY = radius;
 
 	return addGeometry(otype, ftype,
-		new Sphere( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
+		make_shared<Sphere>( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
 			radius )
 	);
 }
@@ -678,7 +678,7 @@ GeometryID ProblemAPI<1>::addTorus(const GeometryType otype, const FillType ftyp
 		offsetXY = (major_radius + minor_radius);
 
 	return addGeometry(otype, ftype,
-		new Torus( origin, major_radius, minor_radius, EulerParameters() )
+		make_shared<Torus>( origin, major_radius, minor_radius, EulerParameters() )
 	);
 }
 
@@ -686,7 +686,7 @@ GeometryID ProblemAPI<1>::addPlane(
 	const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff, const FillType ftype)
 {
 	return addGeometry(GT_PLANE, ftype,
-		new Plane( a_coeff, b_coeff, c_coeff, d_coeff )
+		make_shared<Plane>( a_coeff, b_coeff, c_coeff, d_coeff )
 	);
 }
 
@@ -727,7 +727,7 @@ GeometryID ProblemAPI<1>::addSTLMesh(const GeometryType otype, const FillType ft
 	return addGeometry(
 		otype,
 		ftype,
-		stlmesh,
+		shared_ptr<STLMesh>(stlmesh),
 		NULL,			// HDF5 filename
 		NULL,			// XYZ filename
 		filename		// STL filename
@@ -773,7 +773,7 @@ GeometryID ProblemAPI<1>::addOBJMesh(const GeometryType otype, const FillType ft
 	return addGeometry(
 		otype,
 		ftype,
-		stlmesh,
+		shared_ptr<STLMesh>(stlmesh),
 		NULL,			// HDF5 filename
 		NULL,			// XYZ filename
 		filename		// STL filename
@@ -830,7 +830,7 @@ GeometryID ProblemAPI<1>::addHDF5File(const GeometryType otype, const Point &ori
 	return addGeometry(
 		otype,
 		FT_NOFILL,
-		stlmesh,
+		shared_ptr<STLMesh>(stlmesh),
 		fname_hdf5,			// HDF5 filename
 		NULL,			// XYZ filename
 		fname_obj		// STL filename
@@ -881,7 +881,7 @@ GeometryID ProblemAPI<1>::addXYZFile(const GeometryType otype, const Point &orig
 	return addGeometry(
 		otype,
 		FT_NOFILL,
-		stlmesh,
+		shared_ptr<STLMesh>(stlmesh),
 		NULL,			// HDF5 filename
 		fname_xyz,		// XYZ filename
 		fname_obj		// STL filename
@@ -896,7 +896,7 @@ ProblemAPI<1>::addDEM(const char * fname_dem, const TopographyFormat dem_fmt, co
 	GeometryID ret = addGeometry(
 		GT_DEM,
 		fill_type,
-		dem,
+		shared_ptr<TopoCube>(dem),
 		NULL,
 		NULL,
 		fname_dem);
@@ -1319,7 +1319,7 @@ vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid, FillType ftype)
 		throw std::invalid_argument("no DEM to add planes from");
 	if (gi->type != GT_DEM)
 		throw std::invalid_argument("adding planes from a geometry that is not a DEM");
-	vector<double4> coeffs = static_cast<const TopoCube*>(gi->ptr)->get_planes();
+	vector<double4> coeffs = static_pointer_cast<const TopoCube>(gi->ptr)->get_planes();
 	for (auto c : coeffs) {
 		planes.push_back( addPlane(c.x, c.y, c.z, c.w, ftype) );
 	}
@@ -1339,7 +1339,7 @@ void ProblemAPI<1>::computeDEMphysparams()
 	if (!validGeometry(m_dem_geometry))
 		throw std::runtime_error("cannot compute DEM physical parameters without a valid DEM");
 
-	TopoCube *dem = static_cast<TopoCube*>(m_geometries[m_dem_geometry]->ptr);
+	auto dem = static_pointer_cast<TopoCube>(m_geometries[m_dem_geometry]->ptr);
 
 	set_dem(dem->get_dem(), dem->get_ncols(), dem->get_nrows());
 
@@ -1603,14 +1603,17 @@ int ProblemAPI<1>::fill_parts(bool fill)
 #endif
 
 		// tell Problem to add the proper type of body
+		// FIXME ProblemCore should be using shared_ptrs too
+		// TODO when that's done we won't need the .get()s when
+		// passing the Object ptr to add_moving_body
 		if (m_geometries[g]->type == GT_FLOATING_BODY)
-			add_moving_body(m_geometries[g]->ptr, MB_FLOATING);
+			add_moving_body(m_geometries[g]->ptr.get(), MB_FLOATING);
 		else
 		if (m_geometries[g]->type == GT_MOVING_BODY) {
 			if (m_geometries[g]->measure_forces)
-				add_moving_body(m_geometries[g]->ptr, MB_FORCES_MOVING);
+				add_moving_body(m_geometries[g]->ptr.get(), MB_FORCES_MOVING);
 			else
-				add_moving_body(m_geometries[g]->ptr, MB_MOVING);
+				add_moving_body(m_geometries[g]->ptr.get(), MB_MOVING);
 		}
 
 	} // iterate on geometries
@@ -1639,7 +1642,7 @@ void ProblemAPI<1>::copy_planes(PlaneList &planes)
 		// not a plane?
 		if (m_geometries[gid]->type != GT_PLANE) continue;
 
-		Plane *plane = (Plane*)(m_geometries[gid]->ptr);
+		auto plane = static_pointer_cast<Plane>(m_geometries[gid]->ptr);
 
 		planes.push_back( implicit_plane( plane->getA(), plane->getB(), plane->getC(), plane->getD() ) );
 

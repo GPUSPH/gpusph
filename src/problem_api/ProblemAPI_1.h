@@ -28,6 +28,7 @@
 
 #include <string>
 #include <vector>
+#include <memory> // shared_ptr
 
 // SIZE_MAX
 #include <limits.h>
@@ -96,9 +97,11 @@ enum PositioningPolicy {	PP_NONE,
 							PP_CORNER
 };
 
+using ObjectPtr = std::shared_ptr<Object>;
+
 struct GeometryInfo {
 
-	Object* ptr;
+	ObjectPtr ptr;
 
 	GeometryType type;
 	FillType fill_type;
@@ -220,7 +223,7 @@ class ProblemAPI<1> : public ProblemCore
 		void cleanupChrono();
 
 		// wrapper with common operations for adding a geometry
-		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
+		GeometryID addGeometry(const GeometryType otype, const FillType ftype, ObjectPtr obj_ptr,
 			const char *hdf5_fname = NULL, const char *xyz_fname = NULL, const char *stl_fname = NULL);
 
 		// check validity of given GeometryID
