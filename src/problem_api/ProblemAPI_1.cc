@@ -308,7 +308,8 @@ bool ProblemAPI<1>::initialize()
 
 	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed (through set_density())
 	const float g = length(physparams()->gravity);
-	physparams()->dcoeff = 5.0f * g * m_maxFall;
+	if (!isfinite(physparams()->dcoeff))
+		physparams()->dcoeff = 5.0f * g * m_maxFall;
 
 	// hydrostatic filling works only if gravity has only vertical component and
 	// there isn't a periodic boundary in the gravity direction
