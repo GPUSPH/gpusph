@@ -399,6 +399,10 @@ IGNORE_WARNINGS(deprecated-declarations)
 
 		partsurf(0),
 
+		MK_K(NAN),
+		MK_d(NAN),
+		MK_beta(2),
+
 		epsxsph(0.5f),
 
 		smagfactor(NAN),

@@ -131,8 +131,27 @@ ProblemCore::initialize()
 			physparams()->r0 = m_deltap;
 		}
 		if (isnan(physparams()->dcoeff)) {
+			// this would need knowledge about the max fall, but this isn't present in the problem core
+			// so assume H = 1. Problem API 1 works around this issue by having or computing the maximum
+			// fall height
 			physparams()->dcoeff = 5.0f*length(physparams()->gravity);
 			printf("LJ D coefficient not set, using %g\n", physparams()->dcoeff);
+		}
+	}
+
+	/* Set MK parameters that were not set by the user */
+	if (simparams()->boundarytype == MK_BOUNDARY)
+	{
+		if (isnan(physparams()->MK_d)) {
+			physparams()->MK_d = 1.1*m_deltap/physparams()->MK_beta;
+			printf("MK D coefficient not set, using %g\n", physparams()->MK_d);
+		}
+		if (isnan(physparams()->MK_K)) {
+			// this would need knowledge about the max fall, but this isn't present in the problem core
+			// so assume H = 1. Problem API 1 works around this issue by having or computing the maximum
+			// fall height
+			physparams()->MK_K = length(physparams()->gravity);
+			printf("MK K coefficient not set, using %g\n", physparams()->MK_K);
 		}
 	}
 
