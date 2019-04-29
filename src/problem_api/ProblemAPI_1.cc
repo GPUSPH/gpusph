@@ -326,16 +326,25 @@ bool ProblemAPI<1>::initialize()
 	if (physparams()->numFluids() > 1)
 		m_hydrostaticFilling = false;
 
+	// maximum fall velocity, computed from the maximum fall height
+	double max_fall_velocity = sqrt(2.0 * g * m_maxFall);
+
 	if (!isfinite(m_maxParticleSpeed)) {
-		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
+		m_maxParticleSpeed = max_fall_velocity;
 		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
 	}
+
+	// Note that in the general case, the maximum particle speed might be less than the maximum fall velocity
+	// (think e.g. of a highly viscous Poiseuille test case). The default speed of sound will 
+	// take into account the largest of these values
+	double max_vel_for_c0 = fmax(max_fall_velocity, m_maxParticleSpeed);
+
 
 	const float default_rho = 1000.0;
 	const float default_kinematic_visc = 1.0e-6f;
 	const float default_gamma = 7;
 	// numerical speed of sound TODO multifluid
-	const float default_c0 = 10.0 * m_maxParticleSpeed;
+	const float default_c0 = 10.0 * max_vel_for_c0;
 
 	if (physparams()->numFluids() == 0) {
 		physparams()->add_fluid(default_rho);

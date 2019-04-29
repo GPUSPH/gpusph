@@ -229,13 +229,20 @@ class ProblemAPI<1> : public ProblemCore
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);
 
-		// used to set LJ dcoeff and sound speed if m_maxParticleSpeed is unset
+		//! Maximum height for a particle fall
+		/*! This is used to autocompute the Lennard-Jones boundary coefficient dcoeff,
+		 * and to autocompute the sound speed (together with m_maxParticleSpeed)
+		 */
 		double m_maxFall;
-		/*!
+
+		//! Maximum expected velocity for a fluid particle
+		/*! If unset, it will be auto-computed as the maximum fall velocity.
+		 * Together with the maximum fall velocity, it is used to autocompute the speed of sound
+		 * if not specified.
+		 *
 		 * \inpsection{c0_input_method, calculation}
 		 * \label{FLUID_MAX_SPEED}
 		 * \default{0}
-		 * used to set the numerical speed of sound
 		 */
 		double m_maxParticleSpeed;
 
