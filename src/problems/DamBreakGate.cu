@@ -69,10 +69,11 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 	//resize_neiblist(128);
 
 	// Physical parameters
+	H = 0.4f;
 	set_gravity(-9.81f);
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);
-	setMaxFall(0.4);
+	setMaxFall(H);
 
 	physparams()->r0 = m_deltap;
 
@@ -101,15 +102,15 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 
 	float3 gate_origin = make_float3(0.4 + 2*r0, r0, r0);
 	GeometryID gate = addBox(GT_MOVING_BODY, FT_BORDER,
-		Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 0, 0.67-2*r0, 0.4);
+		Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 0, 0.67-2*r0, H);
 	disableCollisions(gate);
 
 	GeometryID obstacle = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, 0.4 - r0);
+		Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, H - r0);
 	disableCollisions(obstacle);
 
 	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
-		Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), 0.4, 0.67 - 2*r0, 0.4 - r0);
+		Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), 0.4, 0.67 - 2*r0, H - r0);
 
 	bool wet = false;	// set wet to true have a wet bed experiment
 	if (wet) {
