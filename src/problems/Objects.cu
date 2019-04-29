@@ -78,9 +78,6 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 	set_deltap(0.02f);
 	physparams()->r0 = m_deltap;
 	set_gravity(-9.81);
-	const float g = get_gravity_magnitude();
-	const double H = 0.5;
-	physparams()->dcoeff = 5.0f * g * H;
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.0f);
 	//set_kinematic_visc(0, 1.0e-2f);
@@ -104,7 +101,9 @@ Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
 	const double objects_side = 0.08;
 	const double obstacle_xpos = 1.0;
 	const double water_length = 0.5;
-	const double water_height = H;
+	const double water_height = 0.5;
+
+	setMaxFall(water_height);
 
 	// If we used only makeUniverseBox(), origin and size would be computed automatically
 	m_origin = make_double3(0, 0, 0);

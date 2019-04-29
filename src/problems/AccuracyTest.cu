@@ -45,7 +45,6 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : XProblem(_gdata)
 	lx = 4.0;
 	ly = 0.7;
 	lz = 1.0;
-	H = 0.7;
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
@@ -60,21 +59,11 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : XProblem(_gdata)
 	// Physical parameters
 	H = 0.6f;
 	set_gravity(-9.81f);
-	float g = get_gravity_magnitude();
+	setMaxFall(H);
 	add_fluid(1000.0);
 	set_equation_of_state(0, 7.0, 50);
 
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	physparams()->dcoeff = 5.0f*g*H;
 	physparams()->r0 = m_deltap;
-
-	// BC when using MK boundary condition:
-	// Coupled with m_simsparams.boundarytype=MK_BOUNDARY
-	#define MK_par 2
-	physparams()->MK_K = g*H;
-	physparams()->MK_d = 1.1*m_deltap/MK_par;
-	physparams()->MK_beta = MK_par;
-	#undef MK_par
 
 	set_kinematic_visc(0, 1.0e-6f);
 	physparams()->artvisccoeff = 0.3*0.005/m_deltap;

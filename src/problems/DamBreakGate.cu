@@ -69,22 +69,12 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 	//resize_neiblist(128);
 
 	// Physical parameters
-	H = 0.4f;
 	set_gravity(-9.81f);
-	float g = get_gravity_magnitude();
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);
+	setMaxFall(0.4);
 
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	physparams()->dcoeff = 5.0f*g*H;
 	physparams()->r0 = m_deltap;
-
-	// BC when using MK boundary condition: Coupled with m_simsparams->boundarytype=MK_BOUNDARY
-	#define MK_par 2
-	physparams()->MK_K = g*H;
-	physparams()->MK_d = 1.1*m_deltap/MK_par;
-	physparams()->MK_beta = MK_par;
-	#undef MK_par
 
 	set_kinematic_visc(0, 1.0e-2f);
 	physparams()->artvisccoeff = 0.3f;

@@ -48,9 +48,8 @@ ProblemExample::ProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 	set_deltap(0.02f);
 	physparams()->r0 = m_deltap;
 	set_gravity(-9.81);
+	setMaxFall(3.0);
 	float g = get_gravity_magnitude();
-	double H = 3;
-	physparams()->dcoeff = 5.0f*g*H;
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.0f);
 	//set_kinematic_visc(0, 1.0e-2f);

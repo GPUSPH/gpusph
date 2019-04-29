@@ -78,6 +78,7 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 	// Physical parameters
 	H = 0.45f;
 	set_gravity(-9.81f);
+	setMaxFall(H);
 	float g = get_gravity_magnitude();
 
 	add_fluid(1000.0f);
@@ -90,15 +91,6 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
-
-	// BC when using LJ
-	physparams()->dcoeff = 5.0f*g*H;
-	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-
-	// BC when using MK
-	physparams()->MK_K = g*H;
-	physparams()->MK_d = 1.1*m_deltap/MK_par;
-	physparams()->MK_beta = MK_par;
 
 	// Compute parameters for piston movement
 	// The velocity will be c/(cosh(a*t+b)^2), so keep it simple

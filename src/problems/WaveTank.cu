@@ -91,7 +91,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 	// Physical parameters
 	H = 0.45;
 	set_gravity(-9.81f);
-	float g = get_gravity_magnitude();
+	setMaxFall(H);
 
 	float r0 = m_deltap;
 	physparams()->r0 = r0;
@@ -104,15 +104,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
-
-	// BC when using LJ
-	physparams()->dcoeff = 0.5*g*H;
-	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-
-	// BC when using MK
-	physparams()->MK_K = g*H;
-	physparams()->MK_d = 1.1*m_deltap/MK_par;
-	physparams()->MK_beta = MK_par;
 
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
 
