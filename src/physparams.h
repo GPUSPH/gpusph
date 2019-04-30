@@ -344,11 +344,15 @@ typedef struct PhysParams {
 	float	epsxsph;		///< \f$ \epsilon \f$ coefficient for XSPH correction
 	/** @} */
 
-	/** \name Large Eddy Simulation (LES) related parameters
-	 *  The implemented Smagorinsky LES model depends on two parameters
+	/** \name Parameters for Sub-Particle Scale model for Large Eddy Simulation (LES)
+	 *  As described in Dalrymple & Rogers (2006).
 	 * @{ */
-	float	smagfactor;		///< TDOD
-	float	kspsfactor;		///< TDOD
+	float	smagorinsky_constant; ///< Smagorinsky constant C_s for the SPS turbulence model
+	float	isotropic_sps_constant; ///< C_i constant for the isotropic part of the sub-scale stress tensor
+
+	// TODO FIXME These should be accessible only by the GPUSPH internals
+	float	smagfactor;		///< Smagorinsky factor. This is equal to (C_s*∆p)^2 where C_s is the Smagorinsky constant
+	float	kspsfactor;		///< Isotropic SPS factor. This is equal to (2*C_i/3)*∆p^2
 	/** @} */
 
 	/** \name Surface tension related parameter
@@ -399,6 +403,8 @@ IGNORE_WARNINGS(deprecated-declarations)
 
 		epsxsph(0.5f),
 
+		smagorinsky_constant(0.12),
+		isotropic_sps_constant(0.0066),
 		smagfactor(NAN),
 		kspsfactor(NAN),
 
@@ -531,6 +537,16 @@ protected:
 			std::cerr << "setting density for fluid index " << i << " > " << rho0.size() << std::endl;
 			throw std::runtime_error("fluid index is growing too fast");
 		}
+	}
+	/** @} */
+
+	/** \name Methods to set the Large Eddy Simulation (LES) turbulent model parameters
+	 * @{ */
+	//! Set the C_s (Smagorinsky) and C_i (isotropic) constants of the SPS model
+	void set_sps_parameters(float C_s, float C_i)
+	{
+		smagorinsky_constant = C_s;
+		isotropic_sps_constant = C_i;
 	}
 	/** @} */
 

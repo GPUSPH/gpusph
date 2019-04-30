@@ -1488,20 +1488,22 @@ void GPUSPH::setViscosityCoefficient()
 		}
 	}
 
-	// Set SPS factors from coefficients, if they were not set
-	// by the problem
+	// Set SPS factors from the coefficients set by the problem
 	if (sp->turbmodel == SPS) {
-		// TODO physparams should have configurable Cs, Ci
-		// rather than configurable smagfactor, kspsfactor, probably
-		const double spsCs = 0.12;
-		const double spsCi = 0.0066;
+		const double spsCs = pp->smagorinsky_constant;
+		const double spsCi = pp->isotropic_sps_constant;
 		const double dp = gdata->problem->get_deltap();
 		if (isnan(pp->smagfactor)) {
 			pp->smagfactor = spsCs*dp;
 			pp->smagfactor *= pp->smagfactor; // (Cs*∆p)^2
+			printf("Autocomputed SPS Smagorinsky factor %g from C_s = %g, ∆p = %g\n",
+				pp->smagfactor, spsCs, dp);
 		}
-		if (isnan(pp->kspsfactor))
+		if (isnan(pp->kspsfactor)) {
 			pp->kspsfactor = (2*spsCi/3)*dp*dp; // (2/3) Ci ∆p^2
+			printf("Autocomputed SPS isotropic factor %g from C_i = %g, ∆p = %g\n",
+				pp->kspsfactor, spsCi, dp);
+		}
 	}
 }
 

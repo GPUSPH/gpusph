@@ -88,8 +88,6 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 
 	physparams()->artvisccoeff = 0.3f;
 	set_kinematic_visc(0, 1.0e-6f);
-	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// Compute parameters for piston movement

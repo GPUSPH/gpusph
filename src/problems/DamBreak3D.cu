@@ -93,8 +93,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	//simparams()->ferrariLengthScale = H;
 	simparams()->densityDiffCoeff = 0.1f;
 	/*physparams()->artvisccoeff =  0.2;
-	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	set_sps_parameters(0.12, 0.0066); // default values
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
 	simparams()->repack_a = 0.1f;
 	simparams()->repack_alpha = 0.01f;

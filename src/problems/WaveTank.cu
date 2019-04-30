@@ -101,8 +101,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 	set_kinematic_visc(0,1.0e-6);
 
 	physparams()->artvisccoeff =  0.2;
-	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
