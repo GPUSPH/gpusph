@@ -82,8 +82,6 @@ using namespace cuvisc;
 __constant__ int3	d_rbcgGridPos[MAX_BODIES]; //< cell of the center of gravity
 __constant__ float3	d_rbcgPos[MAX_BODIES]; //< in-cell coordinate of the center of gravity
 __constant__ int	d_rbstartindex[MAX_BODIES];
-__constant__ float	d_objectobjectdf;
-__constant__ float	d_objectboundarydf;
 /*  @} */
 
 /** \name Device functions

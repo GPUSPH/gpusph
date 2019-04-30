@@ -374,12 +374,6 @@ typedef struct PhysParams {
 	float3	gravity;		///< Gravity
 	/** @} */
 
-	/** \name Deprecated parameters
-	 * @{ */
-	float	objectobjectdf DEPRECATED_MSG("objectobjectdf is not needed anymore");	///< Damping factor for object-object interaction
-	float	objectboundarydf DEPRECATED_MSG("objectboundarydf is not needed anymore");	///< Damping factor for object-boundary interaction
-	/** @} */
-
 	// We have 2 deprecated members, but we don't need
 	// to get a warning about them for the constructor, only
 	// when the users actually assign to them
@@ -413,10 +407,7 @@ IGNORE_WARNINGS(deprecated-declarations)
 		cosconeanglefluid(0.86f),
 		cosconeanglenonfluid(0.5f),
 
-		gravity(make_float3(0, 0, -9.81)),
-
-		objectobjectdf(1.0f),
-		objectboundarydf(1.0f)
+		gravity(make_float3(0, 0, -9.81))
 	{};
 
 	// ProblemCore and all ProblemAPI specialization
