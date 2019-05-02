@@ -60,7 +60,6 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
 	setDynamicBoundariesLayers(3);
 
 	set_deltap(0.05f);  // 0.05 is minimum to have 3 layers of particles in the cylinder
-	physparams()->r0 = m_deltap;
 	x0 = -1.;
 	periodic_offset_y = m_deltap/2.;
 	m_size = make_double3(lx - x0 , ly + m_deltap, lz + 1.5*layers*m_deltap);

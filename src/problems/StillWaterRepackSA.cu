@@ -19,8 +19,7 @@ StillWaterRepackSA::StillWaterRepackSA(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.01);
-	physparams()->r0 = m_deltap;
-	simparams()->sfactor = 1.3; // The kernel size
+	set_smoothing(1.3);
 	set_gravity(-9.81);
 
 	// *** Initialization of minimal simulation parameters

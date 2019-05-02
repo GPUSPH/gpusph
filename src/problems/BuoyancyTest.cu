@@ -46,7 +46,6 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	physparams()->dcoeff = 5.0f*g*H;
-	physparams()->r0 = m_deltap;
 
 	set_kinematic_visc(0, 1.0e-6f);
 	physparams()->artvisccoeff = 0.3f;

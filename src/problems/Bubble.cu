@@ -87,8 +87,6 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	physparams()->dcoeff = 5.0f*g*H;
 
-	physparams()->r0 = m_deltap;
-
 	float maxvel = sqrt(g*H);
 	float rho0 = 1;
 	float rho1 = 1000;
@@ -117,9 +115,6 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 
 	// Name of problem used for directory creation
 	m_name = "Bubble";
-
-	// Building the geometry
-	float r0 = physparams()->r0;
 
 	setPositioning(PP_CORNER);
 	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,

@@ -92,8 +92,6 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);
 
-	physparams()->r0 = m_deltap;
-
 	set_kinematic_visc(0, 1.0e-2f);
 	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
@@ -106,7 +104,7 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
 
 	// Building the geometry
 	setPositioning(PP_CORNER);
-	float r0 = physparams()->r0;
+	float r0 = m_deltap;
 
 	if (!m_usePlanes) {
 		GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,

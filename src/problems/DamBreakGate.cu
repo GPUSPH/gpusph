@@ -75,8 +75,6 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 	set_equation_of_state(0,  7.0f, 20.f);
 	setMaxFall(H);
 
-	physparams()->r0 = m_deltap;
-
 	set_kinematic_visc(0, 1.0e-2f);
 	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
@@ -89,7 +87,7 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
 	m_name = "DamBreakGate";
 
 	// Building the geometry
-	float r0 = physparams()->r0;
+	float r0 = m_deltap;
 	setPositioning(PP_CORNER);
 
 	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,

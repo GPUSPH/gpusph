@@ -22,7 +22,6 @@ TurbulentPoiseuilleFlowSA::TurbulentPoiseuilleFlowSA(GlobalData *_gdata) : XProb
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.025);
 	set_smoothing(1.3);
-	physparams()->r0 = m_deltap;
 	set_gravity(1.0, 0.0, 0.0);
 
 	// *** Initialization of minimal simulation parameters

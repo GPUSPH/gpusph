@@ -67,7 +67,6 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 	simparams()->sfactor = PVAL( discretisation, sfactor );
 #endif
 	set_deltap ( PVAL( discretisation, m_deltap ));
-	physparams()->r0 = m_deltap;
 
 	// Initialization of the neighbours parameters
 #if ISENUM_EQ(boundaries,bnd_type,SA_BOUNDARY)

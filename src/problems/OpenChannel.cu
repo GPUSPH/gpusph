@@ -92,8 +92,6 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 
 	physparams()->dcoeff = 5.0f*g*H;
 
-	physparams()->r0 = m_deltap;
-
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
@@ -105,7 +103,7 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 
 	// Building the geometry
 	setPositioning(PP_CORNER);
-	const float r0 = physparams()->r0;
+	const float r0 = m_deltap;
 	// gap due to periodicity
 	const double3 periodicity_gap = make_double3(m_deltap/2,
 		use_side_walls ? 0 : m_deltap/2, 0);

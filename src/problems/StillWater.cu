@@ -112,7 +112,6 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 
 	physparams()->dcoeff = 5.0f*g*H;
 
-	physparams()->r0 = m_deltap;
 	//physparams()->visccoeff = 0.05f;
 	set_kinematic_visc(0, 3.0e-2f);
 	//set_kinematic_visc(0, 1.0e-6f);
@@ -129,7 +128,7 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 	// Building the geometry
 	setPositioning(PP_CORNER);
 	// distance between fluid box and wall
-	float wd = physparams()->r0;
+	float wd = m_deltap;
 
 	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		Point(m_origin), m_size.x, m_size.y, m_size.z);

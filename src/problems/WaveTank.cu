@@ -94,7 +94,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
 	setMaxFall(H);
 
 	float r0 = m_deltap;
-	physparams()->r0 = r0;
 
 	add_fluid( 1000.0f);
 	set_equation_of_state(0,  7.0f, 20.f);

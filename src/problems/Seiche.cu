@@ -66,8 +66,6 @@ Seiche::Seiche(GlobalData *_gdata) : XProblem(_gdata)
 	set_equation_of_state(0,  7.0f, 20.f);
 	setMaxFall(H);
 
-	physparams()->r0 = m_deltap;
-
 	set_kinematic_visc(0, 5.0e-6f);
 	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;

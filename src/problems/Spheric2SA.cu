@@ -50,8 +50,6 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 
 	physparams()->dcoeff = 5.0f*g*H;
 
-	physparams()->r0 = m_deltap;
-
 	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 	physparams()->epsxsph = 0.5f;

@@ -83,8 +83,7 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
 
 	add_fluid(1000.0f);
 	set_equation_of_state(0,  7.0f, 20.f);
-	float r0 = m_deltap;
-	physparams()->r0 = r0;
+	const float r0 = m_deltap;
 
 	physparams()->artvisccoeff = 0.3f;
 	set_kinematic_visc(0, 1.0e-6f);

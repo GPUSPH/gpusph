@@ -46,7 +46,6 @@ ProblemExample::ProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
-	physparams()->r0 = m_deltap;
 	set_gravity(-9.81);
 	setMaxFall(3.0);
 	float g = get_gravity_magnitude();

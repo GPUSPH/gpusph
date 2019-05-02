@@ -23,7 +23,6 @@ StillWaterSA::StillWaterSA(GlobalData *_gdata) : XProblem(_gdata)
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.05);
 	set_smoothing(1.3);
-	physparams()->r0 = m_deltap;
 	set_gravity(-9.81);
 
 	// *** Initialization of minimal simulation parameters

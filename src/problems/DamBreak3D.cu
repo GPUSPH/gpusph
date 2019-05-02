@@ -76,7 +76,6 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.015f);
 	//set_timestep(0.00005);
-	physparams()->r0 = m_deltap;
 	set_gravity(-9.81);
 	const float g = get_gravity_magnitude();
 	const double H = 0.4;

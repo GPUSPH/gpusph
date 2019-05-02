@@ -63,8 +63,6 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : XProblem(_gdata)
 	add_fluid(1000.0);
 	set_equation_of_state(0, 7.0, 50);
 
-	physparams()->r0 = m_deltap;
-
 	set_kinematic_visc(0, 1.0e-6f);
 	physparams()->artvisccoeff = 0.3*0.005/m_deltap;
 

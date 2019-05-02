@@ -75,8 +75,6 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
 	set_equation_of_state(0,  7, 10*maxvel);
 	set_kinematic_visc(0, 120);
 
-	physparams()->r0 = m_deltap;
-
 	add_writer(VTKWRITER, 0.01);
 
 	m_name = "DynBoundsExample";
