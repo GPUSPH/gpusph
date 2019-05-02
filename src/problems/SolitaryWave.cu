@@ -86,7 +86,6 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 	const float r0 = m_deltap;
 
 	set_kinematic_visc(0, 1.0e-6f);
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// Compute parameters for piston movement
 	// The velocity will be c/(cosh(a*t+b)^2), so keep it simple

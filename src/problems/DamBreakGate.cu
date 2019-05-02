@@ -76,7 +76,6 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 	setMaxFall(H);
 
 	set_kinematic_visc(0, 1.0e-2f);
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// Drawing and saving times
 	//add_writer(VTKWRITER, 0.1);

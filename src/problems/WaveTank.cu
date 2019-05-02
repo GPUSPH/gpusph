@@ -99,7 +99,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	set_equation_of_state(0, 7.0f, 20.f);
 	set_kinematic_visc(0, 1.0e-6);
 	set_artificial_visc(0.2f);
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
 

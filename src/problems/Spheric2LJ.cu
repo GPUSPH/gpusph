@@ -93,7 +93,6 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : Problem(_gdata)
 	set_equation_of_state(0,  7.0f, 20.f);
 
 	set_kinematic_visc(0, 1.0e-2f);
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.05);

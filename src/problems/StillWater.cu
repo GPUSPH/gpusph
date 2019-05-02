@@ -115,8 +115,6 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	//physparams()->visccoeff = 0.05f;
 	set_kinematic_visc(0, 3.0e-2f);
 	//set_kinematic_visc(0, 1.0e-6f);
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
-	physparams()->epsxsph = 0.5f;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1.0);

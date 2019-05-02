@@ -92,9 +92,6 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 	set_equation_of_state(0,  2.0f, 20.f);
 	set_dynamic_visc(0, 110.f);
 
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
-	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.5);
 

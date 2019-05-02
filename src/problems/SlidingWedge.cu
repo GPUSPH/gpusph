@@ -83,8 +83,6 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata)
 	set_equation_of_state(0, 7.0f, 30.f);
 	set_kinematic_visc(0, 1.0e-6);
 
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
-
 	//WaveGage
 	const double wg1x = 1.83, wg1y = 0;
 	const double wg2x = 1.2446, wg2y = 0.635;

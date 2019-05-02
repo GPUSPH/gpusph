@@ -49,9 +49,6 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : Problem(_gdata)
 	// Physical parameters
 	float g = get_gravity_magnitude();
 
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
-	physparams()->epsxsph = 0.5f;
-
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1e-2f);
 
