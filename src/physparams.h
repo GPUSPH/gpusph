@@ -577,6 +577,9 @@ protected:
 
 	/** @} */
 
+	void set_interface_epsilon(float eps)
+	{ epsinterface = eps; }
+
 	/** \name Viscosity related methods
 	 * @{ */
 

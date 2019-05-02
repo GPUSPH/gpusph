@@ -72,7 +72,7 @@ RTInstability::RTInstability(GlobalData *_gdata) : Problem(_gdata)
 	set_gravity(-9.81);
 	const float g = get_gravity_magnitude();
 	setMaxFall(H);
-	physparams()->epsinterface = 0.08;
+	set_interface_epsilon(0.08);
 
 	//const double dimX = 1.82;
 	dimX = 0.4;

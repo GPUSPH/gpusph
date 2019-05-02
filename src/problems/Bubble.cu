@@ -78,7 +78,7 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 
 	simparams()->tend = 1.0;
 
-	physparams()->epsinterface = 0.08;
+	set_interface_epsilon(0.08);
 
 	// Physical parameters
 	set_gravity(-9.81f);

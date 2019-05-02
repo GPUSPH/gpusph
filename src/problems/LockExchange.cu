@@ -80,7 +80,7 @@ LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 	//set_timestep(0.00005);
 	set_gravity(-9.81);
 	const float g = get_gravity_magnitude();
-	physparams()->epsinterface = 0.08;
+	set_interface_epsilon(0.08);
 
 	// If we used only makeUniverseBox(), origin and size would be computed automatically
 	m_origin = make_double3(0, 0, 0);

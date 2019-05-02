@@ -425,6 +425,9 @@ class ProblemCore
 		void set_equation_of_state(size_t fluid_idx, float gamma, float c0)
 		{ return physparams()->set_equation_of_state(fluid_idx, gamma, c0); }
 
+		void set_interface_epsilon(float eps)
+		{ return physparams()->set_interface_epsilon(eps); }
+
 		void set_artificial_visc(float artvisc)
 		{ return physparams()->set_artificial_visc(artvisc); }
 
