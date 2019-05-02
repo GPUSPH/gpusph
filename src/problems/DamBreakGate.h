@@ -33,9 +33,10 @@
 #ifndef _DAMBREAKGATE_H
 #define	_DAMBREAKGATE_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class DamBreakGate: public XProblem {
+class DamBreakGate: public Problem {
 	private:
 		float		H;  // still watr level
 

@@ -1,9 +1,10 @@
 #ifndef _STILLWATER_H
 #define	_STILLWATER_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class StillWater: public XProblem {
+class StillWater: public Problem {
 	private:
 		double		h, w, l;
 		double		H; // still water level

@@ -26,9 +26,10 @@
 #ifndef _ACCURACYTEST_H
 #define	_ACCURACYTEST_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class AccuracyTest: public XProblem {
+class AccuracyTest: public Problem {
 	private:
 		float		H;  // still water level
 		double		lx, ly, lz;		// dimension of experiment box

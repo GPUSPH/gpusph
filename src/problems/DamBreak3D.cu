@@ -32,7 +32,7 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-DamBreak3D::DamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
+DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 {
 	// *** user parameters from command line
 	const bool WET = get_option("wet", false);

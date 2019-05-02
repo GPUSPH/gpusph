@@ -26,7 +26,8 @@
 #ifndef _COMPLETESAEXAMPLE_H
 #define	_COMPLETESAEXAMPLE_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
 // Set to 1 (or true) for velocity driven inlet, 0 (or false) for pressure driven
 #define	VELOCITY_DRIVEN			1
@@ -39,7 +40,7 @@
 #define INLET_VELOCITY			4.0
 #define INLET_VELOCITY_FADE		1.0
 
-class CompleteSaExample: public XProblem {
+class CompleteSaExample: public Problem {
 	private:
 	public:
 		CompleteSaExample(GlobalData *);

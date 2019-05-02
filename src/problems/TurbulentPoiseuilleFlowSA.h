@@ -3,9 +3,10 @@
 #ifndef _TURBULENTPOISEUILLEFLOWSA_H
 #define	_TURBULENTPOISEUILLEFLOWSA_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class TurbulentPoiseuilleFlowSA: public XProblem {
+class TurbulentPoiseuilleFlowSA: public Problem {
 	private:
 		uint U;
 	public:

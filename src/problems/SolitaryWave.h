@@ -33,9 +33,10 @@
 #ifndef SolitaryWave_H
 #define	SolitaryWave_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class SolitaryWave: public XProblem {
+class SolitaryWave: public Problem {
 	private:
 		int			icyl, wmakertype; //icone
 		int			i_use_bottom_plane;

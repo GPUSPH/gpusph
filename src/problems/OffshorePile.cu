@@ -33,7 +33,7 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-OffshorePile::OffshorePile(GlobalData *_gdata) : XProblem(_gdata)
+OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 {
 
 	SETUP_FRAMEWORK(

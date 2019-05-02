@@ -32,7 +32,7 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-ChannelIO::ChannelIO(GlobalData *_gdata) : XProblem(_gdata)
+ChannelIO::ChannelIO(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,

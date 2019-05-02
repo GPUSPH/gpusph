@@ -32,7 +32,7 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
+CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,

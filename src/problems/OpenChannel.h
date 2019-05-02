@@ -26,9 +26,10 @@
 #ifndef _OPENCHANNEL_H
 #define	_OPENCHANNEL_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class OpenChannel: public XProblem {
+class OpenChannel: public Problem {
 	private:
 		bool		use_side_walls; // use sidewalls or not
 		uint		dyn_layers;

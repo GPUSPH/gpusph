@@ -26,9 +26,10 @@
 #ifndef _BUBBLE_H
 #define	_BUBBLE_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class Bubble: public XProblem {
+class Bubble: public Problem {
 	private:
 		uint		dyn_layers; // number of layers for DYN_BOUNDARY
 		double3		extra_offset; // offset caused by DYN_BOUNDARY

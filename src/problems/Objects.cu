@@ -39,7 +39,7 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-Objects::Objects(GlobalData *_gdata) : XProblem(_gdata)
+Objects::Objects(GlobalData *_gdata) : Problem(_gdata)
 {
 	// *** user parameters from command line
 	const bool WET = get_option("wet", false);

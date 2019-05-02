@@ -42,7 +42,7 @@
 #define ORIGIN_Z	(0)
 
 
-DamBreakGate::DamBreakGate(GlobalData *_gdata) : XProblem(_gdata)
+DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);

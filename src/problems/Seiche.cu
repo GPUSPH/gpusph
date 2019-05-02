@@ -33,7 +33,7 @@
 #include "particledefine.h"
 #include "GlobalData.h"
 
-Seiche::Seiche(GlobalData *_gdata) : XProblem(_gdata)
+Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>,

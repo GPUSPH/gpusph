@@ -26,9 +26,10 @@
 #ifndef _LockExchange_H
 #define	_LockExchange_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class LockExchange: public XProblem {
+class LockExchange: public Problem {
 	private:
 
 	double dimX, dimY, dimZ;

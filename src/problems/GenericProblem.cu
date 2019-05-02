@@ -38,7 +38,7 @@ void warn( const char* theWarn )
 
 // Generic problem class
 GenericProblem::GenericProblem(GlobalData *_gdata)
-		: XProblem(_gdata)
+		: Problem(_gdata)
 {
   // Set the problem name. PSTR is defined in GenericProblem.h,
   // it reads string type parameters from the parameters file

@@ -3,9 +3,10 @@
 
 #include <string>
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class Spheric2SA: public XProblem {
+class Spheric2SA: public Problem {
 	private:
 		double			w, l, h;
 		double			H;				// water level (used to set D constant)

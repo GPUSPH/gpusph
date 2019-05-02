@@ -26,9 +26,10 @@
 #ifndef _DYNBOUNDSEXAMPLE_H
 #define _DYNBOUNDSEXAMPLE_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class DynBoundsExample: public XProblem
+class DynBoundsExample: public Problem
 {
 	float	H; // still water level
 	float	W; // 2D cell side

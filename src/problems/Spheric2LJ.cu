@@ -45,7 +45,7 @@
 #define OFFSET_Z 0
 #endif
 
-Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : XProblem(_gdata)
+Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 3.22;

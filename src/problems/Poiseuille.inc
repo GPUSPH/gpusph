@@ -34,7 +34,7 @@
 
 
 POISEUILLE_PROBLEM::POISEUILLE_PROBLEM(GlobalData *_gdata) :
-	XProblem(_gdata),
+	Problem(_gdata),
 
 	lz(1.0),
 	ly(lz),

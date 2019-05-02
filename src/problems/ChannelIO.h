@@ -26,9 +26,10 @@
 #ifndef _CHANNELIO_H
 #define	_CHANNELIO_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class ChannelIO: public XProblem {
+class ChannelIO: public Problem {
 	private:
 	public:
 		ChannelIO(GlobalData *);

@@ -7,7 +7,7 @@
 #include "textures.cuh"
 #include "utils.h"
 
-StillWaterRepackSA::StillWaterRepackSA(GlobalData *_gdata) : XProblem(_gdata)
+StillWaterRepackSA::StillWaterRepackSA(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,

@@ -7,7 +7,7 @@
 #include "utils.h"
 #include <string>
 
-TurbulentPoiseuilleFlowSA::TurbulentPoiseuilleFlowSA(GlobalData *_gdata) : XProblem(_gdata)
+TurbulentPoiseuilleFlowSA::TurbulentPoiseuilleFlowSA(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,

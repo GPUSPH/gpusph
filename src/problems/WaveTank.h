@@ -26,10 +26,11 @@
 #ifndef _WAVETANK_H
 #define	_WAVETANK_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
 
-class WaveTank: public XProblem {
+class WaveTank: public Problem {
 	private:
 		bool		use_cyl, use_bottom_plane;
 		double		paddle_length;

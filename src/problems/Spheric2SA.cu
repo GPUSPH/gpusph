@@ -9,7 +9,7 @@
 
 #define USE_PLANES 0
 
-Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
+Spheric2SA::Spheric2SA(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		viscosity<KEPSVISC>,

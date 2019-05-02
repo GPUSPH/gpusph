@@ -26,9 +26,10 @@
 #ifndef _OBJECTS_H
 #define	_OBJECTS_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class Objects: public XProblem {
+class Objects: public Problem {
 	private:
 		GeometryID floating_obj_1, floating_obj_2;
 	public:

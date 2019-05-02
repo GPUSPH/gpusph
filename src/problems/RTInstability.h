@@ -26,9 +26,10 @@
 #ifndef _RTInstability_H
 #define	_RTInstability_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class RTInstability: public XProblem {
+class RTInstability: public Problem {
 	private:
 
 	double dimX, dimY, dimZ;

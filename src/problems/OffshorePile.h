@@ -26,9 +26,10 @@
 #ifndef _OFFSHOREPILE_H
 #define	_OFFSHOREPILE_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class OffshorePile: public XProblem {
+class OffshorePile: public Problem {
 	private:
 		double		piston_height, piston_width;
 		double		h_length, height, slope_length, beta;

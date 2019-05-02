@@ -8,7 +8,7 @@
 #include "utils.h"
 #include <string>
 
-StillWaterSA::StillWaterSA(GlobalData *_gdata) : XProblem(_gdata)
+StillWaterSA::StillWaterSA(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,

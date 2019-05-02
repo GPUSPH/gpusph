@@ -32,7 +32,7 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-AccuracyTest::AccuracyTest(GlobalData *_gdata) : XProblem(_gdata)
+AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 {
 
 	SETUP_FRAMEWORK(

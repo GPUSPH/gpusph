@@ -4,10 +4,11 @@
 #ifndef _STILLWATERSA_H
 #define	_STILLWATERSA_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
 
-class StillWaterSA: public XProblem {
+class StillWaterSA: public Problem {
 	private:
 		uint U;
 	public:

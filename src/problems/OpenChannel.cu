@@ -37,7 +37,7 @@
 // * when generalized Newtonian rheologies get implemented, we should make this
 //   default to a non-Newtonian rheology, so that checking all problems will
 //   have one such problem to verify against too
-OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
+OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 {
 	use_side_walls = get_option("sidewalls", true);
 

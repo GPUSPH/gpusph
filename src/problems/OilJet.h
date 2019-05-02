@@ -27,9 +27,10 @@
 #ifndef OILJET_H_
 #define OILJET_H_
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class OilJet: public XProblem {
+class OilJet: public Problem {
 	private:
 		double		lx, ly, lz;		// dimension of water tank
 		double		water_level;	// water level

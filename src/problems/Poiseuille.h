@@ -1,13 +1,14 @@
 #ifndef POISEUILLE_H_
 #define POISEUILLE_H_
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
 #ifndef POISEUILLE_PROBLEM
 #define POISEUILLE_PROBLEM Poiseuille
 #endif
 
-class POISEUILLE_PROBLEM: public XProblem {
+class POISEUILLE_PROBLEM: public Problem {
 
 	private:
 		// box dimensions. The origin is assumed to be in the middle,

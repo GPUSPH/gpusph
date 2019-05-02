@@ -13,7 +13,7 @@
 #include "cudasimframework.cu"
 
 
-OilJet::OilJet(GlobalData *_gdata) : XProblem(_gdata)
+OilJet::OilJet(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Data for problem setup
 	layers = 5;

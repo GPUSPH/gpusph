@@ -34,7 +34,7 @@
 
 #define MK_par 2
 
-WaveTank::WaveTank(GlobalData *_gdata) : XProblem(_gdata)
+WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 9.0;

@@ -8,9 +8,10 @@
 #ifndef BUOYANCYTEST_H_
 #define BUOYANCYTEST_H_
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class BuoyancyTest: public XProblem {
+class BuoyancyTest: public Problem {
 
 	public:
 		BuoyancyTest(GlobalData *);

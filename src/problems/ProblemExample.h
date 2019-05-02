@@ -26,9 +26,10 @@
 #ifndef _PROBLEMEXAMPLE_H
 #define	_PROBLEMEXAMPLE_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class ProblemExample: public XProblem {
+class ProblemExample: public Problem {
 	public:
 		ProblemExample(GlobalData *);
 

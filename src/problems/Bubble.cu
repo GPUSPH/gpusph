@@ -40,7 +40,7 @@
 
 
 
-Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
+Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	dyn_layers(0)
 {
 	// Size and origin of the simulation domain

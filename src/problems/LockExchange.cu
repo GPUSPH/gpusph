@@ -32,7 +32,7 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-LockExchange::LockExchange(GlobalData *_gdata) : XProblem(_gdata)
+LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 {
 	const bool USE_PLANES = get_option("use_planes", false);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 0);

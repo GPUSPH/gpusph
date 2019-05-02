@@ -33,9 +33,10 @@
 #ifndef SEICHE_H
 #define	SEICHE_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class Seiche: public XProblem {
+class Seiche: public Problem {
 	private:
 		float		h, w, l;
 		float		H; // still water level

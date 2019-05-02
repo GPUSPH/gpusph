@@ -3,10 +3,11 @@
 
 #include <string>
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 #include "HDF5SphReader.h"
 
-class StillWaterRepackSA: public XProblem {
+class StillWaterRepackSA: public Problem {
 	public:
 		StillWaterRepackSA(GlobalData *);
 

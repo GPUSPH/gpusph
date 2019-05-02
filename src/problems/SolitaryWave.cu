@@ -33,7 +33,7 @@
 
 #define MK_par 2
 
-SolitaryWave::SolitaryWave(GlobalData *_gdata) : XProblem(_gdata)
+SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 9.0;

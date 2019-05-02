@@ -26,9 +26,10 @@
 #ifndef _SPHERIC2LJ_H
 #define	_SPHERIC2LJ_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class Spheric2LJ: public XProblem {
+class Spheric2LJ: public Problem {
 	private:
 		float		H;				// still water level
 		double		lx, ly, lz;		// dimension of experiment box

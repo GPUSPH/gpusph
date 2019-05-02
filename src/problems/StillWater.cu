@@ -42,7 +42,7 @@
 #define OFFSET_Z 0
 #endif
 
-StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
+StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 {
 	m_usePlanes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
 	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations

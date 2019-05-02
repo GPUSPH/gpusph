@@ -32,7 +32,7 @@
 #include "GlobalData.h"*/
 #include "cudasimframework.cu"
 
-ProblemExample::ProblemExample(GlobalData *_gdata) : XProblem(_gdata)
+ProblemExample::ProblemExample(GlobalData *_gdata) : Problem(_gdata)
 {
 	SETUP_FRAMEWORK(
 		// TODO update from legacy viscous models

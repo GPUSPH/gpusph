@@ -38,7 +38,7 @@
 
 #include "Cube.h"
 
-DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : XProblem(_gdata)
+DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 {
 	W = 1; // 2D cell side
 	H = 2*W; // still water height
