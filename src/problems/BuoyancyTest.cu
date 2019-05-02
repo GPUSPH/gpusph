@@ -41,11 +41,11 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	// Physical parameters
 	set_gravity(-9.81f);
 	double g = get_gravity_magnitude();
+	setMaxFall(H);
+
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 20.f);
 
-	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	physparams()->dcoeff = 5.0f*g*H;
 
 	set_kinematic_visc(0, 1.0e-6f);
 	physparams()->artvisccoeff = 0.3f;

@@ -84,8 +84,7 @@ Bubble::Bubble(GlobalData *_gdata) : XProblem(_gdata),
 	set_gravity(-9.81f);
 	float g = get_gravity_magnitude();
 
-	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	physparams()->dcoeff = 5.0f*g*H;
+	setMaxFall(H);
 
 	float maxvel = sqrt(g*H);
 	float rho0 = 1;

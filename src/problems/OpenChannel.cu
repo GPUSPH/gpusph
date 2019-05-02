@@ -59,6 +59,8 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 
 	H = 0.5; // water level
 
+	setMaxFall(H);
+
 	if (simparams()->boundarytype == DYN_BOUNDARY) {
 		dyn_layers = ceil(simparams()->influenceRadius/m_deltap) + 1;
 		// no extra offset in the X direction, since we have periodicity there
@@ -89,8 +91,6 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : XProblem(_gdata)
 	add_fluid(2650.0f);
 	set_equation_of_state(0,  2.0f, 20.f);
 	set_dynamic_visc(0, 110.f);
-
-	physparams()->dcoeff = 5.0f*g*H;
 
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5

@@ -36,6 +36,7 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 	m_origin = make_double3(-0.01, -0.01, -0.01);
 	simparams()->ferrariLengthScale = 0.161f;
 	resize_neiblist(128+128, 64);
+	setMaxFall(H);
 
 	// SPH parameters
 	simparams()->dtadaptfactor = 0.3;
@@ -47,8 +48,6 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : XProblem(_gdata)
 
 	// Physical parameters
 	float g = get_gravity_magnitude();
-
-	physparams()->dcoeff = 5.0f*g*H;
 
 	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;

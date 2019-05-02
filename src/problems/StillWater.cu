@@ -69,6 +69,8 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 
 	set_deltap(H/ppH);
 
+	setMaxFall(H);
+
 	l = w = sqrt(2)*H; h = 1.1*H;
 
 	// Size and origin of the simulation domain
@@ -109,8 +111,6 @@ StillWater::StillWater(GlobalData *_gdata) : XProblem(_gdata)
 	const float c0 = ceil(10*maxvel);
 	add_fluid(1000.0);
 	set_equation_of_state(0, 7.0f, c0);
-
-	physparams()->dcoeff = 5.0f*g*H;
 
 	//physparams()->visccoeff = 0.05f;
 	set_kinematic_visc(0, 3.0e-2f);

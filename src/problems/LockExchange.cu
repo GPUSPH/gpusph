@@ -34,13 +34,6 @@
 
 LockExchange::LockExchange(GlobalData *_gdata) : XProblem(_gdata)
 {
-	//const double dimX = 1.82;
-	dimX = 0.6;
-	dimY = 0.23;
-	dimZ = 0.2;
-
-	H = dimZ;
-
 	const bool USE_PLANES = get_option("use_planes", false);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 0);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
@@ -68,6 +61,15 @@ LockExchange::LockExchange(GlobalData *_gdata) : XProblem(_gdata)
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
 
+	//const double dimX = 1.82;
+	dimX = 0.6;
+	dimY = 0.23;
+	dimZ = 0.2;
+
+	H = dimZ;
+
+	setMaxFall(H);
+
 	// Explicitly set number of layers. Also, prevent having undefined number of layers before the constructor ends.
 	setDynamicBoundariesLayers(3);
 
@@ -83,8 +85,6 @@ LockExchange::LockExchange(GlobalData *_gdata) : XProblem(_gdata)
 	// If we used only makeUniverseBox(), origin and size would be computed automatically
 	m_origin = make_double3(0, 0, 0);
 	m_size = make_double3(dimX, dimY, dimZ);
-
-	physparams()->dcoeff = 5.0f * g * H;
 
 	float rho0 = 1000;
 	float rho1 = 2350;

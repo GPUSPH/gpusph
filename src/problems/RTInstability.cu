@@ -71,6 +71,7 @@ RTInstability::RTInstability(GlobalData *_gdata) : XProblem(_gdata)
 	//set_timestep(0.00005);
 	set_gravity(-9.81);
 	const float g = get_gravity_magnitude();
+	setMaxFall(H);
 	physparams()->epsinterface = 0.08;
 
 	//const double dimX = 1.82;
@@ -83,8 +84,6 @@ RTInstability::RTInstability(GlobalData *_gdata) : XProblem(_gdata)
 	// If we used only makeUniverseBox(), origin and size would be computed automatically
 	m_origin = make_double3(0, 0, 0);
 	m_size = make_double3(dimX, dimY, dimZ);
-
-	physparams()->dcoeff = 5.0f * g * H;
 
 	float rho0 = 1000;
 	float rho1 = 2350;
