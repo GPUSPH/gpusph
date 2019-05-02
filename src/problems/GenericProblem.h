@@ -420,6 +420,98 @@ class GenericProblem: public Problem {
 
 	private:
 
+		/* Pseudo parameters definitions */
+		/* These are not real parameters, but are used to define some parameters
+		 * for the user interface that will be used in GenericProblem to
+		 * set actual Problem configuration parameters
+		 */
+
+		/**@inpsection{output}
+		 * @label{VTK_WRITER_INTERVAL}
+		 * @default{1.0}
+		 * TLT_VTK_WRITER_INTERVAL
+		 */
+		double vtk_frequency;
+
+		/**@inpsection{output}
+		 * @label{COMMON_WRITER_INTERVAL}
+		 * @default{}
+		 * TLT_COMMON_WRITER_INTERVAL
+		 */
+		double commonwriter;
+
+		/**@inpsection{discretisation}
+		 * @label{PARTICLES_MAX_FACTOR}
+		 * @default{1}
+		 * TLT_PARTICLES_MAX_FACTOR
+		 */
+		double particles_max_factor;
+
+		/* \inpsection{periodicity, enable}
+		* \label{X}
+		* \default{false}
+		* TLT_PERIODICITY_X
+		*/
+		bool periodicity_x;
+
+		/* \inpsection{periodicity, enable}
+		* \label{Y}
+		* \default{false}
+		* TLT_PERIODICITY_Y
+		*/
+		bool periodicity_y;
+
+		/* \inpsection{periodicity, enable}
+		* \label{Z}
+		* \default{false}
+		* TLT_PERIODICITY_Z
+		*/
+		bool periodicity_z;
+
+		/* \inpsection{probe}
+		* \label{PROBE_X}
+		* \default{0.0}
+		* TLT_PROBE_X
+		*/
+		std::vector<float> x;
+
+		/* \inpsection{probe}
+		* \label{PROBE_Y}
+		* \default{0.0}
+		* TLT_PROBE_Y
+		*/
+		std::vector<float> y;
+
+		/* \inpsection{probe}
+		* \label{PROBE_Z}
+		* \default{0.0}
+		* TLT_PROBE_Z
+		*/
+		std::vector<float> z;
+
+		/* \inpsection{wave_gage}
+		* \label{WAVE_GAGE_X}
+		* \default{0.0}
+		* TLT_WAVE_GAGE_X
+		*/
+		std::vector<float> gage_x;
+
+		/* \inpsection{wave_gage}
+		* \label{WAVE_GAGE_Y}
+		* \default{0.0}
+		* TLT_WAVE_GAGE_Y
+		*/
+		std::vector<float> gage_y;
+
+		/* \inpsection{wave_gage}
+		* \label{WAVE_GAGE_Z}
+		* \default{0.0}
+		* TLT_WAVE_GAGE_Z
+		*/
+		std::vector<float> gage_z;
+
+		/* End of pseudo parameters definition */
+
 #ifdef GPUSPH_special_boundary_SECTIONS
 
 #if ISDEF(special_boundary,start_time_VALS)
