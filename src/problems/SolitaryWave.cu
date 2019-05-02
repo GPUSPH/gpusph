@@ -85,7 +85,6 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 	set_equation_of_state(0,  7.0f, 20.f);
 	const float r0 = m_deltap;
 
-	physparams()->artvisccoeff = 0.3f;
 	set_kinematic_visc(0, 1.0e-6f);
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 

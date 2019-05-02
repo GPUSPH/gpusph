@@ -64,7 +64,7 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	set_equation_of_state(0, 7.0, 50);
 
 	set_kinematic_visc(0, 1.0e-6f);
-	physparams()->artvisccoeff = 0.3*0.005/m_deltap;
+	set_artificial_visc(0.3*0.005/m_deltap);
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);

@@ -67,7 +67,6 @@ Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 	setMaxFall(H);
 
 	set_kinematic_visc(0, 5.0e-6f);
-	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// Variable gravity terms:  starting with physparams()->gravity as defined above

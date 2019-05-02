@@ -48,7 +48,6 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 
 
 	set_kinematic_visc(0, 1.0e-6f);
-	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	add_writer(VTKWRITER, 0.1);

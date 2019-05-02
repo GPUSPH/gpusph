@@ -425,6 +425,9 @@ class ProblemCore
 		void set_equation_of_state(size_t fluid_idx, float gamma, float c0)
 		{ return physparams()->set_equation_of_state(fluid_idx, gamma, c0); }
 
+		void set_artificial_visc(float artvisc)
+		{ return physparams()->set_artificial_visc(artvisc); }
+
 		void set_kinematic_visc(size_t fluid_idx, float nu)
 		{ return physparams()->set_kinematic_visc(fluid_idx, nu); }
 		void set_dynamic_visc(size_t fluid_idx, float mu)

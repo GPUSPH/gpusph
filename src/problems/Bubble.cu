@@ -106,7 +106,6 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	set_kinematic_visc(air, 4.5e-3f);
 	set_kinematic_visc(water, 3.5e-5f);
 
-	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	// Drawing and saving times

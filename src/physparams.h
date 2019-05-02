@@ -580,6 +580,9 @@ protected:
 	/** \name Viscosity related methods
 	 * @{ */
 
+	void set_artificial_visc(float artvisc)
+	{ artvisccoeff = artvisc; }
+
 	/// Raise the limiting viscosity if necessary to take into account the new settings for the given fluid.
 	void update_limiting_kinvisc(int fluid_idx)
 	{

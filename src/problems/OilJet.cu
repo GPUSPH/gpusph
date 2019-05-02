@@ -69,7 +69,6 @@ OilJet::OilJet(GlobalData *_gdata) : Problem(_gdata)
 	set_equation_of_state(0,  7.0f, 10.f);
 	set_kinematic_visc(0, 1.0e-6);
 
-	physparams()->artvisccoeff =  0.3;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 
 	//Wave piston definition:  location, start & stop times, stroke and frequency (2 \pi/period)

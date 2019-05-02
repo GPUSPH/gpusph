@@ -49,7 +49,6 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : Problem(_gdata)
 	// Physical parameters
 	float g = get_gravity_magnitude();
 
-	physparams()->artvisccoeff = 0.3f;
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
 	physparams()->epsxsph = 0.5f;
 
