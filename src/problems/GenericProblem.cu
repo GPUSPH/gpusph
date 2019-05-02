@@ -64,7 +64,7 @@ GenericProblem::GenericProblem(GlobalData *_gdata)
 
 	// Initialization of the discretisation parameters
 #if ISDEF(discretisation,sfactor)
-	simparams()->sfactor = PVAL( discretisation, sfactor );
+	set_smoothing( PVAL( discretisation, sfactor ) );
 #endif
 	set_deltap ( PVAL( discretisation, m_deltap ));
 
