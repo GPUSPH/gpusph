@@ -24,6 +24,7 @@
 */
 
 #include <cstdio>
+#include <cfloat>
 #include "Plane.h"
 
 Plane::Plane(const double a, const double b, const double c, const double d)
