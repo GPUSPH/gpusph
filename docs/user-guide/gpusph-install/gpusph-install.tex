@@ -23,7 +23,7 @@ The graphics processing unit (GPU) implementation came from GPU-LAVA,
 a lava flow program, developed by Hérault and Bilotta at INGV in 
 Catania, Italy. The present version of GPUSPH is open source, 
 licensed under the GNU General Public License
-(\url{www.gnu.org/licenses/gpl.txt}). \\
+(\url{www.gnu.org/licenses/gpl.txt}).
 
 Smoothed Particle Hydrodynamics (SPH) is a Lagrangian meshless numerical
 method that was developed in astrophysics by \cite{lucy_numerical_1977} and
@@ -37,7 +37,7 @@ Since in SPH the interactions between particles involve many neighbors
 (several hundreds in three dimensions), it suffers from high computational costs.
 This motivated the development of massively parallel SPH codes,
 in particular codes running on graphics cards due to their performance and relatively
-low cost.\\
+low cost.
 
 The development of sophisticated graphics cards is driven by the demands of 
 advanced computer gaming, in particular to handle three-dimensional 
@@ -47,20 +47,20 @@ of image rotation, resizing etc. With the advent of the {\em CUDA}
 programing language from \nvidia\ in 2007, simple \cpp\ language can be used
 to access the mathematical power of these massively parallel cards. For
 computer simulations that are not data-intensive, GPU programming
-provides supercomputer capabilities at commodity prices.\\
+provides supercomputer capabilities at commodity prices.
 
 Some timing information can be found in \cite{herault_sph_2010}, 
 showing that using the GPU is far faster (orders
 of magnitude) than using a CPU to compute SPH models. Speedups of 100
 can be achieved for parts of the code when compared to serial versions
-of the code.\\
+of the code.
 
 The first version of GPUSPH was running  on \nvidia's Compute Capability (CC) 1.x cards, 
-GeForce 8xxx cards. From this first version we tested GPUSPH on all \nvidia \  architectures
-(from Fermi CC 2.x to the latest Pascal CC 6.x). \nvidia \  dropped support for CC 1.x and will 
+GeForce 8xxx cards. From this first version we tested GPUSPH on all \nvidia\  architectures
+(from Fermi CC 2.x to the latest Pascal CC 6.x). \nvidia\  dropped support for CC 1.x and will 
 soon do it for CC 2.x. So at the moment GPUSPH will run on any card with CC 2.x or higher
 (from Fermi up) but we expect to drop soon the support for CC 2.x. When done GPUSPH will
-run on any card with CC 3.x or higher (from Kelpler up).\\
+run on any card with CC 3.x or higher (from Kelpler up).
 
 This guide is divided into several sections. 
 First, the installation and set-up of the GPUSPH code is explained and 
@@ -75,14 +75,14 @@ Finally we discuss the nature of the GPUSPH program in some detail.
 
 The first step to run GPUSPH is to install the \nvidia\ company's CUDA
 compilers and libraries (directions given below). CUDA is an extension
-of the \cpp\ language to allow \cpp\ to talk to the graphics card.\\
+of the \cpp\ language to allow \cpp\ to talk to the graphics card.
 
 The second step is to install the open source software, CHRONO,
 which simulates rigid body dynamics. This library is used for
 any rigid objects that move, such as floating objects or objects moved
-by fluid flow.\\
+by fluid flow.
 
-The third step is to obtain, compile and run GPUSPH.\\
+The third step is to obtain, compile and run GPUSPH.
 
 \textbf{Remark:} to run multi-node simulations, you also need to
 install OpenMP (>= 1.8.4).
@@ -97,29 +97,29 @@ CUDA is already installed on your machine by launching the command:
 nvidia-smi
 \end{shellcode}
 from the terminal. If CUDA is installed it will give you information
-on the current state of the NVIDIA graphics card(s) on the machine.\\
+on the current state of the NVIDIA graphics card(s) on the machine.
 
 \textbf{Note}: GPUSPH runs on cards with Compute Capabillity at least 2.0
-\\
+
 
 \textbf{Remark}: regarding the choice of the GPU, the more CUDA 
 cores and the more memory on the card, the better. Anyway a
 mid range mobile GPU's like GT750m/GT840 with 1 or 2GB of memory
 is sufficient to run significant simulations. A laptop with such a GPU will be
-a perfect mobile developing and testing platform.\\
+a perfect mobile developing and testing platform.
 
 The GPU programming language CUDA can be obtained from the \nvidia\ website,
 CUDA Zone. The CUDA Toolkit and CUDA Software Development Kit (SDK)
 need to be installed for your operating system along with the video
 driver. These packages include the CUDA compiler \cmd{nvcc}, which is
 needed to develop executable code, and the graphics card driver that
-allows your program to access the GPU card. \\
+allows your program to access the GPU card.
 
-Download the relevant driver for your machine from:\\
-\url{http://www.nvidia.com/Download/index.aspx?lang=en-us} \\
-and the CUDA toolkit from:\\
-\url{https://developer.nvidia.com/cuda-downloads}\\
-Follow the instructions provided by \nvidia\ for the installation.\\
+Download the relevant driver for your machine from:
+\url{http://www.nvidia.com/Download/index.aspx?lang=en-us}
+and the CUDA toolkit from:
+\url{https://developer.nvidia.com/cuda-downloads}
+Follow the instructions provided by \nvidia\ for the installation.
 
 
 To ensure that all is installed correctly and working, you should
@@ -136,7 +136,7 @@ for a linux machine. In this directory, type \cmd{./fluidsGL} to run
 the \cmd{fluidsGL} example. You should see a green window open on your
 desktop. Use the mouse to stir up the fluid. The example program
 Particles is worth playing with as well, as it provided a basis for
-developing GPUSPH.\\
+developing GPUSPH.
 
 
 
@@ -197,10 +197,10 @@ again.
 
 \subsection{Installing the CHRONO library}
 
-The CHRONO website provides information for how to install CHRONO:\\
-\url{http://api.chrono.projectchrono.org/tutorial_install_chrono.html}\\
+The CHRONO website provides information for how to install CHRONO:
+\url{http://api.chrono.projectchrono.org/tutorial_install_chrono.html}
 
-\textbf{Remark:} There is no need for the Irrlicht library with GPUSPH.\\
+\textbf{Remark:} There is no need for the Irrlicht library with GPUSPH.
 
 In this section we summarize the steps for the CHRONO library installation.
 To install CHRONO, besides the GPUSPH requirements you need to have \cmd{cmake} installed
@@ -442,8 +442,8 @@ Figure \ref{fig:WaveTank} shows a screenshot of the simulation at time $9s$.
 SolitaryWave is similar in set up to the WaveTank example, except that a
 piston moving boundary is used. The motion of a vertical plate is
 determined by the method of \cite{goring_tsunamis_1979}, available in PDF format
-from:\\ 
-\cmd{http://caltechkhr.library.caltech.edu/50/}\\
+from:
+\cmd{http://caltechkhr.library.caltech.edu/50/}
 The full excursion (stroke) of the paddle is the variable \cmd{S}.
 
 \subsection{Seiche}
@@ -453,7 +453,7 @@ rectangular container of size: $\ell = 0.707$m, $w = \ell/2$, and depth,
 $H = 0.5$m. The purpose of the example is to illustrate the ability to
 vary gravity in a problem. As the problem starts, there is water in the
 container. After $0.3$s, gravity is modified by adding a component in
-the $x$ direction, such that the total gravity vector is \\
+the $x$ direction, such that the total gravity vector is
 \cmd{m_physparams.gravity = make_float3(3.*sin(9.8*(t-m_gtstart)), 0.0,
 -9.81f);}\\ which means that the container is shaken with a sinusoidal
 motion with angular frequency of $9.8s^{-1}$ (period${} = 0.64$s),
@@ -710,7 +710,7 @@ and \cmd{ppn} parameters for the number of hosts and processes per host, respect
 \section{Installing pre/post processing tools}
 
 \subsection{Installing SALOME}
-You can download SALOME from:\\
+You can download SALOME from:
 \url{http://www.salome-platform.org/downloads/current-version}
 
 For this you need to register on the SALOME website.
@@ -722,7 +722,7 @@ STL mesh of the boundaries. You can of course use another mesher of your
 choice for this step.
 
 \subsection{Installing CRIXUS}
-Crixus is a preprocessing tool for GPUSPH. \\
+Crixus is a preprocessing tool for GPUSPH.
 
 \textbf{Prerequisites}:
 \begin{itemize}
@@ -737,7 +737,7 @@ git clone https://github.com/Azrael3000/Crixus.git
 cd Crixus.git
 \end{shellcode}
 
-\textbf{Compiling Crixus}: \\
+\textbf{Compiling Crixus}:
 Crixus uses CMake for compilation. 
 Let us assume that you have CRIXUS in a \cmd{Crixus.git} directory. 
 and you want the building to happen in \cmd{Crixus.git/build} then follow the commands below:
@@ -756,11 +756,11 @@ If hdf5 cannot be found due to lacking environmental variable you can edit the m
 \begin{shellcode}
 #set(ENV{HDF5_ROOT} "/your/path/to/hdf5")
 \end{shellcode}
-Uncomment it and set the respective hdf5 path in order to use your custom installation.\\
+Uncomment it and set the respective hdf5 path in order to use your custom installation.
 
 To finish the installation it is recommended to add the path to the CRIXUS binary to your
-\cmd{$PATH} environment variable. Add this line in \cmd{~/.bashrc}:\\
-\cmd{export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:\$PATH}\\
+\cmd{$PATH} environment variable. Add this line in \cmd{~/.bashrc}:
+\cmd{export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:\$PATH}
 where \cmd{/your_path} is your path to the CRIXUS directory.
 
 \subsection{Installing PARAVIEW}
