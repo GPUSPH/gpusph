@@ -264,7 +264,7 @@ sudo make install
 
 You can test a different problem by using:
 \begin{shellcode}
-make problem=OtherProblem test
+make OtherProblem test
 \end{shellcode}
 where \cmd{OtherProblem} is the name of a different problem. You can get
 a list of available problems with \cmd{make list-problems}.
@@ -280,7 +280,7 @@ will remember the \cmd{value} set.
 The \cmd{make} options are listed below:
 \begin{itemize}
 \item \cmd{target_arch} - if set to 32, force compilation for 32 bit architecture
-\item \cmd{problem} - Name of the problem.
+\item \cmd{problem} - Name of the problem. Since version 5, you can just use the problem name as a target to build that particular test case.
 \item \cmd{dbg} - 0 no debugging, 1 enable debugging
 \item \cmd{compute} - 11, 12, 13, 20, 21, 30, 35, etc: compute capability to compile for (default: autodetect)
 \item \cmd{fastmath} - Enable or disable fastmath. Default: 0 (disabled)

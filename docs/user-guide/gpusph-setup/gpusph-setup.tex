@@ -42,11 +42,11 @@ using the SALOME graphical interface:
 the \cmd{src/problems/user} directory;
 \item in the GPUSPH folder, compile the code for your project:
 \begin{shellcode}
-make problem=MyCase
+make MyCase
 \end{shellcode}
-\item execute GPUSPH:
+\item execute the test case:
 \begin{shellcode}
-./GPUSPH
+./MyCase
 \end{shellcode}
 \item follow the steps described in the section \ref{sec:postprocess} 
 to visualize and post-process the results.
@@ -166,7 +166,7 @@ generic example for semi-analytical boundaries;
 generic example for dynamic and Lennard-Jones boundaries.
 \end{itemize}
 
-Each of these examples can be run by typing \cmd{make problem=ProblemName}, 
+Each of these examples can be run by typing \cmd{make ProblemName},
 in the top level GPUSPH directory.  
 It is recommended that the user try them to ensure 
 everything checks out in terms of CUDA and GPUSPH. \\
@@ -612,7 +612,7 @@ floating body, moving body, plane, or testpoint, eg. \cmd{GT_OPENBOUNDARY}.
 To run your simulation you first need to compile GPUSPH for your problem.
 To do so, in the GPUSPH folder, run:
 \begin{shellcode}
-make problem=MyProblem
+make MyProblem
 \end{shellcode}
 \textbf{Remark}:
 \begin{itemize}
