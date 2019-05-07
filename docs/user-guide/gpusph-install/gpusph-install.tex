@@ -585,7 +585,7 @@ This command leaves to MPI the choice of which nodes to use in the network,
 if more than N are available. 
 It is always safe to provide MPI a list of hostnames corresponding 
 to the nodes chosen to run the simulation. 
-If the file containing the list of hostnames is called “myhostsfile”, a typical syntax will be:
+If the file containing the list of hostnames is called \cmd{myhostsfile}, a typical syntax will be:
 
 \begin{shellcode}
 mpirun -np N -hostfile ./myhostsfile \
@@ -615,7 +615,8 @@ nodes (for example because part of the cluster is already used by other processe
 The MPI runtime will start multiple processes per node and the GPU device 
 numbers will be likely to conflict (i.e. two different processes might 
 try to use the same GPU device for different parts of the simulation domain, 
-causing a performance slowdown or a failure if the CUDA devices are set in “exclusive mode”). 
+causing a performance slowdown or a failure if the CUDA devices are set
+in ``exclusive mode''). 
 In this case, we must inform GPUSPH that the number of physical hosts (i.e. nodes) 
 is smaller than the number of processes, so that it will shift the GPU device 
 numbers of the appropriate processes and no GPU device will be accessed by two processes. 
@@ -628,7 +629,7 @@ mpirun -np N*2 -hostfile ./myhostsfile \
 
 But there is another important detail. There are different ways the MPI 
 runtime can distribute the processes across the nodes. 
-Two very common policies are “by slot” (fill-first) and “by node” 
+Two very common policies are ``by slot'' (fill-first) and ``by node''
 (round robin). 
 The scheduling policy affects the association between the process ranks 
 and the CUDA device numbers, so GPUSPH must be informed about it to use 
@@ -644,7 +645,7 @@ mpirun -np N*2 -hostfile ./myhostsfile \
 There is no optimal policy in general as its performance depends on the node 
 load and the node-to-node connection speed. It is worth trying both to check 
 whether one is more performant than the other. The default policy is usually 
-“by slot” (fill-first, usually preferred by non GPU-based softwares) but it 
+``by slot''(fill-first, usually preferred by non GPU-based softwares) but it
 is always safer to explicitly set it for every run. 
 In OpenMPI the corresponding options are \cmd{--byslot} and \cmd{--bynode}.
 
@@ -656,7 +657,7 @@ devices per process, or if the amount of data to be saved on file is large or
 the saving frequency is very high, so that saving would benefit from a parallel 
 dump (every process saves its part of the simulation independently from the other processes).
 
-Finally, let’s see some practical examples. Suppose our cluster has 12 nodes, each equipped 
+Finally, let's see some practical examples. Suppose our cluster has 12 nodes, each equipped
 with 4 GPU devices. We need to run a simulation on 12 devices. 
 To run 3 processes on 3 hosts, each using 4 devices, we will run:
 
@@ -750,7 +751,7 @@ make
 Note that you should not run cmake in the main Crixus folder.
 
 The binary is then located at \cmd{Crixus.git/build/bin/Release/Crixus}.
-Note that "make install" is not supported yet. To easily change the parameters of cmake you can use ccmake instead.
+Note that \cmd{make install} is not supported yet. To easily change the parameters of cmake you can use ccmake instead.
 
 If hdf5 cannot be found due to lacking environmental variable you can edit the main CMakeLists.txt which has a commented line that reads:
 \begin{shellcode}
@@ -759,7 +760,7 @@ If hdf5 cannot be found due to lacking environmental variable you can edit the m
 Uncomment it and set the respective hdf5 path in order to use your custom installation.
 
 To finish the installation it is recommended to add the path to the CRIXUS binary to your
-\cmd{$PATH} environment variable. Add this line in \cmd{~/.bashrc}:
+\cmd{PATH} environment variable. Add this line in \cmd{~/.bashrc}:
 \cmd{export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:\$PATH}
 where \cmd{/your_path} is your path to the CRIXUS directory.
 
