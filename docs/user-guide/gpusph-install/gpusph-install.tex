@@ -480,13 +480,13 @@ The variation of gravity with time (and any stop (\cmd{m_gtend}) and
 start times) is prescribed in a user-supplied (in the problem)
 \cmd{g_callback} function.
 
-\subsection{TestTopo}
+\subsection{DEMExample}
 
 This is an example showing how to use GPUSPH's support for Digital
 Elevation Models (DEMs). It loads the topography of the bottom of the
 domain from a file called \cmd{half_wave0.1m.txt}, shipped with GPUSPH.
 A different DEM can be used, by either changing the name in the source
-\cmd{TestTopo.cc} file, or by providing the new name as argument to the
+\cmd{DEMExample.cu} file, or by providing the new name as argument to the
 \cmd{--dem} command-line option to GPUSPH.
 
 %\todo{TestTopo picture}
@@ -514,7 +514,7 @@ should be run.
 \item [-{}-tend \emph{float}]
 The model time in seconds when you wish the model to stop.
 \item [-{}-dem \emph{string}]
-For the Problem TestTopo: the name of the DEM file to use.
+For the Problem DEMExample: the name of the DEM file to use.
 \item [-{}-resume \emph{fname}]
 Resume from the given file (HotStart file saved by HotWriter).
 \item [-{}-checkpoint-every \emph{float}]
