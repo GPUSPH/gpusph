@@ -353,8 +353,8 @@ in the Figure \ref{fig:DamBreak3D}.
 
 In most laboratory experiments of dam breaks, the dam takes a certain
 amount of time to move out of the way. The example problem
-\cmd{DamBreakGate} illustrates the use of moving boundary particles of
-the type GATEPART. The problem is set up the same way as the
+\cmd{DamBreakGate} illustrates the use of moving boundaries
+with prescribed motions. The problem is set up the same way as the
 \cmd{DamBreak3D} case, but there is a moving gate that is raised
 vertically with a linearly varying velocity. In this case, the gate will
 move with a velocity that is zero when the problem starts and that
@@ -363,9 +363,10 @@ effect on the dam break is that the escaping water is affected by the
 gage motion. (See \cite{crespo_modeling_2008}'s SPH modeling of
 \cite{janosi_turbulent_2004}'s experiment, where a moving gate was important.)
 
-The moving gate is created by defining its geometry with particles
-denoted as GATEPART particles and the \cmd{mb_callback} function, which
-is used for the \textbf{m}oving \textbf{b}oundaries.
+The moving gate is created by defining its geometry with a geometry type
+\cmd{GT_MOVING_BODY}, and overriding the Problem
+\cmd{moving_bodies_callback} function to determine the linear and
+angular velocity of the body.
 
 A screenshot of the simulation at time $0.8s$ is provided
 in the Figure \ref{fig:DamBreakGate}.
@@ -380,7 +381,7 @@ in the Figure \ref{fig:DamBreakGate}.
 \subsection{OpenChannel}
 
 This problem represents an instantaneous start up of a highly viscous
-and dense fluid flow in an open channel on a $9\deg$ slope. The
+end dense fluid flow in an open channel on a $9\deg$ slope. The
 channel is rectangular in cross-section ($1$m wide and $0.7$m deep) and
 the computed length of the infinitely long channel is $2$m. The side
 walls are fixed (Leonard-Jones boundary force) while the computational
@@ -390,8 +391,8 @@ place, $2$m upstream.
 
 The periodic boundary here is used in the $x$ direction, although
 boundaries in other problems can be periodic in the other directions as
-well. The key parameter in the problem statement is
-\cmd{m_simparams.periodicbound}, which can be set to any combination of
+well. The key parameter in the problem statement is the simulation
+framework \cmd{periodicity}, which can be set to any combination of
 \cmd{PERIODIC_X}, \cmd{PERIODIC_Y}, \cmd{PERIODIC_Z} to indicate
 peridocity along each of the axes.
 Figure \ref{fig:OpenChannel} shows the shape of the velocity field in 
@@ -407,7 +408,7 @@ the channel after time convergence.
 
 WaveTank uses a moving boundary to create a paddle wavemaker at one end
 of a wave tank with a sloping bottom (bottom slope is $4.2364\deg$). The
-wavemaker motion is controlled by the \cmd{mb_callback} function. In
+wavemaker motion is controlled by the \cmd{moving_bodies_callback} function. In
 this case, the length of the paddle is $1.0$m and the paddle pivots
 about an origin \cmd{m_origin}; here, the pivot is located $0.1344$m
 below the bottom and $0.13$m from the front wall of the tank. To specify
@@ -454,8 +455,8 @@ $H = 0.5$m. The purpose of the example is to illustrate the ability to
 vary gravity in a problem. As the problem starts, there is water in the
 container. After $0.3$s, gravity is modified by adding a component in
 the $x$ direction, such that the total gravity vector is
-\cmd{m_physparams.gravity = make_float3(3.*sin(9.8*(t-m_gtstart)), 0.0,
--9.81f);}\\ which means that the container is shaken with a sinusoidal
+\cmd{set_gravity(3.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);}
+which means that the container is shaken with a sinusoidal
 motion with angular frequency of $9.8s^{-1}$ (period${} = 0.64$s),
 with a magnitude of $3\text{m}/\text{s}^2$ until time \cmd{m_gtend=3.0}
 is reached, when the gravity vector once again returns to the vertical
@@ -513,6 +514,9 @@ Change the resolution (inter-particle spacing) at which the problem
 should be run.
 \item [-{}-tend \emph{float}]
 The model time in seconds when you wish the model to stop.
+\item [-{}-dt \emph{float}]
+Force the use of the fixed, specified time-step, even if the problem
+would use dynamic time-stepping otherwise.
 \item [-{}-dem \emph{string}]
 For the Problem DEMExample: the name of the DEM file to use.
 \item [-{}-resume \emph{fname}]
@@ -760,8 +764,10 @@ If hdf5 cannot be found due to lacking environmental variable you can edit the m
 Uncomment it and set the respective hdf5 path in order to use your custom installation.
 
 To finish the installation it is recommended to add the path to the CRIXUS binary to your
-\cmd{PATH} environment variable. Add this line in \cmd{~/.bashrc}:
-\cmd{export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:\$PATH}
+\cmd{PATH} environment variable. Add this line in \cmd{\~/.bashrc}:
+\begin{shellcode}
+export PATH=/your_path/Crixus.git/build/bin/Release/Crixus:$PATH
+\end{shellcode}
 where \cmd{/your_path} is your path to the CRIXUS directory.
 
 \subsection{Installing PARAVIEW}
