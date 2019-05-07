@@ -46,10 +46,14 @@ to ``master`` directly, which is then merged back into ``candidate`` and into
 Communication
 =============
 
-We are presently working on setting up a better infrastructure for discussions
-concerning GPUSPH development. In the meantime, issues and feature requests can
-be discussed on the GitHub issue tracker. The GPUSPH developers can also be
-found on IRC, ``#gpusph`` channel on the FreeNode network.
+The GitHub issue tracker is available to submit specific issues about building
+and running GPUSPH, as well as to present any feature request.
+
+For more general discussion about GPUSPH, its use and development, please join
+`the GPUSPH Discourse Forum <https://gpusph.discourse.group>`_.
+
+The GPUSPH developers can also be found on IRC, ``#gpusph`` channel on the
+FreeNode network.
 
 Reading the source
 ====================
@@ -112,11 +116,14 @@ and managing a separate device (GPU). ``GPUSPH`` itself takes care of
 all initializations and host allocation, whereas all aspects of device management
 are handled by the ``GPUWorker`` instances which, once initialized, enter
 their own main loop, waiting for commands from ``GPUSPH`` and mapping these
-to appropriate kernel invocations.
+to appropriate computational kernel invocations. The sequences of commands to
+be executed during a simulation are define by ``Integrator`` instances.
+Available integrators can be found under ``src/integrators``.
 
-The kernel themselves are provided by the simulation framework, which is a collection
-of engines taking care of separate parts of the simulation (boundary conditions,
-forces computation, integration, etc) and is instantiated by the ``Problem`` subclass
-implementing the user-specified test-case.
+The computational kernel themselves are provided by the simulation framework,
+which is a collection of engines taking care of separate parts of the
+simulation (boundary conditions, forces computation, integration, etc) and is
+instantiated by the ``Problem`` subclass implementing the user-specified
+test-case.
 
 
