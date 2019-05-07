@@ -102,6 +102,7 @@
 % current version
 \newcommand{\version}{5.0}
 \newcommand{\currentver}{version~\version}
+\newcommand{\reldate}{June 2019}
 
 % text macros
 \newcommand{\nvidia}{\textsc{nvidia}}
