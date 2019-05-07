@@ -1,35 +1,19 @@
-SRCDIR1=gpusph-install
-SRCDIR2=gpusph-setup
-SRCDIR3=gpusph-theory
-SRCDIR4=gpusph-valid
+DIRS=gpusph-install \
+     gpusph-setup \
+     gpusph-theory \
+     gpusph-valid
 
-all: gpusph-install.pdf gpusph-setup.pdf gpusph-theory.pdf gpusph-valid.pdf
+TARGETS=$(patsubst %,%.pdf,$(DIRS))
 
-gpusph-install.pdf:
-	cd $(SRCDIR1); make
-	mv $(SRCDIR1)/$@ .
+all: $(TARGETS)
 
-gpusph-setup.pdf:
-	cd $(SRCDIR2); make
-	mv $(SRCDIR2)/$@ .
-
-gpusph-theory.pdf:
-	cd $(SRCDIR3); make
-	mv $(SRCDIR3)/$@ .
-
-gpusph-valid.pdf:
-	cd $(SRCDIR4); make
-	mv $(SRCDIR4)/$@ .
+%.pdf:
+	make -C $(basename $@)
+	mv $(basename $@)/$@ $@
 
 clean:
-	cd $(SRCDIR1); make clean
-	cd $(SRCDIR2); make clean
-	cd $(SRCDIR3); make clean
-	cd $(SRCDIR4); make clean
-	rm -rf gpusph-install.pdf
-	rm -rf gpusph-setup.pdf
-	rm -rf gpusph-theory.pdf
-	rm -rf gpusph-valid.pdf
+	for dir in $(DIRS) ; do make -C $$dir clean ; done
+	rm -rf $(TARGETS)
 
 .PHONY: clean
 
