@@ -454,6 +454,27 @@ uint get_cellindex(hashKey const& phash)
 // to debug the neighbors list
 static char3 cell_to_offset[27] = {};
 
+//! Names of the particle types
+// TODO these should probably go in particleinfo.h in a similar manner to the particledefine.h names
+const char* ParticleTypeName[PT_NONE]
+= {
+	"fluid",
+	"boundary",
+	"vertex",
+	"testpoint"
+};
+
+//! Symbols of the particle types
+// TODO these should probably go in particleinfo.h in a similar manner to the particledefine.h names
+const char ParticleTypeSym[PT_NONE]
+= {
+	'F',
+	'B',
+	'V',
+	'T'
+};
+
+
 void
 VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
 {
@@ -519,7 +540,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			 * for the given particle, followed by one line 'decoding' the neighbors list
 			 * of each type for the particle.
 			 */
-			neibs << i << "\t" << id(info[i]);
+			neibs	<< i << "\t" << id(info[i])
+				<< " (" << ParticleTypeSym[PART_TYPE(info[i])] << ")";
 			// raw output first
 			for (uint index = i; index < m_neiblist_end; index += m_neiblist_stride) {
 				neibdata neib = neibslist[index];
