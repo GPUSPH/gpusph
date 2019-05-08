@@ -451,6 +451,9 @@ uchar get_object_few(particleinfo const& pinfo)
 uint get_cellindex(hashKey const& phash)
 { return cellHashFromParticleHash(phash); }
 
+// to debug the neighbors list
+static char3 cell_to_offset[27] = {};
+
 void
 VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
 {
@@ -484,8 +487,23 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	ushort *neibsnum = new ushort[numParts];
 
 	if (neibslist) {
+		const uint *cellStart = buffers.getData<BUFFER_CELLSTART>();
+
+		// initialize cell_to_offset array
+		if (cell_to_offset[0].x == 0) {
+			for(char z=-1; z<=1; z++) {
+				for(char y=-1; y<=1; y++) {
+					for(char x=-1; x<=1; x++) {
+						int i = (x + 1) + (y + 1)*3 + (z + 1)*9;
+						cell_to_offset[i] =  make_char3(x, y, z);
+					}
+				}
+			}
+		}
+
 		ofstream neibs;
 		open_data_file(neibs, "neibs", current_filenum(), ".txt");
+
 		for (uint i = 0; i < numParts; ++i) {
 			/* The neighbors list is split in three sections; if F denotes
 			 * fluid neighbors, B boundary neighbors and V vertex neighbors,
@@ -510,8 +528,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 				else
 					neibs << "\t" << neib;
 			}
-			// now each type
+
+			// now each type, with decoding
 			neibsnum[i] = 0;
+			const uint3 gridPos = gdata->calcGridPosFromCellHash(particleHash[i]);
+
 			for (ParticleType pt = PT_FLUID; pt < PT_TESTPOINT; pt = (ParticleType)(pt+1)) {
 				neibs << "\n\t";
 				uint num_neibs = 0;
@@ -523,6 +544,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 				const uint stride = (pt == PT_BOUNDARY ? -1 : 1)*m_neiblist_stride;
 				const uint end = (pt == PT_BOUNDARY ? i : m_neiblist_end);
 
+				uint neib_cell_base_index = UINT_MAX;
+
 				for (uint index = start; index < end; index += stride) {
 					neibdata neib = neibslist[index];
 					if (neib == NEIBS_END)
@@ -533,12 +556,15 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 						int neib_cellnum = DECODE_CELL(neib);
 						neib = neib & NEIBINDEX_MASK;
 						neibs << neib_cellnum << "|" << neib << " = ";
+
+						int3 neib_grid_pos =
+							make_int3(gridPos.x, gridPos.y, gridPos.z) +
+							cell_to_offset[neib_cellnum];
+						uint neib_grid_hash = gdata->calcGridHashPeriodic(neib_grid_pos);
+						neib_cell_base_index = cellStart[neib_grid_hash];
 					}
-					// TODO compute and show the actual neighbor index
-					// needs a copy of BUFFER_CELLSTART, plus the periodic version of
-					// calcGridHash()
-					uint neib_idx = UINT_MAX; // TODO FIXME ^
-					neibs << /* neib_idx << */ ")";
+					uint neib_idx = neib_cell_base_index + neib;
+					neibs << neib_idx << ")";
 				}
 				neibs << "\t[" << num_neibs << "]";
 				neibsnum[i] += num_neibs;

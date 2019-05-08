@@ -869,8 +869,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VEL>();
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INFO>();
 
-	if (gdata->debug.neibs)
+	if (gdata->debug.neibs) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEIBSLIST>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_CELLSTART>();
+	}
 
 	if (gdata->debug.forces)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
@@ -937,6 +939,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	while (iter != gdata->s_hBuffers.end()) {
 		if (iter->first == BUFFER_NEIBSLIST)
 			totCPUbytes += iter->second->alloc(numparts*gdata->problem->simparams()->neiblistsize);
+		else if (iter->first & BUFFERS_CELL)
+			totCPUbytes += iter->second->alloc(gdata->nGridCells);
 		else
 			totCPUbytes += iter->second->alloc(numparts);
 		++iter;
@@ -1691,7 +1695,7 @@ void GPUSPH::saveParticles(
 	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
 	if (gdata->debug.neibs)
-		which_buffers |= BUFFER_NEIBSLIST;
+		which_buffers |= BUFFER_NEIBSLIST | BUFFER_CELLSTART;
 	if (gdata->debug.forces)
 		which_buffers |= BUFFER_FORCES;
 

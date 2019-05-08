@@ -1298,12 +1298,22 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 		if (buf_to_get == BUFFER_NEIBSLIST)
 			_size *= gdata->problem->simparams()->neiblistsize;
 
+		uint dst_index_offset = firstInnerParticle;
+
+		// the cell-specific buffers are always dumped as a whole,
+		// since this is only used to debug the neighbors list on host
+		// TODO FIXME this probably doesn't work on multi-GPU
+		if (buf_to_get & BUFFERS_CELL) {
+			_size = buf->get_allocated_elements() * buf->get_element_size();
+			dst_index_offset = 0;
+		}
+
 		// get all the arrays of which this buffer is composed
 		// (actually currently all arrays are simple, since the only complex arrays (TAU
 		// and VERTPOS) have no host counterpart)
 		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
 			const void *srcptr = buf->get_buffer(ai);
-			void *dstptr = hostbuf->get_offset_buffer(ai, firstInnerParticle);
+			void *dstptr = hostbuf->get_offset_buffer(ai, dst_index_offset);
 			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyDeviceToHost));
 		}
 		// In multi-GPU, only one thread should update the host buffer state,

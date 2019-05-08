@@ -391,8 +391,17 @@ struct GlobalData {
 		return ( (trimmed.COORD3 * gridSize.COORD2) * gridSize.COORD1 ) + (trimmed.COORD2 * gridSize.COORD1) + trimmed.COORD1;
 	}
 	// overloaded
-	uint calcGridHashHost(int3 gridPos) const {
+	uint calcGridHashHost(int3 const& gridPos) const {
 		return calcGridHashHost(gridPos.x, gridPos.y, gridPos.z);
+	}
+	uint calcGridHashPeriodic(int3 gridPos) const {
+		if (gridPos.x < 0) gridPos.x = gridSize.x - 1;
+		if (gridPos.x >= gridSize.x) gridPos.x = 0;
+		if (gridPos.y < 0) gridPos.y = gridSize.y - 1;
+		if (gridPos.y >= gridSize.y) gridPos.y = 0;
+		if (gridPos.z < 0) gridPos.z = gridSize.z - 1;
+		if (gridPos.z >= gridSize.z) gridPos.z = 0;
+		return ( (gridPos.COORD3 * gridSize.COORD2) * gridSize.COORD1 ) + (gridPos.COORD2 * gridSize.COORD1) + gridPos.COORD1;
 	}
 
 	// TODO MERGE REVIEW. refactor with next one
