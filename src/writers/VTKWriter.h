@@ -44,6 +44,12 @@ class VTKWriter : public Writer
 	// index of the last written block
 	int m_blockidx;
 
+	// neighbors list structural information, used when neighbors list debugging is enabled
+	const uint m_neiblist_stride; ///< stride between two neighbors of the same particle
+	const uint m_neiblist_size; ///< maximum number of neighbors for one particle
+	const uint m_neiblist_end; ///< end of the whole neighbors list
+	const uint m_neib_bound_pos; ///< local neighbors list index of the first boundary neighbor
+
 	// Save planes to a VTU file
 	void save_planes();
 	// Save DEM to a VTS file

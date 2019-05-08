@@ -67,7 +67,11 @@ typedef unsigned char dev_idx_t;
 VTKWriter::VTKWriter(const GlobalData *_gdata)
   : Writer(_gdata),
 	m_planes_fname(),
-	m_blockidx(-1)
+	m_blockidx(-1),
+	m_neiblist_stride(gdata->allocatedParticles),
+	m_neiblist_size(gdata->problem->simparams()->neiblistsize),
+	m_neiblist_end(m_neiblist_stride*m_neiblist_size),
+	m_neib_bound_pos(gdata->problem->simparams()->neibboundpos)
 {
 	m_fname_sfx = ".vtp";
 
@@ -479,30 +483,67 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	ushort *neibsnum = new ushort[numParts];
 
-	// TODO FIXME splitneibs merge : this needs to be adapted to the new split neibs list
 	if (neibslist) {
 		ofstream neibs;
 		open_data_file(neibs, "neibs", current_filenum(), ".txt");
-		const idx_t stride = numParts;
-		const idx_t maxneibsnum = gdata->problem->simparams()->neiblistsize;
-		const idx_t listend = maxneibsnum*stride;
 		for (uint i = 0; i < numParts; ++i) {
-			neibsnum[i] = maxneibsnum;
-			neibs << i << "\t" << id(info[i]) << "\t";
-			for (uint index = i; index < listend; index += stride) {
+			/* The neighbors list is split in three sections; if F denotes
+			 * fluid neighbors, B boundary neighbors and V vertex neighbors,
+			 * the layout for a single particle is:
+			 * FFFF...*...*...BBBVVVV...*
+			 * where the * symbols represent end markers (NEIBS_END).
+			 * F neighbors are stored from position 0 upwards,
+			 * B neighbors are stored from position m_neib_bound_pos downwards,
+			 * V neighbors are stored from position m_neib_bound_pos+1 upwards.
+			 *
+			 * Since our purpose here is debugging the neighbors list, for each
+			 * particle we output multiple lines: a RAW line simply printing all values
+			 * for the given particle, followed by one line 'decoding' the neighbors list
+			 * of each type for the particle.
+			 */
+			neibs << i << "\t" << id(info[i]);
+			// raw output first
+			for (uint index = i; index < m_neiblist_end; index += m_neiblist_stride) {
 				neibdata neib = neibslist[index];
-				neibs << neib << "\t";
-				if (neib == USHRT_MAX) {
-					neibsnum[i] = (index - i)/stride;
-					break;
-				}
-				if (neib >= CELLNUM_ENCODED) {
-					int neib_cellnum = DECODE_CELL(neib);
-					neibdata ndata = neib & NEIBINDEX_MASK;
-					neibs << "(" << neib_cellnum << ": " << ndata << ")\t";
-				}
+				if (neib == NEIBS_END)
+					neibs << "\t*";
+				else
+					neibs << "\t" << neib;
 			}
-			neibs << "[" << neibsnum[i] << "]" << endl;
+			// now each type
+			neibsnum[i] = 0;
+			for (ParticleType pt = PT_FLUID; pt < PT_TESTPOINT; pt = (ParticleType)(pt+1)) {
+				neibs << "\n\t";
+				uint num_neibs = 0;
+				const uint start = i + (
+					(pt == PT_FLUID)	? 0 :
+					(pt == PT_BOUNDARY)	? m_neib_bound_pos :
+					/*pt == PT_VERTEX */	  m_neib_bound_pos+1)
+					*m_neiblist_stride;
+				const uint stride = (pt == PT_BOUNDARY ? -1 : 1)*m_neiblist_stride;
+				const uint end = (pt == PT_BOUNDARY ? i : m_neiblist_end);
+
+				for (uint index = start; index < end; index += stride) {
+					neibdata neib = neibslist[index];
+					if (neib == NEIBS_END)
+						break;
+					++num_neibs;
+					neibs << "\t" << neib << " (";
+					if (neib >= CELLNUM_ENCODED) {
+						int neib_cellnum = DECODE_CELL(neib);
+						neib = neib & NEIBINDEX_MASK;
+						neibs << neib_cellnum << "|" << neib << " = ";
+					}
+					// TODO compute and show the actual neighbor index
+					// needs a copy of BUFFER_CELLSTART, plus the periodic version of
+					// calcGridHash()
+					uint neib_idx = UINT_MAX; // TODO FIXME ^
+					neibs << /* neib_idx << */ ")";
+				}
+				neibs << "\t[" << num_neibs << "]";
+				neibsnum[i] += num_neibs;
+			}
+			neibs << "\n";
 		}
 		neibs.close();
 	}
