@@ -70,22 +70,23 @@ the solver, you need to follow the workflow provided in SALOME:
 %\section{Specific pre-processing for semi-analytical boundaries}\label{sec:preprocess_sa}
 
 \section{Setting up and running the simulation without using the user interface}
+\label{sec:setup-noui}
 
 As said before, the simulation setup only involves manipulating the .cu and the .h 
 files of your case in order to specify all its parameters before running GPUSPH. 
 
 The structure of a case, is in fact the structure of the .cu file, 
 which could be defined as follows:
-\begin{enumerate}
-\item GEOMETRY. As the mesh geometry has previously been 
+\begin{description}
+\item[GEOMETRY.] As the mesh geometry has previously been 
 created by CRIXUS, we only have to specify the file 
 containing this information: the .h5sph file.
-\item SIMULATION PARAMETERS. There are several simulation 
+\item[SIMULATION PARAMETERS.] There are several simulation 
 parameters that need to be specified, concerning the time, 
 the frequency of output writing or specific SPH parameters.
-\item INITIAL CONDITIONS. We need to specify an initial 
+\item[INITIAL CONDITIONS.] We need to specify an initial 
 value for each of the fields to be implemented on each particle.
-\item BOUNDARY CONDITIONS. Boundary conditions 
+\item[BOUNDARY CONDITIONS.] Boundary conditions 
 have also to be stated before running GPUSPH.
 \end{enumerate}
 In the following sections we develop each section to help 
@@ -100,22 +101,100 @@ the readers write the .cu file in order to build their own simulation.
 %filling the appropriate volumes with particles, 
 %and then copying the particles to the GPU.
 
-Creating new cases in GPUSPH is done using the \cmd{XProblem} class.
-\cmd{XProblem} does much of the work of defining and placing objects of common shape 
-(cubes or parallelepipeds, spheres, etc) in the domain. 
-These shapes can be solid or fluid or filled with fluid.  
-\cmd{Xproblem} takes care of filling the appropriate volume(s) with particles.   
-It can also insert h5sph objects coming from the Particle preprocessor. 
-It has the added feature of taking care of the setup for floating or moving 
-bodies that are handled through a dynamics library:  \cmd{Project Chrono}.  
-It also takes care of the open boundaries identification, and their type (pressure driven or velocity driven).
-Simple initializations can be automatically performed by \cmd{XProblem}, in particular to prescribe an initial
-hydrostatic pressure or to change the mass of some objects.
+Creating new cases in GPUSPH is done by creating a new class
+(whose name matches the case name) that derives from the \cmd{Problem}
+class.
 
-The prescription of the moving bodies velocities can be done in the function:
-\cmd{moving_bodies_callback}
-while an advanced user initialization can be coded in the function:
-\cmd{initializeParticles}.
+As new features are introduced in GPUSPH, at times it becomes necessary
+to change the interface (API: Application Programming Interface) of the
+\cmd{Problem} class to support them. When the API has to be changed in an
+incompatible manner, a new version of \cmd{Problem} will be introduced. To
+preserve compatibility with existing cases, the \cmd{Problem} class
+is \emph{versioned}, and cases should specify which version they intend to use.
+This is achieved by defining \cmd{PROBLEM_API} before the inclusion of
+the \cmd{Problem.h} interface header; for example:
+
+\begin{ccode}
+#define PROBLEM_API 1
+#include "Problem.h"
+\end{ccode}
+
+There are currently two \cmd{Problem} APIs defined: API version~0
+corresponds to the low-level \cmd{Problem} interface available in GPUSPH
+up to version 4, and API version~1, corresponding to the high-level
+interface that was made available experimentally in GPUSPH version 4.
+Users are encouraged to rely on API version~1, since version~0 is not
+guaranteed to be stable.
+
+The high-level \cmd{Problem} interface exposed in API version~1
+simplifies much of the work needed in defining in placing objects and
+geometries that can be described as a combination of shape, particle
+type, filling type and intersection behavior.
+
+New geometries are added to the case with commands of the form
+\cmd[escapeinside=<>]{add<Shape>} that take as parameter a
+\cmd{GeometryType}, a \cmd{FillType}, the reference point location,
+and the dimension(s). For example:
+
+\begin{ccode}
+// add a boundary cube with corner in the origin. The side lengths are specified
+// in the order X, Y, Z
+addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), 10, 4, 8);
+// add a sphere centered in (5, 2, 4) and radius 1
+addSphere(GT_FLUID, FT_SOLID, Point(5, 2, 4), 1);
+// remove a smaller sphere inside the fluid sphere
+addSphere(GT_FLUID, FT_NOFILL, Point(5, 2, 4), 0.5);
+\end{ccode}
+
+The possible values for the \cmd{GeometryType} are:
+\begin{description}
+\item[GT_FLUID] for fluid bodies;
+\item[GT_FIXED_BOUNDARY] for fixed boundaries such as walls;
+\item[GT_OPEN_BOUNDARY] for open boundaries (inlets, outlets);
+\item[GT_FLOATING_BODY] for objects whose motions is determined
+by the interaction with the fluid;
+\item[GT_MOVING_BODY] for objects whose motions is prescribed by the
+user (as defined in the \cmd{moving_bodies_callback} function that must
+be defined in the test case);
+\item[GT_PLANE, GT_DEM] special fixed boundaries whose interaction with
+the fluid can be described geometrically; this is an internal type and
+there is no need to specify it explicitly (\cmd{addPlane} and
+\cmd{addDEM} handle them automatically);
+\item[GT_TESTPOINTS] special particles that act as probes; this is an
+internal type and there is no need to specify it explicitly
+(\cmd{addTestPoint} handles them automatically);
+\item[GT_FREE_SURFACE] a sepcial set of particles used to describe the
+free surface during the initial repacking, if enabled;
+\end{description}
+
+The possible values for the \cmd{FillType} are
+\begin{description}
+\item[FT_NOFILL] no particles will be created for this geometry;
+\item[FT_UNFILL] no particles will be created for this geometry, and the
+geometry will only be used to cut (by intersection or subtraction) other
+geometries; this is needed for planes, to differentiate between their
+use as geometric boundaries (\cmd{FT_NOFILL}) and their use to cut other
+geometries (\cmd{FT_UNFILL});
+\item[FT_SOLID] both the boundary and the interior of the geometry will
+be filled with particles;
+\item[FT_SOLID_BORDERLESS] only the interior of the geometry will be
+filled with particles;
+\end{description}
+
+The \cmd{Problem} API~1 also supports the import of meshes and cloud
+points as produced e.g. by the Particle preprocessor using methods such
+as \cmd{addSTLMesh}, \cmd{addOBJMesh}, \cmd{addHD5File} and
+\cmd{addXYZFile}.
+
+It has the added feature of taking care of the setup for floating or
+moving bodies that are handled through a dynamics library:  \cmd{Project
+Chrono}.  It also takes care of the open boundaries identification, and
+their type (pressure driven or velocity driven). Simple initializations
+such as hydrostatic density configurations or setting up the mass for
+the objects can be automatically
+performed by this API. More sophisticated initializations (e.g. as
+required by multi-fluid simulations) can be coded by the user by
+defining a \cmd{initializeParticles} method.
 
 \subsection{Case Examples}
 
@@ -237,7 +316,7 @@ but they all have a similar format as ProblemExample.
 For example, looking at the file, \cmd{BuoyancyTest} in the directory 
 \cmd{src/problems}, we see that, after the appropriate \cmd{includes}, 
 including \cmd{BuoyancyTest.h}, the example is defined as a 
-child of the \cmd{XProblem} class.  
+child of the \cmd{Problem} class.
 Then the setup is done following the structure below.
 
 \subsubsection{Framework setup}
@@ -498,20 +577,19 @@ With DYNAMIC or LENNARD-JONES boundary conditions, the
 problem geometry and the filling with particles can be done
 inside GPUSPH. An example of generation of arrays
 of cubes and spheres in the computational domain is given in
-\cmd{XProblemExample.cu}. 
+\cmd{ProblemExample.cu}.
 The geometrical objects can be added using functions like:
 \begin{ccode}
 addCube(GT_FIXED_BOUNDARY, FT_BORDER,
              Point(X,Y,Z),cube_size);
 \end{ccode}
 The geometry type (GT) may be fluid, fixed boundary, open boundary, 
-floating body, moving body, plane, and testpoint, eg. \cmd{GT_OPENBOUNDARY}. 
-They are enumerated in \cmd{XProblem.h}.
-
+floating body, moving body, plane, and testpoint, as discussed in
+section~\ref{sec:setup-noui}.
 
 GPUSPH has a variety of geometrical objects that can be used to generate Problems.
 The geometrical objects are defined in the \cmd{src/geometry} folder.
-The XProblem class makes it possible to rotate or shift them after they were defined.
+The \cmd{Problem} API~1 makes it possible to rotate or shift them after they were defined.
 They can be assigned a mass and a center of gravity.
 In two dimensions, the objects (in \cpp\ terms, classes) include {\em
 Point, Vector, Segment, Rect (rectangle), Circle}. In three
@@ -519,8 +597,7 @@ dimensions, there are additional objects: {\em Cone, Cube, Cylinder,
 Sphere and TopoCube}. Using these objects, many types of Problems can
 be constructed. For the three dimensional case, the bottom (
 bathymetry) of the problem domain can be input via a file, using the
-TopoCube object and a dem file.
-
+TopoCube object and a DEM file.
 
 The {\em Point} object is usually used as a three dimensional object
 containing the location of a point in three dimensions. All numbers are
