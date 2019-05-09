@@ -178,6 +178,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (NEEDS_EFFECTIVE_VISC(m_simparams->rheologytype))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EFFVISC>();
 
+	if (m_simparams->rheologytype == GRANULAR)
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EFFPRES>();
+
 	if (m_simparams->boundarytype == SA_BOUNDARY &&
 		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->turbmodel == KEPSILON))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
@@ -2624,6 +2627,7 @@ void GPUWorker::runCommand<CALC_VISC>(CommandStruct const& cmd)
 		float max_kinvisc = viscEngine->calc_visc(bufread, bufwrite,
 			m_numParticles,
 			numPartsToElaborate,
+			gdata->problem->m_deltap,
 			m_simparams->slength,
 			m_simparams->influenceRadius);
 
@@ -2877,6 +2881,74 @@ void GPUWorker::runCommand<DISABLE_FREE_SURF_PARTS>(CommandStruct const& cmd)
 			bufread.getData<BUFFER_INFO>(),
 			m_numParticles,
 			numPartsToElaborate);
+
+	bufwrite.clear_pending_state();
+}
+
+template<>
+void GPUWorker::runCommand<JACOBI_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
+{
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+	bufwrite.add_manipulator_on_write("enforce_jacobi_boundary_conditions");
+
+	gdata->h_jacobiBackwardError[m_deviceIndex] = viscEngine->enforce_jacobi_boundary_conditions(
+		bufread, bufwrite,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
+}
+
+template<>
+void GPUWorker::runCommand<JACOBI_BUILD_VECTORS>(CommandStruct const& cmd)
+{
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+	bufwrite.add_manipulator_on_write("build_jacobi_vectors");
+
+	viscEngine->build_jacobi_vectors(bufread, bufwrite,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
+}
+
+template<>
+void GPUWorker::runCommand<JACOBI_UPDATE_EFFPRES>(CommandStruct const& cmd)
+{
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+	bufwrite.add_manipulator_on_write("update_jacobi_effpres");
+
+	gdata->h_jacobiResidual[m_deviceIndex] = viscEngine->update_jacobi_effpres(
+		bufread, bufwrite,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
 
 	bufwrite.clear_pending_state();
 }

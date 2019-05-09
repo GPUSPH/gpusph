@@ -895,6 +895,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TURBVISC>();
 	}
 
+
 	if (problem->simparams()->boundarytype == SA_BOUNDARY &&
 		(problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
 		problem->simparams()->turbmodel == KEPSILON))
@@ -908,6 +909,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (NEEDS_EFFECTIVE_VISC(problem->simparams()->rheologytype))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EFFVISC>();
+
+	if (problem->simparams()->rheologytype == GRANULAR)
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EFFPRES>();
 
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
@@ -1719,6 +1723,10 @@ void GPUSPH::saveParticles(
 	// Get effective viscocity
 	if (NEEDS_EFFECTIVE_VISC(simparams->rheologytype))
 		which_buffers |= BUFFER_EFFVISC;
+
+	// get granular effective pressure
+	if (simparams->rheologytype == GRANULAR)
+		which_buffers |= BUFFER_EFFPRES;
 
 	// get Eulerian velocity
 	if (simparams->simflags & ENABLE_INLET_OUTLET ||

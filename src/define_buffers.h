@@ -163,7 +163,15 @@ SET_BUFFER_TRAITS(BUFFER_DKDE, float3, 1, "[k]-[e] derivatives");
 #define BUFFER_EFFVISC		(BUFFER_DKDE << 1)
 SET_BUFFER_TRAITS(BUFFER_EFFVISC, float, 1, "Effective viscosity");
 
-#define BUFFER_EULERVEL			(BUFFER_EFFVISC << 1)
+/** Effective pressure array
+ * This is used to hold the effective pressure in sediment in models where it's necessary.
+ */
+#define BUFFER_EFFPRES			(BUFFER_EFFVISC << 1)
+SET_BUFFER_TRAITS(BUFFER_EFFPRES, float, 1, "Effective Pressure");
+/** Array used to store the Jacobi solver matrices when solving effective pressure */
+#define BUFFER_JACOBI			(BUFFER_EFFPRES << 1)
+SET_BUFFER_TRAITS(BUFFER_JACOBI, float4, 1, "Jacobi vectors");
+#define BUFFER_EULERVEL			(BUFFER_JACOBI << 1)
 SET_BUFFER_TRAITS(BUFFER_EULERVEL, float4, 1, "Eulerian velocity");
 
 /** Next ID of generated particle
@@ -263,7 +271,15 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 		BUFFER_TKE | \
 		BUFFER_EPSILON | \
 		BUFFER_TURBVISC | \
-		BUFFER_VOLUME)
+		BUFFER_VOLUME | \
+		BUFFER_EFFPRES | \
+		BUFFER_JACOBI)
+
+#define POST_FORCES_UPDATE_BUFFERS \
+	(	BUFFER_FORCES | \
+		BUFFER_INTERNAL_ENERGY_UPD | \
+		BUFFER_XSPH | \
+		BUFFER_DKDE)
 
 //! Buffers that evolve during the repacking
 //! TODO FIXME these should be per-integrator definitions, and handled by the

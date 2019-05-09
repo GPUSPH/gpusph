@@ -602,6 +602,811 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	}
 }
 
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundarytype> params, float *dBackErr)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	const float oldEffPres = tex1Dfetch(effpresTex, index);
+	// effpres initilization:
+	// * for vertex and boundary, effpres will be calculated from a
+	// Shepard interpolation to enforce a Neuman condition.
+	// * for free particles, effpres is not modifies here. It is set 
+	// to its old value.
+	float newEffPres = 0.f;
+
+	// the vertex Neumann condition is enforced through the interpolation of
+	// free particles effpres values. Thus it has to be re-computed every
+	// Jacobi iteration. We need to monitor the backward error of vertex
+	// particles to ensure that the solver keeps iterating until the vertex
+	// effpres value does not vary anymore.
+	dBackErr[index] = 0.f;
+
+	// read particle data from sorted arrays
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = params.pos[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	const ParticleType cptype = PART_TYPE(info);
+
+	// skip inactive particles
+	if (INACTIVE(pos))
+		return;
+
+	const float4 vel = tex1Dfetch(velTex, index);
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+	// Fluid number
+	const uint p_fluid_num = fluid_num(info);
+	const uint numFluids = cuphys::d_numfluids;
+
+	// Definition of delta_rho
+	float delta_rho = d_rho0[0];
+	if (numFluids > 1) delta_rho = abs(d_rho0[0] - d_rho0[1]);
+
+	if (cptype == PT_BOUNDARY) {
+		float alpha = 0.f; // shepard filter
+		// loop over fluid neibs
+		for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
+			const uint neib_index = neib_iter.neib_index();
+
+			// Compute relative position vector and distance
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
+					#if PREFER_L1
+					params.pos[neib_index]
+					#else
+					tex1Dfetch(posTex, neib_index)
+					#endif
+					);
+
+			const float neib_oldEffPres = tex1Dfetch(effpresTex, neib_index);
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
+			if (SEDIMENT(neib_info)) {
+				const float r = length3(relPos);
+
+				// Compute relative velocity
+				// Now relVel is a float4 and neib density is stored in relVel.w
+				const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+				const ParticleType nptype = PART_TYPE(neib_info);
+
+				// Fluid numbers
+				const uint neib_fluid_num = fluid_num(neib_info);
+
+				// contribution of free particles
+				const float w = W<kerneltype>(r, params.slength);	// Wij	
+				const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
+				newEffPres += neib_volume*(neib_oldEffPres + delta_rho*dot(d_gravity, as_float3(relPos)))*w;
+				alpha += neib_volume*w;
+			}
+		} // end of loop through neighbors
+		if (alpha > 0.f) {
+			newEffPres = max(newEffPres/alpha, 0.);
+			// Compute a ref pressure for the current case.
+			float refpres = delta_rho*(d_sscoeff[0]/10.)*(d_sscoeff[0]/10.);
+			dBackErr[index] = (newEffPres-oldEffPres)/refpres;
+		} else {
+			newEffPres = 0.f;
+		}
+		params.effpres[index] = newEffPres;
+
+	// Dirichlet condition is enforced on free particles of sediment that are either at
+	// the interface or at the free-surface.
+	} else if (cptype == PT_FLUID && SEDIMENT(info) && (SURFACE(info) || INTERFACE(info))) {
+		params.effpres[index] = params.deltap*delta_rho*length(d_gravity);
+	// For all other particles, the oldEffPres is copied to newEffPres	
+	} else {
+		params.effpres[index] = oldEffPres;
+	}
+}
+
+// Specialization for the SA boundaries
+template<KernelType kerneltype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> params, float *dBackErr)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	const float oldEffPres = tex1Dfetch(effpresTex, index);
+	// effpres initilization:
+	// * for vertex and boundary, effpres will be calculated from a
+	// Shepard interpolation to enforce a Neuman condition.
+	// * for free particles, effpres is not modifies here. It is set 
+	// to its old value.
+	float newEffPres = 0.f;
+
+	// the vertex Neumann condition is enforced through the interpolation of
+	// free particles effpres values. Thus it has to be re-computed every
+	// Jacobi iteration. We need to monitor the backward error of vertex
+	// particles to ensure that the solver keeps iterating until the vertex
+	// effpres value does not vary anymore.
+	dBackErr[index] = 0.f;
+
+	// read particle data from sorted arrays
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = params.pos[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	const ParticleType cptype = PART_TYPE(info);
+
+	// skip inactive particles
+	if (INACTIVE(pos))
+		return;
+
+	const float4 vel = tex1Dfetch(velTex, index);
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+	// Fluid number
+	const uint p_fluid_num = fluid_num(info);
+	const uint numFluids = cuphys::d_numfluids;
+
+	// Definition of delta_rho
+	float delta_rho = d_rho0[0];
+	if (numFluids > 1) delta_rho = abs(d_rho0[0] - d_rho0[1]);
+
+	if (cptype == PT_VERTEX) {
+		float alpha = 0.f; // shepard filter
+
+		// loop over fluid neibs
+		for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
+
+			const uint neib_index = neib_iter.neib_index();
+
+			// Compute relative position vector and distance
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
+					#if PREFER_L1
+					params.pos[neib_index]
+					#else
+					tex1Dfetch(posTex, neib_index)
+					#endif
+					);
+
+			const float neib_oldEffPres = tex1Dfetch(effpresTex, neib_index);
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
+			if (SEDIMENT(neib_info)) {
+				const float r = length3(relPos);
+
+				// Compute relative velocity
+				// Now relVel is a float4 and neib density is stored in relVel.w
+				const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+				const ParticleType nptype = PART_TYPE(neib_info);
+
+				// Fluid numbers
+				const uint neib_fluid_num = fluid_num(neib_info);
+
+				// contribution of free particles
+				const float w = W<kerneltype>(r, params.slength);	// Wij	
+				const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
+				newEffPres += fmax(neib_volume*(neib_oldEffPres + delta_rho*dot(d_gravity, as_float3(relPos)))*w, 0.f);
+				alpha += neib_volume*w;
+			}
+		} // end of loop through neighbors
+		if (alpha > 0.f) {
+			newEffPres /= alpha;
+			// Compute a ref pressure for the current case.
+			float refpres = delta_rho*(d_sscoeff[0]/10.)*(d_sscoeff[0]/10.);
+			dBackErr[index] = (newEffPres-oldEffPres)/refpres;
+		} else {
+			newEffPres = 0.f;
+		}
+		params.effpres[index] = newEffPres;
+
+	// Dirichlet condition is enforced on free particles of sediment that are either at
+	// the interface or at the free-surface.
+	} else if (cptype == PT_FLUID && SEDIMENT(info) && (SURFACE(info) || INTERFACE(info))) {
+		params.effpres[index] = params.deltap*delta_rho*length(d_gravity);
+	// For all other particles, the oldEffPres is copied to newEffPres	
+	} else {
+		params.effpres[index] = oldEffPres;
+	}
+}
+
+// Jacobi vector building for DYN_BOUNDARY and LJ_BOUNDARY
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, boundarytype> params,
+	float *D, float *Rx, float *B)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	// Initialize vectors
+	D[index] = 0;
+	Rx[index] = 0;
+	B[index] = 0;
+
+	// effpres initilization:
+	// * for vertex and boundary, effpres will be calculated from a
+	// Shepard interpolation to enforce a Neuman condition.
+	// * for free particles, effpres is not modifies here. It is set 
+	// to its old value.
+
+	// read particle data from sorted arrays
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = params.pos[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	const ParticleType cptype = PART_TYPE(info);
+
+	// skip inactive particles
+	if (INACTIVE(pos))
+		return;
+
+	const float4 vel = tex1Dfetch(velTex, index);
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+	// Jacobi vectors are built for free particles of sediment that are not at
+	// the interface nor at the free-surface.
+	if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info))
+	{
+		/* Loop over neighbours */
+		for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+			const uint neib_index = neib_iter.neib_index();
+
+
+			// Compute relative position vector and distance
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
+					#if PREFER_L1
+					params.pos[neib_index]
+					#else
+					tex1Dfetch(posTex, neib_index)
+					#endif
+					);
+
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const float neib_oldEffPres = tex1Dfetch(effpresTex, neib_index);
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
+			const float r = length3(relPos);
+
+			// Compute relative velocity
+			// Now relVel is a float4 and neib density is stored in relVel.w
+			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+			const ParticleType nptype = PART_TYPE(neib_info);
+
+			// contribution of vertex and free particles of sediment
+			if (nptype == PT_BOUNDARY || (nptype == PT_FLUID && SEDIMENT(neib_info))) {
+				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
+				const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
+
+				D[index] += neib_volume*f;
+
+				// sediment fluid neibs contribute to the matrix if they are not at the interface nor at the free-surface
+				if (nptype == PT_FLUID && !INTERFACE(neib_info) && !SURFACE(neib_info)) {
+					Rx[index] -= neib_volume*neib_oldEffPres*f;
+
+					// vertex and free particles neibs of sediment that are at the interface
+					// or at the free-surface contribute to the right hand-side vector B
+				} else {
+					B[index] += neib_volume*neib_oldEffPres*f;
+				}
+				// contribution of boundary elements to the free particle Jacobi vectors
+			} 
+		} // end of loop through neighbors
+	}
+}
+
+// Specialization for the SA case
+template<KernelType kerneltype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> params,
+	float *D, float *Rx, float *B)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	// Initialize vectors
+	D[index] = 0;
+	Rx[index] = 0;
+	B[index] = 0;
+
+	// effpres initilization:
+	// * for vertex and boundary, effpres will be calculated from a
+	// Shepard interpolation to enforce a Neuman condition.
+	// * for free particles, effpres is not modifies here. It is set 
+	// to its old value.
+
+	// read particle data from sorted arrays
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = params.pos[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	const ParticleType cptype = PART_TYPE(info);
+
+	// skip inactive particles
+	if (INACTIVE(pos))
+		return;
+
+	const float4 vel = tex1Dfetch(velTex, index);
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+	// Definition of delta_rho
+	const uint numFluids = cuphys::d_numfluids;
+	float delta_rho = d_rho0[0];
+	if (numFluids > 1) delta_rho = abs(d_rho0[0] - d_rho0[1]);
+
+	// Jacobi vectors are built for free particles of sediment that are not at
+	// the interface nor at the free-surface.
+	if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info))
+	{
+		/* Loop over neighbours */
+		for_each_neib3(PT_FLUID, PT_VERTEX, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+
+			const uint neib_index = neib_iter.neib_index();
+
+			// Compute relative position vector and distance
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
+			#if PREFER_L1
+				params.pos[neib_index]
+			#else
+				tex1Dfetch(posTex, neib_index)
+			#endif
+				);
+
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const float neib_oldEffPres = tex1Dfetch(effpresTex, neib_index);
+			
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
+			const float r = length3(relPos);
+
+			// Compute relative velocity
+			// Now relVel is a float4 and neib density is stored in relVel.w
+			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+			const ParticleType nptype = PART_TYPE(neib_info);
+
+			// contribution of vertex and free particles of sediment
+			if (nptype == PT_VERTEX || (nptype == PT_FLUID && SEDIMENT(neib_info))) {
+				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
+				const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
+
+				D[index] += neib_volume*f;
+
+				// sediment fluid neibs contribute to the matrix if they are not at the interface nor at the free-surface
+				if (nptype == PT_FLUID && !INTERFACE(neib_info) && !SURFACE(neib_info)) {
+					Rx[index] -= neib_volume*neib_oldEffPres*f;
+					
+				// vertex and free particles neibs of sediment that are at the interface
+				// or at the free-surface contribute to the right hand-side vector B
+				} else {
+					B[index] += neib_volume*neib_oldEffPres*f;
+				}
+			// contribution of boundary elements to the free particle Jacobi vectors
+			} else if (nptype == PT_BOUNDARY && r < params.influenceradius) {
+				const float4 belem = tex1Dfetch(boundTex, neib_index);
+				const float3 normal_s = as_float3(tex1Dfetch(boundTex, neib_index));
+				const float3 q = as_float3(relPos)/params.slength;
+				float3 q_vb[3];
+				calcVertexRelPos(q_vb, belem,
+						params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index], params.slength);
+				const float ggamAS = gradGamma<kerneltype>(params.slength, q, q_vb, normal_s);
+				float r_as(fmax(fabs(dot(as_float3(relPos), normal_s)), params.deltap));
+
+				// Contribution to the boundary elements to the right hand-side term
+				B[index] += delta_rho*dot(d_gravity, normal_s)*ggamAS;
+			}
+		} // end of loop through neighbors
+	}
+}
+
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+jacobiUpdateEffPresDevice(viscengine_rheology_params<kerneltype, boundarytype> params,
+	float *D, float *Rx, float *B, float *Res)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	const float oldEffPres = tex1Dfetch(effpresTex, index);
+	float newEffPres = oldEffPres; 
+
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	const ParticleType cptype = PART_TYPE(info);
+
+
+	// effpres is updated for free particle of sediment that are not at the interface nor
+	// nor at the free-surface.
+	if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info)) {
+		newEffPres = (B[index] - Rx[index])/D[index];
+	} else if (cptype == PT_FLUID && !SEDIMENT(info)) {
+		newEffPres = 0.f;
+	}
+	// Prevent NaN values.
+	if (newEffPres == newEffPres) {
+		params.effpres[index] = newEffPres;
+	} else {
+		params.effpres[index] = 0;
+	}
+	Res[index] = D[index]*newEffPres+Rx[index]-B[index];
+}
+
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+copyJacobiVectorsToJacobiBufferDevice(
+	uint numParticles, float *D, float *Rx, float *B, float4 *jacobiBuffer)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+	jacobiBuffer[index] = make_float4(D[index], Rx[index], B[index], 0.f);
+}
+
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+copyJacobiBufferToJacobiVectorsDevice(
+	uint numParticles, const float4 *jacobiBuffer, float *D, float *Rx, float *B)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+	D[index] = jacobiBuffer[index].x;
+	Rx[index] = jacobiBuffer[index].y;
+	B[index] = jacobiBuffer[index].z;
+}
+
+//! Compute rheology effective viscosity with SA
+/*!
+
+ Procedure:
+
+ (1) compute velocity gradients
+
+ (2) compute the strain-rate tensor
+
+ (3) compute the mean scalar strain-rate
+
+ (4) return the effective dynamic viscosity
+*/
+template<KernelType kerneltype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+effectiveViscosityDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> params)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	const ParticleType cptype = PART_TYPE(info);
+	// Fluid number
+	const uint p_fluid_num = fluid_num(info);
+
+
+	if (cptype == PT_FLUID && SEDIMENT(info)) {
+		// read particle data from sorted arrays
+#if( __COMPUTE__ >= 20)
+		const float4 pos = params.pos[index];
+		const float gamma = params.gGam[index].w;
+#else
+		const float4 pos = tex1Dfetch(posTex, index);
+		const float gamma = tex1Dfetch(gamTex, index).w;
+#endif
+
+
+		// skip inactive particles
+		if (INACTIVE(pos))
+			return;
+
+		const float4 vel = tex1Dfetch(velTex, index);
+
+		// Gradients of the the velocity components
+		float3 dvx = make_float3(0.0f);
+		float3 dvy = make_float3(0.0f);
+		float3 dvz = make_float3(0.0f);
+
+		// Compute grid position of current particle
+		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+		// Physical density
+		const float p_rho = physical_density(vel.w, p_fluid_num);
+		// Initial reference volume
+		const float ref_volume0 = params.deltap*params.deltap*params.deltap;
+		// Initial volume
+		const float volume0 = pos.w/d_rho0[p_fluid_num];
+		// Actual volume
+		const float volume = pos.w/p_rho;
+		// Volume fractions (must be computed from initial volumes)
+		const float theta = volume0/ref_volume0;
+
+		// loop over all the neighbors
+		for_each_neib3(PT_FLUID, PT_VERTEX, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+
+			const uint neib_index = neib_iter.neib_index();
+
+			// Compute relative position vector and distance
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
+			#if PREFER_L1
+				params.pos[neib_index]
+			#else
+				tex1Dfetch(posTex, neib_index)
+			#endif
+				);
+
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
+			const float r = length3(relPos);
+
+			// Compute relative velocity
+			// Now relVel is a float4 and neib density is stored in relVel.w
+			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+			const ParticleType nptype = PART_TYPE(neib_info);
+
+
+			// Fluid numbers
+			const uint neib_fluid_num = fluid_num(neib_info);
+
+			// Velocity gradient is contributed by all particles
+			if (nptype != PT_BOUNDARY && r < params.influenceradius) {
+				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
+				// Initial volumes
+				const float neib_volume0 = relPos.w/d_rho0[neib_fluid_num];
+				// Volume fractions (must be computed from initial volumes)
+				const float neib_theta = neib_volume0/ref_volume0;
+
+				// Velocity Gradients (multiplication by ref_vol/gamma is done afterward)
+				dvx -= neib_theta*relVel.x*as_float3(relPos)*f;// dvx = -ref_vol ∑ vxij (ri - rj)/r ∂Wij/∂r
+				dvy -= neib_theta*relVel.y*as_float3(relPos)*f;// dvy = -ref_vol ∑ vyij (ri - rj)/r ∂Wij/∂r
+				dvz -= neib_theta*relVel.z*as_float3(relPos)*f;// dvz = -ref_vol ∑ vzij (ri - rj)/r ∂Wij/∂r
+
+				// Velocity Gradients
+				/*			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
+							dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
+							dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r*/
+
+			} else if (nptype == PT_BOUNDARY && r < params.influenceradius) {
+				const float4 belem = tex1Dfetch(boundTex, neib_index);
+				const float3 normal_s = as_float3(tex1Dfetch(boundTex, neib_index));
+				const float3 q = as_float3(relPos)/params.slength;
+				float3 q_vb[3];
+				calcVertexRelPos(q_vb, belem,
+						params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index], params.slength);
+				const float ggamAS = gradGamma<kerneltype>(params.slength, q, q_vb, normal_s);
+
+				// Boundary elements do not have mass. 
+				// To get their actual interpolated volume,
+				// we use the fact that neib_rho0/neib_rho = neib_volume/ref_volume0 
+				// --> neib_volume = neib_volume0*neib_rho0/neib_rho 
+				// with ref_volume0 = deltap^3
+
+				// For the sake of clarity, we denote: neib_mass0 = neib_volume0*neib_rho0
+				const float neib_mass0 = d_rho0[neib_fluid_num]*ref_volume0;
+				// Then neib_ref_volume = neib_mass0/neib_rho
+				const float neib_ref_volume = neib_mass0/physical_density(relVel.w, fluid_num(neib_info));
+
+				dvx += relVel.x/neib_ref_volume*ggamAS*normal_s;
+				dvy += relVel.y/neib_ref_volume*ggamAS*normal_s;
+				dvz += relVel.z/neib_ref_volume*ggamAS*normal_s;
+			}
+
+		} // end of loop through neighbors
+
+		dvx *= volume/(gamma*theta);
+		dvy *= volume/(gamma*theta);
+		dvz *= volume/(gamma*theta);
+
+		// Calculate Sub-Particle Scale viscosity
+		// and special turbulent terms
+		float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
+		float temp = dvx.y + dvy.x;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
+		SijSij_bytwo += temp*temp;
+		temp = dvx.z + dvz.x;			// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
+		SijSij_bytwo += temp*temp;
+		temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+		SijSij_bytwo += temp*temp;
+		const float effpres(tex1Dfetch(effpresTex, index));
+		const float S = sqrtf(SijSij_bytwo);
+		const float sqrt3 = 1.73205080757;
+		const float tau_y = 2.f*sqrt3*d_sinpsi[p_fluid_num]/(3.f - d_sinpsi[p_fluid_num])*effpres;
+		if (S > 1.e-6) {
+			// effvisc is bounded by [mineffvisc, maxeffvisc]
+			params.effvisc[index] = max(d_mineffvisc[p_fluid_num], min(tau_y/(S*p_rho), d_maxeffvisc[p_fluid_num]));
+		} else { // if S is too small, set effvisc to the max bound.
+			params.effvisc[index] = d_maxeffvisc[p_fluid_num];
+		}
+	} else if (cptype == PT_FLUID) {
+		const uint p_fluid_num = fluid_num(info);
+		params.effvisc[index] = d_visccoeff[p_fluid_num];
+	}
+}
+
+//! Compute rheology effective viscosity without SA
+/*!
+
+ Procedure:
+
+ (1) compute velocity gradients
+
+ (2) compute the strain-rate tensor
+
+ (3) compute the mean scalar strain-rate
+
+ (4) return the effective dynamic viscosity
+*/
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+effectiveViscosityDevice(viscengine_rheology_params<kerneltype, boundarytype> params)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	const ParticleType cptype = PART_TYPE(info);
+	// Fluid number
+	const uint p_fluid_num = fluid_num(info);
+
+
+	if (cptype == PT_FLUID && SEDIMENT(info)) {
+		// read particle data from sorted arrays
+#if( __COMPUTE__ >= 20)
+		const float4 pos = params.pos[index];
+#else
+		const float4 pos = tex1Dfetch(posTex, index);
+#endif
+
+
+		// skip inactive particles
+		if (INACTIVE(pos))
+			return;
+
+		const float4 vel = tex1Dfetch(velTex, index);
+
+		// Gradients of the the velocity components
+		float3 dvx = make_float3(0.0f);
+		float3 dvy = make_float3(0.0f);
+		float3 dvz = make_float3(0.0f);
+
+		// Compute grid position of current particle
+		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+		// Physical density
+		const float p_rho = physical_density(vel.w, p_fluid_num);
+		// Actual volume
+		const float volume = pos.w/p_rho;
+
+		// loop over all the neighbors
+		for_each_neib3(PT_FLUID, PT_VERTEX, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+
+			const uint neib_index = neib_iter.neib_index();
+
+			// Compute relative position vector and distance
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos(
+			#if PREFER_L1
+				params.pos[neib_index]
+			#else
+				tex1Dfetch(posTex, neib_index)
+			#endif
+				);
+
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
+			const float r = length3(relPos);
+
+			// Compute relative velocity
+			// Now relVel is a float4 and neib density is stored in relVel.w
+			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+			const ParticleType nptype = PART_TYPE(neib_info);
+
+
+			// Fluid numbers
+			const uint neib_fluid_num = fluid_num(neib_info);
+
+			// Velocity gradient is contributed by all particles
+			if (nptype != PT_BOUNDARY && r < params.influenceradius) {
+				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
+
+				// Velocity Gradients (multiplication by volume is done afterward)
+				dvx -= relVel.x*as_float3(relPos)*f;// dvx = -ref_vol ∑ vxij (ri - rj)/r ∂Wij/∂r
+				dvy -= relVel.y*as_float3(relPos)*f;// dvy = -ref_vol ∑ vyij (ri - rj)/r ∂Wij/∂r
+				dvz -= relVel.z*as_float3(relPos)*f;// dvz = -ref_vol ∑ vzij (ri - rj)/r ∂Wij/∂r
+
+
+			}
+
+		} // end of loop through neighbors
+
+		dvx *= volume;
+		dvy *= volume;
+		dvz *= volume;
+
+		// Calculate Sub-Particle Scale viscosity
+		// and special turbulent terms
+		float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
+		float temp = dvx.y + dvy.x;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
+		SijSij_bytwo += temp*temp;
+		temp = dvx.z + dvz.x;			// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
+		SijSij_bytwo += temp*temp;
+		temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+		SijSij_bytwo += temp*temp;
+		const float effpres(tex1Dfetch(effpresTex, index));
+		const float S = sqrtf(SijSij_bytwo);
+		const float sqrt3 = 1.73205080757;
+		const float tau_y = 2.f*sqrt3*d_sinpsi[p_fluid_num]/(3.f - d_sinpsi[p_fluid_num])*effpres;
+		if (S > 1.e-6) {
+			// effvisc is bounded by [mineffvisc, maxeffvisc]
+			params.effvisc[index] = max(d_mineffvisc[p_fluid_num], min(tau_y/(S*p_rho), d_maxeffvisc[p_fluid_num]));
+
+		} else { // if S is too small, set effvisc to the max bound.
+			params.effvisc[index] = d_maxeffvisc[p_fluid_num];
+		}
+	} else if (cptype == PT_FLUID) {
+		const uint p_fluid_num = fluid_num(info);
+		params.effvisc[index] = d_visccoeff[p_fluid_num];
+	}
+}
+
 }
 
 #endif

@@ -69,6 +69,7 @@ texture<vertexinfo, 1, cudaReadModeElementType> vertTex;	///< vertices
 texture<float, 1, cudaReadModeElementType> keps_kTex;	///< k for k-e model
 texture<float, 1, cudaReadModeElementType> keps_eTex;	///< e for k-e model
 texture<float, 1, cudaReadModeElementType> tviscTex;	///< eddy viscosity
+texture<float, 1, cudaReadModeElementType> effpresTex;	// effective pressure
 texture<float4, 1, cudaReadModeElementType> eulerVelTex;	///< eulerian velocity and density
 
 //! SPS matrix

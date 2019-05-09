@@ -270,6 +270,10 @@ struct GlobalData {
 	// across all devices
 	uint*   h_maxIOwaterdepth;
 
+	// Jacobi solver residual and backward error
+	float* h_jacobiResidual;
+	float* h_jacobiBackwardError;
+
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 

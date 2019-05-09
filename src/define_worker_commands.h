@@ -314,6 +314,10 @@ DEFINE_COMMAND_BUF(APPLY_DENSITY_DIFFUSION, true)
 	/// Disable free surface particles after repacking is done
 DEFINE_COMMAND_NOBUF(DISABLE_FREE_SURF_PARTS)
 
+DEFINE_COMMAND_BUF(JACOBI_BOUNDARY_CONDITIONS, false)
+DEFINE_COMMAND_BUF(JACOBI_BUILD_VECTORS, false)
+DEFINE_COMMAND_BUF(JACOBI_UPDATE_EFFPRES, false)
+
 	/// Run post-processing filters (e.g. vorticity, testpoints)
 	/*! Special case of dynamic buffer: the buffer specification is directed
 	 * by each specific post-processing engine

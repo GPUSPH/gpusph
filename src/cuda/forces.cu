@@ -756,7 +756,6 @@ run_forces(
 		IOwaterdepth);
 
 	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
-
 	{
 		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_VERTEX> params_fv(
 			bufread, bufwrite,

@@ -294,6 +294,11 @@ reorderDataAndFindCellStart(
 	float *newTurbVisc = sorted_buffers.getData<BUFFER_TURBVISC>();
 	BIND_CHECK(oldTurbVisc, newTurbVisc, tviscTex);
 
+	const float *oldEffPres = unsorted_buffers.getData<BUFFER_EFFPRES>();
+	float *newEffPres = sorted_buffers.getData<BUFFER_EFFPRES>();
+	if (oldEffPres)
+		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, oldEffPres, numParticles*sizeof(float)));
+
 	const float4 *oldEulerVel = unsorted_buffers.getData<BUFFER_EULERVEL>();
 	float4 *newEulerVel = sorted_buffers.getData<BUFFER_EULERVEL>();
 	BIND_CHECK(oldEulerVel, newEulerVel, eulerVelTex);
@@ -306,6 +311,7 @@ reorderDataAndFindCellStart(
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newVol, newEnergy, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
+		newEffPres,
 		newEulerVel,
 		oldNextIDs, newNextIDs,
 		particleInfo, particleHash, particleIndex, numParticles, newNumParticles);
@@ -334,6 +340,9 @@ reorderDataAndFindCellStart(
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	if (oldTurbVisc)
 		CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
+
+	if (oldEffPres)
+		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
 
 	if (oldEulerVel)
 		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));

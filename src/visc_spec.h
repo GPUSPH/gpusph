@@ -60,13 +60,14 @@ enum RheologyType {
 	ALEXANDROU, ///< Regularized Herschel–Bulkley
 	DEKEE_TURCOTTE, ///< Exponential + yield strength
 	ZHU, ///< Regularized De Kee and Turcotte
+	GRANULAR ///< Viscosity dependant of strain rate
 };
 
 //! Name of the rheology type
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* RheologyName[ZHU+1]
+const char* RheologyName[GRANULAR+1]
 #ifdef GPUSPH_MAIN
 = {
 	"Inviscid",
@@ -77,7 +78,8 @@ const char* RheologyName[ZHU+1]
 	"Herschel–Bulkley",
 	"Alexandrou",
 	"De Kee & Turcotte",
-	"Zhu"
+	"Zhu",
+	"Granular"
 }
 #endif
 ;
@@ -275,6 +277,11 @@ struct FullViscSpec {
 
 	static constexpr bool is_const_visc = _is_const_visc;
 
+	//! Change the rheology type
+	template<RheologyType newrheology>
+	using with_rheologytype =
+		FullViscSpec<newrheology, turbmodel, compvisc, viscmodel, avgop, simflags>;
+
 	//! Change the turbulence model
 	template<TurbulenceModel newturb>
 	using with_turbmodel =
@@ -307,6 +314,7 @@ enum LegacyViscosityType {
 	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic viscosity
 	SPSVISC, ///< KINEMATICVISC + SPS
 	KEPSVISC, ///< DYNAMICVISC + SPS
+	GRANULARVISC, ///< Granular rheology and Morris formula with harmonic averaging
 	INVALID_VISCOSITY
 } ;
 
@@ -323,6 +331,7 @@ const char* LegacyViscosityName[INVALID_VISCOSITY+1]
 	"Dynamic",
 	"SPS + kinematic",
 	"k-e model",
+	"Granular rheology",
 	"(invalid)"
 }
 #endif
@@ -368,6 +377,14 @@ struct ConvertLegacyVisc<KEPSVISC>
 {
 	/* DYNAMICVISC + KEPSILON */
 	using type = typename ConvertLegacyVisc<DYNAMICVISC>::type::with_turbmodel<KEPSILON>;
+};
+
+template<>
+struct ConvertLegacyVisc<GRANULARVISC>
+{
+	/*  */
+	//using type = typename FullViscSpec<>::with_rheologytype<GRANULAR>::with_avg_operator<HARMONIC>;
+	using type = typename FullViscSpec<>::with_rheologytype<GRANULAR>::with_avg_operator<ARITHMETIC>;
 };
 
 #endif

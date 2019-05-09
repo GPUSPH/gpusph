@@ -769,6 +769,7 @@ struct forces_particle_data :
 
 	using ViscSpec = _ViscSpec;
 	static const ComputationalViscosityType compvisc = ViscSpec::compvisc;
+	static const RheologyType rheologytype = ViscSpec::rheologytype;
 
 	static const flag_t simflags = _simflags;
 	static const ParticleType cptype = _cptype;
@@ -1179,6 +1180,7 @@ struct forces_neib_data :
 
 	using ViscSpec = _ViscSpec;
 	static const ComputationalViscosityType compvisc = ViscSpec::compvisc;
+	static const RheologyType rheologytype = ViscSpec::rheologytype;
 
 	static constexpr ParticleType	nptype = _nptype;
 	static const bool has_keps = _has_keps;
