@@ -345,6 +345,11 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_r0, &physparams->r0, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_epsartvisc, &physparams->epsartvisc, sizeof(float)));
 
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_sinpsi, &physparams->sinpsi[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_cohesion, &physparams->cohesion[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_mineffvisc, &physparams->mineffvisc[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_maxeffvisc, &physparams->maxeffvisc[0], numFluids*sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_ewres, &physparams->ewres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_nsres, &physparams->nsres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdx, &physparams->demdx, sizeof(float)));

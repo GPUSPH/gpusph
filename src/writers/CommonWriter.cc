@@ -483,6 +483,14 @@ CommonWriter::write_physparams(ostream &out)
 		if (REGULARIZED_RHEOLOGY(SP->rheologytype))
 			out << "\tvisc_regularization_param[ " << f << " ] = " << PP->visc_regularization_param[f] << " (Pa s)" << endl;
 	}
+	for (uint f = 0; f < PP->numFluids(); ++f) {
+		if (SP->rheologytype == GRANULAR) {
+			out << "\tsinpsi[ " << f << " ] =  " << PP->sinpsi[f] << endl;
+			out << "\tcohesion[ " << f << " ] =  " << PP->cohesion[f] << endl;
+			out << "\tmineffvisc[ " << f << " ] =  " << PP->mineffvisc[f] << endl;
+			out << "\tmaxeffvisc[ " << f << " ] =  " << PP->maxeffvisc[f] << endl;
+		}
+	}
 	for (uint f  = 0; f < PP->numFluids(); ++f)
 		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f]
 			<< (SP->compvisc == KINEMATIC ? " (m^2/s)" : " (Pa s)") <<endl;
