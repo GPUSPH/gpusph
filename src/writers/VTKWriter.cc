@@ -530,7 +530,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			 * fluid neighbors, B boundary neighbors and V vertex neighbors,
 			 * the layout for a single particle is:
 			 * FFFF...*...*...BBBVVVV...*
+			 * →→→→→→→→   ←←←←←←←→→→→→→→→
 			 * where the * symbols represent end markers (NEIBS_END).
+			 *
 			 * F neighbors are stored from position 0 upwards,
 			 * B neighbors are stored from position m_neib_bound_pos downwards,
 			 * V neighbors are stored from position m_neib_bound_pos+1 upwards.
@@ -554,8 +556,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			// now each type, with decoding
 			neibsnum[i] = 0;
 			const uint3 gridPos = gdata->calcGridPosFromCellHash(particleHash[i]);
+			// SA_BOUNDARY should check up to PT_VERTEX, all other boundaries
+			// up to PT_BOUNDARY
+			static const ParticleType last_pt =
+				gdata->problem->simparams()->boundarytype == SA_BOUNDARY ?
+				PT_VERTEX : PT_BOUNDARY;
 
-			for (ParticleType pt = PT_FLUID; pt < PT_TESTPOINT; pt = (ParticleType)(pt+1)) {
+			for (ParticleType pt = PT_FLUID; pt <= last_pt; pt = (ParticleType)(pt+1)) {
 				neibs << "\n\t";
 				uint num_neibs = 0;
 				const uint start = i + (
@@ -568,7 +575,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 				uint neib_cell_base_index = UINT_MAX;
 
-				for (uint index = start; index < end; index += stride) {
+				for (uint index = start; ; index += stride) {
 					neibdata neib = neibslist[index];
 					if (neib == NEIBS_END)
 						break;
