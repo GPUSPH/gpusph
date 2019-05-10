@@ -382,9 +382,8 @@ struct ConvertLegacyVisc<KEPSVISC>
 template<>
 struct ConvertLegacyVisc<GRANULARVISC>
 {
-	/*  */
-	//using type = typename FullViscSpec<>::with_rheologytype<GRANULAR>::with_avg_operator<HARMONIC>;
-	using type = typename FullViscSpec<>::with_rheologytype<GRANULAR>::with_avg_operator<ARITHMETIC>;
+	/* Granular rheology with harmonic averaging */
+	using type = typename FullViscSpec<>::with_rheologytype<GRANULAR>::with_avg_operator<HARMONIC>;
 };
 
 #endif
