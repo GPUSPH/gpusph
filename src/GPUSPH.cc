@@ -910,8 +910,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (NEEDS_EFFECTIVE_VISC(problem->simparams()->rheologytype))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EFFVISC>();
 
-	if (problem->simparams()->rheologytype == GRANULAR)
+	if (problem->simparams()->rheologytype == GRANULAR) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EFFPRES>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_JACOBI>();
+	}
 
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
