@@ -37,10 +37,10 @@ LithostaticEquilibriumSA::LithostaticEquilibriumSA(GlobalData *_gdata) : XProble
 	SETUP_FRAMEWORK(
 		formulation<SPH_HA>,
 		viscosity<GRANULARVISC>,
-		boundary<SA_BOUNDARY>,
-		add_flags<ENABLE_MULTIFLUID | ENABLE_DTADAPT | ENABLE_DENSITY_SUM> // Enable for SA_BOUNDARY
-		//boundary<LJ_BOUNDARY>,
-		//add_flags<ENABLE_MULTIFLUID> // Enable for LJ/DYN_BOUNDARY
+		//boundary<SA_BOUNDARY>,
+		//add_flags<ENABLE_MULTIFLUID | ENABLE_DTADAPT | ENABLE_DENSITY_SUM> // Enable for SA_BOUNDARY
+		boundary<DYN_BOUNDARY>,
+		add_flags<ENABLE_MULTIFLUID> // Enable for LJ/DYN_BOUNDARY
 		).select_options(
 		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
@@ -48,10 +48,10 @@ LithostaticEquilibriumSA::LithostaticEquilibriumSA(GlobalData *_gdata) : XProble
 	);
 
 	// For LJ/DYN_boundary, choose if Salome geometry is used
-	salomeGeom = true;
+	salomeGeom = false;
 
 	// Detection of free-surface and interface is mandatory for GRANULARVISC
-	addPostProcess(INTERFACE_DETECTION);
+	//addPostProcess(INTERFACE_DETECTION);
 
 	// SPH parameters
 	simparams()->sfactor = 2.0;
@@ -173,61 +173,61 @@ bool is_sediment(double4 const& pt, float hs)
 	void
 LithostaticEquilibriumSA::initializeParticles(BufferList &buffers, const uint numParticles)
 {
-	// Warn the user if this is expected to take much time
-	printf("Initializing particles density and mass...\n");
-
-	// Choose to initialize effective pressure with
-	// analytical lithostatic profile.
-	bool lithostaticInitialization = false;
-
-	// Grab the particle arrays from the buffer list
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-	double4 *pos_global = buffers.getData<BUFFER_POS_GLOBAL>();
-	float4 *pos = buffers.getData<BUFFER_POS>();
-	float *effvisc = buffers.getData<BUFFER_EFFVISC>();
-	float *effpres = buffers.getData<BUFFER_EFFPRES>();
-	float g = length(physparams()->gravity);
-
-	// 3. iterate on the particles
-	for (uint i = 0; i < numParticles; i++) {
-		int fluid_idx = is_sediment(pos_global[i], hs) ? 1 : 0;
-		float tol = 1e-6;
-		if (FLUID(info[i])) {
-			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
-			if (pos_global[i].z <= hs + tol && 
-					pos_global[i].z >= hs - m_deltap) {
-				SET_FLAG(info[i], FG_INTERFACE);
-			}
-
-			if (is_sediment(pos_global[i], hs)) {
-				SET_FLAG(info[i], FG_SEDIMENT);
-			}
-			// initialize pressure for all particles
-			float z_max = is_sediment(pos_global[i], hs) ? 1. : 2.;
-			float P_min = is_sediment(pos_global[i], hs) ? physparams()->rho0[0]*g : 0.;
-			float P = max(physparams()->rho0[fluid_idx]*g*(z_max - pos_global[i].z) + P_min, 0.);
-			float rho = density_for_pressure(P, fluid_idx);
-
-			pos[i].w *= physical_density(rho,fluid_idx)/physparams()->rho0[0];
-			vel[i].w = rho;
-		}
-		// initialize effective pressure for all particles
-		if (is_sediment(pos_global[i], hs)) { // if sediment
-			const float delta_rho = physparams()->rho0[1]-physparams()->rho0[0];
-			if (lithostaticInitialization) {
-				// initialize with analytical profile
-				effpres[i] = fmax(delta_rho*g*(m_deltap+hs-pos_global[i].z), 0.f);
-			} else {
-				// initialize to zero
-				effpres[i] = 0.;
-			}
-			effvisc[i] = 1e-6;
-		} else {
-			effpres[i] = 0.f;
-			effvisc[i] = 1e-6;
-		}
-	}
+//	// Warn the user if this is expected to take much time
+//	printf("Initializing particles density and mass...\n");
+//
+//	// Choose to initialize effective pressure with
+//	// analytical lithostatic profile.
+//	bool lithostaticInitialization = false;
+//
+//	// Grab the particle arrays from the buffer list
+//	float4 *vel = buffers.getData<BUFFER_VEL>();
+//	particleinfo *info = buffers.getData<BUFFER_INFO>();
+//	double4 *pos_global = buffers.getData<BUFFER_POS_GLOBAL>();
+//	float4 *pos = buffers.getData<BUFFER_POS>();
+//	float *effvisc = buffers.getData<BUFFER_EFFVISC>();
+//	float *effpres = buffers.getData<BUFFER_EFFPRES>();
+//	float g = length(physparams()->gravity);
+//
+//	// 3. iterate on the particles
+//	for (uint i = 0; i < numParticles; i++) {
+//		int fluid_idx = is_sediment(pos_global[i], hs) ? 1 : 0;
+//		float tol = 1e-6;
+//		if (FLUID(info[i])) {
+//			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
+//			if (pos_global[i].z <= hs + tol && 
+//					pos_global[i].z >= hs - m_deltap) {
+//				SET_FLAG(info[i], FG_INTERFACE);
+//			}
+//
+//			if (is_sediment(pos_global[i], hs)) {
+//				SET_FLAG(info[i], FG_SEDIMENT);
+//			}
+//			// initialize pressure for all particles
+//			float z_max = is_sediment(pos_global[i], hs) ? 1. : 2.;
+//			float P_min = is_sediment(pos_global[i], hs) ? physparams()->rho0[0]*g : 0.;
+//			float P = max(physparams()->rho0[fluid_idx]*g*(z_max - pos_global[i].z) + P_min, 0.);
+//			float rho = density_for_pressure(P, fluid_idx);
+//
+//			pos[i].w *= physical_density(rho,fluid_idx)/physparams()->rho0[0];
+//			vel[i].w = rho;
+//		}
+//		// initialize effective pressure for all particles
+//		if (is_sediment(pos_global[i], hs)) { // if sediment
+//			const float delta_rho = physparams()->rho0[1]-physparams()->rho0[0];
+//			if (lithostaticInitialization) {
+//				// initialize with analytical profile
+//				effpres[i] = fmax(delta_rho*g*(m_deltap+hs-pos_global[i].z), 0.f);
+//			} else {
+//				// initialize to zero
+//				effpres[i] = 0.;
+//			}
+//			effvisc[i] = 1e-6;
+//		} else {
+//			effpres[i] = 0.f;
+//			effvisc[i] = 1e-6;
+//		}
+//	}
 }
 
 
