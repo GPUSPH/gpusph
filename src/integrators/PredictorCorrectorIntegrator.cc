@@ -418,6 +418,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
 
 	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
+	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
 
 	// TODO get from integrator
@@ -460,7 +461,8 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL)
+				BUFFER_VEL |
+				has_granular_rheology ? BUFFER_EFFPRES : BUFFER_NONE)
 			.writing(current_state,
 				BUFFER_TAU | BUFFER_SPS_TURBVISC | BUFFER_EFFVISC |
 				// When computing the effective viscosity, if adaptive time-stepping is enabled,
@@ -982,12 +984,13 @@ Integrator::Phase *
 PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 {
         SimParams const* sp = gdata->problem->simparams();
-	RheologyType const rheologytype = sp->rheologytype;
+	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	Phase *this_phase = new Phase(this,
+			step.number == 0 ? "initialization effpres calculation" :
 			step.number == 1 ? "post-predictor effpres calculation" :
 			step.number == 2 ? "post-corrector effpres calculation" : "this can't happen");
 
-	if (rheologytype != GRANULAR) {
+	if (!has_granular_rheology) {
 		// do nothing
 	} else {
 		static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
@@ -1000,6 +1003,10 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		 * The variable Rx contains the vector resulting from the matrix
 		 * vector product between R and x:
 		 *	Rx = R.x
+		 */
+
+		/* Effective pressure is computed for step n during initialization step,
+		 * for step n* after the integrator, and for step n+1 after the corrector
 		 */
 		const string current_state = getNextStateForStep(step.number);
 
