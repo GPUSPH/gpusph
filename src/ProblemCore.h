@@ -609,6 +609,9 @@ class ProblemCore
 		/* Initialize eddy viscosity */
 		virtual void init_turbvisc(BufferList &, uint numParticles);
 
+		/* Initialize effective pressure */
+		virtual void init_effpres(BufferList &, uint numParticles);
+
 		//! @userfunc
 		//! @label{Prescribe custom open boundary conditions}
 		virtual void imposeBoundaryConditionHost(

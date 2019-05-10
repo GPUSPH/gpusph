@@ -1659,6 +1659,21 @@ ProblemCore::init_turbvisc(BufferList &buffers, uint numParticles)
 
 }
 
+/*!
+ * Initialize effective pressure for GRANULAR rheology
+ */
+void
+ProblemCore::init_effpres(BufferList &buffers, uint numParticles)
+{
+	if (simparams()->rheologytype != GRANULAR)
+		return;
+
+	float *effpres = buffers.getData<BUFFER_EFFPRES>();
+
+	for (uint i = 0; i < numParticles; ++i) {
+		effpres[i] = 0.;
+	}
+}
 
 void
 ProblemCore::imposeBoundaryConditionHost(
