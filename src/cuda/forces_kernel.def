@@ -1508,42 +1508,40 @@ void compute_gamma_cfl
 // that appears explicitely in the operators when using SPH_HA & SA_BOUNDARY.
 // The volume fraction theta allows to link the actual volume of VERTEX and BOUNDARY
 // to the reference volume: volume = theta*reference_volume
-template<BoundaryType boundarytype, ParticleType cptype>
-struct volume_fraction {
-	//template<typename P, typename FP>
-	__device__ __forceinline__
-	static float
-	//with(P const& pdata, FP const& params) {
-	with(const float volume, const float deltap) {
-	return 1.;
-	}
-};
-
-// Specialisation for PT_FLUID: volume_fraction = 1
-template<>
+template<ParticleType ptype>
 __device__ __forceinline__
-float
-volume_fraction<SA_BOUNDARY, PT_FLUID>::with(const float volume, const float deltap) {
-	return 1.;
+enable_if_t<ptype == PT_FLUID, float>
+calc_volume_fraction
+(const float volume, const float deltap)
+{ return 1.; }
+
+template<ParticleType ptype>
+__device__ __forceinline__
+enable_if_t<ptype == PT_VERTEX, float>
+calc_volume_fraction
+(const float volume, const float deltap)
+{ return volume/(deltap*deltap*deltap); }
+
+template<ParticleType ptype>
+__device__ __forceinline__
+enable_if_t<ptype == PT_BOUNDARY, float>
+calc_volume_fraction
+(const float volume, const float deltap)
+{ return 0.5; }
+
+template<typename FP, ParticleType particletype>
+__device__ __forceinline__
+enable_if_t<FP::boundarytype == SA_BOUNDARY, float>
+volume_fraction(const float volume, const float deltap)
+{
+	return calc_volume_fraction<particletype>(volume, deltap);
 }
 
-// Specialisation for PT_VERTEX:
-// volume_fraction = (mass/rho)/deltap^3
-template<>
+template<typename FP, ParticleType particletype>
 __device__ __forceinline__
-float
-volume_fraction<SA_BOUNDARY, PT_VERTEX>::with(const float volume, const float deltap) {
-	return volume/(deltap*deltap*deltap);
-}
-
-/// Specialisation for PT_BOUNDARY: volume_fraction = 0.5
-template<>
-__device__ __forceinline__
-float volume_fraction<SA_BOUNDARY, PT_BOUNDARY>::with(const float volume, const float deltap) {
-	return 0.5;
-}
-
-
+enable_if_t<FP::boundarytype != SA_BOUNDARY, float>
+volume_fraction(const float volume, const float deltap)
+{ return 1; }
 
 /*
  * Density diffusion function templates
@@ -1649,8 +1647,8 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float p_volume = pdata.pos.w/physical_density(pdata);
 	const float n_volume = ndata.relPos.w/physical_density(ndata);
 	// Volume fractions (must be computed from initial volumes)
-	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
-	const float n_theta = volume_fraction<SA_BOUNDARY,     nptype>::with(n_volume0, params.deltap);
+	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
+	const float n_theta = volume_fraction<FP, nptype>(n_volume0, params.deltap);
 
 	// gravity correction for free-surface flows
 	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
@@ -1713,7 +1711,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	// Initial volumes
 	const float p_volume0 = pdata.pos.w/d_rho0[p_fluid_num];
 	// Volume fractions (must be computed from initial volumes)
-	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	const float n_theta = 0.5; // for boundary elements, always 0.5
 
 	// Actual volumes
@@ -1794,8 +1792,8 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	const float p_volume0 = pdata.pos.w/	d_rho0[fluid_num(pdata.info)];
 	const float n_volume0 = ndata.relPos.w/	d_rho0[fluid_num(ndata.info)];
 	// Thetas
-	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
-	const float n_theta = volume_fraction<SA_BOUNDARY, nptype>::with(n_volume0, params.deltap);
+	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
+	const float n_theta = volume_fraction<FP, nptype>(n_volume0, params.deltap);
 	// Actual volumes
 	const float p_volume = pdata.pos.w/	physical_density(pdata);
 	const float n_volume = ndata.relPos.w/	physical_density(ndata);
@@ -1879,7 +1877,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 		const float n_ref_volume0 = params.deltap*params.deltap*params.deltap;
 
 		// Volume fractions (must be computed from initial volumes)
-		const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+		const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 		const float n_theta = 0.5f;
 		// Physical density
 		const float p_rho = physical_density(pdata);
@@ -2053,8 +2051,8 @@ mass_continuity_div_vel_term
 	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
 	const float n_volume0 = ndata.relPos.w/d_rho0[fluid_num(ndata.info)];
 	// Thetas
-	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
-	const float n_theta = volume_fraction<SA_BOUNDARY, FP::nptype>::with(n_volume0, params.deltap);
+	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
+	const float n_theta = volume_fraction<FP, FP::nptype>(n_volume0, params.deltap);
 
 	// DrDt = mass/p_theta Ʃ n_theta*relVel.∇w 
 	nout.DrDt = pdata.pos.w/p_theta*n_theta*ndata.vel_dot_pos*ndata.f;
@@ -2097,7 +2095,7 @@ mass_continuity_div_vel_term
 	// Particle initial volume
 	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
 	// Thetas
-	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	/* Actual volume should be calculated from the actual (interpolated) density
 	* and the mass. But boundary elements do not have mass. To get their actual 
 	* interpolated volume, we use the fact that:
@@ -2291,7 +2289,7 @@ pressure_gradient_term
 	// Particle initial volume
 	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
 	// Thetas
-	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume0, params.deltap);
+	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	// Actual particle reference volume
 	const float p_ref_volume = pdata.pos.w/physical_density(pdata)/p_theta;
 	
@@ -2336,8 +2334,8 @@ pressure_gradient_term
 	const float p_volume = pdata.pos.w/physical_density(pdata);
 	const float n_volume = ndata.relPos.w/physical_density(ndata);
 	// Thetas
-	const float p_theta = volume_fraction<SA_BOUNDARY, FP::cptype>::with(p_volume, params.deltap);
-	const float n_theta = volume_fraction<SA_BOUNDARY, FP::nptype>::with(n_volume, params.deltap);
+	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume, params.deltap);
+	const float n_theta = volume_fraction<FP, FP::nptype>(n_volume, params.deltap);
 
 	return pdata.p_precalc*p_volume*p_volume*n_theta/p_theta +
 			ndata.p_precalc*n_volume*n_volume*p_theta/n_theta;			
