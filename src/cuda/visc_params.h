@@ -60,12 +60,14 @@ struct turbvisc_sps_params
 /// The actual sps_params struct, which concatenates all of the above, as appropriate.
 template<KernelType kerneltype,
 	BoundaryType boundarytype,
-	uint simflags>
+	uint _sps_simflags>
 struct sps_params :
 	neibs_list_params,
-	COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params),
-	COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
+	COND_STRUCT(_sps_simflags & SPSK_STORE_TAU, tau_sps_params),
+	COND_STRUCT(_sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
 {
+	static const uint sps_simflags = _sps_simflags;
+
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the forces kernel.
 	// It then delegates the appropriate subset of arguments to the appropriate
@@ -88,8 +90,8 @@ struct sps_params :
 		) :
 		neibs_list_params(_posArray, _particleHash, _cellStart,
 			_neibsList, _numParticles, _slength, _influenceradius),
-		COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
-		COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
+		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
+		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
 	{}
 };
 

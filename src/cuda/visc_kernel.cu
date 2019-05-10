@@ -478,41 +478,31 @@ effectiveViscDevice(KP params)
 /*		   Kernels for computing SPS tensor and SPS viscosity												*/
 /************************************************************************************************************/
 
-//! A functor that writes out turbvisc for SPS visc
-template<bool>
-struct write_sps_turbvisc
-{
-	template<typename FP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, const uint index, const float turbvisc)
-	{ /* do nothing */ }
-};
-
-template<>
+//! Write out SPS turbulent viscosity, if SPSK_STORE_TURBVISC is enabled
 template<typename FP>
-__device__ __forceinline__ void
-write_sps_turbvisc<true>::with(FP const& params, const uint index, const float turbvisc)
+__device__ __forceinline__
+enable_if_t<not (FP::sps_simflags & SPSK_STORE_TURBVISC)>
+write_sps_turbvisc(FP const& params, const uint index, const float turbvisc)
+{ /* do nothing */ }
+
+template<typename FP>
+__device__ __forceinline__
+enable_if_t<(FP::sps_simflags & SPSK_STORE_TURBVISC)>
+write_sps_turbvisc(FP const& params, const uint index, const float turbvisc)
 { params.turbvisc[index] = turbvisc; }
 
-//! A functor that writes out tau for SPS visc
-template<bool>
-struct write_sps_tau
-{
-	template<typename FP>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, const uint index, symtensor3 const& tau)
-	{ /* do nothing */ }
-};
-
-template<>
+//! Write out SPS stress tensor (tau), if SPSK_STORE_TAU is enabled
 template<typename FP>
-__device__ __forceinline__ void
-write_sps_tau<true>::with(FP const& params, const uint index, symtensor3 const& tau)
-{
-	storeTau(tau, index, params.tau0, params.tau1, params.tau2);
-}
+__device__ __forceinline__
+enable_if_t<not (FP::sps_simflags & SPSK_STORE_TAU)>
+write_sps_tau(FP const& params, const uint index, symtensor3 const& tau)
+{ /* do nothing */ }
+
+template<typename FP>
+__device__ __forceinline__
+enable_if_t<(FP::sps_simflags & SPSK_STORE_TAU)>
+write_sps_tau(FP const& params, const uint index, symtensor3 const& tau)
+{ storeTau(tau, index, params.tau0, params.tau1, params.tau2); }
 
 /************************************************************************************************************/
 
@@ -534,10 +524,10 @@ write_sps_tau<true>::with(FP const& params, const uint index, symtensor3 const& 
 */
 template<KernelType kerneltype,
 	BoundaryType boundarytype,
-	uint simflags>
+	uint sps_simflags>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
+SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, sps_simflags> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -577,11 +567,11 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	const float Blinetal_SPS = d_kspsfactor*SijSij_bytwo;
 
 	// Storing the turbulent viscosity for each particle
-	write_sps_turbvisc<simflags & SPSK_STORE_TURBVISC>::with(params, index, nu_SPS);
+	write_sps_turbvisc(params, index, nu_SPS);
 
 	// Shear Stress matrix = TAU (pronounced taf)
 	// Dalrymple & Rogers (2006): eq. (10)
-	if (simflags & SPSK_STORE_TAU) {
+	if (sps_simflags & SPSK_STORE_TAU) {
 
 		const float rho = physical_density(vel.w, fluid_num(info));
 
@@ -598,7 +588,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 		tau.zz = nu_SPS*(tau.zz+tau.zz) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
 		tau.zz /= rho;
 
-		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, tau);
+		write_sps_tau(params, index, tau);
 	}
 }
 
