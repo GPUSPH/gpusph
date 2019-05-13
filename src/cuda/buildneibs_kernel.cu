@@ -84,6 +84,14 @@
 
 #include "buildneibs_params.h"
 
+/*! \cond */
+#include "cellgrid.cuh"
+/*! \endcond */
+
+/*! \cond */
+#include "neibs_iteration.cuh"
+/*! \endcond */
+
 
 /** \namespace cuneibs
  *  \brief Contains all device functions/kernels/variables used for neighbor list construction
@@ -94,16 +102,6 @@
  *  	- kernels
  */
 namespace cuneibs {
-/** \addtogroup neibs_device_constants Device constants
- * 	\ingroup neibs
- *  Device constants used in neighbor list construction
- *  @{ */
-__constant__ uint d_neibboundpos;		///< Starting pos of boundary particle in neib list
-__constant__ uint d_neiblistsize;		///< Total neib list size
-__constant__ idx_t d_neiblist_stride;	///< Stride dimension
-__constant__ idx_t d_neiblist_end;		///< maximum number of neighbors * number of allocated particles
-/** @} */
-
 /** \addtogroup neibs_device_variables Device variables
  * 	\ingroup neibs
  *  Device variables used in neighbor list construction
@@ -114,14 +112,6 @@ __device__ int d_maxVertexNeibs;			///< Computed maximum number of vertex neighb
 __device__ int d_hasTooManyNeibs;			///< id of a particle with too many neighbors
 __device__ int d_hasMaxNeibs[PT_TESTPOINT];	///< Number of neighbors of that particle
 /** @} */
-
-/*! \cond */
-#include "cellgrid.cuh"
-/*! \endcond */
-
-/*! \cond */
-#include "neibs_iteration.cuh"
-/*! \endcond */
 
 /** \addtogroup neibs_device_functions_params Neighbor list device function variables
  * 	\ingroup neibs

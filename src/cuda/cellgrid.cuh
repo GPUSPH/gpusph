@@ -36,6 +36,12 @@
 #include "hashkey.h"
 #include "linearization.h"
 
+#ifndef CELLGRID_CUH
+#define CELLGRID_CUH
+
+namespace cuneibs
+{
+
 /* The neighbor cell num ranges from 1 to 27 (included), so it fits in
  * 5 bits, which we put in the upper 5 bits of the neibdata, which is
  * 16-bit wide.
@@ -223,3 +229,7 @@ getNeibIndex(	float4 const&	pos,					///< [in] current particle cell relative po
 }
 /** @} */
 /** @} */
+
+}
+
+#endif

@@ -26,7 +26,24 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "cellgrid.cuh"
 #include <tuple>
+
+#ifndef NEIBS_ITERATION_CUH
+#define NEIBS_ITERATION_CUH
+
+namespace cuneibs
+{
+/** \addtogroup neibs_device_constants Device constants
+ * 	\ingroup neibs
+ *  Device constants used in neighbor list construction
+ *  @{ */
+__constant__ uint d_neibboundpos;		///< Starting pos of boundary particle in neib list
+__constant__ uint d_neiblistsize;		///< Total neib list size
+__constant__ idx_t d_neiblist_stride;	///< Stride dimension
+__constant__ idx_t d_neiblist_end;		///< maximum number of neighbors * number of allocated particles
+/** @} */
+
 
 /** \addtogroup neibs_iteration Neighbor list iteration functions
  *  \ingroup neibs
@@ -372,5 +389,9 @@ public:
 		allneibs_iterator<boundarytype> neib_iter(index, pos, gridPos, cellStart, neibsList) ; \
 		neib_iter.next() ; \
 	)
+
+}
+
+#endif
 
 /* vim: set ft=cuda: */
