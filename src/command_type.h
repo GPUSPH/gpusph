@@ -138,6 +138,19 @@ struct StateBuffers
  */
 typedef std::vector<StateBuffers> CommandBufferArgument;
 
+//! Extract the BufferList corresponding to a given state and buffer specification
+/*! All buffers are required to exist and be valid
+ */
+const BufferList extractExistingBufferList(
+	ParticleSystem const& ps,
+	std::string const& state, const flag_t buffers);
+
+//! Extract the BufferList corresponding to a given StateBuffer
+/*! All buffers are required to exist and be valid
+ */
+const BufferList extractExistingBufferList(
+	ParticleSystem const& ps,
+	StateBuffers const& arg);
 //! Extract the BufferList corresponding to a given CommandBufferArgument
 /*! All buffers are required to exist and be valid
  */

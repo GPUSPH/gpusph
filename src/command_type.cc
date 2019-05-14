@@ -39,13 +39,27 @@ const char* command_name[] = {
 
 const BufferList extractExistingBufferList(
 	ParticleSystem const& ps,
+	std::string const& state, const flag_t buffers)
+{
+	if (buffers == BUFFER_NONE)
+		throw std::invalid_argument("no buffers specified for subsetting state " + state);
+	return ps.state_subset_existing(state, buffers);
+}
+
+const BufferList extractExistingBufferList(
+	ParticleSystem const& ps,
+	StateBuffers const& sb)
+{
+	return extractExistingBufferList(ps, sb.state, sb.buffers);
+}
+
+const BufferList extractExistingBufferList(
+	ParticleSystem const& ps,
 	CommandBufferArgument const& arg)
 {
 	BufferList ret;
 	for (auto const& sb : arg) {
-		if (sb.buffers == BUFFER_NONE)
-			throw std::invalid_argument("no buffers specified for subsetting state " + sb.state);
-		ret |= ps.state_subset_existing(sb.state, sb.buffers);
+		ret |= extractExistingBufferList(ps, sb);
 	}
 	return ret;
 }
