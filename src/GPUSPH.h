@@ -111,7 +111,7 @@ private:
 	void deallocateGlobalHostBuffers();
 
 	// check consistency of buffers across multiple GPUs
-	void checkBufferConsistency();
+	void checkBufferConsistency(CommandStruct const&);
 
 	// compute initial values for the IDs of the next generated particles,
 	// and return the number of open boundary vertices

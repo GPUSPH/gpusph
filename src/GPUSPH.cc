@@ -1100,18 +1100,34 @@ void GPUSPH::deallocateGlobalHostBuffers() {
  * \note This requires the code to be compiled with INSPECT_DEVICE_MEMORY,
  * to ensure that device buffers are accessible on host.
  */
-void GPUSPH::checkBufferConsistency()
+void GPUSPH::checkBufferConsistency(CommandStruct const& cmd)
 {
 #ifdef INSPECT_DEVICE_MEMORY
 	const devcount_t numdevs = gdata->devices;
 
-#define NUM_CHECK_LISTS 2
-	const char* buflist_name[NUM_CHECK_LISTS] = { "READ", "WRITE" };
-	std::vector<const BufferList *> buflist(numdevs*NUM_CHECK_LISTS);
+	std::vector<const ParticleSystem *> ps(numdevs);
+	std::vector< std::set< std::string > > states(numdevs);
 
 	for (devcount_t d = 0; d < numdevs; ++d) {
-		buflist[NUM_CHECK_LISTS*d + 0] = &gdata->GPUWORKERS[d]->getBufferList().getReadBufferList();
-		buflist[NUM_CHECK_LISTS*d + 1] = &gdata->GPUWORKERS[d]->getBufferList().getWriteBufferList();
+		ps[d] = &gdata->GPUWORKERS[d]->getParticleSystem();
+		for (auto const& s : ps[d]->states())
+			states[d].insert(s.first);
+	}
+
+	// First thing: check that all buffers have the same states
+	for (devcount_t d = 1; d < numdevs; ++d) {
+		if (states[d] != states[0]) {
+			std::cerr << "States for device 0:\n";
+			for (auto const& s : states[0])
+				std::cerr << "\t" << s;
+			std::cerr << std::endl;
+			std::cerr << "States for device " << d << ":\n";
+			for (auto const& s : states[d])
+				std::cerr << "\t" << s;
+			std::cerr << std::endl;
+			throw runtime_error("state mismatch");
+		}
+
 	}
 
 	std::vector<uint> numParticles(numdevs);
@@ -1122,6 +1138,7 @@ void GPUSPH::checkBufferConsistency()
 		numInternalParticles[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
 	}
 
+	// TODO check buffers mentioned in the cmd reading, updating and writing list
 	std::vector<particleinfo const*> infoArray(numdevs);
 	std::vector<float4 const*> posArray(numdevs);
 	std::vector<float4 const*> velArray(numdevs);
@@ -1141,12 +1158,26 @@ void GPUSPH::checkBufferConsistency()
 		numInternalParticles[1] - externalParticles[0]
 	};
 
-	for (uint l = 0; l < NUM_CHECK_LISTS; ++l) {
+	for (auto const& state_name : states[0]) {
 
+		// Skip check if any of the array isn't there (in which case it shouldn't be there for all of them)
+		// TODO only as long as we don't limit ourselves to the cmd buffer selection
+		bool skip = false;
 		for (devcount_t d = 0; d < numdevs; ++d) {
-			infoArray[d] = buflist[NUM_CHECK_LISTS*d + l]->getData<BUFFER_INFO>();
-			posArray[d] = buflist[NUM_CHECK_LISTS*d + l]->getData<BUFFER_POS>();
-			velArray[d] = buflist[NUM_CHECK_LISTS*d + l]->getData<BUFFER_VEL>();
+			auto const& state = ps[d]->getState(state_name);
+			infoArray[d] = state.getData<BUFFER_INFO>();
+			posArray[d] = state.getData<BUFFER_POS>();
+			velArray[d] = state.getData<BUFFER_VEL>();
+			skip |= (infoArray[d] == NULL);
+			skip |= (posArray[d]  == NULL);
+			skip |= (velArray[d]  == NULL);
+		}
+
+		if (skip) {
+			for (devcount_t d = 1; d < numdevs; ++d) {
+				// TODO check that they are all null if one is null
+			}
+			continue;
 		}
 
 		// Check the external particles of each device against their counterparts on the devices where these are edge internal
@@ -1164,8 +1195,8 @@ void GPUSPH::checkBufferConsistency()
 				const float4 neib_vel = velArray[neib_d][neib_offset];
 
 				if (memcmp(&info, &neib_info, sizeof(info))) {
-					printf("%s INFO mismatch @ iteration %d, command %d | %d: device %d external particle %d (offset %d, neib %d)\n",
-						buflist_name[l], gdata->iterations, gdata->nextCommand, gdata->commandFlags,
+					printf("%s INFO mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
 					printf("(%d %d %d %d) vs (%d %d %d %d)\n",
 						info.x, info.y, info.z, info.w,
@@ -1174,20 +1205,20 @@ void GPUSPH::checkBufferConsistency()
 				}
 
 				if (memcmp(&pos, &neib_pos, sizeof(pos))) {
-					printf("%s POS mismatch @ iteration %d, command %d | %d: device %d external particle %d (offset %d, neib %d)\n",
-						buflist_name[l], gdata->iterations, gdata->nextCommand, gdata->commandFlags,
+					printf("%s POS mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
-					printf("(%g %g %g %g) vs (%g %g %g %g)\n",
+					printf("(%.9g %.9g %.9g %.9g) vs (%.9g %.9g %.9g %.9g)\n",
 						pos.x, pos.y, pos.z, pos.w,
 						neib_pos.x, neib_pos.y, neib_pos.z, neib_pos.w);
 					break;
 				}
 
 				if (memcmp(&vel, &neib_vel, sizeof(vel))) {
-					printf("%s VEL mismatch @ iteration %d, command %d | %d: device %d external particle %d (offset %d, neib %d)\n",
-						buflist_name[l], gdata->iterations, gdata->nextCommand, gdata->commandFlags,
+					printf("%s VEL mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
-					printf("(%g %g %g %g) vs (%g %g %g %g)\n",
+					printf("(%.9g %.9g %.9g %.9g) vs (%.9g %.9g %.9g %.9g)\n",
 						vel.x, vel.y, vel.z, vel.w,
 						neib_vel.x, neib_vel.y, neib_vel.z, neib_vel.w);
 					break;
@@ -2327,6 +2358,6 @@ void GPUSPH::dispatchCommand(CommandStruct const& cmd)
 	// waste too much time on it at the moment.
 #ifdef INSPECT_DEVICE_MEMORY
 	if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
-		checkBufferConsistency();
+		checkBufferConsistency(cmd);
 #endif
 }

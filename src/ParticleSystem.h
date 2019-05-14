@@ -102,6 +102,8 @@ public:
 
 	};
 
+	typedef std::map<std::string, State> StateList;
+
 private:
 	// buffer allocation policy
 	std::shared_ptr<const BufferAllocPolicy> m_policy;
@@ -112,7 +114,7 @@ private:
 
 	// Particle system states: indexed by the state name (currently a string),
 	// they map to a State BufferList holding the buffers in that state
-	std::map<std::string, State> m_state;
+	StateList m_state;
 
 	// Keys of Buffers added so far
 	// It's a set instead of a single flag_t to allow iteration on it
@@ -134,6 +136,13 @@ private:
 	 * Both the state name and the buffer list representing it are needed.
 	 */
 	ptr_type add_buffer_to_state(State &dst, flag_t key);
+
+protected:
+	friend class GPUSPH;
+
+	//! Get list of available states
+	StateList const& states() const
+	{ return m_state; }
 
 public:
 

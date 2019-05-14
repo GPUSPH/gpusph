@@ -1680,14 +1680,6 @@ shared_ptr<const AbstractBuffer> GPUWorker::getBuffer(std::string const& state, 
 	return m_dBuffers.get_state_buffer(state, key);
 }
 
-
-#ifdef INSPECT_DEVICE_MEMORY
-const MultiBufferList& GPUWorker::getBufferList() const
-{
-	return m_dBuffers;
-}
-#endif
-
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }

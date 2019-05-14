@@ -345,7 +345,8 @@ public:
 	std::shared_ptr<const AbstractBuffer> getBuffer(std::string const& state, flag_t key) const;
 
 #ifdef INSPECT_DEVICE_MEMORY
-	const MultiBufferList& getBufferList() const;
+	const ParticleSystem& getParticleSystem() const
+	{ return m_dBuffers; }
 #endif
 };
 
