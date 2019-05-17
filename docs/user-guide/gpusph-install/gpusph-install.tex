@@ -547,6 +547,60 @@ Enable specified debug flags.
 Show the help and exit.
 \end{description}
 
+\subsection{Debugging GPUSPH execution}
+
+To assist developers when introducing new GPUSPH features, it is
+possible to trace the execution of the simulator, providing insight on
+the evolution of some of the internal structures using the provided
+debug flags. Multiple debug flags can be enabled in a single run, by
+passing a comma-separated list as an argument to \cmd{--debug}. For
+example:
+\begin{shellcode}
+./GPUSPH --debug print_step,inspect_buffer_access
+\end{shellcode}
+
+The \cmd{validate_init_position} debug option is also useful for users
+that want to further validate their initial setup.
+
+The debug flags currently supported are:
+\begin{description}
+\item[print_step] print each step and command as it is being executed;
+\item[neibs] debug the neighbors list on host, saving it to file;
+\item[forces] debug forces on host, saving them to file;
+\item[numerical_density] debug relative density variation on host, saving it to
+file;
+\item[inspect_preforce] inspect pre-force particle status; this saves
+the particle system status before each force computation;
+\item[inspect_pregamma] inspect pre-gamma integration particle status;
+this saves the particle system status before the gamma integration
+kernel execution;
+\item[inspect_buffer_access] inspect buffer access; show how each buffer
+is being accessed (reading or writing, and from which state) during
+execution of each command; note that this needs compile-time support,
+by enabling \cmd{#define DEBUG_BUFFER_ACCESS 1} in \cmd{src/buffer.h};
+\item[inspect_buffer_lists] inspect the state of the particle system and
+its buffer lists (states and free buffer pool) after each command;
+\item[check_buffer_update] check buffer update; this is used to check
+that all and only modified buffers are exchanged in an
+\cmd{UPDATE_EXTERNAL} call;
+\item[check_buffer_consistency] check buffer consistency;
+when this is enabled, after every command GPUSPH will verify
+that the shared parts of the subdomains in multi-GPU simulations
+are consistent across devices; note this needs compile-time support,
+by adding \cmd{-DINSPECT_DEVICE_MEMORY} to \cmd{CPPFLAGS} in
+\cmd{Makefile.local};
+\item[clobber_invalid_buffers] clobber invalid buffers;
+when this is true, every time a buffer is marked invalid,
+its content will be clobbered (reset to the initial value,
+typically NAN or equivalent); useful to check that stale data is not
+being used inadvertently;. note that this needs compile-time support,
+by enabling \cmd{#define DEBUG_BUFFER_ACCESS 1} in \cmd{src/buffer.h};
+\item[validate_init_positions] throw an exception (instead of just
+warning) if a particle is out of bounds during initialization of the
+problem;
+\item[benchmark_command_runtimes] measure (and show) command runtimes.
+\end{description}
+
 \section{Running multi-node simulations}
 
 GPUSPH can distribute the computation of a simulation on multiple 
