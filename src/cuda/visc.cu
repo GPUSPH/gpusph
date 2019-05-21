@@ -230,15 +230,16 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
-		const 	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 		const	float *oldEffPres(bufread.getData<BUFFER_EFFPRES>());
-		const	float *oldEffVisc(bufread.getData<BUFFER_EFFVISC>());
-		float *newEffPres(bufwrite.getData<BUFFER_EFFPRES>());
 		float *newEffVisc(bufwrite.getData<BUFFER_EFFVISC>());
 
 		int dummy_shared = 0;
+		uint numThreads = BLOCK_SIZE_SPS;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+#if (__COMPUTE__ == 20)
+		dummy_shared = 2560;
+#endif
+
 		// bind textures to read all particles, not only internal ones
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -247,23 +248,19 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, oldEffPres, numParticles*sizeof(float)));
 		if (boundarytype == SA_BOUNDARY) {
+			const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
+			const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+			const 	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-		}
-
-		uint numThreads = BLOCK_SIZE_SPS;
-		uint numBlocks = div_up(particleRangeEnd, numThreads);
-#if (__COMPUTE__ == 20)
-		dummy_shared = 2560;
-#endif
-
-		viscengine_rheology_params<kerneltype, boundarytype> params(
-				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, newEffVisc, newEffPres, gGam, vertPos);
-
-		if (boundarytype == SA_BOUNDARY) {
+			viscengine_rheology_params<kerneltype, boundarytype> params(
+				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, newEffVisc, NULL, gGam, vertPos);
 			// Compute effective viscosity
 			cuvisc::effectiveViscosityDevice<kerneltype>
 				<<<numBlocks, numThreads, dummy_shared>>>(params);
+			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 		} else {
+			viscengine_rheology_params<kerneltype, boundarytype> params(
+				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, newEffVisc, NULL, NULL, NULL);
 			// Compute effective viscosity
 			cuvisc::effectiveViscosityDevice<kerneltype, boundarytype>
 				<<<numBlocks, numThreads, dummy_shared>>>(params);
@@ -275,7 +272,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 #endif
