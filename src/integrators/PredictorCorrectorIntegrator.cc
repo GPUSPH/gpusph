@@ -419,6 +419,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 
 	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
+	static const bool has_sa = sp->boundarytype == SA_BOUNDARY; 
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
 
 	// TODO get from integrator
@@ -462,7 +463,8 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL |
-				has_granular_rheology ? BUFFER_EFFPRES : BUFFER_NONE)
+				(has_granular_rheology ? BUFFER_EFFPRES : BUFFER_NONE ) |
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.writing(current_state,
 				BUFFER_TAU | BUFFER_SPS_TURBVISC | BUFFER_EFFVISC |
 				// When computing the effective viscosity, if adaptive time-stepping is enabled,
@@ -1008,15 +1010,17 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		/* Effective pressure is computed for step n during initialization step,
 		 * for step n* after the integrator, and for step n+1 after the corrector
 		 */
-		const string current_state = getNextStateForStep(step.number);
+		const string current_state = getCurrentStateForStep(step.number);
+		const string next_state = getNextStateForStep(step.number);
 
 		// Enforce boundary conditions from the previous Jacobi iteration
 		this_phase->add_command(JACOBI_BOUNDARY_CONDITIONS)
+			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL | BUFFER_EFFPRES |
-				has_sa ? BUFFER_BOUNDELEMENTS : BUFFER_NONE)
-			.writing(current_state, BUFFER_EFFPRES);
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+			.writing(next_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_EFFPRES);
@@ -1029,7 +1033,7 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL | BUFFER_EFFPRES |
-				has_sa ? BUFFER_BOUNDELEMENTS : BUFFER_NONE)
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.writing(current_state, BUFFER_EFFPRES | BUFFER_JACOBI);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1040,7 +1044,7 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL | BUFFER_EFFPRES | BUFFER_JACOBI |
-				has_sa ? BUFFER_BOUNDELEMENTS : BUFFER_NONE)
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.writing(current_state, BUFFER_EFFPRES | BUFFER_JACOBI);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1051,7 +1055,7 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL | BUFFER_EFFPRES |
-				has_sa ? BUFFER_BOUNDELEMENTS : BUFFER_NONE)
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.writing(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
