@@ -270,7 +270,7 @@ horner_one_minus_exp_minus_over<1>(float x)
 template<typename KP>
 __device__ __forceinline__
 enable_if_t< yield_strength_type<KP::rheologytype>() == NO_YS, float >
-viscYieldTerm(int fluid, float shrate, KP const& params)
+viscYieldTerm(int index, int fluid, float shrate, KP const& params)
 {
 	return 0.0f;
 }
@@ -281,7 +281,7 @@ viscYieldTerm(int fluid, float shrate, KP const& params)
 template<typename KP>
 __device__ __forceinline__
 enable_if_t< yield_strength_type<KP::rheologytype>() == STD_YS, float>
-viscYieldTerm(int fluid, float shrate, KP const& params)
+viscYieldTerm(int index, int fluid, float shrate, KP const& params)
 {
 	return d_yield_strength[fluid]/shrate;
 }
@@ -294,7 +294,7 @@ viscYieldTerm(int fluid, float shrate, KP const& params)
 template<typename KP>
 __device__ __forceinline__
 enable_if_t< yield_strength_type<KP::rheologytype>() == REG_YS, float >
-viscYieldTerm(int fluid, float shrate, KP const& params)
+viscYieldTerm(int index, int fluid, float shrate, KP const& params)
 {
 	const float m = d_visc_regularization_param[fluid];
 	// we use a Taylor series for shrate < 1/m,
@@ -316,8 +316,8 @@ viscYieldTerm(int fluid, float shrate, KP const& params)
 /** For BINGHAM and PAPANASTASIOU */
 template<typename KP>
 __device__ __forceinline__
-enable_if_t<not NONLINEAR_RHEOLOGY(KP::rheologytype), float >
-viscShearTerm(int fluid, float shrate, KP const& params)
+enable_if_t<not NONLINEAR_RHEOLOGY(KP::rheologytype) && KP::rheologytype != GRANULAR, float >
+viscShearTerm(int index, int fluid, float shrate, KP const& params)
 {
 	return d_visccoeff[fluid];
 }
@@ -327,7 +327,7 @@ viscShearTerm(int fluid, float shrate, KP const& params)
 template<typename KP>
 __device__ __forceinline__
 enable_if_t<POWERLAW_RHEOLOGY(KP::rheologytype), float >
-viscShearTerm(int fluid, float shrate, KP const& params)
+viscShearTerm(int index, int fluid, float shrate, KP const& params)
 {
 	return d_visccoeff[fluid]*powf(shrate, d_visc_nonlinear_param[fluid] - 1);
 }
@@ -337,10 +337,59 @@ viscShearTerm(int fluid, float shrate, KP const& params)
 template<typename KP>
 __device__ __forceinline__
 enable_if_t<EXPONENTIAL_RHEOLOGY(KP::rheologytype), float >
-viscShearTerm(int fluid, float shrate, KP const& params)
+viscShearTerm(int index, int fluid, float shrate, KP const& params)
 {
 	return d_visccoeff[fluid]*expf( -d_visc_nonlinear_param[fluid]*shrate );
 }
+
+//! Granular flow shear rate contribution
+template<typename KP>
+__device__ __forceinline__
+enable_if_t<KP::rheologytype == GRANULAR, float >
+viscShearTerm(int index, int fluid, float shrate, KP const& params)
+{
+	// TODO use a pdata structure
+	const float effpres = tex1Dfetch(effpresTex, index);
+	const particleinfo info = tex1Dfetch(infoTex, index);
+
+	// for non-fluid particles we do not compute viscosity,
+	// we will use the central particle viscosity during interaction
+	if (!FLUID(info))
+		return NAN;
+
+	// Newtonian rheology is assumed for the pure fluid component
+	if (!SEDIMENT(info))
+		return d_visccoeff[fluid];
+
+#define SQRT3_TIMES_2 3.46410161514f
+	// granular rheology is used for sediment
+	const float tau_y = SQRT3_TIMES_2*d_sinpsi[fluid]/(3.f - d_sinpsi[fluid])*effpres;
+	return tau_y/shrate;
+}
+
+//! Clamp the viscosity
+/** General case: viscosity cannot be higher than the limiting viscosity */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< KP::rheologytype != GRANULAR, float >
+clamp_visc(KP const& params, float effvisc, int fluid)
+{
+	return fminf(effvisc, d_limiting_kinvisc*d_rho0[fluid]);
+}
+
+//! Clamp the viscosity
+/** Granular flow case: the viscosity is also clamped from below,
+ * since the sediment viscosity cannot be lower than the interstitial fluid viscosity
+ */
+template<typename KP>
+__device__ __forceinline__
+enable_if_t< KP::rheologytype == GRANULAR, float >
+clamp_visc(KP const& params, float effvisc, int fluid)
+{
+	// TODO FIXME: verify if we can use d_visccoeff[fluid] for min and limiting_kinvisc*d_rho0[fluid] for max
+	return clamp(effvisc, d_mineffvisc[fluid], d_maxeffvisc[fluid]);
+}
+
 
 //! Compute the kinematic viscosity from the dynamic one
 /** This is only done if the computationa viscosity model is KINEMATIC,
@@ -433,6 +482,14 @@ effectiveViscDevice(KP params)
 
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
+		// TODO granular flow skips this effective visc computation
+		// for non-FLUID particles. We should look into this even for other non-Newtonian
+		// rheologies by doing some multi-fluid tests (also: what about SPS?)
+		// Things will get quite a bit hairier when we have a thermal model and
+		// temperature-dependent viscosity though
+		if (KP::rheologytype == GRANULAR && !FLUID(info))
+			break;
+
 		// fluid number
 		const int fluid = fluid_num(info);
 
@@ -464,15 +521,15 @@ effectiveViscDevice(KP params)
 		// effective viscosity contribution from the shear rate norm
 		// (e.g. k \dot\gamma^n for power law and Herschel–Bulkley)
 		if (d_visccoeff[fluid] != 0.0f)
-			effvisc += viscShearTerm(fluid, S, params);
+			effvisc += viscShearTerm(index, fluid, S, params);
 
 		// add effective viscosity contribution from the yield strength
 		// (e.g. tau_0/\dot\gamma for Bingham and Herschel–Bulkley)
 		if (d_yield_strength[fluid] != 0.0f)
-			effvisc += viscYieldTerm(fluid, S, params);
+			effvisc += viscYieldTerm(index, fluid, S, params);
 
 		// Clamp to the user-set limiting viscosity
-		effvisc = fminf(effvisc, d_limiting_kinvisc*d_rho0[fluid]);
+		effvisc = clamp_visc(params, effvisc, fluid);
 
 		compute_kinvisc(params, effvisc, vel.w, fluid, kinvisc);
 		store_effective_visc(params, index, effvisc, kinvisc);
@@ -1310,140 +1367,6 @@ effectiveViscosityDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> par
 		if (S > 1.e-6) {
 			// effvisc is bounded by [mineffvisc, maxeffvisc]
 			params.effvisc[index] = max(d_mineffvisc[p_fluid_num], min(tau_y/(S*p_rho), d_maxeffvisc[p_fluid_num]));
-		} else { // if S is too small, set effvisc to the max bound.
-			params.effvisc[index] = d_maxeffvisc[p_fluid_num];
-		}
-	} else if (cptype == PT_FLUID) {
-		const uint p_fluid_num = fluid_num(info);
-		params.effvisc[index] = d_visccoeff[p_fluid_num];
-	}
-}
-
-//! Compute rheology effective viscosity without SA
-/*!
-
- Procedure:
-
- (1) compute velocity gradients
-
- (2) compute the strain-rate tensor
-
- (3) compute the mean scalar strain-rate
-
- (4) return the effective dynamic viscosity
-*/
-template<KernelType kerneltype,
-	BoundaryType boundarytype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-effectiveViscosityDevice(viscengine_rheology_params<kerneltype, boundarytype> params)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= params.numParticles)
-		return;
-
-	const particleinfo info = tex1Dfetch(infoTex, index);
-	const ParticleType cptype = PART_TYPE(info);
-	// Fluid number
-	const uint p_fluid_num = fluid_num(info);
-
-
-	if (cptype == PT_FLUID && SEDIMENT(info)) {
-		// read particle data from sorted arrays
-#if PREFER_L1
-		const float4 pos = params.pos[index];
-#else
-		const float4 pos = tex1Dfetch(posTex, index);
-#endif
-
-
-		// skip inactive particles
-		if (INACTIVE(pos))
-			return;
-
-		const float4 vel = tex1Dfetch(velTex, index);
-
-		// Gradients of the the velocity components
-		float3 dvx = make_float3(0.0f);
-		float3 dvy = make_float3(0.0f);
-		float3 dvz = make_float3(0.0f);
-
-		// Compute grid position of current particle
-		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
-		// Physical density
-		const float p_rho = physical_density(vel.w, p_fluid_num);
-		// Actual volume
-		const float volume = pos.w/p_rho;
-
-		// loop over all the neighbors
-		for_each_neib3(PT_FLUID, PT_VERTEX, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
-
-			const uint neib_index = neib_iter.neib_index();
-
-			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos(
-			#if PREFER_L1
-				params.pos[neib_index]
-			#else
-				tex1Dfetch(posTex, neib_index)
-			#endif
-				);
-
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-			// skip inactive particles
-			if (INACTIVE(relPos))
-				continue;
-
-			const float r = length3(relPos);
-
-			// Compute relative velocity
-			// Now relVel is a float4 and neib density is stored in relVel.w
-			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-			const ParticleType nptype = PART_TYPE(neib_info);
-
-
-			// Fluid numbers
-			const uint neib_fluid_num = fluid_num(neib_info);
-
-			// Velocity gradient is contributed by all particles
-			if (nptype != PT_BOUNDARY && r < params.influenceradius) {
-				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
-
-				// Velocity Gradients (multiplication by volume is done afterward)
-				dvx -= relVel.x*as_float3(relPos)*f;// dvx = -ref_vol ∑ vxij (ri - rj)/r ∂Wij/∂r
-				dvy -= relVel.y*as_float3(relPos)*f;// dvy = -ref_vol ∑ vyij (ri - rj)/r ∂Wij/∂r
-				dvz -= relVel.z*as_float3(relPos)*f;// dvz = -ref_vol ∑ vzij (ri - rj)/r ∂Wij/∂r
-
-
-			}
-
-		} // end of loop through neighbors
-
-		dvx *= volume;
-		dvy *= volume;
-		dvz *= volume;
-
-		// Calculate Sub-Particle Scale viscosity
-		// and special turbulent terms
-		float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-		float temp = dvx.y + dvy.x;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-		SijSij_bytwo += temp*temp;
-		temp = dvx.z + dvz.x;			// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-		SijSij_bytwo += temp*temp;
-		temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-		SijSij_bytwo += temp*temp;
-		const float effpres(tex1Dfetch(effpresTex, index));
-		const float S = sqrtf(SijSij_bytwo);
-		const float sqrt3 = 1.73205080757;
-		const float tau_y = 2.f*sqrt3*d_sinpsi[p_fluid_num]/(3.f - d_sinpsi[p_fluid_num])*effpres;
-		if (S > 1.e-6) {
-			// effvisc is bounded by [mineffvisc, maxeffvisc]
-			params.effvisc[index] = max(d_mineffvisc[p_fluid_num], min(tau_y/(S*p_rho), d_maxeffvisc[p_fluid_num]));
-
 		} else { // if S is too small, set effvisc to the max bound.
 			params.effvisc[index] = d_maxeffvisc[p_fluid_num];
 		}

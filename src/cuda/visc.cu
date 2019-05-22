@@ -80,7 +80,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 	/// Viscous engine implementation, specialized for the generalized Newtonian rheologies
 	template<typename This>
-	enable_if_t<NEEDS_EFFECTIVE_VISC(This::rheologytype) && This::rheologytype != GRANULAR, float>
+	enable_if_t<NEEDS_EFFECTIVE_VISC(This::rheologytype), float>
 	calc_visc_implementation(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
@@ -123,18 +123,37 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
+		// for granular flows
+		const float *oldEffPres = bufread.getData<BUFFER_EFFPRES>();
+		if (ViscSpec::rheologytype == GRANULAR)
+			CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, oldEffPres, numParticles*sizeof(float)));
+
+		// for SA
+		const float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
+		const float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+		const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+
 		uint numThreads = BLOCK_SIZE_SPS;
 		// number of blocks, rounded up to next multiple of 4 to improve reductions
 		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
 
 		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
 			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			gGam, vertPos,
 			effvisc, cfl);
 
 		cuvisc::effectiveViscDevice<<<numBlocks, numThreads>>>(params);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
+
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+
+		if (ViscSpec::rheologytype == GRANULAR)
+			CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -210,75 +229,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		// TODO return SPS turbvisc?
 		return NAN;
 	}
-
-	template<typename This>
-	enable_if_t<This::rheologytype == GRANULAR, float>
-	calc_visc_implementation(
-		const	BufferList& bufread,
-				BufferList& bufwrite,
-		const	uint	numParticles,
-		const	uint	particleRangeEnd,
-		const	float	deltap,
-		const	float	slength,
-		const	float	influenceradius,
-		const	This *)
-	{
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-		const	float *oldEffPres(bufread.getData<BUFFER_EFFPRES>());
-		float *newEffVisc(bufwrite.getData<BUFFER_EFFVISC>());
-
-		int dummy_shared = 0;
-		uint numThreads = BLOCK_SIZE_SPS;
-		uint numBlocks = div_up(particleRangeEnd, numThreads);
-#if (__COMPUTE__ == 20)
-		dummy_shared = 2560;
-#endif
-
-		// bind textures to read all particles, not only internal ones
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-#endif
-		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, oldEffPres, numParticles*sizeof(float)));
-		if (boundarytype == SA_BOUNDARY) {
-			const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
-			const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-			const 	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-			viscengine_rheology_params<kerneltype, boundarytype> params(
-				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, newEffVisc, NULL, gGam, vertPos);
-			// Compute effective viscosity
-			cuvisc::effectiveViscosityDevice<kerneltype>
-				<<<numBlocks, numThreads, dummy_shared>>>(params);
-			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-		} else {
-			viscengine_rheology_params<kerneltype, boundarytype> params(
-				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, newEffVisc, NULL, NULL, NULL);
-			// Compute effective viscosity
-			cuvisc::effectiveViscosityDevice<kerneltype, boundarytype>
-				<<<numBlocks, numThreads, dummy_shared>>>(params);
-		}
-
-		// check if kernel invocation generated an error
-		KERNEL_CHECK_ERROR;
-
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
-		return NAN;
-	}
-
-
 
 	// TODO when we will be in a separate namespace from forces
 	void setconstants() {}

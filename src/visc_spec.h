@@ -47,12 +47,13 @@
 /** @defpsubsection{rheology, RHEOLOGY}
  * @inpsection{viscous_options}
  * @default{Newtonian}
- * @values{inviscid, Newtonian, Bingham, Papanastasious, Power Law, Herschel–Bulkley, Alexandrou, DeKee & Turcotte, Zhu}
+ * @values{inviscid, Newtonian, Bingham, Papanastasious, Power Law, Herschel–Bulkley, Alexandrou, DeKee & Turcotte, Zhu, Granular}
  * TLT_RHEOLOGY
  */
 enum RheologyType {
 	INVISCID, ///< No (laminar) viscosity
 	NEWTONIAN, ///< Viscosity independent of strain rate
+	GRANULAR, ///< Viscosity dependant of strain rate
 	BINGHAM, ///< Bingham model (Newtonian + yield strength)
 	PAPANASTASIOU, ///< Regularized Bingham model
 	POWER_LAW, ///< Viscosity depends on a power of the strain rate
@@ -60,18 +61,18 @@ enum RheologyType {
 	ALEXANDROU, ///< Regularized Herschel–Bulkley
 	DEKEE_TURCOTTE, ///< Exponential + yield strength
 	ZHU, ///< Regularized De Kee and Turcotte
-	GRANULAR ///< Viscosity dependant of strain rate
 };
 
 //! Name of the rheology type
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char* RheologyName[GRANULAR+1]
+const char* RheologyName[ZHU+1]
 #ifdef GPUSPH_MAIN
 = {
 	"Inviscid",
 	"Newtonian",
+	"Granular",
 	"Bingham",
 	"Papanastasiou",
 	"Power-law",
@@ -79,7 +80,6 @@ const char* RheologyName[GRANULAR+1]
 	"Alexandrou",
 	"De Kee & Turcotte",
 	"Zhu",
-	"Granular"
 }
 #endif
 ;
@@ -97,7 +97,12 @@ DEFINE_OPTION_RANGE(RheologyType, RheologyName, INVISCID, ZHU);
 #define NONLINEAR_RHEOLOGY(rheology) ((rheology) >= POWER_LAW)
 
 //! Check if the rheology has a yield strength
-#define YIELDING_RHEOLOGY(rheology) (NEEDS_EFFECTIVE_VISC(rheology) && ((rheology) != POWER_LAW))
+#define YIELDING_RHEOLOGY(rheology) (\
+	NEEDS_EFFECTIVE_VISC(rheology) && \
+	((rheology) != POWER_LAW) && \
+	((rheology) != GRANULAR) \
+	)
+
 
 //! Check if the rheology uses the regularization parameter
 #define REGULARIZED_RHEOLOGY(rheology) ( \
