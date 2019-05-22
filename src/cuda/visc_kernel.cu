@@ -103,14 +103,67 @@ enum ShearRateReturnType {
 	MIXED_TENSOR
 };
 
+struct common_shear_rate_pdata
+{
+	const int index;
+	const int3 gridPos;
+	const float4 pos;
+	const float4 vel;
+	const particleinfo info;
+	const uint fluid;
+
+	template<typename KP>// kernel params
+	__device__ __forceinline__
+	common_shear_rate_pdata(int _index, KP const& params) :
+		index(_index),
+		gridPos( calcGridPosFromParticleHash(params.particleHash[index]) ),
+		pos(
+#if PREFER_L1
+			params.posArray[index]
+#else
+			tex1Dfetch(posTex, index)
+#endif
+		   ),
+		vel( tex1Dfetch(velTex, index) ),
+		info( tex1Dfetch(infoTex, index) ),
+		fluid( fluid_num(info) )
+	{}
+};
+
+struct sa_shear_rate_pdata
+{
+	const float gamma;
+
+	template<typename KP>// kernel params
+	__device__ __forceinline__
+	sa_shear_rate_pdata(int index, KP const& params) :
+		gamma( params.gGam[index].w)
+	{}
+};
+
+template<BoundaryType _boundarytype>
+struct shear_rate_pdata :
+	common_shear_rate_pdata,
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_shear_rate_pdata)
+{
+	static constexpr BoundaryType boundarytype = _boundarytype;
+
+	template<typename KP>// kernel params
+	__device__ __forceinline__
+	shear_rate_pdata(int index, KP const& params) :
+		common_shear_rate_pdata(index, params),
+		COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_shear_rate_pdata)(index, params)
+	{}
+};
+
 //! Compute ∇v + (∇v)ᵀ or its doubled version
-template<KernelType kerneltype, ShearRateReturnType ret_type>
+template<
+	KernelType kerneltype,
+	BoundaryType boundarytype,
+	ShearRateReturnType ret_type>
 __device__ __forceinline__
 symtensor3 shearRate(
-	int index, /* particle index */
-	int3 const& gridPos, /* particle grid position */
-	float4 const& pos, /* particle position (in cell) */
-	float4 const& vel, /* particle velocity */
+	shear_rate_pdata<boundarytype> const& pdata,
 	neibs_list_params const& params) /* parameters needed to walk the neighbors list */
 {
 	// Gradients of the the velocity components
@@ -120,7 +173,7 @@ symtensor3 shearRate(
 
 	// Loop over all neighbors to compute their contribution to the velocity gradient
 	// TODO: check which particle types should contribute with SA
-	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+	for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
@@ -143,7 +196,7 @@ symtensor3 shearRate(
 
 		// Compute relative velocity
 		// Now relVel is a float4 and neib density is stored in relVel.w
-		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+		const float4 relVel = as_float3(pdata.vel) - tex1Dfetch(velTex, neib_index);
 
 		const float neib_rho = physical_density(relVel.w, fluid_num(neib_info));
 		const float f = F<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// 1/r ∂Wij/∂r Vj
@@ -267,10 +320,10 @@ horner_one_minus_exp_minus_over<1>(float x)
 	return fmaf(x, -0.5f, 1.0f);
 }
 
-template<typename KP>
+template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t< yield_strength_type<KP::rheologytype>() == NO_YS, float >
-viscYieldTerm(int index, int fluid, float shrate, KP const& params)
+viscYieldTerm(P_t const& pdata, float shrate, KP const& params)
 {
 	return 0.0f;
 }
@@ -278,12 +331,12 @@ viscYieldTerm(int index, int fluid, float shrate, KP const& params)
 //! Standard contribution from the yield strength
 /** This has the potential to become infinite at vanishing shear rates.
  */
-template<typename KP>
+template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t< yield_strength_type<KP::rheologytype>() == STD_YS, float>
-viscYieldTerm(int index, int fluid, float shrate, KP const& params)
+viscYieldTerm(P_t const& pdata, float shrate, KP const& params)
 {
-	return d_yield_strength[fluid]/shrate;
+	return d_yield_strength[pdata.fluid]/shrate;
 }
 
 //! Regularized contribution from the yield strength
@@ -291,12 +344,12 @@ viscYieldTerm(int index, int fluid, float shrate, KP const& params)
  * (1 - exp(-m \dot\gamma))/\dot\gamma
  * which tends to m at vanishing shear rates.
  */
-template<typename KP>
+template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t< yield_strength_type<KP::rheologytype>() == REG_YS, float >
-viscYieldTerm(int index, int fluid, float shrate, KP const& params)
+viscYieldTerm(P_t const& pdata, float shrate, KP const& params)
 {
-	const float m = d_visc_regularization_param[fluid];
+	const float m = d_visc_regularization_param[pdata.fluid];
 	// we use a Taylor series for shrate < 1/m,
 	// the exponential form for shrate >= 1/m
 	// TODO allow customization of linearization order,
@@ -309,61 +362,60 @@ viscYieldTerm(int index, int fluid, float shrate, KP const& params)
 	else
 		reg = (1 - expf(-mx))/shrate;
 
-	return d_yield_strength[fluid]*reg;
+	return d_yield_strength[pdata.fluid]*reg;
 }
 
 //! Linear dependency on the shear rate
 /** For BINGHAM and PAPANASTASIOU */
-template<typename KP>
+template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t<not NONLINEAR_RHEOLOGY(KP::rheologytype) && KP::rheologytype != GRANULAR, float >
-viscShearTerm(int index, int fluid, float shrate, KP const& params)
+viscShearTerm(P_t const& pdata, float shrate, KP const& params)
 {
-	return d_visccoeff[fluid];
+	return d_visccoeff[pdata.fluid];
 }
 
 //! Power-law dependency on the shear rate
 /** For POWER_LAW, HERSCHEL_BULKLEY and ALEXANDROU */
-template<typename KP>
+template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t<POWERLAW_RHEOLOGY(KP::rheologytype), float >
-viscShearTerm(int index, int fluid, float shrate, KP const& params)
+viscShearTerm(P_t const& pdata, float shrate, KP const& params)
 {
-	return d_visccoeff[fluid]*powf(shrate, d_visc_nonlinear_param[fluid] - 1);
+	return d_visccoeff[pdata.fluid]*powf(shrate, d_visc_nonlinear_param[pdata.fluid] - 1);
 }
 
 //! Exponential dependency on the shear rate
 /** For DEKEE_TURCOTTE and ZHU */
-template<typename KP>
+template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t<EXPONENTIAL_RHEOLOGY(KP::rheologytype), float >
-viscShearTerm(int index, int fluid, float shrate, KP const& params)
+viscShearTerm(P_t const& pdata, float shrate, KP const& params)
 {
-	return d_visccoeff[fluid]*expf( -d_visc_nonlinear_param[fluid]*shrate );
+	return d_visccoeff[pdata.fluid]*expf( -d_visc_nonlinear_param[pdata.fluid]*shrate );
 }
 
 //! Granular flow shear rate contribution
-template<typename KP>
+template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t<KP::rheologytype == GRANULAR, float >
-viscShearTerm(int index, int fluid, float shrate, KP const& params)
+viscShearTerm(P_t const& pdata, float shrate, KP const& params)
 {
 	// TODO use a pdata structure
-	const float effpres = tex1Dfetch(effpresTex, index);
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const float effpres = tex1Dfetch(effpresTex, pdata.index);
 
 	// for non-fluid particles we do not compute viscosity,
 	// we will use the central particle viscosity during interaction
-	if (!FLUID(info))
+	if (!FLUID(pdata.info))
 		return NAN;
 
 	// Newtonian rheology is assumed for the pure fluid component
-	if (!SEDIMENT(info))
-		return d_visccoeff[fluid];
+	if (!SEDIMENT(pdata.info))
+		return d_visccoeff[pdata.fluid];
 
 #define SQRT3_TIMES_2 3.46410161514f
 	// granular rheology is used for sediment
-	const float tau_y = SQRT3_TIMES_2*d_sinpsi[fluid]/(3.f - d_sinpsi[fluid])*effpres;
+	const float tau_y = SQRT3_TIMES_2*d_sinpsi[pdata.fluid]/(3.f - d_sinpsi[pdata.fluid])*effpres;
 	return tau_y/shrate;
 }
 
@@ -480,37 +532,17 @@ effectiveViscDevice(KP params)
 		if (index >= params.numParticles)
 			break;
 
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		shear_rate_pdata<boundarytype> pdata(index, params);
 
-		// TODO granular flow skips this effective visc computation
-		// for non-FLUID particles. We should look into this even for other non-Newtonian
-		// rheologies by doing some multi-fluid tests (also: what about SPS?)
-		// Things will get quite a bit hairier when we have a thermal model and
-		// temperature-dependent viscosity though
-		if (KP::rheologytype == GRANULAR && !FLUID(info))
+		if (KP::rheologytype == GRANULAR && !FLUID(pdata.info))
 			break;
-
-		// fluid number
-		const int fluid = fluid_num(info);
-
-		// read particle data from sorted arrays
-#if PREFER_L1
-		const float4 pos = params.posArray[index];
-#else
-		const float4 pos = tex1Dfetch(posTex, index);
-#endif
 
 		// skip inactive particles
-		if (INACTIVE(pos))
+		if (INACTIVE(pdata.pos))
 			break;
 
-		const float4 vel = tex1Dfetch(velTex, index);
-
-		// Compute grid position of current particle
-		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
 		// shear rate tensor
-		symtensor3 tau = shearRate<kerneltype, MIXED_TENSOR>(index, gridPos, pos, vel, params);
+		symtensor3 tau = shearRate<kerneltype, boundarytype, MIXED_TENSOR>(pdata, params);
 
 		// shear rate norm
 		const float SijSij_bytwo = shearRateNorm2<MIXED_TENSOR>(tau);
@@ -520,19 +552,19 @@ effectiveViscDevice(KP params)
 
 		// effective viscosity contribution from the shear rate norm
 		// (e.g. k \dot\gamma^n for power law and Herschel–Bulkley)
-		if (d_visccoeff[fluid] != 0.0f)
-			effvisc += viscShearTerm(index, fluid, S, params);
+		if (d_visccoeff[pdata.fluid] != 0.0f)
+			effvisc += viscShearTerm(pdata, S, params);
 
 		// add effective viscosity contribution from the yield strength
 		// (e.g. tau_0/\dot\gamma for Bingham and Herschel–Bulkley)
-		if (d_yield_strength[fluid] != 0.0f)
-			effvisc += viscYieldTerm(index, fluid, S, params);
+		if (d_yield_strength[pdata.fluid] != 0.0f)
+			effvisc += viscYieldTerm(pdata, S, params);
 
 		// Clamp to the user-set limiting viscosity
-		effvisc = clamp_visc(params, effvisc, fluid);
+		effvisc = clamp_visc(params, effvisc, pdata.fluid);
 
-		compute_kinvisc(params, effvisc, vel.w, fluid, kinvisc);
-		store_effective_visc(params, index, effvisc, kinvisc);
+		compute_kinvisc(params, effvisc, pdata.vel.w, pdata.fluid, kinvisc);
+		store_effective_visc(params, pdata.index, effvisc, kinvisc);
 	} while (0);
 
 	reduce_kinvisc(params, kinvisc);
@@ -610,29 +642,13 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	if (index >= params.numParticles)
 		return;
 
-	// read particle data from sorted arrays
-	// Compute SPS matrix only for any kind of particles
-	// TODO testpoints should also compute SPS, it'd be useful
-	// when we will enable SPS saving to disk
-	const particleinfo info = tex1Dfetch(infoTex, index);
-
-	// read particle data from sorted arrays
-	#if PREFER_L1
-	const float4 pos = params.posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	shear_rate_pdata<boundarytype> pdata(index, params);
 
 	// skip inactive particles
-	if (INACTIVE(pos))
+	if (INACTIVE(pdata.pos))
 		return;
 
-	const float4 vel = tex1Dfetch(velTex, index);
-
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
-	symtensor3 tau = shearRate<kerneltype, MIXED_TENSOR>(index, gridPos, pos, vel, params);
+	symtensor3 tau = shearRate<kerneltype, boundarytype, MIXED_TENSOR>(pdata, params);
 
 	// Calculate Sub-Particle Scale viscosity
 	// and special turbulent terms
@@ -649,7 +665,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	// Dalrymple & Rogers (2006): eq. (10)
 	if (simflags & SPSK_STORE_TAU) {
 
-		const float rho = physical_density(vel.w, fluid_num(info));
+		const float rho = physical_density(pdata.vel.w, pdata.fluid);
 
 		/* Since tau stores the diagonal components non-doubled, but we need the doubled
 		 * ones, we double them here */
@@ -664,7 +680,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 		tau.zz = nu_SPS*(tau.zz+tau.zz) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
 		tau.zz /= rho;
 
-		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, tau);
+		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, pdata.index, tau);
 	}
 }
 
