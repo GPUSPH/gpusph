@@ -133,11 +133,13 @@ struct common_shear_rate_pdata
 struct sa_shear_rate_pdata
 {
 	const float gamma;
+	const float ref_volume0;
 
 	template<typename KP>// kernel params
 	__device__ __forceinline__
 	sa_shear_rate_pdata(int index, KP const& params) :
-		gamma( params.gGam[index].w)
+		gamma( params.gGam[index].w),
+		ref_volume0(params.deltap*params.deltap*params.deltap)
 	{}
 };
 
@@ -156,15 +158,147 @@ struct shear_rate_pdata :
 	{}
 };
 
+struct common_shear_rate_ndata
+{
+	const uint index;
+	const float4 relPos;
+	const float4 relVel;
+	const particleinfo info;
+	const float r;
+	const uint fluid;
+	const float rho;
+
+	template<typename NeibIter, typename P_t, typename KP>
+	__device__ __forceinline__
+	common_shear_rate_ndata(NeibIter const& neib_iter, P_t const& pdata, KP const& params) :
+		index(neib_iter.neib_index()),
+		relPos(neib_iter.relPos(
+#if PREFER_L1
+			params.posArray[index]
+#else
+			tex1Dfetch(posTex, index)
+#endif
+			)),
+		info(tex1Dfetch(infoTex, index)),
+		r(length3(relPos)),
+		relVel( make_float3(pdata.vel) - tex1Dfetch(velTex, index) ),
+		fluid(fluid_num(info)),
+		rho(physical_density(relVel.w, fluid))
+	{}
+};
+
+template<BoundaryType boundarytype>
+struct shear_rate_ndata :
+	common_shear_rate_ndata
+	// we whould add the SA_BOUNDARY-specific data here too,
+	// but it's neighbor-dependent and we didn't do a splitneibs for this too
+	// (and it might not be worth it)
+{
+	template<typename NeibIter, typename KP>
+	__device__ __forceinline__
+	shear_rate_ndata(NeibIter const& neib_iter, shear_rate_pdata<boundarytype> const& pdata, KP const& params) :
+		common_shear_rate_ndata(neib_iter, pdata, params)
+	{}
+
+};
+
+//! Shear rate contribution (multiplier for -relVel)
+//! Non-SA case
+template<typename P_t, typename N_t, typename KP>
+__device__ __forceinline__
+enable_if_t<KP::boundarytype != SA_BOUNDARY, float3>
+shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
+{
+	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
+	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
+	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
+	const float f = F<KP::kerneltype>(ndata.r, params.slength);	// 1/r ∂Wij/∂r
+	const float weight = f*ndata.relPos.w/ndata.rho; // F_ij * V_j
+	return make_float3(ndata.relPos)*weight;
+}
+
+//! Shear rate contribution (multiplier for -relVel)
+//! SA case
+template<typename P_t, typename N_t, typename KP>
+__device__ __forceinline__
+enable_if_t<KP::boundarytype == SA_BOUNDARY, float3>
+shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
+{
+	// dvx = -ref_vol ∑ vxij (ri - rj)/r ∂Wij/∂r
+	// dvy = -ref_vol ∑ vyij (ri - rj)/r ∂Wij/∂r
+	// dvz = -ref_vol ∑ vzij (ri - rj)/r ∂Wij/∂r
+	// but multiplication by ref_vol/gamma wil be done in shear_rate_fixup
+
+	const auto nptype = PART_TYPE(ndata.info);
+
+	if (nptype != PT_BOUNDARY) {
+		// fluid and vertex contribution
+		const float f = F<KP::kerneltype>(ndata.r, params.slength);	// 1/r ∂Wij/∂r
+		// Initial volumes
+		const float neib_volume0 = ndata.relPos.w/d_rho0[ndata.fluid];
+		// Volume fractions (must be computed from initial volumes)
+		const float neib_theta = neib_volume0/pdata.ref_volume0;
+		const float weight = f*neib_theta;
+		return make_float3(ndata.relPos)*weight;
+	} else {
+		const float4 belem = tex1Dfetch(boundTex, ndata.index);
+		const float3 normal_s = as_float3(tex1Dfetch(boundTex, ndata.index));
+		const float3 q = as_float3(ndata.relPos)/params.slength;
+		float3 q_vb[3];
+		calcVertexRelPos(q_vb, belem,
+			params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
+		const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, normal_s);
+
+		// Boundary elements do not have mass. 
+		// To get their actual interpolated volume,
+		// we use the fact that neib_rho0/neib_rho = neib_volume/ref_volume0 
+		// --> neib_volume = neib_volume0*neib_rho0/neib_rho 
+		// with ref_volume0 = deltap^3
+
+		// For the sake of clarity, we denote: neib_mass0 = neib_volume0*neib_rho0
+		const float neib_mass0 = d_rho0[ndata.fluid]*pdata.ref_volume0;
+		// Then neib_ref_volume = neib_mass0/neib_rho
+		const float neib_ref_volume = neib_mass0/ndata.rho;
+
+		return -ggamAS*normal_s/neib_ref_volume;
+	}
+}
+
+
+//! Post-neib-iteration fixup for dvx, dvy, dvz
+//! Non-SA case
+template<typename P_t, typename KP>
+__device__ __forceinline__
+enable_if_t<KP::boundarytype != SA_BOUNDARY>
+shear_rate_fixup(float3& dvx, float3& dvy, float3& dvz, P_t const& pdata, KP const& params)
+{ /* do nothing */ }
+
+//! Post-neib-iteration fixup for dvx, dvy, dvz
+//! SA case
+template<typename P_t, typename KP>
+__device__ __forceinline__
+enable_if_t<KP::boundarytype == SA_BOUNDARY>
+shear_rate_fixup(float3& dvx, float3& dvy, float3& dvz, P_t const& pdata, KP const& params)
+{
+	const float multiplier = pdata.volume/(pdata.gamma*pdata.theta);
+	dvx *= multiplier;
+	dvy *= multiplier;
+	dvz *= multiplier;
+}
+
+
 //! Compute ∇v + (∇v)ᵀ or its doubled version
 template<
-	KernelType kerneltype,
-	BoundaryType boundarytype,
-	ShearRateReturnType ret_type>
+	ShearRateReturnType ret_type,
+	typename KP,
+	KernelType kerneltype = KP::kerneltype,
+	BoundaryType boundarytype = KP::boundarytype,
+	typename P_t = shear_rate_pdata<boundarytype>
+>
 __device__ __forceinline__
 symtensor3 shearRate(
-	shear_rate_pdata<boundarytype> const& pdata,
-	neibs_list_params const& params) /* parameters needed to walk the neighbors list */
+	P_t const& pdata,
+	KP const& params)
 {
 	// Gradients of the the velocity components
 	float3 dvx = make_float3(0.0f);
@@ -172,41 +306,22 @@ symtensor3 shearRate(
 	float3 dvz = make_float3(0.0f);
 
 	// Loop over all neighbors to compute their contribution to the velocity gradient
-	// TODO: check which particle types should contribute with SA
 	for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 
-		const uint neib_index = neib_iter.neib_index();
-
-		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			params.posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
-
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-		const float r = length3(relPos);
+		shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
 
 		// skip inactive particles and particles outside of the kernel support
-		if (INACTIVE(relPos) || r >= params.influenceradius)
+		if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
 			continue;
 
-		// Compute relative velocity
-		// Now relVel is a float4 and neib density is stored in relVel.w
-		const float4 relVel = as_float3(pdata.vel) - tex1Dfetch(velTex, neib_index);
-
-		const float neib_rho = physical_density(relVel.w, fluid_num(neib_info));
-		const float f = F<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// 1/r ∂Wij/∂r Vj
-
-		const float3 relPos_f = as_float3(relPos)*f;
+		const float3 relVel_multiplier = shear_rate_contrib(pdata, ndata, params);
 		// Velocity Gradients
-		dvx -= relVel.x*relPos_f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
-		dvy -= relVel.y*relPos_f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
-		dvz -= relVel.z*relPos_f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
+		dvx -= ndata.relVel.x*relVel_multiplier;
+		dvy -= ndata.relVel.y*relVel_multiplier;
+		dvz -= ndata.relVel.z*relVel_multiplier;
 	} // end of loop through neighbors
+
+	shear_rate_fixup(dvx, dvy, dvz, pdata, params);
 
 	symtensor3 ret;
 	/* Start by storing the mixed version: non-doubled diagonal elements,
@@ -542,7 +657,7 @@ effectiveViscDevice(KP params)
 			break;
 
 		// shear rate tensor
-		symtensor3 tau = shearRate<kerneltype, boundarytype, MIXED_TENSOR>(pdata, params);
+		symtensor3 tau = shearRate<MIXED_TENSOR>(pdata, params);
 
 		// shear rate norm
 		const float SijSij_bytwo = shearRateNorm2<MIXED_TENSOR>(tau);
@@ -648,7 +763,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	if (INACTIVE(pdata.pos))
 		return;
 
-	symtensor3 tau = shearRate<kerneltype, boundarytype, MIXED_TENSOR>(pdata, params);
+	symtensor3 tau = shearRate<MIXED_TENSOR>(pdata, params);
 
 	// Calculate Sub-Particle Scale viscosity
 	// and special turbulent terms
@@ -1220,176 +1335,6 @@ copyJacobiBufferToJacobiVectorsDevice(
 	D[index] = jacobiBuffer[index].x;
 	Rx[index] = jacobiBuffer[index].y;
 	B[index] = jacobiBuffer[index].z;
-}
-
-//! Compute rheology effective viscosity with SA
-/*!
-
- Procedure:
-
- (1) compute velocity gradients
-
- (2) compute the strain-rate tensor
-
- (3) compute the mean scalar strain-rate
-
- (4) return the effective dynamic viscosity
-*/
-template<KernelType kerneltype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-effectiveViscosityDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> params)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= params.numParticles)
-		return;
-
-	const particleinfo info = tex1Dfetch(infoTex, index);
-	const ParticleType cptype = PART_TYPE(info);
-	// Fluid number
-	const uint p_fluid_num = fluid_num(info);
-
-
-	if (cptype == PT_FLUID && SEDIMENT(info)) {
-		// read particle data from sorted arrays
-#if PREFER_L1
-		const float4 pos = params.pos[index];
-		const float gamma = params.gGam[index].w;
-#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		const float gamma = tex1Dfetch(gamTex, index).w;
-#endif
-
-
-		// skip inactive particles
-		if (INACTIVE(pos))
-			return;
-
-		const float4 vel = tex1Dfetch(velTex, index);
-
-		// Gradients of the the velocity components
-		float3 dvx = make_float3(0.0f);
-		float3 dvy = make_float3(0.0f);
-		float3 dvz = make_float3(0.0f);
-
-		// Compute grid position of current particle
-		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
-		// Physical density
-		const float p_rho = physical_density(vel.w, p_fluid_num);
-		// Initial reference volume
-		const float ref_volume0 = params.deltap*params.deltap*params.deltap;
-		// Initial volume
-		const float volume0 = pos.w/d_rho0[p_fluid_num];
-		// Actual volume
-		const float volume = pos.w/p_rho;
-		// Volume fractions (must be computed from initial volumes)
-		const float theta = volume0/ref_volume0;
-
-		// loop over all the neighbors
-		for_each_neib3(PT_FLUID, PT_VERTEX, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
-
-			const uint neib_index = neib_iter.neib_index();
-
-			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos(
-			#if PREFER_L1
-				params.pos[neib_index]
-			#else
-				tex1Dfetch(posTex, neib_index)
-			#endif
-				);
-
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-			// skip inactive particles
-			if (INACTIVE(relPos))
-				continue;
-
-			const float r = length3(relPos);
-
-			// Compute relative velocity
-			// Now relVel is a float4 and neib density is stored in relVel.w
-			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-			const ParticleType nptype = PART_TYPE(neib_info);
-
-
-			// Fluid numbers
-			const uint neib_fluid_num = fluid_num(neib_info);
-
-			// Velocity gradient is contributed by all particles
-			if (nptype != PT_BOUNDARY && r < params.influenceradius) {
-				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
-				// Initial volumes
-				const float neib_volume0 = relPos.w/d_rho0[neib_fluid_num];
-				// Volume fractions (must be computed from initial volumes)
-				const float neib_theta = neib_volume0/ref_volume0;
-
-				// Velocity Gradients (multiplication by ref_vol/gamma is done afterward)
-				dvx -= neib_theta*relVel.x*as_float3(relPos)*f;// dvx = -ref_vol ∑ vxij (ri - rj)/r ∂Wij/∂r
-				dvy -= neib_theta*relVel.y*as_float3(relPos)*f;// dvy = -ref_vol ∑ vyij (ri - rj)/r ∂Wij/∂r
-				dvz -= neib_theta*relVel.z*as_float3(relPos)*f;// dvz = -ref_vol ∑ vzij (ri - rj)/r ∂Wij/∂r
-
-				// Velocity Gradients
-				/*			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
-							dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
-							dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r*/
-
-			} else if (nptype == PT_BOUNDARY && r < params.influenceradius) {
-				const float4 belem = tex1Dfetch(boundTex, neib_index);
-				const float3 normal_s = as_float3(tex1Dfetch(boundTex, neib_index));
-				const float3 q = as_float3(relPos)/params.slength;
-				float3 q_vb[3];
-				calcVertexRelPos(q_vb, belem,
-						params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index], params.slength);
-				const float ggamAS = gradGamma<kerneltype>(params.slength, q, q_vb, normal_s);
-
-				// Boundary elements do not have mass. 
-				// To get their actual interpolated volume,
-				// we use the fact that neib_rho0/neib_rho = neib_volume/ref_volume0 
-				// --> neib_volume = neib_volume0*neib_rho0/neib_rho 
-				// with ref_volume0 = deltap^3
-
-				// For the sake of clarity, we denote: neib_mass0 = neib_volume0*neib_rho0
-				const float neib_mass0 = d_rho0[neib_fluid_num]*ref_volume0;
-				// Then neib_ref_volume = neib_mass0/neib_rho
-				const float neib_ref_volume = neib_mass0/physical_density(relVel.w, fluid_num(neib_info));
-
-				dvx += relVel.x/neib_ref_volume*ggamAS*normal_s;
-				dvy += relVel.y/neib_ref_volume*ggamAS*normal_s;
-				dvz += relVel.z/neib_ref_volume*ggamAS*normal_s;
-			}
-
-		} // end of loop through neighbors
-
-		dvx *= volume/(gamma*theta);
-		dvy *= volume/(gamma*theta);
-		dvz *= volume/(gamma*theta);
-
-		// Calculate Sub-Particle Scale viscosity
-		// and special turbulent terms
-		float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-		float temp = dvx.y + dvy.x;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-		SijSij_bytwo += temp*temp;
-		temp = dvx.z + dvz.x;			// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-		SijSij_bytwo += temp*temp;
-		temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-		SijSij_bytwo += temp*temp;
-		const float effpres(tex1Dfetch(effpresTex, index));
-		const float S = sqrtf(SijSij_bytwo);
-		const float sqrt3 = 1.73205080757;
-		const float tau_y = 2.f*sqrt3*d_sinpsi[p_fluid_num]/(3.f - d_sinpsi[p_fluid_num])*effpres;
-		if (S > 1.e-6) {
-			// effvisc is bounded by [mineffvisc, maxeffvisc]
-			params.effvisc[index] = max(d_mineffvisc[p_fluid_num], min(tau_y/(S*p_rho), d_maxeffvisc[p_fluid_num]));
-		} else { // if S is too small, set effvisc to the max bound.
-			params.effvisc[index] = d_maxeffvisc[p_fluid_num];
-		}
-	} else if (cptype == PT_FLUID) {
-		const uint p_fluid_num = fluid_num(info);
-		params.effvisc[index] = d_visccoeff[p_fluid_num];
-	}
 }
 
 }

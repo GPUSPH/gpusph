@@ -58,14 +58,17 @@ struct turbvisc_sps_params
 
 
 /// The actual sps_params struct, which concatenates all of the above, as appropriate.
-template<KernelType kerneltype,
-	BoundaryType boundarytype,
+template<KernelType _kerneltype,
+	BoundaryType _boundarytype,
 	uint simflags>
 struct sps_params :
 	neibs_list_params,
 	COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params),
 	COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
 {
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr BoundaryType boundarytype = _boundarytype;
+
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the forces kernel.
 	// It then delegates the appropriate subset of arguments to the appropriate
