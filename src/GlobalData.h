@@ -271,8 +271,8 @@ struct GlobalData {
 	uint*   h_maxIOwaterdepth;
 
 	// Jacobi solver residual and backward error
-	float* h_jacobiResidual;
-	float* h_jacobiBackwardError;
+	float h_jacobiResidual[MAX_DEVICES_PER_NODE];
+	float h_jacobiBackwardError[MAX_DEVICES_PER_NODE];
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
@@ -337,6 +337,12 @@ struct GlobalData {
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			dts[d] = 0.0F;
 
+		// init Jacobi solver auxiliary data
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) {
+			h_jacobiResidual[d] = NAN;
+			h_jacobiBackwardError[d] = NAN;
+		}
+
 		// init particlesCreatedOnNode
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			particlesCreatedOnNode[d] = false;
@@ -344,7 +350,6 @@ struct GlobalData {
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
 				s_hDeviceCanAccessPeer[d][p] = false;
-
 	};
 
 	~GlobalData() {
