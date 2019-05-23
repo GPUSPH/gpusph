@@ -613,7 +613,7 @@ jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundaryty
 	if (index >= params.numParticles)
 		return;
 
-	const float oldEffPres = tex1Dfetch(effpresTex, index);
+	const float oldEffPres = params.effpres[index];
 	// effpres initilization:
 	// * for vertex and boundary, effpres will be calculated from a
 	// Shepard interpolation to enforce a Neuman condition.
@@ -727,7 +727,7 @@ jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDAR
 	if (index >= params.numParticles)
 		return;
 
-	const float oldEffPres = tex1Dfetch(effpresTex, index);
+	const float oldEffPres = params.effpres;
 	// effpres initilization:
 	// * for vertex and boundary, effpres will be calculated from a
 	// Shepard interpolation to enforce a Neuman condition.
@@ -1054,8 +1054,7 @@ jacobiUpdateEffPresDevice(viscengine_rheology_params<kerneltype, boundarytype> p
 	if (index >= params.numParticles)
 		return;
 
-	const float oldEffPres = tex1Dfetch(effpresTex, index);
-	float newEffPres = oldEffPres; 
+	float newEffPres = params.effpres[index]; 
 
 	const particleinfo info = tex1Dfetch(infoTex, index);
 	const ParticleType cptype = PART_TYPE(info);

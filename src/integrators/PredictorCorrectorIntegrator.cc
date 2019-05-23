@@ -1011,16 +1011,15 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		 * for step n* after the integrator, and for step n+1 after the corrector
 		 */
 		const string current_state = getCurrentStateForStep(step.number);
-		const string next_state = getNextStateForStep(step.number);
 
 		// Enforce boundary conditions from the previous Jacobi iteration
 		this_phase->add_command(JACOBI_BOUNDARY_CONDITIONS)
 			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL | BUFFER_EFFPRES |
+				BUFFER_VEL |
 				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
-			.writing(next_state, BUFFER_EFFPRES);
+			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_EFFPRES);
@@ -1034,7 +1033,7 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL | BUFFER_EFFPRES |
 				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
-			.writing(current_state, BUFFER_EFFPRES | BUFFER_JACOBI);
+			.writing(current_state, BUFFER_JACOBI);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_JACOBI);
@@ -1045,22 +1044,22 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 				BUFFER_VEL | BUFFER_EFFPRES | BUFFER_JACOBI |
 				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
-			.writing(current_state, BUFFER_EFFPRES | BUFFER_JACOBI);
+			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_EFFPRES);
 
 		// Enforce boundary conditions for the next Jacobi iteration
 		this_phase->add_command(JACOBI_BOUNDARY_CONDITIONS)
+			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL | BUFFER_EFFPRES |
+				BUFFER_VEL |
 				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
-			.writing(current_state, BUFFER_EFFPRES);
+			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_EFFPRES);
-
 	}
 	return this_phase;
 }

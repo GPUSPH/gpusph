@@ -2919,7 +2919,8 @@ void GPUWorker::runCommand<JACOBI_BUILD_VECTORS>(CommandStruct const& cmd)
 	if (numPartsToElaborate == 0) return;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
-	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("build_jacobi_vectors");
 
 	viscEngine->build_jacobi_vectors(bufread, bufwrite,
@@ -2942,6 +2943,7 @@ void GPUWorker::runCommand<JACOBI_UPDATE_EFFPRES>(CommandStruct const& cmd)
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+
 	bufwrite.add_manipulator_on_write("update_jacobi_effpres");
 
 	gdata->h_jacobiResidual[m_deviceIndex] = viscEngine->update_jacobi_effpres(

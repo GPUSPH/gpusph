@@ -339,7 +339,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 
-		const	float *oldEffPres(bufread.getData<BUFFER_EFFPRES>());
 		float *newEffPres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		int dummy_shared = 0;
@@ -349,7 +348,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, oldEffPres, numParticles*sizeof(float)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -403,7 +401,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		// Unbind textures
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 #endif
@@ -438,7 +435,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
-		const	float *oldEffPres(bufread.getData<BUFFER_EFFPRES>());
 		float *newEffPres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		int dummy_shared = 0;
@@ -448,7 +444,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, oldEffPres, numParticles*sizeof(float)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -502,7 +497,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		// Unbind textures
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
 		if (boundarytype == SA_BOUNDARY) {
 			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 		}
@@ -572,7 +566,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		const	float *oldEffPres(bufread.getData<BUFFER_EFFPRES>());
-		float *newEffPres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		float4	*jacobiBuffer = bufwrite.getData<BUFFER_JACOBI>();
 
@@ -591,7 +584,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 
 		viscengine_rheology_params<kerneltype, boundarytype> params(
-				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, NULL, newEffPres, NULL, NULL);
+				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, NULL, NULL, NULL, NULL);
 
 		/* Jacobi solver
 		 *---------------
@@ -671,7 +664,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const 	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 		const	float *oldEffPres(bufread.getData<BUFFER_EFFPRES>());
-		float *newEffPres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		float4	*jacobiBuffer = bufwrite.getData<BUFFER_JACOBI>();
 
@@ -691,7 +683,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 
 		viscengine_rheology_params<kerneltype, boundarytype> params(
-				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, NULL, newEffPres, gGam, vertPos);
+				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, NULL, NULL, gGam, vertPos);
 
 		/* Jacobi solver
 		 *---------------
@@ -803,7 +795,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>(); 
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-		const	float *oldEffPres(bufread.getData<BUFFER_EFFPRES>());
 		float *newEffPres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		const 	float4	*jacobiBuffer = bufread.getData<BUFFER_JACOBI>();
@@ -866,9 +857,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		float norm_B = 0.f; // right hand-side norm initialization
 		float norm_res = 0.f; // residual norm initialization
 
-		// Copy the updated effpres into effpresTex
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
-		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, oldEffPres, numParticles*sizeof(float)));
 		cuvisc::copyJacobiBufferToJacobiVectorsDevice
 			<<<numBlocks, numThreads, dummy_shared>>>(params.numParticles, jacobiBuffer, D, Rx, dB);
 
@@ -905,7 +893,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		// Unbind textures
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 #endif
