@@ -606,7 +606,48 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundarytype> params, float *dBackErr)
+jacobiFSBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundarytype> params)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = params.pos[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	const ParticleType cptype = PART_TYPE(info);
+
+	// skip inactive particles
+	if (INACTIVE(pos))
+		return;
+
+	// Fluid number
+	const uint p_fluid_num = fluid_num(info);
+	const uint numFluids = cuphys::d_numfluids;
+
+	// Definition of delta_rho
+	float delta_rho = d_rho0[0];
+	if (numFluids > 1) delta_rho = abs(d_rho0[0] - d_rho0[1]);
+
+	// * for free-surface particles, the Dirichlet condition is enforced
+	if (cptype == PT_FLUID && SEDIMENT(info) && (SURFACE(info) || INTERFACE(info))) {
+		params.effpres[index] = params.deltap*delta_rho*length(d_gravity);
+	} else {
+		return;
+	}
+}
+
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundarytype> params, float *dBackErr)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -705,14 +746,8 @@ jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundaryty
 			newEffPres = 0.f;
 		}
 		params.effpres[index] = newEffPres;
-
-	// Dirichlet condition is enforced on free particles of sediment that are either at
-	// the interface or at the free-surface.
-	} else if (cptype == PT_FLUID && SEDIMENT(info) && (SURFACE(info) || INTERFACE(info))) {
-		params.effpres[index] = params.deltap*delta_rho*length(d_gravity);
-	// For all other particles, the oldEffPres is copied to newEffPres	
 	} else {
-		params.effpres[index] = oldEffPres;
+		return;
 	}
 }
 
@@ -720,7 +755,7 @@ jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundaryty
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> params, float *dBackErr)
+jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> params, float *dBackErr)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -821,14 +856,8 @@ jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDAR
 			newEffPres = 0.f;
 		}
 		params.effpres[index] = newEffPres;
-
-	// Dirichlet condition is enforced on free particles of sediment that are either at
-	// the interface or at the free-surface.
-	} else if (cptype == PT_FLUID && SEDIMENT(info) && (SURFACE(info) || INTERFACE(info))) {
-		params.effpres[index] = params.deltap*delta_rho*length(d_gravity);
-	// For all other particles, the oldEffPres is copied to newEffPres	
 	} else {
-		params.effpres[index] = oldEffPres;
+		return;
 	}
 }
 

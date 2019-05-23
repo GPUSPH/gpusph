@@ -302,11 +302,95 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	 * the Neuman homogeneous boundary condition in enforced on vertex particles
 	 * interpolating the effective pressure from the free particles of sediment.
 	*/
+	template<typename This>
+	enable_if_t<This::rheologytype != GRANULAR, void>
+	enforce_jacobi_fs_boundary_conditions_implementation(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+		{ /* do nothing */ }
+
+	template<typename This>
+	enable_if_t<This::rheologytype == GRANULAR, void>
+	enforce_jacobi_fs_boundary_conditions_implementation(
+		const	BufferList& bufread,
+			BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+	{
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+		float *newEffPres(bufwrite.getData<BUFFER_EFFPRES>());
+
+		int dummy_shared = 0;
+		// bind textures to read all particles, not only internal ones
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+#endif
+		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+		uint numThreads = BLOCK_SIZE_SPS;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+#if (__COMPUTE__ == 20)
+		dummy_shared = 2560;
+#endif
+
+		viscengine_rheology_params<kerneltype, SA_BOUNDARY> params(
+				pos, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, NULL, newEffPres, NULL, NULL);
+
+		// Enforce FSboundary conditions
+		cuvisc::jacobiFSBoundaryConditionsDevice<kerneltype>
+			<<<numBlocks, numThreads, dummy_shared>>>(params);
+
+		CUDA_SAFE_CALL(cudaDeviceSynchronize());
+
+		// Unbind textures
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+#endif
+	}
+	
+	void
+	enforce_jacobi_fs_boundary_conditions(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius)
+	{
+			
+		return enforce_jacobi_fs_boundary_conditions_implementation(
+			bufread,
+			bufwrite,
+			numParticles,
+			particleRangeEnd,
+			deltap,
+			slength,
+			influenceradius,
+			this);
+	}
+
 
 
 	template<typename This>
 	enable_if_t<This::rheologytype != GRANULAR,float>
-	enforce_jacobi_boundary_conditions_implementation(
+	enforce_jacobi_wall_boundary_conditions_implementation(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
 		const	uint	numParticles,
@@ -322,7 +406,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		This::rheologytype == GRANULAR &&
 		This::boundarytype != SA_BOUNDARY
 	,float >
-	enforce_jacobi_boundary_conditions_implementation(
+	enforce_jacobi_wall_boundary_conditions_implementation(
 		const	BufferList& bufread,
 			BufferList& bufwrite,
 		const	uint	numParticles,
@@ -382,7 +466,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaMemcpy(dBackErr, hBackErr, numParticles*sizeof(float), cudaMemcpyHostToDevice));
 
 		// Enforce boundary conditions from the previous time step
-		cuvisc::jacobiBoundaryConditionsDevice<kerneltype, boundarytype>
+		cuvisc::jacobiWallBoundaryConditionsDevice<kerneltype, boundarytype>
 			<<<numBlocks, numThreads, dummy_shared>>>(params, dBackErr);
 
 		CUDA_SAFE_CALL(cudaDeviceSynchronize());
@@ -413,7 +497,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		This::rheologytype == GRANULAR &&
 		This::boundarytype == SA_BOUNDARY
 	,float >
-	enforce_jacobi_boundary_conditions_implementation(
+	enforce_jacobi_wall_boundary_conditions_implementation(
 		const	BufferList& bufread,
 			BufferList& bufwrite,
 		const	uint	numParticles,
@@ -478,7 +562,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaMemcpy(dBackErr, hBackErr, numParticles*sizeof(float), cudaMemcpyHostToDevice));
 
 		// Enforce boundary conditions from the previous time step
-		cuvisc::jacobiBoundaryConditionsDevice<kerneltype>
+		cuvisc::jacobiWallBoundaryConditionsDevice<kerneltype>
 			<<<numBlocks, numThreads, dummy_shared>>>(params, dBackErr);
 
 		CUDA_SAFE_CALL(cudaDeviceSynchronize());
@@ -507,7 +591,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	}
 	
 	float
-	enforce_jacobi_boundary_conditions(
+	enforce_jacobi_wall_boundary_conditions(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
 		const	uint	numParticles,
@@ -517,7 +601,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius)
 	{
 			
-		return enforce_jacobi_boundary_conditions_implementation(
+		return enforce_jacobi_wall_boundary_conditions_implementation(
 			bufread,
 			bufwrite,
 			numParticles,

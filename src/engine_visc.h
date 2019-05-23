@@ -65,8 +65,18 @@ public:
 		const	float	slength,
 		const	float	influenceradius) = 0;
 
+	virtual void
+	enforce_jacobi_fs_boundary_conditions(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius) = 0;
+
 	virtual float
-	enforce_jacobi_boundary_conditions(
+	enforce_jacobi_wall_boundary_conditions(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
 		const	uint	numParticles,

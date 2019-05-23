@@ -1012,8 +1012,23 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		 */
 		const string current_state = getCurrentStateForStep(step.number);
 
-		// Enforce boundary conditions from the previous Jacobi iteration
-		this_phase->add_command(JACOBI_BOUNDARY_CONDITIONS)
+		// Enforce free-surface boundary conditions from the previous Jacobi iteration
+		// Set the free-surface particles effective pressure to \approx 0
+		// All other particles remain untouched > we use updating
+		this_phase->add_command(JACOBI_FS_BOUNDARY_CONDITIONS)
+			.set_step(step)
+			.reading(current_state,
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL)
+			.updating(current_state, BUFFER_EFFPRES);
+		if (MULTI_DEVICE)
+			this_phase->add_command(UPDATE_EXTERNAL)
+				.updating(current_state, BUFFER_EFFPRES);
+
+		// Enforce wall boundary conditions from the previous Jacobi iteration
+		// Interpolate effective pressure for BOUNDARY particles (or VERTEX for SA)
+		// All other particles remain untouched > we use .updating
+		this_phase->add_command(JACOBI_WALL_BOUNDARY_CONDITIONS)
 			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
@@ -1024,10 +1039,10 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_EFFPRES);
 
-
 		// START LOOP
 
 		// Build Jacobi vectors D, Rx and B.
+		// Jacobi vectors are calculated, written and updated to external
 		this_phase->add_command(JACOBI_BUILD_VECTORS)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
@@ -1039,6 +1054,8 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 				.updating(current_state, BUFFER_JACOBI);
 
 		// Update effpres and compute the residual per particle
+		// Effective pressure of FLUIF particles (not of the free-surface) are
+		// computed. All other particles remain untouched > we use .updating
 		this_phase->add_command(JACOBI_UPDATE_EFFPRES)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
@@ -1049,8 +1066,23 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_EFFPRES);
 
-		// Enforce boundary conditions for the next Jacobi iteration
-		this_phase->add_command(JACOBI_BOUNDARY_CONDITIONS)
+		// Enforce free-surface boundary conditions from the previous Jacobi iteration
+		// Set the free-surface particles effective pressure to \approx 0
+		// All other particles remain untouched > we use updating
+		this_phase->add_command(JACOBI_FS_BOUNDARY_CONDITIONS)
+			.set_step(step)
+			.reading(current_state,
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL)
+			.updating(current_state, BUFFER_EFFPRES);
+		if (MULTI_DEVICE)
+			this_phase->add_command(UPDATE_EXTERNAL)
+				.updating(current_state, BUFFER_EFFPRES);
+
+		// Enforce wall boundary conditions from the previous Jacobi iteration
+		// Interpolate effective pressure for BOUNDARY particles (or VERTEX for SA)
+		// All other particles remain untouched > we use .updating
+		this_phase->add_command(JACOBI_WALL_BOUNDARY_CONDITIONS)
 			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |

@@ -2888,7 +2888,7 @@ void GPUWorker::runCommand<DISABLE_FREE_SURF_PARTS>(CommandStruct const& cmd)
 }
 
 template<>
-void GPUWorker::runCommand<JACOBI_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
+void GPUWorker::runCommand<JACOBI_FS_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
@@ -2897,9 +2897,32 @@ void GPUWorker::runCommand<JACOBI_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
-	bufwrite.add_manipulator_on_write("enforce_jacobi_boundary_conditions");
+	bufwrite.add_manipulator_on_write("enforce_jacobi_fs_boundary_conditions");
 
-	gdata->h_jacobiBackwardError[m_deviceIndex] = viscEngine->enforce_jacobi_boundary_conditions(
+	viscEngine->enforce_jacobi_fs_boundary_conditions(
+		bufread, bufwrite,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
+}
+
+template<>
+void GPUWorker::runCommand<JACOBI_WALL_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
+{
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+	bufwrite.add_manipulator_on_write("enforce_jacobi_wall_boundary_conditions");
+
+	gdata->h_jacobiBackwardError[m_deviceIndex] = viscEngine->enforce_jacobi_wall_boundary_conditions(
 		bufread, bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
