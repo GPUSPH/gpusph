@@ -126,7 +126,7 @@ public:
 	virtual void clobber() = 0;
 
 	// access buffer validity
-	inline bool is_valid() const { return m_validity == BUFFER_INVALID; }
+	inline bool is_valid() const { return m_validity == BUFFER_VALID; }
 	inline bool is_dirty() const { return m_validity == BUFFER_DIRTY; }
 	inline bool is_invalid() const { return m_validity == BUFFER_INVALID; }
 	inline BufferValidity validity() const  { return m_validity; }
