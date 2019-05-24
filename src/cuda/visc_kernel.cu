@@ -727,7 +727,7 @@ jacobiBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDAR
 	if (index >= params.numParticles)
 		return;
 
-	const float oldEffPres = params.effpres;
+	const float oldEffPres = params.effpres[index];
 	// effpres initilization:
 	// * for vertex and boundary, effpres will be calculated from a
 	// Shepard interpolation to enforce a Neuman condition.
