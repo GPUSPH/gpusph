@@ -614,7 +614,7 @@ jacobiFSBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundary
 		return;
 
 	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = params.pos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -670,7 +670,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, bounda
 	dBackErr[index] = 0.f;
 
 	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = params.pos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -712,7 +712,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, bounda
 					#endif
 					);
 
-			const float neib_oldEffPres = tex1Dfetch(effpresTex, neib_index);
+			const float neib_oldEffPres = params.effpres[neib_index];
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// skip inactive particles
@@ -778,7 +778,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOU
 	dBackErr[index] = 0.f;
 
 	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = params.pos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -886,7 +886,7 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, boundarytype> pa
 	// to its old value.
 
 	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = params.pos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -982,7 +982,7 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> par
 	// to its old value.
 
 	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
+	#if PREFER_L1
 	const float4 pos = params.pos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -1162,7 +1162,7 @@ effectiveViscosityDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> par
 
 	if (cptype == PT_FLUID && SEDIMENT(info)) {
 		// read particle data from sorted arrays
-#if( __COMPUTE__ >= 20)
+#if PREFER_L1
 		const float4 pos = params.pos[index];
 		const float gamma = params.gGam[index].w;
 #else
@@ -1333,7 +1333,7 @@ effectiveViscosityDevice(viscengine_rheology_params<kerneltype, boundarytype> pa
 
 	if (cptype == PT_FLUID && SEDIMENT(info)) {
 		// read particle data from sorted arrays
-#if( __COMPUTE__ >= 20)
+#if PREFER_L1
 		const float4 pos = params.pos[index];
 #else
 		const float4 pos = tex1Dfetch(posTex, index);
