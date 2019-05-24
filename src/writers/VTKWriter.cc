@@ -598,11 +598,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		appender.append_data(spsturbvisc, "SPS turbulent viscosity");
 	}
 
-	// effective viscosity
-	if (effvisc) {
-		appender.append_data(effvisc, "Effective viscosity");
-	}
-
 	// effective pressure
 	if (effpres) {
 		appender.append_data(effpres, "Effective pressure");
