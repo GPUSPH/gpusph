@@ -432,12 +432,11 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 
 	// at the beginning of the corrector, we move all ephemeral buffers from step n
 	// to the new step n*
-	if (step.last)
+	if (step.last) 
 		this_phase->add_command(MOVE_STATE_BUFFERS)
 			.set_src("step n")
 			.set_dst("step n*")
-			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS) );
-
+			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS | BUFFER_JACOBI) );
 
 	// for Grenier formulation, compute sigma and smoothed density
 	// TODO with boundary models requiring kernels for boundary conditions,
@@ -1010,7 +1009,10 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		/* Effective pressure is computed for step n during initialization step,
 		 * for step n* after the integrator, and for step n+1 after the corrector
 		 */
-		const string current_state = getCurrentStateForStep(step.number);
+		
+		string current_state = getCurrentStateForStep(step.number);
+		if (step.number == 2)
+			current_state = "step n";
 
 		// Enforce free-surface boundary conditions from the previous Jacobi iteration
 		// Set the free-surface particles effective pressure to \approx 0
@@ -1018,8 +1020,8 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		this_phase->add_command(JACOBI_FS_BOUNDARY_CONDITIONS)
 			.set_step(step)
 			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL)
+					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+					BUFFER_VEL)
 			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1031,9 +1033,9 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		this_phase->add_command(JACOBI_WALL_BOUNDARY_CONDITIONS)
 			.set_step(step)
 			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL |
-				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+					BUFFER_VEL |
+					(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1045,9 +1047,9 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		// Jacobi vectors are calculated, written and updated to external
 		this_phase->add_command(JACOBI_BUILD_VECTORS)
 			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL | BUFFER_EFFPRES |
-				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+					BUFFER_VEL | BUFFER_EFFPRES |
+					(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.writing(current_state, BUFFER_JACOBI);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1058,9 +1060,9 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		// computed. All other particles remain untouched > we use .updating
 		this_phase->add_command(JACOBI_UPDATE_EFFPRES)
 			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL | BUFFER_EFFPRES | BUFFER_JACOBI |
-				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+					BUFFER_VEL | BUFFER_EFFPRES | BUFFER_JACOBI |
+					(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1072,8 +1074,8 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		this_phase->add_command(JACOBI_FS_BOUNDARY_CONDITIONS)
 			.set_step(step)
 			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL)
+					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+					BUFFER_VEL)
 			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1085,13 +1087,19 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 		this_phase->add_command(JACOBI_WALL_BOUNDARY_CONDITIONS)
 			.set_step(step)
 			.reading(current_state,
-				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL |
-				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+					BUFFER_VEL |
+					(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_EFFPRES);
+
+		if (step.number == 1)
+			this_phase->add_command(SWAP_STATE_BUFFERS)
+				.set_src("step n*")
+				.set_dst("step n")
+				.set_flags(BUFFER_EFFPRES);
 	}
 	return this_phase;
 }
