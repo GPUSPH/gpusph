@@ -2919,7 +2919,8 @@ void GPUWorker::runCommand<JACOBI_WALL_BOUNDARY_CONDITIONS>(CommandStruct const&
 	if (numPartsToElaborate == 0) return;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
-	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("enforce_jacobi_wall_boundary_conditions");
 
 	gdata->h_jacobiBackwardError[m_deviceIndex] = viscEngine->enforce_jacobi_wall_boundary_conditions(
@@ -2965,7 +2966,8 @@ void GPUWorker::runCommand<JACOBI_UPDATE_EFFPRES>(CommandStruct const& cmd)
 	if (numPartsToElaborate == 0) return;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
-	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
 	bufwrite.add_manipulator_on_write("update_jacobi_effpres");
 

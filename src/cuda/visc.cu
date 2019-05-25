@@ -518,6 +518,20 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const 	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+		float *cfl = NULL;
+		float *tempCfl = NULL;
+
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		if (cfl_buf) {
+			auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+
+			cfl_buf->clobber();
+			tempCfl_buf->clobber();
+
+			// get the (typed) pointers
+			cfl = cfl_buf->get();
+			tempCfl = tempCfl_buf->get();
+		}
 
 		float *newEffPres(bufwrite.getData<BUFFER_EFFPRES>());
 
@@ -531,6 +545,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
+		numBlocks = round_up(numBlocks, 4U);
 #if (__COMPUTE__ == 20)
 		dummy_shared = 2560;
 #endif
@@ -543,51 +558,22 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 * at the initialization step where A.x = B can be approximately verified when effective
 		 * pressure is initialized to zero eveywhere.
 		 */
-		float	*dBackErr; // per particle backward error device vector
-		float	*hBackErr; // per particle backward error host vector
-
-		// Allocate GPU memory
-		CUDA_SAFE_CALL(cudaMalloc((void**)&dBackErr, numParticles*sizeof(float)));
-
-		// Allocate CPU memory
-		hBackErr = (float *)malloc(numParticles*sizeof(float));
-
-		// Initialize the residual vector on the CPU memory
-		for (uint i = 0; i < numParticles; i++) {
-			hBackErr[i] = 0;
-		}
-
-		// Initialize the residual vector on the GPU memory
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
-		CUDA_SAFE_CALL(cudaMemcpy(dBackErr, hBackErr, numParticles*sizeof(float), cudaMemcpyHostToDevice));
 
 		// Enforce boundary conditions from the previous time step
 		cuvisc::jacobiWallBoundaryConditionsDevice<kerneltype>
-			<<<numBlocks, numThreads, dummy_shared>>>(params, dBackErr);
+			<<<numBlocks, numThreads, dummy_shared>>>(params, cfl);
 
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
-		CUDA_SAFE_CALL(cudaMemcpy(hBackErr, dBackErr, numParticles*sizeof(float), cudaMemcpyDeviceToHost));
+		// check if kernel invocation generated an error
+		KERNEL_CHECK_ERROR;
 
-		float jacobiBackwardError = 0.f;
-		// Compute the backward error infinite norm
-		for (uint i = 0; i < numParticles; i++) {
-			jacobiBackwardError = (abs(hBackErr[i])>jacobiBackwardError) ? abs(hBackErr[i]) : jacobiBackwardError;
-		}
 
-		// Free CPU memory
-		free(hBackErr);
-		// Free GPU memory
-		cudaFree(dBackErr);
-		// Unbind textures
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-		if (boundarytype == SA_BOUNDARY) {
-			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-		}
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 #endif
-		return jacobiBackwardError;
+		return cflmax(numBlocks, cfl, tempCfl);
 	}
 	
 	float

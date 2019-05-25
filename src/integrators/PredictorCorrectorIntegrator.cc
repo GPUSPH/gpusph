@@ -1036,6 +1036,7 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 					BUFFER_VEL |
 					(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+			.writing(current_state, BUFFER_CFL | BUFFER_CFL_TEMP)
 			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1063,6 +1064,7 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 					BUFFER_VEL | BUFFER_EFFPRES | BUFFER_JACOBI |
 					(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+			.writing(current_state, BUFFER_CFL | BUFFER_CFL_TEMP)
 			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
@@ -1090,6 +1092,7 @@ PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
 					BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
 					BUFFER_VEL |
 					(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+			.writing(current_state, BUFFER_CFL | BUFFER_CFL_TEMP)
 			.updating(current_state, BUFFER_EFFPRES);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
