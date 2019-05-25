@@ -1099,33 +1099,44 @@ template<KernelType kerneltype,
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 jacobiUpdateEffPresDevice(viscengine_rheology_params<kerneltype, boundarytype> params,
-	float *D, float *Rx, float *B, float *Res)
+	float *D, float *Rx, float *B, float *cfl)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	float residual = 0.f;
 
-	if (index >= params.numParticles)
-		return;
+	// do { } while (0) around the main body so that we can bail out
+	// to the reduction
+	do {
+		if (index >= params.numParticles)
+			return;
 
-	float newEffPres = params.effpres[index]; 
+		float newEffPres = params.effpres[index]; 
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
-	const ParticleType cptype = PART_TYPE(info);
+		const particleinfo info = tex1Dfetch(infoTex, index);
+		const ParticleType cptype = PART_TYPE(info);
 
+		//Fluid number
 
-	// effpres is updated for free particle of sediment that are not at the interface nor
-	// nor at the free-surface.
-	if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info)) {
-		newEffPres = (B[index] - Rx[index])/D[index];
-	} else if (cptype == PT_FLUID && !SEDIMENT(info)) {
-		newEffPres = 0.f;
-	}
-	// Prevent NaN values.
-	if (newEffPres == newEffPres) {
-		params.effpres[index] = newEffPres;
-	} else {
-		params.effpres[index] = 0;
-	}
-	Res[index] = D[index]*newEffPres+Rx[index]-B[index];
+		// Reference pressure
+		float refpres = d_rho0[fluid_num(info)]*d_sqC0[fluid_num(info)]/100;
+		// effpres is updated for free particle of sediment that are not at the interface nor
+		// nor at the free-surface.
+		if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info)) {
+			newEffPres = (B[index] - Rx[index])/D[index];
+		} else if (cptype == PT_FLUID && !SEDIMENT(info)) {
+			newEffPres = 0.f;
+		}
+		// Prevent NaN values.
+		if (newEffPres == newEffPres) {
+			params.effpres[index] = newEffPres;
+		} else {
+			params.effpres[index] = 0;
+		}
+		residual = D[index]*newEffPres+Rx[index]-B[index]/refpres;
+	} while (0);
+
+	reduce_jacobi_error(cfl, residual);
+
 }
 
 __global__ void

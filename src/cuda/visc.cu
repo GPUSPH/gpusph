@@ -975,6 +975,23 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
+		/* We recycle the CFL arrays to determine the maximum residual
+		 */
+		float *cfl = NULL;
+		float *tempCfl = NULL;
+
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		if (cfl_buf) {
+			auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+
+			cfl_buf->clobber();
+			tempCfl_buf->clobber();
+
+			// get the (typed) pointers
+			cfl = cfl_buf->get();
+			tempCfl = tempCfl_buf->get();
+		}
+
 		const float4 *pos = bufread.getData<BUFFER_POS>();
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
@@ -1000,7 +1017,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
-		uint numBlocks = div_up(particleRangeEnd, numThreads);
+		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
 #if (__COMPUTE__ == 20)
 		dummy_shared = 2560;
 #endif
@@ -1021,33 +1038,11 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		float	*D; // vector containing the matrix M diagonal elements
 		float	*Rx; // vector containing the result of R.x matrix-vector product
 		float	*dB; // right hand-side device vector
-		float	*hB; // right hand-side host vector
-		float	*dRes; // per particle residual device vector
-		float	*hRes; // per particle residual host vector
 
 		// Allocate GPU memory
 		CUDA_SAFE_CALL(cudaMalloc((void**)&D, numParticles*sizeof(float)));
 		CUDA_SAFE_CALL(cudaMalloc((void**)&Rx, numParticles*sizeof(float)));
 		CUDA_SAFE_CALL(cudaMalloc((void**)&dB, numParticles*sizeof(float)));
-		CUDA_SAFE_CALL(cudaMalloc((void**)&dRes, numParticles*sizeof(float)));
-
-		// Allocate CPU memory
-		hB = (float *)malloc(numParticles*sizeof(float));
-		hRes = (float *)malloc(numParticles*sizeof(float));
-
-		// Initialize the residual vector on the CPU memory
-		for (uint i = 0; i < numParticles; i++) {
-			hB[i] = 0;
-			hRes[i] = 0;
-		}
-
-		// Initialize the residual vector on the GPU memory
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
-		CUDA_SAFE_CALL(cudaMemcpy(dRes, hRes, numParticles*sizeof(float), cudaMemcpyHostToDevice));
-
-		/* Jacobi solver */
-		float norm_B = 0.f; // right hand-side norm initialization
-		float norm_res = 0.f; // residual norm initialization
 
 		// Copy the updated effpres into effpresTex
 		CUDA_SAFE_CALL(cudaDeviceSynchronize());
@@ -1058,30 +1053,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaDeviceSynchronize());
 		// Update effpres and compute the residual per particle
 		cuvisc::jacobiUpdateEffPresDevice<kerneltype, boundarytype>
-			<<<numBlocks, numThreads, dummy_shared>>>(params, D, Rx, dB, dRes);
+			<<<numBlocks, numThreads, dummy_shared>>>(params, D, Rx, dB, cfl);
 
-
-		// Copy the residual and right hand-site vectors from device to host
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
-		CUDA_SAFE_CALL(cudaMemcpy(hB, dB, numParticles*sizeof(float), cudaMemcpyDeviceToHost));
-		CUDA_SAFE_CALL(cudaMemcpy(hRes, dRes, numParticles*sizeof(float), cudaMemcpyDeviceToHost));
-
-		float jacobiResidual = 0.f;
-		// Compute the residual and the right hand-side norms
-		for (uint i = 0; i < numParticles; i++) {
-			norm_B = (abs(hB[i])>norm_B) ? abs(hB[i]) : norm_B;
-			norm_res = (abs(hRes[i])>norm_res) ? abs(hRes[i]) : norm_res;
-		}
-		// Copy the residual in a global data variable
-		jacobiResidual = norm_res/norm_B;
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 
-		// Free CPU and GPU memory
-		free(hB);
-		free(hRes);
 		// Free GPU memory
-		cudaFree(dRes);
 		cudaFree(D);
 		cudaFree(Rx);
 		cudaFree(dB);
@@ -1093,7 +1070,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 #endif
-		return jacobiResidual;
+		return cflmax(numBlocks, cfl, tempCfl);
 	}
 	
 	float
