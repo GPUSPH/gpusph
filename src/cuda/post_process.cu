@@ -299,10 +299,14 @@ template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
 struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, boundarytype, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
+	// buffers updated in-place
+	static flag_t get_updated_buffers(flag_t)
+	{ return BUFFER_INFO; }
+
 	// pass BUFFER_NORMALS option to the INTERFACE_DETECTION filter
 	// to save normals too
 	static flag_t get_written_buffers(flag_t options)
-	{ return BUFFER_INFO | (options & BUFFER_NORMALS); }
+	{ return (options & BUFFER_NORMALS); }
 
 	static void process(
 				flag_t					options,
@@ -324,8 +328,10 @@ struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, boundarytype
 		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
+		/* in-place update! */
+		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO,
+			BufferList::AccessSafety::MULTISTATE_SAFE>();
 
-		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO>();
 		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
 
 		#if !PREFER_L1
@@ -381,10 +387,14 @@ template<KernelType kerneltype, flag_t simflags>
 struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, SA_BOUNDARY, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
+	// buffers updated in-place
+	static flag_t get_updated_buffers(flag_t)
+	{ return BUFFER_INFO; }
+
 	// pass BUFFER_NORMALS option to the INTERFACE_DETECTION filter
 	// to save normals too
 	static flag_t get_written_buffers(flag_t options)
-	{ return BUFFER_INFO | (options & BUFFER_NORMALS); }
+	{ return (options & BUFFER_NORMALS); }
 
 	static void process(
 				flag_t					options,
@@ -411,7 +421,10 @@ struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, SA_BOUNDARY,
 
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundElement, numParticles*sizeof(float4)));
 
-		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO>();
+		/* in-place update! */
+		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO,
+			BufferList::AccessSafety::MULTISTATE_SAFE>();
+
 		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
 
 		#if !PREFER_L1
