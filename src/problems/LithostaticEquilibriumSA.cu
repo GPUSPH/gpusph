@@ -37,10 +37,10 @@ LithostaticEquilibriumSA::LithostaticEquilibriumSA(GlobalData *_gdata) : XProble
 	SETUP_FRAMEWORK(
 		formulation<SPH_HA>,
 		viscosity<GRANULARVISC>,
-		boundary<SA_BOUNDARY>,
-		add_flags<ENABLE_MULTIFLUID | ENABLE_DTADAPT | ENABLE_DENSITY_SUM> // Enable for SA_BOUNDARY
-		//boundary<DYN_BOUNDARY>,
-		//add_flags<ENABLE_MULTIFLUID> // Enable for LJ/DYN_BOUNDARY
+		//boundary<SA_BOUNDARY>,
+		//add_flags<ENABLE_MULTIFLUID | ENABLE_DTADAPT | ENABLE_DENSITY_SUM> // Enable for SA_BOUNDARY
+		boundary<DYN_BOUNDARY>,
+		add_flags<ENABLE_MULTIFLUID> // Enable for LJ/DYN_BOUNDARY
 		).select_options(
 		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
@@ -48,7 +48,7 @@ LithostaticEquilibriumSA::LithostaticEquilibriumSA(GlobalData *_gdata) : XProble
 	);
 
 	// For LJ/DYN_boundary, choose if Salome geometry is used
-	salomeGeom = false;
+	salomeGeom = true;
 
 	// Detection of free-surface and interface is mandatory for GRANULARVISC
 	addPostProcess(INTERFACE_DETECTION);
