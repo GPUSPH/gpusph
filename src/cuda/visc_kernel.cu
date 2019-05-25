@@ -822,7 +822,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOU
 					#endif
 					);
 
-			const float neib_oldEffPres = tex1Dfetch(effpresTex, neib_index);
+			const float neib_oldEffPres = params.effpres[neib_index];
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// skip inactive particles
