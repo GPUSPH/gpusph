@@ -318,6 +318,8 @@ DEFINE_COMMAND_BUF(JACOBI_FS_BOUNDARY_CONDITIONS, false)
 DEFINE_COMMAND_BUF(JACOBI_WALL_BOUNDARY_CONDITIONS, false)
 DEFINE_COMMAND_BUF(JACOBI_BUILD_VECTORS, false)
 DEFINE_COMMAND_BUF(JACOBI_UPDATE_EFFPRES, false)
+DEFINE_COMMAND_BUF(JACOBI_STOP_CRITERION, true)
+DEFINE_COMMAND_BUF(JACOBI_RESET_STOP_CRITERION, true)
 
 	/// Run post-processing filters (e.g. vorticity, testpoints)
 	/*! Special case of dynamic buffer: the buffer specification is directed

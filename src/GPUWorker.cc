@@ -2645,6 +2645,33 @@ void GPUWorker::runCommand<CALC_VISC>(CommandStruct const& cmd)
 }
 
 template<>
+void GPUWorker::runCommand<JACOBI_RESET_STOP_CRITERION>(CommandStruct const& cmd)
+{
+	printf("JACOBI PREP\n");
+	gdata->h_jacobiStop = false;
+	gdata->h_jacobiCounter = 0;
+}
+
+
+template<>
+void GPUWorker::runCommand<JACOBI_STOP_CRITERION>(CommandStruct const& cmd)
+{
+	// if we are in multi-node mode we need to run an mpi reduction over all nodes
+	if (MULTI_NODE) {
+		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiResidual), 1, MAX_REDUCTION);
+		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiBackwardError), 1, MAX_REDUCTION);
+	}
+
+	if ((gdata->h_jacobiBackwardError < 1e-4 && gdata->h_jacobiResidual < 1e-4) || gdata->h_jacobiCounter > 100) {
+		gdata->h_jacobiStop = true;
+		printf("TRUE - counter = %d\terror[0] = %f\tresidual[0] = %f\n", gdata->h_jacobiCounter, gdata->h_jacobiBackwardError, gdata->h_jacobiResidual);
+	} else {
+		gdata->h_jacobiCounter++;
+		printf("FALSE - counter = %d\terror[0] = %f\tresidual[0] = %f\n", gdata->h_jacobiCounter, gdata->h_jacobiBackwardError, gdata->h_jacobiResidual);
+	}
+}
+
+template<>
 void GPUWorker::runCommand<REDUCE_BODIES_FORCES>(CommandStruct const& cmd)
 // void GPUWorker::kernel_reduceRBForces()
 {

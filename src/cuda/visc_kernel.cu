@@ -902,12 +902,6 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, boundarytype> pa
 	Rx[index] = 0;
 	B[index] = 0;
 
-	// effpres initilization:
-	// * for vertex and boundary, effpres will be calculated from a
-	// Shepard interpolation to enforce a Neuman condition.
-	// * for free particles, effpres is not modifies here. It is set 
-	// to its old value.
-
 	// read particle data from sorted arrays
 	#if PREFER_L1
 	const float4 pos = params.pos[index];
@@ -997,12 +991,6 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> par
 	D[index] = 0;
 	Rx[index] = 0;
 	B[index] = 0;
-
-	// effpres initilization:
-	// * for vertex and boundary, effpres will be calculated from a
-	// Shepard interpolation to enforce a Neuman condition.
-	// * for free particles, effpres is not modifies here. It is set 
-	// to its old value.
 
 	// read particle data from sorted arrays
 	#if PREFER_L1
@@ -1110,12 +1098,10 @@ jacobiUpdateEffPresDevice(viscengine_rheology_params<kerneltype, boundarytype> p
 		if (index >= params.numParticles)
 			return;
 
-		float newEffPres = params.effpres[index]; 
+		float newEffPres = 0.f; 
 
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		const ParticleType cptype = PART_TYPE(info);
-
-		//Fluid number
 
 		// Reference pressure
 		float refpres = d_rho0[fluid_num(info)]*d_sqC0[fluid_num(info)]/100;
@@ -1123,16 +1109,14 @@ jacobiUpdateEffPresDevice(viscengine_rheology_params<kerneltype, boundarytype> p
 		// nor at the free-surface.
 		if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info)) {
 			newEffPres = (B[index] - Rx[index])/D[index];
-		} else if (cptype == PT_FLUID && !SEDIMENT(info)) {
-			newEffPres = 0.f;
+			// Prevent NaN values.
+			if (newEffPres == newEffPres) {
+				params.effpres[index] = newEffPres;
+			} else {
+				params.effpres[index] = 0;
+			}
+			residual = D[index]*newEffPres+Rx[index]-B[index]/refpres;
 		}
-		// Prevent NaN values.
-		if (newEffPres == newEffPres) {
-			params.effpres[index] = newEffPres;
-		} else {
-			params.effpres[index] = 0;
-		}
-		residual = D[index]*newEffPres+Rx[index]-B[index]/refpres;
 	} while (0);
 
 	reduce_jacobi_error(cfl, residual);
