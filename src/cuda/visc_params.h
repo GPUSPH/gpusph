@@ -142,6 +142,7 @@ struct effvisc_params :
 	sa_params
 {
 	float * __restrict__	effvisc;
+	const float 		deltap;
 
 	using ViscSpec = _ViscSpec;
 
@@ -159,6 +160,7 @@ struct effvisc_params :
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
+			const	float		_deltap,
 		// SA_BOUNDARY params
 			const	float4* __restrict__	_gGam,
 			const	float2* const *_vertPos,
@@ -167,6 +169,7 @@ struct effvisc_params :
 					float*	__restrict__	_cfl) :
 	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
 		_slength, _influenceradius),
+	deltap(_deltap),
 	reduce_params(_cfl),
 	sa_params(_gGam, _vertPos),
 	effvisc(_effvisc)

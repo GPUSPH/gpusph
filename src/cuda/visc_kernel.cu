@@ -271,7 +271,12 @@ template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t<KP::boundarytype != SA_BOUNDARY>
 shear_rate_fixup(float3& dvx, float3& dvy, float3& dvz, P_t const& pdata, KP const& params)
-{ /* do nothing */ }
+{ 
+	const float multiplier = pdata.pos.w/pdata.vel.w;
+	dvx *= multiplier;
+	dvy *= multiplier;
+	dvz *= multiplier;
+}
 
 //! Post-neib-iteration fixup for dvx, dvy, dvz
 //! SA case
@@ -280,7 +285,17 @@ __device__ __forceinline__
 enable_if_t<KP::boundarytype == SA_BOUNDARY>
 shear_rate_fixup(float3& dvx, float3& dvy, float3& dvz, P_t const& pdata, KP const& params)
 {
-	const float multiplier = pdata.volume/(pdata.gamma*pdata.theta);
+	// Fluid num
+	const uint p_fluid_num = fluid_num(pdata.info);
+	// Physical density
+	const float p_rho = physical_density(pdata.vel.w, p_fluid_num);
+	// Initial reference volume
+	const float ref_volume0 = params.deltap*params.deltap*params.deltap;
+	// Initial volume
+	const float volume0 = pdata.pos.w/d_rho0[p_fluid_num];
+	// Volume fractions (must be computed from initial volumes)
+	const float theta = volume0/ref_volume0;
+	const float multiplier = pdata.pos.w/(pdata.vel.w*pdata.gamma*theta);
 	dvx *= multiplier;
 	dvy *= multiplier;
 	dvz *= multiplier;

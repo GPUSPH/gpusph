@@ -141,6 +141,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
 			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			deltap,
 			gGam, vertPos,
 			effvisc, cfl);
 
