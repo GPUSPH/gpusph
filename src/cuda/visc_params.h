@@ -176,133 +176,49 @@ struct effvisc_params :
 	{}
 };
 
-//////////////////////////////////:
-/// Parameters common to all SPS kernel specializations
-struct common_rheology_params
+//! Effective pressure kernel parameters
+/** in addition to the standard neibs_list_params, it only includes
+ * the array where the effective pressure is written
+ */
+template<KernelType _kerneltype,
+	BoundaryType _boundarytype,
+	typename sa_params =
+		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
+	>
+struct effpres_params :
+	neibs_list_params,
+	visc_reduce_params,
+	sa_params
 {
-	const float4* __restrict__		pos;
-	const hashKey* __restrict__		particleHash;
-	const uint* __restrict__		cellStart;
-	const neibdata* __restrict__	neibsList;
-	const uint		numParticles;
-	const float		deltap;
-	const float		slength;
-	const float		influenceradius;
+	float * __restrict__	effpres;
+	const float 		deltap;
 
-	// Constructor / initializer
-	common_rheology_params(
-		const	float4	* __restrict__ _pos,
-		const	hashKey	* __restrict__ _particleHash,
-		const	uint	* __restrict__ _cellStart,
-		const	neibdata	* __restrict__ _neibsList,
-		const	uint	_numParticles,
-		const	float	_deltap,
-		const	float	_slength,
-		const	float	_influenceradius) :
-		pos(_pos),
-		particleHash(_particleHash),
-		cellStart(_cellStart),
-		neibsList(_neibsList),
-		numParticles(_numParticles),
-		deltap(_deltap),
-		slength(_slength),
-		influenceradius(_influenceradius)
-	{}
-};
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr BoundaryType boundarytype = _boundarytype;
 
-/// Additional parameters passed only if simflag RHEOLOGY is set
-struct effvisc_rheology_params
-{
-	float	* __restrict__ effvisc;
-	effvisc_rheology_params(float * __restrict__ _effvisc) :
-		effvisc(_effvisc)
-	{}
-};
-
-/// Additional parameters passed only if simflag RHEOLOGY is set
-struct effpres_rheology_params
-{
-	float	* __restrict__ effpres;
-	effpres_rheology_params(float * __restrict__ _effpres) :
-		effpres(_effpres)
-	{}
-};
-
-/// The actual forces_params struct, which concatenates all of the above, as appropriate.
-//template<KernelType kerneltype,
-//	BoundaryType boundarytype>
-//struct rheology_params :
-//	common_rheology_params,
-//	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params),
-//	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_rheology_params),
-//	COND_STRUCT(true, effvisc_rheology_params)
-//{
-//	// This structure provides a constructor that takes as arguments the union of the
-//	// parameters that would ever be passed to the forces kernel.
-//	// It then delegates the appropriate subset of arguments to the appropriate
-//	// structs it derives from, in the correct order
-//	rheology_params(
-//		// common
-//			const	float4* __restrict__ 	_pos,
-//			const	hashKey* __restrict__ 	_particleHash,
-//			const	uint* __restrict__ 		_cellStart,
-//			const	neibdata* __restrict__ 	_neibsList,
-//			const	uint		_numParticles,
-//			const	float		_deltap,
-//			const	float		_slength,
-//			const	float		_influenceradius,
-//			// SA_BOUNDARY finalize
-//			const	float4	*_gGam,
-//			// SA_BOUNDARY
-//			const	float2	* __restrict__ const _vertPos[],
-//			// effvisc
-//			float* __restrict__ 		_effvisc
-//		) :
-//		common_rheology_params(_pos, _particleHash, _cellStart,
-//			_neibsList, _numParticles, _deltap, _slength, _influenceradius),
-//		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_forces_params) (_gGam),
-//		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_rheology_params) (_vertPos),
-//		COND_STRUCT(true, effvisc_rheology_params)(_effvisc)
-//	{}
-//};
-
-/// The actual forces_params struct, which concatenates all of the above, as appropriate.
-template<KernelType kerneltype,
-	BoundaryType boundarytype>
-struct viscengine_rheology_params :
-	common_rheology_params,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_rheology_params),
-	effvisc_rheology_params,
-	effpres_rheology_params
-{
-	// This structure provides a constructor that takes as arguments the union of the
-	// parameters that would ever be passed to the forces kernel.
-	// It then delegates the appropriate subset of arguments to the appropriate
-	// structs it derives from, in the correct order
-	viscengine_rheology_params(
+	effpres_params(
 		// common
-			const	float4* __restrict__ 	_pos,
-			const	hashKey* __restrict__ 	_particleHash,
-			const	uint* __restrict__ 		_cellStart,
-			const	neibdata* __restrict__ 	_neibsList,
+			const	float4* __restrict__	_posArray,
+			const	hashKey* __restrict__	_particleHash,
+			const	uint* __restrict__		_cellStart,
+			const	neibdata* __restrict__	_neibsList,
 			const	uint		_numParticles,
-			const	float		_deltap,
 			const	float		_slength,
 			const	float		_influenceradius,
-			// effvisc
-			float* __restrict__ 		_effvisc,
-			// effpres
-			float* __restrict__ 		_effpres,
-			// SA_BOUNDARY
-			const	float4	*_gGam,
-			const	float2	* __restrict__ const _vertPos[]
-		) :
-		common_rheology_params(_pos, _particleHash, _cellStart,
-			_neibsList, _numParticles, _deltap, _slength, _influenceradius),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_rheology_params) (_gGam, _vertPos),
-		effvisc_rheology_params(_effvisc),
-		effpres_rheology_params(_effpres)
-	{}	
+			const	float		_deltap,
+		// SA_BOUNDARY params
+			const	float4* __restrict__	_gGam,
+			const	float2* const *_vertPos,
+		// effective viscosity
+					float*	__restrict__	_effpres,
+					float*	__restrict__	_cfl) :
+	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
+		_slength, _influenceradius),
+	deltap(_deltap),
+	visc_reduce_params(_cfl),
+	sa_params(_gGam, _vertPos),
+	effpres(_effpres)
+	{}
 };
 
 

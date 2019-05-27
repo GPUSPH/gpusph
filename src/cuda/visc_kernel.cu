@@ -818,7 +818,7 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiFSBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundarytype> params)
+jacobiFSBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -827,7 +827,7 @@ jacobiFSBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundary
 
 	// read particle data from sorted arrays
 	#if PREFER_L1
-	const float4 pos = params.pos[index];
+	const float4 pos = params.posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
@@ -859,7 +859,7 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, boundarytype> params, float *cfl)
+jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -886,7 +886,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, bounda
 
 		// read particle data from sorted arrays
 #if PREFER_L1
-		const float4 pos = params.pos[index];
+		const float4 pos = params.posArray[index];
 #else
 		const float4 pos = tex1Dfetch(posTex, index);
 #endif
@@ -921,7 +921,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, bounda
 				// Now relPos is a float4 and neib mass is stored in relPos.w
 				const float4 relPos = neib_iter.relPos(
 #if PREFER_L1
-						params.pos[neib_index]
+						params.posArray[neib_index]
 #else
 						tex1Dfetch(posTex, neib_index)
 #endif
@@ -966,15 +966,14 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, bounda
 		}
 	} while (0);
 
-	reduce_jacobi_error(cfl, backErr);
+	reduce_jacobi_error(params.cfl, backErr);
 
 }
 
-// Specialization for the SA boundaries
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> params, float *cfl)
+jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, SA_BOUNDARY> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1001,7 +1000,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOU
 
 		// read particle data from sorted arrays
 #if PREFER_L1
-		const float4 pos = params.pos[index];
+		const float4 pos = params.posArray[index];
 #else
 		const float4 pos = tex1Dfetch(posTex, index);
 #endif
@@ -1038,7 +1037,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOU
 				// Now relPos is a float4 and neib mass is stored in relPos.w
 				const float4 relPos = neib_iter.relPos(
 #if PREFER_L1
-						params.pos[neib_index]
+						params.posArray[neib_index]
 #else
 						tex1Dfetch(posTex, neib_index)
 #endif
@@ -1083,7 +1082,7 @@ jacobiWallBoundaryConditionsDevice(viscengine_rheology_params<kerneltype, SA_BOU
 		}
 	} while (0);
 
-	reduce_jacobi_error(cfl, backErr);
+	reduce_jacobi_error(params.cfl, backErr);
 
 }
 
@@ -1092,7 +1091,7 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, boundarytype> params,
+jacobiBuildVectorsDevice(effpres_params<kerneltype, boundarytype> params,
 	float *D, float *Rx, float *B)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -1107,7 +1106,7 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, boundarytype> pa
 
 	// read particle data from sorted arrays
 	#if PREFER_L1
-	const float4 pos = params.pos[index];
+	const float4 pos = params.posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
@@ -1136,7 +1135,7 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, boundarytype> pa
 			// Now relPos is a float4 and neib mass is stored in relPos.w
 			const float4 relPos = neib_iter.relPos(
 					#if PREFER_L1
-					params.pos[neib_index]
+					params.posArray[neib_index]
 					#else
 					tex1Dfetch(posTex, neib_index)
 					#endif
@@ -1182,7 +1181,7 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, boundarytype> pa
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> params,
+jacobiBuildVectorsDevice(effpres_params<kerneltype, SA_BOUNDARY> params,
 	float *D, float *Rx, float *B)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -1197,7 +1196,7 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> par
 
 	// read particle data from sorted arrays
 	#if PREFER_L1
-	const float4 pos = params.pos[index];
+	const float4 pos = params.posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
@@ -1231,7 +1230,7 @@ jacobiBuildVectorsDevice(viscengine_rheology_params<kerneltype, SA_BOUNDARY> par
 			// Now relPos is a float4 and neib mass is stored in relPos.w
 			const float4 relPos = neib_iter.relPos(
 			#if PREFER_L1
-				params.pos[neib_index]
+				params.posArray[neib_index]
 			#else
 				tex1Dfetch(posTex, neib_index)
 			#endif
@@ -1289,8 +1288,8 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiUpdateEffPresDevice(viscengine_rheology_params<kerneltype, boundarytype> params,
-	float *D, float *Rx, float *B, float *cfl)
+jacobiUpdateEffPresDevice(effpres_params<kerneltype, boundarytype> params,
+	float *D, float *Rx, float *B)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	float residual = 0.f;
@@ -1322,7 +1321,7 @@ jacobiUpdateEffPresDevice(viscengine_rheology_params<kerneltype, boundarytype> p
 		}
 	} while (0);
 
-	reduce_jacobi_error(cfl, residual);
+	reduce_jacobi_error(params.cfl, residual);
 
 }
 
