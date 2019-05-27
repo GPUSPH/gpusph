@@ -814,20 +814,22 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	}
 }
 
-template<KernelType kerneltype,
-	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiFSBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> params)
+jacobiFSBoundaryConditionsDevice(
+	const float4 * __restrict__ posArray,
+	float * __restrict__ effpres,
+	uint numParticles,
+	float deltap)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= params.numParticles)
+	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	#if PREFER_L1
-	const float4 pos = params.posArray[index];
+	const float4 pos = posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
@@ -849,7 +851,7 @@ jacobiFSBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> params
 
 	// * for free-surface particles, the Dirichlet condition is enforced
 	if (cptype == PT_FLUID && SEDIMENT(info) && (SURFACE(info) || INTERFACE(info))) {
-		params.effpres[index] = params.deltap*delta_rho*length(d_gravity);
+		effpres[index] = deltap*delta_rho*length(d_gravity);
 	} else {
 		return;
 	}
@@ -1284,12 +1286,13 @@ jacobiBuildVectorsDevice(effpres_params<kerneltype, SA_BOUNDARY> params,
 	}
 }
 
-template<KernelType kerneltype,
-	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiUpdateEffPresDevice(effpres_params<kerneltype, boundarytype> params,
-	float *D, float *Rx, float *B)
+jacobiUpdateEffPresDevice(
+	const float4 * __restrict__ jacobiBuffer,
+	float * __restrict__ effpres,
+	float * __restrict__ cfl,
+	uint numParticles)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	float residual = 0.f;
@@ -1297,31 +1300,35 @@ jacobiUpdateEffPresDevice(effpres_params<kerneltype, boundarytype> params,
 	// do { } while (0) around the main body so that we can bail out
 	// to the reduction
 	do {
-		if (index >= params.numParticles)
+		if (index >= numParticles)
 			return;
 
-		float newEffPres = 0.f; 
+		float newEffPres = 0.f;
 
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		const ParticleType cptype = PART_TYPE(info);
 
 		// Reference pressure
-		float refpres = d_rho0[fluid_num(info)]*d_sqC0[fluid_num(info)]/100;
+		const float refpres = d_rho0[fluid_num(info)]*d_sqC0[fluid_num(info)]/100;
 		// effpres is updated for free particle of sediment that are not at the interface nor
 		// nor at the free-surface.
 		if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info)) {
-			newEffPres = (B[index] - Rx[index])/D[index];
+			const float4 jB = jacobiBuffer[index];
+			const float D = jB.x;
+			const float Rx = jB.y;
+			const float B = jB.z;
+			newEffPres = (B - Rx)/D;
 			// Prevent NaN values.
 			if (newEffPres == newEffPres) {
-				params.effpres[index] = newEffPres;
+				effpres[index] = newEffPres;
 			} else {
-				params.effpres[index] = 0;
+				effpres[index] = 0;
 			}
-			residual = D[index]*newEffPres+Rx[index]-B[index]/refpres;
+			residual = (D*newEffPres + Rx - B)/refpres;
 		}
 	} while (0);
 
-	reduce_jacobi_error(params.cfl, residual);
+	reduce_jacobi_error(cfl, residual);
 
 }
 
