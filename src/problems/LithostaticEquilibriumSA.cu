@@ -61,6 +61,11 @@ LithostaticEquilibriumSA::LithostaticEquilibriumSA(GlobalData *_gdata) : XProble
 	simparams()->buildneibsfreq = 10;
 	simparams()->densityDiffCoeff = 0.5f;
 
+	// Effective pressure Jacobi solver parameters
+	simparams()->jacobi_maxiter = 1000;
+	simparams()->jacobi_backerr = 1e-6;
+	simparams()->jacobi_residual = 1e-6;
+
 	/* Geometrical parameters 
 	 * 	-the sediment and water heights hs and hw are determined to
 	 *	 be the closest value to 1 that can be divided by deltap.
