@@ -232,6 +232,30 @@ typedef struct SimParams {
 	 */
 	float			repack_alpha;	//< repacking parameter 'alpha' for velocity damping, recommended value: 0.1
 	/** @} */
+	/** \name Jacobi parameters
+	 * @{ */
+	/*!
+	 * \inpsection{jacobi, enable}
+	 * \label{JACOBI_MAX_ITER}
+	 * \default{1000}
+	 * TLT_JACOBI_MAX_ITER
+	 */
+	uint			jacobi_maxiter; //< maximum number of iterations for effective pressure Jacobi solver
+	/*!
+	 * \inpsection{repacking, enable}
+	 * \label{JACOBI_BACKERR}
+	 * \default{0.00001}
+	 * TLT_JACOBI_BACKERR
+	 */
+	float			jacobi_backerr;	//< backward error threshold for boundary particles (only vertex for SA) effective pressure convergence
+	/*!
+	 * \inpsection{repacking, enable}
+	 * \label{JACOBI_RESIDUAL}
+	 * \default{0.000001}
+	 * TLT_JACOBI_RESIDUAL
+	 */
+	float			jacobi_residual;	//< residual threshold for fluid particles effective pressure convergence
+	/** @} */
 
 	template<typename Framework>
 	SimParams(Framework *simframework) :
@@ -282,7 +306,10 @@ typedef struct SimParams {
 		epsilon(5e-5f),
 		repack_maxiter(2000),
 		repack_a(0.1f),
-		repack_alpha(0.01f)
+		repack_alpha(0.01f),
+		jacobi_maxiter(1000),
+		jacobi_backerr(0.00001),
+		jacobi_residual(0.000001)
 	{}
 
 	/** \name Kernel parameters related methods

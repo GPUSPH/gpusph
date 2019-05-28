@@ -337,6 +337,14 @@ CommonWriter::write_simparams(ostream &out)
 		if (SP->is_const_visc)
 			out << "\t(constant viscosity optimizations)" << endl;
 	}
+
+	if (SP->rheologytype == GRANULAR) {
+		out << " Granular rheology: effective pressure Jacobi solver parameters: " << endl;
+		out << "\tMaximum number of iterations: " << SP->jacobi_maxiter << endl;
+		out << "\tBackward error threshold (boundary convergence): " << SP->jacobi_backerr << endl;
+		out << "\tResidual threshold (fluid convergence): " << SP->jacobi_residual << endl;
+	}
+
 	out << " periodicity: " << SP->periodicbound << " (" << PeriodicityName[SP->periodicbound] << ")" << endl;
 
 	out << " initial dt = " << SP->dt << endl;
