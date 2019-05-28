@@ -2275,7 +2275,9 @@ void GPUSPH::runCommand<JACOBI_STOP_CRITERION>(CommandStruct const& cmd)
 		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiBackwardError[0]), 1, MAX_REDUCTION);
 	}
 
-	if ((gdata->h_jacobiBackwardError[0] < 1e-4 && gdata->h_jacobiResidual[0] < 1e-4) || gdata->h_jacobiCounter > 100) {
+	if ((gdata->h_jacobiBackwardError[0] < gdata->problem->simparams()->jacobi_backerr &&
+	     gdata->h_jacobiResidual[0] < gdata->problem->simparams()->jacobi_residual) ||
+	     gdata->h_jacobiCounter > gdata->problem->simparams()->jacobi_maxiter) {
 		gdata->h_jacobiStop = true;
 		printf("TRUE - counter = %d\terror[0] = %f\tresidual[0] = %f\n", gdata->h_jacobiCounter, gdata->h_jacobiBackwardError, gdata->h_jacobiResidual);
 	} else {
