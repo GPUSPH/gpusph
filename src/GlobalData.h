@@ -271,8 +271,8 @@ struct GlobalData {
 	uint*   h_maxIOwaterdepth;
 
 	// Jacobi solver residual and backward error
-	float h_jacobiResidual;
-	float h_jacobiBackwardError;
+	float h_jacobiResidual[MAX_DEVICES_PER_NODE];
+	float h_jacobiBackwardError[MAX_DEVICES_PER_NODE];
 	bool h_jacobiStop;
 	int h_jacobiCounter;
 
@@ -340,8 +340,10 @@ struct GlobalData {
 			dts[d] = 0.0F;
 
 		// init Jacobi solver auxiliary data
-		h_jacobiResidual = NAN;
-		h_jacobiBackwardError = NAN;
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) {
+			h_jacobiResidual[d] = NAN;
+			h_jacobiBackwardError[d] = NAN;
+		}
 		h_jacobiStop = false;
 		h_jacobiCounter = 0;
 		// init particlesCreatedOnNode

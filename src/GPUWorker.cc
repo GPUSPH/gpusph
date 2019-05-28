@@ -2923,7 +2923,7 @@ void GPUWorker::runCommand<JACOBI_WALL_BOUNDARY_CONDITIONS>(CommandStruct const&
 		extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("enforce_jacobi_wall_boundary_conditions");
 
-	gdata->h_jacobiBackwardError = viscEngine->enforce_jacobi_wall_boundary_conditions(
+	gdata->h_jacobiBackwardError[m_deviceIndex] = viscEngine->enforce_jacobi_wall_boundary_conditions(
 		bufread, bufwrite,
 		m_numParticles,
 		numPartsToElaborate,
@@ -2971,7 +2971,7 @@ void GPUWorker::runCommand<JACOBI_UPDATE_EFFPRES>(CommandStruct const& cmd)
 
 	bufwrite.add_manipulator_on_write("update_jacobi_effpres");
 
-	gdata->h_jacobiResidual = viscEngine->update_jacobi_effpres(
+	gdata->h_jacobiResidual[m_deviceIndex] = viscEngine->update_jacobi_effpres(
 		bufread, bufwrite,
 		m_numParticles,
 		numPartsToElaborate,

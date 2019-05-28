@@ -2264,13 +2264,18 @@ void GPUSPH::runCommand<JACOBI_RESET_STOP_CRITERION>(CommandStruct const& cmd)
 template<>
 void GPUSPH::runCommand<JACOBI_STOP_CRITERION>(CommandStruct const& cmd)
 {
-	// if we are in multi-node mode we need to run an mpi reduction over all nodes
-	if (MULTI_NODE) {
-		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiResidual), 1, MAX_REDUCTION);
-		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiBackwardError), 1, MAX_REDUCTION);
+	for (int d=1; d < gdata->devices; ++d) {
+		gdata->h_jacobiBackwardError[0] = fmaxf(gdata->h_jacobiBackwardError[0], gdata->h_jacobiBackwardError[d]);
+		gdata->h_jacobiResidual[0] = fmaxf(gdata->h_jacobiResidual[0], gdata->h_jacobiResidual[d]);
 	}
 
-	if ((gdata->h_jacobiBackwardError < 1e-4 && gdata->h_jacobiResidual < 1e-4) || gdata->h_jacobiCounter > 100) {
+	// if we are in multi-node mode we need to run an mpi reduction over all nodes
+	if (MULTI_NODE) {
+		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiResidual[0]), 1, MAX_REDUCTION);
+		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiBackwardError[0]), 1, MAX_REDUCTION);
+	}
+
+	if ((gdata->h_jacobiBackwardError[0] < 1e-4 && gdata->h_jacobiResidual[0] < 1e-4) || gdata->h_jacobiCounter > 100) {
 		gdata->h_jacobiStop = true;
 		printf("TRUE - counter = %d\terror[0] = %f\tresidual[0] = %f\n", gdata->h_jacobiCounter, gdata->h_jacobiBackwardError, gdata->h_jacobiResidual);
 	} else {
