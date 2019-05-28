@@ -1338,32 +1338,6 @@ jacobiUpdateEffPresDevice(
 
 }
 
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-copyJacobiVectorsToJacobiBufferDevice(
-	uint numParticles, float *D, float *Rx, float *B, float4 *jacobiBuffer)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-	jacobiBuffer[index] = make_float4(D[index], Rx[index], B[index], 0.f);
-}
-
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-copyJacobiBufferToJacobiVectorsDevice(
-	uint numParticles, const float4 *jacobiBuffer, float *D, float *Rx, float *B)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-	D[index] = jacobiBuffer[index].x;
-	Rx[index] = jacobiBuffer[index].y;
-	B[index] = jacobiBuffer[index].z;
-}
-
 }
 
 #endif

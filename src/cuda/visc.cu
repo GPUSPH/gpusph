@@ -530,14 +530,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 * vector product between R and x:
 		 *	Rx = R.x
 		 */
-		float	*D; // vector containing the matrix M diagonal elements
-		float	*Rx; // vector containing the result of R.x matrix-vector product
-		float	*dB; // right hand-side device vector
-
-		// Allocate GPU memory
-		CUDA_SAFE_CALL(cudaMalloc((void**)&D, numParticles*sizeof(float)));
-		CUDA_SAFE_CALL(cudaMalloc((void**)&Rx, numParticles*sizeof(float)));
-		CUDA_SAFE_CALL(cudaMalloc((void**)&dB, numParticles*sizeof(float)));
 
 		// Copy the updated effpres (with Dirichlet and Neumann conditions enforced)
 		// into effpresTex
@@ -550,16 +542,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
-		// Copy Jacobi vectors D, Rx and B to jacobiBuffer 
-		cuvisc::copyJacobiVectorsToJacobiBufferDevice
-			<<<numBlocks, numThreads, dummy_shared>>>(params.numParticles, D, Rx, dB, jacobiBuffer);
-
 		CUDA_SAFE_CALL(cudaDeviceSynchronize());
-
-		// Free GPU memory
-		cudaFree(D);
-		cudaFree(Rx);
-		cudaFree(dB);
 
 		// Unbind textures
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
