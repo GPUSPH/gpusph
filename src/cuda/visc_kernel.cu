@@ -1094,7 +1094,7 @@ template<KernelType kerneltype,
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 jacobiBuildVectorsDevice(effpres_params<kerneltype, boundarytype> params,
-	float *D, float *Rx, float *B)
+	float4 *jacobiBuffer)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1102,9 +1102,9 @@ jacobiBuildVectorsDevice(effpres_params<kerneltype, boundarytype> params,
 		return;
 
 	// Initialize vectors
-	D[index] = 0;
-	Rx[index] = 0;
-	B[index] = 0;
+	float D = 0;
+	float Rx = 0;
+	float B = 0;
 
 	// read particle data from sorted arrays
 	#if PREFER_L1
@@ -1162,21 +1162,24 @@ jacobiBuildVectorsDevice(effpres_params<kerneltype, boundarytype> params,
 				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
 				const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
 
-				D[index] += neib_volume*f;
+				D += neib_volume*f;
 
 				// sediment fluid neibs contribute to the matrix if they are not at the interface nor at the free-surface
 				if (nptype == PT_FLUID && !INTERFACE(neib_info) && !SURFACE(neib_info)) {
-					Rx[index] -= neib_volume*neib_oldEffPres*f;
+					Rx -= neib_volume*neib_oldEffPres*f;
 
 					// vertex and free particles neibs of sediment that are at the interface
 					// or at the free-surface contribute to the right hand-side vector B
 				} else {
-					B[index] += neib_volume*neib_oldEffPres*f;
+					B += neib_volume*neib_oldEffPres*f;
 				}
 				// contribution of boundary elements to the free particle Jacobi vectors
 			} 
 		} // end of loop through neighbors
 	}
+	jacobiBuffer[index].x = D;
+	jacobiBuffer[index].y = Rx;
+	jacobiBuffer[index].z = B;
 }
 
 // Specialization for the SA case
@@ -1184,7 +1187,7 @@ template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 jacobiBuildVectorsDevice(effpres_params<kerneltype, SA_BOUNDARY> params,
-	float *D, float *Rx, float *B)
+	float4 *jacobiBuffer)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1192,9 +1195,9 @@ jacobiBuildVectorsDevice(effpres_params<kerneltype, SA_BOUNDARY> params,
 		return;
 
 	// Initialize vectors
-	D[index] = 0;
-	Rx[index] = 0;
-	B[index] = 0;
+	float D = 0;
+	float Rx = 0;
+	float B = 0;
 
 	// read particle data from sorted arrays
 	#if PREFER_L1
@@ -1257,16 +1260,16 @@ jacobiBuildVectorsDevice(effpres_params<kerneltype, SA_BOUNDARY> params,
 				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
 				const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
 
-				D[index] += neib_volume*f;
+				D += neib_volume*f;
 
 				// sediment fluid neibs contribute to the matrix if they are not at the interface nor at the free-surface
 				if (nptype == PT_FLUID && !INTERFACE(neib_info) && !SURFACE(neib_info)) {
-					Rx[index] -= neib_volume*neib_oldEffPres*f;
+					Rx -= neib_volume*neib_oldEffPres*f;
 					
 				// vertex and free particles neibs of sediment that are at the interface
 				// or at the free-surface contribute to the right hand-side vector B
 				} else {
-					B[index] += neib_volume*neib_oldEffPres*f;
+					B += neib_volume*neib_oldEffPres*f;
 				}
 			// contribution of boundary elements to the free particle Jacobi vectors
 			} else if (nptype == PT_BOUNDARY && r < params.influenceradius) {
@@ -1280,10 +1283,13 @@ jacobiBuildVectorsDevice(effpres_params<kerneltype, SA_BOUNDARY> params,
 				float r_as(fmax(fabs(dot(as_float3(relPos), normal_s)), params.deltap));
 
 				// Contribution to the boundary elements to the right hand-side term
-				B[index] += delta_rho*dot(d_gravity, normal_s)*ggamAS;
+				B += delta_rho*dot(d_gravity, normal_s)*ggamAS;
 			}
 		} // end of loop through neighbors
 	}
+	jacobiBuffer[index].x = D;
+	jacobiBuffer[index].y = Rx;
+	jacobiBuffer[index].z = B;
 }
 
 __global__ void

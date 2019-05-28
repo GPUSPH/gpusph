@@ -546,7 +546,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		// Build Jacobi vectors D, Rx and B.
 		cuvisc::jacobiBuildVectorsDevice<kerneltype, boundarytype>
-			<<<numBlocks, numThreads, dummy_shared>>>(params, D, Rx, dB);
+			<<<numBlocks, numThreads, dummy_shared>>>(params, jacobiBuffer);
 
 		CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
