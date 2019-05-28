@@ -419,7 +419,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 */
 
 		// Enforce boundary conditions from the previous time step
-		cuvisc::jacobiWallBoundaryConditionsDevice<kerneltype, boundarytype>
+		cuvisc::jacobiWallBoundaryConditionsDevice
 			<<<numBlocks, numThreads, dummy_shared>>>(params);
 
 		// check if kernel invocation generated an error
@@ -516,7 +516,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		dummy_shared = 2560;
 #endif
 
-
 		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, effpres, numParticles*sizeof(float)));
 		effpres_params<kerneltype, boundarytype> params(
 			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
@@ -541,10 +540,8 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, effpres, numParticles*sizeof(float)));
 
 		// Build Jacobi vectors D, Rx and B.
-		cuvisc::jacobiBuildVectorsDevice<kerneltype, boundarytype>
+		cuvisc::jacobiBuildVectorsDevice
 			<<<numBlocks, numThreads, dummy_shared>>>(params, jacobiBuffer);
-
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
 		CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
