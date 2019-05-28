@@ -250,8 +250,8 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	}
 
 	/* First step of the Jacobi solver for the effective pressure:
-	 * the Neuman homogeneous boundary condition in enforced on vertex particles
-	 * interpolating the effective pressure from the free particles of sediment.
+	 * the Dirichlet condition is enforced of fluid particle at the free-surface or
+	 * at the interface. This is run only once before the iterative loop.
 	*/
 	template<typename This>
 	enable_if_t<This::rheologytype != GRANULAR, void>
@@ -330,8 +330,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 			this);
 	}
 
-
-
+	/* Second step of the Jacobi solver.
+	 * The Neuman homogeneous boundary condition in enforced on boundary particles 
+	 * (vertex for SA) interpolating the effective pressure from the free particles of sediment.
+	 * This is run once before the itrative loop, and at the end of every iteration.
+	 * This returns a float being the backward error, used to evaluate the convergence at boundaries.
+	*/
 	template<typename This>
 	enable_if_t<This::rheologytype != GRANULAR,float>
 	enforce_jacobi_wall_boundary_conditions_implementation(

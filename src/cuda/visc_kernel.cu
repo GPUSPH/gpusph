@@ -1177,9 +1177,7 @@ jacobiBuildVectorsDevice(effpres_params<kerneltype, boundarytype> params,
 			} 
 		} // end of loop through neighbors
 	}
-	jacobiBuffer[index].x = D;
-	jacobiBuffer[index].y = Rx;
-	jacobiBuffer[index].z = B;
+	jacobiBuffer[index] = make_float4(D, Rx, B, NAN);
 }
 
 // Specialization for the SA case
@@ -1287,9 +1285,7 @@ jacobiBuildVectorsDevice(effpres_params<kerneltype, SA_BOUNDARY> params,
 			}
 		} // end of loop through neighbors
 	}
-	jacobiBuffer[index].x = D;
-	jacobiBuffer[index].y = Rx;
-	jacobiBuffer[index].z = B;
+	jacobiBuffer[index] = make_float4(D, Rx, B, NAN);
 }
 
 __global__ void
