@@ -2279,10 +2279,9 @@ void GPUSPH::runCommand<JACOBI_STOP_CRITERION>(CommandStruct const& cmd)
 	     gdata->h_jacobiResidual[0] < gdata->problem->simparams()->jacobi_residual) ||
 	     gdata->h_jacobiCounter > gdata->problem->simparams()->jacobi_maxiter) {
 		gdata->h_jacobiStop = true;
-		printf("TRUE - counter = %d\terror[0] = %f\tresidual[0] = %f\n", gdata->h_jacobiCounter, gdata->h_jacobiBackwardError, gdata->h_jacobiResidual);
+		printf("TRUE - counter = %d\terror/error_threshold = %f\tresidual/residual_threshold = %f\n", gdata->h_jacobiCounter, gdata->h_jacobiBackwardError[0]/gdata->problem->simparams()->jacobi_backerr, gdata->h_jacobiResidual[0]/gdata->problem->simparams()->jacobi_residual);
 	} else {
 		gdata->h_jacobiCounter++;
-		printf("FALSE - counter = %d\terror[0] = %f\tresidual[0] = %f\n", gdata->h_jacobiCounter, gdata->h_jacobiBackwardError, gdata->h_jacobiResidual);
 	}
 }
 
