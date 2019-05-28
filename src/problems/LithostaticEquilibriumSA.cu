@@ -62,9 +62,9 @@ LithostaticEquilibriumSA::LithostaticEquilibriumSA(GlobalData *_gdata) : XProble
 	simparams()->densityDiffCoeff = 0.5f;
 
 	// Effective pressure Jacobi solver parameters
-	simparams()->jacobi_maxiter = 1000;
-	simparams()->jacobi_backerr = 1e-6;
-	simparams()->jacobi_residual = 1e-6;
+	simparams()->jacobi_maxiter = 10000;
+	simparams()->jacobi_backerr = 3e-5;
+	simparams()->jacobi_residual = 3e-5;
 
 	/* Geometrical parameters 
 	 * 	-the sediment and water heights hs and hw are determined to
