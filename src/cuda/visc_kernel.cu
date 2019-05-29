@@ -269,7 +269,7 @@ shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
 template<typename N_t, typename KP>
 __device__ __forceinline__
 enable_if_t<KP::boundarytype != SA_BOUNDARY>
-jacobi_build_vectors_fixup(float B, N_t const& ndata, KP const& params)
+sa_boundary_jacobi_build_vector(float &B, N_t const& ndata, KP const& params)
 { /* do nothing */}
 
 //! Fixup right hand-side term with SA boundary elements contribution
@@ -277,11 +277,9 @@ jacobi_build_vectors_fixup(float B, N_t const& ndata, KP const& params)
 template<typename N_t, typename KP>
 __device__ __forceinline__
 enable_if_t<KP::boundarytype == SA_BOUNDARY>
-jacobi_build_vectors_fixup(float B, N_t const& ndata, KP const& params)
+sa_boundary_jacobi_build_vector(float &B, N_t const& ndata, KP const& params)
 {
-	if (PART_TYPE(ndata.info) != PT_BOUNDARY) {
-		/* do nothing */
-	} else {
+	if (ndata.r < params.influenceradius) {
 		// Definition of delta_rho
 		const float delta_rho = cuphys::d_numfluids > 1 ? abs(d_rho0[0]-d_rho0[1]) : d_rho0[0];
 
@@ -1055,45 +1053,28 @@ jacobiBuildVectorsDevice(KP params,
 		/* Loop over neighbours */
 		for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 
-			shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
-			const uint neib_index = neib_iter.neib_index();
+			const shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
 
-			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos(
-#if PREFER_L1
-					params.posArray[neib_index]
-#else
-					tex1Dfetch(posTex, neib_index)
-#endif
-					);
-
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-			const float neib_oldEffPres = tex1Dfetch(effpresTex, neib_index);
+			const float neib_oldEffPres = tex1Dfetch(effpresTex, ndata.index);
 
 			// skip inactive particles
-			if (INACTIVE(relPos))
+			if (INACTIVE(ndata.relPos))
 				continue;
 
-			const float r = length3(relPos);
-
-			// Compute relative velocity
-			// Now relVel is a float4 and neib density is stored in relVel.w
-			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-			const ParticleType nptype = PART_TYPE(neib_info);
+			const ParticleType nptype = PART_TYPE(ndata.info);
 
 			// contribution of vertex and free particles of sediment
-			if ((nptype == PT_FLUID && SEDIMENT(neib_info)) ||
+			if ((nptype == PT_FLUID && SEDIMENT(ndata.info)) ||
 					(boundarytype != SA_BOUNDARY && nptype == PT_BOUNDARY) ||
 					(boundarytype == SA_BOUNDARY && nptype == PT_VERTEX))
 			{
-				const float f = F<kerneltype>(r, params.slength);	// 1/r ∂Wij/∂r
-				const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
+				const float f = F<kerneltype>(ndata.r, params.slength);	// 1/r ∂Wij/∂r
+				const float neib_volume = ndata.relPos.w/ndata.rho;
 
 				D += neib_volume*f;
 
 				// sediment fluid neibs contribute to the matrix if they are not at the interface nor at the free-surface
-				if (nptype == PT_FLUID && !INTERFACE(neib_info) && !SURFACE(neib_info)) {
+				if (nptype == PT_FLUID && !INTERFACE(ndata.info) && !SURFACE(ndata.info)) {
 					Rx -= neib_volume*neib_oldEffPres*f;
 
 					// vertex and free particles neibs of sediment that are at the interface
@@ -1102,8 +1083,9 @@ jacobiBuildVectorsDevice(KP params,
 					B += neib_volume*neib_oldEffPres*f;
 				}
 				// contribution of boundary elements to the free particle Jacobi vectors
-			} 
-			jacobi_build_vectors_fixup(B, ndata, params);
+			} else if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
+				sa_boundary_jacobi_build_vector(B, ndata, params);
+			}
 		} // end of loop through neighbors
 	}
 	jacobiBuffer[index] = make_float4(D, Rx, B, NAN);
