@@ -559,6 +559,12 @@ viscShearTerm(P_t const& pdata, float shrate, KP const& params)
 }
 
 //! Granular flow shear rate contribution
+/** TODO: this is actually a yield-stress-like contribution for sediment particles,
+ * with a non-constant yield stress computed from the effective pressure, but for
+ * fluid particles it's the standard Newtonian contribution. In the future we also
+ * want to have a full \mu(I) contribution, in which case it'll probably be
+ * a good idea to split this into a viscYieldTerm with dynamic yield stress
+ */
 template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t<KP::rheologytype == GRANULAR, float >
