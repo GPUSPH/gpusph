@@ -913,126 +913,11 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> para
 		float delta_rho = d_rho0[0];
 		if (numFluids > 1) delta_rho = abs(d_rho0[0] - d_rho0[1]);
 
-		if (cptype == PT_BOUNDARY) {
+		if ((boundarytype != SA_BOUNDARY && cptype == PT_BOUNDARY) ||
+		(boundarytype == SA_BOUNDARY && cptype == PT_VERTEX)) {
 			float alpha = 0.f; // shepard filter
 			// loop over fluid neibs
 			for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
-				const uint neib_index = neib_iter.neib_index();
-
-				// Compute relative position vector and distance
-				// Now relPos is a float4 and neib mass is stored in relPos.w
-				const float4 relPos = neib_iter.relPos(
-#if PREFER_L1
-						params.posArray[neib_index]
-#else
-						tex1Dfetch(posTex, neib_index)
-#endif
-						);
-
-				const float neib_oldEffPres = params.effpres[neib_index];
-				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-				// skip inactive particles
-				if (INACTIVE(relPos))
-					continue;
-
-				if (SEDIMENT(neib_info)) {
-					const float r = length3(relPos);
-
-					// Compute relative velocity
-					// Now relVel is a float4 and neib density is stored in relVel.w
-					const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-					const ParticleType nptype = PART_TYPE(neib_info);
-
-					// Fluid numbers
-					const uint neib_fluid_num = fluid_num(neib_info);
-
-					// contribution of free particles
-					const float w = W<kerneltype>(r, params.slength);	// Wij	
-					const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
-					newEffPres += neib_volume*(neib_oldEffPres + delta_rho*dot(d_gravity, as_float3(relPos)))*w;
-					alpha += neib_volume*w;
-				}
-			} // end of loop through neighbors
-			if (alpha > 0.f) {
-				newEffPres = max(newEffPres/alpha, 0.);
-				// Compute a ref pressure for the current case.
-				float refpres = delta_rho*(d_sscoeff[0]/10.)*(d_sscoeff[0]/10.);
-				backErr = abs(newEffPres-oldEffPres)/refpres;
-			} else {
-				newEffPres = 0.f;
-			}
-			params.effpres[index] = newEffPres;
-		} else {
-			return;
-		}
-	} while (0);
-
-	reduce_jacobi_error(params.cfl, backErr);
-
-}
-
-template<KernelType kerneltype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, SA_BOUNDARY> params)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	// the vertex Neumann condition is enforced through the interpolation of
-	// free particles effpres values. Thus it has to be re-computed every
-	// Jacobi iteration. We need to monitor the backward error of vertex
-	// particles to ensure that the solver keeps iterating until the vertex
-	// effpres value does not vary anymore.
-	float backErr = 0.f;
-
-	// do { } while (0) around the main body so that we can bail out
-	// to the reduction
-	do {
-		if (index >= params.numParticles)
-			return;
-
-		const float oldEffPres = params.effpres[index];
-		// effpres initilization:
-		// * for vertex and boundary, effpres will be calculated from a
-		// Shepard interpolation to enforce a Neuman condition.
-		// * for free particles, effpres is not modifies here. It is set 
-		// to its old value.
-		float newEffPres = 0.f;
-
-		// read particle data from sorted arrays
-#if PREFER_L1
-		const float4 pos = params.posArray[index];
-#else
-		const float4 pos = tex1Dfetch(posTex, index);
-#endif
-
-		const particleinfo info = tex1Dfetch(infoTex, index);
-		const ParticleType cptype = PART_TYPE(info);
-
-		// skip inactive particles
-		if (INACTIVE(pos))
-			return;
-
-		const float4 vel = tex1Dfetch(velTex, index);
-
-		// Compute grid position of current particle
-		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
-		// Fluid number
-		const uint p_fluid_num = fluid_num(info);
-		const uint numFluids = cuphys::d_numfluids;
-
-		// Definition of delta_rho
-		float delta_rho = d_rho0[0];
-		if (numFluids > 1) delta_rho = abs(d_rho0[0] - d_rho0[1]);
-
-		if (cptype == PT_VERTEX) {
-			float alpha = 0.f; // shepard filter
-
-			// loop over fluid neibs
-			for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
-
 				const uint neib_index = neib_iter.neib_index();
 
 				// Compute relative position vector and distance
@@ -1083,9 +968,7 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, SA_BOUNDARY> param
 			return;
 		}
 	} while (0);
-
 	reduce_jacobi_error(params.cfl, backErr);
-
 }
 
 // Jacobi vector building for DYN_BOUNDARY and LJ_BOUNDARY
