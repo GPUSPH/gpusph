@@ -279,22 +279,20 @@ __device__ __forceinline__
 enable_if_t<KP::boundarytype == SA_BOUNDARY>
 sa_boundary_jacobi_build_vector(float &B, N_t const& ndata, KP const& params)
 {
-	if (ndata.r < params.influenceradius) {
-		// Definition of delta_rho
-		const float delta_rho = cuphys::d_numfluids > 1 ? abs(d_rho0[0]-d_rho0[1]) : d_rho0[0];
+	// Definition of delta_rho
+	const float delta_rho = cuphys::d_numfluids > 1 ? abs(d_rho0[0]-d_rho0[1]) : d_rho0[0];
 
-		const float4 belem = tex1Dfetch(boundTex, ndata.index);
-		const float3 normal_s = as_float3(tex1Dfetch(boundTex, ndata.index));
-		const float3 q = as_float3(ndata.relPos)/params.slength;
-		float3 q_vb[3];
-		calcVertexRelPos(q_vb, belem,
-				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
-		const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, normal_s);
-		float r_as(fmax(fabs(dot(as_float3(ndata.relPos), normal_s)), params.deltap));
+	const float4 belem = tex1Dfetch(boundTex, ndata.index);
+	const float3 normal_s = as_float3(tex1Dfetch(boundTex, ndata.index));
+	const float3 q = as_float3(ndata.relPos)/params.slength;
+	float3 q_vb[3];
+	calcVertexRelPos(q_vb, belem,
+		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
+	const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, normal_s);
+	float r_as(fmax(fabs(dot(as_float3(ndata.relPos), normal_s)), params.deltap));
 
-		// Contribution to the boundary elements to the right hand-side term
-		B += delta_rho*dot(d_gravity, normal_s)*ggamAS;
-	}
+	// Contribution to the boundary elements to the right hand-side term
+	B += delta_rho*dot(d_gravity, normal_s)*ggamAS;
 }
 
 
@@ -1064,7 +1062,7 @@ jacobiBuildVectorsDevice(KP params,
 			const float neib_oldEffPres = tex1Dfetch(effpresTex, ndata.index);
 
 			// skip inactive particles
-			if (INACTIVE(ndata.relPos))
+			if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
 				continue;
 
 			const ParticleType nptype = PART_TYPE(ndata.info);
