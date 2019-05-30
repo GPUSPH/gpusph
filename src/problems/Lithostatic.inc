@@ -26,11 +26,11 @@
 #include <iostream>
 
 #ifndef LITHOSTATIC_PROBLEM
-	#define LITHOSTATIC_PROBLEM LithostaticSA
+	#error "Please define LITHOSTATIC_PROBLEM"
 #endif
 
 #include "utils.h"
-#include "Lithostatic.h"
+#include "Lithostatic.h.inc"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 

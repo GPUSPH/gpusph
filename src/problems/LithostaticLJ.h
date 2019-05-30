@@ -1,3 +1,3 @@
 #define LITHOSTATIC_PROBLEM LithostaticLJ
 
-#include "Lithostatic.h"
+#include "Lithostatic.h.inc"

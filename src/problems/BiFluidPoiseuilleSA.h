@@ -1,3 +1,3 @@
 #define BIFLUIDPOISEUILLE_PROBLEM BiFluidPoiseuilleSA
 
-#include "BiFluidPoiseuille.h"
+#include "BiFluidPoiseuille.h.inc"

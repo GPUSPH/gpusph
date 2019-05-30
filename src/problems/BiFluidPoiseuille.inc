@@ -26,11 +26,11 @@
 #include <iostream>
 
 #ifndef BIFLUIDPOISEUILLE_PROBLEM
-	#define BIFLUIDPOISEUILLE_PROBLEM BiFluidPoiseuilleSA
+	#error "Please define BIFLUIDPOISEUILLE_PROBLEM"
 #endif
 
 #include "utils.h"
-#include "BiFluidPoiseuille.h"
+#include "BiFluidPoiseuille.h.inc"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
