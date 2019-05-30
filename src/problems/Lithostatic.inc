@@ -25,30 +25,38 @@
 
 #include <iostream>
 
-#include "LithostaticEquilibriumSA.h"
+#ifndef LITHOSTATIC_PROBLEM
+	#define LITHOSTATIC_PROBLEM LithostaticSA
+#endif
+
+#include "utils.h"
+#include "Lithostatic.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-LithostaticEquilibriumSA::LithostaticEquilibriumSA(GlobalData *_gdata) : XProblem(_gdata)
+LITHOSTATIC_PROBLEM::LITHOSTATIC_PROBLEM(GlobalData *_gdata) :
+	Problem(_gdata),
+	hs ((floor(1.0f/m_deltap)-0.5f)*m_deltap), // sediment height
+	hw (floor(1.0f/m_deltap)*m_deltap), // water height
+	H (2.5f), // reservoir height
+	l (1.0f), // reservoir length and width
+	// For LJ/DYN_boundary, choose if Salome geometry is used
+	salomeGeom (true)
 {
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
-	const int RHODIFF = get_option("density-diffusion", 3);
+	const int RHODIFF = get_option("density-diffusion", 0);
 
 	SETUP_FRAMEWORK(
 		formulation<SPH_HA>,
 		viscosity<GRANULARVISC>,
-		boundary<SA_BOUNDARY>,
-		add_flags<ENABLE_MULTIFLUID | ENABLE_DTADAPT | ENABLE_DENSITY_SUM> // Enable for SA_BOUNDARY
-		//boundary<DYN_BOUNDARY>,
-		//add_flags<ENABLE_MULTIFLUID> // Enable for LJ/DYN_BOUNDARY
+		boundary<LITHOSTATIC_BOUNDARY>,
+		add_flags<LITHOSTATIC_FLAGS> // Enable for SA_BOUNDARY
 		).select_options(
 		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
 		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
 		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>()
 	);
 
-	// For LJ/DYN_boundary, choose if Salome geometry is used
-	salomeGeom = true;
 
 	// Detection of free-surface and interface is mandatory for GRANULARVISC
 	addPostProcess(INTERFACE_DETECTION);
@@ -157,10 +165,10 @@ LithostaticEquilibriumSA::LithostaticEquilibriumSA(GlobalData *_gdata) : XProble
 	} else {
 
 		// Add the fluid with addBox 
-		addBox(GT_FLUID, FT_SOLID, Point(m_origin + make_double3(l/2.,l/2., (hw+hs)/2.)), l, l, hw+hs); 
+		addBox(GT_FLUID, FT_SOLID, Point(m_origin + make_double3(l/2.,l/2., (hw+hs)/2.)), l, l, hw+hs);
 		// Add the main container with addBox 
 		double boundary_thickness = simparams()->boundarytype == DYN_BOUNDARY ? 3*m_deltap : 0.0;
-		container = addBox(GT_FIXED_BOUNDARY, FT_BORDER, 
+		container = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 			Point(m_origin + make_double3(l/2.,l/2.,H/2.) - make_double3(0.0f)),
 				l+2*boundary_thickness, l+2*boundary_thickness, H+2*boundary_thickness);
 		setEraseOperation(container, ET_ERASE_NOTHING);
@@ -176,7 +184,7 @@ bool is_sediment(double4 const& pt, float hs)
 
 // Mass and density initialization
 	void
-LithostaticEquilibriumSA::initializeParticles(BufferList &buffers, const uint numParticles)
+LITHOSTATIC_PROBLEM::initializeParticles(BufferList &buffers, const uint numParticles)
 {
 #if 1
 	// Warn the user if this is expected to take much time
@@ -201,7 +209,7 @@ LithostaticEquilibriumSA::initializeParticles(BufferList &buffers, const uint nu
 		float tol = 1e-6;
 		if (FLUID(info[i])) {
 			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
-			if (pos_global[i].z <= hs + tol && 
+			if (pos_global[i].z <= hs + tol &&
 					pos_global[i].z >= hs - m_deltap) {
 				SET_FLAG(info[i], FG_INTERFACE);
 			}
@@ -239,7 +247,7 @@ LithostaticEquilibriumSA::initializeParticles(BufferList &buffers, const uint nu
 
 
 // since the fluid topology is roughly symmetric along Z through the whole simulation, prefer Z split
-void LithostaticEquilibriumSA::fillDeviceMap()
+void LITHOSTATIC_PROBLEM::fillDeviceMap()
 {
 	fillDeviceMapByAxis(Z_AXIS);
 }

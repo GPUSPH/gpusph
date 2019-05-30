@@ -23,15 +23,17 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _LITHOSTATICEQUILIBRIUMSA_H
-#define	_LITHOSTATICEQUILIBRIUMSA_H
+#ifndef _LITHOSTATIC_H
+#define	_LITHOSTATIC_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
+
 #include "Point.h"
 #include "Rect.h"
 #include "Cube.h"
 
-class LithostaticEquilibriumSA: public XProblem {
+class LITHOSTATIC_PROBLEM: public Problem {
 	private:
 		double		hw, hs; //water and sediment height;
 		double		H; // // reservoir height
@@ -39,10 +41,10 @@ class LithostaticEquilibriumSA: public XProblem {
 		bool		salomeGeom;
 
 	public:
-		LithostaticEquilibriumSA(GlobalData *);
+		LITHOSTATIC_PROBLEM(GlobalData *);
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 		void fillDeviceMap();
 };
 
 
-#endif	/* _LITHOSTATICEQUILIBRIUMSA_H */
+#endif	/* _LITHOSTATIC_H */

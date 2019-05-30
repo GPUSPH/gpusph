@@ -1,0 +1,5 @@
+#define LITHOSTATIC_BOUNDARY SA_BOUNDARY
+#define LITHOSTATIC_FLAGS ENABLE_MULTIFLUID | ENABLE_DTADAPT | ENABLE_DENSITY_SUM
+
+#include "LithostaticSA.h"
+#include "Lithostatic.inc"
