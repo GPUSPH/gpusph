@@ -445,6 +445,8 @@ class ProblemCore
 		{ return physparams()->set_visc_power_law(fluid_idx, n); }
 		void set_visc_exponential_coeff(size_t fluid_idx, float n)
 		{ return physparams()->set_visc_exponential_coeff(fluid_idx, n); }
+		void set_limiting_kinvisc(float max_visc)
+		{ return physparams()->set_limiting_kinvisc(max_visc); }
 		void set_sinpsi(size_t fluid_idx, float sinpsivalue)
 		{ return physparams()->set_sinpsi(fluid_idx, sinpsivalue); }
 		void set_limiting_kinviscosity(float max_visc)

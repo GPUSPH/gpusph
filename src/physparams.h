@@ -679,9 +679,9 @@ protected:
 		visc_regularization_param.at(fluid_idx) = m;
 	}
 
-	/// Set the maximum allowed viscosity
-	void set_limiting_kinviscosity(
-			float max_visc		///< [in] maximum allowed viscosity
+	/// Set the maximum allowed kinematic viscosity
+	void set_limiting_kinvisc(
+			float max_visc		///< [in] maximum allowed kinematic viscosity
 		) {
 		limiting_kinvisc = max_visc;
 	}
