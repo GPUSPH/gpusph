@@ -25,26 +25,32 @@
 
 #include <iostream>
 
-#include "BiFluidPoiseuilleFlowDB.h"
+#ifndef BIFLUIDPOISEUILLE_PROBLEM
+	#define BIFLUIDPOISEUILLE_PROBLEM BiFluidPoiseuilleSA
+#endif
+
+#include "utils.h"
+#include "BiFluidPoiseuille.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-BiFluidPoiseuilleFlowDB::BiFluidPoiseuilleFlowDB(GlobalData *_gdata) : XProblem(_gdata)
+BIFLUIDPOISEUILLE_PROBLEM::BIFLUIDPOISEUILLE_PROBLEM(GlobalData *_gdata) :
+	Problem(_gdata)
 {
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
 	const int RHODIFF = get_option("density-diffusion", 3);
 
 	SETUP_FRAMEWORK(
-			formulation<SPH_HA>,
-			viscosity<DYNAMICVISC>,
-			boundary<DYN_BOUNDARY>,
-			periodicity<PERIODIC_XY>,
-			add_flags<ENABLE_MULTIFLUID | ENABLE_DTADAPT>
-		       ).select_options(
-			       RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
-			       RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
-			       RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>()
-			       );
+		formulation<SPH_HA>,
+		viscosity<DYNAMICVISC>,
+		boundary<BIFLUIDPOISEUILLE_BOUNDARY>,
+		periodicity<PERIODIC_XY>,
+		add_flags<BIFLUIDPOISEUILLE_FLAGS>
+		).select_options(
+		RHODIFF == FERRARI, densitydiffusion<FERRARI>(),
+		RHODIFF == BREZZI, densitydiffusion<BREZZI>(),
+		RHODIFF == COLAGROSSI, densitydiffusion<COLAGROSSI>()
+	);
 
 	// SPH parameters
 	simparams()->sfactor = 1.3;
@@ -56,15 +62,24 @@ BiFluidPoiseuilleFlowDB::BiFluidPoiseuilleFlowDB(GlobalData *_gdata) : XProblem(
 	H = 2.0; // channel height
 	simparams()->densityDiffCoeff = 0.05;
 
-	margin = make_double3(0., 0, 0.2); // no margin in the periodic directions X & Y
+	if (simparams()->boundarytype == SA_BOUNDARY) {
+		margin = make_double3(0.0);
+	} else {
+		margin = make_double3(0., 0, 0.2); // no margin in the periodic directions X & Y
+	}
 
-	// Size and origin of the simulation domain
-	l = round_up(H/4., m_deltap);
-	a = round_up(H/4., m_deltap);
-	h = round_up(H, m_deltap);
+	if (simparams()->boundarytype == SA_BOUNDARY) {
+		// Size and origin of the simulation domain
+		l = H/4.; // channel length (X-perdiodic direction)
+		a = H/4.; // channel width (Y-periodic direction)
+	} else {
+		// Size and origin of the simulation domain
+		l = round_up(H/4., m_deltap);
+		a = round_up(H/4., m_deltap);
+		h = round_up(H, m_deltap);
+	}
 
-
-	m_size = make_double3(l, a, h) + 2*make_double3(margin.x, margin.y, margin.z);
+	m_size = make_double3(l, a, H) + 2.f*make_double3(margin.x, margin.y, margin.z);
 	m_origin = make_double3(-a/2., -l/2., -H/2.f) - make_double3(margin.x, margin.y, margin.z);
 
 	// Physical parameters
@@ -81,11 +96,11 @@ BiFluidPoiseuilleFlowDB::BiFluidPoiseuilleFlowDB(GlobalData *_gdata) : XProblem(
 	// Fluid 1
 	int config = 1;
 	/* Configurations description
-	   config = 0 -- standard one fluid Poiseuille flow
-	   config = 1 -- reference case omega = 4 / lambda = 4
-	   config = 2 -- high density ratio case with parabolic profile (same theoretical
-	   solution as the standard one fluid Poiseuille flow)
-	 */
+	config = 0 -- standard one fluid Poiseuille flow
+	config = 1 -- reference case omega = 4 / lambda = 4
+	config = 2 -- high density ratio case with parabolic profile (same theoretical
+	solution as the standard one fluid Poiseuille flow)
+	*/
 	if (config == 0) {
 		lambda = 1;
 		omega = 1;
@@ -104,20 +119,20 @@ BiFluidPoiseuilleFlowDB::BiFluidPoiseuilleFlowDB(GlobalData *_gdata) : XProblem(
 
 	/* Compute the max velocity in fluid 0 and fluid 1 */
 	const float umax0 = uref*(
-			(omega+2.*alpha*(lambda-1.)*omega+alpha*alpha*(1.+omega-2.*lambda*omega))*
-			(omega+2.*alpha*(lambda-1.)*omega+alpha*alpha*(1.+omega-2.*lambda*omega))/
-			(4*
-			 (alpha+lambda*omega-alpha*lambda*omega)*
-			 (alpha+lambda*omega-alpha*lambda*omega))
-			);
+		(omega+2.*alpha*(lambda-1.)*omega+alpha*alpha*(1.+omega-2.*lambda*omega))*
+		(omega+2.*alpha*(lambda-1.)*omega+alpha*alpha*(1.+omega-2.*lambda*omega))/
+		(4*
+		(alpha+lambda*omega-alpha*lambda*omega)*
+		(alpha+lambda*omega-alpha*lambda*omega))
+		);
 
 	const float umax1 = uref*(omega*
-			(alpha*(2.+alpha*(lambda-2.))+(alpha-1.)*(alpha-1.)*lambda*omega)*
-			(alpha*(2.+alpha*(lambda-2.))+(alpha-1.)*(alpha-1.)*lambda*omega)/
-			(4.*
-			 (alpha+lambda*omega-alpha*lambda*omega)*
-			 (alpha+lambda*omega-alpha*lambda*omega))
-			);
+		(alpha*(2.+alpha*(lambda-2.))+(alpha-1.)*(alpha-1.)*lambda*omega)*
+		(alpha*(2.+alpha*(lambda-2.))+(alpha-1.)*(alpha-1.)*lambda*omega)/
+		(4.*
+		(alpha+lambda*omega-alpha*lambda*omega)*
+		(alpha+lambda*omega-alpha*lambda*omega))
+		);
 
 	/* Compute the max velocity in the domaim */
 	const float umax = fmaxf(umax0, umax1);
@@ -128,40 +143,50 @@ BiFluidPoiseuilleFlowDB::BiFluidPoiseuilleFlowDB(GlobalData *_gdata) : XProblem(
 	bottom =add_fluid(rho0);
 	top =	add_fluid(rho1);
 
-	set_equation_of_state(top,  	7.0f, 10.f*umax);
-	set_equation_of_state(bottom,  	7.0f, 10.f*umax);
+	set_equation_of_state(top,	7.0f, 10.f*umax);
+	set_equation_of_state(bottom,	7.0f, 10.f*umax);
 
 	set_kinematic_visc(bottom, nu0);
 	set_kinematic_visc(top, nu1);
 
-	simparams()->tend = 250.f*tvisc; 
+	simparams()->tend = 250.f*tvisc;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1);
 
-
 	// Name of problem used for directory creation
-	m_name = "BiFluidPoiseuilleFlowDB";
+	m_name = "BiFluidPoiseuille";
 
-	// Building the geometry
-	dyn_layers = ceil(simparams()->influenceRadius/m_deltap) + 1;
-	// no extra offset in the X direction, since we have periodicity there
-	// no extra offset in the Y direction either
-	dyn_offset = dyn_layers*make_double3(0, 0, m_deltap);
-	// gap due to periodicity
-	const double3 periodicity_gap = make_double3(m_deltap/2, m_deltap/2, 0);
+	if (simparams()->boundarytype == SA_BOUNDARY) {
+		// Building the geometry
+		//*** Add the Fluid
+		GeometryID fluid = addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/PoiseuilleFlowSA/0.PoiseuilleFlowSA.fluid.h5sph", NULL);
 
-	/* Walls */
-	GeometryID walls = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
-		periodicity_gap + make_double3(0, 0, 0), l - m_deltap, a - m_deltap, H - m_deltap + 2*dyn_offset.z) ;
-	disableCollisions(walls);
-	GeometryID unfill_walls = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
-		periodicity_gap + make_double3(0, 0, 0), l - m_deltap, a - m_deltap, H - 2*m_deltap) ;
-	disableCollisions(unfill_walls);
-	setEraseOperation(unfill_walls, ET_ERASE_BOUNDARY);
-	/* Fluid */
-	addBox(GT_FLUID, FT_SOLID,
-		periodicity_gap + make_double3(0, 0, 0), l - m_deltap, a - m_deltap, H - m_deltap) ;
+		//*** Add the Main Container
+		GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/PoiseuilleFlowSA/0.PoiseuilleFlowSA.boundary.kent0.h5sph", NULL);
+		disableCollisions(container);
+	} else {
+		// Building the geometry
+		dyn_layers = ceil(simparams()->influenceRadius/m_deltap) + 1;
+		// no extra offset in the X direction, since we have periodicity there
+		// no extra offset in the Y direction either
+		dyn_offset = dyn_layers*make_double3(0, 0, m_deltap);
+		// gap due to periodicity
+		const double3 periodicity_gap = make_double3(m_deltap/2, m_deltap/2, 0);
+
+		/* Walls */
+		GeometryID walls = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+				periodicity_gap + make_double3(0, 0, 0), l - m_deltap, a - m_deltap, H - m_deltap + 2*dyn_offset.z) ;
+		disableCollisions(walls);
+		GeometryID unfill_walls = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
+				periodicity_gap + make_double3(0, 0, 0), l - m_deltap, a - m_deltap, H - 2*m_deltap) ;
+		disableCollisions(unfill_walls);
+		setEraseOperation(unfill_walls, ET_ERASE_BOUNDARY);
+		/* Fluid */
+		addBox(GT_FLUID, FT_SOLID,
+				periodicity_gap + make_double3(0, 0, 0), l - m_deltap, a - m_deltap, H - m_deltap) ;
+
+	}
 }
 
 // fluid 0 is in z < H*(alpha-0.5f) 
@@ -172,7 +197,7 @@ bool is_fluid0(double4 const& pt, float H, float alpha)
 
 // Mass and density initialization
 	void
-BiFluidPoiseuilleFlowDB::initializeParticles(BufferList &buffers, const uint numParticles)
+BIFLUIDPOISEUILLE_PROBLEM::initializeParticles(BufferList &buffers, const uint numParticles)
 {
 	// 1. warn the user if this is expected to take much time
 	printf("Initializing particles density and mass...\n");
@@ -189,6 +214,8 @@ BiFluidPoiseuilleFlowDB::initializeParticles(BufferList &buffers, const uint num
 			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
 		// with SPH_HA, the density of boundaries shouldn't have any effect.
 		// use the following condition to do some test.
+		} else if (VERTEX(info[i])) {
+			info[i]= make_particleinfo(PT_VERTEX, fluid_idx, i);
 		} else if (BOUNDARY(info[i])) {
 			info[i]= make_particleinfo(PT_BOUNDARY, fluid_idx, i);
 		}

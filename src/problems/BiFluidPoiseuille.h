@@ -23,22 +23,23 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _BIFLUIDPOISEUILLEFLOWDB_H
-#define	_BIFLUIDPOISEUILLEFLOWDB_H
+#ifndef _BIFLUIDPOISEUILLE_H
+#define	_BIFLUIDPOISEUILLE_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
+
 #include "Point.h"
 #include "Rect.h"
 #include "Cube.h"
 
-class BiFluidPoiseuilleFlowDB: public XProblem {
+class BIFLUIDPOISEUILLE_PROBLEM: public Problem {
 	private:
-		bool		use_side_walls; // use sidewalls or not
 		uint		dyn_layers;
 		double3		dyn_offset;
 		double3		margin;
 		double		a, l;  // channel length (along X) and width (along Y)
-		double		H, h; // channel height (along Z) and rounded channel height
+		double		H, h; // channel height (along Z) and rounded height
 		/* alpha is in [0; 1]
 			*for alpha=1 --> only fluid 0
 			*for alpha=0 --> only fluid 1
@@ -47,9 +48,9 @@ class BiFluidPoiseuilleFlowDB: public XProblem {
 	size_t top, bottom; // fluid indices
 
 	public:
-		BiFluidPoiseuilleFlowDB(GlobalData *);
+		BIFLUIDPOISEUILLE_PROBLEM(GlobalData *);
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 };
 
 
-#endif	/* _BIFLUIDPOISEUILLEFLOWDB_H */
+#endif	/* _BIFLUIDPOISEUILLE_H */

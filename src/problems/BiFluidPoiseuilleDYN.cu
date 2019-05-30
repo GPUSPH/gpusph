@@ -1,0 +1,5 @@
+#define BIFLUIDPOISEUILLE_BOUNDARY DYN_BOUNDARY
+#define BIFLUIDPOISEUILLE_FLAGS ENABLE_MULTIFLUID | ENABLE_DTADAPT
+
+#include "BiFluidPoiseuilleDYN.h"
+#include "BiFluidPoiseuille.inc"
