@@ -2255,7 +2255,6 @@ void GPUSPH::check_write(bool we_are_done)
 template<>
 void GPUSPH::runCommand<JACOBI_RESET_STOP_CRITERION>(CommandStruct const& cmd)
 {
-	printf("JACOBI PREP\n");
 	gdata->h_jacobiStop = false;
 	gdata->h_jacobiCounter = 0;
 }
@@ -2279,7 +2278,6 @@ void GPUSPH::runCommand<JACOBI_STOP_CRITERION>(CommandStruct const& cmd)
 	     gdata->h_jacobiResidual[0] < gdata->problem->simparams()->jacobi_residual) ||
 	     gdata->h_jacobiCounter > gdata->problem->simparams()->jacobi_maxiter) {
 		gdata->h_jacobiStop = true;
-		printf("TRUE - counter = %d\terror/error_threshold = %f\tresidual/residual_threshold = %f\n", gdata->h_jacobiCounter, gdata->h_jacobiBackwardError[0]/gdata->problem->simparams()->jacobi_backerr, gdata->h_jacobiResidual[0]/gdata->problem->simparams()->jacobi_residual);
 	} else {
 		gdata->h_jacobiCounter++;
 	}
