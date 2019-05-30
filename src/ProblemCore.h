@@ -447,12 +447,10 @@ class ProblemCore
 		{ return physparams()->set_visc_exponential_coeff(fluid_idx, n); }
 		void set_sinpsi(size_t fluid_idx, float sinpsivalue)
 		{ return physparams()->set_sinpsi(fluid_idx, sinpsivalue); }
+		void set_limiting_kinviscosity(float max_visc)
+		{return physparams()->set_limiting_kinviscosity(max_visc); }
 		void set_cohesion(size_t fluid_idx, float cohesionvalue)
 		{ return physparams()->set_cohesion(fluid_idx, cohesionvalue); }
-		void set_mineffvisc(size_t fluid_idx, float mineffviscvalue)
-		{ return physparams()->set_mineffvisc(fluid_idx, mineffviscvalue); }
-		void set_maxeffvisc(size_t fluid_idx, float maxeffviscvalue)
-		{ return physparams()->set_maxeffvisc(fluid_idx, maxeffviscvalue); }
 
 		float get_kinematic_visc(size_t fluid_idx) const
 		{ return physparams()->get_kinematic_visc(fluid_idx); }
@@ -470,10 +468,6 @@ class ProblemCore
 		{ return physparams()->get_sinpsi(fluid_idx); }
 		float get_cohesion(size_t fluid_idx) const
 		{ return physparams()->get_cohesion(fluid_idx); }
-		float get_mineffvisc(size_t fluid_idx) const
-		{ return physparams()->get_mineffvisc(fluid_idx); }
-		float get_maxeffvisc(size_t fluid_idx) const
-		{ return physparams()->get_maxeffvisc(fluid_idx); }
 
 
 		// simple functions to add gages. the third component

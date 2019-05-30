@@ -241,13 +241,11 @@ typedef struct PhysParams {
 	float limiting_kinvisc;
 	/** @} */
 
-	std::vector<float>	visccoeff;		///< Viscosity coefficient
+	std::vector<float>	visccoeff;		///< Viscosity coefficient, also used as Minimum effective viscosity parameter for granular rheology
 	std::vector<float>	visc2coeff;		///< Second viscosity coefficient, for Español & Revenga
 	//! Granular rheology parameters.
 	std::vector<float>	sinpsi;			///< Sinus of internal friction angle for granular rheology (yield stress parameter)
 	std::vector<float>	cohesion;				///< Cohesion parameter for granular rheology (yield stress parameter)
-	std::vector<float>	mineffvisc;				///< Minimum effective viscosity parameter for granular rheology. SI units: m²/s.
-	std::vector<float>	maxeffvisc;				///< Maximum effective viscosity parameter for granular rheology. SI units: m²/s.
 
 	//! Multiplicative coefficient in Monaghan's viscous model
 	/*! The Monaghan viscous operator can be described as
@@ -482,8 +480,6 @@ protected:
 		// Initialize granular rheology parameters
 		sinpsi.push_back(NAN);
 		cohesion.push_back(NAN);
-		mineffvisc.push_back(NAN);
-		maxeffvisc.push_back(NAN);
 
 		return rho0.size() - 1;
 	}
@@ -707,25 +703,6 @@ protected:
 			) {
 		cohesion.at(fluid_idx) = cohesionvalue;
 	}
-	/// Set the cohesion for granular rheology
-	/*! This sets the cohesion parameter \f$ c \f$ of a given fluid
-	*/
-	void set_mineffvisc(
-			size_t fluid_idx,       ///< [in] fluid number
-			float mineffviscvalue
-			) {
-		mineffvisc.at(fluid_idx) = mineffviscvalue;
-	}
-	/// Set the cohesion for granular rheology
-	/*! This sets the cohesion parameter \f$ c \f$ of a given fluid
-	*/
-	void set_maxeffvisc(
-			size_t fluid_idx,       ///< [in] fluid number
-			float maxeffviscvalue
-			) {
-		maxeffvisc.at(fluid_idx) = maxeffviscvalue;
-	}
-
 	/// Return the kinematic viscosity of a given fluid
 	/*! This function returns the kinematic viscosity \f$ \nu \f$ of a given fluid
 	 *
@@ -796,23 +773,6 @@ protected:
 			) const {
 		return cohesion.at(fluid_idx);
 	}
-	/// Return the cohesion for granular rheology
-	/*! This sets the cohesion parameter \f$ c \f$ of a given fluid
-	*/
-	float get_mineffvisc(
-			size_t fluid_idx       ///< [in] fluid number
-			) const {
-		return mineffvisc.at(fluid_idx);
-	}
-	/// Return the cohesion for granular rheology
-	/*! This sets the cohesion parameter \f$ c \f$ of a given fluid
-	*/
-	float get_maxeffvisc(
-			size_t fluid_idx       ///< [in] fluid number
-			) const {
-		return maxeffvisc.at(fluid_idx);
-	}
-
 	/** @} */
 
 } PhysParams;

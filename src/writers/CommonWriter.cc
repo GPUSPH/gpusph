@@ -495,8 +495,8 @@ CommonWriter::write_physparams(ostream &out)
 		if (SP->rheologytype == GRANULAR) {
 			out << "\tsinpsi[ " << f << " ] =  " << PP->sinpsi[f] << endl;
 			out << "\tcohesion[ " << f << " ] =  " << PP->cohesion[f] << endl;
-			out << "\tmineffvisc[ " << f << " ] =  " << PP->mineffvisc[f] << endl;
-			out << "\tmaxeffvisc[ " << f << " ] =  " << PP->maxeffvisc[f] << endl;
+			out << "\tmin dynamic effvisc[ " << f << " ] =  " << PP->rho0[f]*PP->visccoeff[f] << endl;
+			out << "\tmax dynamic effvisc[ " << f << " ] =  " << PP->rho0[f]*PP->limiting_kinvisc << endl;
 		}
 	}
 	for (uint f  = 0; f < PP->numFluids(); ++f)
