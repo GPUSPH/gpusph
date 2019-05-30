@@ -219,7 +219,14 @@ BIFLUIDPOISEUILLE_PROBLEM::initializeParticles(BufferList &buffers, const uint n
 		} else if (BOUNDARY(info[i])) {
 			info[i]= make_particleinfo(PT_BOUNDARY, fluid_idx, i);
 		}
-		pos[i].w *= physparams()->rho0[fluid_idx]/physparams()->rho0[0];
-		vel[i].w = 0.f;
+		// masses were initialized to 1 when using the addBox etc in the DYN case,
+		// but were initialized assuming rho0[0] in the SA case, so to get the proper
+		// mass for each particle type we have to multiply by a scale factor that depends
+		// on the boundary type we're using:
+		float mass_scale = physparams()->rho0[fluid_idx];
+		if (simparams()->boundarytype == SA_BOUNDARY)
+			mass_scale /= physparams()->rho0[0];
+		pos[i].w *= mass_scale;
+		vel[i].w = atrest_density(fluid_idx);
 	}
 }
