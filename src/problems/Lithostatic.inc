@@ -100,8 +100,6 @@ LITHOSTATIC_PROBLEM::LITHOSTATIC_PROBLEM(GlobalData *_gdata) :
 
 	// Fluid 1 (sediment)
 	const float rho1 = 1892.0f;
-	const float nu1 = 1.0e-6;
-	const float mu1 = nu1*rho1;
 
 	// Speed of sound (same for the two phases)
 	const float c0 = 10.f*sqrtf(g*H);
@@ -112,12 +110,16 @@ LITHOSTATIC_PROBLEM::LITHOSTATIC_PROBLEM(GlobalData *_gdata) :
 	add_fluid(rho0);
 	set_dynamic_visc(0, mu0);
 	add_fluid(rho1);
-	set_dynamic_visc(1, mu1);
 
 	set_sinpsi(1, 0.5);
 	set_cohesion(1, 0);
-	set_mineffvisc(1, 1e-6);
-	set_maxeffvisc(1, 1.0);
+	// lower bound of kinematic effective viscosity
+	// is set to the interstitial fluid viscosity
+	set_kinematic_visc(1, nu0);
+	// upper bound of kinematic effective viscosity
+	// (here we just want to validate effective pressure)
+	set_limiting_kinviscosity(1e-6);
+
 
 	set_equation_of_state(0,  7.0f, c0);
 	set_equation_of_state(1,  7.0f, c0);

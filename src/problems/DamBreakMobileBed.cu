@@ -69,7 +69,7 @@ DamBreakMobileBed::DamBreakMobileBed(GlobalData *_gdata) : XProblem(_gdata)
 	simparams()->densityDiffCoeff = 0.05f;
 
 	// Rheological parameters
-	effvisc_max = 0.0960952; 
+	effvisc_max = 0.0960952;
 
 	// Geometrical parameters
 	hs = 0.1f; // sediment height
@@ -96,8 +96,6 @@ DamBreakMobileBed::DamBreakMobileBed(GlobalData *_gdata) : XProblem(_gdata)
 	const float phi = 0.47; // porosity of the sediment
 	const float rhog = 2683.0f; // density of the grains
 	const float rho1 = phi*rho0 + (1.f - phi)*rhog; // density of the saturated bed
-	// const float mu1 = effvisc_max*rho1;
-	const float mu1 = effvisc_max*rho1;
 
 	// Speed of sound (same for the two phases)
 	const float c0 = 10.f*sqrtf(g*hw);
@@ -105,7 +103,14 @@ DamBreakMobileBed::DamBreakMobileBed(GlobalData *_gdata) : XProblem(_gdata)
 	add_fluid(rho0);
 	set_dynamic_visc(0, mu0);
 	add_fluid(rho1);
-	set_dynamic_visc(1, mu1);
+
+	set_sinpsi(1, 0.5);
+	set_cohesion(1, 0);
+	// lower bound of kinematic effective viscosity
+	// is set to the interstitial fluid viscosity
+	set_kinematic_visc(1, nu0);
+	// upper bound of kinematic effective viscosity
+	set_limiting_kinviscosity(effvisc_max);
 
 	set_equation_of_state(0,  7.0f, c0);
 	set_equation_of_state(1,  7.0f, c0);
