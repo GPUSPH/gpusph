@@ -154,7 +154,7 @@ template<
 		(_boundarytype == SA_BOUNDARY && (
 			// viscosity
 			_viscmodel != MORRIS			||	// untested
-			(_viscavgop != ARITHMETIC && _rheologytype != GRANULAR)		||	// untested
+			(_viscavgop != ARITHMETIC && _rheologytype != GRANULAR && _sph_formulation != SPH_HA)		||	// untested
 			_turbmodel == SPS			||	// untested
 			_turbmodel == ARTIFICIAL		||	// untested (use is discouraged, use density diffusion instead)
 			// kernel
