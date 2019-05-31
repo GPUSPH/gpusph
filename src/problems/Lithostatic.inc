@@ -118,7 +118,7 @@ LITHOSTATIC_PROBLEM::LITHOSTATIC_PROBLEM(GlobalData *_gdata) :
 	set_kinematic_visc(1, nu0);
 	// upper bound of kinematic effective viscosity
 	// (here we just want to validate effective pressure)
-	set_limiting_kinviscosity(1e-6);
+	set_limiting_kinvisc(1e-6);
 
 
 	set_equation_of_state(0,  7.0f, c0);

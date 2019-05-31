@@ -110,7 +110,7 @@ DamBreakMobileBed::DamBreakMobileBed(GlobalData *_gdata) : XProblem(_gdata)
 	// is set to the interstitial fluid viscosity
 	set_kinematic_visc(1, nu0);
 	// upper bound of kinematic effective viscosity
-	set_limiting_kinviscosity(effvisc_max);
+	set_limiting_kinvisc(effvisc_max);
 
 	set_equation_of_state(0,  7.0f, c0);
 	set_equation_of_state(1,  7.0f, c0);
