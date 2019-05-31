@@ -42,7 +42,11 @@ BIFLUIDPOISEUILLE_PROBLEM::BIFLUIDPOISEUILLE_PROBLEM(GlobalData *_gdata) :
 
 	SETUP_FRAMEWORK(
 		formulation<SPH_HA>,
-		viscosity<DYNAMICVISC>,
+		rheology<NEWTONIAN>,
+		turbulence_model<LAMINAR_FLOW>,
+		computational_visc<DYNAMIC>,
+		visc_model<MORRIS>,
+		visc_average<HARMONIC>,
 		boundary<BIFLUIDPOISEUILLE_BOUNDARY>,
 		periodicity<PERIODIC_XY>,
 		add_flags<BIFLUIDPOISEUILLE_FLAGS>
