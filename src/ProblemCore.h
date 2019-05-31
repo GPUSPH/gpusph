@@ -449,8 +449,6 @@ class ProblemCore
 		{ return physparams()->set_limiting_kinvisc(max_visc); }
 		void set_sinpsi(size_t fluid_idx, float sinpsivalue)
 		{ return physparams()->set_sinpsi(fluid_idx, sinpsivalue); }
-		void set_limiting_kinviscosity(float max_visc)
-		{return physparams()->set_limiting_kinviscosity(max_visc); }
 		void set_cohesion(size_t fluid_idx, float cohesionvalue)
 		{ return physparams()->set_cohesion(fluid_idx, cohesionvalue); }
 
