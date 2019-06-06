@@ -292,9 +292,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
-#if (__COMPUTE__ == 20)
-		dummy_shared = 2560;
-#endif
 
 		// Enforce FSboundary conditions
 		cuvisc::jacobiFSBoundaryConditionsDevice
@@ -372,8 +369,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
 		const	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-		if (boundarytype == SA_BOUNDARY)
-			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+
 		float *cfl = NULL;
 		float *tempCfl = NULL;
 
@@ -398,13 +394,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 		numBlocks = round_up(numBlocks, 4U);
-#if (__COMPUTE__ == 20)
-		dummy_shared = 2560;
-#endif
 
 		effpres_params<kerneltype, boundarytype> params(
 			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
@@ -426,17 +421,17 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		KERNEL_CHECK_ERROR;
 
 		// Unbind textures
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-
 		if (boundarytype == SA_BOUNDARY)
 			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 #endif
 		return cflmax(numBlocks, cfl, tempCfl);
 	}
-	
+
 	float
 	enforce_jacobi_wall_boundary_conditions(
 		const	BufferList& bufread,
@@ -447,7 +442,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	slength,
 		const	float	influenceradius)
 	{
-			
 		return enforce_jacobi_wall_boundary_conditions_implementation(
 			bufread,
 			bufwrite,
@@ -494,10 +488,8 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		// for SA
 		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
-		const 	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+		const	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-		if (boundarytype == SA_BOUNDARY)
-			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
 		const	float *effpres(bufread.getData<BUFFER_EFFPRES>());
 		float4	*jacobiBuffer = bufwrite.getData<BUFFER_JACOBI>();
@@ -509,14 +501,14 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, effpres, numParticles*sizeof(float)));
+
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
-#if (__COMPUTE__ == 20)
-		dummy_shared = 2560;
-#endif
 
-		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, effpres, numParticles*sizeof(float)));
 		effpres_params<kerneltype, boundarytype> params(
 			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
 			deltap,
@@ -534,23 +526,18 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 *	Rx = R.x
 		 */
 
-		// Copy the updated effpres (with Dirichlet and Neumann conditions enforced)
-		// into effpresTex
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
-		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, effpres, numParticles*sizeof(float)));
-
 		// Build Jacobi vectors D, Rx and B.
 		cuvisc::jacobiBuildVectorsDevice
 			<<<numBlocks, numThreads, dummy_shared>>>(params, jacobiBuffer);
 
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
+		KERNEL_CHECK_ERROR;
 
 		// Unbind textures
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
 		if (boundarytype == SA_BOUNDARY)
 			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 #if !PREFER_L1
 		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 #endif
@@ -633,9 +620,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
-#if (__COMPUTE__ == 20)
-		dummy_shared = 2560;
-#endif
 
 		/* Jacobi solver
 		 *---------------
