@@ -224,21 +224,15 @@ __device__ __forceinline__
 enable_if_t<KP::boundarytype == SA_BOUNDARY, float3>
 shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
 {
-	// dvx = -ref_vol ∑ vxij (ri - rj)/r ∂Wij/∂r
-	// dvy = -ref_vol ∑ vyij (ri - rj)/r ∂Wij/∂r
-	// dvz = -ref_vol ∑ vzij (ri - rj)/r ∂Wij/∂r
-	// but multiplication by ref_vol/gamma wil be done in shear_rate_fixup
-
+	// but multiplication by 1/gamma wil be done in shear_rate_fixup
+	// dvx = -1/gamma*∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r + 1/gamma*∑ vxij (ri - rj)/r ∂gamma/∂r
+	// dvy = -1/gamma*∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r + 1/gamma*∑ vyij (ri - rj)/r ∂gamma/∂r
+	// dvz = -1/gamma*∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r + 1/gamma*∑ vzij (ri - rj)/r ∂gamma/∂r
 	const auto nptype = PART_TYPE(ndata.info);
 
 	if (nptype != PT_BOUNDARY) {
-		// fluid and vertex contribution
 		const float f = F<KP::kerneltype>(ndata.r, params.slength);	// 1/r ∂Wij/∂r
-		// Initial volumes
-		const float neib_volume0 = ndata.relPos.w/d_rho0[ndata.fluid];
-		// Volume fractions (must be computed from initial volumes)
-		const float neib_theta = neib_volume0/pdata.ref_volume0;
-		const float weight = f*neib_theta;
+		const float weight = f*ndata.relPos.w/ndata.rho; // F_ij * V_j
 		return make_float3(ndata.relPos)*weight;
 	} else {
 		const float4 belem = tex1Dfetch(boundTex, ndata.index);
@@ -249,18 +243,7 @@ shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
 			params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
 		const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, normal_s);
 
-		// Boundary elements do not have mass. 
-		// To get their actual interpolated volume,
-		// we use the fact that neib_rho0/neib_rho = neib_volume/ref_volume0 
-		// --> neib_volume = neib_volume0*neib_rho0/neib_rho 
-		// with ref_volume0 = deltap^3
-
-		// For the sake of clarity, we denote: neib_mass0 = neib_volume0*neib_rho0
-		const float neib_mass0 = d_rho0[ndata.fluid]*pdata.ref_volume0;
-		// Then neib_ref_volume = neib_mass0/neib_rho
-		const float neib_ref_volume = neib_mass0/ndata.rho;
-
-		return -ggamAS*normal_s/neib_ref_volume;
+		return -ggamAS*normal_s;
 	}
 }
 
@@ -302,12 +285,7 @@ template<typename P_t, typename KP>
 __device__ __forceinline__
 enable_if_t<KP::boundarytype != SA_BOUNDARY>
 shear_rate_fixup(float3& dvx, float3& dvy, float3& dvz, P_t const& pdata, KP const& params)
-{ 
-	const float multiplier = pdata.pos.w/pdata.vel.w;
-	dvx *= multiplier;
-	dvy *= multiplier;
-	dvz *= multiplier;
-}
+{ /* do nothing */ }
 
 //! Post-neib-iteration fixup for dvx, dvy, dvz
 //! SA case
@@ -316,17 +294,7 @@ __device__ __forceinline__
 enable_if_t<KP::boundarytype == SA_BOUNDARY>
 shear_rate_fixup(float3& dvx, float3& dvy, float3& dvz, P_t const& pdata, KP const& params)
 {
-	// Fluid num
-	const uint p_fluid_num = fluid_num(pdata.info);
-	// Physical density
-	const float p_rho = physical_density(pdata.vel.w, p_fluid_num);
-	// Initial reference volume
-	const float ref_volume0 = params.deltap*params.deltap*params.deltap;
-	// Initial volume
-	const float volume0 = pdata.pos.w/d_rho0[p_fluid_num];
-	// Volume fractions (must be computed from initial volumes)
-	const float theta = volume0/ref_volume0;
-	const float multiplier = pdata.pos.w/(pdata.vel.w*pdata.gamma*theta);
+	const float multiplier = 1./pdata.gamma;
 	dvx *= multiplier;
 	dvy *= multiplier;
 	dvz *= multiplier;
