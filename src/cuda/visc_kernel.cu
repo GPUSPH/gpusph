@@ -880,7 +880,7 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> para
 	// to the reduction
 	do {
 		if (index >= params.numParticles)
-			return;
+			break;
 
 		const float oldEffPres = params.effpres[index];
 		// effpres initilization:
@@ -902,7 +902,7 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> para
 
 		// skip inactive particles
 		if (INACTIVE(pos))
-			return;
+			break;
 
 		const float4 vel = tex1Dfetch(velTex, index);
 
@@ -968,8 +968,6 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> para
 				newEffPres = 0.f;
 			}
 			params.effpres[index] = newEffPres;
-		} else {
-			return;
 		}
 	} while (0);
 	reduce_jacobi_error(params.cfl, backErr);
@@ -1079,7 +1077,7 @@ jacobiUpdateEffPresDevice(
 	// to the reduction
 	do {
 		if (index >= numParticles)
-			return;
+			break;
 
 		float newEffPres = 0.f;
 
