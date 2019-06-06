@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 # INPUT - The script expect the case directory as first argument.
 # OUTPUT - The script create a Results forlder inside the case folder and ouput six files:
@@ -12,7 +12,7 @@
 
 # package utilises
 import os # pour suivre des chemins dans un repertoire
-import sys # pour gérer les arguments du script
+import sys # to manage the script arguments
 import numpy as np # pour faire des maths
 import matplotlib.pyplot as plt # pour tracer des courbes
 import matplotlib as mpl
@@ -89,7 +89,7 @@ print("==========================")
 print("Reading summary file")
 print("==========================")
 
-Root_case = os.path.join('/home/alex/Software/gpusph/tests',Case)
+Root_case = Case
 
 summary_file = open(os.path.join(Root_case,'summary.txt'),'r')
 for fline in summary_file:
@@ -169,7 +169,7 @@ print("==========================")
 print("Reading Result files")
 print("==========================")
 
-Root = os.path.join('/home/alex/Software/gpusph/tests',Case,'data')
+Root = os.path.join(Case,'data')
 
 # Creer et configurer les variables vtk
 #r = vtk.vtkXMLUnstructuredGridReader()
@@ -292,9 +292,9 @@ effpres = np.zeros([Nt,Np_max],dtype=float)
 
 last_iteration = -1 # initialization
 
-Root_w = os.path.join('/home/alex/Software/gpusph/tests',Case,'Results')
+Root_w = os.path.join(Case,'Results')
 if (os.path.exists(Root_w+'/last_iteration.txt')):
-    w_file = open(Root_w+"/last_iteration.txt", "r") 
+    w_file = open(Root_w+"/last_iteration.txt", "r")
     last_iteration = int(w_file.read())
     w_file.close()
 
