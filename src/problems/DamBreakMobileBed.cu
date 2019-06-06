@@ -60,6 +60,10 @@ DamBreakMobileBed::DamBreakMobileBed(GlobalData *_gdata) : XProblem(_gdata)
 */
 	addPostProcess(INTERFACE_DETECTION);
 
+	simparams()->jacobi_maxiter = 10000;
+	simparams()->jacobi_backerr = 1e-3;
+	simparams()->jacobi_residual = 1e-3;
+
 	// SPH parameters
 	simparams()->sfactor = 1.3;
 	set_deltap(0.01);
