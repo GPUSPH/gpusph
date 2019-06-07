@@ -1099,6 +1099,299 @@ All the floating bodies dynamics is solved using Chrono engine. Basically GPUSPH
 on each body and feed them to Chrono engine that integrate the movement.\\
 Details under construction.
 
+\section{Granular rheology}
+More details on this model can be found in \cite{ghaïtanellis2017modelling} and \cite{ghaitanellis2018sph}.
+
+\subsection{Context}
+The main difficulty in modelling granular materials is that they cannot be classified as solids or liquids. Indeed they can behave like both of them under slightly different conditions. That is the reason why rheological approach is often adopted to model granular flows. In particular, soil is usually treated as a viscoplastic material. Thus it has a yield stress $\tauy$ under which no deformation occurs. When the yield stress is exceeded, the material starts to flow.
+In the present model, a single behaviour law is used to model the two mechanical behaviours. The granular material is modelled as a liquid that exhibits a very large viscosity when the strain rate vanishes. The solid state is thus approached by a highly viscous state.
+Except for viscosity which is not constant, granular phase is thus treated similarly to any other liquid phase.
+\subsection{Modelling assumptions}
+\label{subsec:modellingAssumptions}
+In this work, the granular material, being dry or saturated, is treated as a continuum. Under this assumption, the continuous medium represents a mixture of grains and air, or grains and water. Therefore, we need to define equivalent properties of the continuous material from the physical properties of the granular material components. The continuum properties should also depend on the grain concentration. In this model, the grain concentration will be assumed to be constant and homogeneous within the mixture domain. Therefore, in practise, $\phi$ is simply the porosity of the granular material at initial time.
+%
+In addition, the fluid surrounding the grains will be assumed to be at rest with respect to the granular material skeleton. Thus in the present work, we will only consider cases in which the material is initially totally dry (denoted by $^{\text{dry}}$) or fully saturated (denoted by $^{\text{sat}}$), and remains that way for ever. For the dry case, the mass of air in the pore is neglected, while for the saturated case, the equivalent density also depends on water density $\rhow$:
+%
+\begin{equation}
+\def\arraystretch{1.5}
+\left\lbrace \begin{array}{l}
+\rhoeq^{\text{dry}} = \left( 1 - \phi \right) \, \rhog \\
+\rhoeq^{\text{sat}} = \left( 1 - \phi \right) \, \rhog + \phi \, \rhow
+\end{array}\right.
+\label{eq:eqDensity}
+\end{equation}
+%
+We assume here that $\rhow$ and $\rhog$ are constant. Secondly, neglecting the flow through the porous material also implies that the pore water pressure field is unknown. Therefore, another approximation is necessary and the pore water pressure will be assumed to be hydrostatic.
+
+\subsection{Yield stress and effective pressure}
+
+There are many yield criteria that are adapted to the different kinds of viscoplastic materials. Although the Mohr-Coulomb criterion is widely used in geotechnical engineering, its implementation raises numerical issues because the corresponding yield surface is an irregular hexagonal pyramid. Thus, the Drucker-Prager yield criterion is usually used as a smooth alternative. It is a pressure-dependent model that can be expressed in terms of internal friction angle $\psi$ for non-cohesive soils as:
+\begin{equation}
+\tauy = \dfrac{2 \sqrt{3} \sin \psi }{3 - \sin \psi } \: \peff
+\label{eq:DPyieldStress}
+\end{equation}
+%
+where $\peff$ is the effective pressure, that is to say the normal stress that the grains actually exert on each other. Considering a situation where the stress configuration is close to the failure, almost no motion occurs within the material. Therefore, the isotropic stress (\textit{i.e.} the total pressure $\ptot$) is solely due to pressure derived from the weight of the column of material and interstitial fluid above a specified level. Consequently, denoting $z_{\text{i}}$ the soil-water interface vertical position, $z_{\text{fs}}$ the free-surface vertical position and $z$ the vertical position of the point of interest, the total pressure reads:
+ %
+ \begin{equation}
+\ptot = \rhow g \left( z_{\text{fs}} -  z_{\text{i}} \right) + \rhoeq^{\text{sat}} g \left( z_{\text{i}} - z \right)
+\label{eq:totalPressure}
+ \end{equation}
+
+Moreover, Terzaghi's principle \citep{terzaghi1936shearing} states that the effective pressure depends on the total pressure $\ptot$ and the pore water pressure $\ppw$ according to the following relation:
+%
+\begin{equation}
+\peff = \ptot - \ppw
+\label{eq:terzaghiRelation}
+\end{equation}
+%
+
+Assuming no porous flow inside the soil, the pore water pressure reads:
+ \begin{equation}
+\ppw = \rhow g \left( z_{\text{fs}} -  z \right)
+\label{eq:poreWaterPressure}
+ \end{equation}
+%
+Finally, effective pressure can be obtained using \eqref{eq:terzaghiRelation}:
+%
+\begin{equation}
+\peff = g \left(z_{\text{i}} - z \right)\left(\rhoeq^{\text{sat}} - \rhow \right)
+\label{eq:lithostaticTerzaghiEffectivePressure}
+\end{equation}
+%
+Nevertheless, getting $\peff$ from \eqref{eq:lithostaticTerzaghiEffectivePressure} requires to detect soil-water interface beforehand and can lead to inaccurate results when interface is highly deformed. Recall that $\rhow$ and $\rhoeq^{\text{sat}}$ are constant. In addition, $z_{\text{i}}$ is the function that gives the mixture-water interface above the point of interest, so it does not depend on the vertical coordinate. As long as the water-mixture interface is not too much deformed, we can besides assume that the interface varies linearly in the horizontal directions in the vicinity of the point of interest (this is the strongest assumption done in this reasoning). Thus, taking the Laplacian of \eqref{eq:lithostaticTerzaghiEffectivePressure} yields:
+
+\begin{equation}
+\Delta \peff = 0
+\label{eq:effectivePressureLaplaceEquation}
+\end{equation}
+taking the Laplacian of \eqref{eq:lithostaticTerzaghiEffectivePressure} with suitable boundary conditions we get the following system:
+
+
+%
+\begin{equation}
+\left\lbrace
+\begin{array}{llll}
+\Delta \peff \left( \vec{r} \right) & = & 0 & \quad \text{for} \quad \vec{r} \in \Omega\\
+&&&\\
+\peff \left( \vec{r} \right) & = & 0 & \quad \text{for} \quad \vec{r} \in \mathcal{I}\\
+&&&\\
+ \dfrac{\partial  \peff}{\partial \vec{n}} \left( \vec{r} \right) & = & \vec{g} \cdot \vec{n} & \quad \text{for} \quad \vec{r}\in \mathcal{S} \\
+\end{array}
+\right.
+\label{eq:effetivePressureSystem}
+\end{equation}
+%
+with $\Omega$ the simulation domain, $\mathcal{S}$ the solid boundaries, $\vec{n}$ the inward boundary normal and $\mathcal{I}$ the boundary corresponding to soil free-surface and soil-water interface. 
+
+In the present model $\peff$ is only used to compute the yield stress. It cannot be used in the momentum conservation equation, because \eqref{eq:effetivePressureSystem} is valid when the total pressure is approximately lithostatic, which is not true in yielded regions. Thus, the total pressure calculated with the state equation is used to compute the pressure gradient in the momentum conservation equation. This amounts to assume that the pore water pressure gradient can be neglected compared to the effective pressure gradient:
+\begin{equation}
+\vnabla \peff = \vnabla \ptot - \vnabla \ppw \approx \vnabla \ptot
+\end{equation}
+%
+Note that it would be possible to eliminate this approximation observing that \eqref{eq:effetivePressureSystem} can easily be adapted to compute the hydrostatic pore water pressure. The pressure gradient in the momentum conservation equation could thus be computed from $\ptot-\ppw$. This should be tested in future work.
+
+\subsection{Effective viscosity}
+The granular material is modelled as a shear thinning liquid. Thus the viscous fluid behaviour law is used to model the shear stress:
+
+\begin{equation}
+\vec{\tau} = 2 \, \etaeff \vec{S}
+\label{eq:fluidStressTensor}
+\end{equation}
+where the effective viscosity is thus defined by:
+
+\begin{equation}
+\etaeff = \dfrac{\tauy}{S}
+\label{eq:effectiveViscosity}
+\end{equation}
+
+where $\tauy$ is the yield stress calculated according to \eqref{eq:DPyieldStress}. Therefore, similarly to the $\mu(I)$ rheology \citep{jop2006constitutive,revil2013two}, the effective viscosity is related to the friction within the granular material, \textit{i.e.} it relates the shear stress to the isotropic stress and a friction coefficient $\mu$.
+\begin{equation}
+\tau (\psi, \peff) = \sqrt{\sum\limits_{i,j} \dfrac{\tau_{ij}\tau_{ij}}{2}} 
+%= \sqrt{\sum\limits_{i,j} 4 \etaeff^2 \dfrac{S_{ij}S_{ij}}{2}}
+%= \etaeff \sqrt{\sum\limits_{i,j} 2 S_{ij}S_{ij}}
+= \etaeff S
+= \tauy(\psi, \peff) = \dfrac{2 \sqrt{3} \sin \psi}{3-\sin \psi} \peff
+=\mu \peff 
+\end{equation}
+%
+with
+%
+\begin{equation}
+\mu = \dfrac{2 \sqrt{3} \sin \psi}{3-\sin \psi}
+\end{equation}
+
+Here the friction coefficient is constant in time since the internal friction $\psi$ is a constant parameter in our model. However, experimentally, the friction coefficient increases for large strain rate. Therefore, in future work, $\mu(I)$ rheology should be implemented to take this phenomenon into account.
+
+\subsection{SPH implementation}
+To compute effective viscosity from \eqref{eq:effectiveViscosity}, one needs to compute the shear rate and the effective pressure.
+\subsubsection{Shear rate computation}
+The shear rate requires the computation of the velocity gradient. In GPUSPH, the velocity gradient is computed as follows, regardless of the chosen formulation:
+
+\begin{equation}
+(\vnabla \vu)_a = - \sumbb V_b (\vu_a-\vu_b) \otimes \gwab
+\end{equation}
+This formula is based of the equality:
+\begin{equation}
+\nabla A = \nabla A - A \nabla 1
+\end{equation}
+which does not involve density gradient, and thus is compatible is multi-phase flows. This velocity gradient is consistent with Colagrossi and Landrini multi-phase formulation \citep{colagrossi2003numerical}.
+%
+The SA form reads:
+\begin{equation}
+(\vnabla \vu)_a = - \dfrac{1}{\gamma_a} \sumb V_b (\vu_a-\vu_b) \otimes \gwab
++ \dfrac{1}{\gamma_a} \sums (\vu_a-\vu_b) \otimes \vnabla \gamma_{as}
+\end{equation}
+
+Note that, to be consistent with SPH\_F1 formulation, one should use:
+\begin{equation}
+(\vnabla \vu)_a = \dfrac{-1}{\rho_a} \sumbb m_b (\vu_a-\vu_b) \otimes \gwab
+\end{equation}
+%
+This formula is based on the equality:
+\begin{equation}
+\nabla A = \frac{1}{\rho} \nabla \left( \rho A \right) - \dfrac{A}{\rho} \nabla \rho
+\end{equation}
+%
+Similarly to all SPH\_F1 operators, the velocity gradient involves a density gradient, which is not defined at the interface of two fluids of different densities. Thus, it cannot be used for multi-phase flows.
+
+To be consistent with SPH\_HA formulation \citep{hu2006multi}, the following formula should be used:
+\begin{equation}
+(\vnabla \vu)_a = -V_a \sumbb (\vu_a-\vu_b) \otimes \gwab
+\end{equation}
+This formula is based of the equality:
+\begin{equation}
+\nabla A = V \nabla \left( \dfrac{A}{V} \right) - V A \nabla \dfrac{1}{V}
+\end{equation}
+which does not involve density gradient.
+
+\subsubsection{Effective pressure solver}
+A Jacobi solver is used to solve the linear system \eqref{eq:effetivePressureSystem}. The solver is described in the framework of semi-analytical boundary conditions. The following notations are used:
+\begin{itemize}
+\item $\mathcal{M}$ set of free particle of granular material
+\item $\mathcal{I} \subset \mathcal{M} $ particles at the interface/free-surface
+\item $\mathcal{V}$ set of vertex particles
+\item $\mathcal{S}$ set of boundary elements
+\item Effective pressure is denoted $p$ for the sake of clarity
+\end{itemize}
+For dynamic particles and Lennard-Jones boundary conditions, boundary particles are treated like the SA vertex particles, and the SA boundary elements terms are just ignored.
+%
+Enforce the Dirichlet condition on interface/free-surface particles:
+\[ \forall a \in \mathcal{I} \qquad p_a =  \Delta \rho g \delta r \]
+%
+Enforce the Neumann condition on SA vertex particles (and non-SA boundary particles):
+\[ \forall a \in \mathcal{V} \qquad
+p_a = \dfrac{1}{\sumbf V_b \wab} \left( \sumbf V_b \left(p_b + \Delta\rho \, \vec{g} \cdot \left(\vec{r}_a - \vec{r}_b \right) \right) \wab \right)
+\]
+%
+Using the following notations:
+\[ \gwab = \wab' \: \eab \qquad \gGamAS = \gamma_{as}' \: \ns\]
+%
+The Morris' Laplacian of effective pressure reads:
+%
+\begin{equation*}
+L_a\{p_b\} = 
+\dfrac{2}{\gamma_a}\sumbfv V_b \dfrac{\wab'}{\rab} \left(p_a - p_b\right)
+- \dfrac{1}{\gamma_a}\sums \gamma_{as}' \left( \vnabla p_a + \vnabla p_s \right) \cdot \ns
+\end{equation*}
+%
+Boundary term treatment (only for SA boundary conditions):
+\begin{align*}
+ \left( \vnabla p_a + \vnabla p_s \right) \cdot \ns
+&=  \left( \dfrac{\partial p}{\partial n_s}\Bigr|_a + \dfrac{\partial p}{\partial n_s}\Bigr|_s \right) \\[0.9em]
+&\approx 2 \dfrac{\partial p}{\partial n_s}\Bigr|_s = 2 \Delta \rho \: \vec{g} \cdot \ns
+\end{align*}
+%
+Finally:
+%
+\begin{equation*}
+L_a\{p_b\} = 
+\dfrac{2}{\gamma_a}\sumbfv V_b \dfrac{\wab'}{\rab}  \left(p_a - p_b\right)
+- \dfrac{2}{\gamma_a}\sums \gamma_{as}' \Delta \rho \: \vec{g} \cdot \ns
+\end{equation*}
+Equation to solve within the granular media domain:
+%
+\begin{align*}
+\forall a \in \mathcal{M}\setminus \mathcal{I} \qquad \qquad
+L_a\{p_b\} &= 0 \\[0.8em]
+\sumbfv V_b \dfrac{\wab'}{\rab} \left( p_a - p_b \right)
+&= \sums \gamma_{as}' \Delta \rho \: \vec{g} \cdot \ns \\[0.8em]
+\sumbfv V_b \dfrac{\wab'}{\rab} p_a
+-\sumbfnoi V_b \dfrac{\wab'}{\rab} p_b &=
+\sum\limits_{b \in \mathcal{I} \cup \mathcal{V}} V_b \dfrac{\wab'}{\rab} p_b +
+\sums \gamma_{as}' \Delta \rho \: \vec{g} \cdot \ns \\[0.6em]
+\tens{A} \,\vec{x} & = \vec{b}
+\end{align*}
+%
+\[ \left\lbrace
+\begin{array}{l}
+x_a = p_a \\[0.9em]
+A_{aa} = \sumbfv V_b \dfrac{\wab'}{\rab} \\[0.9em]
+A_{ab} = -\sumbfnoi V_b \dfrac{\wab'}{\rab} \\[0.9em]
+b_a = \sum\limits_{b \in \mathcal{I} \cup \mathcal{V}} V_b \dfrac{\wab'}{\rab} p_b + \sums \gamma_{as}' \Delta \rho \: \vec{g} \cdot \ns
+\end{array} \right. \]
+
+The linear system to solve is:
+\[\tens{A} \, \vec{x} = \vec{b} \]
+%
+$\tens{A}$ can be decomposed into diagonal and remainder matrices $\tens{D}$ and $\tens{R}$:
+\[ \tens{A}  = \tens{D} + \tens{R} \]
+%
+The linear system can be re-written as:
+\[\tens{D} \, \vec{x} = \vec{b} - \tens{R} \, \vec{x}\]
+%
+Denoting $k$ the Jacobi solver iteration index:
+\[ \vec{x}^{k+1} = \tens{D}^{-1} \left( \vec{b} - \tens{R}\, \vec{x}^{k} \right) \]
+%
+The following stopping criterion is used:
+\[ \dfrac{|| \tens{A} \, \vec{x}^{k} - \vec{b} ||_\infty}{p_{\text{ref}}} < \epsilon_\text{res}\]
+%
+with $p_{\text{ref}} = \dfrac{\Delta\rho c_0^2}{100}$.
+%
+Denoting $k$ the Jacobi solver iteration index:
+\[ \vec{x}^{k+1} = \tens{D}^{-1} \left( \vec{b} - \tens{R}\cdot \vec{x}^{k} \right) \]
+%
+We need to build the vector $\vec{d}$ (diagonal elements), $\vec{b}$ (right hand-side term) and $\vec{rx}$ (matrix-vector product $\tens{R}\cdot \vec{x}^{k}$).
+%
+\[ \left\lbrace
+\begin{array}{l}
+d_{a} = \sumbfv V_b \dfrac{\wab'}{\rab} \\[1em]
+rx_{a} = -\sumbfnoi V_b \dfrac{\wab'}{\rab} p_b \\[1em]
+b_a = \sum\limits_{b \in \mathcal{I} \cup \mathcal{V}} V_b \dfrac{\wab'}{\rab} p_b + \sums \gamma_{as}' \Delta \rho \: \vec{g} \cdot \ns
+\end{array} \right. \]
+%
+
+In our case, the right hand-side term $\vec{b}$ partly depends on the previous Jacobi iteration:
+\begin{itemize}
+\item[$\rightarrow$] the vertex particles effective pressure must be updated every Jacobi iteration to ensure that the Neumann condition is properly enforced.
+\item[$\rightarrow$] the stopping criterion must also depend and the backward error on vertex:
+\[ \quad \max\limits_{a \in \mathcal{V}} \dfrac{|p_a^{k+1} - p_a^{k}|}{p_{\text{ref}}} < \epsilon_\text{err} \]
+%
+%
+\end{itemize}
+
+\textbf{Algorithm} \\
+\vspace*{0.25cm}
+
+\noindent
+\texttt{-enforce the Dirichlet BC at interface and free-surface free particles of the granular phase; \\
+-enforce the Neumann BC at vertex from the previous time-step; \\
+\textbf{while} stopping criterion is false \textbf{do}: \\
+\hspace*{1cm} -build $\vec{d}$, $\vec{b}$ and $\vec{rx}^{k}$; \\
+\hspace*{1cm} -compute $\vec{x}^{k+1}$ for free particles; \\
+\hspace*{1cm} -compute the residual inside the fluid domain; \\
+\hspace*{1cm} -enforce the Neumann BC at vertex from $\vec{x}^{k+1}$; \\
+\hspace*{1cm} -compute the backward error at vertex particles; \\
+\textbf{end}
+}
+
+\paragraph*{Remark}
+
+The criterion on the residual should be:
+\[ \dfrac{|| \tens{A} \, \vec{x}^{k} - \vec{b}^k ||_\infty}{p_{\text{ref}}} < \epsilon_\text{res}\]
+%
+However, the residual is computed while computing $\vec{x}$ for free particles. At this step, vertex particles still have the effective pressure of the previous iteration. But, to save an additional loop over the neighbours, we use the available variables anyway:
+\[ \dfrac{|| \tens{D} \, \vec{x}^{k} + \tens{R} \, \vec{x}^{k-1} - \vec{b}^{k-1} ||_\infty}{p_{\text{ref}}} < \epsilon_\text{res}\]
 \bibliography{../gpusph-manual.bib}
 
 \end{document}

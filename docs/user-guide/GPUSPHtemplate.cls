@@ -99,6 +99,37 @@
 \newcommand{\Div}{D}
 \newcommand{\Lap}{\textbf{L}}
 
+% Granular rheology shortcuts
+\newcommand{\tens}[1]{\vec{\vec{#1}}\,}
+\newcommand{\rhoeq}{\rho_{\text{eq}}}
+\newcommand{\etaeff}{\eta_{\text{eff}}}
+\newcommand{\peff}{p_{\text{eff}}}
+\newcommand{\rhow}{\rho_{\text{w}}}
+\newcommand{\rhog}{\rho_{\text{g}}}
+\newcommand{\tauy}{\tau_{\text{y}}}
+\newcommand{\ptot}{p_{\text{tot}}}
+\newcommand{\ppw}{p_{\text{pw}}}
+\newcommand{\wab}{w_{ab}}
+\newcommand{\gwab}{\vec{\nabla} w_{ab}}
+\newcommand{\gGamAS}{\vec{\nabla} \gamma_{as}}
+\newcommand{\gGamA}{\vec{\nabla} \gamma_{a}}
+\newcommand{\ns}{\vec{n}_{\,s}}
+\newcommand{\eab}{\vec{e}_{\,ab}}
+\newcommand{\sumb}{\sum\limits_{b\in \left(\mathcal{F} \cup \mathcal{V} \right)}}
+\newcommand{\sumbb}{\sum\limits_{b\in{\mathcal{F}}}}
+\newcommand{\sumbfv}{\sum\limits_{b\in \mathcal{M} \cup \mathcal{V}}}
+\newcommand{\sumbf}{\sum\limits_{b\in \mathcal{M}}}
+\newcommand{\sumbv}{\sum\limits_{b\in \mathcal{V}}}
+\newcommand{\sums}{\sum\limits_{s\in \mathcal{S}}}
+\newcommand{\sumbi}{\sum\limits_{b\in \mathcal{M} \cap \mathcal{I}}}
+\newcommand{\sumbfnoi}{\sum\limits_{b\in \mathcal{M} \setminus \mathcal{I}}}
+\newcommand{\dg}{d_{\text{g}}}
+\newcommand{\rab}{r_{ab}}
+\newcommand{\vnabla}{\vec{\nabla}}
+\newcommand{\vu}{\vec{u}} %velocity vector
+
+
+
 % current version
 \newcommand{\version}{5.0}
 \newcommand{\currentver}{version~\version}
