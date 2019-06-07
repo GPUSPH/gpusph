@@ -492,6 +492,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float *effvisc = buffers.getData<BUFFER_EFFVISC>();
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float *spsturbvisc = buffers.getData<BUFFER_SPS_TURBVISC>();
+	const float *effpres = buffers.getData<BUFFER_EFFPRES>();
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 	const float2 *priv2 = buffers.getData<BUFFER_PRIVATE2>();
@@ -691,6 +692,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// SPS eddy viscosity
 	if (spsturbvisc) {
 		appender.append_data(spsturbvisc, "SPS turbulent viscosity");
+	}
+
+	// effective pressure
+	if (effpres) {
+		appender.append_data(effpres, "Effective pressure");
 	}
 
 	/* Fluid number is only included if there are more than 1 */

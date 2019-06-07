@@ -534,7 +534,7 @@ bool too_many_neibs(const uint* neibs_num, ParticleType neib_type)
  * First and last particle index for grid cells and particle's information
  * are read through texture fetches.
  */
-template <SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound>
+template <SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
 			buildneibs_params<boundarytype> const& params,			// build neibs parameters
@@ -586,9 +586,11 @@ neibsInCell(
 			encode_cell = true;
 		neib_type = PART_TYPE(neib_info);
 
-		// LJ boundary particles should not have any boundary neighbor.
+		// LJ boundary particles should not have any boundary neighbor, except when
+		// rheologytype is GRANULAR.
 		// If we are here is because a FLOATING LJ boundary needs neibs.
-		if (boundarytype == LJ_BOUNDARY && boundary && BOUNDARY(neib_info))
+		if (boundarytype == LJ_BOUNDARY && boundary && BOUNDARY(neib_info) &&
+		    ViscSpec::rheologytype != GRANULAR)
 			continue;
 
 		// With dynamic boundaries, boundary parts don't interact with other boundary parts
@@ -849,6 +851,7 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 										float*			sortedTKE,			///< [out] new sorted k
 										float*			sortedEps,			///< [out] new sorted e
 										float*			sortedTurbVisc,		///< [out] new sorted eddy viscosity
+										float*			sortedEffPres,		///< [out] new sorted effective pressure
 										float4*			sortedEulerVel,		///< [out] new sorted IO/k-e boundary velocity (used in SA only)
 								const	uint*			unsortedNextIDs,	///< [in] old (unsorted) next ID for particle generators
 										uint*			sortedNextIDs,		///< [out] new sorted next ID for particle generators
@@ -974,6 +977,10 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
 		}
 
+		if (sortedEffPres) {
+			sortedEffPres[index] = tex1Dfetch(effpresTex, sortedIndex);
+		}
+
 		if (sortedEulerVel) {
 			sortedEulerVel[index] = tex1Dfetch(eulerVelTex, sortedIndex);
 		}
@@ -1010,7 +1017,7 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
  *
  *	TODO: finish implementation for SA_BOUNDARY (include PT_VERTEX)
  */
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound,
+template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
 	bool neibcount,
 	/* Number of shared arrays for the maximum number of neighbors:
 	 * this is 1 (counting fluid + boundary) for all boundary types, except
@@ -1052,6 +1059,9 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 			build_nl = build_nl || VERTEX(info) || BOUNDARY(info);
 		if (boundarytype == DYN_BOUNDARY)
 			build_nl = true;
+		if ((boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) &&
+		    ViscSpec::rheologytype == GRANULAR)
+			build_nl = build_nl || BOUNDARY(info);
 
 		// Exit if we have nothing to do
 		if (!build_nl)
@@ -1076,7 +1086,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		for(int z=-1; z<=1; z++) {
 			for(int y=-1; y<=1; y++) {
 				for(int x=-1; x<=1; x++) {
-					neibsInCell<sph_formulation, boundarytype, periodicbound>(params,
+					neibsInCell<sph_formulation, ViscSpec, boundarytype, periodicbound>(params,
 						gridPos,
 						make_int3(x, y, z),
 						(x + 1) + (y + 1)*3 + (z + 1)*9,

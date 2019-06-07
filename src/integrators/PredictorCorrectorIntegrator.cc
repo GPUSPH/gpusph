@@ -418,6 +418,8 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
 
 	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
+	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
+	static const bool has_sa = sp->boundarytype == SA_BOUNDARY; 
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
 
 	// TODO get from integrator
@@ -430,12 +432,11 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 
 	// at the beginning of the corrector, we move all ephemeral buffers from step n
 	// to the new step n*
-	if (step.last)
+	if (step.last) 
 		this_phase->add_command(MOVE_STATE_BUFFERS)
 			.set_src("step n")
 			.set_dst("step n*")
-			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS) );
-
+			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS | BUFFER_JACOBI) );
 
 	// for Grenier formulation, compute sigma and smoothed density
 	// TODO with boundary models requiring kernels for boundary conditions,
@@ -460,7 +461,9 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_step(step)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
-				BUFFER_VEL)
+				BUFFER_VEL |
+				(has_granular_rheology ? BUFFER_EFFPRES : BUFFER_NONE ) |
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
 			.writing(current_state,
 				BUFFER_TAU | BUFFER_SPS_TURBVISC | BUFFER_EFFVISC |
 				// When computing the effective viscosity, if adaptive time-stepping is enabled,
@@ -722,6 +725,20 @@ void PredictorCorrector::initializePhase<PredictorCorrector::INITIALIZATION>()
 }
 
 template<>
+void PredictorCorrector::initializePhase<PredictorCorrector::INIT_EFFPRES_PREP>()
+{
+	StepInfo step = step_info(0);
+	m_phase[INIT_EFFPRES_PREP] = initializeEffPresSolverPrepSequence(step);
+}
+
+template<>
+void PredictorCorrector::initializePhase<PredictorCorrector::INIT_EFFPRES>()
+{
+	StepInfo step = step_info(0);
+	m_phase[INIT_EFFPRES] = initializeEffPresSolverSequence(step);
+}
+
+template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::PREDICTOR>()
 {
 	StepInfo step = step_info(1);
@@ -736,6 +753,20 @@ void PredictorCorrector::initializePhase<PredictorCorrector::PREDICTOR_END>()
 }
 
 template<>
+void PredictorCorrector::initializePhase<PredictorCorrector::POSTPRED_EFFPRES_PREP>()
+{
+	StepInfo step = step_info(1);
+	m_phase[POSTPRED_EFFPRES_PREP] = initializeEffPresSolverPrepSequence(step);
+}
+
+template<>
+void PredictorCorrector::initializePhase<PredictorCorrector::POSTPRED_EFFPRES>()
+{
+	StepInfo step = step_info(1);
+	m_phase[POSTPRED_EFFPRES] = initializeEffPresSolverSequence(step);
+}
+
+template<>
 void PredictorCorrector::initializePhase<PredictorCorrector::CORRECTOR>()
 {
 	StepInfo step = step_info(2);
@@ -747,6 +778,20 @@ void PredictorCorrector::initializePhase<PredictorCorrector::CORRECTOR_END>()
 {
 	StepInfo step = step_info(2);
 	m_phase[CORRECTOR_END] = initializeNextStepSequence(step);
+}
+
+template<>
+void PredictorCorrector::initializePhase<PredictorCorrector::POSTCORR_EFFPRES_PREP>()
+{
+	StepInfo step = step_info(2);
+	m_phase[POSTCORR_EFFPRES_PREP] = initializeEffPresSolverPrepSequence(step);
+}
+
+template<>
+void PredictorCorrector::initializePhase<PredictorCorrector::POSTCORR_EFFPRES>()
+{
+	StepInfo step = step_info(2);
+	m_phase[POSTCORR_EFFPRES] = initializeEffPresSolverSequence(step);
 }
 
 template<>
@@ -848,11 +893,17 @@ PredictorCorrector::PredictorCorrector(GlobalData const* _gdata) :
 	initializePhase<INITIALIZATION>();
 
 	initializePhase<BEGIN_TIME_STEP>();
+	initializePhase<INIT_EFFPRES_PREP>();
+	initializePhase<INIT_EFFPRES>();
 
 	initializePhase<PREDICTOR>();
 	initializePhase<PREDICTOR_END>();
+	initializePhase<POSTPRED_EFFPRES_PREP>();
+	initializePhase<POSTPRED_EFFPRES>();
 	initializePhase<CORRECTOR>();
 	initializePhase<CORRECTOR_END>();
+	initializePhase<POSTCORR_EFFPRES_PREP>();
+	initializePhase<POSTCORR_EFFPRES>();
 
 	initializePhase<FILTER_INTRO>();
 	initializePhase<FILTER_CALL>();
@@ -891,26 +942,68 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 		return NEIBS_LIST;
 	case INITIALIZATION:
 		return BEGIN_TIME_STEP;
-	case BEGIN_TIME_STEP:
-		return NEIBS_LIST;
+	case INIT_EFFPRES_PREP:
+		return INIT_EFFPRES;
 	case PREDICTOR:
 		return PREDICTOR_END;
-	case PREDICTOR_END:
-		return CORRECTOR;
+	case POSTPRED_EFFPRES_PREP:
+		return POSTPRED_EFFPRES;
 	case CORRECTOR:
 		return CORRECTOR_END;
-	case CORRECTOR_END:
-		return BEGIN_TIME_STEP;
+	case POSTCORR_EFFPRES_PREP:
+		return POSTCORR_EFFPRES;
 	case FILTER_OUTRO:
 		return PREDICTOR;
 	default:
 		break;
 		// the other need special handling
 	}
-
 	const SimParams *sp = gdata->problem->simparams();
+	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	const unsigned long iterations = gdata->iterations;
 	static const FilterFreqList::const_iterator filters_end = m_enabled_filters.cend();
+	if (cur == BEGIN_TIME_STEP) {
+		if (!has_granular_rheology) {
+			return NEIBS_LIST;
+		} else {
+			return INIT_EFFPRES_PREP;
+		}
+	}
+	if (cur == PREDICTOR_END) {
+		if (!has_granular_rheology) {
+			return CORRECTOR;
+		} else {
+			return POSTPRED_EFFPRES_PREP;
+		}
+	}
+	if (cur == CORRECTOR_END) {
+		if (!has_granular_rheology) {
+			return BEGIN_TIME_STEP;
+		} else {
+			return POSTCORR_EFFPRES_PREP;
+		}
+	}
+	if (cur == INIT_EFFPRES) {
+		if (gdata->h_jacobiStop) {
+			return NEIBS_LIST;
+		} else {
+			return INIT_EFFPRES;
+		}
+	}
+	if (cur == POSTPRED_EFFPRES) {
+		if (gdata->h_jacobiStop) {
+			return CORRECTOR;
+		} else {
+			return POSTPRED_EFFPRES;
+		}
+	}
+	if (cur == POSTCORR_EFFPRES) {
+		if (gdata->h_jacobiStop) {
+			return BEGIN_TIME_STEP;
+		} else {
+			return POSTCORR_EFFPRES;
+		}
+	}
 
 	// after the first NEIBS_LIST, run INITIALIZATION
 	// otherwise, run FILTER_INTRO (if appropriate)
@@ -946,4 +1039,142 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	}
 
 	throw logic_error("unknown condition after phase " + to_string(cur));
+}
+
+Integrator::Phase *
+PredictorCorrector::initializeEffPresSolverPrepSequence(StepInfo const& step)
+{
+	SimParams const* sp = gdata->problem->simparams();
+	Phase *this_phase = new Phase(this,
+			step.number == 0 ? "initialization effpres preparation" :
+			step.number == 1 ? "post-predictor effpres preparation" :
+			step.number == 2 ? "post-corrector effpres preparation" : "this can't happen");
+
+	static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
+	/* Jacobi solver
+	 *---------------
+	 * The problem A.x = B is solved with A
+	 * a matrix decomposed in a diagonal matrix D
+	 * and a remainder matrix R:
+	 * 	A = D + R
+	 * The variable Rx contains the vector resulting from the matrix
+	 * vector product between R and x:
+	 *	Rx = R.x
+	 */
+
+	/* Effective pressure is computed for step n during initialization step,
+	 * for step n* after the integrator, and for step n+1 after the corrector
+	 */
+
+	string current_state = getCurrentStateForStep(step.number);
+	if (step.number == 2)
+		current_state = "step n";
+
+	// Enforce free-surface boundary conditions from the previous time step.
+	// Set the free-surface particles effective pressure to \approx 0
+	// All other particles remain untouched > we use updating
+	this_phase->add_command(JACOBI_FS_BOUNDARY_CONDITIONS)
+		.set_step(step)
+		.reading(current_state,
+				BUFFER_POS | BUFFER_INFO)
+		.updating(current_state, BUFFER_EFFPRES);
+	if (MULTI_DEVICE)
+		this_phase->add_command(UPDATE_EXTERNAL)
+			.updating(current_state, BUFFER_EFFPRES);
+
+	// Enforce wall boundary conditions from the previous Jacobi iteration
+	// Interpolate effective pressure for BOUNDARY particles (or VERTEX for SA)
+	// All other particles remain untouched > we use .updating
+	this_phase->add_command(JACOBI_WALL_BOUNDARY_CONDITIONS)
+		.set_step(step)
+		.reading(current_state,
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL |
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+		.writing(current_state, BUFFER_CFL | BUFFER_CFL_TEMP)
+		.updating(current_state, BUFFER_EFFPRES);
+	if (MULTI_DEVICE)
+		this_phase->add_command(UPDATE_EXTERNAL)
+			.updating(current_state, BUFFER_EFFPRES);
+
+	this_phase->add_command(JACOBI_RESET_STOP_CRITERION);
+	return this_phase;
+}
+
+Integrator::Phase *
+PredictorCorrector::initializeEffPresSolverSequence(StepInfo const& step)
+{
+	SimParams const* sp = gdata->problem->simparams();
+	Phase *this_phase = new Phase(this,
+			step.number == 0 ? "initialization effpres calculation" :
+			step.number == 1 ? "post-predictor effpres calculation" :
+			step.number == 2 ? "post-corrector effpres calculation" : "this can't happen");
+
+	static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
+	/* Jacobi solver
+	 *---------------
+	 * The problem A.x = B is solved with A
+	 * a matrix decomposed in a diagonal matrix D
+	 * and a remainder matrix R:
+	 * 	A = D + R
+	 * The variable Rx contains the vector resulting from the matrix
+	 * vector product between R and x:
+	 *	Rx = R.x
+	 */
+
+	/* Effective pressure is computed for step n during initialization step,
+	 * for step n* after the integrator, and for step n+1 after the corrector
+	 */
+
+	string current_state = getCurrentStateForStep(step.number);
+	if (step.number == 2)
+		current_state = "step n";
+
+	// Build Jacobi vectors D, Rx and B.
+	// Jacobi vectors are calculated, written and updated to external
+	this_phase->add_command(JACOBI_BUILD_VECTORS)
+		.reading(current_state,
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL | BUFFER_EFFPRES |
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+		.writing(current_state, BUFFER_JACOBI);
+	if (MULTI_DEVICE)
+		this_phase->add_command(UPDATE_EXTERNAL)
+			.updating(current_state, BUFFER_JACOBI);
+
+	// Update effpres and compute the residual per particle
+	// Effective pressure of FLUIF particles (not of the free-surface) are
+	// computed. All other particles remain untouched > we use .updating
+	this_phase->add_command(JACOBI_UPDATE_EFFPRES)
+		.reading(current_state, BUFFER_INFO | BUFFER_JACOBI)
+		.writing(current_state, BUFFER_CFL | BUFFER_CFL_TEMP)
+		.updating(current_state, BUFFER_EFFPRES);
+	if (MULTI_DEVICE)
+		this_phase->add_command(UPDATE_EXTERNAL)
+			.updating(current_state, BUFFER_EFFPRES);
+
+	// Enforce wall boundary conditions from the previous Jacobi iteration
+	// Interpolate effective pressure for BOUNDARY particles (or VERTEX for SA)
+	// All other particles remain untouched > we use .updating
+	this_phase->add_command(JACOBI_WALL_BOUNDARY_CONDITIONS)
+		.set_step(step)
+		.reading(current_state,
+				BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST |
+				BUFFER_VEL |
+				(has_sa ? BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS : BUFFER_NONE))
+		.writing(current_state, BUFFER_CFL | BUFFER_CFL_TEMP)
+		.updating(current_state, BUFFER_EFFPRES);
+	if (MULTI_DEVICE)
+		this_phase->add_command(UPDATE_EXTERNAL)
+			.updating(current_state, BUFFER_EFFPRES);
+
+	if (step.number == 1)
+		this_phase->add_command(SWAP_STATE_BUFFERS)
+			.set_src("step n*")
+			.set_dst("step n")
+			.set_flags(BUFFER_EFFPRES);
+
+	this_phase->add_command(JACOBI_STOP_CRITERION);
+
+	return this_phase;
 }

@@ -445,6 +445,12 @@ class ProblemCore
 		{ return physparams()->set_visc_power_law(fluid_idx, n); }
 		void set_visc_exponential_coeff(size_t fluid_idx, float n)
 		{ return physparams()->set_visc_exponential_coeff(fluid_idx, n); }
+		void set_limiting_kinvisc(float max_visc)
+		{ return physparams()->set_limiting_kinvisc(max_visc); }
+		void set_sinpsi(size_t fluid_idx, float sinpsivalue)
+		{ return physparams()->set_sinpsi(fluid_idx, sinpsivalue); }
+		void set_cohesion(size_t fluid_idx, float cohesionvalue)
+		{ return physparams()->set_cohesion(fluid_idx, cohesionvalue); }
 
 		float get_kinematic_visc(size_t fluid_idx) const
 		{ return physparams()->get_kinematic_visc(fluid_idx); }
@@ -458,6 +464,11 @@ class ProblemCore
 		{ return physparams()->get_visc_power_law(fluid_idx); }
 		float get_visc_exponential_coeff(size_t fluid_idx) const
 		{ return physparams()->get_visc_exponential_coeff(fluid_idx); }
+		float get_sinpsi(size_t fluid_idx) const
+		{ return physparams()->get_sinpsi(fluid_idx); }
+		float get_cohesion(size_t fluid_idx) const
+		{ return physparams()->get_cohesion(fluid_idx); }
+
 
 		// simple functions to add gages. the third component
 		// is actually ignored
@@ -591,6 +602,9 @@ class ProblemCore
 
 		/* Initialize eddy viscosity */
 		virtual void init_turbvisc(BufferList &, uint numParticles);
+
+		/* Initialize effective pressure */
+		virtual void init_effpres(BufferList &, uint numParticles);
 
 		//! @userfunc
 		//! @label{Prescribe custom open boundary conditions}

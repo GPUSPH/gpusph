@@ -27,7 +27,7 @@ __constant__ float	d_MK_K;		///< This is typically the square of the maximum vel
 __constant__ float	d_MK_d;		///< This is typically the distance between boundary particles
 __constant__ float	d_MK_beta;	///< This is typically the ration between h and the distance between boundary particles
 
-__constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient or consistency index for laminar viscosity
+__constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient or consistency index for laminar viscosity or lower of kinematic effective viscosity for granular rheology
 __constant__ float	d_visc2coeff[MAX_FLUID_TYPES]; ///< second viscous coefficient or bulk viscosity
 __constant__ float	d_yield_strength[MAX_FLUID_TYPES]; ///< yield strength for Bingham and Herschel–Bulkley rheology
 __constant__ float	d_visc_nonlinear_param[MAX_FLUID_TYPES]; ///< exponent for power-law and Herschel–Bulkley rheology, exponential coefficient for Zhu and DeKee & Turcotte
@@ -35,6 +35,10 @@ __constant__ float	d_visc_regularization_param[MAX_FLUID_TYPES]; ///< Papanastas
 
 __constant__ float	d_limiting_kinvisc; ///< upper bound to the viscosity
 __constant__ float	d_monaghan_visc_coeff; ///< multiplicative coefficient in Monaghan's viscous model
+
+// granular rheology parameters
+__constant__ float	d_sinpsi[MAX_FLUID_TYPES];// sinus of internal friction angle for granular rheology (yield stress parameter)
+__constant__ float	d_cohesion[MAX_FLUID_TYPES];// sinus of internal friction angle for granular rheology (yield stress parameter)
 
 // Artificial viscosity parameters
 __constant__ float	d_artvisccoeff;					///< viscous coefficient for artificial viscosity

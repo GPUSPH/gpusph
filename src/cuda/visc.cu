@@ -72,6 +72,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 				BufferList& bufwrite,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
+		const	float	deltap,
 		const	float	slength,
 		const	float	influenceradius,
 		const	This *)
@@ -85,6 +86,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 				BufferList& bufwrite,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
+		const	float	deltap,
 		const	float	slength,
 		const	float	influenceradius,
 		const	This *)
@@ -121,18 +123,38 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
+		// for granular flows
+		const float *effpres = bufread.getData<BUFFER_EFFPRES>();
+		if (ViscSpec::rheologytype == GRANULAR)
+			CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, effpres, numParticles*sizeof(float)));
+
+		// for SA
+		const float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
+		const float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+		const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+
 		uint numThreads = BLOCK_SIZE_SPS;
 		// number of blocks, rounded up to next multiple of 4 to improve reductions
 		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
 
 		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
 			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			deltap,
+			gGam, vertPos,
 			effvisc, cfl);
 
 		cuvisc::effectiveViscDevice<<<numBlocks, numThreads>>>(params);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
+
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+
+		if (ViscSpec::rheologytype == GRANULAR)
+			CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -155,6 +177,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 				BufferList& bufwrite,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
+		const	float	deltap,
 		const	float	slength,
 		const	float	influenceradius,
 		const	This *)
@@ -218,12 +241,430 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 				BufferList& bufwrite,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
+		const	float	deltap,
 		const	float	slength,
 		const	float	influenceradius)
 	{
 		return calc_visc_implementation(bufread, bufwrite,
-			numParticles, particleRangeEnd, slength, influenceradius, this);
+			numParticles, particleRangeEnd, deltap, slength, influenceradius, this);
 	}
+
+	/* First step of the Jacobi solver for the effective pressure:
+	 * the Dirichlet condition is enforced of fluid particle at the free-surface or
+	 * at the interface. This is run only once before the iterative loop.
+	*/
+	template<typename This>
+	enable_if_t<This::rheologytype != GRANULAR, void>
+	enforce_jacobi_fs_boundary_conditions_implementation(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+		{ /* do nothing */ }
+
+	template<typename This>
+	enable_if_t<This::rheologytype == GRANULAR, void>
+	enforce_jacobi_fs_boundary_conditions_implementation(
+		const	BufferList& bufread,
+			BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+	{
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+
+		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
+
+		int dummy_shared = 0;
+		// bind textures to read all particles, not only internal ones
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+#endif
+		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+		uint numThreads = BLOCK_SIZE_SPS;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+		// Enforce FSboundary conditions
+		cuvisc::jacobiFSBoundaryConditionsDevice
+			<<<numBlocks, numThreads, dummy_shared>>>(pos, effpres, numParticles, deltap);
+
+		KERNEL_CHECK_ERROR;
+
+		// Unbind textures
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+#endif
+	}
+
+	void
+	enforce_jacobi_fs_boundary_conditions(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius)
+	{
+		return enforce_jacobi_fs_boundary_conditions_implementation(
+			bufread,
+			bufwrite,
+			numParticles,
+			particleRangeEnd,
+			deltap,
+			slength,
+			influenceradius,
+			this);
+	}
+
+	/* Second step of the Jacobi solver.
+	 * The Neuman homogeneous boundary condition in enforced on boundary particles 
+	 * (vertex for SA) interpolating the effective pressure from the free particles of sediment.
+	 * This is run once before the itrative loop, and at the end of every iteration.
+	 * This returns a float being the backward error, used to evaluate the convergence at boundaries.
+	*/
+	template<typename This>
+	enable_if_t<This::rheologytype != GRANULAR,float>
+	enforce_jacobi_wall_boundary_conditions_implementation(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+		{ return NAN; /* do nothing */ }
+
+	template<typename This>
+	enable_if_t<This::rheologytype == GRANULAR, float >
+	enforce_jacobi_wall_boundary_conditions_implementation(
+		const	BufferList& bufread,
+			BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+	{
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+		// for SA
+		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
+		const	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+
+		float *cfl = NULL;
+		float *tempCfl = NULL;
+
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		if (cfl_buf) {
+			auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+
+			cfl_buf->clobber();
+			tempCfl_buf->clobber();
+
+			// get the (typed) pointers
+			cfl = cfl_buf->get();
+			tempCfl = tempCfl_buf->get();
+		}
+
+		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
+
+		int dummy_shared = 0;
+		// bind textures to read all particles, not only internal ones
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+#endif
+		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+
+		uint numThreads = BLOCK_SIZE_SPS;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+		numBlocks = round_up(numBlocks, 4U);
+
+		effpres_params<kerneltype, boundarytype> params(
+			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			deltap,
+			gGam, vertPos,
+			effpres, cfl);
+
+		/* The backward error on vertex effective pressure is used as an additional
+		 * stopping criterion (the residual being the main criterion). This helps in particular
+		 * at the initialization step where A.x = B can be approximately verified when effective
+		 * pressure is initialized to zero eveywhere.
+		 */
+
+		// Enforce boundary conditions from the previous time step
+		cuvisc::jacobiWallBoundaryConditionsDevice
+			<<<numBlocks, numThreads, dummy_shared>>>(params);
+
+		// check if kernel invocation generated an error
+		KERNEL_CHECK_ERROR;
+
+		// Unbind textures
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+#endif
+		return cflmax(numBlocks, cfl, tempCfl);
+	}
+
+	float
+	enforce_jacobi_wall_boundary_conditions(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius)
+	{
+		return enforce_jacobi_wall_boundary_conditions_implementation(
+			bufread,
+			bufwrite,
+			numParticles,
+			particleRangeEnd,
+			deltap,
+			slength,
+			influenceradius,
+			this);
+	}
+
+
+	template<typename This>
+	enable_if_t<This::rheologytype != GRANULAR,void>
+	build_jacobi_vectors_implementation(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+	{ }
+
+	template<typename This>
+	enable_if_t<This::rheologytype == GRANULAR, void>
+	build_jacobi_vectors_implementation(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+	{
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>(); 
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+		// for SA
+		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
+		const	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
+		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
+
+		const	float *effpres(bufread.getData<BUFFER_EFFPRES>());
+		float4	*jacobiBuffer = bufwrite.getData<BUFFER_JACOBI>();
+
+		int dummy_shared = 0;
+		// bind textures to read all particles, not only internal ones
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+#endif
+		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, effpres, numParticles*sizeof(float)));
+
+
+		uint numThreads = BLOCK_SIZE_SPS;
+		uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+		effpres_params<kerneltype, boundarytype> params(
+			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			deltap,
+			gGam, vertPos,
+			NULL, NULL);
+
+		/* Jacobi solver
+		 *---------------
+		 * The problem A.x = B is solved with A
+		 * a matrix decomposed in a diagonal matrix D
+		 * and a remainder matrix R:
+		 * 	A = D + R
+		 * The variable Rx contains the vector resulting from the matrix
+		 * vector product between R and x:
+		 *	Rx = R.x
+		 */
+
+		// Build Jacobi vectors D, Rx and B.
+		cuvisc::jacobiBuildVectorsDevice
+			<<<numBlocks, numThreads, dummy_shared>>>(params, jacobiBuffer);
+
+		KERNEL_CHECK_ERROR;
+
+		// Unbind textures
+		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
+		if (boundarytype == SA_BOUNDARY)
+			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+#endif
+	}
+
+	void
+	build_jacobi_vectors(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius)
+	{
+	build_jacobi_vectors_implementation(
+		bufread,
+		bufwrite,
+		numParticles,
+		particleRangeEnd,
+		deltap,
+		slength,
+		influenceradius,
+		this);
+
+	 }
+
+
+	template<typename This>
+	enable_if_t<This::rheologytype != GRANULAR,float>
+	update_jacobi_effpres_implementation(
+		const	BufferList& bufread,
+		BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+	{ return 0.; /* do nothing */}
+
+	template<typename This>
+	enable_if_t<This::rheologytype == GRANULAR, float>
+	update_jacobi_effpres_implementation(
+		const	BufferList& bufread,
+		BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	This *)
+	{
+		/* We recycle the CFL arrays to determine the maximum residual
+		 */
+		float *cfl = NULL;
+		float *tempCfl = NULL;
+
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		if (cfl_buf) {
+			auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+
+			cfl_buf->clobber();
+			tempCfl_buf->clobber();
+
+			// get the (typed) pointers
+			cfl = cfl_buf->get();
+			tempCfl = tempCfl_buf->get();
+		}
+
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+
+		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
+
+		const float4 * jacobiBuffer = bufread.getData<BUFFER_JACOBI>();
+
+		int dummy_shared = 0;
+		// bind textures to read all particles, not only internal ones
+		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+		uint numThreads = BLOCK_SIZE_SPS;
+		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
+
+		/* Jacobi solver
+		 *---------------
+		 * The problem A.x = B is solved with A
+		 * a matrix decomposed in a diagonal matrix D
+		 * and a remainder matrix R:
+		 * 	A = D + R
+		 * The variable Rx contains the vector resulting from the matrix
+		 * vector product between R and x:
+		 *	Rx = R.x
+		 */
+
+		// Update effpres and compute the residual per particle
+		cuvisc::jacobiUpdateEffPresDevice
+			<<<numBlocks, numThreads, dummy_shared>>>(jacobiBuffer, effpres, cfl, numParticles);
+
+		// check if kernel invocation generated an error
+		KERNEL_CHECK_ERROR;
+
+		// Unbind textures
+		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		return cflmax(numBlocks, cfl, tempCfl);
+	}
+
+	float
+	update_jacobi_effpres(
+		const	BufferList& bufread,
+		BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius)
+	{
+		return update_jacobi_effpres_implementation(
+				bufread,
+				bufwrite,
+				numParticles,
+				particleRangeEnd,
+				deltap,
+				slength,
+				influenceradius,
+				this);
+	}
+
 
 };
 

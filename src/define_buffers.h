@@ -163,7 +163,29 @@ SET_BUFFER_TRAITS(BUFFER_DKDE, float3, 1, "[k]-[e] derivatives");
 #define BUFFER_EFFVISC		(BUFFER_DKDE << 1)
 SET_BUFFER_TRAITS(BUFFER_EFFVISC, float, 1, "Effective viscosity");
 
-#define BUFFER_EULERVEL			(BUFFER_EFFVISC << 1)
+/** Effective pressure array
+ * This is used to hold the effective pressure in sediment in models where it's necessary.
+ */
+#define BUFFER_EFFPRES			(BUFFER_EFFVISC << 1)
+SET_BUFFER_TRAITS(BUFFER_EFFPRES, float, 1, "Effective Pressure");
+/* Jacobi solver
+ *---------------
+ * The problem A.x = B is solved with A
+ * a matrix decomposed in a diagonal matrix D
+ * and a remainder matrix R:
+ * 	A = D + R
+ * The variable Rx contains the vector resulting from the matrix
+ * vector product between R and x:
+ *	Rx = R.x
+ * JACOBI_BUFFER is used to store the vectors D, Rx and B:
+ * 	jacobiBuffer.x = D
+ * 	jacobiBuffer.y = Rx
+ * 	jacobiBuffer.z = B
+ * 	jacobiBuffer.w is unsed
+*/
+#define BUFFER_JACOBI			(BUFFER_EFFPRES << 1)
+SET_BUFFER_TRAITS(BUFFER_JACOBI, float4, 1, "Jacobi vectors");
+#define BUFFER_EULERVEL			(BUFFER_JACOBI << 1)
 SET_BUFFER_TRAITS(BUFFER_EULERVEL, float4, 1, "Eulerian velocity");
 
 /** Next ID of generated particle
@@ -263,7 +285,14 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 		BUFFER_TKE | \
 		BUFFER_EPSILON | \
 		BUFFER_TURBVISC | \
-		BUFFER_VOLUME)
+		BUFFER_VOLUME | \
+		BUFFER_EFFPRES)
+
+#define POST_FORCES_UPDATE_BUFFERS \
+	(	BUFFER_FORCES | \
+		BUFFER_INTERNAL_ENERGY_UPD | \
+		BUFFER_XSPH | \
+		BUFFER_DKDE)
 
 //! Buffers that evolve during the repacking
 //! TODO FIXME these should be per-integrator definitions, and handled by the

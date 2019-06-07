@@ -102,6 +102,15 @@ DEFINE_COMMAND_NOBUF(CHECK_NEWNUMPARTS)
 /// Dump the particle system state for debugging
 DEFINE_COMMAND_NOBUF(DEBUG_DUMP)
 
+/// Stop criterion of the Jacobi solver used to compute effective pressure (granular rheology)
+/*! Reduce Jacobi backward error and residual, and determine
+whether the solver should stop based one simulation paramters
+jacobi_maxiter, jacobi_backerr and jacobi_residual.
+ */
+DEFINE_COMMAND_BUF(JACOBI_STOP_CRITERION, true)
+/// Reset the Jacobi solver stop criterion before entering the solver loop.
+DEFINE_COMMAND_BUF(JACOBI_RESET_STOP_CRITERION, true)
+
 /// Not an actual command ;-)
 DEFINE_COMMAND_NOBUF(NUM_COMMANDS)
 

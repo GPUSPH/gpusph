@@ -154,7 +154,7 @@ template<
 		(_boundarytype == SA_BOUNDARY && (
 			// viscosity
 			_viscmodel != MORRIS			||	// untested
-			_viscavgop != ARITHMETIC		||	// untested
+			(_viscavgop != ARITHMETIC && _rheologytype != GRANULAR && _sph_formulation != SPH_HA)		||	// untested
 			_turbmodel == SPS			||	// untested
 			_turbmodel == ARTIFICIAL		||	// untested (use is discouraged, use density diffusion instead)
 			// kernel
@@ -218,7 +218,7 @@ public:
 public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
-		m_neibsEngine = new CUDANeibsEngine<sph_formulation, boundarytype, periodicbound, true>();
+		m_neibsEngine = new CUDANeibsEngine<sph_formulation, ViscSpec, boundarytype, periodicbound, true>();
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, ViscSpec, simflags>();
 		m_viscEngine = new CUDAViscEngine<ViscSpec, kerneltype, boundarytype, simflags>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, densitydiffusiontype, ViscSpec, boundarytype, simflags>();
@@ -253,6 +253,8 @@ protected:
 			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, simflags>(options);
 		case SURFACE_DETECTION:
 			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
+		case INTERFACE_DETECTION:
+			return new CUDAPostProcessEngine<INTERFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
 		case FLUX_COMPUTATION:
 			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>(options);
 		case CALC_PRIVATE:

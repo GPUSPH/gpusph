@@ -47,12 +47,13 @@
 /** @defpsubsection{rheology, RHEOLOGY}
  * @inpsection{viscous_options}
  * @default{Newtonian}
- * @values{inviscid, Newtonian, Bingham, Papanastasious, Power Law, Herschel–Bulkley, Alexandrou, DeKee & Turcotte, Zhu}
+ * @values{inviscid, Newtonian, Bingham, Papanastasious, Power Law, Herschel–Bulkley, Alexandrou, DeKee & Turcotte, Zhu, Granular}
  * TLT_RHEOLOGY
  */
 enum RheologyType {
 	INVISCID, ///< No (laminar) viscosity
 	NEWTONIAN, ///< Viscosity independent of strain rate
+	GRANULAR, ///< Viscosity dependant of strain rate
 	BINGHAM, ///< Bingham model (Newtonian + yield strength)
 	PAPANASTASIOU, ///< Regularized Bingham model
 	POWER_LAW, ///< Viscosity depends on a power of the strain rate
@@ -71,13 +72,14 @@ const char* RheologyName[ZHU+1]
 = {
 	"Inviscid",
 	"Newtonian",
+	"Granular",
 	"Bingham",
 	"Papanastasiou",
 	"Power-law",
 	"Herschel–Bulkley",
 	"Alexandrou",
 	"De Kee & Turcotte",
-	"Zhu"
+	"Zhu",
 }
 #endif
 ;
@@ -95,7 +97,12 @@ DEFINE_OPTION_RANGE(RheologyType, RheologyName, INVISCID, ZHU);
 #define NONLINEAR_RHEOLOGY(rheology) ((rheology) >= POWER_LAW)
 
 //! Check if the rheology has a yield strength
-#define YIELDING_RHEOLOGY(rheology) (NEEDS_EFFECTIVE_VISC(rheology) && ((rheology) != POWER_LAW))
+#define YIELDING_RHEOLOGY(rheology) (\
+	NEEDS_EFFECTIVE_VISC(rheology) && \
+	((rheology) != POWER_LAW) && \
+	((rheology) != GRANULAR) \
+	)
+
 
 //! Check if the rheology uses the regularization parameter
 #define REGULARIZED_RHEOLOGY(rheology) ( \
@@ -275,6 +282,11 @@ struct FullViscSpec {
 
 	static constexpr bool is_const_visc = _is_const_visc;
 
+	//! Change the rheology type
+	template<RheologyType newrheology>
+	using with_rheologytype =
+		FullViscSpec<newrheology, turbmodel, compvisc, viscmodel, avgop, simflags>;
+
 	//! Change the turbulence model
 	template<TurbulenceModel newturb>
 	using with_turbmodel =
@@ -307,6 +319,7 @@ enum LegacyViscosityType {
 	DYNAMICVISC, ///< Morris formula, with arithmetic averaging of the dynamic viscosity
 	SPSVISC, ///< KINEMATICVISC + SPS
 	KEPSVISC, ///< DYNAMICVISC + SPS
+	GRANULARVISC, ///< Granular rheology and Morris formula with harmonic averaging
 	INVALID_VISCOSITY
 } ;
 
@@ -323,6 +336,7 @@ const char* LegacyViscosityName[INVALID_VISCOSITY+1]
 	"Dynamic",
 	"SPS + kinematic",
 	"k-e model",
+	"Granular rheology",
 	"(invalid)"
 }
 #endif
@@ -368,6 +382,13 @@ struct ConvertLegacyVisc<KEPSVISC>
 {
 	/* DYNAMICVISC + KEPSILON */
 	using type = typename ConvertLegacyVisc<DYNAMICVISC>::type::with_turbmodel<KEPSILON>;
+};
+
+template<>
+struct ConvertLegacyVisc<GRANULARVISC>
+{
+	/* Granular rheology with harmonic averaging */
+	using type = typename FullViscSpec<>::with_rheologytype<GRANULAR>::with_avg_operator<HARMONIC>;
 };
 
 #endif

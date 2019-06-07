@@ -337,6 +337,14 @@ CommonWriter::write_simparams(ostream &out)
 		if (SP->is_const_visc)
 			out << "\t(constant viscosity optimizations)" << endl;
 	}
+
+	if (SP->rheologytype == GRANULAR) {
+		out << " Granular rheology: effective pressure Jacobi solver parameters: " << endl;
+		out << "\tMaximum number of iterations: " << SP->jacobi_maxiter << endl;
+		out << "\tBackward error threshold (boundary convergence): " << SP->jacobi_backerr << endl;
+		out << "\tResidual threshold (fluid convergence): " << SP->jacobi_residual << endl;
+	}
+
 	out << " periodicity: " << SP->periodicbound << " (" << PeriodicityName[SP->periodicbound] << ")" << endl;
 
 	out << " initial dt = " << SP->dt << endl;
@@ -482,6 +490,14 @@ CommonWriter::write_physparams(ostream &out)
 			out << "\tyield_strength[ " << f << " ] = " << PP->yield_strength[f] << " (Pa s)" << endl;
 		if (REGULARIZED_RHEOLOGY(SP->rheologytype))
 			out << "\tvisc_regularization_param[ " << f << " ] = " << PP->visc_regularization_param[f] << " (Pa s)" << endl;
+	}
+	for (uint f = 0; f < PP->numFluids(); ++f) {
+		if (SP->rheologytype == GRANULAR) {
+			out << "\tsinpsi[ " << f << " ] =  " << PP->sinpsi[f] << endl;
+			out << "\tcohesion[ " << f << " ] =  " << PP->cohesion[f] << endl;
+			out << "\tmin dynamic effvisc[ " << f << " ] =  " << PP->rho0[f]*PP->visccoeff[f] << endl;
+			out << "\tmax dynamic effvisc[ " << f << " ] =  " << PP->rho0[f]*PP->limiting_kinvisc << endl;
+		}
 	}
 	for (uint f  = 0; f < PP->numFluids(); ++f)
 		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f]

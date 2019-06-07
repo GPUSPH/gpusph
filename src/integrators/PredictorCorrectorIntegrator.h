@@ -41,12 +41,18 @@ class PredictorCorrector : public Integrator
 		NEIBS_LIST, // neibs list construction phase
 
 		INITIALIZATION, // initialization phase, after upload and neibs list, but before the main integrator loop
+		INIT_EFFPRES_PREP, // preparation of effective pressure calculation after INITIALIZATION
+		INIT_EFFPRES, // phase in which effective pressure is calculated after INITIALIZATION
 
 		BEGIN_TIME_STEP, // integrator step initialization phase
 		PREDICTOR, // predictor phase
 		PREDICTOR_END, // end of predictor, prepare for corrector
+		POSTPRED_EFFPRES_PREP, // preparation effective pressure calculation after PREDICTOR
+		POSTPRED_EFFPRES, // phase in which effective pressure is calculated after PREDICTOR
 		CORRECTOR, // corrector phase
 		CORRECTOR_END, // end of corrector, prepare for predictor
+		POSTCORR_EFFPRES_PREP, // preparation of effective pressure calculation after CORRECTOR
+		POSTCORR_EFFPRES, // phase in which effective pressure is calculated after CORRECTOR
 
 		FILTER_INTRO, // prepare to run filters
 		FILTER_CALL, // call a single filter
@@ -73,6 +79,8 @@ class PredictorCorrector : public Integrator
 
 	Phase* initializeNextStepSequence(StepInfo const& step_num);
 	Phase* initializePredCorrSequence(StepInfo const& step_num);
+	Phase* initializeEffPresSolverPrepSequence(StepInfo const& step_num);
+	Phase* initializeEffPresSolverSequence(StepInfo const& step_num);
 
 	template<PhaseCode phase>
 	void initializePhase();

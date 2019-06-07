@@ -70,6 +70,7 @@ struct common_density_sum_params :
 	const	float	dt;					///< time step (dt or dt/2 depending on integration phase)
 	const	float	t;					///< simulation time
 	const	uint	step;				///< integrator step
+	const	float	deltap;
 	const	float	slength;
 	const	float	influenceradius;
 
@@ -81,6 +82,7 @@ struct common_density_sum_params :
 		const	float		_dt,
 		const	float		_t,
 		const	uint		_step,
+		const	float		_deltap,
 		const	float		_slength,
 		const	float		_influenceradius)
 	:
@@ -96,6 +98,7 @@ struct common_density_sum_params :
 		dt(_dt),
 		t(_t),
 		step(_step),
+		deltap(_deltap),
 		slength(_slength),
 		influenceradius(_influenceradius)
 	{}
@@ -156,11 +159,12 @@ struct density_sum_params :
 		const	float		_dt,
 		const	float		_t,
 		const	uint		_step,
+		const	float		_deltap,
 		const	float		_slength,
 		const	float		_influenceradius)
 	:
 		common_density_sum_params(bufread, bufwrite,
-			_numParticles, _dt, _t, _step, _slength, _influenceradius),
+			_numParticles, _dt, _t, _step, _deltap, _slength, _influenceradius),
 		io_params(bufread, bufwrite),
 		boundary_params(bufread, bufwrite)
 	{}

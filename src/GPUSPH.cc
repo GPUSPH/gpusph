@@ -499,6 +499,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (!resumed && _sp->turbmodel > ARTIFICIAL)
 		problem->init_turbvisc(gdata->s_hBuffers, gdata->totParticles);
 
+	if (!resumed && _sp->rheologytype == GRANULAR)
+		problem->init_effpres(gdata->s_hBuffers, gdata->totParticles);
+
 	/* When starting a simulation with open boundaries, we need to
 	 * initialize the array of the next ID for generated particles,
 	 * and count the total number of open boundary vertices.
@@ -879,6 +882,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (gdata->simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
+	if (gdata->simframework->hasPostProcessOption(INTERFACE_DETECTION, BUFFER_NORMALS))
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
+
 	if (gdata->simframework->hasPostProcessEngine(VORTICITY))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VORTICITY>();
 
@@ -894,6 +900,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TURBVISC>();
 	}
 
+
 	if (problem->simparams()->boundarytype == SA_BOUNDARY &&
 		(problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
 		problem->simparams()->turbmodel == KEPSILON))
@@ -907,6 +914,11 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (NEEDS_EFFECTIVE_VISC(problem->simparams()->rheologytype))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EFFVISC>();
+
+	if (problem->simparams()->rheologytype == GRANULAR) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EFFPRES>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_JACOBI>();
+	}
 
 	if (problem->simparams()->sph_formulation == SPH_GRENIER) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
@@ -1752,6 +1764,10 @@ void GPUSPH::saveParticles(
 	if (NEEDS_EFFECTIVE_VISC(simparams->rheologytype))
 		which_buffers |= BUFFER_EFFVISC;
 
+	// get granular effective pressure
+	if (simparams->rheologytype == GRANULAR)
+		which_buffers |= BUFFER_EFFPRES;
+
 	// get Eulerian velocity
 	if (simparams->simflags & ENABLE_INLET_OUTLET ||
 		simparams->turbmodel == KEPSILON)
@@ -2268,6 +2284,37 @@ void GPUSPH::check_write(bool we_are_done)
 				m_intervalPerformanceCounter->restart();
 			}
 		}
+	}
+}
+
+template<>
+void GPUSPH::runCommand<JACOBI_RESET_STOP_CRITERION>(CommandStruct const& cmd)
+{
+	gdata->h_jacobiStop = false;
+	gdata->h_jacobiCounter = 0;
+}
+
+
+template<>
+void GPUSPH::runCommand<JACOBI_STOP_CRITERION>(CommandStruct const& cmd)
+{
+	for (int d=1; d < gdata->devices; ++d) {
+		gdata->h_jacobiBackwardError[0] = fmaxf(gdata->h_jacobiBackwardError[0], gdata->h_jacobiBackwardError[d]);
+		gdata->h_jacobiResidual[0] = fmaxf(gdata->h_jacobiResidual[0], gdata->h_jacobiResidual[d]);
+	}
+
+	// if we are in multi-node mode we need to run an mpi reduction over all nodes
+	if (MULTI_NODE) {
+		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiResidual[0]), 1, MAX_REDUCTION);
+		gdata->networkManager->networkFloatReduction(&(gdata->h_jacobiBackwardError[0]), 1, MAX_REDUCTION);
+	}
+
+	if ((gdata->h_jacobiBackwardError[0] < gdata->problem->simparams()->jacobi_backerr &&
+	     gdata->h_jacobiResidual[0] < gdata->problem->simparams()->jacobi_residual) ||
+	     gdata->h_jacobiCounter > gdata->problem->simparams()->jacobi_maxiter) {
+		gdata->h_jacobiStop = true;
+	} else {
+		gdata->h_jacobiCounter++;
 	}
 }
 

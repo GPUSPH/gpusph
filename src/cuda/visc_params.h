@@ -58,14 +58,16 @@ struct turbvisc_sps_params
 
 
 /// The actual sps_params struct, which concatenates all of the above, as appropriate.
-template<KernelType kerneltype,
-	BoundaryType boundarytype,
+template<KernelType _kerneltype,
+	BoundaryType _boundarytype,
 	uint _sps_simflags>
 struct sps_params :
 	neibs_list_params,
 	COND_STRUCT(_sps_simflags & SPSK_STORE_TAU, tau_sps_params),
 	COND_STRUCT(_sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
 {
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr BoundaryType boundarytype = _boundarytype;
 	static const uint sps_simflags = _sps_simflags;
 
 	// This structure provides a constructor that takes as arguments the union of the
@@ -104,6 +106,24 @@ struct visc_reduce_params
 	{}
 };
 
+//! Additional parameters passed only with SA_BOUNDARY
+struct sa_boundary_rheology_params
+{
+	const	float4	* __restrict__ gGam;
+	const	float2	* __restrict__ vertPos0;
+	const	float2	* __restrict__ vertPos1;
+	const	float2	* __restrict__ vertPos2;
+	sa_boundary_rheology_params(const float4 * __restrict__ const _gGam, const   float2  * __restrict__  const _vertPos[])
+	{
+		if (!_gGam) throw std::invalid_argument("no gGam for sa_boundary_visc_params");
+		if (!_vertPos) throw std::invalid_argument("no vertPos for sa_boundary_visc_params");
+		gGam = _gGam;
+		vertPos0 = _vertPos[0];
+		vertPos1 = _vertPos[1];
+		vertPos2 = _vertPos[2];
+	}
+};
+
 //! Effective viscosity kernel parameters
 /** in addition to the standard neibs_list_params, it only includes
  * the array where the effective viscosity is written
@@ -113,13 +133,17 @@ template<KernelType _kerneltype,
 	typename _ViscSpec,
 	flag_t _simflags,
 	typename reduce_params =
-		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, visc_reduce_params)
+		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, visc_reduce_params),
+	typename sa_params =
+		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
 	>
 struct effvisc_params :
 	neibs_list_params,
-	reduce_params
+	reduce_params,
+	sa_params
 {
 	float * __restrict__	effvisc;
+	const float 		deltap;
 
 	using ViscSpec = _ViscSpec;
 
@@ -137,13 +161,64 @@ struct effvisc_params :
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
+			const	float		_deltap,
+		// SA_BOUNDARY params
+			const	float4* __restrict__	_gGam,
+			const	float2* const *_vertPos,
 		// effective viscosity
 					float*	__restrict__	_effvisc,
 					float*	__restrict__	_cfl) :
 	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
 		_slength, _influenceradius),
+	deltap(_deltap),
 	reduce_params(_cfl),
+	sa_params(_gGam, _vertPos),
 	effvisc(_effvisc)
+	{}
+};
+
+//! Effective pressure kernel parameters
+/** in addition to the standard neibs_list_params, it only includes
+ * the array where the effective pressure is written
+ */
+template<KernelType _kerneltype,
+	BoundaryType _boundarytype,
+	typename sa_params =
+		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
+	>
+struct effpres_params :
+	neibs_list_params,
+	visc_reduce_params,
+	sa_params
+{
+	float * __restrict__	effpres;
+	const float 		deltap;
+
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr BoundaryType boundarytype = _boundarytype;
+
+	effpres_params(
+		// common
+			const	float4* __restrict__	_posArray,
+			const	hashKey* __restrict__	_particleHash,
+			const	uint* __restrict__		_cellStart,
+			const	neibdata* __restrict__	_neibsList,
+			const	uint		_numParticles,
+			const	float		_slength,
+			const	float		_influenceradius,
+			const	float		_deltap,
+		// SA_BOUNDARY params
+			const	float4* __restrict__	_gGam,
+			const	float2* const *_vertPos,
+		// effective viscosity
+					float*	__restrict__	_effpres,
+					float*	__restrict__	_cfl) :
+	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
+		_slength, _influenceradius),
+	deltap(_deltap),
+	visc_reduce_params(_cfl),
+	sa_params(_gGam, _vertPos),
+	effpres(_effpres)
 	{}
 };
 
