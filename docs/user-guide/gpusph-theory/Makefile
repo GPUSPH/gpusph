@@ -28,7 +28,7 @@ gpusph-theory.pdf:
 %.pdf: %.tex %.aux %.bbl
 	$(LTX) $(LTXFLAGS) $< && \
 	$(LTX) $(LTXFLAGS) $< && \
-	while grep -Ei 'Warning.*Rerun' $(subst .tex,.log,$<) ; do $(LTX) $(LTXFLAGS) $< ; done
+	while ! grep -F 'File `$(subst .tex,.out,$<)'\'' has not changed' $(subst .tex,.log,$<) ; do $(LTX) $(LTXFLAGS) $< ; done
 
 %.aux: %.tex ../gpusph-manual.bib $(EXTRA_DEPS)
 	$(LTX) $(LTXFLAGS) $<

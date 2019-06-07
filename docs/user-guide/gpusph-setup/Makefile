@@ -25,13 +25,17 @@ gpusph-setup.pdf:
 # overcome these restrictions somehow (e.g. parse the .tex files to get the
 # nme of the bib file could be an idea)
 
-%.pdf: %.tex %.aux
+%.pdf: %.tex %.aux %.bbl
 	$(LTX) $(LTXFLAGS) $< && \
 	$(LTX) $(LTXFLAGS) $< && \
-	while grep -Ei 'Warning.*Rerun' $(subst .tex,.log,$<) ; do $(LTX) $(LTXFLAGS) $< ; done
+	while ! grep -F 'File `$(subst .tex,.out,$<)'\'' has not changed' $(subst .tex,.log,$<) ; do $(LTX) $(LTXFLAGS) $< ; done
 
 %.aux: %.tex $(EXTRA_DEPS)
 	$(LTX) $(LTXFLAGS) $<
+
+%.bbl: %.aux ../gpusph-manual.bib
+	bibtex $<
+
 
 ../fig/%.pdf: ../fig/%.svg
 	$(SVG2PDF)

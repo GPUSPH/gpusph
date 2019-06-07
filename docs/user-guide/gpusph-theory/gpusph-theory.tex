@@ -1392,7 +1392,8 @@ The criterion on the residual should be:
 %
 However, the residual is computed while computing $\vec{x}$ for free particles. At this step, vertex particles still have the effective pressure of the previous iteration. But, to save an additional loop over the neighbours, we use the available variables anyway:
 \[ \dfrac{|| \tens{D} \, \vec{x}^{k} + \tens{R} \, \vec{x}^{k-1} - \vec{b}^{k-1} ||_\infty}{p_{\text{ref}}} < \epsilon_\text{res}\]
-\bibliography{../gpusph-manual.bib}
+
+\bibliography{../gpusph-manual}
 
 \end{document}
 
