@@ -1,16 +1,15 @@
-/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
- 	Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright (c) 2013-2018 INGV, EDF, UniCT, JHU
 
-	Conservatoire National des Arts et Metiers, Paris, France
+    Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
+    Électricité de France, Paris, France
+    Università di Catania, Catania, Italy
+    Johns Hopkins University, Baltimore (MD), USA
 
-	Istituto Nazionale di Geofisica e Vulcanologia,
-    Sezione di Catania, Catania, Italy
-
-    Universita di Catania, Catania, Italy
-
-    Johns Hopkins University, Baltimore, MD
-
-	This file is part of GPUSPH.
+    This file is part of GPUSPH. Project founders:
+        Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple,
+        Eugenio Rustico, Ciro Del Negro
+    For a full list of authors and project partners, consult the logs
+    and the project website <https://www.gpusph.org>
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,7 +23,7 @@
 
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 /*! \file
  * The following defines constitute an abstraction of the cartesian coordinates to easily change
