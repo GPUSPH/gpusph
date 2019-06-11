@@ -391,6 +391,7 @@ TopoCube *TopoCube::load_file(const char *fname, Format fmt)
 	case DEM_FMT_VTK: return load_file<DEM_FMT_VTK>(fname);
 	case DEM_FMT_XYZ: return load_file<DEM_FMT_XYZ>(fname);
 	}
+	throw std::invalid_argument("Unsupported format for " + string(fname));
 }
 
 
