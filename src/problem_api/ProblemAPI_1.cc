@@ -104,6 +104,17 @@ uint ProblemAPI<1>::suggestedDynamicBoundaryLayers()
 	return (uint)simparams()->get_influence_layers() + 1;
 }
 
+double ProblemAPI<1>::preferredDeltaP(GeometryType type)
+{
+	if (std::isnan(m_deltap))
+		throw runtime_error("cannot determine optimal inter-particle spacing, deltap not set");
+	if (std::isnan(physparams()->r0)) {
+		physparams()->r0 = m_deltap;
+		printf("Setting wall inter-particle spacing from deltap: %g\n", physparams()->r0);
+	}
+	return type == GT_FLUID ? m_deltap : physparams()->r0;
+}
+
 ProblemAPI<1>::~ProblemAPI<1>()
 {
 	release_memory();
@@ -1233,11 +1244,12 @@ double ProblemAPI<1>::setMassByDensity(const GeometryID gid, const double densit
 {
 	if (!validGeometry(gid)) return NAN;
 
-	if (m_geometries[gid]->type != GT_FLOATING_BODY)
+	auto geom = m_geometries[gid];
+	if (geom->type != GT_FLOATING_BODY)
 		printf("WARNING: setting mass of a non-floating body\n");
 
-	const double mass = m_geometries[gid]->ptr->SetMass(physparams()->r0, density);
-	m_geometries[gid]->mass_was_set = true;
+	const double mass = geom->ptr->SetMass(preferredDeltaP(geom->type), density);
+	geom->mass_was_set = true;
 
 	return mass;
 }
@@ -1260,7 +1272,7 @@ double ProblemAPI<1>::setParticleMassByDensity(const GeometryID gid, const doubl
 		 !m_geometries[gid]->has_mesh_file)
 		printf("WARNING: setting the mass by density can't work with a point-based geometry without a mesh!\n");
 
-	const double dx = (m_geometries[gid]->type == GT_FLUID ? m_deltap : physparams()->r0);
+	const double dx = preferredDeltaP(m_geometries[gid]->type);
 	const double particle_mass = m_geometries[gid]->ptr->SetPartMass(dx, density);
 	m_geometries[gid]->particle_mass_was_set = true;
 
@@ -1472,26 +1484,24 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		if (!m_geometries[g]->enabled) continue;
 
 		// set dx and recipient vector according to geometry type
+		dx = preferredDeltaP(m_geometries[g]->type);
 		switch (m_geometries[g]->type) {
 			case GT_FLUID:
 				parts_vector = &m_fluidParts;
-				dx = m_deltap;
 				break;
 			case GT_TESTPOINTS:
 				parts_vector = &m_testpointParts;
-				dx = physparams()->r0;
 				break;
 			case GT_FLOATING_BODY:
 			case GT_MOVING_BODY:
 				parts_vector = &(m_geometries[g]->ptr->GetParts());
-				dx = physparams()->r0;
 				break;
 			case GT_DEM:
 				if (g == m_dem_geometry)
 					computeDEMphysparams();
+				/* fallthrough */
 			default:
 				parts_vector = &m_boundaryParts;
-				dx = physparams()->r0;
 		}
 
 		// Now will set the particle and object mass if still unset

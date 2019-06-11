@@ -411,6 +411,8 @@ class ProblemAPI<1> : public ProblemCore
 		//! if the user wants the information for other purposes
 		void computeDEMphysparams();
 
+		//! Get the inter-particle spacing based on the geometry type
+		double preferredDeltaP(GeometryType type);
 
 		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 		void setDynamicBoundariesLayers(const uint numLayers);
