@@ -8,8 +8,7 @@ TARGETS=$(patsubst %,%.pdf,$(DIRS))
 all: $(TARGETS)
 
 %.pdf:
-	make -C $(basename $@)
-	mv $(basename $@)/$@ $@
+	make -C $(basename $@) && mv $(basename $@)/$@ $@
 
 clean:
 	for dir in $(DIRS) ; do make -C $$dir clean ; done

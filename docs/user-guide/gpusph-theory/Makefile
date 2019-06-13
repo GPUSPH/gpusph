@@ -25,7 +25,7 @@ gpusph-theory.pdf:
 # overcome these restrictions somehow (e.g. parse the .tex files to get the
 # nme of the bib file could be an idea)
 
-%.pdf: %.tex %.aux %.bbl
+%.pdf: %.tex %.aux %.bbl $(EXTRA_DEPS)
 	$(LTX) $(LTXFLAGS) $< && \
 	$(LTX) $(LTXFLAGS) $< && \
 	while ! grep -F 'File `$(subst .tex,.out,$<)'\'' has not changed' $(subst .tex,.log,$<) ; do $(LTX) $(LTXFLAGS) $< ; done
