@@ -39,12 +39,8 @@
 #include <algorithm>
 #include <cstring>
 #include <stdexcept>
-#ifdef _MSC_VER
-#define DEMANGLE(type_id_name) strdup(type_id_name)
-#else
-#include <cxxabi.h>
-#define DEMANGLE(type_id_name) abi::__cxa_demangle(type_id_name, NULL, 0, NULL)
-#endif
+
+#include "demangle.h"
 
 #include "cpp11_missing.h"
 
@@ -128,11 +124,8 @@ Option parse_option_string(std::string const& val)
 	if (found < to)
 		return Option(found - from);
 
-	/* error out: use the implementation-specific DEMANGLE
-	 * to get a user-visible name for the type */
-	char * tname = DEMANGLE(typeid(Option).name());
-	const std::string errmsg = val + " is not a valid " + tname;
-	free(tname);
+	/* error out, getting a user-visible name for the type */
+	const std::string errmsg = val + " is not a valid " + type_name<Option>();
 
 	throw std::invalid_argument(errmsg);
 }

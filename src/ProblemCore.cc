@@ -36,10 +36,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-// For the automatic name determination
-#include <typeinfo>
-#include <cxxabi.h>
-
 // shared_ptr
 #include <memory>
 
@@ -50,6 +46,9 @@
 
 // here we need the complete definition of the GlobalData struct
 #include "GlobalData.h"
+
+// For the automatic name determination
+#include "demangle.h"
 
 // COORD1, COORD2, COORD3
 #include "linearization.h"
@@ -92,7 +91,7 @@ bool
 ProblemCore::initialize()
 {
 	if (m_name.empty()) {
-		m_name = abi::__cxa_demangle(typeid(*this).name(), NULL, 0, NULL);
+		m_name = type_name(this);
 		printf("Problem name set to '%s' automatically\n", m_name.c_str());
 	}
 
