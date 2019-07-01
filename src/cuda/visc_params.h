@@ -145,7 +145,7 @@ struct effvisc_params :
 	sa_params
 {
 	float * __restrict__	effvisc;
-	const float 		deltap;
+	const float				deltap;
 
 	using ViscSpec = _ViscSpec;
 
@@ -194,7 +194,7 @@ struct effpres_params :
 	sa_params
 {
 	float * __restrict__	effpres;
-	const float 		deltap;
+	const float				deltap;
 
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr BoundaryType boundarytype = _boundarytype;

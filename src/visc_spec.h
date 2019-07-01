@@ -39,14 +39,24 @@
 #include "average.h"
 
 //! Rheology of the fluid(s)
-/*! For the time being, we only support NEWTONIAN, but
- * this will be extended to include things such as temperature dependency
- * and generalized Newtonian rheologies.
+/*! We support a variety of generalized Newtonian rheologies.
+ * We assume that all fluids follow the same rheological model. If different
+ * fluids should use different models, then the most general formulation
+ * should be chosen and the irrelevant parameters should be set accordingly.
+ *
+ * For example, if the user needs to model both a Bingham fluid and a power-law fluid,
+ * they can choose the Herschel–Bulkley rheology, and set the power exponent to 1
+ * for the Bingham fluid and the yield strength to 0 for the power-law fluid.
+ *
+ * The only combinations that are currently not supported are
+ * Herschel–Bulkley combined with DeKee & Turcotte, or the granular
+ * rheology with anything else. Support for these may be added in the future
+ * if there is a need for this.
  */
 /** @defpsubsection{rheology, RHEOLOGY}
  * @inpsection{viscous_options}
  * @default{Newtonian}
- * @values{inviscid, Newtonian, Bingham, Papanastasious, Power Law, Herschel–Bulkley, Alexandrou, DeKee & Turcotte, Zhu, Granular}
+ * @values{inviscid, Newtonian, granular, Bingham, Papanastasious, Power Law, Herschel–Bulkley, Alexandrou, DeKee & Turcotte, Zhu}
  * TLT_RHEOLOGY
  */
 enum RheologyType {
@@ -216,9 +226,6 @@ const char* ComputationalViscosityName[DYNAMIC+1]
 DEFINE_OPTION_RANGE(ComputationalViscosityType, ComputationalViscosityName, KINEMATIC, DYNAMIC);
 
 //! Supported viscous models
-/*! Currently only MORRIS is available, with plans to add Monaghan's and
- * Español & Revenga too
- */
 /** @defpsubsection{viscousModel, VISCOUS_MODEL}
  * @inpsection{viscous_options}
  * @default{Morris}
@@ -312,6 +319,12 @@ struct FullViscSpec {
 };
 
 //! Legacy viscosity type
+/*! \note all legacy viscosity types assume the computational viscosity representation to be
+ * the kinematic one, even when operating on the dynamic viscosity.
+ *
+ * \note these viscosity types are only supported for backwards compatibility with older user problems,
+ * no new entries should be added.
+ */
 enum LegacyViscosityType {
 	ARTVISC = 1,
 	KINEMATICVISC, ///< Morris formula, simplified for constant kinematic viscosity and using harmonic averaging of the density

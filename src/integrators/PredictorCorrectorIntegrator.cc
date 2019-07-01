@@ -421,7 +421,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 
 	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
-	static const bool has_sa = sp->boundarytype == SA_BOUNDARY; 
+	static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
 
 	// TODO get from integrator
@@ -434,7 +434,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 
 	// at the beginning of the corrector, we move all ephemeral buffers from step n
 	// to the new step n*
-	if (step.last) 
+	if (step.last)
 		this_phase->add_command(MOVE_STATE_BUFFERS)
 			.set_src("step n")
 			.set_dst("step n*")

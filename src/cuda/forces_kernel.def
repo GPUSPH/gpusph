@@ -51,10 +51,7 @@
 ///   templates; you can work around this when having to declare the arguments to
 ///   the functor operators by using generic typenames FP, P, N, OP, ON
 ///   (for Forces Params, Particle, Neighbor, Output for Particle, Output from Neighbor)
-/// * when we first introduced the functor structures, we worked around the limitations
-///   of partial function template specialization in C++ by putting the relevant code
-///   into a static 'with' function template, and then specializing the outer structure
-/// * a better approach that is gradually being introduced is to use SFINAE
+/// * if partial specializations are needed for any function template, use SFINAE
 ///   (Substitution Failure Is Not An Error): the forces parameters structure template
 ///   holds static constexpr members matching the template parameters, so it's possible
 ///   to write function templates that inspect FP::simparams, FP::boundarytype etc
@@ -62,7 +59,7 @@
 ///   using enable_if;
 /// * when the conditions for the specification are complex, it is recommended
 ///   to write separate constexpr functions or 'using' template specifications,
-///   and then using those in the enable_if_t<condition<parameter>()>, for better
+///   and then use those in the enable_if_t<condition<parameter>()>, for better
 ///   readability.
 
 /// The file is thus structured:
@@ -72,9 +69,9 @@
 ///   const members of structures in one go; these are needed
 /// * particle data structures and output variables
 /// * neighbor data structures and output variables
-/// * functions and functors for the computation of forces contributions
-/// * functions and functors for post-processing and saving
-/// * global (shared) variables and their functors
+/// * functions for the computation of forces contributions
+/// * functions for post-processing and saving
+/// * global (shared) variables and their functions
 /// * the actual forcesDevice kernel
 
 /*
@@ -208,10 +205,10 @@ constexpr bool needs_waterdepth()
  * Auxiliary functions, needed to retrieve the kinematic viscosity coefficient
  */
 
-/// Fetch the particle density
+/// Fetch the particle (numerical) density
 /*! This is either pdata.vel.w or ndata.relVel.w, depending on whether we're
- * doing it for the central particle or the neighbor. Let's a function that
- * handles the difference
+ * doing it for the central particle or the neighbor. The difference is handled
+ * by the specializations, whose SFINAE condition is the present of a relVel member.
  */
 template<typename N>
 __device__ __forceinline__
@@ -243,9 +240,10 @@ physical_density(N const& ndata)
 // Ensure that the template doesn't shadow the two-argument function from cuphys
 using cuphys::physical_density;
 
-/// Viscosity coefficient for the given particle
-/*! This is normally the d_visccoeff for the particle fluid type, but
- * in the KEPSILON case it features additional terms
+/// Laminar viscosity coefficient for the given particle
+/*! This is either the global constant d_visccoeff (Newtonian case), or the per-particle
+ * effective viscosity (generalized Newtonian case).
+ * In the KEPSILON case it also features additional terms.
  */
 template<typename P>
 __device__ __forceinline__
@@ -467,7 +465,7 @@ precalc_pressure(Pt const& pdata)
 	return pressure_for_precalc(pdata);
 }
 
-//}@
+//! @}
 
 /*
  * Particle data
