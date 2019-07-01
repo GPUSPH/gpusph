@@ -573,7 +573,7 @@ __device__ __forceinline__
 enable_if_t< KP::rheologytype == GRANULAR, float >
 clamp_visc(KP const& params, float effvisc, int fluid)
 {
-	return clamp(effvisc, d_visccoeff[fluid]*d_rho0[fluid], d_limiting_kinvisc*d_rho0[fluid]);
+	return clamp(effvisc, d_visccoeff[fluid], d_limiting_kinvisc*d_rho0[fluid]);
 }
 
 
