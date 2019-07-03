@@ -178,6 +178,7 @@ enum BoundaryType {
 	MK_BOUNDARY,
 	SA_BOUNDARY,
 	DYN_BOUNDARY,
+	DUMMY_BOUNDARY,
 	INVALID_BOUNDARY
 };
 
@@ -192,6 +193,7 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 	"Monaghan-Kajtar",
 	"Semi Analytical.",
 	"Dynamic",
+	"Dummy",
 	"(invalid)"
 }
 #endif

@@ -148,7 +148,10 @@ SET_BUFFER_TRAITS(BUFFER_VERTICES, vertexinfo, 1, "Vertices");
 #define BUFFER_VERTPOS			(BUFFER_VERTICES << 1)
 SET_BUFFER_TRAITS(BUFFER_VERTPOS, float2, 3, "Vertex positions relative to s");
 
-#define BUFFER_TKE			(BUFFER_VERTPOS << 1)
+#define BUFFER_DUMMY_VEL			(BUFFER_VERTPOS << 1)
+SET_BUFFER_TRAITS(BUFFER_DUMMY_VEL, float4, 1, "Interpolated Dummy boundary velocity");
+
+#define BUFFER_TKE			(BUFFER_DUMMY_VEL << 1)
 SET_BUFFER_TRAITS(BUFFER_TKE, float, 1, "Turbulent Kinetic Energy [k]");
 #define BUFFER_EPSILON		(BUFFER_TKE << 1)
 SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 1, "Turbulent Dissipation Rate [e]");

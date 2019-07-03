@@ -166,6 +166,10 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTPOS>();
 	}
 
+	if (m_simparams->boundarytype == DUMMY_BOUNDARY) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DUMMY_VEL>();
+	}
+
 	if (m_simparams->turbmodel == KEPSILON) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TKE>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EPSILON>();
