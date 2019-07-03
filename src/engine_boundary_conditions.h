@@ -52,6 +52,16 @@ class AbstractBoundaryConditionsEngine
 public:
 	virtual ~AbstractBoundaryConditionsEngine() {}
 
+/// Compute Boundary Conditions
+virtual void
+compute_boundary_conditions(
+	BufferList const& bufread,
+	BufferList &bufwrite,
+	uint	numParticles,
+	uint	particleRangeEnd,
+	float	slength,
+	float	influenceradius) = 0;
+
 /// Set the number of vertices present in the whole simulation
 virtual void
 uploadNumOpenVertices(const uint &numOpenVertices) = 0;

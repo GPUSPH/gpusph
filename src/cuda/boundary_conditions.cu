@@ -46,8 +46,67 @@
 // TODO Rename and optimize
 #define BLOCK_SIZE_SA_BOUND		128
 #define MIN_BLOCKS_SA_BOUND		6
+#define BLOCK_SIZE_SHEPARD		128
+#define MIN_BLOCKS_SHEPARD		6
 
 #include "boundary_conditions_kernel.cu"
+
+
+/// Boundary conditions computation for boundary particles is a no-op for all cases
+/// except DUMMY_BOUNDARY. Again, auxiliary functor does the job, to allow
+/// partial specialization
+
+/// General case: do nothing
+template<KernelType kerneltype, BoundaryType boundarytype>
+struct CUDABoundaryHelper {
+	static void
+	process(
+		BufferList const& bufread,
+		BufferList &bufwrite,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius)
+	{ /* do nothing by default */ }
+};
+
+/// DUMMY_BOUNDARY specialization: compute pressure on boundary particles
+/// from a Shepard-filtered average of the neighboring fluid particles.
+/// The density of the neighbors (to compute the pressure) is taken from
+/// the WRITE buffer, which is updated in-place, storing the density which
+/// would give the smoothed pressure in vel.w
+/// Boundary particles velocity are also computed as a Shepard-filtered average
+/// of the velocity of the neighboring fluid particles, to give no-slip boundary
+/// conditions.
+template<KernelType kerneltype>
+struct CUDABoundaryHelper<kerneltype, DUMMY_BOUNDARY> {
+	static void process(
+		BufferList const& bufread,
+		BufferList &bufwrite,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius)
+{
+	uint numThreads = BLOCK_SIZE_SHEPARD;
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	cubounds::ComputeDummyParticlesDevice<kerneltype><<< numBlocks, numThreads>>>
+		(bufread.getData<BUFFER_POS>(),
+		 bufread.getData<BUFFER_VEL>(),
+		 bufwrite.getData<BUFFER_DUMMY_VEL>(),
+		 bufwrite.getData<BUFFER_VOLUME>(), // only used in Grenier's case
+		 bufread.getData<BUFFER_INFO>(),
+		 bufread.getData<BUFFER_HASH>(),
+		 bufread.getData<BUFFER_NEIBSLIST>(),
+		 bufread.getData<BUFFER_CELLSTART>(),
+		 particleRangeEnd,
+		 slength, influenceradius);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+}
+};
 
 /// Boundary conditions engines
 
@@ -105,6 +164,21 @@ disableOutgoingParts(const	BufferList& bufread,
 	KERNEL_CHECK_ERROR;
 }
 
+/// Compute boundary conditions
+void
+compute_boundary_conditions(
+		BufferList const& bufread,
+		BufferList &bufwrite,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius)
+{
+	CUDABoundaryHelper<kerneltype, boundarytype>::process
+		(bufread, bufwrite, numParticles, particleRangeEnd,
+		 slength, influenceradius);
+	return;
+}
 //! SFINAE implementation of saSegmentBoundaryConditions
 /** Due to the limited or non-existant support for kernels different from Wendland
  * for semi-analytical boundary conditions, we want to avoid compiling the SA boundary

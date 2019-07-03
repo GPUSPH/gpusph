@@ -2397,6 +2397,155 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 	}
 }
 
+//! This kernel computes the pressure for DUMMY_BOUNDARY by using Eq.(27) of Adami et al. (2012).
+//! It also computes the velocity for the no-slip boundary conditions (Eq. (22) and (23))
+template<KernelType kerneltype,
+	//SPHFormulation sph_formulation,
+	flag_t simflags>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+ComputeDummyParticlesDevice(
+	const	float4*	__restrict__ posArray,
+	const	float4*	__restrict__ velArray,
+		float4*	__restrict__ dummyVelArray,
+			float4*	__restrict__ volArray, // only for SPH_GRENIER
+	const	particleinfo* __restrict__ infoArray,
+	const	hashKey* __restrict__ particleHash,
+	const	neibdata* __restrict__ neibsList,
+	const	uint* __restrict__ cellStart,
+				const uint		numParticles,
+				const float		slength,
+				const float		influenceradius)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = infoArray[index];
+	const float4 pos = posArray[index];
+
+	// We only operate on active boundary particles
+	if (! (ACTIVE(pos) && BOUNDARY(info)) )
+		return;
+
+	float4 vel = make_float4(0.0f);
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// Compute g - a_w where a_w is the particle acceleration
+	// TODO FIXME change for moving bodies
+	const float3 accel_delta = d_gravity;
+
+	//const float3 accel_delta = d_gravity - compute_body_particle_accel(info, gridPos, make_float3(pos));
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+
+	// Loop over all the neighbors, and you should pay attention to the followings
+	// 1, neighbors are not wall particles
+	// 2, we need to compute the neighbor's pressure 
+	// 3, pressure is normalized by the kernel function
+
+	//kahan summation
+	float4 c_vel = make_float4(0.0);
+	float c_norm_f = 0.0;
+
+
+	float norm_factor = 0.0f; // Shepard normalization factor (denominator)
+	// Loop only over FLUID neighbors
+	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
+
+		const uint neib_index = neib_iter.neib_index();
+
+		const float4 relPos = pos_corr - posArray[neib_index];
+		const particleinfo neib_info = infoArray[neib_index];
+
+		// Skip inactive neighbors and neighbors which are not FLUID
+		if (INACTIVE(relPos) || NOT_FLUID(neib_info) || IO_BOUNDARY(neib_info))
+			continue;
+
+		const float r = length3(relPos);
+
+		// skip particles not in influence radius
+		if (r >= influenceradius)
+			continue;
+
+
+		const float4 neib_vel = velArray[neib_index];
+
+		const float neib_pressure = P(neib_vel.w, fluid_num(neib_info)); // neib_vel.w = rho_tilde
+
+		const float w = W<kerneltype>(r, slength);
+
+		//kahan summation // TODO FIXME use already implemented functions
+		float w_for_kahan = w;
+		w_for_kahan -= c_norm_f;
+		float t_norm_f = norm_factor + w_for_kahan;
+		c_norm_f = t_norm_f - norm_factor - w_for_kahan;
+		norm_factor = t_norm_f;
+
+		// the .xyz components are just the sum of the weighted velocities,
+		// the .w component is the smoothed pressure, which is computed as:
+		// (neib_pressure + neib_rho*dot(gravity, as_float3(relPos)))*w
+		// For convenience, we achieve this by multiply neib_vel.w by dot(g, relPos)
+		// and adding neib_pressure, so that the shep_vel_P can be obtained with a simple
+		// vectorized increment:
+		float4 neib_contrib = make_float4(
+			neib_vel.x, neib_vel.y, neib_vel.z,
+			neib_pressure + physical_density(neib_vel.w, fluid_num(neib_info))*dot(accel_delta, as_float3(relPos)));
+		neib_contrib *= w;
+
+		//kahan summation // TODO FIXME use already implemented functions
+		neib_contrib -= c_vel;
+		float4 t_vel = vel + neib_contrib;
+		c_vel = t_vel - vel - neib_contrib;
+		vel = t_vel;
+	}
+
+
+
+	// TODO add hydrostatic pressure
+
+
+
+	// Normalize the pressure and the velocity, but only if we actually
+	// had neighbors (norm_factor != 0)
+	if (norm_factor)
+		vel /= norm_factor;
+
+	// now vel.w has the pressure, but we actuall want the density there, so:
+	vel.w = RHO(vel.w, fluid_num(info)); // returns rho_tilde
+
+	// finally, the velocity of the particle should actually be 2*v_w - <v_f>
+	// where -<v_f> is the opposite of the smoothed velocity of the fluid, which we
+	// have now in vel, and v_w is the velocity of the wall at the particle position,
+	// which is actually what we have in velArray
+
+	//const float4 wall_vel = velArray[index];
+	const float4 wall_vel = make_float4(0,0,0,0); //TODO assing the actual wall velocity
+
+	float4 new_vel;
+
+	new_vel = make_float4(
+			2*wall_vel.x - vel.x,
+			2*wall_vel.y - vel.y,
+			2*wall_vel.z - vel.z,
+			vel.w);
+
+	dummyVelArray[index] = new_vel;
+/*
+	if (sph_formulation == SPH_GRENIER) {
+		float4 vol = volArray[index];
+		vol.w = pos.w/vel.w;
+		// vol.y = log(vol.w/vol.x);
+		volArray[index] = vol;
+	}*/
+}
+
 /** @} */
 
 } // namespace cubounds
