@@ -259,6 +259,20 @@ struct sa_boundary_forces_params :
 	{}
 };
 
+/// Additional parameters passed only to kernels with DUMMY_BOUNDARY
+/// in case of fluid/boundary interaction
+struct dummy_boundary_forces_params
+{
+	const	float4	*  __restrict__ dummyVel;
+
+	// Constructor / initializer
+	dummy_boundary_forces_params(
+		BufferList const&	bufread)
+	:
+		dummyVel(bufread.getData<BUFFER_DUMMY_VEL>())
+	{}
+};
+
 /// Additional parameters passed only finalize forces with SA_BOUNDARY formulation
 struct sa_finalize_forces_params
 {
@@ -332,6 +346,8 @@ template<KernelType _kerneltype,
 		typename COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER, grenier_forces_params),
 	typename sa_cond =
 		typename COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype, sa_boundary_forces_params),
+	typename dummy_cond =
+		typename COND_STRUCT(_boundarytype == DUMMY_BOUNDARY && _cptype == PT_FLUID && _nptype == PT_BOUNDARY, dummy_boundary_forces_params),
 	typename water_depth_cond =
 		typename COND_STRUCT(!_repacking && _simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	typename keps_cond =
@@ -348,6 +364,7 @@ struct forces_params : _ViscSpec,
 	vol_cond,
 	grenier_cond,
 	sa_cond,
+	dummy_cond,
 	water_depth_cond,
 	keps_cond,
 	energy_cond,
@@ -402,6 +419,7 @@ struct forces_params : _ViscSpec,
 		vol_cond(bufread),
 		grenier_cond(bufread),
 		sa_cond(bufread, bufwrite, _epsilon),
+		dummy_cond(bufread),
 		water_depth_cond(_IOwaterdepth),
 		keps_cond(bufread, bufwrite),
 		energy_cond(bufwrite),
