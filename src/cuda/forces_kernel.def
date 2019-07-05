@@ -618,6 +618,17 @@ struct sa_boundary_particle_data
 	{}
 };
 
+// data used for DUMMY_BOUNDARY
+struct dummy_boundary_particle_data
+{
+	const	float4	dummyVel;
+
+	__device__ __forceinline__
+		dummy_boundary_particle_data(const uint index, dummy_boundary_forces_params const& params) :
+			dummyVel(params.dummyVel[index])
+	{}
+};
+
 // SPS particle data
 struct sps_particle_data
 {
@@ -748,6 +759,8 @@ template<KernelType _kerneltype,
 	// appear with SA_BOUNDARY)
 	typename sa_cond = typename COND_STRUCT(_boundarytype == SA_BOUNDARY && _cptype != _nptype,
 		sa_boundary_particle_data),
+	typename dummy_cond = typename COND_STRUCT(_boundarytype == DUMMY_BOUNDARY && _cptype == PT_FLUID && _nptype == PT_BOUNDARY,
+		dummy_boundary_particle_data),
 	// KEPSILON data, needed by both PT_FLUID and PT_VERTEX
 	typename keps_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_particle_data),
 	// everything else is just for PT_FLUID
@@ -767,6 +780,7 @@ struct forces_particle_data :
 	grenier_cond,
 	eulerVel_cond,
 	sa_cond,
+	dummy_cond,
 	keps_cond,
 	sps_cond,
 	p_precalc_particle_data,
@@ -801,6 +815,7 @@ struct forces_particle_data :
 		grenier_cond(_index, params),
 		eulerVel_cond(_index),
 		sa_cond(_index, _info, params),
+		dummy_cond(_index, params),
 		keps_cond(_index, _info, params),
 		sps_cond(_index),
 		p_precalc_particle_data(*this),
