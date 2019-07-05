@@ -193,6 +193,9 @@ DEFINE_COMMAND_BUF(BUILDNEIBS, true)
 /// Run smoothing filters (e.g. Shepard, MLS)
 DEFINE_COMMAND_BUF(FILTER, true)
 
+/* DUMMY_BOUNDARY boundary conditions kernels */
+DEFINE_COMMAND_BUF(COMPUTE_BOUNDARY_CONDITIONS, true)
+
 /* SA_BOUNDARY boundary conditions kernels */
 
 /// SA_BOUNDARY only: compute segment boundary conditions and identify fluid particles

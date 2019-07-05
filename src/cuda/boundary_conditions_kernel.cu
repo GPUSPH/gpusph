@@ -2399,9 +2399,7 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 
 //! This kernel computes the pressure for DUMMY_BOUNDARY by using Eq.(27) of Adami et al. (2012).
 //! It also computes the velocity for the no-slip boundary conditions (Eq. (22) and (23))
-template<KernelType kerneltype,
-	//SPHFormulation sph_formulation,
-	flag_t simflags>
+template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 ComputeDummyParticlesDevice(
@@ -2441,8 +2439,6 @@ ComputeDummyParticlesDevice(
 	//const float3 accel_delta = d_gravity - compute_body_particle_accel(info, gridPos, make_float3(pos));
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 
 	// Loop over all the neighbors, and you should pay attention to the followings

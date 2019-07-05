@@ -113,6 +113,24 @@ void PredictorCorrector::initializeBoundaryConditionsSequence
 	(Integrator::Phase *this_phase, StepInfo const& step)
 { /* for most boundary models, there's nothing to do */ }
 
+// Boundary conditions for DUMMY_BOUNDARY
+template<>
+void PredictorCorrector::initializeBoundaryConditionsSequence<DUMMY_BOUNDARY>
+(Integrator::Phase *this_phase, StepInfo const& step)
+{
+	/* Boundary conditions are applied to step n during initialization step,
+	 * to step n* after the integrator, and to step n+1 after the corrector
+	 */
+	const string state = getNextStateForStep(step.number);
+
+	this_phase->add_command(COMPUTE_BOUNDARY_CONDITIONS)
+		.reading(state, BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_CELLSTART)
+		.updating(state, BUFFER_VEL | BUFFER_VOLUME);
+	if (MULTI_DEVICE)
+		this_phase->add_command(UPDATE_EXTERNAL)
+			.updating(state, BUFFER_VEL | BUFFER_VOLUME);
+}
+
 // formerly saBoundaryConditions()
 //! Initialize the sequence of commands needed to apply SA_BOUNDARY boundary conditions.
 /*! This will _not_ be called for the initialization step if we resumed,
@@ -353,6 +371,9 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 	case MK_BOUNDARY:
 	case DYN_BOUNDARY:
 		/* nothing to do for LJ, MK and dynamic boundaries */
+		break;
+	case DUMMY_BOUNDARY:
+		initializeBoundaryConditionsSequence<DUMMY_BOUNDARY>(this_phase, step);
 		break;
 	case SA_BOUNDARY:
 		initializeBoundaryConditionsSequence<SA_BOUNDARY>(this_phase, step);

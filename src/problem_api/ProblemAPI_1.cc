@@ -268,8 +268,10 @@ bool ProblemAPI<1>::initialize()
 	globalMin(2) -= (m_deltap/2);
 	globalMax(2) += (m_deltap/2);
 
+	const bool multilayer_boundary = simparams()->boundary_is_multilayer();
+
 	// compute the number of layers for dynamic boundaries, if not set
-	if (simparams()->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
+	if (multilayer_boundary && m_numDynBoundLayers == 0) {
 		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
 		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
 	}
@@ -1450,8 +1452,8 @@ void ProblemAPI<1>::setDEMNormalDisplacement(double demdx, double demdy)
 // set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 {
-	if (simparams()->boundarytype != DYN_BOUNDARY)
-		printf("WARNING: setting number of layers for dynamic boundaries but not using DYN_BOUNDARY!\n");
+	if (simparams()->boundary_is_multilayer())
+		printf("WARNING: setting number of layers for dynamic boundaries but not using neither DYN_BOUNDARY nor DUMMY_BOUNDARY!\n");
 
 	// TODO: use autocomputed instead of 3
 	const uint suggestedNumLayers = suggestedDynamicBoundaryLayers();
@@ -1553,7 +1555,7 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		if (fill) {
 			switch (m_geometries[g]->fill_type) {
 				case FT_BORDER:
-					if (simparams()->boundarytype == DYN_BOUNDARY)
+					if (simparams()->boundary_is_multilayer())
 						m_geometries[g]->ptr->FillIn(*parts_vector, dx, - m_numDynBoundLayers);
 					else
 						m_geometries[g]->ptr->FillBorder(*parts_vector, dx);

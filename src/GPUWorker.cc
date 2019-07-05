@@ -2688,6 +2688,32 @@ void GPUWorker::runCommand<REDUCE_BODIES_FORCES>(CommandStruct const& cmd)
 }
 
 template<>
+void GPUWorker::runCommand<COMPUTE_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
+{
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	BufferList const bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
+	bufwrite.add_manipulator_on_write("compute boundary conditions");
+
+	//if (!bcEngine) throw runtime_error("boundary conditions engine not implemented");
+
+	bcEngine->compute_boundary_conditions(
+		bufread,
+		bufwrite,
+		m_numParticles,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
+}
+
+template<>
 void GPUWorker::runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS>(CommandStruct const& cmd)
 // void GPUWorker::kernel_saSegmentBoundaryConditions()
 {

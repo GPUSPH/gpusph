@@ -381,6 +381,11 @@ typedef struct SimParams {
 	inline int
 	get_influence_layers() const
 	{ return (int)ceil(sfactor*kernelradius); }
+
+	/// return true if the boundary type requires multiple layers
+	inline bool
+	boundary_is_multilayer() const
+	{ return ::boundary_is_multilayer(boundarytype); }
 	/** @} */
 
 } SimParams;

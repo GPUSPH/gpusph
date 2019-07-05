@@ -96,6 +96,15 @@ struct CUDABoundaryConditionsSelector<kerneltype, ViscSpec, SA_BOUNDARY, simflag
 	{ return new BCEtype(); } // TODO FIXME when we have proper BCEs
 };
 
+// DUMMY_BOUNDARY specialization
+template<KernelType kerneltype, typename ViscSpec, flag_t simflags>
+struct CUDABoundaryConditionsSelector<kerneltype, ViscSpec, DUMMY_BOUNDARY, simflags>
+{
+	typedef CUDABoundaryConditionsEngine<kerneltype, ViscSpec,  DUMMY_BOUNDARY, simflags> BCEtype;
+	static BCEtype* select()
+	{ return new BCEtype(); } // TODO FIXME when we have proper BCEs
+};
+
 /// Some combinations of frameworks for kernels are invalid/
 /// unsupported/untested and we want to prevent the user from
 /// using them, by (1) catching the error as soon as possible
@@ -174,7 +183,9 @@ template<
 												// enable density sum only works with the dynamic equation for gamma,
 												// so gamma quadrature must be disabled
 		)
-	) || (
+	) ||
+		(_boundarytype == DUMMY_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES)) ||
+	(
 	!(_boundarytype == SA_BOUNDARY) && _simflags & ENABLE_DENSITY_SUM
 												// density sum is untested with boundary conditions other than SA
 	) || (
