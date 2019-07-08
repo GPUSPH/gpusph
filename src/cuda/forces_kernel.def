@@ -152,7 +152,8 @@ wants_volumic_visc_term()
 {
 	return
 		FP::nptype != PT_BOUNDARY ||
-		FP::boundarytype == DYN_BOUNDARY;
+		FP::boundarytype == DYN_BOUNDARY ||
+		FP::boundarytype == DUMMY_BOUNDARY;
 }
 
 /// Selector for k-epsilon differential equations terms
@@ -2090,7 +2091,7 @@ template<typename FP, typename P, typename N, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::sph_formulation == SPH_HA &&
-	FP::boundarytype == SA_BOUNDARY && 
+	FP::boundarytype == SA_BOUNDARY &&
 	!(FP::nptype == PT_BOUNDARY)
 >
 mass_continuity_div_vel_term
@@ -2785,7 +2786,8 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::turbmodel == ARTIFICIAL &&
-	wants_volumic_visc_term<FP>()
+	wants_volumic_visc_term<FP>() &&
+	!(FP::boundarytype == DUMMY_BOUNDARY && FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY)
 >
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -2799,6 +2801,24 @@ compute_turb_visc_contrib
 	}
 }
 
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::turbmodel == ARTIFICIAL &&
+	wants_volumic_visc_term<FP>() &&
+	(FP::boundarytype == DUMMY_BOUNDARY && FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY)
+>
+compute_turb_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	if (ndata.dummy_vel_dot_pos < 0.0f){
+		const float visc = artvisc(ndata.dummy_vel_dot_pos,
+			physical_density(pdata), physical_density(ndata),
+			pdata.sspeed, ndata.sspeed, ndata.r, params.slength);
+		// note that here we use the position difference and not the velocity difference
+		nout.DvDt += visc*as_float3(ndata.relPos)*ndata.relPos.w*ndata.f;
+	}
+}
 /*
  * SPS
  */
@@ -3714,6 +3734,15 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 	}
 }
 
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == DUMMY_BOUNDARY) &&
+	FP::cptype == PT_BOUNDARY && FP::nptype == PT_FLUID
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{ /*do nothing */}
+
 
 /*
  * Fluid central, boundary neighbors
@@ -3761,6 +3790,16 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == DUMMY_BOUNDARY) &&
+	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
+}
 /// Particle-particle interaction
 /** Specialization in case of boundary neighbors to fluid particles,
  * with SA_BOUNDARY model.

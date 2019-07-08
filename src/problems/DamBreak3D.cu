@@ -52,7 +52,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
+		boundary<DUMMY_BOUNDARY>,
 		add_flags<ENABLE_REPACKING>
 	).select_options(
 		RHODIFF,
@@ -137,7 +137,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// Planes unfill automatically but the box won't, to void deleting all the water. Thus,
 	// we define the water at already the right distance from the walls.
 	double BOUNDARY_DISTANCE = m_deltap;
-	if (simparams()->boundarytype == DYN_BOUNDARY && !USE_PLANES)
+	if ((simparams()->boundarytype == DYN_BOUNDARY || simparams()->boundarytype == DUMMY_BOUNDARY) && !USE_PLANES)
 			BOUNDARY_DISTANCE *= getDynamicBoundariesLayers();
 
 	// Add the main water part
