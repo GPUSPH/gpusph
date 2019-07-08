@@ -169,8 +169,9 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 		// Obstacle is of type GT_MOVING_BODY, although the callback is not even implemented, to
 		// make the forces feedback available
 		GeometryID obstacle = addBox(GT_MOVING_BODY, FT_BORDER,
-			Point(obstacle_xpos, Y_DISTANCE * (i+1) + (ROTATE_OBSTACLE ? obstacle_side/2 : 0), 0),
-				obstacle_side, obstacle_side, dimZ );
+			Point(obstacle_xpos, Y_DISTANCE * (i+1) + (ROTATE_OBSTACLE ? obstacle_side/2 : 0), BOUNDARY_DISTANCE),
+				obstacle_side, obstacle_side, dimZ - 2*BOUNDARY_DISTANCE);
+		setEraseOperation(obstacle, ET_ERASE_NOTHING);
 		if (ROTATE_OBSTACLE) {
 			rotate(obstacle, 0, 0, Z_ANGLE);
 			// until we'll fix it, the rotation centers are always the corners
