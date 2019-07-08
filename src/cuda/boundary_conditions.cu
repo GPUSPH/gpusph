@@ -93,7 +93,7 @@ struct CUDABoundaryHelper<kerneltype, DUMMY_BOUNDARY> {
 
 	cubounds::ComputeDummyParticlesDevice<kerneltype><<< numBlocks, numThreads>>>
 		(bufread.getData<BUFFER_POS>(),
-		 bufread.getData<BUFFER_VEL>(),
+		 bufwrite.getData<BUFFER_VEL>(),
 		 bufwrite.getData<BUFFER_DUMMY_VEL>(),
 		 bufwrite.getData<BUFFER_VOLUME>(), // only used in Grenier's case
 		 bufread.getData<BUFFER_INFO>(),

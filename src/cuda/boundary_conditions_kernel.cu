@@ -2404,7 +2404,7 @@ __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 ComputeDummyParticlesDevice(
 	const	float4*	__restrict__ posArray,
-	const	float4*	__restrict__ velArray,
+		float4*	__restrict__ velArray,
 		float4*	__restrict__ dummyVelArray,
 			float4*	__restrict__ volArray, // only for SPH_GRENIER
 	const	particleinfo* __restrict__ infoArray,
@@ -2514,7 +2514,7 @@ ComputeDummyParticlesDevice(
 		vel /= norm_factor;
 
 	// now vel.w has the pressure, but we actuall want the density there, so:
-	vel.w = RHO(vel.w, fluid_num(info)); // returns rho_tilde
+	const float rho = RHO(vel.w, fluid_num(info)); // returns rho_tilde
 
 	// finally, the velocity of the particle should actually be 2*v_w - <v_f>
 	// where -<v_f> is the opposite of the smoothed velocity of the fluid, which we
@@ -2533,6 +2533,7 @@ ComputeDummyParticlesDevice(
 			vel.w);
 
 	dummyVelArray[index] = new_vel;
+	velArray[index].w = rho;
 /*
 	if (sph_formulation == SPH_GRENIER) {
 		float4 vol = volArray[index];

@@ -470,7 +470,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		this_phase->add_command(COMPUTE_BOUNDARY_CONDITIONS)
 			.reading(current_state,
 				BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_CELLSTART)
-			.updating(current_state, BUFFER_VOLUME)
+			.updating(current_state, BUFFER_VEL | BUFFER_VOLUME)
 			.writing(current_state, BUFFER_DUMMY_VEL);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
