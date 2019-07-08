@@ -1056,7 +1056,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info);
 		if (boundarytype == SA_BOUNDARY)
 			build_nl = build_nl || VERTEX(info) || BOUNDARY(info);
-		if (boundarytype == DYN_BOUNDARY || boundarytype == DYN_BOUNDARY)
+		if (boundarytype == DYN_BOUNDARY || boundarytype == DUMMY_BOUNDARY)
 			build_nl = true;
 		if ((boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) &&
 		    ViscSpec::rheologytype == GRANULAR)
