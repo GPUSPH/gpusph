@@ -619,7 +619,7 @@ struct sa_boundary_particle_data
 	{}
 };
 
-// data used for DUMMY_BOUNDARY
+// data used for DUMMY_BOUNDARY //FIXME maybe not neceaasry
 struct dummy_boundary_particle_data
 {
 	const	float4	dummyVel;
@@ -1174,7 +1174,7 @@ struct dummy_boundary_neib_data
 	__device__ __forceinline__
 	dummy_boundary_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, float4 const& _relPos) :
-		dummyRelVel(as_float3(pdata.dummyVel) - fetchVel(params, _index)),
+		dummyRelVel(as_float3(pdata.vel) - params.dummyVel[_index]),
 		dummy_vel_dot_pos(dot3(dummyRelVel, _relPos))
 	{}
 };
