@@ -1162,6 +1162,22 @@ struct sa_boundary_neib_data
 	{}
 };
 
+struct dummy_boundary_neib_data
+{
+	const	float4	dummyRelVel;
+	const	float	dummy_vel_dot_pos;
+
+	/* The constructor is templatized on the particle data type and on the
+	   kernel params type */
+	template<typename Pt, typename FP>
+	__device__ __forceinline__
+	dummy_boundary_neib_data(Pt const& pdata, FP const& params,
+		const uint _index, float4 const& _relPos) :
+		dummyRelVel(as_float3(pdata.dummyVel) - fetchVel(params, _index)),
+		dummy_vel_dot_pos(dot3(dummyRelVel, _relPos))
+	{}
+};
+
 struct eulerVel_neib_data
 {
 	const float4 relEulerVel;
@@ -1191,6 +1207,8 @@ struct forces_neib_data :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
 		sa_boundary_neib_data),
+	COND_STRUCT(boundarytype == DUMMY_BOUNDARY && cptype == PT_FLUID &&  _nptype == PT_BOUNDARY,
+		dummy_boundary_neib_data),
 	// relative eulerian velocity
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || simflags & ENABLE_INLET_OUTLET),
@@ -1219,6 +1237,10 @@ struct forces_neib_data :
 			sa_boundary_neib_data)
 		_sa_boundary_neib_data;
 	typedef
+		typename COND_STRUCT(boundarytype == DUMMY_BOUNDARY && cptype == PT_FLUID && _nptype == PT_BOUNDARY,
+			dummy_boundary_neib_data)
+		_dummy_boundary_neib_data;
+	typedef
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 				(has_keps || simflags & ENABLE_INLET_OUTLET),
 			eulerVel_neib_data)
@@ -1237,6 +1259,7 @@ struct forces_neib_data :
 			(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
+		_dummy_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
