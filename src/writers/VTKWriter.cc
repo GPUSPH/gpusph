@@ -436,7 +436,7 @@ float demote_w(double4 const& data)
 uchar get_part_type(particleinfo const& pinfo)
 { return PART_TYPE(pinfo); }
 
-uchar get_part_flags(particleinfo const& pinfo)
+ushort get_part_flags(particleinfo const& pinfo)
 { return PART_FLAGS(pinfo) >> PART_FLAG_SHIFT; }
 
 uchar get_fluid_num(particleinfo const& pinfo)
