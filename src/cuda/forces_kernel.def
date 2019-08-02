@@ -672,9 +672,9 @@ struct effective_visc_particle_data
 	// a separate (but wall-computed) dynami viscosity for each bluid? or some other approach?
 	template<typename Pt, typename FP>
 	__device__ __forceinline__
-	effective_visc_particle_data(const uint index, Pt const& pdata, FP const& params) :
+	effective_visc_particle_data(const uint index, particleinfo const& info, Pt const& pdata, FP const& params) :
 		effective_visc(
-			params.effective_visc[ FP::rheologytype == GRANULAR ? pdata.index : index]
+			params.effective_visc[(FP::rheologytype == GRANULAR && !FLUID(info)) ? pdata.index : index]
 			)
 	{}
 
@@ -1226,7 +1226,7 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
-		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, pdata, params),
+		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, _info, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
 		COND_STRUCT(has_sps, sps_particle_data)(_index),
 		p_precalc_particle_data(*this)
