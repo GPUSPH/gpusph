@@ -845,7 +845,7 @@ jacobiFSBoundaryConditionsDevice(
 
 	// * for free-surface particles, the Dirichlet condition is enforced
 	if (cptype == PT_FLUID && SEDIMENT(info) && (SURFACE(info) || INTERFACE(info))) {
-		effpres[index] = deltap*delta_rho*length(d_gravity);
+		effpres[index] = deltap*delta_rho*length(d_gravity)/2.;
 	} else {
 		return;
 	}
