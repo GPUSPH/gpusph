@@ -47,17 +47,14 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	slope_length = 8.5;
 	h_length = 0.5;
 	height = .63;
-	beta = 4.2364*M_PI/180.0;
+	beta = atan(height/slope_length);
 
 	// Add objects to the tank
 	use_cyl = false;
 
 	SETUP_FRAMEWORK(
-	    //viscosity<ARTVISC>,
-		//viscosity<KINEMATICVISC>,
 		viscosity<SPSVISC>,
 		boundary<LJ_BOUNDARY>,
-		//boundary<MK_BOUNDARY>,
 		add_flags<ENABLE_PLANES>
 	);
 
@@ -78,8 +75,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	use_bottom_plane = 1;  //1 for plane; 0 for particles
 
 	// SPH parameters
-	set_deltap(0.03f);  //0.005f;
-	set_timestep(0.0001);
+	set_deltap(1.0/64.0);
 	simparams()->dtadaptfactor = 0.2;
 	simparams()->buildneibsfreq = 10;
 	simparams()->tend = 10.0f; //seconds
@@ -97,45 +93,41 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	float r0 = m_deltap;
 
-	add_fluid( 1000.0f);
-	set_equation_of_state(0, 7.0f, 20.f);
-	set_kinematic_visc(0, 1.0e-6);
+	auto water = add_fluid( 1000.0f);
+	set_equation_of_state(water, 7.0f, NAN);
+	set_kinematic_visc(water, 1.0e-6);
 	set_artificial_visc(0.2f);
 
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
-
 	paddle_length = .7f;
 	paddle_width = m_size.y - 2*r0;
-	paddle_tstart=0.5f;
+	paddle_tstart = 0.5f;
 	paddle_origin = make_double3(0.25f, r0, 0.0f);
 	paddle_tend = 30.0f;//seconds
 	// The stroke value is given at free surface level H
 	float stroke = 0.2;
+	float period = 0.8;
 	// m_mbamplitude is the maximal angular value for paddle angle
 	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
 	paddle_amplitude = atan(stroke/(2.0*(H - paddle_origin.z)));
 	cout << "\npaddle_amplitude (radians): " << paddle_amplitude << "\n";
-	paddle_omega = 2.0*M_PI/0.8;		// period T = 0.8 s
+	paddle_omega = 2.0*M_PI/period;
+
+	// set maximum speed as the speed of the paddle tip
+	setMaxParticleSpeed(paddle_length*paddle_omega);
 
 	// Drawing and saving times
 
 	add_writer(VTKWRITER, .1);  //second argument is saving time in seconds
 
-	// Name of problem used for directory creation
-	m_name = "WaveTank";
-
 	// Building the geometry
 	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 	setPositioning(PP_CORNER);
 
-	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-	Point(0, 0, 0), h_length + slope_length,ly, height);
-	disableCollisions(experiment_box);
 
-  const float amplitude = -paddle_amplitude ;
 	GeometryID paddle = addBox(GT_MOVING_BODY, FT_BORDER,
 		Point(paddle_origin),	0, paddle_width, paddle_length);
-	rotate(paddle, 0,-amplitude, 0);
+	rotate(paddle, 0, paddle_amplitude, 0);
 	disableCollisions(paddle);
 
 	if (!use_bottom_plane) {
@@ -149,8 +141,8 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	float z = 0;
 	int n = 0;
 	while (z < H) {
-		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
-		float x = paddle_origin.x + (z - paddle_origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
+		z = n*m_deltap + r0;
+		float x = paddle_origin.x + (z - paddle_origin.z)*tan(-paddle_amplitude) + 1.0*r0/cos(paddle_amplitude);
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
 		fluid = addRect(GT_FLUID, FT_SOLID, Point(x,  r0, z),
 				l, ly-2.0*r0);
@@ -197,21 +189,22 @@ WaveTank::moving_bodies_callback(const uint index, Object* object, const double 
 			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
 
-    dx= make_double3(0.0);
-    kdata.lvel=make_double3(0.0f, 0.0f, 0.0f);
+    dx = make_double3(0.0);
+    kdata.lvel = make_double3(0.0f, 0.0f, 0.0f);
+    kdata.crot = make_double3(0.25f, m_deltap, 0.0f);
     if (t1> paddle_tstart && t1 < paddle_tend){
-       kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
-       EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
-       dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
-       dr.Normalize();
-	   kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
-	   kdata.orientation.Normalize();
-	   }
-	else {
-	   kdata.avel = make_double3(0.0,0.0,0.0);
-	   kdata.orientation = kdata.orientation;
-	   dr.Identity();
-	}
+	    kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
+	    EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
+	    dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
+	    dr.Normalize();
+	    kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
+	    kdata.orientation.Normalize();
+    }
+    else {
+	    kdata.avel = make_double3(0.0,0.0,0.0);
+	    kdata.orientation = kdata.orientation;
+	    dr.Identity();
+    }
 }
 
 void WaveTank::copy_planes(PlaneList &planes)
@@ -222,8 +215,8 @@ void WaveTank::copy_planes(PlaneList &planes)
 	//  plane is defined as a x + by +c z + d= 0
 	planes.push_back( implicit_plane(0, 0, 1.0, 0) );   //bottom, where the first three numbers are the normal, and the last is d.
 	planes.push_back( implicit_plane(0, 1.0, 0, 0) );   //wall
-	planes.push_back( implicit_plane(0, -1.0, 0, w) ); //far wall
-	planes.push_back( implicit_plane(1.0, 0, 0, 0) );  //end
+	planes.push_back( implicit_plane(0, -1.0, 0, w) );  //far wall
+	planes.push_back( implicit_plane(1.0, 0, 0, 0) );   //end
 	planes.push_back( implicit_plane(-1.0, 0, 0, l) );  //one end
 	if (use_bottom_plane)  {
 		planes.push_back( implicit_plane(-sin(beta),0,cos(beta), h_length*sin(beta)) );  //sloping bottom starting at x=h_length
