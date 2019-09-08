@@ -474,7 +474,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.writing(current_state, BUFFER_DUMMY_VEL);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_VOLUME | BUFFER_DUMMY_VEL);
+				.updating(current_state, BUFFER_VOLUME | BUFFER_VEL | BUFFER_DUMMY_VEL);
 	}
 
 
