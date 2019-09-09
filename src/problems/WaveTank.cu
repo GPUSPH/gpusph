@@ -124,9 +124,9 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	setPositioning(PP_CORNER);
 
 
-	GeometryID paddle = addBox(GT_MOVING_BODY, FT_BORDER,
-		Point(paddle_origin),	0, paddle_width, paddle_length);
-	rotate(paddle, 0, paddle_amplitude, 0);
+	GeometryID paddle = addRect(GT_MOVING_BODY, FT_SOLID,
+		Point(paddle_origin), paddle_length, paddle_width);
+	rotate(paddle, 0, M_PI/2+paddle_amplitude, 0);
 	disableCollisions(paddle);
 
 	if (!use_bottom_plane) {
