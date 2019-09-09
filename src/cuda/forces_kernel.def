@@ -202,6 +202,16 @@ constexpr bool needs_waterdepth()
 		FP::nptype == PT_FLUID;
 }
 
+/// Selector to determine if we need to use the dummy-corrected boundary velocity
+template<typename P, typename N>
+__device__ __forceinline__
+constexpr bool needs_dummy_vel()
+{
+	return P::boundarytype == DUMMY_BOUNDARY &&
+		P::cptype == PT_FLUID &&
+		N::nptype == PT_BOUNDARY;
+}
+
 /*
  * Auxiliary functions, needed to retrieve the kinematic viscosity coefficient
  */
@@ -1151,7 +1161,6 @@ struct sa_boundary_neib_data
 struct dummy_boundary_neib_data
 {
 	const	float4	dummyRelVel;
-	const	float	dummy_vel_dot_pos;
 
 	/* The constructor is templatized on the particle data type and on the
 	   kernel params type */
@@ -1159,8 +1168,7 @@ struct dummy_boundary_neib_data
 	__device__ __forceinline__
 	dummy_boundary_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, float4 const& _relPos) :
-		dummyRelVel(as_float3(pdata.vel) - params.dummyVel[_index]),
-		dummy_vel_dot_pos(dot3(dummyRelVel, _relPos))
+		dummyRelVel(as_float3(pdata.vel) - params.dummyVel[_index])
 	{}
 };
 
@@ -2512,17 +2520,41 @@ compute_pressure_contrib
  * (used to compute the velocity gradient for viscosity) should be computed by
  * considering both the lagrangian and eulerian velocities, making it
  * relVel + relEulerVel. When no eulerian velocity is defined, simply relVel will do.
+ * Moreover, when using dummy boundaries, for the boundary particles we want to use
+ * the correct relVel instead of the real one.
  */
-template<typename N>
+
+template<typename P, typename N>
+__device__ __forceinline__
+enable_if_t<not needs_dummy_vel<P, N>(), float4>
+get_dummy_relVel(P const& pdata, N const& ndata)
+{
+	return ndata.relVel;
+} // non-dummy case
+
+template<typename P, typename N>
+__device__ __forceinline__
+enable_if_t<needs_dummy_vel<P, N>(), float4>
+get_dummy_relVel(P const& pdata, N const& ndata)
+{
+	return ndata.dummyRelVel;
+} // dummy case
+
+template<typename P, typename N>
 __device__ __forceinline__
 enable_if_t<has_relEulerVel<N>(), float4>
-get_viscous_relVel(N const& ndata)
-{ return ndata.relVel + ndata.relEulerVel; } /* eulerVel case */
-template<typename N>
+get_viscous_relVel(P const& pdata, N const& ndata)
+{
+	return get_dummy_relVel(pdata, ndata) + ndata.relEulerVel;
+} /* eulerVel case */
+
+template<typename P, typename N>
 __device__ __forceinline__
 enable_if_t<not has_relEulerVel<N>(), float4>
-get_viscous_relVel(N const& ndata)
-{ return ndata.relVel; } /* Standard case */
+get_viscous_relVel(P const& pdata, N const& ndata)
+{
+	return get_dummy_relVel(pdata, ndata);
+} /* Standard case */
 
 /// Viscous vector component
 /*! Two choices can be made when computing the viscous contributions:
@@ -2543,7 +2575,7 @@ __device__ __forceinline__
 enable_if_t<viscmodel == MORRIS, float3>
 viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
 {
-	return make_float3(get_viscous_relVel(ndata));
+	return make_float3(get_viscous_relVel(pdata, ndata));
 }
 
 template<typename FP, typename P, typename N, ViscousModel viscmodel = FP::viscmodel>
@@ -2767,12 +2799,15 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::turbmodel == ARTIFICIAL &&
-	wants_volumic_visc_term<FP>() &&
-	!(FP::boundarytype == DUMMY_BOUNDARY && FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY)
+	wants_volumic_visc_term<FP>()
 >
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	// TODO : for dummy boundary, we should check if it's better to use
+	// the corrected boundary velocity or the real velocity here
+	// if the corrected boundary velocity is better, then we should define
+	// a get_visc_vel_dot_pos() to abstract the selection away
 	if (ndata.vel_dot_pos < 0.0f){
 		const float visc = artvisc(ndata.vel_dot_pos,
 			physical_density(pdata), physical_density(ndata),
@@ -2782,24 +2817,6 @@ compute_turb_visc_contrib
 	}
 }
 
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-enable_if_t<
-	FP::turbmodel == ARTIFICIAL &&
-	wants_volumic_visc_term<FP>() &&
-	(FP::boundarytype == DUMMY_BOUNDARY && FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY)
->
-compute_turb_visc_contrib
-(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	if (ndata.dummy_vel_dot_pos < 0.0f){
-		const float visc = artvisc(ndata.dummy_vel_dot_pos,
-			physical_density(pdata), physical_density(ndata),
-			pdata.sspeed, ndata.sspeed, ndata.r, params.slength);
-		// note that here we use the position difference and not the velocity difference
-		nout.DvDt += visc*as_float3(ndata.relPos)*ndata.relPos.w*ndata.f;
-	}
-}
 /*
  * SPS
  */
