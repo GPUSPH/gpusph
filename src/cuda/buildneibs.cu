@@ -310,12 +310,18 @@ reorderDataAndFindCellStart(
 	if (oldNextIDs && !newNextIDs)
 		throw std::invalid_argument("newNextIDs is null");
 
+	const float4 *oldDummyVel = unsorted_buffers.getData<BUFFER_DUMMY_VEL>();
+	float4 *newDummyVel = sorted_buffers.getData<BUFFER_DUMMY_VEL>();
+	if (oldDummyVel && !newDummyVel)
+		throw std::invalid_argument("newDummyVel is null");
+
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newVol, newEnergy, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
 		newEffPres,
 		newEulerVel,
 		oldNextIDs, newNextIDs,
+		oldDummyVel, newDummyVel,
 		particleInfo, particleHash, particleIndex, numParticles, newNumParticles);
 
 	// check if kernel invocation generated an error

@@ -113,6 +113,32 @@ void PredictorCorrector::initializeBoundaryConditionsSequence
 	(Integrator::Phase *this_phase, StepInfo const& step)
 { /* for most boundary models, there's nothing to do */ }
 
+template<>
+void PredictorCorrector::initializeBoundaryConditionsSequence<DUMMY_BOUNDARY>
+	(Integrator::Phase *this_phase, StepInfo const& step)
+{
+	const SimParams *sp = gdata->problem->simparams();
+
+	/* Boundary conditions are applied to step n during initialization step,
+	 * to step n* after the integrator, and to step n+1 after the corrector
+	 */
+	const string state = getNextStateForStep(step.number);
+
+	// the dummy boundary velocity correction is computed before the computation
+	// of the effective viscosity, since in CALC_VISC we should be using
+	// the corrected velocity (TODO verify)
+	if (sp->boundarytype == DUMMY_BOUNDARY) {
+		this_phase->add_command(COMPUTE_BOUNDARY_CONDITIONS)
+			.reading(state,
+				BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_CELLSTART)
+			.updating(state, BUFFER_VEL | BUFFER_VOLUME)
+			.writing(state, BUFFER_DUMMY_VEL);
+		if (MULTI_DEVICE)
+			this_phase->add_command(UPDATE_EXTERNAL)
+				.updating(state, BUFFER_VOLUME | BUFFER_VEL | BUFFER_DUMMY_VEL);
+	}
+}
+
 // formerly saBoundaryConditions()
 //! Initialize the sequence of commands needed to apply SA_BOUNDARY boundary conditions.
 /*! This will _not_ be called for the initialization step if we resumed,
@@ -355,10 +381,7 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 		/* nothing to do for LJ, MK and dynamic boundaries */
 		break;
 	case DUMMY_BOUNDARY:
-		/* TODO FIXME for DUMMY boundaries we apply the boundary conditions
-		 * right before computing forces, like for CALC_VISC, to avoid having
-		 * to reorder the corresponding auxiliary array.
-		 */
+		initializeBoundaryConditionsSequence<DUMMY_BOUNDARY>(this_phase, step);
 		break;
 	case SA_BOUNDARY:
 		initializeBoundaryConditionsSequence<SA_BOUNDARY>(this_phase, step);
@@ -462,21 +485,6 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			this_phase->add_command(UPDATE_EXTERNAL)
 				.updating(current_state, BUFFER_SIGMA | BUFFER_VEL);
 	}
-
-	// the dummy boundary velocity correction is computed before the computation
-	// of the effective viscosity, since in CALC_VISC we should be using
-	// the corrected velocity (TODO verify)
-	if (sp->boundarytype == DUMMY_BOUNDARY) {
-		this_phase->add_command(COMPUTE_BOUNDARY_CONDITIONS)
-			.reading(current_state,
-				BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_CELLSTART)
-			.updating(current_state, BUFFER_VEL | BUFFER_VOLUME)
-			.writing(current_state, BUFFER_DUMMY_VEL);
-		if (MULTI_DEVICE)
-			this_phase->add_command(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_VOLUME | BUFFER_VEL | BUFFER_DUMMY_VEL);
-	}
-
 
 	// for SPS viscosity, compute first array of tau and exchange with neighbors
 	if (sp->turbmodel == SPS || needs_effective_visc) {
