@@ -141,9 +141,11 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	rotate(paddle, 0, M_PI/2+paddle_amplitude, 0);
 	disableCollisions(paddle);
 
+	double3 slope_origin = paddle_origin + make_double3(h_length, 0, 0);
+
 	if (!use_bottom_plane) {
 		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-				Point(h_length, 0, 0), lx - h_length, ly);
+				slope_origin, lx - h_length, ly);
 		rotate(bottom, 0, beta, 0);
 		disableCollisions(bottom);
 		setEraseOperation(bottom, ET_ERASE_FLUID);
@@ -163,17 +165,17 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	if (use_cyl) {
 		setPositioning(PP_BOTTOM_CENTER);
 		Point p[10];
-		p[0] = Point(h_length + slope_length/(cos(beta)*10), ly/2., 0);
-		p[1] = Point(h_length + slope_length/(cos(beta)*10), ly/6.,  0);
-		p[2] = Point(h_length + slope_length/(cos(beta)*10), 5*ly/6, 0);
-		p[3] = Point(h_length + slope_length/(cos(beta)*5), 0, 0);
-		p[4] = Point(h_length + slope_length/(cos(beta)*5), ly/3, 0);
-		p[5] = Point(h_length + slope_length/(cos(beta)*5), 2*ly/3, 0);
-		p[6] = Point(h_length + slope_length/(cos(beta)*5), ly, 0);
-		p[7] = Point(h_length + 3*slope_length/(cos(beta)*10), ly/6, 0);
-		p[8] = Point(h_length + 3*slope_length/(cos(beta)*10), ly/2, 0);
-		p[9] = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*ly/6, 0);
-		p[10] = Point(h_length+ 4*slope_length/(cos(beta)*10), ly/2, 0);
+		p[0]  = Point(slope_origin.x + slope_length/(cos(beta)*10), ly/2., 0);
+		p[1]  = Point(slope_origin.x + slope_length/(cos(beta)*10), ly/6.,  0);
+		p[2]  = Point(slope_origin.x + slope_length/(cos(beta)*10), 5*ly/6, 0);
+		p[3]  = Point(slope_origin.x + slope_length/(cos(beta)*5), 0, 0);
+		p[4]  = Point(slope_origin.x + slope_length/(cos(beta)*5), ly/3, 0);
+		p[5]  = Point(slope_origin.x + slope_length/(cos(beta)*5), 2*ly/3, 0);
+		p[6]  = Point(slope_origin.x + slope_length/(cos(beta)*5), ly, 0);
+		p[7]  = Point(slope_origin.x + 3*slope_length/(cos(beta)*10), ly/6, 0);
+		p[8]  = Point(slope_origin.x + 3*slope_length/(cos(beta)*10), ly/2, 0);
+		p[9]  = Point(slope_origin.x + 3*slope_length/(cos(beta)*10), 5*ly/6, 0);
+		p[10] = Point(slope_origin.x + 4*slope_length/(cos(beta)*10), ly/2, 0);
 
 		for (int i = 0; i < 11; i++) {
 			GeometryID cyl = addCylinder(GT_FIXED_BOUNDARY, FT_BORDER,
@@ -194,20 +196,20 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		addPlane(-1.0, 0, 0, l);  //one end
 	} else {
 		// bottom, flat rectangle before the slope begins
-		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID, Point(m_origin), h_length-m_deltap, ly);
+		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID, Point(paddle_origin), h_length-m_deltap, ly);
 		setEraseOperation(bottom, ET_ERASE_FLUID);
 
 		// close wall
 		GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
 			Point(m_origin + make_double3(0, 0, lz)),
-			lx, lz);
+			lx + paddle_origin.x, lz);
 		rotate(wall, M_PI/2, 0, 0);
 		setEraseOperation(wall, ET_ERASE_FLUID);
 
 		// far wall
 		wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
 			Point(m_origin + make_double3(0, ly, 0)),
-			lx, lz);
+			lx + paddle_origin.x, lz);
 		rotate(wall, -M_PI/2, 0, 0);
 		setEraseOperation(wall, ET_ERASE_FLUID);
 	}
@@ -216,7 +218,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	{
 		// sloping bottom starting at x=h_length
 		// this is only used to unfill if !use_bottom_plane
-		GeometryID plane = addPlane(-sin(beta), 0, cos(beta), h_length*sin(beta),
+		GeometryID plane = addPlane(-sin(beta), 0, cos(beta), slope_origin.x*sin(beta),
 			use_bottom_plane ? FT_NOFILL : FT_UNFILL);
 
 		setEraseOperation(plane, ET_ERASE_FLUID);
