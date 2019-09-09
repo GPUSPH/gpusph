@@ -136,17 +136,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		disableCollisions(bottom);
 	}
 
-	GeometryID fluid;
-	float z = 0;
-	int n = 0;
-	while (z < H) {
-		z = n*m_deltap + r0;
-		float x = paddle_origin.x + (z - paddle_origin.z)*tan(-paddle_amplitude) + 1.0*r0/cos(paddle_amplitude);
-		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
-		fluid = addRect(GT_FLUID, FT_SOLID, Point(x,  r0, z),
-				l, ly-2.0*r0);
-		n++;
-	 }
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
 
 	if (hasPostProcess(TESTPOINTS)) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
@@ -179,6 +169,29 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 			setEraseOperation(cyl, ET_ERASE_FLUID);
 		}
 	}
+
+	{
+		const double w = m_size.y;
+		const double l = h_length + slope_length;
+
+		addPlane(0, 0, 1, 0);  //bottom, where the first three numbers are the normal, and the last is d.
+		addPlane(0, 1, 0, 0);  //wall
+		addPlane(0, -1, 0, w); //far wall
+		addPlane(1.0, 0, 0, 0);   //end
+		addPlane(-1.0, 0, 0, l);  //one end
+
+		// sloping bottom starting at x=h_length
+		// this is only used to unfill if !use_bottom_plane
+		addPlane(-sin(beta), 0, cos(beta), h_length*sin(beta),
+			use_bottom_plane ? FT_NOFILL : FT_UNFILL);
+
+		// this plane corresponds to the initial paddle position, and is only used to cut out
+		// the fluid behind the paddle
+		const double pcx = cos(paddle_amplitude);
+		const double pcz = sin(paddle_amplitude);
+		const double pcd = paddle_origin.x*pcx + paddle_origin.z*pcz;
+		addPlane(pcx, 0, pcz, -pcd, FT_UNFILL);
+	}
 }
 
 
@@ -204,22 +217,6 @@ WaveTank::moving_bodies_callback(const uint index, Object* object, const double 
 	    kdata.orientation = kdata.orientation;
 	    dr.Identity();
     }
-}
-
-void WaveTank::copy_planes(PlaneList &planes)
-{
-	const double w = m_size.y;
-	const double l = h_length + slope_length;
-
-	//  plane is defined as a x + by +c z + d= 0
-	planes.push_back( implicit_plane(0, 0, 1.0, 0) );   //bottom, where the first three numbers are the normal, and the last is d.
-	planes.push_back( implicit_plane(0, 1.0, 0, 0) );   //wall
-	planes.push_back( implicit_plane(0, -1.0, 0, w) );  //far wall
-	planes.push_back( implicit_plane(1.0, 0, 0, 0) );   //end
-	planes.push_back( implicit_plane(-1.0, 0, 0, l) );  //one end
-	if (use_bottom_plane)  {
-		planes.push_back( implicit_plane(-sin(beta),0,cos(beta), h_length*sin(beta)) );  //sloping bottom starting at x=h_length
-	}
 }
 
 #undef MK_par

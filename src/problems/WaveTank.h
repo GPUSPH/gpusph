@@ -48,7 +48,6 @@ class WaveTank: public Problem {
 
 	public:
 		WaveTank(GlobalData *);
-		void copy_planes(PlaneList &);
 
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
 									const float3&, const KinematicData &, KinematicData &,
