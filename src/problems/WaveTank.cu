@@ -88,7 +88,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	// Physical parameters
 	H = 0.45;
 	set_gravity(-9.81f);
-	setMaxFall(H);
 
 	float r0 = m_deltap;
 
@@ -112,8 +111,15 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	cout << "\npaddle_amplitude (radians): " << paddle_amplitude << "\n";
 	paddle_omega = 2.0*M_PI/period;
 
-	// set maximum speed as the speed of the paddle tip
-	setMaxParticleSpeed(paddle_length*paddle_omega);
+	// set max fall as at-rest height + (half) wave height, see e.g. Ch. 6 in
+	// Dean & Dalrymple, Water Waves Mechanics for Engineers and Scientists
+	float wave_height = H*stroke/4;
+	setMaxFall(H+wave_height);
+
+	// set maximum speed from the stroke speed, times a safety factor
+	float stroke_speed_safety_factor = 2.0f;
+	float stroke_speed = 2.0f*stroke/period;
+	setMaxParticleSpeed(stroke_speed*stroke_speed_safety_factor);
 
 	// Drawing and saving times
 
