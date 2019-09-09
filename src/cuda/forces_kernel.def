@@ -1185,16 +1185,27 @@ template<KernelType kerneltype,
 	ParticleType _nptype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _has_sps = _ViscSpec::turbmodel == SPS,
-	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype) >
+	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
+	// shortcut type definitions
+	typename _sa_boundary_neib_data = typename
+		COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
+			sa_boundary_neib_data),
+	typename _dummy_boundary_neib_data = typename
+		COND_STRUCT(boundarytype == DUMMY_BOUNDARY && cptype == PT_FLUID &&
+			_nptype == PT_BOUNDARY,
+		dummy_boundary_neib_data),
+	typename _eulerVel_neib_data =
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
+			(_has_keps || simflags & ENABLE_INLET_OUTLET),
+		eulerVel_neib_data)
+>
 struct forces_neib_data :
 	common_neib_data,
 	COND_STRUCT(_sph_formulation == SPH_GRENIER &&
 		(densitydiffusiontype == COLAGROSSI), volume_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
-	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
-		sa_boundary_neib_data),
-	COND_STRUCT(boundarytype == DUMMY_BOUNDARY && cptype == PT_FLUID &&  _nptype == PT_BOUNDARY,
-		dummy_boundary_neib_data),
+	_sa_boundary_neib_data,
+	_dummy_boundary_neib_data,
 	// relative eulerian velocity
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || simflags & ENABLE_INLET_OUTLET),
@@ -1216,21 +1227,6 @@ struct forces_neib_data :
 	static const bool has_keps = _has_keps;
 	static const bool has_effective_visc = _has_effective_visc;
 	static const bool has_sps = _has_sps;
-
-	// shortcut typedefs
-	typedef
-		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype,
-			sa_boundary_neib_data)
-		_sa_boundary_neib_data;
-	typedef
-		typename COND_STRUCT(boundarytype == DUMMY_BOUNDARY && cptype == PT_FLUID && _nptype == PT_BOUNDARY,
-			dummy_boundary_neib_data)
-		_dummy_boundary_neib_data;
-	typedef
-		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
-				(has_keps || simflags & ENABLE_INLET_OUTLET),
-			eulerVel_neib_data)
-		_eulerVel_neib_data;
 
 	/* The constructor is templatized on the particle data type and on the
 	   kernel params type */
