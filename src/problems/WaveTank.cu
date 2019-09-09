@@ -38,6 +38,11 @@
 
 WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 {
+	// use a plane for the bottom
+	const bool use_bottom_plane = get_option("bottom-plane", true);
+	// Add objects to the tank
+	const bool use_cyl = get_option("cylinder", false);
+
 	// Size and origin of the simulation domain
 	lx = 9.0;
 	ly = 0.6;
@@ -48,9 +53,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	h_length = 0.5;
 	height = .63;
 	beta = atan(height/slope_length);
-
-	// Add objects to the tank
-	use_cyl = false;
 
 	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>,
@@ -70,9 +72,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	if (get_option("testpoints", false)) {
 		addPostProcess(TESTPOINTS);
 	}
-
-	// use a plane for the bottom
-	use_bottom_plane = 1;  //1 for plane; 0 for particles
 
 	// SPH parameters
 	set_deltap(1.0/64.0);
@@ -133,7 +132,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	if (!use_bottom_plane) {
 		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 				Point(h_length, 0, 0), 0, ly, paddle_length);
-		//	Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
 		disableCollisions(bottom);
 	}
 
