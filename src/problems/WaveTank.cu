@@ -38,10 +38,15 @@
 
 WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 {
+	// use planes in general
+	const bool use_planes = get_option("use_planes", true);
 	// use a plane for the bottom
-	const bool use_bottom_plane = get_option("bottom-plane", true);
+	const bool use_bottom_plane = get_option("bottom-plane", use_planes);
 	// Add objects to the tank
 	const bool use_cyl = get_option("cylinder", false);
+
+	if (use_bottom_plane && !use_planes)
+		throw std::invalid_argument("cannot use bottom plane if not using planes");
 
 	// Size and origin of the simulation domain
 	lx = 9.0;
@@ -56,8 +61,9 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>,
-		boundary<LJ_BOUNDARY>,
-		add_flags<ENABLE_PLANES>
+		boundary<LJ_BOUNDARY>
+	).select_options(
+		use_planes, add_flags<ENABLE_PLANES>()
 	);
 
 	m_size = make_double3(lx, ly, lz);
@@ -137,9 +143,10 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	if (!use_bottom_plane) {
 		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-				Point(h_length, 0, 0), lx, ly);
+				Point(h_length, 0, 0), lx - h_length, ly);
 		rotate(bottom, 0, beta, 0);
 		disableCollisions(bottom);
+		setEraseOperation(bottom, ET_ERASE_FLUID);
 	}
 
 	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
@@ -176,7 +183,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		}
 	}
 
-	{
+	if (use_planes) {
 		const double w = m_size.y;
 		const double l = h_length + slope_length;
 
@@ -185,18 +192,43 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		addPlane(0, -1, 0, w); //far wall
 		addPlane(1.0, 0, 0, 0);   //end
 		addPlane(-1.0, 0, 0, l);  //one end
+	} else {
+		// bottom, flat rectangle before the slope begins
+		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID, Point(m_origin), h_length-m_deltap, ly);
+		setEraseOperation(bottom, ET_ERASE_FLUID);
 
+		// close wall
+		GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
+			Point(m_origin + make_double3(0, 0, lz)),
+			lx, lz);
+		rotate(wall, M_PI/2, 0, 0);
+		setEraseOperation(wall, ET_ERASE_FLUID);
+
+		// far wall
+		wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
+			Point(m_origin + make_double3(0, ly, 0)),
+			lx, lz);
+		rotate(wall, -M_PI/2, 0, 0);
+		setEraseOperation(wall, ET_ERASE_FLUID);
+	}
+
+	// these planes are used at least for cutting, so they are always defined
+	{
 		// sloping bottom starting at x=h_length
 		// this is only used to unfill if !use_bottom_plane
-		addPlane(-sin(beta), 0, cos(beta), h_length*sin(beta),
+		GeometryID plane = addPlane(-sin(beta), 0, cos(beta), h_length*sin(beta),
 			use_bottom_plane ? FT_NOFILL : FT_UNFILL);
+
+		setEraseOperation(plane, ET_ERASE_FLUID);
 
 		// this plane corresponds to the initial paddle position, and is only used to cut out
 		// the fluid behind the paddle
 		const double pcx = cos(paddle_amplitude);
 		const double pcz = sin(paddle_amplitude);
 		const double pcd = paddle_origin.x*pcx + paddle_origin.z*pcz;
-		addPlane(pcx, 0, pcz, -pcd, FT_UNFILL);
+		plane = addPlane(pcx, 0, pcz, -pcd, FT_UNFILL);
+
+		setEraseOperation(plane, ET_ERASE_FLUID);
 	}
 }
 
