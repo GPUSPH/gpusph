@@ -167,7 +167,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	}
 
 	if (m_simparams->boundarytype == DUMMY_BOUNDARY) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DUMMY_VEL>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DUMMY_VEL>(0);
 	}
 
 	if (m_simparams->turbmodel == KEPSILON) {
@@ -2699,6 +2699,15 @@ void GPUWorker::runCommand<COMPUTE_BOUNDARY_CONDITIONS>(CommandStruct const& cmd
 	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
 		extractGeneralBufferList(m_dBuffers, cmd.writes);
 	bufwrite.add_manipulator_on_write("compute boundary conditions");
+
+	// on init, we need to reset and clear the DUMMY_VEL buffer, since it will
+	// not have been initialized. This will happen if BUFFER_DUMMY_VEL is in
+	// cmd.writes instead of cmd.updates
+	if (!cmd.writes.empty()) {
+		auto dummyVel = bufwrite.get<BUFFER_DUMMY_VEL>();
+		dummyVel->clobber();
+		dummyVel->mark_valid();
+	}
 
 	//if (!bcEngine) throw runtime_error("boundary conditions engine not implemented");
 

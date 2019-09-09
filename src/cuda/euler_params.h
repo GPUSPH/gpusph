@@ -133,6 +133,22 @@ struct energy_euler_params : Energy_params<>
 	{}
 };
 
+/// Additional parameters passed only to kernels with DUMMY_BOUNDARY
+/*! We abuse the DUMMY_VEL array to pass acceleration information that will be used
+ *  in ComputeDummyParticlesDevice to compute the correct pressure
+ */
+struct dummy_euler_params
+{
+	float4 * __restrict__ dummyVel; ///< particle acceleration for dummy boundary velocity computation
+
+	dummy_euler_params(
+		BufferList const&	bufread,
+		BufferList&			bufwrite)
+	:
+		dummyVel(bufwrite.getData<BUFFER_DUMMY_VEL>())
+	{}
+};
+
 /// The actual euler_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -161,7 +177,8 @@ struct euler_params :
 	sa_boundary_moving_params,
 	COND_STRUCT(_has_keps, keps_euler_params),
 	grenier_params,
-	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)
+	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params),
+	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_euler_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr SPHFormulation sph_formulation = _sph_formulation;
@@ -191,7 +208,8 @@ struct euler_params :
 		sa_boundary_moving_params(bufread, bufwrite),
 		COND_STRUCT(has_keps, keps_euler_params)(bufread, bufwrite),
 		grenier_params(bufread, bufwrite),
-		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(bufread, bufwrite)
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(bufread, bufwrite),
+		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_euler_params)(bufread, bufwrite)
 	{}
 };
 

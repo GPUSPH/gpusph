@@ -101,6 +101,19 @@ struct energy_particle_data
 	{}
 };
 
+struct dummy_particle_data
+{
+	float4 acceleration;
+
+	// on initialization we store in acceleration the old particle velocity,
+	// so that it is available when computing the actual acceleration (since
+	// the vel member of the particle_data will only keep the new one)
+	__device__ __forceinline__
+	dummy_particle_data(const uint index, common_euler_params const& params) :
+		acceleration(params.oldVel[index])
+	{}
+};
+
 /// The actual euler_particle_data struct, which concatenates all of the above, as appropriate.
 template<typename EP, ///< euler_param template specialization
 	KernelType _kerneltype = EP::kerneltype,
@@ -116,7 +129,8 @@ struct euler_particle_data :
 	COND_STRUCT(_has_keps, keps_particle_data),
 	COND_STRUCT(_simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data),
-	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)
+	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data),
+	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -137,7 +151,8 @@ struct euler_particle_data :
 		COND_STRUCT(has_keps, keps_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data)(_index, params),
-		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)(_index, params)
+		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)(_index, params),
+		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_particle_data)(_index, params)
 	{}
 };
 
@@ -178,6 +193,23 @@ compute_corrected_velocity(EP const& params, P &pdata)
 	pdata.velc.y += d_epsxsph*pdata.xsph.y;
 	pdata.velc.z += d_epsxsph*pdata.xsph.z;
 }
+
+/// Compute acceleration
+/*! This is used by dummy boundaries to compute the corrected pressure */
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::boundarytype == DUMMY_BOUNDARY>
+compute_acceleration(EP const& params, P &pdata, float dt)
+{
+	pdata.acceleration = pdata.ptype == PT_BOUNDARY ?
+		(pdata.vel - pdata.acceleration)/dt :
+		make_float4(NAN);
+}
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::boundarytype != DUMMY_BOUNDARY>
+compute_acceleration(EP const& params, P &pdata, float dt)
+{ /* do nothing */ }
 
 /// Integrate energy
 /*! When internal energy integration is enabled
@@ -318,6 +350,20 @@ template<typename EP, typename P>
 __device__ __forceinline__
 enable_if_t<not EP::has_eulerVel>
 write_eulerVel(EP const& params, P &pdata, int index)
+{ /* do nothing*/ }
+
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::boundarytype == DUMMY_BOUNDARY>
+write_dummyVel(EP const& params, P &pdata, int index)
+{
+	params.dummyVel[index] = pdata.acceleration;
+}
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::boundarytype != DUMMY_BOUNDARY>
+write_dummyVel(EP const& params, P &pdata, int index)
 { /* do nothing*/ }
 
 
@@ -521,6 +567,9 @@ eulerDevice(EP params)
 		}
 	} while (0);
 
+	// compute (dummy boundary) acceleration
+	compute_acceleration(params, pdata, dt);
+
 	params.newPos[index] = pdata.pos;
 	params.newVel[index] = pdata.vel;
 	write_energy(params, pdata, index);
@@ -531,6 +580,7 @@ eulerDevice(EP params)
 	if (!params.repacking) {
 		write_volume(params, pdata, index);
 		write_eulerVel(params, pdata, index);
+		write_dummyVel(params, pdata, index);
 		write_viscosity_coeff(params, pdata, index);
 		// update normal of boundary element, if using SA_BOUNDARY and we have moving bodies
 		update_normals(params, pdata, index);

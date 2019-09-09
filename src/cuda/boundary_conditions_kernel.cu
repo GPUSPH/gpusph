@@ -2433,10 +2433,8 @@ ComputeDummyParticlesDevice(
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	// Compute g - a_w where a_w is the particle acceleration
-	// TODO FIXME change for moving bodies
-	const float3 accel_delta = d_gravity;
-
-	//const float3 accel_delta = d_gravity - compute_body_particle_accel(info, gridPos, make_float3(pos));
+	// The acceleration is computed by euler and we use it here
+	const float3 accel_delta = d_gravity - make_float3(dummyVelArray[index]);
 
 	// Persistent variables across getNeibData calls
 	float3 pos_corr;

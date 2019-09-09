@@ -118,25 +118,32 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<DUMMY_BOUNDARY>
 	(Integrator::Phase *this_phase, StepInfo const& step)
 {
 	const SimParams *sp = gdata->problem->simparams();
+	const bool init_step = (step.number == 0);
 
 	/* Boundary conditions are applied to step n during initialization step,
 	 * to step n* after the integrator, and to step n+1 after the corrector
 	 */
 	const string state = getNextStateForStep(step.number);
 
-	// the dummy boundary velocity correction is computed before the computation
-	// of the effective viscosity, since in CALC_VISC we should be using
-	// the corrected velocity (TODO verify)
-	if (sp->boundarytype == DUMMY_BOUNDARY) {
-		this_phase->add_command(COMPUTE_BOUNDARY_CONDITIONS)
-			.reading(state,
-				BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_CELLSTART)
-			.updating(state, BUFFER_VEL | BUFFER_VOLUME)
-			.writing(state, BUFFER_DUMMY_VEL);
-		if (MULTI_DEVICE)
-			this_phase->add_command(UPDATE_EXTERNAL)
-				.updating(state, BUFFER_VOLUME | BUFFER_VEL | BUFFER_DUMMY_VEL);
+	// Compute the dummy boundary velocity. This needs the particle acceleration,
+	// that is stored in BUFFER_DUMMY_VEL by the previous EULER, except on a non-resume
+	// init, in which case the DUMMY_VEL buffer will be uninitialized. To handle this,
+	// we add the buffer as .updating, except on non-resume init, in which case it's
+	// added as .writing
+	CommandStruct& cmd = this_phase->add_command(COMPUTE_BOUNDARY_CONDITIONS)
+		.reading(state,
+			BUFFER_POS | BUFFER_INFO | BUFFER_HASH | BUFFER_NEIBSLIST | BUFFER_CELLSTART)
+		.updating(state, BUFFER_VEL | BUFFER_VOLUME);
+
+	if (init_step) {
+		cmd.writing(state, BUFFER_DUMMY_VEL);
+	} else {
+		cmd.updating(state, BUFFER_DUMMY_VEL);
 	}
+
+	if (MULTI_DEVICE)
+		this_phase->add_command(UPDATE_EXTERNAL)
+			.updating(state, BUFFER_VOLUME | BUFFER_VEL | BUFFER_DUMMY_VEL);
 }
 
 // formerly saBoundaryConditions()
@@ -630,8 +637,11 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		// predictor: the next state is empty, so we mark all the props buffer as writing:
 		euler_cmd.writing(next_state, PARTICLE_PROPS_BUFFERS);
 	} else {
-		// corrector: we update the “current” state (step n*)
-		euler_cmd.updating(current_state, PARTICLE_PROPS_BUFFERS)
+		// corrector: we update the “current” state (step n*), except for
+		// the dummy velocity buffer, that will be cleared except for the acceleration
+		// of the boundary particles, and is thus in writing rather than updating
+		euler_cmd.updating(current_state, PARTICLE_PROPS_BUFFERS & ~BUFFER_DUMMY_VEL)
+			.writing(current_state, BUFFER_DUMMY_VEL)
 		// and then rename it to step n+1; for another usage of this syntax,
 		// see also the enqueue of the SORT command
 			.set_src(current_state)
