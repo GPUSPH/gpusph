@@ -130,8 +130,9 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	disableCollisions(paddle);
 
 	if (!use_bottom_plane) {
-		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-				Point(h_length, 0, 0), 0, ly, paddle_length);
+		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
+				Point(h_length, 0, 0), lx, ly);
+		rotate(bottom, 0, beta, 0);
 		disableCollisions(bottom);
 	}
 
