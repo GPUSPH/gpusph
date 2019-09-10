@@ -2583,7 +2583,7 @@ __device__ __forceinline__
 enable_if_t<viscmodel == MONAGHAN, float3>
 viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
 {
-	const float4 relVel = get_viscous_relVel(ndata);
+	const float4 relVel = get_viscous_relVel(pdata, ndata);
 	// TODO instead of depending on epsartvisc, we could consider this:
 	// the formula we want is (r.v)/(r.r) r, and the division is needed
 	// to avoid underflow for very small (or null) r.
@@ -2752,10 +2752,10 @@ compute_laminar_visc_contrib
 		return;
 
 	// velocity of fluid particle along the wall
-	const float3 vel_tau = as_float3(get_viscous_relVel(ndata)) -
+	const float3 vel_tau = as_float3(get_viscous_relVel(pdata, ndata)) -
 		(IO_BOUNDARY(ndata.info) ?
 		 make_float3(0.0f) :
-		 dot3(get_viscous_relVel(ndata), ndata.normal_s)*ndata.normal_s
+		 dot3(get_viscous_relVel(pdata, ndata), ndata.normal_s)*ndata.normal_s
 		);
 
 	// TODO check if this should be get_visc_coeff instead of get_laminar_visc_coeff
@@ -2996,7 +2996,7 @@ compute_keps_term
 	//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
 	//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
-	pout.add_strain_rate(get_viscous_relVel(ndata), dvmul);
+	pout.add_strain_rate(get_viscous_relVel(pdata, ndata), dvmul);
 }
 
 /// k-epsilon differential equation, boundary term
@@ -3030,7 +3030,7 @@ compute_keps_term
 	//	dvy = ∑ρs vyas ∇γas
 	//	dvz = ∑ρs vzas ∇γas
 
-	pout.add_strain_rate(get_viscous_relVel(ndata), dvmul);
+	pout.add_strain_rate(get_viscous_relVel(pdata, ndata), dvmul);
 }
 
 /*
