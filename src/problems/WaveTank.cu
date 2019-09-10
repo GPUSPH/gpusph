@@ -39,11 +39,13 @@
 WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 {
 	// use planes in general
-	const bool use_planes = get_option("use_planes", true);
+	const bool use_planes = get_option("use_planes", false);
 	// use a plane for the bottom
 	const bool use_bottom_plane = get_option("bottom-plane", use_planes);
 	// Add objects to the tank
 	const bool use_cyl = get_option("cylinder", false);
+	// Density diffusion type
+	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
 
 	if (use_bottom_plane && !use_planes)
 		throw std::invalid_argument("cannot use bottom plane if not using planes");
@@ -63,8 +65,18 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<SPSVISC>,
 		boundary<DUMMY_BOUNDARY>
 	).select_options(
+		RHODIFF,
 		use_planes, add_flags<ENABLE_PLANES>()
 	);
+
+	// Allow user to set the MLS frequency at runtime. Default to 0 if density
+	// diffusion is enabled, 10 otherwise
+	const int mlsIters = get_option("mls",
+		(simparams()->densitydiffusiontype != DENSITY_DIFFUSION_NONE) ? 0 : 10);
+
+	if (mlsIters > 0)
+		addFilter(MLS_FILTER, mlsIters);
+
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0, 0, 0);
@@ -72,8 +84,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		m_origin.z -= 2.0*height;
 		m_size.z += 2.0*height;
 	}
-
-	addFilter(SHEPARD_FILTER, 20); // or MLS_FILTER
 
 	if (get_option("testpoints", false)) {
 		addPostProcess(TESTPOINTS);
