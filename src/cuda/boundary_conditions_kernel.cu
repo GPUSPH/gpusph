@@ -2436,9 +2436,6 @@ ComputeDummyParticlesDevice(
 	// The acceleration is computed by euler and we use it here
 	const float3 accel_delta = d_gravity - make_float3(dummyVelArray[index]);
 
-	// Persistent variables across getNeibData calls
-	float3 pos_corr;
-
 	// Loop over all the neighbors, and you should pay attention to the followings
 	// 1, neighbors are not wall particles
 	// 2, we need to compute the neighbor's pressure 
@@ -2455,7 +2452,7 @@ ComputeDummyParticlesDevice(
 
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = pos_corr - posArray[neib_index];
+		const float4 relPos = neib_iter.relPos(posArray[neib_index]);
 		const particleinfo neib_info = infoArray[neib_index];
 
 		// Skip inactive neighbors and neighbors which are not FLUID
