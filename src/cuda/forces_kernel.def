@@ -1154,7 +1154,7 @@ struct sa_boundary_neib_data
 		index(_index),
 		belem(tex1Dfetch(boundTex, index)),
 		normal_s(as_float3(belem)),
-		r_as(fmax(fabs(dot(as_float3(_relPos), normal_s)), params.deltap))
+		r_as(fmax(fabs(dot3(_relPos, normal_s)), params.deltap))
 	{}
 };
 
@@ -1651,14 +1651,14 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float neib_rho = physical_density(ndata);
 	const uint fType =  fluid_num(pdata.info);
 	// gravity correction for free-surface flows
-	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
+	const float grav_corr = -dot3(d_gravity, ndata.relPos)*d_rho0[fType]/d_sqC0[fType];
 	// actual diffusion term
 	const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
 		(rho - neib_rho + grav_corr)/rho/ndata.r*as_float3(ndata.relPos) :
 		make_float3(0.0f);
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot3(ferraricor, ndata.relPos)*ndata.f;
 }
 
 /// Contribution from fluid (and vertex if SA_BOUNDARY is used) neighbors 
@@ -1690,7 +1690,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float n_theta = volume_fraction<FP, nptype>(n_volume0, params.deltap);
 
 	// gravity correction for free-surface flows
-	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
+	const float grav_corr = -dot3(d_gravity, ndata.relPos)*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
 
 	// actual diffusion term -- SPH_HA: the term (rho - neib_rho) is replaced by
 	// mass*(1/vol - neib_theta/(theta*neib_volume))
@@ -1700,7 +1700,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 		(pdata.pos.w*(1./p_volume - n_theta/(p_theta*n_volume)) + grav_corr)/physical_density(pdata)/ndata.r*as_float3(ndata.relPos) :
 		make_float3(0.0f);
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot3(ferraricor, ndata.relPos)*ndata.f;
 }
 
 /// Contribution from boundary neighbors for Ferrari density diffusion,
@@ -1720,7 +1720,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float neib_rho = physical_density(ndata);
 	const int fType =  fluid_num(pdata.info);
 	// gravity correction for free-surface flows
-	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
+	const float grav_corr = -dot3(d_gravity, ndata.relPos)*d_rho0[fType]/d_sqC0[fType];
 	// actual diffusion term
 	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
@@ -1773,7 +1773,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 
 
 	// gravity correction for free-surface flows
-	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
+	const float grav_corr = -dot3(d_gravity, ndata.relPos)*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
 	// actual diffusion term
 
 	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
@@ -1805,7 +1805,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
 	nout.DrDt += d_densityDiffCoeff*((2.0f/(rho + neib_rho))*
 		(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
-		- dot(d_gravity, as_float3(ndata.relPos))
+		- dot3(d_gravity, ndata.relPos)
 		)*ndata.relPos.w/neib_rho*ndata.f*params.dt*2.0f*rho;
 }
 
@@ -1845,7 +1845,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	nout.DrDt += d_densityDiffCoeff*(
 			2.0f/(pdata.pos.w*(1./p_volume + n_theta/(p_theta*n_volume )))*
 			(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
-			- dot(d_gravity, as_float3(ndata.relPos))
+			- dot3(d_gravity, ndata.relPos)
 			)*ndata.relPos.w/n_rho*ndata.f*params.dt*2.0f*p_rho;
 }
 
@@ -1873,7 +1873,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 		const float neib_rho = physical_density(ndata);
 		nout.DrDt -= ((2.0/(rho + neib_rho))*
 			(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
-			- dot(d_gravity, as_float3(ndata.relPos))
+			- dot3(d_gravity, ndata.relPos)
 			)*nout.ggamAS/ndata.r_as*params.dt*2.0f*rho;
 	}
 }
@@ -1927,7 +1927,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 
 		nout.DrDt -= (2.0f/(pdata.pos.w*(1./p_volume + n_theta/(p_theta*n_volume)))*
 				(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
-				- dot(d_gravity, as_float3(ndata.relPos))
+				- dot3(d_gravity, ndata.relPos)
 			     )*nout.ggamAS/ndata.r_as*params.dt*2.0f*p_rho;
 	}
 }
