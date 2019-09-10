@@ -476,6 +476,20 @@ precalc_pressure(Pt const& pdata)
 	return pressure_for_precalc(pdata);
 }
 
+/// r.T.r/r^2, computed without division by 0
+template<typename V>
+__device__ __forceinline__
+float compute_rTr_r2(symtensor3 T, V const& relPos)
+{
+	float r = hypot3(relPos);
+	if (!r) return 0;
+
+	float3 v = make_float3(relPos.x/r, relPos.y/r, relPos.z/r);
+
+	return dot(v, dot(T, v));
+}
+
+
 //! @}
 
 /*
@@ -1190,6 +1204,22 @@ struct dummy_boundary_neib_data
 	{}
 };
 
+struct cspm_neib_data
+{
+	const float3 cspm_relPos;
+	const float  cspm_vel_dot_pos;
+	// relPos.T.relPos / relPos.relPos, computed without
+	// division by 0
+	const float cspm_rTr_r2;
+
+	__device__ __forceinline__
+	cspm_neib_data(cspm_particle_data const& pdata, common_neib_data const& ndata) :
+		cspm_relPos(dot(pdata.fcoeffTens, ndata.relPos)),
+		cspm_vel_dot_pos(dot3(ndata.relVel, cspm_relPos)),
+		cspm_rTr_r2(compute_rTr_r2(pdata.fcoeffTens, ndata.relPos))
+	{}
+};
+
 struct eulerVel_neib_data
 {
 	const float4 relEulerVel;
@@ -1206,7 +1236,7 @@ template<KernelType kerneltype,
 	DensityDiffusionType densitydiffusiontype,
 	BoundaryType boundarytype,
 	typename _ViscSpec,
-	flag_t simflags,
+	flag_t _simflags,
 	ParticleType cptype,
 	ParticleType _nptype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
@@ -1220,9 +1250,11 @@ template<KernelType kerneltype,
 		COND_STRUCT(boundarytype == DUMMY_BOUNDARY && cptype == PT_FLUID &&
 			_nptype == PT_BOUNDARY,
 		dummy_boundary_neib_data),
+	typename _cspm_neib_data = typename
+		COND_STRUCT(_simflags & ENABLE_CSPM, cspm_neib_data),
 	typename _eulerVel_neib_data =
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
-			(_has_keps || simflags & ENABLE_INLET_OUTLET),
+			(_has_keps || _simflags & ENABLE_INLET_OUTLET),
 		eulerVel_neib_data)
 >
 struct forces_neib_data :
@@ -1232,9 +1264,10 @@ struct forces_neib_data :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	_sa_boundary_neib_data,
 	_dummy_boundary_neib_data,
+	_cspm_neib_data,
 	// relative eulerian velocity
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
-			(_has_keps || simflags & ENABLE_INLET_OUTLET),
+			(_has_keps || _simflags & ENABLE_INLET_OUTLET),
 		eulerVel_neib_data),
 	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
 	// these are the same as the particle data
@@ -1249,6 +1282,7 @@ struct forces_neib_data :
 	static const ComputationalViscosityType compvisc = ViscSpec::compvisc;
 	static const RheologyType rheologytype = ViscSpec::rheologytype;
 
+	static constexpr flag_t simflags = _simflags;
 	static constexpr ParticleType	nptype = _nptype;
 	static const bool has_keps = _has_keps;
 	static const bool has_effective_visc = _has_effective_visc;
@@ -1268,6 +1302,7 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_dummy_boundary_neib_data(pdata, params, _index, _relPos),
+		_cspm_neib_data(pdata, *this),
 		_eulerVel_neib_data(pdata, _index, _info),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
@@ -1599,6 +1634,64 @@ __device__ __forceinline__
 enable_if_t<FP::boundarytype != SA_BOUNDARY, float>
 volume_fraction(const float volume, const float deltap)
 { return 1; }
+
+/* Function to apply CSPM to the gradient:
+ * If CSPM is not active, this simply returns relPos,
+ * otherwise it will return dot(fcoeffTens, relPos),
+ * that still has to be multiplied by ndata.f to get the corrected
+ * gradient
+ */
+
+template<typename N>
+__device__ __forceinline__
+enable_if_t<N::simflags & ENABLE_CSPM, float3 const&>
+corrected_relPos(N const& ndata)
+{
+	return ndata.cspm_relPos;
+}
+
+template<typename N>
+__device__ __forceinline__
+enable_if_t<!(N::simflags & ENABLE_CSPM), float3 const>
+corrected_relPos(N const& ndata)
+{
+	return make_float3(ndata.relPos);
+}
+
+template<typename N>
+__device__ __forceinline__
+enable_if_t<N::simflags & ENABLE_CSPM, float const&>
+corrected_vel_dot_pos(N const& ndata)
+{
+	return ndata.cspm_vel_dot_pos;
+}
+
+template<typename N>
+__device__ __forceinline__
+enable_if_t<!(N::simflags & ENABLE_CSPM), float const&>
+corrected_vel_dot_pos(N const& ndata)
+{
+	return ndata.vel_dot_pos;
+}
+
+// the number that needs to be multiplied by F to obtain
+// r.gradW/r^2
+template<typename N>
+__device__ __forceinline__
+enable_if_t<(N::simflags & ENABLE_CSPM), float const&>
+corrected_f_coefficient(N const& ndata)
+{
+	return ndata.cspm_rTr_r2;
+}
+
+template<typename N>
+__device__ __forceinline__
+enable_if_t<!(N::simflags & ENABLE_CSPM), float>
+corrected_f_coefficient(N const& ndata)
+{
+	return 1;
+}
+
 
 /*
  * Density diffusion function templates
