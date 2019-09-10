@@ -61,7 +61,11 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>,
+#if 0
 		boundary<LJ_BOUNDARY>
+#else
+		boundary<DYN_BOUNDARY>
+#endif
 	).select_options(
 		use_planes, add_flags<ENABLE_PLANES>()
 	);
@@ -135,8 +139,14 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	 * Building the geometry
 	 */
 
-	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
-	const double3 slope_origin = paddle_origin + make_double3(h_length, 0, 0);
+	// number of layers of thickness for the boxes that implement the walls and slopes;
+	// this depends on the boundary model: for anything up to SA a single layer is used,
+	// for higher values (e.g. dynamic boundaries) we need to fill the kernel influence
+	// radius
+	const int num_layers = (simparams()->boundarytype > SA_BOUNDARY) ?
+		simparams()->get_influence_layers() : 1;
+	const double box_thickness = (num_layers - 1)*m_deltap;
+	const double3 slope_origin = make_double3(paddle_origin.x + h_length, 0, -box_thickness);
 
 	setPositioning(PP_CORNER);
 
@@ -146,14 +156,15 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
 
 	// place the paddle
-	GeometryID paddle = addRect(GT_MOVING_BODY, FT_SOLID,
-		Point(paddle_origin), paddle_length, paddle_width);
-	rotate(paddle, 0, M_PI/2+paddle_amplitude, 0);
+	GeometryID paddle = addBox(GT_MOVING_BODY, FT_SOLID,
+		Point(paddle_origin - make_double3(box_thickness, 0, 0)),
+		box_thickness, paddle_width, paddle_length);
+	rotate(paddle, 0, paddle_amplitude, 0);
 
 	// sloped bottom, if not a plane
 	if (!use_bottom_plane) {
-		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-				slope_origin, lx - h_length, ly);
+		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+				slope_origin, lx - h_length, ly, box_thickness);
 		rotate(bottom, 0, beta, 0);
 	}
 
@@ -169,21 +180,20 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		addPlane(-1.0, 0, 0, l);  //one end
 	} else {
 		// flat bottom rectangle (before the slope begins)
-		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point(paddle_origin),
-			h_length - m_deltap, ly);
+		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+			Point(paddle_origin - make_double3(box_thickness, 0, box_thickness)),
+			h_length + box_thickness, ly, box_thickness);
+		setUnfillRadius(bottom, 0.5*m_deltap);
 
 		// close wall
-		GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point(m_origin + make_double3(0, 0, lz)),
-			lx + paddle_origin.x, lz);
-		rotate(wall, M_PI/2, 0, 0);
+		GeometryID wall = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+			Point(m_origin - make_double3(0, box_thickness, box_thickness)),
+			lx + paddle_origin.x, box_thickness, lz + box_thickness);
 
 		// far wall
-		wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point(m_origin + make_double3(0, ly, 0)),
-			lx + paddle_origin.x, lz);
-		rotate(wall, -M_PI/2, 0, 0);
+		wall = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+			Point(m_origin + make_double3(0, ly, -box_thickness)),
+			lx + paddle_origin.x, box_thickness, lz + box_thickness);
 	}
 
 	// these planes are used at least for cutting, so they are always defined
