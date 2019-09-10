@@ -143,6 +143,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		simparams()->get_influence_layers() : 1;
 	const double box_thickness = (num_layers - 1)*m_deltap;
 	const double3 slope_origin = make_double3(paddle_origin.x + h_length, 0, -box_thickness);
+	setDynamicBoundariesLayers(num_layers);
 
 	setPositioning(PP_CORNER);
 
