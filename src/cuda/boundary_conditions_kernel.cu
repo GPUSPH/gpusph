@@ -31,6 +31,7 @@
 #define _BOUNDS_KERNEL_
 
 #include "particledefine.h"
+#include "kahan.h"
 
 /*!
  * \namespace cubounds
@@ -2427,8 +2428,6 @@ ComputeDummyParticlesDevice(
 	if (! (ACTIVE(pos) && BOUNDARY(info)) )
 		return;
 
-	float4 vel = make_float4(0.0f);
-
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
@@ -2441,12 +2440,15 @@ ComputeDummyParticlesDevice(
 	// 2, we need to compute the neighbor's pressure 
 	// 3, pressure is normalized by the kernel function
 
-	//kahan summation
+	// Interpolated velocity and pressure
+	float4 vel = make_float4(0.0f);
+	// Shepard normalization factor (denominator)
+	float norm_factor = 0.0f;
+
+	// auxiliary variables for kahan summation
 	float4 c_vel = make_float4(0.0);
 	float c_norm_f = 0.0;
 
-
-	float norm_factor = 0.0f; // Shepard normalization factor (denominator)
 	// Loop only over FLUID neighbors
 	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
 
@@ -2465,19 +2467,11 @@ ComputeDummyParticlesDevice(
 		if (r >= influenceradius)
 			continue;
 
-
 		const float4 neib_vel = velArray[neib_index];
 
 		const float neib_pressure = P(neib_vel.w, fluid_num(neib_info)); // neib_vel.w = rho_tilde
 
 		const float w = W<kerneltype>(r, slength);
-
-		//kahan summation // TODO FIXME use already implemented functions
-		float w_for_kahan = w;
-		w_for_kahan -= c_norm_f;
-		float t_norm_f = norm_factor + w_for_kahan;
-		c_norm_f = t_norm_f - norm_factor - w_for_kahan;
-		norm_factor = t_norm_f;
 
 		// the .xyz components are just the sum of the weighted velocities,
 		// the .w component is the smoothed pressure, which is computed as:
@@ -2490,17 +2484,9 @@ ComputeDummyParticlesDevice(
 			neib_pressure + physical_density(neib_vel.w, fluid_num(neib_info))*dot(accel_delta, as_float3(relPos)));
 		neib_contrib *= w;
 
-		//kahan summation // TODO FIXME use already implemented functions
-		neib_contrib -= c_vel;
-		float4 t_vel = vel + neib_contrib;
-		c_vel = t_vel - vel - neib_contrib;
-		vel = t_vel;
+		kahan_add(vel, neib_contrib, c_vel);
+		kahan_add(norm_factor, w, c_norm_f);
 	}
-
-
-
-	// TODO add hydrostatic pressure
-
 
 
 	// Normalize the pressure and the velocity, but only if we actually
@@ -2516,8 +2502,7 @@ ComputeDummyParticlesDevice(
 	// have now in vel, and v_w is the velocity of the wall at the particle position,
 	// which is actually what we have in velArray
 
-	//const float4 wall_vel = velArray[index];
-	const float4 wall_vel = make_float4(0,0,0,0); //TODO assing the actual wall velocity
+	const float4 wall_vel = velArray[index];
 
 	float4 new_vel;
 
