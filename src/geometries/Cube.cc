@@ -575,68 +575,71 @@ Cube::FillIn(PointVect& points, const double dx, const int _layers, const bool f
 	const int ny = (int) (m_ly/dx);
 	const int nz = (int) (m_lz/dx);
 
-	vector<int> ix, iy, iz;
-	ix.reserve(2*layers);
-	iy.reserve(2*layers);
-	iz.reserve(2*layers);
+	// we will have two ranges in each direction:
+	// [0, layers[ , ]n - layers, n], except when
+	// n <= 2*layers, the two ranges intersect and reduce to
+	// [0, n]
+	const int xplus_range[] = {0,
+		nx <= 2*layers ? nx : layers - 1 };
+	const int xminus_range[] = {
+		nx <= 2*layers ? INT_MAX : nx - layers + 1,
+		nx };
 
-	for (int i = 0; i < layers; i++) {
-		ix.push_back(i);
-		iy.push_back(i);
-		iz.push_back(i);
+	const int yplus_range[] = {0,
+		ny <= 2*layers ? ny : layers - 1 };
+	const int yminus_range[] = {
+		ny <= 2*layers ? INT_MAX : ny - layers + 1,
+		ny };
+
+	const int zplus_range[] = {0,
+		nz <= 2*layers ? nz : layers - 1 };
+	const int zminus_range[] = {
+		nz <= 2*layers ? INT_MAX : nz - layers + 1,
+		nz };
+
+	// top and bottom layers
+	for (int i = 0; i <= nx; ++i) {
+		for (int j = 0; j <= ny; ++j) {
+			for (int k = zplus_range[0]; k <= zplus_range[1]; ++k) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+			for (int k = zminus_range[0]; k <= zminus_range[1]; ++k) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+		}
 	}
-	for(int i = nx - layers + 1; i <= nx; i++)
-		ix.push_back(i);
-	for(int i = ny - layers + 1; i <= ny; i++)
-		iy.push_back(i);
-	for(int i = nz - layers + 1; i <= nz; i++)
-		iz.push_back(i);
 
-	// Bottom face
-	for (int i = layers; i <= nx - layers; i++)
-		for (int j = layers; j <= ny - layers; j++)
-			for (int k = 0; k < layers; k++) {
+	// front and back face: to avoid overlapping particles,
+	// we do it only for the gaps between the two z ranges —if there were two ranges!
+	if (zminus_range[0] == INT_MAX) return;
+
+	for (int k = zplus_range[1] + 1; k < zminus_range[0] ; ++k) {
+		for (int i = 0; i <= nx; ++i) {
+			for (int j = yplus_range[0]; j <= yplus_range[1]; ++j) {
 				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
 				points.push_back(p);
 			}
-
-	// Top face
-	if (fill_top) {
-		for (int i = layers; i <= nx - layers; i++)
-			for (int j = layers; j <= ny - layers; j++)
-				for (int k = nz - layers + 1; k <= nz; k++) {
-					Point p = m_origin + ((double) i)/((double) nx)*m_vx +  ((double) j)/((double) ny)*m_vy
-							+  ((double) k)/((double) nz)*m_vz;
-					points.push_back(p);
-				}
+			for (int j = yminus_range[0]; j <= yminus_range[1]; ++j) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+		}
+		// side faces, if we have a y gap
+		if (yminus_range[0] == INT_MAX) continue;
+		for (int j = yplus_range[1] + 1; j < yminus_range[0] ; ++j) {
+			for (int i = xplus_range[0]; i <= xplus_range[1]; ++i) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+			for (int i = xminus_range[0]; i <= xminus_range[1]; ++i) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+		}
 	}
-	// Lateral faces
-	for (int i = 0; i <= nx ; i++)
-		for (int j = 0; j < layers; j++)
-			for (int k = 0; k <= nz; k++) {
-				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
-				points.push_back(p);
-			}
-	for (int i = 0; i <= nx ; i++)
-		for (int j = ny - layers + 1; j <= ny; j++)
-			for (int k = 0; k <= nz; k++) {
-				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
-				points.push_back(p);
-			}
 
-	for (int i = 0; i < layers ; i++)
-		for (int j = layers; j <= ny - layers; j++)
-			for (int k = 0; k <= nz; k++) {
-				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
-				points.push_back(p);
-			}
-	for (int i = nx - layers + 1; i <= nx ; i++)
-		for (int j = layers; j <= ny - layers; j++)
-			for (int k = 0; k <= nz; k++) {
-				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
-				points.push_back(p);
-			}
-	return;
 }
 
 
