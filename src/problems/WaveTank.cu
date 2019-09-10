@@ -61,11 +61,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>,
-#if 0
 		boundary<LJ_BOUNDARY>
-#else
-		boundary<DYN_BOUNDARY>
-#endif
 	).select_options(
 		use_planes, add_flags<ENABLE_PLANES>()
 	);
