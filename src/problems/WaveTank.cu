@@ -152,7 +152,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
 
 	// place the paddle
-	GeometryID paddle = addBox(GT_MOVING_BODY, FT_SOLID,
+	GeometryID paddle = addBox(GT_MOVING_BODY, FT_BORDER,
 		Point(paddle_origin - make_double3(box_thickness, 0, 0)),
 		box_thickness, paddle_width, paddle_length);
 	rotate(paddle, 0, paddle_amplitude, 0);
@@ -160,7 +160,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	// sloped bottom, if not a plane
 	double rot_correction = sin(beta)*box_thickness;
 	if (!use_bottom_plane) {
-		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 				slope_origin + make_double3(rot_correction, 0, (1-cos(beta))*box_thickness),
 				lx - h_length - rot_correction, ly, box_thickness);
 		rotate(bottom, 0, beta, 0);
@@ -178,18 +178,18 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		addPlane(-1.0, 0, 0, l);  //one end
 	} else {
 		// flat bottom rectangle (before the slope begins)
-		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 			Point(paddle_origin - make_double3(box_thickness, 0, box_thickness)),
 			h_length + box_thickness + rot_correction, ly, box_thickness);
 		setUnfillRadius(bottom, 0.5*m_deltap);
 
 		// close wall
-		GeometryID wall = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+		GeometryID wall = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 			Point(m_origin - make_double3(0, box_thickness, box_thickness)),
 			lx + paddle_origin.x, box_thickness, lz + box_thickness);
 
 		// far wall
-		wall = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+		wall = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 			Point(m_origin + make_double3(0, ly, -box_thickness)),
 			lx + paddle_origin.x, box_thickness, lz + box_thickness);
 	}
