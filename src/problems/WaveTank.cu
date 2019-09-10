@@ -131,27 +131,81 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	add_writer(VTKWRITER, .1);  //second argument is saving time in seconds
 
-	// Building the geometry
+	/*
+	 * Building the geometry
+	 */
+
 	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
+	const double3 slope_origin = paddle_origin + make_double3(h_length, 0, 0);
+
 	setPositioning(PP_CORNER);
 
+	// place the fluid box. Fill the whole domain in the X and Y direction,
+	// up to the at-rest height. This will be “carved out” by the wall and floor
+	// geometries placed afterwards
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
 
+	// place the paddle
 	GeometryID paddle = addRect(GT_MOVING_BODY, FT_SOLID,
 		Point(paddle_origin), paddle_length, paddle_width);
 	rotate(paddle, 0, M_PI/2+paddle_amplitude, 0);
-	disableCollisions(paddle);
 
-	double3 slope_origin = paddle_origin + make_double3(h_length, 0, 0);
-
+	// sloped bottom, if not a plane
 	if (!use_bottom_plane) {
 		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
 				slope_origin, lx - h_length, ly);
 		rotate(bottom, 0, beta, 0);
-		disableCollisions(bottom);
-		setEraseOperation(bottom, ET_ERASE_FLUID);
 	}
 
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
+	// place the walls: as planes, if required; otherwise, as boxes
+	if (use_planes) {
+		const double w = m_size.y;
+		const double l = h_length + slope_length;
+
+		addPlane(0, 0, 1, 0);  //bottom, where the first three numbers are the normal, and the last is d.
+		addPlane(0, 1, 0, 0);  //wall
+		addPlane(0, -1, 0, w); //far wall
+		addPlane(1.0, 0, 0, 0);   //end
+		addPlane(-1.0, 0, 0, l);  //one end
+	} else {
+		// flat bottom rectangle (before the slope begins)
+		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
+			Point(paddle_origin),
+			h_length - m_deltap, ly);
+
+		// close wall
+		GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
+			Point(m_origin + make_double3(0, 0, lz)),
+			lx + paddle_origin.x, lz);
+		rotate(wall, M_PI/2, 0, 0);
+
+		// far wall
+		wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
+			Point(m_origin + make_double3(0, ly, 0)),
+			lx + paddle_origin.x, lz);
+		rotate(wall, -M_PI/2, 0, 0);
+	}
+
+	// these planes are used at least for cutting, so they are always defined
+	{
+		// sloping bottom as a plane. if use_bottom_plane, then it will be
+		// an actual geometry; if !use_bottom_plane, it will only be used
+		// to unfill the fluid (since the sloping box would not be sufficient
+		// to remove all of the fluid below)
+		GeometryID plane = addPlane(-sin(beta), 0, cos(beta), slope_origin.x*sin(beta),
+			use_bottom_plane ? FT_NOFILL : FT_UNFILL);
+
+		setEraseOperation(plane, ET_ERASE_FLUID);
+
+		// this plane corresponds to the initial paddle position, and is only used to cut out
+		// the fluid behind the paddle. it will not be an actual geometry
+		const double pcx = cos(paddle_amplitude);
+		const double pcz = sin(paddle_amplitude);
+		const double pcd = paddle_origin.x*pcx + paddle_origin.z*pcz;
+		plane = addPlane(pcx, 0, pcz, -pcd, FT_UNFILL);
+
+		setEraseOperation(plane, ET_ERASE_FLUID);
+	}
 
 	if (hasPostProcess(TESTPOINTS)) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
@@ -185,53 +239,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		}
 	}
 
-	if (use_planes) {
-		const double w = m_size.y;
-		const double l = h_length + slope_length;
-
-		addPlane(0, 0, 1, 0);  //bottom, where the first three numbers are the normal, and the last is d.
-		addPlane(0, 1, 0, 0);  //wall
-		addPlane(0, -1, 0, w); //far wall
-		addPlane(1.0, 0, 0, 0);   //end
-		addPlane(-1.0, 0, 0, l);  //one end
-	} else {
-		// bottom, flat rectangle before the slope begins
-		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID, Point(paddle_origin), h_length-m_deltap, ly);
-		setEraseOperation(bottom, ET_ERASE_FLUID);
-
-		// close wall
-		GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point(m_origin + make_double3(0, 0, lz)),
-			lx + paddle_origin.x, lz);
-		rotate(wall, M_PI/2, 0, 0);
-		setEraseOperation(wall, ET_ERASE_FLUID);
-
-		// far wall
-		wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point(m_origin + make_double3(0, ly, 0)),
-			lx + paddle_origin.x, lz);
-		rotate(wall, -M_PI/2, 0, 0);
-		setEraseOperation(wall, ET_ERASE_FLUID);
-	}
-
-	// these planes are used at least for cutting, so they are always defined
-	{
-		// sloping bottom starting at x=h_length
-		// this is only used to unfill if !use_bottom_plane
-		GeometryID plane = addPlane(-sin(beta), 0, cos(beta), slope_origin.x*sin(beta),
-			use_bottom_plane ? FT_NOFILL : FT_UNFILL);
-
-		setEraseOperation(plane, ET_ERASE_FLUID);
-
-		// this plane corresponds to the initial paddle position, and is only used to cut out
-		// the fluid behind the paddle
-		const double pcx = cos(paddle_amplitude);
-		const double pcz = sin(paddle_amplitude);
-		const double pcd = paddle_origin.x*pcx + paddle_origin.z*pcz;
-		plane = addPlane(pcx, 0, pcz, -pcd, FT_UNFILL);
-
-		setEraseOperation(plane, ET_ERASE_FLUID);
-	}
 }
 
 
