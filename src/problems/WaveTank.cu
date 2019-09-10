@@ -162,9 +162,11 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	rotate(paddle, 0, paddle_amplitude, 0);
 
 	// sloped bottom, if not a plane
+	double rot_correction = sin(beta)*box_thickness;
 	if (!use_bottom_plane) {
 		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
-				slope_origin, lx - h_length, ly, box_thickness);
+				slope_origin + make_double3(rot_correction, 0, (1-cos(beta))*box_thickness),
+				lx - h_length - rot_correction, ly, box_thickness);
 		rotate(bottom, 0, beta, 0);
 	}
 
@@ -182,7 +184,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		// flat bottom rectangle (before the slope begins)
 		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
 			Point(paddle_origin - make_double3(box_thickness, 0, box_thickness)),
-			h_length + box_thickness, ly, box_thickness);
+			h_length + box_thickness + rot_correction, ly, box_thickness);
 		setUnfillRadius(bottom, 0.5*m_deltap);
 
 		// close wall
