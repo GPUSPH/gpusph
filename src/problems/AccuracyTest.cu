@@ -39,7 +39,7 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
+		boundary<DUMMY_BOUNDARY>,
 		add_flags<ENABLE_INTERNAL_ENERGY>
 	);
 
