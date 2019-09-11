@@ -74,8 +74,8 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 	H = 0.4f;
 	set_gravity(-9.81f);
 	add_fluid(1000.0);
-	set_equation_of_state(0,  7.0f, 20.f);
 	setMaxFall(H);
+	set_equation_of_state(0,  7.0f, NAN); // auto compute speed of sound
 
 	set_kinematic_visc(0, 1.0e-2f);
 
@@ -139,12 +139,13 @@ DamBreakGate::moving_bodies_callback(const uint index, Object* object, const dou
 {
 	const double tstart = 0.1;
 	const double tend = 0.4;
+	const double gate_velocity = 4.0;
 
 	// Computing, at t = t1, new position of center of rotation (here only translation)
 	// along with linear velocity
 	if (t1 >= tstart && t1 <= tend) {
-		kdata.lvel = make_double3(0.0, 0.0, 4.*(t1 - tstart));
-		kdata.crot.z = initial_kdata.crot.z + 2.*(t1 - tstart)*(t1 - tstart);
+		kdata.lvel = make_double3(0.0, 0.0, gate_velocity*(t1 - tstart));
+		kdata.crot.z = initial_kdata.crot.z + gate_velocity*0.5*(t1 - tstart)*(t1 - tstart);
 		}
 	else
 		kdata.lvel = make_double3(0.0f);
@@ -152,7 +153,7 @@ DamBreakGate::moving_bodies_callback(const uint index, Object* object, const dou
 	// Computing the displacement of center of rotation between t = t0 and t = t1
 	double ti = min(tend, max(tstart, t0));
 	double tf = min(tend, max(tstart, t1));
-	dx.z = 2.*(tf - tstart)*(tf - tstart) - 2.*(ti - tstart)*(ti - tstart);
+	dx.z = gate_velocity*0.5*(tf - tstart)*(tf - tstart) - gate_velocity*0.5*(ti - tstart)*(ti - tstart);
 
 	// Setting angular velocity at t = t1 and the rotation between t = t0 and t = 1.
 	// Here we have a simple translation movement so the angular velocity is null and
