@@ -2949,7 +2949,7 @@ void compute_viscous_contrib
  * The equations are only integrated for fluid particles, so
  * there is no contribution if this particle is not a fluid particle
  *
- * TODO support KEPSLINO with other boundary models
+ * TODO support KEPSILON with other boundary models
  */
 
 /// (missing) k-epsilon differential term
