@@ -270,12 +270,12 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol, symtens
 {
 	float f_times_vol = F*vol;
 
-	fcoeff.xx += rp.x*rp.x*f_times_vol;
-	fcoeff.xy += rp.x*rp.y*f_times_vol;
-	fcoeff.xz += rp.x*rp.z*f_times_vol;
-	fcoeff.yy += rp.y*rp.y*f_times_vol;
-	fcoeff.yz += rp.y*rp.z*f_times_vol;
-	fcoeff.zz += rp.z*rp.z*f_times_vol;
+	fcoeff.xx -= rp.x*rp.x*f_times_vol;
+	fcoeff.xy -= rp.x*rp.y*f_times_vol;
+	fcoeff.xz -= rp.x*rp.z*f_times_vol;
+	fcoeff.yy -= rp.y*rp.y*f_times_vol;
+	fcoeff.yz -= rp.y*rp.z*f_times_vol;
+	fcoeff.zz -= rp.z*rp.z*f_times_vol;
 }
 
 /************************************************************************************************************/
