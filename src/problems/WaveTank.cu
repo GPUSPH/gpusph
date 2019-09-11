@@ -190,19 +190,20 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	} else {
 		// flat bottom rectangle (before the slope begins)
 		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-			Point(paddle_origin - make_double3(box_thickness, 0, box_thickness)),
+			Point(paddle_origin - make_double3(box_thickness, m_deltap, box_thickness)),
 			h_length + box_thickness + rot_correction, ly, box_thickness);
 		setUnfillRadius(bottom, 0.5*m_deltap);
 
+		const double wall_height = paddle_length + box_thickness + (lz - paddle_length)/3.0;
 		// close wall
 		GeometryID wall = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 			Point(m_origin - make_double3(0, box_thickness, box_thickness)),
-			lx + paddle_origin.x, box_thickness, lz + box_thickness);
+			lx + paddle_origin.x, box_thickness, wall_height);
 
 		// far wall
 		wall = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 			Point(m_origin + make_double3(0, ly, -box_thickness)),
-			lx + paddle_origin.x, box_thickness, lz + box_thickness);
+			lx + paddle_origin.x, box_thickness, wall_height);
 	}
 
 	// these planes are used at least for cutting, so they are always defined
@@ -215,6 +216,13 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 			use_bottom_plane ? FT_NOFILL : FT_UNFILL);
 
 		setEraseOperation(plane, ET_ERASE_FLUID);
+
+		// this plane cuts the lateral walls below the sloping ground
+		plane = addPlane(-sin(beta), 0, cos(beta),
+			slope_origin.x*sin(beta) + 2*(m_deltap + box_thickness*cos(beta)),
+			FT_UNFILL);
+
+		setEraseOperation(plane, ET_ERASE_BOUNDARY);
 
 		// this plane corresponds to the initial paddle position, and is only used to cut out
 		// the fluid behind the paddle. it will not be an actual geometry
