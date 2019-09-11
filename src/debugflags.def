@@ -52,6 +52,9 @@ unsigned neibs : 1;
 /// debug forces on host
 unsigned forces : 1;
 
+/// debug CSPM on host
+unsigned cspm : 1;
+
 /// debug relative density variation on host
 unsigned numerical_density : 1;
 

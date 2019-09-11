@@ -882,6 +882,11 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (gdata->debug.forces)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
 
+	if (gdata->debug.cspm) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_WCOEFF>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FCOEFF>();
+	}
+
 	if (gdata->simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
 	if (gdata->simframework->hasPostProcessOption(INTERFACE_DETECTION, BUFFER_NORMALS))
@@ -1743,6 +1748,8 @@ void GPUSPH::saveParticles(
 		which_buffers |= BUFFER_NEIBSLIST | BUFFER_CELLSTART;
 	if (gdata->debug.forces)
 		which_buffers |= BUFFER_FORCES;
+	if (gdata->debug.cspm)
+		which_buffers |= BUFFER_WCOEFF | BUFFER_FCOEFF;
 
 	if (simparams->simflags & ENABLE_INTERNAL_ENERGY)
 		which_buffers |= BUFFER_INTERNAL_ENERGY;

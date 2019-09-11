@@ -40,6 +40,15 @@
 // for FLT_EPSILON
 #include <cfloat>
 
+/// TODO FIXME these should go in a more general place
+#include "cuda/tensor.h"
+template<>
+struct vector_traits<symtensor3>
+{
+	typedef float component_type;
+	enum { components = 6 };
+};
+
 using namespace std;
 
 template<typename T>
@@ -413,6 +422,21 @@ public:
 	}
 };
 
+/// Binary dump of (part of) a tensor
+template<>
+inline void
+VTKAppender::write_var<symtensor3>(symtensor3 const& var, size_t components)
+{
+	out.write(reinterpret_cast<const char *>(&var.xx), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.yy), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.zz), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.xy), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.xz), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.yz), sizeof(float));
+}
+
+
+
 float get_pressure(float4 const& pvel, particleinfo const& pinfo, GlobalData const* gdata)
 {
 	return TESTPOINT(pinfo) ? pvel.w : gdata->problem->pressure(pvel.w, fluid_num(pinfo));
@@ -434,6 +458,21 @@ float get_last_component(float4 const& pvel )
 // Return the last component of a double4, demoted to a float
 float demote_w(double4 const& data)
 { return data.w; }
+
+symtensor3 fetch_tensor(float2 const* const* data, size_t index)
+{
+	float2 const* tau0 = data[0];
+	float2 const* tau1 = data[1];
+	float2 const* tau2 = data[2];
+	symtensor3 ret;
+	ret.xx = tau0[index].x;
+	ret.xy = tau0[index].y;
+	ret.xz = tau1[index].x;
+	ret.yy = tau1[index].y;
+	ret.yz = tau2[index].x;
+	ret.zz = tau2[index].y;
+	return ret;
+}
 
 uchar get_part_type(particleinfo const& pinfo)
 { return PART_TYPE(pinfo); }
@@ -502,6 +541,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 	const float *intEnergy = buffers.getData<BUFFER_INTERNAL_ENERGY>();
 	const float4 *forces = buffers.getData<BUFFER_FORCES>();
+
+	const float *cspm_wcoeff = buffers.getData<BUFFER_WCOEFF>();
+	const float2* const* cspm_fcoeff = buffers.getRawPtr<BUFFER_FCOEFF>();
 
 	const neibdata *neibslist = buffers.getData<BUFFER_NEIBSLIST>();
 
@@ -798,6 +840,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			// If we got here, the sum of all device particles is less than i,
 			// which is an error
 			throw runtime_error("unable to find device particle belongs to");
+		});
+	}
+
+	if (cspm_wcoeff) {
+		appender.append_data(cspm_wcoeff, "CSPM W");
+		appender.append_local_data("CSPM gradW", [this, cspm_fcoeff](size_t i) -> symtensor3 {
+			return fetch_tensor(cspm_fcoeff, i);
 		});
 	}
 
