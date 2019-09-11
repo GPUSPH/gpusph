@@ -327,6 +327,7 @@ cspmCoeffDevice(
 
 	// Loop over all FLUID neighbors and BOUNDARY neighbors
 	// TODO check what to do for SA
+	// TODO scale relPos by slength to gain resolution independence
 	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
