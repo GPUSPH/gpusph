@@ -1452,7 +1452,7 @@ void ProblemAPI<1>::setDEMNormalDisplacement(double demdx, double demdy)
 // set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 {
-	if (simparams()->boundary_is_multilayer())
+	if (!simparams()->boundary_is_multilayer())
 		printf("WARNING: setting number of layers for dynamic boundaries but not using neither DYN_BOUNDARY nor DUMMY_BOUNDARY!\n");
 
 	// TODO: use autocomputed instead of 3
