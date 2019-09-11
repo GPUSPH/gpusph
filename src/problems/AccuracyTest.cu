@@ -51,28 +51,26 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	// SPH parameters
-	set_deltap(0.02); //0.008
+	set_deltap(0.02);
 
 	set_timestep(1e-5f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
-	simparams()->tend = 1.5f; //0.00036f
+	simparams()->tend = 1.5f;
 
 	// Physical parameters
-	H = 0.6f;
+	H = 0.6f; // Water level
 	set_gravity(-9.81f);
 	setMaxFall(H);
+
 	add_fluid(1000.0);
-	set_equation_of_state(0, 7.0, 50);
+	set_equation_of_state(0, 7.0, NAN); // auto compute speed of sound
 
 	set_kinematic_visc(0, 1.0e-6f);
 	set_artificial_visc(0.3*0.005/m_deltap);
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
-
-	// Name of problem used for directory creation
-	m_name = "AccuracyTest";
 
 	// set positioning policy to PP_CORNER:
 	// the given point will be the corner of the geometry
