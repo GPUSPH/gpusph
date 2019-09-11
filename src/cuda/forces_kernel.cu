@@ -266,16 +266,17 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
  *  @{ */
 
 __device__ __forceinline__ void
-fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol, symtensor3& fcoeff)
+fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
+	symtensor3& fcoeff, symtensor3& fcoeff_kahan)
 {
 	float f_times_vol = F*vol;
 
-	fcoeff.xx -= rp.x*rp.x*f_times_vol;
-	fcoeff.xy -= rp.x*rp.y*f_times_vol;
-	fcoeff.xz -= rp.x*rp.z*f_times_vol;
-	fcoeff.yy -= rp.y*rp.y*f_times_vol;
-	fcoeff.yz -= rp.y*rp.z*f_times_vol;
-	fcoeff.zz -= rp.z*rp.z*f_times_vol;
+	fcoeff.xx = kbn_add(fcoeff.xx, -rp.x*rp.x*f_times_vol, fcoeff_kahan.xx);
+	fcoeff.xy = kbn_add(fcoeff.xy, -rp.x*rp.y*f_times_vol, fcoeff_kahan.xy);
+	fcoeff.xz = kbn_add(fcoeff.xz, -rp.x*rp.z*f_times_vol, fcoeff_kahan.xz);
+	fcoeff.yy = kbn_add(fcoeff.yy, -rp.y*rp.y*f_times_vol, fcoeff_kahan.yy);
+	fcoeff.yz = kbn_add(fcoeff.yz, -rp.y*rp.z*f_times_vol, fcoeff_kahan.yz);
+	fcoeff.zz = kbn_add(fcoeff.zz, -rp.z*rp.z*f_times_vol, fcoeff_kahan.zz);
 }
 
 /************************************************************************************************************/
@@ -316,10 +317,12 @@ cspmCoeffDevice(
 
 	// Kernel correction is just the Shepard normalization, that has a self-contribution
 	float corr = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w, fluid_num(info));
+	float corr_kahan = 0;
 
 	// Gradient correction is a symmetric 3x3 tensor, with no self-contribution
-	symtensor3 fcoeff;
+	symtensor3 fcoeff, fcoeff_kahan;
 	clear(fcoeff);
+	clear(fcoeff_kahan);
 
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
@@ -350,18 +353,22 @@ cspmCoeffDevice(
 			continue;
 
 		const float volume = relPos.w/physical_density(neib_vel.w, fluid_num(neib_info));
-		corr += W<kerneltype>(r, slength)*volume;
+		corr = kbn_add(corr, W<kerneltype>(r, slength)*volume, corr_kahan);
 
 		const float f = F<kerneltype>(r, slength);
-		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff);
+		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
 
 		has_neibs = true;
 
 	}
 
+	// KBN needs a final addition of the remainder
+	corr += corr_kahan;
+	fcoeff += fcoeff_kahan;
+
 	symtensor3 a_inverse;
 
-	const float D = det(fcoeff);
+	const float D = kbn_det(fcoeff);
 	if (has_neibs && D)
 		a_inverse = inverse(fcoeff, D);
 	else
