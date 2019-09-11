@@ -370,6 +370,7 @@ CommonWriter::write_simparams(ostream &out)
 
 	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
 
+	out << " Corrective Smoothed Particle Method (CSPM) " << ED[!!(SP->simflags & ENABLE_CSPM)] << endl;
 	switch (SP->densitydiffusiontype) {
 	case FERRARI:
 		out << " Ferrari density diffusion enabled" << endl;
