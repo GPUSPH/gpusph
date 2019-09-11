@@ -239,6 +239,79 @@ kahan_length(const float4 &f1)
 }
 //! @}
 
+// Kahan-Babushka-Neumaier compensated summation
+// Remember to add the kahan reminder after adding all terms!
+inline float
+__spec
+kbn_add(float base, float add, float &kahan)
+{
+	if (add == 0) return base;
+	float new_val = base + add;
+	/* (A - new_val) + B where A is absmax(val, add) and B is the other */
+	const bool add_larger = (fabs(base) < fabs(add));
+	const float A = add_larger ? add : base;
+	const float B = add_larger ? base : add;
+	kahan += (A - new_val) + B;
+	return new_val;
+}
+
+inline float
+__spec
+kbn_sum(float const* els, int n)
+{
+	float total = 0;
+	float rem = 0;
+	for (int i = 0; i < n; ++i)
+		total = kbn_add(total, els[i], rem);
+	total += rem;
+	return total;
+}
+
+inline float
+__spec
+kbn_sum(float c1, float c2, float c3)
+{
+	float total = 0;
+	float rem = 0;
+	total = kbn_add(total, c1, rem);
+	total = kbn_add(total, c2, rem);
+	total = kbn_add(total, c3, rem);
+	total += rem;
+	return total;
+}
+
+inline float
+__spec
+kbn_sum(float c1, float c2, float c3, float c4)
+{
+	float total = 0;
+	float rem = 0;
+	total = kbn_add(total, c1, rem);
+	total = kbn_add(total, c2, rem);
+	total = kbn_add(total, c3, rem);
+	total = kbn_add(total, c4, rem);
+	total += rem;
+	return total;
+}
+
+
+//! Cross-product using KBN summation
+//! @{
+inline float
+__spec
+kbn_dot(const float3 &f1, const float3 &f2)
+{
+	return kbn_sum(f1.x*f2.x, f1.y*f2.y, f1.z*f2.z);
+}
+
+inline float
+__spec
+kbn_dot(const float4 &f1, const float4 &f2)
+{
+	return kbn_sum(f1.x*f2.x, f1.y*f2.y, f1.z*f2.z, f1.w*f2.w);
+}
+//! @}
+
 #undef __spec
 
 #endif

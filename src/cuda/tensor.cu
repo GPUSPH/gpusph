@@ -76,6 +76,17 @@ det(symtensor3 const& T)
 	return ret;
 }
 
+__spec
+float
+kbn_det(symtensor3 const& T)
+{
+	float ret = 0, kahan = 0;
+	ret = kbn_add(ret,  T.xx*(T.yy*T.zz - T.yz*T.yz), kahan);
+	ret = kbn_add(ret, -T.xy*(T.xy*T.zz - T.xz*T.yz), kahan);
+	ret = kbn_add(ret,  T.xz*(T.xy*T.yz - T.xz*T.yy), kahan);
+	return ret + kahan;
+}
+
 // determinant of a 4x4 symmetric tensor
 __spec
 float
@@ -237,9 +248,11 @@ operator /=(symtensor3 &T1, float f)
 	return T1;
 }
 
+// T.v for 3x3 symmetric tensors
+template<typename V> // V should be float3 or float4
 __spec
 float3
-dot(symtensor3 const& T, float3 const& v)
+dot(symtensor3 const& T, V const& v)
 {
 	return make_float3(
 			T.xx*v.x + T.xy*v.y + T.xz*v.z,
@@ -248,18 +261,45 @@ dot(symtensor3 const& T, float3 const& v)
 
 }
 
+// T.v for 3x3 symmetric tensors, computed using KBN summation
+template<typename V>
 __spec
 float3
-dot(symtensor3 const& T, float4 const& v)
+kbn_dot(symtensor3 const& T, V const& v)
 {
 	return make_float3(
-			T.xx*v.x + T.xy*v.y + T.xz*v.z,
-			T.xy*v.y + T.yy*v.y + T.yz*v.z,
-			T.xz*v.x + T.yz*v.y + T.zz*v.z);
+			kbn_sum(T.xx*v.x, T.xy*v.y, T.xz*v.z),
+			kbn_sum(T.xy*v.y, T.yy*v.y, T.yz*v.z),
+			kbn_sum(T.xz*v.x, T.yz*v.y, T.zz*v.z));
 
 }
 
-// T.v
+// v.T.v
+template<typename V> // V should be float3 or float4
+__spec
+float
+ddot(symtensor3 const& T, V const& v)
+{
+	return T.xx*v.x*v.x + T.yy*v.y*v.y + T.zz*v.z*v.z +
+		2*(	T.xy*v.x*v.y +
+			T.yz*v.y*v.z +
+			T.xz*v.x*v.z);
+}
+
+// v.T.v computed with KBN
+template<typename V> // V should be float3 or float4
+__spec
+float
+kbn_ddot(symtensor3 const& T, V const& v)
+{
+	return kbn_sum(T.xx*v.x*v.x, T.yy*v.y*v.y, T.zz*v.z*v.z) +
+		2*kbn_sum(	T.xy*v.x*v.y,
+				T.yz*v.y*v.z,
+				T.xz*v.x*v.z);
+}
+
+
+// T.v for 4x4 symmetric tensots
 __spec
 float4
 dot(symtensor4 const& T, float4 const& v)
