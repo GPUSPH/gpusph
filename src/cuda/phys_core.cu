@@ -108,7 +108,7 @@ P(const float rho_tilde, const ushort i)
 __device__ __forceinline__ float
 RHO(const float p, const ushort i)
 {
-	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1.0;
+	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1.0f;
 }
 
 // Riemann celerity
@@ -123,14 +123,14 @@ R(const float rho_tilde, const ushort i)
 __device__ __forceinline__ float
 RHOR(const float r, const ushort i)
 {
-	return __powf((d_gammacoeff[i]-1.)*r/(2.*d_sscoeff[i]), 2./(d_gammacoeff[i]-1.)) -1.0;
+	return __powf((d_gammacoeff[i]-1.f)*r/(2.f*d_sscoeff[i]), 2.f/(d_gammacoeff[i]-1.f)) -1.0f;
 }
 
 // Sound speed computed from density
 __device__ __forceinline__ float
 soundSpeed(const float rho_tilde, const ushort i)
 {
-	const float rho_ratio = rho_tilde + 1.0; // rho/rho0
+	const float rho_ratio = rho_tilde + 1.0f; // rho/rho0
 	return d_sscoeff[i]*__powf(rho_ratio, d_sspowercoeff[i]);
 }
 
