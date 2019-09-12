@@ -71,7 +71,7 @@ typedef struct KinematicData {
 } KinematicData;
 
 typedef struct MovingBodyData {
-	uint				index; 	///< Sequential insertion index (NOTE: NOT index in the array)
+	uint				index;	///< Sequential insertion index (NOTE: NOT index in the array)
 	uint				id;		///< index in the moving bodies list
 	MovingBodyType		type;
 	Object				*object;
