@@ -78,11 +78,17 @@ SET_BUFFER_TRAITS(BUFFER_NEIBSLIST, neibdata, 1, "Neighbor List");
 #define BUFFER_FORCES		(BUFFER_NEIBSLIST << 1)
 SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
+/* Buffer used to exchange data between host and device for FEA
+ * nodes. It is used to download the forces and upload the velocities.
+ */
+#define BUFFER_FEA_EXCH (BUFFER_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_FEA_EXCH, float4, 1, "FEA data exchange");
+
 /* Forces and torques acting on rigid body particles only
  * Note that these are sized according to the number of object particles,
  * not with the entire particle system
  */
-#define BUFFER_RB_FORCES	(BUFFER_FORCES << 1)
+#define BUFFER_RB_FORCES	(BUFFER_FEA_EXCH << 1)
 SET_BUFFER_TRAITS(BUFFER_RB_FORCES, float4, 1, "Object forces");
 #define BUFFER_RB_TORQUES	(BUFFER_RB_FORCES << 1)
 SET_BUFFER_TRAITS(BUFFER_RB_TORQUES, float4, 1, "Object torques");
@@ -331,6 +337,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define EPHEMERAL_BUFFERS \
 	((ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS)) | \
 	 BUFFERS_CFL | \
++	 BUFFER_FEA_EXCH | \
 	 (BUFFERS_RB_PARTICLES & ~BUFFER_RB_KEYS) \
 	)
 

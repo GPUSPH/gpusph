@@ -79,6 +79,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_numAllocatedParticles(0),
 	m_numInternalParticles(m_numParticles),
 	m_numForcesBodiesParticles(gdata->problem->get_forces_bodies_numparts()),
+	m_numFeaParts(gdata->problem->get_fea_objects_numparts()),
+	m_numFeaNodes(gdata->problem->get_fea_objects_numnodes()),
 
 	m_particleRangeBegin(0),
 	m_particleRangeEnd(m_numInternalParticles),
@@ -107,6 +109,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_halfForcesEvent(0)
 {
 	printf("number of forces rigid bodies particles = %d\n", m_numForcesBodiesParticles);
+	printf("number of fea nodes particles = %d\n", m_numFeaNodes);
 
 	m_dBuffers.setAllocPolicy(gdata->simframework->getAllocPolicy());
 
@@ -114,6 +117,10 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_VEL>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_INFO>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>(0);
+
+	if (m_simparams->simflags & ENABLE_FEA) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FEA_EXCH>();
+	}
 
 	if (m_simparams->numforcesbodies) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_FORCES>(0);
@@ -1010,6 +1017,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 			nels *= m_simparams->neiblistsize; // number of particles times neib list size
 		else if (key & BUFFERS_RB_PARTICLES)
 			nels = m_numForcesBodiesParticles; // number of particles in rigid bodies
+		else if (key == BUFFER_FEA_EXCH)
+			nels = m_numFeaNodes; // number of nodes in FEA bodies
 		else if (key & BUFFERS_CELL)
 			nels = m_nGridCells; // cell buffers are sized by number of cells
 		else if (key == BUFFER_CFL_TEMP)
@@ -1071,6 +1080,13 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		delete[] rbnum;
 	}
 
+	if (m_simparams->numfeabodies) {
+
+		forcesEngine->setfeastart(gdata->s_hFeaNodesFirstIndex, gdata->s_hFeaPartsFirstIndex, m_simparams->numfeabodies);
+		forcesEngine->setfeanatcoords(gdata->s_hFeaNatCoords, gdata->s_hFeaOwningNodes, m_numFeaParts);
+
+	}
+
 	if (m_simparams->simflags & ENABLE_DEM) {
 		int nrows = gdata->problem->get_dem_nrows();
 		int ncols = gdata->problem->get_dem_ncols();
@@ -1081,6 +1097,26 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	m_deviceMemory += allocated;
 	return allocated;
+}
+
+void GPUWorker::pinGlobalHostBuffers() {
+
+	float4* fea_exch = gdata->s_hBuffers.getData<BUFFER_FEA_EXCH>();
+
+	if (m_deviceIndex == 0)
+		CUDA_SAFE_CALL(cudaHostRegister(fea_exch, sizeof(float4)*m_numFeaNodes, cudaHostRegisterPortable));
+
+	cout << "Pinned BUFFER_FEA_EXCH for " << m_numFeaNodes << " particles " << endl;
+}
+
+void GPUWorker::unpinGlobalHostBuffers() {
+
+	float4* fea_exch = gdata->s_hBuffers.getData<BUFFER_FEA_EXCH>();
+
+	if (m_deviceIndex == 0)
+		CUDA_SAFE_CALL(cudaHostUnregister(fea_exch));
+
+	cout << "Unpinned BUFFER_FEA_EXCH for " << m_numFeaNodes << " particles " << endl;
 }
 
 void GPUWorker::deallocateHostBuffers() {
@@ -1278,7 +1314,6 @@ void GPUWorker::runCommand<SHARE_BUFFERS>(CommandStruct const& cmd)
 	m_dBuffers.share_buffers(cmd.src, cmd.dst, cmd.flags);
 }
 
-
 // Download the subset of the specified buffer to the correspondent shared CPU array.
 // Makes multiple transfers. Only downloads the subset relative to the internal particles.
 // For double buffered arrays, uses the READ buffers unless otherwise specified. Can be
@@ -1309,6 +1344,10 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 		shared_ptr<const AbstractBuffer> buf = buflist[buf_to_get];
 		shared_ptr<AbstractBuffer> hostbuf(onhost->second);
 		size_t _size = howManyParticles * buf->get_element_size();
+
+		if (buf_to_get == BUFFER_FEA_EXCH)
+			_size = m_numFeaNodes*buf->get_element_size();
+
 		if (buf_to_get == BUFFER_NEIBSLIST)
 			_size *= gdata->problem->simparams()->neiblistsize;
 
@@ -1338,6 +1377,52 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 		}
 	}
 }
+
+// Upload the subset of the specified buffer to the correspondent GPU array.
+template<>
+void GPUWorker::runCommand<UNDUMP>(CommandStruct const& cmd)
+{
+	// indices
+	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
+	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (howManyParticles == 0) return;
+
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.writes);
+	const flag_t dev_keys = bufwrite.get_keys();
+
+	// iterate over each array in the _host_ buffer list, and download data
+	// if it was requested
+	BufferList::iterator onhost = gdata->s_hBuffers.begin();
+	const BufferList::iterator stop = gdata->s_hBuffers.end();
+	for ( ; onhost != stop ; ++onhost) {
+		flag_t buf_to_get = onhost->first;
+		if (!(buf_to_get & dev_keys))
+			continue;
+
+		shared_ptr<AbstractBuffer> buf = bufwrite[buf_to_get];
+		shared_ptr<const AbstractBuffer> hostbuf(onhost->second);
+		size_t _size = howManyParticles * buf->get_element_size();
+
+		if (buf_to_get == BUFFER_FEA_EXCH)
+			_size = m_numFeaNodes*buf->get_element_size();
+
+		if (buf_to_get == BUFFER_NEIBSLIST)
+			_size *= gdata->problem->simparams()->neiblistsize;
+
+		// get all the arrays of which this buffer is composed
+		// (actually currently all arrays are simple, since the only complex arrays (TAU
+		// and VERTPOS) have no host counterpart)
+		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+			const void *srcptr = hostbuf->get_offset_buffer(ai, firstInnerParticle);
+			void *dstptr = buf->get_buffer(ai);
+			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
+		}
+		buf->mark_valid();
+	}
+}
+
 
 // if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
 void GPUWorker::resizePeerTransferBuffer(size_t required_size)
@@ -1753,6 +1838,9 @@ void GPUWorker::initialize()
 	uploadEulerBodiesCentersOfGravity();
 	uploadForcesBodiesCentersOfGravity();
 
+	if (m_simparams->simflags & ENABLE_FEA)
+		pinGlobalHostBuffers();
+
 	// create and upload the compact device map (2 bits per cell)
 	if (MULTI_DEVICE) {
 		createCompactDeviceMap();
@@ -1776,6 +1864,9 @@ void GPUWorker::finalize()
 	deallocateHostBuffers();
 	deallocateDeviceBuffers();
 	// ...what else?
+
+	if (m_simparams->simflags & ENABLE_FEA)
+		unpinGlobalHostBuffers();
 
 	cudaDeviceReset();
 }
@@ -1918,6 +2009,10 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 	BufferList& bufwrite = buffer_lists.second;
 	bufwrite.add_manipulator_on_write("forces" + to_string(step));
 
+	const bool compute_object_forces =
+		(m_simparams->numforcesbodies > 0) ||
+		((m_simparams->numfeabodies > 0) && (gdata->iterations % m_simparams->feaSph_iterations_ratio == 0));
+
 	return forcesEngine->basicstep(
 		bufread,
 		bufwrite,
@@ -1934,7 +2029,7 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 		gdata->run_mode,
 		step,
 		cmd.dt(gdata),
-		(m_simparams->numforcesbodies > 0) ? true : false);
+		compute_object_forces);
 }
 
 /// Run the steps necessary for forces execution

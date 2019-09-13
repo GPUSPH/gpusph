@@ -160,6 +160,8 @@ public:
 
 	static STLMesh *load_stl(const char *fname);
 
+	static STLMesh *load_TetFile(const char *nodes, const char *elems, const double z_frame);
+
 	// load OBJ file only to update bbox
 	void loadObjBounds();
 

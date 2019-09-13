@@ -459,6 +459,17 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			cout << "\t" << gdata->s_hRbFirstIndex[i] << "\t" << gdata->s_hRbLastIndex[i] << endl;
 	}
 
+	cout << "FEA body parts first Index:\n";
+	for (uint i = 0 ; i < problem->simparams()->numfeabodies; ++i) {
+			cout << "\t" << gdata->s_hFeaPartsFirstIndex[i].x << " indexed at " <<   gdata->s_hFeaPartsFirstIndex[i].y << endl;
+	}
+
+	cout << "FEA body nodes first Index:\n";
+	for (uint i = 0 ; i < problem->simparams()->numfeabodies; ++i) {
+			cout << "\t" << gdata->s_hFeaNodesFirstIndex[i].x << " indexed at " <<   gdata->s_hFeaNodesFirstIndex[i].y << endl;
+	}
+
+
 	// Initialize potential joints if there are floating bodies
 	if (problem->simparams()->numbodies)
 		problem->initializeObjectJoints();
@@ -491,6 +502,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (gdata->problem->simparams()->numbodies > 0) {
 		gdata->problem->get_bodies_cg();
 	}
+
+	if (_sp->simflags & ENABLE_FEA)
+		gdata->problem->SetFeaReady();
+
 
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
@@ -843,6 +858,26 @@ void GPUSPH::runCommand<BODY_FORCES_CALLBACK>(CommandStruct const& cmd)
 }
 
 template<>
+void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
+{
+
+	const uint numFeaParts = gdata->problem->get_fea_objects_numnodes(); //FIXME the number should be evaluated once, and stored (not just in worker)
+	const float dt = cmd.dt(gdata);
+	const int step = cmd.step.number;
+	const double t = cmd.step.number;
+
+	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
+
+	bool dofea = (gdata->t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
+
+	if (dofea)
+		problem->fea_init_step(gdata->s_hBuffers, numFeaParts, gdata->t, step);
+
+	// the FEA is suspended inside. Don't stop this when !dostep because diplacements need to be updated anyway FIXME do this better
+	problem->fea_do_step(gdata->s_hBuffers, numFeaParts, dt, dofea && (step == 1), fea_every);
+}
+
+template<>
 void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 // GPUSPH::move_bodies(flag_t integrator_step)
 {
@@ -940,6 +975,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();
 	}
 
+	if (problem->simparams()->simflags & ENABLE_FEA) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_EXCH>();
+	}
+
 	// number of elements to allocate
 	const size_t numparts = gdata->allocatedParticles;
 
@@ -1007,6 +1046,16 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			gdata->s_hRbDeviceTotalForce = gdata->s_hRbTotalForce;
 			gdata->s_hRbDeviceTotalTorque = gdata->s_hRbTotalTorque;
 		}
+	}
+
+	const size_t numfeabodies = gdata->problem->simparams()->numfeabodies;
+	cout << "Numfeabodies : " << numfeabodies << "\n";
+	if (numfeabodies > 0) {
+		gdata->s_hFeaNodesFirstIndex = new int2 [numfeabodies];
+		//fill_n(gdata->s_hFeaNodesFirstIndex, numfeabodies, 0);
+
+		gdata->s_hFeaPartsFirstIndex = new int2 [numfeabodies];
+		//fill_n(gdata->s_hFeaPartsFirstIndex, numfeabodies, 0);
 	}
 
 	const size_t numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
@@ -1090,6 +1139,11 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 			delete [] gdata->s_hRbDeviceTotalForce;
 			delete [] gdata->s_hRbDeviceTotalTorque;
 		}
+	}
+
+	if (gdata->problem->simparams()->numfeabodies > 0) {
+		delete [] gdata->s_hFeaNodesFirstIndex;
+		delete [] gdata->s_hFeaPartsFirstIndex;
 	}
 
 	// planes
@@ -1933,6 +1987,8 @@ void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 
 	if (pb->simparams()->gcallback)
 		gdata->s_varGravity = pb->g_callback(t_callback);
+	if (pb->simparams()->fcallback)
+		gdata->s_FeaExtForce = pb->ext_force_callback(t_callback);
 }
 
 void GPUSPH::printStatus(FILE *out)
@@ -2182,7 +2238,7 @@ void GPUSPH::prepareProblem()
 	//nGridCells
 
 	// should write something more meaningful here
-	printf("Preparing the problem...\n");
+	printf("Preparing the problem for %u particles...\n", gdata->totParticles);
 
 	// at the time being, we only need preparation for multi-device simulations
 	if (!MULTI_DEVICE) return;

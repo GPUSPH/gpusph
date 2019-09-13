@@ -88,9 +88,12 @@
 //! moving boundaries and rigid bodies
 #define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
 
+//! Finite elements analysis 
+#define ENABLE_FEA	(ENABLE_MOVING_BODIES << 1)
+
 //! inlet/outlet
 //! open boundaries
-#define ENABLE_INLET_OUTLET		(ENABLE_MOVING_BODIES << 1)
+#define ENABLE_INLET_OUTLET		(ENABLE_FEA << 1)
 
 //! water depth computation
 /**@defpsubsection{compute_water_level, ENABLE_WATER_DEPTH}

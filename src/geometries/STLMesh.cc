@@ -41,6 +41,9 @@
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/fea/ChMesh.h"
+#include "chrono/fea/ChMeshFileLoader.h"
+#include "chrono/fea/ChNodeFEAxyz.h"
 #endif
 
 #include "STLMesh.h"
@@ -175,6 +178,75 @@ STLMesh::load_stl(const char *fname)
 		maxb.x, maxb.y, maxb.z);
 	printf("\tresolution min %g, max %g\n", stl->get_minres(), stl->get_maxres());
 
+	return stl;
+}
+
+// FIXME we are uploading the chrono fea mesh. This function cannot be simply called load_Tet file
+STLMesh *
+STLMesh::load_TetFile(const char *nodes, const char *elems, const double z_frame)
+{
+
+	STLMesh *stl = NULL;
+
+#if USE_CHRONO == 1
+	cout << "loading tet file" << endl;
+	stl = new STLMesh(2); // use 2 just to init. It will be resized once the number of nodes is known
+
+	auto mmaterial = make_shared<::chrono::fea::ChContinuumElastic>();
+	// TODO FIXME set material from problem
+	mmaterial->Set_E(10e6);
+	mmaterial->Set_v(0.4);
+	//mmaterial->Set_RayleighDampingK(0.01);
+	mmaterial->Set_density(1100);
+
+
+	stl->m_fea_mesh = std::make_shared<::chrono::fea::ChMesh>();
+	//the Chrono function FromTetGenFile accepts shared pointers
+	//shared_ptr<::chrono::fea::ChMesh> mesh_sh(ch_mesh);
+
+	// We load the mesh from file using chrono methods
+	try {
+		::chrono::fea::ChMeshFileLoader::FromTetGenFile(stl->m_fea_mesh, ::chrono::GetChronoDataFile(nodes).c_str(),
+			::chrono::GetChronoDataFile(elems).c_str(), mmaterial);
+	} catch (::chrono::ChException ch_err) {
+		::chrono::GetLog() << ch_err.what();
+		throw;
+	}
+
+	cout << "building STL mesh" << endl;
+	// now we take the mesh nodes in order to create the associated SPH particles
+	//vector<shared_ptr<::chrono::fea::ChNodeFEAxyz>>	mesh_nodes(dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyz>(mesh_sh->GetNodes()));
+	//vector<shared_ptr<::chrono::fea::ChNodeFEAbase>>::iterator nodes_it;
+
+	uint nodes_num = stl->m_fea_mesh->GetNnodes();
+
+	stl->m_vertices.resize(nodes_num);
+
+	float4 coords; //FIXME should be double precision
+	shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+
+	for (int i = 0; i < nodes_num; ++i) {
+
+		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyz>(stl->m_fea_mesh->GetNode(i));
+
+		if (!node) throw std::runtime_error("Error: unsupported node type in mesh");
+
+		coords.x = node->GetPos().x();
+		coords.y = node->GetPos().y();
+		coords.z = node->GetPos().z();
+
+		stl->m_vertices[i] = coords;
+
+		cout << "Added FEA node " << coords.x << " " << coords.y << " " << coords.z << endl;
+		//ground nodes to the frame
+		if(coords.z > z_frame) node->SetFixed(true);
+
+	}
+
+	cout << "loaded tet file" << endl;
+#else
+	cout << "ERROR: cannot load Tet files without chrono" << endl;
+#endif
 	return stl;
 }
 

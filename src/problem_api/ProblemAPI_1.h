@@ -58,7 +58,11 @@ enum GeometryType {	GT_FLUID,
 					GT_PLANE,
 					GT_DEM,
 					GT_TESTPOINTS,
-					GT_FREE_SURFACE
+					GT_FREE_SURFACE,
+					GT_DEFORMABLE_BODY,
+					GT_FEA_RIGID_JOINT,
+					GT_FEA_FLEXIBLE_JOINT,
+					GT_FEA_FORCE
 };
 
 enum FillType {	FT_NOFILL,
@@ -117,6 +121,7 @@ struct GeometryInfo {
 	bool handle_collisions;
 	bool handle_dynamics; // implies measure_forces
 	bool measure_forces;
+	bool fea; //object for finite element analysis
 	bool enabled;
 
 	bool has_hdf5_file; // little redundant but clearer
@@ -160,6 +165,8 @@ struct GeometryInfo {
 		handle_collisions = false;
 		handle_dynamics = false;
 		measure_forces = false;
+
+		fea = false;
 
 		enabled = true;
 
@@ -212,6 +219,7 @@ class ProblemAPI<1> : public ProblemCore
 		size_t m_numFloatingBodies;		// number of floating bodies (handled with Chrono)
 		size_t m_numPlanes;				// number of plane geometries (Chrono and/or GPUSPH planes)
 		size_t m_numOpenBoundaries;		// number of I/O geometries
+		size_t m_numFEAObjects;		// chrono::fea elements or meshes 
 
 		// extra margin to be added to computed world size
 		double m_extra_world_margin;
@@ -222,6 +230,11 @@ class ProblemAPI<1> : public ProblemCore
 		double m_dem_zmin_scale; // used to compute demzmin from ∆p
 		double m_dem_dx_scale; // used to compute demdx from DEM resolution
 		double m_dem_dy_scale; // used to compute demdy from DEM resolution
+
+		// initialize Chrono FEA
+		void initializeChronoFEA();
+		// guess what
+		void cleanupChronoFEA();
 
 		// initialize Chrono
 		void initializeChrono();
@@ -265,9 +278,16 @@ class ProblemAPI<1> : public ProblemCore
 		GeometryID addCube(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side);
 		GeometryID addBox(const GeometryType otype, const FillType ftype, const Point &origin,
+			//const double side1, const double side2, const double side3, int nelsx, int nelsy, int nelsz);
+			const double side1, const double side2, const double side3, int nelsx, int nelsy);
+		GeometryID addBox(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side1, const double side2, const double side3);
 		GeometryID addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
-			const double radius, const double height);
+			const double outer_radius, const double height);
+		GeometryID addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double outer_radius, const double inner_radius, const double height,
+			//const uint nelst, const uint nelsc, const uint nelsh);
+			const uint nelsh);
 		GeometryID addCone(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double bottom_radius, const double top_radius, const double height);
 		GeometryID addSphere(const GeometryType otype, const FillType ftype, const Point &origin,
@@ -283,6 +303,8 @@ class ProblemAPI<1> : public ProblemCore
 			const char *fname);
 		GeometryID addHDF5File(const GeometryType otype, const Point &origin,
 			const char *fname_hdf5, const char *fname_stl = NULL);
+		GeometryID addTetFile(const GeometryType otype, const FillType ftype, const Point &origin,
+			const char *nodes, const char *elems, const double z_frame);
 		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
 			const char *fname_xyz, const char *fname_stl = NULL);
 
@@ -355,6 +377,15 @@ class ProblemAPI<1> : public ProblemCore
 		// set mass (only meaningful for floating objects)
 		void setMass(const GeometryID gid, const double mass);
 		double setMassByDensity(const GeometryID gid, const double density);
+
+		// set Young's modulus (only meaningful for deformable objects)
+		void setYoungModulus(const GeometryID gid, const double youngModulus);
+
+		// set Poisson ratio (only meaningful for deformable objects)
+		void setPoissonRatio(const GeometryID gid, const double poissonRatio);
+
+		// set density (only meaningful for deformable objects)
+		void setDensity(const GeometryID gid, const double density);
 
 		// flag an open boundary as velocity driven; use with false to revert to pressure driven
 		void setVelocityDriven(const GeometryID gid, bool isVelocityDriven = true);

@@ -1,0 +1,458 @@
+/*  Copyright (c) 2019 INGV, EDF, UniCT, JHU, NU
+
+    Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
+    Électricité de France, Paris, France
+    Università di Catania, Catania, Italy
+    Johns Hopkins University, Baltimore (MD), USA
+    Northwestern University, Evanston (IL), USA
+
+    This file is part of GPUSPH. Project founders:
+        Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple,
+        Eugenio Rustico, Ciro Del Negro
+    For a full list of authors and project partners, consult the logs
+    and the project website <https://www.gpusph.org>
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <iostream>
+#include <stdexcept>
+#include <math.h>
+
+#include "TestFea.h"
+#include "particledefine.h"
+#include "GlobalData.h"
+#include "cudasimframework.cu"
+
+#define SETUP 1
+/*0 load from TetFile, 1: define single Cylinder, 2: Four legged Platform square pillers, 3:Four legged platform Cylindrical pillers*/
+
+#define USE_WATER 0
+
+
+#define MK_par 2
+
+TestFea::TestFea(GlobalData *_gdata) : XProblem(_gdata)
+{
+	// Size and origin of the simulation domain
+	lx = 9.0;
+	ly = 0.3;
+	lz = 1.0;
+
+	// Data for problem setup
+	slope_length = 4.5;
+	h_length = 1;
+	height = .63;
+	//beta = 4.2364*M_PI/180.0;
+	beta = atan(height/slope_length);
+
+	// Add objects to the tank
+	use_cyl = false;
+
+	SETUP_FRAMEWORK(
+	    //viscosity<ARTVISC>,
+		//viscosity<KINEMATICVISC>,
+		viscosity<SPSVISC>,
+		boundary<LJ_BOUNDARY>,
+	//	boundary<DYN_BOUNDARY>,
+		//boundary<MK_BOUNDARY>,
+		add_flags<ENABLE_PLANES | ENABLE_FEA>
+	//	add_flags<ENABLE_PLANES>
+	);
+
+	m_size = make_double3(lx, ly, 2*lz);
+	m_origin = make_double3(0, 0, -lz);
+	if (use_cyl) {
+		m_origin.z -= 2.0*height;
+		m_size.z += 2.0*height;
+	}
+
+	addFilter(SHEPARD_FILTER, 20); // or MLS_FILTER
+
+	if (get_option("testpoints", false)) {
+		addPostProcess(TESTPOINTS);
+	}
+
+	// use a plane for the bottom
+	use_bottom_plane = 1;  //1 for plane; 0 for particles
+
+	// SPH parameters
+	set_deltap(1/64.0);  //0.005f;
+	//set_deltap(0.02);  //0.005f;
+	simparams()->dt = 0.0001;
+	simparams()->dtadaptfactor = 0.2;
+	simparams()->buildneibsfreq = 10;
+	//simparams()->tend = 10.0f; //seconds
+	simparams()->t_fea_start= 0.0f; //seconds
+
+	//WaveGage
+	if (get_option("gages", false)) {
+		add_gage(1, 0.3);
+		add_gage(0.5, 0.3);
+	}
+
+	// Physical parameters
+	H = 0.45;
+	//physparams()->gravity = make_float3(0.0f, 0.0f, -9.81f);
+	physparams()->gravity = make_float3(0.0f, 0.0f, 0.0f);
+	float g = length(physparams()->gravity);
+
+	float r0 = m_deltap;
+	physparams()->r0 = r0;
+
+	add_fluid( 1000.0f);
+	set_equation_of_state(0,  7.0f, 80.f);
+	set_kinematic_visc(0,1.0e-6);
+
+	physparams()->artvisccoeff =  0.2;
+	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
+
+	// BC when using LJ
+	physparams()->dcoeff = 0.5*g*H;
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+
+	// BC when using MK
+	physparams()->MK_K = g*H;
+	physparams()->MK_d = 1.1*m_deltap/MK_par;
+	physparams()->MK_beta = MK_par;
+
+	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
+
+	paddle_length = 0.7f;
+	paddle_width = m_size.y - 2*r0;
+
+#if USE_FLUID
+	paddle_tstart=0.1f;
+#else
+	paddle_tstart=NAN;
+#endif
+
+	paddle_origin = make_double3(0.25f, r0, 0.0f);
+	paddle_tend = 30.0f;//seconds
+	// The stroke value is given at free surface level H
+	float stroke = 0.15;
+	// m_mbamplitude is the maximal angular value for paddle angle
+	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
+	paddle_amplitude = atan(stroke/(2.0*(H - paddle_origin.z)));
+	cout << "\npaddle_amplitude (radians): " << paddle_amplitude << "\n";
+	paddle_omega = 2.0*M_PI/0.8;		// period T = 0.8 s
+
+	// Drawing and saving times
+
+	add_writer(VTKWRITER, 0.05);  //second argument is saving time in seconds
+
+	// Name of problem used for directory creation
+	m_name = "TestFea";
+
+	// Building the geometry
+	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
+	setPositioning(PP_CORNER);
+/*
+	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+	Point(0, 0, 0), h_length + slope_length,ly, height);
+	disableCollisions(experiment_box);
+*/
+  const float amplitude = -paddle_amplitude ;
+	setPositioning(PP_CORNER);
+	GeometryID paddle = addBox(GT_MOVING_BODY, FT_BORDER,
+		Point(paddle_origin),	0, paddle_width, paddle_length);
+	rotate(paddle, 0,-amplitude, 0);
+	disableCollisions(paddle);
+
+
+	if (!use_bottom_plane) {
+		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+				Point(h_length, 0, 0), 0, ly, paddle_length);
+		//	Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
+		disableCollisions(bottom);
+	}
+
+#if USE_FLUID
+	GeometryID fluid;
+	float z = 0;
+	int n = 0;
+	while (z < H) {
+		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
+		float x = paddle_origin.x + (z - paddle_origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
+		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
+		fluid = addRect(GT_FLUID, FT_SOLID, Point(x,  r0, z),
+				l, ly-2.0*r0);
+		n++;
+	 }
+#endif
+
+	if (hasPostProcess(TESTPOINTS)) {
+		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
+		addTestPoint(pos);
+		pos = Point(0.5748, 0.2799, 0.2564, 0.0);
+		addTestPoint(pos);
+		pos = Point(1.5748, 0.2799, 0.2564, 0.0);
+		addTestPoint(pos);
+	}
+/*
+	if (use_cyl) {
+		setPositioning(PP_BOTTOM_CENTER);
+		Point p[10];
+		p[0] = Point(h_length + slope_length/(cos(beta)*10), ly/2., 0);
+		p[1] = Point(h_length + slope_length/(cos(beta)*10), ly/6.,  0);
+		p[2] = Point(h_length + slope_length/(cos(beta)*10), 5*ly/6, 0);
+		p[3] = Point(h_length + slope_length/(cos(beta)*5), 0, 0);
+		p[4] = Point(h_length + slope_length/(cos(beta)*5), ly/3, 0);
+		p[5] = Point(h_length + slope_length/(cos(beta)*5), 2*ly/3, 0);
+		p[6] = Point(h_length + slope_length/(cos(beta)*5), ly, 0);
+		p[7] = Point(h_length + 3*slope_length/(cos(beta)*10), ly/6, 0);
+		p[8] = Point(h_length + 3*slope_length/(cos(beta)*10), ly/2, 0);
+		p[9] = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*ly/6, 0);
+		p[10] = Point(h_length+ 4*slope_length/(cos(beta)*10), ly/2, 0);
+
+		for (int i = 0; i < 11; i++) {
+			GeometryID cyl = addCylinder(GT_FIXED_BOUNDARY, FT_BORDER,
+				p[i], .025, height);
+			disableCollisions(cyl);
+			setEraseOperation(cyl, ET_ERASE_FLUID);
+		}
+	}
+*/
+	setPositioning(PP_CORNER);
+	//Point platform_pos = Point(round_up(0.8, m_deltap), round_up(ly/2.0, m_deltap) - m_deltap, round_up(0.01, m_deltap)); // bottom center position of the platform
+	Point platform_pos = Point(0.0, 0.0, 0.0); // bottom center position of the platform
+	double interpiller = round_up(0.12, m_deltap); // HALF interpiller distance 
+	const double half_w = round_up(0.3, m_deltap); // platform width
+	double pil_w = round_up(0.07, m_deltap); // piller width
+	double pil_h = round_up(0.65, m_deltap); // piller width
+	const double plat_th = round_up(0.03, m_deltap); // platform thickness 
+	const double joint_side = round_up(2*pil_w, m_deltap); // Side of a joint plate 
+
+#if (SETUP == 0) // add from mesh
+	GeometryID piller1 = addBox(GT_FIXED_BOUNDARY, FT_UNFILL, platform_pos + Point(0, 0, 0), pil_w, pil_w, pil_h);
+	setUnfillRadius(piller1, m_deltap*1.5);
+	addTetFile(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos, "wavetank.node", "wavetank.ele", 0.12);
+#endif
+
+#if (SETUP == 1) // Single piller
+	//GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(-pil_w/2.0, -pil_w/2.0, 0), 0.045, 0.033 , 2.0, 1, 12, 16);
+	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, Point(-0.103 + 0.7, -0.103 + ly/2.0, 0), 0.103, 0.095 , 3.0, 2);
+	setEraseOperation(piller0, ET_ERASE_FLUID);
+
+	setYoungModulus(piller0, 5e8);
+	setPoissonRatio(piller0, 0.3);
+	setDensity(piller0, 1522.0);
+
+	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
+#endif
+
+#if (SETUP == 12) // Single piller
+	GeometryID piller0 = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(-pil_w/2.0, -pil_w/2.0, 0), 0.1, 0.1 , 2.0, 10);
+	setEraseOperation(piller0, ET_ERASE_FLUID);
+
+	setYoungModulus(piller0, 5e6);
+	setPoissonRatio(piller0, 0.3);
+	setDensity(piller0, 1522.0);
+
+	set_fea_ground(0, 0, 1, 0.001); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
+#endif
+#if (SETUP == 2 || SETUP == 3)
+	// Set groundin level
+	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
+#if (SETUP == 2)
+	// Define pillers
+	GeometryID piller0 = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(-interpiller - pil_w, -interpiller - pil_w, 0), pil_w, pil_w, pil_h, 1, 1, 6);
+	setEraseOperation(piller0, ET_ERASE_FLUID);
+/*
+	GeometryID piller1 = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(-interpiller - pil_w, interpiller, 0), pil_w, pil_w, pil_h, 1, 1, 6);
+	setEraseOperation(piller1, ET_ERASE_FLUID);
+
+	GeometryID piller2 = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(interpiller, -interpiller - pil_w, 0), pil_w, pil_w, pil_h, 1, 1, 6);
+	setEraseOperation(piller2, ET_ERASE_FLUID);
+
+	GeometryID piller3 = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(interpiller, interpiller, 0), pil_w, pil_w, pil_h, 1, 1, 6);
+	setEraseOperation(piller3, ET_ERASE_FLUID);
+	*/
+	GeometryID platform = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(- half_w, -half_w, pil_h), 2*half_w, 2*half_w, plat_th, 6, 6, 1);
+	setEraseOperation(platform, ET_ERASE_FLUID);
+#else
+
+	// Define pillers
+	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(-interpiller - pil_w, -interpiller - pil_w, 0), pil_w/2.0, 0.03 , pil_h, 1, 10, 2);
+	setEraseOperation(piller0, ET_ERASE_FLUID);
+
+	GeometryID piller1 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(-interpiller - pil_w, interpiller, 0), pil_w/2.0, 0.03 , pil_h, 1, 10, 2);
+	setEraseOperation(piller1, ET_ERASE_FLUID);
+
+	GeometryID piller2 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(interpiller, -interpiller - pil_w, 0), pil_w/2.0, 0.03 , pil_h, 1, 10, 2);
+	setEraseOperation(piller2, ET_ERASE_FLUID);
+
+	GeometryID piller3 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(interpiller, interpiller, 0), pil_w/2.0, 0.03 , pil_h, 1, 10, 2);
+	setEraseOperation(piller3, ET_ERASE_FLUID);
+
+	// Defining platform
+	GeometryID platform = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(- half_w, -half_w, pil_h), 2*half_w, 2*half_w, plat_th, 6, 6, 1);
+	setEraseOperation(platform, ET_ERASE_FLUID);
+#endif
+
+	setYoungModulus(piller0, 50e6);
+	setYoungModulus(piller1, 50e6);
+	setYoungModulus(piller2, 50e6);
+	setYoungModulus(piller3, 50e6);
+	setYoungModulus(platform, 50e6);
+
+	setPoissonRatio(piller0, 0.1);
+	setPoissonRatio(piller1, 0.1);
+	setPoissonRatio(piller2, 0.1);
+	setPoissonRatio(piller3, 0.1);
+	setPoissonRatio(platform, 0.4);
+
+	setDensity(piller0, 1100);
+	setDensity(piller1, 1100);
+	setDensity(piller2, 1100);
+	setDensity(piller3, 1100);
+	setDensity(platform, 1100);
+
+	// Defining Joints
+	/*NOTE: joints will embedd only geometries that are defined ahed*/
+	GeometryID joint1 = addBox(GT_FEA_RIGID_JOINT, FT_BORDER, platform_pos + Point(-interpiller - pil_w - (joint_side - pil_w)/2.0, -interpiller - pil_w - (joint_side - pil_w)/2.0, pil_h - m_deltap), joint_side, joint_side, 2*m_deltap); // note: the mass will change with the sph resolution
+	setEraseOperation(joint1, ET_ERASE_NOTHING);
+	setMassByDensity(joint1, 100);
+/*
+	GeometryID joint2 = addBox(GT_FEA_RIGID_JOINT, FT_BORDER, platform_pos + Point(-interpiller - pil_w - (joint_side - pil_w)/2.0, interpiller - (joint_side - pil_w)/2.0, pil_h - m_deltap), joint_side, joint_side, 2*m_deltap); // note: the mass will change with the sph resolution
+	setEraseOperation(joint2, ET_ERASE_NOTHING);
+	setMassByDensity(joint2, 100);
+
+	GeometryID joint3 = addBox(GT_FEA_RIGID_JOINT, FT_BORDER, platform_pos + Point(interpiller - (joint_side - pil_w)/2.0, - interpiller - pil_w - (joint_side - pil_w)/2.0, pil_h - m_deltap), joint_side, joint_side, 2*m_deltap); // note: the mass will change with the sph resolution
+	setEraseOperation(joint3, ET_ERASE_NOTHING);
+	setMassByDensity(joint3, 100);
+
+	GeometryID joint4 = addBox(GT_FEA_RIGID_JOINT, FT_BORDER, platform_pos + Point(interpiller - (joint_side - pil_w)/2.0, interpiller - (joint_side - pil_w)/2.0, pil_h - m_deltap), joint_side, joint_side, 2*m_deltap); // note: the mass will change with the sph resolution
+	setEraseOperation(joint4, ET_ERASE_NOTHING);
+	setMassByDensity(joint4, 100);
+	*/
+
+#endif
+
+#if (SETUP == 4) // simple platform for spheric test
+	// Define pillers
+	// Define pillers
+
+	const double unit = 0.1;
+	pil_w = unit;
+	pil_h = 10*unit;
+	interpiller = 3*unit;
+	double plat_border = 2* unit;
+	platform_pos = Point(0.7, ly/2.0, 0);
+
+
+	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
+
+
+	GeometryID piller0 = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(-interpiller - pil_w, - pil_w/2.0, 0), pil_w, pil_w, pil_h, 1, 1, 10);
+	setEraseOperation(piller0, ET_ERASE_FLUID);
+
+	GeometryID piller1 = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(interpiller, - pil_w/2.0, 0), pil_w, pil_w, pil_h, 1, 1, 10);
+	setEraseOperation(piller1, ET_ERASE_FLUID);
+
+	// Defining platform
+	GeometryID platform = addBox(GT_DEFORMABLE_BODY, FT_BORDER, platform_pos + Point(-interpiller - pil_w - plat_border, - pil_w/2.0 - plat_border, pil_h), 2*plat_border + 2*pil_w + 2* interpiller, 2*plat_border + pil_w, unit, 12, 5, 1);
+	setEraseOperation(platform, ET_ERASE_FLUID);
+
+
+	setYoungModulus(piller0, 5e6);
+	setYoungModulus(piller1, 5e6);
+	setYoungModulus(platform, 5e6);
+
+	setPoissonRatio(piller0, 0.4);
+	setPoissonRatio(piller1, 0.4);
+	setPoissonRatio(platform, 0.4);
+
+	setDensity(piller0, 1100);
+	setDensity(piller1, 1100);
+	setDensity(platform, 1100);
+
+	// Defining Joints
+	/*NOTE: joints will embedd only geometries that are defined ahed*/
+	GeometryID joint1 = addBox(GT_FEA_JOINT, FT_BORDER, platform_pos + Point(-interpiller - pil_w - m_deltap, - pil_w/2.0 - m_deltap, pil_h - m_deltap), pil_w + 2*m_deltap, pil_w + 2*m_deltap, 2*m_deltap); // note: the mass will change with the sph resolution
+	setEraseOperation(joint1, ET_ERASE_NOTHING);
+	setMassByDensity(joint1, 0.01); // let's try to make it negligible with respect to the platform
+
+	GeometryID joint2 = addBox(GT_FEA_RIGID_JOINT, FT_BORDER, platform_pos + Point(interpiller - m_deltap, - pil_w/2.0 - m_deltap, pil_h - m_deltap), pil_w + 2*m_deltap, pil_w + 2*m_deltap, 2*m_deltap); // note: the mass will change with the sph resolution
+	setEraseOperation(joint2, ET_ERASE_NOTHING);
+	setMassByDensity(joint2, 0.01);
+#endif
+
+#if (SETUP == 5) //floating object
+#endif
+}
+
+
+void
+TestFea::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+			const float3& force, const float3& torque, const KinematicData& initial_kdata,
+			KinematicData& kdata, double3& dx, EulerParameters& dr)
+{
+
+    dx= make_double3(0.0);
+    kdata.lvel = make_double3(0.0f, 0.0f, 0.0f);
+    kdata.crot = paddle_origin;
+    if (t1> paddle_tstart && t1 < paddle_tend){
+       kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
+       EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
+       dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
+       dr.Normalize();
+	   kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
+	   kdata.orientation.Normalize();
+	   }
+	else {
+	   kdata.avel = make_double3(0.0,0.0,0.0);
+	   kdata.orientation = kdata.orientation;
+	   dr.Identity();
+	}
+}
+
+void TestFea::copy_planes(PlaneList &planes)
+{
+	const double w = m_size.y;
+	const double l = h_length + slope_length;
+
+	//  plane is defined as a x + by +c z + d= 0
+	planes.push_back( implicit_plane(0, 0, 1.0, 0) );   //bottom, where the first three numbers are the normal, and the last is d.
+	planes.push_back( implicit_plane(0, 1.0, 0, 0) );   //wall
+	planes.push_back( implicit_plane(0, -1.0, 0, w) ); //far wall
+	planes.push_back( implicit_plane(1.0, 0, 0, 0) );  //end
+	planes.push_back( implicit_plane(-1.0, 0, 0, l) );  //one end
+	if (use_bottom_plane)  {
+		planes.push_back( implicit_plane(-sin(beta),0,cos(beta), h_length*sin(beta)) );  //sloping bottom starting at x=h_length
+	}
+}
+
+void TestFea::initializeParticles(BufferList &buffer, const uint numParticle)
+{
+	float4 *pos = buffer.getData<BUFFER_POS>();
+	const float4 *vel = buffer.getData<BUFFER_VEL>();
+	const ushort4 *info= buffer.getData<BUFFER_INFO>();
+
+	// TODO FIXME the particle mass should be assigned from the mesh. We should 
+	// understand why GetMass on the fea mesh gives 0
+
+	for (uint i = 0; i < numParticle; i++) {
+		if (DEFORMABLE(info[i]))
+			pos[i].w = physical_density(vel[i].w, 0)*m_deltap*m_deltap*m_deltap;
+	}
+}
+
+bool TestFea::need_write(double t) const
+{
+	return false;
+}
+#undef MK_par

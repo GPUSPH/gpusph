@@ -324,6 +324,17 @@ struct effective_visc_forces_params
 	{}
 };
 
+struct fea_forces_params
+{
+	const float4 * __restrict__ normsArray;
+	float4	* __restrict__ feaforces;
+
+	fea_forces_params(BufferList const& bufread, BufferList &bufwrite) :
+		normsArray(bufread.getData<BUFFER_NORMALS>()),
+		feaforces(bufwrite.getData<BUFFER_FEA_EXCH>())
+	{}
+};
+
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -339,6 +350,8 @@ template<KernelType _kerneltype,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
 	typename xsph_cond =
 		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
+	typename fea_cond =
+		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_FEA), fea_forces_params),
 	typename vol_cond =
 		typename COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER &&
 			_densitydiffusiontype == COLAGROSSI, volume_forces_params),
@@ -361,6 +374,7 @@ template<KernelType _kerneltype,
 struct forces_params : _ViscSpec,
 	common_forces_params,
 	xsph_cond,
+	fea_cond,
 	vol_cond,
 	grenier_cond,
 	sa_cond,
@@ -416,6 +430,7 @@ struct forces_params : _ViscSpec,
 			_fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius, _step, _dt),
 		xsph_cond(bufwrite),
+		fea_cond(bufread, bufwrite),
 		vol_cond(bufread),
 		grenier_cond(bufread),
 		sa_cond(bufread, bufwrite, _epsilon),
@@ -450,6 +465,8 @@ template<SPHFormulation _sph_formulation,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
 	typename dyndt_cond =
 		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
+	typename fea_cond =
+		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_FEA), fea_forces_params),
 	typename grenier_cond =
 		typename COND_STRUCT(!_repacking && (_sph_formulation == SPH_GRENIER), grenier_forces_params),
 	typename sa_cond =
@@ -464,6 +481,7 @@ template<SPHFormulation _sph_formulation,
 struct finalize_forces_params :
 	common_finalize_forces_params<_run_mode>,
 	dyndt_cond,
+	fea_cond,
 	grenier_cond,
 	sa_cond,
 	water_depth_cond,
@@ -506,6 +524,7 @@ struct finalize_forces_params :
 		common_finalize_forces_params<run_mode>(bufread, bufwrite,
 			 _fromParticle, _toParticle, _slength, _deltap),
 		dyndt_cond(bufwrite, _numParticles, _cflOffset),
+		fea_cond(bufread, bufwrite),
 		grenier_cond(bufread),
 		sa_cond(bufread),
 		water_depth_cond(_IOwaterdepth),

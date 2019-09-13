@@ -364,10 +364,14 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 	if (last_bodies_step)
 		this_phase->add_command(EULER_UPLOAD_OBJECTS_CG);
 
-	// variable gravity
-	if (sp->gcallback) {
+	// variable gravity and FEA callbacks
+	// TODO FIXME the FEA callback should be uncorrelated from the gravity callback,
+	// they should have separate commands
+	if (sp->gcallback || sp->fcallback) {
 		this_phase->add_command(RUN_CALLBACKS)
 			.set_dt(dt_op);
+	}
+	if (sp->gcallback) {
 		this_phase->add_command(UPLOAD_GRAVITY);
 	}
 
@@ -459,6 +463,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
+	static const bool has_fea = (sp->simflags & ENABLE_FEA);
 
 	// TODO get from integrator
 	// for both steps, the “starting point” for Euler and density summation is step n
@@ -535,6 +540,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP |
 			BUFFER_CFL_GAMMA | BUFFER_CFL_KEPS |
 			BUFFER_RB_FORCES | BUFFER_RB_TORQUES |
+			BUFFER_FEA_EXCH |
 			BUFFER_XSPH |
 			/* TODO BUFFER_TAU is written by forces only in the k-epsilon case,
 			 * and it is not updated across devices, is this correct?
@@ -607,6 +613,22 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		}
 	}
 
+	// TODO FIXME multi-GPU
+	// TODO these commands should only be done every SPH/FEA ratio iterations
+	if (has_fea) {
+		this_phase->add_command(DUMP)
+			.reading(current_state, BUFFER_FEA_EXCH);
+
+		this_phase->add_command(FEA_STEP)
+			.set_step(step)
+			.set_dt(dt_op)
+			.set_src(current_state);
+
+		this_phase->add_command(UNDUMP)
+			.writing(current_state, BUFFER_FEA_EXCH);
+	}
+
+
 	// On the predictor, we need to (re)init the predicted status (n*),
 	// on the corrector this will be updated (in place) to the corrected status (n+1)
 	if (step.number == 1) {
@@ -630,6 +652,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		.reading(current_state,
 			BUFFER_FORCES | BUFFER_XSPH |
 			BUFFER_INTERNAL_ENERGY_UPD |
+			BUFFER_FEA_EXCH |
 			BUFFER_DKDE);
 
 	// now, the difference:

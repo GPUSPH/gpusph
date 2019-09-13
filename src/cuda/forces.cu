@@ -467,6 +467,21 @@ setrbstart(const int* rbfirstindex, int numbodies)
 }
 
 void
+setfeastart(const int2* feanodefirstindex, const int2 *feapartsfirstindex, int numfeabodies)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_feanodesstartindex, feanodefirstindex, numfeabodies*sizeof(int2)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_feapartsstartindex, feapartsfirstindex, numfeabodies*sizeof(int2)));
+}
+
+void
+setfeanatcoords(const float4* natcoords, const uint4* nodes, int numfeaparticles)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_feapartsnatcoords, natcoords, numfeaparticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_feapartsownnodes, nodes, numfeaparticles*sizeof(uint4)));
+}
+
+
+void
 bind_textures(
 	BufferList const& bufread,
 	uint	numParticles,

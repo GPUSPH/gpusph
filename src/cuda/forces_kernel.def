@@ -536,6 +536,25 @@ struct rb_particle_data
 	{}
 };
 
+// data used only for FEA objects
+struct fea_particle_data
+{
+	const	uint	feaindex;
+	const	float4	fea_nat_coords;
+	const	uint4	fea_ref_nodes;
+
+	template<typename FP> /* templatized over the kernel input params */
+	__device__ __forceinline__
+	fea_particle_data(FP const& params, const uint index, particleinfo const& info) :
+		//FIXME manage different objects as done for floating bodies
+		feaindex( FEA_NODE(info) ? id(info) + d_feanodesstartindex[object(info)].x - d_feanodesstartindex[object(info)].y :
+			DEFORMABLE(info) ? id(info) + d_feapartsstartindex[object(info)].x - d_feapartsstartindex[object(info)].y :
+			UINT_MAX),
+		fea_nat_coords( DEFORMABLE(info) ? d_feapartsnatcoords[feaindex] : make_float4(NAN)),
+		fea_ref_nodes( DEFORMABLE(info) ? d_feapartsownnodes[feaindex] : make_uint4(UINT_MAX, UINT_MAX, UINT_MAX, UINT_MAX) )
+	{}
+};
+
 // velocity and density used for:
 // * fluid particles
 // * vertex particles if KEPSILON
@@ -746,6 +765,7 @@ template<KernelType _kerneltype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _has_sps = _ViscSpec::turbmodel == SPS,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
+	typename fea_cond = typename COND_STRUCT(!_repacking && (_simflags & ENABLE_FEA), fea_particle_data),
 	typename vol_cond = typename COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER &&
 			(_densitydiffusiontype == COLAGROSSI), volume_particle_data),
 	typename grenier_cond = typename
@@ -774,6 +794,7 @@ struct forces_particle_data :
 	// PT_VERTEX only use them for KEPSILON, and
 	// PT_OBJECT don't use them
 	vel_particle_data,
+	fea_cond,
 	vol_cond,
 	grenier_cond,
 	eulerVel_cond,
@@ -808,6 +829,7 @@ struct forces_particle_data :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
 		vel_particle_data(_index, _info),
+		fea_cond(params, _index,_info),
 		vol_cond(_index, params),
 		grenier_cond(_index, params),
 		eulerVel_cond(_index),
@@ -853,6 +875,7 @@ struct finalize_forces_particle_data :
 	common_finalize_particle_data,
 	// the next is only needed for PT_OBJECT, which in fact need no other data
 	rb_particle_data,
+	COND_STRUCT(_simflags & ENABLE_FEA, fea_particle_data),
 	COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER, grenier_finalize_particle_data),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data),
 	COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
@@ -877,6 +900,7 @@ struct finalize_forces_particle_data :
 		FinalizeForcesParams const& params) :
 		common_finalize_particle_data(_index, _pos, params.velArray[_index], _info, params.particleHash),
 		rb_particle_data(_info),
+		COND_STRUCT(_simflags & ENABLE_FEA, fea_particle_data)(params, _index, _info),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, params),
@@ -1205,7 +1229,9 @@ template<KernelType kerneltype,
 	typename _eulerVel_neib_data =
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || simflags & ENABLE_INLET_OUTLET),
-		eulerVel_neib_data)
+		eulerVel_neib_data),
+	typename _fea_particle_data =
+		typename COND_STRUCT(simflags & ENABLE_FEA, fea_particle_data)
 >
 struct forces_neib_data :
 	common_neib_data,
@@ -1214,6 +1240,7 @@ struct forces_neib_data :
 	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
 	_sa_boundary_neib_data,
 	_dummy_boundary_neib_data,
+	_fea_particle_data,
 	// relative eulerian velocity
 	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || simflags & ENABLE_INLET_OUTLET),
@@ -1250,6 +1277,7 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_dummy_boundary_neib_data(pdata, params, _index, _relPos),
+		_fea_particle_data(params, _index, _info),
 		_eulerVel_neib_data(pdata, _index, _info),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
@@ -3325,6 +3353,82 @@ enable_if_t<FP::boundarytype != SA_BOUNDARY>
 compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 { /* do nothing */ }
 
+/// FEA: distribute forces from DEFORMABLE particles to the respecive FEA_NODE 
+// forces are distributed according to shaping functions
+// TODO evaluate opportunity to do this in reverse: do the distribution
+// after the forces computation, iterating over the FEA_NODEs and having each
+// taking the contribution from the associated particles
+template<typename FP, typename PD, typename OP>
+__device__ __forceinline__
+enable_if_t<(FP::simflags & ENABLE_FEA)>
+assign_fea_force(FP const& params, PD const& pdata, OP &pout)
+{
+	// quantities to build shape functions
+	float cm = 1.0 - pdata.fea_nat_coords.x;
+	float cp = 1.0 + pdata.fea_nat_coords.x;
+	float em = 1.0 - pdata.fea_nat_coords.y;
+	float ep = 1.0 + pdata.fea_nat_coords.y;
+	float zm = 1.0 - pdata.fea_nat_coords.z;
+	float zp = 1.0 + pdata.fea_nat_coords.z;
+
+	/*shape functions */
+	//Note: each of the following values should be divided by 8. We collect this division
+	// and we divide at the end only once
+	float N[8] = {
+		cm*em*zm,
+		cp*em*zm,
+		cm*ep*zm,
+		cp*ep*zm,
+		cm*em*zp,
+		cp*em*zp,
+		cm*ep*zp,
+		cp*ep*zp};
+
+	// simplified set of nodes
+	const uint4 rn = pdata.fea_ref_nodes;
+
+	// shell elements are interpolated using 4 nodes, while hexaedrons using 8 nodes.
+	// For hexaedrons we retrieve four of the 8 nodes from the remaining four,
+	// as the indices are consecutive.
+	// At the end of the interpolation we divide by 4 for shell and 8 for Hexaedrons.
+	// if we use the el_type_id, we can use the same computations for both types of 
+	// elements: we take always the contribution from 8 nodes, that in the case of a
+	// shell are the 4 nodes counted two times (it results in a Hexagon with zero
+	// thickness).
+	// For Beam elements the concept is repeated in the other component. This time
+	// the four nodes are the two nodes of the beam, repeated twice. (that's like a 
+	// shell with zero width)
+
+	// TODO FIXME consider the gradient varibles of the shells to add the third component properly (see Rakhsha et al 2019)
+
+
+	// extended set of nodes
+	const int el_type_id = pdata.fea_nat_coords.w;
+	const uint nodes[8] = {rn.x, rn.x + el_type_id,
+		rn.y, rn.y + el_type_id,
+		rn.z, rn.z + el_type_id,
+		rn.w, rn.w + el_type_id};
+
+	// the FG_DEFORMABLE particle is assigned to an element and distributes the force that the
+	// fluid is exerting on it among all the nodes of the element, in proportions given by the 
+	// shaping function (and in turn, by the position of the particle in the element)
+	// Here we compute the force as SPH acceleraion times particle mass, and then we atomically
+	// the contribution to the respective nodes
+	for (int i = 0; i < 8; i++) {
+		atomicAdd(&(params.feaforces[nodes[i]].x), pout.force.x*N[i]*pdata.pos.w/8.0f); // division by 8 comes from application of shaping function
+		atomicAdd(&(params.feaforces[nodes[i]].y), pout.force.y*N[i]*pdata.pos.w/8.0f);
+		atomicAdd(&(params.feaforces[nodes[i]].z), pout.force.z*N[i]*pdata.pos.w/8.0f);
+	}
+}
+
+template<typename FP, typename PD, typename OP>
+__device__ __forceinline__
+enable_if_t<!(FP::simflags & ENABLE_FEA)>
+assign_fea_force(FP const& params, PD const& pdata, OP &pout)
+{
+	/* Do nothing */
+}
+
 /*
  * Water depth computation
  */
@@ -3453,6 +3557,18 @@ enable_if_t<not FP::has_keps>
 write_turbvisc(FP const& params, P const& pdata, OP const& pout)
 { /* do nothing */ }
 
+/// Write out FEA forces
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<(FP::simflags & ENABLE_FEA)>
+write_fea_force(FP const& params, P const& pdata, OP const& pout)
+{ params.feaforces[pdata.feaindex] = pout.force; }
+
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<!(FP::simflags & ENABLE_FEA)>
+write_fea_force(FP const& params, P const& pdata, OP const& pout)
+{ /* do nothing */ }
 
 /*
  * Global variables
@@ -3683,7 +3799,7 @@ enable_if_t<
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback
-	if (COMPUTE_FORCE(pdata.info)) {
+	if (COMPUTE_FORCE(pdata.info) || DEFORMABLE(pdata.info)) {
 		// Compute repulsive force from boundary particle
 		compute_repulsive_force(params, pdata, ndata, pout, nout);
 
@@ -3709,6 +3825,9 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
+	if (FEA_NODE(pdata.info))
+		return;
+
 	compute_density_derivative(params, pdata, ndata, pout, nout);
 
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback
@@ -3760,6 +3879,10 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
+	// No interaction with FEA nodes
+	if (FEA_NODE(ndata.info))
+		return;
+
 	// Compute repulsive force from boundary particle
 	compute_repulsive_force(params, pdata, ndata, pout, nout);
 
@@ -3785,6 +3908,8 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
+	if (FEA_NODE(ndata.info))
+		return;
 	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
@@ -3796,6 +3921,8 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
+	if (FEA_NODE(ndata.info))
+		return;
 	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 /// Particle-particle interaction
@@ -3811,6 +3938,8 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
+	if (FEA_NODE(ndata.info))
+		return;
 	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
@@ -4095,6 +4224,14 @@ forcesDevice(FP params)
 		write_xsph(params, pdata, pout);
 		write_internal_energy(params, pdata, pout);
 
+		// Because in FinalizeForcesDevice we will use
+		// atomicAdd to sum up all the BCE contributions
+		// we initialize the force to zero.
+		if (FEA_NODE(pdata.info)) {
+			pout.force = make_float4(0.0f);
+			write_fea_force(params, pdata, pout);
+		}
+
 		params.forces[pdata.index] = pout.force;
 
 
@@ -4212,6 +4349,10 @@ finalizeforcesDevice(FP params)
 
 			params.rbtorques[pdata.rbindex] = make_float4(cross(arm, as_float3(pout.force)));
 
+		}
+
+		if (DEFORMABLE(pdata.info)) { //TODO do only when computing FEA (SPH/FEA step ratio)
+			assign_fea_force(params, pdata, pout);
 		}
 
 		params.forces[index] = pout.force;

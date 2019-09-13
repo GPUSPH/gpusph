@@ -383,6 +383,10 @@ void simulate(GlobalData *gdata, RunMode repack_or_run)
 }
 
 int main(int argc, char** argv) {
+	static_assert(FG_LAST_FLAG < USHRT_MAX, "Too many flags!");
+	// TODO convert this to a static assert
+	//              |
+	//              v
 	if (!check_short_length()) {
 		printf("Fatal: this architecture does not have uint = 2 short\n");
 		exit(1);

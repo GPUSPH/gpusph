@@ -109,6 +109,10 @@ private:
 	uint m_numInternalParticles;
 	// Total number of particles belonging to rigid bodies on which we compute forces
 	uint		m_numForcesBodiesParticles;
+	// Total number of particles belonging to objcts on which we perform Finite Elements Analysis
+	uint		m_numFeaParts;
+	// Total number of particles associated to Finite Elements nodes
+	uint		m_numFeaNodes;
 
 	// range of particles the kernels should write to
 	uint m_particleRangeBegin; // inclusive
@@ -220,6 +224,9 @@ private:
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
 	void deallocateDeviceBuffers();
+
+	void pinGlobalHostBuffers();
+	void unpinGlobalHostBuffers();
 
 	void createEventsAndStreams();
 	void destroyEventsAndStreams();

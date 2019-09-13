@@ -114,6 +114,21 @@ struct dummy_particle_data
 	{}
 };
 
+struct fea_particle_data
+{
+	float4 fea_disp;
+	float4 fea_nat_coords;
+	uint4 fea_ref_nodes;
+
+	__device__ __forceinline__
+	fea_particle_data(const uint index, fea_euler_params const& params)  :
+		fea_disp(params.fea_displacements[(int)id(params.info[index]) + d_feanodesstartindex[object(params.info[index])].x - d_feanodesstartindex[object(params.info[index])].y]),
+		fea_nat_coords(d_feapartsnatcoords[(int)id(params.info[index]) + d_feapartsstartindex[object(params.info[index])].x - d_feapartsstartindex[object(params.info[index])].y]),
+		fea_ref_nodes(d_feapartsownnodes[(int)id(params.info[index]) + d_feapartsstartindex[object(params.info[index])].x - d_feapartsstartindex[object(params.info[index])].y])
+	{}
+};
+
+
 /// The actual euler_particle_data struct, which concatenates all of the above, as appropriate.
 template<typename EP, ///< euler_param template specialization
 	KernelType _kerneltype = EP::kerneltype,
@@ -130,7 +145,8 @@ struct euler_particle_data :
 	COND_STRUCT(_simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data),
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data),
-	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_particle_data)
+	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_particle_data),
+	COND_STRUCT(_simflags & ENABLE_FEA, fea_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -152,7 +168,8 @@ struct euler_particle_data :
 		COND_STRUCT(simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data)(_index, params),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)(_index, params),
-		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_particle_data)(_index, params)
+		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_particle_data)(_index, params),
+		COND_STRUCT(simflags & ENABLE_FEA, fea_particle_data)(_index, params)
 	{}
 };
 
@@ -226,6 +243,136 @@ __device__ __forceinline__
 enable_if_t<not (EP::simflags & ENABLE_INTERNAL_ENERGY)>
 integrate_energy(EP const& params, P &pdata, int index, float dt)
 { /* do nothing */ }
+
+/// Add FEA displacement 
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::simflags & ENABLE_FEA>
+move_fea_nodes(EP const& params, P &pdata, int index, float dt)
+{
+	pdata.pos.x += pdata.fea_disp.x*dt;
+	pdata.pos.y += pdata.fea_disp.y*dt;
+	pdata.pos.z += pdata.fea_disp.z*dt;
+
+}
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<not (EP::simflags & ENABLE_FEA)>
+move_fea_nodes(EP const& params, P &pdata, int index, float dt)
+{ /* do nothing */ }
+
+
+/// Add FEA displacement 
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::simflags & ENABLE_FEA>
+move_fea_parts(EP const& params, P &pdata, int index, float dt)
+{
+
+	// quantities to build shape functions
+	float cm = 1.0 - pdata.fea_nat_coords.x;
+	float cp = 1.0 + pdata.fea_nat_coords.x;
+	float em = 1.0 - pdata.fea_nat_coords.y;
+	float ep = 1.0 + pdata.fea_nat_coords.y;
+	float zm = 1.0 - pdata.fea_nat_coords.z;
+	float zp = 1.0 + pdata.fea_nat_coords.z;
+
+	/*shape functions for cube*/ //TODO fixme for other types of elements
+	//Note: each of the following values should be divided by 8. We collect this division
+	// and we divide at the end only once
+	float N[8] = {
+		cm*em*zm,
+		cp*em*zm,
+		cm*ep*zm,
+		cp*ep*zm,
+		cm*em*zp,
+		cp*em*zp,
+		cm*ep*zp,
+		cp*ep*zp};
+
+	float4 disp = make_float4(0.0); // displacement to be evaluated
+	float4 vel = make_float4(0.0); // velocity to be evaluated
+
+	// simplified set of nodes
+	uint4 rn = pdata.fea_ref_nodes;
+
+
+	// shell elements are interpolated using 4 nodes, while hexaedrons using 8 nodes.
+	// For hexaedrons we retrieve four of the 8 nodes from the remaining four,
+	// as the indices are consecutive.
+	// At the end of the interpolation we divide by 4 for shell and 8 for Hexaedrons.
+	// if we use the el_type_id, we can use the same computations for both types of 
+	// elements: we take always the contribution from 8 nodes, that in the case of a
+	// shell are the 4 nodes counted two times (it results in a Hexagon with zero
+	// thickness).
+	// For Beam elements the concept is repeated in the other component. This time
+	// the four nodes are the two nodes of the beam, repeated twice. (that's like a 
+	// shell with zero width)
+
+	// TODO FIXME consider the gradient varibles of the shells to add the third component properly (see Rakhsha et al 2019)
+
+	// extended set of nodes
+	const int el_type_id = pdata.fea_nat_coords.w;
+	uint nodes[8] = {rn.x, rn.x + el_type_id,
+		rn.y, rn.y + el_type_id,
+		rn.z, rn.z + el_type_id,
+		rn.w, rn.w + el_type_id};
+
+	for (int i=0; i<8; i++) {
+		float4 node_disp = params.fea_displacements[nodes[i]];
+		disp += N[i]*node_disp*dt;
+		float4 node_vel = node_disp;
+		vel += N[i]*node_vel;
+	}
+
+	// This division comes from the shaping functions
+	disp /= 8.0f;
+	vel /= 8.0f;
+
+	pdata.pos.x += disp.x;
+	pdata.pos.y += disp.y;
+	pdata.pos.z += disp.z;
+
+	pdata.vel.x = vel.x;
+	pdata.vel.y = vel.y;
+	pdata.vel.z = vel.z;
+}
+
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<not (EP::simflags & ENABLE_FEA)>
+move_fea_parts(EP const& params, P &pdata, int index, float dt)
+{ /* do nothing */ }
+
+
+
+/// Add FEA particles velocity. We could get the velocity
+/// from the FEA, but we shoul manage another data transfer
+/// between the host and device. Then we compute the velocity
+/// from the displacement. TODO see if it is better to pass the
+/// velocity and update the position, e don't have to subtract
+/// and re-add on the position-displacement-position, and we
+/// have velocities straightforward
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<EP::simflags & ENABLE_FEA>
+set_fea_parts_vel(EP const& params, P &pdata, int index, float dt)
+{
+	pdata.vel.x = pdata.fea_disp.x;
+	pdata.vel.y = pdata.fea_disp.y;
+	pdata.vel.z = pdata.fea_disp.z;
+
+}
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<not (EP::simflags & ENABLE_FEA)>
+set_fea_parts_vel(EP const& params, P &pdata, int index, float dt)
+{ /* do nothing */ }
+
 
 
 /// Integrate the continuity equation
@@ -472,7 +619,7 @@ eulerDevice(EP params)
 		const bool integrateBoundary = !(params.repacking) &&
 			(boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
 		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
-		if (!ACTIVE(pdata.pos) || (pdata.ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pdata.info)) )
+		if (!ACTIVE(pdata.pos) || (pdata.ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pdata.info) && !FEA_NODE(pdata.info) && !DEFORMABLE(pdata.info)) )
 			break;
 
 		// velc = vel if step == 1, but
@@ -551,9 +698,20 @@ eulerDevice(EP params)
 			}
 
 			// DYN_BOUNDARY: integrate density and internal energy
-			if (boundarytype == DYN_BOUNDARY) {
+			if (boundarytype == DYN_BOUNDARY && !FEA_NODE(pdata.info)) {
 				continuity_integration(params, pdata, index, dt);
 				integrate_energy(params, pdata, index, dt);
+			}
+
+			// apply fea displacements to fea particles
+			if (FEA_NODE(pdata.info)) {
+				move_fea_nodes(params, pdata, index, dt);
+				set_fea_parts_vel(params, pdata, index, dt);
+			}
+
+			// apply fea displacements to fea particles
+			if (DEFORMABLE(pdata.info)) {
+				move_fea_parts(params, pdata, index, dt);
 			}
 
 			// integrate Eulerian velocity (for k-eps)

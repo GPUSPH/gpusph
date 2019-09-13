@@ -202,6 +202,8 @@ struct GlobalData {
 
 	// variable gravity
 	float3 s_varGravity;
+	// FEA external force FIXME make an array so that we can specify more forces
+	float3 s_FeaExtForce;
 
 	// simulation time control
 	RunMode run_mode;
@@ -249,6 +251,13 @@ struct GlobalData {
 
 	float3* s_hRbTotalForce; // aggregate total force (sum across all devices and nodes);
 	float3* s_hRbTotalTorque; // aggregate total torque (sum across all devices and nodes);
+
+	int2* s_hFeaNodesFirstIndex; // first indices of nodes in fea bodies: so forces kernel knows where to write fea body force
+	int2* s_hFeaPartsFirstIndex; // first indices of boundary particles in fea bodies: so euler kernel knows where to read fea body force
+
+	std::vector<bool> s_hFeaExtForce;	// true if external force is being applied to the node
+	float4* s_hFeaNatCoords; //natural coordinates of the fea particles
+	uint4* s_hFeaOwningNodes; // indices of the nodes relative to the owning element
 
 	// actual applied total forces and torques. may be different from the computed total
 	// forces/torques if modified by the problem callback
@@ -334,6 +343,11 @@ struct GlobalData {
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
 		s_hRbAngularVelocities(NULL),
+		s_hFeaNodesFirstIndex(NULL),
+		s_hFeaPartsFirstIndex(NULL),
+		s_hFeaExtForce(),
+		s_hFeaNatCoords(NULL),
+		s_hFeaOwningNodes(NULL),
 		h_IOwaterdepth(NULL),
 		h_maxIOwaterdepth(NULL)
 	{

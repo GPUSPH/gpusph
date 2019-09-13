@@ -59,6 +59,7 @@
 #include "vector_math.h"
 #include "Object.h"
 #include "MovingBody.h"
+#include "FEABody.h"
 
 #include "buffer.h"
 #include "simframework.h"
@@ -128,8 +129,12 @@ class ProblemCore
 
 #if USE_CHRONO == 1
 		::chrono::ChSystem	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
+		::chrono::ChSystem	*m_fea_system;	// FIXME see if we can use a unique chrono system// Chrono physical system containing FEA system...
+
+		std::vector<float4> m_old_fea_vel; // FIXME temporary way of storing old velocities 
 #else
 		void *m_bodies_physical_system;
+		void *m_fea_system;
 #endif
 
 		/*! \inpsection{geometry}
@@ -180,6 +185,7 @@ class ProblemCore
 		GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
 
+		FeaBodiesVect		m_fea_bodies;			// array of fea bodies
 		MovingBodiesVect	m_bodies;			// array of moving objects
 		KinematicData		*m_bodies_storage;				// kinematic data storage for bodie movement integration
 
@@ -453,6 +459,8 @@ class ProblemCore
 		{ return physparams()->set_sinpsi(fluid_idx, sinpsivalue); }
 		void set_cohesion(size_t fluid_idx, float cohesionvalue)
 		{ return physparams()->set_cohesion(fluid_idx, cohesionvalue); }
+		void set_fea_ground(const float a, const float b, const float c, const float d)
+		{ return physparams()->set_fea_ground(a, b, c, d); }
 
 		float get_kinematic_visc(size_t fluid_idx) const
 		{ return physparams()->get_kinematic_visc(fluid_idx); }
@@ -537,9 +545,12 @@ class ProblemCore
 		//! @userfunc
 		//! Variable gravity definition
 		virtual float3 g_callback(const double t);
+		virtual float3 ext_force_callback(const double t);
 
 		void allocate_bodies_storage();
 		void add_moving_body(Object *, const MovingBodyType);
+		void add_fea_body(Object *);
+		void groundFeaNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh);
 		void restore_moving_body(const MovingBodyData &, const uint, const int, const int);
 		const MovingBodiesVect& get_mbvect() const
 		{ return m_bodies; };
@@ -551,6 +562,9 @@ class ProblemCore
 		size_t	get_forces_bodies_numparts(void);
 		size_t	get_body_numparts(const int);
 		size_t	get_body_numparts(const Object *);
+
+		size_t	get_fea_objects_numparts(void);
+		size_t	get_fea_objects_numnodes(void);
 
 		void get_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		void get_bodies_cg(void);
@@ -565,7 +579,10 @@ class ProblemCore
 		void set_body_angularvel(const Object*, const double3&);
 
 		void InitializeChrono(void);
+		void InitializeChronoFEA(void);
+		void SetFeaReady(void);
 		void FinalizeChrono(void);
+		void FinalizeChronoFEA(void);
 
 		// callback for initializing joints between Chrono bodies
 		virtual void initializeObjectJoints();
@@ -586,6 +603,12 @@ class ProblemCore
 		moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
 							const float3& force, const float3& torque, const KinematicData& initial_kdata,
 							KinematicData& kdata, double3& dx, EulerParameters& dr);
+
+		/* Initialize FEA step (e.g. assign forces to nodes)*/
+		void fea_init_step( BufferList&, const uint numFeaParts, const double t,  const int step);
+
+		/* Do FEA step -- dynamic */
+		void fea_do_step( BufferList&, const uint, const double dt, const bool dofea, const uint fea_every);
 
 		void bodies_timestep(const float3 *forces, const float3 *torques, const int step,
 							const double dt, const double t,

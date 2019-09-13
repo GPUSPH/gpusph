@@ -149,6 +149,19 @@ struct dummy_euler_params
 	{}
 };
 
+/// Additional parameters passed only to kernels with ENABLE_FEA
+struct fea_euler_params
+{
+	const	float4	* __restrict__ fea_displacements; // displacement to be applied to old position
+	const	particleinfo	* __restrict__ info;		///< particle's information
+
+	// Constructor / initializer
+	fea_euler_params(BufferList const&	bufread):
+		fea_displacements(bufread.getData<BUFFER_FEA_EXCH>()),
+		info(bufread.getData<BUFFER_INFO>())
+	{}
+};
+
 /// The actual euler_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -178,6 +191,7 @@ struct euler_params :
 	COND_STRUCT(_has_keps, keps_euler_params),
 	grenier_params,
 	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params),
+	COND_STRUCT(_simflags & ENABLE_FEA, fea_euler_params),
 	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_euler_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
@@ -209,6 +223,7 @@ struct euler_params :
 		COND_STRUCT(has_keps, keps_euler_params)(bufread, bufwrite),
 		grenier_params(bufread, bufwrite),
 		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(bufread, bufwrite),
+		COND_STRUCT(simflags & ENABLE_FEA, fea_euler_params)(bufread),
 		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_euler_params)(bufread, bufwrite)
 	{}
 };

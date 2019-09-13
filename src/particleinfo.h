@@ -147,18 +147,23 @@ enum ParticleType {
 /// Particle flags
 /**	Enumeration defining the particle flags. */
 enum ParticleFlag {
-	FG_COMPUTE_FORCE =		(PART_FLAG_START<<0), ///< particle belongs to a body that needs to compute forces
-	FG_MOVING_BOUNDARY =	(PART_FLAG_START<<1), ///< particle belongs to a body with externally prescribed motion
+	FG_COMPUTE_FORCE =		(PART_FLAG_START<<0),  ///< particle belongs to a body that needs to compute forces
+	FG_MOVING_BOUNDARY =	(PART_FLAG_START<<1),  ///< particle belongs to a body with externally prescribed motion
 
-	FG_INLET =				(PART_FLAG_START<<2), ///< particle belongs to an inlet
-	FG_OUTLET =				(PART_FLAG_START<<3), ///< particle belongs to an outlet
-	FG_VELOCITY_DRIVEN =	(PART_FLAG_START<<4), ///< particle belongs to an I/O with prescribed velocity
-	FG_CORNER =				(PART_FLAG_START<<5), ///< particle is a corner of an I/O
+	FG_INLET =				(PART_FLAG_START<<2),  ///< particle belongs to an inlet
+	FG_OUTLET =				(PART_FLAG_START<<3),  ///< particle belongs to an outlet
+	FG_VELOCITY_DRIVEN =	(PART_FLAG_START<<4),  ///< particle belongs to an I/O with prescribed velocity
+	FG_CORNER =				(PART_FLAG_START<<5),  ///< particle is a corner of an I/O
 
-	FG_SURFACE =			(PART_FLAG_START<<6), ///< particle is at the free surface
-	FG_INTERFACE =			(PART_FLAG_START<<7), ///< particle is at the interface between two phases
-	FG_SEDIMENT =			(PART_FLAG_START<<8), ///< particle is sediment (rheology + effective pressure)
+	FG_SURFACE =			(PART_FLAG_START<<6),  ///< particle is at the free surface
+	FG_INTERFACE =			(PART_FLAG_START<<7),  ///< particle is at the interface between two phases
+	FG_SEDIMENT =			(PART_FLAG_START<<8),  ///< particle is sediment (rheology + effective pressure)
+
+	FG_DEFORMABLE =			(PART_FLAG_START<<9),  ///< particle belongs to a deformable body
+	FG_FEA_NODE =			(PART_FLAG_START<<10), ///< nodes of the mesh associated to a deformable body
+	FG_LAST_FLAG = FG_FEA_NODE
 };
+
 /** @} */
 
 /** \name Flag getting/setting macros
@@ -253,6 +258,10 @@ enum ParticleFlag {
 /// Check if particle belongs to an object on which we want force feedback
 /// \see MOVING
 #define COMPUTE_FORCE(f)	(type(f) & FG_COMPUTE_FORCE)
+/// Check if particle belongs to a deformable body
+#define DEFORMABLE(f)	(type(f) & FG_DEFORMABLE)
+/// Check if particle represents a FEA node
+#define FEA_NODE(f)	(type(f) & FG_FEA_NODE)
 
 /// Check if particle is active
 /** Fluid particles can be active or inactive. Particles are marked inactive under appropriate

@@ -56,7 +56,11 @@
 
 #if USE_CHRONO
 #include "chrono/physics/ChSystemNSC.h"
+#include "chrono/physics/ChSystemSMC.h"
 #include "chrono/solver/ChSolver.h"
+#include "chrono/solver/ChSolverMINRES.h"
+#include "chrono_mkl/ChSolverMKL.h"
+#include "chrono/fea/ChNodeFEAxyzD.h"
 #endif
 
 // Enable to get/set envelop and margin (mainly debug)
@@ -183,9 +187,72 @@ ProblemCore::~ProblemCore(void)
 }
 
 void
+ProblemCore::InitializeChronoFEA()
+{
+#if USE_CHRONO == 1
+	cout << "Initializing Chrono FEA... " << endl;
+	// initialize FEA system
+	m_fea_system = new ::chrono::ChSystemSMC(); // FIXME NOT necessary the NSC
+
+	// setting the gravity for the Chrono system
+	m_fea_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+		m_physparams->gravity.z)); //TODO choose if initialize here or add the gravity to the forces
+
+
+	// Set FEA solver (the way of computing FEM forces, time bottleneck for FEA)
+
+#if 1	//  choose between MINRES or MKL
+	m_fea_system->SetSolverType(::chrono::ChSolver::Type::MINRES);
+	auto msolver = std::static_pointer_cast<::chrono::ChSolverMINRES>(m_fea_system->GetSolver());
+
+	msolver->SetDiagonalPreconditioning(true);
+	m_fea_system->SetSolverWarmStarting(true);
+	m_fea_system->SetMaxItersSolverSpeed(10000); // TODO calibrate
+	m_fea_system->SetTolForce(1e-10);
+#else
+	auto mkl_solver = std::make_shared<::chrono::ChSolverMKL<>>();
+	m_fea_system->GetSystem()->SetSolver(mkl_solver);
+#endif
+
+
+	//Set FEA time stepper (The FEA integration scheme)
+
+	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
+	/*NOTE: Using an implicit time scheme for FEA allows us not to include further stability conditions on dt due to FEA*/
+
+	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper());
+	mystepper->SetMaxiters(100);
+	mystepper->SetAbsTolerances(1e-5);
+	mystepper->SetMode(::chrono::ChTimestepperHHT::POSITION);
+	mystepper->SetScaling(true);
+
+
+#else
+	throw runtime_error ("ProblemCore::InitializeChronoFEA Trying to use Chrono without USE_CHRONO defined !\n");
+#endif
+}
+
+void
+ProblemCore::SetFeaReady()
+{
+	m_fea_system->SetupInitial();
+}
+
+void ProblemCore::FinalizeChronoFEA(void)
+{
+#if USE_CHRONO == 1
+	if (m_fea_system)
+		delete m_fea_system;
+#else
+	throw runtime_error ("ProblemCore::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
+#endif
+}
+
+void
 ProblemCore::InitializeChrono()
 {
 #if USE_CHRONO == 1
+	cout << "Initializing Chrono ... " << endl;
 	m_bodies_physical_system = new ::chrono::ChSystemNSC();
 	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(physparams()->gravity.x, physparams()->gravity.y,
 		physparams()->gravity.z));
@@ -294,6 +361,71 @@ ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
 	simparams()->numbodies = m_bodies.size();
 }
 
+// Add a body to the fea system (so far used as joint)
+void
+ProblemCore::add_fea_body(Object* object)
+{
+	cout << "adding fea object " << endl;
+
+	const uint index = m_bodies.size();
+	if (index >= MAX_BODIES) // FIXME do we need an independent  MAX_FEA_BODIES?
+		throw runtime_error ("ProblemCore::add_fea_body Number of fea bodies superior to MAX_BODIES. Increase MAXBODIES\n");
+
+	FeaBodyData *feadata = new FeaBodyData;
+	feadata->index = index;
+	feadata->object = object;
+
+	m_fea_bodies.push_back(feadata);
+
+	// Setting body id after insertion
+	for (uint id = 0; id < m_fea_bodies.size(); id++) {
+		m_fea_bodies[id]->id = id;
+	}
+
+	simparams()->numfeabodies++;
+}
+
+// Simulate a ground where to attach FEA structures: defined the ground (a plane, analytically) set
+// fixed all the nodes that are in the negative side of the plane
+void
+ProblemCore::groundFeaNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh)
+{
+
+	// four coefficients of the plane equation
+	float4 plane = physparams()->feaGround;
+
+	if ((plane.x != 0)  && (plane.y != 0) && (plane.z != 0) && (plane.w != 0)) // no ground defined
+		return;
+
+	cout << "grounding FEA body using a = " << plane.x << " b = " << plane.y << " c = " << plane.z << " d = " << plane.w << endl;
+
+	uint nodes_num = fea_mesh->GetNnodes();
+	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
+	Point p;
+
+	//TODO give the possibility to set more planes as grounds
+
+	// iterate over the FEA nodes in the current mesh (a single GPUSPH geometry)
+	for (int i = 0; i < nodes_num; ++i) {
+
+		// get node
+		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(fea_mesh->GetNode(i));
+
+		// get coordinates of the node
+		p(0) = node->GetPos().x();
+		p(1) = node->GetPos().y();
+		p(2) = node->GetPos().z();
+
+		/*Any point in the negative side of the plane is grounded*/
+		const float prod = (plane.x * p(0) + plane.y * p(1) + plane.z * p(2) - plane.w);
+
+		if (prod < 0) {
+			node->SetFixed(true);
+			cout << "grounded (mesh local index) " << i << endl;
+		}
+	}
+}
+
 void
 ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint numparts, const int firstindex, const int lastindex)
 {
@@ -370,6 +502,44 @@ ProblemCore::get_forces_bodies_numparts(void)
 	return total_parts;
 }
 
+size_t
+ProblemCore::get_fea_objects_numparts(void)
+{
+	size_t total_parts = 0;
+	for (vector<FeaBodyData *>::iterator it = m_fea_bodies.begin() ; it != m_fea_bodies.end(); ++it) {
+		total_parts += (*it)->object->GetNumParts();
+	}
+
+	//FIXME all this should not stay here, should have a proper location
+	if (gdata->iterations == 0 && total_parts && gdata->s_hFeaNatCoords == NULL) {
+		gdata->s_hFeaNatCoords = new float4 [total_parts];
+		cout << "Created host buffer for Nat coords (" << total_parts <<" particles)" << endl;
+	}
+
+	//FIXME all this should not stay here, should have a proper location
+	if (gdata->iterations == 0 && total_parts && gdata->s_hFeaOwningNodes == NULL) {
+		gdata->s_hFeaOwningNodes = new uint4 [total_parts];
+		cout << "Created host buffer for owning nodes (" << total_parts <<" particles)" << endl;
+	}
+
+	return total_parts;
+}
+
+size_t
+ProblemCore::get_fea_objects_numnodes(void)
+{
+	size_t total_parts = 0;
+	for (vector<FeaBodyData *>::iterator it = m_fea_bodies.begin() ; it != m_fea_bodies.end(); ++it) {
+		total_parts += (*it)->object->GetNumFeaNodes();
+	}
+
+	//FIXME all this should not stay here, should have a proper location
+	if (gdata->iterations == 0 && total_parts) {
+		m_old_fea_vel.resize(total_parts);
+	}
+
+	return total_parts;
+}
 
 size_t
 ProblemCore::get_body_numparts(const int index)
@@ -392,6 +562,335 @@ ProblemCore::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, fl
 	*localPos = make_float3(globalPos - m_origin -
 		(make_double3(_gridPos) + 0.5)*m_cellsize);
 }
+
+#if 0 //second order
+void
+ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const int step)
+{
+	//cout << "initializin " << endl;
+
+	const float4 *forces = buffers.getConstData<BUFFER_FEA_EXCH>();
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+
+	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
+	shared_ptr<::chrono::fea::ChNodeFEAxyzD> associated;
+
+	double4 old_coords = make_double4(0);
+	double4 old_D= make_double4(0);
+	double4 old_D_dt = make_double4(0);
+	float4 old_vels = make_float4(0);
+
+	uint n = 0; //node in the object
+	uint o = 0; //object
+
+	for(uint i = 0; i < numFeaParts; ++i) {
+
+
+		//cout << "object " << o << endl;
+		uint nnodes = m_fea_bodies[o]->object->GetNumFeaNodes();
+		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD> (m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
+		float2 nodalInfo = gdata->s_hFeaNodalInfo[i];
+		float3 nodePos;
+
+		nodePos.x = node->GetPos().x();
+		nodePos.y = node->GetPos().y();
+		nodePos.z = node->GetPos().z();
+
+		if (step == 1) { //predictor: we store the positions...
+			old_coords.x = nodePos.x;
+			old_coords.y = nodePos.y;
+			old_coords.z = nodePos.z;
+
+			m_old_fea_nodes[i] = old_coords;
+
+			// ... and the velocities
+			old_vels.x = node->GetPos_dt().x();
+			old_vels.y = node->GetPos_dt().y();
+			old_vels.z = node->GetPos_dt().z();
+
+			m_old_fea_vel[i] = old_vels;
+
+			// ... and the directions 
+			old_D.x = node->GetD().x();
+			old_D.y = node->GetD().y();
+			old_D.z = node->GetD().z();
+
+			m_old_fea_D[i] = old_D;
+
+			// ... and the directions 
+			old_D_dt.x = node->GetD_dt().x();
+			old_D_dt.y = node->GetD_dt().y();
+			old_D_dt.z = node->GetD_dt().z();
+
+			m_old_fea_D_dt[i] = old_D_dt;
+
+		} else {	//corrector: we reset the postitions and velocities as they were at the beginning of the step
+
+			old_coords = m_old_fea_nodes[i];
+
+			node->SetPos(::chrono::ChVector<>(
+					old_coords.x,
+					old_coords.y,
+					old_coords.z)
+				);
+
+			old_vels = m_old_fea_vel[i];
+
+			node->SetPos_dt(::chrono::ChVector<>(
+					old_vels.x,
+					old_vels.y,
+					old_vels.z)
+				);
+
+			old_D = m_old_fea_D[i];
+
+			node->SetD(::chrono::ChVector<>(
+					old_D.x,
+					old_D.y,
+					old_D.z)
+				);
+
+			old_D_dt = m_old_fea_D_dt[i];
+
+			node->SetD_dt(::chrono::ChVector<>(
+					old_D_dt.x,
+					old_D_dt.y,
+					old_D_dt.z)
+				);
+			}
+
+		float3 node_f;
+#if 0
+		if (nodalInfo.y){
+			//cout << "index " << i << " pres:" << forces[i].x<< " asso " << nodalInfo.x << "  area: " << nodalInfo.y << endl;
+			node_f = forces[i].x*nodalInfo.y*normal;
+		//cout << "force" << i << " = " << node_f.x << ", "<< node_f.y << ", " <<  node_f.z << endl;
+		//cout << "normal" << i << " = " << normal.x << ", "<< normal.y << ", " <<  normal.z << endl;
+		//cout << "force" << i << " = " << node_f.x << ", "<< node_f.y << ", " <<  node_f.z << endl;
+		}
+		else
+			node_f = make_float3(0.0, 0.0, 0.0);
+
+//		float4 node_f = make_float4(5.0*(o==0 ? 1 : -1), 0, 0, 0);
+		//cout << i << ' ' << n << ' ' << o << endl;
+		//cout << "force" << i << " = " << node_f.x << ", "<< node_f.y << ", " <<  node_f.z << endl;
+
+#endif
+		// assign SPH particles forces to the  FEA nodes
+
+		if (n >= (nnodes - 12)) {
+			node_f = make_float3(5.0/12.0, 0.0, 0.0);
+		} else {
+			node_f = make_float3(0.0, 0.0, 0.0);
+		}
+		node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
+
+		n++;
+
+		if (n == nnodes) {
+			n = 0;
+			o ++;
+		}
+	}
+	//cout << "done" << endl;
+}
+
+#else // single step 
+
+// Set external forces and Fluid-Solid Interaction (FSI) forces to FEM nodes
+void
+ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const double t,  const int step)
+{
+	const float4 *forces = buffers.getConstData<BUFFER_FEA_EXCH>(); // contains forces from (FSI)
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+
+	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
+
+	/*In Project Chrono, nodes are locally indexed within each mesh (each deformable object)*/
+	uint n = 0; //node in the object
+	uint o = 0; // we go through all the meshes (defomable objects) starting from the one with index 0
+
+	for(uint i = 0; i < numFeaParts; ++i) {
+
+		// get number of nodes in the current mesh
+		uint nnodes = m_fea_bodies[o]->object->GetNumFeaNodes();
+		// get nth node within the current mesh
+		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD> (m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
+
+		float3 nodePos;
+
+		nodePos.x = node->GetPos().x();
+		nodePos.y = node->GetPos().y();
+		nodePos.z = node->GetPos().z();
+
+		// we set the forces during the predictor
+		if (step == 1) {
+
+			float3 node_f  = as_float3(forces[i]);
+
+			// Apply external forces if any
+			// s_hFeaExtForce[i] is 1 if node i has an external force applied
+			if (simparams()->fcallback && gdata->s_hFeaExtForce[i])
+				node_f += gdata->s_FeaExtForce;
+
+			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
+		}
+
+		n++;
+
+		if (n == nnodes) {
+			n = 0;
+			o ++;
+		}
+	}
+}
+
+#endif
+
+#if 0 //second order
+/* Do FEA and get displacements during timestep */
+void
+ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  double dt, const bool dofea)
+{
+
+	//cout << "doing fea" << endl;
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+	float4 *disp = buffers.getData<BUFFER_FEA_EXCH>();
+/*
+	const std::vector<std::shared_ptr<::chrono::ChBody>>* ptl = m_fea_system->Get_bodylist();
+	std::vector<std::shared_ptr<::chrono::ChBody>> truss = ptl[0];
+
+	for (uint b = 0; b < truss.size(); b++) {
+		truss[b]->SetNoSpeedNoAcceleration(); // FIXME in this way we are supposing that any rigid body is a Joint
+	}
+*/
+	// do the actual FEA
+	if (dofea) {
+		//m_fea_system->DoStaticNonlinear();
+		m_fea_system->DoStepDynamics(dt);
+//		printf("%g\n", dt);
+
+		shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+
+		float4 node_disp = make_float4(0.0); //FIXME it could be float3
+
+		uint n = 0;
+		uint o = 0;
+
+		for(uint i = 0; i < numFeaParts; ++i) {
+
+			uint nnodes = m_fea_bodies[o]->object->GetNumFeaNodes();
+
+			double4 old_pos = m_old_fea_nodes[i];
+
+			node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyz>
+				(m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n)); // FIXME this works only with 1 object: choose how to link i to the nth node of the geometry
+
+			// get node displacement during timestep
+
+			node_disp.x = node->GetPos().x() - old_pos.x;
+			node_disp.y = node->GetPos().y() - old_pos.y;
+			node_disp.z = node->GetPos().z() - old_pos.z;
+
+			//cout << node->GetIndex() << endl;
+			/*
+			   node_disp.x =0.001*(o==0? 1:-1);
+			   node_disp.y = 0.0;
+			   node_disp.z = 0.0;
+			   */
+			disp[i] = node_disp;
+
+
+			n++;
+
+			if (n == nnodes) {
+				n = 0;
+				o++;
+			}
+			//		cout << "disp" << i << " = " << node_disp.x << ", "<< node_disp.y << ", " <<  node_disp.z << endl;
+
+		}
+	} else {
+		for(uint i = 0; i < numFeaParts; ++i) {
+
+			disp[i] = make_float4(0.0, 0.0, 0.0, 0.0);
+		}
+	}
+	//cout << "done" << endl;
+}
+
+#else
+
+/* Do FEA and get displacements during timestep */
+void
+ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  double dt, const bool dofea, const uint fea_every)
+{
+
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+	float4 *fea_vel = buffers.getData<BUFFER_FEA_EXCH>(); // here we put the data from FEA (node velocities) that will be used to move the associated particles
+
+	// do the actual FEA step
+	if (dofea) {
+
+		printf("fea... \n");
+
+		// - we perform FEA during the predictor, where dt is half the complete time-step, then we use 2*dt
+		// - we perform FEA every fea_every SPH steps, then (assuming dt constant over this time) we perform
+		//    FEA using a factor fea_every on the time-step
+		m_fea_system->DoStepDynamics(2*dt*fea_every);
+
+		printf("done\n");
+
+
+		shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
+		float4 node_vel = make_float4(0.0); //FIXME it could be float3
+
+		/*In Project Chrono, nodes are locally indexed within each mesh (each deformable object)*/
+		uint n = 0; //node in the object
+		uint o = 0; // we go through all the meshes (defomable objects) starting from the one with index 0
+
+
+		for(uint i = 0; i < numFeaParts; ++i) {
+
+			uint nnodes = m_fea_bodies[o]->object->GetNumFeaNodes();
+			node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>
+				(m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
+
+			// get updated node velocity 
+			node_vel.x = node->GetPos_dt().x();
+			node_vel.y = node->GetPos_dt().y();
+			node_vel.z = node->GetPos_dt().z();
+
+			// to be sent to the SPH system
+			fea_vel[i] = node_vel;
+
+			// store the most recent fea vel to be used dusing the fea_every SPH steps
+			// TODO we could send it once and reuse in the gpu, but we would apply a conditional in gpu side
+			// and we should keep track of the current iteration. SEE WHAT IS CONVENIENT
+			m_old_fea_vel[i] = node_vel;
+
+			n++;
+
+			if (n == nnodes) {
+				n = 0;
+				o++;
+			}
+		}
+
+	} else {
+
+		for(uint i = 0; i < numFeaParts; ++i) {
+
+			// send the stored velocity
+			fea_vel[i] = m_old_fea_vel[i];
+		}
+
+
+		/*FIXME DISCUSS alternatively we could fo FEA for the SPH dt and fea_every times the displacement*/
+	}
+}
+
+#endif
 
 void
 ProblemCore::get_bodies_cg(void)
@@ -1033,6 +1532,11 @@ ProblemCore::finished(double t) const
 	return tend && (t > tend);
 }
 
+float3
+ProblemCore::ext_force_callback(const double t)
+{
+	throw std::runtime_error("default ext_force_callback invoked! did you forget to override ext_force_callback(double)");
+}
 
 float3
 ProblemCore::g_callback(const double t)

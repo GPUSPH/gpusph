@@ -544,6 +544,7 @@ neibsInCell(
 			float3			pos,		// current particle position
 			uint*			neibs_num,	// number of neighbors for the current particle
 			const bool		segment,	// true if the current particle belongs to a segment
+			const bool		fea,	// true if the current particle belongs to a FEA body
 			const bool		boundary)	// true if the current particle is a boundary particle
 {
 	// Compute the grid position of the current cell, and return if it's
@@ -595,7 +596,7 @@ neibsInCell(
 		// With dynamic boundaries, boundary parts don't interact with other boundary parts
 		// except for Grenier's formulation, where the sigma computation needs all neighbors
 		// to be enumerated
-		if (boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER) {
+		if (boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER && !DEFORMABLE(neib_info) && !fea) {
 			if (boundary && BOUNDARY(neib_info))
 				continue;
 		}
@@ -1059,7 +1060,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		//	* For dynamic boundaries :
 		//		we construct a neighbors list for all particles.
 		//TODO: optimze test. (Alexis).
-		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info);
+		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info) || DEFORMABLE(info);
 		if (boundarytype == SA_BOUNDARY)
 			build_nl = build_nl || VERTEX(info) || BOUNDARY(info);
 		if (boundarytype == DYN_BOUNDARY || boundarytype == DUMMY_BOUNDARY)
@@ -1099,6 +1100,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 						pos3,
 						neibs_num,
 						BOUNDARY(info),
+						FEA_NODE(info),
 						BOUNDARY(info));
 				}
 			}

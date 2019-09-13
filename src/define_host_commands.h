@@ -104,6 +104,9 @@ DEFINE_COMMAND_NOBUF(CHECK_NEWNUMPARTS)
 /// Dump the particle system state for debugging
 DEFINE_COMMAND_NOBUF(DEBUG_DUMP)
 
+/// Execute Finite Element Analysis
+DEFINE_COMMAND_NOBUF(FEA_STEP)
+
 /// Stop criterion of the Jacobi solver used to compute effective pressure (granular rheology)
 /*! Reduce Jacobi backward error and residual, and determine
 whether the solver should stop based one simulation paramters
