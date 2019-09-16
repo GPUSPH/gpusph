@@ -991,9 +991,9 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 	// Shell elements use ChNodeFEAxyzD that have a Direction assigned.
 	// Let us define the three components of the direction, that must
 	// be (Chrono spec.) normal to the surface.
-	double dir_x = 0.0;
-	double dir_y = 0.0;
-	double dir_z = 1.0;
+	Vector shell_dir = m_vz/m_lz;
+
+	std::cout << shell_dir(0) << ' ' << shell_dir(1) << ' ' <<  shell_dir(2) << std::endl;
 
 	const int nodes_num = (m_nels.x	+ 1)*(m_nels.y + 1);
 	uint n_counter = 0;
@@ -1003,12 +1003,14 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 		for (int l = 0; l <= m_nels.x; l++) {	// move along x
 
 			// we place the grid of nodes in the middle of the box thickness
-			Point coords = m_origin + Point(lel_x*l, lel_y*i, lel_z*0.5);
+			//Point coords = m_origin + Point(lel_x*l, lel_y*i, lel_z*0.5); //OLD: no rotation
+			Point coords = m_origin + l*m_vx/m_nels.x + i*m_vy/m_nels.y + m_vz/2.0;
 
 			// create the node
 			auto node = std::make_shared<::chrono::fea::ChNodeFEAxyzD>(
 				::chrono::ChVector<>(coords(0), coords(1), coords(2)),
-				::chrono::ChVector<>(dir_x, dir_y, dir_z));
+				::chrono::ChVector<>(shell_dir(0), shell_dir(1), shell_dir(2)));
+
 
 			node->SetMass(0);
 
