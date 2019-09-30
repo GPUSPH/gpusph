@@ -714,6 +714,14 @@ int4 Cube::getOwningNodes(const double4 abs_coords)
 	// get relative position of the point inside the geometry
 	double4 rel_coords = make_double4(abs_coords.x - m_origin(0), abs_coords.y - m_origin(1), abs_coords.z - m_origin(2), 0);
 
+
+	Point rot_coords = m_ep.TransposeRot(Point(rel_coords.x, rel_coords.y, rel_coords.z));
+
+	rel_coords.x = rot_coords(0);
+	rel_coords.y = rot_coords(1);
+	rel_coords.z = rot_coords(2);
+
+
 	// get size of the elements
 	double dx = m_lx/m_nels.x;
 	double dy = m_ly/m_nels.y;
@@ -789,6 +797,12 @@ float4 Cube::getNaturalCoords(const double4 abs_coords)
 {
 	// get relative position of the point inside the geometry
 	double4 rel_coords = make_double4(abs_coords.x - m_origin(0), abs_coords.y - m_origin(1), abs_coords.z - m_origin(2), 0);
+
+	Point rot_coords = m_ep.TransposeRot(Point(rel_coords.x, rel_coords.y, rel_coords.z));
+
+	rel_coords.x = rot_coords(0);
+	rel_coords.y = rot_coords(1);
+	rel_coords.z = rot_coords(2);
 
 	// get size of the elements
 	double dx = m_lx/m_nels.x;
@@ -1004,7 +1018,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 
 			// we place the grid of nodes in the middle of the box thickness
 			//Point coords = m_origin + Point(lel_x*l, lel_y*i, lel_z*0.5); //OLD: no rotation
-			Point coords = m_origin + l*m_vx/m_nels.x + i*m_vy/m_nels.y + m_vz/2.0;
+			Point coords = m_origin + l*(1 + 0.0*i)*m_vx/m_nels.x + i*m_vy/m_nels.y + m_vz/2.0;
 
 			// create the node
 			auto node = std::make_shared<::chrono::fea::ChNodeFEAxyzD>(
@@ -1017,6 +1031,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 			// Check if the node would be in the place of a previously defined node
 			// and in case use that one. This function can be used to join two meshes.
 			// The nodes, new and reused, that compose the grid are stored in the vector "nodes"
+			// FIXME check also node direction?
 			bool is_new = reduceNodes(node, fea_system, nodes);
 
 			if (is_new) {
