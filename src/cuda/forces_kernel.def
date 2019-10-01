@@ -3813,6 +3813,44 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 
 /// Particle-particle interaction
 /** Specialization in case of fluid neighbors to boundary particles,
+ * with DUMMY_BOUNDARY model. In this case we always evolve the particle
+ * density, and in the case of force feedback we also compute the
+ * momentum equation contributions
+ */
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	(FP::boundarytype == DUMMY_BOUNDARY) &&
+	FP::cptype == PT_BOUNDARY && FP::nptype == PT_FLUID
+>
+compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
+{
+	if (FEA_NODE(pdata.info))
+		return;
+
+
+	// We need to compute force on boundary particles only when we have floating bodies or force feedback
+	if (COMPUTE_FORCE(pdata.info) || (FP::simflags & ENABLE_INTERNAL_ENERGY) || DEFORMABLE(pdata.info)) {
+		// Compute pressure part of acceleration
+		compute_pressure_contrib(params, pdata, ndata, pout, nout);
+
+		// Compute viscous forces
+		compute_viscous_contrib(params, pdata, ndata, pout, nout);
+
+		// Compute diffusion terms for k-epsilon and the strain rate tensor
+		compute_keps_term(params, pdata, ndata, pout, nout);
+		// TODO : implement keps for dynamic boundaries
+
+		// Sum all contributions from the neighbors in the force array
+		if (COMPUTE_FORCE(pdata.info) || DEFORMABLE(pdata.info))
+			as_float3(pout.force) += nout.DvDt;
+
+		// Summ all internal energy contributions from the neighbors
+		add_internal_energy(params, pdata, ndata, pout, nout);
+	}
+}
+/// Particle-particle interaction
+/** Specialization in case of fluid neighbors to boundary particles,
  * with DYN_BOUNDARY model. In this case we always evolve the particle
  * density, and in the case of force feedback we also compute the
  * momentum equation contributions
@@ -3831,7 +3869,7 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 	compute_density_derivative(params, pdata, ndata, pout, nout);
 
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback
-	if (COMPUTE_FORCE(pdata.info) || (FP::simflags & ENABLE_INTERNAL_ENERGY)) {
+	if (COMPUTE_FORCE(pdata.info) || (FP::simflags & ENABLE_INTERNAL_ENERGY) || DEFORMABLE(pdata.info)) {
 		// Compute pressure part of acceleration
 		compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
@@ -3843,23 +3881,13 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 		// TODO : implement keps for dynamic boundaries
 
 		// Sum all contributions from the neighbors in the force array
-		if (COMPUTE_FORCE(pdata.info))
+		if (COMPUTE_FORCE(pdata.info) || DEFORMABLE(pdata.info))
 			as_float3(pout.force) += nout.DvDt;
 
 		// Summ all internal energy contributions from the neighbors
 		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
 }
-
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-enable_if_t<
-	(FP::boundarytype == DUMMY_BOUNDARY) &&
-	FP::cptype == PT_BOUNDARY && FP::nptype == PT_FLUID
->
-compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-{ /*do nothing */}
-
 
 /*
  * Fluid central, boundary neighbors
@@ -3925,6 +3953,7 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 		return;
 	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
+
 /// Particle-particle interaction
 /** Specialization in case of boundary neighbors to fluid particles,
  * with SA_BOUNDARY model.
