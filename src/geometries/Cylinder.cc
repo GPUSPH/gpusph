@@ -334,7 +334,7 @@ int4 Cylinder::getOwningNodes(const double4 abs_coords)
 	int NA = node_index;
 	int NC = NA;
 
-	int NE = NA + 1; // the two nodes in the beam element are consecutive
+	int NE = NA + 0;
 	int NG = NE;
 
 	// return the offset of the nodes with respect to the first node of the geometry.
@@ -391,7 +391,7 @@ float4 Cylinder::getNaturalCoords(const double4 abs_coords)
 
 	// to use shaping functions we need to know what is the type of element we are referring to: we use
 	// code 0 for shell elements (NOTE: this choice is functional in the use of the shaping functions)
-	const int el_type_id = 0;
+	const int el_type_id = 1; // can be interpreted as " has thickness" where thickness is in the z dir
 
 	return make_float4(nat_coord_x, nat_coord_y, nat_coord_z, el_type_id);
 }

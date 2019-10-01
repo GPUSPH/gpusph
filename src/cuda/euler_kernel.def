@@ -314,10 +314,10 @@ move_fea_parts(EP const& params, P &pdata, int index, float dt)
 
 	// extended set of nodes
 	const int el_type_id = pdata.fea_nat_coords.w;
-	uint nodes[8] = {rn.x, rn.x + el_type_id,
-		rn.y, rn.y + el_type_id,
-		rn.z, rn.z + el_type_id,
-		rn.w, rn.w + el_type_id};
+	const uint nodes[8] = {rn.x, rn.y,
+		rn.z, rn.w,
+		rn.x + el_type_id, rn.y + el_type_id,
+		rn.z + el_type_id, rn.w + el_type_id};
 
 	for (int i=0; i<8; i++) {
 		float4 node_disp = params.fea_displacements[nodes[i]];

@@ -3404,10 +3404,10 @@ assign_fea_force(FP const& params, PD const& pdata, OP &pout)
 
 	// extended set of nodes
 	const int el_type_id = pdata.fea_nat_coords.w;
-	const uint nodes[8] = {rn.x, rn.x + el_type_id,
-		rn.y, rn.y + el_type_id,
-		rn.z, rn.z + el_type_id,
-		rn.w, rn.w + el_type_id};
+	const uint nodes[8] = {rn.x, rn.y,
+		rn.z, rn.w,
+		rn.x + el_type_id, rn.y + el_type_id,
+		rn.z + el_type_id, rn.w + el_type_id};
 
 	// the FG_DEFORMABLE particle is assigned to an element and distributes the force that the
 	// fluid is exerting on it among all the nodes of the element, in proportions given by the 
