@@ -682,7 +682,7 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
 
 	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries),
 	// and surface boundaries in case of repacking
-	if (FLUID(info) || MOVING(info) || (SURFACE(info) && !FLUID(info))) {
+	if (FLUID(info) || MOVING(info) || (SURFACE(info) && !FLUID(info)) || DEFORMABLE(info) || FEA_NODE(info)) {
 		// Getting new pos relative to old cell
 		float4 pos = posArray[index];
 
