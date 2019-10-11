@@ -76,6 +76,7 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_simframework(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
+	m_out_of_bounds_count(0),
 	m_deltap(NAN),
 	m_hydrostaticFilling(true),
 	m_waterLevel(NAN),
@@ -1555,20 +1556,23 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 {
 	static bool warned_out_of_bounds = false;
 	// check if the particle is actually inside the domain
-	if (!warned_out_of_bounds &&
+	if (
 		(pos(0) < m_origin.x || pos(0) > m_origin.x + m_size.x ||
 		 pos(1) < m_origin.y || pos(1) > m_origin.y + m_size.y ||
 		 pos(2) < m_origin.z || pos(2) > m_origin.z + m_size.z))
 	{
-		const uint pid = id(info);
-		stringstream errmsg;
-		errmsg << "Particle " << pid << " position " << make_double4(pos)
-			<< " is outside of the domain " << m_origin << "--" << (m_origin+m_size) ;
-		warned_out_of_bounds = true;
-		if (gdata->debug.validate_init_positions)
-			throw std::out_of_range(errmsg.str());
-		else
-			cerr << errmsg.str() << endl;
+		++m_out_of_bounds_count;
+		if (!warned_out_of_bounds) {
+			const uint pid = id(info);
+			stringstream errmsg;
+			errmsg << "Particle " << pid << " position " << make_double4(pos)
+				<< " is outside of the domain " << m_origin << "--" << (m_origin+m_size) ;
+			warned_out_of_bounds = true;
+			if (gdata->debug.validate_init_positions)
+				throw std::out_of_range(errmsg.str());
+			else
+				cerr << errmsg.str() << endl;
+		}
 	}
 
 	int3 gridPos = calc_grid_pos(pos);
@@ -1580,6 +1584,13 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);
 	localpos.z = float(pos(2) - m_origin.z - (gridPos.z + 0.5)*m_cellsize.z);
 	localpos.w = float(pos(3));
+}
+
+void
+ProblemCore::show_out_of_bounds() const
+{
+	if (m_out_of_bounds_count > 0)
+		cerr << m_out_of_bounds_count << " particles were placed out of bounds during init" << endl;
 }
 
 /* Initialize the particle volumes from their masses and densities. */

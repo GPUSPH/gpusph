@@ -151,6 +151,12 @@ class ProblemCore
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
 
+		//! Number of particles that were placed outside of the domain
+		//  during initialization.
+		//  (Mutable because this is debug information that we collect during
+		//   the execution of calc_localpos_and_hash(), which is const
+		mutable size_t m_out_of_bounds_count;
+
 		//! \inpsection{discretisation}
 		//! \default{-1}
 		//! \label{SPH_DR}
@@ -529,6 +535,9 @@ class ProblemCore
 		virtual void copy_to_array(BufferList & ) = 0;
 		//!
 		virtual void release_memory(void) = 0;
+
+		//! Print information about particles that were set out of bounds during init
+		void show_out_of_bounds() const;
 
 		//!
 		virtual void copy_planes(PlaneList& planes);

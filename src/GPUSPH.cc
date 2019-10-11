@@ -395,6 +395,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf("Copying the particles to shared arrays...\n");
 		printf("---\n");
 		problem->copy_to_array(gdata->s_hBuffers);
+		problem->show_out_of_bounds();
 		if (gdata->run_mode != REPACK) {
 			if (problem->simparams()->turbmodel == KEPSILON)
 				problem->init_keps(gdata->s_hBuffers, gdata->totParticles);
