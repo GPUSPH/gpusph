@@ -452,7 +452,7 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 	}
 
 	auto msection_cable = std::make_shared<::chrono::fea::ChBeamSectionCable>();
-	msection_cable->SetDiameter(m_r);
+	msection_cable->SetArea((m_r*m_r - m_ri*m_ri)*3.14);
 
 	// We model a hollow cylinder by means of the momentum of inertia.
 	// Compute and assign momentum of inertia of a hollow cylinder:
