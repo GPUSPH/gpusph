@@ -96,6 +96,7 @@ struct GlobalData {
 	// Return value for the application
 	int ret;
 
+	// Debug flags for this run
 	DebugFlags debug;
 
 	// # of GPUs running
