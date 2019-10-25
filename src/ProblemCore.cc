@@ -992,6 +992,16 @@ static int mkdir_p(string const& path, mode_t mode)
 	return err == 0 ? 0 : errno;
 }
 
+static string canonical_path(string const& path)
+{
+	char *canonical_c = realpath(path.c_str(), NULL);
+	string canonical(canonical_c);
+	free(canonical_c);
+	return canonical;
+}
+
+constexpr mode_t problem_dir_mode = S_IRWXU | S_IRWXG | S_IRWXO;
+
 string const&
 ProblemCore::create_problem_dir(void)
 {
@@ -1006,13 +1016,63 @@ ProblemCore::create_problem_dir(void)
 		time_str[17] = '\0';
 		m_problem_dir = "./tests/" + m_name + string(time_str);
 	}
+
+	// ensure the problem dir does _not_ have a / at the end
+	while (m_problem_dir.back() == '/')
+		m_problem_dir = m_problem_dir.substr(0, m_problem_dir.length() - 1);
 	cout << "Using problem dir " << m_problem_dir << endl;
 
 	// TODO it should be possible to specify a directory with %-like
 	// replaceable strings, such as %{problem} => problem name,
 	// %{time} => launch time, etc.
 
-	int err = mkdir_p(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+	int err = mkdir_p(m_problem_dir.c_str(), problem_dir_mode);
+
+	// If the directory exists, and we are resuming, then
+	// 1. we only continue if we're resuming into the same directory we're resuming from
+	// 2. we resume into a subdirectory, to avoid overwriting the original data files
+	if (err == EEXIST && gdata->resume) {
+		// we want to check that the canonical form of the problem is the
+		// initial substring of the canonical form of the resume file, including the path
+		// separator (i.e. don't mess if we are resuming into tests/something from
+		// tests/something-else/data/hotfile). The canonical path doesn't have a terminating /,
+		// so we add one.
+		const string& resume_file = gdata->clOptions->resume_fname;
+		string canonical_problem_dir( canonical_path(m_problem_dir) + "/");
+		string canonical_resume_file( canonical_path(resume_file) );
+		if (canonical_resume_file.substr(0, canonical_problem_dir.length()) != canonical_problem_dir) {
+			throw runtime_error("refusing to resume from " +
+				resume_file + " (" + canonical_resume_file + ") into unrelated, existing " +
+				m_problem_dir + " (" + canonical_problem_dir + ")");
+		}
+
+		// OK, we're now in the ’resume in the same directory’ case. To avoid overwriting the previous
+		// simulation data, and since we cannot (currently) correctly recover the index and restart,
+		// we actually shift our problem dir into problemdir/resumeN, where N is the first available index
+		// (so that e.g. the third time we resume, our effective problem dir becomes
+		// problemdir/resume003/
+		// TODO FIXME of course it would actually be preferrable to resume correctly instead
+		unsigned resume_count = 0;
+		char new_dir[] = { '/', 'r', 'e', 's', 'u', 'm', 'e', '0', '0', '0', 0 };
+		string candidate;
+		cout << "Resuming into same directory, looking for next candidate" << endl;
+#define MAX_RESUMES 1000
+		for ( ; resume_count < MAX_RESUMES; ++resume_count) {
+			snprintf(new_dir + 7, 4, "%03u", resume_count);
+			candidate = m_problem_dir + new_dir;
+			err = mkdir_p(candidate.c_str(), problem_dir_mode);
+			if (err != EEXIST) break;
+			cout << "\t" << candidate << " exists" << endl;
+		}
+		if (resume_count == MAX_RESUMES) {
+			throw runtime_error("Tried to resume too much (1,000 attempts made), please look into this");
+		}
+		m_problem_dir = candidate;
+		if (err == 0)
+			cout << "OK, resuming into " + candidate << endl;
+		// if err != 0, this will be caught by the next switch, shared with the non-resume case
+	}
+
 	switch (err) {
 		case EEXIST:
 			cerr << "WARNING: problem directory " << m_problem_dir << " exists already, overwriting." << endl;
