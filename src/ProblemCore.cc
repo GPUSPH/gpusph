@@ -36,6 +36,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+// perror
+#include <cstdio>
+
 // For the automatic name determination
 #include <typeinfo>
 #include <cxxabi.h>
@@ -974,6 +977,21 @@ ProblemCore::make_plane(Point const& pt, Vector const& normal)
 	return plane;
 }
 
+// recursive mkdir path, returns errno on failure or if the last component exists
+static int mkdir_p(string const& path, mode_t mode)
+{
+	// mkdir each component
+	size_t slash = 0;
+	int err;
+	while ((slash = path.find('/', slash)) != string::npos) {
+		++slash;
+		err = mkdir(path.substr(0, slash).c_str(), mode);
+		if (err == -1 && errno != EEXIST) return errno;
+	}
+	err = mkdir(path.c_str(), mode);
+	return err == 0 ? 0 : errno;
+}
+
 string const&
 ProblemCore::create_problem_dir(void)
 {
@@ -986,16 +1004,24 @@ ProblemCore::create_problem_dir(void)
 		time(&rawtime);
 		strftime(time_str, 18, "_%Y-%m-%dT%Hh%M", localtime(&rawtime));
 		time_str[17] = '\0';
-		// if "./tests/" doesn't exist yet...
-		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
 		m_problem_dir = "./tests/" + m_name + string(time_str);
 	}
+	cout << "Using problem dir " << m_problem_dir << endl;
 
 	// TODO it should be possible to specify a directory with %-like
 	// replaceable strings, such as %{problem} => problem name,
 	// %{time} => launch time, etc.
 
-	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+	int err = mkdir_p(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+	switch (err) {
+		case EEXIST:
+			cerr << "WARNING: problem directory " << m_problem_dir << " exists already, overwriting." << endl;
+		/* fallthrough */
+		case 0: /* nothing to do */
+			break;
+		default:
+			throw runtime_error("Error creating " + m_problem_dir + ": " + strerror(err));
+	}
 
 	return m_problem_dir;
 }
