@@ -143,6 +143,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		argc--;
 		if (!strcmp(arg, "--resume")) {
 			_clOptions->resume_fname = string(*argv);
+			gdata->resume = true;
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--checkpoint-every")) {
@@ -246,6 +247,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else if (!strcmp(arg, "--from-repack")) {
 			_clOptions->resume_fname = string(*argv);
+			gdata->resume = true;
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--help")) {

@@ -2802,7 +2802,7 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct con
 				m_simparams->slength,
 				m_simparams->influenceRadius,
 				step,
-				!gdata->clOptions->resume_fname.empty(),
+				gdata->resume,
 				cmd.dt(gdata),
 				m_dNewNumParticles,
 				m_globalDeviceIdx,

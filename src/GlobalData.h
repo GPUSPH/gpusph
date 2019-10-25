@@ -96,6 +96,10 @@ struct GlobalData {
 	// Return value for the application
 	int ret;
 
+	// Are we resuming? This can be used as a shortcut instead of checking for emptiness
+	// of the resume name in clOptions
+	bool resume;
+
 	// Debug flags for this run
 	DebugFlags debug;
 
@@ -284,6 +288,7 @@ struct GlobalData {
 
 	GlobalData(void):
 		ret(0),
+		resume(false),
 		debug(),
 		devices(0),
 		mpi_nodes(0),

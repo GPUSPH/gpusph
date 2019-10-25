@@ -354,7 +354,7 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 
 	// “resumed” condition applies to the initialization step sequence,
 	// if we resumed
-	const bool resumed = (init_step && !gdata->clOptions->resume_fname.empty());
+	const bool resumed = (init_step && gdata->resume);
 
 	Phase *this_phase = new Phase(this,
 		step.number == 0 ? "initialization preparations" :
