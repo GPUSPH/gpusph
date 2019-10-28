@@ -897,6 +897,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_GRADGAMMA>();
 	}
 
+	if (problem->simparams()->boundarytype == DUMMY_BOUNDARY) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_DUMMY_VEL>(0);
+	}
+
 	if (problem->simparams()->turbmodel == KEPSILON) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TKE>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EPSILON>();
@@ -1751,6 +1755,9 @@ void GPUSPH::saveParticles(
 	// get GradGamma
 	if (simparams->boundarytype == SA_BOUNDARY)
 		which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
+
+	if (simparams->boundarytype == DUMMY_BOUNDARY)
+		which_buffers |= BUFFER_DUMMY_VEL;
 
 	if (simparams->sph_formulation == SPH_GRENIER)
 		which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
