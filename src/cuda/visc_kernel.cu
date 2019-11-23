@@ -302,6 +302,35 @@ shear_rate_fixup(float3& dvx, float3& dvy, float3& dvz, P_t const& pdata, KP con
 	dvz *= multiplier;
 }
 
+//! Compute ∇v + (∇v)ᵀ or its doubled version
+template<
+	typename KP,
+	KernelType kerneltype = KP::kerneltype,
+	BoundaryType boundarytype = KP::boundarytype,
+	typename P_t = shear_rate_pdata<boundarytype>
+>
+__device__ __forceinline__
+void velocity_gradient(P_t const& pdata, KP const& params, float3& dvx, float3& dvy, float3& dvz)
+{
+	// Loop over all neighbors to compute their contribution to the velocity gradient
+	for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+
+		shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
+
+		// skip inactive particles and particles outside of the kernel support
+		if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
+			continue;
+
+		const float3 relVel_multiplier = shear_rate_contrib(pdata, ndata, params);
+		// Velocity Gradients
+		dvx -= ndata.relVel.x*relVel_multiplier;
+		dvy -= ndata.relVel.y*relVel_multiplier;
+		dvz -= ndata.relVel.z*relVel_multiplier;
+	} // end of loop through neighbors
+
+	shear_rate_fixup(dvx, dvy, dvz, pdata, params);
+}
+
 
 //! Compute ∇v + (∇v)ᵀ or its doubled version
 template<
@@ -321,23 +350,7 @@ symtensor3 shearRate(
 	float3 dvy = make_float3(0.0f);
 	float3 dvz = make_float3(0.0f);
 
-	// Loop over all neighbors to compute their contribution to the velocity gradient
-	for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
-
-		shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
-
-		// skip inactive particles and particles outside of the kernel support
-		if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
-			continue;
-
-		const float3 relVel_multiplier = shear_rate_contrib(pdata, ndata, params);
-		// Velocity Gradients
-		dvx -= ndata.relVel.x*relVel_multiplier;
-		dvy -= ndata.relVel.y*relVel_multiplier;
-		dvz -= ndata.relVel.z*relVel_multiplier;
-	} // end of loop through neighbors
-
-	shear_rate_fixup(dvx, dvy, dvz, pdata, params);
+	velocity_gradient(pdata, params, dvx, dvy, dvz);
 
 	symtensor3 ret;
 	/* Start by storing the mixed version: non-doubled diagonal elements,
