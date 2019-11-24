@@ -85,8 +85,8 @@ __constant__ int	d_rbstartindex[MAX_BODIES];
 // FEA bodies data
 __constant__ int2	d_feanodesstartindex[MAX_BODIES];
 __constant__ int2	d_feapartsstartindex[MAX_BODIES];
-__device__ float4 d_feapartsnatcoords[60000]; //FIXME use cudaMalloc
-__device__ uint4 d_feapartsownnodes[60000]; //FIXME use cudaMalloc
+__device__ float4 d_feapartsnatcoords[400000]; //FIXME use cudaMalloc
+__device__ uint4 d_feapartsownnodes[400000]; //FIXME use cudaMalloc
 
 /** \name Device functions
  *  @{ */

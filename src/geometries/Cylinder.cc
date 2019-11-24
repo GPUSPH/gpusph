@@ -215,7 +215,7 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 
 	for (uint l = 0; l < layers; l++) {
 
-		const double smaller_r = m_r - l * dx;
+		const double smaller_r = m_r - l * dx - 0.5*dx;
 		const double smaller_h = m_h - l * 2 * dx;
 
 		const int nz = (int) ceil(smaller_h/dx);
@@ -486,7 +486,8 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 
 		cable->SetSection(msection_cable);
 		// set alpha damping TODO set from problem?
-		cable->SetAlphaDamp(0.003397);
+		cable->SetAlphaDamp(0.0033);
+		//cable->SetAlphaDamp(0.003397);
 
 		// Add element to mesh
 		m_fea_mesh->AddElement(cable);

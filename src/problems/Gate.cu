@@ -71,7 +71,8 @@ Gate::Gate(GlobalData *_gdata) : XProblem(_gdata)
 	//resize_neiblist(128);
 
 	// *** Initialization of minimal physical parameters
-	set_deltap(1/512.0f);
+	//set_deltap(1/512.0f);
+	set_deltap(0.0005);
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	const float g = length(physparams()->gravity);
@@ -80,7 +81,7 @@ Gate::Gate(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->dcoeff = 10.0f * g * H;
 	water = add_fluid(1000.0);
 
-	set_equation_of_state(water,  7.0f, 100.0f);
+	set_equation_of_state(water,  7.0f, 20.0*sqrt(2*9.81*H));
 	set_kinematic_visc(0, 1.0e-6f);
 
 	simparams()->tend=0.4f;

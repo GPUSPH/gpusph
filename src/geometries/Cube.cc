@@ -1085,7 +1085,8 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 			shell->AddLayer(lel_z, 0, mmaterial);
 
 			// set alpha damping TODO set from problem?
-			shell->SetAlphaDamp(0.003397);
+			//shell->SetAlphaDamp(0.003397);
+			shell->SetAlphaDamp(0.002533);
 
 			shell->SetGravityOn(false); // gravity of the single element (sort of volume forces)
 
