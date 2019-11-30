@@ -1788,6 +1788,40 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	bufwrite.clear_pending_state();
 }
 
+template<>
+void GPUWorker::runCommand<UPDATE_ACTIVE_RANGES>(CommandStruct const& cmd)
+{
+	m_activeRange[PT_FLUID] = IndexRange();
+	m_activeRange[PT_BOUNDARY] = IndexRange();
+	m_activeRange[PT_VERTEX] = IndexRange();
+	m_activeRange[PT_TESTPOINT] = IndexRange();
+
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+
+	neibsEngine->updateActiveRanges(m_activeRange,
+					bufread,
+					m_numParticles,
+					numPartsToElaborate);
+
+#if 0
+	for (int p = PT_FLUID; p < PT_NONE; ++p) {
+		if (p == PT_VERTEX && m_simparams->boundarytype != SA_BOUNDARY) continue;
+
+		printf("T%d: PT%d range [%12d, %12d[ (%d/%d = %g%%)\n", m_deviceIndex, p,
+		m_activeRange[p].begin, m_activeRange[p].end,
+		m_activeRange[p].end - m_activeRange[p].begin, numPartsToElaborate,
+		(m_activeRange[p].end - m_activeRange[p].begin)*100.0/numPartsToElaborate
+		);
+    }
+#endif
+
+}
+
 // returns numBlocks as computed by forces()
 uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 	BufferListPair& buffer_lists, uint fromParticle, uint toParticle, uint cflOffset)

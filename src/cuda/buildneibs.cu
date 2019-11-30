@@ -371,5 +371,39 @@ const	float		boundNlSqInflRad)
 
 /** @} */
 
+/// Update the active particles ranges
+void
+updateActiveRanges(
+	IndexRange *activeRange,
+	const BufferList& bufread,
+	const uint numParticles,
+	const uint particleRangeEnd)
+{
+	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
+	const uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	//                               FLUID   BOUNDARY   VERTEX   TESTPOINT
+	uint lowestIndex[PT_NONE]  = { UINT_MAX, UINT_MAX, UINT_MAX, UINT_MAX };
+	uint highestIndex[PT_NONE] = {    0,        0,        0,        0     };
+
+	COPY_TO_SYMBOL(cuneibs::d_lowestIndex, lowestIndex[0], PT_NONE);
+	COPY_TO_SYMBOL(cuneibs::d_highestIndex, highestIndex[0], PT_NONE);
+
+	execute_kernel(
+		cuneibs::updateActiveRangesDevice<boundarytype>(bufread, particleRangeEnd),
+		BLOCK_NUM_ACTIVE_RANGES, BLOCK_SIZE_BUILDNEIBS);
+
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+
+	COPY_FROM_SYMBOL(lowestIndex[0], cuneibs::d_lowestIndex, PT_NONE);
+	COPY_FROM_SYMBOL(highestIndex[0], cuneibs::d_highestIndex, PT_NONE);
+
+	activeRange[PT_FLUID]     = IndexRange( lowestIndex[PT_FLUID],     1 + highestIndex[PT_FLUID]);
+	activeRange[PT_BOUNDARY]  = IndexRange( lowestIndex[PT_BOUNDARY],  1 + highestIndex[PT_BOUNDARY]);
+	activeRange[PT_VERTEX]    = IndexRange( lowestIndex[PT_VERTEX],    1 + highestIndex[PT_VERTEX]);
+	activeRange[PT_TESTPOINT] = IndexRange( lowestIndex[PT_TESTPOINT], 1 + highestIndex[PT_TESTPOINT]);
+}
+
 };
 

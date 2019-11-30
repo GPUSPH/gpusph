@@ -248,6 +248,10 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 	if (MULTI_DEVICE && sp->boundarytype == SA_BOUNDARY)
 		neibs_phase->add_command(UPDATE_EXTERNAL).updating("sorted", BUFFER_VERTPOS);
 
+	// this could be run concurrently with the previous one
+	neibs_phase->add_command(UPDATE_ACTIVE_RANGES)
+		.reading("sorted", BUFFER_INFO | BUFFER_NEIBSLIST);
+
 	// we're done, rename the state to “step n” for what follows
 	neibs_phase->add_command(RENAME_STATE)
 		.set_src("sorted")

@@ -180,6 +180,8 @@ DEFINE_COMMAND_BUF(SORT, false)
 DEFINE_COMMAND_BUF(REORDER, false)
 /// Build the neighbors list
 DEFINE_COMMAND_BUF(BUILDNEIBS, true)
+/// Update the active particles ranges
+DEFINE_COMMAND_BUF(UPDATE_ACTIVE_RANGES, true)
 
 /** @} */
 

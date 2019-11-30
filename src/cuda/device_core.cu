@@ -43,7 +43,7 @@
 #define SHMEM_SIZE(block_size) 1
 #define SHMEM_IDX 0
 #else // CUDA_BACKEND_ENABLED
-#define SHMEM_SIZE(block_size) block_size
+#define SHMEM_SIZE(block_size) (block_size)
 #define SHMEM_IDX threadIdx.x
 #endif
 

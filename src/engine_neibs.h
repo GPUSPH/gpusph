@@ -37,6 +37,7 @@
 #include "simparams.h"
 #include "timing.h"
 #include "buffer.h"
+#include "indexrange.h"
 
 /*! Abstract class that defines the interface for the NeibsEngine.
  * The NeibsEngine is the part of the framework that takes care of building
@@ -106,5 +107,13 @@ public:
 					const uint			gridCells,
 					const float			sqinfluenceradius,
 					const float			boundNlSqInflRad) = 0;
+
+	/// Update the active particles ranges
+	virtual void
+	updateActiveRanges(
+		IndexRange *actvieRange,
+		const BufferList& bufread,
+		const uint numParticles,
+		const uint particleRangeEnd) = 0;
 };
 #endif

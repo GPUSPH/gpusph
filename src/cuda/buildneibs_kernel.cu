@@ -66,6 +66,8 @@
 
 #include "geom_core.cu"
 
+#include "device_core.cu" // SHMEM_IDX
+
 #include "posvel_struct.h"
 
 //! We have two ways to build the neighbors list: by particle or by cell
@@ -139,6 +141,10 @@ __device__ int d_hasMaxNeibs[PT_TESTPOINT];	///< Number of neighbors of that par
 __device__ ATOMIC_TYPE(int) d_hasTooManyParticles; ///< Index of a cell with too many particles
 __device__ int d_hasHowManyParticles; ///< How many particles are in the  cell with too many particles
 /** @} */
+
+/** Device variables used to reduce the number of particles on which a kernel is launched */
+__device__ ATOMIC_TYPE(uint) d_lowestIndex[PT_NONE];
+__device__ ATOMIC_TYPE(uint) d_highestIndex[PT_NONE];
 
 /** \addtogroup neibs_device_functions_params Neighbor list device function variables
  * 	\ingroup neibs
@@ -1886,5 +1892,141 @@ struct checkCellSizeDevice : cell_params
 };
 
 /** @} */
+
+#define BLOCK_NUM_ACTIVE_RANGES 16
+
+/*! This kernel is used to determine the lowest and highest index of
+ *  “active” particles of each type: this information can then be used
+ *  in split kernels to reduce the number of work-items to launch.
+ *
+ *  TODO optimize with conditional structures for PT_VERTEX in shared memory
+ */
+template<BoundaryType boundarytype>
+struct updateActiveRangesDevice
+{
+	const particleinfo *info;
+	const neibdata *neibsList; ///< neighbors list: a particle is active if it has neighbors of any type
+	int numParticles;
+
+	updateActiveRangesDevice(
+		const BufferList& bufread,
+		int numParticles_)
+	:
+		info(bufread.getData<BUFFER_INFO>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		numParticles(numParticles_)
+	{}
+
+__device__ void operator()(simple_work_item item) const
+{
+	// No reduction in shared memory for CPU backend
+#if !CPU_BACKEND_ENABLED
+	__shared__ uint sm_lo_index[BLOCK_SIZE_BUILDNEIBS*PT_NONE];
+	__shared__ uint sm_hi_index[BLOCK_SIZE_BUILDNEIBS*PT_NONE];
+#endif
+
+	const uint gridSize = BLOCK_NUM_ACTIVE_RANGES*BLOCK_SIZE_BUILDNEIBS;
+	const uint gidx = item.get_id();
+
+	//                   FLUID   BOUNDARY   VERTEX   TESTPOINT
+	uint lo_index[] = { UINT_MAX, UINT_MAX, UINT_MAX, UINT_MAX };
+	uint hi_index[] = {    1,        1,        1,        1     };
+
+	// Reduction from global memory to lo_index/hi_index
+	for (uint index = gidx; index < numParticles; index += gridSize) {
+
+		const particleinfo info = this->info[index];
+		const ParticleType ptype = (ParticleType)(PART_TYPE(info));
+		neibdata neib_data = NEIBS_END;
+		// we don't do a full traversal, just check if there's a neighbor
+		// of any type
+		// TODO we could be even more precise and store what is the lowest/highest
+		// particle index for each _pair_ of particle types
+		do {
+			neib_data = neibsList[ neib_list_start<PT_FLUID>() + index ];
+			if (neib_data != NEIBS_END) break;
+			neib_data = neibsList[ neib_list_start<PT_BOUNDARY>() + index ];
+			if (neib_data != NEIBS_END) break;
+			if (boundarytype == SA_BOUNDARY) {
+				neib_data = neibsList[ neib_list_start<PT_VERTEX>() + index ];
+			}
+		} while(0);
+
+		if (neib_data != NEIBS_END) {
+			// has neighbors, the particle is active for its type
+			lo_index[ptype] = min(lo_index[ptype], index);
+			hi_index[ptype] = max(hi_index[ptype], index);
+		}
+	}
+
+	// Reduction in shared memory (not for CPU backend)
+#if !CPU_BACKEND_ENABLED
+	uint fluid_base = BLOCK_SIZE_BUILDNEIBS*PT_FLUID;
+	uint bound_base = BLOCK_SIZE_BUILDNEIBS*PT_BOUNDARY;
+	uint vert_base  = BLOCK_SIZE_BUILDNEIBS*PT_VERTEX;
+	uint test_base  = BLOCK_SIZE_BUILDNEIBS*PT_TESTPOINT;
+
+	sm_lo_index[fluid_base + threadIdx.x] = lo_index[PT_FLUID];
+	sm_lo_index[bound_base + threadIdx.x] = lo_index[PT_BOUNDARY];
+	if (boundarytype == SA_BOUNDARY)
+		sm_lo_index[vert_base  + threadIdx.x] = lo_index[PT_VERTEX];
+	sm_lo_index[test_base  + threadIdx.x] = lo_index[PT_TESTPOINT];
+
+	sm_hi_index[fluid_base + threadIdx.x] = hi_index[PT_FLUID];
+	sm_hi_index[bound_base + threadIdx.x] = hi_index[PT_BOUNDARY];
+	if (boundarytype == SA_BOUNDARY)
+		sm_hi_index[vert_base  + threadIdx.x] = hi_index[PT_VERTEX];
+	sm_hi_index[test_base  + threadIdx.x] = hi_index[PT_TESTPOINT];
+
+	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1)
+	{
+		__syncthreads();
+		if (threadIdx.x < s)
+		{
+			uint other = threadIdx.x + s;
+			lo_index[PT_FLUID]     = min(sm_lo_index[fluid_base + other], lo_index[PT_FLUID]);
+			lo_index[PT_BOUNDARY]  = min(sm_lo_index[bound_base + other], lo_index[PT_BOUNDARY]);
+			if (boundarytype == SA_BOUNDARY)
+				lo_index[PT_VERTEX]    = min(sm_lo_index[vert_base  + other], lo_index[PT_VERTEX]);
+			lo_index[PT_TESTPOINT] = min(sm_lo_index[test_base  + other], lo_index[PT_TESTPOINT]);
+
+			hi_index[PT_FLUID]     = max(sm_hi_index[fluid_base + other], hi_index[PT_FLUID]);
+			hi_index[PT_BOUNDARY]  = max(sm_hi_index[bound_base + other], hi_index[PT_BOUNDARY]);
+			if (boundarytype == SA_BOUNDARY)
+				hi_index[PT_VERTEX]    = max(sm_hi_index[vert_base  + other], hi_index[PT_VERTEX]);
+			hi_index[PT_TESTPOINT] = max(sm_hi_index[test_base  + other], hi_index[PT_TESTPOINT]);
+
+			sm_lo_index[fluid_base + threadIdx.x] = lo_index[PT_FLUID];
+			sm_lo_index[bound_base + threadIdx.x] = lo_index[PT_BOUNDARY];
+			if (boundarytype == SA_BOUNDARY)
+				sm_lo_index[vert_base  + threadIdx.x] = lo_index[PT_VERTEX];
+			sm_lo_index[test_base  + threadIdx.x] = lo_index[PT_TESTPOINT];
+
+			sm_hi_index[fluid_base + threadIdx.x] = hi_index[PT_FLUID];
+			sm_hi_index[bound_base + threadIdx.x] = hi_index[PT_BOUNDARY];
+			if (boundarytype == SA_BOUNDARY)
+				sm_hi_index[vert_base  + threadIdx.x] = hi_index[PT_VERTEX];
+			sm_hi_index[test_base  + threadIdx.x] = hi_index[PT_TESTPOINT];
+		}
+	}
+#endif
+
+	if (SHMEM_IDX == 0) {
+		atomicMin(d_lowestIndex + PT_FLUID, lo_index[PT_FLUID]);
+		atomicMin(d_lowestIndex + PT_BOUNDARY, lo_index[PT_BOUNDARY]);
+		if (boundarytype == SA_BOUNDARY)
+			atomicMin(d_lowestIndex + PT_VERTEX, lo_index[PT_VERTEX]);
+		atomicMin(d_lowestIndex + PT_TESTPOINT, lo_index[PT_TESTPOINT]);
+
+		atomicMax(d_highestIndex + PT_FLUID, hi_index[PT_FLUID]);
+		atomicMax(d_highestIndex + PT_BOUNDARY, hi_index[PT_BOUNDARY]);
+		if (boundarytype == SA_BOUNDARY)
+			atomicMax(d_highestIndex + PT_VERTEX, hi_index[PT_VERTEX]);
+		atomicMax(d_highestIndex + PT_TESTPOINT, hi_index[PT_TESTPOINT]);
+	}
+
+}
+};
+
 }
 #endif

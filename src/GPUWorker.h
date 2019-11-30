@@ -59,6 +59,7 @@
 #include "bursts.h"
 
 #include "hostbuffer.h"
+#include "indexrange.h"
 
 // In the GPUWorker we implement as "private" (protected, actually, to be accessible
 // by GPUWorker subclasses) all functions which are meant to be called only by the simulationThread().
@@ -121,6 +122,9 @@ protected:
 	// range of particles the kernels should write to
 	uint m_particleRangeBegin; // inclusive
 	uint m_particleRangeEnd;   // exclusive
+
+	// Range of active particles for each type
+	IndexRange	m_activeRange[PT_NONE];
 
 	// memory allocated
 	size_t m_hostMemory;
