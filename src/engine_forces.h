@@ -38,6 +38,7 @@
 #include "simparams.h"
 #include "buffer.h"
 #include "device/atomic_type.h"
+#include "indexrange.h"
 
 /*! Abstract class that defines the interface for the ForcesEngine.
  */
@@ -135,6 +136,7 @@ public:
 	basicstep(
 		const BufferList& bufread,
 		BufferList& bufwrite,
+		const IndexRange *activeRange,
 				uint	numParticles,
 				uint	fromParticle,
 				uint	toParticle,

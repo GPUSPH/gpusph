@@ -727,6 +727,7 @@ uint
 run_forces(
 	BufferList const& bufread,
 	BufferList& bufwrite,
+	const IndexRange *activeRange,
 	uint	numParticles,
 	uint	fromParticle,
 	uint	toParticle,
@@ -765,6 +766,7 @@ run_forces(
 
 	FluidFluidParams params_ff(
 		bufread, bufwrite,
+		activeRange,
 		fromParticle, toParticle,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
@@ -775,6 +777,7 @@ run_forces(
 	{
 		FluidVertexParams params_fv(
 			bufread, bufwrite,
+			activeRange,
 			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
@@ -782,6 +785,7 @@ run_forces(
 
 		VertexFluidParams params_vf(
 			bufread, bufwrite,
+			activeRange,
 			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
@@ -792,6 +796,7 @@ run_forces(
 
 	FluidBoundaryParams params_fb(
 		bufread, bufwrite,
+		activeRange,
 		fromParticle, toParticle,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
@@ -802,6 +807,7 @@ run_forces(
 	if (compute_object_forces || (boundarytype == DYN_BOUNDARY)) {
 		BoundaryFluidParams params_bf(
 			bufread, bufwrite,
+			activeRange,
 			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
@@ -848,6 +854,7 @@ uint
 run_repack(
 		BufferList const& bufread,
 		BufferList& bufwrite,
+		const IndexRange *activeRange,
 		uint	numParticles,
 		uint	fromParticle,
 		uint	toParticle,
@@ -880,6 +887,7 @@ run_repack(
 
 	FluidFluidParams params_ff(
 		bufread, bufwrite,
+		activeRange,
 		fromParticle, toParticle,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
@@ -890,6 +898,7 @@ run_repack(
 	{
 		FluidVertexParams params_fv(
 			bufread, bufwrite,
+			activeRange,
 			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
@@ -900,6 +909,7 @@ run_repack(
 
 	FluidBoundaryParams params_fb(
 		bufread, bufwrite,
+		activeRange,
 		fromParticle, toParticle,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
@@ -926,6 +936,7 @@ uint
 basicstep(
 	BufferList const& bufread,
 	BufferList& bufwrite,
+	const IndexRange *activeRange,
 	uint	numParticles,
 	uint	fromParticle,
 	uint	toParticle,
@@ -943,6 +954,7 @@ basicstep(
 {
 	if (run_mode == REPACK)
 		return run_repack(bufread, bufwrite,
+			activeRange,
 			numParticles, fromParticle, toParticle,
 			deltap, slength, dtadaptfactor,
 			influenceradius, epsilon,
@@ -951,6 +963,7 @@ basicstep(
 			step, dt);
 	else
 		return run_forces(bufread, bufwrite,
+			activeRange,
 			numParticles, fromParticle, toParticle,
 			deltap, slength, dtadaptfactor,
 			influenceradius, epsilon,

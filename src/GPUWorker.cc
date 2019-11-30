@@ -1839,6 +1839,7 @@ uint GPUWorker::enqueueForcesOnRange(CommandStruct const& cmd,
 	return forcesEngine->basicstep(
 		bufread,
 		bufwrite,
+		m_activeRange,
 		m_numParticles,
 		fromParticle,
 		toParticle,

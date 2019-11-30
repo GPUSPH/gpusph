@@ -34,6 +34,7 @@
 
 #include "particledefine.h"
 #include "simflags.h"
+#include "indexrange.h"
 
 #include "utils.h" // round_up
 
@@ -454,6 +455,7 @@ struct forces_params : _ViscSpec,
 	forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
+		const IndexRange*   activeRange,
 				uint	_fromParticle,
 				uint	_toParticle,
 
@@ -471,7 +473,8 @@ struct forces_params : _ViscSpec,
 		)
 	:
 		common_forces_params(bufread, bufwrite,
-			_fromParticle, _toParticle,
+			max(_fromParticle, activeRange[cptype].begin),
+			min(_toParticle, activeRange[cptype].end),
 			_deltap, _slength, _influenceradius, _step, _dt),
 		xsph_cond(bufwrite),
 		fea_cond(bufread, bufwrite),
