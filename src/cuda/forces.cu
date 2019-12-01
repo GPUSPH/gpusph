@@ -728,9 +728,8 @@ run_forces(
 	BufferList const& bufread,
 	BufferList& bufwrite,
 	const IndexRange *activeRange,
+	const IndexRange &particleRange,
 	uint	numParticles,
-	uint	fromParticle,
-	uint	toParticle,
 	float	deltap,
 	float	slength,
 	float	dtadaptfactor,
@@ -744,7 +743,7 @@ run_forces(
 {
 	int dummy_shared = 0;
 
-	const uint numParticlesInRange = toParticle - fromParticle;
+	const uint numParticlesInRange = particleRange.size();
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
@@ -767,7 +766,7 @@ run_forces(
 	FluidFluidParams params_ff(
 		bufread, bufwrite,
 		activeRange,
-		fromParticle, toParticle,
+		particleRange,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
 		IOwaterdepth);
@@ -778,7 +777,7 @@ run_forces(
 		FluidVertexParams params_fv(
 			bufread, bufwrite,
 			activeRange,
-			fromParticle, toParticle,
+			particleRange,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
 			IOwaterdepth);
@@ -786,7 +785,7 @@ run_forces(
 		VertexFluidParams params_vf(
 			bufread, bufwrite,
 			activeRange,
-			fromParticle, toParticle,
+			particleRange,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
 			IOwaterdepth);
@@ -797,7 +796,7 @@ run_forces(
 	FluidBoundaryParams params_fb(
 		bufread, bufwrite,
 		activeRange,
-		fromParticle, toParticle,
+		particleRange,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
 		IOwaterdepth);
@@ -808,7 +807,7 @@ run_forces(
 		BoundaryFluidParams params_bf(
 			bufread, bufwrite,
 			activeRange,
-			fromParticle, toParticle,
+			particleRange,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
 			IOwaterdepth);
@@ -820,7 +819,7 @@ run_forces(
 
 	FinalizeForcesParams params_finalize(
 			bufread, bufwrite,
-			numParticles, fromParticle, toParticle, slength, deltap,
+			particleRange, numParticles, slength, deltap,
 			cflOffset,
 			IOwaterdepth);
 
@@ -855,9 +854,8 @@ run_repack(
 		BufferList const& bufread,
 		BufferList& bufwrite,
 		const IndexRange *activeRange,
+		const IndexRange &particleRange,
 		uint	numParticles,
-		uint	fromParticle,
-		uint	toParticle,
 		float	deltap,
 		float	slength,
 		float	dtadaptfactor,
@@ -870,7 +868,7 @@ run_repack(
 {
 	int dummy_shared = 0;
 
-	const uint numParticlesInRange = toParticle - fromParticle;
+	const uint numParticlesInRange = particleRange.size();
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_FORCES;
@@ -888,7 +886,7 @@ run_repack(
 	FluidFluidParams params_ff(
 		bufread, bufwrite,
 		activeRange,
-		fromParticle, toParticle,
+		particleRange,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
 		IOwaterdepth);
@@ -899,7 +897,7 @@ run_repack(
 		FluidVertexParams params_fv(
 			bufread, bufwrite,
 			activeRange,
-			fromParticle, toParticle,
+			particleRange,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
 			IOwaterdepth);
@@ -910,7 +908,7 @@ run_repack(
 	FluidBoundaryParams params_fb(
 		bufread, bufwrite,
 		activeRange,
-		fromParticle, toParticle,
+		particleRange,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
 		IOwaterdepth);
@@ -920,7 +918,7 @@ run_repack(
 	using FinalizeRepackParams = finalize_repack_params<boundarytype, simflags>;
 	FinalizeRepackParams params_finalize(
 		bufread, bufwrite,
-		numParticles, fromParticle, toParticle, slength, deltap,
+		particleRange, numParticles, slength, deltap,
 		cflOffset,
 		IOwaterdepth);
 
@@ -937,9 +935,8 @@ basicstep(
 	BufferList const& bufread,
 	BufferList& bufwrite,
 	const IndexRange *activeRange,
+	const IndexRange &particleRange,
 	uint	numParticles,
-	uint	fromParticle,
-	uint	toParticle,
 	float	deltap,
 	float	slength,
 	float	dtadaptfactor,
@@ -954,8 +951,8 @@ basicstep(
 {
 	if (run_mode == REPACK)
 		return run_repack(bufread, bufwrite,
-			activeRange,
-			numParticles, fromParticle, toParticle,
+			activeRange, particleRange,
+			numParticles,
 			deltap, slength, dtadaptfactor,
 			influenceradius, epsilon,
 			IOwaterdepth,
@@ -963,8 +960,8 @@ basicstep(
 			step, dt);
 	else
 		return run_forces(bufread, bufwrite,
-			activeRange,
-			numParticles, fromParticle, toParticle,
+			activeRange, particleRange,
+			numParticles,
 			deltap, slength, dtadaptfactor,
 			influenceradius, epsilon,
 			IOwaterdepth,

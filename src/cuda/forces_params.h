@@ -85,8 +85,7 @@ struct stage_common_forces_params :
 	stage_common_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
-		const	uint	_fromParticle,
-		const	uint	_toParticle,
+		IndexRange const&	particleRange,
 		const	float	_slength)
 	:
 		pos_info_wrapper(bufread),
@@ -94,8 +93,8 @@ struct stage_common_forces_params :
 		forces(bufwrite.getData<BUFFER_FORCES>()),
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		cellStart(bufread.getData<BUFFER_CELLSTART>()),
-		fromParticle(_fromParticle),
-		toParticle(_toParticle),
+		fromParticle(particleRange.begin),
+		toParticle(particleRange.end),
 		slength(_slength)
 	{}
 };
@@ -116,8 +115,7 @@ struct common_forces_params :
 	common_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
-		const	uint	_fromParticle,
-		const	uint	_toParticle,
+		IndexRange const&	particleRange,
 		const	float	_deltap,
 		const	float	_slength,
 		const	float	_influenceradius,
@@ -125,7 +123,7 @@ struct common_forces_params :
 		const	float	_dt)
 	:
 		stage_common_forces_params(bufread, bufwrite,
-			_fromParticle, _toParticle, _slength),
+			particleRange, _slength),
 		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
 		deltap(_deltap),
 		influenceradius(_influenceradius),
@@ -155,13 +153,12 @@ struct common_finalize_forces_params<SIMULATE> :
 	common_finalize_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
-		const	uint	_fromParticle,
-		const	uint	_toParticle,
+		IndexRange const&	particleRange,
 		const	float	_slength,
 		const	float	_deltap /* unused in SIMULATE mode */)
 	:
 		stage_common_forces_params(bufread, bufwrite,
-			_fromParticle, _toParticle, _slength),
+			particleRange, _slength),
 		rbforces(bufwrite.getData<BUFFER_RB_FORCES>()),
 		rbtorques(bufwrite.getData<BUFFER_RB_TORQUES>()),
 		velArray(bufread.getData<BUFFER_VEL>())
@@ -182,13 +179,12 @@ struct common_finalize_forces_params<REPACK> :
 	common_finalize_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
-		const	uint	_fromParticle,
-		const	uint	_toParticle,
+		IndexRange const&	particleRange,
 		const	float	_slength,
 		const	float	_deltap)
 	:
 		stage_common_forces_params(bufread, bufwrite,
-			_fromParticle, _toParticle, _slength),
+			particleRange, _slength),
 		velArray(bufread.getData<BUFFER_VEL>()),
 		deltap(_deltap),
 		rbforces(bufwrite.getData<BUFFER_RB_FORCES>()),
@@ -455,9 +451,8 @@ struct forces_params : _ViscSpec,
 	forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
-		const IndexRange*   activeRange,
-				uint	_fromParticle,
-				uint	_toParticle,
+		const IndexRange*	activeRange,
+		const IndexRange&	particleRange,
 
 		const	float	_deltap,
 		const	float	_slength,
@@ -473,8 +468,7 @@ struct forces_params : _ViscSpec,
 		)
 	:
 		common_forces_params(bufread, bufwrite,
-			max(_fromParticle, activeRange[cptype].begin),
-			min(_toParticle, activeRange[cptype].end),
+			particleRange.intersect(activeRange[cptype]),
 			_deltap, _slength, _influenceradius, _step, _dt),
 		xsph_cond(bufwrite),
 		fea_cond(bufread, bufwrite),
@@ -575,9 +569,8 @@ struct finalize_forces_params :
 	finalize_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
+		IndexRange const&	particleRange,
 				uint	_numParticles,
-				uint	_fromParticle,
-				uint	_toParticle,
 
 		const	float	_slength,
 		const	float	_deltap,
@@ -585,7 +578,7 @@ struct finalize_forces_params :
 		ATOMIC_TYPE(uint)	*_IOwaterdepth)
 	:
 		common_finalize_forces_params<run_mode>(bufread, bufwrite,
-			 _fromParticle, _toParticle, _slength, _deltap),
+			particleRange, _slength, _deltap),
 		planes_cond(bufread),
 		dem_cond(), // dem_params automatically initialize from the global DEM object
 		dyndt_cond(bufwrite, _numParticles, _cflOffset),

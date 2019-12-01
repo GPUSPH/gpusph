@@ -119,9 +119,10 @@ protected:
 	// Total number of particles associated to Finite Elements nodes
 	uint		m_numFeaNodes;
 
-	// range of particles the kernels should write to
-	uint m_particleRangeBegin; // inclusive
-	uint m_particleRangeEnd;   // exclusive
+	// range of internal particles (i.e. the ones on which most kernels
+	// are invoked, except for the few that also operate on imported
+	// particles from other devices)
+	IndexRange	m_internalParticleRange;
 
 	// Range of active particles for each type
 	IndexRange	m_activeRange[PT_NONE];
