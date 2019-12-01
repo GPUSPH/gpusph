@@ -673,13 +673,13 @@ template<
 	typename VertexFluidParams>
 enable_if_t<FluidVertexParams::boundarytype == SA_BOUNDARY>
 vertex_forces(
-	uint numBlocks, uint numThreads, int dummy_shared,
+	uint numThreads, int dummy_shared,
 	FluidVertexParams const& params_fv,
 	VertexFluidParams const& params_vf)
 {
 	execute_kernel(
 		cuforces::forcesDevice<FluidVertexParams>(params_fv),
-		numBlocks, numThreads, dummy_shared);
+		params_fv.numBlocks(numThreads), numThreads, dummy_shared);
 
 	// Fluid contributions to vertices is only needed to compute water depth
 	// and for turbulent viscosity with the k-epsilon model
@@ -689,7 +689,7 @@ vertex_forces(
 	if (waterdepth || keps) {
 		execute_kernel(
 			cuforces::forcesDevice<VertexFluidParams>(params_vf),
-			numBlocks, numThreads, dummy_shared);
+			params_vf.numBlocks(numThreads), numThreads, dummy_shared);
 	}
 }
 template<
@@ -697,7 +697,7 @@ template<
 	typename VertexFluidParams>
 enable_if_t<FluidVertexParams::boundarytype != SA_BOUNDARY>
 vertex_forces(
-	uint numBlocks, uint numThreads, int dummy_shared,
+	uint numThreads, int dummy_shared,
 	FluidVertexParams const& params_fv,
 	VertexFluidParams const& params_vf)
 { /* do nothing */ }
@@ -709,17 +709,17 @@ vertex_forces(
 template<typename BoundaryFluidParams>
 enable_if_t<BoundaryFluidParams::boundarytype == SA_BOUNDARY>
 boundary_forces(
-	uint numBlocks, uint numThreads, int dummy_shared,
+	uint numThreads, int dummy_shared,
 	BoundaryFluidParams const& params_bf)
 { /* do nothing */ }
 template<typename BoundaryFluidParams>
 enable_if_t<BoundaryFluidParams::boundarytype != SA_BOUNDARY>
 boundary_forces(
-	uint numBlocks, uint numThreads, int dummy_shared,
+	uint numThreads, int dummy_shared,
 	BoundaryFluidParams const& params_bf)
 {
 	execute_kernel(cuforces::forcesDevice<BoundaryFluidParams>(params_bf),
-		numBlocks, numThreads, dummy_shared);
+		params_bf.numBlocks(numThreads), numThreads, dummy_shared);
 }
 
 // Returns numBlock for delayed dt reduction in case of striping
@@ -746,9 +746,7 @@ run_forces(
 	const uint numParticlesInRange = particleRange.size();
 
 	// thread per particle
-	uint numThreads = BLOCK_SIZE_FORCES;
-	// number of blocks, rounded up to next multiple of 4 to improve reductions
-	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
+	const uint numThreads = BLOCK_SIZE_FORCES;
 	#if (__COMPUTE__ == 20)
 	static constexpr bool dtadapt = HAS_DTADAPT(simflags);
 	if (turbmodel == SPS)
@@ -771,7 +769,8 @@ run_forces(
 		epsilon,
 		IOwaterdepth);
 
-	execute_kernel(cuforces::forcesDevice<FluidFluidParams>(params_ff), numBlocks, numThreads, dummy_shared);
+	execute_kernel(cuforces::forcesDevice<FluidFluidParams>(params_ff),
+		params_ff.numBlocks(numThreads), numThreads, dummy_shared);
 
 	{
 		FluidVertexParams params_fv(
@@ -790,7 +789,7 @@ run_forces(
 			epsilon,
 			IOwaterdepth);
 
-		vertex_forces(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
+		vertex_forces(numThreads, dummy_shared, params_fv, params_vf);
 	}
 
 	FluidBoundaryParams params_fb(
@@ -801,7 +800,8 @@ run_forces(
 		epsilon,
 		IOwaterdepth);
 
-	execute_kernel(cuforces::forcesDevice<FluidBoundaryParams>(params_fb), numBlocks, numThreads, dummy_shared);
+	execute_kernel(cuforces::forcesDevice<FluidBoundaryParams>(params_fb),
+		params_fb.numBlocks(numThreads), numThreads, dummy_shared);
 
 	if (compute_object_forces || (boundarytype == DYN_BOUNDARY)) {
 		BoundaryFluidParams params_bf(
@@ -812,7 +812,7 @@ run_forces(
 			epsilon,
 			IOwaterdepth);
 
-		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
+		boundary_forces(numThreads, dummy_shared, params_bf);
 	}
 
 	using FinalizeForcesParams = finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags>;
@@ -823,6 +823,8 @@ run_forces(
 			cflOffset,
 			IOwaterdepth);
 
+	// number of blocks in the finalization, rounded up to next multiple of 4 to improve reductions
+	const uint numBlocks = params_finalize.numBlocks(numThreads, 4);
 	execute_kernel(cuforces::finalizeforcesDevice<FinalizeForcesParams>(params_finalize),
 		numBlocks, numThreads, dummy_shared);
 

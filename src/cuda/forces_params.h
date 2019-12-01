@@ -96,6 +96,12 @@ struct stage_common_forces_params :
 		particleRange(particleRange_),
 		slength(_slength)
 	{}
+
+	inline uint numBlocks(uint numThreads) const
+	{ return particleRange.numBlocks(numThreads); }
+
+	inline uint numBlocks(uint numThreads, uint multiple_of) const
+	{ return particleRange.numBlocks(numThreads, multiple_of); }
 };
 
 /// Parameters common to all forces kernel specializations

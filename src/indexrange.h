@@ -37,6 +37,8 @@
 
 #include <limits.h>
 
+#include "utils.h"
+
 struct IndexRange
 {
 	unsigned int begin; // inclusive
@@ -60,6 +62,15 @@ struct IndexRange
 			begin < other.begin ? other.begin : begin,
 			end   > other.end   ? other.end   : end);
 	}
+
+	/// Returns the number of blocks needed to cover the range size, given the number of threads per block
+	inline unsigned int numBlocks(unsigned int numThreads) const
+	{ return div_up(size(), numThreads); }
+
+	/// Returns the number of blocks needed to cover the range size, given the number of threads per block
+	/// and a rounding up
+	inline unsigned int numBlocks(unsigned int numThreads, unsigned int multiple_of) const
+	{ return round_up(numBlocks(numThreads), multiple_of); }
 };
 #endif
 
