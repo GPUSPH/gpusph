@@ -54,6 +54,8 @@ private:
 	cudaDeviceProp m_deviceProperties;
 	// the setter is private and meant to be called only by the simulation thread
 	void setDeviceProperties() override;
+	// get numer of (multi)processors
+	int getProcessorCount() const override;
 
 	// stream for async memcpys
 	cudaStream_t m_asyncH2DCopiesStream;

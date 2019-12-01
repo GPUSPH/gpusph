@@ -1805,7 +1805,8 @@ void GPUWorker::runCommand<UPDATE_ACTIVE_RANGES>(CommandStruct const& cmd)
 	neibsEngine->updateActiveRanges(m_activeRange,
 					bufread,
 					m_numParticles,
-					numPartsToElaborate);
+					numPartsToElaborate,
+					getProcessorCount());
 
 #if 0
 	for (int p = PT_FLUID; p < PT_NONE; ++p) {
@@ -2107,7 +2108,7 @@ template<>
 void GPUWorker::runCommand<CALC_CSPM_COEFF>(CommandStruct const& cmd)
 {
 
-	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+	uint numPartsToElaborate = (cmd.only_internal ? m_internalParticleRange.end : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;

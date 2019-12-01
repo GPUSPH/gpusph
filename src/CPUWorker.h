@@ -50,6 +50,8 @@ private:
 
 	// the setter is private and meant to be called only by the simulation thread
 	void setDeviceProperties() override;
+	// get numer of (multi)processors
+	int getProcessorCount() const override;
 
 	// record/wait for the half-force enqueue event, for async forces computation
 	void recordHalfForceEvent() override;

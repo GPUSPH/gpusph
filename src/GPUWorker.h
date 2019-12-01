@@ -103,6 +103,8 @@ protected:
 	virtual SupportedDeviceTypes getDeviceType() const = 0;
 	virtual int getHardwareDeviceNumber() const = 0;
 	virtual void setDeviceProperties() = 0;
+	// get numer of (multi)processors
+	virtual int getProcessorCount() const = 0;
 
 	// number of particles of the assigned subset
 	uint m_numParticles;

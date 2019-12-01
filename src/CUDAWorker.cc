@@ -262,6 +262,11 @@ void CUDAWorker::setDeviceProperties()
 	m_deviceProperties = checkCUDA(gdata, m_deviceIndex);
 }
 
+int CUDAWorker::getProcessorCount() const
+{
+	return m_deviceProperties.multiProcessorCount;
+}
+
 cudaDeviceProp CUDAWorker::getDeviceProperties() {
 	return m_deviceProperties;
 }

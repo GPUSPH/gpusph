@@ -114,6 +114,7 @@ public:
 		IndexRange *actvieRange,
 		const BufferList& bufread,
 		const uint numParticles,
-		const uint particleRangeEnd) = 0;
+		const uint particleRangeEnd,
+		const uint numComputeUnits) = 0;
 };
 #endif

@@ -263,6 +263,15 @@ void CPUWorker::setDeviceProperties()
 #endif
 }
 
+int CPUWorker::getProcessorCount() const
+{
+#if USE_OPENMP
+	return std::thread::hardware_concurrency() || 1;
+#else
+	return 1;
+#endif
+}
+
 //! When using the CPU backend, “peers” are just other threads running on the same device,
 //! so peering is implicitly enabled. Just inform the manager of that.
 //! TODO this won't be true when we support multiple backends.
