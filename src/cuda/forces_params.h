@@ -56,6 +56,7 @@
 #include "common_params.h"
 #include "dem_params.h"
 #include "atomic_type.h"
+#include "indexrange.h"
 
 // We now have the tools to assemble the structure that will be used to pass parameters to the forces kernel
 
@@ -75,9 +76,8 @@ struct stage_common_forces_params :
 	const	hashKey * __restrict__ particleHash;
 	const	uint	* __restrict__ cellStart;
 
-	// Particle range to work on. toParticle is _exclusive_
-	const	uint	fromParticle;
-	const	uint	toParticle;
+	// Particle range to work on. particleRange.end is _exclusive_
+	const IndexRange particleRange;
 
 	// TODO these should probably go into constant memory
 	const	float	slength;
@@ -85,7 +85,7 @@ struct stage_common_forces_params :
 	stage_common_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
-		IndexRange const&	particleRange,
+		IndexRange const&	particleRange_,
 		const	float	_slength)
 	:
 		pos_info_wrapper(bufread),
@@ -93,8 +93,7 @@ struct stage_common_forces_params :
 		forces(bufwrite.getData<BUFFER_FORCES>()),
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		cellStart(bufread.getData<BUFFER_CELLSTART>()),
-		fromParticle(particleRange.begin),
-		toParticle(particleRange.end),
+		particleRange(particleRange_),
 		slength(_slength)
 	{}
 };

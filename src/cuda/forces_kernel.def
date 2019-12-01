@@ -4377,7 +4377,7 @@ struct forcesDevice : FP
 	FP const& params(*this);
 
 	// Global particle index
-	const uint index = item.get_id() + params.fromParticle;
+	const uint index = item.get_id() + params.particleRange.begin;
 
 	// The body of this kernel easily gets a lot of indentation. to prevent that,
 	// we wrap the main part into a do { } while(0); so that rather than
@@ -4391,7 +4391,7 @@ struct forcesDevice : FP
 	// and some people still don't like goto's, so this is actually a better alternative).
 #pragma unroll
 	do {
-		if (index >= params.toParticle) break;
+		if (index >= params.particleRange.end) break;
 
 		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
@@ -4528,7 +4528,7 @@ struct finalizeforcesDevice : FP
 	FP const& params(*this);
 
 	// Global particle index
-	const uint index = item.get_id() + params.fromParticle;
+	const uint index = item.get_id() + params.particleRange.begin;
 
 	// Allocating shared data in case of adaptive time step
 #if CUDA_BACKEND_ENABLED
@@ -4539,7 +4539,7 @@ struct finalizeforcesDevice : FP
 
 #pragma unroll
 	do {
-		if (index >= params.toParticle) break;
+		if (index >= params.particleRange.end) break;
 
 		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
@@ -4640,7 +4640,7 @@ struct repackDevice : FP
 	FP const& params(*this);
 
 	// Global particle index
-	const uint index = item.get_id() + params.fromParticle;
+	const uint index = item.get_id() + params.particleRange.begin;
 
 	// The body of this kernel easily gets a lot of indentation. to prevent that,
 	// we wrap the main part into a do { } while(0); so that rather than
@@ -4654,7 +4654,7 @@ struct repackDevice : FP
 	// and some people still don't like goto's, so this is actually a better alternative).
 #pragma unroll
 	do {
-		if (index >= params.toParticle) break;
+		if (index >= params.particleRange.end) break;
 
 		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
@@ -4736,7 +4736,7 @@ struct finalizeRepackDevice : FP
 	FP const& params(*this);
 
 	// Global particle index
-	const uint index = item.get_id() + params.fromParticle;
+	const uint index = item.get_id() + params.particleRange.begin;
 
 	// Allocating shared data in case of adaptive time step
 #if CUDA_BACKEND_ENABLED
@@ -4747,7 +4747,7 @@ struct finalizeRepackDevice : FP
 
 #pragma unroll
 	do {
-		if (index >= params.toParticle) break;
+		if (index >= params.particleRange.end) break;
 
 		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
