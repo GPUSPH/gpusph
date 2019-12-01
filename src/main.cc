@@ -112,8 +112,8 @@ void print_usage() {
 	cout << "Syntax: " << endl;
 	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL] [--dt VAL] [--ccsph-min-det VAL]\n";
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
-	cout << "\t       [--dir directory] [--(no-)pin-fea-buffers] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
-	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
+	cout << "\t       [--dir directory] [--clip-ranges] [--(no-)pin-fea-buffers] [--nosave]\n";
+	cout << "\t       [--striping] [--gpudirect [--asyncmpi]] [--num-hosts VAL [--byslot-scheduling]]\n";
 	cout << "\t       [--add-writer WRITER:FREQ[,WRITER:FREQ...]\n";
 	cout << "\t       [--display [--display-every VAL] --display-script VAL]\n";
 	cout << "\t       [--debug FLAGS]\n";
@@ -134,6 +134,7 @@ void print_usage() {
 	cout << " --ccsph-min-det : Use given minimum determinant for CCSPH (VAL is cast to float)\n";
 	cout << " --maxiter : Break after this many iterations (integer VAL)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
+	cout << " --clip-ranges : Limit kernel launches to active particle ranges, when possible\n";
 	cout << " --pin-fea-buffers : Force pinning of FEA buffers (default)\n";
 	cout << " --no-pin-fea-buffers : Disable pinning of FEA buffers\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
@@ -237,6 +238,8 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			_clOptions->dir = string(*argv);
 			argv++;
 			argc--;
+		} else if (!strcmp(arg, "--clip-ranges")) {
+			_clOptions->clip_ranges = true;
 		} else if (!strcmp(arg, "--pin-fea-buffers")) {
 			_clOptions->pin_fea_buffers = true;
 		} else if (!strcmp(arg, "--no-pin-fea-buffers")) {

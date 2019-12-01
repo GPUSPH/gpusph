@@ -78,6 +78,7 @@ public:
 	unsigned int repack_maxiter; ///< maximum number of iterations for repacking
 	float	checkpoint_freq; ///< frequency of hotstart checkpoints (in simulated seconds)
 	int		checkpoints; ///< number of hotstart checkpoints to keep
+	bool	clip_ranges; ///< clip kernel launch to active particle ranges
 	bool	nosave; ///< disable saving
 	bool	pin_fea_buffers; ///< pin host-side global buffers for FEA
 	bool	gpudirect; ///< enable GPUDirect
@@ -111,8 +112,9 @@ public:
 		repack_maxiter(0),
 		checkpoint_freq(NAN),
 		checkpoints(-1),
-		pin_fea_buffers(true),
+		clip_ranges(false),
 		nosave(false),
+		pin_fea_buffers(true),
 		gpudirect(false),
 		striping(false),
 		asyncNetworkTransfers(false),

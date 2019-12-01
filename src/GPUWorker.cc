@@ -103,6 +103,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	m_forcesKernelTotalNumBlocks()
 {
+	for (int p = PT_FLUID; p < PT_NONE; ++p)
+		m_activeRange[p] = IndexRange(0, UINT_MAX); // EVERYONE
+
 	printf("number of forces rigid bodies particles = %d\n", m_numForcesBodiesParticles);
 	printf("number of fea nodes particles = %d\n", m_numFeaNodes);
 }

@@ -575,6 +575,7 @@ CommonWriter::write_options(ostream &out)
 	out << " tend: " << OP->tend << endl;
 	out << " dt: "<< OP->tend << endl;
 	out << " hosts: " << OP->num_hosts << endl;
+	out << " clip ranges: " << ED[OP->clip_ranges] << endl;
 	out << " saving " << ED[!OP->nosave] << endl;
 	out << " GPUDirect " << ED[OP->gpudirect] << endl;
 	out << " striping " << ED[OP->striping] << endl;
