@@ -1808,9 +1808,14 @@ void GPUWorker::runCommand<UPDATE_ACTIVE_RANGES>(CommandStruct const& cmd)
 					numPartsToElaborate,
 					getProcessorCount());
 
+	// zero the lowest bits of begin to ensure it's a multiple of 32. This helps with performance
+	for (int p = PT_FLUID; p < PT_NONE; ++p) {
+		m_activeRange[p].begin &= UINT_MAX - 31U;
+	}
+
 #if 0
 	for (int p = PT_FLUID; p < PT_NONE; ++p) {
-		if (p == PT_VERTEX && m_simparams->boundarytype != SA_BOUNDARY) continue;
+		if (m_activeRange[p].empty()) continue;
 
 		printf("T%d: PT%d range [%12d, %12d[ (%d/%d = %g%%)\n", m_deviceIndex, p,
 		m_activeRange[p].begin, m_activeRange[p].end,
