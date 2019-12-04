@@ -80,10 +80,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0, 0, 0);
-	if (use_cyl) {
-		m_origin.z -= 2.0*height;
-		m_size.z += 2.0*height;
-	}
 
 	if (get_option("testpoints", false)) {
 		addPostProcess(TESTPOINTS);
