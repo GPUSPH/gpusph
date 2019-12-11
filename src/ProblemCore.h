@@ -425,11 +425,6 @@ class ProblemCore
 
 		/// Compute the uniform grid coordinates of a point, clamping to edges
 		int3 calc_grid_pos(const Point&) const;
-		/// Compute the uniform grid components of a vector
-		int3 calc_grid_offset(double3 const& vec) const;
-		/// Compute the local (fractional grid cell) components of a vector,
-		/// given the vector and its grid offset
-		double3 calc_local_offset(double3 const& vec, int3 const& gridOff) const;
 
 		uint calc_grid_hash(int3) const;
 
