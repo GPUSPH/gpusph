@@ -92,7 +92,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	//set_dynamic_visc(0, 1.0e-4f);
 
 	// default tend 1.5s
-	simparams()->tend=1.5f;
+	//simparams()->tend=1.5f;
 	//simparams()->ferrariLengthScale = H;
 	simparams()->densityDiffCoeff = 0.1f;
 	/*set_artificial_visc(0.2f);

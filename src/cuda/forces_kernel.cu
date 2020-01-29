@@ -1,3 +1,4 @@
+
 /*  Copyright (c) 2011-2019 INGV, EDF, UniCT, JHU
 
     Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
@@ -327,6 +328,7 @@ cspmCoeffDevice(
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	bool has_neibs = false;
+	uint num_neibs = 0;
 
 	// Loop over all FLUID neighbors and BOUNDARY neighbors
 	// TODO check what to do for SA
@@ -359,6 +361,7 @@ cspmCoeffDevice(
 		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
 
 		has_neibs = true;
+		num_neibs ++;
 
 	}
 
@@ -369,7 +372,7 @@ cspmCoeffDevice(
 	symtensor3 a_inverse;
 
 	const float D = kbn_det(fcoeff);
-	if (has_neibs && D)
+	if (has_neibs && D && num_neibs > 48)
 		a_inverse = inverse(fcoeff, D);
 	else
 		set_identity(a_inverse);
