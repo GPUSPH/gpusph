@@ -1,0 +1,140 @@
+digraph "GPUSPH integration scheme" {
+	newrank=true
+	nodesep=1.5
+
+	node [height=1,width=4,fixedsize=true]
+
+	/* Subgraphs */
+	subgraph pre_main {
+		POST_UPLOAD
+		NEIBS_LIST0 [label="NEIBS_LIST (0)"]
+		INITIALIZATION
+
+		subgraph cluster_init_effpres {
+			label="Granular effective pressure"
+			INIT_EFFPRES_PREP
+			INIT_EFFPRES
+		}
+	}
+
+	subgraph main_cycle {
+		label="Main cycle"
+
+		subgraph {
+			BEGIN_TIME_STEP [label="BEGIN_TIME_STEP (n)"]
+			NEIBS_LIST
+			BEGIN_TIME_STEP_AGAIN [label="BEGIN_TIME_STEP (n+1)"]
+		}
+
+		subgraph cluster_predictor {
+			label="Predictor"
+			PREDICT_FORCES
+			PREDICT_INTEGRATION
+			PREDICTOR_END
+
+			subgraph cluster_predict_semi_implicit {
+				label="Semi-implicit viscous integration"
+				PREDICT_IMPLICIT_VISC_INIT
+				PREDICT_IMPLICIT_VISC
+			}
+
+			subgraph cluster_predict_effpres {
+				label="Granular effective pressure"
+				POSTPRED_EFFPRES_PREP
+				POSTPRED_EFFPRES
+			}
+		}
+
+		subgraph cluster_corrector {
+			label="Corrector"
+			CORRECT_FORCES
+			CORRECT_INTEGRATION
+			CORRECTOR_END
+
+			subgraph cluster_correct_semi_implicit {
+				label="Semi-implicit viscous integration"
+				CORRECT_IMPLICIT_VISC_INIT
+				CORRECT_IMPLICIT_VISC
+			}
+
+			subgraph cluster_correct_effpres {
+				label="Granular effective pressure"
+				POSTCORR_EFFPRES_PREP
+				POSTCORR_EFFPRES
+			}
+
+		}
+
+		subgraph cluster_filters {
+			label="Filters"
+			FILTER_INTRO
+			FILTER_CALL
+			FILTER_OUTRO
+		}
+
+	}
+
+	/*
+	 * Edges
+	 */
+
+	POST_UPLOAD -> NEIBS_LIST0        [weight=100];
+	NEIBS_LIST0 -> INITIALIZATION     [weight=100];
+	INITIALIZATION -> BEGIN_TIME_STEP [weight=100,taillabel="no granular"];
+
+	/* Granular init */
+	INITIALIZATION -> INIT_EFFPRES_PREP   [taillabel="granular"];
+	INIT_EFFPRES_PREP -> INIT_EFFPRES     [weight=100];
+	INIT_EFFPRES -> INIT_EFFPRES          [taillabel="Jacobi loop"];
+	INIT_EFFPRES -> BEGIN_TIME_STEP       [taillabel="Jacobi end"];
+
+	BEGIN_TIME_STEP -> NEIBS_LIST [weight=1000];
+	NEIBS_LIST -> PREDICT_FORCES  [weight=1000,taillabel="No filters"];
+
+	/* Filters */
+
+	NEIBS_LIST -> FILTER_INTRO     [taillabel="Filters enabled"];
+	FILTER_INTRO -> FILTER_CALL    [weight=100,taillabel="First filter"];
+	FILTER_CALL -> FILTER_CALL     [taillabel="Next filter"];
+	FILTER_CALL -> FILTER_OUTRO    [weight=100,taillabel="Filters done"];
+	FILTER_INTRO -> FILTER_OUTRO   [taillabel="Filters done",constraint=false];
+	FILTER_OUTRO -> PREDICT_FORCES [];
+
+	/* Predictor */
+
+	PREDICT_FORCES -> PREDICT_INTEGRATION [weight=1000,taillabel="explicit"];
+
+	PREDICT_FORCES -> PREDICT_IMPLICIT_VISC_INIT [taillabel="implicit visc",tailport=e];
+	PREDICT_IMPLICIT_VISC_INIT -> PREDICT_IMPLICIT_VISC [weight=1000,taillabel="CG loop"];
+	PREDICT_IMPLICIT_VISC_INIT -> PREDICT_INTEGRATION [taillabel="CG end",constraint=false];
+	PREDICT_IMPLICIT_VISC -> PREDICT_IMPLICIT_VISC [taillabel="CG loop"];
+	PREDICT_IMPLICIT_VISC -> PREDICT_INTEGRATION [taillabel="CG end"];
+
+	PREDICT_INTEGRATION -> PREDICTOR_END [weight=1000];
+	PREDICTOR_END -> CORRECT_FORCES      [weight=1000,taillabel="no granular"];
+
+	PREDICTOR_END -> POSTPRED_EFFPRES_PREP    [taillabel="granular"];
+	POSTPRED_EFFPRES_PREP -> POSTPRED_EFFPRES [weight=100];
+	POSTPRED_EFFPRES -> POSTPRED_EFFPRES      [taillabel="Jacobi loop"];
+	POSTPRED_EFFPRES -> CORRECT_FORCES        [taillabel="Jacobi end"];
+
+	/* Corrector */
+
+	CORRECT_FORCES -> CORRECT_INTEGRATION [weight=1000,taillabel="explicit"];
+
+	CORRECT_FORCES -> CORRECT_IMPLICIT_VISC_INIT        [taillabel="implicit visc",tailport=e];
+	CORRECT_IMPLICIT_VISC_INIT -> CORRECT_IMPLICIT_VISC [weight=1000,taillabel="CG loop"];
+	CORRECT_IMPLICIT_VISC_INIT -> CORRECT_INTEGRATION   [taillabel="CG end",constraint=false];
+	CORRECT_IMPLICIT_VISC -> CORRECT_IMPLICIT_VISC      [taillabel="CG loop"];
+	CORRECT_IMPLICIT_VISC -> CORRECT_INTEGRATION        [taillabel="CG end"];
+
+	CORRECT_INTEGRATION -> CORRECTOR_END   [weight=1000];
+	CORRECTOR_END -> BEGIN_TIME_STEP_AGAIN [weight=1000,taillabel="no granular"];
+
+	CORRECTOR_END -> POSTCORR_EFFPRES_PREP    [taillabel="granular"];
+	POSTCORR_EFFPRES_PREP -> POSTCORR_EFFPRES [weight=100];
+	POSTCORR_EFFPRES -> POSTCORR_EFFPRES      [taillabel="Jacobi loop"];
+	POSTCORR_EFFPRES -> BEGIN_TIME_STEP_AGAIN [taillabel="Jacobi end"];
+
+	BEGIN_TIME_STEP_AGAIN -> BEGIN_TIME_STEP [taillabel="New step",style=dotted]
+}
