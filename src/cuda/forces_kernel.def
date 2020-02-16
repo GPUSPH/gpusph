@@ -2103,7 +2103,8 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 
 	const float diff_term = d_densityDiffCoeff*d_sscoeff[fType]*
 		(volume_ratio(pdata, ndata) - 1)*
-		corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.relPos.w);
+		//corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.relPos.w);
+		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
 
 	// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
 
@@ -2307,7 +2308,8 @@ enable_if_t<
 mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	nout.DrDt = ndata.relPos.w*corrected_vel_dot_pos(ndata)*ndata.f;
+	//nout.DrDt = ndata.relPos.w*corrected_vel_dot_pos(ndata)*ndata.f;
+	nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
 }
 
 /// Density ratio contribution
@@ -2806,6 +2808,8 @@ compute_laminar_visc_contrib
 	const float visc = visc_avg<typename FP::ViscSpec>(
 			get_visc_coeff(pdata), get_visc_coeff(ndata),
 			physical_density(pdata), physical_density(ndata), ndata.relPos.w);
+
+
 	nout.DvDt += visc*ndata.f*viscous_vector_component(params, pdata, ndata);
 }
 

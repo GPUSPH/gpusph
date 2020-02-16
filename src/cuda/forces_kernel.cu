@@ -336,8 +336,9 @@ cspmCoeffDevice(
 
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	bool has_neibs = false;
+	//bool has_neibs = false;
 	uint num_neibs = 0;
+	bool close_to_boundary = false;
 
 	// Loop over all FLUID neighbors and BOUNDARY neighbors
 	// TODO check what to do for SA
@@ -345,6 +346,12 @@ cspmCoeffDevice(
 	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
+		const particleinfo neib_info = infoArray[neib_index];
+
+		if (!FLUID(neib_info)) {
+			close_to_boundary = true;
+			break;
+		}
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
@@ -357,7 +364,6 @@ cspmCoeffDevice(
 			);
 
 		const float4 neib_vel = velArray[neib_index];
-		const particleinfo neib_info = infoArray[neib_index];
 		const float r = length(as_float3(relPos));
 
 		if (INACTIVE(relPos) || r >= influenceradius)
@@ -369,7 +375,7 @@ cspmCoeffDevice(
 		const float f = F<kerneltype>(r, slength);
 		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
 
-		has_neibs = true;
+	//	has_neibs = true;
 		num_neibs ++;
 
 	}
@@ -378,13 +384,16 @@ cspmCoeffDevice(
 	corr += corr_kahan;
 	fcoeff += fcoeff_kahan;
 
-	symtensor3 a_inverse;
+	//symtensor3 a_inverse;
+	//if (D > 0.35 && !close_to_boundary)
 
-	const float D = kbn_det(fcoeff);
-	if (has_neibs && D && num_neibs > 48)
+	if (num_neibs > 48 && !close_to_boundary){
+		const float D = kbn_det(fcoeff);
 		a_inverse = inverse(fcoeff, D);
-	else
+	} else {
 		set_identity(a_inverse);
+		//printf("%g\n", D);
+	}
 
 	wcoeffArray[index] = 1.0f/corr;
 	storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);

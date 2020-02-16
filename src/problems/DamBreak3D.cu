@@ -52,8 +52,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC>,
-		boundary<DUMMY_BOUNDARY>,
+		viscosity<SPSVISC>,
+		boundary<LJ_BOUNDARY>,
 		add_flags<ENABLE_REPACKING>
 	).select_options(
 		RHODIFF,
