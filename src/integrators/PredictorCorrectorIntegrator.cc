@@ -933,10 +933,10 @@ PredictorCorrector::PredictorCorrector(GlobalData const* _gdata) :
 	initializePhase<NEIBS_LIST>();
 
 	initializePhase<INITIALIZATION>();
-
-	initializePhase<BEGIN_TIME_STEP>();
 	initializePhase<INIT_EFFPRES_PREP>();
 	initializePhase<INIT_EFFPRES>();
+
+	initializePhase<BEGIN_TIME_STEP>();
 
 	initializePhase<PREDICTOR>();
 	initializePhase<PREDICTOR_END>();
@@ -982,8 +982,8 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	switch (cur) {
 	case POST_UPLOAD:
 		return NEIBS_LIST;
-	case INITIALIZATION:
-		return BEGIN_TIME_STEP;
+	case BEGIN_TIME_STEP:
+		return NEIBS_LIST;
 	case INIT_EFFPRES_PREP:
 		return INIT_EFFPRES;
 	case PREDICTOR:
@@ -1004,9 +1004,9 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	const unsigned long iterations = gdata->iterations;
 	static const FilterFreqList::const_iterator filters_end = m_enabled_filters.cend();
-	if (cur == BEGIN_TIME_STEP) {
+	if (cur == INITIALIZATION) {
 		if (!has_granular_rheology) {
-			return NEIBS_LIST;
+			return BEGIN_TIME_STEP;
 		} else {
 			return INIT_EFFPRES_PREP;
 		}
@@ -1027,7 +1027,7 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	}
 	if (cur == INIT_EFFPRES) {
 		if (gdata->h_jacobiStop) {
-			return NEIBS_LIST;
+			return BEGIN_TIME_STEP;
 		} else {
 			return INIT_EFFPRES;
 		}
