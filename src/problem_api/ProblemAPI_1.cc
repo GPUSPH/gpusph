@@ -276,8 +276,8 @@ bool ProblemAPI<1>::initialize()
 		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
 	}
 
-	// Increase the world dimensions for dinamic boundaries in directions without periodicity
-	if (simparams()->boundarytype == DYN_BOUNDARY){
+	// Increase the world dimensions for multi-layer boundaries in directions without periodicity
+	if (simparams()->boundary_is_multilayer()){
 		if (!(simparams()->periodicbound & PERIODIC_X)){
 			globalMin(0) -= (m_numDynBoundLayers-1)*m_deltap;
 			globalMax(0) += (m_numDynBoundLayers-1)*m_deltap;
