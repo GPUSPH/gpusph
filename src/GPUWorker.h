@@ -26,10 +26,9 @@
  */
 
 /*! \file
- * Interface of the CUDA-based GPU worker
+ * Interface of the generic (device-independent) part of the GPU worker
  *
- * \todo The CUDA-independent part should be split in a separate, generic
- * Worker class.
+ * \todo Should be renamed to Worker when the split is complete
  */
 
 #ifndef GPUWORKER_H_
@@ -37,12 +36,8 @@
 
 #include <thread>
 
-#include "vector_types.h"
 #include "common_types.h"
 #include "GlobalData.h"
-
-// for CUDA_SAFE_CALL & co.
-#include "cuda_call.h"
 
 #include "physparams.h"
 #include "simparams.h"
@@ -60,10 +55,13 @@
 // Bursts handling
 #include "bursts.h"
 
-// In GPUWoker we implement as "private" all functions which are meant to be called only by the simulationThread().
+#include "hostbuffer.h"
+
+// In the GPUWorker we implement as "private" (protected, actually, to be accessible
+// by GPUWorker subclasses) all functions which are meant to be called only by the simulationThread().
 // Only the methods which need to be called by GPUSPH are declared public.
 class GPUWorker {
-private:
+protected:
 	GlobalData* gdata;
 
 	// utility pointers - the actual structures are in Problem
@@ -94,10 +92,12 @@ private:
 
 	devcount_t m_deviceIndex;
 	devcount_t m_globalDeviceIdx;
-	unsigned int m_cudaDeviceNumber;
 	GlobalData* getGlobalData();
-	unsigned int getCUDADeviceNumber();
 	devcount_t getDeviceIndex();
+
+	virtual const char *getHardwareType() const = 0;
+	virtual int getHardwareDeviceNumber() const = 0;
+	virtual void setDeviceProperties() = 0;
 
 	// number of particles of the assigned subset
 	uint m_numParticles;
@@ -118,15 +118,12 @@ private:
 	size_t m_hostMemory;
 	size_t m_deviceMemory;
 
-	// it would be easier to put the device properties in a shared array in GlobalData;
-	// this, however, would violate the principle that any CUDA-related code should be
-	// handled by GPUWorkers and, secondly, GPUSPH
-	cudaDeviceProp m_deviceProperties;
-	// the setter is private and meant to be called only by the simulation thread
-	void setDeviceProperties(cudaDeviceProp _m_deviceProperties);
+	// record/wait for the half-force enqueue event, for async forces computation
+	virtual void recordHalfForceEvent() = 0;
+	virtual void syncHalfForceEvent() = 0;
 
 	// enable direct p2p memory transfers
-	void enablePeerAccess();
+	virtual void enablePeerAccess() = 0;
 	// explicitly stage P2P transfers on host
 	bool m_disableP2Ptranfers;
 	// host buffers: pointer, size, resize method
@@ -139,23 +136,140 @@ private:
 	size_t m_hNetworkTransferBufferSize;
 	void resizeNetworkTransferBuffer(size_t required_size);
 
-	// CPU arrays
-	//float4*			m_hPos;					// postions array
-	//float4*			m_hVel;					// velocity array
-	//float4*		m_hForces;				// forces array
-	//particleinfo*	m_hInfo;				// info array
-	//float3*		m_hVort;				// vorticity
-	//float*		m_hVisc;				// viscosity
-	//float4*   	m_hNormals;				// normals at free surface
-
-	// TODO: CPU arrays used for debugging
-
-	// GPU arrays
+	// Device arrays
 	ParticleSystem	m_dBuffers;
 
-	// CPU arrays (for the workers, these only hold cell-based buffers:
+	// Host arrays (for the workers, these only hold cell-based buffers:
 	// BUFFER_CELLSTART, BUFFER_CELLEND, BUFFER_COMPACT_DEV_MAP)
 	BufferList m_hBuffers;
+
+	//! Initialize the particle list by adding all the necessary buffers
+	template<template<flag_t Key> class BufferType>
+	void initializeParticleSystem()
+	{
+		m_dBuffers.setAllocPolicy(gdata->simframework->getAllocPolicy());
+
+		m_dBuffers.addBuffer<BufferType, BUFFER_POS>();
+		m_dBuffers.addBuffer<BufferType, BUFFER_VEL>();
+		m_dBuffers.addBuffer<BufferType, BUFFER_INFO>();
+		m_dBuffers.addBuffer<BufferType, BUFFER_FORCES>(0);
+
+		if (m_simparams->numforcesbodies) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_RB_FORCES>(0);
+			m_dBuffers.addBuffer<BufferType, BUFFER_RB_TORQUES>(0);
+			m_dBuffers.addBuffer<BufferType, BUFFER_RB_KEYS>();
+		}
+
+		m_dBuffers.addBuffer<BufferType, BUFFER_CELLSTART>(-1);
+		m_dBuffers.addBuffer<BufferType, BUFFER_CELLEND>(-1);
+		if (MULTI_DEVICE) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_COMPACT_DEV_MAP>();
+			m_hBuffers.addBuffer<HostBuffer, BUFFER_COMPACT_DEV_MAP>();
+		}
+
+		m_dBuffers.addBuffer<BufferType, BUFFER_HASH>();
+		m_dBuffers.addBuffer<BufferType, BUFFER_PARTINDEX>();
+		m_dBuffers.addBuffer<BufferType, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
+
+		if (HAS_DEM_OR_PLANES(m_simparams->simflags))
+			m_dBuffers.addBuffer<BufferType, BUFFER_NEIBPLANES>(-1); // neib planes list is initialized to all bits set
+
+		if (HAS_XSPH(m_simparams->simflags))
+			m_dBuffers.addBuffer<BufferType, BUFFER_XSPH>(0);
+
+		// TODO we may want to allocate them for delta-SPH in the debugging case
+		if (HAS_CCSPH(m_simparams->simflags)) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_WCOEFF>(0);
+			m_dBuffers.addBuffer<BufferType, BUFFER_FCOEFF>(0);
+		}
+
+		if (m_simparams->densitydiffusiontype == ANTUONO) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_RENORMDENS>(0);
+		}
+
+		// If the user enabled a(n actual) turbulence model, enable BUFFER_TAU, to
+		// store the shear stress tensor.
+		// TODO FIXME temporary: k-eps needs TAU only for temporary storage
+		// across the split kernel calls in forces
+		if (m_simparams->turbmodel > ARTIFICIAL)
+			m_dBuffers.addBuffer<BufferType, BUFFER_TAU>(0);
+
+		if (m_simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
+			m_dBuffers.addBuffer<BufferType, BUFFER_NORMALS>();
+		if (m_simframework->hasPostProcessOption(INTERFACE_DETECTION, BUFFER_NORMALS))
+			m_dBuffers.addBuffer<BufferType, BUFFER_NORMALS>();
+
+		if (m_simframework->hasPostProcessEngine(VORTICITY))
+			m_dBuffers.addBuffer<BufferType, BUFFER_VORTICITY>();
+
+		if (HAS_DTADAPT(m_simparams->simflags)) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_CFL>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_CFL_TEMP>();
+			if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
+				m_dBuffers.addBuffer<BufferType, BUFFER_CFL_GAMMA>();
+			if (m_simparams->turbmodel == KEPSILON)
+				m_dBuffers.addBuffer<BufferType, BUFFER_CFL_KEPS>();
+		}
+
+		if (m_simparams->boundarytype == SA_BOUNDARY) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_GRADGAMMA>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_BOUNDELEMENTS>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_VERTICES>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_VERTPOS>();
+		}
+
+		if (m_simparams->boundarytype == DUMMY_BOUNDARY) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_DUMMY_VEL>(0);
+		}
+
+		if (m_simparams->turbmodel == KEPSILON) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_TKE>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_EPSILON>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_TURBVISC>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_DKDE>(0);
+		}
+
+		if (m_simparams->turbmodel == SPS) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_SPS_TURBVISC>();
+		}
+
+		if (NEEDS_EFFECTIVE_VISC(m_simparams->rheologytype))
+			m_dBuffers.addBuffer<BufferType, BUFFER_EFFVISC>();
+
+		if (m_simparams->rheologytype == GRANULAR) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_EFFPRES>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_JACOBI>();
+		}
+
+		if (m_simparams->boundarytype == SA_BOUNDARY &&
+			(HAS_INLET_OUTLET(m_simparams->simflags) || m_simparams->turbmodel == KEPSILON))
+			m_dBuffers.addBuffer<BufferType, BUFFER_EULERVEL>();
+
+		if (HAS_INLET_OUTLET(m_simparams->simflags))
+			m_dBuffers.addBuffer<BufferType, BUFFER_NEXTID>();
+
+		if (m_simparams->sph_formulation == SPH_GRENIER) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_VOLUME>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_SIGMA>();
+		}
+
+		if (m_simframework->hasPostProcessEngine(CALC_PRIVATE)) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_PRIVATE>();
+			if (m_simframework->hasPostProcessOption(CALC_PRIVATE, BUFFER_PRIVATE2))
+				m_dBuffers.addBuffer<BufferType, BUFFER_PRIVATE2>();
+			if (m_simframework->hasPostProcessOption(CALC_PRIVATE, BUFFER_PRIVATE4))
+				m_dBuffers.addBuffer<BufferType, BUFFER_PRIVATE4>();
+		}
+
+		if (HAS_INTERNAL_ENERGY(m_simparams->simflags)) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_INTERNAL_ENERGY>();
+			m_dBuffers.addBuffer<BufferType, BUFFER_INTERNAL_ENERGY_UPD>(0);
+		}
+
+		// all workers begin with an "initial upload” state in their particle system,
+		// to hold all the buffers that will be initialized from host
+		m_dBuffers.initialize_state("initial upload");
+	}
 
 	// bursts of cells to be transferred
 	BurstList	m_bursts;
@@ -172,14 +286,6 @@ private:
 	// number of blocks used in forces kernel runs (for delayed cfl reduction)
 	uint		m_forcesKernelTotalNumBlocks;
 
-	// stream for async memcpys
-	cudaStream_t m_asyncH2DCopiesStream;
-	cudaStream_t m_asyncD2HCopiesStream;
-	cudaStream_t m_asyncPeerCopiesStream;
-
-	// event to synchronize striping
-	cudaEvent_t m_halfForcesEvent;
-
 	/// Function template to run a specific command
 	/*! There should be a specialization of the template for each
 	 * (supported) command
@@ -194,9 +300,6 @@ private:
 	/// Handle the case of an unknown command being invoked
 	void unknownCommand(CommandName);
 
-	// cuts all external particles
-	// runCommand<CROP> = void dropExternalParticles();
-
 	/// compare UPDATE_EXTERNAL arguments against list of updated buffers
 	void checkBufferUpdate(CommandStruct const& cmd);
 
@@ -210,40 +313,55 @@ private:
 	/// append or update the external cells of other devices in the device memory
 	void importExternalCells(CommandStruct const& cmd); // runCommand<APPEND_EXTERNAL> or runCommand<UPDATE_EXTERNAL>
 	// aux methods for importPeerEdgeCells();
-	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
-	void asyncCellIndicesUpload(uint fromCell, uint toCell);
+	virtual void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count) = 0;
+	virtual void asyncCellIndicesUpload(uint fromCell, uint toCell) = 0;
 
 	// wrapper for NetworkManage send/receive methods
-	void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0);
+	virtual void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0) = 0;
+
+	// synchronize the device
+	virtual void deviceSynchronize() = 0;
+	// reset the device
+	virtual void deviceReset() = 0;
+
+	// allocate/free a pinned, device-visible host buffer
+	virtual void allocPinnedBuffer(void **ptr, size_t size) = 0;
+	virtual void freePinnedBuffer(void *ptr, bool sync = false) = 0;
+	// allocate/free a device buffer outside of the BufferList management
+	// TODO ideally we should move everything into the BufferList
+	virtual void allocDeviceBuffer(void **ptr, size_t size) = 0;
+	virtual void freeDeviceBuffer(void *ptr) = 0;
+	// memset a device buffer
+	virtual void clearDeviceBuffer(void *ptr, int val, size_t bytes) = 0;
+	// copy from host to device
+	virtual void memcpyHostToDevice(void *dst, const void *src, size_t bytes) = 0;
+	// copy from device to host
+	virtual void memcpyDeviceToHost(void *dst, const void *src, size_t bytes) = 0;
 
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
 	void deallocateDeviceBuffers();
 
-	void createEventsAndStreams();
-	void destroyEventsAndStreams();
+	virtual void createEventsAndStreams() = 0;
+	virtual void destroyEventsAndStreams() = 0;
+
+	virtual void getMemoryInfo(size_t *freeMem, size_t *totMem) = 0;
 
 	void printAllocatedMemory();
 
 	void initialize();
 	void finalize();
 
-private:
+protected:
 	// create a textual description of the list of buffers in the command flags
 	std::string describeCommandFlagsBuffers(flag_t flags);
 
 	void uploadSubdomain();
-	// runCommand<DUMP> = void dumpBuffers();
-	// runCommand<SWAP_BUFFERS> = void swapBuffers();
-	// runCommand<DUMP_CELLS> = void downloadCellsIndices();
 	void downloadSegments();
 	void uploadSegments();
-	// runCommand<UPDATE_SEGMENTS> = void updateSegments();
 	void resetSegments();
 	void uploadNumOpenVertices();
-	// runCommand<UPLOAD_NEWNUMPARTS> = void uploadNewNumParticles();
-	// runCommand<DOWNLOAD_NEWNUMPARTS> = void downloadNewNumParticles();
 
 	// moving boundaries, gravity, planes
 	void uploadGravity(); // also runCommand<UPLOAD_GRAVITY>
@@ -256,48 +374,9 @@ private:
 	// bodies
 	void uploadForcesBodiesCentersOfGravity(); // also runCommand<FORCES_UPLOAD_OBJECTS_CG>
 	void uploadEulerBodiesCentersOfGravity(); // runCommand<EULER_UPLOAD_OBJECTS_CG> 
-	// runCommand<UPLOAD_OBJECTS_MATRICES> = void uploadBodiesTransRotMatrices();
-	// runCommand<UPLOAD_OBJECTS_VELOCITIES> = void uploadBodiesVelocities();
-
-	// kernels
-	// runCommand<CALCHASH> = void kernel_calcHash();
-	// runCommand<SORT> = void kernel_sort();
-	// runCommand<REORDER> = void kernel_reorderDataAndFindCellStart();
-	// runCommand<BUILDNEIBS> = void kernel_buildNeibsList();
-	// runCommand<FORCES_SYNC> = void kernel_forces();
-	// runCommand<EULER> = void kernel_euler();
-	// runCommand<DENSITY_SUM> = void kernel_density_sum();
-	// runCommand<INTEGRATE_GAMMA> = void kernel_integrate_gamma();
-	// runCommand<CALC_DENSITY_DIFFUSION> = void kernel_calc_density_diffusion();
-	// runCommand<APPLY_DENSITY_DIFFUSION> = void kernel_apply_density_diffusion();
-	// runCommand<FILTER> = void kernel_filter();
-	// runCommand<POSTPROCESS> = void kernel_postprocess();
-	// runCommand<COMPUTE_DENSITY> = void kernel_compute_density();
-	// runCommand<CALC_VISC> = void kernel_visc();
-	void kernel_meanStrain();
-	// runCommand<REDUCE_BODIES_FORCES> = void kernel_reduceRBForces();
-	// runCommand<SA_CALC_SEGMENT_BOUNDARY_CONDITIONS> = void kernel_saSegmentBoundaryConditions();
-	// runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS> = void kernel_saVertexBoundaryConditions();
-	// runCommand<SA_COMPUTE_VERTEX_NORMAL> = void kernel_saComputeVertexNormal();
-	// runCommand<SA_INIT_GAMMA> = void kernel_saInitGamma();
-	// runCommand<IDENTIFY_CORNER_VERTICES> = void kernel_saIdentifyCornerVertices();
-	void kernel_updatePositions();
-	// runCommand<DISABLE_OUTGOING_PARTS> = void kernel_disableOutgoingParts();
-	// runCommand<DISABLE_FREE_SURF_PARTS> = void kernel_disableFreeSurfParts();
-	// runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION> = void kernel_imposeBoundaryCondition();
-	// runCommand<INIT_IO_MASS_VERTEX_COUNT> = void kernel_initIOmass_vertexCount();
-	// runCommand<INIT_IO_MASS> = void kernel_initIOmass();
-	// runCommand<DOWNLOAD_IOWATERDEPTH> = void kernel_download_iowaterdepth();
-	// runCommand<UPLOAD_IOWATERDEPTH> = void kernel_upload_iowaterdepth();
-	/*void uploadMbData();
-	// runCommand<UPLOAD_GRAVITY> = void uploadGravity();*/
 
 	void checkPartValByIndex(CommandStruct const& cmd,
 		const char* printID, const uint pindex);
-
-	// asynchronous alternative to kernel_force
-	// runCommand<FORCES_ENQUEUE> = void kernel_forces_async_enqueue();
-	// runCommand<FORCES_COMPLETE> = void kernel_forces_async_complete();
 
 	// A pair holding the read and write buffer lists
 	using BufferListPair = std::pair<const BufferList, BufferList>;
@@ -321,7 +400,7 @@ private:
 public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, devcount_t _devnum);
-	~GPUWorker();
+	virtual ~GPUWorker();
 
 	// getters of the number of particles
 	uint getNumParticles() const;
@@ -340,7 +419,6 @@ public:
 	void join_worker();
 
 	// utility getters
-	cudaDeviceProp getDeviceProperties();
 	size_t getHostMemory();
 	size_t getDeviceMemory();
 	// for peer transfers: get the buffer `key` from the given buffer state

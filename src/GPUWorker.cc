@@ -26,10 +26,7 @@
  */
 
 /*! \file
- * Implementation of the CUDA-based GPU worker
- *
- * \todo The CUDA-independent part should be split in a separate, generic
- * Worker class.
+ * Implementation of the generic (device-independent) part of the GPU worker
  */
 
 // ostringstream
@@ -38,9 +35,7 @@
 #include <cfloat>
 
 #include "GPUWorker.h"
-#include "cudautil.h"
 
-#include "cudabuffer.h"
 #include "hostbuffer.h"
 
 // round_up
@@ -74,7 +69,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	m_deviceIndex(_deviceIndex),
 	m_globalDeviceIdx(GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex)),
-	m_cudaDeviceNumber(gdata->device[_deviceIndex]),
 
 	// Problem::fillparts() has already been called
 	m_numParticles(gdata->s_hPartsPerDevice[_deviceIndex]),
@@ -102,139 +96,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dIOwaterdepth(NULL),
 	m_dNewNumParticles(NULL),
 
-	m_forcesKernelTotalNumBlocks(),
-
-	m_asyncH2DCopiesStream(0),
-	m_asyncD2HCopiesStream(0),
-	m_asyncPeerCopiesStream(0),
-	m_halfForcesEvent(0)
+	m_forcesKernelTotalNumBlocks()
 {
 	printf("number of forces rigid bodies particles = %d\n", m_numForcesBodiesParticles);
-
-	m_dBuffers.setAllocPolicy(gdata->simframework->getAllocPolicy());
-
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_POS>();
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_VEL>();
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_INFO>();
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>(0);
-
-	if (m_simparams->numforcesbodies) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_FORCES>(0);
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_TORQUES>(0);
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_KEYS>();
-	}
-
-
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CELLSTART>(-1);
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CELLEND>(-1);
-	if (MULTI_DEVICE) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_COMPACT_DEV_MAP>();
-		m_hBuffers.addBuffer<HostBuffer, BUFFER_COMPACT_DEV_MAP>();
-	}
-
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_HASH>();
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
-	m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
-
-	if (HAS_DEM_OR_PLANES(m_simparams->simflags))
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBPLANES>(-1); // neib planes list is initialized to all bits set
-
-	if (HAS_XSPH(m_simparams->simflags))
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
-
-	// TODO we may want to allocate them for delta-SPH in the debugging case
-	if (HAS_CCSPH(m_simparams->simflags)) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_WCOEFF>(0);
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FCOEFF>(0);
-	}
-
-	if (m_simparams->densitydiffusiontype == ANTUONO) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RENORMDENS>(0);
-	}
-
-	// If the user enabled a(n actual) turbulence model, enable BUFFER_TAU, to
-	// store the shear stress tensor.
-	// TODO FIXME temporary: k-eps needs TAU only for temporary storage
-	// across the split kernel calls in forces
-	if (m_simparams->turbmodel > ARTIFICIAL)
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TAU>(0);
-
-	if (m_simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NORMALS>();
-	if (m_simframework->hasPostProcessOption(INTERFACE_DETECTION, BUFFER_NORMALS))
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NORMALS>();
-
-	if (m_simframework->hasPostProcessEngine(VORTICITY))
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VORTICITY>();
-
-	if (HAS_DTADAPT(m_simparams->simflags)) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
-		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
-			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
-		if (m_simparams->turbmodel == KEPSILON)
-			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_KEPS>();
-	}
-
-	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_GRADGAMMA>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_BOUNDELEMENTS>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTICES>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTPOS>();
-	}
-
-	if (m_simparams->boundarytype == DUMMY_BOUNDARY) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DUMMY_VEL>(0);
-	}
-
-	if (m_simparams->turbmodel == KEPSILON) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TKE>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EPSILON>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TURBVISC>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DKDE>(0);
-	}
-
-	if (m_simparams->turbmodel == SPS) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SPS_TURBVISC>();
-	}
-
-	if (NEEDS_EFFECTIVE_VISC(m_simparams->rheologytype))
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EFFVISC>();
-
-	if (m_simparams->rheologytype == GRANULAR) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EFFPRES>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_JACOBI>();
-	}
-
-	if (m_simparams->boundarytype == SA_BOUNDARY &&
-		(HAS_INLET_OUTLET(m_simparams->simflags) || m_simparams->turbmodel == KEPSILON))
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
-
-	if (HAS_INLET_OUTLET(m_simparams->simflags))
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEXTID>();
-
-	if (m_simparams->sph_formulation == SPH_GRENIER) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VOLUME>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SIGMA>();
-	}
-
-	if (m_simframework->hasPostProcessEngine(CALC_PRIVATE)) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE>();
-		if (m_simframework->hasPostProcessOption(CALC_PRIVATE, BUFFER_PRIVATE2))
-			m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE2>();
-		if (m_simframework->hasPostProcessOption(CALC_PRIVATE, BUFFER_PRIVATE4))
-			m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE4>();
-	}
-
-	if (HAS_INTERNAL_ENERGY(m_simparams->simflags)) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>(0);
-	}
-
-	// all workers begin with an "initial upload” state in their particle system,
-	// to hold all the buffers that will be initialized from host
-	m_dBuffers.initialize_state("initial upload");
-
 }
 
 GPUWorker::~GPUWorker() {
@@ -322,10 +186,10 @@ size_t GPUWorker::computeMemoryPerCell()
 void GPUWorker::computeAndSetAllocableParticles()
 {
 	size_t totMemory, memPerCells, freeMemory, safetyMargin;
-	cudaMemGetInfo(&freeMemory, &totMemory);
+	getMemoryInfo(&freeMemory, &totMemory);
 	// TODO configurable
 	#define TWOTO32 (float) (1<<20)
-	printf("Device idx %u: free memory %u MiB, total memory %u MiB\n", m_cudaDeviceNumber,
+	printf("Device idx %u: free memory %u MiB, total memory %u MiB\n", getHardwareDeviceNumber(),
 			(uint)(((float)freeMemory)/TWOTO32), (uint)(((float)totMemory)/TWOTO32));
 	safetyMargin = totMemory/32; // 16MB on a 512MB GPU, 64MB on a 2GB GPU
 	// compute how much memory is required for the cells array
@@ -409,88 +273,6 @@ void GPUWorker::checkBufferUpdate(CommandStruct const& cmd)
 		else if (listed && !need_update)
 			cout <<  buf->get_buffer_name() << " is listed, but is NOT dirty" << endl;
 
-	}
-}
-
-// Start an async inter-device transfer. This will be actually P2P if device can access peer memory
-// (actually, since it is currently used only to import data from other devices, the dstDevice could be omitted or implicit)
-void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int srcDevice, size_t count)
-{
-	if (m_disableP2Ptranfers) {
-		// reallocate if necessary
-		if (count > m_hPeerTransferBufferSize)
-			resizePeerTransferBuffer(count);
-		// transfer Dsrc -> H -> Ddst
-		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hPeerTransferBuffer, src, count, cudaMemcpyDeviceToHost, m_asyncPeerCopiesStream) );
-		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(dst, m_hPeerTransferBuffer, count, cudaMemcpyHostToDevice, m_asyncPeerCopiesStream) );
-	} else
-		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
-}
-
-// Uploads cellStart and cellEnd from the shared arrays to the device memory.
-// Parameters: fromCell is inclusive, toCell is exclusive
-void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
-{
-	const uint numCells = toCell - fromCell;
-	const uint transferSize = sizeof(uint)*numCells;
-
-	// TODO migrate s_dCellStarts to the device mechanism and provide an API
-	// to copy offset data between buffers (even of different types)
-
-	BufferList sorted = m_dBuffers.state_subset("sorted",
-		BUFFER_CELLSTART | BUFFER_CELLEND);
-
-	const uint *src;
-	uint *dst;
-
-	dst = sorted.getData<BUFFER_CELLSTART>() + fromCell;
-	src = gdata->s_dCellStarts[m_deviceIndex] + fromCell;
-	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
-
-	dst = sorted.getData<BUFFER_CELLEND>() + fromCell;
-	src = gdata->s_dCellEnds[m_deviceIndex] + fromCell;
-	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
-}
-
-// wrapper for NetworkManage send/receive methods
-void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid)
-{
-	// reallocate host buffer if necessary
-	if (!gdata->clOptions->gpudirect && _size > m_hNetworkTransferBufferSize)
-		resizeNetworkTransferBuffer(_size);
-
-	if (direction == SND) {
-		if (!gdata->clOptions->gpudirect) {
-			// device -> host buffer, possibly async with forces kernel
-			CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hNetworkTransferBuffer, _ptr, _size,
-				cudaMemcpyDeviceToHost, m_asyncD2HCopiesStream) );
-			// wait for the data transfer to complete
-			cudaStreamSynchronize(m_asyncD2HCopiesStream);
-			// host buffer -> network
-			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, m_hNetworkTransferBuffer);
-		} else {
-			// GPUDirect: device -> network
-			if (gdata->clOptions->asyncNetworkTransfers)
-				gdata->networkManager->sendBufferAsync(m_globalDeviceIdx, peer_gdix, _size, _ptr, bid);
-			else
-				gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
-		}
-	} else {
-		if (!gdata->clOptions->gpudirect) {
-			// network -> host buffer
-			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer);
-			// host buffer -> device, possibly async with forces kernel
-			CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(_ptr, m_hNetworkTransferBuffer, _size,
-				cudaMemcpyHostToDevice, m_asyncH2DCopiesStream) );
-			// wait for the data transfer to complete (actually next iteration could requre no sync, but safer to do)
-			cudaStreamSynchronize(m_asyncH2DCopiesStream);
-		} else {
-			// GPUDirect: network -> device
-			if (gdata->clOptions->asyncNetworkTransfers)
-				gdata->networkManager->receiveBufferAsync(peer_gdix, m_globalDeviceIdx, _size, _ptr, bid);
-			else
-				gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, _ptr);
-		}
 	}
 }
 
@@ -845,6 +627,8 @@ void GPUWorker::transferBurstsSizes()
 // Iterate on the list and send/receive bursts of particles across different nodes
 void GPUWorker::transferBursts(CommandStruct const& cmd)
 {
+	const int hwDeviceNumber = getHardwareDeviceNumber();
+
 	if (cmd.updates.size() > 1)
 		throw invalid_argument(string(getCommandName(cmd)) + " with multiple updates not implemented yet");
 
@@ -905,10 +689,10 @@ void GPUWorker::transferBursts(CommandStruct const& cmd)
 
 				// retrieve peer's indices, if intra-node
 				shared_ptr<const AbstractBuffer> peerbuf;
-				uint peerCudaDevNum = 0;
+				uint peerHwDevNum = 0;
 				if (m_bursts[i].scope == NODE_SCOPE) {
 					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
-					peerCudaDevNum = gdata->device[peerDevIdx];
+					peerHwDevNum = gdata->device[peerDevIdx];
 					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(state, bufkey);
 				}
 
@@ -921,7 +705,7 @@ void GPUWorker::transferBursts(CommandStruct const& cmd)
 						if (m_bursts[i].scope == NODE_SCOPE) {
 							// node scope: just read it
 							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
-							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
+							peerAsyncTransfer(ptr, hwDeviceNumber, peerptr, peerHwDevNum, _size);
 						} else {
 							// network scope: SND or RCV
 							networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
@@ -959,10 +743,10 @@ void GPUWorker::importExternalCells(CommandStruct const& cmd)
 	if ( (cmd.command == APPEND_EXTERNAL) || (cmd.command == UPDATE_EXTERNAL) )
 		transferBursts(cmd);
 
-	// cudaMemcpyPeerAsync() is asynchronous with the host. If striping is disabled, we want to synchronize
+	// device-to-device transfers may be asynchronous with the host. If striping is disabled, we want to synchronize
 	// for the completion of the transfers. Otherwise, FORCES_COMPLETE will synchronize everything
 	if (!gdata->clOptions->striping && MULTI_GPU)
-		cudaDeviceSynchronize();
+		deviceSynchronize();
 
 	// here will sync the MPI transfers when (if) we'll switch to non-blocking calls
 	// if (!gdata->striping && MULTI_NODE)...
@@ -993,8 +777,8 @@ size_t GPUWorker::allocateHostBuffers() {
 			resizeNetworkTransferBuffer(INITIAL_TRANSFER_BUFFER_SIZE);
 
 		// TODO migrate these to the buffer system as well
-		cudaMallocHost(&(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize);
-		cudaMallocHost(&(gdata->s_dCellEnds[m_deviceIndex]), uintCellsSize);
+		allocPinnedBuffer((void**)&(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize);
+		allocPinnedBuffer((void**)&(gdata->s_dCellEnds[m_deviceIndex]), uintCellsSize);
 		allocated += 2*uintCellsSize;
 	}
 
@@ -1053,19 +837,19 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	if (MULTI_DEVICE) {
 		// alloc segment only if not single_device
-		CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
+		allocDeviceBuffer((void**)&m_dSegmentStart, segmentsSize);
+		clearDeviceBuffer(m_dSegmentStart, 0, segmentsSize);
 		allocated += segmentsSize;
 	}
 
 	// water depth at open boundaries
 	if (QUERY_ALL_FLAGS(m_simparams->simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numOpenBoundaries*sizeof(uint)));
+		allocDeviceBuffer((void**)&m_dIOwaterdepth, m_simparams->numOpenBoundaries*sizeof(uint));
 		allocated += m_simparams->numOpenBoundaries*sizeof(uint);
 	}
 
 	// newNumParticles for inlets
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
+	allocDeviceBuffer((void**)&m_dNewNumParticles, sizeof(uint));
 	allocated += sizeof(uint);
 
 	if (m_simparams->numforcesbodies) {
@@ -1082,8 +866,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		}
 		size_t  size = m_numForcesBodiesParticles*sizeof(uint);
 		auto buf = m_dBuffers.get_state_buffer( "initial upload", BUFFER_RB_KEYS);
-		CUDA_SAFE_CALL(cudaMemcpy(buf->get_buffer(), rbnum, size,
-				cudaMemcpyHostToDevice));
+		memcpyHostToDevice(buf->get_buffer(), rbnum, size);
 		buf->mark_valid();
 
 		delete[] rbnum;
@@ -1103,16 +886,16 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 void GPUWorker::deallocateHostBuffers() {
 	if (MULTI_DEVICE) {
-		cudaFreeHost(gdata->s_dCellStarts[m_deviceIndex]);
-		cudaFreeHost(gdata->s_dCellEnds[m_deviceIndex]);
-		free(gdata->s_dSegmentsStart[m_deviceIndex]);
+		freePinnedBuffer(gdata->s_dCellStarts[m_deviceIndex]);
+		freePinnedBuffer(gdata->s_dCellEnds[m_deviceIndex]);
+		freeDeviceBuffer(gdata->s_dSegmentsStart[m_deviceIndex]);
 	}
 
 	if (m_hPeerTransferBuffer)
-		cudaFreeHost(m_hPeerTransferBuffer);
+		freePinnedBuffer(m_hPeerTransferBuffer);
 
 	if (m_hNetworkTransferBuffer)
-		cudaFreeHost(m_hNetworkTransferBuffer);
+		freePinnedBuffer(m_hNetworkTransferBuffer);
 
 	// here: dem host buffers?
 }
@@ -1122,42 +905,22 @@ void GPUWorker::deallocateDeviceBuffers() {
 	m_dBuffers.clear();
 
 	if (MULTI_DEVICE) {
-		CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
+		freeDeviceBuffer(m_dSegmentStart);
 	}
 
-	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
+	freeDeviceBuffer(m_dNewNumParticles);
 
 	if (QUERY_ALL_FLAGS(m_simparams->simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
-		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
+		freeDeviceBuffer(m_dIOwaterdepth);
 
 	if (HAS_DEM(m_simparams->simflags))
 		m_simframework->unsetDEM();
 }
 
-void GPUWorker::createEventsAndStreams()
-{
-	// init streams
-	cudaStreamCreateWithFlags(&m_asyncD2HCopiesStream, cudaStreamNonBlocking);
-	cudaStreamCreateWithFlags(&m_asyncH2DCopiesStream, cudaStreamNonBlocking);
-	cudaStreamCreateWithFlags(&m_asyncPeerCopiesStream, cudaStreamNonBlocking);
-	// init events
-	cudaEventCreate(&m_halfForcesEvent);
-}
-
-void GPUWorker::destroyEventsAndStreams()
-{
-	// destroy streams
-	cudaStreamDestroy(m_asyncD2HCopiesStream);
-	cudaStreamDestroy(m_asyncH2DCopiesStream);
-	cudaStreamDestroy(m_asyncPeerCopiesStream);
-	// destroy events
-	cudaEventDestroy(m_halfForcesEvent);
-}
-
 void GPUWorker::printAllocatedMemory()
 {
-	printf("Device idx %u (CUDA: %u) allocated %s on host, %s on device\n"
-			"  assigned particles: %s; allocated: %s\n", m_deviceIndex, m_cudaDeviceNumber,
+	printf("Device idx %u (%s: %u) allocated %s on host, %s on device\n"
+			"  assigned particles: %s; allocated: %s\n", m_deviceIndex, getHardwareType(), getHardwareDeviceNumber(),
 			gdata->memString(getHostMemory()).c_str(),
 			gdata->memString(getDeviceMemory()).c_str(),
 			gdata->addSeparators(m_numParticles).c_str(), gdata->addSeparators(m_numAllocatedParticles).c_str());
@@ -1204,6 +967,7 @@ void GPUWorker::uploadSubdomain() {
 	// if it is not in the skip list
 	BufferList::const_iterator onhost = gdata->s_hBuffers.begin();
 	const BufferList::const_iterator stop = gdata->s_hBuffers.end();
+	const int hwDeviceNumber = getHardwareDeviceNumber();
 	for ( ; onhost != stop ; ++onhost) {
 		flag_t buf_to_up = onhost->first;
 		shared_ptr<const AbstractBuffer> host_buf = onhost->second;
@@ -1213,7 +977,7 @@ void GPUWorker::uploadSubdomain() {
 
 		if (host_buf->is_invalid()) {
 			printf("Thread %d skipping host buffer %s for device %d (invalid buffer)\n",
-				m_deviceIndex, host_buf->get_buffer_name(), m_cudaDeviceNumber);
+				m_deviceIndex, host_buf->get_buffer_name(), hwDeviceNumber);
 			continue;
 		}
 
@@ -1225,7 +989,7 @@ void GPUWorker::uploadSubdomain() {
 
 		printf("Thread %d uploading %d %s items (%s) on device %d from position %d\n",
 				m_deviceIndex, howManyParticles, buf->get_buffer_name(),
-				gdata->memString(_size).c_str(), m_cudaDeviceNumber, firstInnerParticle);
+				gdata->memString(_size).c_str(), hwDeviceNumber, firstInnerParticle);
 
 		// only do the actual upload if the device is not empty
 		// (unlikely but possible before LB kicks in)
@@ -1238,7 +1002,7 @@ void GPUWorker::uploadSubdomain() {
 			for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
 				void *dstptr = buf->get_buffer(ai);
 				const void *srcptr = host_buf->get_offset_buffer(ai, firstInnerParticle);
-				CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
+				memcpyHostToDevice(dstptr, srcptr, _size);
 			}
 		}
 
@@ -1353,7 +1117,7 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
 			const void *srcptr = buf->get_buffer(ai);
 			void *dstptr = hostbuf->get_offset_buffer(ai, dst_index_offset);
-			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyDeviceToHost));
+			memcpyDeviceToHost(dstptr, srcptr, _size);
 		}
 		// In multi-GPU, only one thread should update the host buffer state,
 		// to avoid crashes due to multiple threads writing the string at the same time
@@ -1380,19 +1144,18 @@ void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 
 	// if the buffer was already allocated, deallocate it first
 	if (prev_size) {
-		// make sure there are no pending / running transfers using the current buffer
+		// sync, because we want to make sure there are no pending / running transfers
+		// using the current buffer
 		// (this can happen if there are 2 non-peered neighbors and the resize triggers
 		// on the second neighbor while transferring data with the first
-		CUDA_SAFE_CALL(cudaStreamSynchronize(m_asyncPeerCopiesStream));
-
-		CUDA_SAFE_CALL(cudaFreeHost(m_hPeerTransferBuffer));
+		freePinnedBuffer(m_hPeerTransferBuffer, true);
 		m_hostMemory -= prev_size;
 	}
 
 	printf("Staging host buffer resized to %zu bytes\n", m_hPeerTransferBufferSize);
 
 	// (re)allocate
-	CUDA_SAFE_CALL(cudaMallocHost(&m_hPeerTransferBuffer, m_hPeerTransferBufferSize));
+	allocPinnedBuffer(&m_hPeerTransferBuffer, m_hPeerTransferBufferSize);
 	m_hostMemory += m_hPeerTransferBufferSize;
 }
 
@@ -1411,15 +1174,14 @@ void GPUWorker::resizeNetworkTransferBuffer(size_t required_size)
 	if (prev_size) {
 		// TODO when we switch to non-blocking MPI calls, we'll have to wait here
 		// for pending transfers, as in resizePeerTransferBuffer()
-
-		CUDA_SAFE_CALL(cudaFreeHost(m_hNetworkTransferBuffer));
+		freePinnedBuffer(m_hNetworkTransferBuffer);
 		m_hostMemory -= prev_size;
 	}
 
 	printf("Staging network host buffer resized to %zu bytes\n", m_hNetworkTransferBufferSize);
 
 	// (re)allocate
-	CUDA_SAFE_CALL(cudaMallocHost(&m_hNetworkTransferBuffer, m_hNetworkTransferBufferSize));
+	allocPinnedBuffer(&m_hNetworkTransferBuffer, m_hNetworkTransferBufferSize);
 	m_hostMemory += m_hNetworkTransferBufferSize;
 }
 
@@ -1438,19 +1200,17 @@ void GPUWorker::runCommand<DUMP_CELLS>(CommandStruct const& cmd)
 
 	src = sorted.getData<BUFFER_CELLSTART>();
 	dst = gdata->s_dCellStarts[m_deviceIndex];
-	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(dst, src, _size);
 
 	src = sorted.getData<BUFFER_CELLEND>();
 	dst = gdata->s_dCellEnds[m_deviceIndex];
-	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(dst, src, _size);
 }
 
 void GPUWorker::downloadSegments()
 {
 	size_t _size = 4 * sizeof(uint);
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dSegmentsStart[m_deviceIndex],
-								m_dSegmentStart,
-								_size, cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(gdata->s_dSegmentsStart[m_deviceIndex], m_dSegmentStart, _size);
 	/* printf("  T%d downloaded segs: (I) %u (IE) %u (OE) %u (O) %u\n", m_deviceIndex,
 			gdata->s_dSegmentsStart[m_deviceIndex][0], gdata->s_dSegmentsStart[m_deviceIndex][1],
 			gdata->s_dSegmentsStart[m_deviceIndex][2], gdata->s_dSegmentsStart[m_deviceIndex][3]); */
@@ -1459,9 +1219,7 @@ void GPUWorker::downloadSegments()
 void GPUWorker::uploadSegments()
 {
 	size_t _size = 4 * sizeof(uint);
-	CUDA_SAFE_CALL(cudaMemcpy(	m_dSegmentStart,
-								gdata->s_dSegmentsStart[m_deviceIndex],
-								_size, cudaMemcpyHostToDevice));
+	memcpyHostToDevice(m_dSegmentStart, gdata->s_dSegmentsStart[m_deviceIndex], _size);
 }
 
 // download segments and update the number of internal particles
@@ -1513,7 +1271,7 @@ void GPUWorker::runCommand<DOWNLOAD_NEWNUMPARTS>(CommandStruct const& cmd)
 	if (m_numParticles == 0) return;
 
 	uint activeParticles;
-	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles, sizeof(uint), cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(&activeParticles, m_dNewNumParticles, sizeof(uint));
 	if (activeParticles > m_numAllocatedParticles) {
 		fprintf(stderr, "ERROR: Number of particles grew too much: %u > %u\n", activeParticles, m_numAllocatedParticles);
 		gdata->quit_request = true;
@@ -1557,7 +1315,7 @@ void GPUWorker::runCommand<UPLOAD_NEWNUMPARTS>(CommandStruct const& cmd)
 {
 	// uploading even if empty (usually not, right after append)
 	// TODO move this to the bcEngine too
-	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
+	memcpyHostToDevice(m_dNewNumParticles, &m_numParticles, sizeof(uint));
 }
 
 void GPUWorker::uploadNumOpenVertices() {
@@ -1677,7 +1435,7 @@ void GPUWorker::uploadCompactDeviceMap() {
 	const uint *src = m_hBuffers.getData<BUFFER_COMPACT_DEV_MAP>();
 
 	const size_t _size = m_nGridCells * sizeof(uint);
-	CUDA_SAFE_CALL(cudaMemcpy(dst, src, _size, cudaMemcpyHostToDevice));
+	memcpyHostToDevice(dst, src, _size);
 	buf->mark_valid();
 }
 
@@ -1699,18 +1457,9 @@ GlobalData* GPUWorker::getGlobalData() {
 	return gdata;
 }
 
-unsigned int GPUWorker::getCUDADeviceNumber()
-{
-	return m_cudaDeviceNumber;
-}
-
 devcount_t GPUWorker::getDeviceIndex()
 {
 	return m_deviceIndex;
-}
-
-cudaDeviceProp GPUWorker::getDeviceProperties() {
-	return m_deviceProperties;
 }
 
 size_t GPUWorker::getHostMemory() {
@@ -1726,42 +1475,9 @@ shared_ptr<const AbstractBuffer> GPUWorker::getBuffer(std::string const& state, 
 	return m_dBuffers.get_state_buffer(state, key);
 }
 
-void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
-	m_deviceProperties = _m_deviceProperties;
-}
-
-// enable direct p2p memory transfers by allowing the other devices to access the current device memory
-void GPUWorker::enablePeerAccess()
-{
-	// iterate on all devices
-	for (uint d=0; d < gdata->devices; d++) {
-		// skip self
-		if (d == m_deviceIndex) continue;
-		// read peer's CUDA device number
-		uint peerCudaDevNum = gdata->device[d];
-		// is peer access possible?
-		int res;
-		cudaDeviceCanAccessPeer(&res, m_cudaDeviceNumber, peerCudaDevNum);
-		// update value in table
-		gdata->s_hDeviceCanAccessPeer[m_deviceIndex][d] = (res == 1);
-		if (res == 0) {
-			// if this happens, peer copies will be buffered on host. We do it explicitly on a dedicated
-			// host buffer instead of letting the CUDA runtime do it automatically
-			m_disableP2Ptranfers = true;
-			printf("WARNING: device %u (CUDA device %u) cannot enable direct peer access for device %u (CUDA device %u)\n",
-				m_deviceIndex, m_cudaDeviceNumber, d, peerCudaDevNum);
-		} else
-			cudaDeviceEnablePeerAccess(peerCudaDevNum, 0);
-	}
-
-	if (m_disableP2Ptranfers)
-		printf("Device %u (CUDA device %u) could not enable complete peer access; will stage P2P transfers on host\n",
-			m_deviceIndex, m_cudaDeviceNumber);
-}
-
 void GPUWorker::initialize()
 {
-	// allow peers to access the device memory (for cudaMemcpyPeer[Async])
+	// allow peers to access the device memory (for asynchronous device-to-device transfers)
 	enablePeerAccess();
 
 	// compute #parts to allocate according to the free memory on the device
@@ -1809,7 +1525,7 @@ void GPUWorker::finalize()
 	deallocateDeviceBuffers();
 	// ...what else?
 
-	cudaDeviceReset();
+	deviceReset();
 }
 
 template<>
@@ -1870,7 +1586,7 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 	const BufferList unsorted =
 		extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList sorted =
-		// updates holds the buffers sorted in SORT, which will only be read actually
+		// updates holds the buffers sorted in SORT, which will only be /read actually
 		extractExistingBufferList(m_dBuffers, cmd.updates) |
 		// the writes specification includes a dynamic buffer selection,
 		// because the sorted state will have the buffers that were also
@@ -2174,7 +1890,7 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 			nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
 
 		// the following event will be used to wait for the first stripe to complete
-		cudaEventRecord(m_halfForcesEvent, 0);
+		recordHalfForceEvent();
 
 		// enqueue the second kernel call (on the rest)
 		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(cmd, buffer_lists,
@@ -2184,7 +1900,7 @@ void GPUWorker::runCommand<FORCES_ENQUEUE>(CommandStruct const& cmd)
 		// cause any overhead (waiting here means waiting before next barrier, which means that devices which are
 		// faster in the computation of the first stripe have to wait the others before issuing the second). However,
 		// we need to ensure that the first stripe is finished in the *other* devices, before importing their cells.
-		cudaEventSynchronize(m_halfForcesEvent);
+		syncHalfForceEvent();
 	} else {
 		// we didn't call forces because we didn't have particles,
 		// but let's mark the write buffers as dirty to be consistent with the workers
@@ -2204,7 +1920,7 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 
 	if (numPartsToElaborate > 0 ) {
 		// wait for the completion of the kernel
-		cudaDeviceSynchronize();
+		deviceSynchronize();
 
 		// cleanup post forces and get dt
 		returned_dt = post_forces(cmd);
@@ -3140,8 +2856,7 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 
 	// get particle info
 	particleinfo pinfo;
-	CUDA_SAFE_CALL(cudaMemcpy(&pinfo, bufread.getData<BUFFER_INFO>() + pindex, sizeof(particleinfo),
-		cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(&pinfo, bufread.getData<BUFFER_INFO>() + pindex, sizeof(particleinfo));
 
 	// this is the right place to filter for particle type, e.g.:
 	// if (!FLUID(pinfo)) return;
@@ -3149,8 +2864,7 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 	/*
 	// get hash
 	hashKey phash;
-	CUDA_SAFE_CALL(cudaMemcpy(&phash, m_dBuffers.getData<BUFFER_HASH>() + pindex,
-		sizeof(hashKey), cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(&phash, m_dBuffers.getData<BUFFER_HASH>() + pindex, sizeof(hashKey));
 	uint3 gridpos = gdata->calcGridPosFromCellHash(cellHashFromParticleHash(phash));
 	printf("HHd%u_%s: id %u (%s) idx %u IT %u, phash %lx, cell %u (%d,%d,%d)\n",
 		m_deviceIndex, printID, id(pinfo),
@@ -3161,10 +2875,8 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 
 	// get vel(s)
 	float4 rVel, wVel;
-	CUDA_SAFE_CALL(cudaMemcpy(&rVel, bufread.getData<BUFFER_VEL>() + pindex,
-		sizeof(float4), cudaMemcpyDeviceToHost));
-	CUDA_SAFE_CALL(cudaMemcpy(&wVel, bufwrite.getData<BUFFER_VEL>() + pindex,
-		sizeof(float4), cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(&rVel, bufread.getData<BUFFER_VEL>() + pindex, sizeof(float4));
+	memcpyDeviceToHost(&wVel, bufwrite.getData<BUFFER_VEL>() + pindex, sizeof(float4));
 	printf("XXd%u_%s: id %u (%s) idx %u IT %lu, readVel (%g,%g,%g %g) writeVel  (%g,%g,%g %g)\n",
 		m_deviceIndex, printID, id(pinfo),
 		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
@@ -3175,10 +2887,8 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 	// get pos(s)
 	// WARNING: it is a *local* pos! It is only useful if we are checking for relative distances of clearly wrong values
 	float4 rPos, wPos;
-	CUDA_SAFE_CALL(cudaMemcpy(&rPos, bufread.getData<BUFFER_POS>() + pindex,
-		sizeof(float4), cudaMemcpyDeviceToHost));
-	CUDA_SAFE_CALL(cudaMemcpy(&wPos, bufwrite.getData<BUFFER_POS>() + pindex,
-		sizeof(float4), cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(&rPos, bufread.getData<BUFFER_POS>() + pindex, sizeof(float4));
+	memcpyDeviceToHost(&wPos, bufwrite.getData<BUFFER_POS>() + pindex, sizeof(float4));
 	printf("XXd%u_%s: id %u (%s) idx %u IT %u, readPos (%g,%g,%g %g) writePos (%g,%g,%g %g)\n",
 		m_deviceIndex, printID, id(pinfo),
 		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
@@ -3189,8 +2899,7 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 	/*
 	// get force
 	float4 force;
-	CUDA_SAFE_CALL(cudaMemcpy(&force, bufread.getData<BUFFER_FORCES>() + pindex,
-		sizeof(float4), cudaMemcpyDeviceToHost));
+	memcpyDeviceToHost(&force, bufread.getData<BUFFER_FORCES>() + pindex, sizeof(float4));
 	printf("XXd%u_%s: id %u (%s) idx %u IT %u, force (%g,%g,%g %g)\n",
 		m_deviceIndex, printID, id(pinfo),
 		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
@@ -3203,10 +2912,8 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
 		// get grad_gammas
 		float4 rGgam, wGgam;
-		CUDA_SAFE_CALL(cudaMemcpy(&rGgam, m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]) + pindex,
-			sizeof(float4), cudaMemcpyDeviceToHost));
-		CUDA_SAFE_CALL(cudaMemcpy(&wGgam, m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]) + pindex,
-			sizeof(float4), cudaMemcpyDeviceToHost));
+		memcpyDeviceToHost(&rGgam, bufread.getData<BUFFER_GRADGAMMA>() + pindex, sizeof(float4));
+		memcpyDeviceToHost(&wGgam, bufwrite.getData<BUFFER_GRADGAMMA>() + pindex, sizeof(float4));
 		printf("XXd%u_%s: id %u (%s) idx %u IT %u, rGGam (%g,%g,%g %g) wGGam (%g,%g,%g %g)\n",
 			m_deviceIndex, printID, id(pinfo),
 			(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
@@ -3216,12 +2923,9 @@ void GPUWorker::checkPartValByIndex(CommandStruct const& cmd,
 		if (BOUNDARY(pinfo)) {
 			// get vert pos
 			float2 vPos0, vPos1, vPos2;
-			CUDA_SAFE_CALL(cudaMemcpy(&vPos0, m_dBuffers.getData<BUFFER_VERTPOS>(0) + pindex,
-				sizeof(float2), cudaMemcpyDeviceToHost));
-			CUDA_SAFE_CALL(cudaMemcpy(&vPos1, m_dBuffers.getData<BUFFER_VERTPOS>(1) + pindex,
-				sizeof(float2), cudaMemcpyDeviceToHost));
-			CUDA_SAFE_CALL(cudaMemcpy(&vPos2, m_dBuffers.getData<BUFFER_VERTPOS>(2) + pindex,
-				sizeof(float2), cudaMemcpyDeviceToHost));
+			memcpyDeviceToHost(&vPos0, bufread.getData<BUFFER_VERTPOS>(0) + pindex, sizeof(float2));
+			memcpyDeviceToHost(&vPos1, bufread.getData<BUFFER_VERTPOS>(1) + pindex, sizeof(float2));
+			memcpyDeviceToHost(&vPos2, bufread.getData<BUFFER_VERTPOS>(2) + pindex, sizeof(float2));
 			// printf...
 		}
 	}
@@ -3346,7 +3050,7 @@ void GPUWorker::simulationThread() {
 
 	try {
 
-		setDeviceProperties( checkCUDA(gdata, m_deviceIndex) );
+		setDeviceProperties();
 
 		initialize();
 
