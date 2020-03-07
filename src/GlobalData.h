@@ -87,6 +87,12 @@ class Writer;
 
 #include "ProblemCore.h"
 
+enum SupportedDeviceTypes
+{
+	CUDA_DEVICE,
+	CPU_DEVICE
+};
+
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
@@ -97,6 +103,9 @@ struct GlobalData {
 	// Are we resuming? This can be used as a shortcut instead of checking for emptiness
 	// of the resume name in clOptions
 	bool resume;
+
+	// compute device type (GPU or CPU)
+	SupportedDeviceTypes deviceType;
 
 	// # of GPUs running
 
@@ -287,6 +296,7 @@ struct GlobalData {
 	GlobalData(void):
 		ret(0),
 		resume(false),
+		deviceType(CUDA_DEVICE),
 		devices(0),
 		mpi_nodes(0),
 		mpi_rank(-1),

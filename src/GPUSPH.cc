@@ -46,8 +46,9 @@
 // HostBuffer
 #include "hostbuffer.h"
 
-// CUDAWorker
+// Workers
 #include "CUDAWorker.h"
+#include "CPUWorker.h"
 
 // div_up
 #include "utils.h"
@@ -543,8 +544,14 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// allocate workers
 	gdata->GPUWORKERS.reserve(gdata->devices);
-	for (uint d=0; d < gdata->devices; d++)
-		gdata->GPUWORKERS.push_back( make_shared<CUDAWorker>(gdata, d) );
+	for (uint d=0; d < gdata->devices; d++) {
+		shared_ptr<GPUWorker> worker;
+		if (gdata->deviceType == CUDA_DEVICE)
+			worker = make_shared<CUDAWorker>(gdata, d);
+		else
+			worker = make_shared<CPUWorker>(gdata, d);
+		gdata->GPUWORKERS.push_back(worker);
+	}
 
 	// actually start the threads
 	for (uint d = 0; d < gdata->devices; d++)
