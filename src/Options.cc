@@ -46,8 +46,11 @@ vector<int> parse_devices_string(const char *argv)
 	string dev_string;
 	while (getline(tokenizer, dev_string, ',')) {
 		int next_dev = -1;
-		// if this could be parsed like an unsitned integer:
+		// if this could be parsed like an unsigned integer, use it as device number
+		// otherwise, if it's the string 'cpu', append -1
 		if (sscanf(dev_string.c_str(), "%u", &next_dev)>0) {
+			ret.push_back(next_dev);
+		} else if (dev_string == "cpu") {
 			ret.push_back(next_dev);
 		} else {
 			throw invalid_argument("token " + dev_string + " is not a number");

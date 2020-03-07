@@ -303,6 +303,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 
 
 	for (auto dev : _clOptions->devices) {
+		if (dev == -1) {
+			printf("Switching to experimental CPU worker\n");
+			gdata->deviceType = CPU_DEVICE;
+			dev = 0;
+		}
 		if (gdata->devices == MAX_DEVICES_PER_NODE) {
 			printf("WARNING: devices exceeding number %u will be ignored\n",
 					gdata->device[MAX_DEVICES_PER_NODE-1]);
@@ -311,6 +316,9 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		gdata->device[gdata->devices] = dev;
 		++gdata->devices;
 		++gdata->totDevices;
+	}
+	if (gdata->deviceType == CPU_DEVICE && gdata->devices > 1) {
+		throw std::invalid_argument("Multi-device is not supported when running on CPU");
 	}
 
 	// Check if pipeline script path is defined and the file exists
