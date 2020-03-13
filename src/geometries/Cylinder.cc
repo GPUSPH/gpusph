@@ -486,7 +486,7 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 
 		cable->SetSection(msection_cable);
 		// set alpha damping TODO set from problem?
-		cable->SetAlphaDamp(0.0033);
+		cable->SetAlphaDamp(0.003);
 		//cable->SetAlphaDamp(0.003397);
 
 		// Add element to mesh
