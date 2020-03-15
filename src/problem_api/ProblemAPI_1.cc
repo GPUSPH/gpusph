@@ -1611,6 +1611,7 @@ void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 }
 
 
+#if USE_CHRONO == 1
 
 /*********** Utility functions for GT_FEA_DEFORMABLE_JOINT ******************/
 // function to sort nodes according to the distance from the center of the joint
@@ -1631,6 +1632,7 @@ bool is_above(::chrono::ChVector<> p1, ::chrono::ChVector<> p2, ::chrono::ChVect
 }
 /******************************************************************************/
 
+#endif
 
 
 int ProblemAPI<1>::fill_parts(bool fill)

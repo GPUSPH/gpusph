@@ -27,6 +27,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cfloat>
 #include <iostream>
 
 // for smart pointers
@@ -711,6 +712,7 @@ void Cube::shift(const double3 &offset)
 */
 int4 Cube::getOwningNodes(const double4 abs_coords)
 {
+#if USE_CHRONO == 1
 	// get relative position of the point inside the geometry
 	double4 rel_coords = make_double4(abs_coords.x - m_origin(0), abs_coords.y - m_origin(1), abs_coords.z - m_origin(2), 0);
 
@@ -789,12 +791,14 @@ int4 Cube::getOwningNodes(const double4 abs_coords)
 	NG = m_fea_nodes_offset[NG];
 
 	return make_int4(NA, NC, NE, NG);
+#endif
 }
 
 // Get natural coordinates of a point, inside the geometry, with respect to the element the point is associated to.
 // The associated element is recalled by means of its nodes using the function getOwningNodes
 float4 Cube::getNaturalCoords(const double4 abs_coords)
 {
+#if USE_CHRONO == 1
 	// get relative position of the point inside the geometry
 	double4 rel_coords = make_double4(abs_coords.x - m_origin(0), abs_coords.y - m_origin(1), abs_coords.z - m_origin(2), 0);
 
@@ -838,6 +842,7 @@ float4 Cube::getNaturalCoords(const double4 abs_coords)
 	const int el_type_id = 0;
 
 	return make_float4(nat_coord_x, nat_coord_y, nat_coord_z, el_type_id);
+#endif
 }
 
 

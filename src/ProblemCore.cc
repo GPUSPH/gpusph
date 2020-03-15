@@ -235,7 +235,9 @@ ProblemCore::InitializeChronoFEA()
 void
 ProblemCore::SetFeaReady()
 {
+#if USE_CHRONO == 1
 	m_fea_system->SetupInitial();
+#endif
 }
 
 void ProblemCore::FinalizeChronoFEA(void)
@@ -385,6 +387,7 @@ ProblemCore::add_fea_body(Object* object)
 	simparams()->numfeabodies++;
 }
 
+#if USE_CHRONO == 1
 // Simulate a ground where to attach FEA structures: defined the ground (a plane, analytically) set
 // fixed all the nodes that are in the negative side of the plane
 void
@@ -425,6 +428,7 @@ ProblemCore::groundFeaNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh)
 		}
 	}
 }
+#endif
 
 void
 ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint numparts, const int firstindex, const int lastindex)
@@ -529,6 +533,8 @@ size_t
 ProblemCore::get_fea_objects_numnodes(void)
 {
 	size_t total_parts = 0;
+
+#if USE_CHRONO == 1
 	for (vector<FeaBodyData *>::iterator it = m_fea_bodies.begin() ; it != m_fea_bodies.end(); ++it) {
 		total_parts += (*it)->object->GetNumFeaNodes();
 	}
@@ -537,6 +543,7 @@ ProblemCore::get_fea_objects_numnodes(void)
 	if (gdata->iterations == 0 && total_parts) {
 		m_old_fea_vel.resize(total_parts);
 	}
+#endif
 
 	return total_parts;
 }
@@ -701,6 +708,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const in
 void
 ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const double t,  const int step)
 {
+#if USE_CHRONO == 1
 	const float4 *forces = buffers.getConstData<BUFFER_FEA_EXCH>(); // contains forces from (FSI)
 	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
 
@@ -743,6 +751,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 			o ++;
 		}
 	}
+#endif
 }
 
 #endif
@@ -825,6 +834,7 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 void
 ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  double dt, const bool dofea, const uint fea_every)
 {
+#if USE_CHRONO == 1
 
 	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
 	float4 *fea_vel = buffers.getData<BUFFER_FEA_EXCH>(); // here we put the data from FEA (node velocities) that will be used to move the associated particles
@@ -888,6 +898,7 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 
 		/*FIXME DISCUSS alternatively we could fo FEA for the SPH dt and fea_every times the displacement*/
 	}
+#endif
 }
 
 #endif

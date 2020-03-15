@@ -29,6 +29,7 @@
 #define	OBJECT_H
 
 #include <stdexcept>
+#include <memory>
 
 #include "Point.h"
 #include "EulerParameters.h"
@@ -107,7 +108,9 @@ class Object {
 			m_mass = 0.0;
 			m_center = Point(0,0,0);
 			m_numParts = 0;
+#if USE_CHRONO == 1
 			m_previous_nodes = 0;
+#endif
 			m_isFixed = false;
 			m_inertia[0] = NAN;
 			m_inertia[1] = NAN;
@@ -159,9 +162,11 @@ class Object {
 		/// Returns the particle vector associated with the fea nodes 
 		PointVect& GetFeaNodes(void);
 
+#if USE_CHRONO == 1
 		bool reduceNodes(std::shared_ptr<::chrono::fea::ChNodeFEAxyz> newNode, ::chrono::ChSystem * fea_system, std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>>&);
 
 		void set_previous_nodes_num(::chrono::ChSystem * fea_system);
+#endif
 
 		/// Sets the number of particles associated with an object
 		void SetNumParts(const int numParts);
@@ -265,6 +270,7 @@ class Object {
 		void Intersect(PointVect&, const double) const;
 		//@}
 
+#if USE_CHRONO == 1
 		/// Handle joining of FEA nodes
 		//@{
 		uint JoinFeaNodes(::chrono::ChSystem* fea_system, std::shared_ptr<::chrono::fea::ChMesh>, const double dx);
@@ -276,6 +282,7 @@ class Object {
 			const uint num_prev_nodes,
 			std::vector<bool>& ext_forces_flags);
 		//@}
+#endif
 
 		/// Detect if a particle is inside an object
 		/*!	Detect if a particle is located inside the object or at a distance inferior

@@ -256,6 +256,7 @@ Object::GetFeaNodes(void)
 	return m_fea_nodes;
 }
 
+#if USE_CHRONO == 1
 bool
 Object::reduceNodes(std::shared_ptr<::chrono::fea::ChNodeFEAxyz> newNode,
 	::chrono::ChSystem * fea_system,
@@ -316,6 +317,7 @@ Object::set_previous_nodes_num(::chrono::ChSystem * fea_system)
 	}
 	std::cout << "initialized m_previous_nodes = " << m_previous_nodes << std::endl;
 }
+#endif
 
 /// Sets the number of particles associated with an object
 void Object::SetNumParts(const int numParts)
@@ -449,6 +451,7 @@ Object::FillDiskBorder(PointVect& points, const EulerParameters& ep, const Point
 	return nparts;
 }
 
+#if USE_CHRONO == 1
 uint Object::JoinFeaNodes(::chrono::ChSystem* ch_system, std::shared_ptr<::chrono::fea::ChMesh> fea_mesh, const double dx)
 {
 	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
@@ -554,6 +557,7 @@ uint Object::findForceNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh,
 
 	return nadded;
 }
+#endif
 
 /// Remove particles from particle vector
 /*! Remove the particles of particles vector lying inside the object

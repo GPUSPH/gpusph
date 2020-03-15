@@ -550,7 +550,9 @@ class ProblemCore
 		void allocate_bodies_storage();
 		void add_moving_body(Object *, const MovingBodyType);
 		void add_fea_body(Object *);
+#if USE_CHRONO == 1
 		void groundFeaNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh);
+#endif
 		void restore_moving_body(const MovingBodyData &, const uint, const int, const int);
 		const MovingBodiesVect& get_mbvect() const
 		{ return m_bodies; };
