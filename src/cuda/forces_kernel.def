@@ -2103,8 +2103,8 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 
 	const float diff_term = d_densityDiffCoeff*d_sscoeff[fType]*
 		(volume_ratio(pdata, ndata) - 1)*
-		//corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.relPos.w);
-		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
+		corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.relPos.w);
+//		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
 
 	// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
 

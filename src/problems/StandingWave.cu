@@ -54,10 +54,11 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	const DensityDiffusionType rhodiff = get_option("density-diffusion", COLAGROSSI);
 
 	SETUP_FRAMEWORK(
-		viscosity<DYNAMICVISC>,
+		viscosity<ARTVISC>,
 		periodicity<PERIODIC_XY>,
 		boundary<LJ_BOUNDARY>,
-		add_flags<ENABLE_CSPM>
+		add_flags<ENABLE_CSPM | ENABLE_INTERNAL_ENERGY>
+		//add_flags<ENABLE_CSPM>
 	).select_options(
 		rhodiff,
 		m_usePlanes, add_flags<ENABLE_PLANES>()
@@ -113,7 +114,10 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	add_fluid(1000.0);
 	set_equation_of_state(0, 7.0f, c0);
 
+	simparams()->tend = 22.0;
 	set_kinematic_visc(0, 1.0e-6f);
+
+	physparams()->artvisccoeff = 1e-6*8/(c0*simparams()->slength);
 
 
 	// Setting the standing wave from eq. 8 in Antuono et al 2011

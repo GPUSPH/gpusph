@@ -387,7 +387,8 @@ cspmCoeffDevice(
 	//symtensor3 a_inverse;
 	//if (D > 0.35 && !close_to_boundary)
 
-	if (num_neibs > 48 && !close_to_boundary){
+	//if (!close_to_boundary){
+	if (num_neibs > 42 && !close_to_boundary){
 		const float D = kbn_det(fcoeff);
 		a_inverse = inverse(fcoeff, D);
 	} else {
