@@ -121,13 +121,48 @@ struct fea_particle_data
 	uint4 fea_ref_nodes;
 
 	__device__ __forceinline__
+	fea_particle_data(int part_id, int2 const& node_start_index, int2 const& parts_start_index, fea_euler_params const& params, particleinfo const& info)  :
+
+		fea_disp(make_float4(NAN)),
+		fea_nat_coords(make_float4(NAN)),
+		fea_ref_nodes(make_uint4(0, 0, 0, 0))
+	{
+		int node_index = part_id + node_start_index.x - node_start_index.y;
+		int parts_index = part_id + parts_start_index.x - parts_start_index.y;
+
+		if (FEA_NODE(info)){
+			if(node_index < 0)
+				printf("N %d %d %d %d\n", node_index, part_id, node_start_index.x, node_start_index.y);
+			else
+				fea_disp = params.fea_displacements[node_index];
+		}
+
+		if (DEFORMABLE(info)){
+			if(parts_index < 0)
+				printf("P %d %d %d %d\n", parts_index, part_id, parts_start_index.x, parts_start_index.y);
+			else{
+				fea_nat_coords = d_feapartsnatcoords[parts_index];
+				fea_ref_nodes = d_feapartsownnodes[parts_index];
+			}
+		}
+	}
+
+	__device__ __forceinline__
+	fea_particle_data(int part_id, int obj_id, fea_euler_params const& params, particleinfo const& info)  :
+		fea_particle_data(part_id, d_feanodesstartindex[obj_id], d_feapartsstartindex[obj_id], params, info)
+	{}
+
+	__device__ __forceinline__
+	fea_particle_data(particleinfo const& info, fea_euler_params const& params)  :
+		fea_particle_data(id(info), object(info), params, info)
+	{
+	}
+
+	__device__ __forceinline__
 	fea_particle_data(const uint index, fea_euler_params const& params)  :
-		fea_disp(params.fea_displacements[(int)id(params.info[index]) + d_feanodesstartindex[object(params.info[index])].x - d_feanodesstartindex[object(params.info[index])].y]),
-		fea_nat_coords(d_feapartsnatcoords[(int)id(params.info[index]) + d_feapartsstartindex[object(params.info[index])].x - d_feapartsstartindex[object(params.info[index])].y]),
-		fea_ref_nodes(d_feapartsownnodes[(int)id(params.info[index]) + d_feapartsstartindex[object(params.info[index])].x - d_feapartsstartindex[object(params.info[index])].y])
+		fea_particle_data(params.info[index], params)
 	{}
 };
-
 
 /// The actual euler_particle_data struct, which concatenates all of the above, as appropriate.
 template<typename EP, ///< euler_param template specialization
