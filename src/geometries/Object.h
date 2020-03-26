@@ -281,6 +281,11 @@ class Object {
 			const double dx,
 			const uint num_prev_nodes,
 			std::vector<bool>& ext_forces_flags);
+		uint findNodesToWrite(std::shared_ptr<::chrono::fea::ChMesh>,
+			const double dx,
+			const uint num_prev_nodes,
+			std::vector<int>& writing_nodes_indices,
+			std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>>& writing_nodes_pointers);
 		//@}
 #endif
 

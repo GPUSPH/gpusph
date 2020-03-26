@@ -89,6 +89,10 @@ class Writer;
 
 #include "debugflags.h"
 
+#if USE_CHRONO
+#include "chrono/fea/ChNodeFEAxyzD.h"
+#endif
+
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
@@ -256,6 +260,11 @@ struct GlobalData {
 	int2* s_hFeaPartsFirstIndex; // first indices of boundary particles in fea bodies: so euler kernel knows where to read fea body force
 
 	std::vector<bool> s_hFeaExtForce;	// true if external force is being applied to the node
+	std::vector<int> s_hWriteFeaNodesIndices;	// indices of the fea nodes to be wirtten on file 
+#if USE_CHRONO
+	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> s_hWriteFeaNodesPointers;	// pointers to nodes to be written 
+#endif
+	float s_fea_writer_timer;				// Tracks time from last FEA nodes write
 	float4* s_hFeaNatCoords; //natural coordinates of the fea particles
 	uint4* s_hFeaOwningNodes; // indices of the nodes relative to the owning element
 
@@ -346,6 +355,7 @@ struct GlobalData {
 		s_hFeaNodesFirstIndex(NULL),
 		s_hFeaPartsFirstIndex(NULL),
 		s_hFeaExtForce(),
+		s_fea_writer_timer(0.0f),
 		s_hFeaNatCoords(NULL),
 		s_hFeaOwningNodes(NULL),
 		h_IOwaterdepth(NULL),

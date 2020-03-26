@@ -62,7 +62,8 @@ enum GeometryType {	GT_FLUID,
 					GT_DEFORMABLE_BODY,
 					GT_FEA_RIGID_JOINT,
 					GT_FEA_FLEXIBLE_JOINT,
-					GT_FEA_FORCE
+					GT_FEA_FORCE,
+					GT_FEA_WRITE
 };
 
 enum FillType {	FT_NOFILL,

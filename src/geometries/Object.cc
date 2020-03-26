@@ -557,6 +557,41 @@ uint Object::findForceNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh,
 
 	return nadded;
 }
+
+uint Object::findNodesToWrite(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh,
+	const double dx,
+	const uint num_prev_nodes,
+	std::vector<int>& writing_nodes_indices,
+	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>>& writing_nodes_pointers) // store pointers of nodes to write 
+{
+	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+	uint numnodes = fea_mesh->GetNnodes();
+
+	uint nadded = 0;
+
+	for (uint i = 0; i < numnodes; i++) {
+
+		node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyz>(fea_mesh->GetNode(i));
+		if (!node) throw std::runtime_error("Error: impossible to read nodes in JointFeaNode");
+
+		Point ncords;
+
+		ncords(0) = node->GetPos().x();
+		ncords(1) = node->GetPos().y();
+		ncords(2) = node->GetPos().z();
+
+		uint glob_idx = node->GetIndex() + num_prev_nodes;
+
+		if (IsInside(ncords, dx)){
+			std::cout << "Writing data for node " << glob_idx << std::endl;
+			writing_nodes_indices.push_back(glob_idx);
+			writing_nodes_pointers.push_back(node);
+			nadded ++;
+		}
+	}
+
+	return nadded;
+}
 #endif
 
 /// Remove particles from particle vector

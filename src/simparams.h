@@ -141,6 +141,8 @@ typedef struct SimParams {
 	 * TODO need UI parameters
 	 * @{ */
 	double			t_fea_start;					///<  FEM analysis starting time
+	float			fea_write_every;				///<  FEM nodes written to file every
+	int			numNodesToWrite;				///<  Number of FEM nodes to write
 	uint			feaSph_iterations_ratio;	///<  FEM analysis is computed every feaSph_iterations_ratio sph iterations
 	/** @} */
 
@@ -308,6 +310,7 @@ typedef struct SimParams {
 		dt(0),
 		tend(0),
 		t_fea_start(0),
+		fea_write_every(NAN),
 		feaSph_iterations_ratio(1),
 		dtadaptfactor(0.3f),
 

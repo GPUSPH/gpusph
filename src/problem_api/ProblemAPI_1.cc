@@ -1869,7 +1869,15 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			for (size_t k = 0, num_geoms = m_geometries.size(); k < num_geoms; k++) {
 				if (m_geometries[k]->ptr->HasFeaMesh()){
 
-					nodes_with_force += m_geometries[g]->ptr->findForceNodes(m_geometries[k]->ptr->GetFeaMesh(), m_deltap, num_prev_nodes, gdata->s_hFeaExtForce);
+					std::shared_ptr<::chrono::fea::ChMesh> fea_mesh = m_geometries[k]->ptr->GetFeaMesh();
+
+					nodes_with_force += m_geometries[g]->ptr->findForceNodes(
+						fea_mesh,
+						m_deltap,
+						num_prev_nodes,
+						gdata->s_hFeaExtForce);
+
+					num_prev_nodes += fea_mesh->GetNnodes();
 				}
 			}
 
@@ -1877,6 +1885,43 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			// We need to save the number of nodes we are applying the force to in order
 			// to compute the force per node.
 			simparams()->numForceNodes = nodes_with_force;
+		}
+
+
+		//TODO we could do a GT_FEA_SELECTION that selects a bunch of nodes, and then we decide what to
+		// do on these nodes: e.g. apply force, print, ground, etc.. so we avoid having too many types
+
+		// geometry to confine a region where nodes are written to file
+		if ( m_geometries[g]->type == GT_FEA_WRITE) {
+
+			/* Here we fill a vector of booleans relative to all the FEA nodes in the system.
+			 * The boolean will be true if we want to write the position of the corresponding node.*/
+			uint nodes_to_write = 0; // number of nodes to write
+
+			// The indexing in the vector is global. Since geometries with associated FEA object are not 
+			// necessarily defined in sequence we need to take trace of the current number of visited nodes
+			uint num_prev_nodes = 0; // current number of visited nodes
+
+			for (size_t k = 0, num_geoms = m_geometries.size(); k < num_geoms; k++) {
+				if (m_geometries[k]->ptr->HasFeaMesh()){
+
+					std::shared_ptr<::chrono::fea::ChMesh> fea_mesh = m_geometries[k]->ptr->GetFeaMesh();
+
+					nodes_to_write += m_geometries[g]->ptr->findNodesToWrite(
+						fea_mesh,
+						m_deltap,
+						num_prev_nodes,
+						gdata->s_hWriteFeaNodesIndices,
+						gdata->s_hWriteFeaNodesPointers);
+
+					num_prev_nodes += fea_mesh->GetNnodes();
+				}
+			}
+
+			// The force is distributed over all the nodes contained in the geometry.
+			// We need to save the number of nodes we are applying the force to in order
+			// to compute the force per node.
+			simparams()->numNodesToWrite = nodes_to_write;
 		}
 
 		/*Add a rigid body and attach all the nodes to the rigid body.
