@@ -578,6 +578,7 @@ bool GPUSPH::finalize() {
 	// TODO here, when there will be the Integrator
 	// delete Integrator
 
+
 	printf("Deallocating...\n");
 
 	// stuff for rollCallParticles()
@@ -886,9 +887,8 @@ void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
 
 	if (timer > gdata->problem->simparams()->fea_write_every) {
 		gdata->s_fea_writer_timer = 0.0f;
-		//problem->fea_writert(t);
+		cout << "Simulation time t=" << t << ", writing FEM nodes" << endl;
 		problem->write_fea_nodes(t);
-		printf(" ********simulate writing at %g\n", t);
 
 	}
 }

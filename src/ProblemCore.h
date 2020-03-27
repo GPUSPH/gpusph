@@ -87,6 +87,7 @@ class ProblemCore
 {
 	private:
 		std::string			m_problem_dir;
+		std::ofstream			m_fea_nodes_file;
 		WriterList		m_writers;
 
 		const float		*m_dem;
@@ -208,6 +209,8 @@ class ProblemCore
 		virtual void check_neiblistsize();
 
 		std::string const& create_problem_dir();
+
+		void create_fea_nodes_file(void);
 
 		Options const& get_options(void) const
 		{ return *m_options; }

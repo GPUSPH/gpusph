@@ -237,6 +237,11 @@ ProblemCore::SetFeaReady()
 {
 #if USE_CHRONO == 1
 	m_fea_system->SetupInitial();
+
+	// If there are nodes to write create the output file
+	if (simparams()->numNodesToWrite)
+		create_fea_nodes_file();
+
 #endif
 }
 
@@ -245,6 +250,8 @@ void ProblemCore::FinalizeChronoFEA(void)
 #if USE_CHRONO == 1
 	if (m_fea_system)
 		delete m_fea_system;
+	if (m_fea_nodes_file)
+		m_fea_nodes_file.close();
 #else
 	throw runtime_error ("ProblemCore::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
@@ -579,10 +586,10 @@ ProblemCore::write_fea_nodes(const double t)
 		node = gdata->s_hWriteFeaNodesPointers[i];
 
 		// print nodes position
-		cout << t << '\t' <<
+		m_fea_nodes_file << t << '\t' <<
 		node->GetPos().x() << '\t' <<
 		node->GetPos().y() << '\t' <<
-		node->GetPos().z() << '\n' << endl;
+		node->GetPos().z() << endl;
 	}
 }
 
@@ -858,14 +865,14 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 	// do the actual FEA step
 	if (dofea) {
 
-		printf("fea... \n");
+	//	printf("fea... \n");
 
 		// - we perform FEA during the predictor, where dt is half the complete time-step, then we use 2*dt
 		// - we perform FEA every fea_every SPH steps, then (assuming dt constant over this time) we perform
 		//    FEA using a factor fea_every on the time-step
 		m_fea_system->DoStepDynamics(2*dt*fea_every);
 
-		printf("done\n");
+	//	printf("done\n");
 
 
 		shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
@@ -1523,6 +1530,27 @@ ProblemCore::create_problem_dir(void)
 	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
 	return m_problem_dir;
+}
+
+void
+ProblemCore::create_fea_nodes_file(void)
+{
+	string filename = m_problem_dir + "data/fea_nodes.txt";
+
+	std::cout << "Opening: " << filename << endl;
+	m_fea_nodes_file.open(filename);
+
+	// add columns description
+	m_fea_nodes_file << "time [s]";
+
+	for (int n = 0; n < simparams()->numNodesToWrite; ++n) {
+		int node_id = gdata->s_hWriteFeaNodesIndices[n];
+		m_fea_nodes_file <<
+			"\tNode_" << node_id << "_x [m]" <<
+			"\tNode_" << node_id << "_y [m]" <<
+			"\tNode_" << node_id << "_z [m]";
+	}
+	m_fea_nodes_file << endl;
 }
 
 void
