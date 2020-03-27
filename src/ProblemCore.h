@@ -607,6 +607,7 @@ class ProblemCore
 							KinematicData& kdata, double3& dx, EulerParameters& dr);
 
 		/* Initialize FEA step (e.g. assign forces to nodes)*/
+		void write_fea_nodes(const double t);
 		void fea_init_step( BufferList&, const uint numFeaParts, const double t,  const int step);
 
 		/* Do FEA step -- dynamic */

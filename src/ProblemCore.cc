@@ -570,6 +570,22 @@ ProblemCore::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, fl
 		(make_double3(_gridPos) + 0.5)*m_cellsize);
 }
 
+void
+ProblemCore::write_fea_nodes(const double t)
+{
+	for (int i = 0; i < simparams()->numNodesToWrite; ++i) {
+
+		shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+		node = gdata->s_hWriteFeaNodesPointers[i];
+
+		// print nodes position
+		cout << t << '\t' <<
+		node->GetPos().x() << '\t' <<
+		node->GetPos().y() << '\t' <<
+		node->GetPos().z() << '\n' << endl;
+	}
+}
+
 #if 0 //second order
 void
 ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const int step)
