@@ -207,7 +207,7 @@ ProblemCore::InitializeChronoFEA()
 
 	msolver->SetDiagonalPreconditioning(true);
 	m_fea_system->SetSolverWarmStarting(true);
-	m_fea_system->SetMaxItersSolverSpeed(10000); // TODO calibrate
+	m_fea_system->SetMaxItersSolverSpeed(100000); // TODO calibrate
 	m_fea_system->SetTolForce(1e-10);
 #else
 	auto mkl_solver = std::make_shared<::chrono::ChSolverMKL<>>();
@@ -587,9 +587,13 @@ ProblemCore::write_fea_nodes(const double t)
 
 		// print nodes position
 		m_fea_nodes_file << t << '\t' <<
-		node->GetPos().x() << '\t' <<
+		node->GetPos().x() << '\t'
+#if 0 // write only x component
+		<<
 		node->GetPos().y() << '\t' <<
-		node->GetPos().z() << endl;
+		node->GetPos().z()
+#endif
+		<< endl;
 	}
 }
 
@@ -1535,7 +1539,7 @@ ProblemCore::create_problem_dir(void)
 void
 ProblemCore::create_fea_nodes_file(void)
 {
-	string filename = m_problem_dir + "data/fea_nodes.txt";
+	string filename = m_problem_dir + "/data/fea_nodes.txt";
 
 	std::cout << "Opening: " << filename << endl;
 	m_fea_nodes_file.open(filename);
@@ -1546,9 +1550,14 @@ ProblemCore::create_fea_nodes_file(void)
 	for (int n = 0; n < simparams()->numNodesToWrite; ++n) {
 		int node_id = gdata->s_hWriteFeaNodesIndices[n];
 		m_fea_nodes_file <<
-			"\tNode_" << node_id << "_x [m]" <<
-			"\tNode_" << node_id << "_y [m]" <<
-			"\tNode_" << node_id << "_z [m]";
+			"\tNode_" << node_id << "_x [m]"
+#if 0 //write only x component
+			<<
+			"\tNode_" << node_id << "_y [m]"
+			<<
+			"\tNode_" << node_id << "_z [m]"
+#endif
+			;
 	}
 	m_fea_nodes_file << endl;
 }
