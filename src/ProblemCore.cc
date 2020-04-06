@@ -202,7 +202,6 @@ ProblemCore::InitializeChronoFEA()
 	// Set FEA solver (the way of computing FEM forces, time bottleneck for FEA)
 
 #if 0	//  choose between MINRES or MKL
-	
 	m_fea_system->SetSolverType(::chrono::ChSolver::Type::MINRES);
 	auto msolver = std::static_pointer_cast<::chrono::ChSolverMINRES>(m_fea_system->GetSolver());
 

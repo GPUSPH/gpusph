@@ -2419,7 +2419,6 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 				gdata->s_hFeaNatCoords[i - tot_parts + fea_parts_tracker] = m_geometries[g]->ptr->getNaturalCoords(globalPos[i]);
 				// nodes associated to the element the FG_DEFORMABLE particle belongs to
 				//printf("%g %g %g\n", globalPos[i].x, globalPos[i].y, globalPos[i].z);
-				printf("%u\n", i);
 				int4 nodes = m_geometries[g]->ptr->getOwningNodes(globalPos[i]);
 
 				// the indices of the owning nodes provided by the function are relative to the
