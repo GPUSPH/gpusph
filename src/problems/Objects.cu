@@ -197,7 +197,7 @@ void Objects::fillDeviceMap()
 void Objects::initializeObjectJoints() {
 #if USE_CHRONO == 1
 	// Make a new ChLinkDistance
-	auto joint1 = std::make_shared< ::chrono::ChLinkDistance >();
+	auto joint1 = chrono_type::make_shared< ::chrono::ChLinkDistance >();
 	auto a1 = getGeometryInfo(floating_obj_1)->ptr->GetBody();
 	auto a2 = getGeometryInfo(floating_obj_2)->ptr->GetBody();
 	joint1->SetName("DistanceConstraint");

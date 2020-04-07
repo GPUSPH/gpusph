@@ -192,7 +192,7 @@ STLMesh::load_TetFile(const char *nodes, const char *elems, const double z_frame
 	cout << "loading tet file" << endl;
 	stl = new STLMesh(2); // use 2 just to init. It will be resized once the number of nodes is known
 
-	auto mmaterial = make_shared<::chrono::fea::ChContinuumElastic>();
+	auto mmaterial = chrono_types::make_shared<::chrono::fea::ChContinuumElastic>();
 	// TODO FIXME set material from problem
 	mmaterial->Set_E(10e6);
 	mmaterial->Set_v(0.4);
@@ -200,7 +200,7 @@ STLMesh::load_TetFile(const char *nodes, const char *elems, const double z_frame
 	mmaterial->Set_density(1100);
 
 
-	stl->m_fea_mesh = std::make_shared<::chrono::fea::ChMesh>();
+	stl->m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
 	//the Chrono function FromTetGenFile accepts shared pointers
 	//shared_ptr<::chrono::fea::ChMesh> mesh_sh(ch_mesh);
 
@@ -526,7 +526,7 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 	 */
 
 	// Creating a new Chrono object. Parames: filename, density, compute_mass, collide...)
-	m_body = std::make_shared< ::chrono::ChBodyEasyMesh > (m_objfile, 1000, false, collide);
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyMesh > (m_objfile, 1000, false, collide);
 
 	// retrieve the bounding box
 	::chrono::ChVector<> bbmin, bbmax;

@@ -867,7 +867,7 @@ Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, c
 		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = std::make_shared< ::chrono::ChBodyEasyBox > ( m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide );
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyBox > ( m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
@@ -899,7 +899,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 		throw std::runtime_error("Cube::CreateFEMMesh: Trying to create a body in an invalid physical system!\n");
 
 	cout << "Creating FEM mesh for Cube" << endl;
-	m_fea_mesh = std::make_shared<::chrono::fea::ChMesh>();
+	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
 
 	const double lel_x = m_lx/m_nels.x;
 	const double lel_y = m_ly/m_nels.y;
@@ -917,7 +917,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 		for (int i = 0; i <= m_nels.y; i++)
 			for (int l = 0; l <= m_nels.x; l++) {
 				Point coords = m_origin + Point(lel_x*l, lel_y*i, lel_z*j);
-				auto node = std::make_shared<::chrono::fea::ChNodeFEAxyzD>(::chrono::ChVector<>
+				auto node = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(::chrono::ChVector<>
 					(coords(0), coords(1), coords(2)));
 
 				node->SetMass(0);
@@ -928,7 +928,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 			}
 
 	// Set material properties
-	auto mmaterial = make_shared<::chrono::fea::ChContinuumElastic>();
+	auto mmaterial = chrono_types::make_shared<::chrono::fea::ChContinuumElastic>();
 	mmaterial->Set_E(m_youngModulus);
 	mmaterial->Set_v(m_poissonRatio);
 	mmaterial->Set_density(m_density);
@@ -958,7 +958,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 				int NG = NC + n_in_layer;
 				int NH = ND + n_in_layer;
 
-				auto cube = std::make_shared<::chrono::fea::ChElementHexa_8>();
+				auto cube = chrono_types::make_shared<::chrono::fea::ChElementHexa_8>();
 
 				cube->SetNodes(std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NA)),
 					std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NB)),
@@ -994,7 +994,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 	cout << "Creating ANCF FEM mesh for Cube" << endl;
 
 	// create a new Chrono mesh associated to this geometry
-	m_fea_mesh = std::make_shared<::chrono::fea::ChMesh>();
+	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
 
 	// vector that will store the New nodes created for this mesh
 	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> nodes;
@@ -1026,7 +1026,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 			Point coords = m_origin + l*(1 + 0.0*i)*m_vx/m_nels.x + i*m_vy/m_nels.y + m_vz/2.0;
 
 			// create the node
-			auto node = std::make_shared<::chrono::fea::ChNodeFEAxyzD>(
+			auto node = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(
 				::chrono::ChVector<>(coords(0), coords(1), coords(2)),
 				::chrono::ChVector<>(shell_dir(0), shell_dir(1), shell_dir(2)));
 
@@ -1052,7 +1052,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 	const double shearModulus = m_youngModulus/(2*(1 + m_poissonRatio)); // TODO users may want to have control on this parameter
 	::chrono::ChVector<> G(shearModulus, shearModulus, shearModulus);
 
-	auto mmaterial = make_shared<::chrono::fea::ChMaterialShellANCF>(m_density, m_youngModulus, m_poissonRatio, G);
+	auto mmaterial = chrono_types::make_shared<::chrono::fea::ChMaterialShellANCF>(m_density, m_youngModulus, m_poissonRatio, G);
 
 	// Now we walk through the grid of nodes previously created and we apply elements
 	uint n = -1;// nodes indices explorer
@@ -1075,7 +1075,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 
 
 			// create the new element
-			auto shell = std::make_shared<::chrono::fea::ChElementShellANCF>();
+			auto shell = chrono_types::make_shared<::chrono::fea::ChElementShellANCF>();
 
 			// attach the element to the nodes
 			shell->SetNodes(std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[NA]),

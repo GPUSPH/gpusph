@@ -473,7 +473,7 @@ uint Object::JoinFeaNodes(::chrono::ChSystem* ch_system, std::shared_ptr<::chron
 
 		if (IsInside(ncords, dx)){
 			std::cout << "adding node " << node->GetIndex() << " to joint" << std::endl;
-			auto constraint = std::make_shared<::chrono::fea::ChLinkPointFrame>();
+			auto constraint = chrono_types::make_shared<::chrono::fea::ChLinkPointFrame>();
 			constraint->Initialize(node, m_body);
 			ch_system->Add(constraint);
 			nadded ++;
@@ -684,7 +684,7 @@ Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 		throw std::runtime_error("Object::BodyCreate Trying to create a body in an invalid physical system !\n");
 
 	// Creating a new Chrono object
-	m_body = std::make_shared< ::chrono::ChBody >();
+	m_body = chrono_types::make_shared< ::chrono::ChBody >();
 
 	// Assign cube mass and inertial data to the Chrono object
 	m_body->SetMass(m_mass);

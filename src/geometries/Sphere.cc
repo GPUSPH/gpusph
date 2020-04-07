@@ -176,7 +176,7 @@ Sphere::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 		throw std::runtime_error("Sphere::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = std::make_shared< ::chrono::ChBodyEasySphere > ( m_r + dx/2.0, m_mass/Volume(dx), collide );
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasySphere > ( m_r + dx/2.0, m_mass/Volume(dx), collide );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 

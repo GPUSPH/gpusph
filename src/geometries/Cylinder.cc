@@ -263,7 +263,7 @@ Cylinder::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double d
 		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = std::make_shared< ::chrono::ChBodyEasyCylinder >( m_r + dx/2.0, m_h + dx, m_mass/Volume(dx), collide );
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyCylinder >( m_r + dx/2.0, m_h + dx, m_mass/Volume(dx), collide );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
@@ -411,7 +411,7 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 	cout << "Creating ANCF cables FEM mesh for Cylinder" << endl;
 
 	// create a new Chrono mesh associated to this geometry
-	m_fea_mesh = std::make_shared<::chrono::fea::ChMesh>();
+	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
 
 	// vector that will store the New nodes created for this mesh
 	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> nodes;
@@ -431,7 +431,7 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 		double3 direction = make_double3(0, 0, 1);
 
 		// create the node
-		auto node = std::make_shared<::chrono::fea::ChNodeFEAxyzD>(
+		auto node = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(
 			::chrono::ChVector<>(coords(0), coords(1), coords(2)),
 			::chrono::ChVector<>(direction.x, direction.y, direction.z));
 
@@ -451,7 +451,7 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 
 	}
 
-	auto msection_cable = std::make_shared<::chrono::fea::ChBeamSectionCable>();
+	auto msection_cable = chrono_types::make_shared<::chrono::fea::ChBeamSectionCable>();
 	msection_cable->SetArea((m_r*m_r - m_ri*m_ri)*3.14);
 
 	// We model a hollow cylinder by means of the momentum of inertia.
@@ -478,7 +478,7 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 		int NB = n + 1;
 
 		// create the new element
-		auto cable = std::make_shared<::chrono::fea::ChElementCableANCF>();
+		auto cable = chrono_types::make_shared<::chrono::fea::ChElementCableANCF>();
 
 		// attach the element to the nodes
 		cable->SetNodes(std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[NA]),
