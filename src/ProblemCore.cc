@@ -58,7 +58,7 @@
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/physics/ChSystemSMC.h"
 #include "chrono/solver/ChSolver.h"
-#include "chrono/solver/ChSolverMINRES.h"
+//#include "chrono/solver/ChSolverMINRES.h"
 #include "chrono_mkl/ChSolverMKL.h"
 #include "chrono/fea/ChNodeFEAxyzD.h"
 #endif
@@ -201,7 +201,8 @@ ProblemCore::InitializeChronoFEA()
 
 	// Set FEA solver (the way of computing FEM forces, time bottleneck for FEA)
 
-#if 1	//  choose between MINRES or MKL
+#if 0	//  choose between MINRES or MKL
+	
 	m_fea_system->SetSolverType(::chrono::ChSolver::Type::MINRES);
 	auto msolver = std::static_pointer_cast<::chrono::ChSolverMINRES>(m_fea_system->GetSolver());
 
@@ -209,8 +210,12 @@ ProblemCore::InitializeChronoFEA()
 	m_fea_system->SetSolverWarmStarting(true);
 	m_fea_system->SetMaxItersSolverSpeed(100000); // TODO calibrate
 	m_fea_system->SetTolForce(1e-10);
+
 #else
-	auto mkl_solver = std::make_shared<::chrono::ChSolverMKL<>>();
+	auto mkl_solver = chrono_types::make_shared<::chrono::ChSolverMKL>();
+	mkl_solver->UseSparsityPatternLearner(false);
+	mkl_solver->LockSparsityPattern(false);
+	mkl_solver->SetVerbose(false);
 	m_fea_system->GetSystem()->SetSolver(mkl_solver);
 #endif
 
@@ -236,7 +241,7 @@ void
 ProblemCore::SetFeaReady()
 {
 #if USE_CHRONO == 1
-	m_fea_system->SetupInitial();
+	//m_fea_system->SetupInitial();
 
 	// If there are nodes to write create the output file
 	if (simparams()->numNodesToWrite)
@@ -265,8 +270,10 @@ ProblemCore::InitializeChrono()
 	m_bodies_physical_system = new ::chrono::ChSystemNSC();
 	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(physparams()->gravity.x, physparams()->gravity.y,
 		physparams()->gravity.z));
+	/*
 	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
 	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::SOR);
+	*/
 	// For debug purposes
 	/*
 	const double chronoSuggEnv = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedEnvelope();
