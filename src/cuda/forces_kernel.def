@@ -152,8 +152,8 @@ wants_volumic_visc_term()
 {
 	return
 		FP::nptype != PT_BOUNDARY ||
-		FP::boundarytype == DYN_BOUNDARY ||
-		FP::boundarytype == DUMMY_BOUNDARY;
+		FP::boundarytype == DYN_BOUNDARY;
+		//FP::boundarytype == DUMMY_BOUNDARY;
 }
 
 /// Selector for k-epsilon differential equations terms
@@ -2818,6 +2818,16 @@ compute_turb_visc_contrib
 
 /* TODO the boundary term is not defined, so this model isn't currently supported
  * with SA_BOUNDARY */
+
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::turbmodel == ARTIFICIAL &&
+	! wants_volumic_visc_term<FP>()
+>
+compute_turb_visc_contrib
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{ /* do nothing */ }
 
 /// Volumic viscous contribution, ARTIFICIAL viscosity turbulence model
 /*! Artificial viscosity, for numerical stability; not a physical viscosity
