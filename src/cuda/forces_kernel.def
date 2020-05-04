@@ -1206,17 +1206,27 @@ struct dummy_boundary_neib_data
 
 struct cspm_neib_data
 {
+	const	symtensor3	nfcoeffTens;
+	const	symtensor3	avg_fcoeffTens;
 	const float3 cspm_relPos;
 	const float  cspm_vel_dot_pos;
 	// relPos.T.relPos / relPos.relPos, computed without
 	// division by 0
 	const float cspm_rTr_r2;
 
+	template<typename FP>
 	__device__ __forceinline__
-	cspm_neib_data(cspm_particle_data const& pdata, common_neib_data const& ndata) :
-		cspm_relPos(dot(pdata.fcoeffTens, ndata.relPos)),
+	cspm_neib_data(FP const& params, const uint index,
+		cspm_particle_data const& pdata, common_neib_data const& ndata) :
+		nfcoeffTens(fetchTau(index,
+				params.fcoeff0,
+				params.fcoeff1,
+				params.fcoeff2)),
+		avg_fcoeffTens((pdata.fcoeffTens + nfcoeffTens)*0.5f),
+	//	avg_fcoeffTens(point_sqrt(point_product(pdata.fcoeffTens, nfcoeffTens))),
+		cspm_relPos(dot(avg_fcoeffTens, ndata.relPos)),
 		cspm_vel_dot_pos(dot3(ndata.relVel, cspm_relPos)),
-		cspm_rTr_r2(compute_rTr_r2(pdata.fcoeffTens, ndata.relPos))
+		cspm_rTr_r2(compute_rTr_r2(avg_fcoeffTens, ndata.relPos))
 	{}
 };
 
@@ -1302,7 +1312,7 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_dummy_boundary_neib_data(pdata, params, _index, _relPos),
-		_cspm_neib_data(pdata, *this),
+		_cspm_neib_data(params, _index, pdata, *this),
 		_eulerVel_neib_data(pdata, _index, _info),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
@@ -2103,8 +2113,8 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 
 	const float diff_term = d_densityDiffCoeff*d_sscoeff[fType]*
 		(volume_ratio(pdata, ndata) - 1)*
-		corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.relPos.w);
-//		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
+//		corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.relPos.w);
+		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
 
 	// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
 

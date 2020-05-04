@@ -54,11 +54,10 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	const DensityDiffusionType rhodiff = get_option("density-diffusion", COLAGROSSI);
 
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC>,
 		periodicity<PERIODIC_XY>,
+		turbulence_model<ARTIFICIAL>,
 		boundary<LJ_BOUNDARY>,
-		add_flags<ENABLE_CSPM | ENABLE_INTERNAL_ENERGY>
-		//add_flags<ENABLE_CSPM>
+		add_flags< ENABLE_CSPM | ENABLE_INTERNAL_ENERGY>
 	).select_options(
 		rhodiff,
 		m_usePlanes, add_flags<ENABLE_PLANES>()
@@ -85,6 +84,8 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
 	simparams()->ferrariLengthScale = H;
+
+	simparams()->densityDiffCoeff = 0.1;
 
 	// enlarge the domain to take into account the extra layers of particles
 	// of the boundary
@@ -117,7 +118,9 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->tend = 22.0;
 	set_kinematic_visc(0, 1.0e-6f);
 
-	physparams()->artvisccoeff = 1e-6*8/(c0*simparams()->slength);
+	//physparams()->artvisccoeff = 1e-6*10/(c0*simparams()->slength);
+	physparams()->artvisccoeff = 0.01;
+
 
 
 	// Setting the standing wave from eq. 8 in Antuono et al 2011
@@ -183,6 +186,15 @@ void StandingWave::initializeParticles(BufferList &buffer, const uint numParticl
 	const float c = -epsilon*H*g*k/(2*omega*cosh(k*H));
 
 	for (uint i = 0 ; i < numParticle ; i++) {
+		/*
+		if (FLUID(pinfo[i])){
+
+			double4 pg = gpos[i];
+			vel[i].x = 0.0f;
+			vel[i].z = 0.0f;
+			pos[i].w = physical_density(vel[i].w, 0)*m_deltap*m_deltap*m_deltap;
+		}
+		*/
 		if (FLUID(pinfo[i])){
 
 			double4 pg = gpos[i];
@@ -190,5 +202,6 @@ void StandingWave::initializeParticles(BufferList &buffer, const uint numParticl
 			vel[i].z = c*sinh(k*(pg.z))*cos(k*pg.x);
 			pos[i].w = physical_density(vel[i].w, 0)*m_deltap*m_deltap*m_deltap;
 		}
+		
 	}
 }

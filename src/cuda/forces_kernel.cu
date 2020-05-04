@@ -388,6 +388,7 @@ cspmCoeffDevice(
 	//if (D > 0.35 && !close_to_boundary)
 
 	//if (!close_to_boundary){
+# if 1
 	if (num_neibs > 42 && !close_to_boundary){
 		const float D = kbn_det(fcoeff);
 		a_inverse = inverse(fcoeff, D);
@@ -396,6 +397,10 @@ cspmCoeffDevice(
 		//printf("%g\n", D);
 	}
 
+#else
+	const float D = kbn_det(fcoeff);
+	a_inverse = inverse(fcoeff, D);
+#endif
 	wcoeffArray[index] = 1.0f/corr;
 	storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
 }

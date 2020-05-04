@@ -222,6 +222,20 @@ operator +=(symtensor3 &T1, symtensor3 const& T2)
 
 __spec
 symtensor3
+operator *(symtensor3 const& T1, float f)
+{
+	symtensor3 R;
+	R.xx = T1.xx*f;
+	R.xy = T1.xy*f;
+	R.xz = T1.xz*f;
+	R.yy = T1.yy*f;
+	R.yz = T1.yz*f;
+	R.zz = T1.zz*f;
+	return R;
+}
+
+__spec
+symtensor3
 operator /(symtensor3 const& T1, float f)
 {
 	symtensor3 R;
@@ -310,6 +324,34 @@ dot(symtensor4 const& T, float4 const& v)
 			T.xz*v.x + T.yz*v.y + T.zz*v.z + T.zw*v.w,
 			T.xw*v.x + T.yw*v.y + T.zw*v.z + T.ww*v.w);
 
+}
+
+__spec
+symtensor3
+point_product(symtensor3 const& T1, symtensor3 const& T2)
+{
+	symtensor3 R;
+	R.xx = T1.xx * T2.xx;
+	R.xy = T1.xy * T2.xy;
+	R.xz = T1.xz * T2.xz;
+	R.yy = T1.yy * T2.yy;
+	R.yz = T1.yz * T2.yz;
+	R.zz = T1.zz * T2.zz;
+	return R;
+}
+
+__spec
+symtensor3
+point_sqrt(symtensor3 const& T)
+{
+	symtensor3 R;
+	R.xx = sqrt(abs(T.xx));
+	R.xy = sqrt(abs(T.xy));
+	R.xz = sqrt(abs(T.xz));
+	R.yy = sqrt(abs(T.yy));
+	R.yz = sqrt(abs(T.yz));
+	R.zz = sqrt(abs(T.zz));
+	return R;
 }
 
 // v.T.w
