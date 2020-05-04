@@ -280,6 +280,82 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 /************************************************************************************************************/
 
 /************************************************************************************************************/
+/*	Delta SPH renormalized density gradient		*/
+/************************************************************************************************************/
+template<KernelType kerneltype, BoundaryType boundarytype>
+__global__ void
+deltaRenormDens(
+	float4*	__restrict__		renormDensGradArray,
+	const	float2*	__restrict__	fcoeff0,
+	const	float2*	__restrict__	fcoeff1,
+	const	float2*	__restrict__	fcoeff2,
+	const	float4* __restrict__	posArray,
+	const	float4* __restrict__	velArray,
+	const	particleinfo* __restrict__	infoArray,
+	const	hashKey* __restrict__	particleHash,
+	const	uint* __restrict__		cellStart,
+	const	neibdata* __restrict__	neibsList,
+	const	uint	numParticles,
+	const	float	slength,
+	const	float	influenceradius)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = infoArray[index];
+	const float4 pos = posArray[index];
+	const float4 vel = velArray[index];
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	if (INACTIVE(pos))
+		return;
+
+	// we use kahan for neibs contributions
+	float3 renorm_dens_grad = make_float3(0.0f);
+
+	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+
+		const uint neib_index = neib_iter.neib_index();
+		const particleinfo neib_info = infoArray[neib_index];
+
+		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(
+		#if PREFER_L1
+			posArray[neib_index]
+		#else
+			tex1Dfetch(posTex, neib_index)
+		#endif
+			);
+
+		const float4 neib_vel = velArray[neib_index];
+		const float r = length(as_float3(relPos));
+
+		const float rho = physical_density(vel.w, fluid_num(info));
+		const float neib_rho = physical_density(neib_vel.w, fluid_num(neib_info));
+
+
+		if (INACTIVE(relPos) || r >= influenceradius)
+			continue;
+
+		const float f = F<kerneltype>(r, slength);
+		const float volume = relPos.w/neib_rho;
+
+		const symtensor3 fcoeffTens = fetchTau(index, fcoeff0, fcoeff1, fcoeff2);
+
+		//TODO see if kbn is needed
+		const float3 neib_contrib = (neib_rho - rho)*dot(fcoeffTens, relPos)*f*volume;
+	}
+
+	// Store into array
+	as_float3(renormDensGradArray[index]) = renorm_dens_grad;
+}
+
+/************************************************************************************************************/
+
+/************************************************************************************************************/
 /*	CSPM coefficients       */
 /************************************************************************************************************/
 
