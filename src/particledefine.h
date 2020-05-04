@@ -150,6 +150,7 @@ enum DensityDiffusionType {
 	FERRARI,
 	COLAGROSSI,
 	BREZZI,
+	DELTA,
 	INVALID_DENSITY_DIFFUSION
 } ;
 
@@ -164,6 +165,7 @@ const char* DensityDiffusionName[INVALID_DENSITY_DIFFUSION+1]
 	"Ferrari",
 	"Colagrossi",
 	"Brezzi",
+	"Delta",
 	"(invalid)"
 }
 #endif

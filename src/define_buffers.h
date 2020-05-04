@@ -90,7 +90,10 @@ SET_BUFFER_TRAITS(BUFFER_WCOEFF, float, 1, "CSPM coefficient for W");
 #define BUFFER_FCOEFF		(BUFFER_WCOEFF << 1)
 SET_BUFFER_TRAITS(BUFFER_FCOEFF, float2, 3, "CSPM coefficient for F");
 
-#define BUFFER_FORCES		(BUFFER_FCOEFF << 1)
+#define BUFFER_RENORMDENS	(BUFFER_FCOEFF << 1)
+SET_BUFFER_TRAITS(BUFFER_RENORMDENS, float4, 1, "Delta-SPH renormalized density");
+
+#define BUFFER_FORCES		(BUFFER_RENORMDENS << 1)
 SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
 /* Forces and torques acting on rigid body particles only
