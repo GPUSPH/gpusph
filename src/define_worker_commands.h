@@ -240,6 +240,9 @@ DEFINE_COMMAND_BUF(CALC_VISC, true)
 	/// Compute the normalization coefficinets for CSPM
 DEFINE_COMMAND_BUF(CALC_CSPM_COEFF, true)
 
+	/// Compute the renormalized density gradients for Delta-SPH 
+DEFINE_COMMAND_BUF(CALC_DELTASPH_DENSITY_GRAD, true)
+
 	/** @} */
 
 	/** \name Forces computation commands

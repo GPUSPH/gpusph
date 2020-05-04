@@ -568,6 +568,49 @@ compute_density_diffusion(
 	KERNEL_CHECK_ERROR;
 }
 
+
+// computing renormalized density for delta sph
+void
+compute_deltaSPH_density_gradient(
+	BufferList const& bufread,
+	BufferList& bufwrite,
+	const	uint	numParticles,
+	const	uint	particleRangeEnd,
+	const	float	slength,
+	const	float	influenceRadius)
+{
+		uint numThreads = BLOCK_SIZE_FORCES;
+		uint numBlocks = div_up(numParticles, numThreads);
+
+		const float4 *vel = bufread.getData<BUFFER_VEL>();
+		const float4 *pos = bufread.getData<BUFFER_POS>();
+		const particleinfo *info = bufread.getData<BUFFER_INFO>();
+		const hashKey *pHash = bufread.getData<BUFFER_HASH>();
+		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
+		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+
+		const float2* const* fcoeff = bufread.getRawPtr<BUFFER_FCOEFF>();
+		float4 * renormDensGrad = bufwrite.getData<BUFFER_RENORMDENS>();
+
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread.getData<BUFFER_POS>(), numParticles*sizeof(float4)));
+#endif
+
+		cuforces::deltaSphDensityGrad<kerneltype, boundarytype>
+			<<<numBlocks, numThreads>>>(
+				renormDensGrad,
+				fcoeff[0], fcoeff[1], fcoeff[2],
+				pos, vel, info, pHash, cellStart, neibsList,
+				numParticles, slength, influenceRadius);
+
+#if !PREFER_L1
+		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+#endif
+
+		// check if kernel invocation generated an error
+		KERNEL_CHECK_ERROR;
+}
+
 // computing the coefficients for CSPM
 void
 compute_cspm_coeff(
@@ -575,7 +618,7 @@ compute_cspm_coeff(
 	BufferList& bufwrite,
 	const	uint	numParticles,
 	const	uint	particleRangeEnd,
-	const	float	deltap,
+	const	float	deltap, //FIXME check if actually needed
 	const	float	slength,
 	const	float	influenceRadius)
 {

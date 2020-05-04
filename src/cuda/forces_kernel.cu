@@ -284,7 +284,7 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 /************************************************************************************************************/
 template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
-deltaRenormDens(
+deltaSphDensityGrad(
 	float4*	__restrict__		renormDensGradArray,
 	const	float2*	__restrict__	fcoeff0,
 	const	float2*	__restrict__	fcoeff1,
