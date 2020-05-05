@@ -2047,7 +2047,7 @@ template<typename FP, typename Pt, typename N, typename ON,
 __device__ __forceinline__
 enable_if_t<
 	FP::sph_formulation != SPH_HA &&
-	FP::densitydiffusiontype == COLAGROSSI &&
+	(FP::densitydiffusiontype == COLAGROSSI || FP::densitydiffusiontype == DELTA) &&
 	nptype == PT_FLUID
 >
 compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
