@@ -108,4 +108,21 @@ struct density_diffusion_params :
 	{}
 };
 
+template<BoundaryType boundarytype>
+struct delta_sph_density_grad_params : neibs_interaction_params<boundarytype>, cspm_params<false>
+{
+	float4*	__restrict__		renormDensGradArray;
+
+	delta_sph_density_grad_params(
+		BufferList const& bufread,
+		BufferList bufwrite,
+		const	uint	numParticles,
+		const	float	slength,
+		const	float	influenceradius)
+	:
+		neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
+		cspm_params<false>(bufread),
+		renormDensGradArray(bufwrite.getData<BUFFER_RENORMDENS>())
+	{}
+};
 #endif

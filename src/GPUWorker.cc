@@ -142,12 +142,12 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (HAS_XSPH(m_simparams->simflags))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
 
-	if (HAS_CSPM(m_simparams->simflags) || m_simparams->densitydiffusiontype & DELTA) {
+	if (HAS_CSPM(m_simparams->simflags) || m_simparams->densitydiffusiontype == DELTA) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_WCOEFF>(0);
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FCOEFF>(0);
 	}
 
-	if (m_simparams->densitydiffusiontype & DELTA) {
+	if (m_simparams->densitydiffusiontype == DELTA) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RENORMDENS>(0);
 	}
 

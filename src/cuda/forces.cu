@@ -579,36 +579,21 @@ compute_deltaSPH_density_gradient(
 	const	float	slength,
 	const	float	influenceRadius)
 {
-		uint numThreads = BLOCK_SIZE_FORCES;
-		uint numBlocks = div_up(numParticles, numThreads);
+	uint numThreads = BLOCK_SIZE_FORCES;
+	uint numBlocks = div_up(numParticles, numThreads);
 
-		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *pHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+	delta_sph_density_grad_params<boundarytype> params(
+		bufread,
+		bufwrite,
+		particleRangeEnd,
+		slength,
+		influenceRadius);
 
-		const float2* const* fcoeff = bufread.getRawPtr<BUFFER_FCOEFF>();
-		float4 * renormDensGrad = bufwrite.getData<BUFFER_RENORMDENS>();
+	cuforces::deltaSphDensityGrad<kerneltype, boundarytype>
+		<<<numBlocks, numThreads>>>(params);
 
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread.getData<BUFFER_POS>(), numParticles*sizeof(float4)));
-#endif
-
-		cuforces::deltaSphDensityGrad<kerneltype, boundarytype>
-			<<<numBlocks, numThreads>>>(
-				renormDensGrad,
-				fcoeff[0], fcoeff[1], fcoeff[2],
-				pos, vel, info, pHash, cellStart, neibsList,
-				numParticles, slength, influenceRadius);
-
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
-
-		// check if kernel invocation generated an error
-		KERNEL_CHECK_ERROR;
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
 }
 
 // computing the coefficients for CSPM
