@@ -488,6 +488,18 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 				.updating(current_state, BUFFER_WCOEFF| BUFFER_FCOEFF);
 	}
 
+	// computing Delta-SPH renormalized density gradients
+	if (sp->densitydiffusiontype == DELTA) {
+		this_phase->add_command(CALC_DELTASPH_DENSITY_GRAD)
+			.set_step(step)
+			.reading(current_state,
+				BUFFER_VEL | BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_FCOEFF)
+			.writing(current_state, BUFFER_RENORMDENS);
+		if (MULTI_DEVICE)
+			this_phase->add_command(UPDATE_EXTERNAL)
+				.updating(current_state, BUFFER_RENORMDENS);
+	}
+
 	// for Grenier formulation, compute sigma and smoothed density
 	// TODO with boundary models requiring kernels for boundary conditions,
 	// this should be moved into prepareNextStep
