@@ -344,6 +344,16 @@ struct effective_visc_forces_params
 	{}
 };
 
+/// Buffers with renormalized density gradient for Delta-SPH 
+struct delta_sph_forces_params
+{
+	const float4 * __restrict__ deltaDensGrad;
+
+	delta_sph_forces_params(BufferList const& bufread) :
+		deltaDensGrad(bufread.getData<BUFFER_RENORMDENS>())
+	{}
+};
+
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -386,7 +396,9 @@ template<KernelType _kerneltype,
 	typename visc_cond =
 		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params),
 	typename cspm_cond =
-		typename COND_STRUCT(HAS_CSPM(_simflags), cspm_params<false>)
+		typename COND_STRUCT(HAS_CSPM(_simflags), cspm_params<false>),
+	typename delta_sph_cond =
+		typename COND_STRUCT(_densitydiffusiontype == DELTA, delta_sph_forces_params)
 	>
 struct forces_params : _ViscSpec,
 	common_forces_params,
@@ -401,7 +413,8 @@ struct forces_params : _ViscSpec,
 	eulerVel_cond,
 	energy_cond,
 	visc_cond,
-	cspm_cond
+	cspm_cond,
+	delta_sph_cond
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -459,7 +472,8 @@ struct forces_params : _ViscSpec,
 		eulerVel_cond(bufread),
 		energy_cond(bufwrite),
 		visc_cond(bufread),
-		cspm_cond(bufread)
+		cspm_cond(bufread),
+		delta_sph_cond(bufread)
 	{}
 };
 

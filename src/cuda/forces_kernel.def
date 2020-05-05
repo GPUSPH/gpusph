@@ -698,6 +698,18 @@ struct keps_precalc_particle_data
 	{}
 };
 
+// Coefficient for Delta-SPH
+struct delta_sph_particle_data
+{
+	const	float3	renorm_dens_grad;
+
+	template<typename FP>
+	__device__ __forceinline__
+	delta_sph_particle_data(const uint index, FP const& params):
+		renorm_dens_grad(as_float3(params.deltaDensGrad[index]))
+	{}
+};
+
 // Coefficient for kernel and kernel grandient normalization (Corrective Smoothed Particle Method)
 struct cspm_particle_data
 {
@@ -748,7 +760,8 @@ template<KernelType _kerneltype,
 	typename sps_cond = typename COND_STRUCT(!_repacking && _has_sps, sps_particle_data),
 	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
 	typename keps_precalc_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_precalc_particle_data),
-	typename cspm_cond = typename COND_STRUCT(HAS_CSPM(_simflags), cspm_particle_data)>
+	typename cspm_cond = typename COND_STRUCT(HAS_CSPM(_simflags), cspm_particle_data),
+	typename delta_sph_cond = typename COND_STRUCT(_densitydiffusiontype == DELTA, delta_sph_particle_data)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -767,7 +780,8 @@ struct forces_particle_data :
 	p_precalc_particle_data,
 	visc_cond,
 	keps_precalc_cond,
-	cspm_cond
+	cspm_cond,
+	delta_sph_cond
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -802,7 +816,8 @@ struct forces_particle_data :
 		p_precalc_particle_data(*this),
 		visc_cond(_index, params),
 		keps_precalc_cond(physical_density(vel.w, fluid_num(_info)), *this, *this),
-		cspm_cond(_index, params)
+		cspm_cond(_index, params),
+		delta_sph_cond(_index, params)
 	{}
 };
 
@@ -1135,6 +1150,17 @@ struct dummy_boundary_neib_data
 	{}
 };
 
+struct delta_sph_neib_data
+{
+	const float3 renorm_dens_grad;
+
+	template<typename FP>
+	__device__ __forceinline__
+	delta_sph_neib_data(const uint index, FP const& params) :
+		renorm_dens_grad(as_float3(params.deltaDensGrad[index]))
+	{}
+};
+
 struct cspm_neib_data
 {
 	//const	symtensor3	nfcoeffTens;
@@ -1224,6 +1250,8 @@ template<KernelType kerneltype,
 		dummy_boundary_neib_data),
 	typename _cspm_neib_data = typename
 		COND_STRUCT(HAS_CSPM(_simflags), cspm_neib_data),
+	typename _delta_sph_neib_data = typename
+		COND_STRUCT(densitydiffusiontype == DELTA, delta_sph_neib_data),
 	typename _eulerVel_neib_data =
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || HAS_INLET_OUTLET(_simflags)),
@@ -1237,6 +1265,7 @@ struct forces_neib_data :
 	_sa_boundary_neib_data,
 	_dummy_boundary_neib_data,
 	_cspm_neib_data,
+	_delta_sph_neib_data,
 	// relative eulerian velocity
 	_eulerVel_neib_data,
 	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
@@ -1273,6 +1302,7 @@ struct forces_neib_data :
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_dummy_boundary_neib_data(pdata, params, _index, _relPos),
 		_cspm_neib_data(params, _index, pdata, *this),
+		_delta_sph_neib_data(_index, params),
 		_eulerVel_neib_data(pdata, _index, _info, params),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, _info, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
