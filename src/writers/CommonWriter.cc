@@ -391,6 +391,13 @@ CommonWriter::write_simparams(ostream &out)
 		// recompute the input xi
 		out << "    ξ = " << SP->densityDiffCoeff/(2.0f*SP->slength) << endl;
 		break;
+	case DELTA:
+		out << " Delta-SPH density diffusion enabled" << endl;
+		// recompute the input delta (note: δ in Delta-SPH and ξ in Colagrossi
+		//  are the same parameter, just different name)
+		break;
+		out << "    δ = " << SP->densityDiffCoeff/(2.0f*SP->slength) << endl;
+		break;
 	default:
 		break;
 	}

@@ -56,13 +56,11 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		periodicity<PERIODIC_XY>,
-		//kernel<GAUSSIAN>,
 		boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_INTERNAL_ENERGY/* | ENABLE_XSPH*/>
 	).select_options(
 		rhodiff,
 		USE_CSPM, add_flags<ENABLE_CSPM>()
-		//m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	if (mlsIters > 0)

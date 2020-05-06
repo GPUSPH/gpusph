@@ -477,7 +477,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS | BUFFER_JACOBI) );
 
 	// computing CSPM parameters 
-	if (HAS_CSPM(sp->simflags)) {
+	if (HAS_CSPM(sp->simflags) || sp->densitydiffusiontype == DELTA) {
 		this_phase->add_command(CALC_CSPM_COEFF)
 			.set_step(step)
 			.reading(current_state,
