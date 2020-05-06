@@ -2065,10 +2065,26 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	}
 }
 
+template<typename FP, typename P, typename N>
+__device__ __forceinline__
+enable_if_t<FP::densitydiffusiontype == DELTA, float3>
+get_delta_sph_term(P const& pdata, N const& ndata)
+{
+	return make_float3(0.0);
+}
+
+template<typename FP, typename P, typename N>
+__device__ __forceinline__
+enable_if_t<FP::densitydiffusiontype != DELTA, float3>
+get_delta_sph_term(P const& pdata, N const& ndata)
+{
+	return make_float3(0.0);
+}
 
 /* Molteni & Colagrossi density diffusion
  * Reference: Molteni & Colagrossi, 2009
  */
+
 
 /// Molteni & Colagrossi density diffusion term for all
 /// formulations excepted SPH_HA.
@@ -2077,7 +2093,55 @@ template<typename FP, typename Pt, typename N, typename ON,
 __device__ __forceinline__
 enable_if_t<
 	FP::sph_formulation != SPH_HA &&
-	(FP::densitydiffusiontype == COLAGROSSI || FP::densitydiffusiontype == DELTA) &&
+	(FP::densitydiffusiontype == DELTA) &&
+	nptype == PT_FLUID
+>
+compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
+{
+	const int fType = fluid_num(pdata.info);
+	/* only applies to same-fluid particles */
+	if (fType != fluid_num(ndata.info))
+		return;
+
+	// only apply diffusion for large density ratios, specifically
+	// when DeltaP > rhogh
+	if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
+		fabs(dot3(d_gravity, ndata.relPos)*physical_density(pdata)))
+		return;
+
+	// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
+	// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
+	// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
+	// 2(vol_i/vol_j - 1) F_ij
+	// For us rhodiffcoeff = \xi*h*2
+	// Additionally, when the density evolution formulation is NOT based on
+	// volumes, we need to multiply by the neighbor mass
+
+	float diff_term = d_densityDiffCoeff*d_sscoeff[fType]*
+		(volume_ratio(pdata, ndata) - 1)*
+		//corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.relPos.w);
+		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
+
+	// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
+
+
+	//get_delta_sph_term(pdata, ndata);
+
+	diff_term += dot3((pdata.renorm_dens_grad - ndata.renorm_dens_grad), ndata.relPos)
+		*0.5f*d_densityDiffCoeff*d_sscoeff[fType]*ndata.f*
+		ndata.relPos.w/physical_density(ndata.relVel.w, fType);// FIXME check sign
+
+	nout.DrDt -= diff_term;
+}
+
+/// Molteni & Colagrossi density diffusion term for all
+/// formulations excepted SPH_HA.
+template<typename FP, typename Pt, typename N, typename ON,
+	ParticleType nptype = N::nptype>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation != SPH_HA &&
+	(FP::densitydiffusiontype == COLAGROSSI) &&
 	nptype == PT_FLUID
 >
 compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)
@@ -4722,7 +4786,7 @@ density_diffusion_interaction(KP const& params, P const& pdata, float& DrDt)
 
 		density_diffusion_neib_output<boundarytype, nptype> nout(params, pdata, ndata);
 
-		compute_density_diffusion(params, pdata, ndata, nout);
+		//compute_density_diffusion(params, pdata, ndata, nout);
 
 		DrDt += nout.DrDt;
 	}
