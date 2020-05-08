@@ -2154,9 +2154,12 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	float diff_term = colagrossi_density_diffusion_term(params, pdata, ndata, fType);
 	// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
 
+	// TODO FIXME assuming single fluid, and exploiting the fact that
+	// renorm_dens_grad is <∇ρ>/rho0, so we just divide by 1 + rhotilde
+	// instead of the physical density of the neighbor
 	float delta_term = dot3((pdata.renorm_dens_grad - ndata.renorm_dens_grad), ndata.relPos)
 		*0.5f*d_densityDiffCoeff*d_sscoeff[fType]*ndata.f*
-		ndata.relPos.w/physical_density(ndata.relVel.w, fType);// FIXME check sign
+		ndata.relPos.w/(1.0f + ndata.relVel.w);// FIXME check sign
 
 	diff_term -= delta_term;
 

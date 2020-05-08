@@ -299,13 +299,20 @@ deltaSphDensityGrad(delta_sph_density_grad_params<boundarytype> params)
 	if (INACTIVE(pos))
 		return;
 
-	// we use kahan for neibs contributions
+	// TODO kbn
 	float3 renorm_dens_grad = make_float3(0.0f);
 
+	const int p_fluid = fluid_num(info);
+
+	// To leverage the relative density storage optimization, we compute
+	// the delta contribution divided by rho0[p_fluid]
+	// TODO FIXME we are assuming single fluid, i.e. rho0[n_fluid] == rho0[p_fluid]
 	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 		const particleinfo neib_info = params.fetchInfo(neib_index);
+
+		const int n_fluid = fluid_num(neib_info);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
@@ -314,24 +321,28 @@ deltaSphDensityGrad(delta_sph_density_grad_params<boundarytype> params)
 		const float4 neib_vel = params.fetchVel(neib_index);
 		const float r = length3(relPos);
 
-		const float rho = physical_density(vel.w, fluid_num(info));
-		const float neib_rho = physical_density(neib_vel.w, fluid_num(neib_info));
-
+		// TODO FIXME assuming single fluid
+#if 0
+		const float rho_ratio = rho0[n_fluid]/rho0[p_fluid];
+		const float rhotilde_delta = (rho_ratio*neib_vel.w - vel.w + (rho_ratio - 1.0f));
+#else
+		const float rhotilde_delta = (neib_vel.w - vel.w);
+#endif
 
 		if (INACTIVE(relPos) || r >= params.influenceradius)
 			continue;
 
 		const float f = F<kerneltype>(r, params.slength);
-		const float volume = relPos.w/neib_rho;
+		const float volume = relPos.w/physical_density(neib_vel.w, n_fluid);
 
 		const symtensor3 fcoeffTens = params.fetchFcoeff(index);
 
-		//TODO see if kbn is needed
-		const float3 neib_contrib = (neib_rho - rho)*dot(fcoeffTens, relPos)*f*volume;
+		const float3 neib_contrib = rhotilde_delta*dot(fcoeffTens, relPos)*f*volume;
+		// TODO kbn
 		renorm_dens_grad += neib_contrib;
 	}
 
-	// Store into array
+	// Store into array: note that we are storing the <∇ρ>/rho0
 	params.renormDensGradArray[index] = make_float4(renorm_dens_grad, NAN);
 }
 
