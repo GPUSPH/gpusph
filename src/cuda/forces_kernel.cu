@@ -328,6 +328,7 @@ deltaSphDensityGrad(delta_sph_density_grad_params<boundarytype> params)
 
 		//TODO see if kbn is needed
 		const float3 neib_contrib = (neib_rho - rho)*dot(fcoeffTens, relPos)*f*volume;
+		renorm_dens_grad += neib_contrib;
 	}
 
 	// Store into array
