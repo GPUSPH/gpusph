@@ -77,7 +77,7 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		boundary<LJ_BOUNDARY>,
 		periodicity<PERIODIC_Y>,
-		add_flags<ENABLE_CSPM>
+		add_flags<ENABLE_INTERNAL_ENERGY/* | ENABLE_XSPH*/>
 	).select_options(
 		COLAGROSSI,
 		m_usePlanes, add_flags<ENABLE_PLANES>()
@@ -90,7 +90,6 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	horizontal_flat = 52.0f;
 	float z_slope = 2.0f;
 	slope_length = z_slope/beta;
-
 	lx = horizontal_flat + z_slope/beta;
 	ly =  round_up(4.0*simparams()->influenceRadius, m_deltap);
 	lz = 2.0*H; // Domain height

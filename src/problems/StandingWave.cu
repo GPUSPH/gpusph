@@ -52,10 +52,11 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	const bool USE_CSPM = get_option("use_cspm", true);
 
 	// density diffusion terms, see DensityDiffusionType
-	const DensityDiffusionType rhodiff = get_option("density-diffusion", DELTA);
+	const DensityDiffusionType rhodiff = get_option("density-diffusion", COLAGROSSI);
 
 	SETUP_FRAMEWORK(
 		periodicity<PERIODIC_XY>,
+		kernel<GAUSSIAN>,
 		boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_INTERNAL_ENERGY/* | ENABLE_XSPH*/>
 	).select_options(
