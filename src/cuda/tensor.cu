@@ -220,7 +220,7 @@ dot(symtensor3 const& T, float3 const& v)
 {
 	return make_float3(
 			T.xx*v.x + T.xy*v.y + T.xz*v.z,
-			T.xy*v.y + T.yy*v.y + T.yz*v.z,
+			T.xy*v.x + T.yy*v.y + T.yz*v.z,
 			T.xz*v.x + T.yz*v.y + T.zz*v.z);
 
 }
@@ -231,7 +231,7 @@ dot(symtensor3 const& T, float4 const& v)
 {
 	return make_float3(
 			T.xx*v.x + T.xy*v.y + T.xz*v.z,
-			T.xy*v.y + T.yy*v.y + T.yz*v.z,
+			T.xy*v.x + T.yy*v.y + T.yz*v.z,
 			T.xz*v.x + T.yz*v.y + T.zz*v.z);
 
 }
