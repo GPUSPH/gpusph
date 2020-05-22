@@ -48,16 +48,16 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 {
 	m_usePlanes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
 	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations
-	const int ppH = get_option("ppH", 64); // --ppH N to change deltap to H/N
+	const int ppH = get_option("ppH", 128); // --ppH N to change deltap to H/N
 
 	// density diffusion terms, see DensityDiffusionType
 	const DensityDiffusionType rhodiff = get_option("density-diffusion", COLAGROSSI);
 
 	SETUP_FRAMEWORK(
 		periodicity<PERIODIC_XY>,
-		turbulence_model<ARTIFICIAL>,
-		boundary<LJ_BOUNDARY>,
-		add_flags< ENABLE_CSPM | ENABLE_INTERNAL_ENERGY>
+		//kernel<GAUSSIAN>,
+		boundary<DYN_BOUNDARY>,
+		add_flags<ENABLE_INTERNAL_ENERGY/* | ENABLE_XSPH*/>
 	).select_options(
 		rhodiff,
 		m_usePlanes, add_flags<ENABLE_PLANES>()
@@ -73,8 +73,10 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	setMaxFall(H);
 
 	l = H;
-	w = 0.2*H;
+	w = 12.0*m_deltap;
 	h = 1.1*H;
+
+//	resize_neiblist(300);// FIXME temp
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
@@ -82,19 +84,20 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	simparams()->dtadaptfactor = 0.3;
+	simparams()->tend = 20.0;
 	simparams()->buildneibsfreq = 10;
 	simparams()->ferrariLengthScale = H;
-
-	simparams()->densityDiffCoeff = 0.1;
+	//physparams()->artvisccoeff = 0.05;
 
 	// enlarge the domain to take into account the extra layers of particles
 	// of the boundary
-	if (simparams()->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
+	if ((simparams()->boundarytype == DUMMY_BOUNDARY || simparams()->boundarytype == DYN_BOUNDARY) && !m_usePlanes) {
 		// number of layers
 		dyn_layers = ceil(simparams()->kernelradius*simparams()->sfactor);
+		dyn_layers = 2;
 		// extra layers are one less (since other boundary types still have
 		// one layer)
-		double3 extra_offset = make_double3((dyn_layers-1)*m_deltap);
+		double3 extra_offset = make_double3(0.0f, 0.0f,(dyn_layers-1)*m_deltap);
 		m_origin -= extra_offset;
 		m_size += 2*extra_offset;
 	} else {
@@ -115,17 +118,15 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	add_fluid(1000.0);
 	set_equation_of_state(0, 7.0f, c0);
 
-	simparams()->tend = 22.0;
 	set_kinematic_visc(0, 1.0e-6f);
-
-	//physparams()->artvisccoeff = 1e-6*10/(c0*simparams()->slength);
-	physparams()->artvisccoeff = 0.01;
-
+	physparams()->artvisccoeff = 1e-6*10.0/(physparams()->sscoeff[0]*simparams()->slength);
 
 
 	// Setting the standing wave from eq. 8 in Antuono et al 2011
 	L = 1.0f; // Wavelenghth
-	A = 0.04f; // Wave amplitude
+//	A = 0.04f; // Wave amplitude
+	//A = 2.0*m_deltap; // Wave amplitude
+	A = 2.0/128.0; // Wave amplitude
 
 	// derived variables
 	k = 2*M_PI/L; // Wave number
@@ -148,12 +149,13 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	setPositioning(PP_CORNER);
 
 	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(m_origin), m_size.x, m_size.y, 0.0f);
+		Point(m_origin) - Point(0.0, 0.0, 2*m_deltap), m_size.x - m_deltap, m_size.y - m_deltap, 2.0*m_deltap);
 	disableCollisions(experiment_box);
 
 	m_fluidOrigin = m_origin;
 	// shift by the extra offset of the experiment box
-	m_fluidOrigin += make_double3(0.5*m_deltap, 0.5*m_deltap, 0.69*m_deltap); // tuned for LJ to avoid initial collapse
+	//m_fluidOrigin += make_double3(0.5*m_deltap, 0.5*m_deltap, 0.69*m_deltap); // tuned for LJ to avoid initial collapse
+	m_fluidOrigin += make_double3(0.5*m_deltap, 0.5*m_deltap, m_deltap); // tuned for LJ to avoid initial collapse
 
 	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
 		m_fluidOrigin, l - m_deltap, w - m_deltap, H);
@@ -186,15 +188,6 @@ void StandingWave::initializeParticles(BufferList &buffer, const uint numParticl
 	const float c = -epsilon*H*g*k/(2*omega*cosh(k*H));
 
 	for (uint i = 0 ; i < numParticle ; i++) {
-		/*
-		if (FLUID(pinfo[i])){
-
-			double4 pg = gpos[i];
-			vel[i].x = 0.0f;
-			vel[i].z = 0.0f;
-			pos[i].w = physical_density(vel[i].w, 0)*m_deltap*m_deltap*m_deltap;
-		}
-		*/
 		if (FLUID(pinfo[i])){
 
 			double4 pg = gpos[i];
@@ -202,6 +195,5 @@ void StandingWave::initializeParticles(BufferList &buffer, const uint numParticl
 			vel[i].z = c*sinh(k*(pg.z))*cos(k*pg.x);
 			pos[i].w = physical_density(vel[i].w, 0)*m_deltap*m_deltap*m_deltap;
 		}
-		
 	}
 }
