@@ -270,7 +270,7 @@ dot(symtensor3 const& T, V const& v)
 {
 	return make_float3(
 			T.xx*v.x + T.xy*v.y + T.xz*v.z,
-			T.xy*v.y + T.yy*v.y + T.yz*v.z,
+			T.xy*v.x + T.yy*v.y + T.yz*v.z,
 			T.xz*v.x + T.yz*v.y + T.zz*v.z);
 
 }
@@ -283,7 +283,7 @@ kbn_dot(symtensor3 const& T, V const& v)
 {
 	return make_float3(
 			kbn_sum(T.xx*v.x, T.xy*v.y, T.xz*v.z),
-			kbn_sum(T.xy*v.y, T.yy*v.y, T.yz*v.z),
+			kbn_sum(T.xy*v.x, T.yy*v.y, T.yz*v.z),
 			kbn_sum(T.xz*v.x, T.yz*v.y, T.zz*v.z));
 
 }
