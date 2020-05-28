@@ -257,7 +257,7 @@ ProblemCore::InitializeChronoFEA()
 #if SOLVER_TYPE == 4
 	auto solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
 	m_fea_system->SetSolver(solver);
-	solver->SetMaxIterations(100);
+	solver->SetMaxIterations(10000);
 	solver->SetTolerance(1e-8);
 	solver->EnableDiagonalPreconditioner(true);
 
