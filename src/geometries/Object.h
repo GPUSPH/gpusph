@@ -274,6 +274,7 @@ class Object {
 		/// Handle joining of FEA nodes
 		//@{
 		uint JoinFeaNodes(::chrono::ChSystem* fea_system, std::shared_ptr<::chrono::fea::ChMesh>, const double dx);
+		virtual void makeDynamometer(::chrono::ChSystem* fea_system);
 		uint findNodesToJoin(std::shared_ptr<::chrono::fea::ChMesh>,
 			const double dx,
 			std::vector<feaNodeInfo>& included_nodes);

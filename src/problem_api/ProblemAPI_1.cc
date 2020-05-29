@@ -1940,6 +1940,9 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			}
 
 			if (!nodes_in_truss) throw std::runtime_error("Error: Adding a FEA Joint with no intersecting nodes");
+
+			// TODO: make optional
+			m_geometries[g]->ptr->makeDynamometer(m_fea_system);
 		}
 
 		/* Join elements by means of ChLink
