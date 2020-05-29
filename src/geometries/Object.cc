@@ -31,9 +31,6 @@
 #include <typeinfo>
 #include <cxxabi.h>
 
-#include "chrono/fea/ChLinkPointFrame.h"
-#include "chrono/fea/ChLinkDirFrame.h"
-
 #include "Object.h"
 
 /// Compute the particle mass according to object volume and density
@@ -485,7 +482,9 @@ uint Object::JoinFeaNodes(::chrono::ChSystem* ch_system, std::shared_ptr<::chron
 	return nadded;
 }
 
-void Object::makeDynamometer(::chrono::ChSystem* ch_system)
+void Object::makeDynamometer(::chrono::ChSystem* ch_system,
+	std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>>& writing_point_constr, // store pointers of nodes to write 
+	std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>>& writing_dir_constr) // store pointers of nodes to write 
 {
 	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
 
@@ -499,10 +498,12 @@ void Object::makeDynamometer(::chrono::ChSystem* ch_system)
 	auto constraint_disp = chrono_types::make_shared<::chrono::fea::ChLinkPointFrame>();
 	constraint_disp->Initialize(fixednode, m_body);
 	ch_system->Add(constraint_disp);
+	writing_point_constr.push_back(constraint_disp);
 
 	auto constraint_rot = chrono_types::make_shared<::chrono::fea::ChLinkDirFrame>();
 	constraint_rot->Initialize(fixednode, m_body);
 	ch_system->Add(constraint_rot);
+	writing_dir_constr.push_back(constraint_rot);
 
 	std::cout << "Added fea Dynamics measurement point in (" << m_center(0) << ", " << m_center(1) << ", " << m_center(2) << ")" << std::endl;
 }

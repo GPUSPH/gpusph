@@ -60,6 +60,8 @@
 #include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono_mkl/ChSolverMKL.h"
 #include "chrono/fea/ChNodeFEAxyzD.h"
+#include "chrono/fea/ChLinkPointFrame.h"
+#include "chrono/fea/ChLinkDirFrame.h"
 #endif
 
 // Enable to get/set envelop and margin (mainly debug)
@@ -282,6 +284,8 @@ ProblemCore::SetFeaReady()
 
 	if (simparams()->numNodesToWrite)
 		create_fea_nodes_file();
+	if (simparams()->numConstraintsToWrite)
+		create_fea_constr_file();
 
 #endif
 }
@@ -635,6 +639,22 @@ ProblemCore::write_fea_nodes(const double t)
 		node->GetPos().y() << '\t' <<
 		node->GetPos().z()
 #endif
+		<< endl;
+	}
+
+	for (int i = 0; i < simparams()->numConstraintsToWrite; ++i) {
+
+		::chrono::ChVector<> force = gdata->s_hWriteFeaPointConstrPointers[i]->Get_react_force();
+		::chrono::ChVector<> torque = gdata->s_hWriteFeaDirConstrPointers[i]->Get_react_torque();
+
+		// print nodes position
+		m_fea_constr_file << t << '\t' <<
+		force.x() << '\t' <<
+		force.y() << '\t' <<
+		force.z() << '\t' <<
+		torque.x() << '\t' <<
+		torque.y() << '\t' <<
+		torque.z()
 		<< endl;
 	}
 }
@@ -1588,12 +1608,12 @@ ProblemCore::create_fea_nodes_file(void)
 	m_fea_nodes_file.open(filename);
 
 	// add columns description
-	m_fea_nodes_file << "time [s]";
+	m_fea_nodes_file << "time[s]";
 
 	for (int n = 0; n < simparams()->numNodesToWrite; ++n) {
 		int node_id = gdata->s_hWriteFeaNodesIndices[n];
 		m_fea_nodes_file <<
-			"\tNode_" << node_id << "_x [m]"
+			"\tNode_" << node_id << "_x[m]"
 #if 0 //write only x component
 			<<
 			"\tNode_" << node_id << "_y [m]"
@@ -1603,6 +1623,35 @@ ProblemCore::create_fea_nodes_file(void)
 			;
 	}
 	m_fea_nodes_file << endl;
+}
+
+void
+ProblemCore::create_fea_constr_file(void)
+{
+	string filename = m_problem_dir + "/data/fea_dynamometer.txt";
+
+	std::cout << "Opening: " << filename << endl;
+	m_fea_constr_file.open(filename);
+
+	// add columns description
+	m_fea_constr_file << "time[s]";
+
+	for (int n = 0; n < simparams()->numConstraintsToWrite; ++n) {
+		m_fea_constr_file <<
+			"\tF_" << n << "_x[N]"
+			<<
+			"\tF_" << n  << "_y[N]"
+			<<
+			"\tF_" << n << "_z[N]"
+			<<
+			"\tT_" << n << "_x[N*m]"
+			<<
+			"\tT_" << n  << "_y[N*m]"
+			<<
+			"\tT_" << n << "_z[N*m]"
+			;
+	}
+	m_fea_constr_file << endl;
 }
 
 void

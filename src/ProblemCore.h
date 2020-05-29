@@ -88,6 +88,7 @@ class ProblemCore
 	private:
 		std::string			m_problem_dir;
 		std::ofstream			m_fea_nodes_file;
+		std::ofstream			m_fea_constr_file;
 		WriterList		m_writers;
 
 		const float		*m_dem;
@@ -211,6 +212,7 @@ class ProblemCore
 		std::string const& create_problem_dir();
 
 		void create_fea_nodes_file(void);
+		void create_fea_constr_file(void);
 
 		Options const& get_options(void) const
 		{ return *m_options; }

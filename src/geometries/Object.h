@@ -42,6 +42,8 @@
 #include "chrono/core/ChVector.h"
 #include "chrono/fea/ChMesh.h"
 #include "chrono/fea/ChNodeFEAxyzD.h"
+#include "chrono/fea/ChLinkPointFrame.h"
+#include "chrono/fea/ChLinkDirFrame.h"
 #endif
 
 //! Auxiliary type for joints between FEA nodes
@@ -274,7 +276,10 @@ class Object {
 		/// Handle joining of FEA nodes
 		//@{
 		uint JoinFeaNodes(::chrono::ChSystem* fea_system, std::shared_ptr<::chrono::fea::ChMesh>, const double dx);
-		virtual void makeDynamometer(::chrono::ChSystem* fea_system);
+		virtual void makeDynamometer(::chrono::ChSystem* fea_system,
+			std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>>&,
+			std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>>&);
+
 		uint findNodesToJoin(std::shared_ptr<::chrono::fea::ChMesh>,
 			const double dx,
 			std::vector<feaNodeInfo>& included_nodes);
