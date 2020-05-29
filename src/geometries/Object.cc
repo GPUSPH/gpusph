@@ -489,10 +489,8 @@ void Object::makeDynamometer(::chrono::ChSystem* ch_system)
 {
 	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
 
-	Point coords = Point(0, 0, -0.5);// FIXME: define dynamometer origin
-
 	auto fixednode = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(
-		::chrono::ChVector<>(coords(0), coords(1), coords(2)));
+		::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 
 	fixednode->SetFixed(true);
 	m_fea_mesh->AddNode(fixednode);
@@ -506,7 +504,7 @@ void Object::makeDynamometer(::chrono::ChSystem* ch_system)
 	constraint_rot->Initialize(fixednode, m_body);
 	ch_system->Add(constraint_rot);
 
-	std::cout << "Added fea Dynamics measurement point in (" << coords(0) << ", " << coords(1) << ", " << coords(2) << ")" << std::endl;
+	std::cout << "Added fea Dynamics measurement point in (" << m_center(0) << ", " << m_center(1) << ", " << m_center(2) << ")" << std::endl;
 }
 
 uint Object::findNodesToJoin(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh,
