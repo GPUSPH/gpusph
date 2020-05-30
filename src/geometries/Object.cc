@@ -452,14 +452,14 @@ Object::FillDiskBorder(PointVect& points, const EulerParameters& ep, const Point
 #if USE_CHRONO == 1
 uint Object::JoinFeaNodes(::chrono::ChSystem* ch_system, std::shared_ptr<::chrono::fea::ChMesh> fea_mesh, const double dx)
 {
-	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+	std::shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
 	uint numnodes = fea_mesh->GetNnodes();
 
 	uint nadded = 0;
 
 	for (uint i = 0; i < numnodes; i++) {
 
-		node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyz>(fea_mesh->GetNode(i));
+		node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(fea_mesh->GetNode(i));
 		if (!node) throw std::runtime_error("Error: impossible to read nodes in JointFeaNode");
 
 		Point ncords;
@@ -474,6 +474,9 @@ uint Object::JoinFeaNodes(::chrono::ChSystem* ch_system, std::shared_ptr<::chron
 			auto constraint = chrono_types::make_shared<::chrono::fea::ChLinkPointFrame>();
 			constraint->Initialize(node, m_body);
 			ch_system->Add(constraint);
+			auto constraint_rot = chrono_types::make_shared<::chrono::fea::ChLinkDirFrame>();
+			constraint_rot->Initialize(node, m_body);
+			ch_system->Add(constraint_rot);
 			nadded ++;
 		}
 
