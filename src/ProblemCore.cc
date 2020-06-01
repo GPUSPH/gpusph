@@ -193,6 +193,7 @@ ProblemCore::InitializeChronoFEA()
 #if USE_CHRONO == 1
 
 	cout << "Initializing Chrono FEA... " << endl;
+
 	// initialize FEA system
 	m_fea_system = new ::chrono::ChSystemNSC(); // FIXME NOT necessary the NSC
 
@@ -259,7 +260,7 @@ ProblemCore::InitializeChronoFEA()
 #if SOLVER_TYPE == 4
 	auto solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
 	m_fea_system->SetSolver(solver);
-	solver->SetMaxIterations(10000);
+	solver->SetMaxIterations(100000);
 	solver->SetTolerance(1e-8);
 	solver->EnableDiagonalPreconditioner(true);
 
@@ -654,7 +655,10 @@ ProblemCore::write_fea_nodes(const double t)
 		force.z() << '\t' <<
 		torque.x() << '\t' <<
 		torque.y() << '\t' <<
-		torque.z()
+		torque.z() << '\t' <<
+		gdata->total_fea_force.x << '\t' <<
+		gdata->total_fea_force.y << '\t' <<
+		gdata->total_fea_force.z
 		<< endl;
 	}
 }
@@ -807,6 +811,9 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 	uint n = 0; //node in the object
 	uint o = 0; // we go through all the meshes (defomable objects) starting from the one with index 0
 
+	uint av_idx = gdata->averager_index;
+	gdata->total_fea_force = make_float3(0.0, 0.0, 0.0);
+
 	for(uint i = 0; i < numFeaParts; ++i) {
 
 		// get number of nodes in the current mesh
@@ -823,7 +830,14 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		// we set the forces during the predictor
 		if (step == 1) {
 
-			float3 node_f  = as_float3(forces[i]);
+			float3 new_f  = as_float3(forces[i])/1000.0f;
+
+			float3 node_f = gdata->forces_averager[i][1000];
+			node_f += (new_f - gdata->forces_averager[i][av_idx]);
+
+			gdata->forces_averager[i][av_idx] = new_f;
+
+			gdata->forces_averager[i][1000] = node_f;
 
 			// Apply external forces if any
 			// s_hFeaExtForce[i] is 1 if node i has an external force applied
@@ -831,6 +845,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 				node_f += gdata->s_FeaExtForce;
 
 			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
+			gdata->total_fea_force += node_f;
 		}
 
 		n++;
@@ -840,6 +855,10 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 			o ++;
 		}
 	}
+
+	av_idx ++;
+	if (av_idx == 1000) av_idx = 0;
+	gdata->averager_index = av_idx;
 #endif
 }
 

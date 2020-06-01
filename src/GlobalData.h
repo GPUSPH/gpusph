@@ -265,6 +265,9 @@ struct GlobalData {
 	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> s_hWriteFeaNodesPointers;	// pointers to nodes to be written 
 	std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>> s_hWriteFeaPointConstrPointers;	// pointers to position constraints to be written 
 	std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>> s_hWriteFeaDirConstrPointers;	// pointers to direction constraints to be written 
+	float3 forces_averager[24][1001] = {0};
+	uint averager_index;
+	float3 total_fea_force;
 #endif
 	float s_fea_writer_timer;				// Tracks time from last FEA nodes write
 	float4* s_hFeaNatCoords; //natural coordinates of the fea particles
@@ -340,6 +343,7 @@ struct GlobalData {
 		lastGlobalPeakVertexNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
+		averager_index(0),
 		s_hRbFirstIndex(NULL),
 		s_hRbLastIndex(NULL),
 		s_hRbDeviceTotalForce(NULL),
