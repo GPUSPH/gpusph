@@ -635,7 +635,7 @@ ProblemCore::write_fea_nodes(const double t)
 		// print nodes position
 		m_fea_nodes_file << t << '\t' <<
 		node->GetPos().x() << '\t'
-#if 0 // write only x component
+#if 1 // write only x component
 		<<
 		node->GetPos().y() << '\t' <<
 		node->GetPos().z()
@@ -820,18 +820,13 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		uint nnodes = m_fea_bodies[o]->object->GetNumFeaNodes();
 		// get nth node within the current mesh
 		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD> (m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
-/*
-		float3 nodePos;
 
-		nodePos.x = node->GetPos().x();
-		nodePos.y = node->GetPos().y();
-		nodePos.z = node->GetPos().z();
-*/
 		// we set the forces during the predictor
 		if (step == 1) {
 
-			float3 new_f  = as_float3(forces[i])/1000.0f;
-
+			//float3 new_f  = as_float3(forces[i])/1000.0f;
+			float3 node_f  = as_float3(forces[i]);
+/*
 			float3 node_f = gdata->forces_averager[i][1000];
 			node_f += (new_f - gdata->forces_averager[i][av_idx]);
 
@@ -839,11 +834,11 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 			gdata->forces_averager[i][1000] = node_f;
 
+*/
 			// Apply external forces if any
 			// s_hFeaExtForce[i] is 1 if node i has an external force applied
 			if (simparams()->fcallback && gdata->s_hFeaExtForce[i])
 				node_f += gdata->s_FeaExtForce;
-
 			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
 			gdata->total_fea_force += node_f;
 		}
@@ -855,10 +850,11 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 			o ++;
 		}
 	}
-
+/*
 	av_idx ++;
 	if (av_idx == 1000) av_idx = 0;
 	gdata->averager_index = av_idx;
+	*/
 #endif
 }
 
