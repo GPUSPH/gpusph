@@ -491,7 +491,7 @@ void Object::makeDynamometer(::chrono::ChSystem* ch_system,
 {
 	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
 
-	auto fixednode = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(
+	auto fixednode = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzDD>(
 		::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 
 	fixednode->SetFixed(true);
