@@ -872,8 +872,11 @@ void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
 	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
 
 	/* Initializing FEA step */
-	if (dofea)
+	if (dofea){
+		if(MULTI_GPU)
+			problem->reduce_fea_forces(gdata->s_hBuffers, numFeaParts);
 		problem->fea_init_step(gdata->s_hBuffers, numFeaParts, t, step);
+	}
 
 	/* Performing FEA analysis */
 	// the FEA is suspended inside. Don't stop this when !dostep because diplacements need to be updated anyway FIXME do this better
@@ -1010,6 +1013,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			totCPUbytes += iter->second->alloc(numparts*gdata->problem->simparams()->neiblistsize);
 		else if (iter->first & BUFFERS_CELL)
 			totCPUbytes += iter->second->alloc(gdata->nGridCells);
+		else if (iter->first & BUFFER_FEA_EXCH)
+			totCPUbytes += iter->second->alloc(gdata->problem->get_fea_objects_numnodes()*gdata->devices);
 		else
 			totCPUbytes += iter->second->alloc(numparts);
 		++iter;
@@ -1538,11 +1543,14 @@ void GPUSPH::sortParticlesByHash() {
 		//printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) ); // */
 }
 
-// Swap two particles in all host arrays; used in host sort
+// Swap two particles in all host arrays that hold particle data; used in host sort
 void GPUSPH::particleSwap(uint idx1, uint idx2)
 {
+	static constexpr flag_t no_swap_buffers = BUFFERS_CELL | BUFFER_NEIBSLIST | BUFFER_FEA_EXCH;
+
 	BufferList::iterator iter = gdata->s_hBuffers.begin();
 	while (iter != gdata->s_hBuffers.end()) {
+		if (! (iter->first & no_swap_buffers) )
 			iter->second->swap_elements(idx1, idx2);
 		++iter;
 	}

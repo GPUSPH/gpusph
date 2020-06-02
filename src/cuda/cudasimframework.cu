@@ -476,7 +476,7 @@ struct disable_flags : virtual public ParentArgs
 	typedef TypeValue<flag_t, DISABLE_FLAGS(ParentArgs::Flags::value, simflags)> Flags;
 
 	template<typename NewParent> struct reparent :
-		virtual public add_flags<simflags, NewParent> {};
+		virtual public disable_flags<simflags, NewParent> {};
 };
 
 /// Our CUDASimFramework is actualy a factory for CUDASimFrameworkImpl*,

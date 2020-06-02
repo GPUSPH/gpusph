@@ -4263,14 +4263,6 @@ forcesDevice(FP params)
 		write_xsph(params, pdata, pout);
 		write_internal_energy(params, pdata, pout);
 
-		// Because in FinalizeForcesDevice we will use
-		// atomicAdd to sum up all the BCE contributions
-		// we initialize the force to zero.
-		if (FEA_NODE(pdata.info)) {
-			pout.force = make_float4(0.0f);
-			write_fea_force(params, pdata, pout);
-		}
-
 		params.forces[pdata.index] = pout.force;
 
 

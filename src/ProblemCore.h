@@ -613,6 +613,7 @@ class ProblemCore
 
 		/* Initialize FEA step (e.g. assign forces to nodes)*/
 		void write_fea_nodes(const double t);
+		void reduce_fea_forces( BufferList&, const uint numFeaParts);
 		void fea_init_step( BufferList&, const uint numFeaParts, const double t,  const int step);
 
 		/* Do FEA step -- dynamic */

@@ -119,7 +119,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>(0);
 
 	if (m_simparams->simflags & ENABLE_FEA) {
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FEA_EXCH>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FEA_EXCH>(0);
 	}
 
 	if (m_simparams->numforcesbodies) {
@@ -1345,13 +1345,15 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 		shared_ptr<AbstractBuffer> hostbuf(onhost->second);
 		size_t _size = howManyParticles * buf->get_element_size();
 
-		if (buf_to_get == BUFFER_FEA_EXCH)
+		uint dst_index_offset = firstInnerParticle;
+
+		if (buf_to_get == BUFFER_FEA_EXCH) {
 			_size = m_numFeaNodes*buf->get_element_size();
+			dst_index_offset = m_deviceIndex*m_numFeaNodes;
+		}
 
 		if (buf_to_get == BUFFER_NEIBSLIST)
 			_size *= gdata->problem->simparams()->neiblistsize;
-
-		uint dst_index_offset = firstInnerParticle;
 
 		// the cell-specific buffers are always dumped as a whole,
 		// since this is only used to debug the neighbors list on host
@@ -1405,8 +1407,12 @@ void GPUWorker::runCommand<UNDUMP>(CommandStruct const& cmd)
 		shared_ptr<const AbstractBuffer> hostbuf(onhost->second);
 		size_t _size = howManyParticles * buf->get_element_size();
 
-		if (buf_to_get == BUFFER_FEA_EXCH)
+		uint firstCopyParticle = firstInnerParticle;
+
+		if (buf_to_get == BUFFER_FEA_EXCH) {
 			_size = m_numFeaNodes*buf->get_element_size();
+			firstCopyParticle = 0;
+		}
 
 		if (buf_to_get == BUFFER_NEIBSLIST)
 			_size *= gdata->problem->simparams()->neiblistsize;
@@ -1415,7 +1421,7 @@ void GPUWorker::runCommand<UNDUMP>(CommandStruct const& cmd)
 		// (actually currently all arrays are simple, since the only complex arrays (TAU
 		// and VERTPOS) have no host counterpart)
 		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-			const void *srcptr = hostbuf->get_offset_buffer(ai, firstInnerParticle);
+			const void *srcptr = hostbuf->get_offset_buffer(ai, firstCopyParticle);
 			void *dstptr = buf->get_buffer(ai);
 			CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
 		}
@@ -2046,6 +2052,9 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 
 	// clear out the buffers computed by forces
 	bufwrite.get<BUFFER_FORCES>()->clobber();
+
+	if (m_simparams->simflags & ENABLE_FEA)
+		bufwrite.get<BUFFER_FEA_EXCH>()->clobber();
 
 	if (m_simparams->simflags & ENABLE_XSPH)
 		bufwrite.get<BUFFER_XSPH>()->clobber();

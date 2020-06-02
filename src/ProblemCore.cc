@@ -797,6 +797,36 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const in
 
 #else // single step 
 
+void
+ProblemCore::reduce_fea_forces(BufferList &buffers, const uint numFeaParts)
+{
+	float4 *forces = buffers.getData<BUFFER_FEA_EXCH>(); // contains forces from (FSI)
+
+	uint n_devs = gdata->devices;
+
+	for (uint i = 0; i < numFeaParts; i++) {
+
+		float4 f_sum = forces[i];
+
+		for (uint d = 1; d < n_devs; d++)
+			f_sum += forces[d*numFeaParts + i];
+
+		forces[i] = f_sum;
+	}
+/*
+		float4 f_sum = forces[i];
+		cout << "node " << i << "  dev 0 f = (" << f_sum.x << ", " << f_sum.y << ", " << f_sum.z << ")" << endl;
+
+		for (uint d = 1; d < n_devs; d++){
+			float4 tmp = forces[d*numFeaParts + i];
+			cout << "node " << i << "  dev " << d << " f = (" << tmp.x << ", " << tmp.y << ", " << tmp.z << ")" << endl;
+		}
+
+		forces[i] = f_sum;
+	}
+	*/
+}
+
 // Set external forces and Fluid-Solid Interaction (FSI) forces to FEM nodes
 void
 ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const double t,  const int step)
