@@ -42,7 +42,6 @@
 #include "chrono/core/ChVector.h"
 #include "chrono/fea/ChMesh.h"
 #include "chrono/fea/ChNodeFEAxyzD.h"
-#include "chrono/fea/ChNodeFEAxyzDD.h"
 #include "chrono/fea/ChLinkPointFrame.h"
 #include "chrono/fea/ChLinkDirFrame.h"
 #endif
