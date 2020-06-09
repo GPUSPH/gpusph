@@ -151,8 +151,8 @@ constexpr bool
 wants_volumic_visc_term()
 {
 	return
-		FP::nptype != PT_BOUNDARY ||
-		FP::boundarytype == DYN_BOUNDARY;
+		FP::nptype != PT_BOUNDARY && FP::cptype != PT_BOUNDARY;
+//		FP::boundarytype == DYN_BOUNDARY;
 		//FP::boundarytype == DUMMY_BOUNDARY;
 }
 

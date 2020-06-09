@@ -869,7 +869,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 			// s_hFeaExtForce[i] is 1 if node i has an external force applied
 			if (simparams()->fcallback && gdata->s_hFeaExtForce[i])
 				node_f += gdata->s_FeaExtForce;
-			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
+//			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
 			gdata->total_fea_force += node_f;
 		}
 
@@ -981,7 +981,7 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 		// - we perform FEA during the predictor, where dt is half the complete time-step, then we use 2*dt
 		// - we perform FEA every fea_every SPH steps, then (assuming dt constant over this time) we perform
 		//    FEA using a factor fea_every on the time-step
-		m_fea_system->DoStepDynamics(2*dt*fea_every);
+		//m_fea_system->DoStepDynamics(2*dt*fea_every);
 
 	//	printf("done\n");
 
