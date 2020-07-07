@@ -1,0 +1,48 @@
+#!/usr/bin/python
+
+# Extract a data array from a ParaView file, and the point coordinates, to allow plotting with gnuplot
+
+# Usage: scripts/plot-field -f field,field,field src ...
+
+import os
+from argparse import ArgumentParser
+from paraview.simple import *
+
+parser = ArgumentParser(description='Extract field values from source files')
+parser.add_argument('src', metavar='file', nargs='+')
+parser.add_argument('-f', dest='field', action='append', required=True)
+
+args = parser.parse_args()
+
+files = args.src
+fields = ','.join(args.field).split(',')
+
+Connect()
+
+for src in files:
+    datafile = OpenDataFile(src)
+
+    data = servermanager.Fetch(datafile)
+    pts = data.GetNumberOfPoints()
+    ptdata = data.GetPointData()
+
+    arrays = []
+    print(src)
+    for field in fields:
+        array = ptdata.GetArray(field)
+
+        if array == None:
+            raise AttributeError("# Available arrays: " + " ".join([a[0] for a in datafile.PointData.items()]))
+
+        arrays.append(array)
+
+    for pt in range(0, pts):
+        show = [ a.GetTuple(pt) for a in arrays ]
+        # prepend position
+        show.insert(0, data.GetPoint(pt) )
+
+        # flatten (pos, tupls) into [posX, posY, posZ, tuplX, tuplY, tuplZ, ...]
+        # and convert to string form
+        flat = [str(el) for t in show for el in t]
+        print(' '.join(flat))
+    print("e\n\n")
