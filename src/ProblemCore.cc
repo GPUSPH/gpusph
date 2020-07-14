@@ -260,13 +260,19 @@ ProblemCore::InitializeChronoFEA()
 #if SOLVER_TYPE == 4
 	auto solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
 	m_fea_system->SetSolver(solver);
-	solver->SetMaxIterations(100000);
+	solver->SetMaxIterations(10000);
 	solver->SetTolerance(1e-8);
 	solver->EnableDiagonalPreconditioner(true);
 
 	m_fea_system->SetSolverForceTolerance(1e-10);
 
 	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::NEWMARK);
+
+	if (auto timestepper = std::dynamic_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper())) {
+		cout << " Setting damping to Project Chrono timestepper" << endl;
+		timestepper->SetAlpha(-0.2);
+	}
+
 #endif
 #else
 	throw runtime_error ("ProblemCore::InitializeChronoFEA Trying to use Chrono without USE_CHRONO defined !\n");
