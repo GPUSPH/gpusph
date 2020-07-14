@@ -842,7 +842,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 	uint o = 0; // we go through all the meshes (defomable objects) starting from the one with index 0
 
 	uint av_idx = gdata->averager_index;
-	gdata->total_fea_force = make_float3(0.0, 0.0, 0.0);
+	float3 total_force = make_float3(0.0, 0.0, 0.0);
 
 	for(uint i = 0; i < numFeaParts; ++i) {
 
@@ -854,9 +854,9 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		// we set the forces during the predictor
 		if (step == 1) {
 
-			//float3 new_f  = as_float3(forces[i])/1000.0f;
-			float3 node_f  = as_float3(forces[i]);
-/*
+			float3 new_f  = as_float3(forces[i])/1000.0f;
+		//	float3 node_f  = as_float3(forces[i]);
+
 			float3 node_f = gdata->forces_averager[i][1000];
 			node_f += (new_f - gdata->forces_averager[i][av_idx]);
 
@@ -864,13 +864,13 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 			gdata->forces_averager[i][1000] = node_f;
 
-*/
+
 			// Apply external forces if any
 			// s_hFeaExtForce[i] is 1 if node i has an external force applied
 			if (simparams()->fcallback && gdata->s_hFeaExtForce[i])
 				node_f += gdata->s_FeaExtForce;
-//			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
-			gdata->total_fea_force += node_f;
+			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
+			total_force += node_f;
 		}
 
 		n++;
@@ -880,11 +880,13 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 			o ++;
 		}
 	}
-/*
+
+	gdata->total_fea_force = total_force;
+
 	av_idx ++;
 	if (av_idx == 1000) av_idx = 0;
 	gdata->averager_index = av_idx;
-	*/
+
 #endif
 }
 
