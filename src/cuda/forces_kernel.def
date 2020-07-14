@@ -151,10 +151,25 @@ constexpr bool
 wants_volumic_visc_term()
 {
 	return
-		FP::nptype != PT_BOUNDARY && FP::cptype != PT_BOUNDARY;
-//		FP::boundarytype == DYN_BOUNDARY;
-		//FP::boundarytype == DUMMY_BOUNDARY;
+		FP::nptype != PT_BOUNDARY ||
+		FP::boundarytype == DYN_BOUNDARY ||
+		FP::boundarytype == DUMMY_BOUNDARY;
 }
+
+// DUMMY_BOUNDARY: artificial viscosity is only fluid/fluid
+// other types: same as wants_volumic_visc_term()
+// TODO FIXME we might want to do only fluid/fluid in all types
+template<typename FP>
+__device__ __forceinline__
+constexpr bool
+wants_artificial_visc_term()
+{
+	return
+		(wants_volumic_visc_term<FP>() && FP::boundarytype != DUMMY_BOUNDARY) ||
+		(FP::boundarytype == DUMMY_BOUNDARY &&
+		 FP::cptype == PT_FLUID && FP::nptype == PT_FLUID);
+}
+
 
 /// Selector for k-epsilon differential equations terms
 /*! Presently KEPSILON is only supported with semi-analytical boundary conditions,
@@ -2823,7 +2838,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::turbmodel == ARTIFICIAL &&
-	! wants_volumic_visc_term<FP>()
+	! wants_artificial_visc_term<FP>()
 >
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -2837,7 +2852,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
 	FP::turbmodel == ARTIFICIAL &&
-	wants_volumic_visc_term<FP>()
+	wants_artificial_visc_term<FP>()
 >
 compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
