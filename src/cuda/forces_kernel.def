@@ -2211,12 +2211,31 @@ __device__ __forceinline__
 enable_if_t<
 	FP::sph_formulation != SPH_GRENIER &&
 	FP::sph_formulation != SPH_HA &&
-	!(FP::boundarytype == SA_BOUNDARY && FP::nptype == PT_BOUNDARY)
+	!(FP::boundarytype == SA_BOUNDARY && FP::nptype == PT_BOUNDARY) &&
+	!(FP::boundarytype == DUMMY_BOUNDARY && FP::nptype == PT_BOUNDARY)
 >
 mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
 	nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
+}
+
+template<typename FP, typename P, typename N, typename ON>
+__device__ __forceinline__
+enable_if_t<
+	FP::sph_formulation != SPH_GRENIER &&
+	FP::sph_formulation != SPH_HA &&
+	!(FP::boundarytype == SA_BOUNDARY && FP::nptype == PT_BOUNDARY) &&
+	(FP::boundarytype == DUMMY_BOUNDARY && FP::nptype == PT_BOUNDARY)
+>
+mass_continuity_div_vel_term
+(FP const& params, P const& pdata, N const& ndata, ON &nout)
+{
+	float neib_contr = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
+	if (pdata.pos.w < 0.0f)
+		if (neib_contr < 0.0f)
+			neib_contr = 0.0f;
+	nout.DrDt = neib_contr;
 }
 
 /// Density ratio contribution

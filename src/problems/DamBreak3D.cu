@@ -51,7 +51,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC>,
+		rheology<NEWTONIAN>,
+		turbulence_model<ARTIFICIAL>,
 		boundary<DUMMY_BOUNDARY>,
 		add_flags<ENABLE_REPACKING>
 	).select_options(
@@ -86,14 +87,15 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 
 	//add_fluid(2350.0);
 	set_equation_of_state(0,  7.0f, 20.0f);
-	set_kinematic_visc(0, 1.0e-2f);
+	set_kinematic_visc(0, 1.0e-6f);
 	//set_dynamic_visc(0, 1.0e-4f);
 
 	// default tend 1.5s
 	simparams()->tend=1.5f;
 	//simparams()->ferrariLengthScale = H;
 	simparams()->densityDiffCoeff = 0.1f;
-	/*set_artificial_visc(0.2f);
+	set_artificial_visc(0.05f);
+	/*
 	set_sps_parameters(0.12, 0.0066); // default values
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
 	simparams()->repack_a = 0.1f;
@@ -101,7 +103,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->repack_maxiter = 10;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.005f);
+	add_writer(VTKWRITER, 0.05f);
 	//addPostProcess(VORTICITY);
 	// *** Other parameters and settings
 	m_name = "DamBreak3D";

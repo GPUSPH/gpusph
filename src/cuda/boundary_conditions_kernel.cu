@@ -2469,7 +2469,9 @@ ComputeDummyParticlesDevice(
 
 		const float4 neib_vel = velArray[neib_index];
 
-		const float neib_pressure = P(neib_vel.w, fluid_num(neib_info)); // neib_vel.w = rho_tilde
+		float neib_pressure = P(neib_vel.w, fluid_num(neib_info)); // neib_vel.w = rho_tilde
+
+		neib_pressure *= (neib_pressure >= 0.0f);
 
 		const float w = W<kerneltype>(r, slength);
 
@@ -2479,9 +2481,11 @@ ComputeDummyParticlesDevice(
 		// For convenience, we achieve this by multiply neib_vel.w by dot(g, relPos)
 		// and adding neib_pressure, so that the shep_vel_P can be obtained with a simple
 		// vectorized increment:
+		float grav_contr = physical_density(neib_vel.w, fluid_num(neib_info))*dot(accel_delta, as_float3(relPos));
+
 		float4 neib_contrib = make_float4(
 			neib_vel.x, neib_vel.y, neib_vel.z,
-			neib_pressure + physical_density(neib_vel.w, fluid_num(neib_info))*dot(accel_delta, as_float3(relPos)));
+			neib_pressure + fabs(grav_contr));
 		neib_contrib *= w;
 
 		kahan_add(vel, neib_contrib, c_vel);
