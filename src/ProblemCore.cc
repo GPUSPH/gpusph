@@ -198,9 +198,13 @@ ProblemCore::InitializeChronoFEA()
 	m_fea_system = new ::chrono::ChSystemNSC(); // FIXME NOT necessary the NSC
 
 	// setting the gravity for the Chrono system
-	
-	m_fea_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+
+	printf("Setting gravity for FEA: g = (%g, %g, %g)\n", m_physparams->gravity.x, m_physparams->gravity.y,
+		m_physparams->gravity.z);
+/*	m_fea_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
 		m_physparams->gravity.z)); //TODO choose if initialize here or add the gravity to the forces
+		*/
+	m_fea_system->Set_G_acc(::chrono::ChVector<>(0.0, 0.0, -9.81)); //TODO choose if initialize here or add the gravity to the forces
 
 #define SOLVER_TYPE 4
 
