@@ -324,11 +324,18 @@ bool ProblemAPI<1>::initialize()
 	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed (through set_density())
 	const float g = length(physparams()->gravity);
 
-	if (!isfinite(physparams()->dcoeff))
+	// The LJ d coefficient is used by LJ_BOUNDARY, but also by the repulsive force of planes and DEM
+	const bool needs_dcoeff = (simparams()->boundarytype == LJ_BOUNDARY) ||
+		QUERY_ANY_FLAGS(simparams()->simflags, ENABLE_DEM | ENABLE_PLANES);
+	if (needs_dcoeff && !isfinite(physparams()->dcoeff)) {
 		physparams()->dcoeff = 5.0f * g * m_maxFall;
+		printf("Lennard–Jones D coefficient not set, autocomputed: %g\n", physparams()->dcoeff);
+	}
 
-	if (!isfinite(physparams()->MK_K))
+	if (simparams()->boundarytype == MK_BOUNDARY && !isfinite(physparams()->MK_K)) {
 		physparams()->MK_K = g * m_maxFall;
+		printf("Monaghan–Kajtar K coefficient not set, autocomputed: %g\n", physparams()->MK_K);
+	}
 
 	// hydrostatic filling works only if gravity has only vertical component and
 	// there isn't a periodic boundary in the gravity direction
