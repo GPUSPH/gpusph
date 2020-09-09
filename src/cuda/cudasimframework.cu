@@ -176,7 +176,7 @@ template<
 			_sph_formulation == SPH_GRENIER	||	// multi-fluid is currently not implemented
 			// flags
 			_simflags & ENABLE_XSPH			||	// untested
-			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
+			QUERY_ANY_FLAGS(_simflags, ENABLE_DEM | ENABLE_PLANES) ||	// not implemented (flat wall formulation is in an old branch)
 			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
 												// inlet outlet works only with the summation density
 			(_simflags & ENABLE_DENSITY_SUM && _simflags & ENABLE_GAMMA_QUADRATURE)
