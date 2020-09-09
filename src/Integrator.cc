@@ -101,7 +101,10 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 	// Some buffers can be shared between the sorted and unsorted state, because
 	// they are not directly tied to the particles themselves, but the particle system
 	// as a whole. The buffers that need to get shared depend on a number of conditions:
-	static const flag_t has_forces_bodies = (sp->numforcesbodies > 0);
+	static const bool has_forces_bodies = (sp->numforcesbodies > 0);
+
+	// Determine if we're using planes, and thus need the BUFFER_NEIBPLANES buffer
+	static const bool has_planes = QUERY_ANY_FLAGS(sp->simflags, ENABLE_PLANES | ENABLE_DEM);
 
 	static const flag_t sorting_shared_buffers =
 	// The compact device map (when present) carries over to the other state, unchanged
@@ -230,7 +233,9 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 			BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
 			BUFFER_CELLSTART | BUFFER_CELLEND)
 		.writing("sorted",
-			BUFFER_NEIBSLIST | BUFFER_VERTPOS);
+			BUFFER_NEIBSLIST | BUFFER_VERTPOS |
+			(has_planes ? BUFFER_NEIBPLANES : BUFFER_NONE)
+			);
 
 	// BUFFER_VERTPOS needs to be synchronized with the adjacent devices
 	if (MULTI_DEVICE && sp->boundarytype == SA_BOUNDARY)

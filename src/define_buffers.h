@@ -75,7 +75,12 @@ SET_BUFFER_TRAITS(BUFFER_COMPACT_DEV_MAP, uint, 1, "Compact device map");
 #define BUFFER_NEIBSLIST	(BUFFER_COMPACT_DEV_MAP << 1)
 SET_BUFFER_TRAITS(BUFFER_NEIBSLIST, neibdata, 1, "Neighbor List");
 
-#define BUFFER_FORCES		(BUFFER_NEIBSLIST << 1)
+//! Indices of the neighboring planes. The invalid index MAX_PLANES
+//! is used to denote the DEM, -1 to denote no more planes
+#define BUFFER_NEIBPLANES	(BUFFER_NEIBSLIST << 1)
+SET_BUFFER_TRAITS(BUFFER_NEIBPLANES, int4, 1, "Neighbor Planes");
+
+#define BUFFER_FORCES		(BUFFER_NEIBPLANES << 1)
 SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
 /* Forces and torques acting on rigid body particles only
@@ -258,7 +263,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 
 // all particle-based buffers
 #define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & \
-	~(BUFFERS_RB_PARTICLES | BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
+	~(BUFFERS_RB_PARTICLES | BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST| BUFFER_NEIBPLANES))
 
 // TODO we need a better form of buffer classification, distinguishing:
 // * “permanent” buffers for particle properties (which need to be sorted):
@@ -353,7 +358,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
  * generated once at the beginning of the simulation and never updated.
  */
 #define NEIBS_SEQUENCE_REFRESH_BUFFERS \
-	( (BUFFERS_CELL & ~BUFFER_COMPACT_DEV_MAP) | BUFFER_NEIBSLIST | BUFFER_VERTPOS)
+	( (BUFFERS_CELL & ~BUFFER_COMPACT_DEV_MAP) | BUFFER_NEIBSLIST | BUFFER_NEIBPLANES | BUFFER_VERTPOS)
 
 #define POST_REPACK_SWAP_BUFFERS \
 	(	BUFFER_POS | \

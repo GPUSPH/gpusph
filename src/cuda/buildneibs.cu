@@ -327,10 +327,10 @@ const	float		boundNlSqInflRad)
 	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	buildneibs_params<boundarytype> params(bufread, bufwrite,
+	buildneibs_params<boundarytype, simflags> params(bufread, bufwrite,
 		particleRangeEnd, sqinfluenceradius, boundNlSqInflRad);
 
-	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
+	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount><<<numBlocks, numThreads>>>(params);
 
 	if (check_cell_overflow) {
 		const uint nCells = bufread.get<BUFFER_CELLSTART>()->get_allocated_elements();

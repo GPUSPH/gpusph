@@ -132,10 +132,10 @@ struct common_niC_vars
 	/// Constructor
 	/*!	Computes structure members value according to the grid position.
 	 */
-	template<BoundaryType boundarytype>
+	template<BoundaryType boundarytype, flag_t simflags>
 	__device__ __forceinline__
 	common_niC_vars(
-		buildneibs_params<boundarytype> const& bparams,
+		buildneibs_params<boundarytype, simflags> const& bparams,
 		int3 const& gridPos		///< [in] position in the grid
 					) :
 		gridHash(calcGridHash(gridPos)),
@@ -164,8 +164,9 @@ struct sa_boundary_niC_vars
 	 * 	\param[in] index : particle index
 	 * 	\param[in] bparams : TODO
 	 */
+	template<flag_t simflags>
 	__device__ __forceinline__
-	sa_boundary_niC_vars(const uint index, buildneibs_params<SA_BOUNDARY> const& bparams) :
+	sa_boundary_niC_vars(const uint index, buildneibs_params<SA_BOUNDARY, simflags> const& bparams) :
 		vertices(bparams.fetchVert(index)),
 		boundElement(bparams.fetchBound(index)),
 		// j is 0, 1 or 2 depending on which is smaller (in magnitude) between
@@ -201,11 +202,12 @@ struct niC_vars :
 	common_niC_vars,
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)
 {
+	template<flag_t simflags>
 	__device__ __forceinline__
 	niC_vars(
 		int3 const& gridPos,
 		const uint index,
-		buildneibs_params<boundarytype> const& bparams) :
+		buildneibs_params<boundarytype, simflags> const& bparams) :
 		common_niC_vars(bparams, gridPos),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
 	{}
@@ -390,10 +392,11 @@ calcNeibCell(
  * 	\return : true if the distance is < to the squared influence radius, false otherwise
  * 	\tparam boundarytype : the boundary model used
  */
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-bool isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
-	buildneibs_params<boundarytype> const& params)
+enable_if_t<boundarytype != SA_BOUNDARY, bool>
+isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
+	buildneibs_params<boundarytype, simflags> const& params)
 {
 	// Default : check against the influence radius
 	return sqlength(relPos) < params.sqinfluenceradius;
@@ -401,10 +404,11 @@ bool isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
 
 /// Specialization of isCloseEnough for SA boundaries
 /// \see isCloseEnough
-template<>
+template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-bool isCloseEnough<SA_BOUNDARY>(float3 const& relPos, particleinfo const& neib_info,
-	buildneibs_params<SA_BOUNDARY> const& params)
+enable_if_t<boundarytype == SA_BOUNDARY, bool>
+isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
+	buildneibs_params<boundarytype, simflags> const& params)
 {
 	const float rp2(sqlength(relPos));
 	// Include boundary neighbors which are a little further than sqinfluenceradius
@@ -425,21 +429,23 @@ bool isCloseEnough<SA_BOUNDARY>(float3 const& relPos, particleinfo const& neib_i
  * 	\return : true if the distance is < to the squared influence radius, false otherwise
  * 	\tparam boundarytype : the boundary model used
  */
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-void process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
-	buildneibs_params<boundarytype> const& params,
+enable_if_t<boundarytype != SA_BOUNDARY>
+process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
+	buildneibs_params<boundarytype, simflags> const& params,
 	niC_vars<boundarytype> const& var)
 { /* Do nothing by default */ }
 
 
 /// Specialization of process_niC_segment for SA boundaries
 /// \see process_niC_segment
-template<>
+template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_id, float3 const& relPos,
-	buildneibs_params<SA_BOUNDARY> const& params,
-	niC_vars<SA_BOUNDARY> const& var)
+enable_if_t<boundarytype == SA_BOUNDARY>
+process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
+	buildneibs_params<boundarytype, simflags> const& params,
+	niC_vars<boundarytype> const& var)
 {
 	int i = -1;
 	if (neib_id == var.vertices.x)
@@ -538,10 +544,11 @@ bool too_many_neibs(const uint* neibs_num, ParticleType neib_type)
  * First and last particle index for grid cells and particle's information
  * are read through texture fetches.
  */
-template <SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound>
+template <SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
+		 flag_t simflags>
 __device__ __forceinline__ void
 neibsInCell(
-			buildneibs_params<boundarytype> const& params,			// build neibs parameters
+			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
 			int3			gridPos,	// current particle grid position
 			const int3		gridOffset,	// cell offset from current particle grid position
 			const uchar		cell,		// cell number (0 ... 26)
@@ -956,6 +963,7 @@ void reorderDataAndFindCellStartDevice(
  *	TODO: finish implementation for SA_BOUNDARY (include PT_VERTEX)
  */
 template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
+	flag_t simflags,
 	bool neibcount,
 	/* Number of shared arrays for the maximum number of neighbors:
 	 * this is 1 (counting fluid + boundary) for all boundary types, except
@@ -965,7 +973,7 @@ __global__ void
 /*! \cond */
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
 /*! \endcond */
-buildNeibsListDevice(buildneibs_params<boundarytype> params)
+buildNeibsListDevice(buildneibs_params<boundarytype, simflags> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 

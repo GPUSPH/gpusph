@@ -88,6 +88,16 @@ struct common_buildneibs_params :
 	{}
 };
 
+/// Parameters used only when ENABLE_PLANES or ENBLE_DEM
+struct planes_buildneibs_params
+{
+			int4	* __restrict__ neibPlanes; ///< list of neighboring planes
+
+	planes_buildneibs_params(BufferList& bufwrite) :
+		neibPlanes(bufwrite.getData<BUFFER_NEIBPLANES>())
+	{}
+};
+
 /// Parameters used only with SA_BOUNDARY buildneibs specialization
 struct sa_boundary_buildneibs_params
 {
@@ -134,13 +144,15 @@ struct sa_boundary_buildneibs_params
  *  It then delegates the appropriate subset of arguments to the appropriate
  *  structures it derives from, in the correct order
  */
-template<BoundaryType boundarytype,
-	typename cond_sa_params = typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)>
+template<BoundaryType boundarytype, flag_t simflags,
+	typename cond_sa_params = typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params),
+	typename cond_planes_params = typename COND_STRUCT(QUERY_ANY_FLAGS(simflags, ENABLE_PLANES | ENABLE_DEM),
+		planes_buildneibs_params)>
 struct buildneibs_params :
 	common_buildneibs_params,
+	cond_planes_params,
 	cond_sa_params
 {
-
 	buildneibs_params(
 		const	BufferList&	bufread,
 				BufferList& bufwrite,
@@ -151,6 +163,7 @@ struct buildneibs_params :
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
+		cond_planes_params(bufwrite),
 		cond_sa_params(bufread, bufwrite, _boundNlSqInflRad)
 	{}
 };

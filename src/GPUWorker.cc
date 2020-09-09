@@ -132,6 +132,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
+	if (QUERY_ANY_FLAGS(m_simparams->simflags, ENABLE_PLANES | ENABLE_DEM))
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBPLANES>(-1); // neib planes list is initialized to all bits set
+
 	if (m_simparams->simflags & ENABLE_XSPH)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
 
