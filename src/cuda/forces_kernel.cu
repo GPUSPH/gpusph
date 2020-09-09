@@ -156,7 +156,7 @@ PlaneForce(	const int3&		gridPos,
 		as_float3(force) += DvDt*relPos;
 
 		// tangential velocity component
-		const float3 v_t = vel - dot(vel, relPos)/r*relPos/r; //TODO: check
+		const float3 v_t = vel - dot(vel,plane.normal)*plane.normal; //TODO: check
 
 		// f = -µ u/∆n
 
