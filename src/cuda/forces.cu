@@ -85,10 +85,6 @@
 #error "BLOCK_SIZE_FMAX must be larger than 32"
 #endif
 
-
-thread_local cudaArray*  dDem = NULL;
-thread_local cudaTextureObject_t demTex = 0;
-
 /* Auxiliary data for parallel reductions */
 thread_local size_t	reduce_blocks = 0;
 thread_local size_t	reduce_blocksize_max = 0;
@@ -844,6 +840,10 @@ basicstep(
 			step, dt, compute_object_forces);
 }
 
+// TODO FIXME DEM functions should be moved to somewhere in or before buildneibs since
+// the corresponding thread_local globals are there. (Even better, stick those globals
+// in a BUFFER_DEM and manage these things from there —even though the handling isn't
+// much in line with the rest of it ...)
 void
 setDEM(const float *hDem, int width, int height)
 {

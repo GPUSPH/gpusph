@@ -91,6 +91,7 @@
 #include "neibs_iteration.cuh"
 /*! \endcond */
 
+#include "geom_core.cu"
 
 /** \namespace cuneibs
  *  \brief Contains all device functions/kernels/variables used for neighbor list construction
@@ -937,6 +938,96 @@ void reorderDataAndFindCellStartDevice(
 	}
 }
 
+/// Find the planes within the influence radius of the particle
+/*! If neither ENABLE_PLANES nor ENABLE_DEM are active, do nothing
+ */
+template<BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t<!QUERY_ANY_FLAGS(simflags, ENABLE_PLANES | ENABLE_DEM)>
+findNeighboringPlanes(
+	buildneibs_params<boundarytype, simflags> params,
+	const int3& gridPos,
+	const float3& pos,
+	int index)
+{ /* do nothing */ }
+
+/// Check if the DEM is in range
+/*! Do nothing if not ENABLE_DEM */
+template<BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t<!QUERY_ANY_FLAGS(simflags, ENABLE_DEM), bool>
+isDemInRange(
+	buildneibs_params<boundarytype, simflags> params,
+	const int3& gridPos,
+	const float3& pos,
+	int index)
+{ return false; /* result won't be used anyway */ }
+
+/// Check if the DEM is in range
+/*! Actual check in case DEM is enabled */
+template<BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t<QUERY_ANY_FLAGS(simflags, ENABLE_DEM), bool>
+isDemInRange(
+	buildneibs_params<boundarytype, simflags> params,
+	const int3& gridPos,
+	const float3& pos,
+	int index)
+{
+	const float2 demPos = cugeom::DemPos(gridPos, pos);
+	// TODO find a way to be more accurate about this
+	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
+	const float globalZ0 = cugeom::DemInterpol(params.demTex, demPos);
+	const float r = globalZ - globalZ0;
+	if (r < 0)
+		printf("Particle %d behind DEM!\n", index);
+	return (r*r < params.sqinfluenceradius);
+}
+
+/// Find the planes within the influence radius of the particle
+/*! If ENABLE_PLANES or ENABLE_DEM are active, go over each defined plane
+ * and see if the distance is within the required radius
+ */
+template<BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t<QUERY_ANY_FLAGS(simflags, ENABLE_PLANES | ENABLE_DEM)>
+findNeighboringPlanes(
+	buildneibs_params<boundarytype, simflags> params,
+	const int3& gridPos,
+	const float3& pos,
+	int index)
+{
+	using namespace cugeom;
+	int neib_planes = 0;
+	// we cheat a bit: we know that an int4 stores x, y, z, w consecutively,
+	// so we can take the address of the x component, and the other
+	// will follow
+	int *store = &(params.neibPlanes[index].x);
+
+	if ((simflags & ENABLE_PLANES)) {
+		for (int p = 0; p < d_numplanes; ++p) {
+			float r = signedPlaneDistance(gridPos, pos, d_plane[p]);
+			if (r < 0)
+				printf("Particle %d behind plane %d!\n", index, p);
+			if (r*r < params.sqinfluenceradius) {
+				store[neib_planes++] = p;
+				if (neib_planes > 3) break;
+			}
+		}
+	}
+
+	if ((simflags & ENABLE_DEM) && neib_planes < 4) {
+		if (isDemInRange(params, gridPos, pos, index)) {
+			store[neib_planes++] = MAX_PLANES;
+		}
+	}
+
+	while (neib_planes < 4) {
+		store[neib_planes++] = -1;
+	}
+}
+
+
 
 /// Builds particles neighbors list
 /*! This kernel builds the neighbor's indexes of all particles. The
@@ -1040,6 +1131,8 @@ buildNeibsListDevice(buildneibs_params<boundarytype, simflags> params)
 				}
 			}
 		}
+
+		findNeighboringPlanes(params, gridPos, pos3, index);
 	} while (0);
 
 	// Each of the sections of the neighbor list is terminated by a NEIBS_END. This allow

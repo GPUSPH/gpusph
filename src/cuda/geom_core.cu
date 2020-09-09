@@ -28,7 +28,15 @@
  * Device constants and functions for planes and DEM management
  */
 
+#ifndef GEOM_CORE_CU
+#define GEOM_CORE_CU
+
 #include "planes.h"
+
+#include "neibs_iteration.cuh" // for d_cellSize
+
+thread_local cudaArray*  dDem = NULL;
+thread_local cudaTextureObject_t demTex = 0;
 
 namespace cugeom {
 
@@ -175,3 +183,5 @@ DemTangentPlane(cudaTextureObject_t demTex,
 
 /** @} */
 }
+
+#endif

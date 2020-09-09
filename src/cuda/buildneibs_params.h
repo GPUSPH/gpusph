@@ -147,10 +147,12 @@ struct sa_boundary_buildneibs_params
 template<BoundaryType boundarytype, flag_t simflags,
 	typename cond_sa_params = typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params),
 	typename cond_planes_params = typename COND_STRUCT(QUERY_ANY_FLAGS(simflags, ENABLE_PLANES | ENABLE_DEM),
-		planes_buildneibs_params)>
+		planes_buildneibs_params),
+	typename cond_dem_params = typename COND_STRUCT(QUERY_ANY_FLAGS(simflags, ENABLE_DEM), dem_params)>
 struct buildneibs_params :
 	common_buildneibs_params,
 	cond_planes_params,
+	cond_dem_params,
 	cond_sa_params
 {
 	buildneibs_params(
@@ -159,11 +161,15 @@ struct buildneibs_params :
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius,
 
+		// ENABLE_DEM
+		cudaTextureObject_t demTex,
+
 		// SA_BOUNDARY
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
 		cond_planes_params(bufwrite),
+		cond_dem_params(demTex),
 		cond_sa_params(bufread, bufwrite, _boundNlSqInflRad)
 	{}
 };

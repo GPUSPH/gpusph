@@ -43,8 +43,8 @@
 
 #include "sph_core.cu"
 #include "phys_core.cu"
-#include "buildneibs.cu"
 #include "geom_core.cu"
+#include "buildneibs.cu"
 #include "boundary_conditions.cu"
 #include "euler.cu"
 #include "forces.cu"

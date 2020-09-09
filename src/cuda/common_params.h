@@ -353,4 +353,15 @@ struct keps_tex_params
 	{ return tex1Dfetch<float>(keps_eTexObj, index); }
 };
 
+//! ENABLE_DEM-related texture parameters
+// TODO FIXME ideally should use the buffer system
+struct dem_params
+{
+	cudaTextureObject_t demTex;
+
+	dem_params(cudaTextureObject_t demTex_) :
+		demTex(demTex_)
+	{}
+};
+
 #endif

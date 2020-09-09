@@ -345,14 +345,6 @@ struct effective_visc_forces_params
 	{}
 };
 
-struct dem_forces_params
-{
-	cudaTextureObject_t demTex;
-	dem_forces_params(cudaTextureObject_t demTex_) :
-		demTex(demTex_)
-	{}
-};
-
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -490,7 +482,7 @@ template<SPHFormulation _sph_formulation,
 	bool _inviscid = _ViscSpec::rheologytype == INVISCID,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
 	typename dem_cond =
-		typename COND_STRUCT(_simflags & ENABLE_DEM, dem_forces_params),
+		typename COND_STRUCT(_simflags & ENABLE_DEM, dem_params),
 	typename dyndt_cond =
 		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
 	typename grenier_cond =
