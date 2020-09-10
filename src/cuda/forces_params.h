@@ -129,6 +129,15 @@ struct common_forces_params :
 	{}
 };
 
+/// Parameters needed when using ENABLE_PLANES and/or ENABLE_DEM
+struct planes_forces_params
+{
+	const int4 * __restrict__ neibPlanes;
+	planes_forces_params(BufferList const& bufread) :
+		neibPlanes(bufread.getData<BUFFER_NEIBPLANES>())
+	{}
+};
+
 template<RunMode run_mode>
 struct common_finalize_forces_params;
 
@@ -481,8 +490,13 @@ template<SPHFormulation _sph_formulation,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _inviscid = _ViscSpec::rheologytype == INVISCID,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
+	bool _has_planes = QUERY_ANY_FLAGS(_simflags, ENABLE_PLANES),
+	bool _has_dem = QUERY_ANY_FLAGS(_simflags, ENABLE_DEM),
+	typename planes_cond =
+		typename COND_STRUCT(_has_planes || _has_dem, planes_forces_params),
+	// DEM specifically also needs the demTex texture object
 	typename dem_cond =
-		typename COND_STRUCT(_simflags & ENABLE_DEM, dem_params),
+		typename COND_STRUCT(_has_dem, dem_params),
 	typename dyndt_cond =
 		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
 	typename grenier_cond =
@@ -498,6 +512,7 @@ template<SPHFormulation _sph_formulation,
 	>
 struct finalize_forces_params :
 	common_finalize_forces_params<_run_mode>,
+	planes_cond,
 	dem_cond,
 	dyndt_cond,
 	grenier_cond,
@@ -519,6 +534,8 @@ struct finalize_forces_params :
 
 	static const RunMode run_mode = _run_mode;
 	static const bool repacking = _repacking;
+	static const bool has_planes = _has_planes;
+	static const bool has_dem = _has_dem;
 	static const bool has_keps = _has_keps;
 	static const bool has_effective_visc = _has_effective_visc;
 	static const bool inviscid = _inviscid;
@@ -542,6 +559,7 @@ struct finalize_forces_params :
 	:
 		common_finalize_forces_params<run_mode>(bufread, bufwrite,
 			 _fromParticle, _toParticle, _slength, _deltap),
+		planes_cond(bufread),
 		dem_cond(demTex),
 		dyndt_cond(bufwrite, _numParticles, _cflOffset),
 		grenier_cond(bufread),

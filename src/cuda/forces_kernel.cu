@@ -136,8 +136,22 @@ MKForce(const float r, const float slength,
 
 // TODO: check for the maximum timestep
 
+//! Returns true if planes/DEMs in the given boundarytype exerts Lennard-Jones-style repulsion
+//! This is true for LJ_BOUNDARY (obviously), but also for DYN_BOUNDARY and DUMMY_BOUNDARY.
+//! (Note that DYN and DUMMY will exert repulsive forces even when ghost particles will be implemented.)
+static constexpr bool boundary_has_LJ_repulsion(BoundaryType boundarytype)
+{
+	return boundarytype == LJ_BOUNDARY ||
+		boundarytype == DYN_BOUNDARY || boundarytype == DUMMY_BOUNDARY;
+}
+
 //! Computes normal and viscous force wrt to solid planar boundary
-__device__ __forceinline__ float
+//! This is only the LJ specialization, also used by DYN and DUMMY.
+//! For MK we should implement MK-style repulsion (TODO).
+//! Interaction with planes in SA has experimental code in an ancient branch (TODO).
+template<BoundaryType boundarytype>
+__device__ __forceinline__
+enable_if_t<boundary_has_LJ_repulsion(boundarytype), float>
 PlaneForce(	const int3&		gridPos,
 			const float3&	pos,
 			const float		mass,
@@ -183,26 +197,9 @@ PlaneForce(	const int3&		gridPos,
 	return 0.0f;
 }
 
-//! DOC-TODO Describe function
-__device__ __forceinline__ float
-GeometryForce(	const int3&		gridPos,
-				const float3&	pos,
-				const float		mass,
-				const float3&	vel,
-				const float		dynvisc,
-				float4&			force)
-{
-	float coeff_max = 0.0f;
-	for (uint i = 0; i < d_numplanes; ++i) {
-		float coeff = PlaneForce(gridPos, pos, mass, d_plane[i], vel, dynvisc, force);
-		if (coeff > coeff_max)
-			coeff_max = coeff;
-	}
-
-	return coeff_max;
-}
-
-//! DOC-TODO describe function
+//! Apply a geometric force from the plane tangent to the DEM
+//! near the particle position
+template<BoundaryType boundarytype>
 __device__ __forceinline__ float
 DemLJForce(	cudaTextureObject_t demTex,
 			const int3&	gridPos,
@@ -220,7 +217,7 @@ DemLJForce(	cudaTextureObject_t demTex,
 	if (globalZ - globalZ0 < d_demzmin) {
 		const plane_t demPlane(DemTangentPlane(demTex, gridPos, pos, demPos, globalZ0));
 
-		return PlaneForce(gridPos, pos, mass, demPlane, vel, dynvisc, force);
+		return PlaneForce<boundarytype>(gridPos, pos, mass, demPlane, vel, dynvisc, force);
 	}
 	return 0;
 }

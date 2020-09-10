@@ -458,6 +458,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
+	static const bool has_planes_or_dem = QUERY_ANY_FLAGS(sp->simflags, ENABLE_PLANES | ENABLE_DEM);
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
 
 	// TODO get from integrator
@@ -527,6 +528,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		.reading(current_state,
 			BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
 			BUFFER_TAU |
+			(has_planes_or_dem ? BUFFER_NEIBPLANES : BUFFER_NONE) |
 			BUFFER_DUMMY_VEL |
 			BUFFER_RB_KEYS |
 			BUFFER_VOLUME | BUFFER_SIGMA |

@@ -3269,6 +3269,55 @@ repack_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.force.w /= d_rho0[fluid_num(pdata.info)];
 }
 
+/*!
+ * Geometric forces from planes and DEM handled in finalize.
+ *
+ * Currently this is only supported for LJ, and adds repulsive forces from planes
+ * and DEM tangent planes (see PlaneForce and DemForce)
+ *
+ * dynvisc is the value returned by viscous_fixup(), to be used for wall friction
+ */
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::has_planes || FP::has_dem, float>
+finalize_geometric_forces(FP const& params, P const& pdata, OP &pout, const float dynvisc)
+{
+	// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
+	// for viscous fluids
+	float geom_coeff = 0.0f;
+	const float3 pos3 = make_float3(pdata.pos);
+	const float3 vel3 = make_float3(pdata.vel);
+
+	const int *neib_plane_idx = &(params.neibPlanes[pdata.index].x);
+
+	// maximum 4 geometries
+	for (int i = 0; i < 4; ++i) {
+		const int p = *neib_plane_idx;
+		if (p < 0) break; // done
+		++neib_plane_idx;
+
+		float coeff;
+		if (FP::has_planes && p < d_numplanes) {
+			coeff = compute_plane_force(params, pdata, pout, pos3, vel3, d_plane[p], dynvisc);
+		} else if (FP::has_dem && p == MAX_PLANES) {
+			coeff = compute_dem_force(params, pdata, pout, pos3, vel3, dynvisc);
+		} else {
+			printf("This can't happen: %d / %d\n", p, d_numplanes);
+			coeff = NAN;
+		}
+		if (coeff > geom_coeff)
+			geom_coeff = coeff;
+	}
+	return geom_coeff;
+}
+
+template<typename FP, typename PD, typename OP>
+__device__ __forceinline__
+enable_if_t<!FP::has_planes && !FP::has_dem, float>
+finalize_geometric_forces(FP const& params, PD const& pdata, OP &pout, const float dynvisc)
+{ return 0.0f; }
+
+
 /*
  * Forces acting on moving bodies
  */
@@ -4066,44 +4115,36 @@ forcesDevice(FP params)
 /* DEM and PLANES interaction wrappers */
 template<typename FP, typename P, typename PO>
 __device__ __forceinline__
-enable_if_t<QUERY_ANY_FLAGS(FP::simflags, ENABLE_DEM), float>
-compute_dem_force(FP const& params, P const& pdata, PO & pout, float dynvisc)
+enable_if_t<FP::has_dem, float>
+compute_dem_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3, float dynvisc)
 {
-	switch (FP::boundarytype) {
-	case LJ_BOUNDARY:
-		return DemLJForce(params.demTex, pdata.gridPos, as_float3(pdata.pos),
-			pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
-	default:
-		return 0.0f;
-	}
+	return DemLJForce<FP::boundarytype>(params.demTex, pdata.gridPos, pos3, pdata.pos.w, vel3, dynvisc, pout.force);
 }
 
 template<typename FP, typename P, typename PO>
 __device__ __forceinline__
-enable_if_t<!QUERY_ANY_FLAGS(FP::simflags, ENABLE_DEM), float>
-compute_dem_force(FP const& params, P const& pdata, PO & pout, float dynvisc)
+enable_if_t<!FP::has_dem, float>
+compute_dem_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3, float dynvisc)
 {
-	return 0.0f;
+	return NAN;
 }
 
 template<typename FP, typename P, typename PO>
 __device__ __forceinline__
-enable_if_t<QUERY_ANY_FLAGS(FP::simflags, ENABLE_PLANES)>
-compute_planes_force(FP const& params, P const& pdata, PO & pout, float& geom_coeff, float dynvisc)
+enable_if_t<FP::has_planes, float>
+compute_plane_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3,
+	plane_t const& plane, float dynvisc)
 {
-	if (d_numplanes) {
-		geom_coeff = max(geom_coeff,
-			GeometryForce(pdata.gridPos, as_float3(pdata.pos),
-				pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
-	}
+	return PlaneForce<FP::boundarytype>(pdata.gridPos, pos3, pdata.pos.w, plane, vel3, dynvisc, pout.force);
 }
 
 template<typename FP, typename P, typename PO>
 __device__ __forceinline__
-enable_if_t<!QUERY_ANY_FLAGS(FP::simflags, ENABLE_PLANES)>
-compute_planes_force(FP const& params, P const& pdata, PO & pout, float& geomcoeff, float dynvisc)
+enable_if_t<!FP::has_planes, float>
+compute_plane_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3,
+	plane_t const& plane, float dynvisc)
 {
-	return;
+	return NAN;
 }
 
 
@@ -4163,11 +4204,7 @@ finalizeforcesDevice(FP params)
 
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
-
-			// Adding repulsive force computed from DEM
-			float geom_coeff = compute_dem_force(params, pdata, pout, dynvisc);
-			// Adding repulsive force computed from geometric boundaries
-			compute_planes_force(params, pdata, pout, geom_coeff, dynvisc);
+			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
 
 			shared.store(params, pdata, pout);
 		}
@@ -4361,11 +4398,7 @@ finalizeRepackDevice(FP params)
 
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
-
-			// Adding repulsive force computed from DEM
-			float geom_coeff = compute_dem_force(params, pdata, pout, dynvisc);
-			// Adding repulsive force computed from geometric boundaries
-			compute_planes_force(params, pdata, pout, geom_coeff, dynvisc);
+			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
 
 			shared.store(params, pdata, pout);
 		}
