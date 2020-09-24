@@ -52,6 +52,7 @@ TopoCube::TopoCube(void)
 	m_ncols = m_nrows = 0;
 	m_nsres = m_ewres = NAN;
 	m_H = 0;
+	m_filling_offset = NAN;
 
 	m_north = m_south = m_east = m_west = NAN;
 	m_voff = 0;
@@ -67,6 +68,11 @@ void TopoCube::SetCubeHeight(double H)
 {
 	m_H = H;
 	m_vz = Vector(0.0, 0.0, H);
+}
+
+void TopoCube::SetFillingOffset(double dx)
+{
+	m_filling_offset = dx;
 }
 
 void TopoCube::SetGeoLocation(double north, double south,
@@ -561,12 +567,14 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 		endy--;
 	}
 
+	const double filling_offset = std::isfinite(m_filling_offset) ? m_filling_offset : dx;
+
 	for (int i = startx; i <= endx; i++) {
 		for (int j = starty; j <= endy; j++) {
 			float x = m_origin(0) + (float) i/((float) nx)*m_vx(0) + (float) j/((float) ny)*m_vy(0);
 			float y = m_origin(1) + (float) i/((float) nx)*m_vx(1) + (float) j/((float) ny)*m_vy(1);
 			float z = H;
-			while (DemDist(x, y, z, dx) > dx) {
+			while (DemDist(x, y, z, dx) > filling_offset) {
 				Point p(x, y, z, m_center(3));
 				nparts ++;
 				if (fill)

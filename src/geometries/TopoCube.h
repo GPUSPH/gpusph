@@ -46,6 +46,7 @@ class TopoCube: public Object {
 		int		m_ncols, m_nrows;
 		double	m_nsres, m_ewres;
 		double	m_H;
+		double	m_filling_offset;
 
 		/* Geolocation data (optional) */
 		double	m_north, m_south, m_east, m_west;
@@ -75,7 +76,10 @@ class TopoCube: public Object {
 		/* allows direct read-only access to the DEM data */
 		const float *get_dem() const { return m_dem; }
 
+		/*! set the height to which the fluid will be filled over the DEM */
 		void SetCubeHeight(double H);
+		/*! set the offset from the DEM starting from which the filling will be done */
+		void SetFillingOffset(double dx);
 
 		/* Geolocation data (optional) */
 		void SetGeoLocation(double north, double south,

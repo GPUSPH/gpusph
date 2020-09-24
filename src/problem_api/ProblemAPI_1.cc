@@ -966,6 +966,7 @@ ProblemAPI<1>::addDEMFluidBox(double height, GeometryID dem_gid)
 	auto dem = static_pointer_cast<TopoCube>(gdem->ptr);
 
 	dem->SetCubeHeight(height);
+	dem->SetFillingOffset(physparams()->r0);
 
 	GeometryID ret = addGeometry(
 		GT_FLUID,
