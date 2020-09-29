@@ -81,10 +81,15 @@ enum IntersectionType {	IT_NONE,
 //    compared to other geometries (for which no inclusion is needed)
 // 2. we can't specify the DEM file format simply as DEM_FMT_*, but we would need to do
 //    TopographyFormat::DEM_FMT_*, which is extremely verbose
+// 3. we take advantage of the distinction to implement the RELAXTED/STRICT loading of
+//    ASCII Grid with additional values
 // So for the time being this enum replicates TopoCube::Format explicitly
-enum TopographyFormat {	DEM_FMT_ASCII,
-						DEM_FMT_VTK,
-						DEM_FMT_XYZ
+enum TopographyFormat {
+	DEM_FMT_ASCII_RELAXED,
+	DEM_FMT_ASCII = DEM_FMT_ASCII_RELAXED, // TODO this should be marked deprecated
+	DEM_FMT_VTK,
+	DEM_FMT_XYZ,
+	DEM_FMT_ASCII_STRICT
 };
 
 // NOTE: erasing is always done with fluid or boundary point vectors.

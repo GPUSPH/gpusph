@@ -120,21 +120,32 @@ vector<double4> TopoCube::get_planes() const
  * An optional vertical offset to be added to all values
  * can also be specified (the wall height H is _not_
  * corrected).
+ *
+ * If the optional restrict parameter is set to true,
+ * the x and y size are reduced by an amount equal to
+ * the corresponding resolution. This is used to support
+ * DEM formats whose georeferencing information is cell-based
+ * rather than vertex-based.
  */
-
 void TopoCube::SetCubeDem(const float *dem,
 		double sizex, double sizey, double H,
-		int ncols, int nrows, double voff)
+		int ncols, int nrows, double voff, bool restrict)
 {
-	m_origin = Point(0, 0, 0, 0);
-	m_vx = Vector(sizex, 0.0, 0.0);
-	m_vy = Vector(0.0, sizey,0.0);
-	SetCubeHeight(H);
+	// Due to our usage, ncols and nrows must be at least 2
+	if (ncols < 2)
+		throw std::invalid_argument("DEM must have at least two datapoints in the horiziontal direction");
+	if (nrows < 2)
+		throw std::invalid_argument("DEM must have at least two datapoints in the vertical direction");
 
 	m_ncols = ncols;
 	m_nrows = nrows;
 	m_ewres = sizex/(ncols-1);
 	m_nsres = sizey/(nrows-1);
+
+	m_origin = Point(0, 0, 0, 0);
+	m_vx = Vector(sizex - (restrict ? m_ewres : 0.0), 0.0, 0.0);
+	m_vy = Vector(0.0, sizey - (restrict ? m_nsres : 0.0) ,0.0);
+	SetCubeHeight(H);
 
 	m_voff = voff;
 
@@ -151,9 +162,16 @@ void TopoCube::SetCubeDem(const float *dem,
 	}
 }
 
-/* Create a TopoCube from a (GRASS) ASCII grid file */
+/*! Create a TopoCube from a GRASS ASCII Grid file
+ *
+ * Supported format options are FormatOptions are either RELAXED or STRICT.
+ *
+ * In RELAXED mode, the data is interpreted as vertex data, stretching it to cover the defined domain
+ * in STRICT mode, the data is interpreted as cell data, and the domain is restricted by half a cell
+ * in each direction.
+ * */
 template<>
-TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_ASCII>(const char* fname)
+TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_ASCII>(const char* fname, FormatOptions fmt_options)
 {
 	ifstream fdem(fname);
 	if (!fdem.good()) {
@@ -199,7 +217,8 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_ASCII>(const char* fname)
 	TopoCube *ret = new TopoCube();
 
 	ret->SetCubeDem(dem, east-west, north-south, zmax-zmin,
-		ncols, nrows, -zmin);
+		ncols, nrows, -zmin, fmt_options == STRICT);
+
 	ret->SetGeoLocation(north, south, east, west);
 
 	delete [] dem;
@@ -208,11 +227,11 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_ASCII>(const char* fname)
 }
 
 TopoCube *TopoCube::load_ascii_grid(const char *fname)
-{ return load_file<DEM_FMT_ASCII>(fname); }
+{ return load_file<DEM_FMT_ASCII>(fname, RELAXED); }
 
-/* Create a TopoCube from a VTK Structure Points datafile */
+/* Create a TopoCube from a VTK Structure Points datafile. Format options are ignored */
 template<>
-TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_VTK>(const char* fname)
+TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_VTK>(const char* fname, FormatOptions /* fmt_options */)
 {
 	string s;
 	stringstream err_msg;
@@ -296,9 +315,12 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_VTK>(const char* fname)
 
 	TopoCube *ret = new TopoCube();
 
-	ret->SetCubeDem(dem, ewres*ncols, nsres*nrows, zmax - zmin,
+	const double sizex = ewres*(ncols-1);
+	const double sizey = nsres*(nrows-1);
+
+	ret->SetCubeDem(dem, sizex, sizey, zmax - zmin,
 		ncols, nrows, -zmin);
-	ret->SetGeoLocation(south + nsres*nrows, south, west + ewres*ncols, west);
+	ret->SetGeoLocation(south + sizey, south, west + sizex, west);
 
 	delete [] dem;
 
@@ -306,7 +328,7 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_VTK>(const char* fname)
 }
 
 TopoCube *TopoCube::load_vtk_file(const char* fname)
-{ return load_file<DEM_FMT_VTK>(fname); }
+{ return load_file<DEM_FMT_VTK>(fname, RELAXED); }
 
 
 /* Create a TopoCube from a (xyz) sorted ASCII elevation file.
@@ -321,9 +343,11 @@ TopoCube *TopoCube::load_vtk_file(const char* fname)
  * values.
  * - The underlying grid must be regular : constant and same
  * resolution along x and y.
+ *
+ * Format options are presently ignored.
  */
 template<>
-TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname)
+TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname, FormatOptions /* fmt_options */)
 {
 	ifstream fdem(fname);
 	if (!fdem.good()) {
@@ -338,6 +362,9 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname)
 	double north, south, east, west;
 	int ncols, nrows;
 
+	// TODO FIXME: xyz files may not have cols or rows specification,
+	// and we need to ensure that the data is in the correct (south to north)
+	// order
 	for (int i = 1; i <= 2; i++) {
 		fdem >> s;
 		if (s.find("cols:") != string::npos) fdem >> ncols;
@@ -348,17 +375,17 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname)
 	float *dem = new float[ncols*nrows];
 	// resolution in x and y directions
 	double xres = 0, yres = 0;
-	double x ,y, z;
+	double x, y, z;
 	for (int col = 0; col < ncols; ++col) {
 		for (int row = 0; row < nrows; ++row) {
 			fdem >> x >> y >> z;
 			if (row == 0 && col == 0) {
-				xres = x;
-				yres = y;
+				west = x;
+				south = y;
 			} else if (row == 1 && col == 0)
-				yres = y - yres;
+				yres = y - south;
 			else if (row == 0 && col == 1)
-				xres = x - xres;
+				xres = x - west;
 			zmax = max(z, zmax);
 			zmin = min(z, zmin);
 			dem[row*ncols+col] = z;
@@ -366,21 +393,15 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname)
 	}
 	fdem.close();
 
-	// support degenerate case of single-row or single-column files
-	if (xres == 0 && yres)
-		xres = yres;
-	else if (yres == 0 && xres)
-		yres = xres;
+	const double sizex = xres*(ncols-1);
+	const double sizey = yres*(nrows-1);
 
-	south = 0;
-	west = 0;
-	north = nrows*yres;
-	east = ncols*xres;
+	north = south + sizex;
+	east = west + sizey;
 
 	TopoCube *ret = new TopoCube();
 
-	ret->SetCubeDem(dem, east-west, north-south, zmax-zmin,
-		ncols, nrows, -zmin);
+	ret->SetCubeDem(dem, sizex, sizey, zmax-zmin, ncols, nrows, -zmin);
 	ret->SetGeoLocation(north, south, east, west);
 
 	delete [] dem;
@@ -389,15 +410,15 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname)
 }
 
 TopoCube *TopoCube::load_xyz_file(const char* fname)
-{ return load_file<DEM_FMT_XYZ>(fname); }
+{ return load_file<DEM_FMT_XYZ>(fname, RELAXED); }
 
-TopoCube *TopoCube::load_file(const char *fname, Format fmt)
+TopoCube *TopoCube::load_file(const char *fname, Format fmt, FormatOptions fmt_options)
 {
 	switch (fmt)
 	{
-	case DEM_FMT_ASCII: return load_file<DEM_FMT_ASCII>(fname);
-	case DEM_FMT_VTK: return load_file<DEM_FMT_VTK>(fname);
-	case DEM_FMT_XYZ: return load_file<DEM_FMT_XYZ>(fname);
+	case DEM_FMT_ASCII: return load_file<DEM_FMT_ASCII>(fname, fmt_options);
+	case DEM_FMT_VTK: return load_file<DEM_FMT_VTK>(fname, fmt_options);
+	case DEM_FMT_XYZ: return load_file<DEM_FMT_XYZ>(fname, fmt_options);
 	}
 	throw std::invalid_argument("Unsupported format for " + string(fname));
 }

@@ -38,6 +38,40 @@
 #include "Point.h"
 #include "Vector.h"
 
+/*! The TopoCube represents a parallelepiped with a bottom described by a natural topography.
+ *
+ *  The topography (DEM = Digital Elevation Model) is described as a matrix of values that
+ *  span the xy plane, sampled at regular intervals, with the first/last samples located
+ *  on the edge of the box.
+ *
+ *  As such, the essential components for the definition of the DEM are:
+ *  * information about the span covered by the DEM, i.e. the lengths of the sides in the x and y direction.
+ *  * information about the sampling step in each direction (we need at least two samples in each direction),
+ *  * the actual data.
+ *  Conventionally, the x axis is mapped to the “east-west" direction,
+ *  and the y axis is mapped to the “north-south” direction,
+ *  with spatial coordinates increasing from  west to east, and from south to north.
+ *
+ *  Note: the DEM description format used internally by GPUSPH is vertex-based,
+ *  in the sense that we hold the information about the height of each vertex of a regular mesh covering
+ *  the domain. Some on-disk formats follow this convention (e.g. XYZ and VTS),
+ *  while others do not: for example, the GRASS ASCII grid format holds cell-based information:
+ *  the height is associated with the center of each DEM cell, rather than the vertex.
+ *  When loading cell-based data, we give the user the choice on how to handle this discrepancy:
+ *  * in RELAXED mode (the default), the DEM data is interpreted as vertex data,
+ *    which corresponds to stretching the DEM so that the vertices of the edge cells
+ *    are located at the north/south/east/west coordinates defined by the DEM metadata;
+ *  * in STRICT mode, the DEM data is interpreted as cell data, and the DEM span is restricted
+ *    by half a cell in each direction so that each data point is correctly georeferenced.
+ *  Note that the discrepancy between the two modes is small:
+ *  the scale factor is cols/(cols-1) in the x direction). and rows/(rows-1) in the y direction.
+ *  In most applications this is going to be less than 1%.
+ *
+ *  The DEM can have optional geolocation data associated with it. This is not used by GPUSPH,
+ *  but the user can access this information to georeference additional elements/objects with
+ *  respect to the DEM. This information is preserved from the on-disk metadata (if present),
+ *  so its interpretation with respect to edge/center information is up to the user.
+ */
 class TopoCube: public Object {
 	private:
 		Point	m_origin;
@@ -61,7 +95,7 @@ class TopoCube: public Object {
 
 		void SetCubeDem(const float *dem,
 				double sizex, double sizey, double H,
-				int ncols, int nrows, double voff = 0);
+				int ncols, int nrows, double voff = 0, bool restrict = false);
 
 		/* methods to retrieve the DEM geometry */
 		int get_nrows()	{ return m_nrows; }
@@ -93,18 +127,22 @@ class TopoCube: public Object {
 
 		//! Supported file formats
 		enum Format {
-			DEM_FMT_ASCII, /* GRASS ASCII grid format */
-			DEM_FMT_VTK, /* VTK Structured Grid */
-			DEM_FMT_XYZ /* XYZ file with header */
+			DEM_FMT_ASCII, ///< GRASS ASCII Grid format
+			DEM_FMT_VTK, ///< Legacy ASCII VTK Structured Grid format
+			DEM_FMT_XYZ ///< XYZ file with header
+		};
+
+		enum FormatOptions {
+			RELAXED, STRICT
 		};
 
 		//! Load a topography from the file, given the file name and format
 		//! \seealso TopoCube::Format
-		static TopoCube* load_file(const char *fname, Format fmt);
+		static TopoCube* load_file(const char *fname, Format fmt, FormatOptions fmt_options);
 
 		//! Format-specific implementation of topography loader
 		template<Format>
-		static TopoCube* load_file(const char *fname);
+		static TopoCube* load_file(const char *fname, FormatOptions fmt_options);
 
 		/* Legacy loader names */
 		static TopoCube* load_ascii_grid(const char *fname);

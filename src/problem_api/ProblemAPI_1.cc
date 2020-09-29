@@ -936,8 +936,18 @@ GeometryID ProblemAPI<1>::addXYZFile(const GeometryType otype, const Point &orig
 GeometryID
 ProblemAPI<1>::addDEM(const char * fname_dem, const TopographyFormat dem_fmt, const FillType fill_type)
 {
-	TopoCube::Format tc_fmt = (TopoCube::Format)dem_fmt;
-	TopoCube * dem = TopoCube::load_file(fname_dem, tc_fmt);
+	// Our TopographyFormat match the TopoCube::Format values, except for DEM_FMT_ASCII_STRICT
+	// which corresponds to DEM_FMT_ASCII plus the STRICT option
+	TopoCube::Format tc_fmt =
+		dem_fmt == DEM_FMT_ASCII_STRICT ?
+		TopoCube::Format::DEM_FMT_ASCII :
+		TopoCube::Format(dem_fmt);
+	TopoCube::FormatOptions tc_fmt_opt =
+		dem_fmt == DEM_FMT_ASCII_STRICT ?
+		TopoCube::FormatOptions::STRICT :
+		TopoCube::FormatOptions::RELAXED;
+
+	TopoCube * dem = TopoCube::load_file(fname_dem, tc_fmt, tc_fmt_opt);
 	GeometryID ret = addGeometry(
 		GT_DEM,
 		fill_type,
