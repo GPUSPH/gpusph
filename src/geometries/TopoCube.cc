@@ -453,54 +453,86 @@ void TopoCube::shift(const double3 &offset)
 }
 
 void
-TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, const bool fill_edges)
+TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, const bool fill_edges,
+	const int layers, const int starting_layer)
 {
-	Point   rorigin;
-	Vector  v;
+	const int abs_layers = layers < 0 ? -layers : layers;
+	const double layer_dx = layers < 0 ? -dx : dx;
+	const double layer_depth = (abs_layers-1)*layer_dx;
+	const double layer_width = abs_layers*layer_dx;
 
-	switch(face_num){
+	Point   rorigin;
+	Vector  x_dir = m_vx/m_vx.norm();
+	Vector  y_dir = m_vy/m_vy.norm();
+	Vector  v, o_shift, v_shift;
+
+	for (int l = starting_layer ; l < abs_layers + starting_layer; ++l) {
+		const double layer_offset = layer_dx*l;
+
+		switch(face_num){
 		case 0:
 			rorigin = m_origin;
 			v = m_vx;
+			o_shift = y_dir;
+			v_shift = x_dir;
 			break;
 		case 1:
 			rorigin = m_origin + m_vx;
 			v = m_vy;
+			o_shift = -x_dir;
+			v_shift =  y_dir;
 			break;
 		case 2:
 			rorigin = m_origin + m_vx + m_vy;
 			v = -m_vx;
+			o_shift = -y_dir;
+			v_shift = -x_dir;
 			break;
 		case 3:
 			rorigin = m_origin + m_vy;
 			v = -m_vy;
+			o_shift =  x_dir;
+			v_shift = -y_dir;
 			break;
-	}
+		}
+		rorigin += layer_offset*o_shift;
+		if (fill_edges) {
+			rorigin += layer_width*v_shift;
+			v -= 2*layer_width*v_shift;
+		} else if (starting_layer > 0) {
+			rorigin += layer_dx*v_shift;
+			v -= 2*layer_dx*v_shift;
+		}
 
-	const int n = (int) (v.norm()/dx);
-	// const double delta = v.norm()/((double) n);
-	int nstart = 0;
-	int nend = n;
-	if (!fill_edges) {
-		nstart++;
-		nend--;
-	}
-	for (int i = nstart; i <= nend; i++) {
-		const double x = rorigin(0) + (double) i/((double) n)*v(0);
-		const double y = rorigin(1) + (double) i/((double) n)*v(1);
-		float z = m_H;
-		while (DemDist(x, y, z, dx) > 0) {
-			Point p(x, y, z, m_center(3));
-			points.push_back(p);
-			z -= dx;
+		const int n = (int) (v.norm()/dx);
+		// const double delta = v.norm()/((double) n);
+		int nstart = 0;
+		int nend = n;
+		if (!fill_edges) {
+			nstart++;
+			nend--;
+		}
+
+		for (int i = nstart; i <= nend; i++) {
+			const double x = rorigin(0) + (double) i/((double) n)*v(0);
+			const double y = rorigin(1) + (double) i/((double) n)*v(1);
+			float z = m_H;
+			while (DemDist(x, y, z, dx) > layer_depth) {
+				Point p(x, y, z, m_center(3));
+				points.push_back(p);
+				z -= dx;
+			}
 		}
 	}
 }
 
 
 void
-TopoCube::FillDem(PointVect& points, double dx)
+TopoCube::FillDem(PointVect& points, const int layers, const double dx)
 {
+	const int abs_layers = layers < 0 ? -layers : layers;
+	const double layer_dx = layers < 0 ? -dx : dx;
+
 	int nx = (int) (m_vx.norm()/dx);
 	int ny = (int) (m_vy.norm()/dx);
 	/*
@@ -513,10 +545,16 @@ TopoCube::FillDem(PointVect& points, double dx)
 			const double x = (double) i/((double) nx)*m_vx(0) + (double) j/((double) ny)*m_vy(0);
 			const double y = (double) i/((double) nx)*m_vx(1) + (double) j/((double) ny)*m_vy(1);
 			const double z = DemInterpolInternal(x, y);
-			Point p(m_origin(0) + x, m_origin(1) + y, m_origin(2) + z, m_center(3));
-			points.push_back(p);
+
+			const double g_x = m_origin(0) + x;
+			const double g_y = m_origin(0) + y;
+			const double g_z = m_origin(0) + z;
+			for (int l = 0; l < abs_layers; ++l) {
+				Point p(g_x, g_y, g_z + l*layer_dx, m_center(3));
+				points.push_back(p);
 			}
 		}
+	}
 }
 
 // x, y are coordinates in the global reference system
@@ -578,9 +616,7 @@ TopoCube::DemDistInternal(const double x, const double y, const double z, double
 	const double l = sqrt(a*a + b*b + c*c);
 
 	// Getting distance along the normal
-	double r = fabs(a*x + b*y + c*z + d)/l;
-	if (z <= z0)
-		r = 0;
+	double r = (a*x + b*y + c*z + d)/l;
 	return r;
 }
 
@@ -626,6 +662,19 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 	}
 
 	return nparts;
+}
+
+void
+TopoCube::FillIn(PointVect& points, const double dx, const int layers)
+{
+	const int abs_layers = layers < 0 ? -layers : layers;
+	const double layer_dx = layers < 0 ? -dx : dx;
+
+	FillBorder(points, dx, 0, true , layers, 1);
+	FillBorder(points, dx, 1, false, layers, 1);
+	FillBorder(points, dx, 2, true , layers, 1);
+	FillBorder(points, dx, 3, false, layers, 1);
+	FillDem(points, layers, dx);
 }
 
 

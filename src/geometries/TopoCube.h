@@ -176,18 +176,28 @@ class TopoCube: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max) override;
 		void shift(const double3 &offset) override;
 
-		//! Fill a single face of the cube, optionally including its edges
-		void FillBorder(PointVect&, const double dx, const int face_num, const bool fill_edges);
+		//! Fill the DEM with particles
+		void FillDem(PointVect&, const int layers, const double dx);
+		void FillDem(PointVect& points, const double dx)
+		{ FillDem(points, 1, dx); }
 
+		//! Fill a single face of the cube, optionally including its edges
+		/*! The filling is made with the given number of layers
+		 * (positive => towards the inside, negative => towards the outside)
+		 * starting with the given layer number
+		 */
+		void FillBorder(PointVect&, const double dx, const int face_num, const bool fill_edges, const int layers=1, const int starting_layer=0);
+
+		//! Fill all faces of the cube, and the Dem
 		void FillBorder(PointVect& points, const double dx) override
 		{
 			FillBorder(points, dx, 0, true);
 			FillBorder(points, dx, 1, false);
 			FillBorder(points, dx, 2, true);
 			FillBorder(points, dx, 3, false);
+			FillDem(points, dx);
 		}
 
-		void FillDem(PointVect&, const double);
 		//! Find the height of the DEM at the given global coordinates
 		double DemInterpol(const double, const double) const;
 		double DemDist(const double, const double, const double, const double) const;
@@ -202,8 +212,7 @@ class TopoCube: public Object {
 			return Fill(points, m_H, dx, false, fill);
 		}
 
-		void FillIn(PointVect& points, const double dx, const int layers) override
-		{ throw std::runtime_error("TopoCube::FillIn not implemented !"); }
+		void FillIn(PointVect& points, const double dx, const int layers) override;
 
 		bool IsInside(const Point&, const double) const override;
 
