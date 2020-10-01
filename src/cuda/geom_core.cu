@@ -66,6 +66,8 @@ using namespace cuneibs;
  */
 __constant__ float2 d_dem_pos_fixup;
 
+__constant__ float2 d_dem_scaled_cellSize; ///< d_cellSize scaled by the ewres/nsres
+__constant__ float2 d_dem_scaled_dx; ///< d_demdx/d_demdy scaled by the ewres/nsres
 __constant__ float	d_ewres;		///< east-west resolution (x)
 __constant__ float	d_nsres;		///< north-south resolution (y)
 __constant__ float	d_demdx;		///< ∆x increment of particle position for normal computation
@@ -141,8 +143,8 @@ DemPos(GridPosType const& gridPos, LocalPosType const& pos)
 	// for improved accuracy. The final 0.5f is because texture values are assumed to be
 	// at the center of the DEM cell.
 	return d_dem_pos_fixup + make_float2(
-		(gridPos.x + 0.5f)*(d_cellSize.x/d_ewres) + pos.x/d_ewres + 0.5f,
-		(gridPos.y + 0.5f)*(d_cellSize.y/d_nsres) + pos.y/d_nsres + 0.5f);
+		(gridPos.x + 0.5f)*d_dem_scaled_cellSize.x + pos.x/d_ewres + 0.5f,
+		(gridPos.y + 0.5f)*d_dem_scaled_cellSize.y + pos.y/d_nsres + 0.5f);
 }
 
 /**! Interpolate DEM demTex for a point at DEM cell pos demPos,
@@ -155,7 +157,7 @@ __device__ __forceinline__ float
 DemInterpol(cudaTextureObject_t demTex,
 	const float2& demPos, int dx=0, int dy=0)
 {
-	return tex2D<float>(demTex, demPos.x + dx*d_demdx/d_ewres, demPos.y + dy*d_demdy/d_nsres);
+	return tex2D<float>(demTex, demPos.x + dx*d_dem_scaled_dx.x, demPos.y + dy*d_dem_scaled_dx.y);
 }
 
 //! Find the plane tangent to a DEM near a given position, assuming demPos and Z0

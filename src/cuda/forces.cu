@@ -338,14 +338,28 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_sinpsi, &physparams->sinpsi[0], numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_cohesion, &physparams->cohesion[0], numFluids*sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_dem_pos_fixup, &physparams->dem_pos_fixup, sizeof(float2)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_ewres, &physparams->ewres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_nsres, &physparams->nsres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdx, &physparams->demdx, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdy, &physparams->demdy, sizeof(float)));
-	float demdxdy = physparams->demdx*physparams->demdy;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdxdy, &demdxdy, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demzmin, &physparams->demzmin, sizeof(float)));
+	// DEM uploads
+	{
+		const float ewres = physparams->ewres;
+		const float nsres = physparams->nsres;
+		const float dx = physparams->demdx;
+		const float dy = physparams->demdy;
+
+		const float2 scaled_cellSize = make_float2(cellSize.x/ewres, cellSize.y/nsres);
+		const float2 scaled_dx = make_float2(dx/ewres, dy/nsres);
+		const float demdxdy = dx*dy;
+
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_dem_pos_fixup, &physparams->dem_pos_fixup, sizeof(float2)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_dem_scaled_cellSize, &scaled_cellSize, sizeof(float2)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_dem_scaled_dx, &scaled_dx, sizeof(float2)));
+
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_ewres, &ewres, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_nsres, &nsres, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdx, &dx, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdy, &dy, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdxdy, &demdxdy, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demzmin, &physparams->demzmin, sizeof(float)));
+	}
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_smagfactor, &physparams->smagfactor, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_kspsfactor, &physparams->kspsfactor, sizeof(float)));
