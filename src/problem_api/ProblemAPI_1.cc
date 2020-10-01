@@ -306,6 +306,20 @@ bool ProblemAPI<1>::initialize()
 		m_size += 2 * m_extra_world_margin;
 	}
 
+	/* Compute the DEM position fixup, if needed */
+	if (validGeometry(m_dem_geometry)) {
+		const auto dem = static_pointer_cast<TopoCube>(m_geometries[m_dem_geometry]->ptr);
+		const float ewres = dem->get_ewres();
+		const float nsres = dem->get_nsres();
+		const Point& dem_origin = dem->get_origin();
+		auto& fixup = physparams()->dem_pos_fixup;
+		fixup =	make_float2(
+			(m_origin.x - dem_origin(0))/ewres,
+			(m_origin.y - dem_origin(1))/nsres);
+		printf("DEM position fixup: (%g, %g)\n", fixup.x, fixup.y);
+	}
+
+
 	// compute water level automatically, if not set
 	if (!isfinite(m_waterLevel)) {
 		// water level: highest fluid coordinate or (absolute) domain height

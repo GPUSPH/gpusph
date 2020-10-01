@@ -510,44 +510,64 @@ TopoCube::FillDem(PointVect& points, double dx)
 
 	for (int i = 0; i <= nx; i++) {
 		for (int j = 0; j <= ny; j++) {
-			const double x = m_origin(0) + (double) i/((double) nx)*m_vx(0) + (double) j/((double) ny)*m_vy(0);
-			const double y = m_origin(1) + (double) i/((double) nx)*m_vx(1) + (double) j/((double) ny)*m_vy(1);
-			const double z = DemInterpol(x, y);
-			Point p(x, y, z, m_center(3));
+			const double x = (double) i/((double) nx)*m_vx(0) + (double) j/((double) ny)*m_vy(0);
+			const double y = (double) i/((double) nx)*m_vx(1) + (double) j/((double) ny)*m_vy(1);
+			const double z = DemInterpolInternal(x, y);
+			Point p(m_origin(0) + x, m_origin(1) + y, m_origin(2) + z, m_center(3));
 			points.push_back(p);
 			}
 		}
 }
 
-
+// x, y are coordinates in the global reference system
 double
 TopoCube::DemInterpol(const double x, const double y) const  // x and y ranging in [0, ncols/ewres]x[0, nrows/nsres]
 {
-	const double xb = x/m_ewres;
-	const double yb = y/m_nsres;
-	int i = floor(xb);
-	int ip1 = i < m_ncols - 1 ? i + 1 : i;
-	int j = floor(yb);
-	int jp1 = j < m_nrows - 1 ? j + 1 : j;
-	const double a = xb - (float) i;
-	const double b = yb - (float) j;
-	double z = (1 - a)*(1 - b)*m_dem[i + j*m_ncols];
-	z +=  a*(1 - b)*m_dem[ ip1 + j*m_ncols];
-	z +=  (1 - a)*b*m_dem[i + jp1*m_ncols];
-	z += a*b*m_dem[ip1 + jp1*m_ncols];
-	return z;
+	return DemInterpolInternal(x - m_origin(0), y - m_origin(1));
 }
 
+// x, y should already be mapped to the DEM domain, and thus in the range
+// [0, (ncols-1)*ewres] and [0, (nrows-1)*nsres] respectively
+double
+TopoCube::DemInterpolInternal(const double x, const double y) const
+{
+	const double xb  = x/m_ewres; // map to [0, ncols - 1]
+	const double yb  = y/m_nsres; // map to [0, nrows - 1]
+	// find the vertices of the square this points belongs to,
+	// and ensure we are within the domain covered by the DEM
+	// (outer points will be squashed to the edge values)
+	const int    i   = clamp(floor(xb), 0, m_ncols - 1);
+	const int    j   = clamp(floor(yb), 0, m_nrows - 1);
+	const int    ip1 = clamp(i + 1,     0, m_ncols - 1);
+	const int    jp1 = clamp(j + 1,     0, m_nrows - 1);
+	const double pa  = xb - (double) i;
+	const double pb  = yb - (double) j;
+	const double ma  = 1 - pa;
+	const double mb  = 1 - pb;
+	const double z00 = ma*mb*m_dem[i   + j   * m_ncols];
+	const double z10 = pa*mb*m_dem[ip1 + j   * m_ncols];
+	const double z01 = ma*pb*m_dem[i   + jp1 * m_ncols];
+	const double z11 = pa*pb*m_dem[ip1 + jp1 * m_ncols];
 
+	return z00 + z10 + z01 + z11;
+}
 
+// x, y, z in global coordinate space
 double
 TopoCube::DemDist(const double x, const double y, const double z, double dx) const
 {
+	return DemDistInternal(x - m_origin(0), y - m_origin(1), z - m_origin(2), dx);
+}
+
+// x, y, z are relative to the DEM origin
+double
+TopoCube::DemDistInternal(const double x, const double y, const double z, double dx) const
+{
 	if (dx > 0.5*min(m_nsres, m_ewres))
 		dx = 0.5*min(m_nsres, m_ewres);
-	const double z0 = DemInterpol(x, y);
-	const double z1 = DemInterpol(x + dx, y);
-	const double z2 = DemInterpol(x, y + dx);
+	const double z0 = DemInterpolInternal(x, y);
+	const double z1 = DemInterpolInternal(x + dx, y);
+	const double z2 = DemInterpolInternal(x, y + dx);
 	// A(x, y, z0) B(x + h, y, z1) C(x, y + h, z2)
 	// AB(h, 0, z1 - z0) AC(0, h, z2 - z0)
 	// AB^AC = ( -h*(z1 - z0), -h*(z2 - z0), h*h)
@@ -592,11 +612,11 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 
 	for (int i = startx; i <= endx; i++) {
 		for (int j = starty; j <= endy; j++) {
-			float x = m_origin(0) + (float) i/((float) nx)*m_vx(0) + (float) j/((float) ny)*m_vy(0);
-			float y = m_origin(1) + (float) i/((float) nx)*m_vx(1) + (float) j/((float) ny)*m_vy(1);
-			float z = H;
-			while (DemDist(x, y, z, dx) > filling_offset) {
-				Point p(x, y, z, m_center(3));
+			double x = i/((float) nx)*m_vx(0) + (float) j/((float) ny)*m_vy(0);
+			double y = i/((float) nx)*m_vx(1) + (float) j/((float) ny)*m_vy(1);
+			double z = H;
+			while (DemDistInternal(x, y, z, dx) > filling_offset) {
+				Point p(m_origin(0) + x, m_origin(1) + y, m_origin(2) + z, m_center(3));
 				nparts ++;
 				if (fill)
 					points.push_back(p);

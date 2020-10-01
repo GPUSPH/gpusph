@@ -86,6 +86,15 @@ class TopoCube: public Object {
 		double	m_north, m_south, m_east, m_west;
 		double	m_voff; // vertical offset
 
+		//! Find the height of the DEM at DEM-relative coordinates (x, y)
+		/*! x should in the range [0, (ncols-1)*ewres], y in the range [0, (nrows-1)*nsres]
+		 */
+		double	DemInterpolInternal(const double x, const double y) const;
+
+		//! Find the distance between the DEM and the point with DEM-relative coordinates (x, y, z)
+		//! dx is the distance at which to prove for additional points when building the tangent plane
+		double	DemDistInternal(const double x, const double y, const double z, const double dx) const;
+
 	public:
 		TopoCube(void);
 		virtual ~TopoCube(void);
@@ -98,14 +107,15 @@ class TopoCube: public Object {
 				int ncols, int nrows, double voff = 0, bool restrict = false);
 
 		/* methods to retrieve the DEM geometry */
-		int get_nrows()	{ return m_nrows; }
-		int get_ncols()	{ return m_ncols; }
-		double get_ewres()	{ return m_ewres; }
-		double get_nsres()	{ return m_nsres; }
-		double get_H()	{ return m_H; }
-		Vector const& get_vx() { return m_vx; }
-		Vector const& get_vy() { return m_vy; }
-		Vector const& get_vz() { return m_vz; }
+		int get_nrows()	const { return m_nrows; }
+		int get_ncols()	const { return m_ncols; }
+		double get_ewres() const { return m_ewres; }
+		double get_nsres() const{ return m_nsres; }
+		const Point& get_origin() const { return m_origin; }
+		double get_H() const { return m_H; }
+		Vector const& get_vx() const { return m_vx; }
+		Vector const& get_vy() const { return m_vy; }
+		Vector const& get_vz() const { return m_vz; }
 
 		/* allows direct read-only access to the DEM data */
 		const float *get_dem() const { return m_dem; }
@@ -178,6 +188,7 @@ class TopoCube: public Object {
 		}
 
 		void FillDem(PointVect&, const double);
+		//! Find the height of the DEM at the given global coordinates
 		double DemInterpol(const double, const double) const;
 		double DemDist(const double, const double, const double, const double) const;
 

@@ -45,14 +45,34 @@ using namespace cuneibs;
 /// \name Device constants
 /// @{
 
-/* DEM constants */
-// TODO switch to float2s
+/// DEM constants
+/// @{
+/// TODO switch to float2s
+
+//! Correction to be applied to the particle position to obtain the DEM-relative position
+/*! Our DEM stores vertex-based information,
+ * with the first point, at DEM-relative coordinate 0, corresponding to the westernmost/southernmost edge,
+ * and the last point, at DEM-relative coordinate (nrows-1)*ewres or (ncols-1)*nsres,
+ * corresponding to the easternmost/northernmost edge.
+ *
+ * The DEM has a given origin that maps its coordinate 0 to the global reference system.
+ *
+ * To map a particle global position gPos = world_origin + (gridPos+0.5)*gridSize + lPos
+ * to DEM coordinates, we need to subtract the DEM_origin, so that
+ * dPos = (world_origin - DEM_origin) + (gridPos + 0.5)*gridSize + lPos.
+ *
+ * Additionally, for the actual texture fetch, the two componets need to be scaled by
+ * ewres/nsres, so d_dem_pos_fixup will store (world_origin - DEM_origin)/res.
+ */
+__constant__ float2 d_dem_pos_fixup;
+
 __constant__ float	d_ewres;		///< east-west resolution (x)
 __constant__ float	d_nsres;		///< north-south resolution (y)
 __constant__ float	d_demdx;		///< ∆x increment of particle position for normal computation
 __constant__ float	d_demdy;		///< ∆y increment of particle position for normal computation
 __constant__ float	d_demdxdy;		///< ∆x*∆y
 __constant__ float	d_demzmin;		///< minimum distance from DEM for normal computation
+/// @}
 
 /* Constants for geometrical planar boundaries */
 __constant__ uint	d_numplanes;
@@ -120,7 +140,7 @@ DemPos(GridPosType const& gridPos, LocalPosType const& pos)
 	// note that we separate the grid conversion part from the pos conversion part,
 	// for improved accuracy. The final 0.5f is because texture values are assumed to be
 	// at the center of the DEM cell.
-	return make_float2(
+	return d_dem_pos_fixup + make_float2(
 		(gridPos.x + 0.5f)*(d_cellSize.x/d_ewres) + pos.x/d_ewres + 0.5f,
 		(gridPos.y + 0.5f)*(d_cellSize.y/d_nsres) + pos.y/d_nsres + 0.5f);
 }

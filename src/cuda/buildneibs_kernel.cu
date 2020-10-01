@@ -980,7 +980,7 @@ isDemInRange(
 	const float globalZ0 = cugeom::DemInterpol(params.demTex, demPos);
 	const float r = globalZ - globalZ0;
 	if (r < 0)
-		printf("Particle %d behind DEM!\n", index);
+		printf("Particle %d id %d behind DEM!\n", index, (int)id(params.fetchInfo(index)));
 	return (r*r < params.sqinfluenceradius);
 }
 
