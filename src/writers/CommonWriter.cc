@@ -445,7 +445,7 @@ CommonWriter::write_physparams(ostream &out)
 		out << " gamma[ " << f << " ] = " << PP->gammacoeff[f] << endl;
 		out << " sscoeff[ " << f << " ] = " << PP->sscoeff[f] << endl;
 		out << " sspowercoeff[ " << f << " ] = " << PP->sspowercoeff[f] << endl;
-		out << " sound speed[ " << f << " ] = " << m_problem->soundspeed(PP->rho0[f],f) << endl;
+		out << " sound speed[ " << f << " ] = " << m_problem->soundspeed(0, f) << endl;
 	}
 	if (PP->numFluids() > 1 && SP->sph_formulation == SPH_GRENIER)
 		out << " interface epsilon = " << PP->epsinterface << endl;
