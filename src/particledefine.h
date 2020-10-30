@@ -316,6 +316,7 @@ const char *PostProcessName[INVALID_POSTPROC+1]
 	"Vorticity",
 	"Testpoints",
 	"Surface detection",
+	"Interface detection",
 	"Flux computation",
 	"Private",
 	"(invalid)"
