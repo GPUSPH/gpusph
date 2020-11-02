@@ -385,13 +385,13 @@ cspmCoeffDevice(
 	fcoeff += fcoeff_kahan;
 
 	//symtensor3 a_inverse;
-	//if (D > 0.35 && !close_to_boundary)
 
-	//if (!close_to_boundary){
+	const float D = kbn_det(fcoeff);
 # if 1
-	if (num_neibs > 42 && !close_to_boundary){
-		const float D = kbn_det(fcoeff);
-		a_inverse = inverse(fcoeff, D);
+	if (D > 0.4){
+//	if (num_neibs > 51 && !close_to_boundary){
+		//a_inverse = inverse(fcoeff, D);
+		a_inverse = fcoeff;
 	} else {
 		set_identity(a_inverse);
 		//printf("%g\n", D);
