@@ -40,6 +40,7 @@ class StandingWave: public Problem {
 
 		double		h, w, l, g;
 		uint		dyn_layers; // layers of dynamic boundaries particles
+		double		dyn_thickness;
 		bool		m_usePlanes; // use planes or boundaries
 		double3		m_fluidOrigin; // bottom level
 
@@ -47,6 +48,7 @@ class StandingWave: public Problem {
 		StandingWave(GlobalData *);
 		void copy_planes(PlaneList &);
 		void initializeParticles(BufferList &, const uint);
+		void fillDeviceMap();
 
 };
 

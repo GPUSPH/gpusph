@@ -61,8 +61,8 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 		add_flags<ENABLE_INTERNAL_ENERGY/* | ENABLE_XSPH*/>
 	).select_options(
 		rhodiff,
-		USE_CSPM, add_flags<ENABLE_CSPM>(),
-		m_usePlanes, add_flags<ENABLE_PLANES>()
+		USE_CSPM, add_flags<ENABLE_CSPM>()
+		//m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	if (mlsIters > 0)
@@ -75,7 +75,7 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	setMaxFall(H);
 
 	l = H;
-	w = 12.0*m_deltap;
+	w = round_up(3*simparams()->influenceRadius, m_deltap);
 	h = 1.1*H;
 
 //	resize_neiblist(300);// FIXME temp
@@ -96,15 +96,16 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	if ((simparams()->boundarytype == DUMMY_BOUNDARY || simparams()->boundarytype == DYN_BOUNDARY) && !m_usePlanes) {
 		// number of layers
 		dyn_layers = ceil(simparams()->kernelradius*simparams()->sfactor);
-		dyn_layers = 2;
+		dyn_thickness = (dyn_layers - 1)*m_deltap;
 		// extra layers are one less (since other boundary types still have
 		// one layer)
-		double3 extra_offset = make_double3(0.0f, 0.0f,(dyn_layers-1)*m_deltap);
+		double3 extra_offset = make_double3(0.0f, 0.0f, dyn_thickness);
 		m_origin -= extra_offset;
 		m_size += 2*extra_offset;
 	} else {
 		dyn_layers = 0;
 	}
+
 
 	if (simparams()->boundarytype == SA_BOUNDARY) {
 		resize_neiblist(128, 128);
@@ -151,7 +152,7 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	setPositioning(PP_CORNER);
 
 	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(m_origin) - Point(0.0, 0.0, 2*m_deltap), m_size.x - m_deltap, m_size.y - m_deltap, 2.0*m_deltap);
+		Point(m_origin) - Point(0.0, 0.0, dyn_thickness), m_size.x - m_deltap, m_size.y - m_deltap, dyn_thickness);
 	disableCollisions(experiment_box);
 
 	m_fluidOrigin = m_origin;
@@ -198,4 +199,9 @@ void StandingWave::initializeParticles(BufferList &buffer, const uint numParticl
 			pos[i].w = physical_density(vel[i].w, 0)*m_deltap*m_deltap*m_deltap;
 		}
 	}
+}
+
+void StandingWave::fillDeviceMap()
+{
+	fillDeviceMapByAxis(X_AXIS);
 }
