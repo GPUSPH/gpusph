@@ -79,7 +79,7 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	const float nu = get_option("Nu",1.0e-6);
 	
 	SETUP_FRAMEWORK(
-		viscosity<SPSVISC>,
+		//viscosity<SPSVISC>,
 		boundary<LJ_BOUNDARY>,
 		periodicity<PERIODIC_Y>,
 		add_flags<ENABLE_CSPM>
@@ -94,13 +94,15 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	//set_deltap(0.01f);
 	
 	beta = 0.1f;
-	horizontal_flat = 50.0f;
+	horizontal_flat = 5.0f;
 	float z_slope = 2.0f;
 	lx = horizontal_flat + z_slope/beta;
 	slope_length = z_slope/beta;
-	ly = 11.0f * m_deltap;
+	ly = 15.0f * m_deltap;
 	lz = 3.0f;
-	H  = 1.5f; // Still water level
+	H  = 0.5f; // Still water level
+
+	resize_neiblist(145);
 
         std::cout << "beach_slope is:"<< beta <<"\n";
         std::cout << "lx is:"<< lx <<"\n";
@@ -152,7 +154,7 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	//physparams()->set_bkgpressure(bkg_press);
 	set_kinematic_visc(0,nu);
 		
-	physparams()->artvisccoeff =  0.2;
+	physparams()->artvisccoeff =  0.025;
 	physparams()->smagfactor = Cd*Cd*m_deltap*m_deltap; //CSM: wa have C=0.12 as a standard value
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap; //CI = 2/3*6.6*10^-3*dp^2
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
@@ -172,7 +174,7 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
         std::cout << "the number of paddles is:	"<< m_mbnumber <<"\n";	
 	paddle_width= ly/m_mbnumber;	
         std::cout << "the width of paddles is:	"<< paddle_width <<"\n";	
-	paddle_length = 1.0-r0;
+	paddle_length = 2.0-r0;
 	paddle_tstart = 0.12;
 	paddle_tend = simparams()->tend;//seconds	
 	paddle_origin = make_double3(2.0, r0/2, 0.0f);
