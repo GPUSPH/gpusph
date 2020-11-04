@@ -395,8 +395,9 @@ cspmCoeffDevice(
 
 	const float D = kbn_det(fcoeff);
 # if 1
-	if (D > 0.4){
-//	if (num_neibs > 51 && !close_to_boundary){
+//	if (D > 0.4 && !close_to_boundary){
+	if (!close_to_boundary){
+//	if (num_neibs > 42 && !close_to_boundary){
 		//a_inverse = inverse(fcoeff, D);
 		a_inverse = fcoeff;
 	} else {
