@@ -68,6 +68,7 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
 
+	addPostProcess(SURFACE_DETECTION);
 	H = 1.0f; // Water level
 
 	set_deltap(H/ppH);

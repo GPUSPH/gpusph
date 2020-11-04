@@ -327,7 +327,7 @@ cspmCoeffDevice(
 
 	symtensor3 a_inverse;
 
-	if (BOUNDARY(info)){
+	if (BOUNDARY(info) || SURFACE(info)){
 		set_identity(a_inverse);
 		wcoeffArray[index] = corr;
 		storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
