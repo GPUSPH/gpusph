@@ -340,6 +340,13 @@ cspmCoeffDevice(
 	uint num_neibs = 0;
 	bool close_to_boundary = false;
 
+	for (int i = 0; i < d_numplanes; ++i)
+	{
+		const float pd = PlaneDistance(gridPos, make_float3(pos.x, pos.y, pos.z), d_plane[i]);
+		if (pd < influenceradius)
+			close_to_boundary = true;
+	}
+
 	// Loop over all FLUID neighbors and BOUNDARY neighbors
 	// TODO check what to do for SA
 	// TODO scale relPos by slength to gain resolution independence
