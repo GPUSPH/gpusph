@@ -1225,7 +1225,6 @@ struct cspm_neib_data
 	//	avg_fcoeffTens(pdata.fcoeffTens), // asym
 	//	avg_fcoeffTens((pdata.fcoeffTens + nfcoeffTens)*0.5f), //sym v1
 		avg_fcoeffTens(inverse((pdata.fcoeffTens + nfcoeffTens)*0.5f)), //sym v2
-	//	avg_fcoeffTens(point_sqrt(point_product(pdata.fcoeffTens, nfcoeffTens))),
 		cspm_relPos(dot(avg_fcoeffTens, ndata.relPos)),
 		cspm_vel_dot_pos(dot3(ndata.relVel, cspm_relPos)),
 		cspm_rTr_r2(compute_rTr_r2(avg_fcoeffTens, ndata.relPos))

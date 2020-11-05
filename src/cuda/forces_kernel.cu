@@ -285,6 +285,15 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 /************************************************************************************************************/
 /*	CSPM coefficients       */
 /************************************************************************************************************/
+
+#define THRESHOLD 2
+/* 
+   - 0 : No threshold, boundary excluded
+   - 1 : Surface detection, boundary excluded
+   - 2 : Threshold on determinant, boundary excluded
+   - 3 : Threshold on neibs num, boundary excluded
+ */
+
 template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
 cspmCoeffDevice(
@@ -327,7 +336,11 @@ cspmCoeffDevice(
 
 	symtensor3 a_inverse;
 
+#if THRESHOLD == 1
 	if (BOUNDARY(info) || SURFACE(info)){
+#else
+	if (BOUNDARY(info)){
+#endif
 		set_identity(a_inverse);
 		wcoeffArray[index] = corr;
 		storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
@@ -382,7 +395,6 @@ cspmCoeffDevice(
 		const float f = F<kerneltype>(r, slength);
 		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
 
-	//	has_neibs = true;
 		num_neibs ++;
 
 	}
@@ -394,21 +406,23 @@ cspmCoeffDevice(
 	//symtensor3 a_inverse;
 
 	const float D = kbn_det(fcoeff);
-# if 1
-//	if (D > 0.4 && !close_to_boundary){
+
+# if (THRESHOLD == 0 || THRESHOLD == 1)
 	if (!close_to_boundary){
-//	if (num_neibs > 42 && !close_to_boundary){
-		//a_inverse = inverse(fcoeff, D);
-		a_inverse = fcoeff;
+
+#elif THRESHOLD == 2
+	if (D > 0.4 && !close_to_boundary){
+
+#elif THRESHOLD == 3
+	if (num_neibs > 42 && !close_to_boundary){
+
+#endif
+		//a_inverse = inverse(fcoeff, D); //Use this for asymmetric CSPM or symmetric v1
+		a_inverse = fcoeff; //Use this for symmetric v2 CSPM
 	} else {
 		set_identity(a_inverse);
-		//printf("%g\n", D);
 	}
 
-#else
-	const float D = kbn_det(fcoeff);
-	a_inverse = inverse(fcoeff, D);
-#endif
 	wcoeffArray[index] = 1.0f/corr;
 	storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
 }
