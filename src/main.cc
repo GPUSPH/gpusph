@@ -52,6 +52,9 @@
 #include "mpi_select.opt"
 #include "catalyst_select.opt"
 
+/* include cuda/cache_preference.h, to show the cache preference */
+#include "cuda/cache_preference.h"
+
 using namespace std;
 
 void show_version()
@@ -64,10 +67,11 @@ void show_version()
 #endif
 
 	printf("GPUSPH version %s\n", GPUSPH_VERSION);
-	printf("%s version %s fastmath for compute capability %u.%u\n",
+	printf("%s version %s fastmath for compute capability %u.%u (cache preference: %s cache)\n",
 		dbg_or_rel,
 		FASTMATH ? "with" : "without",
-		COMPUTE/10, COMPUTE%10);
+		COMPUTE/10, COMPUTE%10,
+		PREFER_L1 ? "L1" : "texture");
 	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
 	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
 	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
