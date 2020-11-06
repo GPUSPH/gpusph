@@ -45,6 +45,7 @@
 #include "textures.cuh"
 
 #include "buildneibs_params.h"
+#include "reorder_params.h"
 #include "buildneibs_kernel.cu"
 
 #include "vector_math.h"
@@ -94,7 +95,8 @@ struct ptype_hash_compare :
 
  *	\ingroup neibs
 */
-template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
+template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound, flag_t simflags,
+	bool neibcount>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
 public:
@@ -247,145 +249,28 @@ reorderDataAndFindCellStart(
 		const uint			numParticles,		// total number of particles in input buffers (in)
 		uint*				newNumParticles)	// device pointer to number of active particles found (out)
 {
-
-#if 0
-#define MUST_HAVE(ar) \
-	if (!ar) throw std::invalid_argument(#ar " is null")
-#else
-#define MUST_HAVE(ar) do { /* nothing */ } while (0)
-#endif
-
-#define BIND_CHECK(old_, new_, tex_) \
-	if (old_) { \
-		CUDA_SAFE_CALL(cudaBindTexture(0, tex_, old_, numParticles*sizeof(*old_))); \
-		MUST_HAVE(new_); \
-	} \
-	if (new_) MUST_HAVE(old_)
-
 	const uint numThreads = BLOCK_SIZE_REORDERDATA;
 	const uint numBlocks = div_up(numParticles, numThreads);
+	const uint smemSize = sizeof(uint)*(numThreads+1);
 
-	const hashKey *particleHash = sorted_buffers.getConstData<BUFFER_HASH>();
-	const uint *particleIndex = sorted_buffers.getConstData<BUFFER_PARTINDEX>();
+	reorder_params<sph_formulation, ViscSpec, boundarytype, simflags> rparams(sorted_buffers, unsorted_buffers);
 
-	MUST_HAVE(particleHash);
-	MUST_HAVE(particleIndex);
-
-	// index of cells first and last particles (computed by the kernel)
-	uint *cellStart = sorted_buffers.getData<BUFFER_CELLSTART>();
-	uint *cellEnd = sorted_buffers.getData<BUFFER_CELLEND>();
-
-	MUST_HAVE(cellStart);
-	MUST_HAVE(cellEnd);
-
-	// TODO find a smarter way to do this
-	const float4 *oldPos = unsorted_buffers.getData<BUFFER_POS>();
-	float4 *newPos = sorted_buffers.getData<BUFFER_POS>();
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
-	MUST_HAVE(newPos);
-
-	const float4 *oldVel = unsorted_buffers.getData<BUFFER_VEL>();
-	float4 *newVel = sorted_buffers.getData<BUFFER_VEL>();
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
-	MUST_HAVE(newVel);
-
-	const float4 *oldVol = unsorted_buffers.getData<BUFFER_VOLUME>();
-	float4 *newVol = sorted_buffers.getData<BUFFER_VOLUME>();
-	BIND_CHECK(oldVol, newVol, volTex);
-
-	const float *oldEnergy = unsorted_buffers.getData<BUFFER_INTERNAL_ENERGY>();
-	float *newEnergy = sorted_buffers.getData<BUFFER_INTERNAL_ENERGY>();
-	BIND_CHECK(oldEnergy, newEnergy, energyTex);
-
-	// sorted already
-	const particleinfo *particleInfo = sorted_buffers.getConstData<BUFFER_INFO>();
-	MUST_HAVE(particleInfo);
-
-	const float4 *oldBoundElement = unsorted_buffers.getData<BUFFER_BOUNDELEMENTS>();
-	float4 *newBoundElement = sorted_buffers.getData<BUFFER_BOUNDELEMENTS>();
-	BIND_CHECK(oldBoundElement, newBoundElement, boundTex);
-
-	const float4 *oldGradGamma = unsorted_buffers.getData<BUFFER_GRADGAMMA>();
-	float4 *newGradGamma = sorted_buffers.getData<BUFFER_GRADGAMMA>();
-	BIND_CHECK(oldGradGamma, newGradGamma, gamTex);
-
-	const vertexinfo *oldVertices = unsorted_buffers.getData<BUFFER_VERTICES>();
-	vertexinfo *newVertices = sorted_buffers.getData<BUFFER_VERTICES>();
-	BIND_CHECK(oldVertices, newVertices, vertTex);
-
-	const float *oldTKE = unsorted_buffers.getData<BUFFER_TKE>();
-	float *newTKE = sorted_buffers.getData<BUFFER_TKE>();
-	BIND_CHECK(oldTKE, newTKE, keps_kTex);
-
-	const float *oldEps = unsorted_buffers.getData<BUFFER_EPSILON>();
-	float *newEps = sorted_buffers.getData<BUFFER_EPSILON>();
-	BIND_CHECK(oldEps, newEps, keps_eTex);
-
-	const float *oldTurbVisc = unsorted_buffers.getData<BUFFER_TURBVISC>();
-	float *newTurbVisc = sorted_buffers.getData<BUFFER_TURBVISC>();
-	BIND_CHECK(oldTurbVisc, newTurbVisc, tviscTex);
-
-	const float *oldEffPres = unsorted_buffers.getData<BUFFER_EFFPRES>();
-	float *newEffPres = sorted_buffers.getData<BUFFER_EFFPRES>();
-	if (oldEffPres)
-		CUDA_SAFE_CALL(cudaBindTexture(0, effpresTex, oldEffPres, numParticles*sizeof(float)));
-
-	const float4 *oldEulerVel = unsorted_buffers.getData<BUFFER_EULERVEL>();
-	float4 *newEulerVel = sorted_buffers.getData<BUFFER_EULERVEL>();
-	BIND_CHECK(oldEulerVel, newEulerVel, eulerVelTex);
-
-	const uint *oldNextIDs = unsorted_buffers.getData<BUFFER_NEXTID>();
-	uint *newNextIDs = sorted_buffers.getData<BUFFER_NEXTID>();
-	if (oldNextIDs && !newNextIDs)
-		throw std::invalid_argument("newNextIDs is null");
-
-	const float4 *oldDummyVel = unsorted_buffers.getData<BUFFER_DUMMY_VEL>();
-	float4 *newDummyVel = sorted_buffers.getData<BUFFER_DUMMY_VEL>();
-	if (oldDummyVel && !newDummyVel)
-		throw std::invalid_argument("newDummyVel is null");
-
-	uint smemSize = sizeof(uint)*(numThreads+1);
-	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
-		newPos, newVel, newVol, newEnergy, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
-		newEffPres,
-		newEulerVel,
-		oldNextIDs, newNextIDs,
-		oldDummyVel, newDummyVel,
-		particleInfo, particleHash, particleIndex, numParticles, newNumParticles);
+	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(
+		rparams, /* all arrays to be sorted */
+		// index of cells first and last particles (computed by the kernel)
+		sorted_buffers.getData<BUFFER_CELLSTART>(),
+		sorted_buffers.getData<BUFFER_CELLEND>(),
+		// multi-GPU segments
+		segmentStart,
+		// already-sorted data, used to compute the rest
+		sorted_buffers.getConstData<BUFFER_INFO>(),
+		sorted_buffers.getConstData<BUFFER_HASH>(),
+		sorted_buffers.getConstData<BUFFER_PARTINDEX>(),
+		numParticles,
+		newNumParticles);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-
-	if (oldVol)
-		CUDA_SAFE_CALL(cudaUnbindTexture(volTex));
-	if (oldEnergy)
-		CUDA_SAFE_CALL(cudaUnbindTexture(energyTex));
-
-	if (oldBoundElement)
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	if (oldGradGamma)
-		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
-	if (oldVertices)
-		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
-
-	if (oldTKE)
-		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
-	if (oldEps)
-		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
-	if (oldTurbVisc)
-		CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
-
-	if (oldEffPres)
-		CUDA_SAFE_CALL(cudaUnbindTexture(effpresTex));
-
-	if (oldEulerVel)
-		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
-
-#undef BIND_CHECK
-#undef MUST_HAVE
 }
 
 void

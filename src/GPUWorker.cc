@@ -1838,7 +1838,7 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 	const BufferList unsorted =
 		extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList sorted =
-		// updates holds the buffers sorted in SORT, which will only read actually
+		// updates holds the buffers sorted in SORT, which will only be read actually
 		extractExistingBufferList(m_dBuffers, cmd.updates) |
 		// the writes specification includes a dynamic buffer selection,
 		// because the sorted state will have the buffers that were also
@@ -1849,6 +1849,7 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 
 	// reset also if the device is empty (or we will download uninitialized values)
 	sorted.get<BUFFER_CELLSTART>()->clobber();
+	sorted.validate_access();
 
 	// if the device is not empty, do the actual sorting. Otherwise, just mark the buffers as updated
 	if (m_numParticles > 0) {
