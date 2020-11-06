@@ -221,6 +221,11 @@ CUDA_MINOR := $(lastword  $(versions_tmp))
 # NOTE: the test is reversed because test returns 0 for true (shell-like)
 OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
 
+# Some libraries shipped CUDA 11 require C++14, so we want to know if
+# the CUDA version is at least 11
+# NOTE: the test is reversed because test returns 0 for true (shell-like)
+CUDA_11=$(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
+
 ifeq ($(OLD_CUDA),1)
 $(error CUDA version too old)
 endif
@@ -755,10 +760,16 @@ endif
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
 
-# We also force C++11 mode, since we are no relying on C++11 features
+# We also force C++11 (or higher) mode, since we are now relying on C++11 features
+# If we are using CUDA 11 or higher, the standard will be C++14, as required by
+# Thrust and CUB
 # TODO Check if any -std is present in CXXFLAGS (added by the user) and if
 # the specified value is not 11, warn before removing it
+ifeq ($(CUDA_11),1)
+CXXFLAGS += -std=c++14
+else
 CXXFLAGS += -std=c++11
+endif
 
 # HDF5 might require specific flags
 ifneq ($(USE_HDF5),0)
