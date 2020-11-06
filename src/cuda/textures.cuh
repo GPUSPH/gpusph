@@ -62,15 +62,12 @@
  */
 texture<float4, 1, cudaReadModeElementType> posTex;		///< position and mass
 texture<float4, 1, cudaReadModeElementType> velTex;		///< velocity and density
-texture<float4, 1, cudaReadModeElementType> volTex;		///< volume
-texture<float, 1, cudaReadModeElementType> energyTex;	///< internal energy
 texture<float4, 1, cudaReadModeElementType> boundTex;	///< boundary elements
 texture<float4, 1, cudaReadModeElementType> gamTex;		///< gradient gamma
 texture<particleinfo, 1, cudaReadModeElementType> infoTex;	///< info
 texture<vertexinfo, 1, cudaReadModeElementType> vertTex;	///< vertices
 texture<float, 1, cudaReadModeElementType> keps_kTex;	///< k for k-e model
 texture<float, 1, cudaReadModeElementType> keps_eTex;	///< e for k-e model
-texture<float, 1, cudaReadModeElementType> tviscTex;	///< eddy viscosity
 texture<float, 1, cudaReadModeElementType> effpresTex;	// effective pressure
 texture<float4, 1, cudaReadModeElementType> eulerVelTex;	///< eulerian velocity and density
 
