@@ -110,19 +110,25 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 
 	LinearWaveFDPKA4 wave(WavePeriod,H);
 	WaveNumber = wave.wavenum();
+	const double WaveLength = 2.0*M_PI/WaveNumber;
 
         std::cout << "wave period is:"<< WavePeriod <<"\n";
 	std::cout << "Wave Number k is:"<< WaveNumber <<"\n";
 
 	// paddle stroke length
 	const float KH = WaveNumber*H;
-        stroke = WaveHeight/(4.0*(sinh(KH)/KH)*(KH*sinh(KH)-cosh(KH)+1.0)/(sinh(2.0*KH)+2.0*KH));
+        //stroke = WaveHeight/(4.0*(sinh(KH)/KH)*(KH*sinh(KH)-cosh(KH)+1.0)/(sinh(2.0*KH)+2.0*KH));
+        stroke = 1.08*WaveHeight/(4.0*(sinh(KH)/KH)*(KH*sinh(KH)-cosh(KH)+1.0)/(sinh(2.0*KH)+2.0*KH));
         std::cout << "stroke value is:"<< stroke <<"\n";
         std::cout << "wave height is:"<< WaveHeight <<"\n";
 
 	// SPH parameters
 	simparams()->sfactor= 1.3;
 	simparams()->buildneibsfreq = 10;
+
+	// simulation duration: wave energy travels at half the wave speed
+	// so we need the time for the energy to reach the end of the tank
+	simparams()->tend = 2.0*WavePeriod*horizontal_flat/WaveLength;
 
 	// Physical parameters
 	setWaterLevel(H);
@@ -160,8 +166,8 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	paddle_tend = simparams()->tend;//seconds	
 	paddle_origin = make_double3(2.0, r0/2, 0.0f);
 
-	paddle_amplitude = atan(stroke/(2.0*(H + 19.5)));
-	paddle_omega = 2.0*M_PI/WavePeriod;		// the angular frequency of the paddle motion
+	paddle_amplitude = atan(stroke/(2.0*H));
+	paddle_omega = 2.0*M_PI/WavePeriod; // the angular frequency of the paddle motion
 	cout << "\npaddle_amplitude (radians): " << paddle_amplitude << "\n";
 	cout << "\npaddle_omega: " << paddle_omega << "\n";
 
@@ -226,14 +232,13 @@ AiryWaves2D::moving_bodies_callback(const uint index, Object* object, const doub
 			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
 
-	dx= make_double3(0.0);
-	kdata.lvel=make_double3(0.0f, 0.0f, 0.0f);
-	kdata.crot = make_double3(2.0,index*paddle_width, -19.5f);
+	dx = make_double3(0.0);
+	kdata.lvel = make_double3(0.0f, 0.0f, 0.0f);
+	kdata.crot = make_double3(2.0, index*paddle_width, 0.0);
 	float arg;
 	float dthetadt = 0.;
-	//if (t1 >= paddle_tstart && t1 < paddle_tend) {	
-	if (t1 >= paddle_tstart) {
-		arg = paddle_omega*(t1- paddle_tstart);
+	if (t1 >= paddle_tstart && t1 < paddle_tend) {
+		arg = paddle_omega*(t1 - paddle_tstart);
 		dthetadt = paddle_amplitude*paddle_omega*cos(arg);
 		kdata.avel = make_double3(0.0, dthetadt, 0.0);
 		EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
@@ -243,7 +248,7 @@ AiryWaves2D::moving_bodies_callback(const uint index, Object* object, const doub
 		kdata.orientation.Normalize();
 		}
 	else {
-	        kdata.avel = make_double3(0.0,0.0,0.0);
+	        kdata.avel = make_double3(0.0, 0.0, 0.0);
 		kdata.orientation = kdata.orientation;
 		dr.Identity();
 	}
