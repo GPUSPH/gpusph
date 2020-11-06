@@ -25,79 +25,75 @@ class LinearWaveFDPKA4 {
     public:
       LinearWaveFDPKA4(void) ;         //constructor
       LinearWaveFDPKA4(  double &T,  double &h);   //constructor 2
-      ~LinearWaveFDPKA4(void) {};  
-      
+      ~LinearWaveFDPKA4(void) {};
+
       double wavenum();
-      
+
     private:
       double sig;
       double kh;
-      double  k;
-      double  pi;
-      double  h;
-      double  T;
-      double  g;
-      double  f;
-      double  fp;
+      double k;
+      double pi;
+      double h;
+      double T;
+      double g;
+      double f;
+      double fp;
     //  double  theta;
   };  //end of class declaration
-  
- LinearWaveFDPKA4 :: LinearWaveFDPKA4(  double &wavePeriod,  double &waterDepth)   
+
+ LinearWaveFDPKA4 :: LinearWaveFDPKA4(  double &wavePeriod,  double &waterDepth)
    {
      h = waterDepth;
      T = wavePeriod;
     }
-    
- double LinearWaveFDPKA4 :: wavenum() 
+
+ double LinearWaveFDPKA4 :: wavenum()
     {
       float g, pi, sig, f, fp;
-      g=9.81;
-      pi=4.0*atan(1.0);
-      sig= 2*pi/T;   
-      double k0=sig*sig/g;
-      k =k0*pow(1.-exp(-pow(k0*h,1.25)),-0.4);
-      for (int i=1;i<4;i++) 
-        {
-          f=k0-k*tanh(k*h);
-          fp=-tanh(k*h)-k*h*(1-pow(tanh(k*h),2));
-          k=k-f/fp;
-          if (f<0.000001)
-             break;
-         }     
-return k;
+      g = 9.81;
+      pi = 4.0*atan(1.0);
+      sig = 2*pi/T;
+      double k0 = sig*sig/g;
+      k = k0*pow(1.-exp(-pow(k0*h, 1.25)), -0.4);
+
+      for (int i=1;i<4;i++) {
+	      f = k0-k*tanh(k*h);
+	      fp = -tanh(k*h)-k*h*(1 - pow(tanh(k*h), 2));
+	      k = k - f/fp;
+	      if (f < 0.000001)
+		      break;
+      }
+      return k;
   }
-  
+
 AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 {
 	m_usePlanes = get_option("use-planes", true); // --use-planes true to enable use of planes for boundaries
 
-	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
-	const int rhodiff = get_option("density-diffusion", 1);
-
 	const float Cd = get_option("Cd",0.12);
 	const float nu = get_option("Nu",1.0e-6);
-
-	set_deltap(1.0/64.0);
-
-	beta = 0.1f;
-	horizontal_flat = 52.0f;
-	float z_slope = 2.0f;
-	lx = horizontal_flat + z_slope/beta;
-	slope_length = z_slope/beta;
-	ly =  round_up(6*simparams()->influenceRadius, m_deltap);
-	H  = 1.0f; // Still water level
-	lz = 2.0*H; // Domain height
-
 
 	SETUP_FRAMEWORK(
 		boundary<LJ_BOUNDARY>,
 		periodicity<PERIODIC_Y>,
 		add_flags<ENABLE_CSPM>
 	).select_options(
-	COLAGROSSI,
+		COLAGROSSI,
 		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
+	H  = 1.0f; // Still water level
+	set_deltap(H/64.0);
+
+	beta = 0.1f;
+	horizontal_flat = 52.0f;
+	float z_slope = 2.0f;
+	slope_length = z_slope/beta;
+
+	lx = horizontal_flat + z_slope/beta;
+	ly =  round_up(4.0*simparams()->influenceRadius, m_deltap);
+	lz = 2.0*H; // Domain height
         std::cout << "beach_slope is:"<< beta <<"\n";
         std::cout << "lx is:"<< lx <<"\n";
         std::cout << "ly is:"<< ly <<"\n";
@@ -113,7 +109,7 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	WaveHeight = 0.1f;
 
 	LinearWaveFDPKA4 wave(WavePeriod,H);
-	WaveNumber=wave.wavenum();
+	WaveNumber = wave.wavenum();
 
         std::cout << "wave period is:"<< WavePeriod <<"\n";
 	std::cout << "Wave Number k is:"<< WaveNumber <<"\n";
@@ -136,11 +132,11 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->r0 = r0;
 
 	const float maxvel = sqrt(2*g*H);
-	c0 = 20.0f*maxvel;
+	const float c0 = 20.0f*maxvel;
 	add_fluid(1000.0f);
-	set_equation_of_state(0, 1.0f, c0);
+	set_equation_of_state(0, 7.0f, c0);
 
-	physparams()->artvisccoeff = 1e-6*10.0/(physparams()->sscoeff[0]*simparams()->slength);
+	physparams()->artvisccoeff = nu*10.0/(physparams()->sscoeff[0]*simparams()->slength);
 	physparams()->smagfactor = Cd*Cd*m_deltap*m_deltap; //CSM: wa have C=0.12 as a standard value
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap; //CI = 2/3*6.6*10^-3*dp^2
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
@@ -170,13 +166,13 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	cout << "\npaddle_omega: " << paddle_omega << "\n";
 
 	add_gage (2.5, ly/2.0);
-	add_gage (8, ly/2.0);
-	add_gage (22, ly/2.0);
-	add_gage (36, ly/2.0);
-	add_gage (50, ly/2.0);
+	add_gage (8.0, ly/2.0);
+	add_gage (22.0, ly/2.0);
+	add_gage (36.0, ly/2.0);
+	add_gage (50.0, ly/2.0);
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, WavePeriod);  //second argument is saving time in seconds
+	add_writer(VTKWRITER, WavePeriod/4.0);  //second argument is saving time in seconds
 	add_writer(COMMONWRITER, 0.01);
 	m_name = "AiryWaves";
 
@@ -236,21 +232,21 @@ AiryWaves2D::moving_bodies_callback(const uint index, Object* object, const doub
 	float arg;
 	float dthetadt = 0.;
 	//if (t1 >= paddle_tstart && t1 < paddle_tend) {	
-	if (t1 >= paddle_tstart) {	
+	if (t1 >= paddle_tstart) {
 		arg = paddle_omega*(t1- paddle_tstart);
 		dthetadt = paddle_amplitude*paddle_omega*cos(arg);
-		kdata.avel = make_double3(0.0, dthetadt, 0.0);		
-       		EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
-       		dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
-       		dr.Normalize();
+		kdata.avel = make_double3(0.0, dthetadt, 0.0);
+		EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
+		dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
+		dr.Normalize();
 		kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
-	   	kdata.orientation.Normalize();			
+		kdata.orientation.Normalize();
 		}
 	else {
 	        kdata.avel = make_double3(0.0,0.0,0.0);
-	   	kdata.orientation = kdata.orientation;
-	   	dr.Identity();
-	}	
+		kdata.orientation = kdata.orientation;
+		dr.Identity();
+	}
 }
 
 void AiryWaves2D::copy_planes(PlaneList &planes)
