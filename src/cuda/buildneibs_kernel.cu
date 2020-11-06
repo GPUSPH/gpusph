@@ -824,43 +824,30 @@ fixHashDevice(	hashKey*		particleHash,			///< [in,out] particle's hashes
  * 		- compute the new number of particles accounting for those
  * 		marked for deletion
  *
- *  In order to avoid WAR issues we use double buffering : the unsorted data
- *  are read trough texture fetches and the sorted one written in a coalesced
- *  way in global memory.
+ *  In order to avoid Write-After-Read issues we use double buffering.
+ *  We used to this through textures, but newer architectures now share
+ *  the L1 cache with the texture cache when using const restrict pointers,
+ *  so we use those everywhere instead, wrapped in the reorder_data
+ *  structure template that gets passed as first argument to this kernel.
  *
- * \todo should be templatized according to boundary type. (Alexis)
 // \todo k goes with e, make it a float2. (Alexis).
 // \todo document segmentStart (Alexis).
  */
-// FIXME: we cannot avoid WAR, instead we need to be prepared to WAR ....
+template<typename RP /* reorder_data specialization */>
 __global__
 /*! \cond */
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
 /*! \endcond */
-void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of cells first particle
-										uint*			cellEnd,			///< [out] index of cells last particle
-										uint*			segmentStart,		///< [out]
-										float4*			sortedPos,			///< [out] new sorted particle's positions
-										float4*			sortedVel,			///< [out] new sorted particle's velocities
-										float4*			sortedVol,			///< [out] new sorted particle's informations
-										float*			sortedEnergy,		// new sorted particle's internal energy (out)
-										float4*			sortedBoundElements,///< [out] new sorted boundary elements normals and surface
-										float4*			sortedGradGamma,	///< [out] new sorted gradient of gamma
-										vertexinfo*		sortedVertices,		///< [out] new sorted vertices
-										float*			sortedTKE,			///< [out] new sorted k
-										float*			sortedEps,			///< [out] new sorted e
-										float*			sortedTurbVisc,		///< [out] new sorted eddy viscosity
-										float*			sortedEffPres,		///< [out] new sorted effective pressure
-										float4*			sortedEulerVel,		///< [out] new sorted IO/k-e boundary velocity (used in SA only)
-								const	uint*			unsortedNextIDs,	///< [in] old (unsorted) next ID for particle generators
-										uint*			sortedNextIDs,		///< [out] new sorted next ID for particle generators
-								const	float4*			unsortedDummyVel,	///< [in] old (unsorted) dummy boundary velocity
-										float4*			sortedDummyVel,		///< [out] new sorted dummy boundary velocity
-										const particleinfo*	particleInfo,	///< [in] previously sorted particle's informations
-										const hashKey*	particleHash,		///< [in] previously sorted particle's hashes
-										const uint*		particleIndex,		///< [in] previously sorted particle's indexes
-										const uint		numParticles,		///< [in] total number of particles
-										uint*			newNumParticles)	///< [out] device pointer to new number of active particles
+void reorderDataAndFindCellStartDevice(
+			RP								 rparams,		///< [in/out] data to be reordered
+			uint* __restrict__				cellStart,		///< [out] index of cells first particle
+			uint* __restrict__				cellEnd,		///< [out] index of cells last particle
+			uint* __restrict__				segmentStart,	///< [out] multi-GPU segments
+	const	 particleinfo * __restrict__	particleInfo,	///< [in] previously sorted particle's informations
+	const	 hashKey* __restrict__			particleHash,	///< [in] previously sorted particle's hashes
+	const	 uint* __restrict__				particleIndex,	///< [in] previously sorted particle's indexes
+	const	 uint							numParticles,	///< [in] total number of particles
+			uint* __restrict__				newNumParticles)	///< [out] device pointer to new number of active particles
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -935,65 +922,10 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 
 		// Now use the sorted index to reorder particle's data
 		const uint sortedIndex = particleIndex[index];
-		const float4 pos = tex1Dfetch(posTex, sortedIndex);
-		const float4 vel = tex1Dfetch(velTex, sortedIndex);
 
-		sortedPos[index] = pos;
-		sortedVel[index] = vel;
-
-		if (sortedVol) {
-			sortedVol[index] = tex1Dfetch(volTex, sortedIndex);
-		}
-
-		if (sortedEnergy) {
-			sortedEnergy[index] = tex1Dfetch(energyTex, sortedIndex);
-		}
-
-		if (sortedBoundElements) {
-			sortedBoundElements[index] = tex1Dfetch(boundTex, sortedIndex);
-		}
-
-		if (sortedGradGamma) {
-			sortedGradGamma[index] = tex1Dfetch(gamTex, sortedIndex);
-		}
-
-		if (sortedVertices) {
-			if (BOUNDARY(particleInfo[index])) {
-				const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
-				sortedVertices[index] = vertices;
-			}
-			else
-				sortedVertices[index] = make_vertexinfo(0, 0, 0, 0);
-		}
-
-		if (sortedTKE) {
-			sortedTKE[index] = tex1Dfetch(keps_kTex, sortedIndex);
-		}
-
-		if (sortedEps) {
-			sortedEps[index] = tex1Dfetch(keps_eTex, sortedIndex);
-		}
-
-		if (sortedTurbVisc) {
-			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
-		}
-
-		if (sortedEffPres) {
-			sortedEffPres[index] = tex1Dfetch(effpresTex, sortedIndex);
-		}
-
-		if (sortedEulerVel) {
-			sortedEulerVel[index] = tex1Dfetch(eulerVelTex, sortedIndex);
-		}
-
-		if (sortedNextIDs) {
-			sortedNextIDs[index] = unsortedNextIDs[sortedIndex];
-		}
-
-		if (sortedDummyVel) {
-			sortedDummyVel[index] = unsortedDummyVel[sortedIndex];
-		}
-
+		// The particleInfo fetch is only actually needed by the BUFFER_VERTICES sorter,
+		// TODO measure the impact of this usage
+		rparams.reorder(index, sortedIndex, particleInfo[index]);
 	}
 }
 
