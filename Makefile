@@ -614,6 +614,7 @@ endif
 
 # CUDA libaries
 LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+LDFLAGS += --linker-options -rpath,$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 
 # link to the CUDA runtime library
 LIBS += -lcudart
