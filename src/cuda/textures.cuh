@@ -27,21 +27,7 @@
 #ifndef _TEXTURES_CUH_
 #define _TEXTURES_CUH_
 
-// On devices with compute capability 2.x, we want to distribute cache load
-// between L1 cache and the texture cache. On older architectures (no L1 cache)
-// we prefer using textures for all read-only arrays. Define PREFER_L1 to 1 or
-// 0 accordingly. On 3.x, the L1 cache is only used for register spills, so
-// exclude it from PREFER_L1. We keep PREFER_L1 on Maxwell because tests indicate
-// that using textures leads to no improvement at best (and possibly some minor
-// performance loss)
-
-#if defined(__COMPUTE__)
-#if __COMPUTE__ >= 20 && __COMPUTE__/10 != 3
-#define PREFER_L1 1
-#else
-#define PREFER_L1 0
-#endif
-#endif
+#include "cache_preference.h"
 
 #include "particleinfo.h"
 
