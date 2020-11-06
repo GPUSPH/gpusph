@@ -632,7 +632,9 @@ public:
 		map_type::iterator exists = m_map.find(Key);
 		if (exists == m_map.end()) {
 			if (m_validate_access)
-				throw std::runtime_error(std::to_string(Key) + " not found");
+				throw std::runtime_error("Requested buffer " +
+					std::string(BufferTraits<Key>::name) +
+					" (" + std::to_string(Key) + ") not found");
 			return NULL;
 		}
 
@@ -680,7 +682,9 @@ public:
 		map_type::const_iterator exists = m_map.find(Key);
 		if (exists == m_map.end()) {
 			if (m_validate_access)
-				throw std::runtime_error(std::to_string(Key) + " not found");
+				throw std::runtime_error("Requested buffer " +
+					std::string(BufferTraits<Key>::name) +
+					" (" + std::to_string(Key) + ") not found");
 			return NULL;
 		}
 
@@ -713,7 +717,9 @@ public:
 		buffer_ptr_type<Key> buf = this->get<Key>();
 		if (!buf) {
 			if (m_validate_access)
-				throw std::runtime_error(std::to_string(Key) + " not found");
+				throw std::runtime_error("Requested buffer " +
+					std::string(BufferTraits<Key>::name) +
+					" (" + std::to_string(Key) + ") not found");
 			return NULL;
 		}
 
@@ -750,7 +756,9 @@ public:
 		const_buffer_ptr_type<Key> buf = this->get<Key>();
 		if (!buf) {
 			if (m_validate_access)
-				throw std::runtime_error(std::to_string(Key) + " not found");
+				throw std::runtime_error("Requested buffer " +
+					std::string(BufferTraits<Key>::name) +
+					" (" + std::to_string(Key) + ") not found");
 			return NULL;
 		}
 
