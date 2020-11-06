@@ -73,71 +73,60 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 
 	// density diffusion terms: 0 none, 1 Molteni & Colagrossi, 2 Ferrari
 	const int rhodiff = get_option("density-diffusion", 1);
-	
-	const float SS = get_option("Sound_Speed",90.0);
+
 	const float Cd = get_option("Cd",0.12);
 	const float nu = get_option("Nu",1.0e-6);
-	
+
+	set_deltap(1.0/64.0);
+
+	beta = 0.1f;
+	horizontal_flat = 52.0f;
+	float z_slope = 2.0f;
+	lx = horizontal_flat + z_slope/beta;
+	slope_length = z_slope/beta;
+	ly =  round_up(6*simparams()->influenceRadius, m_deltap);
+	H  = 1.0f; // Still water level
+	lz = 2.0*H; // Domain height
+
+
 	SETUP_FRAMEWORK(
-		//viscosity<SPSVISC>,
 		boundary<LJ_BOUNDARY>,
 		periodicity<PERIODIC_Y>,
 		add_flags<ENABLE_CSPM>
 	).select_options(
 	COLAGROSSI,
-		//rhodiff, FlagSwitch<ENABLE_NONE, ENABLE_DENSITY_DIFFUSION, ENABLE_FERRARI>(),
 		m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
-
-	
-	set_deltap(1.0/75.0);
-	//set_deltap(0.01f);
-	
-	beta = 0.1f;
-	horizontal_flat = 5.0f;
-	float z_slope = 2.0f;
-	lx = horizontal_flat + z_slope/beta;
-	slope_length = z_slope/beta;
-	ly = 15.0f * m_deltap;
-	lz = 3.0f;
-	H  = 0.5f; // Still water level
-
-	resize_neiblist(145);
 
         std::cout << "beach_slope is:"<< beta <<"\n";
         std::cout << "lx is:"<< lx <<"\n";
         std::cout << "ly is:"<< ly <<"\n";
-	
+
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0, 0, 0);
-
-	//addFilter(SHEPARD_FILTER, 1);
 
 	// use a plane for the bottom
 	use_bottom_plane = 1;  //1 for plane; 0 for particles
 
 	//WavePeriod & WaveHeight
-        WavePeriod = 1.2f;
+        WavePeriod = 0.98f;
 	WaveHeight = 0.1f;
-	
+
 	LinearWaveFDPKA4 wave(WavePeriod,H);
-	WaveNumber=wave.wavenum();	  
+	WaveNumber=wave.wavenum();
 
         std::cout << "wave period is:"<< WavePeriod <<"\n";
 	std::cout << "Wave Number k is:"<< WaveNumber <<"\n";
 
 	// paddle stroke length
 	const float KH = WaveNumber*H;
-        stroke 	       = WaveHeight / (4.0*(sinh(KH)/KH)*(KH*sinh(KH)-cosh(KH)+1.0)/(sinh(2.0*KH)+2.0*KH));
+        stroke = WaveHeight/(4.0*(sinh(KH)/KH)*(KH*sinh(KH)-cosh(KH)+1.0)/(sinh(2.0*KH)+2.0*KH));
         std::cout << "stroke value is:"<< stroke <<"\n";
         std::cout << "wave height is:"<< WaveHeight <<"\n";
 
 	// SPH parameters
-	simparams()->dt = 0.0001;
-	simparams()->sfactor= 1.5;
-	simparams()->dtadaptfactor = 0.45;
+	simparams()->sfactor= 1.3;
 	simparams()->buildneibsfreq = 10;
-	//simparams()->tend = 50*WavePeriod; //seconds
 
 	// Physical parameters
 	setWaterLevel(H);
@@ -145,21 +134,17 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	float g = length(physparams()->gravity);
 	float r0 = m_deltap;
 	physparams()->r0 = r0;
-	
-	//const float maxvel = sqrt(2*g*H);
-	const float c0 = SS;  //numerical sound speed
+
+	const float maxvel = sqrt(2*g*H);
+	c0 = 20.0f*maxvel;
 	add_fluid(1000.0f);
-	set_equation_of_state(0,  1.0f, c0);
-	//double bkg_press = c0*c0*1000/7.0; // background pressure
-	//physparams()->set_bkgpressure(bkg_press);
-	set_kinematic_visc(0,nu);
-		
-	physparams()->artvisccoeff =  0.025;
+	set_equation_of_state(0, 1.0f, c0);
+
+	physparams()->artvisccoeff = 1e-6*10.0/(physparams()->sscoeff[0]*simparams()->slength);
 	physparams()->smagfactor = Cd*Cd*m_deltap*m_deltap; //CSM: wa have C=0.12 as a standard value
 	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap; //CI = 2/3*6.6*10^-3*dp^2
 	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;
-	//physparams()->spsclosure = 2U; // 1U Constant Smagorinsky model, 2U WALE model added by Morteza Derakhti derakhti@jhu.edu
-	
+
 	// BC when using LJ
 	physparams()->dcoeff = 0.5*g*H;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
@@ -171,10 +156,10 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
         int m_mbnumber = 1;
-        std::cout << "the number of paddles is:	"<< m_mbnumber <<"\n";	
-	paddle_width= ly/m_mbnumber;	
-        std::cout << "the width of paddles is:	"<< paddle_width <<"\n";	
-	paddle_length = 2.0-r0;
+        std::cout << "the number of paddles is:	"<< m_mbnumber <<"\n";
+	paddle_width= ly/m_mbnumber;
+        std::cout << "the width of paddles is:	"<< paddle_width <<"\n";
+	paddle_length = 1.5;
 	paddle_tstart = 0.12;
 	paddle_tend = simparams()->tend;//seconds	
 	paddle_origin = make_double3(2.0, r0/2, 0.0f);
@@ -184,16 +169,15 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	cout << "\npaddle_amplitude (radians): " << paddle_amplitude << "\n";
 	cout << "\npaddle_omega: " << paddle_omega << "\n";
 
-	add_gage (3, ly/2.0);
-	add_gage (7, ly/2.0);
-	add_gage (10, ly/2.0);
-	add_gage (13, ly/2.0);
+	add_gage (2.5, ly/2.0);
+	add_gage (8, ly/2.0);
+	add_gage (22, ly/2.0);
+	add_gage (36, ly/2.0);
+	add_gage (50, ly/2.0);
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 1.2f);  //second argument is saving time in seconds
+	add_writer(VTKWRITER, WavePeriod);  //second argument is saving time in seconds
 	add_writer(COMMONWRITER, 0.01);
-	//add_writer(TEXTWRITER,WavePeriod/25.0f);
-	// Name of problem used for directory creation
 	m_name = "AiryWaves";
 
 	time_t  rawtime;
@@ -202,21 +186,21 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	strftime(time_str, 17, "%Y-%m-%dT%Hh%M", localtime(&rawtime));
 	time_str[16] = '\0';
 	std::cout << "The starting time for the case run: " << string(time_str) << "\n";
-	
+
 	// Building the geometry
 	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 	setPositioning(PP_CORNER);
 
-  	const float amplitude = 0.0f; //- paddle_amplitude; // this is the initial tilt of the paddles
+	const float amplitude = 0.0f; //- paddle_amplitude; // this is the initial tilt of the paddles
 	for (uint i=0; i<m_mbnumber; i++) {
 		//pad_origin[i] = make_double3(2.0,i*paddle_width, 0.0f);	
 		GeometryID paddle = addBox(GT_MOVING_BODY, FT_BORDER,
 		Point(make_double3(2.0 - 0*m_deltap,i*paddle_width+r0/2, 0.0f)), 0*m_deltap, paddle_width-r0, paddle_length);
 		//rotate(paddle, 0,-amplitude, 0);
-		disableCollisions(paddle);	
-	}  	
+		disableCollisions(paddle);
+	}
 
-	
+
 	if (!use_bottom_plane) {
 		GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 				Point(horizontal_flat, 0, 0), 0, ly, paddle_length);
@@ -229,9 +213,9 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 	float z = 0;
 	int n = 0;
 	while (z < H) {
-	      z = n*m_deltap + 1.0*r0 + 0.0001*n; 
+	      z = n*m_deltap + 1.0*r0 + 0.0001*n;
 	      float x = paddle_origin.x + (z - paddle_origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
-	      float l = horizontal_flat + z/tan(beta) - (1.0*r0+0.0001)/sin(beta) - x;	      
+	      float l = horizontal_flat + z/tan(beta) - (1.0*r0+0.0001)/sin(beta) - x;
 	      //fluid = addRect(GT_FLUID, FT_SOLID, Point(x,  r0/2, z),  //r0 if use sidewall
 	      addRect(GT_FLUID, FT_SOLID, Point(x,  r0/2, z),  //r0 if use sidewall
 	      l, ly-1.0*r0);  //-2.0*r0 if use sidewall
