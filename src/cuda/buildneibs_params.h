@@ -64,6 +64,16 @@ struct common_buildneibs_params
 		numParticles(_numParticles),
 		sqinfluenceradius(_sqinfluenceradius)
 	{}
+
+	__device__ __forceinline__ float4
+	fetchPos(const uint index) const
+	{
+#if PREFER_l1
+		return posArray[index];
+#else
+		return tex1Dfetch(posTex, index);
+#endif
+	}
 };
 
 /// Parameters used only with SA_BOUNDARY buildneibs specialization
