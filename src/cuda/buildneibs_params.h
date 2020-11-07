@@ -76,19 +76,19 @@ struct pos_wrapper
 struct common_buildneibs_params :
 	pos_wrapper ///< particle's positions (in)
 {
-			neibdata	*neibsList;				///< neighbor's list (out)
 	const	hashKey		*particleHash;			///< particle's hashes (in)
+			neibdata	*neibsList;				///< neighbor's list (out)
 	const	uint		numParticles;			///< total number of particles
 	const	float		sqinfluenceradius;		///< squared influence radius
 
 	common_buildneibs_params(
 		const	BufferList&	bufread,
-				neibdata	*_neibsList,
+				BufferList& bufwrite,
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius) :
 		pos_wrapper(bufread),
-		neibsList(_neibsList),
 		particleHash(bufread.getData<BUFFER_HASH>()),
+		neibsList(bufwrite.getData<BUFFER_NEIBSLIST>()),
 		numParticles(_numParticles),
 		sqinfluenceradius(_sqinfluenceradius)
 	{}
@@ -125,15 +125,15 @@ struct buildneibs_params :
 {
 
 	buildneibs_params(
-		const BufferList&	bufread,
-				neibdata	*_neibsList,
+		const	BufferList&	bufread,
+				BufferList& bufwrite,
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius,
 
 		// SA_BOUNDARY
 				float2	*_vertPos[],
 		const	float	_boundNlSqInflRad) :
-		common_buildneibs_params(bufread, _neibsList,
+		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
 			_vertPos, _boundNlSqInflRad)
