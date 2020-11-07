@@ -1884,6 +1884,9 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	BufferList bufwrite =
 		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
+	bufread.validate_access();
+	bufwrite.validate_access();
+
 	bufwrite.add_manipulator_on_write("buildneibs");
 
 	// reset the neighbor list
