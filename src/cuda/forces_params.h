@@ -259,6 +259,21 @@ struct sa_boundary_forces_params :
 	{}
 };
 
+/// Additional parameters passed only to kernels that require BUFFER_EULERVEL.
+/// This is currently only done if SA_BOUNDARY and either KEPSILON turbulence model
+/// or ENABLE_INLET_OUTLET, and only in SIMULATE mode
+struct eulerVel_forces_params
+{
+	cudaTextureObject_t eulerVelTexObj;
+	eulerVel_forces_params(BufferList const& bufread) :
+		eulerVelTexObj(getTextureObject<BUFFER_EULERVEL>(bufread))
+	{}
+
+	__device__ __forceinline__
+	float4 fetchEulerVel(const uint index) const
+	{ return tex1Dfetch<float4>(eulerVelTexObj, index); }
+};
+
 /// Additional parameters passed only to kernels with DUMMY_BOUNDARY
 /// in case of fluid/boundary interaction
 struct dummy_boundary_forces_params
@@ -352,6 +367,11 @@ template<KernelType _kerneltype,
 		typename COND_STRUCT(!_repacking && _simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	typename keps_cond =
 		typename COND_STRUCT(!_repacking && _has_keps, keps_forces_params),
+	// eulerian velocity only used in case of keps or with open boundaries
+	typename eulerVel_cond = typename
+		COND_STRUCT(!_repacking && _boundarytype == SA_BOUNDARY && _cptype != _nptype
+				&& (_has_keps || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
+			eulerVel_forces_params),
 	typename energy_cond =
 		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_INTERNAL_ENERGY),
 			internal_energy_forces_params),
@@ -367,6 +387,7 @@ struct forces_params : _ViscSpec,
 	dummy_cond,
 	water_depth_cond,
 	keps_cond,
+	eulerVel_cond,
 	energy_cond,
 	visc_cond
 {
@@ -422,6 +443,7 @@ struct forces_params : _ViscSpec,
 		dummy_cond(bufread),
 		water_depth_cond(_IOwaterdepth),
 		keps_cond(bufread, bufwrite),
+		eulerVel_cond(bufread),
 		energy_cond(bufwrite),
 		visc_cond(bufread)
 	{}
