@@ -552,7 +552,7 @@ enable_if_t<KP::rheologytype == GRANULAR, float >
 viscShearTerm(P_t const& pdata, float shrate, KP const& params)
 {
 	// TODO use a pdata structure
-	const float effpres = tex1Dfetch(effpresTex, pdata.index);
+	const float effpres = params.fetchEffPres(pdata.index);
 
 	// for non-fluid particles we do not compute viscosity,
 	// we will use the central particle viscosity during interaction
@@ -870,7 +870,7 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> params)
+jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype, false> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1029,7 +1029,7 @@ jacobiBuildVectorsDevice(KP params,
 
 			const shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
 
-			const float neib_oldEffPres = tex1Dfetch(effpresTex, ndata.index);
+			const float neib_oldEffPres = params.fetchEffPres(ndata.index);
 
 			// skip inactive particles
 			if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
