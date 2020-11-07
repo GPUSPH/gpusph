@@ -322,7 +322,6 @@ const	float		boundNlSqInflRad)
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
 	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 	const uint *cellEnd = bufread.getData<BUFFER_CELLEND>();
 
@@ -357,7 +356,7 @@ const	float		boundNlSqInflRad)
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 	}
 
-	buildneibs_params<boundarytype> params(bufread, neibsList, particleHash, particleRangeEnd, sqinfluenceradius,
+	buildneibs_params<boundarytype> params(bufread, neibsList, particleRangeEnd, sqinfluenceradius,
 			vertPos, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);

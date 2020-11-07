@@ -84,12 +84,11 @@ struct common_buildneibs_params :
 	common_buildneibs_params(
 		const	BufferList&	bufread,
 				neibdata	*_neibsList,
-		const	hashKey		*_particleHash,
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius) :
 		pos_wrapper(bufread),
 		neibsList(_neibsList),
-		particleHash(_particleHash),
+		particleHash(bufread.getData<BUFFER_HASH>()),
 		numParticles(_numParticles),
 		sqinfluenceradius(_sqinfluenceradius)
 	{}
@@ -128,14 +127,13 @@ struct buildneibs_params :
 	buildneibs_params(
 		const BufferList&	bufread,
 				neibdata	*_neibsList,
-		const	hashKey		*_particleHash,
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius,
 
 		// SA_BOUNDARY
 				float2	*_vertPos[],
 		const	float	_boundNlSqInflRad) :
-		common_buildneibs_params(bufread, _neibsList, _particleHash,
+		common_buildneibs_params(bufread, _neibsList,
 			_numParticles, _sqinfluenceradius),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
 			_vertPos, _boundNlSqInflRad)
