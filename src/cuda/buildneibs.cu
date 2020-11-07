@@ -319,7 +319,6 @@ const	uint		gridCells,
 const	float		sqinfluenceradius,
 const	float		boundNlSqInflRad)
 {
-	const float4 *pos = bufread.getData<BUFFER_POS>();
 	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
@@ -349,9 +348,6 @@ const	float		boundNlSqInflRad)
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	// bind textures to read all particles, not only internal ones
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
@@ -361,7 +357,7 @@ const	float		boundNlSqInflRad)
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 	}
 
-	buildneibs_params<boundarytype> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+	buildneibs_params<boundarytype> params(bufread, neibsList, particleHash, particleRangeEnd, sqinfluenceradius,
 			vertPos, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
@@ -374,9 +370,6 @@ const	float		boundNlSqInflRad)
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	}
 
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellStartTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));

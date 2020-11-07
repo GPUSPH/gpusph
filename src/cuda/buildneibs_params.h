@@ -31,49 +31,68 @@
 #include "cond_params.h"
 #include "particledefine.h"
 
+#include "buffer.h"
+#include "define_buffers.h"
+#include "cudabuffer.h"
+
 /** \addtogroup neibs_buildnibskernel_params Neighbor list kernel parameters
  * 	\ingroup neibs
  *  Templatized structures holding parameters passed to buildneibs kernel
  *  @{ */
-/// Common parameters used in buildneibs kernel
-/*!	Parameters passed to buildneibs device function depends on the type of
- * 	of boundary used. This structure contains the parameters common to all
- * 	boundary types.
- */
-struct common_buildneibs_params
-{
-			neibdata	*neibsList;				///< neighbor's list (out)
-#if PREFER_L1
-	const	float4		*posArray;				///< particle's positions (in)
-#endif
-	const	hashKey		*particleHash;			///< particle's hashes (in)
-	const	uint		numParticles;			///< total number of particles
-	const	float		sqinfluenceradius;		///< squared influence radius
 
-	common_buildneibs_params(
-				neibdata	*_neibsList,
-		const	float4		*_pos,
-		const	hashKey		*_particleHash,
-		const	uint		_numParticles,
-		const	float		_sqinfluenceradius) :
-		neibsList(_neibsList),
+/// Wrapper for posArray access (linear or texture, based on PREFER_L1
+struct pos_wrapper
+{
 #if PREFER_L1
-		posArray(_pos),
+	const	float4		* __restrict__ posArray;				///< particle's positions (in)
+#else
+	cudaTextureObject_t posTexObj;
 #endif
-		particleHash(_particleHash),
-		numParticles(_numParticles),
-		sqinfluenceradius(_sqinfluenceradius)
+
+	pos_wrapper(const BufferList& bufread) :
+#if PREFER_L1
+		posArray(bufread.getData<BUFFER_POS>())
+#else
+		posTexObj(getTextureObject<BUFFER_POS>(bufread))
+#endif
 	{}
 
 	__device__ __forceinline__ float4
 	fetchPos(const uint index) const
 	{
-#if PREFER_l1
+#if PREFER_L1
 		return posArray[index];
 #else
-		return tex1Dfetch(posTex, index);
+		return tex1Dfetch<float4>(posTexObj, index);
 #endif
 	}
+};
+
+/// Common parameters used in buildneibs kernel
+/*!	Parameters passed to buildneibs device function depends on the type of
+ * 	of boundary used. This structure contains the parameters common to all
+ * 	boundary types.
+ */
+struct common_buildneibs_params :
+	pos_wrapper ///< particle's positions (in)
+{
+			neibdata	*neibsList;				///< neighbor's list (out)
+	const	hashKey		*particleHash;			///< particle's hashes (in)
+	const	uint		numParticles;			///< total number of particles
+	const	float		sqinfluenceradius;		///< squared influence radius
+
+	common_buildneibs_params(
+		const	BufferList&	bufread,
+				neibdata	*_neibsList,
+		const	hashKey		*_particleHash,
+		const	uint		_numParticles,
+		const	float		_sqinfluenceradius) :
+		pos_wrapper(bufread),
+		neibsList(_neibsList),
+		particleHash(_particleHash),
+		numParticles(_numParticles),
+		sqinfluenceradius(_sqinfluenceradius)
+	{}
 };
 
 /// Parameters used only with SA_BOUNDARY buildneibs specialization
@@ -107,9 +126,8 @@ struct buildneibs_params :
 {
 
 	buildneibs_params(
-		// Common
+		const BufferList&	bufread,
 				neibdata	*_neibsList,
-		const	float4		*_pos,
 		const	hashKey		*_particleHash,
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius,
@@ -117,7 +135,7 @@ struct buildneibs_params :
 		// SA_BOUNDARY
 				float2	*_vertPos[],
 		const	float	_boundNlSqInflRad) :
-		common_buildneibs_params(_neibsList, _pos, _particleHash,
+		common_buildneibs_params(bufread, _neibsList, _particleHash,
 			_numParticles, _sqinfluenceradius),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
 			_vertPos, _boundNlSqInflRad)
