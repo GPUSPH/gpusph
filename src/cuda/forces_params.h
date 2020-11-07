@@ -330,15 +330,17 @@ struct cspm_forces_params
 	const float2 * __restrict__ fcoeff0;
 	const float2 * __restrict__ fcoeff1;
 	const float2 * __restrict__ fcoeff2;
+	const float * wcoeff;
 
-	cspm_forces_params(const float2 * const *fcoeff_ptr) :
+	cspm_forces_params(const float2 * const *fcoeff_ptr, const float *wcoefficient) :
 		fcoeff0(fcoeff_ptr[0]),
 		fcoeff1(fcoeff_ptr[1]),
-		fcoeff2(fcoeff_ptr[2])
+		fcoeff2(fcoeff_ptr[2]),
+		wcoeff(wcoefficient)
 	{}
 
 	cspm_forces_params(BufferList const& bufread) :
-		cspm_forces_params(bufread.getRawPtr<BUFFER_FCOEFF>())
+		cspm_forces_params(bufread.getRawPtr<BUFFER_FCOEFF>(), bufread.getData<BUFFER_WCOEFF>())
 	{}
 };
 

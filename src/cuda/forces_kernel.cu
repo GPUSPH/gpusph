@@ -286,7 +286,7 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 /*	CSPM coefficients       */
 /************************************************************************************************************/
 
-#define THRESHOLD 2
+#define THRESHOLD 0
 /* 
    - 0 : No threshold, boundary excluded
    - 1 : Surface detection, boundary excluded
@@ -342,7 +342,7 @@ cspmCoeffDevice(
 	if (BOUNDARY(info)){
 #endif
 		set_identity(a_inverse);
-		wcoeffArray[index] = corr;
+		wcoeffArray[index] = 1.0f;
 		storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
 		return;
 	}
@@ -357,7 +357,12 @@ cspmCoeffDevice(
 	{
 		const float pd = PlaneDistance(gridPos, make_float3(pos.x, pos.y, pos.z), d_plane[i]);
 		if (pd < influenceradius)
-			close_to_boundary = true;
+			{
+				set_identity(a_inverse);
+				wcoeffArray[index] = 1.0f;
+				storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
+				return;
+			}
 	}
 
 	// Loop over all FLUID neighbors and BOUNDARY neighbors
