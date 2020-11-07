@@ -117,14 +117,19 @@ struct common_buildneibs_params :
 /// Parameters used only with SA_BOUNDARY buildneibs specialization
 struct sa_boundary_buildneibs_params
 {
+	cudaTextureObject_t vertTexObj;			///< verticex texture object (in)
+	cudaTextureObject_t boundTexObj;		///< boundary elements texture object (in)
 			float2	*vertPos0;				///< relative position of vertex to segment, first vertex
 			float2	*vertPos1;				///< relative position of vertex to segment, second vertex
 			float2	*vertPos2;				///< relative position of vertex to segment, third vertex
 	const	float	boundNlSqInflRad;		///< neighbor search radius for PT_FLUID <-> PT_BOUNDARY interaction
 
 	sa_boundary_buildneibs_params(
+		const	BufferList& bufread,
 				float2	*_vertPos[],
 		const	float	_boundNlSqInflRad) :
+		vertTexObj(getTextureObject<BUFFER_VERTICES>(bufread)),
+		boundTexObj(getTextureObject<BUFFER_BOUNDELEMENTS>(bufread)),
 		vertPos0(_vertPos[0]),
 		vertPos1(_vertPos[1]),
 		vertPos2(_vertPos[2]),
@@ -132,11 +137,21 @@ struct sa_boundary_buildneibs_params
 	{}
 
 	sa_boundary_buildneibs_params(
+		const	BufferList& bufread,
 				BufferList& bufwrite,
 		const	float	_boundNlSqInflRad) :
-		sa_boundary_buildneibs_params(bufwrite.getRawPtr<BUFFER_VERTPOS>(),
+		sa_boundary_buildneibs_params(bufread,
+			bufwrite.getRawPtr<BUFFER_VERTPOS>(),
 			_boundNlSqInflRad)
 	{}
+
+	__device__ __forceinline__ vertexinfo
+	fetchVert(const uint index) const
+	{ return tex1Dfetch<vertexinfo>(vertTexObj, index); }
+
+	__device__ __forceinline__ float4
+	fetchBound(const uint index) const
+	{ return tex1Dfetch<float4>(boundTexObj, index); }
 };
 
 /// The actual buildneibs parameters structure, which concatenates the above, as appropriate
@@ -162,7 +177,7 @@ struct buildneibs_params :
 		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
-			bufwrite, _boundNlSqInflRad)
+			bufread, bufwrite, _boundNlSqInflRad)
 	{}
 };
 /** @} */

@@ -164,8 +164,8 @@ struct sa_boundary_niC_vars
 	 */
 	__device__ __forceinline__
 	sa_boundary_niC_vars(const uint index, buildneibs_params<SA_BOUNDARY> const& bparams) :
-		vertices(tex1Dfetch(vertTex, index)),
-		boundElement(tex1Dfetch(boundTex, index)),
+		vertices(bparams.fetchVert(index)),
+		boundElement(bparams.fetchBound(index)),
 		// j is 0, 1 or 2 depending on which is smaller (in magnitude) between
 		// boundElement.{x,y,z}
 		j(

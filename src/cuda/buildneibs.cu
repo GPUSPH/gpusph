@@ -319,32 +319,8 @@ const	uint		gridCells,
 const	float		sqinfluenceradius,
 const	float		boundNlSqInflRad)
 {
-	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
-	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
-
-	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
-	// throw otherwise
-	if (vertices || boundelem) {
-		if (!vertices || !boundelem) {
-			fprintf(stderr, "%p vs %p\n", vertices, boundelem);
-			throw std::invalid_argument("inconsistent params to buildNeibsList");
-		}
-	}
-
-	if (boundarytype == SA_BOUNDARY && !vertices) {
-		fprintf(stderr, "%s boundary type selected, but no vertices!\n",
-			BoundaryName[boundarytype]);
-		throw std::invalid_argument("missing data");
-	}
-
 	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	// bind textures to read all particles, not only internal ones
-	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
-	}
 
 	buildneibs_params<boundarytype> params(bufread, bufwrite,
 		particleRangeEnd, sqinfluenceradius, boundNlSqInflRad);
@@ -353,11 +329,6 @@ const	float		boundNlSqInflRad)
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	}
 }
 
 /** @} */
