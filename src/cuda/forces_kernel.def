@@ -564,8 +564,8 @@ struct eulerVel_particle_data
 	const	float4	eulerVel;
 
 	__device__ __forceinline__
-	eulerVel_particle_data(const uint _index) :
-		eulerVel(tex1Dfetch(eulerVelTex, _index))
+	eulerVel_particle_data(const uint _index, eulerVel_forces_params const& params) :
+		eulerVel(params.fetchEulerVel(_index))
 	{}
 };
 
@@ -810,7 +810,7 @@ struct forces_particle_data :
 		vel_particle_data(_index, _info),
 		vol_cond(_index, params),
 		grenier_cond(_index, params),
-		eulerVel_cond(_index),
+		eulerVel_cond(_index, params),
 		sa_cond(_index, _info, params),
 		keps_cond(_index, _info, params),
 		sps_cond(_index),
@@ -1178,8 +1178,10 @@ struct eulerVel_neib_data
 
 	template<typename Pt>
 	__device__ __forceinline__
-	eulerVel_neib_data(Pt const& pdata, const uint _index, const particleinfo _info) :
-		relEulerVel(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
+	eulerVel_neib_data(Pt const& pdata, const uint _index, const particleinfo _info,
+		eulerVel_forces_params const& params)
+	:
+		relEulerVel(as_float3(pdata.eulerVel) - params.fetchEulerVel(_index))
 	{}
 };
 
@@ -1250,7 +1252,7 @@ struct forces_neib_data :
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_dummy_boundary_neib_data(pdata, params, _index, _relPos),
-		_eulerVel_neib_data(pdata, _index, _info),
+		_eulerVel_neib_data(pdata, _index, _info, params),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, _info, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
 		COND_STRUCT(has_sps, sps_particle_data)(_index),

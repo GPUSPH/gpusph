@@ -261,10 +261,6 @@ class CUDAForcesEngine : public AbstractForcesEngine
 	static const RheologyType rheologytype = ViscSpec::rheologytype;
 	static const TurbulenceModel turbmodel = ViscSpec::turbmodel;
 
-	static const bool needs_eulerVel = (boundarytype == SA_BOUNDARY &&
-			(turbmodel == KEPSILON || (simflags & ENABLE_INLET_OUTLET)));
-
-
 void
 setconstants(const SimParams *simparams, const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
@@ -479,16 +475,6 @@ bind_textures(
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, bufread.getData<BUFFER_VEL>(), numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, bufread.getData<BUFFER_INFO>(), numParticles*sizeof(particleinfo)));
 
-	const float4 *eulerVel = bufread.getData<BUFFER_EULERVEL>();
-	if (run_mode != REPACK && needs_eulerVel) {
-		if (!eulerVel)
-			throw std::invalid_argument("eulerVel not set but needed");
-		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, eulerVel, numParticles*sizeof(float4)));
-	} else {
-		if (eulerVel)
-			std::cerr << "eulerVel set but not used" << std::endl;
-	}
-
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, bufread.getData<BUFFER_GRADGAMMA>(), numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
@@ -520,9 +506,6 @@ unbind_textures(RunMode run_mode)
 		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	}
-
-	if (run_mode != REPACK && needs_eulerVel)
-		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
