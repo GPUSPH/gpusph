@@ -76,6 +76,10 @@ struct pos_wrapper
 struct common_buildneibs_params :
 	pos_wrapper ///< particle's positions (in)
 {
+	cudaTextureObject_t infoTexObj;
+	cudaTextureObject_t cellStartTexObj;
+	cudaTextureObject_t cellEndTexObj;
+
 	const	hashKey		*particleHash;			///< particle's hashes (in)
 			neibdata	*neibsList;				///< neighbor's list (out)
 	const	uint		numParticles;			///< total number of particles
@@ -85,13 +89,29 @@ struct common_buildneibs_params :
 		const	BufferList&	bufread,
 				BufferList& bufwrite,
 		const	uint		_numParticles,
-		const	float		_sqinfluenceradius) :
+		const	float		_sqinfluenceradius)
+	:
 		pos_wrapper(bufread),
+		infoTexObj(getTextureObject<BUFFER_INFO>(bufread)),
+		cellStartTexObj(getTextureObject<BUFFER_CELLSTART>(bufread)),
+		cellEndTexObj(getTextureObject<BUFFER_CELLEND>(bufread)),
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		neibsList(bufwrite.getData<BUFFER_NEIBSLIST>()),
 		numParticles(_numParticles),
 		sqinfluenceradius(_sqinfluenceradius)
 	{}
+
+	__device__ __forceinline__ particleinfo
+	fetchInfo(const uint index) const
+	{ return tex1Dfetch<particleinfo>(infoTexObj, index); }
+
+	__device__ __forceinline__ uint
+	fetchCellStart(const uint index) const
+	{ return tex1Dfetch<uint>(cellStartTexObj, index); }
+
+	__device__ __forceinline__ uint
+	fetchCellEnd(const uint index) const
+	{ return tex1Dfetch<uint>(cellEndTexObj, index); }
 };
 
 /// Parameters used only with SA_BOUNDARY buildneibs specialization
