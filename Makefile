@@ -673,7 +673,9 @@ ifneq ($(USE_CHRONO),0)
 		# under $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
 		CHRONO_LIB_PATH := $(dir $(or \
 			$(wildcard $(CHRONO_PATH)/lib64/libChronoEngine.so) \
-			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so), \
+			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so) \
+			$(wildcard $(CHRONO_PATH)/lib/libChronoEngine.so) \
+			$(wildcard $(CHRONO_PATH)/build/lib/libChronoEngine.so), \
 			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_LIB_PATH) \
 			))
 	else
