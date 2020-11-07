@@ -126,6 +126,20 @@ struct sa_boundary_rheology_params
 	}
 };
 
+//! Additional parameters passed to include the effective pressure texture object
+struct effpres_texture_params
+{
+	cudaTextureObject_t effPresTexObj;
+
+	effpres_texture_params(BufferList const& bufread) :
+		effPresTexObj(getTextureObject<BUFFER_EFFPRES>(bufread))
+	{}
+
+	__device__ __forceinline__
+	float fetchEffPres(const uint index) const
+	{ return tex1Dfetch<float>(effPresTexObj, index); }
+};
+
 //! Effective viscosity kernel parameters
 /** in addition to the standard neibs_list_params, it only includes
  * the array where the effective viscosity is written
@@ -137,12 +151,15 @@ template<KernelType _kerneltype,
 	typename reduce_params =
 		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, visc_reduce_params),
 	typename sa_params =
-		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
+		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params),
+	typename granular_params =
+		typename COND_STRUCT(_ViscSpec::rheologytype == GRANULAR, effpres_texture_params)
 	>
 struct effvisc_params :
 	neibs_list_params,
 	reduce_params,
-	sa_params
+	sa_params,
+	granular_params
 {
 	float * __restrict__	effvisc;
 	const float				deltap;
@@ -154,7 +171,9 @@ struct effvisc_params :
 	static constexpr RheologyType rheologytype = ViscSpec::rheologytype;
 	static constexpr flag_t simflags = _simflags;
 
+	// TODO switch everything to BufferList
 	effvisc_params(
+		BufferList const& bufread,
 		// common
 			const	float4* __restrict__	_posArray,
 			const	hashKey* __restrict__	_particleHash,
@@ -175,6 +194,7 @@ struct effvisc_params :
 	deltap(_deltap),
 	reduce_params(_cfl),
 	sa_params(_gGam, _vertPos),
+	granular_params(bufread),
 	effvisc(_effvisc)
 	{}
 };
@@ -185,12 +205,17 @@ struct effvisc_params :
  */
 template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
+	// a boolean that determines if the old effective pressure should be made available
+	// separately from the writeable effpres array
+	bool has_old_effpres = true,
+	typename old_effpres = typename COND_STRUCT(has_old_effpres, effpres_texture_params),
 	typename sa_params =
 		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
 	>
 struct effpres_params :
 	neibs_list_params,
 	visc_reduce_params,
+	old_effpres,
 	sa_params
 {
 	float * __restrict__	effpres;
@@ -200,6 +225,7 @@ struct effpres_params :
 	static constexpr BoundaryType boundarytype = _boundarytype;
 
 	effpres_params(
+		BufferList const& bufread,
 		// common
 			const	float4* __restrict__	_posArray,
 			const	hashKey* __restrict__	_particleHash,
@@ -219,6 +245,7 @@ struct effpres_params :
 		_slength, _influenceradius),
 	deltap(_deltap),
 	visc_reduce_params(_cfl),
+	old_effpres(bufread),
 	sa_params(_gGam, _vertPos),
 	effpres(_effpres)
 	{}
