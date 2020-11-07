@@ -130,12 +130,15 @@ struct common_niC_vars
 	/// Constructor
 	/*!	Computes structure members value according to the grid position.
 	 */
+	template<BoundaryType boundarytype>
 	__device__ __forceinline__
-	common_niC_vars(int3 const& gridPos		///< [in] position in the grid
+	common_niC_vars(
+		buildneibs_params<boundarytype> const& bparams,
+		int3 const& gridPos		///< [in] position in the grid
 					) :
 		gridHash(calcGridHash(gridPos)),
-		bucketStart(tex1Dfetch(cellStartTex, gridHash)),
-		bucketEnd(tex1Dfetch(cellEndTex, gridHash))
+		bucketStart(bparams.fetchCellStart(gridHash)),
+		bucketEnd(bparams.fetchCellEnd(gridHash))
 	{}
 };
 
@@ -201,7 +204,7 @@ struct niC_vars :
 		int3 const& gridPos,
 		const uint index,
 		buildneibs_params<boundarytype> const& bparams) :
-		common_niC_vars(gridPos),
+		common_niC_vars(bparams, gridPos),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
 	{}
 };
@@ -573,7 +576,7 @@ neibsInCell(
 		if (neib_index == index)
 			continue;
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Testpoints have a neighbor list, but are not considered in the neighbor list
 		// of other points
@@ -974,7 +977,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 			break;
 
 		// Read particle info from texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		// The way the neighbors list is constructed depends on
 		// the boundary type used in the simulation.
@@ -1057,7 +1060,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		}
 
 		if (overflow) {
-			const particleinfo info = tex1Dfetch(infoTex, index);
+			const particleinfo info = params.fetchInfo(index);
 			atomicCAS(&d_hasTooManyNeibs, -1, (int)id(info));
 			if (d_hasTooManyNeibs == id(info)) {
 				d_hasMaxNeibs[PT_FLUID] = neibs_num[PT_FLUID];

@@ -319,11 +319,8 @@ const	uint		gridCells,
 const	float		sqinfluenceradius,
 const	float		boundNlSqInflRad)
 {
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
 	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
 	const float4 *boundelem = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const uint *cellEnd = bufread.getData<BUFFER_CELLEND>();
 
 	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
 	// throw otherwise
@@ -344,10 +341,6 @@ const	float		boundNlSqInflRad)
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	// bind textures to read all particles, not only internal ones
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
-
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
@@ -365,10 +358,6 @@ const	float		boundNlSqInflRad)
 		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	}
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(cellStartTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
 }
 
 /** @} */
