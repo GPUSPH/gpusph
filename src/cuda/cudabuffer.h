@@ -98,16 +98,23 @@ public:
 
 		CUDA_SAFE_CALL(cudaCreateTextureObject(tex_obj + i, tex_resource_desc + i, &tex_desc, NULL));
 	}
+
+	cudaTextureObject_t getTextureObject(int idx = 0) const
+	{ return tex_obj[idx]; }
 };
 
 /*! CUDABufferTexture interface for buffers that do NOT have an associated texture object
  * This allows us to implement CUDABuffer with a simple conditional dependency,
  * and then using the same interfaces in both cases.
  */
+template<flag_t Key>
 class CUDABufferNoTexture
 {
 public:
 	void create(...) { /* nothing to do in this case */ }
+
+	cudaTextureObject_t getTextureObject(int idx = 0) const
+	{ throw std::invalid_argument("no texture object association for " + std::string(Buffer<Key>::name)); }
 };
 
 /*! Implemenetation of the specialization of the Buffer class in the case of CUDA device allocations
@@ -125,9 +132,9 @@ template<flag_t Key,
 	size_t element_size_ = sizeof(typename Buffer<Key>::element_type),
 	bool has_texture = (Key != BUFFER_NEIBSLIST) && !(element_size_ & (element_size_ - 1)), // quick check for pow2
 	typename buffer_texture = typename std::conditional<has_texture,
-		CUDABufferTexture<Key>, CUDABufferNoTexture>::type
+		CUDABufferTexture<Key>, CUDABufferNoTexture<Key>>::type
 >
-class CUDABufferImplementation : public Buffer<Key>, buffer_texture
+class CUDABufferImplementation : public Buffer<Key>, public buffer_texture
 {
 	typedef Buffer<Key> baseclass;
 public:
@@ -217,5 +224,12 @@ public:
 //! "User-facing” CUDABuffer, that depends on the single Key template parameter
 template<flag_t Key>
 using CUDABuffer = CUDABufferImplementation<Key>;
+
+//! A function to access the buffer objects of a CUDABuffer directly from a BufferList
+template<flag_t Key>
+cudaTextureObject_t getTextureObject(const BufferList& list, const uint idx=0)
+{
+	return std::dynamic_pointer_cast<const CUDABuffer<Key>>(list.get<Key>())->getTextureObject(idx);
+}
 
 #endif
