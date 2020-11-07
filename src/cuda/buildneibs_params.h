@@ -110,6 +110,13 @@ struct sa_boundary_buildneibs_params
 		vertPos2(_vertPos[2]),
 		boundNlSqInflRad(_boundNlSqInflRad)
 	{}
+
+	sa_boundary_buildneibs_params(
+				BufferList& bufwrite,
+		const	float	_boundNlSqInflRad) :
+		sa_boundary_buildneibs_params(bufwrite.getRawPtr<BUFFER_VERTPOS>(),
+			_boundNlSqInflRad)
+	{}
 };
 
 /// The actual buildneibs parameters structure, which concatenates the above, as appropriate
@@ -131,12 +138,11 @@ struct buildneibs_params :
 		const	float		_sqinfluenceradius,
 
 		// SA_BOUNDARY
-				float2	*_vertPos[],
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
-			_vertPos, _boundNlSqInflRad)
+			bufwrite, _boundNlSqInflRad)
 	{}
 };
 /** @} */
