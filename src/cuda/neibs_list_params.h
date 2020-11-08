@@ -34,10 +34,11 @@
 
 #include "particledefine.h"
 
+#include "common_params.h"
+
 /// Parameters needed to interact with neighbors
-struct neibs_list_params
+struct neibs_list_params : public pos_wrapper
 {
-	const float4* __restrict__		posArray;
 	const hashKey* __restrict__		particleHash;
 	const uint* __restrict__		cellStart;
 	const neibdata* __restrict__	neibsList;
@@ -47,14 +48,14 @@ struct neibs_list_params
 
 	/// Constructor / initializer
 	neibs_list_params(
-		const	float4	* __restrict__ _posArray,
+		BufferList const& bufread,
 		const	hashKey	* __restrict__ _particleHash,
 		const	uint	* __restrict__ _cellStart,
 		const	neibdata	* __restrict__ _neibsList,
 		const	uint	_numParticles,
 		const	float	_slength,
 		const	float	_influenceradius) :
-		posArray(_posArray),
+		pos_wrapper(bufread),
 		particleHash(_particleHash),
 		cellStart(_cellStart),
 		neibsList(_neibsList),

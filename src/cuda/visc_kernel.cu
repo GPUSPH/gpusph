@@ -119,13 +119,7 @@ struct common_shear_rate_pdata
 	common_shear_rate_pdata(int _index, KP const& params) :
 		index(_index),
 		gridPos( calcGridPosFromParticleHash(params.particleHash[index]) ),
-		pos(
-#if PREFER_L1
-			params.posArray[index]
-#else
-			tex1Dfetch(posTex, index)
-#endif
-		   ),
+		pos(params.fetchPos(index)),
 		vel( tex1Dfetch(velTex, index) ),
 		info( tex1Dfetch(infoTex, index) ),
 		fluid( fluid_num(info) )
@@ -174,13 +168,7 @@ struct common_shear_rate_ndata
 	__device__ __forceinline__
 	common_shear_rate_ndata(NeibIter const& neib_iter, P_t const& pdata, KP const& params) :
 		index(neib_iter.neib_index()),
-		relPos(neib_iter.relPos(
-#if PREFER_L1
-			params.posArray[index]
-#else
-			tex1Dfetch(posTex, index)
-#endif
-			)),
+		relPos(neib_iter.relPos(params.fetchPos(index))),
 		info(tex1Dfetch(infoTex, index)),
 		r(length3(relPos)),
 		relVel( make_float3(pdata.vel) - tex1Dfetch(velTex, index) ),
@@ -826,7 +814,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, sps_simflags> params)
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 jacobiFSBoundaryConditionsDevice(
-	const float4 * __restrict__ posArray,
+	pos_wrapper params,
 	float * __restrict__ effpres,
 	uint numParticles,
 	float deltap)
@@ -837,11 +825,7 @@ jacobiFSBoundaryConditionsDevice(
 		return;
 
 	// read particle data from sorted arrays
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
 
 	const particleinfo info = tex1Dfetch(infoTex, index);
 	const ParticleType cptype = PART_TYPE(info);
@@ -896,11 +880,7 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype, fals
 		float newEffPres = 0.f;
 
 		// read particle data from sorted arrays
-#if PREFER_L1
-		const float4 pos = params.posArray[index];
-#else
-		const float4 pos = tex1Dfetch(posTex, index);
-#endif
+		const float4 pos = params.fetchPos(index);
 
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		const ParticleType cptype = PART_TYPE(info);
@@ -931,13 +911,7 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype, fals
 
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
-				const float4 relPos = neib_iter.relPos(
-#if PREFER_L1
-						params.posArray[neib_index]
-#else
-						tex1Dfetch(posTex, neib_index)
-#endif
-						);
+				const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 				const float neib_oldEffPres = params.effpres[neib_index];
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
@@ -1003,11 +977,7 @@ jacobiBuildVectorsDevice(KP params,
 	float B = 0;
 
 	// read particle data from sorted arrays
-	#if PREFER_L1
-	const float4 pos = params.posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
 	const particleinfo info = tex1Dfetch(infoTex, index);
 	const ParticleType cptype = PART_TYPE(info);
 

@@ -112,16 +112,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 			tempCfl = tempCfl_buf->get();
 		}
 
-		const float4 *pos = bufread.getData<BUFFER_POS>();
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
 		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
 		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
@@ -138,7 +134,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
 			bufread,
-			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
 			deltap,
 			gGam, vertPos,
 			effvisc, cfl);
@@ -153,9 +149,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
 
 		if (This::simflags & ENABLE_DTADAPT) {
 			return cflmax(numBlocks, cfl, tempCfl);
@@ -180,7 +173,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		float2 **tau = bufwrite.getRawPtr<BUFFER_TAU>();
 		float *turbvisc = bufwrite.getData<BUFFER_SPS_TURBVISC>();
 
-		const float4 *pos = bufread.getData<BUFFER_POS>();
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
@@ -189,9 +181,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
@@ -203,7 +192,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 
 		sps_params<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)> params(
-			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			bufread, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
 			tau[0], tau[1], tau[2], turbvisc);
 
 		cuvisc::SPSstressMatrixDevice<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)>
@@ -214,9 +203,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
 
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
@@ -273,16 +259,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
-		const float4 *pos = bufread.getData<BUFFER_POS>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 
 		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
@@ -290,15 +272,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		// Enforce FSboundary conditions
 		cuvisc::jacobiFSBoundaryConditionsDevice
-			<<<numBlocks, numThreads, dummy_shared>>>(pos, effpres, numParticles, deltap);
+			<<<numBlocks, numThreads, dummy_shared>>>(pos_wrapper(bufread), effpres, numParticles, deltap);
 
 		KERNEL_CHECK_ERROR;
 
 		// Unbind textures
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
 	}
 
 	void
@@ -353,7 +332,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
-		const float4 *pos = bufread.getData<BUFFER_POS>();
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
@@ -384,9 +362,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 		if (boundarytype == SA_BOUNDARY)
@@ -398,7 +373,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		effpres_params<kerneltype, boundarytype, false> params(
 			bufread,
-			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
 			deltap,
 			gGam, vertPos,
 			effpres, cfl);
@@ -422,9 +397,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
 		return cflmax(numBlocks, cfl, tempCfl);
 	}
 
@@ -475,7 +447,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
-		const float4 *pos = bufread.getData<BUFFER_POS>();
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
@@ -492,9 +463,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-#endif
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 		if (boundarytype == SA_BOUNDARY)
@@ -506,7 +474,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		effpres_params<kerneltype, boundarytype> params(
 			bufread,
-			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
 			deltap,
 			gGam, vertPos,
 			NULL, NULL);
@@ -533,9 +501,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
 	}
 
 	void
