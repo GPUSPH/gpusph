@@ -93,13 +93,8 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
-		float *effvisc = bufwrite.getData<BUFFER_EFFVISC>();
-
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
@@ -117,10 +112,9 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
 			bufread, bufwrite,
-			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			numParticles, slength, influenceradius,
 			deltap,
-			gGam, vertPos,
-			effvisc);
+			gGam, vertPos);
 
 		cuvisc::effectiveViscDevice<<<numBlocks, numThreads>>>(params);
 
@@ -163,9 +157,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
@@ -180,7 +171,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 
 		sps_params<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)> params(
-			bufread, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			bufread, numParticles, slength, influenceradius,
 			tau[0], tau[1], tau[2], turbvisc);
 
 		cuvisc::SPSstressMatrixDevice<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)>
@@ -322,9 +313,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	{
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		// for SA
 		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
@@ -346,7 +334,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		jacobi_wall_boundary_params<kerneltype, boundarytype> params(
 			bufread, bufwrite,
-			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			numParticles, slength, influenceradius,
 			deltap,
 			gGam, vertPos,
 			effpres);
@@ -425,9 +413,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	{
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
 
 		// for SA
 		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
@@ -450,7 +435,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		jacobi_build_vectors_params<kerneltype, boundarytype> params(
 			bufread,
-			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			numParticles, slength, influenceradius,
 			deltap,
 			gGam, vertPos);
 

@@ -49,16 +49,13 @@ struct neibs_list_params : public pos_wrapper
 	/// Constructor / initializer
 	neibs_list_params(
 		BufferList const& bufread,
-		const	hashKey	* __restrict__ _particleHash,
-		const	uint	* __restrict__ _cellStart,
-		const	neibdata	* __restrict__ _neibsList,
 		const	uint	_numParticles,
 		const	float	_slength,
 		const	float	_influenceradius) :
 		pos_wrapper(bufread),
-		particleHash(_particleHash),
-		cellStart(_cellStart),
-		neibsList(_neibsList),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
 		numParticles(_numParticles),
 		slength(_slength),
 		influenceradius(_influenceradius)
