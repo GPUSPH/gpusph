@@ -32,6 +32,7 @@
 #include "common_types.h"
 #include "buffer.h"
 #include "define_buffers.h"
+#include "cudabuffer.h"
 
 /* \file
  *
@@ -77,6 +78,26 @@ struct pos_wrapper
 		return tex1Dfetch<float4>(posTexObj, index);
 #endif
 	}
+};
+
+struct info_wrapper
+{
+	cudaTextureObject_t infoTexObj;
+	info_wrapper(BufferList const& bufread) :
+		infoTexObj(getTextureObject<BUFFER_INFO>(bufread))
+	{}
+
+	__device__ __forceinline__
+	particleinfo fetchInfo(const uint index) const
+	{ return tex1Dfetch<particleinfo>(infoTexObj, index); }
+};
+
+struct pos_info_wrapper : pos_wrapper, info_wrapper
+{
+	pos_info_wrapper(BufferList const& bufread) :
+		pos_wrapper(bufread),
+		info_wrapper(bufread)
+	{}
 };
 
 

@@ -94,10 +94,8 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	This *)
 	{
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 		// for SA
 		const float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
@@ -124,7 +122,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		if (boundarytype == SA_BOUNDARY)
 			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 
 		/* We recycle the CFL arrays to determine the maximum kinematic viscosity
@@ -156,12 +153,10 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		float *turbvisc = bufwrite.getData<BUFFER_SPS_TURBVISC>();
 
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
 
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -180,7 +175,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
@@ -243,20 +237,15 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		int dummy_shared = 0;
-		// bind textures to read all particles, not only internal ones
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 		// Enforce FSboundary conditions
 		cuvisc::jacobiFSBoundaryConditionsDevice
-			<<<numBlocks, numThreads, dummy_shared>>>(pos_wrapper(bufread), effpres, numParticles, deltap);
+			<<<numBlocks, numThreads, dummy_shared>>>(pos_info_wrapper(bufread), effpres, numParticles, deltap);
 
 		KERNEL_CHECK_ERROR;
-
-		// Unbind textures
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	}
 
 	void
@@ -324,7 +313,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 		if (boundarytype == SA_BOUNDARY)
 			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
@@ -356,7 +344,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		if (boundarytype == SA_BOUNDARY)
 			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 
 		return cflmax(numBlocks,
@@ -425,7 +412,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 		if (boundarytype == SA_BOUNDARY)
 			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
@@ -459,7 +445,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		// Unbind textures
 		if (boundarytype == SA_BOUNDARY)
 			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	}
 
@@ -511,32 +496,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
-		/* We recycle the CFL arrays to determine the maximum residual
-		 */
-		float *cfl = NULL;
-		float *tempCfl = NULL;
-
-		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
-		if (cfl_buf) {
-			auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
-
-			cfl_buf->clobber();
-			tempCfl_buf->clobber();
-
-			// get the (typed) pointers
-			cfl = cfl_buf->get();
-			tempCfl = tempCfl_buf->get();
-		}
-
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-
-		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
-
-		const float4 * jacobiBuffer = bufread.getData<BUFFER_JACOBI>();
-
 		int dummy_shared = 0;
-		// bind textures to read all particles, not only internal ones
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
@@ -553,15 +513,15 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 */
 
 		// Update effpres and compute the residual per particle
-		cuvisc::jacobiUpdateEffPresDevice
-			<<<numBlocks, numThreads, dummy_shared>>>(jacobiBuffer, effpres, cfl, numParticles);
+		cuvisc::jacobiUpdateEffPresDevice<<<numBlocks, numThreads, dummy_shared>>>(
+			jacobi_update_params(bufread, bufwrite, numParticles));
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 
-		// Unbind textures
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-		return cflmax(numBlocks, cfl, tempCfl);
+		return cflmax(numBlocks,
+			bufwrite.getData<BUFFER_CFL>(),
+			bufwrite.getData<BUFFER_CFL_TEMP>());
 	}
 
 	float

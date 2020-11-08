@@ -275,4 +275,35 @@ struct jacobi_wall_boundary_params :
 template<KernelType _kerneltype, BoundaryType _boundarytype>
 using jacobi_build_vectors_params = common_effpres_params<_kerneltype, _boundarytype, true>;
 
+struct jacobi_update_params : info_wrapper
+{
+	const	float4 * __restrict__	jacobiBuffer;
+		float  * __restrict__	effpres;
+		float  * __restrict__	cfl;
+		uint			numParticles;
+
+	jacobi_update_params(
+		BufferList const& bufread,
+		BufferList	bufwrite,
+		uint		numParticles_)
+	:
+		info_wrapper(bufread),
+		jacobiBuffer(bufread.getData<BUFFER_JACOBI>()),
+		effpres(bufwrite.getData<BUFFER_EFFPRES>()),
+		numParticles(numParticles_)
+	{
+		// Clobber the residual CFL buffers (recycled to compute the residual)
+		// before use
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+
+		cfl_buf->clobber();
+		tempCfl_buf->clobber();
+
+		// get the (typed) pointers
+		cfl = cfl_buf->get();
+	}
+
+};
+
 #endif // _VISC_PARAMS_H
