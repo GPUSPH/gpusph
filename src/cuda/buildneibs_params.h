@@ -28,7 +28,7 @@
 #ifndef _BUILDNEIBS_PARAMS_H
 #define _BUILDNEIBS_PARAMS_H
 
-#include "cond_params.h"
+#include "common_params.h"
 #include "particledefine.h"
 
 #include "buffer.h"
@@ -39,34 +39,6 @@
  * 	\ingroup neibs
  *  Templatized structures holding parameters passed to buildneibs kernel
  *  @{ */
-
-/// Wrapper for posArray access (linear or texture, based on PREFER_L1
-struct pos_wrapper
-{
-#if PREFER_L1
-	const	float4		* __restrict__ posArray;				///< particle's positions (in)
-#else
-	cudaTextureObject_t posTexObj;
-#endif
-
-	pos_wrapper(const BufferList& bufread) :
-#if PREFER_L1
-		posArray(bufread.getData<BUFFER_POS>())
-#else
-		posTexObj(getTextureObject<BUFFER_POS>(bufread))
-#endif
-	{}
-
-	__device__ __forceinline__ float4
-	fetchPos(const uint index) const
-	{
-#if PREFER_L1
-		return posArray[index];
-#else
-		return tex1Dfetch<float4>(posTexObj, index);
-#endif
-	}
-};
 
 /// Common parameters used in buildneibs kernel
 /*!	Parameters passed to buildneibs device function depends on the type of
