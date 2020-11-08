@@ -97,13 +97,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 
-		// for SA
-		const float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
-		const float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-		const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-		if (boundarytype == SA_BOUNDARY)
-			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-
 		uint numThreads = BLOCK_SIZE_SPS;
 		// number of blocks, rounded up to next multiple of 4 to improve reductions
 		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
@@ -111,8 +104,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
 			bufread, bufwrite,
 			numParticles, slength, influenceradius,
-			deltap,
-			gGam, vertPos);
+			deltap);
 
 		cuvisc::effectiveViscDevice<<<numBlocks, numThreads>>>(params);
 
@@ -301,20 +293,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	This *)
 	{
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-
-		// for SA
-		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
-		const	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 
 		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		if (boundarytype == SA_BOUNDARY)
-			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -323,9 +307,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		jacobi_wall_boundary_params<kerneltype, boundarytype> params(
 			bufread, bufwrite,
 			numParticles, slength, influenceradius,
-			deltap,
-			gGam, vertPos,
-			effpres);
+			deltap, effpres);
 
 		/* The backward error on vertex effective pressure is used as an additional
 		 * stopping criterion (the residual being the main criterion). This helps in particular
@@ -339,10 +321,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
-
-		// Unbind textures
-		if (boundarytype == SA_BOUNDARY)
-			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 
@@ -399,12 +377,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	This *)
 	{
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-
-		// for SA
-		const	float4 *gGam = bufread.getData<BUFFER_GRADGAMMA>();
-		const	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 
 		const	float *effpres(bufread.getData<BUFFER_EFFPRES>());
 		float4	*jacobiBuffer = bufwrite.getData<BUFFER_JACOBI>();
@@ -412,8 +384,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		if (boundarytype == SA_BOUNDARY)
-			CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
 
 		uint numThreads = BLOCK_SIZE_SPS;
@@ -422,8 +392,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		jacobi_build_vectors_params<kerneltype, boundarytype> params(
 			bufread,
 			numParticles, slength, influenceradius,
-			deltap,
-			gGam, vertPos);
+			deltap);
 
 		/* Jacobi solver
 		 *---------------
@@ -443,8 +412,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		KERNEL_CHECK_ERROR;
 
 		// Unbind textures
-		if (boundarytype == SA_BOUNDARY)
-			CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	}
 

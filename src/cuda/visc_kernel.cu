@@ -225,8 +225,8 @@ shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
 		const float weight = f*ndata.relPos.w/ndata.rho; // F_ij * V_j
 		return make_float3(ndata.relPos)*weight;
 	} else {
-		const float4 belem = tex1Dfetch(boundTex, ndata.index);
-		const float3 normal_s = as_float3(tex1Dfetch(boundTex, ndata.index));
+		const float4 belem = params.fetchBound(ndata.index);
+		const float3 normal_s = as_float3(belem);
 		const float3 q = as_float3(ndata.relPos)/params.slength;
 		float3 q_vb[3];
 		calcVertexRelPos(q_vb, belem,
@@ -255,8 +255,8 @@ sa_boundary_jacobi_build_vector(float &B, N_t const& ndata, KP const& params)
 	// Definition of delta_rho
 	const float delta_rho = cuphys::d_numfluids > 1 ? abs(d_rho0[0]-d_rho0[1]) : d_rho0[0];
 
-	const float4 belem = tex1Dfetch(boundTex, ndata.index);
-	const float3 normal_s = as_float3(tex1Dfetch(boundTex, ndata.index));
+	const float4 belem = params.fetchBound(ndata.index);
+	const float3 normal_s = as_float3(belem);
 	const float3 q = as_float3(ndata.relPos)/params.slength;
 	float3 q_vb[3];
 	calcVertexRelPos(q_vb, belem,

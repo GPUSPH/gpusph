@@ -116,19 +116,35 @@ struct visc_reduce_params
 //! Additional parameters passed only with SA_BOUNDARY
 struct sa_boundary_rheology_params
 {
-	const	float4	* __restrict__ gGam;
-	const	float2	* __restrict__ vertPos0;
-	const	float2	* __restrict__ vertPos1;
-	const	float2	* __restrict__ vertPos2;
-	sa_boundary_rheology_params(const float4 * __restrict__ const _gGam, const   float2  * __restrict__  const _vertPos[])
-	{
-		if (!_gGam) throw std::invalid_argument("no gGam for sa_boundary_visc_params");
-		if (!_vertPos) throw std::invalid_argument("no vertPos for sa_boundary_visc_params");
-		gGam = _gGam;
-		vertPos0 = _vertPos[0];
-		vertPos1 = _vertPos[1];
-		vertPos2 = _vertPos[2];
-	}
+	cudaTextureObject_t		boundTexObj;
+	const	float4	* __restrict__	gGam;
+	const	float2	* __restrict__	vertPos0;
+	const	float2	* __restrict__	vertPos1;
+	const	float2	* __restrict__	vertPos2;
+
+
+	sa_boundary_rheology_params(
+		cudaTextureObject_t boundTexObj_,
+		const float4 * __restrict__ const _gGam,
+		const   float2  * __restrict__  const _vertPos[])
+	:
+		boundTexObj(boundTexObj_),
+		gGam(_gGam),
+		vertPos0(_vertPos[0]),
+		vertPos1(_vertPos[1]),
+		vertPos2(_vertPos[2])
+	{}
+
+	sa_boundary_rheology_params(BufferList const& bufread) :
+		sa_boundary_rheology_params(
+			getTextureObject<BUFFER_BOUNDELEMENTS>(bufread),
+			bufread.getData<BUFFER_GRADGAMMA>(),
+			bufread.getRawPtr<BUFFER_VERTPOS>())
+	{}
+
+	__device__ __forceinline__
+	float4 fetchBound(const uint index) const
+	{ return tex1Dfetch<float4>(boundTexObj, index); }
 };
 
 //! Additional parameters passed to include the effective pressure texture object
@@ -184,14 +200,11 @@ struct effvisc_params :
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
-			const	float		_deltap,
-		// SA_BOUNDARY params
-			const	float4* __restrict__	_gGam,
-			const	float2* const *_vertPos) :
+			const	float		_deltap) :
 	neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
 	deltap(_deltap),
 	reduce_params(bufwrite),
-	sa_params(_gGam, _vertPos),
+	sa_params(bufread),
 	granular_params(bufread),
 	effvisc(bufwrite.getData<BUFFER_EFFVISC>())
 	{}
@@ -227,13 +240,10 @@ struct common_effpres_params :
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
-			const	float		_deltap,
-		// SA_BOUNDARY params
-			const	float4* __restrict__	_gGam,
-			const	float2* const *_vertPos) :
+			const	float		_deltap) :
 	neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
 	old_effpres(bufread),
-	sa_params(_gGam, _vertPos),
+	sa_params(bufread),
 	deltap(_deltap)
 	{}
 };
@@ -260,13 +270,10 @@ struct jacobi_wall_boundary_params :
 			const	float		_slength,
 			const	float		_influenceradius,
 			const	float		_deltap,
-		// SA_BOUNDARY params
-			const	float4* __restrict__	_gGam,
-			const	float2* const *_vertPos,
 		// effective viscosity
 					float*	__restrict__	_effpres) :
 	common_effpres_params<_kerneltype, _boundarytype, false>(bufread, _numParticles,
-		_slength, _influenceradius, _deltap, _gGam, _vertPos),
+		_slength, _influenceradius, _deltap),
 	visc_reduce_params(bufwrite),
 	effpres(_effpres)
 	{}
