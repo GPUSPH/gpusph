@@ -121,7 +121,7 @@ struct common_shear_rate_pdata
 		gridPos( calcGridPosFromParticleHash(params.particleHash[index]) ),
 		pos(params.fetchPos(index)),
 		vel( tex1Dfetch(velTex, index) ),
-		info( tex1Dfetch(infoTex, index) ),
+		info( params.fetchInfo(index) ),
 		fluid( fluid_num(info) )
 	{}
 };
@@ -169,7 +169,7 @@ struct common_shear_rate_ndata
 	common_shear_rate_ndata(NeibIter const& neib_iter, P_t const& pdata, KP const& params) :
 		index(neib_iter.neib_index()),
 		relPos(neib_iter.relPos(params.fetchPos(index))),
-		info(tex1Dfetch(infoTex, index)),
+		info(params.fetchInfo(index)),
 		r(length3(relPos)),
 		relVel( make_float3(pdata.vel) - tex1Dfetch(velTex, index) ),
 		fluid(fluid_num(info)),
@@ -814,7 +814,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, sps_simflags> params)
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 jacobiFSBoundaryConditionsDevice(
-	pos_wrapper params,
+	pos_info_wrapper params,
 	float * __restrict__ effpres,
 	uint numParticles,
 	float deltap)
@@ -827,7 +827,7 @@ jacobiFSBoundaryConditionsDevice(
 	// read particle data from sorted arrays
 	const float4 pos = params.fetchPos(index);
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	const ParticleType cptype = PART_TYPE(info);
 
 	// skip inactive particles
@@ -882,7 +882,7 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 		// read particle data from sorted arrays
 		const float4 pos = params.fetchPos(index);
 
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 		const ParticleType cptype = PART_TYPE(info);
 
 		// skip inactive particles
@@ -914,7 +914,7 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 				const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 				const float neib_oldEffPres = params.effpres[neib_index];
-				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+				const particleinfo neib_info = params.fetchInfo(neib_index);
 
 				// skip inactive particles
 				if (INACTIVE(relPos))
@@ -978,7 +978,7 @@ jacobiBuildVectorsDevice(KP params,
 
 	// read particle data from sorted arrays
 	const float4 pos = params.fetchPos(index);
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	const ParticleType cptype = PART_TYPE(info);
 
 	// skip inactive particles
@@ -1039,11 +1039,7 @@ jacobiBuildVectorsDevice(KP params,
 // Store the residual in cfl.
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiUpdateEffPresDevice(
-	const float4 * __restrict__ jacobiBuffer,
-	float * __restrict__ effpres,
-	float * __restrict__ cfl,
-	uint numParticles)
+jacobiUpdateEffPresDevice(jacobi_update_params params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	float residual = 0.f;
@@ -1051,12 +1047,12 @@ jacobiUpdateEffPresDevice(
 	// do { } while (0) around the main body so that we can bail out
 	// to the reduction
 	do {
-		if (index >= numParticles)
+		if (index >= params.numParticles)
 			break;
 
 		float newEffPres = 0.f;
 
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 		const ParticleType cptype = PART_TYPE(info);
 
 		// Reference pressure
@@ -1064,22 +1060,22 @@ jacobiUpdateEffPresDevice(
 		// effpres is updated for free particle of sediment that are not at the interface nor
 		// nor at the free-surface.
 		if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info)) {
-			const float4 jB = jacobiBuffer[index];
+			const float4 jB = params.jacobiBuffer[index];
 			const float D = jB.x;
 			const float Rx = jB.y;
 			const float B = jB.z;
 			newEffPres = (B - Rx)/D;
 			// Prevent NaN values.
 			if (newEffPres == newEffPres) {
-				effpres[index] = newEffPres;
+				params.effpres[index] = newEffPres;
 			} else {
-				effpres[index] = 0;
+				params.effpres[index] = 0;
 			}
 			residual = (D*newEffPres + Rx - B)/refpres;
 		}
 	} while (0);
 
-	reduce_jacobi_error(cfl, residual);
+	reduce_jacobi_error(params.cfl, residual);
 
 }
 

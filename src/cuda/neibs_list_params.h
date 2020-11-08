@@ -37,7 +37,7 @@
 #include "common_params.h"
 
 /// Parameters needed to interact with neighbors
-struct neibs_list_params : public pos_wrapper
+struct neibs_list_params : public pos_info_wrapper
 {
 	const hashKey* __restrict__		particleHash;
 	const uint* __restrict__		cellStart;
@@ -52,7 +52,7 @@ struct neibs_list_params : public pos_wrapper
 		const	uint	_numParticles,
 		const	float	_slength,
 		const	float	_influenceradius) :
-		pos_wrapper(bufread),
+		pos_info_wrapper(bufread),
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		cellStart(bufread.getData<BUFFER_CELLSTART>()),
 		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
