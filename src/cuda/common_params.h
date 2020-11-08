@@ -45,6 +45,41 @@
 
 #include "cond_params.h"
 
+/*! Wrapper for posArray access
+ * Kernels with a read-only access to the particle positions may opt to access it as a linear array
+ * (posArray) or through the texture cache, based on the PREFER_L1 preprocessor macro (which in turn
+ * is based on the compute capability, according to our knowledge about texture vs L1 cache support).
+ * This is somewhat cumbersome, so we provide a unified interface that hides the details about the access
+ * behind a fetchPos() call that maps to the correct type
+ */
+struct pos_wrapper
+{
+#if PREFER_L1
+	const	float4		* __restrict__ posArray;				///< particle's positions (in)
+#else
+	cudaTextureObject_t posTexObj;
+#endif
+
+	pos_wrapper(const BufferList& bufread) :
+#if PREFER_L1
+		posArray(bufread.getData<BUFFER_POS>())
+#else
+		posTexObj(getTextureObject<BUFFER_POS>(bufread))
+#endif
+	{}
+
+	__device__ __forceinline__ float4
+	fetchPos(const uint index) const
+	{
+#if PREFER_L1
+		return posArray[index];
+#else
+		return tex1Dfetch<float4>(posTexObj, index);
+#endif
+	}
+};
+
+
 /*! \ingroup Common integration structures
  *
  * These are structures that hold two copies (old and new) of the same array. The first is assumed
