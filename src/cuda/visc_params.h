@@ -269,13 +269,11 @@ struct jacobi_wall_boundary_params :
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
-			const	float		_deltap,
-		// effective viscosity
-					float*	__restrict__	_effpres) :
+			const	float		_deltap) :
 	common_effpres_params<_kerneltype, _boundarytype, false>(bufread, _numParticles,
 		_slength, _influenceradius, _deltap),
 	visc_reduce_params(bufwrite),
-	effpres(_effpres)
+	effpres(bufwrite.getData<BUFFER_EFFPRES>())
 	{}
 };
 
