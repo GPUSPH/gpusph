@@ -77,8 +77,8 @@ struct sps_params :
 	// It then delegates the appropriate subset of arguments to the appropriate
 	// structs it derives from, in the correct order
 	sps_params(
+		BufferList const& bufread,
 		// common
-			const	float4* __restrict__	_posArray,
 			const	hashKey* __restrict__	_particleHash,
 			const	uint* __restrict__		_cellStart,
 			const	neibdata* __restrict__	_neibsList,
@@ -92,7 +92,7 @@ struct sps_params :
 		// turbvisc
 					float* __restrict__		_turbvisc
 		) :
-		neibs_list_params(_posArray, _particleHash, _cellStart,
+		neibs_list_params(bufread, _particleHash, _cellStart,
 			_neibsList, _numParticles, _slength, _influenceradius),
 		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
 		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
@@ -175,7 +175,6 @@ struct effvisc_params :
 	effvisc_params(
 		BufferList const& bufread,
 		// common
-			const	float4* __restrict__	_posArray,
 			const	hashKey* __restrict__	_particleHash,
 			const	uint* __restrict__		_cellStart,
 			const	neibdata* __restrict__	_neibsList,
@@ -189,7 +188,7 @@ struct effvisc_params :
 		// effective viscosity
 					float*	__restrict__	_effvisc,
 					float*	__restrict__	_cfl) :
-	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
+	neibs_list_params(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
 		_slength, _influenceradius),
 	deltap(_deltap),
 	reduce_params(_cfl),
@@ -227,7 +226,6 @@ struct effpres_params :
 	effpres_params(
 		BufferList const& bufread,
 		// common
-			const	float4* __restrict__	_posArray,
 			const	hashKey* __restrict__	_particleHash,
 			const	uint* __restrict__		_cellStart,
 			const	neibdata* __restrict__	_neibsList,
@@ -241,7 +239,7 @@ struct effpres_params :
 		// effective viscosity
 					float*	__restrict__	_effpres,
 					float*	__restrict__	_cfl) :
-	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
+	neibs_list_params(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
 		_slength, _influenceradius),
 	deltap(_deltap),
 	visc_reduce_params(_cfl),
