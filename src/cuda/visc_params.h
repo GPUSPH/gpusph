@@ -103,9 +103,18 @@ struct sps_params :
 struct visc_reduce_params
 {
 	float * __restrict__	cfl;
-	visc_reduce_params(float* __restrict__ _cfl) :
-		cfl(_cfl)
-	{}
+	visc_reduce_params(BufferList& bufwrite)
+	{
+		// We clobber both CFL buffers, even though
+		// we only use the main one here: the other
+		// will be used by a call to cflmax following the kernel call
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+		cfl_buf->clobber();
+		tempCfl_buf->clobber();
+
+		cfl = cfl_buf->get();
+	}
 };
 
 //! Additional parameters passed only with SA_BOUNDARY
@@ -173,7 +182,8 @@ struct effvisc_params :
 
 	// TODO switch everything to BufferList
 	effvisc_params(
-		BufferList const& bufread,
+		BufferList const&	bufread,
+		BufferList		bufwrite,
 		// common
 			const	hashKey* __restrict__	_particleHash,
 			const	uint* __restrict__		_cellStart,
@@ -186,20 +196,20 @@ struct effvisc_params :
 			const	float4* __restrict__	_gGam,
 			const	float2* const *_vertPos,
 		// effective viscosity
-					float*	__restrict__	_effvisc,
-					float*	__restrict__	_cfl) :
+					float*	__restrict__	_effvisc) :
 	neibs_list_params(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
 		_slength, _influenceradius),
 	deltap(_deltap),
-	reduce_params(_cfl),
+	reduce_params(bufwrite),
 	sa_params(_gGam, _vertPos),
 	granular_params(bufread),
 	effvisc(_effvisc)
 	{}
 };
 
-//! Effective pressure kernel parameters
-/** in addition to the standard neibs_list_params, it only includes
+//! Common parameters for the kernels that solve for the effective pressure
+/** This is essentially the standard neibs_list_params, plus optionally
+ * the old effective pressure as a texture object
  * the array where the effective pressure is written
  */
 template<KernelType _kerneltype,
@@ -211,20 +221,54 @@ template<KernelType _kerneltype,
 	typename sa_params =
 		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
 	>
-struct effpres_params :
+struct common_effpres_params :
 	neibs_list_params,
-	visc_reduce_params,
 	old_effpres,
 	sa_params
 {
-	float * __restrict__	effpres;
 	const float				deltap;
 
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr BoundaryType boundarytype = _boundarytype;
 
-	effpres_params(
-		BufferList const& bufread,
+	common_effpres_params(
+		BufferList const&	bufread,
+		// common
+			const	hashKey* __restrict__	_particleHash,
+			const	uint* __restrict__		_cellStart,
+			const	neibdata* __restrict__	_neibsList,
+			const	uint		_numParticles,
+			const	float		_slength,
+			const	float		_influenceradius,
+			const	float		_deltap,
+		// SA_BOUNDARY params
+			const	float4* __restrict__	_gGam,
+			const	float2* const *_vertPos) :
+	neibs_list_params(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
+		_slength, _influenceradius),
+	old_effpres(bufread),
+	sa_params(_gGam, _vertPos),
+	deltap(_deltap)
+	{}
+};
+
+//! Effective pressure kernel parameters
+/** in addition to the standard neibs_list_params, it only includes
+ * the array where the effective pressure is written
+ */
+template<KernelType _kerneltype, BoundaryType _boundarytype>
+struct jacobi_wall_boundary_params :
+	common_effpres_params<_kerneltype, _boundarytype, false>,
+	visc_reduce_params
+{
+	float * __restrict__	effpres;
+
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr BoundaryType boundarytype = _boundarytype;
+
+	jacobi_wall_boundary_params(
+		BufferList const&	bufread,
+		BufferList		bufwrite,
 		// common
 			const	hashKey* __restrict__	_particleHash,
 			const	uint* __restrict__		_cellStart,
@@ -237,17 +281,15 @@ struct effpres_params :
 			const	float4* __restrict__	_gGam,
 			const	float2* const *_vertPos,
 		// effective viscosity
-					float*	__restrict__	_effpres,
-					float*	__restrict__	_cfl) :
-	neibs_list_params(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
-		_slength, _influenceradius),
-	deltap(_deltap),
-	visc_reduce_params(_cfl),
-	old_effpres(bufread),
-	sa_params(_gGam, _vertPos),
+					float*	__restrict__	_effpres) :
+	common_effpres_params<_kerneltype, _boundarytype, false>(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
+		_slength, _influenceradius, _deltap, _gGam, _vertPos),
+	visc_reduce_params(bufwrite),
 	effpres(_effpres)
 	{}
 };
 
+template<KernelType _kerneltype, BoundaryType _boundarytype>
+using jacobi_build_vectors_params = common_effpres_params<_kerneltype, _boundarytype, true>;
 
 #endif // _VISC_PARAMS_H

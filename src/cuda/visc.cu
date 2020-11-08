@@ -94,23 +94,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	This *)
 	{
 		float *effvisc = bufwrite.getData<BUFFER_EFFVISC>();
-		/* We recycle the CFL arrays to determine the maximum kinematic viscosity
-		 * in the adaptive timestepping case
-		 */
-		float *cfl = NULL;
-		float *tempCfl = NULL;
-
-		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
-		if (cfl_buf) {
-			auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
-
-			cfl_buf->clobber();
-			tempCfl_buf->clobber();
-
-			// get the (typed) pointers
-			cfl = cfl_buf->get();
-			tempCfl = tempCfl_buf->get();
-		}
 
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 		const particleinfo *info = bufread.getData<BUFFER_INFO>();
@@ -133,11 +116,11 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
 
 		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
-			bufread,
+			bufread, bufwrite,
 			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
 			deltap,
 			gGam, vertPos,
-			effvisc, cfl);
+			effvisc);
 
 		cuvisc::effectiveViscDevice<<<numBlocks, numThreads>>>(params);
 
@@ -150,8 +133,13 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 
+		/* We recycle the CFL arrays to determine the maximum kinematic viscosity
+		 * in the adaptive timestepping case
+		 */
 		if (This::simflags & ENABLE_DTADAPT) {
-			return cflmax(numBlocks, cfl, tempCfl);
+			return cflmax(numBlocks,
+				bufwrite.getData<BUFFER_CFL>(),
+				bufwrite.getData<BUFFER_CFL_TEMP>());
 		} else {
 			return NAN;
 		}
@@ -343,21 +331,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
 		const   float4  *boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
 
-		float *cfl = NULL;
-		float *tempCfl = NULL;
-
-		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
-		if (cfl_buf) {
-			auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
-
-			cfl_buf->clobber();
-			tempCfl_buf->clobber();
-
-			// get the (typed) pointers
-			cfl = cfl_buf->get();
-			tempCfl = tempCfl_buf->get();
-		}
-
 		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
 
 		int dummy_shared = 0;
@@ -371,12 +344,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 		numBlocks = round_up(numBlocks, 4U);
 
-		effpres_params<kerneltype, boundarytype, false> params(
-			bufread,
+		jacobi_wall_boundary_params<kerneltype, boundarytype> params(
+			bufread, bufwrite,
 			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
 			deltap,
 			gGam, vertPos,
-			effpres, cfl);
+			effpres);
 
 		/* The backward error on vertex effective pressure is used as an additional
 		 * stopping criterion (the residual being the main criterion). This helps in particular
@@ -397,7 +370,10 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-		return cflmax(numBlocks, cfl, tempCfl);
+
+		return cflmax(numBlocks,
+			bufwrite.getData<BUFFER_CFL>(),
+			bufwrite.getData<BUFFER_CFL_TEMP>());
 	}
 
 	float
@@ -472,12 +448,11 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		effpres_params<kerneltype, boundarytype> params(
+		jacobi_build_vectors_params<kerneltype, boundarytype> params(
 			bufread,
 			particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
 			deltap,
-			gGam, vertPos,
-			NULL, NULL);
+			gGam, vertPos);
 
 		/* Jacobi solver
 		 *---------------
