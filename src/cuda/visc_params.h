@@ -77,11 +77,8 @@ struct sps_params :
 	// It then delegates the appropriate subset of arguments to the appropriate
 	// structs it derives from, in the correct order
 	sps_params(
-		BufferList const& bufread,
 		// common
-			const	hashKey* __restrict__	_particleHash,
-			const	uint* __restrict__		_cellStart,
-			const	neibdata* __restrict__	_neibsList,
+		BufferList const& bufread,
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
@@ -92,8 +89,7 @@ struct sps_params :
 		// turbvisc
 					float* __restrict__		_turbvisc
 		) :
-		neibs_list_params(bufread, _particleHash, _cellStart,
-			_neibsList, _numParticles, _slength, _influenceradius),
+		neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
 		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
 		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
 	{}
@@ -182,28 +178,22 @@ struct effvisc_params :
 
 	// TODO switch everything to BufferList
 	effvisc_params(
+		// common
 		BufferList const&	bufread,
 		BufferList		bufwrite,
-		// common
-			const	hashKey* __restrict__	_particleHash,
-			const	uint* __restrict__		_cellStart,
-			const	neibdata* __restrict__	_neibsList,
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
 			const	float		_deltap,
 		// SA_BOUNDARY params
 			const	float4* __restrict__	_gGam,
-			const	float2* const *_vertPos,
-		// effective viscosity
-					float*	__restrict__	_effvisc) :
-	neibs_list_params(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
-		_slength, _influenceradius),
+			const	float2* const *_vertPos) :
+	neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
 	deltap(_deltap),
 	reduce_params(bufwrite),
 	sa_params(_gGam, _vertPos),
 	granular_params(bufread),
-	effvisc(_effvisc)
+	effvisc(bufwrite.getData<BUFFER_EFFVISC>())
 	{}
 };
 
@@ -232,11 +222,8 @@ struct common_effpres_params :
 	static constexpr BoundaryType boundarytype = _boundarytype;
 
 	common_effpres_params(
-		BufferList const&	bufread,
 		// common
-			const	hashKey* __restrict__	_particleHash,
-			const	uint* __restrict__		_cellStart,
-			const	neibdata* __restrict__	_neibsList,
+		BufferList const&	bufread,
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
@@ -244,8 +231,7 @@ struct common_effpres_params :
 		// SA_BOUNDARY params
 			const	float4* __restrict__	_gGam,
 			const	float2* const *_vertPos) :
-	neibs_list_params(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
-		_slength, _influenceradius),
+	neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
 	old_effpres(bufread),
 	sa_params(_gGam, _vertPos),
 	deltap(_deltap)
@@ -267,12 +253,9 @@ struct jacobi_wall_boundary_params :
 	static constexpr BoundaryType boundarytype = _boundarytype;
 
 	jacobi_wall_boundary_params(
+		// common
 		BufferList const&	bufread,
 		BufferList		bufwrite,
-		// common
-			const	hashKey* __restrict__	_particleHash,
-			const	uint* __restrict__		_cellStart,
-			const	neibdata* __restrict__	_neibsList,
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
@@ -282,7 +265,7 @@ struct jacobi_wall_boundary_params :
 			const	float2* const *_vertPos,
 		// effective viscosity
 					float*	__restrict__	_effpres) :
-	common_effpres_params<_kerneltype, _boundarytype, false>(bufread, _particleHash, _cellStart, _neibsList, _numParticles,
+	common_effpres_params<_kerneltype, _boundarytype, false>(bufread, _numParticles,
 		_slength, _influenceradius, _deltap, _gGam, _vertPos),
 	visc_reduce_params(bufwrite),
 	effpres(_effpres)
