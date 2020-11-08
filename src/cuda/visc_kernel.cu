@@ -854,7 +854,7 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype, false> params)
+jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, boundarytype> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
