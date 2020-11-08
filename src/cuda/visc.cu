@@ -224,18 +224,14 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-
-		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
-
-		int dummy_shared = 0;
-
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 		// Enforce FSboundary conditions
-		cuvisc::jacobiFSBoundaryConditionsDevice
-			<<<numBlocks, numThreads, dummy_shared>>>(pos_info_wrapper(bufread), effpres, numParticles, deltap);
+		cuvisc::jacobiFSBoundaryConditionsDevice<<<numBlocks, numThreads>>>(
+			pos_info_wrapper(bufread),
+			bufwrite.getData<BUFFER_EFFPRES>(),
+			numParticles, deltap);
 
 		KERNEL_CHECK_ERROR;
 	}
@@ -278,7 +274,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	slength,
 		const	float	influenceradius,
 		const	This *)
-		{ return NAN; /* do nothing */ }
+	{ return NAN; /* do nothing */ }
 
 	template<typename This>
 	enable_if_t<This::rheologytype == GRANULAR, float >
@@ -294,9 +290,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	{
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 
-		float *effpres(bufwrite.getData<BUFFER_EFFPRES>());
-
-		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 
@@ -307,7 +300,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		jacobi_wall_boundary_params<kerneltype, boundarytype> params(
 			bufread, bufwrite,
 			numParticles, slength, influenceradius,
-			deltap, effpres);
+			deltap);
 
 		/* The backward error on vertex effective pressure is used as an additional
 		 * stopping criterion (the residual being the main criterion). This helps in particular
@@ -316,8 +309,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 */
 
 		// Enforce boundary conditions from the previous time step
-		cuvisc::jacobiWallBoundaryConditionsDevice
-			<<<numBlocks, numThreads, dummy_shared>>>(params);
+		cuvisc::jacobiWallBoundaryConditionsDevice<<<numBlocks, numThreads>>>(params);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
@@ -378,10 +370,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 	{
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 
-		const	float *effpres(bufread.getData<BUFFER_EFFPRES>());
-		float4	*jacobiBuffer = bufwrite.getData<BUFFER_JACOBI>();
-
-		int dummy_shared = 0;
 		// bind textures to read all particles, not only internal ones
 		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 
@@ -406,8 +394,9 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 */
 
 		// Build Jacobi vectors D, Rx and B.
-		cuvisc::jacobiBuildVectorsDevice
-			<<<numBlocks, numThreads, dummy_shared>>>(params, jacobiBuffer);
+		cuvisc::jacobiBuildVectorsDevice<<<numBlocks, numThreads>>>
+			(params, bufwrite.getData<BUFFER_JACOBI>());
+
 
 		KERNEL_CHECK_ERROR;
 
@@ -463,8 +452,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
-		int dummy_shared = 0;
-
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
 
@@ -480,7 +467,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 */
 
 		// Update effpres and compute the residual per particle
-		cuvisc::jacobiUpdateEffPresDevice<<<numBlocks, numThreads, dummy_shared>>>(
+		cuvisc::jacobiUpdateEffPresDevice<<<numBlocks, numThreads>>>(
 			jacobi_update_params(bufread, bufwrite, numParticles));
 
 		// check if kernel invocation generated an error
