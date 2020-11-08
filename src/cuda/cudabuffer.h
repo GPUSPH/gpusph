@@ -229,7 +229,9 @@ using CUDABuffer = CUDABufferImplementation<Key>;
 template<flag_t Key>
 cudaTextureObject_t getTextureObject(const BufferList& list, const uint idx=0)
 {
-	return std::dynamic_pointer_cast<const CUDABuffer<Key>>(list.get<Key>())->getTextureObject(idx);
+	auto buf = list.get<Key>();
+	if (!buf) throw std::runtime_error("no buffer " + std::string(BufferTraits<Key>::name));
+	return std::dynamic_pointer_cast<const CUDABuffer<Key>>(buf)->getTextureObject(idx);
 }
 
 #endif
