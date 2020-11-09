@@ -294,6 +294,19 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
    - 3 : Threshold on neibs num, boundary excluded
  */
 
+#define HYDROSTATIC_DENSITY 0.00031221f
+/*
+ 	 define threshold for application of CSPM dependent on the relative (hydrostatic) density. This is dependent
+ 	 on the equation of state for a certain problem. Therefore, this is only temporary for AiryWaves2D with H=1; c=20sqrt(2*g*H); xi=7.
+   - 99999999.0f : No threshold, cspm is applied in the entire domain
+   - 0.00018739f : depth = 0.15
+   - 0.00031221f : depth = 0.25
+   - 0.00062383f : depth = 0.5
+   - 0.00093487f : depth = 0.75
+
+*/
+
+
 template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
 cspmCoeffDevice(
@@ -339,7 +352,7 @@ cspmCoeffDevice(
 #if THRESHOLD == 1
 	if (BOUNDARY(info) || SURFACE(info)){
 #else
-	if (BOUNDARY(info)){
+	if (BOUNDARY(info) || (vel.w > HYDROSTATIC_DENSITY)){
 #endif
 		set_identity(a_inverse);
 		wcoeffArray[index] = 1.0f;
