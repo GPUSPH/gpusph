@@ -203,6 +203,13 @@ struct tau_params
 		tau_params(bufread.template getRawPtr<BUFFER_TAU>())
 	{}
 
+	void bind_textures(const uint numParticles) const
+	{
+		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau0, numParticles*sizeof(float2)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau1, numParticles*sizeof(float2)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau2, numParticles*sizeof(float2)));
+	}
+
 	tau_params(tau_params const&) = default;
 };
 
