@@ -37,24 +37,12 @@
 
 #include "simflags.h"
 
-/// Parameters passed to the SPS kernel only if simflag SPS_STORE_TAU is set
-struct tau_sps_params
-{
-	float2* __restrict__		tau0;
-	float2* __restrict__		tau1;
-	float2* __restrict__		tau2;
-
-	tau_sps_params(float2 * __restrict__ _tau0, float2 * __restrict__ _tau1, float2 * __restrict__ _tau2) :
-		tau0(_tau0), tau1(_tau1), tau2(_tau2)
-	{}
-};
-
 /// Parameters passed to the SPS kernel only if simflag SPS_STORE_TURBVISC is set
 struct turbvisc_sps_params
 {
 	float	* __restrict__ turbvisc;
-	turbvisc_sps_params(float * __restrict__ _turbvisc) :
-		turbvisc(_turbvisc)
+	turbvisc_sps_params(BufferList& bufwrite) :
+		turbvisc(bufwrite.getData<BUFFER_SPS_TURBVISC>())
 	{}
 };
 
@@ -65,7 +53,7 @@ template<KernelType _kerneltype,
 	uint _sps_simflags>
 struct sps_params :
 	neibs_list_params,
-	COND_STRUCT(_sps_simflags & SPSK_STORE_TAU, tau_sps_params),
+	COND_STRUCT(_sps_simflags & SPSK_STORE_TAU, tau_params<true>),
 	COND_STRUCT(_sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
@@ -78,20 +66,14 @@ struct sps_params :
 	// structs it derives from, in the correct order
 	sps_params(
 		// common
-		BufferList const& bufread,
+		BufferList	const&	bufread,
+		BufferList	&		bufwrite,
 			const	uint		_numParticles,
 			const	float		_slength,
-			const	float		_influenceradius,
-		// tau
-					float2* __restrict__		_tau0,
-					float2* __restrict__		_tau1,
-					float2* __restrict__		_tau2,
-		// turbvisc
-					float* __restrict__		_turbvisc
-		) :
+			const	float		_influenceradius) :
 		neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
-		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
-		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
+		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_params<true>)(bufwrite),
+		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(bufwrite)
 	{}
 };
 

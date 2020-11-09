@@ -141,9 +141,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		const	float	influenceradius,
 		const	This *)
 	{
-		float2 **tau = bufwrite.getRawPtr<BUFFER_TAU>();
-		float *turbvisc = bufwrite.getData<BUFFER_SPS_TURBVISC>();
-
 		const float4 *vel = bufread.getData<BUFFER_VEL>();
 
 		int dummy_shared = 0;
@@ -158,8 +155,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 #endif
 
 		sps_params<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)> params(
-			bufread, numParticles, slength, influenceradius,
-			tau[0], tau[1], tau[2], turbvisc);
+			bufread, bufwrite, numParticles, slength, influenceradius);
 
 		cuvisc::SPSstressMatrixDevice<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)>
 			<<<numBlocks, numThreads, dummy_shared>>>(params);
@@ -169,9 +165,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 
-		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
+		params.bind_textures(numParticles);
 
 		// TODO return SPS turbvisc?
 		return NAN;
