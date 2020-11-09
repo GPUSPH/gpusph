@@ -294,7 +294,7 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
    - 3 : Threshold on neibs num, boundary excluded
  */
 
-#define HYDROSTATIC_DENSITY 0.00031221f
+#define HYDROSTATIC_DENSITY 99999999.0f// : No threshold, cspm is applied in the entire domain
 /*
  	 define threshold for application of CSPM dependent on the relative (hydrostatic) density. This is dependent
  	 on the equation of state for a certain problem. Therefore, this is only temporary for AiryWaves2D with H=1; c=20sqrt(2*g*H); xi=7.
