@@ -439,6 +439,7 @@ cspmCoeffDevice(
 		a_inverse = fcoeff; //Use this for symmetric v2 CSPM
 	} else {
 		set_identity(a_inverse);
+		corr = 1.0f;
 	}
 
 	wcoeffArray[index] = 1.0f/corr;
