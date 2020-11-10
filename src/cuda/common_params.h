@@ -57,12 +57,14 @@
  */
 struct pos_wrapper
 {
+private:
 #if PREFER_L1
 	const	float4		* __restrict__ posArray;				///< particle's positions (in)
 #else
 	cudaTextureObject_t posTexObj;
 #endif
 
+public:
 	pos_wrapper(const BufferList& bufread) :
 #if PREFER_L1
 		posArray(bufread.getData<BUFFER_POS>())
