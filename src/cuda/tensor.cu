@@ -308,42 +308,4 @@ symtensor3 fetchTau(uint i)
 	return tau;
 }
 
-//! Fetch tau tensor from split arrays
-/*!
- an auxiliary function that fetches the tau tensor
- for particle i from the arrays where it's stored
-*/
-__device__
-symtensor3 fetchTau(uint i,
-	const float2 *__restrict__ tau0,
-	const float2 *__restrict__ tau1,
-	const float2 *__restrict__ tau2)
-{
-	symtensor3 tau;
-	float2 temp = tau0[i];
-	tau.xx = temp.x;
-	tau.xy = temp.y;
-	temp = tau1[i];
-	tau.xz = temp.x;
-	tau.yy = temp.y;
-	temp = tau2[i];
-	tau.yz = temp.x;
-	tau.zz = temp.y;
-	return tau;
-}
-
-//! Store tau tensor to split arrays
-__device__
-void storeTau(symtensor3 const& tau, uint i,
-	float2 *__restrict__ tau0,
-	float2 *__restrict__ tau1,
-	float2 *__restrict__ tau2)
-{
-	tau0[i] = make_float2(tau.xx, tau.xy);
-	tau1[i] = make_float2(tau.xz, tau.yy);
-	tau2[i] = make_float2(tau.yz, tau.zz);
-}
-
-
-
 #endif
