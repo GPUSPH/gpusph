@@ -120,7 +120,7 @@ struct common_shear_rate_pdata
 		index(_index),
 		gridPos( calcGridPosFromParticleHash(params.particleHash[index]) ),
 		pos(params.fetchPos(index)),
-		vel( tex1Dfetch(velTex, index) ),
+		vel(params.fetchVel(index)),
 		info( params.fetchInfo(index) ),
 		fluid( fluid_num(info) )
 	{}
@@ -171,7 +171,7 @@ struct common_shear_rate_ndata
 		relPos(neib_iter.relPos(params.fetchPos(index))),
 		info(params.fetchInfo(index)),
 		r(length3(relPos)),
-		relVel( make_float3(pdata.vel) - tex1Dfetch(velTex, index) ),
+		relVel( make_float3(pdata.vel) - params.fetchVel(index) ),
 		fluid(fluid_num(info)),
 		rho(physical_density(relVel.w, fluid))
 	{}
@@ -889,7 +889,7 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 		if (INACTIVE(pos))
 			break;
 
-		const float4 vel = tex1Dfetch(velTex, index);
+		const float4 vel = params.fetchVel(index);
 
 		// Compute grid position of current particle
 		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
@@ -925,7 +925,7 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 
 					// Compute relative velocity
 					// Now relVel is a float4 and neib density is stored in relVel.w
-					const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+					const float4 relVel = as_float3(vel) - params.fetchVel(neib_index);
 					const ParticleType nptype = PART_TYPE(neib_info);
 
 					// Fluid numbers
@@ -985,7 +985,7 @@ jacobiBuildVectorsDevice(KP params,
 	if (INACTIVE(pos))
 		return;
 
-	const float4 vel = tex1Dfetch(velTex, index);
+	const float4 vel = params.fetchVel(index);
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
