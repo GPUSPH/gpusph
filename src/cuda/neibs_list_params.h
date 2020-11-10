@@ -36,7 +36,9 @@
 
 #include "common_params.h"
 
-/// Parameters needed to interact with neighbors
+#include "cond_params.h"
+
+/// Parameters needed to iterate over the neighbors list
 struct neibs_list_params : public pos_info_wrapper
 {
 	const hashKey* __restrict__		particleHash;
@@ -59,6 +61,28 @@ struct neibs_list_params : public pos_info_wrapper
 		numParticles(_numParticles),
 		slength(_slength),
 		influenceradius(_influenceradius)
+	{}
+};
+
+/// Parameters needed to iterate over the neighbors list
+template<BoundaryType boundarytype
+	, typename sa_params =
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_params)
+>
+struct neibs_interaction_params :
+	neibs_list_params,
+	vel_wrapper,
+	sa_params
+{
+	neibs_interaction_params(
+		BufferList const& bufread,
+		const	uint	numParticles,
+		const	float	slength,
+		const	float	influenceradius)
+	:
+		neibs_list_params(bufread, numParticles, slength, influenceradius),
+		vel_wrapper(bufread),
+		sa_params(bufread)
 	{}
 };
 
