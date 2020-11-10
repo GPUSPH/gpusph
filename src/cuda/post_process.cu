@@ -146,52 +146,36 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, simflag
 		uint numThreads = BLOCK_SIZE_CALCTEST;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+		// NOTE: since this filter updates the buffers in-place,
+		// buffers whose key is present in both bufread and bufwrite
+		// are actually the same buffer, so the “new” nomenclature
+		// is just for internal usage
+
+		neibs_interaction_params<boundarytype> params(bufread, particleRangeEnd,
+				gdata->problem->simparams()->slength,
+				gdata->problem->simparams()->influenceRadius);
 
 		/* in-place update! */
 		float4 *newVel = bufwrite.getData<BUFFER_VEL>();
 		float *newTke = bufwrite.getData<BUFFER_TKE>();
 		float *newEpsilon = bufwrite.getData<BUFFER_EPSILON>();
 
-		#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-		#endif
-		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
 		if (newTke)
 			CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, newTke, numParticles*sizeof(float)));
 		if (newEpsilon)
 			CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, newEpsilon, numParticles*sizeof(float)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 		// execute the kernel
-		cupostprocess::calcTestpointsVelocityDevice<kerneltype, boundarytype><<< numBlocks, numThreads >>>
-			(	pos,
-				newVel,
-				newTke,
-				newEpsilon,
-				particleHash,
-				cellStart,
-				neibsList,
-				particleRangeEnd,
-				gdata->problem->simparams()->slength,
-				gdata->problem->simparams()->influenceRadius);
+		cupostprocess::calcTestpointsDevice<kerneltype, boundarytype><<< numBlocks, numThreads >>>
+			(params, newVel, newTke, newEpsilon);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 
-		#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-		#endif
-		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 		if (newTke)
 			CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
 		if (newEpsilon)
 			CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	}
 };
 
