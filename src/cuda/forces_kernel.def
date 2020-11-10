@@ -961,7 +961,7 @@ struct keps_particle_output
 	keps_particle_output(FP const& params, uint index)
 	{
 		float3 dkde = params.keps_dkde[index];
-		tau = fetchTau(index, params.tau0, params.tau1, params.tau2);
+		tau = params.fetchTau(index);
 		diff_term_k = dkde.x;
 		diff_term_e = dkde.y;
 		ce2yap = dkde.z;
@@ -3390,7 +3390,7 @@ __device__ __forceinline__
 enable_if_t<FP::has_keps>
 write_keps(FP const& params, P const& pdata, OP& pout)
 {
-	storeTau(pout.tau, pdata.index, params.tau0, params.tau1, params.tau2);
+	params.storeTau(pout.tau, pdata.index);
 	params.keps_dkde[pdata.index] = make_float3(pout.diff_term_k, pout.diff_term_e, pout.ce2yap);
 }
 

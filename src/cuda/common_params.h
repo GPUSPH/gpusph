@@ -34,6 +34,8 @@
 #include "define_buffers.h"
 #include "cudabuffer.h"
 
+#include "tensor.h"
+
 /* \file
  *
  * With many kernels adopting the conditional structure template for parameters, we want
@@ -214,6 +216,30 @@ struct tau_params
 	tau_params(src_buf_type& bufread) :
 		tau_params(bufread.template getRawPtr<BUFFER_TAU>())
 	{}
+
+	__device__ __forceinline__
+	enable_if_t<writable> storeTau(symtensor3 const& tau, const uint i) const
+	{
+		tau0[i] = make_float2(tau.xx, tau.xy);
+		tau1[i] = make_float2(tau.xz, tau.yy);
+		tau2[i] = make_float2(tau.yz, tau.zz);
+	}
+
+	__device__ __forceinline__
+	symtensor3 fetchTau(const uint i) const
+	{
+		symtensor3 tau;
+		float2 temp = tau0[i];
+		tau.xx = temp.x;
+		tau.xy = temp.y;
+		temp = tau1[i];
+		tau.xz = temp.x;
+		tau.yy = temp.y;
+		temp = tau2[i];
+		tau.yz = temp.x;
+		tau.zz = temp.y;
+		return tau;
+	}
 
 	void bind_textures(const uint numParticles) const
 	{

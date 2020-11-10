@@ -737,7 +737,7 @@ template<typename FP>
 __device__ __forceinline__
 enable_if_t<(FP::sps_simflags & SPSK_STORE_TAU)>
 write_sps_tau(FP const& params, const uint index, symtensor3 const& tau)
-{ storeTau(tau, index, params.tau0, params.tau1, params.tau2); }
+{ params.storeTau(tau, index); }
 
 /************************************************************************************************************/
 
