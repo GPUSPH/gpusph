@@ -201,62 +201,36 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 				uint					deviceIndex,
 		const	GlobalData	* const		gdata)
 	{
+		const bool wants_normals = !!(options & BUFFER_NORMALS);
+
 		// thread per particle
 		uint numThreads = BLOCK_SIZE_CALCTEST;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+		neibs_interaction_params<boundarytype> params(bufread,
+			particleRangeEnd,
+			gdata->problem->simparams()->slength,
+			gdata->problem->simparams()->influenceRadius);
 
 		/* in-place update! */
 		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO,
 			BufferList::AccessSafety::MULTISTATE_SAFE>();
 
-		float4 *normals = bufwrite.getData<BUFFER_NORMALS>();
-
-		#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-		#endif
-		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+		// only try to access it if requested, in order to support validate_buffers()
+		// from the caller
+		float4 *normals = wants_normals ? bufwrite.getData<BUFFER_NORMALS>() : NULL;
 
 		// execute the kernel
-		if (options & BUFFER_NORMALS) {
+		if (wants_normals) {
 			cupostprocess::calcSurfaceparticleDevice<kerneltype, boundarytype, simflags, true><<< numBlocks, numThreads >>>
-				(	pos,
-					normals,
-					newInfo,
-					particleHash,
-					cellStart,
-					neibsList,
-					particleRangeEnd,
-					gdata->problem->simparams()->slength,
-					gdata->problem->simparams()->influenceRadius);
+				(params, normals, newInfo);
 		} else {
 			cupostprocess::calcSurfaceparticleDevice<kerneltype, boundarytype, simflags, false><<< numBlocks, numThreads >>>
-				(	pos,
-					normals,
-					newInfo,
-					particleHash,
-					cellStart,
-					neibsList,
-					particleRangeEnd,
-					gdata->problem->simparams()->slength,
-					gdata->problem->simparams()->influenceRadius);
+				(params, normals, newInfo);
 		}
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
-
-		#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-		#endif
-		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	}
 };
 
