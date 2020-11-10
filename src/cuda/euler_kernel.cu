@@ -161,13 +161,14 @@ copyTypeDataDevice(
 */
 	__global__ void
 disableFreeSurfPartsDevice(
-		float4*		oldPos,
+		float4*	__restrict__ oldPos,
+		particleinfo const * __restrict__ infoArray,
 		const	uint		numParticles)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index < numParticles) {
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = infoArray[index];
 
 		if (SURFACE(info) && NOT_FLUID(info)) {
 			float4 pos = oldPos[index];
