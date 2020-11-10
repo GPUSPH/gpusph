@@ -526,6 +526,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		.set_dt(dt_op)
 		.reading(current_state,
 			BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
+			BUFFER_TAU |
 			BUFFER_DUMMY_VEL |
 			BUFFER_RB_KEYS |
 			BUFFER_VOLUME | BUFFER_SIGMA |

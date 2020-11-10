@@ -241,14 +241,37 @@ struct tau_params
 		return tau;
 	}
 
-	void bind_textures(const uint numParticles) const
+	tau_params(tau_params const&) = default;
+};
+
+struct tau_tex_params
+{
+	cudaTextureObject_t tau0TexObj;
+	cudaTextureObject_t tau1TexObj;
+	cudaTextureObject_t tau2TexObj;
+
+	tau_tex_params(BufferList const& bufread) :
+		tau0TexObj(getTextureObject<BUFFER_TAU>(bufread, 0)),
+		tau1TexObj(getTextureObject<BUFFER_TAU>(bufread, 1)),
+		tau2TexObj(getTextureObject<BUFFER_TAU>(bufread, 2))
+	{}
+
+	__device__ __forceinline__
+	symtensor3 fetchTau(const uint i) const
 	{
-		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau0, numParticles*sizeof(float2)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau1, numParticles*sizeof(float2)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau2, numParticles*sizeof(float2)));
+		symtensor3 tau;
+		float2 temp = tex1Dfetch<float2>(tau0TexObj, i);
+		tau.xx = temp.x;
+		tau.xy = temp.y;
+		temp = tex1Dfetch<float2>(tau1TexObj, i);
+		tau.xz = temp.x;
+		tau.yy = temp.y;
+		temp = tex1Dfetch<float2>(tau2TexObj, i);
+		tau.yz = temp.x;
+		tau.zz = temp.y;
+		return tau;
 	}
 
-	tau_params(tau_params const&) = default;
 };
 
 #endif

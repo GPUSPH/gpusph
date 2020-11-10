@@ -283,29 +283,4 @@ adjugate_row1(symtensor4 const& T)
 
 #undef __spec
 
-/**** Methods for loading/storing tensors from textures and array ****/
-
-#include "textures.cuh"
-
-//! Fetch tau tensor from texture
-/*!
- an auxiliary function that fetches the tau tensor
- for particle i from the textures where it's stored
-*/
-__device__
-symtensor3 fetchTau(uint i)
-{
-	symtensor3 tau;
-	float2 temp = tex1Dfetch(tau0Tex, i);
-	tau.xx = temp.x;
-	tau.xy = temp.y;
-	temp = tex1Dfetch(tau1Tex, i);
-	tau.xz = temp.x;
-	tau.yy = temp.y;
-	temp = tex1Dfetch(tau2Tex, i);
-	tau.yz = temp.x;
-	tau.zz = temp.y;
-	return tau;
-}
-
 #endif

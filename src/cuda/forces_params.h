@@ -351,6 +351,7 @@ template<KernelType _kerneltype,
 	RunMode _run_mode = SIMULATE,
 	bool _repacking = (_run_mode == REPACK),
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_sps = _ViscSpec::turbmodel == SPS,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
 	typename xsph_cond =
 		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
@@ -367,6 +368,8 @@ template<KernelType _kerneltype,
 		typename COND_STRUCT(!_repacking && _simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	typename keps_cond =
 		typename COND_STRUCT(!_repacking && _has_keps, keps_forces_params),
+	typename sps_cond =
+		typename COND_STRUCT(!_repacking && _has_sps, tau_tex_params),
 	// eulerian velocity only used in case of keps or with open boundaries
 	typename eulerVel_cond = typename
 		COND_STRUCT(!_repacking && _boundarytype == SA_BOUNDARY && _cptype != _nptype
@@ -387,6 +390,7 @@ struct forces_params : _ViscSpec,
 	dummy_cond,
 	water_depth_cond,
 	keps_cond,
+	sps_cond,
 	eulerVel_cond,
 	energy_cond,
 	visc_cond
@@ -443,6 +447,7 @@ struct forces_params : _ViscSpec,
 		dummy_cond(bufread),
 		water_depth_cond(_IOwaterdepth),
 		keps_cond(bufread, bufwrite),
+		sps_cond(bufread),
 		eulerVel_cond(bufread),
 		energy_cond(bufwrite),
 		visc_cond(bufread)

@@ -150,8 +150,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
 
-		params.bind_textures(numParticles);
-
 		// TODO return SPS turbvisc?
 		return NAN;
 	}

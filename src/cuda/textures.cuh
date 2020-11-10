@@ -55,15 +55,6 @@ texture<vertexinfo, 1, cudaReadModeElementType> vertTex;	///< vertices
 texture<float, 1, cudaReadModeElementType> keps_kTex;	///< k for k-e model
 texture<float, 1, cudaReadModeElementType> keps_eTex;	///< e for k-e model
 
-//! SPS matrix
-/*! \todo these should probably be coalesced in a float4 + float2 texture
- * @{
- */
-texture<float2, 1, cudaReadModeElementType> tau0Tex;
-texture<float2, 1, cudaReadModeElementType> tau1Tex;
-texture<float2, 1, cudaReadModeElementType> tau2Tex;
-/** @} */
-
 //! neib list management
 /*! @{ */
 texture<uint, 1, cudaReadModeElementType> cellStartTex;	///< first particle index in cell table
