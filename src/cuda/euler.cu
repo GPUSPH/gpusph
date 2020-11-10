@@ -375,14 +375,10 @@ disableFreeSurfParts(		float4*			pos,
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	//execute kernel
 	cueuler::disableFreeSurfPartsDevice<<<numBlocks, numThreads>>>
-		(	pos,
+		(	pos, info,
 			numParticles);
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
