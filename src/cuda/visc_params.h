@@ -97,40 +97,6 @@ struct visc_reduce_params
 	}
 };
 
-//! Additional parameters passed only with SA_BOUNDARY
-struct sa_boundary_rheology_params
-{
-	cudaTextureObject_t		boundTexObj;
-	const	float4	* __restrict__	gGam;
-	const	float2	* __restrict__	vertPos0;
-	const	float2	* __restrict__	vertPos1;
-	const	float2	* __restrict__	vertPos2;
-
-
-	sa_boundary_rheology_params(
-		cudaTextureObject_t boundTexObj_,
-		const float4 * __restrict__ const _gGam,
-		const   float2  * __restrict__  const _vertPos[])
-	:
-		boundTexObj(boundTexObj_),
-		gGam(_gGam),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2])
-	{}
-
-	sa_boundary_rheology_params(BufferList const& bufread) :
-		sa_boundary_rheology_params(
-			getTextureObject<BUFFER_BOUNDELEMENTS>(bufread),
-			bufread.getData<BUFFER_GRADGAMMA>(),
-			bufread.getRawPtr<BUFFER_VERTPOS>())
-	{}
-
-	__device__ __forceinline__
-	float4 fetchBound(const uint index) const
-	{ return tex1Dfetch<float4>(boundTexObj, index); }
-};
-
 //! Additional parameters passed to include the effective pressure texture object
 struct effpres_texture_params
 {
@@ -156,7 +122,7 @@ template<KernelType _kerneltype,
 	typename reduce_params =
 		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, visc_reduce_params),
 	typename sa_params =
-		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params),
+		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_params),
 	typename granular_params =
 		typename COND_STRUCT(_ViscSpec::rheologytype == GRANULAR, effpres_texture_params)
 	>
@@ -208,7 +174,7 @@ template<KernelType _kerneltype,
 	bool has_old_effpres = true,
 	typename old_effpres = typename COND_STRUCT(has_old_effpres, effpres_texture_params),
 	typename sa_params =
-		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
+		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_params)
 	>
 struct common_effpres_params :
 	neibs_list_params,

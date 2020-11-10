@@ -116,6 +116,49 @@ struct vel_wrapper
 	{ return tex1Dfetch<float4>(velTexObj, index); }
 };
 
+//! Additional parameters passed only (and nearly always) with SA_BOUNDARY
+struct sa_boundary_params
+{
+private:
+	cudaTextureObject_t		boundTexObj;
+	// Some kernels used to access gGam via gamTex, others via array.
+	// We're going to wrap this in a function to provide a unified interface.
+	// TODO consider using a PREFER_L1 switch for this too
+	const	float4	* __restrict__	gGam;
+public:
+	const	float2	* __restrict__	vertPos0;
+	const	float2	* __restrict__	vertPos1;
+	const	float2	* __restrict__	vertPos2;
+
+
+	sa_boundary_params(
+		cudaTextureObject_t boundTexObj_,
+		const float4 * __restrict__ const _gGam,
+		const   float2  * __restrict__  const _vertPos[])
+	:
+		boundTexObj(boundTexObj_),
+		gGam(_gGam),
+		vertPos0(_vertPos[0]),
+		vertPos1(_vertPos[1]),
+		vertPos2(_vertPos[2])
+	{}
+
+	sa_boundary_params(BufferList const& bufread) :
+		sa_boundary_params(
+			getTextureObject<BUFFER_BOUNDELEMENTS>(bufread),
+			bufread.getData<BUFFER_GRADGAMMA>(),
+			bufread.getRawPtr<BUFFER_VERTPOS>())
+	{}
+
+	__device__ __forceinline__
+	float4 fetchBound(const uint index) const
+	{ return tex1Dfetch<float4>(boundTexObj, index); }
+
+	__device__ __forceinline__
+	float4 fetchGradGamma(const uint index) const
+	{ return gGam[index]; }
+};
+
 
 /*! \ingroup Common integration structures
  *

@@ -134,7 +134,7 @@ struct sa_shear_rate_pdata
 	template<typename KP>// kernel params
 	__device__ __forceinline__
 	sa_shear_rate_pdata(int index, KP const& params) :
-		gamma( params.gGam[index].w),
+		gamma( params.fetchGradGamma(index).w),
 		ref_volume0(params.deltap*params.deltap*params.deltap)
 	{}
 };
