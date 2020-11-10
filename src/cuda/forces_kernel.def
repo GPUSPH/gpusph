@@ -635,7 +635,8 @@ struct sps_particle_data
 	const	symtensor3	tau;
 
 	__device__ __forceinline__
-	sps_particle_data(const uint index) : tau(fetchTau(index))
+	sps_particle_data(const uint index, tau_tex_params const& params) :
+		tau(params.fetchTau(index))
 	{}
 };
 
@@ -813,7 +814,7 @@ struct forces_particle_data :
 		eulerVel_cond(_index, params),
 		sa_cond(_index, _info, params),
 		keps_cond(_index, _info, params),
-		sps_cond(_index),
+		sps_cond(_index, params),
 		p_precalc_particle_data(*this),
 		visc_cond(_index, params),
 		keps_precalc_cond(physical_density(vel.w, fluid_num(_info)), *this, *this)
@@ -1255,7 +1256,7 @@ struct forces_neib_data :
 		_eulerVel_neib_data(pdata, _index, _info, params),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, _info, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
-		COND_STRUCT(has_sps, sps_particle_data)(_index),
+		COND_STRUCT(has_sps, sps_particle_data)(_index, params),
 		p_precalc_particle_data(*this)
 	{}
 };

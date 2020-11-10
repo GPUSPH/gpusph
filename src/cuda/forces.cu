@@ -489,14 +489,6 @@ bind_textures(
 void
 unbind_textures(RunMode run_mode)
 {
-	// TODO FIXME why are SPS textures unbound here but bound in sps?
-	// shouldn't we bind them in bind_textures() instead?
-	if (run_mode != REPACK && turbmodel == SPS) {
-		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
-	}
-
 	if (run_mode != REPACK && turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
