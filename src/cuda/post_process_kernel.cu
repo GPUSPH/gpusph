@@ -38,6 +38,8 @@
 #include "multi_gpu_defines.h"
 #include "GlobalData.h"
 
+#include "neibs_list_params.h"
+
 #if __COMPUTE__ < 20
 #define printf(...) /* eliminate printf from 1.x */
 #endif
@@ -55,71 +57,53 @@ using namespace cubounds;
 /************************************************************************************************************/
 
 //! Computes the vorticity field
-template<KernelType kerneltype>
+template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
-calcVortDevice(	const	float4*		posArray,
-						float3*		vorticity,
-				const	hashKey*		particleHash,
-				const	uint*		cellStart,
-				const	neibdata*	neibsList,
-				const	uint		numParticles,
-				const	float		slength,
-				const	float		influenceradius)
+calcVortDevice(neibs_interaction_params<boundarytype> params, float3* __restrict__ vorticity)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// computing vorticity only for active fluid particles
-	const particleinfo info = tex1Dfetch(infoTex, index);
-
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const particleinfo info = params.fetchInfo(index);
+	const float4 pos = params.fetchPos(index);
 
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
 		vorticity[index] = make_float3(NAN);
 		return;
 	}
 
-	const float4 vel = tex1Dfetch(velTex, index);
+	const float4 vel = params.fetchVel(index);
 
 	float3 vort = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// First loop over all FLUID neighbors
-	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
+	for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
 		// Compute relative velocity
 		// Now relVel is a float4 and neib density is stored in relVel.w
-		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const float4 relVel = as_float3(vel) - params.fetchVel(neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Compute vorticity
-		if (r < influenceradius) {
-			const float f = F<kerneltype>(r, slength)*relPos.w/physical_density(relVel.w,fluid_num(neib_info));	// ∂Wij/∂r*Vj
+		if (r < params.influenceradius) {
+			const float f = F<kerneltype>(r, params.slength)*relPos.w/physical_density(relVel.w,fluid_num(neib_info));	// ∂Wij/∂r*Vj
 			// vxij = vxi - vxj and same for vyij and vzij
 			vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
 			vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
