@@ -46,9 +46,8 @@
  * 	boundary types.
  */
 struct common_buildneibs_params :
-	pos_wrapper ///< particle's positions (in)
+	pos_info_wrapper ///< particle's positions and info (in)
 {
-	cudaTextureObject_t infoTexObj;
 	cudaTextureObject_t cellStartTexObj;
 	cudaTextureObject_t cellEndTexObj;
 
@@ -63,8 +62,7 @@ struct common_buildneibs_params :
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius)
 	:
-		pos_wrapper(bufread),
-		infoTexObj(getTextureObject<BUFFER_INFO>(bufread)),
+		pos_info_wrapper(bufread),
 		cellStartTexObj(getTextureObject<BUFFER_CELLSTART>(bufread)),
 		cellEndTexObj(getTextureObject<BUFFER_CELLEND>(bufread)),
 		particleHash(bufread.getData<BUFFER_HASH>()),
@@ -72,10 +70,6 @@ struct common_buildneibs_params :
 		numParticles(_numParticles),
 		sqinfluenceradius(_sqinfluenceradius)
 	{}
-
-	__device__ __forceinline__ particleinfo
-	fetchInfo(const uint index) const
-	{ return tex1Dfetch<particleinfo>(infoTexObj, index); }
 
 	__device__ __forceinline__ uint
 	fetchCellStart(const uint index) const
