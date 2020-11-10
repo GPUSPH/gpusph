@@ -100,6 +100,18 @@ struct pos_info_wrapper : pos_wrapper, info_wrapper
 	{}
 };
 
+struct vel_wrapper
+{
+	cudaTextureObject_t velTexObj;
+	vel_wrapper(BufferList const& bufread) :
+		velTexObj(getTextureObject<BUFFER_VEL>(bufread))
+	{}
+
+	__device__ __forceinline__
+	float4 fetchVel(const uint index) const
+	{ return tex1Dfetch<float4>(velTexObj, index); }
+};
+
 
 /*! \ingroup Common integration structures
  *

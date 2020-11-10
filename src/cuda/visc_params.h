@@ -53,6 +53,7 @@ template<KernelType _kerneltype,
 	uint _sps_simflags>
 struct sps_params :
 	neibs_list_params,
+	vel_wrapper,
 	COND_STRUCT(_sps_simflags & SPSK_STORE_TAU, tau_params<true>),
 	COND_STRUCT(_sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
 {
@@ -72,6 +73,7 @@ struct sps_params :
 			const	float		_slength,
 			const	float		_influenceradius) :
 		neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
+		vel_wrapper(bufread),
 		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_params<true>)(bufwrite),
 		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(bufwrite)
 	{}
@@ -160,6 +162,7 @@ template<KernelType _kerneltype,
 	>
 struct effvisc_params :
 	neibs_list_params,
+	vel_wrapper,
 	reduce_params,
 	sa_params,
 	granular_params
@@ -184,6 +187,7 @@ struct effvisc_params :
 			const	float		_influenceradius,
 			const	float		_deltap) :
 	neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
+	vel_wrapper(bufread),
 	deltap(_deltap),
 	reduce_params(bufwrite),
 	sa_params(bufread),
@@ -208,6 +212,7 @@ template<KernelType _kerneltype,
 	>
 struct common_effpres_params :
 	neibs_list_params,
+	vel_wrapper,
 	old_effpres,
 	sa_params
 {
@@ -224,6 +229,7 @@ struct common_effpres_params :
 			const	float		_influenceradius,
 			const	float		_deltap) :
 	neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
+	vel_wrapper(bufread),
 	old_effpres(bufread),
 	sa_params(bufread),
 	deltap(_deltap)
