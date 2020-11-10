@@ -109,39 +109,19 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, simflags
 		uint numThreads = BLOCK_SIZE_CALCVORT;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+		if (boundarytype == SA_BOUNDARY)
+			throw std::invalid_argument("VORTICITY post-processing not supported with SA_BOUNDARY");
 
-		float3 *vort = bufwrite.getData<BUFFER_VORTICITY>();
-
-		#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-		#endif
-		CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
-		cupostprocess::calcVortDevice<kerneltype><<< numBlocks, numThreads >>>
-			(	pos,
-				vort,
-				particleHash,
-				cellStart,
-				neibsList,
+		const neibs_interaction_params<boundarytype> params(bufread,
 				particleRangeEnd,
 				gdata->problem->simparams()->slength,
 				gdata->problem->simparams()->influenceRadius);
 
+		cupostprocess::calcVortDevice<kerneltype, boundarytype><<< numBlocks, numThreads >>>
+			(params, bufwrite.getData<BUFFER_VORTICITY>());
+
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
-
-		#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-		#endif
-		CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	}
 };
 
