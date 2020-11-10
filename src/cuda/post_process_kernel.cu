@@ -116,35 +116,27 @@ calcVortDevice(neibs_interaction_params<boundarytype> params, float3* __restrict
 
 
 //! Compute the values of velocity, density, k and epsilon at test points
+// TODO FIXME this should be migrated to the conditional structure system
+// to only process KEPSILON in the appropriate case
 template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
-calcTestpointsVelocityDevice(	const float4*	oldPos,
-								float4*			newVel,
-								float*			newTke,
-								float*			newEpsilon,
-								const hashKey*	particleHash,
-								const uint*		cellStart,
-								const neibdata*	neibsList,
-								const uint		numParticles,
-								const float		slength,
-								const float		influenceradius)
+calcTestpointsDevice(neibs_interaction_params<boundarytype> params,
+	float4*	__restrict__ newVel,
+	float*	__restrict__ newTke,
+	float*	__restrict__ newEpsilon)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	if(!TESTPOINT(info))
 		return;
 
-	#if PREFER_L1
-	const float4 pos = oldPos[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
 
 	// this is the velocity (x,y,z) and pressure (w)
 	float4 velavg = make_float4(0.0f);
@@ -155,31 +147,25 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	float alpha = 0.0f;
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// First loop over FLUID and VERTEX neighbors (VERTEX only in SA case)
 	for_each_neib2(PT_FLUID, (boundarytype == SA_BOUNDARY ? PT_VERTEX : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			oldPos[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
-		if (r < influenceradius) {
-			const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-			const float w = W<kerneltype>(r, slength)*relPos.w/physical_density(neib_vel.w,fluid_num(neib_info));	// Wij*mj
+		if (r < params.influenceradius) {
+			const float4 neib_vel = params.fetchVel(neib_index);
+			const float w = W<kerneltype>(r, params.slength)*relPos.w/physical_density(neib_vel.w,fluid_num(neib_info));	// Wij*mj
 			//Velocity
 			velavg.x += w*neib_vel.x;
 			velavg.y += w*neib_vel.y;
