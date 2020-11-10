@@ -50,10 +50,10 @@ struct turbvisc_sps_params
 /// The actual sps_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
-	uint _sps_simflags>
+	uint _sps_simflags,
+	typename neibs_params = neibs_interaction_params<_boundarytype>>
 struct sps_params :
-	neibs_list_params,
-	vel_wrapper,
+	neibs_params,
 	COND_STRUCT(_sps_simflags & SPSK_STORE_TAU, tau_params<true>),
 	COND_STRUCT(_sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
 {
@@ -72,8 +72,7 @@ struct sps_params :
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius) :
-		neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
-		vel_wrapper(bufread),
+		neibs_params(bufread, _numParticles, _slength, _influenceradius),
 		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_params<true>)(bufwrite),
 		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(bufwrite)
 	{}
@@ -119,18 +118,15 @@ template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
 	typename _ViscSpec,
 	flag_t _simflags,
+	typename neibs_params = neibs_interaction_params<_boundarytype>,
 	typename reduce_params =
 		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, visc_reduce_params),
-	typename sa_params =
-		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_params),
 	typename granular_params =
 		typename COND_STRUCT(_ViscSpec::rheologytype == GRANULAR, effpres_texture_params)
 	>
 struct effvisc_params :
-	neibs_list_params,
-	vel_wrapper,
+	neibs_params,
 	reduce_params,
-	sa_params,
 	granular_params
 {
 	float * __restrict__	effvisc;
@@ -152,13 +148,11 @@ struct effvisc_params :
 			const	float		_slength,
 			const	float		_influenceradius,
 			const	float		_deltap) :
-	neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
-	vel_wrapper(bufread),
-	deltap(_deltap),
+	neibs_params(bufread, _numParticles, _slength, _influenceradius),
 	reduce_params(bufwrite),
-	sa_params(bufread),
 	granular_params(bufread),
-	effvisc(bufwrite.getData<BUFFER_EFFVISC>())
+	effvisc(bufwrite.getData<BUFFER_EFFVISC>()),
+	deltap(_deltap)
 	{}
 };
 
@@ -172,15 +166,12 @@ template<KernelType _kerneltype,
 	// a boolean that determines if the old effective pressure should be made available
 	// separately from the writeable effpres array
 	bool has_old_effpres = true,
-	typename old_effpres = typename COND_STRUCT(has_old_effpres, effpres_texture_params),
-	typename sa_params =
-		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_params)
+	typename neibs_params = neibs_interaction_params<_boundarytype>,
+	typename old_effpres = typename COND_STRUCT(has_old_effpres, effpres_texture_params)
 	>
 struct common_effpres_params :
-	neibs_list_params,
-	vel_wrapper,
-	old_effpres,
-	sa_params
+	neibs_params,
+	old_effpres
 {
 	const float				deltap;
 
@@ -194,10 +185,8 @@ struct common_effpres_params :
 			const	float		_slength,
 			const	float		_influenceradius,
 			const	float		_deltap) :
-	neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
-	vel_wrapper(bufread),
+	neibs_params(bufread, _numParticles, _slength, _influenceradius),
 	old_effpres(bufread),
-	sa_params(bufread),
 	deltap(_deltap)
 	{}
 };
