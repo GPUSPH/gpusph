@@ -319,4 +319,42 @@ struct tau_tex_params
 
 };
 
+template<bool writable = true>
+struct keps_params
+{
+	using type = writable_type<writable, float>;
+	using src_buf_type = writable_type<writable, BufferList>;
+
+	type* __restrict__ keps_k;
+	type* __restrict__ keps_e;
+
+	keps_params(src_buf_type& bufread) :
+		keps_k(bufread.template getData<BUFFER_TKE>()),
+		keps_e(bufread.template getData<BUFFER_EPSILON>())
+	{}
+
+	keps_params(keps_params const&) = default;
+};
+
+
+//! KEPSILON-related texture parameters
+struct keps_tex_params
+{
+	cudaTextureObject_t keps_kTexObj;
+	cudaTextureObject_t keps_eTexObj;
+
+	keps_tex_params(BufferList const& bufread) :
+		keps_kTexObj(getTextureObject<BUFFER_TKE>(bufread)),
+		keps_eTexObj(getTextureObject<BUFFER_EPSILON>(bufread))
+	{}
+
+	__device__ __forceinline__
+	float fetchTke(const uint index) const
+	{ return tex1Dfetch<float>(keps_kTexObj, index); }
+
+	__device__ __forceinline__
+	float fetchEpsilon(const uint index) const
+	{ return tex1Dfetch<float>(keps_eTexObj, index); }
+};
+
 #endif
