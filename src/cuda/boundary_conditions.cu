@@ -199,25 +199,6 @@ saSegmentBoundaryConditionsImpl(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4			*pos(bufread.getData<BUFFER_POS>());
-	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
-
-	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
-	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
-	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
-	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-	const	vertexinfo	*vertices(bufread.getData<BUFFER_VERTICES>());
-
-	float4	*vel(bufwrite.getData<BUFFER_VEL>());
-	float	*tke(bufwrite.getData<BUFFER_TKE>());
-	float	*eps(bufwrite.getData<BUFFER_EPSILON>());
-	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
-	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
@@ -227,17 +208,11 @@ saSegmentBoundaryConditionsImpl(
 #define SA_SEGMENT_BC_STEP(step) case step: \
 	if (run_mode == REPACK) { \
 		sa_segment_bc_repack_params<kerneltype, ViscSpec, simflags, step> params( \
-			pos, vel, particleHash, cellStart, neibsList, \
-			gGam, vertices, vertPos, \
-			eulerVel, tke, eps, \
-			particleRangeEnd, deltap, slength, influenceradius); \
+			bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius); \
 		cubounds::saSegmentBoundaryConditionsRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
 	} else { \
 		sa_segment_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-			pos, vel, particleHash, cellStart, neibsList, \
-			gGam, vertices, vertPos, \
-			eulerVel, tke, eps, \
-			particleRangeEnd, deltap, slength, influenceradius); \
+			bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius); \
 		cubounds::saSegmentBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
 	} \
 	break;
@@ -252,11 +227,8 @@ saSegmentBoundaryConditionsImpl(
 	}
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
+
 //! Non-SA case for the implementation of saSegmentBoundaryConditions
 /** In this case, we should never be called, so throw
  */
@@ -378,12 +350,6 @@ saVertexBoundaryConditionsImpl(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
@@ -414,10 +380,6 @@ saVertexBoundaryConditionsImpl(
 	}
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
 
 template<BoundaryType _boundarytype>

@@ -321,12 +321,12 @@ struct keps_params
 	using type = writable_type<writable, float>;
 	using src_buf_type = writable_type<writable, BufferList>;
 
-	type* __restrict__ keps_k;
-	type* __restrict__ keps_e;
+	type* __restrict__ keps_tke; //! Turbulent Kinetic Energy
+	type* __restrict__ keps_eps; //! Turbulent dissipation
 
 	keps_params(src_buf_type& bufread) :
-		keps_k(bufread.template getData<BUFFER_TKE>()),
-		keps_e(bufread.template getData<BUFFER_EPSILON>())
+		keps_tke(bufread.template getData<BUFFER_TKE>()),
+		keps_eps(bufread.template getData<BUFFER_EPSILON>())
 	{}
 
 	keps_params(keps_params const&) = default;

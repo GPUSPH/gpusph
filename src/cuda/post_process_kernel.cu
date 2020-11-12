@@ -170,8 +170,8 @@ struct testpoints_keps_pdata
 	__device__ __forceinline__
 	void store_keps(keps_params<true> const& params, const uint index)
 	{
-		params.keps_k[index] = tke_avg;
-		params.keps_e[index] = eps_avg;
+		params.keps_tke[index] = tke_avg;
+		params.keps_eps[index] = eps_avg;
 	}
 };
 

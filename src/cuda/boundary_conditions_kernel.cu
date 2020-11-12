@@ -318,7 +318,7 @@ struct common_pdata
 	common_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		index(_index),
 		info(_info),
-		pos(params.pos[index]),
+		pos(params.fetchPos(index)),
 		gridPos(calcGridPosFromParticleHash( params.particleHash[index] )),
 		sqC0(d_sqC0[fluid_num(info)])
 	{}
@@ -336,7 +336,7 @@ struct segment_pdata :
 	segment_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		common_pdata(params, _index, _info),
 		verts(params.vertices[index]),
-		normal(tex1Dfetch(boundTex, index))
+		normal(params.fetchBound(index))
 	{}
 };
 
@@ -352,7 +352,7 @@ struct vertex_io_pdata
 	__device__ __forceinline__
 	vertex_io_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		corner(CORNER(_info)),
-		normal(tex1Dfetch(boundTex, _index)),
+		normal(params.fetchBound(_index)),
 		refMass(params.deltap*params.deltap*params.deltap*d_rho0[fluid_num(_info)])
 	{}
 };
@@ -535,8 +535,8 @@ struct segment_keps_pout :
 		// For IO boundary with imposed velocity,
 		// fetch the data that was set in the problem-specific routine
 		if (IO_BOUNDARY(info) && VEL_IO(info)) {
-			tke = params.tke[index];
-			eps = params.eps[index];
+			tke = params.keps_tke[index];
+			eps = params.keps_eps[index];
 		}
 	}
 };
@@ -652,7 +652,7 @@ struct common_ndata
 	common_ndata(Params const& params, uint _index, float4 const& _relPos)
 	:
 		index(_index),
-		info(tex1Dfetch(infoTex, index)),
+		info(params.fetchInfo(index)),
 		relPos(_relPos),
 		vel(params.vel[index]),
 		r(length3(relPos)),
@@ -671,8 +671,8 @@ struct common_keps_ndata
 	__device__ __forceinline__
 	common_keps_ndata(Params const& params, uint neib_index)
 	:
-		tke(params.tke[neib_index]),
-		eps(params.eps[neib_index])
+		tke(params.keps_tke[neib_index]),
+		eps(params.keps_eps[neib_index])
 	{}
 };
 
@@ -740,9 +740,9 @@ struct vertex_boundary_ndata :
 	:
 		keps_struct(params, neib_index),
 		index(neib_index),
-		info(tex1Dfetch(infoTex, neib_index)),
+		info(params.fetchInfo(neib_index)),
 		vertices(params.vertices[neib_index]),
-		normal(tex1Dfetch(boundTex, neib_index))
+		normal(params.fetchBound(neib_index))
 	{}
 };
 
@@ -1029,7 +1029,7 @@ __device__ __forceinline__
 enable_if_t<!Params::has_io, float3>
 wall_normal(Params const& params, PData const& pdata, POut const& pout)
 {
-	return make_float3(tex1Dfetch(boundTex, pdata.index));
+	return make_float3(params.fetchBound(pdata.index));
 }
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
@@ -1054,8 +1054,8 @@ __device__ __forceinline__
 enable_if_t<Params::has_keps>
 impose_vertex_keps_bc(Params const& params, PData const& pdata, POut &pout)
 {
-	params.tke[pdata.index] = fmax(pout.sumtke/pout.numseg, 1e-6f);
-	params.eps[pdata.index] = fmax(pout.sumeps/pout.numseg, 1e-6f);
+	params.keps_tke[pdata.index] = fmax(pout.sumtke/pout.numseg, 1e-6f);
+	params.keps_eps[pdata.index] = fmax(pout.sumeps/pout.numseg, 1e-6f);
 
 	// adjust Eulerian velocity so that it is tangential to the fixed wall
 	// This is only done for vertices that do NOT belong to an open boundary
@@ -1085,8 +1085,8 @@ __device__ __forceinline__
 enable_if_t<Params::has_keps>
 clone_vertex_keps(Params const& params, PData const& pdata, int clone_idx)
 {
-	params.tke[clone_idx] = params.tke[pdata.index];
-	params.eps[clone_idx] = params.eps[pdata.index];
+	params.keps_tke[clone_idx] = params.tke[pdata.index];
+	params.keps_eps[clone_idx] = params.eps[pdata.index];
 }
 
 //! generate new particles
@@ -1264,10 +1264,10 @@ enable_if_t<Params::has_keps && !Params::repacking>
 impose_solid_keps_bc(Params const& params, PData const& pdata, POut &pout)
 {
 	// k condition
-	params.tke[pdata.index] = pout.sumtke/pout.shepard_div;
+	params.keps_tke[pdata.index] = pout.sumtke/pout.shepard_div;
 	// epsilon condition
 	// for solid boundaries we have de/dn = 4 0.09^0.075 k^1.5/(0.41 r)
-	params.eps[pdata.index] =
+	params.keps_eps[pdata.index] =
 		fmaxf(pout.sumeps/pout.shepard_div,1e-5f); // eps should never be 0
 
 	// average eulerian velocity on the wall (from associated vertices)
@@ -1339,15 +1339,15 @@ impose_io_keps_bc(Params const& params, PData const& pdata, POut &pout)
 			// for velocity imposed boundaries we impose k and epsilon
 			// TODO my impression is that these are read, and then
 			// written back as-is
-			params.tke[pdata.index] = pout.tke;
-			params.eps[pdata.index] = pout.eps;
+			params.keps_tke[pdata.index] = pout.tke;
+			params.keps_eps[pdata.index] = pout.eps;
 		} else {
 			// for pressure imposed boundaries we take dk/dn = de/dn = 0
-			params.tke[pdata.index] = pout.sumtke/pout.shepard_div;
-			params.eps[pdata.index] = pout.sumeps/pout.shepard_div;
+			params.keps_tke[pdata.index] = pout.sumtke/pout.shepard_div;
+			params.keps_eps[pdata.index] = pout.sumeps/pout.shepard_div;
 		}
 	} else {
-		params.tke[pdata.index] = params.eps[pdata.index] = 1e-6f;
+		params.keps_tke[pdata.index] = params.keps_eps[pdata.index] = 1e-6f;
 	}
 }
 
@@ -1436,7 +1436,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 		return;
 
 	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
 	if (!BOUNDARY(info))
 		return;
@@ -1456,13 +1456,13 @@ saSegmentBoundaryConditionsDevice(Params params)
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-			const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+			const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 			// skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = params.fetchInfo(neib_index);
 
 			if (has_vertex(pdata.verts, id(neib_info))) {
 				moving_vertex_contrib(params, pdata, pout, neib_index);
@@ -1500,7 +1500,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -1555,7 +1555,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 		return;
 
 	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
 	if (!BOUNDARY(info))
 		return;
@@ -1575,13 +1575,13 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-			const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+			const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 			// skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = params.fetchInfo(neib_index);
 
 			if (has_vertex(pdata.verts, id(neib_info))) {
 
@@ -1610,7 +1610,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -2206,7 +2206,7 @@ saVertexBoundaryConditionsDevice(Params params)
 
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	if (!VERTEX(info))
 		return;
 
@@ -2217,7 +2217,7 @@ saVertexBoundaryConditionsDevice(Params params)
 	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 		if (INACTIVE(relPos))
 			continue;
@@ -2280,7 +2280,7 @@ saVertexBoundaryConditionsRepackDevice(Params params)
 
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	if (!VERTEX(info))
 		return;
 
@@ -2291,7 +2291,7 @@ saVertexBoundaryConditionsRepackDevice(Params params)
 	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 		if (INACTIVE(relPos))
 			continue;
