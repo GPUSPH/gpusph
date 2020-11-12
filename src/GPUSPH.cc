@@ -1672,6 +1672,8 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 		else
 			gages_W[g] = 0.;
 		gages[g].z = 0.;
+
+		gages[g].w = problem->simparams()->influenceRadius;
 	}
 
 	// energy in non-fluid particles + one for each fluid type
