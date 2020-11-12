@@ -76,7 +76,7 @@ struct CUDAPostProcessEngineHelperDefaults
 
 };
 
-template<PostProcessType filtertype, KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
+template<PostProcessType filtertype, KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
 struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 {
 	static void process(
@@ -89,8 +89,8 @@ struct CUDAPostProcessEngineHelper : public CUDAPostProcessEngineHelperDefaults
 		const	GlobalData	* const		gdata);
 };
 
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
-struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, simflags>
+template<KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
+struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, ViscSpec, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	static flag_t get_written_buffers(flag_t)
@@ -125,8 +125,8 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, simflags
 	}
 };
 
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
-struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, simflags>
+template<KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
+struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, ViscSpec, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// buffers updated in-place
@@ -151,36 +151,22 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, simflag
 		// are actually the same buffer, so the “new” nomenclature
 		// is just for internal usage
 
-		neibs_interaction_params<boundarytype> params(bufread, particleRangeEnd,
-				gdata->problem->simparams()->slength,
-				gdata->problem->simparams()->influenceRadius);
-
-		/* in-place update! */
-		float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-		float *newTke = bufwrite.getData<BUFFER_TKE>();
-		float *newEpsilon = bufwrite.getData<BUFFER_EPSILON>();
-
-		if (newTke)
-			CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, newTke, numParticles*sizeof(float)));
-		if (newEpsilon)
-			CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, newEpsilon, numParticles*sizeof(float)));
+		cupostprocess::testpoints_params<boundarytype, ViscSpec> params(bufread, bufwrite,
+			particleRangeEnd,
+			gdata->problem->simparams()->slength,
+			gdata->problem->simparams()->influenceRadius);
 
 		// execute the kernel
 		cupostprocess::calcTestpointsDevice<kerneltype, boundarytype><<< numBlocks, numThreads >>>
-			(params, newVel, newTke, newEpsilon);
+			(params);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
-
-		if (newTke)
-			CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
-		if (newEpsilon)
-			CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	}
 };
 
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
-struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, simflags>
+template<KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
+struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, ViscSpec, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// buffers updated in-place
@@ -235,8 +221,8 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 };
 
 // Interface detection for multi-phase flows
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
-struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, boundarytype, simflags>
+template<KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
+struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, boundarytype, ViscSpec, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// buffers updated in-place
@@ -290,8 +276,8 @@ struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, boundarytype
 	}
 };
 
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
-struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>
+template<KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
+struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, ViscSpec, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	static float **h_IOflux;
@@ -375,11 +361,11 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, s
 	}
 };
 
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
-float** CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>::h_IOflux;
+template<KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
+float** CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, ViscSpec, simflags>::h_IOflux;
 
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
-struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, simflags>
+template<KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
+struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, ViscSpec, simflags>
 : public CUDAPostProcessEngineHelperDefaults
 {
 	// pass BUFFER_PRIVATE2 and/or BUFFER_PRIVATE4 to the CALC_PRIVATE filter
@@ -406,10 +392,10 @@ struct CUDAPostProcessEngineHelper<CALC_PRIVATE, kerneltype, boundarytype, simfl
 };
 
 /// The actual CUDAPostProcessEngine class delegates to the helpers
-template<PostProcessType pptype, KernelType kerneltype, BoundaryType boundarytype, flag_t simflags>
+template<PostProcessType pptype, KernelType kerneltype, BoundaryType boundarytype, typename ViscSpec, flag_t simflags>
 class CUDAPostProcessEngine : public AbstractPostProcessEngine
 {
-	typedef CUDAPostProcessEngineHelper<pptype, kerneltype, boundarytype, simflags> Helper;
+	typedef CUDAPostProcessEngineHelper<pptype, kerneltype, boundarytype, ViscSpec, simflags> Helper;
 
 public:
 	CUDAPostProcessEngine(flag_t options=NO_FLAGS) :

@@ -114,17 +114,115 @@ calcVortDevice(neibs_interaction_params<boundarytype> params, float3* __restrict
 	vorticity[index] = vort;
 }
 
+template<BoundaryType boundarytype, typename ViscSpec
+	, bool has_keps = ViscSpec::turbmodel == KEPSILON
+	, typename neibs_params = neibs_interaction_params<boundarytype>
+	, typename keps_tex_cond = typename COND_STRUCT(has_keps, keps_tex_params)
+	, typename keps_cond = typename COND_STRUCT(has_keps, keps_params<true>)
+	>
+struct testpoints_params :
+	neibs_params,
+	keps_tex_cond,
+	keps_cond
+{
+	float4 * __restrict__ newVel;
+
+	testpoints_params(BufferList const& bufread, BufferList& bufwrite,
+		uint particleRangeEnd, float slength, float influenceRadius)
+	:
+		neibs_params(bufread, particleRangeEnd, slength, influenceRadius),
+		// calcTestpointsDevice does an in-place update, so the keps textures
+		// are taken from the write buffers
+		keps_tex_cond(bufwrite),
+		keps_cond(bufwrite),
+		newVel(bufwrite.getData<BUFFER_VEL>())
+	{}
+};
+
+struct testpoints_keps_pdata
+{
+	float tke_avg;
+	float eps_avg;
+
+	__device__ __forceinline__
+	testpoints_keps_pdata() : tke_avg(0.0f), eps_avg(0.0f) {}
+
+	__device__ __forceinline__
+	void add_keps_contrib(keps_tex_params const& params, const uint index, const float w)
+	{
+		tke_avg += w*params.fetchTke(index);
+		eps_avg += w*params.fetchEpsilon(index);
+	}
+
+	__device__ __forceinline__
+	void normalize(float alpha)
+	{
+		tke_avg /= alpha;
+		eps_avg /= alpha;
+	}
+
+	__device__ __forceinline__
+	void reset()
+	{
+		tke_avg = eps_avg = 0.0f;
+	}
+
+	__device__ __forceinline__
+	void store_keps(keps_params<true> const& params, const uint index)
+	{
+		params.keps_k[index] = tke_avg;
+		params.keps_e[index] = eps_avg;
+	}
+};
+
+struct testpoints_nokeps_pdata
+{
+	using dummy_params = empty<keps_params<true>>;
+
+	__device__ __forceinline__
+	void add_keps_contrib(dummy_params const&, ...) {}
+
+	__device__ __forceinline__
+	void normalize(float alpha) {}
+
+	__device__ __forceinline__
+	void reset() {}
+
+	__device__ __forceinline__
+	void store_keps(dummy_params const&, ...) {}
+};
+
+template<typename ViscSpec
+	, bool has_keps = ViscSpec::turbmodel == KEPSILON
+	, typename keps_pdata = typename conditional<has_keps, testpoints_keps_pdata, testpoints_nokeps_pdata>::type
+	>
+struct testpoints_pdata : keps_pdata
+{
+	float4	vel_avg;
+	float	alpha; // shepard normalization factor
+
+	__device__ __forceinline__
+	testpoints_pdata() : keps_pdata(), vel_avg(make_float4(0.0f)), alpha(0.0f) {}
+
+	__device__ __forceinline__
+	void normalize() {
+		if (alpha > 1e-5f) {
+			vel_avg /= alpha;
+			keps_pdata::normalize(alpha);
+		} else {
+			vel_avg = make_float4(0.0f);
+			keps_pdata::reset();
+		}
+	}
+};
+
 
 //! Compute the values of velocity, density, k and epsilon at test points
-// TODO FIXME this should be migrated to the conditional structure system
-// to only process KEPSILON in the appropriate case
 template<KernelType kerneltype,
-	BoundaryType boundarytype>
+	BoundaryType boundarytype,
+	typename ViscSpec>
 __global__ void
-calcTestpointsDevice(neibs_interaction_params<boundarytype> params,
-	float4*	__restrict__ newVel,
-	float*	__restrict__ newTke,
-	float*	__restrict__ newEpsilon)
+calcTestpointsDevice(testpoints_params<boundarytype, ViscSpec> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -138,16 +236,10 @@ calcTestpointsDevice(neibs_interaction_params<boundarytype> params,
 
 	const float4 pos = params.fetchPos(index);
 
-	// this is the velocity (x,y,z) and pressure (w)
-	float4 velavg = make_float4(0.0f);
-	// this is for k/epsilon
-	float tkeavg = 0.0f;
-	float epsavg = 0.0f;
-	// this is the shepard filter sum(w_b w_{ab})
-	float alpha = 0.0f;
-
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+	testpoints_pdata<ViscSpec> pdata;
 
 	// First loop over FLUID and VERTEX neighbors (VERTEX only in SA case)
 	for_each_neib2(PT_FLUID, (boundarytype == SA_BOUNDARY ? PT_VERTEX : PT_NONE),
@@ -166,47 +258,26 @@ calcTestpointsDevice(neibs_interaction_params<boundarytype> params,
 		if (r < params.influenceradius) {
 			const float4 neib_vel = params.fetchVel(neib_index);
 			const float w = W<kerneltype>(r, params.slength)*relPos.w/physical_density(neib_vel.w,fluid_num(neib_info));	// Wij*mj
-			//Velocity
-			velavg.x += w*neib_vel.x;
-			velavg.y += w*neib_vel.y;
-			velavg.z += w*neib_vel.z;
+			// Velocity
+			pdata.vel_avg.x += w*neib_vel.x;
+			pdata.vel_avg.y += w*neib_vel.y;
+			pdata.vel_avg.z += w*neib_vel.z;
 			//Pressure
-			velavg.w += w*P(neib_vel.w, fluid_num(neib_info));
-			// Turbulent kinetic energy
-			if(newTke){
-				const float neib_tke = tex1Dfetch(keps_kTex, neib_index);
-				tkeavg += w*neib_tke;
-			}
-			if(newEpsilon){
-				const float neib_eps = tex1Dfetch(keps_eTex, neib_index);
-				epsavg += w*neib_eps;
-			}
+			pdata.vel_avg.w += w*P(neib_vel.w, fluid_num(neib_info));
+
+			// TKE contribution (if present)
+			pdata.add_keps_contrib(params, neib_index, w);
+
 			//Shepard filter
-			alpha += w;
+			pdata.alpha += w;
 		}
 	}
 
-	// Renormalization by the Shepard filter
-	if(alpha>1e-5f) {
-		velavg /= alpha;
-		if(newTke)
-			tkeavg /= alpha;
-		if(newEpsilon)
-			epsavg /= alpha;
-	}
-	else {
-		velavg = make_float4(0.0f);
-		if(newTke)
-			tkeavg = 0.0f;
-		if(newEpsilon)
-			epsavg = 0.0f;
-	}
+	pdata.normalize();
 
-	newVel[index] = velavg;
-	if(newTke)
-		newTke[index] = tkeavg;
-	if(newEpsilon)
-		newEpsilon[index] = epsavg;
+	params.newVel[index] = pdata.vel_avg;
+
+	pdata.store_keps(params, index);
 }
 
 
