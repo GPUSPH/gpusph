@@ -261,17 +261,17 @@ protected:
 	{
 		switch (pptype) {
 		case VORTICITY:
-			return new CUDAPostProcessEngine<VORTICITY, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<VORTICITY, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case TESTPOINTS:
-			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case SURFACE_DETECTION:
-			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case INTERFACE_DETECTION:
-			return new CUDAPostProcessEngine<INTERFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<INTERFACE_DETECTION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case FLUX_COMPUTATION:
-			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case CALC_PRIVATE:
-			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case INVALID_POSTPROC:
 			throw runtime_error("Invalid filter type");
 		}
