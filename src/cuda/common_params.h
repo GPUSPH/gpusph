@@ -48,6 +48,10 @@
 
 #include "cond_params.h"
 
+//! An auxiliary type to add const to a type if the array should not be writable
+template<bool B, typename T>
+using writable_type = typename std::conditional<B, T, const T>::type;
+
 /*! Wrapper for posArray access
  * Kernels with a read-only access to the particle positions may opt to access it as a linear array
  * (posArray) or through the texture cache, based on the PREFER_L1 preprocessor macro (which in turn
@@ -116,43 +120,63 @@ struct vel_wrapper
 	{ return tex1Dfetch<float4>(velTexObj, index); }
 };
 
-//! Additional parameters passed only (and nearly always) with SA_BOUNDARY
-struct sa_boundary_params
+struct boundelements_wrapper
 {
 private:
 	cudaTextureObject_t		boundTexObj;
-	// Some kernels used to access gGam via gamTex, others via array.
-	// We're going to wrap this in a function to provide a unified interface.
-	// TODO consider using a PREFER_L1 switch for this too
-	const	float4	* __restrict__	gGam;
+
 public:
-	const	float2	* __restrict__	vertPos0;
-	const	float2	* __restrict__	vertPos1;
-	const	float2	* __restrict__	vertPos2;
-
-
-	sa_boundary_params(
-		cudaTextureObject_t boundTexObj_,
-		const float4 * __restrict__ const _gGam,
-		const   float2  * __restrict__  const _vertPos[])
-	:
-		boundTexObj(boundTexObj_),
-		gGam(_gGam),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2])
-	{}
-
-	sa_boundary_params(BufferList const& bufread) :
-		sa_boundary_params(
-			getTextureObject<BUFFER_BOUNDELEMENTS>(bufread),
-			bufread.getData<BUFFER_GRADGAMMA>(),
-			bufread.getRawPtr<BUFFER_VERTPOS>())
+	boundelements_wrapper(BufferList const& bufread) :
+		boundTexObj(getTextureObject<BUFFER_BOUNDELEMENTS>(bufread))
 	{}
 
 	__device__ __forceinline__
 	float4 fetchBound(const uint index) const
 	{ return tex1Dfetch<float4>(boundTexObj, index); }
+};
+
+template<bool writable = true>
+struct vertPos_params
+{
+	using type = writable_type<writable, float2>;
+	using src_ptr_type = typename std::conditional<writable,
+		float2 **, const float2 * const *>::type;
+	using src_buf_type = writable_type<writable, BufferList>;
+
+	type* __restrict__ vertPos0;
+	type* __restrict__ vertPos1;
+	type* __restrict__ vertPos2;
+
+	vertPos_params(src_ptr_type vertPos_ptr) :
+		vertPos0(vertPos_ptr[0]),
+		vertPos1(vertPos_ptr[1]),
+		vertPos2(vertPos_ptr[2])
+	{}
+
+	vertPos_params(src_buf_type& bufread) :
+		vertPos_params(bufread.template getRawPtr<BUFFER_VERTPOS>())
+	{}
+
+	vertPos_params(vertPos_params const&) = default;
+};
+
+
+//! Additional parameters passed only (and nearly always) with SA_BOUNDARY
+struct sa_boundary_params :
+	boundelements_wrapper,
+	vertPos_params<false>
+{
+private:
+	// Some kernels used to access gGam via gamTex, others via array.
+	// We're going to wrap this in a function to provide a unified interface.
+	// TODO consider using a PREFER_L1 switch for this too
+	const	float4	* __restrict__	gGam;
+public:
+	sa_boundary_params(BufferList const& bufread) :
+		boundelements_wrapper(bufread),
+		vertPos_params<false>(bufread),
+		gGam(bufread.getData<BUFFER_GRADGAMMA>())
+	{}
 
 	__device__ __forceinline__
 	float4 fetchGradGamma(const uint index) const
@@ -166,9 +190,6 @@ public:
  * to always be constant, whereas the second can be const or not, depending on a boolean template parameter.
  * @{
  */
-
-template<bool B, typename T>
-using writable_type = typename std::conditional<B, T, const T>::type;
 
 /* Since they all have the same structure, we use a macro to define them */
 
@@ -214,31 +235,6 @@ DEFINE_PAIR_PARAM(float, TKE, BUFFER_TKE);
 // Energy_params oldEnergy, newEnergy
 DEFINE_PAIR_PARAM(float, Energy, BUFFER_INTERNAL_ENERGY);
 /*! @} */
-
-template<bool writable = true>
-struct vertPos_params
-{
-	using type = writable_type<writable, float2>;
-	using src_ptr_type = typename std::conditional<writable,
-		float2 **, const float2 * const *>::type;
-	using src_buf_type = writable_type<writable, BufferList>;
-
-	type* __restrict__ vertPos0;
-	type* __restrict__ vertPos1;
-	type* __restrict__ vertPos2;
-
-	vertPos_params(src_ptr_type vertPos_ptr) :
-		vertPos0(vertPos_ptr[0]),
-		vertPos1(vertPos_ptr[1]),
-		vertPos2(vertPos_ptr[2])
-	{}
-
-	vertPos_params(src_buf_type& bufread) :
-		vertPos_params(bufread.template getRawPtr<BUFFER_VERTPOS>())
-	{}
-
-	vertPos_params(vertPos_params const&) = default;
-};
 
 template<bool writable = true>
 struct tau_params
