@@ -2372,14 +2372,16 @@ saIdentifyCornerVerticesDevice(
  is reset and the particle is disabled.
 */
 __global__ void
-disableOutgoingPartsDevice(			float4*		oldPos,
-									vertexinfo*	oldVertices,
-							const	uint		numParticles)
+disableOutgoingPartsDevice(
+	const	particleinfo*	__restrict__ infoArray,
+			float4*			__restrict__ oldPos,
+			vertexinfo*		__restrict__ oldVertices,
+	const	uint			numParticles)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if(index < numParticles) {
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = infoArray[index];
 		if (FLUID(info)) {
 			float4 pos = oldPos[index];
 			if (ACTIVE(pos)) {

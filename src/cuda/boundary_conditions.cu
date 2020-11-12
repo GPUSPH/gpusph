@@ -150,15 +150,9 @@ disableOutgoingParts(const	BufferList& bufread,
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	//execute kernel
 	cubounds::disableOutgoingPartsDevice<<<numBlocks, numThreads>>>
-		(	pos,
-			vertices,
-			numParticles);
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		(info, pos, vertices, numParticles);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
