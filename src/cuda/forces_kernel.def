@@ -625,7 +625,7 @@ struct sa_boundary_particle_data
 	sa_boundary_particle_data(const uint index, particleinfo const& info,
 		sa_boundary_forces_params const& params) :
 		oldGGam(tex1Dfetch(gamTex, index)),
-		belem(BOUNDARY(info) ? tex1Dfetch(boundTex, index) : make_float4(0.0f))
+		belem(BOUNDARY(info) ? params.fetchBound(index) : make_float4(0.0f))
 	{}
 };
 
@@ -1153,7 +1153,7 @@ struct sa_boundary_neib_data
 	sa_boundary_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, float4 const& _relPos) :
 		index(_index),
-		belem(tex1Dfetch(boundTex, index)),
+		belem(params.fetchBound(index)),
 		normal_s(as_float3(belem)),
 		r_as(fmax(fabs(dot3(_relPos, normal_s)), params.deltap))
 	{}
@@ -3317,7 +3317,7 @@ __device__ __forceinline__
 enable_if_t<FP::boundarytype == SA_BOUNDARY>
 compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 {
-	const float4 belem = tex1Dfetch(boundTex, pdata.index);
+	const float4 belem = params.fetchBound(pdata.index);
 	// Force = -Pressure*SurfaceArea*NormalOutsideVector
 	pout.force = -P(pdata.vel.w, fluid_num(pdata.info))*belem.w*belem;
 	pout.force.w = 0.0f;
@@ -4437,7 +4437,7 @@ struct gamma_particle_data
 	template<typename FP> /* templatized over the kernel input params */
 	__device__ __forceinline__
 	gamma_particle_data(FP const& params, const uint _index) :
-		gGam(params.ggam[_index])
+		gGam(params.fetchGradGamma(_index))
 	{}
 };
 
