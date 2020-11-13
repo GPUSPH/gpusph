@@ -284,24 +284,17 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
 densityGrenierDevice(
-			float* __restrict__		sigmaArray,
-	const	float4* __restrict__	posArray,
-			float4* __restrict__	velArray,
-	const	particleinfo* __restrict__	infoArray,
-	const	hashKey* __restrict__	particleHash,
+	neibs_list_params params,
 	const	float4* __restrict__	volArray,
-	const	uint* __restrict__		cellStart,
-	const	neibdata* __restrict__	neibsList,
-	const	uint	numParticles,
-	const	float	slength,
-	const	float	influenceradius)
+			float4* __restrict__	velArray,
+			float* __restrict__		sigmaArray)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = infoArray[index];
+	const particleinfo info = params.fetchInfo(index);
 
 	/* We only process FLUID particles normally,
 	   except with DYN_BOUNDARY, where we also process boundary particles
@@ -309,7 +302,7 @@ densityGrenierDevice(
 	if (boundarytype != DYN_BOUNDARY && NOT_FLUID(info))
 		return;
 
-	const float4 pos = posArray[index];
+	const float4 pos = params.fetchPos(index);
 
 	if (INACTIVE(pos))
 		return;
@@ -319,11 +312,11 @@ densityGrenierDevice(
 	float4 vel = velArray[index];
 
 	// self contribution
-	float corr = W<kerneltype>(0, slength);
+	float corr = W<kerneltype>(0, params.slength);
 	float sigma = corr;
 	float mass_corr = pos.w*corr;
 
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// For DYN_BOUNDARY particles, we compute sigma in the same way as fluid particles,
 	// except that if the boundary particle has no fluid neighbors we set its
@@ -335,22 +328,16 @@ densityGrenierDevice(
 	// DYN_BOUNDARY
 	// TODO: check with SA
 	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
-		const particleinfo neib_info = infoArray[neib_index];
-		float r = length(as_float3(relPos));
+		const particleinfo neib_info = params.fetchInfo(neib_index);
+		float r = length3(relPos);
 
 		/* Contributions only come from active particles within the influence radius
 		   that are fluid particles (or also non-fluid in DYN_BOUNDARY case).
@@ -363,10 +350,10 @@ densityGrenierDevice(
 		   the sigma from the closest fluid particle, but that would require
 		   two runs, one for fluid and one for neighbor particles.
 		 */
-		if (INACTIVE(relPos) || r >= influenceradius)
+		if (INACTIVE(relPos) || r >= params.influenceradius)
 			continue;
 
-		const float w = W<kerneltype>(r, slength);
+		const float w = W<kerneltype>(r, params.slength);
 		sigma += w;
 		if (FLUID(neib_info))
 			has_fluid_neibs = true;
@@ -384,7 +371,7 @@ densityGrenierDevice(
 	if (boundarytype == DYN_BOUNDARY && NOT_FLUID(info) && !has_fluid_neibs) {
 		// TODO OPTIMIZE
 		const float typical_sigma = 3*(cuneibs::d_maxFluidBoundaryNeibs)/
-			(4*M_PIf*influenceradius*influenceradius*influenceradius);
+			(4*M_PIf*params.influenceradius*params.influenceradius*params.influenceradius);
 		sigma = typical_sigma;
 	}
 
