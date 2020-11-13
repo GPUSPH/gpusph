@@ -286,5 +286,43 @@ template<KernelType _kerneltype,
 using sa_segment_bc_repack_params = sa_segment_bc_params<_kerneltype, repackViscSpec<_simflags>,
 	  _simflags, _step>;
 
+//! findOutgoingSegmentDevice params
+
+struct sa_outgoing_bc_params :
+	//! Position, mass, info, particle hash, cellStart, neighbors list
+	//! FIXME: slength in the neibs_list_params is not used, so ideally we'd want
+	//! one without
+	neibs_list_params,
+	//! Velocity/density
+	vel_wrapper,
+	//! Boundary elements normals
+	boundelements_wrapper,
+	//! Barycentric vertex positions
+	vertPos_params<false>
+{
+	//! Indices of the vertices neighboring each boundary element
+	//! Will be updated by the fluid particles to store the vertices
+	//! through which we're crossing the domain edge
+	vertexinfo*	__restrict__ vertices;
+
+	//! Gamma and its gradient. Outgoing fluid particles will abuse this
+	//! to store the relative weights of the vertices for mass repartition.
+	float4	* __restrict__ gGam;
+
+	sa_outgoing_bc_params(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		uint				particleRangeEnd,
+		float				slength,
+		float				influenceradius)
+	: neibs_list_params(bufread, particleRangeEnd, slength, influenceradius)
+	, vel_wrapper(bufread)
+	, boundelements_wrapper(bufread)
+	, vertPos_params<false>(bufread)
+	, vertices(bufwrite.getData<BUFFER_VERTICES, BufferList::AccessSafety::MULTISTATE_SAFE>())
+	, gGam(bufwrite.getData<BUFFER_GRADGAMMA>())
+	{}
+
+};
 #endif // _SA_BC_PARAMS_H
 

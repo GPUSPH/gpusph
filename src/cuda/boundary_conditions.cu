@@ -287,31 +287,8 @@ findOutgoingSegment(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4			*pos(bufread.getData<BUFFER_POS>());
-	const	float4			*vel(bufread.getData<BUFFER_VEL>());
-	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
-	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
-	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
-	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
-	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-
-	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-	// See note about vertices in disableOutgoingParts
-	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES,
-		BufferList::AccessSafety::MULTISTATE_SAFE>());
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	cubounds::findOutgoingSegmentDevice<kerneltype><<<numBlocks, numThreads>>>(
-		pos, vel, vertices, gGam,
-		vertPos[0], vertPos[1], vertPos[2],
-		particleHash, cellStart, neibsList,
-		particleRangeEnd, influenceradius);
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+		sa_outgoing_bc_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius));
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
