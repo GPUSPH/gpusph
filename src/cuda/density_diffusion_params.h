@@ -30,7 +30,9 @@
 
 #include "particledefine.h"
 #include "simflags.h"
-#include "cond_params.h"
+#include "common_params.h"
+
+// TODO FIXME redesign in terms of neibs_interaction_params
 
 struct common_density_diffusion_params
 {
@@ -50,46 +52,25 @@ struct common_density_diffusion_params
 	const	float	dt;
 
 	common_density_diffusion_params(
-			float4	* __restrict__ _forces,
-	const	float4	* __restrict__ _posArray,
-	const	float4	* __restrict__ _velArray,
-	const	particleinfo	* __restrict__ _infoArray,
-	const	hashKey * __restrict__ _particleHash,
-	const	uint	* __restrict__ _cellStart,
-	const	neibdata	* __restrict__ _neibsList,
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
 	const	uint	_particleRangeEnd,
 	const	float	_deltap,
 	const	float	_slength,
 	const	float	_influenceradius,
 	const	float	_dt) :
-		forces(_forces),
-		posArray(_posArray),
-		velArray(_velArray),
-		infoArray(_infoArray),
-		particleHash(_particleHash),
-		cellStart(_cellStart),
-		neibsList(_neibsList),
+		forces(bufwrite.getData<BUFFER_FORCES>()),
+		posArray(bufread.getData<BUFFER_POS>()),
+		velArray(bufread.getData<BUFFER_VEL>()),
+		infoArray(bufread.getData<BUFFER_INFO>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
 		particleRangeEnd(_particleRangeEnd),
 		deltap(_deltap),
 		slength(_slength),
 		influenceradius(_influenceradius),
 		dt(_dt)
-	{}
-};
-
-struct sa_boundary_density_diffusion_params
-{
-	const	float4	* __restrict__	ggam;
-	const	float2	* __restrict__	vertPos0;
-	const	float2	* __restrict__	vertPos1;
-	const	float2	* __restrict__	vertPos2;
-
-	sa_boundary_density_diffusion_params(const float4 * __restrict__ _ggam,
-		const float2 * __restrict__ const _vertPos[]) :
-		ggam(_ggam),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2])
 	{}
 };
 
@@ -101,7 +82,7 @@ template<
 	ParticleType _cptype>
 struct density_diffusion_params :
 	common_density_diffusion_params,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_density_diffusion_params)
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr SPHFormulation sph_formulation = _sph_formulation;
@@ -110,23 +91,16 @@ struct density_diffusion_params :
 	static constexpr ParticleType cptype = _cptype;
 
 	density_diffusion_params(
-			float4	* __restrict__ _forces,
-	const	float4	* __restrict__ _posArray,
-	const	float4	* __restrict__ _velArray,
-	const	particleinfo	* __restrict__ _infoArray,
-	const	hashKey * __restrict__ _particleHash,
-	const	uint	* __restrict__ _cellStart,
-	const	neibdata	* __restrict__ _neibsList,
-	const	float4	* __restrict__ _ggam,
-	const	float2	* __restrict__ const _vertPos[],
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
 	const	uint	_particleRangeEnd,
 	const	float	_deltap,
 	const	float	_slength,
 	const	float	_influenceradius,
-	const	float	_dt) :
-		common_density_diffusion_params(_forces, _posArray, _velArray, _infoArray, _particleHash, _cellStart, _neibsList, _particleRangeEnd,
-			_deltap, _slength, _influenceradius, _dt),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_density_diffusion_params)(_ggam, _vertPos)
+	const	float	_dt)
+		: common_density_diffusion_params
+			(bufread, bufwrite, _particleRangeEnd, _deltap, _slength, _influenceradius, _dt)
+		, COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_params)(bufread)
 	{}
 };
 

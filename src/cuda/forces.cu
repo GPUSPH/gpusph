@@ -472,7 +472,6 @@ bind_textures(
 
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, bufread.getData<BUFFER_GRADGAMMA>(), numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 	}
 
 	if (run_mode != REPACK && turbmodel == KEPSILON) {
@@ -491,7 +490,6 @@ unbind_textures(RunMode run_mode)
 
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	}
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
@@ -601,21 +599,8 @@ compute_density_diffusion(
 	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	if (boundarytype == SA_BOUNDARY)
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
-
-	auto params = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, PT_FLUID>(
-			bufwrite.getData<BUFFER_FORCES>(),
-			bufread.getData<BUFFER_POS>(),
-			bufread.getData<BUFFER_VEL>(),
-			bufread.getData<BUFFER_INFO>(),
-			bufread.getData<BUFFER_HASH>(),
-			bufread.getData<BUFFER_CELLSTART>(),
-			bufread.getData<BUFFER_NEIBSLIST>(),
-			bufread.getData<BUFFER_GRADGAMMA>(),
-			bufread.getRawPtr<BUFFER_VERTPOS>(),
-			particleRangeEnd,
-			deltap, slength, influenceRadius, dt);
+	auto params = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, PT_FLUID>
+		(bufread, bufwrite, particleRangeEnd, deltap, slength, influenceRadius, dt);
 
 	cuforces::computeDensityDiffusionDevice
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype,
@@ -624,10 +609,6 @@ compute_density_diffusion(
 
 	// check if last kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	if (boundarytype == SA_BOUNDARY)
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
 
 /* forcesDevice kernel calls that involve vertex particles

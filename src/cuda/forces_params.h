@@ -242,6 +242,7 @@ struct volume_forces_params
 /// Additional parameters passed only to kernels with SA_BOUNDARY
 /// in case of fluid/boundary interaction
 struct sa_boundary_forces_params :
+	boundelements_wrapper,
 	vertPos_params<false> // const vertPos[012]
 {
 			float	* __restrict__ cfl_gamma;
@@ -253,6 +254,7 @@ struct sa_boundary_forces_params :
 		BufferList &		bufwrite,
 		const	float	_epsilon)
 	:
+		boundelements_wrapper(bufread),
 		vertPos_params<false>(bufread),
 		cfl_gamma(bufwrite.getData<BUFFER_CFL_GAMMA>()),
 		epsilon(_epsilon)
@@ -289,12 +291,14 @@ struct dummy_boundary_forces_params
 };
 
 /// Additional parameters passed only finalize forces with SA_BOUNDARY formulation
-struct sa_finalize_forces_params
+struct sa_finalize_forces_params :
+	boundelements_wrapper
 {
 	const	float4	* __restrict__ gGam;
 
 	// Constructor / initializer
 	sa_finalize_forces_params(BufferList const& bufread) :
+		boundelements_wrapper(bufread),
 		gGam(bufread.getData<BUFFER_GRADGAMMA>())
 	{}
 };
