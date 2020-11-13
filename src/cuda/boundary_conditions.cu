@@ -653,8 +653,6 @@ saIdentifyCornerVertices(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
@@ -673,8 +671,5 @@ saIdentifyCornerVertices(
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
 };
