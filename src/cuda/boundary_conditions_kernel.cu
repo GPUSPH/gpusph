@@ -1831,30 +1831,24 @@ struct InitGammaVars {
 	__device__
 	InitGammaVars(
 		NeibListIterator const& neib_iter,
-		const	float4*	oldPos,
-		const	float4*	boundElement,
-		const	float2*	vertPos0,
-		const	float2*	vertPos1,
-		const	float2*	vertPos2,
-		const	float	slength,
-		const	float	influenceradius,
-		const	float	deltap) :
+		sa_init_gamma_params const& params) :
 		skip(false)
 	{
 		const uint neib_index = neib_iter.neib_index();
 
-		const float3 relPos = as_float3(neib_iter.relPos(oldPos[neib_index]));
+		const float3 relPos = as_float3(neib_iter.relPos(params.fetchPos(neib_index)));
 
-		if (length(relPos) > influenceradius + deltap*0.5f) {
+		if (length(relPos) > params.influenceradius + params.deltap*0.5f) {
 			skip = true;
 			return;
 		}
 
-		normal = as_float3(boundElement[neib_index]);
-		q = relPos/slength;
+		normal = as_float3(params.fetchBound(neib_index));
+		q = relPos/params.slength;
 
 		calcVertexRelPos(q_vb, normal,
-			vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], slength);
+			params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
+			params.slength);
 	}
 };
 
@@ -1880,36 +1874,20 @@ struct InitGammaVars {
  */
 template<KernelType kerneltype, ParticleType cptype>
 __global__ void
-initGammaDevice(
-						float4*			newGGam,
-				const	float4*			oldGGam,
-				const	float4*			oldPos,
-				const	float4*			boundElement,
-				const	float2*			vertPos0,
-				const	float2*			vertPos1,
-				const	float2*			vertPos2,
-				const	particleinfo*	pinfo,
-				const	hashKey*		particleHash,
-				const	uint*			cellStart,
-				const	neibdata*		neibsList,
-				const	float			slength,
-				const	float			influenceradius,
-				const	float			deltap,
-				const	float			epsilon,
-				const	uint			numParticles)
+initGammaDevice(sa_init_gamma_params params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
-	const particleinfo info = pinfo[index];
+	const particleinfo info = params.fetchInfo(index);
 	if (PART_TYPE(info) != cptype)
 		return;
 
-	float4 pos = oldPos[index];
+	float4 pos = params.fetchPos(index);
 
 	// gamma that is to be computed
 	float gam = 1.0f;
@@ -1917,7 +1895,7 @@ initGammaDevice(
 	float3 gGam = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// We compute both Gamma and gradGamma, but Gamma needs the direction of gradGamma,
 	// so we need to first compute gradGamma fully, and then compute Gamma.
@@ -1931,37 +1909,33 @@ initGammaDevice(
 
 
 	// Iterate over all BOUNDARY neighbors to compute the gamma gradient
-	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
-		const InitGammaVars gVar(neib_iter, oldPos, boundElement,
-			vertPos0, vertPos1, vertPos2,
-			slength, influenceradius, deltap);
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+		const InitGammaVars gVar(neib_iter, params);
 		if (gVar.skip)
 			continue;
 
-		const float ggamma_as = gradGamma<kerneltype>(slength, gVar.q, gVar.q_vb, gVar.normal);
+		const float ggamma_as = gradGamma<kerneltype>(params.slength, gVar.q, gVar.q_vb, gVar.normal);
 		gGam += ggamma_as*gVar.normal;
 	}
 
 	// Iterate over all BOUNDARY neighbors to compute gamma
-	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
-		const InitGammaVars gVar(neib_iter, oldPos, boundElement,
-			vertPos0, vertPos1, vertPos2,
-			slength, influenceradius, deltap);
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+		const InitGammaVars gVar(neib_iter, params);
 		if (gVar.skip)
 			continue;
 
 		/* these need to be mutable for gamma */
 		float3 q_vb[3] = { gVar.q_vb[0], gVar.q_vb[1], gVar.q_vb[2] };
 
-		const float gamma_as = Gamma<kerneltype, cptype>(slength, gVar.q, q_vb, gVar.normal,
-					gGam, epsilon);
+		const float gamma_as = Gamma<kerneltype, cptype>(params.slength, gVar.q, q_vb, gVar.normal,
+					gGam, params.epsilon);
 		gam -= gamma_as;
 	}
 
 //	if (cptype == PT_FLUID && newGGam[index].w == newGGam[index].w)
 //		newGGam[index] = oldGGam[index];
 //	else
-	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
+	params.newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 }
 
 #define MAXNEIBVERTS 30
