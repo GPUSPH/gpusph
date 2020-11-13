@@ -1634,6 +1634,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 	params.vel[index] = pout.vel;
 
 }
+
 /// Mark fluid particles that have crossed an open boundary
 /** For each fluid particle, detect if it has crossed an open boundary and
  * identify the boundary element that it moved through. The vertices of this element
@@ -1645,31 +1646,19 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
  */
 template<KernelType kerneltype>
 __global__ void
-findOutgoingSegmentDevice(
-	const	float4		* __restrict__	posArray,
-	const	float4		* __restrict__	velArray,
-			vertexinfo	* __restrict__	vertices,
-			float4		* __restrict__	gGam,
-	const	float2		* __restrict__	vertPos0,
-	const	float2		* __restrict__	vertPos1,
-	const	float2		* __restrict__	vertPos2,
-	const	hashKey		* __restrict__	particleHash,
-	const	uint		* __restrict__	cellStart,
-	const	neibdata	* __restrict__	neibsList,
-			uint						numParticles,
-			float						influenceradius)
+findOutgoingSegmentDevice(sa_outgoing_bc_params params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
 	if (!FLUID(info))
 		return;
 
-	const float4 pos = posArray[index];
+	const float4 pos = params.fetchPos(index);
 	if (INACTIVE(pos))
 		return;
 
@@ -1678,7 +1667,7 @@ findOutgoingSegmentDevice(
 		/* Check that we aren't re-processing a fluid particle that was
 		 * already processed. Note that this shouldn't happen!
 		 */
-		vertexinfo vert = vertices[index];
+		vertexinfo vert = params.vertices[index];
 		if (vert.x | vert.y) {
 			printf("%d (id %d, flags %d) already had vertices (%d, %d)\n",
 				index, id(info), PART_FLAGS(info), vert.x, vert.y);
@@ -1687,12 +1676,12 @@ findOutgoingSegmentDevice(
 	}
 #endif
 
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-	const float4 vel = velArray[index];
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+	const float4 vel = params.fetchVel(index);
 
 	// Data about closest “past” boundary element so far:
 	// squared distance to closest boundary so far
-	float r2_min = influenceradius*influenceradius;
+	float r2_min = params.influenceradius*params.influenceradius;
 	// index of the closest boundary so far
 	uint index_min = UINT_MAX;
 	// normal of the closest boundary so far
@@ -1700,15 +1689,15 @@ findOutgoingSegmentDevice(
 	// relPos to the closest boundary so far
 	float3 relPos_min = make_float3(0.0f);
 
-	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 		if (!IO_BOUNDARY(neib_info))
 			continue; // we only care about IO boundary elements
 
-		const float4 relPos = neib_iter.relPos(posArray[neib_index]);
-		const float4 normal = tex1Dfetch(boundTex, neib_index);
-		const float3 relVel = as_float3(vel - velArray[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const float4 normal = params.fetchBound(neib_index);
+		const float3 relVel = as_float3(vel - params.fetchVel(neib_index));
 		const float r2 = sqlength3(relPos);
 
 		if (	r2 < r2_min && // we are closer to this element than other elements
@@ -1730,7 +1719,7 @@ findOutgoingSegmentDevice(
 	// Vertex coordinates in the local system
 	float3 vx[3];
 	calcVertexRelPos(vx, normal_min,
-		vertPos0[index_min], vertPos1[index_min], vertPos2[index_min], 1);
+		params.vertPos0[index_min], params.vertPos1[index_min], params.vertPos2[index_min], 1);
 	// calcVertexRelPos computes the relative position to the barycenter,
 	// we want the one relative to the fluid particle. Fixup:
 	vx[0] = relPos_min - vx[0];
@@ -1745,11 +1734,11 @@ findOutgoingSegmentDevice(
 	// vertex is normally empty for fluid particles, use it to store
 	// the vertices of the boundary element (avoiding a neighbor-of-neighbor search
 	// later on)
-	vertices[index] = vertices[index_min];
+	params.vertices[index] = params.vertices[index_min];
 
 	// abuse gamma to store the vertexWeights: since the particle will be disabled,
 	// this should not affect computation
-	gGam[index] = vertexWeights;
+	params.gGam[index] = vertexWeights;
 }
 
 /// Normal computation for vertices in the initialization phase
