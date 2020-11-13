@@ -48,18 +48,10 @@
  */
 texture<float4, 1, cudaReadModeElementType> posTex;		///< position and mass
 texture<float4, 1, cudaReadModeElementType> velTex;		///< velocity and density
-texture<float4, 1, cudaReadModeElementType> boundTex;	///< boundary elements
 texture<float4, 1, cudaReadModeElementType> gamTex;		///< gradient gamma
 texture<particleinfo, 1, cudaReadModeElementType> infoTex;	///< info
-texture<vertexinfo, 1, cudaReadModeElementType> vertTex;	///< vertices
 texture<float, 1, cudaReadModeElementType> keps_kTex;	///< k for k-e model
 texture<float, 1, cudaReadModeElementType> keps_eTex;	///< e for k-e model
-
-//! neib list management
-/*! @{ */
-texture<uint, 1, cudaReadModeElementType> cellStartTex;	///< first particle index in cell table
-texture<uint, 1, cudaReadModeElementType> cellEndTex;	///< last particle index in cell table
-/** @} */
 
 /** @} */
 #endif
