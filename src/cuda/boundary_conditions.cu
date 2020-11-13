@@ -484,68 +484,28 @@ saInitGammaImpl(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	float4 *newGGam = bufwrite.getData<BUFFER_GRADGAMMA>();
-	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
-
-	const float4 *oldPos = bufread.getData<BUFFER_POS>();
-	const float4 *boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
 
 	// execute the kernel for fluid particles
-	cubounds::initGammaDevice<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
-		newGGam,
-		oldGGam,
-		oldPos,
-		boundelement,
-		vertPos[0],
-		vertPos[1],
-		vertPos[2],
-		pinfo,
-		particleHash,
-		cellStart,
-		neibsList,
-		slength,
-		influenceradius,
-		deltap,
-		epsilon,
-		particleRangeEnd);
+	cubounds::initGammaDevice<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>>
+		(sa_init_gamma_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius,
+			deltap, epsilon));
 
 	// TODO verify if this split kernele execution works in the multi-device case,
 	// or if we need to update_external the fluid data first
 
 	// execute the kernel for vertex particles
-	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
-		newGGam,
-		oldGGam,
-		oldPos,
-		boundelement,
-		vertPos[0],
-		vertPos[1],
-		vertPos[2],
-		pinfo,
-		particleHash,
-		cellStart,
-		neibsList,
-		slength,
-		influenceradius,
-		deltap,
-		epsilon,
-		particleRangeEnd);
+	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>>
+		(sa_init_gamma_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius,
+			deltap, epsilon));
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 }
+
 template<BoundaryType _boundarytype>
 enable_if_t<_boundarytype != SA_BOUNDARY>
 saInitGammaImpl(

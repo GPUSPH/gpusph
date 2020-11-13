@@ -324,5 +324,28 @@ struct sa_outgoing_bc_params :
 	{}
 
 };
+
+struct sa_init_gamma_params : neibs_list_params, sa_boundary_params
+{
+	float4 * __restrict__ newGGam;
+	const float deltap;
+	const float epsilon;
+
+	sa_init_gamma_params(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		const	uint	_numParticles,
+		const	float	_slength,
+		const	float	_influenceradius,
+		const	float	_deltap,
+		const	float	_epsilon)
+	: neibs_list_params(bufread, _numParticles, _slength, _influenceradius)
+	, sa_boundary_params(bufread)
+	, newGGam(bufwrite.getData<BUFFER_GRADGAMMA>())
+	, deltap(_deltap)
+	, epsilon(_epsilon)
+	{}
+};
+
 #endif // _SA_BC_PARAMS_H
 
