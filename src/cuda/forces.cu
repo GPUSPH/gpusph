@@ -231,16 +231,11 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		float4 *vel = bufwrite.getData<BUFFER_VEL>();
 		float *sigma = bufwrite.getData<BUFFER_SIGMA>();
 
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread.getData<BUFFER_POS>(), numParticles*sizeof(float4)));
-#endif
-
-		cuforces::densityGrenierDevice<kerneltype, boundarytype>
-			<<<numBlocks, numThreads>>>(sigma, pos, vel, info, pHash, vol, cellStart, neibsList, numParticles, slength, influenceradius);
-
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
+		cuforces::densityGrenierDevice<kerneltype, boundarytype><<<numBlocks, numThreads>>>
+			(neibs_list_params(bufread, numParticles, slength, influenceradius),
+			 bufread.getData<BUFFER_VOLUME>(),
+			 bufwrite.getData<BUFFER_VEL>(),
+			 bufwrite.getData<BUFFER_SIGMA>());
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
