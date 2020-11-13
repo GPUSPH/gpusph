@@ -1209,8 +1209,9 @@ struct dummy_boundary_neib_data
 struct cspm_neib_data
 {
 	const	symtensor3	nfcoeffTens;
-	const	float	nwcoeff;
-	const	float	coeff;
+	//const	float	nwcoeff;
+	//const	float	coeff;
+	const	float		determinant;
 	const	symtensor3	avg_fcoeffTens;
 	const float3 cspm_relPos;
 	const float  cspm_vel_dot_pos;
@@ -1226,12 +1227,16 @@ struct cspm_neib_data
 				params.fcoeff0,
 				params.fcoeff1,
 				params.fcoeff2)),
-		nwcoeff(params.wcoeff[index]),
-		coeff(2.0f*pdata.wcoeff*nwcoeff/(pdata.wcoeff + nwcoeff)), //sym v4
+	//	nwcoeff(params.wcoeff[index]),
+	//	coeff(2.0f*pdata.wcoeff*nwcoeff/(pdata.wcoeff + nwcoeff)), //sym v4
 	//	avg_fcoeffTens(inverse(pdata.fcoeffTens)), // asym
 	//	avg_fcoeffTens((inverse(pdata.fcoeffTens) + inverse(nfcoeffTens))*0.5f), //sym v1
 	//	avg_fcoeffTens(inverse((pdata.fcoeffTens + nfcoeffTens)*0.5f)), //sym v2
-		avg_fcoeffTens(inverse((pdata.fcoeffTens + nfcoeffTens)*coeff)*2.0f),	//sym v4
+	//	avg_fcoeffTens(pdata.fcoeffTens), // asym
+	//	avg_fcoeffTens((pdata.fcoeffTens + nfcoeffTens)*0.5f), //sym v1
+		determinant(kbn_det((pdata.fcoeffTens + nfcoeffTens)*0.5)),
+		avg_fcoeffTens((determinant < 0.7) ? identity3() : inverse((pdata.fcoeffTens + nfcoeffTens)*0.5f, determinant)), //sym v2
+	//	avg_fcoeffTens(inverse((pdata.fcoeffTens + nfcoeffTens)*coeff)*2.0f),	//sym v4
 		cspm_relPos(dot(avg_fcoeffTens, ndata.relPos)),
 		cspm_vel_dot_pos(dot3(ndata.relVel, cspm_relPos)),
 		cspm_rTr_r2(compute_rTr_r2(avg_fcoeffTens, ndata.relPos))

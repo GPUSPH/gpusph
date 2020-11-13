@@ -52,8 +52,20 @@ __spec
 void
 set_identity(symtensor3& T)
 {
-	T.xx = T.yy = T.zz = 1;
-	T.xy = T.xz = T.yz = 0;
+	T.xx = T.yy = T.zz = 1.0f;
+	T.xy = T.xz = T.yz = 0.0f;
+}
+
+__spec
+symtensor3
+identity3(void)
+{
+	symtensor3 T;
+
+	T.xx = T.yy = T.zz = 1.0f;
+	T.xy = T.xz = T.yz = 0.0f;
+
+	return T;
 }
 
 __spec
