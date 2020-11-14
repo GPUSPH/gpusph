@@ -652,8 +652,8 @@ struct keps_particle_data
 	template<typename FP>
 	__device__ __forceinline__
 	keps_particle_data(const uint index, particleinfo const& info, FP const& params) :
-		keps_k(tex1Dfetch(keps_kTex, index)),
-		keps_e(tex1Dfetch(keps_eTex, index)),
+		keps_k(params.fetchTke(index)),
+		keps_e(params.fetchEpsilon(index)),
 		turbVisc(params.turbvisc[index]),
 		turbViscForViscTerm((FLUID(info) || (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info))) ? turbVisc : 0)
 	{}

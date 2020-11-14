@@ -463,20 +463,11 @@ bind_textures(
 	uint	numParticles,
 	RunMode	run_mode)
 {
-	// bind textures to read all particles, not only internal ones
-	if (run_mode != REPACK && turbmodel == KEPSILON) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread.getData<BUFFER_TKE>(), numParticles*sizeof(float)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread.getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
-	}
 }
 
 void
 unbind_textures(RunMode run_mode)
 {
-	if (run_mode != REPACK && turbmodel == KEPSILON) {
-		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
-	}
 }
 
 // returns the number of elements in the (starting) fmax array, assuming n particles.
