@@ -285,6 +285,15 @@ sort(	BufferList const& bufread,
 	thrust::device_ptr<uint> particleIndex =
 		thrust::device_pointer_cast(bufwrite.getData<BUFFER_PARTINDEX>());
 
+	const particleinfo *pinfo = bufwrite.getData<BUFFER_INFO>();
+	const hashKey *phash = bufwrite.getData<BUFFER_HASH>();
+	const uint *pidx = bufwrite.getData<BUFFER_PARTINDEX>();
+	for (int i = 0; i < numParticles; ++i)
+	{
+		printf("BEFORE: %d: %d %d %d %d %d %d\n", i,
+			pinfo[i].x, pinfo[i].y, pinfo[i].z, pinfo[i].w, phash[i], pidx[i]);
+	}
+
 	ptype_hash_compare comp;
 
 	if (numParticles > 0) {
@@ -297,6 +306,12 @@ sort(	BufferList const& bufread,
 				particleHash + numParticles,
 				particleInfo + numParticles)),
 			particleIndex, comp);
+	}
+
+	for (int i = 0; i < numParticles; ++i)
+	{
+		printf("AFTER: %d: %d %d %d %d %d %d\n", i,
+			pinfo[i].x, pinfo[i].y, pinfo[i].z, pinfo[i].w, phash[i], pidx[i]);
 	}
 
 	KERNEL_CHECK_ERROR;
