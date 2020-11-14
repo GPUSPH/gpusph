@@ -315,11 +315,13 @@ struct water_depth_forces_params
 
 /// Additional parameters passed only to kernels with KEPSILON
 struct keps_forces_params :
+	keps_tex_params, // read-only keps_{tke,eps}
 	tau_params<true> // writable tau[012]
 {
 	float3	* __restrict__ keps_dkde;
 	const float	* __restrict__ turbvisc;
 	keps_forces_params(BufferList const& bufread, BufferList & bufwrite) :
+		keps_tex_params(bufread),
 		tau_params<true>(bufwrite),
 		keps_dkde(bufwrite.getData<BUFFER_DKDE>()),
 		turbvisc(bufread.getData<BUFFER_TURBVISC>())
