@@ -457,19 +457,6 @@ setrbstart(const int* rbfirstindex, int numbodies)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbstartindex, rbfirstindex, numbodies*sizeof(int)));
 }
 
-void
-bind_textures(
-	BufferList const& bufread,
-	uint	numParticles,
-	RunMode	run_mode)
-{
-}
-
-void
-unbind_textures(RunMode run_mode)
-{
-}
-
 // returns the number of elements in the (starting) fmax array, assuming n particles.
 // this is _exactly_ the number of blocks in the grid launch for the forces kernel over n
 // particles, since the forces kernel pre-reduces the cfl values, producing one value

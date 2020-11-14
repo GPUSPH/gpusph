@@ -1988,9 +1988,6 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 
 	bufwrite.clear_pending_state();
 
-	if (numPartsToElaborate > 0)
-		forcesEngine->bind_textures(bufread, m_numParticles, gdata->run_mode);
-
 	return make_pair(bufread, bufwrite);
 
 }
@@ -2001,8 +1998,6 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
  */
 float GPUWorker::post_forces(CommandStruct const& cmd)
 {
-	forcesEngine->unbind_textures(gdata->run_mode);
-
 	// no reduction for fixed timestep
 	if (!(m_simparams->simflags & ENABLE_DTADAPT))
 		return m_simparams->dt;
@@ -2180,7 +2175,7 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 		// wait for the completion of the kernel
 		cudaDeviceSynchronize();
 
-		// unbind the textures
+		// cleanup post forces and get dt
 		returned_dt = post_forces(cmd);
 	}
 
