@@ -72,6 +72,10 @@ struct common_density_diffusion_params
 		influenceradius(_influenceradius),
 		dt(_dt)
 	{}
+
+	__device__ __forceinline__
+	float4 fetchVel(const uint index) const
+	{ return velArray[index]; }
 };
 
 template<

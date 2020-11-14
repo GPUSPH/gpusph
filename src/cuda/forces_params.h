@@ -62,10 +62,11 @@
 */
 
 /// Parameters common to both forcesDevice and finalize kernels
-struct stage_common_forces_params
+struct stage_common_forces_params :
+	pos_info_wrapper,
+	vel_wrapper
 {
 			float4	* __restrict__ forces;
-	const	float4	* __restrict__ posArray;
 	const	hashKey * __restrict__ particleHash;
 	const	uint	* __restrict__ cellStart;
 
@@ -83,8 +84,9 @@ struct stage_common_forces_params
 		const	uint	_toParticle,
 		const	float	_slength)
 	:
+		pos_info_wrapper(bufread),
+		vel_wrapper(bufread),
 		forces(bufwrite.getData<BUFFER_FORCES>()),
-		posArray(bufread.getData<BUFFER_POS>()),
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		cellStart(bufread.getData<BUFFER_CELLSTART>()),
 		fromParticle(_fromParticle),

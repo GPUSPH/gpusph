@@ -464,12 +464,6 @@ bind_textures(
 	RunMode	run_mode)
 {
 	// bind textures to read all particles, not only internal ones
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread.getData<BUFFER_POS>(), numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, bufread.getData<BUFFER_VEL>(), numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, bufread.getData<BUFFER_INFO>(), numParticles*sizeof(particleinfo)));
-
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, bufread.getData<BUFFER_GRADGAMMA>(), numParticles*sizeof(float4)));
 	}
@@ -491,12 +485,6 @@ unbind_textures(RunMode run_mode)
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 	}
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
 }
 
 // returns the number of elements in the (starting) fmax array, assuming n particles.

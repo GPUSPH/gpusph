@@ -545,16 +545,10 @@ struct vel_particle_data
 	const	float4	vel;
 	const	float	sspeed;
 
-	__device__ __forceinline__
-	vel_particle_data(const uint _index, particleinfo const& _info) :
-		vel(tex1Dfetch(velTex, _index)),
-		sspeed(soundSpeed(vel.w, fluid_num(_info)))
-	{}
-
 	template<typename FP> /* templatized over the kernel input params */
 	__device__ __forceinline__
 	vel_particle_data(FP const& params, const uint _index, particleinfo const& _info) :
-		vel(params.velArray[_index]),
+		vel(params.fetchVel(_index)),
 		sspeed(soundSpeed(vel.w, fluid_num(_info)))
 	{}
 };
@@ -808,7 +802,7 @@ struct forces_particle_data :
 		ForcesParams const& params) :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
-		vel_particle_data(_index, _info),
+		vel_particle_data(params, _index, _info),
 		vol_cond(_index, params),
 		grenier_cond(_index, params),
 		eulerVel_cond(_index, params),
@@ -1082,29 +1076,6 @@ struct finalize_repack_particle_output :
  * Neib data
  */
 
-// Just like for particle data, we collect neib data into appropriate structures
-
-/* We may fetch velocity either from the kernel params (if there is a velArray),
-   or from the velTex texture (otherwise). We abstract this selection in the following pair
-   of specialized functions. */
-
-template<typename FP>
-__device__ __forceinline__
-enable_if_t<has_velArray<FP>(), float4>
-fetchVel(FP const& params, uint index)
-{
-	return params.velArray[index];
-}
-
-template<typename FP>
-__device__ __forceinline__
-enable_if_t<!has_velArray<FP>(), float4>
-fetchVel(FP const& params, uint index)
-{
-	return tex1Dfetch(velTex, index);
-}
-
-
 // data used fo all neibs
 struct common_neib_data
 {
@@ -1131,7 +1102,7 @@ struct common_neib_data
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
 		info(_info), relPos(_relPos), r(_r),
-		relVel(as_float3(pdata.vel) - fetchVel(params, _index)),
+		relVel(as_float3(pdata.vel) - params.fetchVel(_index)),
 		vel_dot_pos(dot3(relVel, relPos)),
 		f(F<FP::kerneltype>(r, params.slength)),
 		w(W<FP::kerneltype>(r, params.slength)),
@@ -4018,7 +3989,7 @@ forcesDevice(FP params)
 		if (index >= params.toParticle) break;
 
 		// Particle info struct, always stored in a texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		// Skip if the current particle is not of the type for which we are computing interactions
 		if (PART_TYPE(info) != cptype) break;
@@ -4026,11 +3997,7 @@ forcesDevice(FP params)
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
@@ -4057,13 +4024,7 @@ forcesDevice(FP params)
 
 			// Compute relative position vector and distance
 			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos(
-			#if PREFER_L1
-				params.posArray[neib_index]
-			#else
-				tex1Dfetch(posTex, neib_index)
-			#endif
-				);
+			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 			// Skip inactive particles
 			if (INACTIVE(relPos))
@@ -4071,7 +4032,7 @@ forcesDevice(FP params)
 
 			const float r = length3(relPos);
 
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = params.fetchInfo(neib_index);
 
 			// Bail out if we do not interact with this neighbor
 			if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
@@ -4125,17 +4086,13 @@ finalizeforcesDevice(FP params)
 		if (index >= params.toParticle) break;
 
 		// Particle info struct, always stored in a texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		const ParticleType part_type = PART_TYPE(info);
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
@@ -4256,7 +4213,7 @@ repackDevice(FP params)
 		if (index >= params.toParticle) break;
 
 		// Particle info struct, always stored in a texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		// Skip if the current particle is not of the type for which we are computing interactions
 		if (PART_TYPE(info) != cptype) break;
@@ -4264,11 +4221,7 @@ repackDevice(FP params)
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
@@ -4289,13 +4242,7 @@ repackDevice(FP params)
 
 			// Compute relative position vector and distance
 			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos(
-			#if PREFER_L1
-				params.posArray[neib_index]
-			#else
-				tex1Dfetch(posTex, neib_index)
-			#endif
-				);
+			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 			// Skip inactive particles
 			if (INACTIVE(relPos))
@@ -4303,7 +4250,7 @@ repackDevice(FP params)
 
 			const float r = length3(relPos);
 
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = params.fetchInfo(neib_index);
 
 			// Bail out if we do not interact with this neighbor
 			if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
@@ -4352,17 +4299,13 @@ finalizeRepackDevice(FP params)
 		if (index >= params.toParticle) break;
 
 		// Particle info struct, always stored in a texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		const ParticleType part_type = PART_TYPE(info);
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
