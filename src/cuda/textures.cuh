@@ -48,7 +48,6 @@
  */
 texture<float4, 1, cudaReadModeElementType> posTex;		///< position and mass
 texture<float4, 1, cudaReadModeElementType> velTex;		///< velocity and density
-texture<float4, 1, cudaReadModeElementType> gamTex;		///< gradient gamma
 texture<particleinfo, 1, cudaReadModeElementType> infoTex;	///< info
 texture<float, 1, cudaReadModeElementType> keps_kTex;	///< k for k-e model
 texture<float, 1, cudaReadModeElementType> keps_eTex;	///< e for k-e model
