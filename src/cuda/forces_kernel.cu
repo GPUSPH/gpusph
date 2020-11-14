@@ -481,33 +481,24 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_MLS, MIN_BLOCKS_MLS)
-MlsDevice(	const float4*	posArray,
-			float4*			newVel,
-			const hashKey*		particleHash,
-			const uint*		cellStart,
-			const neibdata*	neibsList,
-			const uint		numParticles,
-			const float		slength,
-			const float		influenceradius)
+MlsDevice(
+	neibs_interaction_params<boundarytype>	params,
+				float4 * __restrict__		newVel)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
 
 	// If particle is inactive there is absolutely nothing to do
 	if (INACTIVE(pos))
 		return;
 
-	float4 vel = tex1Dfetch(velTex, index);
+	float4 vel = params.fetchVel(index);
 
 	// We apply MLS normalization :
 	//	* with LJ or DYN boundary only on fluid particles
@@ -528,46 +519,40 @@ MlsDevice(	const float4*	posArray,
 	int neibs_num = 0;
 
 	// Taking into account self contribution in MLS matrix construction
-	mls.xx = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w,fluid_num(info));
+	mls.xx = W<kerneltype>(0, params.slength)*pos.w/physical_density(vel.w,fluid_num(info));
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// First loop over neighbors
 	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
 	// DYN_BOUNDARY
 	// TODO: check with SA
 	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// Skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-		const float neib_rho = physical_density(tex1Dfetch(velTex, neib_index).w,fluid_num(neib_info));
- 
+		const float r = length3(relPos);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
+		const float neib_rho = physical_density(params.fetchVel(neib_index).w,fluid_num(neib_info));
+
 
 		// Add neib contribution only if it's a fluid one
-		if (r < influenceradius) {
+		if (r < params.influenceradius) {
 			neibs_num ++;
-			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
+			const float w = W<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// Wij*Vj
 
 			/* Scale relPos by slength for stability and resolution independence */
-			MlsMatrixContrib(mls, relPos/slength, w);
+			MlsMatrixContrib(mls, relPos/params.slength, w);
 		}
 	} // end of first loop trough neighbors
 
@@ -626,43 +611,37 @@ MlsDevice(	const float4*	posArray,
 	}
 
 	/* Scale for resolution independence, again */
-	B.y /= slength;
-	B.z /= slength;
-	B.w /= slength;
+	B.y /= params.slength;
+	B.z /= params.slength;
+	B.w /= params.slength;
 
 	// Taking into account self contribution in density summation
-	vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
+	vel.w = B.x*W<kerneltype>(0, params.slength)*pos.w;
 
 	// Second loop over neighbors
 	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
 	// DYN_BOUNDARY
 	// TODO: check with SA
 	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// Skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Interaction between two particles
-		if (r < influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
-			const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
+		if (r < params.influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
+			const float w = W<kerneltype>(r, params.slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 			vel.w += MlsCorrContrib(B, relPos, w);
 		}
 
@@ -688,7 +667,7 @@ MlsDevice(	const float4*	posArray,
 		}
 	}
 #endif
-        vel.w = numerical_density(vel.w,fluid_num(info));
+	vel.w = numerical_density(vel.w,fluid_num(info));
 	newVel[index] = vel;
 }
 /************************************************************************************************************/
