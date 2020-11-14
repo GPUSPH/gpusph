@@ -229,11 +229,11 @@ CompleteSaExample_imposeBoundaryCondition(
 
 __global__ void
 CompleteSaExample_imposeBoundaryConditionDevice(
-			float4*		newVel,
-			float4*		newEulerVel,
-			float*		newTke,
-			float*		newEpsilon,
-	const	float4*		oldPos,
+	pos_info_wrapper	params,
+			float4*		__restrict__ newVel,
+			float4*		__restrict__ newEulerVel,
+			float*		__restrict__ newTke,
+			float*		__restrict__ newEpsilon,
 	const	uint*		IOwaterdepth,
 	const	float		t,
 	const	uint		numParticles,
@@ -250,7 +250,7 @@ CompleteSaExample_imposeBoundaryConditionDevice(
 	float eps = 0.0f;						// imposed turb. diffusivity for open boundaries
 
 	if(index < numParticles) {
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 		// open boundaries and forced moving objects
 		// the case of a corner needs to be treated as follows:
 		// - for a velocity inlet nothing is imposed (in case of k-eps newEulerVel already contains the info
@@ -261,7 +261,7 @@ CompleteSaExample_imposeBoundaryConditionDevice(
 			// For corners we need to get eulerVel in case of k-eps and pressure outlet
 			if (CORNER(info) && newTke && !VEL_IO(info))
 				eulerVel = newEulerVel[index];
-			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
+			const float3 absPos = d_worldOrigin + as_float3(params.fetchPos(index))
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
 			float waterdepth = 0.0f;
@@ -300,8 +300,6 @@ CompleteSaExample::imposeBoundaryConditionHost(
 	float	*newTke = bufwrite.getData<BUFFER_TKE>();
 	float	*newEpsilon = bufwrite.getData<BUFFER_EPSILON>();
 
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const float4 *oldPos = bufread.getData<BUFFER_POS>();
 	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
 
 	const uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
@@ -313,12 +311,8 @@ CompleteSaExample::imposeBoundaryConditionHost(
 	dummy_shared = 2560;
 	#endif
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	cuCompleteSaExample::CompleteSaExample_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
-		(newVel, newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, t, numParticles, particleHash);
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		(pos_info_wrapper(bufread), newVel, newEulerVel, newTke, newEpsilon, IOwaterdepth, t, numParticles, particleHash);
 
 	// reset waterdepth calculation
 	if (IOwaterdepth)
