@@ -464,10 +464,6 @@ bind_textures(
 	RunMode	run_mode)
 {
 	// bind textures to read all particles, not only internal ones
-	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, bufread.getData<BUFFER_GRADGAMMA>(), numParticles*sizeof(float4)));
-	}
-
 	if (run_mode != REPACK && turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread.getData<BUFFER_TKE>(), numParticles*sizeof(float)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread.getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
@@ -480,10 +476,6 @@ unbind_textures(RunMode run_mode)
 	if (run_mode != REPACK && turbmodel == KEPSILON) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
-	}
-
-	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 	}
 }
 
