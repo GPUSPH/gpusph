@@ -406,33 +406,24 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
-shepardDevice(	const float4*	posArray,
-				float4*			newVel,
-				const hashKey*		particleHash,
-				const uint*		cellStart,
-				const neibdata*	neibsList,
-				const uint		numParticles,
-				const float		slength,
-				const float		influenceradius)
+shepardDevice(
+	neibs_interaction_params<boundarytype>	params,
+				float4 * __restrict__		newVel)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
 
 	// If particle is inactive there is absolutely nothing to do
 	if (INACTIVE(pos))
 		return;
 
-	float4 vel = tex1Dfetch(velTex, index);
+	float4 vel = params.fetchVel(index);
 
 	// We apply Shepard normalization :
 	//	* with LJ or DYN boundary only on fluid particles
@@ -445,42 +436,36 @@ shepardDevice(	const float4*	posArray,
 
 
 	// Taking into account self contribution in summation
-	float temp1 = pos.w*W<kerneltype>(0, slength);
+	float temp1 = pos.w*W<kerneltype>(0, params.slength);
 	float temp2 = temp1/physical_density(vel.w,fluid_num(info)) ;
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
 	// DYN_BOUNDARY
 	// TODO: check with SA
 	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Skip inactive neighbors
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
-		const float neib_rho = physical_density(tex1Dfetch(velTex, neib_index).w,fluid_num(neib_info));
+		const float neib_rho = physical_density(params.fetchVel(neib_index).w,fluid_num(neib_info));
 
-		if (r < influenceradius ) {
-			const float w = W<kerneltype>(r, slength)*relPos.w;
+		if (r < params.influenceradius ) {
+			const float w = W<kerneltype>(r, params.slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
 		}

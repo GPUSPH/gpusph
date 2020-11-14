@@ -942,41 +942,25 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 				float	slength,
 				float	influenceradius)
 {
-	const float4 *pos = bufread.getData<BUFFER_POS>();
-	const float4 *oldVel = bufread.getData<BUFFER_VEL>();
-	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata*neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
 	int dummy_shared = 0;
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
 
+	if (boundarytype == SA_BOUNDARY)
+		throw std::runtime_error("Shepard filtering is not supported with SA_BOUNDARY");
+
 	cuforces::shepardDevice<kerneltype, boundarytype><<< numBlocks, numThreads, dummy_shared >>>
-		(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
+		(neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
+		 bufwrite.getData<BUFFER_VEL>());
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 };
 
