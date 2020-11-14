@@ -618,7 +618,7 @@ struct sa_boundary_particle_data
 	__device__ __forceinline__
 	sa_boundary_particle_data(const uint index, particleinfo const& info,
 		sa_boundary_forces_params const& params) :
-		oldGGam(tex1Dfetch(gamTex, index)),
+		oldGGam(params.fetchGradGamma(index)),
 		belem(BOUNDARY(info) ? params.fetchBound(index) : make_float4(0.0f))
 	{}
 };
