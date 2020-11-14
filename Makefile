@@ -989,22 +989,32 @@ $(SRCDIR)/describe-debugflags.h: $(SCRIPTSDIR)/describe-debugflags.awk $(SRCDIR)
 # The idea is that to avoid restarting make when the .d files change,
 # and to avoid issues with deleted dependency files, the .d files themselves
 # have an empty rule, and they are generated when the object files are generated.
-# However, we do not use the "generate dependencies while compiling” feature of GCC
+# However, we do not use the "generate dependencies while compiling” feature of GCC.
+
+# We _do_ hack the dependency files so that all dependencies are added to an empty rule,
+# that ensures that make doesn't bother us about missing dependencies when one is added or removed
+define redupdep
+@x="$$(cat $1)" ; printf '%s\n\n:%s:\n' "$$x" "$$x" | sed 's/^:[^:]*: //' > $1
+endef
+
 # The -MM flag is used to not include system includes.
 # The -MG flag is used to add missing includes (useful to depend on the .opt files).
 # The -MT flag is used to define the object file.
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 $(GENOBJS): $(OBJDIR)/%.gen.o: $(OPTSDIR)/%.gen.cc $(DEPDIR)/%.gen.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
 	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
@@ -1013,6 +1023,7 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d $(DEVCODE_OPTFILES) | $(O
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< \
 		 --compiler-options -MG,-MM,-MT,$@ > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
 # deps: empty rule, but require the directories and optfiles to be present
