@@ -49,6 +49,35 @@
 
 #include "vector_math.h"
 
+/// Functor to sort particles by hash (cell), and
+/// by fluid number within the cell
+struct ptype_hash_compare :
+	public thrust::binary_function<
+		thrust::tuple<hashKey, particleinfo>,
+		thrust::tuple<hashKey, particleinfo>,
+		bool>
+{
+	typedef thrust::tuple<hashKey, particleinfo> value_type;
+
+	__host__ __device__
+	bool operator()(const value_type& a, const value_type& b)
+	{
+		const hashKey ha(cellHashFromParticleHash(thrust::get<0>(a), true)),
+				hb(cellHashFromParticleHash(thrust::get<0>(b), true));
+		const particleinfo pa(thrust::get<1>(a)),
+					 pb(thrust::get<1>(b));
+
+		if (ha == hb) {
+			const ParticleType pta = PART_TYPE(pa),
+				ptb = PART_TYPE(pb);
+			if (pta == ptb)
+				return id(pa) < id(pb);
+			return (pta < ptb);
+		}
+		return (ha < hb);
+	}
+};
+
 
 /// Neighbor engine class
 /*!	CUDANeibsEngine is an implementation of the abstract class AbstractNeibsEngine
@@ -358,35 +387,6 @@ reorderDataAndFindCellStart(
 #undef BIND_CHECK
 #undef MUST_HAVE
 }
-
-/// Functor to sort particles by hash (cell), and
-/// by fluid number within the cell
-struct ptype_hash_compare :
-	public thrust::binary_function<
-		thrust::tuple<hashKey, particleinfo>,
-		thrust::tuple<hashKey, particleinfo>,
-		bool>
-{
-	typedef thrust::tuple<hashKey, particleinfo> value_type;
-
-	__host__ __device__
-	bool operator()(const value_type& a, const value_type& b)
-	{
-		const hashKey ha(cellHashFromParticleHash(thrust::get<0>(a), true)),
-				hb(cellHashFromParticleHash(thrust::get<0>(b), true));
-		const particleinfo pa(thrust::get<1>(a)),
-					 pb(thrust::get<1>(b));
-
-		if (ha == hb) {
-			const ParticleType pta = PART_TYPE(pa),
-				ptb = PART_TYPE(pb);
-			if (pta == ptb)
-				return id(pa) < id(pb);
-			return (pta < ptb);
-		}
-		return (ha < hb);
-	}
-};
 
 void
 sort(	BufferList const& bufread,
