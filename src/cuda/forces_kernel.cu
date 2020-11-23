@@ -286,7 +286,7 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 /*	CSPM coefficients       */
 /************************************************************************************************************/
 
-#define THRESHOLD 0
+#define THRESHOLD 2
 /* 
    - 0 : No threshold, boundary excluded
    - 1 : Surface detection, boundary excluded
