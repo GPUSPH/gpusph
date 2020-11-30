@@ -345,6 +345,14 @@ struct effective_visc_forces_params
 	{}
 };
 
+struct dem_forces_params
+{
+	cudaTextureObject_t demTex;
+	dem_forces_params(cudaTextureObject_t demTex_) :
+		demTex(demTex_)
+	{}
+};
+
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -481,6 +489,8 @@ template<SPHFormulation _sph_formulation,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _inviscid = _ViscSpec::rheologytype == INVISCID,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
+	typename dem_cond =
+		typename COND_STRUCT(_simflags & ENABLE_DEM, dem_forces_params),
 	typename dyndt_cond =
 		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
 	typename grenier_cond =
@@ -496,6 +506,7 @@ template<SPHFormulation _sph_formulation,
 	>
 struct finalize_forces_params :
 	common_finalize_forces_params<_run_mode>,
+	dem_cond,
 	dyndt_cond,
 	grenier_cond,
 	sa_cond,
@@ -527,6 +538,7 @@ struct finalize_forces_params :
 	finalize_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
+		cudaTextureObject_t	demTex,
 				uint	_numParticles,
 				uint	_fromParticle,
 				uint	_toParticle,
@@ -538,6 +550,7 @@ struct finalize_forces_params :
 	:
 		common_finalize_forces_params<run_mode>(bufread, bufwrite,
 			 _fromParticle, _toParticle, _slength, _deltap),
+		dem_cond(demTex),
 		dyndt_cond(bufwrite, _numParticles, _cflOffset),
 		grenier_cond(bufread),
 		sa_cond(bufread),

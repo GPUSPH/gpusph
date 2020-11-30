@@ -204,7 +204,7 @@ GeometryForce(	const int3&		gridPos,
 
 //! DOC-TODO describe function
 __device__ __forceinline__ float
-DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
+DemLJForce(	cudaTextureObject_t demTex,
 			const int3&	gridPos,
 			const float3&	pos,
 			const float		mass,
@@ -215,10 +215,10 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 	const float2 demPos = DemPos(gridPos, pos);
 
 	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
-	const float globalZ0 = DemInterpol(texref, demPos);
+	const float globalZ0 = DemInterpol(demTex, demPos);
 
 	if (globalZ - globalZ0 < d_demzmin) {
-		const plane_t demPlane(DemTangentPlane(texref, gridPos, pos, demPos, globalZ0));
+		const plane_t demPlane(DemTangentPlane(demTex, gridPos, pos, demPos, globalZ0));
 
 		return PlaneForce(gridPos, pos, mass, demPlane, vel, dynvisc, force);
 	}

@@ -37,8 +37,6 @@ using namespace cuneibs;
 /// \name Device constants
 /// @{
 
-texture<float, 2, cudaReadModeElementType> demTex;	// DEM
-
 /* DEM constants */
 // TODO switch to float2s
 __constant__ float	d_ewres;		///< east-west resolution (x)
@@ -119,23 +117,23 @@ DemPos(GridPosType const& gridPos, LocalPosType const& pos)
 		(gridPos.y + 0.5f)*(d_cellSize.y/d_nsres) + pos.y/d_nsres + 0.5f);
 }
 
-/**! Interpolate DEM texref for a point at DEM cell pos demPos,
+/**! Interpolate DEM demTex for a point at DEM cell pos demPos,
   plus an optional multiple of (∆x, ∆y).
   NOTE: the returned z coordinate is GLOBAL, not LOCAL!
   TODO for improved homogeneous accuracy, maybe have a texture for grid cells and a
   texture for local z coordinates?
  */
 __device__ __forceinline__ float
-DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
+DemInterpol(cudaTextureObject_t demTex,
 	const float2& demPos, int dx=0, int dy=0)
 {
-	return tex2D(texref, demPos.x + dx*d_demdx/d_ewres, demPos.y + dy*d_demdy/d_nsres);
+	return tex2D<float>(demTex, demPos.x + dx*d_demdx/d_ewres, demPos.y + dy*d_demdy/d_nsres);
 }
 
 //! Find the plane tangent to a DEM near a given position, assuming demPos and Z0
 //! were already computed
 __device__ __forceinline__ plane_t
-DemTangentPlane(const texture<float, 2, cudaReadModeElementType> texref,
+DemTangentPlane(cudaTextureObject_t demTex,
 	const int3&	gridPos,
 	const float3&	pos,
 	const float2& demPos, const float globalZ0)
@@ -144,8 +142,8 @@ DemTangentPlane(const texture<float, 2, cudaReadModeElementType> texref,
 	// breaks any possible symmetry in the original DEM. A better (but more expensive)
 	// approach would be to sample four points, one on each side of our point (in both
 	// directions)
-	const float globalZ1 = DemInterpol(texref, demPos, 1, 0);
-	const float globalZ2 = DemInterpol(texref, demPos, 0, 1);
+	const float globalZ1 = DemInterpol(demTex, demPos, 1, 0);
+	const float globalZ2 = DemInterpol(demTex, demPos, 0, 1);
 
 	// TODO find a more accurate way to compute the normal
 	const float a = d_demdy*(globalZ0 - globalZ1);
@@ -166,13 +164,13 @@ DemTangentPlane(const texture<float, 2, cudaReadModeElementType> texref,
 
 //! Find the plane tangent to a DEM near a given particle at position grid+pos
 __device__ __forceinline__ plane_t
-DemTangentPlane(const texture<float, 2, cudaReadModeElementType> texref,
+DemTangentPlane(cudaTextureObject_t demTex,
 	const int3&	gridPos,
 	const float3&	pos)
 {
 	const float2 demPos = DemPos(gridPos, pos);
-	const float globalZ0 = DemInterpol(texref, demPos);
-	return DemTangentPlane(texref, gridPos, pos, demPos, globalZ0);
+	const float globalZ0 = DemInterpol(demTex, demPos);
+	return DemTangentPlane(demTex, gridPos, pos, demPos, globalZ0);
 }
 
 /** @} */

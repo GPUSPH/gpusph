@@ -4065,6 +4065,50 @@ forcesDevice(FP params)
 	} while (0);
 }
 
+/* DEM and PLANES interaction wrappers */
+template<typename FP, typename P, typename PO>
+__device__ __forceinline__
+enable_if_t<QUERY_ANY_FLAGS(FP::simflags, ENABLE_DEM), float>
+compute_dem_force(FP const& params, P const& pdata, PO & pout, float dynvisc)
+{
+	switch (FP::boundarytype) {
+	case LJ_BOUNDARY:
+		return DemLJForce(params.demTex, pdata.gridPos, as_float3(pdata.pos),
+			pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
+	default:
+		return 0.0f;
+	}
+}
+
+template<typename FP, typename P, typename PO>
+__device__ __forceinline__
+enable_if_t<!QUERY_ANY_FLAGS(FP::simflags, ENABLE_DEM), float>
+compute_dem_force(FP const& params, P const& pdata, PO & pout, float dynvisc)
+{
+	return 0.0f;
+}
+
+template<typename FP, typename P, typename PO>
+__device__ __forceinline__
+enable_if_t<QUERY_ANY_FLAGS(FP::simflags, ENABLE_PLANES)>
+compute_planes_force(FP const& params, P const& pdata, PO & pout, float& geom_coeff, float dynvisc)
+{
+	if (d_numplanes) {
+		geom_coeff = max(geom_coeff,
+			GeometryForce(pdata.gridPos, as_float3(pdata.pos),
+				pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
+	}
+}
+
+template<typename FP, typename P, typename PO>
+__device__ __forceinline__
+enable_if_t<!QUERY_ANY_FLAGS(FP::simflags, ENABLE_PLANES)>
+compute_planes_force(FP const& params, P const& pdata, PO & pout, float& geomcoeff, float dynvisc)
+{
+	return;
+}
+
+
 // TODO FIXME splitneibs merge: load partial internal energy and store final
 template<typename FP, /* finalize_forces_params<...> */
 	SPHFormulation sph_formulation = FP::sph_formulation,
@@ -4121,26 +4165,11 @@ finalizeforcesDevice(FP params)
 
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
-			float geom_coeff = 0.0f;
 
 			// Adding repulsive force computed from DEM
-			if (simflags & ENABLE_DEM) {
-				switch (boundarytype) {
-				case LJ_BOUNDARY:
-					geom_coeff = DemLJForce(demTex, pdata.gridPos, as_float3(pdata.pos),
-						pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
-					break;
-				default:
-					break;
-				}
-			}
-
+			float geom_coeff = compute_dem_force(params, pdata, pout, dynvisc);
 			// Adding repulsive force computed from geometric boundaries
-			if (simflags & ENABLE_PLANES && d_numplanes) {
-				geom_coeff = max(geom_coeff,
-					GeometryForce(pdata.gridPos, as_float3(pdata.pos),
-							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
-			}
+			compute_planes_force(params, pdata, pout, geom_coeff, dynvisc);
 
 			shared.store(params, pdata, pout);
 		}
@@ -4331,26 +4360,14 @@ finalizeRepackDevice(FP params)
 			// Post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
 			const float dynvisc = d_visccoeff[fluid_num(pdata.info)]*physical_density(pdata.vel.w,fluid_num(pdata.info));
+
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
-			float geom_coeff = 0.0f;
+
 			// Adding repulsive force computed from DEM
-			if (simflags & ENABLE_DEM) {
-				switch (boundarytype) {
-				case LJ_BOUNDARY:
-					geom_coeff = DemLJForce(demTex, pdata.gridPos, as_float3(pdata.pos),
-						pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
-					break;
-				default:
-					break;
-				}
-			}
+			float geom_coeff = compute_dem_force(params, pdata, pout, dynvisc);
 			// Adding repulsive force computed from geometric boundaries
-			if (simflags & ENABLE_PLANES && d_numplanes) {
-				geom_coeff = max(geom_coeff,
-					GeometryForce(pdata.gridPos, as_float3(pdata.pos),
-							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
-			}
+			compute_planes_force(params, pdata, pout, geom_coeff, dynvisc);
 
 			shared.store(params, pdata, pout);
 		}
