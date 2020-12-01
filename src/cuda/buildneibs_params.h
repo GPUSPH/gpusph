@@ -68,8 +68,8 @@ struct common_buildneibs_params :
 	pos_info_wrapper, ///< particle's positions and info (in)
 	cell_params
 {
-	const	hashKey		*particleHash;			///< particle's hashes (in)
-			neibdata	*neibsList;				///< neighbor's list (out)
+	const	hashKey		* __restrict__ particleHash;			///< particle's hashes (in)
+			neibdata	* __restrict__ neibsList;				///< neighbor's list (out)
 	const	uint		numParticles;			///< total number of particles
 	const	float		sqinfluenceradius;		///< squared influence radius
 
@@ -93,9 +93,9 @@ struct sa_boundary_buildneibs_params
 {
 	cudaTextureObject_t vertTexObj;			///< verticex texture object (in)
 	cudaTextureObject_t boundTexObj;		///< boundary elements texture object (in)
-			float2	*vertPos0;				///< relative position of vertex to segment, first vertex
-			float2	*vertPos1;				///< relative position of vertex to segment, second vertex
-			float2	*vertPos2;				///< relative position of vertex to segment, third vertex
+			float2	* __restrict__ vertPos0;				///< relative position of vertex to segment, first vertex
+			float2	* __restrict__ vertPos1;				///< relative position of vertex to segment, second vertex
+			float2	* __restrict__ vertPos2;				///< relative position of vertex to segment, third vertex
 	const	float	boundNlSqInflRad;		///< neighbor search radius for PT_FLUID <-> PT_BOUNDARY interaction
 
 	sa_boundary_buildneibs_params(
@@ -134,10 +134,11 @@ struct sa_boundary_buildneibs_params
  *  It then delegates the appropriate subset of arguments to the appropriate
  *  structures it derives from, in the correct order
  */
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype,
+	typename cond_sa_params = typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)>
 struct buildneibs_params :
 	common_buildneibs_params,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)
+	cond_sa_params
 {
 
 	buildneibs_params(
@@ -150,8 +151,7 @@ struct buildneibs_params :
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
-			bufread, bufwrite, _boundNlSqInflRad)
+		cond_sa_params(bufread, bufwrite, _boundNlSqInflRad)
 	{}
 };
 /** @} */
