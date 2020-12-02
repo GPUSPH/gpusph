@@ -85,6 +85,7 @@ class Object {
 
 		double				m_youngModulus;		///< Young's modulus for deformable objects
 		double				m_poissonRatio;		///< Poisson ratio for deformable objects
+		double				m_alphaDamping;		///< alpha damping for deformable objects
 		double				m_density;		///> object density
 
 #if USE_CHRONO == 1
@@ -132,6 +133,7 @@ class Object {
 		virtual void SetMass(const double mass);
 		virtual void SetYoungModulus(const double);
 		virtual void SetPoissonRatio(const double);
+		virtual void SetAlphaDamping(const double);
 		virtual void SetDensity(const double); // TODO FIXME verify consistency with setPartMassByDensity in new Problem API
 		double GetMass();
 		virtual double Volume(const double dx) const = 0;

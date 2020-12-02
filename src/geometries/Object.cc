@@ -128,6 +128,16 @@ Object::SetPoissonRatio(const double poissonRatio)
 	m_poissonRatio = poissonRatio;
 }
 
+/// Set the alpha damping of the object
+/*! Set the object alpha.
+ * \param alphaDamping: object alphaDamping 
+ */
+void
+Object::SetAlphaDamping(const double alphaDamping)
+{
+	m_alphaDamping = alphaDamping;
+}
+
 /// Set the density of the object
 /*! Set the object density.
  * \param density: object density 

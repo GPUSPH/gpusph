@@ -485,9 +485,7 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 			std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[NB]));
 
 		cable->SetSection(msection_cable);
-		// set alpha damping TODO set from problem?
-		cable->SetAlphaDamp(0.00293);
-		//cable->SetAlphaDamp(0.003397);
+		cable->SetAlphaDamp(m_alphaDamping);
 
 		// Add element to mesh
 		m_fea_mesh->AddElement(cable);

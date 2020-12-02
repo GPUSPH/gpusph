@@ -1089,9 +1089,7 @@ Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
 			// shell elements can be multilayer. We define a single uniform layer with thickness lel_z
 			shell->AddLayer(lel_z, 0, mmaterial);
 
-			// set alpha damping TODO set from problem?
-			//shell->SetAlphaDamp(0.003397);
-			shell->SetAlphaDamp(0.002533);
+			shell->SetAlphaDamp(m_alphaDamping);
 
 			shell->SetGravityOn(false); // gravity of the single element (sort of volume forces)
 

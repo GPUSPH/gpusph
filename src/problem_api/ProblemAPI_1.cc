@@ -1372,6 +1372,15 @@ void ProblemAPI<1>::setYoungModulus(const GeometryID gid, const double youngModu
 	m_geometries[gid]->ptr->SetYoungModulus(youngModulus);
 }
 
+void ProblemAPI<1>::setAlphaDamping(const GeometryID gid, const double alphaDamping)
+{
+	if (!validGeometry(gid)) return;
+
+	if (m_geometries[gid]->type != GT_DEFORMABLE_BODY)
+		printf("WARNING: setting Alpha damping of a non-deformable body\n");
+	m_geometries[gid]->ptr->SetAlphaDamping(alphaDamping);
+}
+
 void ProblemAPI<1>::setPoissonRatio(const GeometryID gid, const double poissonRatio)
 {
 	if (!validGeometry(gid)) return;

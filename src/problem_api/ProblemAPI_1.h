@@ -385,6 +385,9 @@ class ProblemAPI<1> : public ProblemCore
 		// set Poisson ratio (only meaningful for deformable objects)
 		void setPoissonRatio(const GeometryID gid, const double poissonRatio);
 
+		// set Alpha damping (only meaningful for deformable objects)
+		void setAlphaDamping(const GeometryID gid, const double alphaDamping);
+
 		// set density (only meaningful for deformable objects)
 		void setDensity(const GeometryID gid, const double density);
 
