@@ -78,10 +78,8 @@
  * SFINAE helpers
  */
 
-DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
 DECLARE_MEMBER_DETECTOR(volume, has_volume)
 DECLARE_MEMBER_DETECTOR(gammaCfl, has_gammaCfl)
-DECLARE_MEMBER_DETECTOR(eulerVel, has_eulerVel)
 DECLARE_MEMBER_DETECTOR(relEulerVel, has_relEulerVel)
 DECLARE_MEMBER_DETECTOR(relVel, has_relVel)
 
