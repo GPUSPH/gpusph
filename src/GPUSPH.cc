@@ -720,6 +720,8 @@ GPUSPH::dispatchCommand(CommandStruct cmd, flag_t flags)
 }
 
 bool GPUSPH::runSimulation() {
+	double initial_t;
+
 	bool all_ok = false;
 
 	if (!initialized) return all_ok;
@@ -742,6 +744,8 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
+	initial_t = gdata->t;
+
 	integrator->start();
 
 	const CommandStruct* cmd = nullptr;
@@ -761,10 +765,12 @@ bool GPUSPH::runSimulation() {
 
 	const char* run_desc = gdata->run_mode_desc();
 	const char* run_desc_title = gdata->run_mode_Desc();
+	const double elapsed_seconds = m_totalPerformanceCounter->getElapsedSeconds();
+	const double elapsed_simtime = gdata->t - initial_t;
 
 	// elapsed time, excluding the initialization
-	printf("Elapsed time of %s cycle: %.2gs\n", run_desc,
-		m_totalPerformanceCounter->getElapsedSeconds());
+	printf("Elapsed time of %s cycle: %.4gs [sim time: %.4g, ratio %.4g]\n", run_desc,
+		elapsed_seconds, elapsed_simtime, elapsed_seconds/elapsed_simtime);
 
 	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
 	// the condition (gdata->mpi_rank == 0)
