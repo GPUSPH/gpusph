@@ -30,8 +30,6 @@
 
 #include <type_traits> // for std::is_base_of
 
-#include "has_member.h"
-
 /// This file defines the heavy-duty forcesDevice kernel (at the end). The
 /// kernel itself is now quite streamlined, and it only contains sequences of
 /// calls to function templates and functors template that do the actual job
@@ -81,7 +79,6 @@
 DECLARE_MEMBER_DETECTOR(volume, has_volume)
 DECLARE_MEMBER_DETECTOR(gammaCfl, has_gammaCfl)
 DECLARE_MEMBER_DETECTOR(relEulerVel, has_relEulerVel)
-DECLARE_MEMBER_DETECTOR(relVel, has_relVel)
 
 /// Selector to check if we need a CFL condition for gamma
 template<typename FP>
@@ -213,41 +210,6 @@ constexpr bool needs_dummy_vel()
 /*
  * Auxiliary functions, needed to retrieve the kinematic viscosity coefficient
  */
-
-/// Fetch the particle (numerical) density
-/*! This is either pdata.vel.w or ndata.relVel.w, depending on whether we're
- * doing it for the central particle or the neighbor. The difference is handled
- * by the specializations, whose SFINAE condition is the present of a relVel member.
- */
-template<typename N>
-__device__ __forceinline__
-enable_if_t<has_relVel<N>(), float>
-particle_density(N const& ndata)
-{
-	/* has relVel, so it's neighbor data */
-	return ndata.relVel.w;
-}
-
-template<typename P>
-__device__ __forceinline__
-enable_if_t<not has_relVel<P>(), float>
-particle_density(P const& pdata)
-{
-	/* no relVel, assume it's central particle data */
-	return pdata.vel.w;
-}
-
-/// Fetch the physical particle density
-template<typename N>
-__device__ __forceinline__
-float
-physical_density(N const& ndata)
-{
-	return cuphys::physical_density(particle_density(ndata), fluid_num(ndata.info));
-}
-
-// Ensure that the template doesn't shadow the two-argument function from cuphys
-using cuphys::physical_density;
 
 /// Laminar viscosity coefficient for the given particle
 /*! This is either the global constant d_visccoeff (Newtonian case), or the per-particle
