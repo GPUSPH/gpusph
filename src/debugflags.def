@@ -109,6 +109,9 @@ unsigned validate_init_positions : 1;
 /*! Note that this is automatically enabled if there are out-of-bounds particles */
 unsigned check_cell_overflow : 1;
 
+/// Throw (instead of just warn) if there are issues at roll call
+unsigned validate_roll_call : 1;
+
 /// Measure (and show) command runtimes
 unsigned benchmark_command_runtimes : 1;
 

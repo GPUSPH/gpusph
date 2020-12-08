@@ -2109,6 +2109,8 @@ void GPUSPH::rollCallParticles()
 			// uint first_idx = gdata->s_hStartPerDevice[d];
 			// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[first_idx]), id(gdata->s_hInfo[last_idx])); */
 		}
+		if (gdata->debug.validate_roll_call)
+			throw std::runtime_error("roll call failed");
 	}
 }
 
