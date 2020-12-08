@@ -265,10 +265,10 @@ ProblemCore::InitializeChronoFEA()
 	auto solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
 	m_fea_system->SetSolver(solver);
 	solver->SetMaxIterations(10000);
-	solver->SetTolerance(1e-8);
+	solver->SetTolerance(1e-3);
 	solver->EnableDiagonalPreconditioner(true);
 
-	m_fea_system->SetSolverForceTolerance(1e-10);
+	m_fea_system->SetSolverForceTolerance(1e-3);
 
 	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::NEWMARK);
 
