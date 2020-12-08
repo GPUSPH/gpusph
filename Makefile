@@ -242,6 +242,7 @@ CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
+FASTDEM_SELECT_OPTFILE=$(OPTSDIR)/fastdem_select.opt
 MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
 HDF5_SELECT_OPTFILE=$(OPTSDIR)/hdf5_select.opt
 CHRONO_SELECT_OPTFILE=$(OPTSDIR)/chrono_select.opt
@@ -263,6 +264,7 @@ DEVCODE_OPTFILES = \
 	  $(DBG_SELECT_OPTFILE) \
 	  $(COMPUTE_SELECT_OPTFILE) \
 	  $(FASTMATH_SELECT_OPTFILE) \
+	  $(FASTDEM_SELECT_OPTFILE) \
 	  $(LINEARIZATION_SELECT_OPTFILE) \
 
 # Actual optfiles, that define specific options
@@ -359,6 +361,19 @@ ifdef fastmath
 	endif
 else
 	FASTMATH ?= 0
+endif
+
+# option: fastdem - Enable or disable fastdem. Default: 0 (disabled)
+ifdef fastdem
+	# does it differ from last?
+	ifneq ($(FASTDEM),$(fastdem))
+		TMP:=$(shell test -e $(FASTDEM_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/FASTDEM $(FASTDEM)/FASTDEM $(fastdem)/' $(FASTDEM_SELECT_OPTFILE) )
+		# user choice
+		FASTDEM=$(fastdem)
+	endif
+else
+	FASTDEM ?= 0
 endif
 
 # option: mpi - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
@@ -930,6 +945,10 @@ $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if fastmath is enabled for GPU code. */" \
 		> $@
 	@echo "#define FASTMATH $(FASTMATH)" >> $@
+$(FASTDEM_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if fastmath is enabled for GPU code. */" \
+		> $@
+	@echo "#define FASTDEM $(FASTDEM)" >> $@
 $(MPI_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if we are using MPI (for multi-node) or not. */" \
 		> $@
@@ -1146,6 +1165,7 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	@echo "LINKER:          $(LINKER)"									>> $@
 	@echo "Compute cap.:    $(COMPUTE)"									>> $@
 	@echo "Fastmath:        $(FASTMATH)"								>> $@
+	@echo "Fast DEM:        $(FASTDEM)"								>> $@
 	@echo "USE_MPI:         $(USE_MPI)"									>> $@
 	@[ 1 = $(USE_MPI) ] && echo "    MPI version: $(MPI_VERSION)"					>> $@ || true
 	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
@@ -1208,6 +1228,8 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of FASTMATH from OPTFILES
 	$(CMDECHO)grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of FASTDEM from OPTFILES
+	$(CMDECHO)grep "\#define FASTDEM" $(FASTDEM_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_MPI from OPTFILES
 	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_HDF5 from OPTFILES

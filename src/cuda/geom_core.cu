@@ -31,6 +31,8 @@
 #ifndef GEOM_CORE_CU
 #define GEOM_CORE_CU
 
+#include "fastdem_select.opt"
+
 #include "planes.h"
 
 #include "neibs_iteration.cuh" // for d_cellSize
@@ -168,17 +170,28 @@ DemTangentPlane(cudaTextureObject_t demTex,
 	const float3&	pos,
 	const float2& demPos, const float globalZ0)
 {
-	// TODO this method to generate the interpolating plane is suboptimal, as it
-	// breaks any possible symmetry in the original DEM. A better (but more expensive)
-	// approach would be to sample four points, one on each side of our point (in both
-	// directions)
-	const float globalZ1 = DemInterpol(demTex, demPos, 1, 0);
-	const float globalZ2 = DemInterpol(demTex, demPos, 0, 1);
+	// TODO find way to compute the normal without passing through the global pos
+	const float globalZpx = DemInterpol(demTex, demPos,  1,  0);
+	const float globalZpy = DemInterpol(demTex, demPos,  0,  1);
+#if FASTDEM
+	// 'Classic', 'fast' computation: find the plane through three points,
+	// where thre three points are z0 (projection) and two other points
+	// obtained by sampling the DEM at distance dx along both the x and y axes.
+	// Note that this disregards any DEM symmetry information.
 
-	// TODO find a more accurate way to compute the normal
-	const float a = d_demdy*(globalZ0 - globalZ1);
-	const float b = d_demdx*(globalZ0 - globalZ2);
+	const float a = d_demdy*(globalZ0 - globalZpx);
+	const float b = d_demdx*(globalZ0 - globalZpy);
 	const float c = d_demdxdy;
+#else
+	const float globalZmx = DemInterpol(demTex, demPos, -1,  0);
+	const float globalZmy = DemInterpol(demTex, demPos,  0, -1);
+
+	// Compared to the host version, we only simplify dividing by 2, since
+	// here we use the actual DEM dx and y, which may be (slightly) different
+	const float a = d_demdy*(globalZmx - globalZpx);
+	const float b = d_demdx*(globalZmy - globalZpy);
+	const float c = 2*d_demdxdy;
+#endif
 	const float l = sqrt(a*a+b*b+c*c);
 
 	// our plane point is the one at globalZ0: this has the same (x, y) grid and local

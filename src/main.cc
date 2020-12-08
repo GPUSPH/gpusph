@@ -47,6 +47,7 @@
 #include "compute_select.opt"
 #include "dbg_select.opt"
 #include "fastmath_select.opt"
+#include "fastdem_select.opt"
 #include "gpusph_version.opt"
 #include "hdf5_select.opt"
 #include "mpi_select.opt"
@@ -72,6 +73,7 @@ void show_version()
 		FASTMATH ? "with" : "without",
 		COMPUTE/10, COMPUTE%10,
 		PREFER_L1 ? "L1" : "texture");
+	printf("DEM    : %s\n", FASTDEM ? "fast" : "symmetrized");
 	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
 	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
 	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");

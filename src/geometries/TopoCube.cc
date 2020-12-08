@@ -38,6 +38,8 @@
 #include "Vector.h"
 #include "Rect.h"
 
+#include "fastdem_select.opt"
+
 using namespace std;
 
 TopoCube::TopoCube(void)
@@ -131,6 +133,12 @@ void TopoCube::SetCubeDem(const float *dem,
 		double sizex, double sizey, double H,
 		int ncols, int nrows, double voff, bool restrict)
 {
+	// On first use of SetCubeDem, print if we're using the fast or accurate DEM interpolation
+	static bool logged_fastdem_option = false;
+	if (!logged_fastdem_option) {
+		printf("DEM will use %s interpolation\n", (FASTDEM ? "fast" : "symmetrized"));
+	}
+
 	// Due to our usage, ncols and nrows must be at least 2
 	if (ncols < 2)
 		throw std::invalid_argument("DEM must have at least two datapoints in the horiziontal direction");
@@ -601,18 +609,61 @@ TopoCube::DemDist(const double x, const double y, const double z, double dx) con
 double
 TopoCube::DemDistInternal(const double x, const double y, const double z, double dx) const
 {
+	// We compute the distance of the particle to the DEM as the distance
+	// to the tangent plane passing through the projection of the particle
+	// on the DEM.
+
 	if (dx > 0.5*min(m_nsres, m_ewres))
 		dx = 0.5*min(m_nsres, m_ewres);
+
+	// These three points are used in both the FAST and symmetrized version
+	// of the DEM computation
 	const double z0 = DemInterpolInternal(x, y);
-	const double z1 = DemInterpolInternal(x + dx, y);
-	const double z2 = DemInterpolInternal(x, y + dx);
+	const double zpx = DemInterpolInternal(x + dx, y);
+	const double zpy = DemInterpolInternal(x, y + dx);
+
+#if FASTDEM
+	// 'Classic', 'fast' computation: find the plane through three points,
+	// where the three points are z0 (projection) and two other points
+	// obtained by sampling the DEM at distance dx along both the x and y axes.
+	// Note that this disregards any DEM symmetry information.
+
 	// A(x, y, z0) B(x + h, y, z1) C(x, y + h, z2)
 	// AB(h, 0, z1 - z0) AC(0, h, z2 - z0)
 	// AB^AC = ( -h*(z1 - z0), -h*(z2 - z0), h*h)
-	const double a = dx*(z0 - z1);
-	const double b = dx*(z0 - z2);
-	const double c = dx*dx;
-	const double d = - a*x - b*y - c*z0;
+#if 0
+	const double a = dy*(z0 - zpx);
+	const double b = dx*(z0 - zpy);
+	const double c = dy*dx;
+#else
+	// dx = dy allows us to simplify to:
+	const double a = (z0 - zpx);
+	const double b = (z0 - zpy);
+	const double c = dx;
+#endif
+#else
+	// We compute the slope of the plane in each direction
+	// by taking the difference between two symmetrically
+	// placed points
+	const double zmx = DemInterpolInternal(x - dx, y);
+	const double zmy = DemInterpolInternal(x, y - dx);
+
+	// The slope in the zx plane is A/∆ = (zmx - zpx)/(2*dx),
+	// the slope in the zy plane is B/∆ = (zmy - zpy)/(2*dy),
+	// the plane A*x + B*y + z + D must pass through z0,
+	// so D = -(A*x + B*y + z0).
+#if 0
+	const double a = 2*dy*(zmx - zpx);
+	const double b = 2*dx*(zmy - zpy);
+	const double c = 4*dx*dy;
+#else
+	// dx = dy allows us to simplify to:
+	const double a = (zmx - zpx);
+	const double b = (zmy - zpy);
+	const double c = 2*dx;
+#endif
+#endif
+	const double d = -(a*x + b*y + c*z0);
 	const double l = sqrt(a*a + b*b + c*c);
 
 	// Getting distance along the normal
