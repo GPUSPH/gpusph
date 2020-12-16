@@ -206,7 +206,7 @@ ProblemCore::InitializeChronoFEA()
 		*/
 	m_fea_system->Set_G_acc(::chrono::ChVector<>(0.0, 0.0, -9.81)); //TODO choose if initialize here or add the gravity to the forces
 
-#define SOLVER_TYPE 4
+#define SOLVER_TYPE 7
 
 	// Set FEA solver (the way of computing FEM forces, time bottleneck for FEA)
 #if SOLVER_TYPE == 0	//  choose between MINRES or MKL
@@ -278,6 +278,66 @@ ProblemCore::InitializeChronoFEA()
 	}
 
 #endif
+
+#if SOLVER_TYPE == 5	// Recommended by Mike Taylor from Project Chrono 
+	auto mkl_solver = chrono_types::make_shared<::chrono::ChSolverMKL>();
+	mkl_solver->UseSparsityPatternLearner(false);
+	mkl_solver->LockSparsityPattern(false);
+	mkl_solver->SetVerbose(false);
+	m_fea_system->SetSolver(mkl_solver);
+
+	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
+	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper());
+	mystepper->SetMaxiters(100);
+	mystepper->SetAbsTolerances(1e-5);
+	mystepper->SetMode(::chrono::ChTimestepperHHT::ACCELERATION);
+	mystepper->SetScaling(true);
+
+	m_fea_system->Update();
+#endif
+
+#if SOLVER_TYPE == 6	// Recommended by Mike Taylor from Project Chrono 
+	auto mkl_solver = chrono_types::make_shared<::chrono::ChSolverSparseLU>();
+	mkl_solver->UseSparsityPatternLearner(false);
+	mkl_solver->LockSparsityPattern(false);
+	mkl_solver->SetVerbose(false);
+	m_fea_system->SetSolver(mkl_solver);
+
+	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
+	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper());
+	mystepper->SetMaxiters(100);
+	mystepper->SetAbsTolerances(1e-5);
+	mystepper->SetMode(::chrono::ChTimestepperHHT::ACCELERATION);
+	mystepper->SetScaling(true);
+
+	m_fea_system->Update();
+#endif
+
+#if SOLVER_TYPE == 7
+	/*
+	auto minres_solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
+	m_fea_system->SetSolver(minres_solver);
+
+	minres_solver->EnableDiagonalPreconditioner(true);
+	minres_solver->SetMaxIterations(100);
+	minres_solver->SetTolerance(1e-5);
+	minres_solver->SetVerbose(false);
+	*/
+
+	auto mkl_solver = chrono_types::make_shared<::chrono::ChSolverSparseQR>();
+	mkl_solver->UseSparsityPatternLearner(true);
+	mkl_solver->LockSparsityPattern(true);
+	mkl_solver->SetVerbose(false);
+	m_fea_system->SetSolver(mkl_solver);
+	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT); // HHT is an implicit integration scheme.
+/*	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper());
+	mystepper->SetMaxiters(100);
+	mystepper->SetAbsTolerances(1e-5);
+	//mystepper->SetMode(::chrono::ChTimestepperHHT::POSITION);
+	mystepper->SetScaling(true);
+	*/
+#endif
+
 #else
 	throw runtime_error ("ProblemCore::InitializeChronoFEA Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
