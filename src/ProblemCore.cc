@@ -1766,6 +1766,12 @@ ProblemCore::create_fea_constr_file(void)
 			"\tT_" << n  << "_y[N*m]"
 			<<
 			"\tT_" << n << "_z[N*m]"
+			<<
+			"\tFapp_" << n  << "_x[N]"
+			<<
+			"\tFapp_" << n  << "_y[N]"
+			<<
+			"\tFapp_" << n  << "_z[N]"
 			;
 	}
 	m_fea_constr_file << endl;
