@@ -941,6 +941,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 				node_f += gdata->s_FeaExtForce;
 			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
 			total_force += node_f;
+		//	cout << node_f.x << endl;
 		}
 
 		n++;
@@ -1048,14 +1049,14 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 	// do the actual FEA step
 	if (dofea) {
 
-		printf("fea");
+	//	printf("fea");
 
 		// - we perform FEA during the predictor, where dt is half the complete time-step, then we use 2*dt
 		// - we perform FEA every fea_every SPH steps, then (assuming dt constant over this time) we perform
 		//    FEA using a factor fea_every on the time-step
-		m_fea_system->DoStepDynamics(2*dt*fea_every);
+//		m_fea_system->DoStepDynamics(2*dt*fea_every);
 
-		printf("-done\n");
+	//	printf("-done\n");
 
 
 		shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
