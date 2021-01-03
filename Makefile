@@ -702,7 +702,7 @@ ifneq ($(USE_CHRONO),0)
 
 	LIBPATH += -L$(CHRONO_LIB_PATH)
 	LIBS += -lChronoEngine
-	LIBS += -lChronoEngine_mkl
+	#LIBS += -lChronoEngine_mkl
 	LDFLAGS += --linker-options -rpath,$(CHRONO_LIB_PATH)
 endif
 LDFLAGS += $(LIBPATH)

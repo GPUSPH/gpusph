@@ -58,7 +58,8 @@
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/solver/ChSolver.h"
 #include "chrono/solver/ChIterativeSolverLS.h"
-#include "chrono_mkl/ChSolverMKL.h"
+#include "chrono/solver/ChDirectSolverLS.h"
+//#include "chrono_mkl/ChSolverMKL.h"
 #include "chrono/fea/ChNodeFEAxyzD.h"
 #include "chrono/fea/ChLinkPointFrame.h"
 #include "chrono/fea/ChLinkDirFrame.h"
@@ -924,7 +925,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		// we set the forces during the predictor
 		if (step == 1) {
 
-			float3 new_f  = as_float3(forces[i])/1000.0f;
+			float3 new_f  = as_float3(forces[i])/100.0f;
 		//	float3 node_f  = as_float3(forces[i]);
 
 			float3 node_f = gdata->forces_averager[i][1000];
@@ -955,7 +956,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 	gdata->total_fea_force = total_force;
 
 	av_idx ++;
-	if (av_idx == 1000) av_idx = 0;
+	if (av_idx == 100) av_idx = 0;
 	gdata->averager_index = av_idx;
 
 #endif
