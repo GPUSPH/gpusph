@@ -3626,19 +3626,6 @@ enable_if_t<not FP::has_keps>
 write_turbvisc(FP const& params, P const& pdata, OP const& pout)
 { /* do nothing */ }
 
-/// Write out FEA forces
-template<typename FP, typename P, typename OP>
-__device__ __forceinline__
-enable_if_t<(FP::simflags & ENABLE_FEA)>
-write_fea_force(FP const& params, P const& pdata, OP const& pout)
-{ params.feaforces[pdata.feaindex] = pout.force; }
-
-template<typename FP, typename P, typename OP>
-__device__ __forceinline__
-enable_if_t<!(FP::simflags & ENABLE_FEA)>
-write_fea_force(FP const& params, P const& pdata, OP const& pout)
-{ /* do nothing */ }
-
 /*
  * Global variables
  */
