@@ -942,7 +942,8 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 				node_f += gdata->s_FeaExtForce;
 			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
 			total_force += node_f;
-		//	cout << node_f.x << endl;
+
+			//cout << node_f.x << endl;
 		}
 
 		n++;
@@ -955,9 +956,12 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	gdata->total_fea_force = total_force;
 
-	av_idx ++;
-	if (av_idx == 1000) av_idx = 0;
-	gdata->averager_index = av_idx;
+
+	if (step == 1) {
+		av_idx ++;
+		if (av_idx == 1000) av_idx = 0;
+		gdata->averager_index = av_idx;
+	}
 
 #endif
 }
