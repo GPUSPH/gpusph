@@ -334,7 +334,7 @@ int4 Cylinder::getOwningNodes(const double4 abs_coords)
 	int NA = node_index;
 	int NC = NA;
 
-	int NE = NA + 0;
+	int NE = NA + 1;
 	int NG = NE;
 
 	// return the offset of the nodes with respect to the first node of the geometry.

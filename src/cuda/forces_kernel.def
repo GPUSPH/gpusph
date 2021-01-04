@@ -3418,6 +3418,7 @@ assign_fea_force(FP const& params, PD const& pdata, OP &pout)
 	/*shape functions */
 	//Note: each of the following values should be divided by 8. We collect this division
 	// and we divide at the end only once
+	/*
 	float N[8] = {
 		cm*em*zm,
 		cp*em*zm,
@@ -3427,7 +3428,29 @@ assign_fea_force(FP const& params, PD const& pdata, OP &pout)
 		cp*em*zp,
 		cm*ep*zp,
 		cp*ep*zp};
+		*/
 
+	float N[2][8] = {
+		//shell
+		{cm*em,
+		cp*em,
+		cm*ep,
+		cp*ep,
+		cm*em,
+		cp*em,
+		cm*ep,
+		cp*ep},
+
+		//cable
+		{zm,
+		zm,
+		zm,
+		zm,
+		zp,
+		zp,
+		zp,
+		zp}
+	};
 	// simplified set of nodes
 	const uint4 rn = pdata.fea_ref_nodes;
 
@@ -3448,20 +3471,22 @@ assign_fea_force(FP const& params, PD const& pdata, OP &pout)
 
 	// extended set of nodes
 	const int el_type_id = pdata.fea_nat_coords.w;
-	const uint nodes[8] = {rn.x, rn.y,
-		rn.z, rn.w,
-		rn.x + el_type_id, rn.y + el_type_id,
-		rn.z + el_type_id, rn.w + el_type_id};
+
+	const uint nodes[2][8] = {
+		{rn.x, rn.y, rn.z, rn.w, rn.x, rn.y, rn.z, rn.w},
+		{rn.x, rn.y, rn.x, rn.y, rn.z, rn.w, rn.z, rn.w}
+	};
 
 	// the FG_DEFORMABLE particle is assigned to an element and distributes the force that the
 	// fluid is exerting on it among all the nodes of the element, in proportions given by the 
 	// shaping function (and in turn, by the position of the particle in the element)
 	// Here we compute the force as SPH acceleraion times particle mass, and then we atomically
 	// the contribution to the respective nodes
+
 	for (int i = 0; i < 8; i++) {
-		atomicAdd(&(params.feaforces[nodes[i]].x), pout.force.x*N[i]*pdata.pos.w/8.0f); // division by 8 comes from application of shaping function
-		atomicAdd(&(params.feaforces[nodes[i]].y), pout.force.y*N[i]*pdata.pos.w/8.0f);
-		atomicAdd(&(params.feaforces[nodes[i]].z), pout.force.z*N[i]*pdata.pos.w/8.0f);
+		atomicAdd(&(params.feaforces[nodes[el_type_id][i]].x), pout.force.x*N[el_type_id][i]*pdata.pos.w/8.0f); // division by 8 comes from application of shaping function
+		atomicAdd(&(params.feaforces[nodes[el_type_id][i]].y), pout.force.y*N[el_type_id][i]*pdata.pos.w/8.0f);
+		atomicAdd(&(params.feaforces[nodes[el_type_id][i]].z), pout.force.z*N[el_type_id][i]*pdata.pos.w/8.0f);
 	}
 }
 
