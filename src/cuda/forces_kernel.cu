@@ -429,7 +429,7 @@ cspmCoeffDevice(
 	if (!close_to_boundary){
 
 #elif THRESHOLD == 2
-	if (D > 0.4 && !close_to_boundary){
+	if (D > 0.6 && !close_to_boundary){
 
 #elif THRESHOLD == 3
 	if (num_neibs > 42 && !close_to_boundary){
