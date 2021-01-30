@@ -865,21 +865,20 @@ void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
 	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes(); //FIXME the number should be evaluated once, and stored (not just in worker)
 	const float dt = cmd.dt(gdata);
 	const int step = cmd.step.number;
+
 	const double t = gdata->t;
-
 	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
-
 	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
 
-	/* Initializing FEA step */
-	if (dofea){
+	/* Initializing FEA step: this is done during the predictor (step == 1) */
+	if (dofea && (step == 1)){
 		if(MULTI_GPU)
 			problem->reduce_fea_forces(gdata->s_hBuffers, numFeaNodes);
 		problem->fea_init_step(gdata->s_hBuffers, numFeaNodes, t, step);
 	}
 
 	/* Performing FEA analysis */
-	// the FEA is suspended inside. Don't stop this when !dostep because diplacements need to be updated anyway FIXME do this better
+	// the FEA is suspended inside. Don't stop this when !dofea because diplacements need to be updated anyway FIXME do this better
 	fprintf(m_info_stream, "starting FEA step...\n");
 	problem->fea_do_step(gdata->s_hBuffers, numFeaNodes, dt, dofea && (step == 1), fea_every);
 	fprintf(m_info_stream, "FEA step completed\n");

@@ -765,7 +765,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 {
 #if USE_CHRONO == 1
 
-	/*The BUFFER_FEA_EXCH is used to exchange data between the FEM
+	/* The BUFFER_FEA_EXCH is used to exchange data between the FEM
 	 * and SPH models. It transfers FSI forces to the FEM model and
 	 * nodes velocities to the SPH model.*/
 	const float4 *forces = buffers.getConstData<BUFFER_FEA_EXCH>(); // contains forces from FSI now
@@ -773,51 +773,70 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
 
-	/*In Project Chrono, nodes are locally indexed within each mesh
+	/* In Project Chrono, nodes are locally indexed within each mesh
 	 * (we associate a mesh to each deformable object)*/
 	uint n = 0; // node index within an individual mesh
 	uint o = 0; // index of meshes (associated to defomable objects) starting from the one with index 0
 
-	/*We perform a temporal averaging of the forces, therefore we store
-	 * the previous forces in a matrix.*/
+	/* We perform a temporal averaging of the forces in order to reduce noise
+	 * therefore we store the previous forces in a matrix.*/
 	uint av_idx = gdata->averager_index; // Index of the current sample in the averager matrix
 
-	/*Sum up all the forces applied to the FEM system for printing purpose */
+	/* Sum up all the forces applied to the FEM system for printing purpose */
 	float3 total_force = make_float3(0.0, 0.0, 0.0);
+
 
 	for(uint i = 0; i < numFeaParts; ++i) {
 
 		// get number of nodes in the current mesh
 		uint nnodes = m_fea_bodies[o]->object->GetNumFeaNodes();
 		// get nth node within the current mesh
-		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD> (m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
-
-		// we set the forces during the predictor
-		if (step == 1) {
-
-			float3 new_f  = as_float3(forces[i])/1000.0f;
-		//	float3 node_f  = as_float3(forces[i]);
-
-			float3 node_f = gdata->forces_averager[i][1000];
-			node_f += (new_f - gdata->forces_averager[i][av_idx]);
-
-			gdata->forces_averager[i][av_idx] = new_f;
-
-			gdata->forces_averager[i][1000] = node_f;
+		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>
+			(m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
 
 
-			// Apply external forces if any
-			// s_hFeaExtForce[i] is 1 if node i has an external force applied
-			if (simparams()->fcallback && gdata->s_hFeaExtForce[i])
-				node_f += gdata->s_FeaExtForce;
-			node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
-			total_force += node_f;
+		/* -- Time averaging -- */
 
-			//cout << node_f.x << endl;
-		}
+		// Divide the new force by the number of samples in the
+		// averaging time window
+		float3 new_f  = as_float3(forces[i])/1000.0f;
 
+		// Retrieve the averaged force at previous instant
+		// (stored at the end of the row)
+		float3 node_f = gdata->forces_averager[i][1000];
+
+		// Add new force and subtract oldest force to update the
+		// average
+		node_f += (new_f - gdata->forces_averager[i][av_idx]);
+
+		// Replace the oldest force in matrix with the newest one
+		gdata->forces_averager[i][av_idx] = new_f;
+
+		// Store the new averaged value
+		gdata->forces_averager[i][1000] = node_f;
+
+		/* -- End of averaging -- */
+
+
+		// Add external forces (from ext_force_callback), if any
+		// (s_hFeaExtForce[i] is true if node i has an external force applied)
+		//
+		if (simparams()->fcallback && gdata->s_hFeaExtForce[i])
+			node_f += gdata->s_FeaExtForce;
+
+		// Apply the force to the FEM node
+		node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
+
+		// Add the force for the current node to the total forces computation
+		total_force += node_f;
+
+
+		// tracking the nodes in the current mesh
 		n++;
 
+		// reset mesh nodes tacking when we reach the nuber of nodes in the mesh
+		// and pass to next mesh
+		// TODO FIXME check how this complies with node recycling
 		if (n == nnodes) {
 			n = 0;
 			o ++;
@@ -826,12 +845,10 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	gdata->total_fea_force = total_force;
 
-
-	if (step == 1) {
-		av_idx ++;
-		if (av_idx == 1000) av_idx = 0;
-		gdata->averager_index = av_idx;
-	}
+	// Manage averaging index
+	av_idx ++;
+	if (av_idx == 1000) av_idx = 0;
+	gdata->averager_index = av_idx;
 
 #endif
 }
