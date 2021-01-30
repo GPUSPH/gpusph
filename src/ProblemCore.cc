@@ -59,7 +59,6 @@
 #include "chrono/solver/ChSolver.h"
 #include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono/solver/ChDirectSolverLS.h"
-//#include "chrono_mkl/ChSolverMKL.h"
 #include "chrono/fea/ChNodeFEAxyzD.h"
 #include "chrono/fea/ChLinkPointFrame.h"
 #include "chrono/fea/ChLinkDirFrame.h"
@@ -277,7 +276,6 @@ ProblemCore::InitializeChronoFEA()
 		cout << " Setting damping to Project Chrono timestepper" << endl;
 		timestepper->SetAlpha(-0.2);
 	}
-
 #endif
 
 #if SOLVER_TYPE == 5	// Recommended by Mike Taylor from Project Chrono 
@@ -695,32 +693,39 @@ ProblemCore::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, fl
 		(make_double3(_gridPos) + 0.5)*m_cellsize);
 }
 
+/*This is the writer for the FEA nodes. We don't use a regular GPUSPH writer
+ * since running a writer causes the dumping of the data from device. FEA nodes
+ * are already stored on host, so no dumping needed.*/
 void
 ProblemCore::write_fea_nodes(const double t)
 {
+	// Printing position of nodes in a GT_FEA_WRITE
+	m_fea_nodes_file << t;
 	for (int i = 0; i < simparams()->numNodesToWrite; ++i) {
 
 		shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+
+		/*We read from the array of nodes to be wirtten. This array
+		 * is set at the beginning of the simulation in ProblemAPI_1
+		 * when defining GT_FEA_WRITE geometries*/
 		node = gdata->s_hWriteFeaNodesPointers[i];
 
-		// print nodes position
-		m_fea_nodes_file << t << '\t' <<
-		node->GetPos().x() << '\t'
-#if 1 // write only x component
-		<<
+		// print nodes position to file
+		m_fea_nodes_file << '\t' <<
+		node->GetPos().x() << '\t' <<
 		node->GetPos().y() << '\t' <<
-		node->GetPos().z()
-#endif
-		<< endl;
+		node->GetPos().z();
 	}
+	m_fea_nodes_file << endl;
 
+	// Printing reactions on constraints
+	m_fea_constr_file << t;
 	for (int i = 0; i < simparams()->numConstraintsToWrite; ++i) {
 
 		::chrono::ChVector<> force = gdata->s_hWriteFeaPointConstrPointers[i]->Get_react_force();
 		::chrono::ChVector<> torque = gdata->s_hWriteFeaDirConstrPointers[i]->Get_react_torque();
 
-		// print nodes position
-		m_fea_constr_file << t << '\t' <<
+		m_fea_constr_file << '\t' <<
 		force.x() << '\t' <<
 		force.y() << '\t' <<
 		force.z() << '\t' <<
@@ -729,9 +734,9 @@ ProblemCore::write_fea_nodes(const double t)
 		torque.z() << '\t' <<
 		gdata->total_fea_force.x << '\t' <<
 		gdata->total_fea_force.y << '\t' <<
-		gdata->total_fea_force.z
-		<< endl;
+		gdata->total_fea_force.z;
 	}
+	m_fea_constr_file << endl;
 }
 
 #if 0 //second order
