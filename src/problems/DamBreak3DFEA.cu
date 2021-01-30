@@ -72,12 +72,10 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 		addFilter(MLS_FILTER, mlsIters);
 
 	// Explicitly set number of layers. Also, prevent having undefined number of layers before the constructor ends.
-	setDynamicBoundariesLayers(4);
-
-	resize_neiblist(128);
+	setDynamicBoundariesLayers(3);
 
 	// *** Initialization of minimal physical parameters
-	set_deltap(0.02f);
+	set_deltap(1.0/128.0);
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	const float g = length(physparams()->gravity);
@@ -104,7 +102,7 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	// *** Geometrical parameters, starting from the size of the domain
 	const double dimX = 1.6;
 	const double dimY = 0.67;
-	const double dimZ = 0.6;
+	const double dimZ = 1.0;
 	const double obstacle_side = 0.12;
 	const double obstacle_xpos = 0.9;
 	const double water_length = 0.4;
@@ -151,16 +149,32 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	//addTetFile(GT_DEFORMABLE_BODY, FT_BORDER, Point(0,0,0), "dambreak.1.node", "dambreak.1.ele", 0.021);
 	// set positioning policy to PP_BOTTOM_CENTER: given point will be the center of the base
 
-	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
+//	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
 
 	// Define pillers
-	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, Point(0.5, 0.3, BOUNDARY_DISTANCE), 0.1, 0.08, 0.5 - BOUNDARY_DISTANCE, 2);
+	const double pil_h = 0.8;
+	setPositioning(PP_BOTTOM_CENTER);
+
+	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, Point(0.5, 0.3, 2.0*BOUNDARY_DISTANCE), 0.04, 0.04 - 0.002, pil_h, 2);
 
 	setYoungModulus(piller0, 30e7);
 	setPoissonRatio(piller0, 0.001);
 	setDensity(piller0, 1000);
 
 	setEraseOperation(piller0, ET_ERASE_FLUID);
+
+	setPositioning(PP_CENTER);
+	// node writer
+	const double box_side = 0.1;
+	GeometryID writer_box = addBox(GT_FEA_WRITE, FT_NOFILL, Point(0.5, 0.3, pil_h + BOUNDARY_DISTANCE), box_side, box_side, box_side);
+
+	const double dynamometer_side = 0.1;
+	GeometryID dynamometer = addBox(GT_FEA_RIGID_JOINT, FT_NOFILL, Point(0.5, 0.3, 2.0*BOUNDARY_DISTANCE), dynamometer_side, dynamometer_side, dynamometer_side);
+	setEraseOperation(dynamometer, ET_ERASE_NOTHING);
+	setUnfillRadius(dynamometer, 0.5*m_deltap);
+
+	simparams()->fea_write_every = 0.01f;
+
 
 	// add one or more obstacles
 	const double Y_DISTANCE = dimY / (NUM_OBSTACLES + 1);
