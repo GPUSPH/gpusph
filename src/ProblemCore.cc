@@ -764,16 +764,25 @@ void
 ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const double t,  const int step)
 {
 #if USE_CHRONO == 1
-	const float4 *forces = buffers.getConstData<BUFFER_FEA_EXCH>(); // contains forces from (FSI)
+
+	/*The BUFFER_FEA_EXCH is used to exchange data between the FEM
+	 * and SPH models. It transfers FSI forces to the FEM model and
+	 * nodes velocities to the SPH model.*/
+	const float4 *forces = buffers.getConstData<BUFFER_FEA_EXCH>(); // contains forces from FSI now
 	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
 
 	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
 
-	/*In Project Chrono, nodes are locally indexed within each mesh (each deformable object)*/
-	uint n = 0; //node in the object
-	uint o = 0; // we go through all the meshes (defomable objects) starting from the one with index 0
+	/*In Project Chrono, nodes are locally indexed within each mesh
+	 * (we associate a mesh to each deformable object)*/
+	uint n = 0; // node index within an individual mesh
+	uint o = 0; // index of meshes (associated to defomable objects) starting from the one with index 0
 
-	uint av_idx = gdata->averager_index;
+	/*We perform a temporal averaging of the forces, therefore we store
+	 * the previous forces in a matrix.*/
+	uint av_idx = gdata->averager_index; // Index of the current sample in the averager matrix
+
+	/*Sum up all the forces applied to the FEM system for printing purpose */
 	float3 total_force = make_float3(0.0, 0.0, 0.0);
 
 	for(uint i = 0; i < numFeaParts; ++i) {
