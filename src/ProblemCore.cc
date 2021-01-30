@@ -860,19 +860,16 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 #if USE_CHRONO == 1
 
 	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
-	float4 *fea_vel = buffers.getData<BUFFER_FEA_EXCH>(); // here we put the data from FEA (node velocities) that will be used to move the associated particles
+	// Now we are going to put into BUFFER_FEA_EXCH the data from FEA
+	// (node velocities) that will be used to move the associated particles
+	float4 *fea_vel = buffers.getData<BUFFER_FEA_EXCH>();
 
-	// do the actual FEA step
 	if (dofea) {
-
-	//	printf("fea");
-
-		// - we perform FEA during the predictor, where dt is half the complete time-step, then we use 2*dt
-		// - we perform FEA every fea_every SPH steps, then (assuming dt constant over this time) we perform
-		//    FEA using a factor fea_every on the time-step
+		// - we perform FEA during the predictor, where dt is half the complete
+		//   time-step, then we use 2*dt
+		// - we perform FEA every fea_every SPH steps, then (assuming dt constant
+		//   over this time) we perform FEA using a factor fea_every on the time-step
 		m_fea_system->DoStepDynamics(2*dt*fea_every);
-
-	//	printf("-done\n");
 
 
 		shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
@@ -889,38 +886,39 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 			node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>
 				(m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
 
-			// get updated node velocity 
+			// get updated node velocity from Chrono
 			node_vel.x = node->GetPos_dt().x();
 			node_vel.y = node->GetPos_dt().y();
 			node_vel.z = node->GetPos_dt().z();
 
-			// to be sent to the SPH system
+			// to be sent to the SPH particle system
 			fea_vel[i] = node_vel;
 
 			// store the most recent fea vel to be used dusing the fea_every SPH steps
-			// TODO we could send it once and reuse in the gpu, but we would apply a conditional in gpu side
-			// and we should keep track of the current iteration. SEE WHAT IS CONVENIENT
+			// TODO we could send it once and reuse in the gpu, but we would apply a 
+			// conditional in gpu side and we should keep track of the current iteration.
+			// SEE WHAT IS CONVENIENT
 			m_old_fea_vel[i] = node_vel;
 
+			// tracking the nodes in the current mesh
 			n++;
 
+			// reset mesh nodes tacking when we reach the nuber of nodes in the mesh
+			// and pass to next mesh
+			// TODO FIXME check how this complies with node recycling
 			if (n == nnodes) {
 				n = 0;
 				o++;
 			}
-
 		}
-
 	} else {
-
 		for(uint i = 0; i < numFeaParts; ++i) {
-
-			// send the stored velocity
+			// when we do not compute a new FEA we send the newest stored velocity
 			fea_vel[i] = m_old_fea_vel[i];
 		}
 
 
-		/*FIXME DISCUSS alternatively we could fo FEA for the SPH dt and fea_every times the displacement*/
+		/*TODO DISCUSS alternatively we could fo FEA for the SPH dt and fea_every times the displacement*/
 	}
 #endif
 }

@@ -878,20 +878,23 @@ void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
 	}
 
 	/* Performing FEA analysis */
-	// the FEA is suspended inside. Don't stop this when !dofea because diplacements need to be updated anyway FIXME do this better
-	fprintf(m_info_stream, "starting FEA step...\n");
+	// the FEA is suspended inside. Don't stop this when !dofea because diplacements
+	// need to be updated anyway FIXME do this better
+
+//	fprintf(m_info_stream, "starting FEA step...\n");
 	problem->fea_do_step(gdata->s_hBuffers, numFeaNodes, dt, dofea && (step == 1), fea_every);
-	fprintf(m_info_stream, "FEA step completed\n");
+//	fprintf(m_info_stream, "FEA step completed\n");
 
 	/* writing FEA nodes */
 	float timer = gdata->s_fea_writer_timer;
 
 	if (step == 2)
+		// Time from last writing
 		gdata->s_fea_writer_timer += dt;
 
 	if (timer > gdata->problem->simparams()->fea_write_every) {
 		gdata->s_fea_writer_timer = 0.0f;
-		cout << "Simulation time t=" << t << ", writing FEM nodes" << endl;
+	//	cout << "Simulation time t=" << t << ", writing FEM nodes" << endl;
 		problem->write_fea_nodes(t);
 
 	}
