@@ -54,7 +54,6 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
 		boundary<DUMMY_BOUNDARY>,
-		//boundary<LJ_BOUNDARY>,
 		add_flags<ENABLE_FEA>
 	).select_options(
 		RHODIFF,
@@ -79,7 +78,6 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
-	//simparams()->dt = 0.00005;
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	const float g = length(physparams()->gravity);
@@ -88,18 +86,14 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	add_fluid(1000.0);
 
 	//add_fluid(2350.0);
-	set_equation_of_state(0,  7.0f, 20.0f);
+	set_equation_of_state(0, 7.0f, 20.0f);
 	set_kinematic_visc(0, 1.0e-2f);
-	//set_dynamic_visc(0, 1.0e-4f);
 
 	// default tend 1.5s
 	simparams()->tend=3.0f;
 	//simparams()->ferrariLengthScale = H;
 	simparams()->densityDiffCoeff = 0.1f;
-	/*physparams()->artvisccoeff =  0.2;
-	physparams()->smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	physparams()->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
+	physparams()->artvisccoeff =  0.05;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.05f);
@@ -192,11 +186,6 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 		enableFeedback(obstacle);
 	}
 
-
-
-
-
-
 	// Optionally, add a floating objects
 	/*
 	// set positioning policy to PP_CENTER: given point will be the geometrical center of the object
@@ -250,6 +239,3 @@ bool DamBreak3DFEA::need_write(double t) const
 {
 	return false;
 }
-
-
-
