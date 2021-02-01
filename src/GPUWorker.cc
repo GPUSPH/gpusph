@@ -1339,20 +1339,21 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 	}
 }
 
-// if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
+// Transfer buffers are sized in multiples of 1MB
+#define TRANSFER_BUFFER_ROUNDING size_t(1024*1024)
+
+// if m_hPeerTransferBuffer is not big enough, reallocate it
 void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 {
 	// is it big enough already?
 	if (required_size < m_hPeerTransferBufferSize) return;
 
-	// will round up to...
-	size_t ROUND_TO = 1024*1024;
-
 	// store previous size, compute new
 	size_t prev_size = m_hPeerTransferBufferSize;
-	m_hPeerTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+	// actually allocate size is obtained rounding up to the next multiple of TRANSFER_BUFFER_ROUNDING
+	m_hPeerTransferBufferSize = round_up(required_size, TRANSFER_BUFFER_ROUNDING);
 
-	// dealloc first
+	// if the buffer was already allocated, deallocate it first
 	if (prev_size) {
 		// make sure there are no pending / running transfers using the current buffer
 		// (this can happen if there are 2 non-peered neighbors and the resize triggers
@@ -1376,14 +1377,12 @@ void GPUWorker::resizeNetworkTransferBuffer(size_t required_size)
 	// is it big enough already?
 	if (required_size < m_hNetworkTransferBufferSize) return;
 
-	// will round up to...
-	size_t ROUND_TO = 1024*1024;
-
 	// store previous size, compute new
 	size_t prev_size = m_hNetworkTransferBufferSize;
-	m_hNetworkTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+	// actually allocate size is obtained rounding up to the next multiple of TRANSFER_BUFFER_ROUNDING
+	m_hNetworkTransferBufferSize = round_up(required_size, TRANSFER_BUFFER_ROUNDING);
 
-	// dealloc first
+	// if the buffer was already allocated, deallocate it first
 	if (prev_size) {
 		// TODO when we switch to non-blocking MPI calls, we'll have to wait here
 		// for pending transfers, as in resizePeerTransferBuffer()
