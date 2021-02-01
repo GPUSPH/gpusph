@@ -1353,7 +1353,12 @@ void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 	m_hPeerTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
 
 	// dealloc first
-	if (m_hPeerTransferBufferSize) {
+	if (prev_size) {
+		// make sure there are no pending / running transfers using the current buffer
+		// (this can happen if there are 2 non-peered neighbors and the resize triggers
+		// on the second neighbor while transferring data with the first
+		CUDA_SAFE_CALL(cudaStreamSynchronize(m_asyncPeerCopiesStream));
+
 		CUDA_SAFE_CALL(cudaFreeHost(m_hPeerTransferBuffer));
 		m_hostMemory -= prev_size;
 	}
@@ -1379,7 +1384,10 @@ void GPUWorker::resizeNetworkTransferBuffer(size_t required_size)
 	m_hNetworkTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
 
 	// dealloc first
-	if (m_hNetworkTransferBufferSize) {
+	if (prev_size) {
+		// TODO when we switch to non-blocking MPI calls, we'll have to wait here
+		// for pending transfers, as in resizePeerTransferBuffer()
+
 		CUDA_SAFE_CALL(cudaFreeHost(m_hNetworkTransferBuffer));
 		m_hostMemory -= prev_size;
 	}
