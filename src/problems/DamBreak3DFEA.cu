@@ -53,7 +53,7 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DUMMY_BOUNDARY>,
+		boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_FEA>
 	).select_options(
 		RHODIFF,
@@ -84,17 +84,17 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	add_fluid(1000.0);
 
 	//add_fluid(2350.0);
-	set_equation_of_state(0, 7.0f, 20.0f);
+	set_equation_of_state(0, 7.0f, 60.0f);
 	set_kinematic_visc(0, 1.0e-2f);
 
 	// default tend 1.5s
-	simparams()->tend=3.0f;
+	simparams()->tend=1.0f;
 	//simparams()->ferrariLengthScale = H;
 	simparams()->densityDiffCoeff = 0.1f;
 	physparams()->artvisccoeff =  0.05;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.05f);
+	add_writer(VTKWRITER, 0.01f);
 	//addPostProcess(VORTICITY);
 	// *** Other parameters and settings
 	m_name = "DamBreak3DFEA";
@@ -155,11 +155,12 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	const double pil_h = 0.8;
 	setPositioning(PP_BOTTOM_CENTER);
 
-	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, Point(0.5, 0.3, 2.0*BOUNDARY_DISTANCE), 0.04, 0.04 - 0.002, pil_h, 2);
+	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, Point(0.5, 0.3, 2.0*BOUNDARY_DISTANCE), 0.04, 0.04 - 0.005, pil_h, 2);
 
-	setYoungModulus(piller0, 30e7);
+	setYoungModulus(piller0, 30e5);
 	setPoissonRatio(piller0, 0.001);
 	setDensity(piller0, 1000);
+	setAlphaDamping(piller0, 0.5);
 
 	setEraseOperation(piller0, ET_ERASE_FLUID);
 
@@ -174,7 +175,6 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	setUnfillRadius(dynamometer, 0.5*m_deltap);
 
 	simparams()->fea_write_every = 0.01f;
-
 
 	// add one or more obstacles
 	const double Y_DISTANCE = dimY / (NUM_OBSTACLES + 1);
@@ -242,11 +242,12 @@ void DamBreak3DFEA::initializeParticles(BufferList &buffer, const uint numPartic
 
 	// TODO FIXME the particle mass should be assigned from the mesh. We should 
 	// understand why GetMass on the fea mesh gives 0
-
+/*
 	for (uint i = 0; i < numParticle; i++) {
 		if (DEFORMABLE(info[i]))
 			pos[i].w = physical_density(vel[i].w, 0)*m_deltap*m_deltap*m_deltap;
 	}
+	*/
 }
 
 bool DamBreak3DFEA::need_write(double t) const
