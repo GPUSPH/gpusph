@@ -316,6 +316,29 @@ move_fea_parts(EP const& params, P &pdata, int index, float dt)
 	/*shape functions for cube*/ //TODO fixme for other types of elements
 	//Note: each of the following values should be divided by 8. We collect this division
 	// and we divide at the end only once
+
+	float N[2][8] = {
+		//shell
+		{cm*em,
+		cp*em,
+		cm*ep,
+		cp*ep,
+		cm*em,
+		cp*em,
+		cm*ep,
+		cp*ep},
+
+		//cable
+		{zm,
+		zm,
+		zm,
+		zm,
+		zp,
+		zp,
+		zp,
+		zp}
+	};
+	/*
 	float N[8] = {
 		cm*em*zm,
 		cp*em*zm,
@@ -325,6 +348,7 @@ move_fea_parts(EP const& params, P &pdata, int index, float dt)
 		cp*em*zp,
 		cm*ep*zp,
 		cp*ep*zp};
+		*/
 
 	float4 disp = make_float4(0.0); // displacement to be evaluated
 	float4 vel = make_float4(0.0); // velocity to be evaluated
@@ -349,16 +373,22 @@ move_fea_parts(EP const& params, P &pdata, int index, float dt)
 
 	// extended set of nodes
 	const int el_type_id = pdata.fea_nat_coords.w;
+
+	const uint nodes[2][8] = {
+		{rn.x, rn.y, rn.z, rn.w, rn.x, rn.y, rn.z, rn.w},
+		{rn.x, rn.y, rn.x, rn.y, rn.z, rn.w, rn.z, rn.w}
+	};
+	/*
 	const uint nodes[8] = {rn.x, rn.y,
 		rn.z, rn.w,
 		rn.x + el_type_id, rn.y + el_type_id,
 		rn.z + el_type_id, rn.w + el_type_id};
-
+*/
 	for (int i=0; i<8; i++) {
-		float4 node_disp = params.fea_displacements[nodes[i]];
-		disp += N[i]*node_disp*dt;
+		float4 node_disp = params.fea_displacements[nodes[el_type_id][i]];
+		disp += N[el_type_id][i]*node_disp*dt;
 		float4 node_vel = node_disp;
-		vel += N[i]*node_vel;
+		vel += N[el_type_id][i]*node_vel;
 	}
 
 	// This division comes from the shaping functions
