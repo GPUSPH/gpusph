@@ -2341,10 +2341,12 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 
 	/*for every object we detect the nodes associated to the elements considering index 0
 	 * for the first node in the object. The number of nodes previously added must be considered
-	 * to shift the indices of the nodes inside the object to the global value.*/
+	 * to get the global value.*/
 	uint nodes_offset = 0;
 
+	// counts fea particles
 	uint fea_parts_tracker = 0;
+	// countr fea nodes
 	uint fea_nodes_tracker = 0;
 
 	// Until now we copied fluid and boundary particles not belonging to floating objects and/or not to be loaded
@@ -2432,8 +2434,8 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 
 				// natural coordinates: coordinates of the particle within the associated element
 				gdata->s_hFeaNatCoords[i - tot_parts + fea_parts_tracker] = m_geometries[g]->ptr->getNaturalCoords(globalPos[i]);
+
 				// nodes associated to the element the FG_DEFORMABLE particle belongs to
-				//printf("%g %g %g\n", globalPos[i].x, globalPos[i].y, globalPos[i].z);
 				int4 nodes = m_geometries[g]->ptr->getOwningNodes(globalPos[i]);
 
 				// the indices of the owning nodes provided by the function are relative to the
