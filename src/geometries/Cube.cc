@@ -838,7 +838,7 @@ float4 Cube::getNaturalCoords(const double4 abs_coords)
 
 
 	// to use shaping functions we need to know what is the type of element we are referring to: we use
-	// code 1 for solid Hexaedrons (NOTE: this choice is functional in the use of the shaping functions)
+	// code 1 for cable elements
 	const int el_type_id = 0;
 
 	return make_float4(nat_coord_x, nat_coord_y, nat_coord_z, el_type_id);

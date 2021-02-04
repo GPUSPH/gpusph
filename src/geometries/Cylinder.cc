@@ -320,17 +320,6 @@ int4 Cylinder::getOwningNodes(const double4 abs_coords)
 	// get the local index of the first node associated to the element
 	int node_index =  floor(cyl_coordsc.z/dz);
 
-
-	// To handle different types of elements without changing shaping functions, we
-	// always consider four nodes associated to the elements. In case of beam element 
-	// we associate a pair of these nodes to each actual node of the element, and
-	// quantities referred to each of the element nodes are distributed between the
-	// two associated nodes. (We can see the beam as a shell element with zero width)
-	// Then when identified the two nodes associated to the element we send them two times.
-
-	// TODO we should find a better way to store nodes. e.g, if we pass n_in_layer the last two nodes are obtained
-	// from the previous ones. Ans so on, we could pass just one node, but this means to have more computation at runtime.
-
 	int NA = node_index;
 	int NE = NA + 1;
 
@@ -385,8 +374,8 @@ float4 Cylinder::getNaturalCoords(const double4 abs_coords)
 	float nat_coord_z =  (cyl_coords.z - floor(cyl_coordsc.z/dz)*dz - dz*0.5)/(dz*0.5);
 
 	// to use shaping functions we need to know what is the type of element we are referring to: we use
-	// code 0 for shell elements (NOTE: this choice is functional in the use of the shaping functions)
-	const int el_type_id = 1; // can be interpreted as " has thickness" where thickness is in the z dir
+	// code 0 for shell elements 
+	const int el_type_id = 1;
 
 	return make_float4(nat_coord_x, nat_coord_y, nat_coord_z, el_type_id);
 }
