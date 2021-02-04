@@ -116,14 +116,14 @@ struct dummy_particle_data
 
 struct fea_particle_data
 {
-	float4 fea_disp;
+	float4 fea_vel;
 	float4 fea_nat_coords;
 	uint4 fea_ref_nodes;
 
 	__device__ __forceinline__
 	fea_particle_data(int part_id, int2 const& node_start_index, int2 const& parts_start_index, fea_euler_params const& params, particleinfo const& info)  :
 
-		fea_disp(make_float4(NAN)),
+		fea_vel(make_float4(NAN)),
 		fea_nat_coords(make_float4(NAN)),
 		fea_ref_nodes(make_uint4(0, 0, 0, 0))
 	{
@@ -134,7 +134,7 @@ struct fea_particle_data
 			if(node_index < 0)
 				printf("N %d %d %d %d\n", node_index, part_id, node_start_index.x, node_start_index.y);
 			else
-				fea_disp = params.fea_displacements[node_index];
+				fea_vel = params.fea_velocities[node_index];
 		}
 
 		if (DEFORMABLE(info)){
@@ -285,9 +285,9 @@ __device__ __forceinline__
 enable_if_t<EP::simflags & ENABLE_FEA>
 move_fea_nodes(EP const& params, P &pdata, int index, float dt)
 {
-	pdata.pos.x += pdata.fea_disp.x*dt;
-	pdata.pos.y += pdata.fea_disp.y*dt;
-	pdata.pos.z += pdata.fea_disp.z*dt;
+	pdata.pos.x += pdata.fea_vel.x*dt;
+	pdata.pos.y += pdata.fea_vel.y*dt;
+	pdata.pos.z += pdata.fea_vel.z*dt;
 
 }
 
@@ -301,7 +301,7 @@ template<typename EP>
 __device__ __forceinline__
 void distribute_fea_movement(EP const& params, uint node, float shape_weight, const float dt, float4& disp, float4& vel)
 {
-	float4 node_disp = params.fea_displacements[node];
+	float4 node_disp = params.fea_velocities[node];
 	disp += shape_weight*node_disp*dt;
 	vel += shape_weight*node_disp;
 }
@@ -399,9 +399,9 @@ __device__ __forceinline__
 enable_if_t<EP::simflags & ENABLE_FEA>
 set_fea_parts_vel(EP const& params, P &pdata, int index, float dt)
 {
-	pdata.vel.x = pdata.fea_disp.x;
-	pdata.vel.y = pdata.fea_disp.y;
-	pdata.vel.z = pdata.fea_disp.z;
+	pdata.vel.x = pdata.fea_vel.x;
+	pdata.vel.y = pdata.fea_vel.y;
+	pdata.vel.z = pdata.fea_vel.z;
 
 }
 
