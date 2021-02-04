@@ -966,13 +966,14 @@ size_t GPUWorker::allocateHostBuffers() {
 	if (MULTI_DEVICE) {
 		allocated += m_hBuffers.get<BUFFER_COMPACT_DEV_MAP>()->alloc(m_nGridCells);
 
-		// allocate a 1Mb transferBuffer if peer copies are disabled
+		// allocate a 4MB transferBuffer if peer copies are disabled
+#define INITIAL_TRANSFER_BUFFER_SIZE size_t(4*1024*1024)
 		if (m_disableP2Ptranfers)
-			resizePeerTransferBuffer(1024 * 1024);
+			resizePeerTransferBuffer(INITIAL_TRANSFER_BUFFER_SIZE);
 
 		// ditto for network transfers
 		if (!gdata->clOptions->gpudirect)
-			resizeNetworkTransferBuffer(1024 * 1024);
+			resizeNetworkTransferBuffer(INITIAL_TRANSFER_BUFFER_SIZE);
 
 		// TODO migrate these to the buffer system as well
 		cudaMallocHost(&(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize);
