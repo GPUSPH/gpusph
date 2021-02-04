@@ -3397,6 +3397,17 @@ enable_if_t<FP::boundarytype != SA_BOUNDARY>
 compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 { /* do nothing */ }
 
+
+
+template<typename FP, typename OP>
+__device__ __forceinline__
+void distribute_fea_forces(FP const& params, OP const& pout, uint node, float shape_weight)
+{
+	atomicAdd(&(params.feaforces[node].x), pout.force.x*shape_weight);
+	atomicAdd(&(params.feaforces[node].y), pout.force.y*shape_weight);
+	atomicAdd(&(params.feaforces[node].z), pout.force.z*shape_weight);
+}
+
 /// FEA: distribute forces from DEFORMABLE particles to the respecive FEA_NODE 
 // forces are distributed according to shaping functions
 // TODO evaluate opportunity to do this in reverse: do the distribution
@@ -3405,88 +3416,58 @@ compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 template<typename FP, typename PD, typename OP>
 __device__ __forceinline__
 enable_if_t<(FP::simflags & ENABLE_FEA)>
-assign_fea_force(FP const& params, PD const& pdata, OP &pout)
+assign_fea_force(FP const& params, PD const& pdata, OP const& pout)
 {
+	// TODO these are computed for both shells and cables,
+	// even though each type needs its own subset
 	// quantities to build shape functions
-	float cm = 1.0 - pdata.fea_nat_coords.x;
-	float cp = 1.0 + pdata.fea_nat_coords.x;
-	float em = 1.0 - pdata.fea_nat_coords.y;
-	float ep = 1.0 + pdata.fea_nat_coords.y;
-	float zm = 1.0 - pdata.fea_nat_coords.z;
-	float zp = 1.0 + pdata.fea_nat_coords.z;
+	// shell
+	const float cm = 1.0 - pdata.fea_nat_coords.x;
+	const float cp = 1.0 + pdata.fea_nat_coords.x;
+	const float em = 1.0 - pdata.fea_nat_coords.y;
+	const float ep = 1.0 + pdata.fea_nat_coords.y;
+	// cable
+	const float zm = 1.0 - pdata.fea_nat_coords.z;
+	const float zp = 1.0 + pdata.fea_nat_coords.z;
 
-	/*shape functions */
-	//Note: each of the following values should be divided by 8. We collect this division
-	// and we divide at the end only once
-	/*
-	float N[8] = {
-		cm*em*zm,
-		cp*em*zm,
-		cm*ep*zm,
-		cp*ep*zm,
-		cm*em*zp,
-		cp*em*zp,
-		cm*ep*zp,
-		cp*ep*zp};
-		*/
+	/* shape functions (unused due to unrolled loop below */
+	// const float shell_shape[] = { cm*em, cp*em, cm*ep, cp*ep };
+	// float cable_shape[] = { zm, zp };
 
-	float N[2][8] = {
-		//shell
-		{cm*em,
-		cp*em,
-		cm*ep,
-		cp*ep,
-		cm*em,
-		cp*em,
-		cm*ep,
-		cp*ep},
-
-		//cable
-		{zm,
-		zm,
-		zm,
-		zm,
-		zp,
-		zp,
-		zp,
-		zp}
-	};
-	// simplified set of nodes
+	/* set of nodes (unused due to the rolled loop below */
 	const uint4 rn = pdata.fea_ref_nodes;
+	// const uint shell_nodes = { rn.x, rn.y, rn.z, rn.w };
+	// const uint cable_nodes = { rn.x, rn.y };
 
-	// shell elements are interpolated using 4 nodes, while hexaedrons using 8 nodes.
-	// For hexaedrons we retrieve four of the 8 nodes from the remaining four,
-	// as the indices are consecutive.
-	// At the end of the interpolation we divide by 4 for shell and 8 for Hexaedrons.
-	// if we use the el_type_id, we can use the same computations for both types of 
-	// elements: we take always the contribution from 8 nodes, that in the case of a
-	// shell are the 4 nodes counted two times (it results in a Hexagon with zero
-	// thickness).
-	// For Beam elements the concept is repeated in the other component. This time
-	// the four nodes are the two nodes of the beam, repeated twice. (that's like a 
-	// shell with zero width)
-
-	// TODO FIXME consider the gradient varibles of the shells to add the third component properly (see Rakhsha et al 2019)
-
-
-	// extended set of nodes
 	const int el_type_id = pdata.fea_nat_coords.w;
-
-	const uint nodes[2][8] = {
-		{rn.x, rn.y, rn.z, rn.w, rn.x, rn.y, rn.z, rn.w},
-		{rn.x, rn.y, rn.x, rn.y, rn.z, rn.w, rn.z, rn.w}
-	};
 
 	// the FG_DEFORMABLE particle is assigned to an element and distributes the force that the
 	// fluid is exerting on it among all the nodes of the element, in proportions given by the 
-	// shaping function (and in turn, by the position of the particle in the element)
-	// Here we compute the force as SPH acceleraion times particle mass, and then we atomically
-	// the contribution to the respective nodes
+	// shaping function.
+	// Here we compute the force as SPH acceleraion times particle mass, and then we atomically 
+	// add the contribution to the respective nodes
 
-	for (int i = 0; i < 8; i++) {
-		atomicAdd(&(params.feaforces[nodes[el_type_id][i]].x), pout.force.x*N[el_type_id][i]*pdata.pos.w/8.0f); // division by 8 comes from application of shaping function
-		atomicAdd(&(params.feaforces[nodes[el_type_id][i]].y), pout.force.y*N[el_type_id][i]*pdata.pos.w/8.0f);
-		atomicAdd(&(params.feaforces[nodes[el_type_id][i]].z), pout.force.z*N[el_type_id][i]*pdata.pos.w/8.0f);
+	// divide by 4 for el_type_id == 0, 2 if el_type_id == 1
+	const float weight = pdata.pos.w/(4 - 2*el_type_id);
+
+	// both shells and cables have at least two contributing nodes
+	const float shape_weight0 = weight*(el_type_id == 0 ? cm*em : zm);
+	const float shape_weight1 = weight*(el_type_id == 0 ? cp*em : zp);
+	const uint node0 = rn.x;
+	const uint node1 = rn.y;
+
+	distribute_fea_forces(params, pout, node0, shape_weight0);
+	distribute_fea_forces(params, pout, node1, shape_weight1);
+
+	// shells have another two nodes
+	if (el_type_id == 0) {
+		const float shape_weight2 = weight*cm*ep;
+		const float shape_weight3 = weight*cp*ep;
+		const uint node2 = rn.z;
+		const uint node3 = rn.w;
+
+		distribute_fea_forces(params, pout, node2, shape_weight2);
+		distribute_fea_forces(params, pout, node3, shape_weight3);
 	}
 }
 

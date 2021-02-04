@@ -332,21 +332,16 @@ int4 Cylinder::getOwningNodes(const double4 abs_coords)
 	// from the previous ones. Ans so on, we could pass just one node, but this means to have more computation at runtime.
 
 	int NA = node_index;
-	int NC = NA;
-
 	int NE = NA + 1;
-	int NG = NE;
 
 	// return the offset of the nodes with respect to the first node of the geometry.
 	// This will be added to the global index of the first node to get the global index
 	// of the nodes. The offset is negative when reusing nodes previously created.
 	NA = m_fea_nodes_offset[NA];
-	NC = m_fea_nodes_offset[NC];
 	NE = m_fea_nodes_offset[NE];
-	NG = m_fea_nodes_offset[NG];
 
 
-	return make_int4(NA, NC, NE, NG);
+	return make_int4(NA, NE, 0, 0);
 }
 
 // Get natural coordinates of a point, inside the geometry, with respect to the element the point is associated to.

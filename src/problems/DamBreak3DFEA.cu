@@ -169,6 +169,7 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	const double box_side = 0.1;
 	GeometryID writer_box = addBox(GT_FEA_WRITE, FT_NOFILL, Point(0.5, 0.3, pil_h + BOUNDARY_DISTANCE), box_side, box_side, box_side);
 
+
 	const double dynamometer_side = 0.1;
 	GeometryID dynamometer = addBox(GT_FEA_RIGID_JOINT, FT_NOFILL, Point(0.5, 0.3, 2.0*BOUNDARY_DISTANCE), dynamometer_side, dynamometer_side, dynamometer_side);
 	setEraseOperation(dynamometer, ET_ERASE_NOTHING);
