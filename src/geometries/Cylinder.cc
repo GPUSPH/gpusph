@@ -215,7 +215,7 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 
 	for (uint l = 0; l < layers; l++) {
 
-		const double smaller_r = m_r - l * dx - 0.5*dx;
+		const double smaller_r = m_r - l * dx - 0.5*dx; //subtract 0.5 dt for DUMMY_BOUNDARY FIXME make it automatic
 		const double smaller_h = m_h - l * 2 * dx;
 
 		const int nz = (int) ceil(smaller_h/dx);
