@@ -408,7 +408,7 @@ cspmCoeffDevice(
 			continue;
 
 		const float volume = relPos.w/physical_density(neib_vel.w, fluid_num(neib_info));
-		corr = kbn_add(corr, W<kerneltype>(r, slength)*volume, corr_kahan);
+		//corr = kbn_add(corr, W<kerneltype>(r, slength)*volume, corr_kahan);
 
 		const float f = F<kerneltype>(r, slength);
 		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
@@ -418,7 +418,7 @@ cspmCoeffDevice(
 	}
 
 	// KBN needs a final addition of the remainder
-	corr += corr_kahan;
+	//corr += corr_kahan;
 	fcoeff += fcoeff_kahan;
 
 	//symtensor3 a_inverse;
@@ -439,10 +439,10 @@ cspmCoeffDevice(
 		a_inverse = fcoeff; //Use this for symmetric v2 CSPM
 	} else {
 		set_identity(a_inverse);
-		corr = 1.0f;
+		//corr = 1.0f;
 	}
 
-	wcoeffArray[index] = 1.0f/corr;
+	//wcoeffArray[index] = 1.0f/corr;
 	storeTau(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
 }
 
