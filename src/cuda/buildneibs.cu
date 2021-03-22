@@ -153,8 +153,10 @@ resetinfo(void)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxFluidBoundaryNeibs, &temp, sizeof(int)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxVertexNeibs, &temp, sizeof(int)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasMaxNeibs, &temp, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasHowManyParticles, &temp, sizeof(int)));
 	temp = -1;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyNeibs, &temp, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyParticles, &temp, sizeof(int)));
 }
 
 
@@ -173,6 +175,8 @@ getinfo(TimingInfo & timingInfo)	// timing info (in, out)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxVertexNeibs, cuneibs::d_maxVertexNeibs, sizeof(int), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyNeibs, cuneibs::d_hasTooManyNeibs, sizeof(int), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(timingInfo.hasMaxNeibs, cuneibs::d_hasMaxNeibs, sizeof(int)*PT_TESTPOINT, 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyParticles, cuneibs::d_hasTooManyParticles, sizeof(int), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasHowManyParticles, cuneibs::d_hasHowManyParticles, sizeof(int), 0));
 }
 
 /** @} */
@@ -311,6 +315,7 @@ sort(	BufferList const& bufread,
 /// Build neibs list
 void
 buildNeibsList(
+	bool check_cell_overflow,
 const	BufferList&	bufread,
 		BufferList&	bufwrite,
 const	uint		numParticles,
@@ -326,6 +331,13 @@ const	float		boundNlSqInflRad)
 		particleRangeEnd, sqinfluenceradius, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
+
+	if (check_cell_overflow) {
+		const uint nCells = bufread.get<BUFFER_CELLSTART>()->get_allocated_elements();
+		const uint numBlocksCheck = div_up(nCells, numThreads);
+		cuneibs::checkCellSizeDevice<<< numBlocksCheck, numThreads >>>( cell_params(bufread), nCells);
+	}
+
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

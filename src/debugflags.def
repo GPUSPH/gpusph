@@ -105,6 +105,10 @@ unsigned clobber_invalid_buffers : 1;
 /// Throw (instead of just warn) if a particle is out of bounds during init
 unsigned validate_init_positions : 1;
 
+/// Check (and throw) if cells have more particles that can be encoded in the compact neighbors list
+/*! Note that this is automatically enabled if there are out-of-bounds particles */
+unsigned check_cell_overflow : 1;
+
 /// Measure (and show) command runtimes
 unsigned benchmark_command_runtimes : 1;
 

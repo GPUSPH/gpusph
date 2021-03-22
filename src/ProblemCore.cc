@@ -1675,8 +1675,13 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 void
 ProblemCore::show_out_of_bounds() const
 {
-	if (m_out_of_bounds_count > 0)
+	if (m_out_of_bounds_count > 0) {
 		cerr << m_out_of_bounds_count << " particles were placed out of bounds during init" << endl;
+		if (m_out_of_bounds_count > NEIBINDEX_MASK/2) {
+			gdata->debug.check_cell_overflow = 1;
+			cerr << "will check for cell overflow" << endl;
+		}
+	}
 }
 
 /* Initialize the particle volumes from their masses and densities. */

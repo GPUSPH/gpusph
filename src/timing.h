@@ -56,6 +56,10 @@ typedef struct TimingInfo {
 	int	hasTooManyNeibs;
 	// number of neibs of that particle
 	int	hasMaxNeibs[PT_TESTPOINT];
+	// index of a cell with too many particles
+	int	hasTooManyParticles;
+	// how many particles are in the cell with too many particles
+	int	hasHowManyParticles;
 
 	// iterations done so far
 	//ulong	iterations;

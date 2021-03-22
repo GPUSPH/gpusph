@@ -1880,6 +1880,17 @@ void GPUSPH::runCommand<CHECK_NEIBSNUM>(CommandStruct const& cmd)
 		if (currDevMaxVertexNeibs > gdata->lastGlobalPeakVertexNeibsNum)
 			gdata->lastGlobalPeakVertexNeibsNum = currDevMaxVertexNeibs;
 
+		if (gdata->timingInfo[d].hasTooManyParticles != -1) {
+			fprintf(stderr, "ERROR: cell %d on device %d has too many particles (%d > %d)\n",
+				gdata->timingInfo[d].hasTooManyParticles, d,
+				gdata->timingInfo[d].hasHowManyParticles, NEIBINDEX_MASK);
+			fprintf(stderr, "Possible reasons:\n");
+			fprintf(stderr, "\tinadequate world size (%zu particles were marked as out-of-bounds during init)\n",
+				gdata->problem->m_out_of_bounds_count);
+			fprintf(stderr, "\tfluid column collapse\n");
+			throw std::runtime_error("overfull cell");
+		}
+
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
 

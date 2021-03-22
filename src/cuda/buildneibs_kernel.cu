@@ -110,6 +110,8 @@ __device__ int d_maxFluidBoundaryNeibs;		///< Computed maximum number of fluid +
 __device__ int d_maxVertexNeibs;			///< Computed maximum number of vertex neighbors across particles
 __device__ int d_hasTooManyNeibs;			///< id of a particle with too many neighbors
 __device__ int d_hasMaxNeibs[PT_TESTPOINT];	///< Number of neighbors of that particle
+__device__ int d_hasTooManyParticles; ///< Index of a cell with too many particles
+__device__ int d_hasHowManyParticles; ///< How many particles are in the  cell with too many particles
 /** @} */
 
 /** \addtogroup neibs_device_functions_params Neighbor list device function variables
@@ -1061,8 +1063,8 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 
 		if (overflow) {
 			const particleinfo info = params.fetchInfo(index);
-			atomicCAS(&d_hasTooManyNeibs, -1, (int)id(info));
-			if (d_hasTooManyNeibs == id(info)) {
+			const int old = atomicCAS(&d_hasTooManyNeibs, -1, (int)id(info));
+			if (old == -1) {
 				d_hasMaxNeibs[PT_FLUID] = neibs_num[PT_FLUID];
 				d_hasMaxNeibs[PT_BOUNDARY] = neibs_num[PT_BOUNDARY];
 				d_hasMaxNeibs[PT_VERTEX] = neibs_num[PT_VERTEX];
@@ -1115,6 +1117,29 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		}
 	}
 	return;
+}
+
+/// Check if any cells have more particles that can be enumerated in CELLNUM_SHIFT
+__global__ void
+checkCellSizeDevice(cell_params params, uint nCells)
+{
+	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
+
+	if (index >= nCells)
+		return;
+
+	const uint start = params.fetchCellStart(index);
+	const uint end = params.fetchCellEnd(index);
+
+	const uint delta = end - start;
+
+	if (delta > NEIBINDEX_MASK) {
+		int old = atomicCAS(&d_hasTooManyParticles, -1, index);
+		if (old == -1)
+			d_hasHowManyParticles = delta;
+	}
+
+
 }
 /** @} */
 }

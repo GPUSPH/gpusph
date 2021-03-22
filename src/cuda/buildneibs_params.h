@@ -40,17 +40,34 @@
  *  Templatized structures holding parameters passed to buildneibs kernel
  *  @{ */
 
+struct cell_params
+{
+	cudaTextureObject_t cellStartTexObj;
+	cudaTextureObject_t cellEndTexObj;
+
+	cell_params(const BufferList& bufread) :
+		cellStartTexObj(getTextureObject<BUFFER_CELLSTART>(bufread)),
+		cellEndTexObj(getTextureObject<BUFFER_CELLEND>(bufread))
+	{}
+
+	__device__ __forceinline__ uint
+	fetchCellStart(const uint index) const
+	{ return tex1Dfetch<uint>(cellStartTexObj, index); }
+
+	__device__ __forceinline__ uint
+	fetchCellEnd(const uint index) const
+	{ return tex1Dfetch<uint>(cellEndTexObj, index); }
+};
+
 /// Common parameters used in buildneibs kernel
 /*!	Parameters passed to buildneibs device function depends on the type of
  * 	of boundary used. This structure contains the parameters common to all
  * 	boundary types.
  */
 struct common_buildneibs_params :
-	pos_info_wrapper ///< particle's positions and info (in)
+	pos_info_wrapper, ///< particle's positions and info (in)
+	cell_params
 {
-	cudaTextureObject_t cellStartTexObj;
-	cudaTextureObject_t cellEndTexObj;
-
 	const	hashKey		*particleHash;			///< particle's hashes (in)
 			neibdata	*neibsList;				///< neighbor's list (out)
 	const	uint		numParticles;			///< total number of particles
@@ -63,21 +80,12 @@ struct common_buildneibs_params :
 		const	float		_sqinfluenceradius)
 	:
 		pos_info_wrapper(bufread),
-		cellStartTexObj(getTextureObject<BUFFER_CELLSTART>(bufread)),
-		cellEndTexObj(getTextureObject<BUFFER_CELLEND>(bufread)),
+		cell_params(bufread),
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		neibsList(bufwrite.getData<BUFFER_NEIBSLIST>()),
 		numParticles(_numParticles),
 		sqinfluenceradius(_sqinfluenceradius)
 	{}
-
-	__device__ __forceinline__ uint
-	fetchCellStart(const uint index) const
-	{ return tex1Dfetch<uint>(cellStartTexObj, index); }
-
-	__device__ __forceinline__ uint
-	fetchCellEnd(const uint index) const
-	{ return tex1Dfetch<uint>(cellEndTexObj, index); }
 };
 
 /// Parameters used only with SA_BOUNDARY buildneibs specialization
