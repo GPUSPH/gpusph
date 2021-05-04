@@ -46,6 +46,9 @@
 // shared_ptr
 #include <memory>
 
+// max_element
+#include <algorithm>
+
 #include "ProblemCore.h"
 #include "vector_math.h"
 #include "vector_print.h"
@@ -175,6 +178,36 @@ ProblemCore::initialize()
 
 	printf("Problem calling set grid params\n");
 	set_grid_params();
+
+	/* We compute the expected upper limit to the distance a particle will travel
+	 * between two neighbors list constructions, based on the maximum speed
+	 * (computed as 1/10th of the highest sound speed), pre-computed CFL time-step
+	 * and neighbors list construction frequency.
+	 * The relation of this “maximum travel distance” to the cell side length
+	 * and to the inter-particle spacing ∆p can help us determine
+	 * if we're updating frequently enough or not. In general, we expect these ratios
+	 * to be (significantly) smaller than 1. Since it's always true that m_deltap < min_cell_s,
+	 * we set as warning condition that max_travel must not be larger than m_deltap
+	 * (although a stricter condition would probably be better).
+	 */
+	double min_cell_s = min(m_cellsize.x, min(m_cellsize.y, m_cellsize.z));
+	double max_speed = *max_element(m_physparams->sscoeff.begin(), m_physparams->sscoeff.end());
+	max_speed /= 10;
+	uint nlfreq = simparams()->buildneibsfreq;
+	double dt = simparams()->dt;
+	double max_travel = max_speed*dt*nlfreq;
+	printf("Expected max travel distance between neighbors list constructions: %g (%g ∆p or %g cells)",
+		max_travel, max_travel/m_deltap, max_travel/min_cell_s);
+	if (max_travel > m_deltap) {
+		if (nlfreq == 1) {
+			printf(" (are things moving too fast?)"); // this shouldn't happen, really
+		} else {
+			uint recommend = floor(m_deltap/(max_speed*dt));
+			printf(", consider lowering the neighbors list frequency to %d",
+				max(recommend, 1));
+		}
+	}
+	puts("");
 
 	return true;
 }
