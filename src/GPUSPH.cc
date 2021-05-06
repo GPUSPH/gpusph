@@ -1886,10 +1886,15 @@ void GPUSPH::runCommand<CHECK_NEIBSNUM>(CommandStruct const& cmd)
 		if (currDevMaxVertexNeibs > gdata->lastGlobalPeakVertexNeibsNum)
 			gdata->lastGlobalPeakVertexNeibsNum = currDevMaxVertexNeibs;
 
-		if (gdata->timingInfo[d].hasTooManyParticles != -1) {
-			fprintf(stderr, "ERROR: cell %d on device %d has too many particles (%d > %d)\n",
-				gdata->timingInfo[d].hasTooManyParticles, d,
-				gdata->timingInfo[d].hasHowManyParticles, NEIBINDEX_MASK);
+		const uint overfull_cell = gdata->timingInfo[d].hasTooManyParticles;
+		if ( overfull_cell != -1) {
+			int3 gridPos = gdata->reverseGridHashHost(overfull_cell);
+			double3 worldPos = gdata->calcGlobalPosOffset(gridPos, make_float3(0.0f)) + problem->get_worldorigin();
+			fprintf(stderr, "ERROR: cell %d [grid position (%d, %d, %d), global position (%g, %g, %g)] on device %d has too many particles (%d > %d)\n",
+				overfull_cell,
+				gridPos.x, gridPos.y, gridPos.z,
+				worldPos.x, worldPos.y, worldPos.z,
+				d, gdata->timingInfo[d].hasHowManyParticles, NEIBINDEX_MASK);
 			fprintf(stderr, "Possible reasons:\n");
 			fprintf(stderr, "\tinadequate world size (%zu particles were marked as out-of-bounds during init)\n",
 				gdata->problem->m_out_of_bounds_count);
