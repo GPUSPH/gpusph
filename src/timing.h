@@ -98,7 +98,8 @@ typedef struct TimingInfo {
 	{}
 	*/
 
-	TimingInfo(void) : maxFluidBoundaryNeibs(0), maxVertexNeibs(0), numInteractions(0)
+	TimingInfo(void) : maxFluidBoundaryNeibs(0), maxVertexNeibs(0), numInteractions(0),
+		hasTooManyParticles(-1), hasHowManyParticles(0)
 	{ }
 
 } TimingInfo;
