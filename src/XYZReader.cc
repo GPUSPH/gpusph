@@ -56,6 +56,7 @@ size_t XYZReader::getNParts()
 	while ( getline(xyzFile, unused) )
 		++numLines;
 
+	npart = numLines; // cache for future usage
 	return numLines;
 }
 
