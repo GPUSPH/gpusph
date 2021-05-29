@@ -64,6 +64,8 @@ typedef struct {
 	double	crot[3];
 	double	lvel[3];
 	double	avel[3];
+	double	lvel_dt[3];
+	double	avel_dt[3];
 	double	orientation[4];
 	double	initial_crot[3];
 	double	initial_lvel[3];
@@ -140,7 +142,7 @@ void HotFile::load() {
 
 	// TODO FIXME would it be possible to restore from a situation with a
 	// different number of arrays?
-	check_counts_match("buffer", _header.buffer_count, _gdata->s_hBuffers.size());
+	check_counts_match("buffer", _header.buffer_count, _gdata->s_hBufSize);
 
 	// NOTE: simulation with ODE bodies cannot be resumed identically due to
 	// the way ODE handles its internal state.
@@ -186,7 +188,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 	case VERSION_1:
 		memset(&_header, 0, sizeof(_header));
 		_header.version = 1;
-		_header.buffer_count = _gdata->s_hBuffers.size();
+		_header.buffer_count = _gdata->s_hBufSize;
 		_header.particle_count = _particle_count;
 		_header.body_count = _gdata->problem->simparams()->numbodies;
 		_header.numOpenBoundaries = _gdata->problem->simparams()->numOpenBoundaries;
@@ -316,6 +318,14 @@ void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, uint numpart
 		eb.avel[1] = mbdata->kdata.avel.y;
 		eb.avel[2] = mbdata->kdata.avel.z;
 
+		eb.lvel_dt[0] = mbdata->adata.lvel_dt.x;
+		eb.lvel_dt[1] = mbdata->adata.lvel_dt.y;
+		eb.lvel_dt[2] = mbdata->adata.lvel_dt.z;
+
+		eb.avel_dt[0] = mbdata->adata.avel_dt.x;
+		eb.avel_dt[1] = mbdata->adata.avel_dt.y;
+		eb.avel_dt[2] = mbdata->adata.avel_dt.z;
+
 		eb.orientation[0] = mbdata->kdata.orientation(0);
 		eb.orientation[1] = mbdata->kdata.orientation(1);
 		eb.orientation[2] = mbdata->kdata.orientation(2);
@@ -372,6 +382,14 @@ void HotFile::readBody(ifstream *fp, version_t version)
 			mbdata.kdata.avel.x = eb.avel[0];
 			mbdata.kdata.avel.y = eb.avel[1];
 			mbdata.kdata.avel.z = eb.avel[2];
+
+			mbdata.adata.lvel_dt.x = eb.lvel_dt[0];
+			mbdata.adata.lvel_dt.y = eb.lvel_dt[1];
+			mbdata.adata.lvel_dt.z = eb.lvel_dt[2];
+
+			mbdata.adata.avel_dt.x = eb.avel_dt[0];
+			mbdata.adata.avel_dt.y = eb.avel_dt[1];
+			mbdata.adata.avel_dt.z = eb.avel_dt[2];
 
 			mbdata.kdata.orientation(0) = eb.orientation[0];
 			mbdata.kdata.orientation(1) = eb.orientation[1];

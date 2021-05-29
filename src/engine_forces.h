@@ -47,7 +47,7 @@ public:
 
 	/// Set the device constants
 	virtual void
-	setconstants(const SimParams *simparams, const PhysParams *physparams,
+	setconstants(const SimParams *simparams, const PhysParams *physparams, float const& deltap,
 		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
 		idx_t const& allocatedParticles) = 0;
 
@@ -176,6 +176,12 @@ public:
 				BufferList& bufwrite,
 				uint	numBlocks,
 				uint	numParticles) = 0;
+
+	virtual float
+	reduceMax(	const float *data,
+				float		*temp,
+				uint		numBlocks,
+				uint		numParticles)=0;
 
 };
 #endif

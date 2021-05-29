@@ -314,6 +314,8 @@ private:
 	// steps to do after launching a (set of) forces kernels: unbinding textures, get, adaptive dt, etc
 	float post_forces(CommandStruct const& cmd);
 
+	float post_reduce(const BufferList bufread, BufferList bufwrite);
+
 	// aux method to warp signed cell coordinates when periodicity is enabled
 	void periodicityWarp(int &cx, int &cy, int &cz);
 	// aux method to check wether cell coords are inside the domain

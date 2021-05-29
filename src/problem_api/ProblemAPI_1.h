@@ -328,7 +328,7 @@ class ProblemAPI<1> : public ProblemCore
 		void disableFeedback(const GeometryID gid);
 
 		// methods to set a custom inertia matrix (and overwrite the precomputed one)
-		void setInertia(const GeometryID gid, const double i11, const double i22, const double i33);
+		void setInertia(const GeometryID gid, const double i11, const double i22, const double i33, double mass = 0.0);
 		void setInertia(const GeometryID gid, const double* mainDiagonal);
 
 		// method to set a custom center of gravity (and overwrite the precomputed one)

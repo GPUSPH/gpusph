@@ -61,8 +61,8 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.04); //0.008
 	set_timestep(0.0003f);
 	simparams()->dtadaptfactor = 0.3;
-	simparams()->buildneibsfreq = 10;
-	simparams()->tend = 5.0f; //0.00036f
+	simparams()->buildneibsfreq = 1;
+	simparams()->tend = 10.0f; //0.00036f
 
 	// Physical parameters
 	set_gravity(-9.81f);

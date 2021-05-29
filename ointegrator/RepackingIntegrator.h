@@ -47,10 +47,7 @@ class RepackingIntegrator : public Integrator
 		INITIALIZATION, // initialization phase, after upload and neibs list, but before the main integrator loop
 
 		BEGIN_TIME_STEP, // integrator step initialization phase
-		REPACKING_PREDICTOR, // repacking_predictor
-		REPACKING_CORRECTOR, // repacking_corrector
-		PREDICTOR_END,	// preparations for REPACKING_CORRECTOR
-		CORRECTOR_END,	// preparations for next step		
+		REPACKING, // repacking phase
 		FINISH_REPACKING, // end-of-repacking phase
 		PREPARE_SIMULATION, // rerun the initialization phase, in preparation for the actual simulation
 
@@ -62,17 +59,13 @@ class RepackingIntegrator : public Integrator
 
 	static std::string getCurrentStateForStep(int step_num);
 	static std::string getNextStateForStep(int step_num);
-	static std::string getFormerStateForStep(int step_num);
 
-	dt_operator_t getDtOperatorForStep(int step_num);
-	
 	// initialize the command sequence for boundary models (one per boundary)
 	template<BoundaryType boundarytype>
 	void initializeBoundaryConditionsSequence(Phase *this_phase, StepInfo const& step);
 
 	Phase* initializeInitializationSequence(StepInfo const& step_num);
 	Phase* initializeRepackingSequence(StepInfo const& step_num);
-	Phase* initializeNextStepSequence(StepInfo const& step_num);
 
 	template<PhaseCode phase>
 	void initializePhase();

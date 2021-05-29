@@ -211,8 +211,10 @@ SET_BUFFER_TRAITS(BUFFER_CFL_GAMMA, float, 1, "CFL gamma array");
 SET_BUFFER_TRAITS(BUFFER_CFL_TEMP, float, 1, "CFL aux array");
 #define BUFFER_CFL_KEPS		(BUFFER_CFL_TEMP << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL_KEPS, float, 1, "Turbulent Viscosity CFL array");
+#define BUFFER_CFL_REPACK		(BUFFER_CFL_KEPS << 1)
+SET_BUFFER_TRAITS(BUFFER_CFL_REPACK, float, 1, "||gamma|| CFL array");
 
-#define BUFFER_SPS_TURBVISC		(BUFFER_CFL_KEPS << 1)
+#define BUFFER_SPS_TURBVISC		(BUFFER_CFL_REPACK << 1)
 SET_BUFFER_TRAITS(BUFFER_SPS_TURBVISC, float, 1, "SPS Turbulent viscosity");
 
 // .x: initial volume, .y log (current/initial), .z unused, .w current volume
@@ -222,10 +224,13 @@ SET_BUFFER_TRAITS(BUFFER_VOLUME, float4, 1, "Volume");
 #define BUFFER_SIGMA		(BUFFER_VOLUME << 1)
 SET_BUFFER_TRAITS(BUFFER_SIGMA, float, 1, "Sigma (discrete specific volume)");
 
+#define BUFFER_REPACK			(BUFFER_SIGMA << 1)
+SET_BUFFER_TRAITS(BUFFER_REPACK, float4, 1, "gradient gamma and its length");
+
 // Private buffers are used to save custom post-processing results
 // There are three buffers available: a scalar one, one with two components and
 // one with four.
-#define BUFFER_PRIVATE		(BUFFER_SIGMA << 1)
+#define BUFFER_PRIVATE		(BUFFER_REPACK << 1)
 SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 
 #define BUFFER_PRIVATE2		(BUFFER_PRIVATE << 1)
@@ -241,7 +246,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
 
 // all CFL buffers
-#define BUFFERS_CFL			( BUFFER_CFL | BUFFER_CFL_TEMP | BUFFER_CFL_KEPS | BUFFER_CFL_GAMMA)
+#define BUFFERS_CFL			( BUFFER_CFL | BUFFER_CFL_TEMP | BUFFER_CFL_KEPS | BUFFER_CFL_GAMMA | BUFFER_CFL_REPACK)
 
 // all CELL buffers
 #define BUFFERS_CELL		( BUFFER_CELLSTART | BUFFER_CELLEND | BUFFER_COMPACT_DEV_MAP)
@@ -255,7 +260,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 
 // all particle-based buffers
 #define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & \
-	~(BUFFERS_RB_PARTICLES | BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
+	~(BUFFERS_RB_PARTICLES | BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST | BUFFER_REPACK))
 
 // TODO we need a better form of buffer classification, distinguishing:
 // * “permanent” buffers for particle properties (which need to be sorted):
@@ -327,7 +332,8 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define EPHEMERAL_BUFFERS \
 	((ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS)) | \
 	 BUFFERS_CFL | \
-	 (BUFFERS_RB_PARTICLES & ~BUFFER_RB_KEYS) \
+	 (BUFFERS_RB_PARTICLES & ~BUFFER_RB_KEYS) | \
+	 BUFFER_REPACK \
 	)
 
 //! Buffers selectable by CALC_PRIVATE post-processing filter

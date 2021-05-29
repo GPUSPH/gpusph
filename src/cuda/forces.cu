@@ -266,7 +266,7 @@ class CUDAForcesEngine : public AbstractForcesEngine
 
 
 void
-setconstants(const SimParams *simparams, const PhysParams *physparams,
+setconstants(const SimParams *simparams, const PhysParams *physparams, float const& deltap,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
 	idx_t const& allocatedParticles)
 {
@@ -395,6 +395,8 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_alpha, &simparams->repack_alpha, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_a, &simparams->repack_a, sizeof(float)));
+	const float volume_0 = deltap*deltap*deltap;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_v, &volume_0, sizeof(float)));
 
 }
 
@@ -603,6 +605,20 @@ dtreduce(	float	slength,
 	KERNEL_CHECK_ERROR;
 
 	return dt;
+}
+
+float
+reduceMax(	const float	*data,
+		float		*temp,
+		uint		numBlocks,
+		uint		numParticles)
+{
+	float float_max = cflmax(numBlocks, data, temp);
+
+	// check if last kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
+
+	return float_max;
 }
 
 void

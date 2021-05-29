@@ -894,6 +894,17 @@ struct common_particle_output
 	{}
 };
 
+struct common_repack_output
+{
+	float4 gamma;
+
+	template<typename FP>
+	__device__ __forceinline__
+		common_repack_output(FP const& params, const uint index) :
+		gamma(params.repack_info[index])
+	{}
+};
+
 // CFL condition for gamma integration when using SA_BOUNDARY
 struct gamma_cfl_particle_output
 {
@@ -1036,6 +1047,7 @@ template<BoundaryType _boundarytype,
 	ParticleType nptype>
 struct repack_particle_output :
 	common_particle_output,
+	common_repack_output,
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT) &&
 		cptype == PT_FLUID && nptype == PT_BOUNDARY,
 		gamma_cfl_particle_output)
@@ -1047,24 +1059,27 @@ struct repack_particle_output :
 	__device__ __forceinline__
 	repack_particle_output(FP const& params, const uint index) :
 		common_particle_output(params, index),
+		common_repack_output(params, index),
 		COND_STRUCT(boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && (simflags & ENABLE_DTADAPT) &&
 			cptype == PT_FLUID && nptype == PT_BOUNDARY,
 			gamma_cfl_particle_output)()
 	{}
 };
 
-template<BoundaryType _boundarytype, flag_t _simflags>
+template<BoundaryType _boundarytype, flag_t _simflags, bool repacking>
 struct finalize_repack_particle_output :
 	common_particle_output,
 	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
-		gamma_cfl_particle_output)
+		gamma_cfl_particle_output),
+	COND_STRUCT(repacking, common_repack_output)
 {
 	template<typename FP>
 	__device__ __forceinline__
 	finalize_repack_particle_output(FP const& params, const uint index) :
 		common_particle_output(params, index),
 		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
-			gamma_cfl_particle_output)(params, index)
+			gamma_cfl_particle_output)(params, index),
+		COND_STRUCT(repacking, common_repack_output)(params, index)
 	{}
 };
 
@@ -3030,10 +3045,12 @@ compute_repacking_contrib
 	/* Mixing force for repacking: \f$ F = -ac^2\nabla\Gamma \f$
 		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
 	*/
-	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
-		*d_sscoeff[fluid_num(pdata.info)]
-		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
-		*ndata.f*as_float3(ndata.relPos);
+	const float coe = -d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		*d_sscoeff[fluid_num(pdata.info)];
+
+	nout.DvDt = ndata.f*d_repack_v*as_float3(ndata.relPos);
+	pout.gamma += make_float4(nout.DvDt, 0.f);
+	nout.DvDt *= coe;
 
 }
 
@@ -3049,10 +3066,12 @@ compute_repacking_contrib
 	/* Mixing force for repacking: \f$ F = -ac^2\nabla\Gamma \f$
 		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
 	*/
-	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
-		*d_sscoeff[fluid_num(pdata.info)]
-		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
-		*ndata.f*as_float3(ndata.relPos);
+	const float coe = -d_repack_a*d_sscoeff[fluid_num(pdata.info)]
+		* d_sscoeff[fluid_num(pdata.info)];
+
+	nout.DvDt = ndata.f*d_repack_v*as_float3(ndata.relPos);
+	pout.gamma += make_float4(nout.DvDt, 0.f);
+	nout.DvDt *= coe;
 }
 
 template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -3500,14 +3519,38 @@ struct dyndt_keps_shared_data
 	}
 };
 
+struct repack_shared_data
+{
+	float sm_repack_max[BLOCK_SIZE_FORCES];
+
+	__device__ __forceinline__ void
+	init() { sm_repack_max[threadIdx.x] = 0; }
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_repack_max[threadIdx.x] = pout.gamma.w;
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		maxBlockReduce(sm_repack_max, params.cfl_repack, params.cflOffset);
+	}
+};
+
 template<BoundaryType boundarytype, typename ViscSpec, flag_t simflags,
+	bool repacking,
 	bool has_keps = ViscSpec::turbmodel == KEPSILON,
 	bool dtadapt = simflags & ENABLE_DTADAPT>
 struct forces_shared_data :
 	COND_SHARED(dtadapt, dyndt_forces_shared_data),
 	COND_SHARED(dtadapt && USING_DYNAMIC_GAMMA(simflags) && boundarytype == SA_BOUNDARY,
 		dyndt_gamma_shared_data),
-	COND_SHARED(dtadapt && has_keps, dyndt_keps_shared_data)
+	COND_SHARED(dtadapt && has_keps, dyndt_keps_shared_data),
+	COND_SHARED(repacking, repack_shared_data)
 {
 	typedef
 		typename COND_SHARED(dtadapt, dyndt_forces_shared_data)
@@ -3519,6 +3562,9 @@ struct forces_shared_data :
 	typedef
 		typename COND_SHARED(dtadapt && has_keps, dyndt_keps_shared_data)
 		keps;
+	typedef
+		typename COND_SHARED(repacking, repack_shared_data)
+		repack;
 
 	__device__ __forceinline__ void
 	init()
@@ -3526,6 +3572,7 @@ struct forces_shared_data :
 		common::init();
 		gamma::init();
 		keps::init();
+		repack::init();
 	}
 
 	template<typename FP, typename P, typename OP>
@@ -3535,6 +3582,7 @@ struct forces_shared_data :
 		common::store(params, pdata, pout);
 		gamma::store(params, pdata, pout);
 		keps::store(params, pdata, pout);
+		repack::store(params, pdata, pout);
 	}
 
 	template<typename FP>
@@ -3544,6 +3592,7 @@ struct forces_shared_data :
 		common::reduce(params);
 		gamma::reduce(params);
 		keps::reduce(params);
+		repack::reduce(params);
 	}
 };
 
@@ -4041,7 +4090,7 @@ finalizeforcesDevice(FP params)
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
 	// Allocating shared data in case of adaptive time step
-	__shared__ forces_shared_data<boundarytype, ViscSpec, simflags> shared;
+	__shared__ forces_shared_data<boundarytype, ViscSpec, simflags, false> shared;
 	shared.init();
 
 #pragma unroll
@@ -4198,6 +4247,10 @@ repackDevice(FP params)
 		if (INACTIVE(pos))
 			break;
 
+		if (QUERY_ANY_PART_FLAG(info, FG_SURFACE) ||
+			(QUERY_ANY_PART_FLAG(info, FG_INTERFACE)))
+			break;
+
 		// Loading the rest of particle data
 		repack_particle_data<kerneltype, boundarytype, simflags, cptype, nptype> const
 			pdata(index, pos, info, params);
@@ -4252,15 +4305,29 @@ repackDevice(FP params)
 		write_gamma_cfl(params, pdata, pout);
 
 		params.forces[pdata.index] = pout.force;
+		
+		params.repack_info[pdata.index] = pout.gamma;
 
 
 	} while (0);
 }
 
+template<typename P, typename OP>
+__device__ __forceinline__
+void
+compute_gamma_w(P const& pdata, OP & pout)
+{
+	if (NOT_FLUID(pdata.info))
+		pout.gamma.w = 0.f;
+	else
+		pout.gamma.w = length(as_float3(pout.gamma));
+}
+
 // TODO FIXME compute total kinetic energy
 template<typename FP, /* finalize_forces_params<...> */
 	BoundaryType boundarytype = FP::boundarytype,
-	flag_t simflags = FP::simflags>
+	flag_t simflags = FP::simflags,
+	bool repack = FP::repacking>
 __global__ void
 finalizeRepackDevice(FP params)
 {
@@ -4268,7 +4335,7 @@ finalizeRepackDevice(FP params)
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
 	// Allocating shared data in case of adaptive time step
-	__shared__ forces_shared_data<boundarytype, repackViscSpec<simflags>, simflags> shared;
+	__shared__ forces_shared_data<boundarytype, repackViscSpec<simflags>, simflags, repack> shared;
 	shared.init();
 
 #pragma unroll
@@ -4297,7 +4364,9 @@ finalizeRepackDevice(FP params)
 			pdata(index, pos, info, params);
 
 		// Preparing particle output variables
-		finalize_repack_particle_output<boundarytype, simflags> pout(params, index);
+		finalize_repack_particle_output<boundarytype, simflags, repack> pout(params, index);
+
+		compute_gamma_w(pdata, pout);
 
 		// common division or multiplication
 		repack_fixup(params, pdata, pout);
@@ -4307,7 +4376,7 @@ finalizeRepackDevice(FP params)
 
 			// Adding the repacking damping term T(zeta) from Colagrossi et al.
 			const uint fType =  fluid_num(pdata.info);
-			as_float3(pout.force) += d_repack_alpha*d_sscoeff[fType]/params.deltap*as_float3(pdata.vel);
+			as_float3(pout.force) -= d_repack_alpha*d_sscoeff[fType]/params.deltap*as_float3(pdata.vel);
 
 			// Post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
@@ -4342,6 +4411,7 @@ finalizeRepackDevice(FP params)
 		}
 
 		params.forces[index] = pout.force;
+		params.repack_info[pdata, index] = pout.gamma;
 
 	} while (0);
 

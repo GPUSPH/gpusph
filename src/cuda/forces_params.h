@@ -196,6 +196,7 @@ struct dyndt_finalize_forces_params
 	float	* __restrict__ cfl_forces;
 	float	* __restrict__ cfl_gamma;
 	float	* __restrict__ cfl_keps;
+	float	* __restrict__ cfl_repack;
 	uint	cflOffset;
 	uint	cflGammaOffset;
 
@@ -207,6 +208,7 @@ struct dyndt_finalize_forces_params
 		cfl_forces(bufwrite.getData<BUFFER_CFL>()),
 		cfl_gamma(bufwrite.getData<BUFFER_CFL_GAMMA>()),
 		cfl_keps(bufwrite.getData<BUFFER_CFL_KEPS>()),
+		cfl_repack(bufwrite.getData<BUFFER_CFL_REPACK>()),
 		cflOffset(_cflOffset),
 		cflGammaOffset(round_up(_numParticles, 4U) + cflOffset)
 	{}
@@ -310,6 +312,14 @@ struct effective_visc_forces_params
 	{}
 };
 
+struct repack_info_params
+{
+	float4 *__restrict__ repack_info;
+	repack_info_params(BufferList &bufwrite):
+		repack_info(bufwrite.getData<BUFFER_REPACK>())
+	{}
+};
+
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -340,7 +350,9 @@ template<KernelType _kerneltype,
 		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_INTERNAL_ENERGY),
 			internal_energy_forces_params),
 	typename visc_cond =
-		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params)
+		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params),
+	typename repack_cond = 
+		typename COND_STRUCT(_repacking, repack_info_params)
 	>
 struct forces_params : _ViscSpec,
 	common_forces_params,
@@ -351,7 +363,8 @@ struct forces_params : _ViscSpec,
 	water_depth_cond,
 	keps_cond,
 	energy_cond,
-	visc_cond
+	visc_cond,
+	repack_cond
 {
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
@@ -405,7 +418,8 @@ struct forces_params : _ViscSpec,
 		water_depth_cond(_IOwaterdepth),
 		keps_cond(bufread, bufwrite),
 		energy_cond(bufwrite),
-		visc_cond(bufread)
+		visc_cond(bufread),
+		repack_cond(bufwrite)
 	{}
 };
 
@@ -441,7 +455,9 @@ template<SPHFormulation _sph_formulation,
 	typename keps_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_forces_params),
 	typename energy_cond =
 		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_INTERNAL_ENERGY), internal_energy_forces_params),
-	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params)
+	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params),
+	typename repack_cond = 
+		typename COND_STRUCT(_repacking, repack_info_params)
 	>
 struct finalize_forces_params :
 	common_finalize_forces_params<_run_mode>,
@@ -451,7 +467,8 @@ struct finalize_forces_params :
 	water_depth_cond,
 	keps_cond,
 	energy_cond,
-	visc_cond
+	visc_cond,
+	repack_cond
 {
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const BoundaryType boundarytype = _boundarytype;
@@ -493,7 +510,8 @@ struct finalize_forces_params :
 		water_depth_cond(_IOwaterdepth),
 		keps_cond(bufread, bufwrite),
 		energy_cond(bufwrite),
-		visc_cond(bufread)
+		visc_cond(bufread),
+		repack_cond(bufwrite)
 	{}
 };
 
