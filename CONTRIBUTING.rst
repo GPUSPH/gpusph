@@ -26,8 +26,10 @@ in this regard is the freely available `Pro Git`_ book.
 .. _Pro Git: https://git-scm.com/book/
 
 GPUSPH follows a centralized development model with feature branches. There is
-`a main repository (hosted on GitHub) <https://github.com/GPUSPH/gpusph>`_,
+`a main repository (hosted on GitHub) <repo_>`_,
 with reference branches (``master``, ``candidate``, ``next``).
+
+.. _repo: https://github.com/GPUSPH/gpusph
 
 The ``next`` branch is the main development branch. New features
 should be developed in independent branches forked off the current ``next``
@@ -46,14 +48,19 @@ to ``master`` directly, which is then merged back into ``candidate`` and into
 Communication
 =============
 
-The GitHub issue tracker is available to submit specific issues about building
+The `GitHub issue tracker <tracker_>`_ is available to submit specific issues about building
 and running GPUSPH, as well as to present any feature request.
 
 For more general discussion about GPUSPH, its use and development, please join
-`the GPUSPH Discourse Forum <https://gpusph.discourse.group>`_.
+`the GPUSPH Discourse Forum <forum_>`_.
 
 The GPUSPH developers can also be found on IRC, ``#gpusph`` channel on the
-FreeNode network.
+`LiberaChat`_ network (`web interface`_).
+
+.. _tracker: https://github.com/GPUSPH/gpusph/issues
+.. _forum: https://gpusph.discourse.group
+.. _LiberaChat: https://libera.chat
+.. _web interface: https://web.libera.chat/?nick=GPUSPH_user&channel=#gpusph
 
 Reading the source
 ====================
@@ -126,4 +133,20 @@ simulation (boundary conditions, forces computation, integration, etc) and is
 instantiated by the ``Problem`` subclass implementing the user-specified
 test-case.
 
+Contributing a change
+=====================
 
+If you wish to contribute a change to GPUSPH (be it a fix or a new feature),
+it's recommended you first discuss it with the core developers
+on `the issue tracker <tracker_>`_ or `the forum <forum_>`_.
+
+To contribute, you should fork the main GPUSPH repository on GitHub,
+push your changes to your fork, and `create a pull request <pull_>`_
+so that we may consider your contribution for inclusion.
+
+.. _pull: https://github.com/GPUSPH/gpusph/pulls
+
+Try to keep your commits self-sufficient (each commit should compile and run),
+and independent (please don't commit multiple fixes in a single commit).
+Multiple commits to implement a more complex change are perfectly fine
+(in fact, even encouraged).
