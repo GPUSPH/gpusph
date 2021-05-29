@@ -302,6 +302,14 @@ ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
 			mbdata->kdata.lvel = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWvel_par();
 			mbdata->kdata.avel = make_double3(vec.x(), vec.y(), vec.z());
+			//- debug
+			vec = body->GetPos_dtdt();
+			mbdata->adata.lvel_dt = make_double3(vec.x(), vec.y(), vec.z());
+			
+			vec = body->GetWacc_par();
+			mbdata->adata.avel_dt = make_double3(vec.x(), vec.y(), vec.z());
+			//- debug
+			
 			::chrono::ChQuaternion<> quat = body->GetRot();
 			m_bodies.insert(m_bodies.begin() + simparams()->numODEbodies, mbdata);
 			simparams()->numODEbodies++;
@@ -331,12 +339,49 @@ ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
 	simparams()->numbodies = m_bodies.size();
 }
 
+//- debug
+void
+ProblemCore::printBody(const uint bid)
+{
+#if USE_CHRONO == 1
+	std::shared_ptr< ::chrono::ChBody> body = m_bodies[bid]->object->GetBody();
+	printf("******************************************************\n");
+	printf("iterations %d, Body %d\n", gdata->iterations, bid);
+	//- Coord
+	::chrono::ChCoordsys<> sys = body->GetCoord();
+	printf("Coord Pos[%.8lf, %.8lf, %.8lf], Rot[%.8lf, %.8lf, %.8lf, %.8lf]\n", sys.pos.x(),sys.pos.y(),sys.pos.z(),sys.rot.e0(),sys.rot.e1(),sys.rot.e2(),sys.rot.e3());
+	
+	//- Coord_dt
+	sys = body->GetCoord_dt();
+	printf("Coord_dt Pos[%.8lf, %.8lf, %.8lf], Rot[%.8lf, %.8lf, %.8lf, %.8lf]\n", sys.pos.x(),sys.pos.y(),sys.pos.z(),sys.rot.e0(),sys.rot.e1(),sys.rot.e2(),sys.rot.e3());
+	
+	//- Coord_dtdt
+	sys = body->GetCoord_dtdt();
+	printf("Coord_dtdt Pos[%.8lf, %.8lf, %.8lf], Rot[%.8lf, %.8lf, %.8lf, %.8lf]\n", sys.pos.x(),sys.pos.y(),sys.pos.z(),sys.rot.e0(),sys.rot.e1(),sys.rot.e2(),sys.rot.e3());
+	
+	//- kdata.
+	/*KinematicData _kdata = m_bodies[bid]->kdata;
+	printf("_kdata ep[%.8lf, %.8lf, %.8lf, %.8lf]\n", _kdata.orientation.m_ep[0],kdata.orientation.m_ep[1],kdata.orientation.m_ep[2],kdata.orientation.m_ep[3]);
+	printf("_kdata rotx[%.8lf, %.8lf, %.8lf]\n", _kdata.orientation.m_rot[0],kdata.orientation.m_rot[1],kdata.orientation.m_rot[2]);
+	printf("_kdata roty[%.8lf, %.8lf, %.8lf]\n", _kdata.orientation.m_rot[3],kdata.orientation.m_rot[4],kdata.orientation.m_rot[5]);
+	printf("_kdata rotz[%.8lf, %.8lf, %.8lf]\n", _kdata.orientation.m_rot[6],kdata.orientation.m_rot[7],kdata.orientation.m_rot[8]);*/	
+	
+	printf("******************************************************\n");
+#endif
+}
+//- debug
+
 void
 ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint numparts, const int firstindex, const int lastindex)
 {
 	const uint id = saved_mbdata.id;
 	MovingBodyData *mbdata = m_bodies[id];
 	mbdata->object->SetNumParts(numparts);
+	
+	//- debug
+	mbdata->adata = saved_mbdata.adata;
+	//- debug
+	
 	mbdata->initial_kdata = saved_mbdata.initial_kdata;
 	mbdata->kdata = saved_mbdata.kdata;
 	if (mbdata->type == MB_FORCES_MOVING || mbdata->type == MB_FLOATING) {
@@ -348,9 +393,12 @@ ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint
 #if USE_CHRONO == 1
 		std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 		body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
-		body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
-		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
 		body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+		body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+		body->SetPos_dtdt(::chrono::ChVector<>(mbdata->adata.lvel_dt.x, mbdata->adata.lvel_dt.y, mbdata->adata.lvel_dt.z));
+		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+		::chrono::ChVector<> vec(mbdata->adata.avel_dt.x, mbdata->adata.avel_dt.y, mbdata->adata.avel_dt.z);
+		body->SetWacc_par(vec);
 #else
 		throw runtime_error ("ProblemCore::restore_moving_body Cannot restore a floating body without CHRONO\n");
 #endif
@@ -562,7 +610,6 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
 			body->Accumulate_torque(::chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
 
-
 			if (false) {
 				cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
 				//mbdata->object->ODEPrintInformation(false);
@@ -601,6 +648,15 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			mbdata->kdata.lvel = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWvel_par();
 			mbdata->kdata.avel = make_double3(vec.x(), vec.y(), vec.z());
+			
+			//- debug
+			vec = body->GetPos_dtdt();
+			mbdata->adata.lvel_dt = make_double3(vec.x(), vec.y(), vec.z());
+			
+			vec = body->GetWacc_par();
+			mbdata->adata.avel_dt = make_double3(vec.x(), vec.y(), vec.z());
+			//- debug
+			
 			::chrono::ChQuaternion<> quat = body->GetRot();
 			const EulerParameters new_orientation = EulerParameters(quat.e0(), quat.e1(), quat.e2(), quat.e3());
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
@@ -1881,7 +1937,7 @@ void ProblemCore::PlaneCut(PointVect& points, const double a, const double b,
 }
 
 // callback for initializing particles with custom values
-void ProblemCore::initializeParticles(BufferList &buffers, const uint numParticles)
+void ProblemCore::initializeParticles(BufferList &buffers, const RunMode _run_mode, const uint numParticles)
 {
 	// Default: do nothing
 
@@ -1927,5 +1983,5 @@ void ProblemCore::resetBuffers(BufferList &buffers, const uint numParticles)
 		init_keps(buffers, numParticles);
 
 	// call user-set initialization routine, if any
-	initializeParticles(buffers, numParticles);
+	initializeParticles(buffers, SIMULATE, numParticles);
 }

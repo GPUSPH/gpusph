@@ -99,6 +99,7 @@ __constant__ float	d_sspowercoeff[MAX_FLUID_TYPES];// (\gamma - 1)/2
 // repacking constants
 __constant__ float d_repack_alpha; // parameter alpha for repacking, controls the damping
 __constant__ float d_repack_a; // parameter a for repacking, controls the mixing
+__constant__ float d_repack_v; // parameter V_0.
 
 /********************** Equation of state, speed of sound, repulsive force **********************************/
 // Equation of state: pressure from density, where i is the fluid kind, not particle_id

@@ -36,12 +36,6 @@
  */
 
 using namespace std;
-static float null_timestep(GlobalData const* gdata)
-{ return 0.0f; }
-
-//! Function that returns half the current time-step
-static float half_timestep(GlobalData const* gdata)
-{ return gdata->dt/2; }
 
 //! Function that returns the full current time-step
 static float full_timestep(GlobalData const* gdata)
@@ -50,15 +44,7 @@ static float full_timestep(GlobalData const* gdata)
 string
 RepackingIntegrator::getCurrentStateForStep(int step_num)
 {
-	switch (step_num) {
-	case 0:
-	case 1:
-		return "step n";
-	case 2:
-		return "step n*";
-	default:
-		throw runtime_error("cannot determine current state for step #" + to_string(step_num));
-	}
+	return "step n";
 }
 
 string
@@ -69,48 +55,17 @@ RepackingIntegrator::getNextStateForStep(int step_num)
 	case -1: // end-of-repacking prepare simulation step
 		return "step n";
 	case 1:
-		return "step n*";
-	case 2:
 		return "step n+1";
 	default:
 		throw runtime_error("cannot determine next state for step #" + to_string(step_num));
 	}
-}
-	
-string
-RepackingIntegrator::getFormerStateForStep(int step_num)
-{
-	switch (step_num) {
-	case 2:
-		return "step n";
-	default:
-		throw runtime_error("cannot determine next state for step #" + to_string(step_num));
-	}
-}
-
-
-dt_operator_t
-RepackingIntegrator::getDtOperatorForStep(int step_num)
-{
-	return
-		/* prepare for the simulation, so reset to 0 */
-		step_num == 0 ? null_timestep :
-		/* end of predictor, prepare for corrector, where forces
-		 * will be computed at t + dt/2
-		 */
-		step_num == 1 ? half_timestep :
-		/* end of corrector, prepare for next predictor, where forces
-		 * will be computed at t + dt (t and dt are still the one
-		 * for the current whole step)
-		 */
-						full_timestep ;
 }
 
 //! Fill in the StepInfo for a given step number
 static StepInfo step_info(int step_num)
 {
 	StepInfo step(step_num);
-	if (step_num == 2)
+	if (step_num == 1)
 		step.last = true;
 
 	return step;
@@ -286,7 +241,7 @@ RepackingIntegrator::initializeInitializationSequence(StepInfo const& step)
 	const SimParams *sp = gdata->problem->simparams();
 
 	// did we resume? (to skip applying boundary conditions)
-	const bool resumed = gdata->resume;
+	const bool resumed = !gdata->clOptions->resume_fname.empty();
 
 	Phase *this_phase = new Phase(this, "initialization preparations");
 
@@ -325,11 +280,9 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 {
 	SimParams const* sp = gdata->problem->simparams();
 
-	const dt_operator_t dt_op = getDtOperatorForStep(step.number);
+	const dt_operator_t dt_op = full_timestep;
 
-	Phase *this_phase = new Phase(this, 
-		step.number == 1 ? "repacking_predictor" :
-		step.number == 2 ? "repacking_corrector" : "this can't happen");
+	Phase *this_phase = new Phase(this, "repacking");
 
 	/* In the scheme we use, there are four buffers that
 	 * need special treatment:
@@ -353,7 +306,6 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
 
-	const string base_state = "step n";
 	const string current_state = getCurrentStateForStep(step.number);
 	const string next_state = getNextStateForStep(step.number);
 
@@ -373,10 +325,10 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 			BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | BUFFER_EULERVEL |
 			BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC | BUFFER_EFFVISC)
 		.writing(current_state,
-			BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP | BUFFER_CFL_REPACK |
+			BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP |
 			BUFFER_CFL_GAMMA | BUFFER_CFL_KEPS |
 			BUFFER_RB_FORCES | BUFFER_RB_TORQUES |
-			BUFFER_XSPH | BUFFER_REPACK |
+			BUFFER_XSPH |
 			/* TODO BUFFER_TAU is written by forces only in the k-epsilon case,
 			 * and it is not updated across devices, is this correct?
 			 */
@@ -394,7 +346,7 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 		this_phase->add_command(UPDATE_EXTERNAL)
 			.updating(current_state,
 				BUFFER_FORCES | BUFFER_XSPH | BUFFER_DKDE |
-				BUFFER_REPACK | BUFFER_INTERNAL_ENERGY_UPD);
+				BUFFER_INTERNAL_ENERGY_UPD);
 
 	if (striping) {
 		CommandStruct& complete_cmd = this_phase->add_command(FORCES_COMPLETE)
@@ -406,36 +358,25 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 	}
 
 	// (re)init the new status (n*),
-	if (step.number == 1) {
-		this_phase->add_command(INIT_STATE)
-			.set_src(next_state);
-		
-		this_phase->add_command(SHARE_BUFFERS)
-			.set_src(current_state)
-			.set_dst(next_state)
-			.set_flags(shared_buffers | SUPPORT_BUFFERS);
-	}
+	this_phase->add_command(INIT_STATE)
+		.set_src(next_state);
+	/* The buffers (re)initialized during the neighbors list construction
+	 * and the INFO and HASH buffers are shared between states
+	 */
+	this_phase->add_command(SHARE_BUFFERS)
+		.set_src(current_state)
+		.set_dst(next_state)
+		.set_flags(shared_buffers | SUPPORT_BUFFERS);
 
 	CommandStruct& euler_cmd = this_phase->add_command(EULER)
 		.set_step(step)
 		.set_dt(dt_op)
-		.reading(base_state, REPACKING_PROPS_BUFFERS | BUFFER_HASH)
 		.reading(current_state,
+			REPACKING_PROPS_BUFFERS | BUFFER_HASH |
 			BUFFER_FORCES | BUFFER_XSPH |
 			BUFFER_INTERNAL_ENERGY_UPD |
-			BUFFER_DKDE);
-	if (step.number == 1) {
-		// predictor: the next state is empty, so we mark all the props buffer as writing:
-		euler_cmd.writing(next_state, REPACKING_PROPS_BUFFERS);
-	}
-	else {
-		// corrector: we update the “current” state (step n*)
-		euler_cmd.updating(current_state, REPACKING_PROPS_BUFFERS)
-			// and then rename it to step n+1; for another usage of this syntax,
-			// see also the enqueue of the SORT command
-			.set_src(current_state)
-			.set_dst(next_state);
-	}
+			BUFFER_DKDE)
+		.writing(next_state, REPACKING_PROPS_BUFFERS);
 
 	if (gdata->debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
@@ -464,35 +405,17 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 
 	}
 
-	return this_phase;
-}
-
-Integrator::Phase *
-RepackingIntegrator::initializeNextStepSequence(StepInfo const& step)
-{
-	Phase *this_phase = new Phase(this,
-		step.number == 1 ? "post-predictor preparations" :
-		step.number == 2 ? "post-corrector preparations" : "this can't happen");
-	
-	const string current_state = getCurrentStateForStep(step.number);
-	const string next_state = getNextStateForStep(step.number);
-
-	// at the end of the corrector we rename step n+1 to step n, in preparation
+	// at the end of the repacking we rename step n+1 to step n, in preparation
 	// for the next loop
-	if (step.last) {
-		this_phase->add_command(RELEASE_STATE)
-			.set_src("step n");
-		this_phase->add_command(RENAME_STATE)
-			.set_src("step n+1")
-			.set_dst("step n");
-		this_phase->add_command(TIME_STEP_EPILOGUE);
-	}
+	this_phase->add_command(RELEASE_STATE)
+		.set_src("step n");
+	this_phase->add_command(RENAME_STATE)
+		.set_src("step n+1")
+		.set_dst("step n");
 
-	else
-		this_phase->add_command(MOVE_STATE_BUFFERS)
-			.set_src(current_state)
-			.set_dst(next_state)
-			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS | BUFFER_JACOBI) );
+	// TODO compute kinetic energy to allow stop criteria based on its decrease
+
+	this_phase->add_command(TIME_STEP_EPILOGUE);
 
 	return this_phase;
 }
@@ -540,31 +463,10 @@ void RepackingIntegrator::initializePhase<RepackingIntegrator::INITIALIZATION>()
 }
 
 template<>
-void RepackingIntegrator::initializePhase<RepackingIntegrator::REPACKING_PREDICTOR>()
+void RepackingIntegrator::initializePhase<RepackingIntegrator::REPACKING>()
 {
 	StepInfo step = step_info(1);
-	m_phase[REPACKING_PREDICTOR] = initializeRepackingSequence(step);
-}
-
-template<>
-void RepackingIntegrator::initializePhase<RepackingIntegrator::REPACKING_CORRECTOR>()
-{
-	StepInfo step = step_info(2);
-	m_phase[REPACKING_CORRECTOR] = initializeRepackingSequence(step);
-}
-
-template<>
-void RepackingIntegrator::initializePhase<RepackingIntegrator::PREDICTOR_END>()
-{
-	StepInfo step = step_info(1);
-	m_phase[PREDICTOR_END] = initializeNextStepSequence(step);
-}
-
-template<>
-void RepackingIntegrator::initializePhase<RepackingIntegrator::CORRECTOR_END>()
-{
-	StepInfo step = step_info(2);
-	m_phase[CORRECTOR_END] = initializeNextStepSequence(step);
+	m_phase[REPACKING] = initializeRepackingSequence(step);
 }
 
 template<>
@@ -610,13 +512,7 @@ RepackingIntegrator::RepackingIntegrator(GlobalData const* _gdata) :
 
 	initializePhase<BEGIN_TIME_STEP>();
 
-	initializePhase<REPACKING_PREDICTOR>();
-
-	initializePhase<PREDICTOR_END>();
-
-	initializePhase<REPACKING_CORRECTOR>();
-
-	initializePhase<CORRECTOR_END>();
+	initializePhase<REPACKING>();
 
 	initializePhase<FINISH_REPACKING>();
 
@@ -662,15 +558,9 @@ RepackingIntegrator::phase_after(RepackingIntegrator::PhaseCode cur)
 	// after finishing the main cycle, run PREPARE_SIMULATION
 		return
 			m_finished_main_cycle ? PREPARE_SIMULATION :
-			m_entered_main_cycle  ? REPACKING_PREDICTOR :
+			m_entered_main_cycle  ? REPACKING :
 			INITIALIZATION;
-	case REPACKING_PREDICTOR:
-		return PREDICTOR_END;
-	case PREDICTOR_END:
-		return REPACKING_CORRECTOR;
-	case REPACKING_CORRECTOR:
-		return CORRECTOR_END;
-	case CORRECTOR_END:
+	case REPACKING:
 		return m_finished_main_cycle ? FINISH_REPACKING : BEGIN_TIME_STEP;
 
 	case FINISH_REPACKING:

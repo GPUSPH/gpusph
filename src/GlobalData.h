@@ -162,6 +162,8 @@ struct GlobalData {
 
 	// CPU buffers ("s" stands for "shared"). Not double buffered
 	BufferList s_hBuffers;
+	// Buffers.size() without ephemeral buffers.
+	size_t s_hBufSize;
 
 	devcount_t*			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
@@ -184,6 +186,7 @@ struct GlobalData {
 
 	// last dt for each PS
 	float dts[MAX_DEVICES_PER_NODE];
+	float velmaxs[MAX_DEVICES_PER_NODE];
 
 	// indicates whether particles were created at open boundaries
 	bool	particlesCreatedOnNode[MAX_DEVICES_PER_NODE];
@@ -228,6 +231,7 @@ struct GlobalData {
 	// TODO check how moving boundaries cope with this
 	double t;
 	float dt;
+	float velmax;
 	//! Will we use adaptive time-stepping?
 	/*! Adaptive time-stepping is enabled by default (ENABLE_DTADAPT in the framework
 	 * simulation flags) and can be disabled by adding the appropriate disable_flags<>
@@ -341,11 +345,14 @@ struct GlobalData {
 		s_hRbLinearVelocities(NULL),
 		s_hRbAngularVelocities(NULL),
 		h_IOwaterdepth(NULL),
-		h_maxIOwaterdepth(NULL)
+		h_maxIOwaterdepth(NULL),
+		s_hBufSize(0)
 	{
 		// init dts
-		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+		for (uint d = 0; d < MAX_DEVICES_PER_NODE; d++) {
 			dts[d] = 0.0F;
+			velmaxs[d] = 0.0F;
+		}
 
 		// init Jacobi solver auxiliary data
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) {
@@ -605,6 +612,16 @@ struct GlobalData {
 					}
 		fclose(fid);
 		printf(" > compact device map dumped to file %s\n",fname.c_str());
+	}
+
+	void calcBufSize()
+	{
+		const size_t skip_buffers = EPHEMERAL_BUFFERS;
+		for (auto& iter : s_hBuffers) {
+			if (iter.first & skip_buffers)
+				continue;
+			s_hBufSize++;
+		}
 	}
 
 	// function for cleanup between the repacking and the standard run

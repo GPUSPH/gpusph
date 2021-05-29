@@ -505,6 +505,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	const neibdata *neibslist = buffers.getData<BUFFER_NEIBSLIST>();
 
+	const float4 *repack_info = buffers.getData<BUFFER_REPACK>();
+
 	// TODO debugging
 	const uint *nextIDs = buffers.getData<BUFFER_NEXTID>();
 
@@ -648,6 +650,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	if (forces) {
 		appender.append_data(forces,
 			"Spatial acceleration", "Continuity derivative");
+	}
+
+	if (repack_info) {
+		appender.append_data(repack_info,
+			"Gradient gamma", "Length gamma");
 	}
 
 	// pressure

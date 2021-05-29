@@ -399,8 +399,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		if (gdata->run_mode != REPACK) {
 			if (problem->simparams()->turbmodel == KEPSILON)
 				problem->init_keps(gdata->s_hBuffers, gdata->totParticles);
-			problem->initializeParticles(gdata->s_hBuffers, gdata->totParticles);
 		}
+		problem->initializeParticles(gdata->s_hBuffers, gdata->run_mode,  gdata->totParticles);
 		printf("---\n");
 	} else {
 		gdata->t = hf[0]->get_t();
@@ -459,6 +459,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	for (uint i = 0 ; i < problem->simparams()->numforcesbodies; ++i) {
 			cout << "\t" << gdata->s_hRbFirstIndex[i] << "\t" << gdata->s_hRbLastIndex[i] << endl;
 	}
+
+	//- debug
+	//problem->printBody(0);
+	//- debug
 
 	// Initialize potential joints if there are floating bodies
 	if (problem->simparams()->numbodies)
@@ -655,6 +659,15 @@ void GPUSPH::runCommand<TIME_STEP_EPILOGUE>(CommandStruct const& cmd)
 		// if runnin multinode, should also find the network minimum
 		if (MULTI_NODE)
 			gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
+	}
+
+	{
+		gdata->velmax = gdata->velmaxs[0];
+		for (uint d = 1; d < gdata->devices; d++)
+			gdata->velmax = max(gdata->velmax, gdata->velmaxs[d]);
+		// if runnin multinode, should also find the network minimum
+		if (MULTI_NODE)
+			gdata->networkManager->networkFloatReduction(&(gdata->velmax), 1, MAX_REDUCTION);
 	}
 
 	// check that dt is not too small (absolute)
@@ -951,6 +964,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();
 	}
 
+	if (gdata->run_mode == REPACK)
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_REPACK>(0);
+
 	// number of elements to allocate
 	const size_t numparts = gdata->allocatedParticles;
 
@@ -1068,6 +1084,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += gdata->devices * sizeof(uint*) * 3;
 		totCPUbytes += gdata->devices * sizeof(uint) * 4;
 	}
+
+	gdata->calcBufSize();
+
 	return totCPUbytes;
 }
 
@@ -1747,6 +1766,11 @@ void GPUSPH::saveParticles(
 {
 	const SimParams * const simparams = problem->simparams();
 
+	//- debug
+	//if(write_flags.hot_write)
+	//	problem->printBody(0);
+	//- dbeug
+
 	// set the buffers to be dumped
 	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
@@ -1788,6 +1812,9 @@ void GPUSPH::saveParticles(
 	if (simparams->simflags & ENABLE_INLET_OUTLET ||
 		simparams->turbmodel == KEPSILON)
 		which_buffers |= BUFFER_EULERVEL;
+
+	if (gdata->run_mode == REPACK)
+		which_buffers |= BUFFER_REPACK;
 
 	// get nextIDs
 	// this must always be done, not just for debugging, because
@@ -1983,6 +2010,8 @@ void GPUSPH::printStatus(FILE *out)
 			//ti.meanTimeNeibsList,
 			//ti.meanTimeEuler
 			);
+	if (gdata->run_mode == REPACK)
+		fprintf(out, "REPACK, |gamma|_max = %lf\n", gdata->velmax);
 	fflush(out);
 	// output to the info stream is always overwritten
 	if (out == m_info_stream)

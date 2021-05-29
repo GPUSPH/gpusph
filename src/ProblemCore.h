@@ -686,10 +686,10 @@ class ProblemCore
 
 		//! @userfunc
 		//! callback for initializing particles with custom values
-		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+		virtual void initializeParticles(BufferList &buffers, const RunMode _run_mode, const uint numParticles);
 		//! callback for resetting the buffer values after resuming from a repack file
 		virtual void resetBuffers(BufferList &buffers, const uint numParticles);
-
+		void printBody(const uint bid);
 
 };
 #endif

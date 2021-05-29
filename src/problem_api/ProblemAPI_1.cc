@@ -906,9 +906,9 @@ GeometryID ProblemAPI<1>::addXYZFile(const GeometryType otype, const Point &orig
 
 	// create an empty STLMesh if a mesh filename is not given
 	STLMesh *stlmesh = new STLMesh(0);
-	if (fname_obj)
+	if (fname_obj){
 		stlmesh->setObjectFile(fname_obj);
-
+		stlmesh->loadObjBounds(); // update bbox
 	double offsetX = 0, offsetY = 0, offsetZ = 0;
 
 	// handle positioning
@@ -934,6 +934,7 @@ GeometryID ProblemAPI<1>::addXYZFile(const GeometryType otype, const Point &orig
 
 	// shift STL origin to given point
 	stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
+	}
 
 	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts for that
 
@@ -1145,7 +1146,7 @@ void ProblemAPI<1>::disableFeedback(const GeometryID gid)
 }
 
 // Set a custom inertia matrix (main diagonal only). Will overwrite the precomputed one
-void ProblemAPI<1>::setInertia(const GeometryID gid, const double i11, const double i22, const double i33)
+void ProblemAPI<1>::setInertia(const GeometryID gid, const double i11, const double i22, const double i33, double mass)
 {
 	if (!validGeometry(gid)) return;
 
@@ -1154,9 +1155,14 @@ void ProblemAPI<1>::setInertia(const GeometryID gid, const double i11, const dou
 		printf("WARNING: trying to set inertia of a geometry with no dynamics! Ignoring\n");
 		return;
 	}
-	m_geometries[gid]->custom_inertia[0] = i11;
-	m_geometries[gid]->custom_inertia[1] = i22;
-	m_geometries[gid]->custom_inertia[2] = i33;
+
+	//- times mass.
+	if (mass == 0.0)
+		mass = m_geometries[gid]->ptr->GetMass();
+
+	m_geometries[gid]->custom_inertia[0] = i11 * mass;
+	m_geometries[gid]->custom_inertia[1] = i22 * mass;
+	m_geometries[gid]->custom_inertia[2] = i33 * mass;
 }
 
 // overload

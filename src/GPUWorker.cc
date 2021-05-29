@@ -155,7 +155,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simparams->simflags & ENABLE_DTADAPT) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
-		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>(0);
 		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_GAMMA>();
 		if (m_simparams->turbmodel == KEPSILON)
@@ -217,6 +217,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>(0);
 	}
 
+	if (gdata->run_mode == REPACK) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_REPACK>(0);
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_REPACK>();
+	}
+	
 	// all workers begin with an "initial upload” state in their particle system,
 	// to hold all the buffers that will be initialized from host
 	m_dBuffers.initialize_state("initial upload");
@@ -1966,7 +1971,11 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 
 	// clear out the buffers computed by forces
 	bufwrite.get<BUFFER_FORCES>()->clobber();
-
+	if (gdata->run_mode == REPACK) {
+		bufwrite.get<BUFFER_REPACK>()->clobber();
+		bufwrite.get<BUFFER_CFL_REPACK>()->clobber();
+	}
+	
 	if (m_simparams->simflags & ENABLE_XSPH)
 		bufwrite.get<BUFFER_XSPH>()->clobber();
 
@@ -2048,6 +2057,23 @@ float GPUWorker::post_forces(CommandStruct const& cmd)
 
 	bufwrite.clear_pending_state();
 	return ret;
+}
+
+float GPUWorker::post_reduce(const BufferList bufread, BufferList bufwrite)
+{
+	if (gdata->run_mode == REPACK) {
+		float temp;
+		const float *repack_data = bufread.getData<BUFFER_CFL_REPACK>();
+		bufwrite.get<BUFFER_CFL_TEMP>()->clobber();
+		float *repack_temp = bufwrite.getData<BUFFER_CFL_TEMP>();
+
+		if (repack_data)
+			temp = forcesEngine->reduceMax(repack_data, repack_temp, m_forcesKernelTotalNumBlocks, m_numParticles);
+	
+		return temp;
+	}
+	else
+		return 0.f;
 }
 
 // Aux method to warp signed cell coordinates if periodicity is enabled.
@@ -2226,6 +2252,9 @@ void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
 
 		// cleanup post forces and get dt
 		returned_dt = post_forces(cmd);
+
+		if (cmd.step.last)
+			gdata->velmaxs[m_deviceIndex] = post_reduce(buffer_lists.first, buffer_lists.second);
 	} else {
 		// we didn't call forces because we didn't have particles,
 		// but let's mark the write buffers as dirty to be consistent with the workers
@@ -3040,7 +3069,7 @@ void GPUWorker::uploadConstants()
 	// NOTE: visccoeff must be set before uploading the constants. This is done in GPUSPH main cycle
 
 	// Setting kernels and kernels derivative factors
-	forcesEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
+	forcesEngine->setconstants(m_simparams, m_physparams, gdata->problem->m_deltap, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	integrationEngine->setconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles, m_simparams->neiblistsize, m_simparams->slength);
