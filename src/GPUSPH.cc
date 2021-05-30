@@ -395,11 +395,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf("Copying the particles to shared arrays...\n");
 		printf("---\n");
 		problem->copy_to_array(gdata->s_hBuffers);
+		problem->show_out_of_bounds();
 		if (gdata->run_mode != REPACK) {
 			if (problem->simparams()->turbmodel == KEPSILON)
 				problem->init_keps(gdata->s_hBuffers, gdata->totParticles);
-			problem->initializeParticles(gdata->s_hBuffers, gdata->totParticles);
 		}
+		problem->initializeParticles(gdata->s_hBuffers, gdata->run_mode,  gdata->totParticles);
 		printf("---\n");
 	} else {
 		gdata->t = hf[0]->get_t();
@@ -458,6 +459,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	for (uint i = 0 ; i < problem->simparams()->numforcesbodies; ++i) {
 			cout << "\t" << gdata->s_hRbFirstIndex[i] << "\t" << gdata->s_hRbLastIndex[i] << endl;
 	}
+
+	//- debug
+	//problem->printBody(0);
+	//- debug
 
 	// Initialize potential joints if there are floating bodies
 	if (problem->simparams()->numbodies)
@@ -656,6 +661,15 @@ void GPUSPH::runCommand<TIME_STEP_EPILOGUE>(CommandStruct const& cmd)
 			gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 	}
 
+	{
+		gdata->velmax = gdata->velmaxs[0];
+		for (uint d = 1; d < gdata->devices; d++)
+			gdata->velmax = max(gdata->velmax, gdata->velmaxs[d]);
+		// if runnin multinode, should also find the network minimum
+		if (MULTI_NODE)
+			gdata->networkManager->networkFloatReduction(&(gdata->velmax), 1, MAX_REDUCTION);
+	}
+
 	// check that dt is not too small (absolute)
 	if (!gdata->dt) {
 		throw DtZeroException(gdata->t, gdata->dt);
@@ -719,6 +733,8 @@ GPUSPH::dispatchCommand(CommandStruct cmd, flag_t flags)
 }
 
 bool GPUSPH::runSimulation() {
+	double initial_t;
+
 	bool all_ok = false;
 
 	if (!initialized) return all_ok;
@@ -741,6 +757,8 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
+	initial_t = gdata->t;
+
 	integrator->start();
 
 	const CommandStruct* cmd = nullptr;
@@ -760,10 +778,12 @@ bool GPUSPH::runSimulation() {
 
 	const char* run_desc = gdata->run_mode_desc();
 	const char* run_desc_title = gdata->run_mode_Desc();
+	const double elapsed_seconds = m_totalPerformanceCounter->getElapsedSeconds();
+	const double elapsed_simtime = gdata->t - initial_t;
 
 	// elapsed time, excluding the initialization
-	printf("Elapsed time of %s cycle: %.2gs\n", run_desc,
-		m_totalPerformanceCounter->getElapsedSeconds());
+	printf("Elapsed time of %s cycle: %.4gs [sim time: %.4g, ratio %.4g]\n", run_desc,
+		elapsed_seconds, elapsed_simtime, elapsed_seconds/elapsed_simtime);
 
 	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
 	// the condition (gdata->mpi_rank == 0)
@@ -896,6 +916,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_GRADGAMMA>();
 	}
 
+	if (problem->simparams()->boundarytype == DUMMY_BOUNDARY) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_DUMMY_VEL>(0);
+	}
+
 	if (problem->simparams()->turbmodel == KEPSILON) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TKE>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EPSILON>();
@@ -939,6 +963,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();
 	}
+
+	if (gdata->run_mode == REPACK)
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_REPACK>(0);
 
 	// number of elements to allocate
 	const size_t numparts = gdata->allocatedParticles;
@@ -1057,6 +1084,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += gdata->devices * sizeof(uint*) * 3;
 		totCPUbytes += gdata->devices * sizeof(uint) * 4;
 	}
+
+	gdata->calcBufSize();
+
 	return totCPUbytes;
 }
 
@@ -1736,6 +1766,11 @@ void GPUSPH::saveParticles(
 {
 	const SimParams * const simparams = problem->simparams();
 
+	//- debug
+	//if(write_flags.hot_write)
+	//	problem->printBody(0);
+	//- dbeug
+
 	// set the buffers to be dumped
 	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
@@ -1750,6 +1785,9 @@ void GPUSPH::saveParticles(
 	// get GradGamma
 	if (simparams->boundarytype == SA_BOUNDARY)
 		which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
+
+	if (simparams->boundarytype == DUMMY_BOUNDARY)
+		which_buffers |= BUFFER_DUMMY_VEL;
 
 	if (simparams->sph_formulation == SPH_GRENIER)
 		which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
@@ -1774,6 +1812,9 @@ void GPUSPH::saveParticles(
 	if (simparams->simflags & ENABLE_INLET_OUTLET ||
 		simparams->turbmodel == KEPSILON)
 		which_buffers |= BUFFER_EULERVEL;
+
+	if (gdata->run_mode == REPACK)
+		which_buffers |= BUFFER_REPACK;
 
 	// get nextIDs
 	// this must always be done, not just for debugging, because
@@ -1872,6 +1913,22 @@ void GPUSPH::runCommand<CHECK_NEIBSNUM>(CommandStruct const& cmd)
 		if (currDevMaxVertexNeibs > gdata->lastGlobalPeakVertexNeibsNum)
 			gdata->lastGlobalPeakVertexNeibsNum = currDevMaxVertexNeibs;
 
+		const uint overfull_cell = gdata->timingInfo[d].hasTooManyParticles;
+		if ( overfull_cell != -1) {
+			int3 gridPos = gdata->reverseGridHashHost(overfull_cell);
+			double3 worldPos = gdata->calcGlobalPosOffset(gridPos, make_float3(0.0f)) + problem->get_worldorigin();
+			fprintf(stderr, "ERROR: cell %d [grid position (%d, %d, %d), global position (%g, %g, %g)] on device %d has too many particles (%d > %d)\n",
+				overfull_cell,
+				gridPos.x, gridPos.y, gridPos.z,
+				worldPos.x, worldPos.y, worldPos.z,
+				d, gdata->timingInfo[d].hasHowManyParticles, NEIBINDEX_MASK);
+			fprintf(stderr, "Possible reasons:\n");
+			fprintf(stderr, "\tinadequate world size (%zu particles were marked as out-of-bounds during init)\n",
+				gdata->problem->m_out_of_bounds_count);
+			fprintf(stderr, "\tfluid column collapse\n");
+			throw std::runtime_error("overfull cell");
+		}
+
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
 
@@ -1953,6 +2010,8 @@ void GPUSPH::printStatus(FILE *out)
 			//ti.meanTimeNeibsList,
 			//ti.meanTimeEuler
 			);
+	if (gdata->run_mode == REPACK)
+		fprintf(out, "REPACK, |gamma|_max = %lf\n", gdata->velmax);
 	fflush(out);
 	// output to the info stream is always overwritten
 	if (out == m_info_stream)
@@ -2084,6 +2143,8 @@ void GPUSPH::rollCallParticles()
 			// uint first_idx = gdata->s_hStartPerDevice[d];
 			// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[first_idx]), id(gdata->s_hInfo[last_idx])); */
 		}
+		if (gdata->debug.validate_roll_call)
+			throw std::runtime_error("roll call failed");
 	}
 }
 
