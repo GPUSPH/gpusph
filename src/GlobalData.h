@@ -265,7 +265,7 @@ struct GlobalData {
 	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> s_hWriteFeaNodesPointers;	// pointers to nodes to be written 
 	std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>> s_hWriteFeaPointConstrPointers;	// pointers to position constraints to be written 
 	std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>> s_hWriteFeaDirConstrPointers;	// pointers to direction constraints to be written 
-	float3 forces_averager[24][101] = {make_float3(0.0f)};
+	float3 forces_averager[24][201] = {make_float3(0.0f)};
 	uint averager_index;
 	float3 total_fea_force;
 #endif
