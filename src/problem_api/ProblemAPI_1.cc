@@ -161,6 +161,8 @@ bool ProblemAPI<1>::initialize()
 	if (std::isnan(physparams()->r0))
 		physparams()->r0 = m_deltap;
 
+	const uint dims = space_dimensions_for(simparams()->dimensions);
+
 	// aux vars to compute bounding box
 	Point globalMin = Point(DBL_MAX, DBL_MAX, DBL_MAX);
 	Point globalMax = Point(-DBL_MAX, -DBL_MAX, -DBL_MAX);
@@ -230,8 +232,8 @@ bool ProblemAPI<1>::initialize()
 
 		// store highest fluid part Z coordinate
 		if (m_geometries[g]->type == GT_FLUID) {
-			if (!isfinite(highest_water_part) || currMax(2) > highest_water_part)
-				highest_water_part = currMax(2);
+			if (!isfinite(highest_water_part) || currMax(dims-1) > highest_water_part)
+				highest_water_part = currMax(dims-1);
 		}
 
 		// update object counters
@@ -254,8 +256,6 @@ bool ProblemAPI<1>::initialize()
 
 	// store number of objects (floating + moving + I/O)
 	simparams()->numOpenBoundaries = open_boundaries_counter;
-
-	const uint dims = space_dimensions_for(simparams()->dimensions);
 
 	// Increase the world dimensions of a m_deltap quantity. This is necessary
 	// to guarantee a distance of m_deltap between particles of either sides of
@@ -361,11 +361,22 @@ bool ProblemAPI<1>::initialize()
 	// there isn't a periodic boundary in the gravity direction
 	// TODO When hydrostatic filling will be implemented to work with all directions,
 	// the disabling condition below have to be changed
-	if (g == 0 || physparams()->gravity.x !=0 || physparams()->gravity.y !=0 ||
-		(simparams()->periodicbound & PERIODIC_Z))
+	if (g == 0)
+		m_hydrostaticFilling = false;
+	if (dims == 3 && (physparams()->gravity.x != 0 || physparams()->gravity.y != 0 ||
+			(simparams()->periodicbound & PERIODIC_Z)))
 	{
 		m_hydrostaticFilling = false;
 	}
+	if (dims == 2 && (physparams()->gravity.x != 0 || (simparams()->periodicbound & PERIODIC_Y)))
+	{
+		m_hydrostaticFilling = false;
+	}
+	if (dims == 1 && (simparams()->periodicbound & PERIODIC_Y))
+	{
+		m_hydrostaticFilling = false;
+	}
+
 
 	// if multiple fluids, hydrostatic filling should be done by hand
 	// in the problem-specific initilizeParticles
@@ -1781,8 +1792,19 @@ void ProblemAPI<1>::copy_planes(PlaneList &planes)
 	}
 }
 
+// auxiliary method to return the “vertical” component depending on the number of dimensions
+static constexpr double vertical_coord(double4 const& globalPos, int dims)
+{
+	return
+		dims == 1 ? globalPos.x :
+		dims == 2 ? globalPos.y :
+		globalPos.z;
+}
+
 void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 {
+	const uint dims = space_dimensions_for(simparams()->dimensions);
+
 	float4 *pos = buffers.getData<BUFFER_POS>();
 	double4 *globalPos = buffers.getData<BUFFER_POS_GLOBAL>();
 	hashKey *hash = buffers.getData<BUFFER_HASH>();
@@ -1841,7 +1863,7 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 		// Compute density for hydrostatic filling. FIXME for multifluid
 		float rho = atrest_density(0);
 		if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
-			rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
+			rho = hydrostatic_density(m_waterLevel - vertical_coord(globalPos[i], dims), 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1859,7 +1881,7 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 		// Compute density for hydrostatic filling. FIXME for multifluid
 		float rho = atrest_density(0);
 		if (m_hydrostaticFilling)
-			rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
+			rho = hydrostatic_density(m_waterLevel - vertical_coord(globalPos[i], dims), 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -1877,7 +1899,7 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 		// Compute density for hydrostatic filling. FIXME for multifluid
 		float rho = atrest_density(0);
 		if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
-			rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
+			rho = hydrostatic_density(m_waterLevel - vertical_coord(globalPos[i], dims), 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
@@ -2033,7 +2055,7 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 				// Compute density for hydrostatic filling. FIXME for multifluid
 				float rho = atrest_density(0);
 				if (m_hydrostaticFilling && (ptype == PT_FLUID || ptype == PT_VERTEX || simparams()->boundarytype == DYN_BOUNDARY))
-					rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
+					rho = hydrostatic_density(m_waterLevel - vertical_coord(globalPos[i], dims), 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
@@ -2165,7 +2187,7 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 				// Compute density for hydrostatic filling. FIXME for multifluid
 				float rho = atrest_density(0);
 				if (m_hydrostaticFilling && (ptype == PT_FLUID || ptype == PT_VERTEX || simparams()->boundarytype == DYN_BOUNDARY))
-					rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
+					rho = hydrostatic_density(m_waterLevel - vertical_coord(globalPos[i], dims), 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
@@ -2214,7 +2236,7 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 				// Compute density for hydrostatic filling. FIXME for multifluid
 				float rho = atrest_density(0);
 				if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
-					rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
+					rho = hydrostatic_density(m_waterLevel - vertical_coord(globalPos[i], dims), 0);
 				vel[i] = make_float4(0, 0, 0, rho);
 				if (eulerVel)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
