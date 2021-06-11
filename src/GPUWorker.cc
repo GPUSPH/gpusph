@@ -1314,15 +1314,21 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 		shared_ptr<const AbstractBuffer> buf = buflist[buf_to_get];
 		shared_ptr<AbstractBuffer> hostbuf(onhost->second);
 		size_t _size = howManyParticles * buf->get_element_size();
-		if (buf_to_get == BUFFER_NEIBSLIST)
-			_size *= gdata->problem->simparams()->neiblistsize;
 
 		uint dst_index_offset = firstInnerParticle;
 
 		// the cell-specific buffers are always dumped as a whole,
 		// since this is only used to debug the neighbors list on host
 		// TODO FIXME this probably doesn't work on multi-GPU
-		if (buf_to_get & BUFFERS_CELL) {
+		// A similar argument holds for BUFFER_NEIBSLIST: due to the
+		// structure of the array, if we download based on howManyParticles
+		// rather than the actual allocated elements, the last element in the list
+		// of neighbors of the last particles will not be downloaded
+		// This again will most probably not work in multi-GPU, but since we're
+		// only doing this if debug.neibs, it shouldn't matter much
+		// (or at least we'll look for a way to FIXME this when we'll need
+		// to debug.neibs in multi-GPU context).
+		if (buf_to_get & (BUFFERS_CELL | BUFFER_NEIBSLIST)) {
 			_size = buf->get_allocated_elements() * buf->get_element_size();
 			dst_index_offset = 0;
 		}
