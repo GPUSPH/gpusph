@@ -1693,11 +1693,26 @@ ProblemCore::set_grid_params(void)
 	// in a corresponding gridsize of 0. Check for this case (by checking if any
 	// of the gridsize components are zero) and throw.
 
-	if (!m_gridsize.x || !m_gridsize.y || !m_gridsize.z) {
+	const uint dims = space_dimensions_for(simparams()->dimensions);
+
+	if (!m_gridsize.x || (dims > 1 && !m_gridsize.y) || (dims > 2 && !m_gridsize.z)) {
 		stringstream ss;
 		ss << "resolution " << simparams()->slength << " is too low! Resulting grid size would be "
 			<< m_gridsize;
 		throw runtime_error(ss.str());
+	}
+
+	// Make sure no particles are generated in directions not contemplated by the dimensionality
+	// of the problem. We check this by checking that the off-dimensional gridsize components are null.
+	// If all is fine, the corresponding grid size is set to 1 to avoid issues in the pos/hash conversion.
+	// TODO dimensionality-specific hash functions could avoid this
+	if (dims < 3) {
+		if (m_gridsize.z != 0) throw std::runtime_error("non-zero z grid size: spurious particles generated in the z direction?");
+		m_gridsize.z = 1;
+	}
+	if (dims < 2) {
+		if (m_gridsize.y != 0) throw std::runtime_error("non-zero y grid size: spurious particles generated in the y direction?");
+		m_gridsize.y = 1;
 	}
 
 	m_cellsize.x = m_size.x / m_gridsize.x;

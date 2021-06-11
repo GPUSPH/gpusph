@@ -255,17 +255,17 @@ bool ProblemAPI<1>::initialize()
 	// store number of objects (floating + moving + I/O)
 	simparams()->numOpenBoundaries = open_boundaries_counter;
 
+	const uint dims = space_dimensions_for(simparams()->dimensions);
+
 	// Increase the world dimensions of a m_deltap quantity. This is necessary
 	// to guarantee a distance of m_deltap between particles of either sides of
 	// periodic boundaries; moreover, for boundaries without any periodicity
 	// it ensures that all particles are within the domain even in case of
 	// numerical rounding errors.
-	globalMin(0) -= (m_deltap/2);
-	globalMax(0) += (m_deltap/2);
-	globalMin(1) -= (m_deltap/2);
-	globalMax(1) += (m_deltap/2);
-	globalMin(2) -= (m_deltap/2);
-	globalMax(2) += (m_deltap/2);
+	for (int d = 0; d < dims; ++d) {
+		globalMin(d) -= (m_deltap/2);
+		globalMax(d) += (m_deltap/2);
+	}
 
 	const bool multilayer_boundary = simparams()->boundary_is_multilayer();
 
@@ -281,11 +281,11 @@ bool ProblemAPI<1>::initialize()
 			globalMin(0) -= (m_numDynBoundLayers-1)*m_deltap;
 			globalMax(0) += (m_numDynBoundLayers-1)*m_deltap;
 		}
-		if (!(simparams()->periodicbound & PERIODIC_Y)){
+		if (dims > 1 && !(simparams()->periodicbound & PERIODIC_Y)){
 			globalMin(1) -= (m_numDynBoundLayers-1)*m_deltap;
 			globalMax(1) += (m_numDynBoundLayers-1)*m_deltap;
 		}
-		if (!(simparams()->periodicbound & PERIODIC_Z)){
+		if (dims > 2 && !(simparams()->periodicbound & PERIODIC_Z)){
 			globalMin(2) -= (m_numDynBoundLayers-1)*m_deltap;
 			globalMax(2) += (m_numDynBoundLayers-1)*m_deltap;
 		}
@@ -301,8 +301,16 @@ bool ProblemAPI<1>::initialize()
 
 	// add user-defined world margin, if any
 	if (m_extra_world_margin > 0.0) {
-		m_origin -= m_extra_world_margin;
-		m_size += 2 * m_extra_world_margin;
+		m_origin.x -= m_extra_world_margin;
+		m_size.x += 2 * m_extra_world_margin;
+		if (dims > 1) {
+			m_origin.y -= m_extra_world_margin;
+			m_size.y += 2 * m_extra_world_margin;
+		}
+		if (dims > 2) {
+			m_origin.z -= m_extra_world_margin;
+			m_size.z += 2 * m_extra_world_margin;
+		}
 	}
 
 	/* Compute the DEM position fixup, if needed */
