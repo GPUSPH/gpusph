@@ -47,6 +47,11 @@ class Rect: public Object {
 		Vector	m_vx, m_vy;
 		Vector	m_vz; // normal vector
 
+		// FillIn has two different meanings (and implementations!) depending on
+		// the world dimensions
+		void FillIn2D(PointVect& points, const double dx, const int layers);
+		void FillIn3D(PointVect& points, const double dx, const int layers);
+
 	public:
 		Rect(void);
 		Rect(const Point&, const double, const double, const EulerParameters & = EulerParameters());

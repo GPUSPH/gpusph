@@ -581,11 +581,53 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 	return;
 }
 
+void
+Rect::FillIn(PointVect &points, const double dx, const int layers)
+{
+	switch (Object::world_dimensions) {
+	case 2: FillIn2D(points, dx, layers); break;
+	case 3: FillIn3D(points, dx, layers); break;
+	default: throw std::runtime_error("can't FillIn a Rect in " + std::to_string(Object::world_dimensions) + " dimensions");
+	}
+}
+
+/// Fill the rectangle boundary with layers of particles,
+/// towards the inside (+) or outside (-) depending on the layers sign.
+void
+Rect::FillIn2D(PointVect &points, const double dx, const int layers)
+{
+	int _layers = abs(layers);
+
+	Vector x_shift = m_vx;
+	Vector y_shift = m_vy;
+	x_shift.normalize();
+	y_shift.normalize();
+
+	// shift towards the inside
+	const double signed_dx = (layers > 0 ? dx : -dx);
+	x_shift *= signed_dx;
+	y_shift *= signed_dx;
+	Vector o_shift = (x_shift + y_shift);
+	x_shift *= -2;
+	y_shift *= -2;
+
+	// First layer: on the boundary
+	FillBorder(points, dx);
+	// NOTE: pre-decrementing causes (_layers-1) layers to be filled. This
+	// is correct since the first layer was already filled
+	while (--_layers > 0) {
+		Rect layer(m_origin + _layers*o_shift, m_vx + _layers*x_shift, m_vy + _layers*y_shift);
+		layer.SetPartMass(m_center(3));
+		layer.FillBorder(points, dx);
+	}
+}
+
+
 /// Fill a rectangle with layers of particles, from the surface
 /// to the direction of the normal vector. Use a negative
 /// value of layers to FillIn the opposite direction
 void
-Rect::FillIn(PointVect &points, const double dx, const int layers)
+Rect::FillIn3D(PointVect &points, const double dx, const int layers)
 {
 	int _layers = abs(layers);
 
