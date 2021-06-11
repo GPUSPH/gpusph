@@ -221,6 +221,20 @@ ProblemCore::~ProblemCore(void)
 	delete m_physparams;
 }
 
+//! Set the vertical component of the gravity to gravityZ.
+/*! The vertical direction is chosen based on the problem dimensionality */
+float3
+ProblemCore::set_gravity(const float gravityZ)
+{
+	const Dimensionality dim = simparams()->dimensions;
+	switch (dim) {
+	case R1: return set_gravity(make_float3(gravityZ, 0.0, 0.0));
+	case R2: return set_gravity(make_float3(0.0f, gravityZ, 0.0));
+	case R3: return set_gravity(make_float3(0.0f, 0.0f, gravityZ));
+	}
+	throw invalid_argument("vertical direction for " + string(DimensionalityName[dim]) + " problems");
+}
+
 void
 ProblemCore::InitializeChrono()
 {

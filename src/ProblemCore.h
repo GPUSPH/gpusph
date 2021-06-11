@@ -307,10 +307,7 @@ class ProblemCore
 			return set_gravity(make_float3(gravityX, gravityY, gravityZ));
 		}
 
-		float3 set_gravity(const float gravityZ)
-		{
-			return set_gravity(make_float3(0.0f, 0.0f, gravityZ));
-		}
+		float3 set_gravity(const float gravityZ);
 
 		float3 const& get_gravity() const
 		{ return physparams()->gravity; }
