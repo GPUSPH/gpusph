@@ -2441,12 +2441,15 @@ ComputeDummyParticlesDevice(
 		// the .xyz components are just the sum of the weighted velocities,
 		// the .w component is the smoothed pressure, which is computed as:
 		// (neib_pressure + neib_rho*dot(gravity, as_float3(relPos)))*w
-		// For convenience, we achieve this by multiply neib_vel.w by dot(g, relPos)
-		// and adding neib_pressure, so that the shep_vel_P can be obtained with a simple
-		// vectorized increment:
 		float4 neib_contrib = make_float4(
 			neib_vel.x, neib_vel.y, neib_vel.z,
-			neib_pressure + physical_density(neib_vel.w, fluid_num(neib_info))*dot(accel_delta, as_float3(relPos)));
+			neib_pressure);
+
+		// the depth correction for the pressure is only added if it's positive
+		float rho_g_h = physical_density(neib_vel.w, fluid_num(neib_info))*dot3(accel_delta, relPos);
+		neib_contrib.w += fmaxf(rho_g_h, 0.0f);
+
+		// weight
 		neib_contrib *= w;
 
 		kahan_add(vel, neib_contrib, c_vel);
@@ -2460,7 +2463,7 @@ ComputeDummyParticlesDevice(
 		vel /= norm_factor;
 
 	// now vel.w has the pressure, but we actuall want the density there, so:
-	const float rho = RHO(vel.w, fluid_num(info)); // returns rho_tilde
+	float rho = RHO(vel.w, fluid_num(info)); // returns rho_tilde
 
 	// finally, the velocity of the particle should actually be 2*v_w - <v_f>
 	// where -<v_f> is the opposite of the smoothed velocity of the fluid, which we
@@ -2476,6 +2479,13 @@ ComputeDummyParticlesDevice(
 			2*wall_vel.y - vel.y,
 			2*wall_vel.z - vel.z,
 			vel.w);
+
+	// the walls should never exert a negative pressure
+	if (rho < 0) {
+		rho = 0;
+		new_vel.w = 0; // remember to add the background pressure here when we introduce support for it
+	}
+
 
 	dummyVelArray[index] = new_vel;
 	velArray[index].w = rho;
