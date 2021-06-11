@@ -106,6 +106,8 @@ ProblemCore::initialize()
 	SimParams const* _sp(simparams());
 	PhysParams const* _pp(physparams());
 
+	Object::set_world_dimensions(space_dimensions_for(_sp->dimensions));
+
 	if (_sp->gage.size() > 0 && !m_simframework->hasPostProcessEngine(SURFACE_DETECTION)) {
 		printf("Wave gages present: force-enabling surface detection\n");
 		m_simframework->addPostProcessEngine(SURFACE_DETECTION);

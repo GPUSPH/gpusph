@@ -56,6 +56,13 @@
 */
 class Object {
 	protected:
+		//! The number of dimensions of the world the objects are immersed in.
+		/*! This is used to determine how methods such as FillIn
+		 *  will work for 2D objects (e.g. multiple copies of the object in 3D,
+		 *  a 2-dimensional FillIn in 2D)
+		 */
+		static int world_dimensions;
+
 		EulerParameters		m_ep;			///< Euler parameters associated with the object
 		Point				m_center;		///< Coordinates of center of gravity in the global reference frame + particle mass (4th component)
 		double				m_inertia[3];	///< Inertia matrix in the principal axes of inertia frame
@@ -73,6 +80,9 @@ class Object {
 		void getBoundingBoxOfCube(Point &out_min, Point &out_max,
 			Point &origin, Vector v1, Vector v2, Vector v3);
 	public:
+		//! Set the number of world dimensions —must be only used once
+		static void set_world_dimensions(int dim);
+
 		Object(void) {
 #if !(USE_CHRONO == 1)
 			m_body = NULL;

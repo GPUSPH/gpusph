@@ -29,6 +29,18 @@
 
 #include "Object.h"
 
+int Object::world_dimensions = -1;
+
+void
+Object::set_world_dimensions(int dim)
+{
+	if (world_dimensions >= 0)
+		throw std::runtime_error("can't set world dimensions twice");
+	if (dim <= 0)
+		throw std::runtime_error("number of world dimensions must be positive");
+	world_dimensions = dim;
+}
+
 /// Compute the particle mass according to object volume and density
 /*! The mass of object particles is computed dividing the object volume
  *  by the number of particles needed for filling and multiplying the
