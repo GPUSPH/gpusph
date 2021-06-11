@@ -245,24 +245,84 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
 	idx_t const& allocatedParticles)
 {
+	const int dim = space_dimensions_for(simparams->dimensions);
+
+	// TODO FIXME we don't have all combos defined yet
+	std::string unsupported_dim_kernel_combo = "coefficients for " +
+		std::string(KernelName[kerneltype]) + " not defined for " +
+		std::string(DimensionalityName[simparams->dimensions]) + " problems (" +
+		std::to_string(dim) + " dimensions)";
+
 	// Setting kernels and kernels derivative factors
 	const float h = simparams->slength;
 	const float h2 = h*h;
 	const float h3 = h2*h;
 	const float h4 = h2*h2;
 	const float h5 = h4*h;
-	float kernelcoeff = 1.0f/(M_PI*h3);
+
+	// TODO why do we bother setting them up for all kernels, rather than relying on the
+	// kerneltype information from simparams?
+
+	float kernelcoeff, gradcoeff;
+
+	// CUBICSPLINE
+	switch (dim) {
+	case 1:
+		kernelcoeff = 4.0f/(3.0f*h);
+		gradcoeff = 1.0f/h2;
+		break;
+	case 2:
+		kernelcoeff = 10.f/(7.0f*M_PI*h2);
+		gradcoeff = 15.f/(14.0f*M_PI*h3);
+		break;
+	case 3:
+		kernelcoeff = 1.0f/(M_PI*h3);
+		gradcoeff = 3.0f/(4.0f*M_PI*h4);
+		break;
+	default:
+		if (kerneltype == CUBICSPLINE)
+			throw std::invalid_argument(unsupported_dim_kernel_combo);
+	}
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_wcoeff_cubicspline, &kernelcoeff, sizeof(float)));
-	kernelcoeff = 15.0f/(16.0f*M_PI*h3);
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_fcoeff_cubicspline, &gradcoeff, sizeof(float)));
+
+	// QUADRATIC
+	switch (dim) {
+	case 3:
+		kernelcoeff = 15.0f/(16.0f*M_PI*h3);
+		gradcoeff = 15.0f/(32.0f*M_PI*h4);
+		break;
+	default:
+		if (kerneltype == QUADRATIC)
+			throw std::invalid_argument(unsupported_dim_kernel_combo);
+	}
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_wcoeff_quadratic, &kernelcoeff, sizeof(float)));
-	kernelcoeff = 21.0f/(16.0f*M_PI*h3);
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_fcoeff_quadratic, &gradcoeff, sizeof(float)));
+
+	// WENDLAND
+	switch (dim) {
+	case 1:
+		kernelcoeff = 3.0f/(2.0f*h);
+		gradcoeff = 15.0f/(16.0f*M_PI*h3);
+		break;
+	case 2:
+		kernelcoeff = 7.0f/(4.0f*M_PI*h2);
+		gradcoeff = 35.0f/(32.0f*M_PI*h4);
+		break;
+	case 3:
+		kernelcoeff = 21.0f/(16.0f*M_PI*h3);
+		gradcoeff = 105.0f/(128.0f*M_PI*h5);
+		break;
+	default:
+		if (kerneltype == WENDLAND)
+			throw std::invalid_argument(unsupported_dim_kernel_combo);
+	}
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_wcoeff_wendland, &kernelcoeff, sizeof(float)));
-	kernelcoeff = 3.0f/(4.0f*M_PI*h4);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_fcoeff_cubicspline, &kernelcoeff, sizeof(float)));
-	kernelcoeff = 15.0f/(32.0f*M_PI*h4);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_fcoeff_quadratic, &kernelcoeff, sizeof(float)));
-	kernelcoeff = 105.0f/(128.0f*M_PI*h5);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_fcoeff_wendland, &kernelcoeff, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cusph::d_fcoeff_wendland, &gradcoeff, sizeof(float)));
+
+	// GAUSSIAN
+	if (kerneltype == GAUSSIAN && dim != 3)
+		throw std::invalid_argument(unsupported_dim_kernel_combo);
 
 	/*	Gaussian kernel: W(r, h) (exp(-(r/h)^2) - exp(-(δ/h)^2))/const
 		with δ cut-off radius (typically, 3h). For us, δ is the influence radius R*h,
