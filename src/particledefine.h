@@ -69,6 +69,48 @@ enum RunMode {
 	SIMULATE
 };
 
+//! Dimensionality: number of dimensions
+enum Dimensionality {
+	R1 = 1,	// 1D: only uses x component
+	R2,		// 2D: only uses x, y components
+	R3,		// 3D
+	R1_5,	// '1.5' dimensions: 1D + z used for depth/height
+	R2_5,	// '2.5' dimensions: 2D + z used for depth/height
+	INVALID_DIM
+};
+
+__host__ __device__
+static constexpr int space_dimensions_for(Dimensionality dim)
+{
+	return (dim == R1 || dim == R1_5) ? 1 :
+		(dim == R2 || dim == R2_5) ? 2 :
+		3;
+}
+
+__host__ __device__
+static constexpr bool z_is_depth(Dimensionality dim)
+{
+	return dim < R1_5 ? false : true;
+}
+
+//! Names of the smoothing kernels
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* DimensionalityName[INVALID_DIM+1]
+#ifdef GPUSPH_MAIN
+= {
+	"(null)",
+	"1D",
+	"2D",
+	"3D",
+	"1.5D",
+	"2.5D",
+	"(invalid)"
+}
+#endif
+;
+
 //! Smoothing kernels
 /*! \defpsubsection{kernel_type,KERNEL_TYPE}
  * \inpsection{discretisation}

@@ -318,7 +318,7 @@ CommonWriter::write_simparams(ostream &out)
 	const SimParams *SP = m_problem->simparams();
 
 	out << "Simulation parameters:" << endl;
-
+	out << " dimensions = " << DimensionalityName[SP->dimensions] << endl;
 	out << " deltap = " << m_problem->get_deltap() << endl;
 	out << " sfactor = " << SP->sfactor << endl;
 	out << " slength = " << SP->slength << endl;

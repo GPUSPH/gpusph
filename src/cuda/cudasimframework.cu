@@ -137,6 +137,7 @@ class InvalidOptionCombination : IncompleteType<invalid>
 // template parameters
 
 template<
+	Dimensionality _dimensions,
 	KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
 	DensityDiffusionType _densitydiffusiontype,
@@ -204,6 +205,7 @@ class CUDASimFrameworkImpl : public SimFramework,
 	private InvalidOptionCombination<invalid_combination>
 {
 public:
+	static const Dimensionality dimensions = _dimensions;
 	static const KernelType kerneltype = _kerneltype;
 	static const SPHFormulation sph_formulation = _sph_formulation;
 	static const DensityDiffusionType densitydiffusiontype = _densitydiffusiontype;
@@ -355,7 +357,8 @@ struct MultiplexSubclass : virtual public T
 template<typename Arg1, typename Arg2, typename Arg3,
 	typename Arg4, typename Arg5, typename Arg6,
 	typename Arg7, typename Arg8, typename Arg9,
-	typename Arg10, typename Arg11, typename Arg12>
+	typename Arg10, typename Arg11, typename Arg12,
+	typename Arg13>
 struct ArgSelector :
 	virtual public MultiplexSubclass<Arg1,1>,
 	virtual public MultiplexSubclass<Arg2,2>,
@@ -368,12 +371,14 @@ struct ArgSelector :
 	virtual public MultiplexSubclass<Arg9,9>,
 	virtual public MultiplexSubclass<Arg10,10>,
 	virtual public MultiplexSubclass<Arg11,11>,
-	virtual public MultiplexSubclass<Arg12,12>
+	virtual public MultiplexSubclass<Arg12,12>,
+	virtual public MultiplexSubclass<Arg12,13>
 {};
 
 // Now we set the defaults for each argument
 struct TypeDefaults
 {
+	typedef TypeValue<Dimensionality, R3> Dimensions;
 	typedef TypeValue<KernelType, WENDLAND> Kernel;
 	typedef TypeValue<SPHFormulation, SPH_F1> Formulation;
 	typedef TypeValue<DensityDiffusionType, DENSITY_DIFFUSION_NONE> DensityDiffusion;
@@ -417,6 +422,8 @@ template<SelectorType value> \
 struct selector_for<SelectorType, value> : virtual public selector<value> \
 {}
 
+// Kernel override
+DEFINE_ARGSELECTOR(space_dimensions, Dimensionality, Dimensions);
 
 // Kernel override
 DEFINE_ARGSELECTOR(kernel, KernelType, Kernel);
@@ -515,13 +522,15 @@ template<
 	typename Arg9 = DefaultArg,
 	typename Arg10 = DefaultArg,
 	typename Arg11 = DefaultArg,
-	typename Arg12 = DefaultArg>
+	typename Arg12 = DefaultArg,
+	typename Arg13 = DefaultArg>
 class CUDASimFramework {
 	/// The collection of arguments for our current setup
 	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6,
-		Arg7, Arg8, Arg9, Arg10, Arg11, Arg12> Args;
+		Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13> Args;
 
 	/// Comfort static defines
+	static const Dimensionality dimensions = Args::Dimensions::value;
 	static const KernelType kerneltype = Args::Kernel::value;
 	static const SPHFormulation sph_formulation = Args::Formulation::value;
 	static const DensityDiffusionType densitydiffusiontype = Args::DensityDiffusion::value;
@@ -538,6 +547,7 @@ class CUDASimFramework {
 
 	/// The CUDASimFramework implementation of the current setup
 	typedef CUDASimFrameworkImpl<
+			dimensions,
 			kerneltype,
 			sph_formulation,
 			densitydiffusiontype,

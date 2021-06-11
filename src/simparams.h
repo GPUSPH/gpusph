@@ -48,6 +48,7 @@ typedef std::vector<double4> GageList;
 typedef struct SimParams {
 	/** \name Options that are set via SimFramework
 	 * @{ */
+	const Dimensionality	dimensions;					///< Number of dimensions
 	const KernelType		kerneltype;					///< Kernel type
 	const SPHFormulation	sph_formulation;			///< SPH formulation to use
 	const DensityDiffusionType densitydiffusiontype;	///< Type of density diffusion corrective term
@@ -261,6 +262,7 @@ typedef struct SimParams {
 
 	template<typename Framework>
 	SimParams(Framework *simframework) :
+		dimensions(Framework::dimensions),
 		kerneltype(Framework::kerneltype),
 		sph_formulation(Framework::sph_formulation),
 		densitydiffusiontype(Framework::densitydiffusiontype),
