@@ -1586,38 +1586,20 @@ void GPUSPH::createWriter()
 	Writer::Create(gdata);
 }
 
-double GPUSPH::Wendland2D(const double r, const double h) {
-	const double q = r/h;
-	double temp = 1 - q/2.;
-	temp *= temp;
-	temp *= temp;
-	return 7/(4*M_PI*h*h)*temp*(2*q + 1);
-}
-
 void GPUSPH::doWrite(WriteFlags const& write_flags)
 {
+	GageList &gages = problem->simparams()->gage;
+	const size_t numgages = gages.size();
+
+	if (numgages) for (auto& gage : gages) {
+		gage->initialize();
+	}
+
+	const double slength = problem->simparams()->slength;
+
 	// TODO FIXME skip unnecessary work based on write_flags
 	// (e.g. do not run whatever isn't needed by the HotWriter during a hot write)
-	uint node_offset = gdata->s_hStartPerDevice[0];
-
-	// WaveGages work by looking at neighboring SURFACE particles and averaging their z coordinates
-	// NOTE: it's a standard average, not an SPH smoothing, so the neighborhood is arbitrarily fixed
-	// at gage (x,y) ± 2 smoothing lengths
-	// TODO should it be an SPH smoothing instead?
-
-	GageList &gages = problem->simparams()->gage;
-
-	size_t numgages = gages.size();
-	vector<double> gages_W(numgages, 0.);
-	for (uint g = 0; g < numgages; ++g) {
-		if (gages[g].w == 0.)
-			gages_W[g] = DBL_MAX;
-		else
-			gages_W[g] = 0.;
-		gages[g].z = 0.;
-
-		gages[g].w = problem->simparams()->influenceRadius;
-	}
+	const uint node_offset = gdata->s_hStartPerDevice[0];
 
 	// energy in non-fluid particles + one for each fluid type
 	// double4 with .x kinetic, .y potential, .z internal, .w currently ignored
@@ -1676,22 +1658,8 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 
 		// for surface particles add the z coordinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
-			for (uint g = 0; g < numgages; ++g) {
-				const double gslength  = gages[g].w;
-				const double r = sqrt((dpos.x - gages[g].x)*(dpos.x - gages[g].x) + (dpos.y - gages[g].y)*(dpos.y - gages[g].y));
-				if (gslength > 0) {
-					if (r < 2*gslength) {
-						const double W = Wendland2D(r, gslength);
-						gages_W[g] += W;
-						gages[g].z += dpos.z*W;
-					}
-				}
-				else {
-					if (r < gages_W[g]) {
-						gages_W[g] = r;
-						gages[g].z = dpos.z;
-					}
-				}
+			for (auto& g : gages) {
+				g->add_particle(dpos);
 			}
 		}
 
@@ -1714,11 +1682,8 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 	WriterMap writers = Writer::StartWriting(gdata->t, write_flags);
 
 	if (numgages) {
-		for (uint g = 0 ; g < numgages; ++g) {
-			/*cout << "Ng : " << g << " gage: " << gages[g].x << "," << gages[g].y << " r : " << gages[g].w << " z: " << gages[g].z
-					<< " gparts :" << gage_parts[g] << endl;*/
-			if (gages[g].w)
-				gages[g].z /= gages_W[g];
+		for (auto& g: gages) {
+			g->finalize();
 		}
 		//Write WaveGage information on one text file
 		Writer::WriteWaveGage(writers, gdata->t, gages);

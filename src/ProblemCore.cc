@@ -1052,9 +1052,52 @@ ProblemCore::numerical_density( float rho, int i) const
 }
 
 void
-ProblemCore::add_gage(double3 const& pt)
+ProblemCore::add_gage(double2 const& pt, double gage_smoothing)
 {
-	simparams()->gage.push_back(make_double4(pt.x, pt.y, 0., pt.z));
+	static const uint ndim = space_dimensions_for(simparams()->dimensions);
+
+	if (gage_smoothing < 0)
+		throw std::invalid_argument("wave gages cannot have negative smoothing");
+
+	WaveGage *gage;
+
+	if (gage_smoothing > 0)
+		switch (ndim) {
+		case 2: gage = new SmoothingWaveGage<2>(pt, gage_smoothing); break;
+		case 3: gage = new SmoothingWaveGage<3>(pt, gage_smoothing); break;
+		}
+	else // gage_smoothing == 0
+		switch (ndim) {
+		case 2: gage = new NearestNeighborWaveGage<2>(pt); break;
+		case 3: gage = new NearestNeighborWaveGage<3>(pt); break;
+		}
+
+	if (!gage)
+		throw std::invalid_argument("wave gage cannot be defined in " + to_string(ndim) + "D");
+
+	simparams()->gage.push_back(shared_ptr<WaveGage>(gage));
+}
+void
+ProblemCore::add_gage(double x, double y_or_gs)
+{
+	static const uint ndim = space_dimensions_for(simparams()->dimensions);
+
+	switch (ndim) {
+	case 2: return add_gage(make_double2(x, 0), y_or_gs); // 2D problem: second parameter is the smoothing length
+	case 3: return add_gage(make_double2(x, y_or_gs), 0); // 3D problem: second parameter is the second coordinate
+	}
+	throw std::invalid_argument("cannot interpret two-parameter add_gage() in " + to_string(ndim) + "D");
+}
+
+void
+ProblemCore::add_gage(double x)
+{
+	static const uint ndim = space_dimensions_for(simparams()->dimensions);
+
+	if (ndim != 2)
+		throw std::invalid_argument("can only add one-parameter gages in 2D");
+
+	add_gage(make_double2(x, 0), 0);
 }
 
 plane_t

@@ -475,17 +475,28 @@ class ProblemCore
 		{ return physparams()->get_cohesion(fluid_idx); }
 
 
-		// simple functions to add gages. the third component
-		// is actually ignored
-		void add_gage(double3 const& pt);
+		//! Add a wave gage at the given pt.{x, y} coordinates.
+		/*! The gage will be a smoothing wave gage with smoothing length gage_smoothing > 0,
+		 *  or a nearest-neighbor gage if gage_smoothing = 0.
+		 *  The .y coordinate will be ignored in 2D
+		 */
+		void add_gage(double2 const& pt, double gage_smoothing=0);
 
-		inline
-		void add_gage(double2 const& pt)
-		{ add_gage(make_double3(pt.x, pt.y, 0.0)); }
+		inline void add_gage(double3 const& pt, double gage_smoothing=0)
+		{ add_gage(make_double2(pt.x, pt.y), gage_smoothing); }
+		inline void add_gage(double x, double y, double gage_smoothing)
+		{ add_gage(make_double2(x, y), gage_smoothing); }
 
-		inline
-		void add_gage(double x, double y, double z=0)
-		{ add_gage(make_double3(x, y, z)); }
+		//! Add a wave gage.
+		/*! The meaning of the second parameter depends on the dimensionality:
+		 * In 3D, it will be interpreted as the second coordinate for the wave gage position.
+		 * In 2D, it will be interpreted as the gage smoothing length.
+		 */
+		void add_gage(double x, double y_or_gs);
+
+		//! Add a nearest-neighbor gage in 2D
+		void add_gage(double x);
+
 
 		/// Define a plane with equation ax + by + cz + d
 		plane_t implicit_plane(double4 const& p);

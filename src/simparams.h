@@ -34,11 +34,12 @@
 
 #include <vector>
 #include <stdexcept>
+#include "WaveGage.h"
 #include "particledefine.h"
 #include "simflags.h"
 // #include "deprecation.h"
 
-typedef std::vector<double4> GageList;
+typedef std::vector<std::shared_ptr<WaveGage>> GageList;
 
 /** The SimParams structure holds all the simulation related parameters
  *  along with some basic initialization functions.

@@ -880,14 +880,16 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 void
 VTKWriter::write_WaveGage(double t, GageList const& gage)
 {
+	static const int ndims = space_dimensions_for(gdata->problem->simparams()->dimensions);
+
+	// For gages without points, z will be NaN, and we'll set
+	// it to match the lowest world coordinate
+	static const double worldBottom = ndims == 2 ? gdata->worldOrigin.y : gdata->worldOrigin.z;
+
 	ofstream fp;
 	string filename = open_data_file(fp, "WaveGage", current_filenum(), ".vtu");
 
 	size_t num = gage.size();
-
-	// For gages without points, z will be NaN, and we'll set
-	// it to match the lowest world coordinate
-	const double worldBottom = gdata->worldOrigin.z;
 
 	// Header
 	fp << "<?xml version='1.0'?>" << endl;
@@ -899,9 +901,12 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 	//Writing Position
 	fp << "   <Points>" << endl;
 	fp << "	<DataArray type='Float32' NumberOfComponents='3' format='ascii'>" << endl;
-	for (size_t i=0; i <  num; i++)
-		fp << gage[i].x << "\t" << gage[i].y << "\t" <<
-			(isfinite(gage[i].z) ? gage[i].z : worldBottom) << "\t";
+	for (size_t i=0; i <  num; i++) {
+		double3 g = gage[i]->get_3D_pos();
+		if (ndims == 2 && !isfinite(g.y)) g.y = worldBottom;
+		if (ndims == 3 && !isfinite(g.z)) g.z = worldBottom;
+		fp << g.x << "\t" << g.y << "\t" << g.z << "\t";
+	}
 	fp << endl;
 	fp << "	</DataArray>" << endl;
 	fp << "   </Points>" << endl;

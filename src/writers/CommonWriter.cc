@@ -246,7 +246,7 @@ CommonWriter::write_WaveGage(double t, GageList const& gage)
 	if (m_WaveGagefile) {
 		m_WaveGagefile << t;
 		for (size_t i=0; i < gage.size(); i++) {
-			m_WaveGagefile << "\t" << gage[i].z;
+			m_WaveGagefile << "\t" << gage[i]->get_depth();
 		}
 		m_WaveGagefile << endl;
 	}
