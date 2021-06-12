@@ -64,7 +64,9 @@ enum GeometryType {	GT_FLUID,
 enum FillType {	FT_NOFILL,
 				FT_SOLID,
 				FT_SOLID_BORDERLESS,
-				FT_BORDER,
+				FT_OUTER_BORDER, /* outer border, e.g. domain box */
+				FT_BORDER = FT_OUTER_BORDER,
+				FT_INNER_BORDER, /* inner border, e.g. obstacle */
 				FT_UNFILL
 };
 

@@ -1589,10 +1589,16 @@ int ProblemAPI<1>::fill_parts(bool fill)
 
 		// after making some space, fill
 		if (fill) {
+			// the only different between inner and outer fills is the direction of the FillIn
+			// in the multi-layer boundary case
+			uint fill_in_sign = 1;
 			switch (m_geometries[g]->fill_type) {
-				case FT_BORDER:
+				case FT_OUTER_BORDER:
+					fill_in_sign =-1 ;
+					/* fallthrough */
+				case FT_INNER_BORDER:
 					if (simparams()->boundary_is_multilayer())
-						m_geometries[g]->ptr->FillIn(*parts_vector, dx, - m_numDynBoundLayers);
+						m_geometries[g]->ptr->FillIn(*parts_vector, dx, fill_in_sign*m_numDynBoundLayers);
 					else
 						m_geometries[g]->ptr->FillBorder(*parts_vector, dx);
 					break;
