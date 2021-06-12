@@ -170,7 +170,8 @@ Rect::Volume(const double dx) const
 {
 	const double lx = m_lx + dx;
 	const double ly = m_ly + dx;
-	const double volume = lx*ly*dx;
+	const double lz = Object::world_dimensions == 3 ? dx : 1;
+	const double volume = lx*ly*lz;
 	return volume;
 }
 
@@ -181,9 +182,16 @@ Rect::SetInertia(const double dx)
 	const double lx = m_lx + dx;
 	const double ly = m_ly + dx;
 	const double lz = dx;
-	m_inertia[0] = m_mass/12.0*(ly*ly + lz*lz);
-	m_inertia[1] = m_mass/12.0*(lx*lx + lz*lz);
-	m_inertia[2] = m_mass/12.0*(lx*lx + ly*ly);
+	if (Object::world_dimensions == 3) {
+		m_inertia[0] = m_mass/12.0*(ly*ly + lz*lz);
+		m_inertia[1] = m_mass/12.0*(lx*lx + lz*lz);
+		m_inertia[2] = m_mass/12.0*(lx*lx + ly*ly);
+	} else {
+		printf("TODO: %s verify 2D", __func__);
+		m_inertia[0] = m_mass/12.0*lx*ly*ly;
+		m_inertia[1] = m_mass/12.0*ly*lx*lx;
+		m_inertia[2] = 1.0; // in particular, for 2D should this be 1 or 0 or NaN?
+	}
 }
 
 
