@@ -2256,6 +2256,8 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
+	uint nans_found = 0;
+
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2268,7 +2270,8 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
 	// otherwise just mark the buffers
 	if (numPartsToElaborate > 0) {
-		integrationEngine->basicstep(
+		nans_found = integrationEngine->basicstep(
+			gdata->debug.nans,
 			bufread,
 			bufwrite,
 			m_numParticles,
@@ -2288,6 +2291,9 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 		m_dBuffers.rename_state(cmd.src, cmd.dst);
 	bufwrite.clear_pending_state();
 
+	if (nans_found)
+		throw std::runtime_error(to_string(nans_found) + " NaNs found at iteration " +
+			to_string(gdata->iterations) + " step " + to_string(step));
 }
 
 template<>

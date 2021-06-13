@@ -25,6 +25,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+__device__ uint d_nans_found;
 
 struct common_euler_particle_data
 {
@@ -587,6 +588,49 @@ eulerDevice(EP params)
 		// update normal of boundary element, if using SA_BOUNDARY and we have moving bodies
 		update_normals(params, pdata, index);
 	}
+}
+
+//! Show particles that have NAN position or velocity
+template<typename EP, ///< euler_params template instantiation type
+	KernelType kerneltype = EP::kerneltype,
+	SPHFormulation sph_formulation = EP::sph_formulation,
+	BoundaryType boundarytype = EP::boundarytype,
+	typename ViscSpec = typename EP::ViscSpec,
+	flag_t simflags = EP::simflags,
+	int step = EP::step>
+__global__ void
+nanCheckDevice(EP params)
+{
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	const float4 pos = params.newPos[index];
+	const float4 vel = params.newVel[index];
+
+	// is any of pos.{xyz} and vel.{xyzw} not finite?
+	// (we exclude pos.w because that can be NAN for disabled particles)
+	if (isfinite(pos.x+pos.y+pos.z*vel.x+vel.y+vel.z+vel.w)) 
+		return;
+
+	const particleinfo info = params.info[index];
+	const float4 force = params.forces[index];
+	const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
+
+	const float4 pos0 = params.oldPos[index];
+	const float4 vel0 = params.oldVel[index];
+
+
+	printf("%d id %d (%d) @ %d %d %d : %g %g %g . %g -> %g %g %g . %g v %g %g %g . %g -> %g %g %g . %g f %g %g %g . %g\n",
+		index, id(info), (int)PART_TYPE(info),
+		gridPos.x, gridPos.y, gridPos.z,
+		pos0.x, pos0.y, pos0.z, pos0.w,
+		pos.x, pos.y, pos.z, pos.w,
+		vel0.x, vel0.y, vel0.z, vel0.w,
+		vel.x, vel.y, vel.z, vel.w,
+		force.x, force.y, force.z, force.w);
+	atomicAdd(&d_nans_found, 1);
 }
 
 /* vi:set ft=cuda: */

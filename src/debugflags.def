@@ -115,4 +115,7 @@ unsigned validate_roll_call : 1;
 /// Measure (and show) command runtimes
 unsigned benchmark_command_runtimes : 1;
 
+/// Check for NaNs after integration, and abort if found
+unsigned nans : 1;
+
 /* vim: set ft=cpp: */
