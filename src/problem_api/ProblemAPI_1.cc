@@ -136,7 +136,7 @@ bool ProblemAPI<1>::initialize()
 
 	// If we have a DEM, and it's set to not fill, the simulation framework must have
 	// the ENABLE_DEM flag, otherwise there will be no interaction with the topography
-	if (m_dem_geometry != INVALID_GEOMETRY)
+	if (validGeometry(m_dem_geometry))
 	{
 		if ((m_geometries[m_dem_geometry]->fill_type == FT_NOFILL) &&
 			!(simparams()->simflags & ENABLE_DEM))
@@ -587,7 +587,7 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 		// other geometries, and we can have more than one of these
 		if (geomInfo->fill_type != FT_UNFILL)
 		{
-			if (m_dem_geometry != INVALID_GEOMETRY)
+			if (validGeometry(m_dem_geometry))
 				throw std::invalid_argument("cannot add a second DEM");
 			m_dem_geometry = m_geometries.size();
 		}
@@ -600,6 +600,10 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 
 bool ProblemAPI<1>::validGeometry(GeometryID gid)
 {
+	// no warning if the gid explicitly refers to the invalid geometry
+	if (gid == INVALID_GEOMETRY)
+		return false;
+
 	// ensure gid refers to a valid position
 	if (gid >= m_geometries.size()) {
 		printf("WARNING: invalid GeometryID %zu\n", gid);
@@ -978,8 +982,8 @@ ProblemAPI<1>::addDEM(const char * fname_dem, const TopographyFormat dem_fmt, co
 GeometryID
 ProblemAPI<1>::addDEMFluidBox(double height, GeometryID dem_gid)
 {
-	if (dem_gid == INVALID_GEOMETRY) dem_gid = m_dem_geometry;
-	if (dem_gid == INVALID_GEOMETRY)
+	if (!validGeometry(dem_gid)) dem_gid = m_dem_geometry;
+	if (!validGeometry(dem_gid))
 		throw invalid_argument("invalid DEM geometry ID");
 
 	GeometryInfo *gdem = m_geometries.at(dem_gid);
@@ -1400,7 +1404,7 @@ vector<GeometryID> ProblemAPI<1>::makeUniverseBox(const double3 corner1, const d
 
 vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid)
 {
-	if (gid == INVALID_GEOMETRY) gid = m_dem_geometry;
+	if (!validGeometry(gid)) gid = m_dem_geometry;
 	FillType ftype = gid < m_geometries.size() ? m_geometries[gid]->fill_type : FT_NOFILL;
 	return addDEMPlanes(gid, ftype);
 }
@@ -1409,7 +1413,7 @@ vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid, FillType ftype)
 {
 	vector<GeometryID> planes;
 	planes.reserve(4);
-	if (gid == INVALID_GEOMETRY) gid = m_dem_geometry;
+	if (!validGeometry(gid)) gid = m_dem_geometry;
 	const GeometryInfo *gi = getGeometryInfo(gid);
 	if (!gi)
 		throw std::invalid_argument("no DEM to add planes from");
