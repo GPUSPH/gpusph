@@ -521,7 +521,7 @@ eulerDevice(EP params)
 			// integration pos and vel for moving objects
 			if (!params.repacking && MOVING(pdata.info)) {
 				#ifdef _DEBUG_OBJ_FORCES_
-				if (id(pinfo) == 0 && obj == 1 && d_rblinearvel[obj].x != 0.0) {
+				if (id(pinfo) == 0 && obj == 1 && d_rblinearvel[obj].x != 0.0f) {
 					printf("Euler device, object %d\n", obj);
 					printf("   lvel: %e\t%e\t%e\n", d_rblinearvel[obj].x, d_rblinearvel[obj].y, d_rblinearvel[obj].z);
 					printf("   avel: %e\t%e\t%e\n", d_rbangularvel[obj].x, d_rbangularvel[obj].y, d_rbangularvel[obj].z);

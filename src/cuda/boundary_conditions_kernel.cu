@@ -224,63 +224,63 @@ getMassRepartitionFactor(
 	float3 p1  = vertexRelPos[1]-dot(vertexRelPos[1], normal)*normal;
 	float3 p2  = vertexRelPos[2]-dot(vertexRelPos[2], normal)*normal;
 
-	float refSurface = 0.5*dot(cross(v01, v02), normal);
+	float refSurface = 0.5f*dot(cross(v01, v02), normal);
 
 	float3 v21 = vertexRelPos[2]-vertexRelPos[1];
 
-	float surface0 = 0.5*dot(cross(p2, v21), normal);
-	float surface1 = 0.5*dot(cross(p0, v02), normal);
+	float surface0 = 0.5f*dot(cross(p2, v21), normal);
+	float surface1 = 0.5f*dot(cross(p0, v02), normal);
 	// Warning v10 = - v01
-	float surface2 = - 0.5*dot(cross(p1, v01), normal);
-	if (surface0 < 0. && surface2 < 0.) {
+	float surface2 = - 0.5f*dot(cross(p1, v01), normal);
+	if (surface0 < 0.0f && surface2 < 0.0f) {
 		// the projected point is clipped to v1
-		surface0 = 0.;
+		surface0 = 0.0f;
 		surface1 = refSurface;
-		surface2 = 0.;
-	} else if (surface0 < 0. && surface1 < 0.) {
+		surface2 = 0.0f;
+	} else if (surface0 < 0.0f && surface1 < 0.0f) {
 		// the projected point is clipped to v2
-		surface0 = 0.;
-		surface1 = 0.;
+		surface0 = 0.0f;
+		surface1 = 0.0f;
 		surface2 = refSurface;
-	} else if (surface1 < 0. && surface2 < 0.) {
+	} else if (surface1 < 0.0f && surface2 < 0.0f) {
 		// the projected point is clipped to v0
 		surface0 = refSurface;
-		surface1 = 0.;
-		surface2 = 0.;
-	} else if (surface0 < 0.) {
+		surface1 = 0.0f;
+		surface2 = 0.0f;
+	} else if (surface0 < 0.0f) {
 		// We project p2 into the v21 line, parallel to p0
 		// then surface0 is 0
 		// we also modify p0 an p1 accordingly
-		float coef = surface0/(0.5*dot(cross(p0, v21), normal));
+		float coef = surface0/(0.5f*dot(cross(p0, v21), normal));
 
 		p1 -= coef*p0;
-		p0 *= (1.-coef);
+		p0 *= (1.0f-coef);
 
-		surface0 = 0.;
-		surface1 = 0.5*dot(cross(p0, v02), normal);
-		surface2 = - 0.5*dot(cross(p1, v01), normal);
-	} else if (surface1 < 0.) {
+		surface0 = 0.0f;
+		surface1 = 0.5f*dot(cross(p0, v02), normal);
+		surface2 = - 0.5f*dot(cross(p1, v01), normal);
+	} else if (surface1 < 0.0f) {
 		// We project p0 into the v02 line, parallel to p1
 		// then surface1 is 0
 		// we also modify p1 an p2 accordingly
-		float coef = surface1/(0.5*dot(cross(p1, v02), normal));
+		float coef = surface1/(0.5f*dot(cross(p1, v02), normal));
 		p2 -= coef*p1;
-		p1 *= (1.-coef);
+		p1 *= (1.0f-coef);
 
-		surface0 = 0.5*dot(cross(p2, v21), normal);
-		surface1 = 0.;
-		surface2 = - 0.5*dot(cross(p1, v01), normal);
-	} else if (surface2 < 0.) {
+		surface0 = 0.5f*dot(cross(p2, v21), normal);
+		surface1 = 0.0f;
+		surface2 = - 0.5f*dot(cross(p1, v01), normal);
+	} else if (surface2 < 0.0f) {
 		// We project p1 into the v01 line, parallel to p2
 		// then surface2 is 0
 		// we also modify p0 an p2 accordingly
-		float coef = -surface2/(0.5*dot(cross(p2, v01), normal));
+		float coef = -surface2/(0.5f*dot(cross(p2, v01), normal));
 		p0 -= coef*p2;
-		p2 *= (1.-coef);
+		p2 *= (1.0f-coef);
 
-		surface0 = 0.5*dot(cross(p2, v21), normal);
-		surface1 = 0.5*dot(cross(p0, v02), normal);
-		surface2 = 0.;
+		surface0 = 0.5f*dot(cross(p2, v21), normal);
+		surface1 = 0.5f*dot(cross(p0, v02), normal);
+		surface2 = 0.0f;
 	}
 
 	beta.x = surface0/refSurface;
@@ -2411,8 +2411,8 @@ ComputeDummyParticlesDevice(
 	float norm_factor = 0.0f;
 
 	// auxiliary variables for kahan summation
-	float4 c_vel = make_float4(0.0);
-	float c_norm_f = 0.0;
+	float4 c_vel = make_float4(0.0f);
+	float c_norm_f = 0.0f;
 
 	// Loop only over FLUID neighbors
 	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {

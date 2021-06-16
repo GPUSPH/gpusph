@@ -1685,7 +1685,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float p_volume0 = pdata.pos.w/d_rho0[p_fluid_num];
 	// Volume fractions (must be computed from initial volumes)
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
-	const float n_theta = 0.5; // for boundary elements, always 0.5
+	const float n_theta = 0.5f; // for boundary elements, always 0.5
 
 	// Actual volumes
 	const float p_volume = pdata.pos.w/physical_density(pdata);
@@ -1805,7 +1805,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	{
 		const float rho = physical_density(pdata);
 		const float neib_rho = physical_density(ndata);
-		nout.DrDt -= ((2.0/(rho + neib_rho))*
+		nout.DrDt -= ((2.0f/(rho + neib_rho))*
 			(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
 			- dot3(d_gravity, ndata.relPos)
 			)*nout.ggamAS/ndata.r_as*params.dt*2.0f*rho;
