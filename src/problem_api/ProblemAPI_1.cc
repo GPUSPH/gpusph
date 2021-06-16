@@ -272,8 +272,8 @@ bool ProblemAPI<1>::initialize()
 
 	// compute the number of layers for dynamic boundaries, if not set
 	if (multilayer_boundary && m_numDynBoundLayers == 0) {
-		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
-		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+		// force autocomputation
+		m_numDynBoundLayers = getDynamicBoundariesLayers();
 	}
 
 	// Increase the world dimensions for multi-layer boundaries in directions without periodicity
@@ -1491,13 +1491,24 @@ void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 	if (!simparams()->boundary_is_multilayer())
 		printf("WARNING: setting number of layers for dynamic boundaries but not using neither DYN_BOUNDARY nor DUMMY_BOUNDARY!\n");
 
-	// TODO: use autocomputed instead of 3
+	if (m_numDynBoundLayers != 0 && numLayers != m_numDynBoundLayers)
+		printf("WARNING: resetting number of layers");
+
 	const uint suggestedNumLayers = suggestedDynamicBoundaryLayers();
 	if (numLayers > 0 && numLayers < suggestedNumLayers)
 		printf("WARNING: number of layers for dynamic boundaries is low (%u), suggested number is %u\n",
 			numLayers, suggestedNumLayers);
 
 	m_numDynBoundLayers = numLayers;
+}
+
+uint ProblemAPI<1>::getDynamicBoundariesLayers()
+{
+	if (m_numDynBoundLayers == 0) {
+		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
+		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+	}
+	return m_numDynBoundLayers;
 }
 
 int ProblemAPI<1>::fill_parts(bool fill)

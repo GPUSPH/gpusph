@@ -425,8 +425,8 @@ class ProblemAPI<1> : public ProblemCore
 
 		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 		void setDynamicBoundariesLayers(const uint numLayers);
-		// get current value (NOTE: not yet autocomputed in problem constructor)
-		uint getDynamicBoundariesLayers() { return m_numDynBoundLayers; }
+		// get number of layers for dynamic boundaries (autocomputing it if necessary)
+		uint getDynamicBoundariesLayers();
 
 		//! callback for filtering out points before they become particles during
 		//! GPUSPH internal pre-processing
