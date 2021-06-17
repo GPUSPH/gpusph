@@ -56,6 +56,7 @@ size_t XYZReader::getNParts()
 	while ( getline(xyzFile, unused) )
 		++numLines;
 
+	npart = numLines; // cache for future usage
 	return numLines;
 }
 
@@ -73,21 +74,18 @@ void XYZReader::read(Point *bbox_min, Point *bbox_max)
 	cout << "Reading particle data from the input: " << filename << endl;
 
 	// allocating read buffer
-	if(buf == NULL)
-		buf = new ReadParticles[npart];
-	else{
+	if (buf) {
+		cout << "\tWARNING: this is the second time" << endl;
 		delete [] buf;
-		buf = new ReadParticles[npart];
+		buf = NULL;
 	}
+	buf = new ReadParticles[npart];
 
 	ifstream xyzFile(filename.c_str());
-
-	// basic I/O check
-	if (!xyzFile.good()) {
-		stringstream err_msg;
-		err_msg	<< "failed to open XYZ " << filename;
-		throw runtime_error(err_msg.str());
-	}
+	// on the second pass, we should be able to read all points
+	// without issues, so set the stream to throw an exception
+	// if anything goes wrong while reading
+	xyzFile.exceptions(ifstream::failbit | ifstream::badbit);
 
 	// reset the bounding box
 	// NOTE: using NAN instead of DBL_MAX/-DBL_MAX to leave a "correct"
@@ -97,7 +95,7 @@ void XYZReader::read(Point *bbox_min, Point *bbox_max)
 
 	double x, y, z;
 	ReadParticles *part = buf;
-	while( !xyzFile.eof() ) {
+	while (part - buf < npart) {
 		// read point coordinates
 		xyzFile >> x >> y >> z;
 
@@ -115,8 +113,7 @@ void XYZReader::read(Point *bbox_min, Point *bbox_max)
 		if (bbox_max) setMaxPerElement(*bbox_max, p);
 
 		++part;
-
-    }
+	}
 
 	xyzFile.close();
 }

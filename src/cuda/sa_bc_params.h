@@ -35,77 +35,50 @@
  * (saSegmentBoundaryConditionsDevice, saVertexBoundaryConditionsDevice
  */
 
-#include "cond_params.h"
+#include "neibs_list_params.h"
 
 /**! Parameters common to all \ref saSegmentBoundaryConditionsDevice and
  * \ref saVertexBoundaryConditionsDevice specializations
  */
-struct common_sa_bc_params
+struct common_sa_bc_params :
+	//! Position, mass, info, particle hash, cellStart, neighbors list
+	neibs_list_params,
+	//! Boundary elements normals
+	boundelements_wrapper,
+	//! Barycentric vertex positions
+	vertPos_params<false>
 {
-	//! Particle position and mass.
-	//! saVertexBoundaryConditionsDevice will need to update this in the open boundary case,
-	//! but that will be achieved by passing a non-const copy of this array in a different structure
-	const	float4	* __restrict__ pos;
+	//! Indices of the vertices neighboring each boundary element
+	const	vertexinfo*	__restrict__ vertices;
+
 	//! Particle velocity and density. Both saSegmentBoundaryConditionsDevice and saVertexBoundaryConditionsDevice
 	//! will update the densities to match the fluid pressure
 			float4	* __restrict__ vel;
-	//! Particle hash, to get the cell grid
-	const	hashKey * __restrict__ particleHash;
-	//! Start of each cell, for neighbors search
-	const	uint	* __restrict__ cellStart;
-	//! Neighbors list for each particle
-	const	neibdata* __restrict__ neibsList;
 
 	//! Gamma and its gradient. Will be updated during initialization
 	//! and in the case of open boundaries and moving objects.
 	//! TODO FIXME make const otherwise
 			float4	* __restrict__ gGam;
-	//! Indices of the vertices neighboring each boundary element
-	const	vertexinfo*	__restrict__ vertices;
-	//! Barycentric vertex positions
-	const	float2	* __restrict__ vertPos0;
-	const	float2	* __restrict__ vertPos1;
-	const	float2	* __restrict__ vertPos2;
-
-	//! Number of particles to process
-	const	uint	numParticles;
 
 	// TODO these should probably go into constant memory
 	const	float	deltap; //! Inter-particle distance
-	const	float	slength; //! Kernel smoothing length h
-	const	float	influenceradius; //! Kernel influence radius
 
 	// Constructor / initializer
 	common_sa_bc_params(
-		const	float4	* __restrict__ _pos,
-				float4	* __restrict__ _vel,
-		const	hashKey * __restrict__ _particleHash,
-		const	uint	* __restrict__ _cellStart,
-		const	neibdata	* __restrict__ _neibsList,
-
-				float4	* __restrict__ _gGam,
-		const	vertexinfo*	__restrict__ _vertices,
-		const	float2	* const *__restrict__ _vertPos,
-
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
 		const	uint	_numParticles,
 		const	float	_deltap,
 		const	float	_slength,
 		const	float	_influenceradius)
 	:
-		pos(_pos),
-		vel(_vel),
-		particleHash(_particleHash),
-		cellStart(_cellStart),
-		neibsList(_neibsList),
-		gGam(_gGam),
-		vertices(_vertices),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2]),
-		numParticles(_numParticles),
-		deltap(_deltap),
-		slength(_slength),
-		influenceradius(_influenceradius)
+		neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
+		boundelements_wrapper(bufread),
+		vertPos_params<false>(bufread),
+		vel(bufwrite.getData<BUFFER_VEL>()),
+		gGam(bufwrite.getData<BUFFER_GRADGAMMA>()),
+		vertices(bufread.getData<BUFFER_VERTICES>()),
+		deltap(_deltap)
 	{}
 };
 
@@ -123,26 +96,6 @@ struct eulervel_sa_bc_params
 	{}
 };
 
-//! k-epsilon viscosity arrays
-/** Both are read/write to allow imposing boundary conditions */
-struct keps_sa_bc_params
-{
-	float * __restrict__ tke; //! Turbulent Kinetic Energy
-	float * __restrict__ eps; //! Turbulent dissipation
-
-	keps_sa_bc_params(
-		float *__restrict__ _tke,
-		float *__restrict__ _eps)
-	:
-		tke(_tke), eps(_eps)
-	{}
-	keps_sa_bc_params(BufferList& bufwrite)
-	:
-		tke(bufwrite.getData<BUFFER_TKE>()),
-		eps(bufwrite.getData<BUFFER_EPSILON>())
-	{}
-};
-
 //! Parameters needed by the \ref saSegmentBoundaryConditionsDevice kernel
 template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags,
 	int _step,
@@ -155,7 +108,7 @@ template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags,
 	typename eulervel_struct =
 		typename COND_STRUCT(has_eulerVel, eulervel_sa_bc_params),
 	typename keps_struct =
-		typename COND_STRUCT(_has_keps, keps_sa_bc_params)
+		typename COND_STRUCT(_has_keps, keps_params<true>)
 	>
 struct sa_segment_bc_params :
 	common_sa_bc_params,
@@ -178,31 +131,17 @@ struct sa_segment_bc_params :
 	static constexpr ParticleType cptype = PT_BOUNDARY;
 
 	sa_segment_bc_params(
-		const	float4	* __restrict__ _pos,
-				float4	* __restrict__ _vel,
-		const	hashKey * __restrict__ _particleHash,
-		const	uint	* __restrict__ _cellStart,
-		const	neibdata	* __restrict__ _neibsList,
-
-				float4	* __restrict__ _gGam,
-		const	vertexinfo*	__restrict__ _vertices,
-		const	float2	* const *__restrict__ _vertPos,
-
-				float4	* __restrict__ _eulerVel,
-				float	* __restrict__ _tke,
-				float	* __restrict__ _eps,
-
+		BufferList const& bufread,
+		BufferList & bufwrite,
 		const	uint	_numParticles,
 		const	float	_deltap,
 		const	float	_slength,
 		const	float	_influenceradius)
 	:
-		common_sa_bc_params(
-			_pos, _vel, _particleHash, _cellStart, _neibsList,
-			_gGam, _vertices, _vertPos,
+		common_sa_bc_params(bufread, bufwrite,
 			_numParticles, _deltap, _slength, _influenceradius),
-		eulervel_struct(_eulerVel),
-		keps_struct(_tke, _eps)
+		eulervel_struct(bufwrite),
+		keps_struct(bufwrite)
 	{}
 };
 
@@ -279,7 +218,7 @@ template<KernelType _kerneltype, typename _ViscSpec, flag_t _simflags, int _step
 	typename eulervel_struct =
 		typename COND_STRUCT(has_eulerVel && !_repacking, eulervel_sa_bc_params),
 	typename keps_struct =
-		typename COND_STRUCT(_has_keps && !_repacking, keps_sa_bc_params),
+		typename COND_STRUCT(_has_keps && !_repacking, keps_params<true>),
 	typename io_struct =
 		typename COND_STRUCT(_has_io && !_repacking, sa_io_params),
 	typename clone_struct =
@@ -320,15 +259,7 @@ struct sa_vertex_bc_params :
 		const	uint	_numDevices,
 		const	float	_dt)
 	:
-		common_sa_bc_params(
-			bufread.getData<BUFFER_POS>(),
-			bufwrite.getData<BUFFER_VEL>(),
-			bufread.getData<BUFFER_HASH>(),
-			bufread.getData<BUFFER_CELLSTART>(),
-			bufread.getData<BUFFER_NEIBSLIST>(),
-			bufwrite.getData<BUFFER_GRADGAMMA>(),
-			bufread.getData<BUFFER_VERTICES>(),
-			bufread.getRawPtr<BUFFER_VERTPOS>(),
+		common_sa_bc_params(bufread, bufwrite,
 			_numParticles, _deltap, _slength, _influenceradius),
 		eulervel_struct(bufwrite),
 		keps_struct(bufwrite),
@@ -354,6 +285,67 @@ template<KernelType _kerneltype,
 	int _step>
 using sa_segment_bc_repack_params = sa_segment_bc_params<_kerneltype, repackViscSpec<_simflags>,
 	  _simflags, _step>;
+
+//! findOutgoingSegmentDevice params
+
+struct sa_outgoing_bc_params :
+	//! Position, mass, info, particle hash, cellStart, neighbors list
+	//! FIXME: slength in the neibs_list_params is not used, so ideally we'd want
+	//! one without
+	neibs_list_params,
+	//! Velocity/density
+	vel_wrapper,
+	//! Boundary elements normals
+	boundelements_wrapper,
+	//! Barycentric vertex positions
+	vertPos_params<false>
+{
+	//! Indices of the vertices neighboring each boundary element
+	//! Will be updated by the fluid particles to store the vertices
+	//! through which we're crossing the domain edge
+	vertexinfo*	__restrict__ vertices;
+
+	//! Gamma and its gradient. Outgoing fluid particles will abuse this
+	//! to store the relative weights of the vertices for mass repartition.
+	float4	* __restrict__ gGam;
+
+	sa_outgoing_bc_params(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		uint				particleRangeEnd,
+		float				slength,
+		float				influenceradius)
+	: neibs_list_params(bufread, particleRangeEnd, slength, influenceradius)
+	, vel_wrapper(bufread)
+	, boundelements_wrapper(bufread)
+	, vertPos_params<false>(bufread)
+	, vertices(bufwrite.getData<BUFFER_VERTICES, BufferList::AccessSafety::MULTISTATE_SAFE>())
+	, gGam(bufwrite.getData<BUFFER_GRADGAMMA>())
+	{}
+
+};
+
+struct sa_init_gamma_params : neibs_list_params, sa_boundary_params
+{
+	float4 * __restrict__ newGGam;
+	const float deltap;
+	const float epsilon;
+
+	sa_init_gamma_params(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		const	uint	_numParticles,
+		const	float	_slength,
+		const	float	_influenceradius,
+		const	float	_deltap,
+		const	float	_epsilon)
+	: neibs_list_params(bufread, _numParticles, _slength, _influenceradius)
+	, sa_boundary_params(bufread)
+	, newGGam(bufwrite.getData<BUFFER_GRADGAMMA>())
+	, deltap(_deltap)
+	, epsilon(_epsilon)
+	{}
+};
 
 #endif // _SA_BC_PARAMS_H
 

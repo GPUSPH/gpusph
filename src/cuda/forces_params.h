@@ -62,10 +62,11 @@
 */
 
 /// Parameters common to both forcesDevice and finalize kernels
-struct stage_common_forces_params
+struct stage_common_forces_params :
+	pos_info_wrapper,
+	vel_wrapper
 {
 			float4	* __restrict__ forces;
-	const	float4	* __restrict__ posArray;
 	const	hashKey * __restrict__ particleHash;
 	const	uint	* __restrict__ cellStart;
 
@@ -83,8 +84,9 @@ struct stage_common_forces_params
 		const	uint	_toParticle,
 		const	float	_slength)
 	:
+		pos_info_wrapper(bufread),
+		vel_wrapper(bufread),
 		forces(bufwrite.getData<BUFFER_FORCES>()),
-		posArray(bufread.getData<BUFFER_POS>()),
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		cellStart(bufread.getData<BUFFER_CELLSTART>()),
 		fromParticle(_fromParticle),
@@ -124,6 +126,15 @@ struct common_forces_params :
 		influenceradius(_influenceradius),
 		step(_step),
 		dt(_dt)
+	{}
+};
+
+/// Parameters needed when using ENABLE_PLANES and/or ENABLE_DEM
+struct planes_forces_params
+{
+	const int4 * __restrict__ neibPlanes;
+	planes_forces_params(BufferList const& bufread) :
+		neibPlanes(bufread.getData<BUFFER_NEIBPLANES>())
 	{}
 };
 
@@ -242,7 +253,7 @@ struct volume_forces_params
 /// Additional parameters passed only to kernels with SA_BOUNDARY
 /// in case of fluid/boundary interaction
 struct sa_boundary_forces_params :
-	vertPos_params<false> // const vertPos[012]
+	sa_boundary_params
 {
 			float	* __restrict__ cfl_gamma;
 	const	float	epsilon;
@@ -253,10 +264,25 @@ struct sa_boundary_forces_params :
 		BufferList &		bufwrite,
 		const	float	_epsilon)
 	:
-		vertPos_params<false>(bufread),
+		sa_boundary_params(bufread),
 		cfl_gamma(bufwrite.getData<BUFFER_CFL_GAMMA>()),
 		epsilon(_epsilon)
 	{}
+};
+
+/// Additional parameters passed only to kernels that require BUFFER_EULERVEL.
+/// This is currently only done if SA_BOUNDARY and either KEPSILON turbulence model
+/// or ENABLE_INLET_OUTLET, and only in SIMULATE mode
+struct eulerVel_forces_params
+{
+	cudaTextureObject_t eulerVelTexObj;
+	eulerVel_forces_params(BufferList const& bufread) :
+		eulerVelTexObj(getTextureObject<BUFFER_EULERVEL>(bufread))
+	{}
+
+	__device__ __forceinline__
+	float4 fetchEulerVel(const uint index) const
+	{ return tex1Dfetch<float4>(eulerVelTexObj, index); }
 };
 
 /// Additional parameters passed only to kernels with DUMMY_BOUNDARY
@@ -274,12 +300,14 @@ struct dummy_boundary_forces_params
 };
 
 /// Additional parameters passed only finalize forces with SA_BOUNDARY formulation
-struct sa_finalize_forces_params
+struct sa_finalize_forces_params :
+	boundelements_wrapper
 {
 	const	float4	* __restrict__ gGam;
 
 	// Constructor / initializer
 	sa_finalize_forces_params(BufferList const& bufread) :
+		boundelements_wrapper(bufread),
 		gGam(bufread.getData<BUFFER_GRADGAMMA>())
 	{}
 };
@@ -296,11 +324,13 @@ struct water_depth_forces_params
 
 /// Additional parameters passed only to kernels with KEPSILON
 struct keps_forces_params :
+	keps_tex_params, // read-only keps_{tke,eps}
 	tau_params<true> // writable tau[012]
 {
 	float3	* __restrict__ keps_dkde;
 	const float	* __restrict__ turbvisc;
 	keps_forces_params(BufferList const& bufread, BufferList & bufwrite) :
+		keps_tex_params(bufread),
 		tau_params<true>(bufwrite),
 		keps_dkde(bufwrite.getData<BUFFER_DKDE>()),
 		turbvisc(bufread.getData<BUFFER_TURBVISC>())
@@ -342,6 +372,22 @@ struct cspm_forces_params
 	cspm_forces_params(BufferList const& bufread) :
 		cspm_forces_params(bufread.getRawPtr<BUFFER_FCOEFF>(), bufread.getData<BUFFER_WCOEFF>())
 	{}
+
+	__device__ __forceinline__
+	symtensor3 fetchFcoeff(const uint i) const
+	{
+		symtensor3 fcoeff;
+		float2 temp = fcoeff0[i];
+		fcoeff.xx = temp.x;
+		fcoeff.xy = temp.y;
+		temp = fcoeff1[i];
+		fcoeff.xz = temp.x;
+		fcoeff.yy = temp.y;
+		temp = fcoeff2[i];
+		fcoeff.yz = temp.x;
+		fcoeff.zz = temp.y;
+		return fcoeff;
+	}
 };
 
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
@@ -356,6 +402,7 @@ template<KernelType _kerneltype,
 	RunMode _run_mode = SIMULATE,
 	bool _repacking = (_run_mode == REPACK),
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
+	bool _has_sps = _ViscSpec::turbmodel == SPS,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
 	typename xsph_cond =
 		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
@@ -372,6 +419,13 @@ template<KernelType _kerneltype,
 		typename COND_STRUCT(!_repacking && _simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	typename keps_cond =
 		typename COND_STRUCT(!_repacking && _has_keps, keps_forces_params),
+	typename sps_cond =
+		typename COND_STRUCT(!_repacking && _has_sps, tau_tex_params),
+	// eulerian velocity only used in case of keps or with open boundaries
+	typename eulerVel_cond = typename
+		COND_STRUCT(!_repacking && _boundarytype == SA_BOUNDARY && _cptype != _nptype
+				&& (_has_keps || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
+			eulerVel_forces_params),
 	typename energy_cond =
 		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_INTERNAL_ENERGY),
 			internal_energy_forces_params),
@@ -389,6 +443,8 @@ struct forces_params : _ViscSpec,
 	dummy_cond,
 	water_depth_cond,
 	keps_cond,
+	sps_cond,
+	eulerVel_cond,
 	energy_cond,
 	visc_cond,
 	cspm_cond
@@ -445,6 +501,8 @@ struct forces_params : _ViscSpec,
 		dummy_cond(bufread),
 		water_depth_cond(_IOwaterdepth),
 		keps_cond(bufread, bufwrite),
+		sps_cond(bufread),
+		eulerVel_cond(bufread),
 		energy_cond(bufwrite),
 		visc_cond(bufread),
 		cspm_cond(bufread)
@@ -472,6 +530,13 @@ template<SPHFormulation _sph_formulation,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _inviscid = _ViscSpec::rheologytype == INVISCID,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
+	bool _has_planes = QUERY_ANY_FLAGS(_simflags, ENABLE_PLANES),
+	bool _has_dem = QUERY_ANY_FLAGS(_simflags, ENABLE_DEM),
+	typename planes_cond =
+		typename COND_STRUCT(_has_planes || _has_dem, planes_forces_params),
+	// DEM specifically also needs the demTex texture object
+	typename dem_cond =
+		typename COND_STRUCT(_has_dem, dem_params),
 	typename dyndt_cond =
 		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
 	typename grenier_cond =
@@ -487,6 +552,8 @@ template<SPHFormulation _sph_formulation,
 	>
 struct finalize_forces_params :
 	common_finalize_forces_params<_run_mode>,
+	planes_cond,
+	dem_cond,
 	dyndt_cond,
 	grenier_cond,
 	sa_cond,
@@ -507,6 +574,8 @@ struct finalize_forces_params :
 
 	static const RunMode run_mode = _run_mode;
 	static const bool repacking = _repacking;
+	static const bool has_planes = _has_planes;
+	static const bool has_dem = _has_dem;
 	static const bool has_keps = _has_keps;
 	static const bool has_effective_visc = _has_effective_visc;
 	static const bool inviscid = _inviscid;
@@ -518,6 +587,7 @@ struct finalize_forces_params :
 	finalize_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
+		cudaTextureObject_t	demTex,
 				uint	_numParticles,
 				uint	_fromParticle,
 				uint	_toParticle,
@@ -529,6 +599,8 @@ struct finalize_forces_params :
 	:
 		common_finalize_forces_params<run_mode>(bufread, bufwrite,
 			 _fromParticle, _toParticle, _slength, _deltap),
+		planes_cond(bufread),
+		dem_cond(demTex),
 		dyndt_cond(bufwrite, _numParticles, _cflOffset),
 		grenier_cond(bufread),
 		sa_cond(bufread),

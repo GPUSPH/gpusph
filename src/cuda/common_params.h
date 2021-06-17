@@ -32,6 +32,9 @@
 #include "common_types.h"
 #include "buffer.h"
 #include "define_buffers.h"
+#include "cudabuffer.h"
+
+#include "tensor.h"
 
 /* \file
  *
@@ -45,15 +48,148 @@
 
 #include "cond_params.h"
 
+//! An auxiliary type to add const to a type if the array should not be writable
+template<bool B, typename T>
+using writable_type = typename std::conditional<B, T, const T>::type;
+
+/*! Wrapper for posArray access
+ * Kernels with a read-only access to the particle positions may opt to access it as a linear array
+ * (posArray) or through the texture cache, based on the PREFER_L1 preprocessor macro (which in turn
+ * is based on the compute capability, according to our knowledge about texture vs L1 cache support).
+ * This is somewhat cumbersome, so we provide a unified interface that hides the details about the access
+ * behind a fetchPos() call that maps to the correct type
+ */
+struct pos_wrapper
+{
+private:
+#if PREFER_L1
+	const	float4		* __restrict__ posArray;				///< particle's positions (in)
+#else
+	cudaTextureObject_t posTexObj;
+#endif
+
+public:
+	pos_wrapper(const BufferList& bufread) :
+#if PREFER_L1
+		posArray(bufread.getData<BUFFER_POS>())
+#else
+		posTexObj(getTextureObject<BUFFER_POS>(bufread))
+#endif
+	{}
+
+	__device__ __forceinline__ float4
+	fetchPos(const uint index) const
+	{
+#if PREFER_L1
+		return posArray[index];
+#else
+		return tex1Dfetch<float4>(posTexObj, index);
+#endif
+	}
+};
+
+struct info_wrapper
+{
+	cudaTextureObject_t infoTexObj;
+	info_wrapper(BufferList const& bufread) :
+		infoTexObj(getTextureObject<BUFFER_INFO>(bufread))
+	{}
+
+	__device__ __forceinline__
+	particleinfo fetchInfo(const uint index) const
+	{ return tex1Dfetch<particleinfo>(infoTexObj, index); }
+};
+
+struct pos_info_wrapper : pos_wrapper, info_wrapper
+{
+	pos_info_wrapper(BufferList const& bufread) :
+		pos_wrapper(bufread),
+		info_wrapper(bufread)
+	{}
+};
+
+struct vel_wrapper
+{
+	cudaTextureObject_t velTexObj;
+	vel_wrapper(BufferList const& bufread) :
+		velTexObj(getTextureObject<BUFFER_VEL>(bufread))
+	{}
+
+	__device__ __forceinline__
+	float4 fetchVel(const uint index) const
+	{ return tex1Dfetch<float4>(velTexObj, index); }
+};
+
+struct boundelements_wrapper
+{
+private:
+	cudaTextureObject_t		boundTexObj;
+
+public:
+	boundelements_wrapper(BufferList const& bufread) :
+		boundTexObj(getTextureObject<BUFFER_BOUNDELEMENTS>(bufread))
+	{}
+
+	__device__ __forceinline__
+	float4 fetchBound(const uint index) const
+	{ return tex1Dfetch<float4>(boundTexObj, index); }
+};
+
+template<bool writable = true>
+struct vertPos_params
+{
+	using type = writable_type<writable, float2>;
+	using src_ptr_type = typename std::conditional<writable,
+		float2 **, const float2 * const *>::type;
+	using src_buf_type = writable_type<writable, BufferList>;
+
+	type* __restrict__ vertPos0;
+	type* __restrict__ vertPos1;
+	type* __restrict__ vertPos2;
+
+	vertPos_params(src_ptr_type vertPos_ptr) :
+		vertPos0(vertPos_ptr[0]),
+		vertPos1(vertPos_ptr[1]),
+		vertPos2(vertPos_ptr[2])
+	{}
+
+	vertPos_params(src_buf_type& bufread) :
+		vertPos_params(bufread.template getRawPtr<BUFFER_VERTPOS>())
+	{}
+
+	vertPos_params(vertPos_params const&) = default;
+};
+
+
+//! Additional parameters passed only (and nearly always) with SA_BOUNDARY
+struct sa_boundary_params :
+	boundelements_wrapper,
+	vertPos_params<false>
+{
+private:
+	// Some kernels used to access gGam via gamTex, others via array.
+	// We're going to wrap this in a function to provide a unified interface.
+	// TODO consider using a PREFER_L1 switch for this too
+	const	float4	* __restrict__	gGam;
+public:
+	sa_boundary_params(BufferList const& bufread) :
+		boundelements_wrapper(bufread),
+		vertPos_params<false>(bufread),
+		gGam(bufread.getData<BUFFER_GRADGAMMA>())
+	{}
+
+	__device__ __forceinline__
+	float4 fetchGradGamma(const uint index) const
+	{ return gGam[index]; }
+};
+
+
 /*! \ingroup Common integration structures
  *
  * These are structures that hold two copies (old and new) of the same array. The first is assumed
  * to always be constant, whereas the second can be const or not, depending on a boolean template parameter.
  * @{
  */
-
-template<bool B, typename T>
-using writable_type = typename std::conditional<B, T, const T>::type;
 
 /* Since they all have the same structure, we use a macro to define them */
 
@@ -100,30 +236,17 @@ DEFINE_PAIR_PARAM(float, TKE, BUFFER_TKE);
 DEFINE_PAIR_PARAM(float, Energy, BUFFER_INTERNAL_ENERGY);
 /*! @} */
 
-template<bool writable = true>
-struct vertPos_params
+__device__ __forceinline__
+void storeTensor(symtensor3 const& tau, const uint i,
+	float2 * __restrict__ tau0,
+	float2 * __restrict__ tau1,
+	float2 * __restrict__ tau2)
 {
-	using type = writable_type<writable, float2>;
-	using src_ptr_type = typename std::conditional<writable,
-		float2 **, const float2 * const *>::type;
-	using src_buf_type = writable_type<writable, BufferList>;
+	tau0[i] = make_float2(tau.xx, tau.xy);
+	tau1[i] = make_float2(tau.xz, tau.yy);
+	tau2[i] = make_float2(tau.yz, tau.zz);
+}
 
-	type* __restrict__ vertPos0;
-	type* __restrict__ vertPos1;
-	type* __restrict__ vertPos2;
-
-	vertPos_params(src_ptr_type vertPos_ptr) :
-		vertPos0(vertPos_ptr[0]),
-		vertPos1(vertPos_ptr[1]),
-		vertPos2(vertPos_ptr[2])
-	{}
-
-	vertPos_params(src_buf_type& bufread) :
-		vertPos_params(bufread.template getRawPtr<BUFFER_VERTPOS>())
-	{}
-
-	vertPos_params(vertPos_params const&) = default;
-};
 
 template<bool writable = true>
 struct tau_params
@@ -147,7 +270,108 @@ struct tau_params
 		tau_params(bufread.template getRawPtr<BUFFER_TAU>())
 	{}
 
+	__device__ __forceinline__
+	enable_if_t<writable> storeTau(symtensor3 const& tau, const uint i) const
+	{
+		storeTensor(tau, i, tau0, tau1, tau2);
+	}
+
+	__device__ __forceinline__
+	symtensor3 fetchTau(const uint i) const
+	{
+		symtensor3 tau;
+		float2 temp = tau0[i];
+		tau.xx = temp.x;
+		tau.xy = temp.y;
+		temp = tau1[i];
+		tau.xz = temp.x;
+		tau.yy = temp.y;
+		temp = tau2[i];
+		tau.yz = temp.x;
+		tau.zz = temp.y;
+		return tau;
+	}
+
 	tau_params(tau_params const&) = default;
+};
+
+struct tau_tex_params
+{
+	cudaTextureObject_t tau0TexObj;
+	cudaTextureObject_t tau1TexObj;
+	cudaTextureObject_t tau2TexObj;
+
+	tau_tex_params(BufferList const& bufread) :
+		tau0TexObj(getTextureObject<BUFFER_TAU>(bufread, 0)),
+		tau1TexObj(getTextureObject<BUFFER_TAU>(bufread, 1)),
+		tau2TexObj(getTextureObject<BUFFER_TAU>(bufread, 2))
+	{}
+
+	__device__ __forceinline__
+	symtensor3 fetchTau(const uint i) const
+	{
+		symtensor3 tau;
+		float2 temp = tex1Dfetch<float2>(tau0TexObj, i);
+		tau.xx = temp.x;
+		tau.xy = temp.y;
+		temp = tex1Dfetch<float2>(tau1TexObj, i);
+		tau.xz = temp.x;
+		tau.yy = temp.y;
+		temp = tex1Dfetch<float2>(tau2TexObj, i);
+		tau.yz = temp.x;
+		tau.zz = temp.y;
+		return tau;
+	}
+
+};
+
+template<bool writable = true>
+struct keps_params
+{
+	using type = writable_type<writable, float>;
+	using src_buf_type = writable_type<writable, BufferList>;
+
+	type* __restrict__ keps_tke; //! Turbulent Kinetic Energy
+	type* __restrict__ keps_eps; //! Turbulent dissipation
+
+	keps_params(src_buf_type& bufread) :
+		keps_tke(bufread.template getData<BUFFER_TKE>()),
+		keps_eps(bufread.template getData<BUFFER_EPSILON>())
+	{}
+
+	keps_params(keps_params const&) = default;
+};
+
+
+//! KEPSILON-related texture parameters
+struct keps_tex_params
+{
+	cudaTextureObject_t keps_kTexObj;
+	cudaTextureObject_t keps_eTexObj;
+
+	keps_tex_params(BufferList const& bufread) :
+		keps_kTexObj(getTextureObject<BUFFER_TKE>(bufread)),
+		keps_eTexObj(getTextureObject<BUFFER_EPSILON>(bufread))
+	{}
+
+	__device__ __forceinline__
+	float fetchTke(const uint index) const
+	{ return tex1Dfetch<float>(keps_kTexObj, index); }
+
+	__device__ __forceinline__
+	float fetchEpsilon(const uint index) const
+	{ return tex1Dfetch<float>(keps_eTexObj, index); }
+};
+
+//! ENABLE_DEM-related texture parameters
+// TODO FIXME ideally should use the buffer system
+struct dem_params
+{
+	cudaTextureObject_t demTex;
+
+	dem_params(cudaTextureObject_t demTex_) :
+		demTex(demTex_)
+	{}
 };
 
 #endif

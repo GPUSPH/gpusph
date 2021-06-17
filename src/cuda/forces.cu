@@ -85,9 +85,6 @@
 #error "BLOCK_SIZE_FMAX must be larger than 32"
 #endif
 
-
-thread_local cudaArray*  dDem = NULL;
-
 /* Auxiliary data for parallel reductions */
 thread_local size_t	reduce_blocks = 0;
 thread_local size_t	reduce_blocksize_max = 0;
@@ -231,16 +228,11 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		float4 *vel = bufwrite.getData<BUFFER_VEL>();
 		float *sigma = bufwrite.getData<BUFFER_SIGMA>();
 
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread.getData<BUFFER_POS>(), numParticles*sizeof(float4)));
-#endif
-
-		cuforces::densityGrenierDevice<kerneltype, boundarytype>
-			<<<numBlocks, numThreads>>>(sigma, pos, vel, info, pHash, vol, cellStart, neibsList, numParticles, slength, influenceradius);
-
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
+		cuforces::densityGrenierDevice<kerneltype, boundarytype><<<numBlocks, numThreads>>>
+			(neibs_list_params(bufread, numParticles, slength, influenceradius),
+			 bufread.getData<BUFFER_VOLUME>(),
+			 bufwrite.getData<BUFFER_VEL>(),
+			 bufwrite.getData<BUFFER_SIGMA>());
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
@@ -260,10 +252,6 @@ class CUDAForcesEngine : public AbstractForcesEngine
 {
 	static const RheologyType rheologytype = ViscSpec::rheologytype;
 	static const TurbulenceModel turbmodel = ViscSpec::turbmodel;
-
-	static const bool needs_eulerVel = (boundarytype == SA_BOUNDARY &&
-			(turbmodel == KEPSILON || (simflags & ENABLE_INLET_OUTLET)));
-
 
 void
 setconstants(const SimParams *simparams, const PhysParams *physparams,
@@ -350,13 +338,28 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_sinpsi, &physparams->sinpsi[0], numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_cohesion, &physparams->cohesion[0], numFluids*sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_ewres, &physparams->ewres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_nsres, &physparams->nsres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdx, &physparams->demdx, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdy, &physparams->demdy, sizeof(float)));
-	float demdxdy = physparams->demdx*physparams->demdy;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdxdy, &demdxdy, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demzmin, &physparams->demzmin, sizeof(float)));
+	// DEM uploads
+	{
+		const float ewres = physparams->ewres;
+		const float nsres = physparams->nsres;
+		const float dx = physparams->demdx;
+		const float dy = physparams->demdy;
+
+		const float2 scaled_cellSize = make_float2(cellSize.x/ewres, cellSize.y/nsres);
+		const float2 scaled_dx = make_float2(dx/ewres, dy/nsres);
+		const float demdxdy = dx*dy;
+
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_dem_pos_fixup, &physparams->dem_pos_fixup, sizeof(float2)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_dem_scaled_cellSize, &scaled_cellSize, sizeof(float2)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_dem_scaled_dx, &scaled_dx, sizeof(float2)));
+
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_ewres, &ewres, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_nsres, &nsres, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdx, &dx, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdy, &dy, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demdxdy, &demdxdy, sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cugeom::d_demzmin, &physparams->demzmin, sizeof(float)));
+	}
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_smagfactor, &physparams->smagfactor, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuphys::d_kspsfactor, &physparams->kspsfactor, sizeof(float)));
@@ -466,71 +469,6 @@ setrbstart(const int* rbfirstindex, int numbodies)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbstartindex, rbfirstindex, numbodies*sizeof(int)));
 }
 
-void
-bind_textures(
-	BufferList const& bufread,
-	uint	numParticles,
-	RunMode	run_mode)
-{
-	// bind textures to read all particles, not only internal ones
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread.getData<BUFFER_POS>(), numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, bufread.getData<BUFFER_VEL>(), numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, bufread.getData<BUFFER_INFO>(), numParticles*sizeof(particleinfo)));
-
-	const float4 *eulerVel = bufread.getData<BUFFER_EULERVEL>();
-	if (run_mode != REPACK && needs_eulerVel) {
-		if (!eulerVel)
-			throw std::invalid_argument("eulerVel not set but needed");
-		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, eulerVel, numParticles*sizeof(float4)));
-	} else {
-		if (eulerVel)
-			std::cerr << "eulerVel set but not used" << std::endl;
-	}
-
-	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, bufread.getData<BUFFER_GRADGAMMA>(), numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
-	}
-
-	if (run_mode != REPACK && turbmodel == KEPSILON) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread.getData<BUFFER_TKE>(), numParticles*sizeof(float)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread.getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
-	}
-}
-
-void
-unbind_textures(RunMode run_mode)
-{
-	// TODO FIXME why are SPS textures unbound here but bound in sps?
-	// shouldn't we bind them in bind_textures() instead?
-	if (run_mode != REPACK && turbmodel == SPS) {
-		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
-	}
-
-	if (run_mode != REPACK && turbmodel == KEPSILON) {
-		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
-	}
-
-	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	}
-
-	if (run_mode != REPACK && needs_eulerVel)
-		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-}
-
 // returns the number of elements in the (starting) fmax array, assuming n particles.
 // this is _exactly_ the number of blocks in the grid launch for the forces kernel over n
 // particles, since the forces kernel pre-reduces the cfl values, producing one value
@@ -631,21 +569,8 @@ compute_density_diffusion(
 	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	if (boundarytype == SA_BOUNDARY)
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread.getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
-
-	auto params = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, PT_FLUID>(
-			bufwrite.getData<BUFFER_FORCES>(),
-			bufread.getData<BUFFER_POS>(),
-			bufread.getData<BUFFER_VEL>(),
-			bufread.getData<BUFFER_INFO>(),
-			bufread.getData<BUFFER_HASH>(),
-			bufread.getData<BUFFER_CELLSTART>(),
-			bufread.getData<BUFFER_NEIBSLIST>(),
-			bufread.getData<BUFFER_GRADGAMMA>(),
-			bufread.getRawPtr<BUFFER_VERTPOS>(),
-			particleRangeEnd,
-			deltap, slength, influenceRadius, dt);
+	auto params = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, PT_FLUID>
+		(bufread, bufwrite, particleRangeEnd, deltap, slength, influenceRadius, dt);
 
 	cuforces::computeDensityDiffusionDevice
 		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype,
@@ -654,10 +579,6 @@ compute_density_diffusion(
 
 	// check if last kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	if (boundarytype == SA_BOUNDARY)
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
 
 // computing the coefficients for CSPM
@@ -837,7 +758,7 @@ run_forces(
 	}
 
 	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
-			bufread, bufwrite,
+			bufread, bufwrite, demTex,
 			numParticles, fromParticle, toParticle, slength, deltap,
 			cflOffset,
 			IOwaterdepth);
@@ -927,7 +848,7 @@ run_repack(
 	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
 	finalize_repack_params<boundarytype, simflags> params_finalize(
-		bufread, bufwrite,
+		bufread, bufwrite, demTex,
 		numParticles, fromParticle, toParticle, slength, deltap,
 		cflOffset,
 		IOwaterdepth);
@@ -976,26 +897,39 @@ basicstep(
 			step, dt, compute_object_forces);
 }
 
+// TODO FIXME DEM functions should be moved to somewhere in or before buildneibs since
+// the corresponding thread_local globals are there. (Even better, stick those globals
+// in a BUFFER_DEM and manage these things from there —even though the handling isn't
+// much in line with the rest of it ...)
 void
 setDEM(const float *hDem, int width, int height)
 {
 	// Allocating, reading and copying DEM
 	unsigned int size = width*height*sizeof(float);
-	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
 	CUDA_SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
 	CUDA_SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
 
-	cugeom::demTex.addressMode[0] = cudaAddressModeClamp;
-	cugeom::demTex.addressMode[1] = cudaAddressModeClamp;
-	cugeom::demTex.filterMode = cudaFilterModeLinear;
-	cugeom::demTex.normalized = false;
+	cudaTextureDesc dem_tex_desc;
+	memset(&dem_tex_desc, 0, sizeof(dem_tex_desc));
 
-	CUDA_SAFE_CALL( cudaBindTextureToArray(cugeom::demTex, dDem, channelDesc));
+	dem_tex_desc.addressMode[0] = cudaAddressModeClamp;
+	dem_tex_desc.addressMode[1] = cudaAddressModeClamp;
+	dem_tex_desc.filterMode = cudaFilterModeLinear;
+	dem_tex_desc.normalizedCoords = false;
+	dem_tex_desc.readMode = cudaReadModeElementType;
+
+	cudaResourceDesc dem_res_desc;
+	dem_res_desc.resType = cudaResourceTypeArray;
+	dem_res_desc.res.array.array = dDem;
+
+	CUDA_SAFE_CALL(cudaCreateTextureObject(&demTex, &dem_res_desc, &dem_tex_desc, NULL));
 }
 
 void
 unsetDEM()
 {
+	CUDA_SAFE_CALL(cudaDestroyTextureObject(demTex));
 	CUDA_SAFE_CALL(cudaFreeArray(dDem));
 }
 
@@ -1075,41 +1009,25 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 				float	slength,
 				float	influenceradius)
 {
-	const float4 *pos = bufread.getData<BUFFER_POS>();
-	const float4 *oldVel = bufread.getData<BUFFER_VEL>();
-	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata*neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
 	int dummy_shared = 0;
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
 
+	if (boundarytype == SA_BOUNDARY)
+		throw std::runtime_error("Shepard filtering is not supported with SA_BOUNDARY");
+
 	cuforces::shepardDevice<kerneltype, boundarytype><<< numBlocks, numThreads, dummy_shared >>>
-		(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
+		(neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
+		 bufwrite.getData<BUFFER_VEL>());
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 };
 
@@ -1125,41 +1043,25 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 				float	slength,
 				float	influenceradius)
 {
-	const float4 *pos = bufread.getData<BUFFER_POS>();
-	const float4 *oldVel = bufread.getData<BUFFER_VEL>();
-	float4 *newVel = bufwrite.getData<BUFFER_VEL>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata*neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
 	int dummy_shared = 0;
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_MLS;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
 
+	if (boundarytype == SA_BOUNDARY)
+		throw std::runtime_error("MLS filtering is not supported with SA_BOUNDARY");
+
 	cuforces::MlsDevice<kerneltype, boundarytype><<< numBlocks, numThreads, dummy_shared >>>
-		(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
+		(neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
+		 bufwrite.getData<BUFFER_VEL>());
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	#if !PREFER_L1
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 };
 

@@ -241,7 +241,7 @@ RepackingIntegrator::initializeInitializationSequence(StepInfo const& step)
 	const SimParams *sp = gdata->problem->simparams();
 
 	// did we resume? (to skip applying boundary conditions)
-	const bool resumed = !gdata->clOptions->resume_fname.empty();
+	const bool resumed = gdata->resume;
 
 	Phase *this_phase = new Phase(this, "initialization preparations");
 

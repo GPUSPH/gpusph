@@ -1,4 +1,4 @@
-/*  Copyright (c) 2011-2019 INGV, EDF, UniCT, JHU
+/*  Copyright (c) 2020 INGV, EDF, UniCT, JHU
 
     Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
     Électricité de France, Paris, France
@@ -24,31 +24,24 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TEXTURES_CUH_
-#define _TEXTURES_CUH_
 
-#include "cache_preference.h"
+#ifndef CUDA_CACHE_PREFERENCE_H
+#define CUDA_CACHE_PREFERENCE_H
 
-#include "particleinfo.h"
+// On devices with compute capability 2.x, we want to distribute cache load
+// between L1 cache and the texture cache. On older architectures (no L1 cache)
+// we prefer using textures for all read-only arrays. Define PREFER_L1 to 1 or
+// 0 accordingly. On 3.x, the L1 cache is only used for register spills, so
+// exclude it from PREFER_L1. We keep PREFER_L1 on Maxwell because tests indicate
+// that using textures leads to no improvement at best (and possibly some minor
+// performance loss)
 
-//! \name Textures for particle position, velocity, flags etc
-/*! We basically need _at least_ a texture for each of the
- * non-ephemeral particle property, plus one for the ephemeral properties
- * which we must read from the neighbors, when leveraging the texture cache:
- * \todo ideally, we should define these programmatically, and even better define our own
- * derived
- *
- * template<flag_t Buffer>
- * struct bufferTexture : texture< BufferTraits<Buffer>::element_type > {};
- *
- * (SPS etc would need a slightly different treatment though)
- * OTOH, NVIDIA hardware is moving towards a shared L1/texture cache, and if this keeps up
- * we might get rid of textures altogether
- * @{
- */
-texture<float4, 1, cudaReadModeElementType> posTex;		///< position and mass
-texture<float4, 1, cudaReadModeElementType> velTex;		///< velocity and density
-texture<particleinfo, 1, cudaReadModeElementType> infoTex;	///< info
+#if defined(__COMPUTE__)
+#if __COMPUTE__ >= 20 && __COMPUTE__/10 != 3
+#define PREFER_L1 1
+#else
+#define PREFER_L1 0
+#endif
+#endif
 
-/** @} */
 #endif

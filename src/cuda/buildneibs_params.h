@@ -28,60 +28,114 @@
 #ifndef _BUILDNEIBS_PARAMS_H
 #define _BUILDNEIBS_PARAMS_H
 
-#include "cond_params.h"
+#include "common_params.h"
 #include "particledefine.h"
+
+#include "buffer.h"
+#include "define_buffers.h"
+#include "cudabuffer.h"
 
 /** \addtogroup neibs_buildnibskernel_params Neighbor list kernel parameters
  * 	\ingroup neibs
  *  Templatized structures holding parameters passed to buildneibs kernel
  *  @{ */
+
+struct cell_params
+{
+	cudaTextureObject_t cellStartTexObj;
+	cudaTextureObject_t cellEndTexObj;
+
+	cell_params(const BufferList& bufread) :
+		cellStartTexObj(getTextureObject<BUFFER_CELLSTART>(bufread)),
+		cellEndTexObj(getTextureObject<BUFFER_CELLEND>(bufread))
+	{}
+
+	__device__ __forceinline__ uint
+	fetchCellStart(const uint index) const
+	{ return tex1Dfetch<uint>(cellStartTexObj, index); }
+
+	__device__ __forceinline__ uint
+	fetchCellEnd(const uint index) const
+	{ return tex1Dfetch<uint>(cellEndTexObj, index); }
+};
+
 /// Common parameters used in buildneibs kernel
 /*!	Parameters passed to buildneibs device function depends on the type of
  * 	of boundary used. This structure contains the parameters common to all
  * 	boundary types.
  */
-struct common_buildneibs_params
+struct common_buildneibs_params :
+	pos_info_wrapper, ///< particle's positions and info (in)
+	cell_params
 {
-			neibdata	*neibsList;				///< neighbor's list (out)
-#if PREFER_L1
-	const	float4		*posArray;				///< particle's positions (in)
-#endif
-	const	hashKey		*particleHash;			///< particle's hashes (in)
+	const	hashKey		* __restrict__ particleHash;			///< particle's hashes (in)
+			neibdata	* __restrict__ neibsList;				///< neighbor's list (out)
 	const	uint		numParticles;			///< total number of particles
 	const	float		sqinfluenceradius;		///< squared influence radius
 
 	common_buildneibs_params(
-				neibdata	*_neibsList,
-		const	float4		*_pos,
-		const	hashKey		*_particleHash,
+		const	BufferList&	bufread,
+				BufferList& bufwrite,
 		const	uint		_numParticles,
-		const	float		_sqinfluenceradius) :
-		neibsList(_neibsList),
-#if PREFER_L1
-		posArray(_pos),
-#endif
-		particleHash(_particleHash),
+		const	float		_sqinfluenceradius)
+	:
+		pos_info_wrapper(bufread),
+		cell_params(bufread),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		neibsList(bufwrite.getData<BUFFER_NEIBSLIST>()),
 		numParticles(_numParticles),
 		sqinfluenceradius(_sqinfluenceradius)
+	{}
+};
+
+/// Parameters used only when ENABLE_PLANES or ENBLE_DEM
+struct planes_buildneibs_params
+{
+			int4	* __restrict__ neibPlanes; ///< list of neighboring planes
+
+	planes_buildneibs_params(BufferList& bufwrite) :
+		neibPlanes(bufwrite.getData<BUFFER_NEIBPLANES>())
 	{}
 };
 
 /// Parameters used only with SA_BOUNDARY buildneibs specialization
 struct sa_boundary_buildneibs_params
 {
-			float2	*vertPos0;				///< relative position of vertex to segment, first vertex
-			float2	*vertPos1;				///< relative position of vertex to segment, second vertex
-			float2	*vertPos2;				///< relative position of vertex to segment, third vertex
+	cudaTextureObject_t vertTexObj;			///< verticex texture object (in)
+	cudaTextureObject_t boundTexObj;		///< boundary elements texture object (in)
+			float2	* __restrict__ vertPos0;				///< relative position of vertex to segment, first vertex
+			float2	* __restrict__ vertPos1;				///< relative position of vertex to segment, second vertex
+			float2	* __restrict__ vertPos2;				///< relative position of vertex to segment, third vertex
 	const	float	boundNlSqInflRad;		///< neighbor search radius for PT_FLUID <-> PT_BOUNDARY interaction
 
 	sa_boundary_buildneibs_params(
+		const	BufferList& bufread,
 				float2	*_vertPos[],
 		const	float	_boundNlSqInflRad) :
+		vertTexObj(getTextureObject<BUFFER_VERTICES>(bufread)),
+		boundTexObj(getTextureObject<BUFFER_BOUNDELEMENTS>(bufread)),
 		vertPos0(_vertPos[0]),
 		vertPos1(_vertPos[1]),
 		vertPos2(_vertPos[2]),
 		boundNlSqInflRad(_boundNlSqInflRad)
 	{}
+
+	sa_boundary_buildneibs_params(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+		const	float	_boundNlSqInflRad) :
+		sa_boundary_buildneibs_params(bufread,
+			bufwrite.getRawPtr<BUFFER_VERTPOS>(),
+			_boundNlSqInflRad)
+	{}
+
+	__device__ __forceinline__ vertexinfo
+	fetchVert(const uint index) const
+	{ return tex1Dfetch<vertexinfo>(vertTexObj, index); }
+
+	__device__ __forceinline__ float4
+	fetchBound(const uint index) const
+	{ return tex1Dfetch<float4>(boundTexObj, index); }
 };
 
 /// The actual buildneibs parameters structure, which concatenates the above, as appropriate
@@ -90,27 +144,33 @@ struct sa_boundary_buildneibs_params
  *  It then delegates the appropriate subset of arguments to the appropriate
  *  structures it derives from, in the correct order
  */
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, flag_t simflags,
+	typename cond_sa_params = typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params),
+	typename cond_planes_params = typename COND_STRUCT(QUERY_ANY_FLAGS(simflags, ENABLE_PLANES | ENABLE_DEM),
+		planes_buildneibs_params),
+	typename cond_dem_params = typename COND_STRUCT(QUERY_ANY_FLAGS(simflags, ENABLE_DEM), dem_params)>
 struct buildneibs_params :
 	common_buildneibs_params,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)
+	cond_planes_params,
+	cond_dem_params,
+	cond_sa_params
 {
-
 	buildneibs_params(
-		// Common
-				neibdata	*_neibsList,
-		const	float4		*_pos,
-		const	hashKey		*_particleHash,
+		const	BufferList&	bufread,
+				BufferList& bufwrite,
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius,
 
+		// ENABLE_DEM
+		cudaTextureObject_t demTex,
+
 		// SA_BOUNDARY
-				float2	*_vertPos[],
 		const	float	_boundNlSqInflRad) :
-		common_buildneibs_params(_neibsList, _pos, _particleHash,
+		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
-			_vertPos, _boundNlSqInflRad)
+		cond_planes_params(bufwrite),
+		cond_dem_params(demTex),
+		cond_sa_params(bufread, bufwrite, _boundNlSqInflRad)
 	{}
 };
 /** @} */

@@ -34,10 +34,13 @@
 
 #include "particledefine.h"
 
-/// Parameters needed to interact with neighbors
-struct neibs_list_params
+#include "common_params.h"
+
+#include "cond_params.h"
+
+/// Parameters needed to iterate over the neighbors list
+struct neibs_list_params : public pos_info_wrapper
 {
-	const float4* __restrict__		posArray;
 	const hashKey* __restrict__		particleHash;
 	const uint* __restrict__		cellStart;
 	const neibdata* __restrict__	neibsList;
@@ -47,20 +50,39 @@ struct neibs_list_params
 
 	/// Constructor / initializer
 	neibs_list_params(
-		const	float4	* __restrict__ _posArray,
-		const	hashKey	* __restrict__ _particleHash,
-		const	uint	* __restrict__ _cellStart,
-		const	neibdata	* __restrict__ _neibsList,
+		BufferList const& bufread,
 		const	uint	_numParticles,
 		const	float	_slength,
 		const	float	_influenceradius) :
-		posArray(_posArray),
-		particleHash(_particleHash),
-		cellStart(_cellStart),
-		neibsList(_neibsList),
+		pos_info_wrapper(bufread),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
 		numParticles(_numParticles),
 		slength(_slength),
 		influenceradius(_influenceradius)
+	{}
+};
+
+/// Parameters needed to iterate over the neighbors list
+template<BoundaryType boundarytype
+	, typename sa_params =
+		typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_params)
+>
+struct neibs_interaction_params :
+	neibs_list_params,
+	vel_wrapper,
+	sa_params
+{
+	neibs_interaction_params(
+		BufferList const& bufread,
+		const	uint	numParticles,
+		const	float	slength,
+		const	float	influenceradius)
+	:
+		neibs_list_params(bufread, numParticles, slength, influenceradius),
+		vel_wrapper(bufread),
+		sa_params(bufread)
 	{}
 };
 

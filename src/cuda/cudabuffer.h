@@ -41,21 +41,110 @@
 // CUDA_SAFE_CALL etc
 #include "cuda_call.h"
 
-/*! Specialize the Buffer class in the case of CUDA device allocations
- * (i.e. using cudaMalloc/cudaFree/cudaMemset/etc)
+/*! Texture object(s) associated with a CUDABuffer.
+ * We associate a texture object (bindless texture) with each array
+ * of a CUDABuffer (if possible). This can then be used instead of
+ * the lineary array in contexts where 1D texture access may be
+ * preferrable (e.g. on hardware where the texture and L1 cache
+ * are separate) without incurring in the runtime cost of
+ * binding/unbinding the textures.
+ */
+template<flag_t Key, int N=BufferTraits<Key>::num_buffers>
+class CUDABufferTexture
+{
+	using element_type = typename Buffer<Key>::element_type;
+
+	// Channel descriptor associated to this buffer
+	cudaChannelFormatDesc tex_channel_desc;
+	cudaTextureDesc tex_desc;
+
+	// Linear texture objects associated with the arrays of this buffer
+	cudaResourceDesc tex_resource_desc[N];
+	cudaTextureObject_t tex_obj[N];
+public:
+	CUDABufferTexture() :
+		tex_channel_desc(cudaCreateChannelDesc<element_type>())
+	{
+		memset(&tex_desc, 0, sizeof(tex_desc));
+		tex_desc.addressMode[0] = cudaAddressModeBorder;
+		tex_desc.borderColor[0] = tex_desc.borderColor[1] =
+		tex_desc.borderColor[2] = tex_desc.borderColor[3] = NAN;
+		tex_desc.filterMode = cudaFilterModePoint;
+		tex_desc.normalizedCoords = false;
+		tex_desc.readMode = cudaReadModeElementType;
+		memset(tex_resource_desc, 0, N*sizeof(cudaResourceDesc));
+		memset(tex_obj, 0, N*sizeof(cudaTextureObject_t));
+	}
+
+	~CUDABufferTexture()
+	{
+		for (int i = 0 ; i < N; ++i)
+		{
+			if (tex_obj[i]) try {
+				CUDA_SAFE_CALL(cudaDestroyTextureObject(tex_obj[i]));
+			} catch (std::exception const& e) {
+				// nothing we can do here anyway
+			}
+			tex_obj[i] = 0;
+		}
+	}
+
+	void create(int i, size_t bufmem, element_type *buf)
+	{
+		tex_resource_desc[i].resType = cudaResourceTypeLinear;
+		tex_resource_desc[i].res.linear.desc = tex_channel_desc;
+		tex_resource_desc[i].res.linear.devPtr = buf;
+		tex_resource_desc[i].res.linear.sizeInBytes = bufmem;
+
+		CUDA_SAFE_CALL(cudaCreateTextureObject(tex_obj + i, tex_resource_desc + i, &tex_desc, NULL));
+	}
+
+	cudaTextureObject_t getTextureObject(int idx = 0) const
+	{ return tex_obj[idx]; }
+};
+
+/*! CUDABufferTexture interface for buffers that do NOT have an associated texture object
+ * This allows us to implement CUDABuffer with a simple conditional dependency,
+ * and then using the same interfaces in both cases.
  */
 template<flag_t Key>
-class CUDABuffer : public Buffer<Key>
+class CUDABufferNoTexture
+{
+public:
+	void create(...) { /* nothing to do in this case */ }
+
+	cudaTextureObject_t getTextureObject(int idx = 0) const
+	{ throw std::invalid_argument("no texture object association for " + std::string(Buffer<Key>::name)); }
+};
+
+/*! Implemenetation of the specialization of the Buffer class in the case of CUDA device allocations
+ * (i.e. using cudaMalloc/cudaFree/cudaMemset/etc).
+ *
+ * This is separate from the public CUDABuffer because CUDABuffer must depend on a single
+ * template parameter (the Key), whereas we (ab)use the template parameters to determine
+ * whether or not we should consider the associated texture objects.
+ */
+template<flag_t Key,
+	// texture objects will be associated only if the element type has a power-of-two size,
+	// i.e. if its size has no bits in common with its preceding number.
+	// We also exclude the neighbors list because it's huge, and may not fit the
+	// maximum linear texture object size on some GPUs (and we never access it via textures anyway).
+	size_t element_size_ = sizeof(typename Buffer<Key>::element_type),
+	bool has_texture = (Key != BUFFER_NEIBSLIST) && !(element_size_ & (element_size_ - 1)), // quick check for pow2
+	typename buffer_texture = typename std::conditional<has_texture,
+		CUDABufferTexture<Key>, CUDABufferNoTexture<Key>>::type
+>
+class CUDABufferImplementation : public Buffer<Key>, public buffer_texture
 {
 	typedef Buffer<Key> baseclass;
 public:
 	typedef typename baseclass::element_type element_type;
 
-	// constructor: nothing to do
-	CUDABuffer(int _init=-1) : Buffer<Key>(_init) {}
+	// constructor: initialize the channel and texture descs
+	CUDABufferImplementation(int _init=-1) : Buffer<Key>(_init), buffer_texture() {}
 
 	// destructor: free allocated memory
-	virtual ~CUDABuffer() {
+	virtual ~CUDABufferImplementation() {
 		const int N = baseclass::array_count;
 		element_type **bufs = baseclass::get_raw_ptr();
 		for (int i = 0; i < N; ++i) {
@@ -108,6 +197,8 @@ public:
 			CUDA_SAFE_CALL(cudaMalloc(bufs + i, bufmem));
 #endif
 			CUDA_SAFE_CALL(cudaMemset(bufs[i], baseclass::get_init_value(), bufmem));
+
+			buffer_texture::create(i, bufmem, bufs[i]);
 		}
 		return bufmem*N;
 	}
@@ -129,5 +220,18 @@ public:
 	virtual const char* get_buffer_class() const
 	{ return "CUDABuffer"; }
 };
+
+//! "User-facing” CUDABuffer, that depends on the single Key template parameter
+template<flag_t Key>
+using CUDABuffer = CUDABufferImplementation<Key>;
+
+//! A function to access the buffer objects of a CUDABuffer directly from a BufferList
+template<flag_t Key>
+cudaTextureObject_t getTextureObject(const BufferList& list, const uint idx=0)
+{
+	auto buf = list.get<Key>();
+	if (!buf) throw std::runtime_error("no buffer " + std::string(BufferTraits<Key>::name));
+	return std::dynamic_pointer_cast<const CUDABuffer<Key>>(buf)->getTextureObject(idx);
+}
 
 #endif

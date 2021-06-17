@@ -30,8 +30,6 @@
 
 #include <type_traits> // for std::is_base_of
 
-#include "has_member.h"
-
 /// This file defines the heavy-duty forcesDevice kernel (at the end). The
 /// kernel itself is now quite streamlined, and it only contains sequences of
 /// calls to function templates and functors template that do the actual job
@@ -78,12 +76,9 @@
  * SFINAE helpers
  */
 
-DECLARE_MEMBER_DETECTOR(velArray, has_velArray)
 DECLARE_MEMBER_DETECTOR(volume, has_volume)
 DECLARE_MEMBER_DETECTOR(gammaCfl, has_gammaCfl)
-DECLARE_MEMBER_DETECTOR(eulerVel, has_eulerVel)
 DECLARE_MEMBER_DETECTOR(relEulerVel, has_relEulerVel)
-DECLARE_MEMBER_DETECTOR(relVel, has_relVel)
 
 /// Selector to check if we need a CFL condition for gamma
 template<typename FP>
@@ -215,41 +210,6 @@ constexpr bool needs_dummy_vel()
 /*
  * Auxiliary functions, needed to retrieve the kinematic viscosity coefficient
  */
-
-/// Fetch the particle (numerical) density
-/*! This is either pdata.vel.w or ndata.relVel.w, depending on whether we're
- * doing it for the central particle or the neighbor. The difference is handled
- * by the specializations, whose SFINAE condition is the present of a relVel member.
- */
-template<typename N>
-__device__ __forceinline__
-enable_if_t<has_relVel<N>(), float>
-particle_density(N const& ndata)
-{
-	/* has relVel, so it's neighbor data */
-	return ndata.relVel.w;
-}
-
-template<typename P>
-__device__ __forceinline__
-enable_if_t<not has_relVel<P>(), float>
-particle_density(P const& pdata)
-{
-	/* no relVel, assume it's central particle data */
-	return pdata.vel.w;
-}
-
-/// Fetch the physical particle density
-template<typename N>
-__device__ __forceinline__
-float
-physical_density(N const& ndata)
-{
-	return cuphys::physical_density(particle_density(ndata), fluid_num(ndata.info));
-}
-
-// Ensure that the template doesn't shadow the two-argument function from cuphys
-using cuphys::physical_density;
 
 /// Laminar viscosity coefficient for the given particle
 /*! This is either the global constant d_visccoeff (Newtonian case), or the per-particle
@@ -559,16 +519,10 @@ struct vel_particle_data
 	const	float4	vel;
 	const	float	sspeed;
 
-	__device__ __forceinline__
-	vel_particle_data(const uint _index, particleinfo const& _info) :
-		vel(tex1Dfetch(velTex, _index)),
-		sspeed(soundSpeed(vel.w, fluid_num(_info)))
-	{}
-
 	template<typename FP> /* templatized over the kernel input params */
 	__device__ __forceinline__
 	vel_particle_data(FP const& params, const uint _index, particleinfo const& _info) :
-		vel(params.velArray[_index]),
+		vel(params.fetchVel(_index)),
 		sspeed(soundSpeed(vel.w, fluid_num(_info)))
 	{}
 };
@@ -578,8 +532,8 @@ struct eulerVel_particle_data
 	const	float4	eulerVel;
 
 	__device__ __forceinline__
-	eulerVel_particle_data(const uint _index) :
-		eulerVel(tex1Dfetch(eulerVelTex, _index))
+	eulerVel_particle_data(const uint _index, eulerVel_forces_params const& params) :
+		eulerVel(params.fetchEulerVel(_index))
 	{}
 };
 
@@ -638,8 +592,8 @@ struct sa_boundary_particle_data
 	__device__ __forceinline__
 	sa_boundary_particle_data(const uint index, particleinfo const& info,
 		sa_boundary_forces_params const& params) :
-		oldGGam(tex1Dfetch(gamTex, index)),
-		belem(BOUNDARY(info) ? tex1Dfetch(boundTex, index) : make_float4(0.0f))
+		oldGGam(params.fetchGradGamma(index)),
+		belem(BOUNDARY(info) ? params.fetchBound(index) : make_float4(0.0f))
 	{}
 };
 
@@ -649,7 +603,8 @@ struct sps_particle_data
 	const	symtensor3	tau;
 
 	__device__ __forceinline__
-	sps_particle_data(const uint index) : tau(fetchTau(index))
+	sps_particle_data(const uint index, tau_tex_params const& params) :
+		tau(params.fetchTau(index))
 	{}
 };
 
@@ -671,8 +626,8 @@ struct keps_particle_data
 	template<typename FP>
 	__device__ __forceinline__
 	keps_particle_data(const uint index, particleinfo const& info, FP const& params) :
-		keps_k(tex1Dfetch(keps_kTex, index)),
-		keps_e(tex1Dfetch(keps_eTex, index)),
+		keps_k(params.fetchTke(index)),
+		keps_e(params.fetchEpsilon(index)),
 		turbVisc(params.turbvisc[index]),
 		turbViscForViscTerm((FLUID(info) || (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info))) ? turbVisc : 0)
 	{}
@@ -694,9 +649,9 @@ struct effective_visc_particle_data
 	// a separate (but wall-computed) dynami viscosity for each bluid? or some other approach?
 	template<typename Pt, typename FP>
 	__device__ __forceinline__
-	effective_visc_particle_data(const uint index, Pt const& pdata, FP const& params) :
+	effective_visc_particle_data(const uint index, particleinfo const& info, Pt const& pdata, FP const& params) :
 		effective_visc(
-			params.effective_visc[ FP::rheologytype == GRANULAR ? pdata.index : index]
+			params.effective_visc[(FP::rheologytype == GRANULAR && !FLUID(info)) ? pdata.index : index]
 			)
 	{}
 
@@ -752,11 +707,8 @@ struct cspm_particle_data
 	template<typename FP>
 	__device__ __forceinline__
 	cspm_particle_data(const uint index, FP const& params):
-		fcoeffTens(fetchTau(index,
-				params.fcoeff0,
-				params.fcoeff1,
-				params.fcoeff2)),
-				wcoeff(params.wcoeff[index])
+		fcoeffTens(params.fetchFcoeff(index)),
+		wcoeff(params.wcoeff[index])
 	{}
 };
 
@@ -840,13 +792,13 @@ struct forces_particle_data :
 		ForcesParams const& params) :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
-		vel_particle_data(_index, _info),
+		vel_particle_data(params, _index, _info),
 		vol_cond(_index, params),
 		grenier_cond(_index, params),
-		eulerVel_cond(_index),
+		eulerVel_cond(_index, params),
 		sa_cond(_index, _info, params),
 		keps_cond(_index, _info, params),
-		sps_cond(_index),
+		sps_cond(_index, params),
 		p_precalc_particle_data(*this),
 		visc_cond(_index, params),
 		keps_precalc_cond(physical_density(vel.w, fluid_num(_info)), *this, *this),
@@ -995,7 +947,7 @@ struct keps_particle_output
 	keps_particle_output(FP const& params, uint index)
 	{
 		float3 dkde = params.keps_dkde[index];
-		tau = fetchTau(index, params.tau0, params.tau1, params.tau2);
+		tau = params.fetchTau(index);
 		diff_term_k = dkde.x;
 		diff_term_e = dkde.y;
 		ce2yap = dkde.z;
@@ -1115,29 +1067,6 @@ struct finalize_repack_particle_output :
  * Neib data
  */
 
-// Just like for particle data, we collect neib data into appropriate structures
-
-/* We may fetch velocity either from the kernel params (if there is a velArray),
-   or from the velTex texture (otherwise). We abstract this selection in the following pair
-   of specialized functions. */
-
-template<typename FP>
-__device__ __forceinline__
-enable_if_t<has_velArray<FP>(), float4>
-fetchVel(FP const& params, uint index)
-{
-	return params.velArray[index];
-}
-
-template<typename FP>
-__device__ __forceinline__
-enable_if_t<!has_velArray<FP>(), float4>
-fetchVel(FP const& params, uint index)
-{
-	return tex1Dfetch(velTex, index);
-}
-
-
 // data used fo all neibs
 struct common_neib_data
 {
@@ -1164,7 +1093,7 @@ struct common_neib_data
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
 		info(_info), relPos(_relPos), r(_r),
-		relVel(as_float3(pdata.vel) - fetchVel(params, _index)),
+		relVel(as_float3(pdata.vel) - params.fetchVel(_index)),
 		vel_dot_pos(dot3(relVel, relPos)),
 		f(F<FP::kerneltype>(r, params.slength)),
 		w(W<FP::kerneltype>(r, params.slength)),
@@ -1186,7 +1115,7 @@ struct sa_boundary_neib_data
 	sa_boundary_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, float4 const& _relPos) :
 		index(_index),
-		belem(tex1Dfetch(boundTex, index)),
+		belem(params.fetchBound(index)),
 		normal_s(as_float3(belem)),
 		r_as(fmax(fabs(dot3(_relPos, normal_s)), params.deltap))
 	{}
@@ -1223,10 +1152,7 @@ struct cspm_neib_data
 	__device__ __forceinline__
 	cspm_neib_data(FP const& params, const uint index,
 		cspm_particle_data const& pdata, common_neib_data const& ndata) :
-		nfcoeffTens(fetchTau(index,
-				params.fcoeff0,
-				params.fcoeff1,
-				params.fcoeff2)),
+		nfcoeffTens(params.fetchFcoeff(index)),
 	//	nwcoeff(params.wcoeff[index]),
 	//	coeff(2.0f*pdata.wcoeff*nwcoeff/(pdata.wcoeff + nwcoeff)), //sym v4
 	//	avg_fcoeffTens(inverse(pdata.fcoeffTens)), // asym
@@ -1249,8 +1175,10 @@ struct eulerVel_neib_data
 
 	template<typename Pt>
 	__device__ __forceinline__
-	eulerVel_neib_data(Pt const& pdata, const uint _index, const particleinfo _info) :
-		relEulerVel(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
+	eulerVel_neib_data(Pt const& pdata, const uint _index, const particleinfo _info,
+		eulerVel_forces_params const& params)
+	:
+		relEulerVel(as_float3(pdata.eulerVel) - params.fetchEulerVel(_index))
 	{}
 };
 
@@ -1326,10 +1254,10 @@ struct forces_neib_data :
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_dummy_boundary_neib_data(pdata, params, _index, _relPos),
 		_cspm_neib_data(params, _index, pdata, *this),
-		_eulerVel_neib_data(pdata, _index, _info),
-		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, pdata, params),
+		_eulerVel_neib_data(pdata, _index, _info, params),
+		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, _info, pdata, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, _info, params),
-		COND_STRUCT(has_sps, sps_particle_data)(_index),
+		COND_STRUCT(has_sps, sps_particle_data)(_index, params),
 		p_precalc_particle_data(*this)
 	{}
 };
@@ -3460,6 +3388,55 @@ repack_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.force.w /= d_rho0[fluid_num(pdata.info)];
 }
 
+/*!
+ * Geometric forces from planes and DEM handled in finalize.
+ *
+ * Currently this is only supported for LJ, and adds repulsive forces from planes
+ * and DEM tangent planes (see PlaneForce and DemForce)
+ *
+ * dynvisc is the value returned by viscous_fixup(), to be used for wall friction
+ */
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__
+enable_if_t<FP::has_planes || FP::has_dem, float>
+finalize_geometric_forces(FP const& params, P const& pdata, OP &pout, const float dynvisc)
+{
+	// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
+	// for viscous fluids
+	float geom_coeff = 0.0f;
+	const float3 pos3 = make_float3(pdata.pos);
+	const float3 vel3 = make_float3(pdata.vel);
+
+	const int *neib_plane_idx = &(params.neibPlanes[pdata.index].x);
+
+	// maximum 4 geometries
+	for (int i = 0; i < 4; ++i) {
+		const int p = *neib_plane_idx;
+		if (p < 0) break; // done
+		++neib_plane_idx;
+
+		float coeff;
+		if (FP::has_planes && p < d_numplanes) {
+			coeff = compute_plane_force(params, pdata, pout, pos3, vel3, d_plane[p], dynvisc);
+		} else if (FP::has_dem && p == MAX_PLANES) {
+			coeff = compute_dem_force(params, pdata, pout, pos3, vel3, dynvisc);
+		} else {
+			printf("This can't happen: %d / %d\n", p, d_numplanes);
+			coeff = NAN;
+		}
+		if (coeff > geom_coeff)
+			geom_coeff = coeff;
+	}
+	return geom_coeff;
+}
+
+template<typename FP, typename PD, typename OP>
+__device__ __forceinline__
+enable_if_t<!FP::has_planes && !FP::has_dem, float>
+finalize_geometric_forces(FP const& params, PD const& pdata, OP &pout, const float dynvisc)
+{ return 0.0f; }
+
+
 /*
  * Forces acting on moving bodies
  */
@@ -3477,7 +3454,7 @@ __device__ __forceinline__
 enable_if_t<FP::boundarytype == SA_BOUNDARY>
 compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 {
-	const float4 belem = tex1Dfetch(boundTex, pdata.index);
+	const float4 belem = params.fetchBound(pdata.index);
 	// Force = -Pressure*SurfaceArea*NormalOutsideVector
 	pout.force = -P(pdata.vel.w, fluid_num(pdata.info))*belem.w*belem;
 	pout.force.w = 0.0f;
@@ -3551,7 +3528,7 @@ __device__ __forceinline__
 enable_if_t<FP::has_keps>
 write_keps(FP const& params, P const& pdata, OP& pout)
 {
-	storeTau(pout.tau, pdata.index, params.tau0, params.tau1, params.tau2);
+	params.storeTau(pout.tau, pdata.index);
 	params.keps_dkde[pdata.index] = make_float3(pout.diff_term_k, pout.diff_term_e, pout.ce2yap);
 }
 
@@ -4178,7 +4155,7 @@ forcesDevice(FP params)
 		if (index >= params.toParticle) break;
 
 		// Particle info struct, always stored in a texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		// Skip if the current particle is not of the type for which we are computing interactions
 		if (PART_TYPE(info) != cptype) break;
@@ -4186,11 +4163,7 @@ forcesDevice(FP params)
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
@@ -4217,13 +4190,7 @@ forcesDevice(FP params)
 
 			// Compute relative position vector and distance
 			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos(
-			#if PREFER_L1
-				params.posArray[neib_index]
-			#else
-				tex1Dfetch(posTex, neib_index)
-			#endif
-				);
+			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 			// Skip inactive particles
 			if (INACTIVE(relPos))
@@ -4231,7 +4198,7 @@ forcesDevice(FP params)
 
 			const float r = length3(relPos);
 
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = params.fetchInfo(neib_index);
 
 			// Bail out if we do not interact with this neighbor
 			if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
@@ -4264,6 +4231,42 @@ forcesDevice(FP params)
 	} while (0);
 }
 
+/* DEM and PLANES interaction wrappers */
+template<typename FP, typename P, typename PO>
+__device__ __forceinline__
+enable_if_t<FP::has_dem, float>
+compute_dem_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3, float dynvisc)
+{
+	return DemLJForce<FP::boundarytype>(params.demTex, pdata.gridPos, pos3, pdata.pos.w, vel3, dynvisc, pout.force);
+}
+
+template<typename FP, typename P, typename PO>
+__device__ __forceinline__
+enable_if_t<!FP::has_dem, float>
+compute_dem_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3, float dynvisc)
+{
+	return NAN;
+}
+
+template<typename FP, typename P, typename PO>
+__device__ __forceinline__
+enable_if_t<FP::has_planes, float>
+compute_plane_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3,
+	plane_t const& plane, float dynvisc)
+{
+	return PlaneForce<FP::boundarytype>(pdata.gridPos, pos3, pdata.pos.w, plane, vel3, dynvisc, pout.force);
+}
+
+template<typename FP, typename P, typename PO>
+__device__ __forceinline__
+enable_if_t<!FP::has_planes, float>
+compute_plane_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3,
+	plane_t const& plane, float dynvisc)
+{
+	return NAN;
+}
+
+
 // TODO FIXME splitneibs merge: load partial internal energy and store final
 template<typename FP, /* finalize_forces_params<...> */
 	SPHFormulation sph_formulation = FP::sph_formulation,
@@ -4285,17 +4288,13 @@ finalizeforcesDevice(FP params)
 		if (index >= params.toParticle) break;
 
 		// Particle info struct, always stored in a texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		const ParticleType part_type = PART_TYPE(info);
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
@@ -4324,26 +4323,7 @@ finalizeforcesDevice(FP params)
 
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
-			float geom_coeff = 0.0f;
-
-			// Adding repulsive force computed from DEM
-			if (simflags & ENABLE_DEM) {
-				switch (boundarytype) {
-				case LJ_BOUNDARY:
-					geom_coeff = DemLJForce(demTex, pdata.gridPos, as_float3(pdata.pos),
-						pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
-					break;
-				default:
-					break;
-				}
-			}
-
-			// Adding repulsive force computed from geometric boundaries
-			if (simflags & ENABLE_PLANES && d_numplanes) {
-				geom_coeff = max(geom_coeff,
-					GeometryForce(pdata.gridPos, as_float3(pdata.pos),
-							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
-			}
+			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
 
 			shared.store(params, pdata, pout);
 		}
@@ -4416,7 +4396,7 @@ repackDevice(FP params)
 		if (index >= params.toParticle) break;
 
 		// Particle info struct, always stored in a texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		// Skip if the current particle is not of the type for which we are computing interactions
 		if (PART_TYPE(info) != cptype) break;
@@ -4424,11 +4404,7 @@ repackDevice(FP params)
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
@@ -4449,13 +4425,7 @@ repackDevice(FP params)
 
 			// Compute relative position vector and distance
 			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos(
-			#if PREFER_L1
-				params.posArray[neib_index]
-			#else
-				tex1Dfetch(posTex, neib_index)
-			#endif
-				);
+			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 			// Skip inactive particles
 			if (INACTIVE(relPos))
@@ -4463,7 +4433,7 @@ repackDevice(FP params)
 
 			const float r = length3(relPos);
 
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = params.fetchInfo(neib_index);
 
 			// Bail out if we do not interact with this neighbor
 			if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
@@ -4512,17 +4482,13 @@ finalizeRepackDevice(FP params)
 		if (index >= params.toParticle) break;
 
 		// Particle info struct, always stored in a texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		const ParticleType part_type = PART_TYPE(info);
 
 		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
@@ -4548,26 +4514,10 @@ finalizeRepackDevice(FP params)
 			// Post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
 			const float dynvisc = d_visccoeff[fluid_num(pdata.info)]*physical_density(pdata.vel.w,fluid_num(pdata.info));
+
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
-			float geom_coeff = 0.0f;
-			// Adding repulsive force computed from DEM
-			if (simflags & ENABLE_DEM) {
-				switch (boundarytype) {
-				case LJ_BOUNDARY:
-					geom_coeff = DemLJForce(demTex, pdata.gridPos, as_float3(pdata.pos),
-						pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
-					break;
-				default:
-					break;
-				}
-			}
-			// Adding repulsive force computed from geometric boundaries
-			if (simflags & ENABLE_PLANES && d_numplanes) {
-				geom_coeff = max(geom_coeff,
-					GeometryForce(pdata.gridPos, as_float3(pdata.pos),
-							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
-			}
+			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
 
 			shared.store(params, pdata, pout);
 		}
@@ -4597,7 +4547,7 @@ struct gamma_particle_data
 	template<typename FP> /* templatized over the kernel input params */
 	__device__ __forceinline__
 	gamma_particle_data(FP const& params, const uint _index) :
-		gGam(params.ggam[_index])
+		gGam(params.fetchGradGamma(_index))
 	{}
 };
 

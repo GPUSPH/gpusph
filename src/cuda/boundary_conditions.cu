@@ -150,15 +150,9 @@ disableOutgoingParts(const	BufferList& bufread,
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	//execute kernel
 	cubounds::disableOutgoingPartsDevice<<<numBlocks, numThreads>>>
-		(	pos,
-			vertices,
-			numParticles);
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+		(info, pos, vertices, numParticles);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -205,25 +199,6 @@ saSegmentBoundaryConditionsImpl(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4			*pos(bufread.getData<BUFFER_POS>());
-	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
-
-	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
-	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
-	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
-	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-	const	vertexinfo	*vertices(bufread.getData<BUFFER_VERTICES>());
-
-	float4	*vel(bufwrite.getData<BUFFER_VEL>());
-	float	*tke(bufwrite.getData<BUFFER_TKE>());
-	float	*eps(bufwrite.getData<BUFFER_EPSILON>());
-	float4	*eulerVel(bufwrite.getData<BUFFER_EULERVEL>());
-	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
@@ -233,17 +208,11 @@ saSegmentBoundaryConditionsImpl(
 #define SA_SEGMENT_BC_STEP(step) case step: \
 	if (run_mode == REPACK) { \
 		sa_segment_bc_repack_params<kerneltype, ViscSpec, simflags, step> params( \
-			pos, vel, particleHash, cellStart, neibsList, \
-			gGam, vertices, vertPos, \
-			eulerVel, tke, eps, \
-			particleRangeEnd, deltap, slength, influenceradius); \
+			bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius); \
 		cubounds::saSegmentBoundaryConditionsRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
 	} else { \
 		sa_segment_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-			pos, vel, particleHash, cellStart, neibsList, \
-			gGam, vertices, vertPos, \
-			eulerVel, tke, eps, \
-			particleRangeEnd, deltap, slength, influenceradius); \
+			bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius); \
 		cubounds::saSegmentBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
 	} \
 	break;
@@ -258,11 +227,8 @@ saSegmentBoundaryConditionsImpl(
 	}
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
+
 //! Non-SA case for the implementation of saSegmentBoundaryConditions
 /** In this case, we should never be called, so throw
  */
@@ -321,31 +287,8 @@ findOutgoingSegment(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4			*pos(bufread.getData<BUFFER_POS>());
-	const	float4			*vel(bufread.getData<BUFFER_VEL>());
-	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
-	const	hashKey			*particleHash(bufread.getData<BUFFER_HASH>());
-	const	uint			*cellStart(bufread.getData<BUFFER_CELLSTART>());
-	const	neibdata		*neibsList(bufread.getData<BUFFER_NEIBSLIST>());
-	const	float2	* const *vertPos(bufread.getRawPtr<BUFFER_VERTPOS>());
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-
-	float4  *gGam(bufwrite.getData<BUFFER_GRADGAMMA>());
-	// See note about vertices in disableOutgoingParts
-	vertexinfo	*vertices(bufwrite.getData<BUFFER_VERTICES,
-		BufferList::AccessSafety::MULTISTATE_SAFE>());
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	cubounds::findOutgoingSegmentDevice<kerneltype><<<numBlocks, numThreads>>>(
-		pos, vel, vertices, gGam,
-		vertPos[0], vertPos[1], vertPos[2],
-		particleHash, cellStart, neibsList,
-		particleRangeEnd, influenceradius);
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+		sa_outgoing_bc_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius));
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
@@ -384,12 +327,6 @@ saVertexBoundaryConditionsImpl(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const	float4	*boundelement(bufread.getData<BUFFER_BOUNDELEMENTS>());
-	const	particleinfo	*info(bufread.getData<BUFFER_INFO>());
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
@@ -420,10 +357,6 @@ saVertexBoundaryConditionsImpl(
 	}
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
 
 template<BoundaryType _boundarytype>
@@ -551,68 +484,28 @@ saInitGammaImpl(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	float4 *newGGam = bufwrite.getData<BUFFER_GRADGAMMA>();
-	const float4 *oldGGam = bufread.getData<BUFFER_GRADGAMMA>();
-
-	const float4 *oldPos = bufread.getData<BUFFER_POS>();
-	const float4 *boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
-	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-	const float2 * const *vertPos = bufread.getRawPtr<BUFFER_VERTPOS>();
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
 
 	// execute the kernel for fluid particles
-	cubounds::initGammaDevice<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>> (
-		newGGam,
-		oldGGam,
-		oldPos,
-		boundelement,
-		vertPos[0],
-		vertPos[1],
-		vertPos[2],
-		pinfo,
-		particleHash,
-		cellStart,
-		neibsList,
-		slength,
-		influenceradius,
-		deltap,
-		epsilon,
-		particleRangeEnd);
+	cubounds::initGammaDevice<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>>
+		(sa_init_gamma_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius,
+			deltap, epsilon));
 
 	// TODO verify if this split kernele execution works in the multi-device case,
 	// or if we need to update_external the fluid data first
 
 	// execute the kernel for vertex particles
-	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>> (
-		newGGam,
-		oldGGam,
-		oldPos,
-		boundelement,
-		vertPos[0],
-		vertPos[1],
-		vertPos[2],
-		pinfo,
-		particleHash,
-		cellStart,
-		neibsList,
-		slength,
-		influenceradius,
-		deltap,
-		epsilon,
-		particleRangeEnd);
+	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>>
+		(sa_init_gamma_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius,
+			deltap, epsilon));
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 }
+
 template<BoundaryType _boundarytype>
 enable_if_t<_boundarytype != SA_BOUNDARY>
 saInitGammaImpl(
@@ -760,8 +653,6 @@ saIdentifyCornerVertices(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
@@ -780,8 +671,5 @@ saIdentifyCornerVertices(
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
 }
 };

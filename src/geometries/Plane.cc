@@ -45,18 +45,18 @@ void Plane::SetInertia(const double dx)
 
 void Plane::FillBorder(PointVect& points, const double dx)
 {
-	printf("WARNING: FillBorder not implemented for planes!\n");
+	throw std::runtime_error("FillBorder not implemented for planes!\n");
 }
 
 int Plane::Fill(PointVect& points, const double dx, const bool fill)
 {
-	printf("WARNING: Fill not implemented for planes!\n");
+	throw std::runtime_error("Fill not implemented for planes!\n");
 	return 0;
 }
 
 void Plane::FillIn(PointVect& points, const double dx, const int layers)
 {
-	printf("WARNING: FillIn not implemented for planes!\n");
+	throw std::runtime_error("FillIn not implemented for planes!\n");
 }
 
 bool Plane::IsInside(const Point& p, const double dx) const

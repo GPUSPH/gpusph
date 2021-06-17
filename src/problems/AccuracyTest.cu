@@ -39,7 +39,7 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
+		boundary<DUMMY_BOUNDARY>,
 		add_flags<ENABLE_INTERNAL_ENERGY>
 	);
 
@@ -51,19 +51,20 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	// SPH parameters
-	set_deltap(0.02); //0.008
+	set_deltap(0.02);
 
 	set_timestep(1e-5f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
-	simparams()->tend = 1.5f; //0.00036f
+	simparams()->tend = 1.5f;
 
 	// Physical parameters
-	H = 0.6f;
+	H = 0.6f; // Water level
 	set_gravity(-9.81f);
 	setMaxFall(H);
+
 	add_fluid(1000.0);
-	set_equation_of_state(0, 7.0, 50);
+	set_equation_of_state(0, 7.0, NAN); // auto compute speed of sound
 
 	set_kinematic_visc(0, 1.0e-6f);
 	set_artificial_visc(0.3*0.005/m_deltap);
@@ -71,39 +72,41 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
 
-	// Name of problem used for directory creation
-	m_name = "AccuracyTest";
-
 	// set positioning policy to PP_CORNER:
 	// the given point will be the corner of the geometry
 	setPositioning(PP_CORNER);
 
+	const int num_layers = (simparams()->boundarytype > SA_BOUNDARY) ?
+		simparams()->get_influence_layers() : 1;
+	const double wall_size = num_layers*m_deltap;
+	const double box_thickness = wall_size - m_deltap;
+
 	// Building the geometry
 	GeometryID side0 = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0),
-		lx, ly, 3*m_deltap);
+		lx, ly, box_thickness);
 	disableCollisions(side0);
 
 	GeometryID side1 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(0, 0, 4.0*m_deltap),
-		3*m_deltap, ly, lz - 4*m_deltap);
+		Point(0, 0, wall_size),
+		box_thickness, ly, lz - wall_size);
 	disableCollisions(side1);
 
 	GeometryID side2 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(lx - 3.0*m_deltap, 0, 4.0*m_deltap),
-		3*m_deltap, ly, lz - 4*m_deltap);
+		Point(lx - box_thickness, 0, wall_size),
+		box_thickness, ly, lz - wall_size);
 	disableCollisions(side2);
 
 	GeometryID side3 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(4.0*m_deltap, 0, 4.0*m_deltap),
-		lx - 8*m_deltap, 3*m_deltap, lz - 4*m_deltap);
+		Point(wall_size, 0, wall_size),
+		lx - 2*wall_size, box_thickness, lz - wall_size);
 	disableCollisions(side3);
 
 	GeometryID side4 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(4.0*m_deltap, ly, 4.0*m_deltap),
-		lx - 8*m_deltap, 3*m_deltap, lz - 4*m_deltap);
+		Point(wall_size, ly - box_thickness, wall_size),
+		lx - 2*wall_size, box_thickness, lz - wall_size);
 	disableCollisions(side4);
 
 	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
-		Point(4.0*m_deltap, 4.0*m_deltap, 4.0*m_deltap),
-		0.4, ly - 8*m_deltap, H);
+		Point(wall_size, wall_size, wall_size),
+		0.4, ly - 2*wall_size, H);
 }

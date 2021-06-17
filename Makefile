@@ -221,6 +221,11 @@ CUDA_MINOR := $(lastword  $(versions_tmp))
 # NOTE: the test is reversed because test returns 0 for true (shell-like)
 OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
 
+# Some libraries shipped CUDA 11 require C++14, so we want to know if
+# the CUDA version is at least 11
+# NOTE: the test is reversed because test returns 0 for true (shell-like)
+CUDA_11=$(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
+
 ifeq ($(OLD_CUDA),1)
 $(error CUDA version too old)
 endif
@@ -237,6 +242,7 @@ CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
+FASTDEM_SELECT_OPTFILE=$(OPTSDIR)/fastdem_select.opt
 MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
 HDF5_SELECT_OPTFILE=$(OPTSDIR)/hdf5_select.opt
 CHRONO_SELECT_OPTFILE=$(OPTSDIR)/chrono_select.opt
@@ -258,6 +264,7 @@ DEVCODE_OPTFILES = \
 	  $(DBG_SELECT_OPTFILE) \
 	  $(COMPUTE_SELECT_OPTFILE) \
 	  $(FASTMATH_SELECT_OPTFILE) \
+	  $(FASTDEM_SELECT_OPTFILE) \
 	  $(LINEARIZATION_SELECT_OPTFILE) \
 
 # Actual optfiles, that define specific options
@@ -354,6 +361,19 @@ ifdef fastmath
 	endif
 else
 	FASTMATH ?= 0
+endif
+
+# option: fastdem - Enable or disable fastdem. Default: 0 (disabled)
+ifdef fastdem
+	# does it differ from last?
+	ifneq ($(FASTDEM),$(fastdem))
+		TMP:=$(shell test -e $(FASTDEM_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/FASTDEM $(FASTDEM)/FASTDEM $(fastdem)/' $(FASTDEM_SELECT_OPTFILE) )
+		# user choice
+		FASTDEM=$(fastdem)
+	endif
+else
+	FASTDEM ?= 0
 endif
 
 # option: mpi - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
@@ -609,6 +629,7 @@ endif
 
 # CUDA libaries
 LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+LDFLAGS += --linker-options -rpath,$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 
 # link to the CUDA runtime library
 LIBS += -lcudart
@@ -667,7 +688,9 @@ ifneq ($(USE_CHRONO),0)
 		# under $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
 		CHRONO_LIB_PATH := $(dir $(or \
 			$(wildcard $(CHRONO_PATH)/lib64/libChronoEngine.so) \
-			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so), \
+			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so) \
+			$(wildcard $(CHRONO_PATH)/lib/libChronoEngine.so) \
+			$(wildcard $(CHRONO_PATH)/build/lib/libChronoEngine.so), \
 			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_LIB_PATH) \
 			))
 	else
@@ -755,10 +778,16 @@ endif
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
 
-# We also force C++11 mode, since we are no relying on C++11 features
+# We also force C++11 (or higher) mode, since we are now relying on C++11 features
+# If we are using CUDA 11 or higher, the standard will be C++14, as required by
+# Thrust and CUB
 # TODO Check if any -std is present in CXXFLAGS (added by the user) and if
 # the specified value is not 11, warn before removing it
+ifeq ($(CUDA_11),1)
+CXXFLAGS += -std=c++14
+else
 CXXFLAGS += -std=c++11
+endif
 
 # HDF5 might require specific flags
 ifneq ($(USE_HDF5),0)
@@ -916,6 +945,10 @@ $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if fastmath is enabled for GPU code. */" \
 		> $@
 	@echo "#define FASTMATH $(FASTMATH)" >> $@
+$(FASTDEM_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if fastmath is enabled for GPU code. */" \
+		> $@
+	@echo "#define FASTDEM $(FASTDEM)" >> $@
 $(MPI_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if we are using MPI (for multi-node) or not. */" \
 		> $@
@@ -975,22 +1008,32 @@ $(SRCDIR)/describe-debugflags.h: $(SCRIPTSDIR)/describe-debugflags.awk $(SRCDIR)
 # The idea is that to avoid restarting make when the .d files change,
 # and to avoid issues with deleted dependency files, the .d files themselves
 # have an empty rule, and they are generated when the object files are generated.
-# However, we do not use the "generate dependencies while compiling” feature of GCC
+# However, we do not use the "generate dependencies while compiling” feature of GCC.
+
+# We _do_ hack the dependency files so that all dependencies are added to an empty rule,
+# that ensures that make doesn't bother us about missing dependencies when one is added or removed
+define redupdep
+@x="$$(cat $1)" ; printf '%s\n\n:%s:\n' "$$x" "$$x" | sed 's/^:[^:]*: //' > $1
+endef
+
 # The -MM flag is used to not include system includes.
 # The -MG flag is used to add missing includes (useful to depend on the .opt files).
 # The -MT flag is used to define the object file.
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 $(GENOBJS): $(OBJDIR)/%.gen.o: $(OPTSDIR)/%.gen.cc $(DEPDIR)/%.gen.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
 	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
@@ -999,6 +1042,7 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d $(DEVCODE_OPTFILES) | $(O
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< \
 		 --compiler-options -MG,-MM,-MT,$@ > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
 # deps: empty rule, but require the directories and optfiles to be present
@@ -1121,6 +1165,7 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	@echo "LINKER:          $(LINKER)"									>> $@
 	@echo "Compute cap.:    $(COMPUTE)"									>> $@
 	@echo "Fastmath:        $(FASTMATH)"								>> $@
+	@echo "Fast DEM:        $(FASTDEM)"								>> $@
 	@echo "USE_MPI:         $(USE_MPI)"									>> $@
 	@[ 1 = $(USE_MPI) ] && echo "    MPI version: $(MPI_VERSION)"					>> $@ || true
 	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
@@ -1183,6 +1228,8 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of FASTMATH from OPTFILES
 	$(CMDECHO)grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of FASTDEM from OPTFILES
+	$(CMDECHO)grep "\#define FASTDEM" $(FASTDEM_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_MPI from OPTFILES
 	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_HDF5 from OPTFILES

@@ -133,6 +133,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
+	if (QUERY_ANY_FLAGS(m_simparams->simflags, ENABLE_PLANES | ENABLE_DEM))
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBPLANES>(-1); // neib planes list is initialized to all bits set
+
 	if (m_simparams->simflags & ENABLE_XSPH)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
 
@@ -972,13 +975,14 @@ size_t GPUWorker::allocateHostBuffers() {
 	if (MULTI_DEVICE) {
 		allocated += m_hBuffers.get<BUFFER_COMPACT_DEV_MAP>()->alloc(m_nGridCells);
 
-		// allocate a 1Mb transferBuffer if peer copies are disabled
+		// allocate a 4MB transferBuffer if peer copies are disabled
+#define INITIAL_TRANSFER_BUFFER_SIZE size_t(4*1024*1024)
 		if (m_disableP2Ptranfers)
-			resizePeerTransferBuffer(1024 * 1024);
+			resizePeerTransferBuffer(INITIAL_TRANSFER_BUFFER_SIZE);
 
 		// ditto for network transfers
 		if (!gdata->clOptions->gpudirect)
-			resizeNetworkTransferBuffer(1024 * 1024);
+			resizeNetworkTransferBuffer(INITIAL_TRANSFER_BUFFER_SIZE);
 
 		// TODO migrate these to the buffer system as well
 		cudaMallocHost(&(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize);
@@ -1345,21 +1349,27 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 	}
 }
 
-// if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
+// Transfer buffers are sized in multiples of 1MB
+#define TRANSFER_BUFFER_ROUNDING size_t(1024*1024)
+
+// if m_hPeerTransferBuffer is not big enough, reallocate it
 void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 {
 	// is it big enough already?
 	if (required_size < m_hPeerTransferBufferSize) return;
 
-	// will round up to...
-	size_t ROUND_TO = 1024*1024;
-
 	// store previous size, compute new
 	size_t prev_size = m_hPeerTransferBufferSize;
-	m_hPeerTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+	// actually allocate size is obtained rounding up to the next multiple of TRANSFER_BUFFER_ROUNDING
+	m_hPeerTransferBufferSize = round_up(required_size, TRANSFER_BUFFER_ROUNDING);
 
-	// dealloc first
-	if (m_hPeerTransferBufferSize) {
+	// if the buffer was already allocated, deallocate it first
+	if (prev_size) {
+		// make sure there are no pending / running transfers using the current buffer
+		// (this can happen if there are 2 non-peered neighbors and the resize triggers
+		// on the second neighbor while transferring data with the first
+		CUDA_SAFE_CALL(cudaStreamSynchronize(m_asyncPeerCopiesStream));
+
 		CUDA_SAFE_CALL(cudaFreeHost(m_hPeerTransferBuffer));
 		m_hostMemory -= prev_size;
 	}
@@ -1377,15 +1387,16 @@ void GPUWorker::resizeNetworkTransferBuffer(size_t required_size)
 	// is it big enough already?
 	if (required_size < m_hNetworkTransferBufferSize) return;
 
-	// will round up to...
-	size_t ROUND_TO = 1024*1024;
-
 	// store previous size, compute new
 	size_t prev_size = m_hNetworkTransferBufferSize;
-	m_hNetworkTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+	// actually allocate size is obtained rounding up to the next multiple of TRANSFER_BUFFER_ROUNDING
+	m_hNetworkTransferBufferSize = round_up(required_size, TRANSFER_BUFFER_ROUNDING);
 
-	// dealloc first
-	if (m_hNetworkTransferBufferSize) {
+	// if the buffer was already allocated, deallocate it first
+	if (prev_size) {
+		// TODO when we switch to non-blocking MPI calls, we'll have to wait here
+		// for pending transfers, as in resizePeerTransferBuffer()
+
 		CUDA_SAFE_CALL(cudaFreeHost(m_hNetworkTransferBuffer));
 		m_hostMemory -= prev_size;
 	}
@@ -1844,7 +1855,7 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 	const BufferList unsorted =
 		extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList sorted =
-		// updates holds the buffers sorted in SORT, which will only read actually
+		// updates holds the buffers sorted in SORT, which will only be read actually
 		extractExistingBufferList(m_dBuffers, cmd.updates) |
 		// the writes specification includes a dynamic buffer selection,
 		// because the sorted state will have the buffers that were also
@@ -1855,6 +1866,7 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 
 	// reset also if the device is empty (or we will download uninitialized values)
 	sorted.get<BUFFER_CELLSTART>()->clobber();
+	sorted.validate_access();
 
 	// if the device is not empty, do the actual sorting. Otherwise, just mark the buffers as updated
 	if (m_numParticles > 0) {
@@ -1889,6 +1901,9 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	BufferList bufwrite =
 		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
+	bufread.validate_access();
+	bufwrite.validate_access();
+
 	bufwrite.add_manipulator_on_write("buildneibs");
 
 	// reset the neighbor list
@@ -1899,7 +1914,7 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	// it is used to add segments into the neighbour list even if they are outside the kernel support
 	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
-	neibsEngine->buildNeibsList(
+	neibsEngine->buildNeibsList(	gdata->debug.check_cell_overflow,
 					bufread,
 					bufwrite,
 					m_numParticles,
@@ -1990,9 +2005,6 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 
 	bufwrite.clear_pending_state();
 
-	if (numPartsToElaborate > 0)
-		forcesEngine->bind_textures(bufread, m_numParticles, gdata->run_mode);
-
 	return make_pair(bufread, bufwrite);
 
 }
@@ -2003,8 +2015,6 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
  */
 float GPUWorker::post_forces(CommandStruct const& cmd)
 {
-	forcesEngine->unbind_textures(gdata->run_mode);
-
 	// no reduction for fixed timestep
 	if (!(m_simparams->simflags & ENABLE_DTADAPT))
 		return m_simparams->dt;
@@ -2182,7 +2192,7 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 		// wait for the completion of the kernel
 		cudaDeviceSynchronize();
 
-		// unbind the textures
+		// cleanup post forces and get dt
 		returned_dt = post_forces(cmd);
 	}
 
@@ -2838,7 +2848,7 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct con
 				m_simparams->slength,
 				m_simparams->influenceRadius,
 				step,
-				!gdata->clOptions->resume_fname.empty(),
+				gdata->resume,
 				cmd.dt(gdata),
 				m_dNewNumParticles,
 				m_globalDeviceIdx,

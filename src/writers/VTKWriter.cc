@@ -477,7 +477,7 @@ symtensor3 fetch_tensor(float2 const* const* data, size_t index)
 uchar get_part_type(particleinfo const& pinfo)
 { return PART_TYPE(pinfo); }
 
-uchar get_part_flags(particleinfo const& pinfo)
+ushort get_part_flags(particleinfo const& pinfo)
 { return PART_FLAGS(pinfo) >> PART_FLAG_SHIFT; }
 
 uchar get_fluid_num(particleinfo const& pinfo)
@@ -1165,16 +1165,14 @@ VTKWriter::save_dem()
 	const float ewres = gdata->problem->physparams()->ewres;
 	const float nsres = gdata->problem->physparams()->nsres;
 
-	const double3 wo = gdata->problem->get_worldorigin();
+	const string extent="1 " + to_string(cols) + " 1 " + to_string(rows) + " 0 0";
 
-	// The VTK has points at the center of each cell:
-	const float west_off = wo.x + ewres/2;
-	const float south_off = wo.y + nsres/2;
+	// TODO support DEM offset
 
 	fp	<< "<?xml version='1.0'?>\n"
 		<< "<VTKFile type='StructuredGrid'  version='0.1'  byte_order='" << endianness[*(char*)&endian_int & 1] << "'>\n"
-		<< " <StructuredGrid WholeExtent='0 " << cols << " 0 " << rows << " 0 0'>\n"
-		<< "  <Piece Extent='1 " << cols << " 1 " << rows << " 0 0'>\n"
+		<< " <StructuredGrid WholeExtent='" + extent + "'>\n"
+		<< "  <Piece Extent='" + extent + "'>\n"
 		<< "   <Points><DataArray type='Float32' NumberOfComponents='3' format='appended' offset='0'/></Points>\n"
 		<< "  </Piece>\n"
 		<< " </StructuredGrid>\n"
@@ -1186,9 +1184,9 @@ VTKWriter::save_dem()
 	uint i = 0;
 	float3 pt;
 	for (int row = 0; row < rows; ++row) {
-		pt.y = south_off + row*nsres;
+		pt.y = row*nsres;
 		for (int col = 0; col < cols; ++col) {
-			pt.x = west_off + col*ewres;
+			pt.x = col*ewres;
 			pt.z = dem[i];
 			fp.write(reinterpret_cast<char*>(&pt), sizeof(pt));
 			++i;

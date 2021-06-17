@@ -117,14 +117,13 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 
 	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
-	GeometryID fluid;
 	float z = 0;
 	int n = 0;
 	while (z < H) {
 		z = n*m_deltap + 1.5*r0;
 		float x = piston_initial_crotx + r0;
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
-		fluid = addRect(GT_FLUID, FT_SOLID, Point(x, r0, z),
+		addRect(GT_FLUID, FT_SOLID, Point(x, r0, z),
 				l, width-2.0*r0);
 		n++;
 	 }

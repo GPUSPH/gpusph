@@ -47,10 +47,14 @@
 #include "compute_select.opt"
 #include "dbg_select.opt"
 #include "fastmath_select.opt"
+#include "fastdem_select.opt"
 #include "gpusph_version.opt"
 #include "hdf5_select.opt"
 #include "mpi_select.opt"
 #include "catalyst_select.opt"
+
+/* include cuda/cache_preference.h, to show the cache preference */
+#include "cuda/cache_preference.h"
 
 using namespace std;
 
@@ -64,10 +68,12 @@ void show_version()
 #endif
 
 	printf("GPUSPH version %s\n", GPUSPH_VERSION);
-	printf("%s version %s fastmath for compute capability %u.%u\n",
+	printf("%s version %s fastmath for compute capability %u.%u (cache preference: %s cache)\n",
 		dbg_or_rel,
 		FASTMATH ? "with" : "without",
-		COMPUTE/10, COMPUTE%10);
+		COMPUTE/10, COMPUTE%10,
+		PREFER_L1 ? "L1" : "texture");
+	printf("DEM    : %s\n", FASTDEM ? "fast" : "symmetrized");
 	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
 	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
 	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
@@ -143,6 +149,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		argc--;
 		if (!strcmp(arg, "--resume")) {
 			_clOptions->resume_fname = string(*argv);
+			gdata->resume = true;
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--checkpoint-every")) {
@@ -246,6 +253,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else if (!strcmp(arg, "--from-repack")) {
 			_clOptions->resume_fname = string(*argv);
+			gdata->resume = true;
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--help")) {

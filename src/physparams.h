@@ -321,6 +321,7 @@ typedef struct PhysParams {
 	 * @{ */
 	float	ewres;			///< DEM east-west resolution
 	float	nsres;			///< DEM north-south resolution
+	float2	dem_pos_fixup;  ///< coordinate correction between the DEM and world origin, see d_dem_pos_fixup for further details
 	float	demdx;			///< Displacement in x direction (in ]0, ewres[) used for normal computation
 	float	demdy;			///< Displacement in y direction (in ]0, nsres[) used for normal computation
 	float	demdxdy;		///< demdx*demdy
@@ -399,6 +400,8 @@ IGNORE_WARNINGS(deprecated-declarations)
 		dcoeff(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
+
+		dem_pos_fixup(make_float2(0,0)),
 
 		partsurf(0),
 

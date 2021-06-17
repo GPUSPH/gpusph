@@ -43,8 +43,8 @@
 
 #include "sph_core.cu"
 #include "phys_core.cu"
-#include "buildneibs.cu"
 #include "geom_core.cu"
+#include "buildneibs.cu"
 #include "boundary_conditions.cu"
 #include "euler.cu"
 #include "forces.cu"
@@ -177,7 +177,7 @@ template<
 			// flags
 			_simflags & ENABLE_CSPM			||	// TODO corrected ggamAS
 			_simflags & ENABLE_XSPH			||	// untested
-			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
+			QUERY_ANY_FLAGS(_simflags, ENABLE_DEM | ENABLE_PLANES) ||	// not implemented (flat wall formulation is in an old branch)
 			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
 												// inlet outlet works only with the summation density
 			(_simflags & ENABLE_DENSITY_SUM && _simflags & ENABLE_GAMMA_QUADRATURE)
@@ -232,7 +232,7 @@ public:
 public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
-		m_neibsEngine = new CUDANeibsEngine<sph_formulation, ViscSpec, boundarytype, periodicbound, true>();
+		m_neibsEngine = new CUDANeibsEngine<sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, true>();
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, ViscSpec, simflags>();
 		m_viscEngine = new CUDAViscEngine<ViscSpec, kerneltype, boundarytype, simflags>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, densitydiffusiontype, ViscSpec, boundarytype, simflags>();
@@ -262,17 +262,17 @@ protected:
 	{
 		switch (pptype) {
 		case VORTICITY:
-			return new CUDAPostProcessEngine<VORTICITY, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<VORTICITY, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case TESTPOINTS:
-			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case SURFACE_DETECTION:
-			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case INTERFACE_DETECTION:
-			return new CUDAPostProcessEngine<INTERFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<INTERFACE_DETECTION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case FLUX_COMPUTATION:
-			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case CALC_PRIVATE:
-			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case INVALID_POSTPROC:
 			throw runtime_error("Invalid filter type");
 		}

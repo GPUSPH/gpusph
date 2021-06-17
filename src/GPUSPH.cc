@@ -395,6 +395,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf("Copying the particles to shared arrays...\n");
 		printf("---\n");
 		problem->copy_to_array(gdata->s_hBuffers);
+		problem->show_out_of_bounds();
 		if (gdata->run_mode != REPACK) {
 			if (problem->simparams()->turbmodel == KEPSILON)
 				problem->init_keps(gdata->s_hBuffers, gdata->totParticles);
@@ -719,6 +720,8 @@ GPUSPH::dispatchCommand(CommandStruct cmd, flag_t flags)
 }
 
 bool GPUSPH::runSimulation() {
+	double initial_t;
+
 	bool all_ok = false;
 
 	if (!initialized) return all_ok;
@@ -741,6 +744,8 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
+	initial_t = gdata->t;
+
 	integrator->start();
 
 	const CommandStruct* cmd = nullptr;
@@ -760,10 +765,12 @@ bool GPUSPH::runSimulation() {
 
 	const char* run_desc = gdata->run_mode_desc();
 	const char* run_desc_title = gdata->run_mode_Desc();
+	const double elapsed_seconds = m_totalPerformanceCounter->getElapsedSeconds();
+	const double elapsed_simtime = gdata->t - initial_t;
 
 	// elapsed time, excluding the initialization
-	printf("Elapsed time of %s cycle: %.2gs\n", run_desc,
-		m_totalPerformanceCounter->getElapsedSeconds());
+	printf("Elapsed time of %s cycle: %.4gs [sim time: %.4g, ratio %.4g]\n", run_desc,
+		elapsed_seconds, elapsed_simtime, elapsed_seconds/elapsed_simtime);
 
 	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
 	// the condition (gdata->mpi_rank == 0)
@@ -899,6 +906,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_BOUNDELEMENTS>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VERTICES>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_GRADGAMMA>();
+	}
+
+	if (problem->simparams()->boundarytype == DUMMY_BOUNDARY) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_DUMMY_VEL>(0);
 	}
 
 	if (problem->simparams()->turbmodel == KEPSILON) {
@@ -1760,6 +1771,9 @@ void GPUSPH::saveParticles(
 	if (simparams->boundarytype == SA_BOUNDARY)
 		which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
 
+	if (simparams->boundarytype == DUMMY_BOUNDARY)
+		which_buffers |= BUFFER_DUMMY_VEL;
+
 	if (simparams->sph_formulation == SPH_GRENIER)
 		which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
 
@@ -1880,6 +1894,22 @@ void GPUSPH::runCommand<CHECK_NEIBSNUM>(CommandStruct const& cmd)
 			gdata->lastGlobalPeakFluidBoundaryNeibsNum = currDevMaxFluidBoundaryNeibs;
 		if (currDevMaxVertexNeibs > gdata->lastGlobalPeakVertexNeibsNum)
 			gdata->lastGlobalPeakVertexNeibsNum = currDevMaxVertexNeibs;
+
+		const uint overfull_cell = gdata->timingInfo[d].hasTooManyParticles;
+		if ( overfull_cell != -1) {
+			int3 gridPos = gdata->reverseGridHashHost(overfull_cell);
+			double3 worldPos = gdata->calcGlobalPosOffset(gridPos, make_float3(0.0f)) + problem->get_worldorigin();
+			fprintf(stderr, "ERROR: cell %d [grid position (%d, %d, %d), global position (%g, %g, %g)] on device %d has too many particles (%d > %d)\n",
+				overfull_cell,
+				gridPos.x, gridPos.y, gridPos.z,
+				worldPos.x, worldPos.y, worldPos.z,
+				d, gdata->timingInfo[d].hasHowManyParticles, NEIBINDEX_MASK);
+			fprintf(stderr, "Possible reasons:\n");
+			fprintf(stderr, "\tinadequate world size (%zu particles were marked as out-of-bounds during init)\n",
+				gdata->problem->m_out_of_bounds_count);
+			fprintf(stderr, "\tfluid column collapse\n");
+			throw std::runtime_error("overfull cell");
+		}
 
 		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
 	}
@@ -2093,6 +2123,8 @@ void GPUSPH::rollCallParticles()
 			// uint first_idx = gdata->s_hStartPerDevice[d];
 			// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[first_idx]), id(gdata->s_hInfo[last_idx])); */
 		}
+		if (gdata->debug.validate_roll_call)
+			throw std::runtime_error("roll call failed");
 	}
 }
 

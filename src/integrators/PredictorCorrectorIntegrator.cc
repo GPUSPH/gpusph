@@ -354,7 +354,7 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 
 	// “resumed” condition applies to the initialization step sequence,
 	// if we resumed
-	const bool resumed = (init_step && !gdata->clOptions->resume_fname.empty());
+	const bool resumed = (init_step && gdata->resume);
 
 	Phase *this_phase = new Phase(this,
 		step.number == 0 ? "initialization preparations" :
@@ -458,6 +458,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
+	static const bool has_planes_or_dem = QUERY_ANY_FLAGS(sp->simflags, ENABLE_PLANES | ENABLE_DEM);
 	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
 
 	// TODO get from integrator
@@ -538,6 +539,8 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		.set_dt(dt_op)
 		.reading(current_state,
 			BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
+			BUFFER_TAU |
+			(has_planes_or_dem ? BUFFER_NEIBPLANES : BUFFER_NONE) |
 			BUFFER_DUMMY_VEL |
 			BUFFER_RB_KEYS |
 			BUFFER_VOLUME | BUFFER_SIGMA |
@@ -946,10 +949,10 @@ PredictorCorrector::PredictorCorrector(GlobalData const* _gdata) :
 	initializePhase<NEIBS_LIST>();
 
 	initializePhase<INITIALIZATION>();
-
-	initializePhase<BEGIN_TIME_STEP>();
 	initializePhase<INIT_EFFPRES_PREP>();
 	initializePhase<INIT_EFFPRES>();
+
+	initializePhase<BEGIN_TIME_STEP>();
 
 	initializePhase<PREDICTOR>();
 	initializePhase<PREDICTOR_END>();
@@ -995,8 +998,8 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	switch (cur) {
 	case POST_UPLOAD:
 		return NEIBS_LIST;
-	case INITIALIZATION:
-		return BEGIN_TIME_STEP;
+	case BEGIN_TIME_STEP:
+		return NEIBS_LIST;
 	case INIT_EFFPRES_PREP:
 		return INIT_EFFPRES;
 	case PREDICTOR:
@@ -1017,9 +1020,9 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	const unsigned long iterations = gdata->iterations;
 	static const FilterFreqList::const_iterator filters_end = m_enabled_filters.cend();
-	if (cur == BEGIN_TIME_STEP) {
+	if (cur == INITIALIZATION) {
 		if (!has_granular_rheology) {
-			return NEIBS_LIST;
+			return BEGIN_TIME_STEP;
 		} else {
 			return INIT_EFFPRES_PREP;
 		}
@@ -1040,7 +1043,7 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	}
 	if (cur == INIT_EFFPRES) {
 		if (gdata->h_jacobiStop) {
-			return NEIBS_LIST;
+			return BEGIN_TIME_STEP;
 		} else {
 			return INIT_EFFPRES;
 		}

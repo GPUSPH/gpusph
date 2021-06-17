@@ -44,11 +44,16 @@ DEMExample::DEMExample(GlobalData *gdata) : Problem(gdata)
 
 	const string dem_file = get_option("dem", "half_wave0.1m.txt");
 
+	// Use geometrical descriptions or implement walls and DEM with particles?
+	const bool use_geometries = get_option("use-geometries", true);
+
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<LJ_BOUNDARY>,
-		add_flags<ENABLE_DEM | ENABLE_PLANES>
-	).select_options(rhodiff);
+		boundary<LJ_BOUNDARY>
+	).select_options(
+		rhodiff,
+		use_geometries, add_flags<ENABLE_DEM | ENABLE_PLANES>()
+	);
 
 	/* Simulation parameters */
 	set_deltap(0.05);
@@ -61,9 +66,17 @@ DEMExample::DEMExample(GlobalData *gdata) : Problem(gdata)
 	set_equation_of_state(water, 7.0f, NAN /* autocompute from max fall */);
 
 	/* Geometries */
-	GeometryID dem = addDEM(dem_file);
+	GeometryID dem = addDEM(dem_file, DEM_FMT_ASCII, use_geometries ? FT_NOFILL : FT_BORDER);
 	GeometryID fluid_box = addDEMFluidBox(water_height);
-	vector<GeometryID> planes = addDEMPlanes();
+
+	if (QUERY_ANY_FLAGS(simparams()->simflags, ENABLE_PLANES))
+		vector<GeometryID> planes = addDEMPlanes();
+	else if (simparams()->boundary_is_multilayer()) {
+		// DEM boundaries start one layer out, so we need an extra deltap of margin
+		// TODO FIXME this should be handled automatically
+		addExtraWorldMargin(m_deltap);
+	}
+
 
 	add_writer(VTKWRITER, 0.1);
 }

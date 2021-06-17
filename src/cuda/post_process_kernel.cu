@@ -38,6 +38,8 @@
 #include "multi_gpu_defines.h"
 #include "GlobalData.h"
 
+#include "neibs_list_params.h"
+
 #if __COMPUTE__ < 20
 #define printf(...) /* eliminate printf from 1.x */
 #endif
@@ -55,71 +57,53 @@ using namespace cubounds;
 /************************************************************************************************************/
 
 //! Computes the vorticity field
-template<KernelType kerneltype>
+template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
-calcVortDevice(	const	float4*		posArray,
-						float3*		vorticity,
-				const	hashKey*		particleHash,
-				const	uint*		cellStart,
-				const	neibdata*	neibsList,
-				const	uint		numParticles,
-				const	float		slength,
-				const	float		influenceradius)
+calcVortDevice(neibs_interaction_params<boundarytype> params, float3* __restrict__ vorticity)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// computing vorticity only for active fluid particles
-	const particleinfo info = tex1Dfetch(infoTex, index);
-
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const particleinfo info = params.fetchInfo(index);
+	const float4 pos = params.fetchPos(index);
 
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
 		vorticity[index] = make_float3(NAN);
 		return;
 	}
 
-	const float4 vel = tex1Dfetch(velTex, index);
+	const float4 vel = params.fetchVel(index);
 
 	float3 vort = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// First loop over all FLUID neighbors
-	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
+	for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
 		// Compute relative velocity
 		// Now relVel is a float4 and neib density is stored in relVel.w
-		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const float4 relVel = as_float3(vel) - params.fetchVel(neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Compute vorticity
-		if (r < influenceradius) {
-			const float f = F<kerneltype>(r, slength)*relPos.w/physical_density(relVel.w,fluid_num(neib_info));	// ∂Wij/∂r*Vj
+		if (r < params.influenceradius) {
+			const float f = F<kerneltype>(r, params.slength)*relPos.w/physical_density(relVel.w,fluid_num(neib_info));	// ∂Wij/∂r*Vj
 			// vxij = vxi - vxj and same for vyij and vzij
 			vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
 			vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
@@ -130,142 +114,191 @@ calcVortDevice(	const	float4*		posArray,
 	vorticity[index] = vort;
 }
 
+template<BoundaryType boundarytype, typename ViscSpec
+	, bool has_keps = ViscSpec::turbmodel == KEPSILON
+	, typename neibs_params = neibs_interaction_params<boundarytype>
+	, typename keps_tex_cond = typename COND_STRUCT(has_keps, keps_tex_params)
+	, typename keps_cond = typename COND_STRUCT(has_keps, keps_params<true>)
+	>
+struct testpoints_params :
+	neibs_params,
+	keps_tex_cond,
+	keps_cond
+{
+	float4 * __restrict__ newVel;
+
+	testpoints_params(BufferList const& bufread, BufferList& bufwrite,
+		uint particleRangeEnd, float slength, float influenceRadius)
+	:
+		neibs_params(bufread, particleRangeEnd, slength, influenceRadius),
+		// calcTestpointsDevice does an in-place update, so the keps textures
+		// are taken from the write buffers
+		keps_tex_cond(bufwrite),
+		keps_cond(bufwrite),
+		newVel(bufwrite.getData<BUFFER_VEL>())
+	{}
+};
+
+struct testpoints_keps_pdata
+{
+	float tke_avg;
+	float eps_avg;
+
+	__device__ __forceinline__
+	testpoints_keps_pdata() : tke_avg(0.0f), eps_avg(0.0f) {}
+
+	__device__ __forceinline__
+	void add_keps_contrib(keps_tex_params const& params, const uint index, const float w)
+	{
+		tke_avg += w*params.fetchTke(index);
+		eps_avg += w*params.fetchEpsilon(index);
+	}
+
+	__device__ __forceinline__
+	void normalize(float alpha)
+	{
+		tke_avg /= alpha;
+		eps_avg /= alpha;
+	}
+
+	__device__ __forceinline__
+	void reset()
+	{
+		tke_avg = eps_avg = 0.0f;
+	}
+
+	__device__ __forceinline__
+	void store_keps(keps_params<true> const& params, const uint index)
+	{
+		params.keps_tke[index] = tke_avg;
+		params.keps_eps[index] = eps_avg;
+	}
+};
+
+struct testpoints_nokeps_pdata
+{
+	using dummy_params = empty<keps_params<true>>;
+
+	__device__ __forceinline__
+	void add_keps_contrib(dummy_params const&, ...) {}
+
+	__device__ __forceinline__
+	void normalize(float alpha) {}
+
+	__device__ __forceinline__
+	void reset() {}
+
+	__device__ __forceinline__
+	void store_keps(dummy_params const&, ...) {}
+};
+
+template<typename ViscSpec
+	, bool has_keps = ViscSpec::turbmodel == KEPSILON
+	, typename keps_pdata = typename conditional<has_keps, testpoints_keps_pdata, testpoints_nokeps_pdata>::type
+	>
+struct testpoints_pdata : keps_pdata
+{
+	float4	vel_avg;
+	float	alpha; // shepard normalization factor
+
+	__device__ __forceinline__
+	testpoints_pdata() : keps_pdata(), vel_avg(make_float4(0.0f)), alpha(0.0f) {}
+
+	__device__ __forceinline__
+	void normalize() {
+		if (alpha > 1e-5f) {
+			vel_avg /= alpha;
+			keps_pdata::normalize(alpha);
+		} else {
+			vel_avg = make_float4(0.0f);
+			keps_pdata::reset();
+		}
+	}
+};
+
 
 //! Compute the values of velocity, density, k and epsilon at test points
 template<KernelType kerneltype,
-	BoundaryType boundarytype>
+	BoundaryType boundarytype,
+	typename ViscSpec>
 __global__ void
-calcTestpointsVelocityDevice(	const float4*	oldPos,
-								float4*			newVel,
-								float*			newTke,
-								float*			newEpsilon,
-								const hashKey*	particleHash,
-								const uint*		cellStart,
-								const neibdata*	neibsList,
-								const uint		numParticles,
-								const float		slength,
-								const float		influenceradius)
+calcTestpointsDevice(testpoints_params<boundarytype, ViscSpec> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	if(!TESTPOINT(info))
 		return;
 
-	#if PREFER_L1
-	const float4 pos = oldPos[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
-
-	// this is the velocity (x,y,z) and pressure (w)
-	float4 velavg = make_float4(0.0f);
-	// this is for k/epsilon
-	float tkeavg = 0.0f;
-	float epsavg = 0.0f;
-	// this is the shepard filter sum(w_b w_{ab})
-	float alpha = 0.0f;
+	const float4 pos = params.fetchPos(index);
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+	testpoints_pdata<ViscSpec> pdata;
 
 	// First loop over FLUID and VERTEX neighbors (VERTEX only in SA case)
 	for_each_neib2(PT_FLUID, (boundarytype == SA_BOUNDARY ? PT_VERTEX : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			oldPos[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
-		if (r < influenceradius) {
-			const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-			const float w = W<kerneltype>(r, slength)*relPos.w/physical_density(neib_vel.w,fluid_num(neib_info));	// Wij*mj
-			//Velocity
-			velavg.x += w*neib_vel.x;
-			velavg.y += w*neib_vel.y;
-			velavg.z += w*neib_vel.z;
+		if (r < params.influenceradius) {
+			const float4 neib_vel = params.fetchVel(neib_index);
+			const float w = W<kerneltype>(r, params.slength)*relPos.w/physical_density(neib_vel.w,fluid_num(neib_info));	// Wij*mj
+			// Velocity
+			pdata.vel_avg.x += w*neib_vel.x;
+			pdata.vel_avg.y += w*neib_vel.y;
+			pdata.vel_avg.z += w*neib_vel.z;
 			//Pressure
-			velavg.w += w*P(neib_vel.w, fluid_num(neib_info));
-			// Turbulent kinetic energy
-			if(newTke){
-				const float neib_tke = tex1Dfetch(keps_kTex, neib_index);
-				tkeavg += w*neib_tke;
-			}
-			if(newEpsilon){
-				const float neib_eps = tex1Dfetch(keps_eTex, neib_index);
-				epsavg += w*neib_eps;
-			}
+			pdata.vel_avg.w += w*P(neib_vel.w, fluid_num(neib_info));
+
+			// TKE contribution (if present)
+			pdata.add_keps_contrib(params, neib_index, w);
+
 			//Shepard filter
-			alpha += w;
+			pdata.alpha += w;
 		}
 	}
 
-	// Renormalization by the Shepard filter
-	if(alpha>1e-5f) {
-		velavg /= alpha;
-		if(newTke)
-			tkeavg /= alpha;
-		if(newEpsilon)
-			epsavg /= alpha;
-	}
-	else {
-		velavg = make_float4(0.0f);
-		if(newTke)
-			tkeavg = 0.0f;
-		if(newEpsilon)
-			epsavg = 0.0f;
-	}
+	pdata.normalize();
 
-	newVel[index] = velavg;
-	if(newTke)
-		newTke[index] = tkeavg;
-	if(newEpsilon)
-		newEpsilon[index] = epsavg;
+	params.newVel[index] = pdata.vel_avg;
+
+	pdata.store_keps(params, index);
 }
 
 
 //! Identifies particles which form the free-surface
 template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals>
 __global__ void
-calcSurfaceparticleDevice(	const	float4*			posArray,
-									float4*			normals,
-									particleinfo*	newInfo,
-							const	hashKey*		particleHash,
-							const	uint*			cellStart,
-							const	neibdata*		neibsList,
-							const	uint			numParticles,
-							const	float			slength,
-							const	float			influenceradius)
+calcSurfaceparticleDevice(
+	neibs_interaction_params<boundarytype> params,
+	float4*	__restrict__ normals,
+	particleinfo* __restrict__ newInfo)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
-	particleinfo info = tex1Dfetch(infoTex, index);
+	particleinfo info = params.fetchInfo(index);
 
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
+
 	float4 normal = make_float4(0.0f);
 
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
@@ -275,27 +308,21 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	CLEAR_FLAG(info, FG_SURFACE);
 
 	// self contribution to normalization: W(0)*vol
-	normal.w = W<kerneltype>(0.0f, slength)*pos.w/physical_density(tex1Dfetch(velTex, index).w,fluid_num(info));
+	normal.w = W<kerneltype>(0.0f, params.slength)*pos.w/physical_density(params.fetchVel(index).w,fluid_num(info));
 
 	// First loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -304,17 +331,17 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		const float r = length3(relPos);
 
 		// read neighbor data from sorted arrays
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// neighbor volume
-		const float neib_vol = relPos.w/physical_density(tex1Dfetch(velTex, neib_index).w, fluid_num(neib_info));
+		const float neib_vol = relPos.w/physical_density(params.fetchVel(neib_index).w, fluid_num(neib_info));
 
-		if (r < influenceradius) {
-			const float f = F<kerneltype>(r, slength)*neib_vol; // 1/r ∂Wij/∂r Vj
+		if (r < params.influenceradius) {
+			const float f = F<kerneltype>(r, params.slength)*neib_vol; // 1/r ∂Wij/∂r Vj
 			normal.x -= f * relPos.x;
 			normal.y -= f * relPos.y;
 			normal.z -= f * relPos.z;
-			normal.w += W<kerneltype>(r, slength)*neib_vol;	// Wij*Vj ;
+			normal.w += W<kerneltype>(r, params.slength)*neib_vol;	// Wij*Vj ;
 
 		}
 	}
@@ -323,7 +350,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	if (simflags & ENABLE_PLANES)
 		for (uint i = 0; i < d_numplanes; ++i) {
 			const float r = PlaneDistance(gridPos, as_float3(pos), d_plane[i]);
-			if (r < influenceradius) {
+			if (r < params.influenceradius) {
 				// since our current normal is still unnormalized, the plane normal
 				// contribution must be scaled up to match the length of the current normal
 				as_float3(normal) += d_plane[i].normal*length3(normal);
@@ -335,19 +362,13 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	int nc = 0;
 
 	// Second loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -357,9 +378,9 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 		float cosconeangle;
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
-		if (r < influenceradius) {
+		if (r < params.influenceradius) {
 			float criteria = -dot3(normal, relPos);
 			if (FLUID(neib_info))
 				cosconeangle = d_cosconeanglefluid;
@@ -388,31 +409,26 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 //! Identifies particles at the interface of two fluids and at the free-surface
 template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals>
-__global__ void
-calcInterfaceparticleDevice(	const	float4*			posArray,
-									float4*			normals,
-									particleinfo*	newInfo,
-							const	hashKey*		particleHash,
-							const	uint*			cellStart,
-							const	neibdata*		neibsList,
-							const	uint			numParticles,
-							const	float			deltap,
-							const	float			slength,
-							const	float			influenceradius)
+__global__
+enable_if_t<boundarytype != SA_BOUNDARY>
+calcInterfaceparticleDevice(
+	neibs_interaction_params<boundarytype> params,
+	float4*	__restrict__ normals,
+	particleinfo* __restrict__ newInfo,
+	// deltap is only actually used by the SA_BOUNDARY specialization below
+	// TODO FIXME reorganize this so this is not needed
+	const float deltap)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
-	particleinfo info = tex1Dfetch(infoTex, index);
+	particleinfo info = params.fetchInfo(index);
 
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
+
 	float4 normal_fs = make_float4(0.0f); // free-surface
 	float4 normal_if = make_float4(0.0f); // interface
 
@@ -425,70 +441,62 @@ calcInterfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	CLEAR_FLAG(info, FG_SURFACE);
 	CLEAR_FLAG(info, FG_INTERFACE);
 
 	// Particle physical density and volume
-	const float p_rho = physical_density(tex1Dfetch(velTex, index).w,fluid_num(info));
+	const float p_rho = physical_density(params.fetchVel(index).w,fluid_num(info));
 	const float p_volume = pos.w/p_rho;
 
 	// self contribution to normalization: W(0)*vol
-	normal_fs.w = W<kerneltype>(0.0f, slength)*p_volume;
-	normal_if.w = W<kerneltype>(0.0f, slength)*p_volume;
+	normal_fs.w = W<kerneltype>(0.0f, params.slength)*p_volume;
+	normal_if.w = W<kerneltype>(0.0f, params.slength)*p_volume;
 
 	// First loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-#if PREFER_L1
-				posArray[neib_index]
-#else
-				tex1Dfetch(posTex, neib_index)
-#endif
-				);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
-
-		const particleinfo n_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo n_info = params.fetchInfo(neib_index);
 		const ParticleType nptype = PART_TYPE(n_info);
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
 		// neighbor physical density and volume
-		const float n_rho = physical_density(tex1Dfetch(velTex, neib_index).w, fluid_num(n_info));
+		const float n_rho = physical_density(params.fetchVel(neib_index).w, fluid_num(n_info));
 		const float n_volume = relPos.w/n_rho;
 
-		if (r < influenceradius) {
-			const float f = F<kerneltype>(r, slength); // 1/r ∂Wij/∂r
+		if (r < params.influenceradius) {
+			const float f = F<kerneltype>(r, params.slength); // 1/r ∂Wij/∂r
 			normal_fs.x -= f * relPos.x;
 			normal_fs.y -= f * relPos.y;
 			normal_fs.z -= f * relPos.z;
-			normal_fs.w += W<kerneltype>(r, slength)*n_volume;	// Wij*Vj ;
-		}
-		if (r < influenceradius && (fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
-			const float f = F<kerneltype>(r, slength); // 1/r ∂Wij/∂r
-			normal_if.x -= f * relPos.x;
-			normal_if.y -= f * relPos.y;
-			normal_if.z -= f * relPos.z;
-			normal_if.w += W<kerneltype>(r, slength)*n_volume;	// Wij*Vj ;
+			normal_fs.w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
+			if ((fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
+				normal_if.x -= f * relPos.x;
+				normal_if.y -= f * relPos.y;
+				normal_if.z -= f * relPos.z;
+				normal_if.w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
+			}
 		}
 	}
 
-		normal_fs.x *= p_volume;
-		normal_fs.y *= p_volume;
-		normal_fs.z *= p_volume;
+	normal_fs.x *= p_volume;
+	normal_fs.y *= p_volume;
+	normal_fs.z *= p_volume;
 
-		normal_if.x *= p_volume;
-		normal_if.y *= p_volume;
-		normal_if.z *= p_volume;
+	normal_if.x *= p_volume;
+	normal_if.y *= p_volume;
+	normal_if.z *= p_volume;
 
 	const float normal_fs_length = length3(normal_fs);
 	const float normal_if_length = length3(normal_if);
@@ -497,19 +505,13 @@ calcInterfaceparticleDevice(	const	float4*			posArray,
 	int nc_if = 0;
 
 	// Second loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -519,9 +521,9 @@ calcInterfaceparticleDevice(	const	float4*			posArray,
 
 		float cosconeangle;
 
-		const particleinfo n_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo n_info = params.fetchInfo(neib_index);
 
-		if (r < influenceradius) {
+		if (r < params.influenceradius) {
 			float criteria_fs = -dot3(normal_fs, relPos);
 			if (FLUID(n_info))
 				cosconeangle = d_cosconeanglefluid;
@@ -531,18 +533,19 @@ calcInterfaceparticleDevice(	const	float4*			posArray,
 
 			if (criteria_fs > r*normal_fs_length*cosconeangle)
 				nc_fs++;
-		}
-		if (r < influenceradius && (fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
-			float criteria_if = -dot3(normal_if, relPos);
-			if (FLUID(n_info))
-				cosconeangle = d_cosconeanglefluid;
-			else
-				cosconeangle = d_cosconeanglenonfluid;
 
-			//cosconeangle = d_cosconeanglefluid;
+			if ((fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
+				float criteria_if = -dot3(normal_if, relPos);
+				if (FLUID(n_info))
+					cosconeangle = d_cosconeanglefluid;
+				else
+					cosconeangle = d_cosconeanglenonfluid;
 
-			if (criteria_if > r*normal_if_length*cosconeangle)
-				nc_if++;
+				//cosconeangle = d_cosconeanglefluid;
+
+				if (criteria_if > r*normal_if_length*cosconeangle)
+					nc_if++;
+			}
 		}
 	}
 
@@ -572,35 +575,26 @@ calcInterfaceparticleDevice(	const	float4*			posArray,
 }
 
 //! Identifies particles at the interface of two fluids and at the free-surface
+// SA_BOUNDARY specialization
 template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals>
-__global__ void
-calcInterfaceparticleDevice(	const	float4*			posArray,
-									float4*			normals,
-									particleinfo*	newInfo,
-							const	float2 *		vertPos0,
-							const	float2 *		vertPos1,
-							const	float2 *		vertPos2,
-							const	hashKey*		particleHash,
-							const	uint*			cellStart,
-							const	neibdata*		neibsList,
-							const	uint			numParticles,
-							const	float			deltap,
-							const	float			slength,
-							const	float			influenceradius)
+__global__
+enable_if_t<boundarytype == SA_BOUNDARY>
+calcInterfaceparticleDevice(
+	neibs_interaction_params<boundarytype> params,
+	float4*	__restrict__ normals,
+	particleinfo* __restrict__ newInfo,
+	const float deltap)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
-	particleinfo info = tex1Dfetch(infoTex, index);
+	particleinfo info = params.fetchInfo(index);
 
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
+
 	float4 normal_fs = make_float4(0.0f); // free-surface
 	float4 normal_if = make_float4(0.0f); // interface
 
@@ -613,138 +607,102 @@ calcInterfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	CLEAR_FLAG(info, FG_SURFACE);
 	CLEAR_FLAG(info, FG_INTERFACE);
 
 	// Particle physical density and volume
-	const float p_rho = physical_density(tex1Dfetch(velTex, index).w,fluid_num(info));
+	const float p_rho = physical_density(params.fetchVel(index).w,fluid_num(info));
 	const float p_volume = pos.w/p_rho;
 
 	// self contribution to normalization: W(0)*vol
-	normal_fs.w = W<kerneltype>(0.0f, slength)*p_volume;
-	normal_if.w = W<kerneltype>(0.0f, slength)*p_volume;
+	normal_fs.w = W<kerneltype>(0.0f, params.slength)*p_volume;
+	normal_if.w = W<kerneltype>(0.0f, params.slength)*p_volume;
 
 	// First loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-#if PREFER_L1
-				posArray[neib_index]
-#else
-				tex1Dfetch(posTex, neib_index)
-#endif
-				);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
-
-		const particleinfo n_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo n_info = params.fetchInfo(neib_index);
 		const ParticleType nptype = PART_TYPE(n_info);
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
 		// neighbor physical density and volume
-		const float n_rho = physical_density(tex1Dfetch(velTex, neib_index).w, fluid_num(n_info));
+		const float n_rho = physical_density(params.fetchVel(neib_index).w, fluid_num(n_info));
 
-		if (boundarytype == SA_BOUNDARY) {
-			if (nptype == PT_FLUID || nptype == PT_VERTEX) {
-				const float n_volume = relPos.w/n_rho;
-				const float n_volume0 = relPos.w/d_rho0[fluid_num(n_info)];
-				float n_theta = n_volume/n_volume0;
+		if (nptype == PT_FLUID || nptype == PT_VERTEX) {
+			const float n_volume = relPos.w/n_rho;
+			const float n_volume0 = relPos.w/d_rho0[fluid_num(n_info)];
+			float n_theta = n_volume/n_volume0;
 
-				if (r < influenceradius) {
-					const float f = F<kerneltype>(r, slength); // 1/r ∂Wij/∂r
-					normal_fs.x -= f * n_theta * relPos.x;
-					normal_fs.y -= f * n_theta * relPos.y;
-					normal_fs.z -= f * n_theta * relPos.z;
-					normal_fs.w += W<kerneltype>(r, slength)*n_volume;	// Wij*Vj ;
-				}
-				if (r < influenceradius && (fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
-					const float f = F<kerneltype>(r, slength); // 1/r ∂Wij/∂r
+			if (r < params.influenceradius) {
+				const float f = F<kerneltype>(r, params.slength); // 1/r ∂Wij/∂r
+				normal_fs.x -= f * n_theta * relPos.x;
+				normal_fs.y -= f * n_theta * relPos.y;
+				normal_fs.z -= f * n_theta * relPos.z;
+				normal_fs.w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
+				if ((fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
 					normal_if.x -= f * n_theta * relPos.x;
 					normal_if.y -= f * n_theta * relPos.y;
 					normal_if.z -= f * n_theta * relPos.z;
-					normal_if.w += W<kerneltype>(r, slength)*n_volume;	// Wij*Vj ;
+					normal_if.w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
 				}
-			} else if (nptype == PT_BOUNDARY && r < influenceradius) {
-				const float4 belem = tex1Dfetch(boundTex, neib_index);
-				const float3 normal_s = as_float3(tex1Dfetch(boundTex, neib_index));
-				const float3 q = as_float3(relPos)/slength;
-				float3 q_vb[3];
-				calcVertexRelPos(q_vb, belem,
-						vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], slength);
-				const float ggamAS = gradGamma<kerneltype>(slength, q, q_vb, normal_s);
-				/* Actual volume should be calculated from the actual (interpolated) density
-				 * and the mass. But boundary elements do not have mass. To get their actual 
-				 * interpolated volume, we use the fact that:
-				 *
-				 * 	 n_ref_volume/n_ref_volume0 = n_rho0/n_rho
-				 * 	 ==> n_ref_volume = n_ref_volume0*n_rho0/n_rho 
-				 * 
-				 * with n_ref_volume0 = deltap^3. Note that we are computing the reference volume
-				 * here which is defined by:
-				 *
-				 * 	n_ref_volume = n_volume/n_theta
-				 */
-				const float n_ref_volume0 = deltap*deltap*deltap;
-				const float n_ref_volume = n_ref_volume0*d_rho0[fluid_num(n_info)]/n_rho;
+			}
+		} else if (nptype == PT_BOUNDARY && r < params.influenceradius) {
+			const float4 belem = params.fetchBound(neib_index);
+			const float3 normal_s = as_float3(belem);
+			const float3 q = as_float3(relPos)/params.slength;
+			float3 q_vb[3];
+			calcVertexRelPos(q_vb, belem,
+					params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index], params.slength);
+			const float ggamAS = gradGamma<kerneltype>(params.slength, q, q_vb, normal_s);
+			/* Actual volume should be calculated from the actual (interpolated) density
+			 * and the mass. But boundary elements do not have mass. To get their actual 
+			 * interpolated volume, we use the fact that:
+			 *
+			 * 	 n_ref_volume/n_ref_volume0 = n_rho0/n_rho
+			 * 	 ==> n_ref_volume = n_ref_volume0*n_rho0/n_rho 
+			 * 
+			 * with n_ref_volume0 = deltap^3. Note that we are computing the reference volume
+			 * here which is defined by:
+			 *
+			 * 	n_ref_volume = n_volume/n_theta
+			 */
+			const float n_ref_volume0 = deltap*deltap*deltap;
+			const float n_ref_volume = n_ref_volume0*d_rho0[fluid_num(n_info)]/n_rho;
 
 
-				// Free-surface
-				normal_fs.x += ggamAS / n_ref_volume * relPos.x * normal_s.x;
-				normal_fs.y += ggamAS / n_ref_volume * relPos.y * normal_s.y;
-				normal_fs.z += ggamAS / n_ref_volume * relPos.z * normal_s.z;
-				// Interface
-				normal_if.x += ggamAS / n_ref_volume * relPos.x * normal_s.x;
-				normal_if.y += ggamAS / n_ref_volume * relPos.y * normal_s.y;
-				normal_if.z += ggamAS / n_ref_volume * relPos.z * normal_s.z;
-			}
-		} else {
-			const float n_volume = relPos.w/n_rho;
-			if (r < influenceradius) {
-				const float f = F<kerneltype>(r, slength); // 1/r ∂Wij/∂r
-				normal_fs.x -= f * relPos.x;
-				normal_fs.y -= f * relPos.y;
-				normal_fs.z -= f * relPos.z;
-				normal_fs.w += W<kerneltype>(r, slength)*n_volume;	// Wij*Vj ;
-			}
-			if (r < influenceradius && (fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
-				const float f = F<kerneltype>(r, slength); // 1/r ∂Wij/∂r
-				normal_if.x -= f * relPos.x;
-				normal_if.y -= f * relPos.y;
-				normal_if.z -= f * relPos.z;
-				normal_if.w += W<kerneltype>(r, slength)*n_volume;	// Wij*Vj ;
-			}
+			// Free-surface
+			normal_fs.x += ggamAS / n_ref_volume * relPos.x * normal_s.x;
+			normal_fs.y += ggamAS / n_ref_volume * relPos.y * normal_s.y;
+			normal_fs.z += ggamAS / n_ref_volume * relPos.z * normal_s.z;
+			// Interface
+			normal_if.x += ggamAS / n_ref_volume * relPos.x * normal_s.x;
+			normal_if.y += ggamAS / n_ref_volume * relPos.y * normal_s.y;
+			normal_if.z += ggamAS / n_ref_volume * relPos.z * normal_s.z;
 		}
 	}
 
-	if (boundarytype == SA_BOUNDARY) {
-		const float gamma = tex1Dfetch(gamTex, index).w;
-		normal_fs.x *= p_volume/gamma;
-		normal_fs.y *= p_volume/gamma;
-		normal_fs.z *= p_volume/gamma;
-		normal_fs.w /= gamma;
+	const float gamma = params.fetchGradGamma(index).w;
+	normal_fs.x *= p_volume/gamma;
+	normal_fs.y *= p_volume/gamma;
+	normal_fs.z *= p_volume/gamma;
+	normal_fs.w /= gamma;
 
-		normal_if.x *= p_volume/gamma;
-		normal_if.y *= p_volume/gamma;
-		normal_if.z *= p_volume/gamma;
-		normal_if.w /= gamma;
-	} else {
-		normal_fs.x *= p_volume;
-		normal_fs.y *= p_volume;
-		normal_fs.z *= p_volume;
-
-		normal_if.x *= p_volume;
-		normal_if.y *= p_volume;
-		normal_if.z *= p_volume;
-	}
+	normal_if.x *= p_volume/gamma;
+	normal_if.y *= p_volume/gamma;
+	normal_if.z *= p_volume/gamma;
+	normal_if.w /= gamma;
 
 	const float normal_fs_length = length3(normal_fs);
 	const float normal_if_length = length3(normal_if);
@@ -753,19 +711,13 @@ calcInterfaceparticleDevice(	const	float4*			posArray,
 	int nc_if = 0;
 
 	// Second loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -775,21 +727,22 @@ calcInterfaceparticleDevice(	const	float4*			posArray,
 
 		float cosconeangle;
 
-		const particleinfo n_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo n_info = params.fetchInfo(neib_index);
 
-		if (r < influenceradius) {
+		if (r < params.influenceradius) {
 			float criteria_fs = -dot3(normal_fs, relPos);
 			cosconeangle = d_cosconeanglefluid;
 
 			if (criteria_fs > r*normal_fs_length*cosconeangle)
 				nc_fs++;
-		}
-		if (r < influenceradius && (fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
-			float criteria_if = -dot3(normal_if, relPos);
-			cosconeangle = d_cosconeanglefluid;
 
-			if (criteria_if > r*normal_if_length*cosconeangle)
-				nc_if++;
+			if ((fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
+				float criteria_if = -dot3(normal_if, relPos);
+				cosconeangle = d_cosconeanglefluid;
+
+				if (criteria_if > r*normal_if_length*cosconeangle)
+					nc_if++;
+			}
 		}
 	}
 

@@ -210,7 +210,7 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 		const int nz = (int) ceil(smaller_h/dx);
 		const double dz = smaller_h/nz;
 		for (int i = 0; i <= nz; i++)
-			FillDiskBorder(points, m_ep, m_origin, smaller_r, i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+			FillDiskBorder(points, m_ep, m_origin, smaller_r, (i + l)*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
 		// fill "bottom"
 		if (fill_tops)
 			FillDisk(points, m_ep, m_origin, smaller_r - dx, l * dx, dx, true);

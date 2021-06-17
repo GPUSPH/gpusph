@@ -28,7 +28,17 @@
  * Device constants and functions for planes and DEM management
  */
 
+#ifndef GEOM_CORE_CU
+#define GEOM_CORE_CU
+
+#include "fastdem_select.opt"
+
 #include "planes.h"
+
+#include "neibs_iteration.cuh" // for d_cellSize
+
+thread_local cudaArray*  dDem = NULL;
+thread_local cudaTextureObject_t demTex = 0;
 
 namespace cugeom {
 
@@ -37,16 +47,36 @@ using namespace cuneibs;
 /// \name Device constants
 /// @{
 
-texture<float, 2, cudaReadModeElementType> demTex;	// DEM
+/// DEM constants
+/// @{
+/// TODO switch to float2s
 
-/* DEM constants */
-// TODO switch to float2s
+//! Correction to be applied to the particle position to obtain the DEM-relative position
+/*! Our DEM stores vertex-based information,
+ * with the first point, at DEM-relative coordinate 0, corresponding to the westernmost/southernmost edge,
+ * and the last point, at DEM-relative coordinate (nrows-1)*ewres or (ncols-1)*nsres,
+ * corresponding to the easternmost/northernmost edge.
+ *
+ * The DEM has a given origin that maps its coordinate 0 to the global reference system.
+ *
+ * To map a particle global position gPos = world_origin + (gridPos+0.5)*gridSize + lPos
+ * to DEM coordinates, we need to subtract the DEM_origin, so that
+ * dPos = (world_origin - DEM_origin) + (gridPos + 0.5)*gridSize + lPos.
+ *
+ * Additionally, for the actual texture fetch, the two componets need to be scaled by
+ * ewres/nsres, so d_dem_pos_fixup will store (world_origin - DEM_origin)/res.
+ */
+__constant__ float2 d_dem_pos_fixup;
+
+__constant__ float2 d_dem_scaled_cellSize; ///< d_cellSize scaled by the ewres/nsres
+__constant__ float2 d_dem_scaled_dx; ///< d_demdx/d_demdy scaled by the ewres/nsres
 __constant__ float	d_ewres;		///< east-west resolution (x)
 __constant__ float	d_nsres;		///< north-south resolution (y)
 __constant__ float	d_demdx;		///< ∆x increment of particle position for normal computation
 __constant__ float	d_demdy;		///< ∆y increment of particle position for normal computation
 __constant__ float	d_demdxdy;		///< ∆x*∆y
 __constant__ float	d_demzmin;		///< minimum distance from DEM for normal computation
+/// @}
 
 /* Constants for geometrical planar boundaries */
 __constant__ uint	d_numplanes;
@@ -114,43 +144,54 @@ DemPos(GridPosType const& gridPos, LocalPosType const& pos)
 	// note that we separate the grid conversion part from the pos conversion part,
 	// for improved accuracy. The final 0.5f is because texture values are assumed to be
 	// at the center of the DEM cell.
-	return make_float2(
-		(gridPos.x + 0.5f)*(d_cellSize.x/d_ewres) + pos.x/d_ewres + 0.5f,
-		(gridPos.y + 0.5f)*(d_cellSize.y/d_nsres) + pos.y/d_nsres + 0.5f);
+	return d_dem_pos_fixup + make_float2(
+		(gridPos.x + 0.5f)*d_dem_scaled_cellSize.x + pos.x/d_ewres + 0.5f,
+		(gridPos.y + 0.5f)*d_dem_scaled_cellSize.y + pos.y/d_nsres + 0.5f);
 }
 
-/**! Interpolate DEM texref for a point at DEM cell pos demPos,
+/**! Interpolate DEM demTex for a point at DEM cell pos demPos,
   plus an optional multiple of (∆x, ∆y).
   NOTE: the returned z coordinate is GLOBAL, not LOCAL!
   TODO for improved homogeneous accuracy, maybe have a texture for grid cells and a
   texture for local z coordinates?
  */
 __device__ __forceinline__ float
-DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
+DemInterpol(cudaTextureObject_t demTex,
 	const float2& demPos, int dx=0, int dy=0)
 {
-	return tex2D(texref, demPos.x + dx*d_demdx/d_ewres, demPos.y + dy*d_demdy/d_nsres);
+	return tex2D<float>(demTex, demPos.x + dx*d_dem_scaled_dx.x, demPos.y + dy*d_dem_scaled_dx.y);
 }
 
 //! Find the plane tangent to a DEM near a given position, assuming demPos and Z0
 //! were already computed
 __device__ __forceinline__ plane_t
-DemTangentPlane(const texture<float, 2, cudaReadModeElementType> texref,
+DemTangentPlane(cudaTextureObject_t demTex,
 	const int3&	gridPos,
 	const float3&	pos,
 	const float2& demPos, const float globalZ0)
 {
-	// TODO this method to generate the interpolating plane is suboptimal, as it
-	// breaks any possible symmetry in the original DEM. A better (but more expensive)
-	// approach would be to sample four points, one on each side of our point (in both
-	// directions)
-	const float globalZ1 = DemInterpol(texref, demPos, 1, 0);
-	const float globalZ2 = DemInterpol(texref, demPos, 0, 1);
+	// TODO find way to compute the normal without passing through the global pos
+	const float globalZpx = DemInterpol(demTex, demPos,  1,  0);
+	const float globalZpy = DemInterpol(demTex, demPos,  0,  1);
+#if FASTDEM
+	// 'Classic', 'fast' computation: find the plane through three points,
+	// where thre three points are z0 (projection) and two other points
+	// obtained by sampling the DEM at distance dx along both the x and y axes.
+	// Note that this disregards any DEM symmetry information.
 
-	// TODO find a more accurate way to compute the normal
-	const float a = d_demdy*(globalZ0 - globalZ1);
-	const float b = d_demdx*(globalZ0 - globalZ2);
+	const float a = d_demdy*(globalZ0 - globalZpx);
+	const float b = d_demdx*(globalZ0 - globalZpy);
 	const float c = d_demdxdy;
+#else
+	const float globalZmx = DemInterpol(demTex, demPos, -1,  0);
+	const float globalZmy = DemInterpol(demTex, demPos,  0, -1);
+
+	// Compared to the host version, we only simplify dividing by 2, since
+	// here we use the actual DEM dx and y, which may be (slightly) different
+	const float a = d_demdy*(globalZmx - globalZpx);
+	const float b = d_demdx*(globalZmy - globalZpy);
+	const float c = 2*d_demdxdy;
+#endif
 	const float l = sqrt(a*a+b*b+c*c);
 
 	// our plane point is the one at globalZ0: this has the same (x, y) grid and local
@@ -166,14 +207,16 @@ DemTangentPlane(const texture<float, 2, cudaReadModeElementType> texref,
 
 //! Find the plane tangent to a DEM near a given particle at position grid+pos
 __device__ __forceinline__ plane_t
-DemTangentPlane(const texture<float, 2, cudaReadModeElementType> texref,
+DemTangentPlane(cudaTextureObject_t demTex,
 	const int3&	gridPos,
 	const float3&	pos)
 {
 	const float2 demPos = DemPos(gridPos, pos);
-	const float globalZ0 = DemInterpol(texref, demPos);
-	return DemTangentPlane(texref, gridPos, pos, demPos, globalZ0);
+	const float globalZ0 = DemInterpol(demTex, demPos);
+	return DemTangentPlane(demTex, gridPos, pos, demPos, globalZ0);
 }
 
 /** @} */
 }
+
+#endif
