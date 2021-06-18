@@ -24,7 +24,8 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <cstdio>
+#include <iostream>
+#include <iomanip>
 
 #include "cudautil.h"
 #include "compute_select.opt"
@@ -42,10 +43,13 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceProperties(&deviceProp, cudaDevNum));
 
-	printf("thread 0x%zx device idx %d: CUDA device %d/%d, PCI device %04x:%02x:%02x.0: %s\n",
-		std::this_thread::get_id(), devidx, cudaDevNum, deviceCount,
-		deviceProp.pciDomainID, deviceProp.pciBusID, deviceProp.pciDeviceID,
-		deviceProp.name);
+	std::cout << "thread " << std::this_thread::get_id() << " device idx " << devidx
+		<< ": CUDA device " << cudaDevNum << "/" << deviceCount
+		<< ", PCI device " << std::setbase(16) << std::setw(4) << deviceProp.pciDomainID
+		<< ":" << std::setw(2) << deviceProp.pciBusID
+		<< ":" << std::setw(2) << deviceProp.pciDeviceID
+		<< std::setbase(0)
+		<< ".0: " << deviceProp.name << std::endl;
 
 	/* Check if we were compiled for the same compute capability as the device, and print
 	   warning/informational messages otherwise. */
