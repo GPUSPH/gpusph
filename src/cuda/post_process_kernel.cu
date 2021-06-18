@@ -179,7 +179,7 @@ struct testpoints_nokeps_pdata
 	using dummy_params = empty<keps_params<true>>;
 
 	__device__ __forceinline__
-	void add_keps_contrib(dummy_params const&, ...) {}
+	void add_keps_contrib(dummy_params const& params, const uint index, const float w) {};
 
 	__device__ __forceinline__
 	void normalize(float alpha) {}
@@ -188,7 +188,7 @@ struct testpoints_nokeps_pdata
 	void reset() {}
 
 	__device__ __forceinline__
-	void store_keps(dummy_params const&, ...) {}
+	void store_keps(dummy_params const&, const uint index) {}
 };
 
 template<typename ViscSpec
