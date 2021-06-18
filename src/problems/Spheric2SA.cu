@@ -30,7 +30,6 @@
 #include "Spheric2SA.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
-#include "textures.cuh"
 #include "utils.h"
 
 #define USE_PLANES 0

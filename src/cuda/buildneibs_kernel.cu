@@ -74,7 +74,6 @@
 #define _BUILDNEIBS_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "vector_math.h"
 
 // TODO : what was CELLTYPE_MASK_* supposed to be ? Can we delete ?

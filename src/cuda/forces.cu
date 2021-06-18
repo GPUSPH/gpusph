@@ -36,8 +36,6 @@
 #include <thrust/scan.h>
 #include <thrust/functional.h>
 
-#include "textures.cuh"
-
 #include "engine_forces.h"
 #include "engine_filter.h"
 #include "simflags.h"

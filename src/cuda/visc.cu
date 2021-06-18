@@ -29,8 +29,6 @@
  * Template implementation of the ViscEngine in CUDA
  */
 
-#include "textures.cuh"
-
 #include "utils.h"
 #include "engine_visc.h"
 #include "cuda_call.h"

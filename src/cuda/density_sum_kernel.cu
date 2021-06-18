@@ -33,7 +33,6 @@
 #define _DENSITY_SUM_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "multi_gpu_defines.h"
 
 namespace cudensity_sum {

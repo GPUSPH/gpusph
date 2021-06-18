@@ -36,6 +36,8 @@
 
 #include "tensor.h"
 
+#include "cache_preference.h"
+
 /* \file
  *
  * With many kernels adopting the conditional structure template for parameters, we want

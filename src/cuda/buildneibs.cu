@@ -42,8 +42,6 @@
 #include "engine_neibs.h"
 #include "utils.h"
 
-#include "textures.cuh"
-
 #include "buildneibs_params.h"
 #include "reorder_params.h"
 #include "buildneibs_kernel.cu"

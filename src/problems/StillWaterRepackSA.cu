@@ -30,7 +30,6 @@
 #include "StillWaterRepackSA.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
-#include "textures.cuh"
 #include "utils.h"
 
 StillWaterRepackSA::StillWaterRepackSA(GlobalData *_gdata) : Problem(_gdata)

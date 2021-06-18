@@ -33,7 +33,6 @@
 #define _FORCES_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "vector_math.h"
 #include "multi_gpu_defines.h"
 #include "GlobalData.h"

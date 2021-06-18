@@ -30,8 +30,6 @@
 #include <stdio.h>
 #include <stdexcept>
 
-#include "textures.cuh"
-
 #include "engine_boundary_conditions.h"
 #include "simflags.h"
 

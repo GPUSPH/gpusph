@@ -39,7 +39,6 @@
 #include "predcorr_alloc_policy.h"
 
 #include "simflags.h"
-#include "textures.cuh"
 
 #include "sph_core.cu"
 #include "phys_core.cu"
