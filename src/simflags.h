@@ -162,7 +162,7 @@
 /// General query that identifies whether the flags in field are set, true only if all of them are
 #define QUERY_ALL_FLAGS(field, flags)	(((field) & (flags)) == (flags))
 /// General query that identifies whether at least one flag in field is set
-#define QUERY_ANY_FLAGS(field, flags)	((field) & (flags))
+#define QUERY_ANY_FLAGS(field, flags)	(((field) & (flags)) != 0)
 
 /// Disable individual flags in a given field
 #define DISABLE_FLAGS(field, flags) ((field) & ~(flags))
