@@ -164,7 +164,7 @@ compute_boundary_conditions(
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
-				float	influenceradius)
+				float	influenceradius) override
 {
 	CUDABoundaryHelper<kerneltype, boundarytype>::process
 		(bufread, bufwrite, numParticles, particleRangeEnd,
