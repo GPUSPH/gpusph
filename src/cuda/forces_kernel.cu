@@ -654,7 +654,7 @@ MlsDevice(
 
 #ifdef DEBUG_PARTICLE
 	{
-		const float old = tex1Dfetch(velTex, index).w;
+		const float old = physical_density(params.fetchVel(index).w, fluid_num(info));
 		const float err = 1 - vel.w/old;
 		if (DEBUG_PARTICLE) {
 			printf("MLS %d %d %22.16g => %22.16g (%6.2e)\n",
