@@ -3997,15 +3997,14 @@ forcesDevice(FP params)
 	do {
 		if (index >= params.toParticle) break;
 
-		// Particle info struct, always stored in a texture
+		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
 
 		// Skip if the current particle is not of the type for which we are computing interactions
 		if (PART_TYPE(info) != cptype) break;
 
 
-		// Cell-local position of the particle, stored in texture
-		// or global memory depending on architecture
+		// Cell-local position of the particle
 		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
@@ -4130,13 +4129,12 @@ finalizeforcesDevice(FP params)
 	do {
 		if (index >= params.toParticle) break;
 
-		// Particle info struct, always stored in a texture
+		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
 
 		const ParticleType part_type = PART_TYPE(info);
 
-		// Cell-local position of the particle, stored in texture
-		// or global memory depending on architecture
+		// Cell-local position of the particle
 		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
@@ -4238,15 +4236,14 @@ repackDevice(FP params)
 	do {
 		if (index >= params.toParticle) break;
 
-		// Particle info struct, always stored in a texture
+		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
 
 		// Skip if the current particle is not of the type for which we are computing interactions
 		if (PART_TYPE(info) != cptype) break;
 
 
-		// Cell-local position of the particle, stored in texture
-		// or global memory depending on architecture
+		// Cell-local position of the particle
 		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
@@ -4324,13 +4321,12 @@ finalizeRepackDevice(FP params)
 	do {
 		if (index >= params.toParticle) break;
 
-		// Particle info struct, always stored in a texture
+		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
 
 		const ParticleType part_type = PART_TYPE(info);
 
-		// Cell-local position of the particle, stored in texture
-		// or global memory depending on architecture
+		// Cell-local position of the particle
 		const float4 pos = params.fetchPos(index);
 
 		// Nothing to do if the particle is inactive
@@ -4575,7 +4571,7 @@ computeDensityDiffusionDevice(density_diffusion_params<kerneltype, sph_formulati
 
 	if (index >= params.particleRangeEnd) return;
 
-	// Particle info struct, always stored in a texture
+	// Particle info struct
 	const particleinfo info = params.infoArray[index];
 
 	// Skip if the current particle is not of the type for which we are computing interactions
