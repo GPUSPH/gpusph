@@ -65,7 +65,7 @@ using writable_type = typename std::conditional<B, T, const T>::type;
 #if PREFER_L1
 DEFINE_BUFFER_WRAPPER_ARRAY(pos_wrapper, BUFFER_POS, pos, Pos);
 #else
-DEFINE_BUFFER_WRAPPER_TEXTURE(pos_wrapper, BUFFER_POS, pos, Pos);
+DEFINE_BUFFER_WRAPPER(pos_wrapper, BUFFER_POS, pos, Pos);
 #endif
 
 

@@ -156,10 +156,15 @@ public: \
 }
 
 
-/*** Standard wrappers: default to texture wrapper ***/
+/*** Standard wrappers: default to texture wrapper, can be disabled by setting DISABLE_TEXTURES ***/
 
+#if DISABLE_TEXTURES
+#define DEFINE_BUFFER_WRAPPER(...) DEFINE_BUFFER_WRAPPER_ARRAY(__VA_ARGS__)
+#define DEFINE_TENSOR_WRAPPER(...) DEFINE_TENSOR_WRAPPER_ARRAY(__VA_ARGS__)
+#else
 #define DEFINE_BUFFER_WRAPPER(...) DEFINE_BUFFER_WRAPPER_TEXTURE(__VA_ARGS__)
 #define DEFINE_TENSOR_WRAPPER(...) DEFINE_TENSOR_WRAPPER_TEXTURE(__VA_ARGS__)
+#endif
 
 
 #endif /* BUFFER_WRAPPER_H */
