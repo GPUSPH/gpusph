@@ -34,6 +34,8 @@
 
 #include "buffer_traits.h"
 
+/*** Texture wrappers ***/
+
 /*! This macro defines a struct named name to access the elements of key KEY
     through a texture.
   */
@@ -50,6 +52,45 @@ public: \
 	element_type fetch##Base(const uint index) const \
 	{ return tex1Dfetch<element_type>(base##TexObj, index); } \
 }
+
+/*! This macro defines a struct named name to access the elements of key KEY
+ *  through a texture, assuming KEY defines a tensor
+ *  (stored as 3 float2, recovered as a symtensor3).
+ */
+#define DEFINE_TENSOR_WRAPPER_TEXTURE(name, KEY, base, Base) \
+struct name \
+{ \
+private: \
+	using element_type = typename BufferTraits<KEY>::element_type; \
+	using return_type = symtensor3; \
+	cudaTextureObject_t base##0TexObj; \
+	cudaTextureObject_t base##1TexObj; \
+	cudaTextureObject_t base##2TexObj; \
+public: \
+	name(BufferList const& bufread) : \
+		base##0TexObj(getTextureObject<KEY>(bufread, 0)), \
+		base##1TexObj(getTextureObject<KEY>(bufread, 1)), \
+		base##2TexObj(getTextureObject<KEY>(bufread, 2))  \
+	{} \
+\
+	__device__ __forceinline__ \
+	return_type fetch##Base(const uint index) const \
+	{ \
+		return_type base; \
+		element_type temp = tex1Dfetch<element_type>(base##0TexObj, index); \
+		base.xx = temp.x; \
+		base.xy = temp.y; \
+		temp = tex1Dfetch<element_type>(base##1TexObj, index); \
+		base.xz = temp.x; \
+		base.yy = temp.y; \
+		temp = tex1Dfetch<element_type>(base##2TexObj, index); \
+		base.yz = temp.x; \
+		base.zz = temp.y; \
+		return base; \
+	} \
+}
+
+/*** Linear array wrappers ***/
 
 /*! This macro defines a a struct named name to access the elements of key KEY
     through a linear array.
@@ -68,7 +109,57 @@ public: \
 	{ return base##Array[index]; } \
 }
 
+/*! This macro defines a struct named name to access the elements of key KEY
+ *  through a linear array, assuming KEY defines a tensor
+ *  (stored as 3 float2, recovered as a symtensor3).
+ *  \note the constructor is two-part because we must first extract the
+ *  double-pointer with getRawPtr, and then extract each component array
+ *  from this.
+ */
+#define DEFINE_TENSOR_WRAPPER_ARRAY(name, KEY, base, Base) \
+struct name \
+{ \
+private: \
+	using element_type = typename BufferTraits<KEY>::element_type; \
+	using return_type = symtensor3; \
+	using src_ptr_type = const element_type * const * ; \
+\
+	const element_type * __restrict__ base##0; \
+	const element_type * __restrict__ base##1; \
+	const element_type * __restrict__ base##2; \
+public: \
+	name(src_ptr_type base##_ptr) : \
+		base##0(base##_ptr[0]), \
+		base##1(base##_ptr[1]), \
+		base##2(base##_ptr[2])  \
+	{} \
+\
+	name(BufferList const& bufread) : \
+		name(bufread.template getRawPtr<KEY>()) \
+	{} \
+\
+	__device__ __forceinline__ \
+	return_type fetch##Base(const uint index) const \
+	{ \
+		return_type base; \
+		element_type temp = base##0[index]; \
+		base.xx = temp.x; \
+		base.xy = temp.y; \
+		temp = base##1[index]; \
+		base.xz = temp.x; \
+		base.yy = temp.y; \
+		temp = base##2[index]; \
+		base.yz = temp.x; \
+		base.zz = temp.y; \
+		return base; \
+	} \
+}
+
+
+/*** Standard wrappers: default to texture wrapper ***/
+
 #define DEFINE_BUFFER_WRAPPER(...) DEFINE_BUFFER_WRAPPER_TEXTURE(__VA_ARGS__)
+#define DEFINE_TENSOR_WRAPPER(...) DEFINE_TENSOR_WRAPPER_TEXTURE(__VA_ARGS__)
 
 
 #endif /* BUFFER_WRAPPER_H */

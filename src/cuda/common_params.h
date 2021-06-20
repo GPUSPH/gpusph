@@ -245,35 +245,8 @@ struct tau_params
 	tau_params(tau_params const&) = default;
 };
 
-struct tau_tex_params
-{
-	cudaTextureObject_t tau0TexObj;
-	cudaTextureObject_t tau1TexObj;
-	cudaTextureObject_t tau2TexObj;
-
-	tau_tex_params(BufferList const& bufread) :
-		tau0TexObj(getTextureObject<BUFFER_TAU>(bufread, 0)),
-		tau1TexObj(getTextureObject<BUFFER_TAU>(bufread, 1)),
-		tau2TexObj(getTextureObject<BUFFER_TAU>(bufread, 2))
-	{}
-
-	__device__ __forceinline__
-	symtensor3 fetchTau(const uint i) const
-	{
-		symtensor3 tau;
-		float2 temp = tex1Dfetch<float2>(tau0TexObj, i);
-		tau.xx = temp.x;
-		tau.xy = temp.y;
-		temp = tex1Dfetch<float2>(tau1TexObj, i);
-		tau.xz = temp.x;
-		tau.yy = temp.y;
-		temp = tex1Dfetch<float2>(tau2TexObj, i);
-		tau.yz = temp.x;
-		tau.zz = temp.y;
-		return tau;
-	}
-
-};
+//! Constant access to BUFFER_TAU as textures
+DEFINE_TENSOR_WRAPPER(tau_tex_params, BUFFER_TAU, tau, Tau);
 
 template<bool writable = true>
 struct keps_params
