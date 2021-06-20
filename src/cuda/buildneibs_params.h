@@ -40,23 +40,15 @@
  *  Templatized structures holding parameters passed to buildneibs kernel
  *  @{ */
 
-struct cell_params
+DEFINE_BUFFER_WRAPPER(cellStart_wrapper, BUFFER_CELLSTART, cellStart, CellStart);
+DEFINE_BUFFER_WRAPPER(cellEnd_wrapper, BUFFER_CELLEND, cellEnd, CellEnd);
+
+struct cell_params : cellStart_wrapper, cellEnd_wrapper
 {
-	cudaTextureObject_t cellStartTexObj;
-	cudaTextureObject_t cellEndTexObj;
-
 	cell_params(const BufferList& bufread) :
-		cellStartTexObj(getTextureObject<BUFFER_CELLSTART>(bufread)),
-		cellEndTexObj(getTextureObject<BUFFER_CELLEND>(bufread))
+		cellStart_wrapper(bufread),
+		cellEnd_wrapper(bufread)
 	{}
-
-	__device__ __forceinline__ uint
-	fetchCellStart(const uint index) const
-	{ return tex1Dfetch<uint>(cellStartTexObj, index); }
-
-	__device__ __forceinline__ uint
-	fetchCellEnd(const uint index) const
-	{ return tex1Dfetch<uint>(cellEndTexObj, index); }
 };
 
 /// Common parameters used in buildneibs kernel
@@ -98,44 +90,30 @@ struct planes_buildneibs_params
 	{}
 };
 
-/// Parameters used only with SA_BOUNDARY buildneibs specialization
-struct sa_boundary_buildneibs_params
-{
-	cudaTextureObject_t vertTexObj;			///< verticex texture object (in)
-	cudaTextureObject_t boundTexObj;		///< boundary elements texture object (in)
-			float2	* __restrict__ vertPos0;				///< relative position of vertex to segment, first vertex
-			float2	* __restrict__ vertPos1;				///< relative position of vertex to segment, second vertex
-			float2	* __restrict__ vertPos2;				///< relative position of vertex to segment, third vertex
-	const	float	boundNlSqInflRad;		///< neighbor search radius for PT_FLUID <-> PT_BOUNDARY interaction
+/*! Wrapper for const acces to BUFFER_VERTICES
+ *  Access is provided by the fetchVert(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(vertices_wrapper, BUFFER_VERTICES, vert, Vert);
 
-	sa_boundary_buildneibs_params(
-		const	BufferList& bufread,
-				float2	*_vertPos[],
-		const	float	_boundNlSqInflRad) :
-		vertTexObj(getTextureObject<BUFFER_VERTICES>(bufread)),
-		boundTexObj(getTextureObject<BUFFER_BOUNDELEMENTS>(bufread)),
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2]),
-		boundNlSqInflRad(_boundNlSqInflRad)
-	{}
+
+/// Parameters used only with SA_BOUNDARY buildneibs specialization
+struct sa_boundary_buildneibs_params :
+	vertices_wrapper, ///< ID of the vertices of each boundary element (in)
+	boundelements_wrapper, ///< boundary elements (in)
+	vertPos_params<true>  ///< relative position of vertex to segment, one float2 array per vertex (out)
+{
+	const	float	boundNlSqInflRad;		///< neighbor search radius for PT_FLUID <-> PT_BOUNDARY interaction
 
 	sa_boundary_buildneibs_params(
 		const	BufferList& bufread,
 				BufferList& bufwrite,
 		const	float	_boundNlSqInflRad) :
-		sa_boundary_buildneibs_params(bufread,
-			bufwrite.getRawPtr<BUFFER_VERTPOS>(),
-			_boundNlSqInflRad)
+		vertices_wrapper(bufread),
+		boundelements_wrapper(bufread),
+		vertPos_params<true>(bufwrite),
+		boundNlSqInflRad(_boundNlSqInflRad)
 	{}
-
-	__device__ __forceinline__ vertexinfo
-	fetchVert(const uint index) const
-	{ return tex1Dfetch<vertexinfo>(vertTexObj, index); }
-
-	__device__ __forceinline__ float4
-	fetchBound(const uint index) const
-	{ return tex1Dfetch<float4>(boundTexObj, index); }
 };
 
 /// The actual buildneibs parameters structure, which concatenates the above, as appropriate
