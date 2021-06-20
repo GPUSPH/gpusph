@@ -1225,7 +1225,7 @@ void GPUSPH::checkBufferConsistency(CommandStruct const& cmd)
 				const float4 neib_vel = velArray[neib_d][neib_offset];
 
 				if (memcmp(&info, &neib_info, sizeof(info))) {
-					printf("%s INFO mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+					printf("%s INFO mismatch @ iteration %lu, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
 						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
 					printf("(%d %d %d %d) vs (%d %d %d %d)\n",
@@ -1235,7 +1235,7 @@ void GPUSPH::checkBufferConsistency(CommandStruct const& cmd)
 				}
 
 				if (memcmp(&pos, &neib_pos, sizeof(pos))) {
-					printf("%s POS mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+					printf("%s POS mismatch @ iteration %lu, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
 						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
 					printf("(%.9g %.9g %.9g %.9g) vs (%.9g %.9g %.9g %.9g)\n",
@@ -1245,7 +1245,7 @@ void GPUSPH::checkBufferConsistency(CommandStruct const& cmd)
 				}
 
 				if (memcmp(&vel, &neib_vel, sizeof(vel))) {
-					printf("%s VEL mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+					printf("%s VEL mismatch @ iteration %lu, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
 						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
 					printf("(%.9g %.9g %.9g %.9g) vs (%.9g %.9g %.9g %.9g)\n",
