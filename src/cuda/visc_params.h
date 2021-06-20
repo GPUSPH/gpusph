@@ -96,19 +96,11 @@ struct visc_reduce_params
 	}
 };
 
-//! Additional parameters passed to include the effective pressure texture object
-struct effpres_texture_params
-{
-	cudaTextureObject_t effPresTexObj;
-
-	effpres_texture_params(BufferList const& bufread) :
-		effPresTexObj(getTextureObject<BUFFER_EFFPRES>(bufread))
-	{}
-
-	__device__ __forceinline__
-	float fetchEffPres(const uint index) const
-	{ return tex1Dfetch<float>(effPresTexObj, index); }
-};
+/*! Wrapper for const acces to BUFFER_EFFPRES
+ *  Access is provided by the fetchEffPres(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(effpres_texture_params, BUFFER_EFFPRES, effPres, EffPres);
 
 //! Effective viscosity kernel parameters
 /** in addition to the standard neibs_list_params, it only includes
