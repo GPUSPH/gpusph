@@ -42,26 +42,50 @@ using namespace std;
 //! (and destruction) of the CUDA array and texture objects associated with the DEM.
 struct internal_dem_params
 {
+#if DISABLE_DEM_TEXTURE
+	float *demArray;
+	int width;
+	int height;
+#else
 	cudaArray *dDem;
 	cudaTextureObject_t demTex;
+#endif
 
 	internal_dem_params() :
+#if DISABLE_DEM_TEXTURE
+		demArray(NULL),
+		width(0),
+		height(0)
+#else
 		dDem(NULL),
 		demTex()
+#endif
 	{}
 
 	~internal_dem_params()
 	{
+#if DISABLE_DEM_TEXTURE
+		if (demArray)
+			CUDA_SAFE_CALL(cudaFree(demArray));
+#else
 		if (!dDem)
 			return; // nothing to do if DEM was not allocated
 		CUDA_SAFE_CALL(cudaDestroyTextureObject(demTex));
 		CUDA_SAFE_CALL(cudaFreeArray(dDem));
+#endif
 	}
 
 	void setDEM(const float *hDem, int width, int height)
 	{
-		// Allocating, reading and copying DEM
 		const size_t size = width*height*sizeof(float);
+#if DISABLE_DEM_TEXTURE
+		// TODO pitched allocation
+		CUDA_SAFE_CALL( cudaMalloc(&demArray, size));
+		CUDA_SAFE_CALL( cudaMemcpy(demArray, hDem, size, cudaMemcpyHostToDevice));
+		this->width = width;
+		this->height = height;
+#else
+		// Allocating, reading and copying DEM
 		cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
 		CUDA_SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
 		CUDA_SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
@@ -80,11 +104,18 @@ struct internal_dem_params
 		dem_res_desc.res.array.array = dDem;
 
 		CUDA_SAFE_CALL(cudaCreateTextureObject(&demTex, &dem_res_desc, &dem_tex_desc, NULL));
+#endif
 	}
 };
 
 thread_local unique_ptr<internal_dem_params> global_dem_params;
 
 dem_params::dem_params() :
+#if DISABLE_DEM_TEXTURE
+	demArray(global_dem_params->demArray),
+	width(global_dem_params->width),
+	height(global_dem_params->height)
+#else
 	demTex(global_dem_params->demTex)
+#endif
 {}

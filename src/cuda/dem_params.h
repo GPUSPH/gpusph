@@ -29,12 +29,19 @@
 #define DEM_PARAMS_H
 
 #include <cuda_runtime_api.h>
+#include "cache_preference.h"
 
 //! ENABLE_DEM-related texture parameters
 struct dem_params
 {
 private:
+#if DISABLE_DEM_TEXTURE
+	float *demArray;
+	int width;
+	int height;
+#else
 	cudaTextureObject_t demTex;
+#endif
 
 public:
 	// There is a (thread-local) global dem_params object,
@@ -45,10 +52,34 @@ public:
 
 	//! Fetch the DEM content at position x, y.
 	//! NOTE: x, y are in DEM-relative coordinates
+	//! This maps to a simple texture fetch, unless DEM texture usage is disabled,
+	//! in which case we do the bilinear interpolation manually
 	__device__ __forceinline__ float
 	fetchDem(float x, float y) const
 	{
+#if DISABLE_DEM_TEXTURE
+		const float xb = clamp(x, 0.f, width - 1.f);
+		const float yb = clamp(y, 0.f, height - 1.f);
+		// find the vertices of the square this point belongs to,
+		// and ensure we are within the domain covered by the DEM
+		// (outer points will be squashed to the edge values)
+		const int    i   = floor(x);
+		const int    j   = floor(y);
+		const int    ip1 = clamp(i + 1, 0, width - 1);
+		const int    jp1 = clamp(j + 1, 0, height - 1);
+		const float pa  = x - (float) i;
+		const float pb  = y - (float) j;
+		const float ma  = 1 - pa;
+		const float mb  = 1 - pb;
+		const float z00 = ma*mb*demArray[i   + j   * width];
+		const float z10 = pa*mb*demArray[ip1 + j   * width];
+		const float z01 = ma*pb*demArray[i   + jp1 * width];
+		const float z11 = pa*pb*demArray[ip1 + jp1 * width];
+
+		return z00 + z10 + z01 + z11;
+#else
 		return tex2D<float>(demTex, x, y);
+#endif
 	}
 };
 

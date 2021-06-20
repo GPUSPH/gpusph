@@ -44,4 +44,12 @@
 #endif
 #endif
 
+// We can run without any texture usage by defining DISABLE_ALL_TEXTURES
+#if DISABLE_ALL_TEXTURES
+// Disable texture usage as linear array cache
+#define DISABLE_TEXTURES 1
+// Disable texture usage for the DEM
+#define DISABLE_DEM_TEXTURE 1
+#endif
+
 #endif
