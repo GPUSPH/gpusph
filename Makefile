@@ -246,12 +246,20 @@ CLANG_CUDA_PATH ?= $(CUDA_INSTALL_PATH)
 #CUDA_INSTALL_PATH=$(shell \
 #	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
 
+# We keep track of the nvcc major version, which is stored in clang_select
+OLD_CUDA_MAJOR:=$(CUDA_MAJOR)
+
 # nvcc info
 NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
 NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
 versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
 CUDA_MINOR := $(lastword  $(versions_tmp))
+
+ifneq ($(CUDA_MAJOR),$(OLD_CUDA_MAJOR))
+	# force regeneration of CLANG_SELECT_OPTFILE
+	TMP:=$(shell rm -f $(CLANG_SELECT_OPTFILE))
+endif
 
 # CUXX will be our compiler for .cu files
 ifeq ($(CLANG_CUDA),1)
@@ -1327,6 +1335,7 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)# recover value of CLANG_CUDA and CLANG_CUDA_VERSION
 	$(CMDECHO)echo 'CLANG_CUDA=$(CLANG_CUDA)' >> $@
 	$(CMDECHO)echo 'CLANG_CUDA_VERSION=$(CLANG_CUDA_VERSION)' >> $@
+	$(CMDECHO)echo 'CUDA_MAJOR=$(CUDA_MAJOR)' >> $@
 	$(CMDECHO)# recover value of LAST_BUILT_PROBLEM
 	$(CMDECHO)echo 'LAST_BUILT_PROBLEM=$(LAST_BUILT_PROBLEM)' >> $@
 	$(CMDECHO)# recover value of _DEBUG_ from OPTFILES
