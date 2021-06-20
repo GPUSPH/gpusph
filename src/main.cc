@@ -43,6 +43,7 @@
 #include "problem_spec.h"
 
 /* Include all other opt file for show_version */
+#include "clang_select.opt"
 #include "chrono_select.opt"
 #include "compute_select.opt"
 #include "dbg_select.opt"
@@ -73,6 +74,9 @@ void show_version()
 		FASTMATH ? "with" : "without",
 		COMPUTE/10, COMPUTE%10,
 		PREFER_L1 ? "L1" : "texture");
+	printf("\tbuilt with %s, major version %d\n",
+		(CLANG_CUDA ? "clang" : "nvcc"),
+		(CLANG_CUDA ? CLANG_CUDA_VERSION : CUDA_MAJOR));
 	printf("DEM    : %s\n", FASTDEM ? "fast" : "symmetrized");
 	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
 	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");

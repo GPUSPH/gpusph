@@ -185,11 +185,33 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 
 # --------------- Locate and set up compilers and flags
 
-# override: CLANG_CUDA - set to 1 if you want to build GPUSPH using Clang's support for CUDA
+# option: clang — controls usage of clang instead of nvcc to compile the device code. Supported values:
+#                 0 (default): device code is compiled with nvcc
+#                 1:           device code is compiled with the default clang version
+#                 else:        device code is compiled with the specified clang version
+#                              (e.g. clang=12 to compile with clang 12)
 CLANG_CUDA ?= 0
-
-# override: CLANG_CUDA_VERSION - set to the Clang version to use to build CUDA code
 CLANG_CUDA_VERSION ?=
+CLANG_SELECT_OPTFILE=$(OPTSDIR)/clang_select.opt
+ifdef clang
+	OLD_CLANG_CUDA:=$(CLANG_CUDA)
+	OLD_CLANG_CUDA_VERSION:=$(CLANG_CUDA_VERSION)
+	ifeq ($(clang),0)
+		CLANG_CUDA=0
+		CLANG_CUDA_VERSION=
+	else ifeq ($(clang),1)
+		CLANG_CUDA=1
+		CLANG_CUDA_VERSION=$(shell echo __clang_major__ | clang++ -E - | grep -v \#)
+		TMP:=$(info Autodetected Clang version '$(CLANG_CUDA_VERSION)')
+	else
+		CLANG_CUDA=1
+		CLANG_CUDA_VERSION=$(clang)
+	endif
+	ifneq ($(CLANG_CUDA)/$(CLANG_CUDA_VERSION),$(OLD_CLANG_CUDA)/$(OLD_CLANG_CUDA_VERSION))
+		# force regeneration of CLANG_SELECT_OPTFILE
+		TMP:=$(shell rm -f $(CLANG_SELECT_OPTFILE))
+	endif
+endif
 
 # override: CUDA_INSTALL_PATH - where CUDA is installed
 # override:                     defaults /usr/local/cuda,
@@ -209,9 +231,11 @@ $(error Could not find CUDA, please set CUDA_INSTALL_PATH)
 # At least on Debian, when CUDA is installed via distro packages, Clang
 # needs to be directed at /usr/lib/cuda instead
 	ifeq ($(CLANG_CUDA),1)
-	CUDA_INSTALL_PATH = /usr/lib/cuda
+		CLANG_CUDA_PATH = /usr/lib/cuda
 	endif
 endif
+
+CLANG_CUDA_PATH ?= $(CUDA_INSTALL_PATH)
 
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
 # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
@@ -222,23 +246,20 @@ endif
 #CUDA_INSTALL_PATH=$(shell \
 #	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
 
+# nvcc info
+NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
+NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
+versions_tmp  := $(subst ., ,$(NVCC_VER))
+CUDA_MAJOR := $(firstword  $(versions_tmp))
+CUDA_MINOR := $(lastword  $(versions_tmp))
+
+# CUXX will be our compiler for .cu files
 ifeq ($(CLANG_CUDA),1)
-	ifeq ($(CLANG_CUDA_VERSION),$(empty))
-		CXX=clang++
-	else
-		CXX=clang++-$(CLANG_CUDA_VERSION)
-	endif
-	NVCC=$(CXX) --cuda-path=$(CUDA_INSTALL_PATH)
+	CXX=clang++-$(CLANG_CUDA_VERSION)
+	CUXX=$(CXX) --cuda-path=$(CLANG_CUDA_PATH)
 
 	NO_CUDA_ARCH_VERSION_CHECK=--no-cuda-version-check
 else
-	# nvcc info
-	NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
-	NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
-	versions_tmp  := $(subst ., ,$(NVCC_VER))
-	CUDA_MAJOR := $(firstword  $(versions_tmp))
-	CUDA_MINOR := $(lastword  $(versions_tmp))
-
 	# We only support CUDA 7 onwards, error out if this is an earlier version
 	# NOTE: the test is reversed because test returns 0 for true (shell-like)
 	OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
@@ -255,15 +276,20 @@ else
 	# Make sure nvcc uses the same host compile that we use for the host
 	# code.
 	# Note that this requires the compiler to be supported by nvcc.
-	NVCC += -ccbin=$(CXX)
+	CUXX=$(NVCC) -ccbin=$(CXX)
 
 	NO_CUDA_ARCH_VERSION_CHECK=-Wno-deprecated-gpu-targets
 endif
+
+# --- Compiler END
+
+# --- Option management
 
 # Get the include path(s) used by default by our compiler
 CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 | grep '^ ' | grep -v ' (framework directory)'))
 
 # files to store last compile options: dbg, compute, fastmath, MPI usage, Chrono, linearization preference, Catalyst
+# (note: CLANG_SELECT_OPTFILE was defined ahead-of-time because it's needed early at compiler-definition time
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
@@ -286,6 +312,7 @@ GIT_INFO_OPTFILE=$(OPTSDIR)/git_info.opt
 
 # Optfile that influence the device code
 DEVCODE_OPTFILES = \
+	  $(CLANG_SELECT_OPTFILE) \
 	  $(DBG_SELECT_OPTFILE) \
 	  $(COMPUTE_SELECT_OPTFILE) \
 	  $(FASTMATH_SELECT_OPTFILE) \
@@ -447,7 +474,7 @@ ifeq ($(USE_MPI),0)
 	MPICXX=$(CXX)
 
 	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
-	LINKER ?= $(NVCC)
+	LINKER ?= $(CUXX)
 
 else ifeq ($(CLANG_CUDA),1)
 	LINKER ?= OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" $(MPICXX)
@@ -494,7 +521,7 @@ else
 	MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
 	MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
 
-	LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+	LINKER ?= $(CUXX) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
 
 	# (the solution is not perfect as it still generates some warnings, but at least it rolls)
 
@@ -991,6 +1018,14 @@ $(LAST_BUILT_PROBLEM): $(PROBLEM_GPUSPH_DEP)
 $(foreach p,$(PROBLEM_LIST),$(eval $(call problem_deps,$p)))
 
 # internal targets to (re)create the "selected option headers" if they're missing
+
+# Clang select. We also include the detected CUDA_MAJOR version since it will be displayed
+# as --version output
+$(CLANG_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Clang vs nvcc device compilation */" > $@
+	@echo '#define CLANG_CUDA $(CLANG_CUDA)' >> $@
+	@echo '#define CLANG_CUDA_VERSION $(CLANG_CUDA_VERSION)' >> $@
+	@echo '#define CUDA_MAJOR $(CUDA_MAJOR)' >> $@
 $(DBG_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define if debug option is on. */" \
 		> $(DBG_SELECT_OPTFILE)
@@ -1109,9 +1144,9 @@ $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d $(DEVCODE_OPTFILES) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< $(CU_DEPGEN_FLAGS) > $(word 2,$^)
+	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(CUFLAGS) -E $< $(CU_DEPGEN_FLAGS) > $(word 2,$^)
 	$(call redupdep,$(word 2,$^))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
+	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
 # deps: empty rule, but require the directories and optfiles to be present
 $(CCDEPS): | $(DEPSUBS) $(OPTFILES) $(AUTOGEN_SRC) ;
@@ -1125,7 +1160,7 @@ $(CUDEPS): | $(DEPSUBS) $(OPTFILES) ;
 # not supported in the most recent version of the SDK)
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cc
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(NO_CUDA_ARCH_VERSION_CHECK) -lcudart $(filter-out $(CU_ARCH_SPEC),$(CUFLAGS)) -o $@ $< $(filter-out $(CU_ARCH_SPEC),$(LDFLAGS))
+	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(NO_CUDA_ARCH_VERSION_CHECK) -lcudart $(filter-out $(CU_ARCH_SPEC),$(CUFLAGS)) -o $@ $< $(filter-out $(CU_ARCH_SPEC),$(LDFLAGS))
 
 # create distdir
 $(DISTDIR):
@@ -1230,6 +1265,7 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	@echo "MPICXX:          $(MPICXX)"									>> $@
 	@echo "nvcc:            $(NVCC)"									>> $@
 	@echo "nvcc version:    $(NVCC_VER)"								>> $@
+	@echo "CUXX:            $(CUXX)"								>> $@
 	@echo "LINKER:          $(LINKER)"									>> $@
 	@echo "Compute cap.:    $(COMPUTE)"									>> $@
 	@echo "Fastmath:        $(FASTMATH)"								>> $@
@@ -1288,6 +1324,9 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)echo '# Run make with the appropriate option to change a configured value' >> $@
 	$(CMDECHO)echo '# Use `make help-options` to see a list of available options' >> $@
 	$(CMDECHO)echo '# Use `make confclean` to reset your configuration' >> $@
+	$(CMDECHO)# recover value of CLANG_CUDA and CLANG_CUDA_VERSION
+	$(CMDECHO)echo 'CLANG_CUDA=$(CLANG_CUDA)' >> $@
+	$(CMDECHO)echo 'CLANG_CUDA_VERSION=$(CLANG_CUDA_VERSION)' >> $@
 	$(CMDECHO)# recover value of LAST_BUILT_PROBLEM
 	$(CMDECHO)echo 'LAST_BUILT_PROBLEM=$(LAST_BUILT_PROBLEM)' >> $@
 	$(CMDECHO)# recover value of _DEBUG_ from OPTFILES
