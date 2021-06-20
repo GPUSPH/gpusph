@@ -51,6 +51,9 @@
 #include "post_process.cu"
 #include "option_range.h"
 
+// Implementation of the (thread-local) global dem_params object
+#include "dem_params.cu"
+
 using namespace std;
 
 // This class holds the implementation and interface of CUDASimFramework,
@@ -239,6 +242,22 @@ public:
 
 		m_simparams = new SimParams(this);
 	}
+
+	void setDEM(const float *hDem, int width, int height) const
+	{
+		if (!QUERY_ANY_FLAGS(simflags, ENABLE_DEM))
+			throw std::runtime_error("setDEM invoked, but ENABLE_DEM is not a framework simflag");
+		if (global_dem_params)
+			throw std::runtime_error("double setDEM");
+		global_dem_params = unique_ptr<internal_dem_params>(new internal_dem_params());
+		global_dem_params->setDEM(hDem, width, height);
+	}
+
+	void unsetDEM() const
+	{
+		global_dem_params.reset();
+	}
+
 
 protected:
 	AbstractFilterEngine* newFilterEngine(FilterType filtertype, int frequency)

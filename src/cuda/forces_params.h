@@ -537,7 +537,6 @@ struct finalize_forces_params :
 	finalize_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
-		cudaTextureObject_t	demTex,
 				uint	_numParticles,
 				uint	_fromParticle,
 				uint	_toParticle,
@@ -550,7 +549,7 @@ struct finalize_forces_params :
 		common_finalize_forces_params<run_mode>(bufread, bufwrite,
 			 _fromParticle, _toParticle, _slength, _deltap),
 		planes_cond(bufread),
-		dem_cond(demTex),
+		dem_cond(), // dem_params automatically initialize from the global DEM object
 		dyndt_cond(bufwrite, _numParticles, _cflOffset),
 		grenier_cond(bufread),
 		sa_cond(bufread),

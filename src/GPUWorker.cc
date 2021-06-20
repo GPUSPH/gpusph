@@ -1080,7 +1080,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		int ncols = gdata->problem->get_dem_ncols();
 		printf("Thread %d setting DEM texture\t cols = %d\trows =%d\n",
 				m_deviceIndex, ncols, nrows);
-		forcesEngine->setDEM(gdata->problem->get_dem(), ncols, nrows);
+		m_simframework->setDEM(gdata->problem->get_dem(), ncols, nrows);
 	}
 
 	m_deviceMemory += allocated;
@@ -1116,7 +1116,8 @@ void GPUWorker::deallocateDeviceBuffers() {
 	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
 		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
 
-	// here: dem device buffers?
+	if (m_simparams->simflags & ENABLE_DEM)
+		m_simframework->unsetDEM();
 }
 
 void GPUWorker::createEventsAndStreams()

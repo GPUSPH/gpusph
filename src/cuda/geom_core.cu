@@ -39,9 +39,6 @@
 
 #include "neibs_iteration.cuh" // for d_cellSize
 
-thread_local cudaArray*  dDem = NULL;
-thread_local cudaTextureObject_t demTex = 0;
-
 namespace cugeom {
 
 using namespace cuneibs;

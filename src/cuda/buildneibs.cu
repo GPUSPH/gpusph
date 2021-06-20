@@ -326,7 +326,7 @@ const	float		boundNlSqInflRad)
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	buildneibs_params<boundarytype, simflags> params(bufread, bufwrite,
-		particleRangeEnd, sqinfluenceradius, demTex, boundNlSqInflRad);
+		particleRangeEnd, sqinfluenceradius, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount><<<numBlocks, numThreads>>>(params);
 

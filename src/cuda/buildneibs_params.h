@@ -139,15 +139,12 @@ struct buildneibs_params :
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius,
 
-		// ENABLE_DEM
-		cudaTextureObject_t demTex,
-
 		// SA_BOUNDARY
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
 		cond_planes_params(bufwrite),
-		cond_dem_params(demTex),
+		cond_dem_params(), // dem_params automatically initialize from the global DEM object
 		cond_sa_params(bufread, bufwrite, _boundNlSqInflRad)
 	{}
 };

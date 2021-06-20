@@ -28,17 +28,20 @@
 #ifndef DEM_PARAMS_H
 #define DEM_PARAMS_H
 
+#include <cuda_runtime_api.h>
+
 //! ENABLE_DEM-related texture parameters
-// TODO FIXME ideally should use the buffer system
 struct dem_params
 {
 private:
 	cudaTextureObject_t demTex;
 
 public:
-	dem_params(cudaTextureObject_t demTex_) :
-		demTex(demTex_)
-	{}
+	// There is a (thread-local) global dem_params object,
+	// whose construction is managed separately.
+	// All uses of dem_params as substructures otherwise
+	// will simply copy-initialize from the global object.
+	dem_params();
 
 	//! Fetch the DEM content at position x, y.
 	//! NOTE: x, y are in DEM-relative coordinates

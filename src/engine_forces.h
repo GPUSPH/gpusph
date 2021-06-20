@@ -84,17 +84,6 @@ public:
 					uint	numBodiesParticles) = 0;
 	/// @}
 
-
-	/// Set the DEM
-	/// TODO set/unsetDEM should be moved to the BC engine,
-	/// and the latter should be called by the destructor
-	virtual void
-	setDEM(const float *hDem, int width, int height) = 0;
-
-	/// Free DEM-related resources
-	virtual void
-	unsetDEM() = 0;
-
 	/// Striping support: round a number of particles down to the largest multiple
 	/// of the block size that is not greater than it
 	virtual uint
