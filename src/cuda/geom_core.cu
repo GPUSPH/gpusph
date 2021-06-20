@@ -35,6 +35,8 @@
 
 #include "planes.h"
 
+#include "dem_params.h"
+
 #include "neibs_iteration.cuh" // for d_cellSize
 
 thread_local cudaArray*  dDem = NULL;
@@ -149,30 +151,30 @@ DemPos(GridPosType const& gridPos, LocalPosType const& pos)
 		(gridPos.y + 0.5f)*d_dem_scaled_cellSize.y + pos.y/d_nsres + 0.5f);
 }
 
-/**! Interpolate DEM demTex for a point at DEM cell pos demPos,
+/**! Interpolate DEM for a point at DEM cell pos demPos,
   plus an optional multiple of (∆x, ∆y).
   NOTE: the returned z coordinate is GLOBAL, not LOCAL!
   TODO for improved homogeneous accuracy, maybe have a texture for grid cells and a
   texture for local z coordinates?
  */
 __device__ __forceinline__ float
-DemInterpol(cudaTextureObject_t demTex,
+DemInterpol(dem_params const& params,
 	const float2& demPos, int dx=0, int dy=0)
 {
-	return tex2D<float>(demTex, demPos.x + dx*d_dem_scaled_dx.x, demPos.y + dy*d_dem_scaled_dx.y);
+	return params.fetchDem(demPos.x + dx*d_dem_scaled_dx.x, demPos.y + dy*d_dem_scaled_dx.y);
 }
 
 //! Find the plane tangent to a DEM near a given position, assuming demPos and Z0
 //! were already computed
 __device__ __forceinline__ plane_t
-DemTangentPlane(cudaTextureObject_t demTex,
+DemTangentPlane(dem_params const& params,
 	const int3&	gridPos,
 	const float3&	pos,
 	const float2& demPos, const float globalZ0)
 {
 	// TODO find way to compute the normal without passing through the global pos
-	const float globalZpx = DemInterpol(demTex, demPos,  1,  0);
-	const float globalZpy = DemInterpol(demTex, demPos,  0,  1);
+	const float globalZpx = DemInterpol(params, demPos,  1,  0);
+	const float globalZpy = DemInterpol(params, demPos,  0,  1);
 #if FASTDEM
 	// 'Classic', 'fast' computation: find the plane through three points,
 	// where thre three points are z0 (projection) and two other points
@@ -183,8 +185,8 @@ DemTangentPlane(cudaTextureObject_t demTex,
 	const float b = d_demdx*(globalZ0 - globalZpy);
 	const float c = d_demdxdy;
 #else
-	const float globalZmx = DemInterpol(demTex, demPos, -1,  0);
-	const float globalZmy = DemInterpol(demTex, demPos,  0, -1);
+	const float globalZmx = DemInterpol(params, demPos, -1,  0);
+	const float globalZmy = DemInterpol(params, demPos,  0, -1);
 
 	// Compared to the host version, we only simplify dividing by 2, since
 	// here we use the actual DEM dx and y, which may be (slightly) different
@@ -207,13 +209,13 @@ DemTangentPlane(cudaTextureObject_t demTex,
 
 //! Find the plane tangent to a DEM near a given particle at position grid+pos
 __device__ __forceinline__ plane_t
-DemTangentPlane(cudaTextureObject_t demTex,
+DemTangentPlane(dem_params const& params,
 	const int3&	gridPos,
 	const float3&	pos)
 {
 	const float2 demPos = DemPos(gridPos, pos);
-	const float globalZ0 = DemInterpol(demTex, demPos);
-	return DemTangentPlane(demTex, gridPos, pos, demPos, globalZ0);
+	const float globalZ0 = DemInterpol(params, demPos);
+	return DemTangentPlane(params, gridPos, pos, demPos, globalZ0);
 }
 
 /** @} */

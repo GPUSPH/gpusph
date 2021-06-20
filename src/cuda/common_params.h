@@ -278,15 +278,4 @@ struct keps_tex_params : keps_k_wrapper, keps_e_wrapper
 	{}
 };
 
-//! ENABLE_DEM-related texture parameters
-// TODO FIXME ideally should use the buffer system
-struct dem_params
-{
-	cudaTextureObject_t demTex;
-
-	dem_params(cudaTextureObject_t demTex_) :
-		demTex(demTex_)
-	{}
-};
-
 #endif

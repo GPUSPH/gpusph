@@ -976,7 +976,7 @@ isDemInRange(
 	const float2 demPos = cugeom::DemPos(gridPos, pos);
 	// TODO find a way to be more accurate about this
 	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
-	const float globalZ0 = cugeom::DemInterpol(params.demTex, demPos);
+	const float globalZ0 = cugeom::DemInterpol(params, demPos);
 	const float r = globalZ - globalZ0;
 	if (r < 0)
 		printf("Particle %d id %d behind DEM!\n", index, (int)id(params.fetchInfo(index)));

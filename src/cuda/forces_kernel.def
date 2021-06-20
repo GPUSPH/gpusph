@@ -4079,7 +4079,7 @@ __device__ __forceinline__
 enable_if_t<FP::has_dem, float>
 compute_dem_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3, float dynvisc)
 {
-	return DemLJForce<FP::boundarytype>(params.demTex, pdata.gridPos, pos3, pdata.pos.w, vel3, dynvisc, pout.force);
+	return DemLJForce<FP::boundarytype>(params, pdata.gridPos, pos3, pdata.pos.w, vel3, dynvisc, pout.force);
 }
 
 template<typename FP, typename P, typename PO>
