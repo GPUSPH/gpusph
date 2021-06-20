@@ -273,17 +273,7 @@ struct sa_boundary_forces_params :
 /// Additional parameters passed only to kernels that require BUFFER_EULERVEL.
 /// This is currently only done if SA_BOUNDARY and either KEPSILON turbulence model
 /// or ENABLE_INLET_OUTLET, and only in SIMULATE mode
-struct eulerVel_forces_params
-{
-	cudaTextureObject_t eulerVelTexObj;
-	eulerVel_forces_params(BufferList const& bufread) :
-		eulerVelTexObj(getTextureObject<BUFFER_EULERVEL>(bufread))
-	{}
-
-	__device__ __forceinline__
-	float4 fetchEulerVel(const uint index) const
-	{ return tex1Dfetch<float4>(eulerVelTexObj, index); }
-};
+DEFINE_BUFFER_WRAPPER_ARRAY(eulerVel_forces_params, BUFFER_EULERVEL, eulerVel, EulerVel);
 
 /// Additional parameters passed only to kernels with DUMMY_BOUNDARY
 /// in case of fluid/boundary interaction
