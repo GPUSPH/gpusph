@@ -38,8 +38,8 @@
 
 LITHOSTATIC_PROBLEM::LITHOSTATIC_PROBLEM(GlobalData *_gdata) :
 	Problem(_gdata),
-	hs ((floor(1.0f/m_deltap)-0.5f)*m_deltap), // sediment height
 	hw (floor(1.0f/m_deltap)*m_deltap), // water height
+	hs ((floor(1.0f/m_deltap)-0.5f)*m_deltap), // sediment height
 	H (2.5f), // reservoir height
 	l (1.0f), // reservoir length and width
 	// For LJ/DYN_boundary, choose if Salome geometry is used
