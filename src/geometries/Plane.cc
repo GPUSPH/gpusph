@@ -94,9 +94,10 @@ void Plane::getBoundingBox(Point &output_min, Point &output_max)
 	if (m_b == 0 && m_c == 0) {
 		output_min = Point(m_d/m_a, INFINITY, INFINITY);
 		output_max = Point(m_d/m_a, INFINITY, INFINITY);
-	} else
+	} else {
 		output_min = Point(INFINITY, INFINITY, INFINITY);
 		output_max = Point(INFINITY, INFINITY, INFINITY);
+	}
 }
 
 void Plane::shift(const double3 &offset)
