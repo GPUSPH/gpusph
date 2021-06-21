@@ -1610,7 +1610,10 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 
 	// energy in non-fluid particles + one for each fluid type
 	// double4 with .x kinetic, .y potential, .z internal, .w currently ignored
-	double4 energy[MAX_FLUID_TYPES+1] = {0.0f};
+	double4 energy[MAX_FLUID_TYPES+1];
+	for (auto& e : energy) {
+		e = make_double4(0.0);
+	}
 
 	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
 	double3 const& wo = problem->get_worldorigin();
