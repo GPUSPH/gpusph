@@ -84,8 +84,8 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_out_of_bounds_count(0),
 	m_deltap(NAN),
-	m_hydrostaticFilling(true),
 	m_waterLevel(NAN),
+	m_hydrostaticFilling(true),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
 	m_bodies_storage(NULL)
