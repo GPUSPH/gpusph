@@ -215,17 +215,6 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		uint numThreads = BLOCK_SIZE_FORCES;
 		uint numBlocks = div_up(numParticles, numThreads);
 
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const float4 *vol = bufread.getData<BUFFER_VOLUME>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *pHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-		/* Update WRITE vel in place, caller should do a swap before and after */
-		float4 *vel = bufwrite.getData<BUFFER_VEL>();
-		float *sigma = bufwrite.getData<BUFFER_SIGMA>();
-
 		cuforces::densityGrenierDevice<kerneltype, boundarytype><<<numBlocks, numThreads>>>
 			(neibs_list_params(bufread, numParticles, slength, influenceradius),
 			 bufread.getData<BUFFER_VOLUME>(),
