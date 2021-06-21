@@ -578,7 +578,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 				uint neib_cell_base_index = UINT_MAX;
 
-				for (uint index = start; ; index += stride) {
+				for (uint index = start; index < end; index += stride) {
 					neibdata neib = neibslist[index];
 					if (neib == NEIBS_END)
 						break;
