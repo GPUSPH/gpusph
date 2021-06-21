@@ -853,7 +853,6 @@ template<>
 void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 // GPUSPH::move_bodies(flag_t integrator_step)
 {
-	// TODO this function should also be ported to the CommandSequence architecture
 	const int step = cmd.step.number;
 
 	const float dt = cmd.dt(gdata);
@@ -956,7 +955,6 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	const uint numcells = gdata->nGridCells;
 	const size_t devcountCellSize = sizeof(devcount_t) * numcells;
-	const size_t uintCellSize = sizeof(uint) * numcells;
 
 	size_t totCPUbytes = 0;
 
@@ -1598,7 +1596,6 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 	// TODO should it be an SPH smoothing instead?
 
 	GageList &gages = problem->simparams()->gage;
-	double slength = problem->simparams()->slength;
 
 	size_t numgages = gages.size();
 	vector<double> gages_W(numgages, 0.);
