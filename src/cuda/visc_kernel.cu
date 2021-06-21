@@ -262,7 +262,7 @@ sa_boundary_jacobi_build_vector(float &B, N_t const& ndata, KP const& params)
 	calcVertexRelPos(q_vb, belem,
 		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
 	const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, normal_s);
-	float r_as(fmax(fabs(dot(as_float3(ndata.relPos), normal_s)), params.deltap));
+	//float r_as(fmax(fabs(dot3(ndata.relPos, normal_s)), params.deltap));
 
 	// Contribution to the boundary elements to the right hand-side term
 	B += delta_rho*dot(d_gravity, normal_s)*ggamAS;
@@ -834,8 +834,10 @@ jacobiFSBoundaryConditionsDevice(
 	if (INACTIVE(pos))
 		return;
 
-	// Fluid number
-	const uint p_fluid_num = fluid_num(info);
+	// Fluid number TODO FIXME proper multifluid
+	// The code up to the definition of delta_rho inclusive currently works only on the assumption
+	// of at most two fluids.
+	//const uint p_fluid_num = fluid_num(info); // unused
 	const uint numFluids = cuphys::d_numfluids;
 
 	// Definition of delta_rho
@@ -894,8 +896,10 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 		// Compute grid position of current particle
 		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
-		// Fluid number
-		const uint p_fluid_num = fluid_num(info);
+		// Fluid number TODO FIXME proper multifluid
+		// The code up to the definition of delta_rho inclusive currently works only on the assumption
+		// of at most two fluids.
+		//const uint p_fluid_num = fluid_num(info); // unused
 		const uint numFluids = cuphys::d_numfluids;
 
 		// Definition of delta_rho
@@ -926,22 +930,22 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 					// Compute relative velocity
 					// Now relVel is a float4 and neib density is stored in relVel.w
 					const float4 relVel = as_float3(vel) - params.fetchVel(neib_index);
-					const ParticleType nptype = PART_TYPE(neib_info);
+					//const ParticleType nptype = PART_TYPE(neib_info);
 
 					// Fluid numbers
 					const uint neib_fluid_num = fluid_num(neib_info);
 
 					// contribution of free particles
 					const float w = W<kerneltype>(r, params.slength);	// Wij	
-					const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
-					newEffPres += fmax(neib_volume*(neib_oldEffPres + delta_rho*dot(d_gravity, as_float3(relPos)))*w, 0.f);
+					const float neib_volume = relPos.w/physical_density(relVel.w, neib_fluid_num);
+					newEffPres += fmax(neib_volume*(neib_oldEffPres + delta_rho*dot3(d_gravity, relPos))*w, 0.f);
 					alpha += neib_volume*w;
 				}
 			} // end of loop through neighbors
 			if (alpha > 0.f) {
 				newEffPres /= alpha;
 				// Compute a ref pressure for the current case.
-				float refpres = delta_rho*(d_sscoeff[0]/10.)*(d_sscoeff[0]/10.);
+				float refpres = delta_rho*(d_sscoeff[0]/10.f)*(d_sscoeff[0]/10.f);
 				backErr = abs(newEffPres-oldEffPres)/refpres;
 			} else {
 				newEffPres = 0.f;
@@ -984,11 +988,6 @@ jacobiBuildVectorsDevice(KP params,
 	// skip inactive particles
 	if (INACTIVE(pos))
 		return;
-
-	const float4 vel = params.fetchVel(index);
-
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// Jacobi vectors are built for free particles of sediment that are not at
 	// the interface nor at the free-surface.
