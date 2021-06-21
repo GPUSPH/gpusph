@@ -198,7 +198,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 		if (has_io) {
 
 			this_phase->add_command(IDENTIFY_CORNER_VERTICES)
-				.reading(state, BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
+				.reading(state, BUFFER_VERTICES |
 					BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
 				.updating(state, BUFFER_INFO);
 			if (MULTI_DEVICE)

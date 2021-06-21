@@ -638,7 +638,6 @@ saIdentifyCornerVertices(
 	const	float			eps) override
 {
 	const float4* oldPos = bufread.getData<BUFFER_POS>();
-	const float4* boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
 	const hashKey* particleHash = bufread.getData<BUFFER_HASH>();
 	const vertexinfo* vertices = bufread.getData<BUFFER_VERTICES>();
 	const uint* cellStart = bufread.getData<BUFFER_CELLSTART>();
