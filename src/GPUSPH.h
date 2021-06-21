@@ -84,7 +84,7 @@ private:
 	std::shared_ptr<Integrator> integrator;
 
 protected:
-	friend class TimerObject;
+	friend struct TimerObject;
 
 	using cmd_time_clock = std::chrono::steady_clock;
 	using cmd_time_duration = cmd_time_clock::duration;
