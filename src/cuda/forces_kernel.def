@@ -1486,7 +1486,7 @@ __device__ __forceinline__
 enable_if_t<ptype == PT_FLUID, float>
 calc_volume_fraction
 (const float volume, const float deltap)
-{ return 1.; }
+{ return 1.f; }
 
 template<ParticleType ptype>
 __device__ __forceinline__
@@ -1500,7 +1500,7 @@ __device__ __forceinline__
 enable_if_t<ptype == PT_BOUNDARY, float>
 calc_volume_fraction
 (const float volume, const float deltap)
-{ return 0.5; }
+{ return 0.5f; }
 
 template<typename FP, ParticleType particletype>
 __device__ __forceinline__
@@ -1514,7 +1514,7 @@ template<typename FP, ParticleType particletype>
 __device__ __forceinline__
 enable_if_t<FP::boundarytype != SA_BOUNDARY, float>
 volume_fraction(const float volume, const float deltap)
-{ return 1; }
+{ return 1.f; }
 
 /*
  * Density diffusion function templates
@@ -1703,7 +1703,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	* 	n_volume = n_theta*n_ref_volume
 	*/
 	const float n_ref_volume0 = params.deltap*params.deltap*params.deltap;
-	const float n_volume = n_theta*n_ref_volume0*d_rho0[fluid_num(ndata.info)]/physical_density(ndata);
+	const float n_volume = n_theta*n_ref_volume0*d_rho0[n_fluid_num]/physical_density(ndata);
 
 
 	// gravity correction for free-surface flows
@@ -2265,7 +2265,7 @@ pressure_gradient_term
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	// Actual particle reference volume
 	const float p_ref_volume = pdata.pos.w/physical_density(pdata)/p_theta;
-	
+
 	/* Actual volume should be calculated from the actual (interpolated) density
 	* and the mass. But boundary elements do not have mass. To get their actual 
 	* interpolated volume, we use the fact that:
@@ -2283,9 +2283,8 @@ pressure_gradient_term
 
 	return (pdata.p_precalc*p_ref_volume*p_ref_volume +
 			ndata.p_precalc*n_ref_volume*n_ref_volume)/n_ref_volume;
-
-			
 }
+
 /// Pressure gradient term
 /*! Specialization for the volumic term with SPH_HA, when SA_BOUNDARY are used
  * which computes (P_a*V_a^2*theta_b/theta_a + P_b*V_b^2*theta_a/theta_b)
@@ -2300,9 +2299,11 @@ enable_if_t<
 pressure_gradient_term
 (FP const& params, Pt const& pdata, N const& ndata)
 {
-	// Initial volumes (used to compute the thetas)
-	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
-	const float n_volume0 = ndata.relPos.w/d_rho0[fluid_num(ndata.info)];
+	// TODO FIXME GB: they don't seem to be used, actually?
+	// // Initial volumes (used to compute the thetas)
+	// const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
+	// const float n_volume0 = ndata.relPos.w/d_rho0[fluid_num(ndata.info)];
+
 	// Actual volumes (used in the pressure gradient term)
 	const float p_volume = pdata.pos.w/physical_density(pdata);
 	const float n_volume = ndata.relPos.w/physical_density(ndata);
@@ -2311,7 +2312,7 @@ pressure_gradient_term
 	const float n_theta = volume_fraction<FP, FP::nptype>(n_volume, params.deltap);
 
 	return pdata.p_precalc*p_volume*p_volume*n_theta/p_theta +
-			ndata.p_precalc*n_volume*n_volume*p_theta/n_theta;			
+			ndata.p_precalc*n_volume*n_volume*p_theta/n_theta;
 }
 
 /// Pressure gradient term
@@ -2517,7 +2518,10 @@ __device__ __forceinline__
 enable_if_t<viscmodel == MONAGHAN, float3>
 viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
 {
-	const float4 relVel = get_viscous_relVel(pdata, ndata);
+	// TODO FIXME should MONAGHAN use the viscous relVel in vel_dot_pos?
+	// (this is only relevant with MONAGHAN + DUMMY
+	//const float4 relVel = get_viscous_relVel(pdata, ndata);
+
 	// TODO instead of depending on epsartvisc, we could consider this:
 	// the formula we want is (r.v)/(r.r) r, and the division is needed
 	// to avoid underflow for very small (or null) r.
@@ -4132,8 +4136,6 @@ finalizeforcesDevice(FP params)
 		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
 
-		const ParticleType part_type = PART_TYPE(info);
-
 		// Cell-local position of the particle
 		const float4 pos = params.fetchPos(index);
 
@@ -4162,9 +4164,10 @@ finalizeforcesDevice(FP params)
 			// Adding gravity
 			as_float3(pout.force) += d_gravity;
 
+			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
-			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
+			(void)geom_coeff;
 
 			shared.store(params, pdata, pout);
 		}
@@ -4324,8 +4327,6 @@ finalizeRepackDevice(FP params)
 		// Particle info struct
 		const particleinfo info = params.fetchInfo(index);
 
-		const ParticleType part_type = PART_TYPE(info);
-
 		// Cell-local position of the particle
 		const float4 pos = params.fetchPos(index);
 
@@ -4354,9 +4355,10 @@ finalizeRepackDevice(FP params)
 			// to be used with planes/DEM
 			const float dynvisc = d_visccoeff[fluid_num(pdata.info)]*physical_density(pdata.vel.w,fluid_num(pdata.info));
 
+			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
-			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
+			(void)geom_coeff;
 
 			shared.store(params, pdata, pout);
 		}
