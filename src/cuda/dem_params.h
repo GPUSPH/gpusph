@@ -58,17 +58,19 @@ public:
 	fetchDem(float x, float y) const
 	{
 #if DISABLE_DEM_TEXTURE
-		const float xb = clamp(x, 0.f, width - 1.f);
-		const float yb = clamp(y, 0.f, height - 1.f);
+		// CUDA textures are pixel centered, so we need to shift back
+		// by 0.5f.
+		const float xb = clamp(x - 0.5f, 0.f, width - 1.f);
+		const float yb = clamp(y - 0.5f, 0.f, height - 1.f);
 		// find the vertices of the square this point belongs to,
 		// and ensure we are within the domain covered by the DEM
 		// (outer points will be squashed to the edge values)
-		const int    i   = floor(x);
-		const int    j   = floor(y);
+		const int    i   = floor(xb);
+		const int    j   = floor(yb);
 		const int    ip1 = clamp(i + 1, 0, width - 1);
 		const int    jp1 = clamp(j + 1, 0, height - 1);
-		const float pa  = x - (float) i;
-		const float pb  = y - (float) j;
+		const float pa  = xb - i;
+		const float pb  = yb - j;
 		const float ma  = 1 - pa;
 		const float mb  = 1 - pb;
 		const float z00 = ma*mb*demArray[i   + j   * width];
