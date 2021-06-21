@@ -169,9 +169,9 @@ struct common_shear_rate_ndata
 	common_shear_rate_ndata(NeibIter const& neib_iter, P_t const& pdata, KP const& params) :
 		index(neib_iter.neib_index()),
 		relPos(neib_iter.relPos(params.fetchPos(index))),
+		relVel( make_float3(pdata.vel) - params.fetchVel(index) ),
 		info(params.fetchInfo(index)),
 		r(length3(relPos)),
-		relVel( make_float3(pdata.vel) - params.fetchVel(index) ),
 		fluid(fluid_num(info)),
 		rho(physical_density(relVel.w, fluid))
 	{}
