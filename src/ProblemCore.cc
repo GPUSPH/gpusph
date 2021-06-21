@@ -572,7 +572,9 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 	double t1 = t + dt1;
 
 	//#define _DEBUG_OBJ_FORCES_
+#if USE_CHRONO == 1
 	bool there_is_at_least_one_chrono_body = false;
+#endif
 	// For Chrono bodies apply forces and torques
 	for (size_t i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
