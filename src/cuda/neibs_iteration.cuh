@@ -94,7 +94,7 @@ protected:
 	float3 pos_corr;
 	idx_t i;
 	uint neib_cell_base_index;
-	char neib_cellnum;
+	uchar neib_cellnum;
 
 	uint _neib_index; ///< index of the current neighbor
 

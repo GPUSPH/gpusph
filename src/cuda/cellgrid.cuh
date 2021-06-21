@@ -190,7 +190,7 @@ getNeibIndex(	float4 const&	pos,					///< [in] current particle cell relative po
 				const uint*		cellStart,				///< [in] cells first particle index
 				neibdata		neib_data,				///< [in] neighbor data
 				int3 const&		gridPos,				///< [in] current particle cell position
-				char&			neib_cellnum,			///< [in,out] current neighbor cell index (0...26)
+				uchar&			neib_cellnum,			///< [in,out] current neighbor cell index (0...26)
 				uint&			neib_cell_base_index	///< [in,out] neib_cell_base_index : index of first particle of the current cell
 				)
 {
