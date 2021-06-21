@@ -2150,7 +2150,7 @@ compute_density_derivative
 }
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<(FP::simflags & ENABLE_DENSITY_SUM)>
+enable_if_t<!!(FP::simflags & ENABLE_DENSITY_SUM)>
 compute_density_derivative
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
@@ -3350,7 +3350,7 @@ compute_water_depth_at_outflow(FP const& params, P const& pdata, N const& ndata,
 /// Neighbor contribution for the iternal energy evolution
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<FP::simflags & ENABLE_INTERNAL_ENERGY>
+enable_if_t<!!(FP::simflags & ENABLE_INTERNAL_ENERGY)>
 add_internal_energy(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	pout.DEDt -= dot3(nout.DvDt, ndata.relVel)/2;
@@ -3417,7 +3417,7 @@ write_xsph(FP const& params, P const& pdata, OP const& pout)
 /// Write out internal energy, if enabled
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<(FP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<!!(FP::simflags & ENABLE_INTERNAL_ENERGY)>
 write_internal_energy(FP const& params, P const& pdata, OP const& pout)
 { params.DEDt[pdata.index] = pout.DEDt; }
 

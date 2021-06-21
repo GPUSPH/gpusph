@@ -722,7 +722,7 @@ write_sps_turbvisc(FP const& params, const uint index, const float turbvisc)
 
 template<typename FP>
 __device__ __forceinline__
-enable_if_t<(FP::sps_simflags & SPSK_STORE_TURBVISC)>
+enable_if_t<!!(FP::sps_simflags & SPSK_STORE_TURBVISC)>
 write_sps_turbvisc(FP const& params, const uint index, const float turbvisc)
 { params.turbvisc[index] = turbvisc; }
 
@@ -735,7 +735,7 @@ write_sps_tau(FP const& params, const uint index, symtensor3 const& tau)
 
 template<typename FP>
 __device__ __forceinline__
-enable_if_t<(FP::sps_simflags & SPSK_STORE_TAU)>
+enable_if_t<!!(FP::sps_simflags & SPSK_STORE_TAU)>
 write_sps_tau(FP const& params, const uint index, symtensor3 const& tau)
 { params.storeTau(tau, index); }
 

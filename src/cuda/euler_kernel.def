@@ -213,10 +213,12 @@ compute_acceleration(EP const& params, P &pdata, float dt)
 
 /// Integrate energy
 /*! When internal energy integration is enabled
+ * (the enabling conditional uses !! to satisfy some stricter compilers
+ * that do not automatically cast integers to bool)
  */
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::simflags & ENABLE_INTERNAL_ENERGY>
+enable_if_t<!!(EP::simflags & ENABLE_INTERNAL_ENERGY)>
 integrate_energy(EP const& params, P &pdata, int index, float dt)
 {
 	pdata.energy += dt*params.DEDt[pdata.index];
@@ -327,7 +329,7 @@ write_volume(EP const& params, P &pdata, int index)
 /// Write internal energy, if enabled
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<(EP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<!!(EP::simflags & ENABLE_INTERNAL_ENERGY)>
 write_energy(EP const& params, P &pdata, int index)
 {
 	params.newEnergy[index] = pdata.energy;

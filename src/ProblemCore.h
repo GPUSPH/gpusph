@@ -71,7 +71,7 @@
 
 //#include "math.h"
 
-#define BLOCK_SIZE_IOBOUND	256
+#define BLOCK_SIZE_IOBOUND	256U
 
 typedef std::vector<vertexinfo> VertexVect;
 
