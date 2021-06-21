@@ -855,7 +855,8 @@ void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 {
 	const int step = cmd.step.number;
 
-	const float dt = cmd.dt(gdata);
+	// TODO see below
+	//const float dt = cmd.dt(gdata);
 
 	// Let the problem compute the new moving bodies data
 	// TODO we pass step and gdata->dt, should be pass step and dt (which is already halved if necessary)?
