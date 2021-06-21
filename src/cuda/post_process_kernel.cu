@@ -467,7 +467,6 @@ calcInterfaceparticleDevice(
 			continue;
 
 		const particleinfo n_info = params.fetchInfo(neib_index);
-		const ParticleType nptype = PART_TYPE(n_info);
 		const float r = length3(relPos);
 
 		// neighbor physical density and volume
