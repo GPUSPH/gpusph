@@ -1156,8 +1156,8 @@ struct forces_neib_data :
 	// these are the same as the particle data
 	COND_STRUCT(_has_keps, keps_particle_data),
 	// precalculated pressure
-	p_precalc_particle_data,
-	COND_STRUCT(_has_sps, sps_particle_data)
+	COND_STRUCT(_has_sps, sps_particle_data),
+	p_precalc_particle_data
 {
 	static constexpr SPHFormulation sph_formulation = _sph_formulation;
 
