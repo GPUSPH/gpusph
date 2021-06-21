@@ -1390,6 +1390,15 @@ void ProblemCore::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
 
 void ProblemCore::fillDeviceMapByEquation()
 {
+	// These are a couple of examples on how to implement a splitting based on some
+	// equation taking the cell x, y, z coordinates as parameters.
+	// TODO FIXME this should be done by letting the user pass an equation, e.g.
+	// void fillDeviceMap() override {
+	// 	fillDeviceMapByEquation([](uint cx, uint cy, uint cz) { ... })
+	// }
+	// and this function simply applying the function to determine the device for each cell,
+	// plus boundary checks.
+#if 0
 	// 1st equation: diagonal plane. (x+y+z)=coeff
 	//uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
 	uint coeff = (gdata->gridSize.x + gdata->gridSize.y + gdata->gridSize.z) / gdata->totDevices;
@@ -1417,6 +1426,9 @@ void ProblemCore::fillDeviceMapByEquation()
 				// assign it
 				gdata->s_hDeviceMap[cellLinearHash] = (uchar)dstDevice;
 			}
+#else
+	throw std::runtime_error("fillDeviceMapByEquation should only used as an example for the time being");
+#endif
 }
 
 // Partition by performing the splitting the domain in the specified number of slices for each axis.
