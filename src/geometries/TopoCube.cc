@@ -321,14 +321,16 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_VTK>(const char* fname, FormatOp
 	}
 	fdem.close();
 
-	TopoCube *ret = new TopoCube();
-
 	const double sizex = ewres*(ncols-1);
 	const double sizey = nsres*(nrows-1);
 
-	ret->SetCubeDem(dem, sizex, sizey, zmax - zmin,
-		ncols, nrows, -zmin);
-	ret->SetGeoLocation(south + sizey, south, west + sizex, west);
+	north = south + sizey;
+	east = west + sizex;
+
+	TopoCube *ret = new TopoCube();
+
+	ret->SetCubeDem(dem, sizex, sizey, zmax - zmin, ncols, nrows, -zmin);
+	ret->SetGeoLocation(north, south, east, west);
 
 	delete [] dem;
 
@@ -404,8 +406,8 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname, FormatOp
 	const double sizex = xres*(ncols-1);
 	const double sizey = yres*(nrows-1);
 
-	north = south + sizex;
-	east = west + sizey;
+	north = south + sizey;
+	east = west + sizex;
 
 	TopoCube *ret = new TopoCube();
 
