@@ -117,7 +117,6 @@ template<>
 void PredictorCorrector::initializeBoundaryConditionsSequence<DUMMY_BOUNDARY>
 	(Integrator::Phase *this_phase, StepInfo const& step)
 {
-	const SimParams *sp = gdata->problem->simparams();
 	const bool init_step = (step.number == 0);
 
 	/* Boundary conditions are applied to step n during initialization step,
@@ -926,8 +925,6 @@ PredictorCorrector::PredictorCorrector(GlobalData const* _gdata) :
 	m_enabled_filters(_gdata->simframework->getFilterFreqList()),
 	m_current_filter(m_enabled_filters.cend())
 {
-	const SimParams *sp = gdata->problem->simparams();
-
 	// Preallocate room for all phases
 	m_phase.resize(NUM_PHASES);
 
