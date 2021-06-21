@@ -720,9 +720,6 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 void
 TopoCube::FillIn(PointVect& points, const double dx, const int layers)
 {
-	const int abs_layers = layers < 0 ? -layers : layers;
-	const double layer_dx = layers < 0 ? -dx : dx;
-
 	FillBorder(points, dx, 0, true , layers, 1);
 	FillBorder(points, dx, 1, false, layers, 1);
 	FillBorder(points, dx, 2, true , layers, 1);
