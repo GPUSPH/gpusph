@@ -1548,15 +1548,25 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		const double DEFAULT_DENSITY = atrest_density(0);
 		const double DEFAULT_PHYSICAL_DENSITY = physparams()->numFluids() > 1 ?
 			1 : physical_density(DEFAULT_DENSITY, 0);
+
 		// Setting particle mass by means of dx and default density only. This leads to same mass
-		// everywhere but possibly slightly different densities.
+		// everywhere but possibly slightly different densities. (set the define to 1 to test)
+#define SET_PARTICLE_MASS_DIRECTLY 0
+#if SET_PARTICLE_MASS_DIRECTLY
 		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * DEFAULT_PHYSICAL_DENSITY;
+#endif
+
 
 		// Set part mass, if not set already.
-		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set)
-			setParticleMassByDensity(g, DEFAULT_PHYSICAL_DENSITY);
+		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set) {
 			// TODO: should the following be an option?
-			//setParticleMass(g, DEFAULT_PARTICLE_MASS);
+			// (most likely not, especially with the multi-fluid support planned for APIv2
+#if SET_PARTICLE_MASS_DIRECTLY
+			setParticleMass(g, DEFAULT_PARTICLE_MASS);
+#else
+			setParticleMassByDensity(g, DEFAULT_PHYSICAL_DENSITY);
+#endif
+		}
 
 		// Set object mass for floating objects, if not set already
 		if (m_geometries[g]->type == GT_FLOATING_BODY && !m_geometries[g]->mass_was_set)
