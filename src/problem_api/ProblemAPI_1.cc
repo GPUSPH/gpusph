@@ -1887,8 +1887,6 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 	// Open boundaries are orthogonal to any kind of bodies, so their object_id will be simply
 	// equal to the incremental counter.
 	uint open_boundaries_counter = 0;
-	// the number of all the particles of rigid bodies will be used to set s_hRbLastIndex
-	uint bodies_particles_counter = 0;
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
 
