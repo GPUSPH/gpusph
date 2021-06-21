@@ -108,7 +108,6 @@ DynBoundsExample::initializeParticles(BufferList &buffers, const uint numParticl
 
 	// 2. grab the particle arrays from the buffer list
 	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
 	double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
 
 	// 3. iterate on the particles

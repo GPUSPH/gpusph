@@ -55,9 +55,12 @@ DEMExample::DEMExample(GlobalData *gdata) : Problem(gdata)
 		use_geometries, add_flags<ENABLE_DEM | ENABLE_PLANES>()
 	);
 
+	if (mlsIters > 0)
+		addFilter(MLS_FILTER, mlsIters);
+
 	/* Simulation parameters */
-	set_deltap(0.05);
-	double water_height = 0.8;
+	const double water_height = 0.8;
+	set_deltap(water_height/ppH);
 
 	/* Physical parameters */
 	setMaxFall(2.0);

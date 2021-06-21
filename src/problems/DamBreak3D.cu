@@ -79,7 +79,6 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.015f);
 	//set_timestep(0.00005);
 	set_gravity(-9.81);
-	const float g = get_gravity_magnitude();
 	const double H = 0.4;
 	setMaxFall(H);
 	add_fluid(1000.0);
