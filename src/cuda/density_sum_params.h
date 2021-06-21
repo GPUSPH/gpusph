@@ -252,10 +252,10 @@ struct quadrature_gamma_params :
 		vertPos_params<false>(bufread),
 		newPos(bufwrite.getData<BUFFER_POS>()),
 		info(bufread.getData<BUFFER_INFO>()),
-		particleHash(bufread.getData<BUFFER_HASH>()),
 		newBoundElement(has_moving_bodies ?
 			bufwrite.getConstData<BUFFER_BOUNDELEMENTS>() :
 			bufread.getData<BUFFER_BOUNDELEMENTS>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
 		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
 		cellStart(bufread.getData<BUFFER_CELLSTART>()),
 		particleRangeEnd(_particleRangeEnd),

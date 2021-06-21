@@ -241,7 +241,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	if (use_cyl) {
 		setPositioning(PP_BOTTOM_CENTER);
-		Point p[10];
+		Point p[11];
 		p[0]  = Point(slope_origin.x + slope_length/(cos(beta)*10), ly/2., 0);
 		p[1]  = Point(slope_origin.x + slope_length/(cos(beta)*10), ly/6.,  0);
 		p[2]  = Point(slope_origin.x + slope_length/(cos(beta)*10), 5*ly/6, 0);
