@@ -44,11 +44,9 @@
 Objects::Objects(GlobalData *_gdata) : Problem(_gdata)
 {
 	// *** user parameters from command line
-	const bool WET = get_option("wet", false);
 	const bool USE_PLANES = get_option("use_planes", true);
 	const uint NUM_OBSTACLES = get_option("num_obstacles", 1);
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
-	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
 	// density diffusion terms, see DensityDiffusionType
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", FERRARI);
 

@@ -48,6 +48,7 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : Problem(_gdata)
 
 	set_deltap(0.02715f);
 
+	// Physical parameters
 	size_t water = add_fluid(1000.0);
 	set_equation_of_state(water,  7.0f, 130.f);
 	set_kinematic_visc(water, 1.0e-6f);
@@ -70,9 +71,6 @@ Spheric2SA::Spheric2SA(GlobalData *_gdata) : Problem(_gdata)
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
-
-	// Physical parameters
-	float g = get_gravity_magnitude();
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1e-2f);
@@ -110,17 +108,14 @@ Spheric2SA::initializeParticles(BufferList &buffers, const uint numParticles)
 {
 	printf("k and epsilon initialization...\n");
 
-	float4 *vel = buffers.getData<BUFFER_VEL>();
-	particleinfo *info = buffers.getData<BUFFER_INFO>();
-	double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
 	float *k = buffers.getData<BUFFER_TKE>();
 	float *epsilon = buffers.getData<BUFFER_EPSILON>();
 
-	for (uint i = 0; i < numParticles; i++) {
-		const float Ti = 0.01f;
-		const float u = 1.0f; // TODO set according to initial velocity
-		const float L = 1.0f; // TODO set according to geometry
-		if (k && epsilon) {
+	if (k && epsilon) {
+		for (uint i = 0; i < numParticles; i++) {
+			const float Ti = 0.01f;
+			const float u = 1.0f; // TODO set according to initial velocity
+			const float L = 1.0f; // TODO set according to geometry
 			k[i] = fmaxf(1e-5f, 3.0f/2.0f*(u*Ti)*(u*Ti));
 			epsilon[i] = fmaxf(1e-5f, 2.874944542f*k[i]*u*Ti/L);
 			//k[i] = k0;
@@ -143,7 +138,7 @@ void Spheric2SA::fillDeviceMap()
 
 bool Spheric2SA::need_write(double t) const
 {
- 	return 0;
+	return 0;
 }
 
 

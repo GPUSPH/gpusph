@@ -37,7 +37,6 @@
 LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 {
 	const bool USE_PLANES = get_option("use_planes", false);
-	const uint NUM_TESTPOINTS = get_option("num_testpoints", 0);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
 
@@ -51,9 +50,6 @@ LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 		RHODIFF,
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
-
-	// will dump testpoints separately
-	addPostProcess(TESTPOINTS);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
 	// diffusion is enabled, 10 otherwise
@@ -81,7 +77,6 @@ LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(H/32);
 	//set_timestep(0.00005);
 	set_gravity(-9.81);
-	const float g = get_gravity_magnitude();
 	set_interface_epsilon(0.08);
 
 	// If we used only makeUniverseBox(), origin and size would be computed automatically
