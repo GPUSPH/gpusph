@@ -30,6 +30,9 @@
    with a double-periodic domain (X for flow direction, Y to eliminate side
    boundary effects). Top and bottom layers are implemented as dynamic boundary
    particles.
+   TODO: why do we have this problem, when we have the actual Poiseuille problem?
+   This is simpler to compile because it has fewer options, and it also enables
+   repacking. But it should at the very least be renamed to a more practical name.
  */
 
 
@@ -83,16 +86,19 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 
 	// Building the geometry
 	setPositioning(PP_CORNER);
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
-		m_origin + make_double3(m_deltap/2., m_deltap/2., w+m_deltap), W-m_deltap, W-m_deltap, H-2*m_deltap);
 
-	GeometryID bp1 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+	// Fluid box
+	addBox(GT_FLUID, FT_SOLID,
+		m_origin + make_double3(m_deltap/2., m_deltap/2., w+m_deltap),
+		W-m_deltap, W-m_deltap, H-2*m_deltap);
+
+	// Bottom floor
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		m_origin, W, W, w);
-	disableCollisions(bp1);
 
-	GeometryID bp2 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+	// Top floor
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		m_origin + make_double3(0, 0, H + w), W, W, w);
-	disableCollisions(bp2);
 
 	// Print information
 	float flowvel = H*H*fabs(get_gravity().x)/(8*physparams()->kinematicvisc[0]);
