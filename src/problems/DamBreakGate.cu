@@ -90,42 +90,43 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 	float r0 = m_deltap;
 	setPositioning(PP_CORNER);
 
-	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+	// The experiment box is composed of a box, minus the top, which is unfilled with
+	// a second geometry
+	// TODO Problem API 2 should expose filling options such as the specification of which walls to fill
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
-	disableCollisions(experiment_box);
 	GeometryID unfill_top = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
 		Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z+0.4), 1.6, 0.67, 0.1);
-	disableCollisions(unfill_top);
 	setEraseOperation(unfill_top, ET_ERASE_BOUNDARY);
 
+	// Gate
 	float3 gate_origin = make_float3(0.4 + 2*r0, r0, r0);
-	GeometryID gate = addBox(GT_MOVING_BODY, FT_BORDER,
+	addBox(GT_MOVING_BODY, FT_BORDER,
 		Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 0, 0.67-2*r0, H);
-	disableCollisions(gate);
 
-	GeometryID obstacle = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+	// Obstacle
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, H - r0);
-	disableCollisions(obstacle);
 
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
+	// Fluid
+	addBox(GT_FLUID, FT_SOLID,
 		Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), 0.4, 0.67 - 2*r0, H - r0);
 
 	bool wet = false;	// set wet to true have a wet bed experiment
 	if (wet) {
-
-		GeometryID fluid1 = addBox(GT_FLUID, FT_SOLID,
+		// Additional fluid boxes covering the floor
+		// TODO this should be made into a single box, using the obstacle
+		// to dig the hole in it
+		addBox(GT_FLUID, FT_SOLID,
 			Point(0.4 + 3*r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
 			0.5 - 4*r0, 0.67 - 2*r0, 0.03);
-
-		GeometryID fluid2 = addBox(GT_FLUID, FT_SOLID,
+		addBox(GT_FLUID, FT_SOLID,
 			Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
 			0.58 - 2*r0, 0.67 - 2*r0, 0.03);
-
-		GeometryID fluid3 = addBox(GT_FLUID, FT_SOLID,
+		addBox(GT_FLUID, FT_SOLID,
 			Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
 			0.12, 0.24 - 2*r0, 0.03);
-
-		GeometryID fluid4 = addBox(GT_FLUID, FT_SOLID,
+		addBox(GT_FLUID, FT_SOLID,
 			Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
 			0.12, 0.31 - 2*r0, 0.03);
 	}
