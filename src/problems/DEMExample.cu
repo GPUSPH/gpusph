@@ -69,11 +69,14 @@ DEMExample::DEMExample(GlobalData *gdata) : Problem(gdata)
 	set_equation_of_state(water, 7.0f, NAN /* autocompute from max fall */);
 
 	/* Geometries */
-	GeometryID dem = addDEM(dem_file, DEM_FMT_ASCII, use_geometries ? FT_NOFILL : FT_BORDER);
-	GeometryID fluid_box = addDEMFluidBox(water_height);
+	addDEM(dem_file, DEM_FMT_ASCII, use_geometries ? FT_NOFILL : FT_BORDER);
+	addDEMFluidBox(water_height);
 
 	if (QUERY_ANY_FLAGS(simparams()->simflags, ENABLE_PLANES))
-		vector<GeometryID> planes = addDEMPlanes();
+		// Add geometric planes around the DEM boundary. Individual planes can be
+		// manipulated by assigning the resulting vector<GeometryID>
+		// to a variable and then extracting the planes we are interested in
+		addDEMPlanes();
 	else if (simparams()->boundary_is_multilayer()) {
 		// DEM boundaries start one layer out, so we need an extra deltap of margin
 		// TODO FIXME this should be handled automatically
