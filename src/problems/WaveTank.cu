@@ -156,7 +156,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	// place the fluid box. Fill the whole domain in the X and Y direction,
 	// up to the at-rest height. This will be “carved out” by the wall and floor
 	// geometries placed afterwards
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
+	addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
 
 	// place the paddle
 	GeometryID paddle = addBox(GT_MOVING_BODY, FT_BORDER,
