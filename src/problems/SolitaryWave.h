@@ -40,23 +40,19 @@
 
 class SolitaryWave: public Problem {
 	private:
-		int			icyl, wmakertype; //icone
+		int			icyl; //icone
 		int			i_use_bottom_plane;
 
-		GeometryID	cyl[10];
-		//GeometryID	cone;
-
-		double 		lx, ly, lz;	// Dimension of the computational domain
+		double		lx, ly, lz;	// Dimension of the computational domain
 		double		h_length;	// Horizontal part of the experimental domain
 		double		slope_length;	// Length of the inclined plane
 		double		height;		// Still water (with z origin on the horizontal part)
 		double		beta;		// Angle of the inclined plane
 		double		H;		// still water level
-		double		Hbox;	// height of experiment box
 
 		// Moving boundary data
 		double		a, b, c;
-		double 		piston_tstart, piston_tend;
+		double		piston_tstart, piston_tend;
 		double		piston_initial_crotx;
 
 	public:

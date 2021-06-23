@@ -115,8 +115,6 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 	setPositioning(PP_CORNER);
 	const float width = ly;
 
-	const float br = (simparams()->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
-
 	float z = 0;
 	int n = 0;
 	while (z < H) {
@@ -126,16 +124,14 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 		addRect(GT_FLUID, FT_SOLID, Point(x, r0, z),
 				l, width-2.0*r0);
 		n++;
-	 }
-	GeometryID piston = addBox(GT_MOVING_BODY, FT_BORDER, Point(piston_initial_crotx, 0, 0), 0, width, height);
-	//piston.SetPartMass(m_deltap, physparams()->rho0[0]);
-	//piston.Fill(piston.GetParts(), br, true);
-	disableCollisions(piston);
+	}
+
+	addBox(GT_MOVING_BODY, FT_BORDER, Point(piston_initial_crotx, 0, 0), 0, width, height);
+
 	if (i_use_bottom_plane == 0) {
-		GeometryID experiment_box1 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 				Point(h_length, 0, 0),
 				slope_length/cos(beta), width, slope_length*tan(beta));
-		disableCollisions(experiment_box1);
 	}
 
 	if (icyl == 1) {
@@ -157,8 +153,7 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 			double radius = 0.025;
 			if (i == 0)
 				radius = 0.05;
-			cyl[i] = addCylinder(GT_MOVING_BODY, FT_BORDER, p[i], radius, height);
-			disableCollisions(cyl[i]);
+			addCylinder(GT_MOVING_BODY, FT_BORDER, p[i], radius, height);
 		}
 	}
 }
