@@ -71,18 +71,17 @@ StillWaterRepackSA::StillWaterRepackSA(GlobalData *_gdata) : Problem(_gdata)
 
 	//*** Fluid and Thermodynamic Properties
 	add_fluid(1000.0);
-	set_kinematic_visc(0, 1.e-6);  	//check the parameters
+	set_kinematic_visc(0, 1.e-6); //check the parameters
 	set_equation_of_state(0, 7.0f,20.f); //check the parameters
 
 	//*** Add the Fluid
 	addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/StillWaterRepackSA/0.stillWaterRepackSA.fluid.h5sph", NULL);
 
 	//*** Add the Main Container
-	GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/StillWaterRepackSA/0.stillWaterRepackSA.kent0.h5sph", NULL);
-	disableCollisions(container);
+	addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/StillWaterRepackSA/0.stillWaterRepackSA.kent0.h5sph", NULL);
 
 	//*** Add the free-surface
-	GeometryID free_surface = addHDF5File(GT_FREE_SURFACE, Point(0,0,0), "./data_files/StillWaterRepackSA/0.stillWaterRepackSA.kent1.h5sph", NULL);
+	addHDF5File(GT_FREE_SURFACE, Point(0,0,0), "./data_files/StillWaterRepackSA/0.stillWaterRepackSA.kent1.h5sph", NULL);
 
 }
 
