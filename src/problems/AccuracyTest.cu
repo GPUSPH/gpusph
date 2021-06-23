@@ -81,32 +81,26 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	const double wall_size = num_layers*m_deltap;
 	const double box_thickness = wall_size - m_deltap;
 
-	// Building the geometry
-	GeometryID side0 = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0),
+	// Building the geometry:
+	// five boxes of type GT_FIXED_BOUNDARY, with filling FT_BORDER, and defined by
+	// their lower-left corner coordinates and their dimensions in the x, y, z direction.
+	// We use boxes because with dummy boundaries the walls have full thickness.
+
+	// Floor:
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0),
 		lx, ly, box_thickness);
-	disableCollisions(side0);
 
-	GeometryID side1 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(0, 0, wall_size),
+	// Four sides
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, wall_size),
 		box_thickness, ly, lz - wall_size);
-	disableCollisions(side1);
-
-	GeometryID side2 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(lx - box_thickness, 0, wall_size),
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(lx - box_thickness, 0, wall_size),
 		box_thickness, ly, lz - wall_size);
-	disableCollisions(side2);
-
-	GeometryID side3 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(wall_size, 0, wall_size),
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(wall_size, 0, wall_size),
 		lx - 2*wall_size, box_thickness, lz - wall_size);
-	disableCollisions(side3);
-
-	GeometryID side4 = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(wall_size, ly - box_thickness, wall_size),
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(wall_size, ly - box_thickness, wall_size),
 		lx - 2*wall_size, box_thickness, lz - wall_size);
-	disableCollisions(side4);
 
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
-		Point(wall_size, wall_size, wall_size),
+	// Fluid: the geometry type is now GT_FLUID, and the filling is FT_SOLID
+	addBox(GT_FLUID, FT_SOLID, Point(wall_size, wall_size, wall_size),
 		0.4, ly - 2*wall_size, H);
 }
