@@ -86,7 +86,7 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 		lx + 2 * offs, ly + 2 * offs, lz + 2 * offs);
 	disableCollisions(cube);
 
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, Point(offs, offs, offs), lx, ly, H);
+	addBox(GT_FLUID, FT_SOLID, Point(offs, offs, offs), lx, ly, H);
 
 	// TODO
 	/*
