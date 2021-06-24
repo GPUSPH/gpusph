@@ -54,14 +54,18 @@ public:
 	//! NOTE: x, y are in DEM-relative coordinates
 	//! This maps to a simple texture fetch, unless DEM texture usage is disabled,
 	//! in which case we do the bilinear interpolation manually
+	//! NOTE: CUDA textures are pixel centered, so we need a 0.5 units fixup
+	//! on the x and y coordinates. This is done AUTOMATICALLY, and should not be done
+	//! by the caller. This way:
+	//! 1. the cell centering remains an implementation detail that can be changed
+	//!    when supporting other platorms that use a different conventions
+	//! 2. in the DISABLE_DEM_TEXTURE case it avoids a + 0.5f (on call) - 0.5f (on fetch)
 	__device__ __forceinline__ float
 	fetchDem(float x, float y) const
 	{
 #if DISABLE_DEM_TEXTURE
-		// CUDA textures are pixel centered, so we need to shift back
-		// by 0.5f.
-		const float xb = clamp(x - 0.5f, 0.f, width - 1.f);
-		const float yb = clamp(y - 0.5f, 0.f, height - 1.f);
+		const float xb = clamp(x, 0.f, width - 1.f);
+		const float yb = clamp(y, 0.f, height - 1.f);
 		// find the vertices of the square this point belongs to,
 		// and ensure we are within the domain covered by the DEM
 		// (outer points will be squashed to the edge values)
@@ -80,7 +84,8 @@ public:
 
 		return z00 + z10 + z01 + z11;
 #else
-		return tex2D<float>(demTex, x, y);
+		// CUDA textures are pixel centered, so we need to shift the requsted coordinate by 0.5f
+		return tex2D<float>(demTex, x + 0.5f, y + 0.5f);
 #endif
 	}
 };

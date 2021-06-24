@@ -141,11 +141,10 @@ __device__ __forceinline__ float2
 DemPos(GridPosType const& gridPos, LocalPosType const& pos)
 {
 	// note that we separate the grid conversion part from the pos conversion part,
-	// for improved accuracy. The final 0.5f is because texture values are assumed to be
-	// at the center of the DEM cell.
+	// for improved accuracy.
 	return d_dem_pos_fixup + make_float2(
-		(gridPos.x + 0.5f)*d_dem_scaled_cellSize.x + pos.x/d_ewres + 0.5f,
-		(gridPos.y + 0.5f)*d_dem_scaled_cellSize.y + pos.y/d_nsres + 0.5f);
+		(gridPos.x + 0.5f)*d_dem_scaled_cellSize.x + pos.x/d_ewres,
+		(gridPos.y + 0.5f)*d_dem_scaled_cellSize.y + pos.y/d_nsres);
 }
 
 /**! Interpolate DEM for a point at DEM cell pos demPos,
