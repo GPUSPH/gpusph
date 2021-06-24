@@ -689,7 +689,7 @@ class ProblemCore
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 		//! callback for resetting the buffer values after resuming from a repack file
 		virtual void resetBuffers(BufferList &buffers, const uint numParticles);
-
+		void printBody(const uint bid);
 
 };
 #endif
