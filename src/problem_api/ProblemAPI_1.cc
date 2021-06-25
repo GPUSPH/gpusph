@@ -656,7 +656,7 @@ GeometryID ProblemAPI<1>::addDisk(const GeometryType otype, const FillType ftype
 {
 	double offsetX = 0, offsetY = 0;
 	if (m_positioning == PP_CORNER)
-		offsetX = offsetY = radius;
+		offsetX = offsetY = -radius;
 
 	return addGeometry(otype, ftype,
 		make_shared<Disk>( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) ),

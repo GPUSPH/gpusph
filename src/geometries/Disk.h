@@ -39,6 +39,7 @@ class Disk: public Object {
 
 	public:
 		Disk(void);
+		Disk(const Point&, const double);
 		Disk(const Point&, const double, const Vector&);
 		Disk(const Point&, const double, const EulerParameters&);
 		Disk(const Point&, const Vector&, const Vector &);
@@ -54,8 +55,9 @@ class Disk: public Object {
 		void FillBorder(PointVect&, const double);
 
 		int Fill(PointVect&, const double, const bool fill = true);
-		void FillIn(PointVect& points, const double dx, const int layers)
-		{ throw std::runtime_error("Disk::FillIn not implemented !"); }
+		void FillIn(PointVect& points, const double dx, const int layers);
+		void FillIn2D(PointVect& points, const double dx, const int layers);
+		void FillIn3D(PointVect& points, const double dx, const int layers);
 
 		bool IsInside(const Point&, const double) const;
 

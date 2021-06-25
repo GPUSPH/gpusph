@@ -38,6 +38,9 @@ Disk::Disk(void)
 	m_r = 0.0;
 }
 
+//! Construct a disk of the given radius, normal to the z axis
+Disk::Disk(const Point& center, double radius) : Disk(center, radius, Vector(0, 0, 1))
+{ }
 
 Disk::Disk(const Point& center, double radius, const Vector& normaldir)
 {
@@ -93,7 +96,8 @@ double
 Disk::Volume(const double dx) const
 {
 	const double r = m_r + dx/2.0;
-	const double volume = M_PI*r*r*dx;
+	const double dz = Object::world_dimensions == 3 ? dx : 1;
+	const double volume = M_PI*r*r*dz;
 	return volume;
 }
 
@@ -103,10 +107,56 @@ Disk::SetInertia(const double dx)
 {
 	const double r = m_r + dx/2.0;
 	const double h = dx;
-	m_inertia[0] = m_mass/12.0*(3*r*r + h*h);
-	m_inertia[1] = m_inertia[0];
-	m_inertia[2] = m_mass/2.0*r*r;
+	if (Object::world_dimensions == 3) {
+		m_inertia[0] = m_mass/12.0*(3*r*r + h*h);
+		m_inertia[1] = m_inertia[0];
+		m_inertia[2] = m_mass/2.0*r*r;
+	} else {
+		throw std::runtime_error(std::string(__func__) + " not implemented in " + std::to_string(Object::world_dimensions) + " dimensions");
+	}
 }
+
+void
+Disk::FillIn(PointVect &points, const double dx, const int layers)
+{
+	switch (Object::world_dimensions) {
+	case 2: FillIn2D(points, dx, layers); break;
+	case 3: FillIn3D(points, dx, layers); break;
+	default: throw std::runtime_error("can't FillIn a Disk in " + std::to_string(Object::world_dimensions) + " dimensions");
+	}
+}
+
+/// Fill the disk boundary with layers of particles,
+/// towards the inside (+) or outside (-) depending on the layers sign.
+void
+Disk::FillIn2D(PointVect &points, const double dx, const int layers)
+{
+	int _layers = abs(layers);
+
+	// shift towards the inside
+	const double signed_dx = (layers > 0 ? -dx : dx);
+
+	// First layer: on the boundary
+	FillBorder(points, dx);
+	// NOTE: pre-decrementing causes (_layers-1) layers to be filled. This
+	// is correct since the first layer was already filled
+	while (--_layers > 0) {
+		Disk layer(m_center, m_r + _layers*signed_dx);
+		layer.SetPartMass(m_center(3));
+		layer.FillBorder(points, dx);
+	}
+}
+
+
+/// Fill a disk with layers of particles, from the surface
+/// to the direction of the normal vector. Use a negative
+/// value of layers to FillIn the opposite direction
+void
+Disk::FillIn3D(PointVect &points, const double dx, const int layers)
+{
+	throw std::runtime_error("Disk::FillIn not implemented in 3D");
+}
+
 
 void Disk::setEulerParameters(const EulerParameters &ep)
 {
@@ -118,9 +168,10 @@ void Disk::setEulerParameters(const EulerParameters &ep)
 // (of delta_p thickness, altough automatic world size will add) by using a vector radius
 void Disk::getBoundingBox(Point &output_min, Point &output_max)
 {
-	Point corner_origin = m_center - Vector( -m_r, -m_r, -m_r );
+	const double dz = Object::world_dimensions == 3 ? m_r : 0;
+	Point corner_origin = m_center - Vector( m_r, m_r, dz );
 	getBoundingBoxOfCube(output_min, output_max, corner_origin,
-		Vector(2*m_r, 0, 0), Vector(0, 2*m_r, 0), Vector(0, 0, -2*m_r) );
+		Vector(2*m_r, 0, 0), Vector(0, 2*m_r, 0), Vector(0, 0, 2*dz) );
 }
 
 void Disk::shift(const double3 &offset)
