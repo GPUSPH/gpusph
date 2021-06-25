@@ -1068,6 +1068,11 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += gdata->devices * sizeof(uint*) * 3;
 		totCPUbytes += gdata->devices * sizeof(uint) * 4;
 	}
+
+	// We're done allocating buffers, so it's time to see how many of these are not ephemeral
+	// and shuld be (re)stored via hotfiles
+	gdata->countResumeBuffers();
+
 	return totCPUbytes;
 }
 

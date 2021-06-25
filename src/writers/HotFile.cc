@@ -160,6 +160,19 @@ unsupported_version(uint version)
 	throw out_of_range(os.str());
 }
 
+/* In version 1 we used to store the number of host buffers.
+ * However, we only actually (re)stored ephemeral buffers, so
+ * with the introduction of version 2 we changed the header to only store
+ * the actual number of stored buffers
+ */
+static size_t
+get_num_buffers(version_t version, const GlobalData *gdata)
+{
+	return
+		version == VERSION_1 ? gdata->s_hBuffers.size() :
+		version == VERSION_2 ? gdata->numResumeBuffers : 0;
+}
+
 void HotFile::load() {
 	// find verrsion —this was already checked during the readHeader called by GPUSPH,
 	// but we will do another check here anyway while converting the number to a version_t
@@ -177,7 +190,8 @@ void HotFile::load() {
 
 	// TODO FIXME would it be possible to restore from a situation with a
 	// different number of arrays?
-	check_counts_match("buffer", _header.buffer_count, _gdata->s_hBuffers.size());
+	const size_t num_buffers = get_num_buffers(version, _gdata);
+	check_counts_match("buffer", _header.buffer_count, num_buffers);
 
 	// NOTE: simulation with ODE bodies cannot be resumed identically due to
 	// the way ODE handles its internal state.
@@ -209,12 +223,15 @@ HotFile::~HotFile() {
 }
 
 void HotFile::writeHeader(ofstream *fp, version_t version) {
+	// The only difference between VERSION_1 and VERSION_2 is the buffer_count
+	// encoded in the header
+	const size_t num_buffers = get_num_buffers(version, _gdata);
 	switch (version) {
 	case VERSION_1:
 	case VERSION_2:
 		memset(&_header, 0, sizeof(_header));
 		_header.version = version;
-		_header.buffer_count = _gdata->s_hBuffers.size();
+		_header.buffer_count = num_buffers;
 		_header.particle_count = _particle_count;
 		_header.body_count = _gdata->problem->simparams()->numbodies;
 		_header.numOpenBoundaries = _gdata->problem->simparams()->numOpenBoundaries;

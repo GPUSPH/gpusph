@@ -162,6 +162,9 @@ struct GlobalData {
 
 	// CPU buffers ("s" stands for "shared"). Not double buffered
 	BufferList s_hBuffers;
+	//! Number of CPU buffers that are (re)stored through HotFiles
+	//! This is the number of non-ephemeral buffers in s_hBuffers
+	size_t numResumeBuffers;
 
 	devcount_t*			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
@@ -303,6 +306,7 @@ struct GlobalData {
 		numOpenVertices(0),
 		allocatedParticles(0),
 		nGridCells(0),
+		numResumeBuffers(0),
 		s_hDeviceMap(NULL),
 		s_hPartsPerSliceAlongX(NULL),
 		s_hPartsPerSliceAlongY(NULL),
@@ -605,6 +609,15 @@ struct GlobalData {
 					}
 		fclose(fid);
 		printf(" > compact device map dumped to file %s\n",fname.c_str());
+	}
+
+	//! Initialize numResumeBuffers by counting the number of non-ephemeral buffers in s_hBuffers
+	void countResumeBuffers()
+	{
+		for (auto& iter : s_hBuffers) {
+			if (!(iter.first & EPHEMERAL_BUFFERS))
+				++numResumeBuffers;
+		}
 	}
 
 	// function for cleanup between the repacking and the standard run
