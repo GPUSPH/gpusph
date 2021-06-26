@@ -348,7 +348,7 @@ const	float		boundNlSqInflRad)
 	if (g_debug.check_cell_overflow) {
 		const uint nCells = bufread.get<BUFFER_CELLSTART>()->get_allocated_elements();
 		const uint numBlocksCheck = div_up(nCells, numThreads);
-		cuneibs::checkCellSizeDevice<<< numBlocksCheck, numThreads >>>( cell_params(bufread), nCells);
+		execute_kernel(cuneibs::checkCellSizeDevice(bufread, nCells), numBlocksCheck, numThreads);
 	}
 
 

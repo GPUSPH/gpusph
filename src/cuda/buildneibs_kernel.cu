@@ -1313,16 +1313,27 @@ struct buildNeibsListDevice : params_t
 };
 
 /// Check if any cells have more particles that can be enumerated in CELLNUM_SHIFT
-__global__ void
-checkCellSizeDevice(cell_params params, uint nCells)
+struct checkCellSizeDevice : cell_params
 {
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_BUILDNEIBS;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_BUILDNEIBS;
+
+	uint nCells;
+
+	checkCellSizeDevice(BufferList const& bufread, uint nCells_) :
+		cell_params(bufread),
+		nCells(nCells_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if (index >= nCells)
 		return;
 
-	const uint start = params.fetchCellStart(index);
-	const uint end = params.fetchCellEnd(index);
+	const uint start = fetchCellStart(index);
+	const uint end = fetchCellEnd(index);
 
 	const uint delta = end - start;
 
@@ -1331,9 +1342,9 @@ checkCellSizeDevice(cell_params params, uint nCells)
 		if (old == -1)
 			d_hasHowManyParticles = delta;
 	}
-
-
 }
+};
+
 /** @} */
 }
 #endif
