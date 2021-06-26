@@ -1134,14 +1134,32 @@ template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundar
 	/* Number of shared arrays for the maximum number of neighbors:
 	 * this is 1 (counting fluid + boundary) for all boundary types, except
 	 * SA which also has another one for vertices */
-	int num_sm_neibs_max = (1 + (boundarytype == SA_BOUNDARY))>
-__global__ void
-/*! \cond */
-__launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
-/*! \endcond */
-buildNeibsListDevice(buildneibs_params<boundarytype, simflags> params)
+	int num_sm_neibs_max = (1 + (boundarytype == SA_BOUNDARY)),
+	// parameter structure we use
+	typename params_t = buildneibs_params<boundarytype, simflags>
+	>
+struct buildNeibsListDevice : params_t
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_BUILDNEIBS;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_BUILDNEIBS;
+
+	buildNeibsListDevice(params_t params_) :
+		params_t(params_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	// preserve the classic way to access params, even though the structure
+	// is the kernel functor itself. We do this to minimize the diff during
+	// the migration to the new structure, but TODO we should benchmark to assess
+	// the performance impact, and switch to this->member instead of params.member
+	// if going through the const ref has a measurable impact.
+	// NOTE: this _must_ be done inside the operator(), not in the constructor,
+	// because the constructor would initialize params with the _host_ pointer,
+	// not the device one!
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	// Number of neighbors for the current particle for each neighbor type
 	uint neibs_num[PT_TESTPOINT] = {0};
@@ -1292,6 +1310,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype, simflags> params)
 	}
 	return;
 }
+};
 
 /// Check if any cells have more particles that can be enumerated in CELLNUM_SHIFT
 __global__ void
