@@ -72,7 +72,7 @@ struct reorder_data<BufferKey, false>
 	{}
 
 	__device__ __forceinline__ void
-	reorder(const uint index, const uint sortedIndex, particleinfo const& info)
+	reorder(const uint index, const uint sortedIndex, particleinfo const& info) const
 	{ sorted[index] = unsorted[sortedIndex]; }
 };
 
@@ -101,7 +101,7 @@ struct reorder_data<BufferKey, true>
 	// since the buffers may be missing, the reordering is conditional to
 	// the sorted pointer being nonzero
 	__device__ __forceinline__ void
-	reorder(const uint index, const uint sortedIndex, particleinfo const& info)
+	reorder(const uint index, const uint sortedIndex, particleinfo const& info) const
 	{
 		if (sorted)
 			sorted[index] = unsorted[sortedIndex];
@@ -112,7 +112,7 @@ struct reorder_data<BufferKey, true>
 // if the particle is a boundary particle
 template<>
 __device__ __forceinline__
-void reorder_data<BUFFER_VERTICES>::reorder(const uint index, const uint sortedIndex, particleinfo const& info)
+void reorder_data<BUFFER_VERTICES>::reorder(const uint index, const uint sortedIndex, particleinfo const& info) const
 {
 	sorted[index] = BOUNDARY(info) ? unsorted[sortedIndex] : make_vertexinfo(0, 0, 0, 0);
 }
@@ -122,7 +122,7 @@ template<flag_t BufferKey>
 struct no_reorder_data
 {
 	no_reorder_data(BufferList& sorted_buffers, BufferList const& unsorted_buffers) {}
-	__device__ __forceinline__ void reorder(const uint index, const uint sortedIndex, particleinfo const& info) {}
+	__device__ __forceinline__ void reorder(const uint index, const uint sortedIndex, particleinfo const& info) const {}
 };
 
 // Conditional structure that maps to reorder_data or no_reorder_data based on condition
@@ -186,7 +186,7 @@ struct reorder_params
 	, reorderDummyVel(sorted_buffers, unsorted_buffers)
 	{}
 
-	__device__ __forceinline__ void reorder(const uint index, const uint sortedIndex, particleinfo const& info)
+	__device__ __forceinline__ void reorder(const uint index, const uint sortedIndex, particleinfo const& info) const
 	{
 	reorderPos::reorder(index, sortedIndex, info);
 	reorderVel::reorder(index, sortedIndex, info);

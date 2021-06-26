@@ -885,26 +885,58 @@ void fixHashDevice::operator()(simple_work_item item) const
 // \todo k goes with e, make it a float2. (Alexis).
 // \todo document segmentStart (Alexis).
  */
-template<typename RP /* reorder_data specialization */>
-__global__
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-/*! \endcond */
-void reorderDataAndFindCellStartDevice(
-			RP								 rparams,		///< [in/out] data to be reordered
-			uint* __restrict__				cellStart,		///< [out] index of cells first particle
-			uint* __restrict__				cellEnd,		///< [out] index of cells last particle
-			uint* __restrict__				segmentStart,	///< [out] multi-GPU segments
-	const	 particleinfo * __restrict__	particleInfo,	///< [in] previously sorted particle's informations
-	const	 hashKey* __restrict__			particleHash,	///< [in] previously sorted particle's hashes
-	const	 uint* __restrict__				particleIndex,	///< [in] previously sorted particle's indexes
-	const	 uint							numParticles,	///< [in] total number of particles
-			uint* __restrict__				newNumParticles)	///< [out] device pointer to new number of active particles
+template<typename RP> /* reorder_params specialization */
+struct reorderDataAndFindCellStartDevice :
+/* the reorder_params structure used to be an rparams parameter to the kernel,
+ * but with our transition to the SYCL-style calling, we can make the kernel
+ * structure derive from the reorder_params structure instead:
+ */
+	RP														///< [in/out] data to be reordered
+{
+	static constexpr uint BLOCK_SIZE = BLOCK_SIZE_REORDERDATA;
+	static constexpr uint MIN_BLOCKS = MIN_BLOCKS_REORDERDATA;
+
+			uint* __restrict__				cellStart;		///< [out] index of cells first particle
+			uint* __restrict__				cellEnd;		///< [out] index of cells last particle
+			uint* __restrict__				segmentStart;	///< [out] multi-GPU segments
+	const	particleinfo * __restrict__		particleInfo;	///< [in] previously sorted particle's informations
+	const	hashKey* __restrict__			particleHash;	///< [in] previously sorted particle's hashes
+	const	uint* __restrict__				particleIndex;	///< [in] previously sorted particle's indexes
+	const	uint							numParticles;	///< [in] total number of particles
+			uint* __restrict__				newNumParticles;	///< [out] device pointer to new number of active particles
+
+	reorderDataAndFindCellStartDevice(
+			RP								rparams,
+			uint* __restrict__				cellStart_,
+			uint* __restrict__				cellEnd_,
+			uint* __restrict__				segmentStart_,
+	const	particleinfo * __restrict__		particleInfo_,
+	const	hashKey* __restrict__			particleHash_,
+	const	uint* __restrict__				particleIndex_,
+	const	uint							numParticles_,
+			uint* __restrict__				newNumParticles_)
+	:
+		RP(rparams),
+		cellStart(cellStart_),
+		cellEnd(cellEnd_),
+		segmentStart(segmentStart_),
+		particleInfo(particleInfo_),
+		particleHash(particleHash_),
+		particleIndex(particleIndex_),
+		numParticles(numParticles_),
+		newNumParticles(newNumParticles_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const;
+};
+
+template<typename RP>
+__device__ void reorderDataAndFindCellStartDevice<RP>::operator()(simple_work_item item) const
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
 
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint index = item.get_id();
 
 	// Initialize segmentStarts
 	if (segmentStart && index < 4) segmentStart[index] = EMPTY_SEGMENT;
@@ -977,7 +1009,7 @@ void reorderDataAndFindCellStartDevice(
 
 		// The particleInfo fetch is only actually needed by the BUFFER_VERTICES sorter,
 		// TODO measure the impact of this usage
-		rparams.reorder(index, sortedIndex, particleInfo[index]);
+		RP::reorder(index, sortedIndex, particleInfo[index]);
 	}
 }
 
