@@ -51,18 +51,28 @@ struct simple_work_item
 //! a parameter structure that should have a
 //! __device__ void operator(simple_work_item item) const
 //! method that represents the actual contents of the method to be run.
-template<typename KernelClass>
-__global__
-void executor_kernel(KernelClass k)
+template<typename KernelClass, unsigned BlockSize, unsigned MinBlocks>
+__global__ void
+__launch_bounds__(BlockSize, MinBlocks)
+executor_kernel(KernelClass k)
 {
 	k(simple_work_item());
 }
 
 //! Wrapper kernel invocation function template
-template<typename KernelClass>
+//! We assume the KernelClass will define two static consexpr unsigned members:
+//! BLOCK_SIZE and MIN_BLOCKS. In the longer run these will take the
+//! place of the pile of defines BLOCK_SIZE_* and MIN_BLOCKS_*
+//! TODO: we can probably avoid passing numBlocks and threadsPerBlock
+//! to execute_kernel if we can guarantee all kernels will use the given defines,
+//! and instead pass only the number of elements, so that the number of blocks and
+//! threads per block can be compute automatically here in execute_kernel
+template<typename KernelClass,
+unsigned BlockSize = KernelClass::BLOCK_SIZE,
+unsigned MinBlocks = KernelClass::MIN_BLOCKS>
 void execute_kernel(KernelClass const& k, size_t numBlocks, size_t threadsPerBlock, size_t shMemSize = 0)
 {
-	executor_kernel<<<numBlocks, threadsPerBlock, shMemSize>>>(k);
+	executor_kernel<KernelClass, BlockSize, MinBlocks><<<numBlocks, threadsPerBlock, shMemSize>>>(k);
 }
 
 #endif
