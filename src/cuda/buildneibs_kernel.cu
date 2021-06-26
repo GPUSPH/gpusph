@@ -815,18 +815,38 @@ void calcHashDevice<periodicbound>::operator()(simple_work_item item) const
  * 	compact device map. Also initialize particleIndex.
  * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  */
-__global__ void
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
-/*! \endcond */
-fixHashDevice(	hashKey*		particleHash,			///< [in,out] particle's hashes
-				uint*				particleIndex,		///< [out] particle's indexes
-				const particleinfo* particelInfo,		///< [in] particle's informations
-				const uint*			compactDeviceMap,	///< [in] type of the cells belonging to the device
-				const uint			numParticles		///< [in] total number of particles
-				)
+struct fixHashDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_CALCHASH;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_CALCHASH;
+
+	hashKey*		particleHash;			///< [in;out] particle's hashes
+	uint*				particleIndex;		///< [out] particle's indexes
+	const particleinfo* particelInfo;		///< [in] particle's informations
+	const uint*			compactDeviceMap;	///< [in] type of the cells belonging to the device
+	const uint			numParticles;		///< [in] total number of particles
+
+	fixHashDevice(
+		hashKey*		particleHash_,
+		uint*				particleIndex_,
+		const particleinfo* particelInfo_,
+		const uint*			compactDeviceMap_,
+		const uint			numParticles_)
+	:
+		particleHash(particleHash_),
+		particleIndex(particleIndex_),
+		particelInfo(particelInfo_),
+		compactDeviceMap(compactDeviceMap_),
+		numParticles(numParticles_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const;
+};
+
+__device__
+void fixHashDevice::operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if (index >= numParticles)
 		return;
