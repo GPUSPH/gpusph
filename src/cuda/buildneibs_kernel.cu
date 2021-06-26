@@ -666,24 +666,47 @@ neibsInCell(
  *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  */
 template <Periodicity periodicbound>
-__global__ void
-/*! \cond */
-__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
-/*! \endcond */
-calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
-				hashKey*			particleHash,		///< [in,out] particle's hashes
-				uint*				particleIndex,		///< [out] particle's indexes
-				const particleinfo*	particelInfo,		///< [in] particle's informations
-				const uint*			compactDeviceMap,	///< [in] type of the cells belonging to the device
-				const uint			numParticles		///< [in] total number of particles
-				)
+struct calcHashDevice
 {
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_CALCHASH;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_CALCHASH;
+
+	float4*				posArray;			///< [in,out] particle's positions
+	hashKey*			particleHash;		///< [in,out] particle's hashes
+	uint*				particleIndex;		///< [out] particle's indexes
+	const particleinfo*	particleInfo;		///< [in] particle's informations
+	const uint*			compactDeviceMap;	///< [in] type of the cells belonging to the device
+	const uint			numParticles;		///< [in] total number of particles
+
+	calcHashDevice(
+		float4*				posArray_,
+		hashKey*			particleHash_,
+		uint*				particleIndex_,
+		const particleinfo*	particelInfo_,
+		const uint*			compactDeviceMap_,
+		const uint			numParticles_)
+	:
+		posArray(posArray_),
+		particleHash(particleHash_),
+		particleIndex(particleIndex_),
+		particleInfo(particelInfo_),
+		compactDeviceMap(compactDeviceMap_),
+		numParticles(numParticles_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const;
+};
+
+template <Periodicity periodicbound>
+__device__
+void calcHashDevice<periodicbound>::operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if (index >= numParticles)
 		return;
 
-	const particleinfo info = particelInfo[index];
+	const particleinfo info = particleInfo[index];
 
 	// Get the old grid hash
 	uint gridHash = cellHashFromParticleHash( particleHash[index] );

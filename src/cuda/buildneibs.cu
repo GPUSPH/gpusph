@@ -46,6 +46,8 @@
 #include "engine_neibs.h"
 #include "utils.h"
 
+#include "sycl_wrap.h"
+
 #include "buildneibs_params.h"
 #include "reorder_params.h"
 #include "buildneibs_kernel.cu"
@@ -199,13 +201,15 @@ calcHash(	const BufferList& bufread, ///< input buffers (INFO, COMPACT_DEV_MAP)
 	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
-	cuneibs::calcHashDevice<periodicbound><<< numBlocks, numThreads >>>
-		(bufwrite.getData<BUFFER_POS>(),
-		 bufwrite.getData<BUFFER_HASH>(),
-		 bufwrite.getData<BUFFER_PARTINDEX>(),
-		 bufread.getData<BUFFER_INFO>(),
-		 bufread.getData<BUFFER_COMPACT_DEV_MAP>(),
-		 numParticles);
+	execute_kernel(
+		cuneibs::calcHashDevice<periodicbound>(
+			bufwrite.getData<BUFFER_POS>(),
+			bufwrite.getData<BUFFER_HASH>(),
+			bufwrite.getData<BUFFER_PARTINDEX>(),
+			bufread.getData<BUFFER_INFO>(),
+			bufread.getData<BUFFER_COMPACT_DEV_MAP>(),
+			numParticles),
+		numBlocks, numThreads);
 
 	// Check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
