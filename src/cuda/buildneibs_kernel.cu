@@ -901,23 +901,23 @@ struct reorderDataAndFindCellStartDevice :
 			uint* __restrict__				newNumParticles;	///< [out] device pointer to new number of active particles
 
 	reorderDataAndFindCellStartDevice(
-			RP								rparams,
-			uint* __restrict__				cellStart_,
-			uint* __restrict__				cellEnd_,
-			uint* __restrict__				segmentStart_,
-	const	particleinfo * __restrict__		particleInfo_,
-	const	hashKey* __restrict__			particleHash_,
-	const	uint* __restrict__				particleIndex_,
-	const	uint							numParticles_,
-			uint* __restrict__				newNumParticles_)
+		uint *segmentStart_,
+		BufferList& sorted_buffers,
+		BufferList const& unsorted_buffers,
+		const uint numParticles_,
+		uint *newNumParticles_)
 	:
-		RP(rparams),
-		cellStart(cellStart_),
-		cellEnd(cellEnd_),
+		/* all arrays to be sorted */
+		RP(sorted_buffers, unsorted_buffers),
+		// index of cells first and last particles (computed by the kernel)
+		cellStart(sorted_buffers.getData<BUFFER_CELLSTART>()),
+		cellEnd(sorted_buffers.getData<BUFFER_CELLEND>()),
+		// multi-GPU segments
 		segmentStart(segmentStart_),
-		particleInfo(particleInfo_),
-		particleHash(particleHash_),
-		particleIndex(particleIndex_),
+		// already-sorted data, used to compute the rest
+		particleInfo(sorted_buffers.getConstData<BUFFER_INFO>()),
+		particleHash(sorted_buffers.getConstData<BUFFER_HASH>()),
+		particleIndex(sorted_buffers.getConstData<BUFFER_PARTINDEX>()),
 		numParticles(numParticles_),
 		newNumParticles(newNumParticles_)
 	{}

@@ -256,22 +256,9 @@ reorderDataAndFindCellStart(
 
 	using RP = reorder_params<sph_formulation, ViscSpec, boundarytype, simflags>;
 
-	RP rparams(sorted_buffers, unsorted_buffers);
-
 	execute_kernel(
-		cuneibs::reorderDataAndFindCellStartDevice<RP>(
-			rparams, /* all arrays to be sorted */
-			// index of cells first and last particles (computed by the kernel)
-			sorted_buffers.getData<BUFFER_CELLSTART>(),
-			sorted_buffers.getData<BUFFER_CELLEND>(),
-			// multi-GPU segments
-			segmentStart,
-			// already-sorted data, used to compute the rest
-			sorted_buffers.getConstData<BUFFER_INFO>(),
-			sorted_buffers.getConstData<BUFFER_HASH>(),
-			sorted_buffers.getConstData<BUFFER_PARTINDEX>(),
-			numParticles,
-			newNumParticles),
+		cuneibs::reorderDataAndFindCellStartDevice<RP>(segmentStart,
+			sorted_buffers, unsorted_buffers, numParticles, newNumParticles),
 		numBlocks, numThreads, smemSize);
 
 	// check if kernel invocation generated an error
