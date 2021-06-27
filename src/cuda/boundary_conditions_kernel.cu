@@ -2566,22 +2566,46 @@ struct disableOutgoingPartsDevice
 //! This kernel computes the pressure for DUMMY_BOUNDARY by using Eq.(27) of Adami et al. (2012).
 //! It also computes the velocity for the no-slip boundary conditions (Eq. (22) and (23))
 template<KernelType kerneltype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
-ComputeDummyParticlesDevice(
-	const	float4*	__restrict__ posArray,
-		float4*	__restrict__ velArray,
-		float4*	__restrict__ dummyVelArray,
-			float4*	__restrict__ volArray, // only for SPH_GRENIER
-	const	particleinfo* __restrict__ infoArray,
-	const	hashKey* __restrict__ particleHash,
-	const	neibdata* __restrict__ neibsList,
-	const	uint* __restrict__ cellStart,
-				const uint		numParticles,
-				const float		slength,
-				const float		influenceradius)
+struct ComputeDummyParticlesDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SHEPARD;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SHEPARD;
+
+	const	float4*	__restrict__ posArray;
+			float4*	__restrict__ velArray;
+			float4*	__restrict__ dummyVelArray;
+			float4*	__restrict__ volArray; // only for SPH_GRENIER TODO conditional struct
+	const	particleinfo* __restrict__ infoArray;
+	const	hashKey* __restrict__ particleHash;
+	const	neibdata* __restrict__ neibsList;
+	const	uint* __restrict__ cellStart;
+	const	uint		numParticles;
+	const	float		slength;
+	const	float		influenceradius;
+
+	ComputeDummyParticlesDevice(
+		BufferList const& bufread,
+		BufferList &bufwrite,
+				uint	numParticles_,
+				float	slength_,
+				float	influenceradius_)
+	:
+		posArray(bufread.getData<BUFFER_POS>()),
+		velArray(bufwrite.getData<BUFFER_VEL>()),
+		dummyVelArray(bufwrite.getData<BUFFER_DUMMY_VEL>()),
+		volArray(bufwrite.getData<BUFFER_VOLUME>()), // only used in Grenier's case
+		infoArray(bufread.getData<BUFFER_INFO>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		numParticles(numParticles_),
+		slength(slength_),
+		influenceradius(influenceradius_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if (index >= numParticles)
 		return;
@@ -2697,6 +2721,7 @@ ComputeDummyParticlesDevice(
 		volArray[index] = vol;
 	}*/
 }
+};
 
 /** @} */
 

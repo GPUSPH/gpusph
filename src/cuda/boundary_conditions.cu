@@ -89,17 +89,10 @@ struct CUDABoundaryHelper<kerneltype, DUMMY_BOUNDARY> {
 	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	cubounds::ComputeDummyParticlesDevice<kerneltype><<< numBlocks, numThreads>>>
-		(bufread.getData<BUFFER_POS>(),
-		 bufwrite.getData<BUFFER_VEL>(),
-		 bufwrite.getData<BUFFER_DUMMY_VEL>(),
-		 bufwrite.getData<BUFFER_VOLUME>(), // only used in Grenier's case
-		 bufread.getData<BUFFER_INFO>(),
-		 bufread.getData<BUFFER_HASH>(),
-		 bufread.getData<BUFFER_NEIBSLIST>(),
-		 bufread.getData<BUFFER_CELLSTART>(),
-		 particleRangeEnd,
-		 slength, influenceradius);
+	execute_kernel(
+		cubounds::ComputeDummyParticlesDevice<kerneltype>
+			(bufread, bufwrite, particleRangeEnd, slength, influenceradius),
+		numBlocks, numThreads);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
