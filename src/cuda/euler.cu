@@ -399,7 +399,8 @@ basicstep(
 }
 
 /// Disables free surface boundary particles during the repacking process
-	void
+/// TODO BufferList
+void
 disableFreeSurfParts(		float4*			pos,
 		const	particleinfo*	info,
 		const	uint			numParticles,
@@ -409,9 +410,8 @@ disableFreeSurfParts(		float4*			pos,
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	//execute kernel
-	cueuler::disableFreeSurfPartsDevice<<<numBlocks, numThreads>>>
-		(	pos, info,
-			numParticles);
+	execute_kernel(cueuler::disableFreeSurfPartsDevice(pos, info, numParticles),
+		numBlocks, numThreads);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

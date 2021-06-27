@@ -191,13 +191,25 @@ struct copyTypeDataDevice
  This kernel is only used for repacking in combination with the free surface particle identification.
  As soon as repacking is finished the free surface particles are removed by this kernel.
 */
-	__global__ void
-disableFreeSurfPartsDevice(
-		float4*	__restrict__ oldPos,
-		particleinfo const * __restrict__ infoArray,
-		const	uint		numParticles)
+struct disableFreeSurfPartsDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	float4*	__restrict__ oldPos;
+	particleinfo const * __restrict__ infoArray;
+	const	uint		numParticles;
+
+	disableFreeSurfPartsDevice(
+		float4*			pos,
+		const	particleinfo*	info,
+		const	uint			numParticles_)
+	:
+		oldPos(pos),
+		infoArray(info),
+		numParticles(numParticles_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const int index = item.get_id();
 
 	if (index < numParticles) {
 		const particleinfo info = infoArray[index];
@@ -211,6 +223,7 @@ disableFreeSurfPartsDevice(
 		}
 	}
 }
+};
 
 }
 #endif
