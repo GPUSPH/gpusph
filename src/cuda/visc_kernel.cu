@@ -847,15 +847,32 @@ struct SPSstressMatrixDevice : params_t
 }
 };
 
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiFSBoundaryConditionsDevice(
-	pos_info_wrapper params,
-	float * __restrict__ effpres,
-	uint numParticles,
-	float deltap)
+struct jacobiFSBoundaryConditionsDevice : pos_info_wrapper
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SPS;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SPS;
+
+	float * __restrict__ effpres;
+	uint numParticles;
+	float deltap;
+
+	jacobiFSBoundaryConditionsDevice(
+		const	BufferList& bufread,
+			BufferList& bufwrite,
+		const	uint	numParticles_,
+		const	float	deltap_)
+	:
+		pos_info_wrapper(bufread),
+		effpres(bufwrite.getData<BUFFER_EFFPRES>()),
+		numParticles(numParticles_),
+		deltap(deltap_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	pos_info_wrapper const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= numParticles)
 		return;
@@ -887,6 +904,7 @@ jacobiFSBoundaryConditionsDevice(
 		return;
 	}
 }
+};
 
 struct jacobi_wb_neib_data : relPos_mass, relVel_rho
 {

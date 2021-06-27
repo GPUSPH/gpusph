@@ -205,10 +205,9 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 		// Enforce FSboundary conditions
-		cuvisc::jacobiFSBoundaryConditionsDevice<<<numBlocks, numThreads>>>(
-			pos_info_wrapper(bufread),
-			bufwrite.getData<BUFFER_EFFPRES>(),
-			numParticles, deltap);
+		execute_kernel(
+			cuvisc::jacobiFSBoundaryConditionsDevice(bufread, bufwrite, numParticles, deltap),
+			numBlocks, numThreads);
 
 		KERNEL_CHECK_ERROR;
 	}
