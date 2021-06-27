@@ -1138,8 +1138,16 @@ struct buildNeibsListDevice : params_t
 	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_BUILDNEIBS;
 	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_BUILDNEIBS;
 
-	buildNeibsListDevice(params_t params_) :
-		params_t(params_)
+	buildNeibsListDevice(
+		const	BufferList&	bufread,
+				BufferList& bufwrite,
+		const	uint		numParticles,
+		const	float		sqinfluenceradius,
+
+		// SA_BOUNDARY
+		const	float	boundNlSqInflRad)
+	:
+		params_t(bufread, bufwrite, numParticles, sqinfluenceradius, boundNlSqInflRad)
 	{}
 
 	__device__ void operator()(simple_work_item item) const
