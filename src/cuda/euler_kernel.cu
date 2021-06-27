@@ -137,14 +137,28 @@ updateDensityDevice(
 
 // Trivial kernel to copy the value of a buffer for particles of a given type
 template<ParticleType cptype, typename DataType>
-__global__ void
-copyTypeDataDevice(
-	const	particleinfo * __restrict__ pinfo,
-	const	DataType * __restrict__ oldVal,
-			DataType * __restrict__ newVal,
-			uint particleRangeEnd)
+struct copyTypeDataDevice
 {
-	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const	particleinfo * __restrict__ pinfo;
+	const	DataType * __restrict__ oldVal;
+			DataType * __restrict__ newVal;
+			uint particleRangeEnd;
+
+	copyTypeDataDevice(
+		const	particleinfo * __restrict__ pinfo_,
+		const	DataType * __restrict__ oldVal_,
+				DataType * __restrict__ newVal_,
+				uint particleRangeEnd_)
+	:
+		pinfo(pinfo_),
+		oldVal(oldVal_),
+		newVal(newVal_),
+		particleRangeEnd(particleRangeEnd_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const int index = item.get_id();
 	if (index >= particleRangeEnd)
 		return;
 
@@ -154,6 +168,7 @@ copyTypeDataDevice(
 
 	newVal[index] = oldVal[index];
 }
+};
 
 /*!
  This kernel is only used for repacking in combination with the free surface particle identification.

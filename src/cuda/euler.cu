@@ -161,10 +161,12 @@ density_sum_impl(
 		const particleinfo *info = volumic_kernel.info;
 		const float4 *oldgGam = volumic_kernel.oldgGam;
 			  float4 *newgGam = volumic_kernel.newgGam;
-		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
-			info, oldgGam, newgGam, particleRangeEnd);
-		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
-			info, oldgGam, newgGam, particleRangeEnd);
+		execute_kernel(
+			cueuler::copyTypeDataDevice<PT_VERTEX, float4>(info, oldgGam, newgGam, particleRangeEnd),
+			numBlocks, numThreads);
+		execute_kernel(
+			cueuler::copyTypeDataDevice<PT_BOUNDARY, float4>(info, oldgGam, newgGam, particleRangeEnd),
+			numBlocks, numThreads);
 	}
 
 	// check if kernel invocation generated an error
@@ -244,10 +246,12 @@ integrate_gamma_impl(
 		const particleinfo *info = fluid_gamma_kernel.info;
 		const float4 *oldgGam = fluid_gamma_kernel.oldgGam;
 			  float4 *newgGam = fluid_gamma_kernel.newgGam;
-		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
-			info, oldgGam, newgGam, particleRangeEnd);
-		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
-			info, oldgGam, newgGam, particleRangeEnd);
+		execute_kernel(
+			cueuler::copyTypeDataDevice<PT_VERTEX, float4>(info, oldgGam, newgGam, particleRangeEnd),
+			numBlocks, numThreads);
+		execute_kernel(
+			cueuler::copyTypeDataDevice<PT_BOUNDARY, float4>(info, oldgGam, newgGam, particleRangeEnd),
+			numBlocks, numThreads);
 	} else {
 		using integrate_fluid_gamma_params = integrate_gamma_params<PT_FLUID, kerneltype, simflags>;
 		// see if() branch
@@ -269,10 +273,12 @@ integrate_gamma_impl(
 			const particleinfo *info = fluid_gamma_kernel.info;
 			const float4 *oldgGam = fluid_gamma_kernel.oldgGam;
 			float4 *newgGam = fluid_gamma_kernel.newgGam;
-			cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
-					info, oldgGam, newgGam, particleRangeEnd);
-			cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
-					info, oldgGam, newgGam, particleRangeEnd);
+			execute_kernel(
+				cueuler::copyTypeDataDevice<PT_VERTEX, float4>(info, oldgGam, newgGam, particleRangeEnd),
+				numBlocks, numThreads);
+			execute_kernel(
+				cueuler::copyTypeDataDevice<PT_BOUNDARY, float4>(info, oldgGam, newgGam, particleRangeEnd),
+				numBlocks, numThreads);
 		}
 	}
 
