@@ -2515,14 +2515,32 @@ struct saIdentifyCornerVerticesDevice
  for this fluid particle. This is used here to identify such particles. In turn the vertexinfo array
  is reset and the particle is disabled.
 */
-__global__ void
-disableOutgoingPartsDevice(
-	const	particleinfo*	__restrict__ infoArray,
-			float4*			__restrict__ oldPos,
-			vertexinfo*		__restrict__ oldVertices,
-	const	uint			numParticles)
+struct disableOutgoingPartsDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const	particleinfo*	__restrict__ infoArray;
+			float4*			__restrict__ oldPos;
+	// We abuse the VERTICES array, which is otherwise unused by fluid particles,
+	// to store the vertices of the boundary element crossed by outgoing particles.
+			vertexinfo*		__restrict__ oldVertices;
+	const	uint			numParticles;
+
+	disableOutgoingPartsDevice(
+		const	BufferList&	bufread,
+				BufferList&	bufwrite,
+		const	uint		numParticles_)
+	:
+		infoArray(bufread.getData<BUFFER_INFO>()),
+		oldPos(bufwrite.getData<BUFFER_POS>()),
+	// Since the VERTICES array is shared across states unless we also have moving
+	// objects, accessing it for writing here would not be allowed; but we know
+	// we can do it anyway, so we use the “unsafe” version of getData
+		oldVertices(bufwrite.getData<BUFFER_VERTICES, BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		numParticles(numParticles_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if(index < numParticles) {
 		const particleinfo info = infoArray[index];
@@ -2543,6 +2561,7 @@ disableOutgoingPartsDevice(
 		}
 	}
 }
+};
 
 //! This kernel computes the pressure for DUMMY_BOUNDARY by using Eq.(27) of Adami et al. (2012).
 //! It also computes the velocity for the no-slip boundary conditions (Eq. (22) and (23))

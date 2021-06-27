@@ -135,22 +135,13 @@ disableOutgoingParts(const	BufferList& bufread,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd) override
 {
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	float4 *pos = bufwrite.getData<BUFFER_POS>();
-	// We abuse the VERTICES array, which is otherwise unused by fluid particles,
-	// to store the vertices of the boundary element crossed by outgoing particles.
-	// Since the VERTICES array is shared across states unless we also have moving
-	// objects, accessing it for writing here would not be allowed; but we know
-	// we can do it anyway, so we use the “unsafe” version of getData
-	vertexinfo *vertices = bufwrite.getData<BUFFER_VERTICES,
-		BufferList::AccessSafety::MULTISTATE_SAFE>();
-
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	//execute kernel
-	cubounds::disableOutgoingPartsDevice<<<numBlocks, numThreads>>>
-		(info, pos, vertices, numParticles);
+	execute_kernel(
+		cubounds::disableOutgoingPartsDevice(bufread, bufwrite, particleRangeEnd),
+		numBlocks, numThreads);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
