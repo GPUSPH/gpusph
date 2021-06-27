@@ -223,12 +223,7 @@ fixHash(	const BufferList& bufread, ///< input buffers (INFO, COMPACT_DEV_MAP)
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	execute_kernel(
-		cuneibs::fixHashDevice(
-			bufwrite.getData<BUFFER_HASH>(),
-			bufwrite.getData<BUFFER_PARTINDEX>(),
-			bufread.getData<BUFFER_INFO>(),
-			bufread.getData<BUFFER_COMPACT_DEV_MAP>(),
-			numParticles),
+		cuneibs::fixHashDevice(bufread, bufwrite, numParticles),
 		numBlocks, numThreads);
 
 	// Check if kernel invocation generated an error

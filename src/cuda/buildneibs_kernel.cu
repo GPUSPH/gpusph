@@ -819,21 +819,19 @@ struct fixHashDevice
 
 	hashKey*		particleHash;			///< [in;out] particle's hashes
 	uint*				particleIndex;		///< [out] particle's indexes
-	const particleinfo* particelInfo;		///< [in] particle's informations
+	const particleinfo* particleInfo;		///< [in] particle's informations
 	const uint*			compactDeviceMap;	///< [in] type of the cells belonging to the device
 	const uint			numParticles;		///< [in] total number of particles
 
 	fixHashDevice(
-		hashKey*		particleHash_,
-		uint*				particleIndex_,
-		const particleinfo* particelInfo_,
-		const uint*			compactDeviceMap_,
-		const uint			numParticles_)
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const uint numParticles_)
 	:
-		particleHash(particleHash_),
-		particleIndex(particleIndex_),
-		particelInfo(particelInfo_),
-		compactDeviceMap(compactDeviceMap_),
+		particleHash(bufwrite.getData<BUFFER_HASH>()),
+		particleIndex(bufwrite.getData<BUFFER_PARTINDEX>()),
+		particleInfo(bufread.getData<BUFFER_INFO>()),
+		compactDeviceMap(bufread.getData<BUFFER_COMPACT_DEV_MAP>()),
 		numParticles(numParticles_)
 	{}
 
