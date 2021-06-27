@@ -1793,17 +1793,33 @@ struct findOutgoingSegmentDevice : sa_outgoing_bc_params
  *	\param[in] numParticles : number of particles
  */
 template<KernelType kerneltype>
-__global__ void
-computeVertexNormalDevice(
-						float4*			boundelement,
-				const	vertexinfo*		vertices,
-				const	particleinfo*	pinfo,
-				const	hashKey*		particleHash,
-				const	uint*			cellStart,
-				const	neibdata*		neibsList,
-				const	uint			numParticles)
+struct computeVertexNormalDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+			float4*			boundelement;
+	const	vertexinfo*		vertices;
+	const	particleinfo*	pinfo;
+	const	hashKey*		particleHash;
+	const	uint*			cellStart;
+	const	neibdata*		neibsList;
+	const	uint			numParticles;
+
+	computeVertexNormalDevice(
+		BufferList const&	bufread,
+		BufferList&		bufwrite,
+		const	uint			numParticles_)
+	:
+		boundelement(bufwrite.getData<BUFFER_BOUNDELEMENTS>()),
+		vertices(bufread.getData<BUFFER_VERTICES>()),
+		pinfo(bufread.getData<BUFFER_INFO>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		numParticles(numParticles_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if (index >= numParticles)
 		return;
@@ -1857,6 +1873,7 @@ computeVertexNormalDevice(
 	// normalize average norm. The .w component for vertices is not used
 	boundelement[index] = make_float4(normalize(avgNorm), NAN);
 }
+};
 
 /// Variables needed by both gradGamma() and Gamma() during gamma initialization
 struct InitGammaVars {

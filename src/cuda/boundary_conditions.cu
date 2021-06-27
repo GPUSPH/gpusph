@@ -438,28 +438,15 @@ computeVertexNormal(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	float4 *boundelement = bufwrite.getData<BUFFER_BOUNDELEMENTS>();
-
-	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
-	const particleinfo *pinfo = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
 
 	// execute the kernel
-	cubounds::computeVertexNormalDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>> (
-		boundelement,
-		vertices,
-		pinfo,
-		particleHash,
-		cellStart,
-		neibsList,
-		particleRangeEnd);
+	execute_kernel(
+		cubounds::computeVertexNormalDevice<kerneltype>(bufread, bufwrite, particleRangeEnd),
+		numBlocks, numThreads, dummy_shared);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
