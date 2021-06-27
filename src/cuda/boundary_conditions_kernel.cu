@@ -2030,18 +2030,36 @@ struct initGammaDevice : sa_init_gamma_params
  *	\param[in] influenceradius : the kernel radius
  */
 template<KernelType kerneltype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SA_BOUND, MIN_BLOCKS_SA_BOUND)
-initIOmass_vertexCountDevice(
-				const	vertexinfo*		vertices,
-				const	hashKey*		particleHash,
-				const	particleinfo*	pinfo,
-				const	uint*			cellStart,
-				const	neibdata*		neibsList,
-						float4*			forces,
-				const	uint			numParticles)
+struct initIOmass_vertexCountDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SA_BOUND;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SA_BOUND;
+
+	const	vertexinfo*		vertices;
+	const	hashKey*		particleHash;
+	const	particleinfo*	pinfo;
+	const	uint*			cellStart;
+	const	neibdata*		neibsList;
+			float4*			forces;
+	const	uint			numParticles;
+
+	initIOmass_vertexCountDevice(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint			numParticles_)
+	:
+		vertices(bufread.getData<BUFFER_VERTICES>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		pinfo(bufread.getData<BUFFER_INFO>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		forces(bufwrite.getData<BUFFER_FORCES>()),
+		numParticles(numParticles_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if (index >= numParticles)
 		return;
@@ -2107,6 +2125,7 @@ initIOmass_vertexCountDevice(
 
 	forces[index].w = (float)(vertexCount);
 }
+};
 
 template<KernelType kerneltype>
 __global__ void

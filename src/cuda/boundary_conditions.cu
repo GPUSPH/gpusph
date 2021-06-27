@@ -552,16 +552,10 @@ initIOmass_vertexCount(
 	dummy_shared = 2560;
 	#endif
 
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *pHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
-	float4 *forces = bufwrite.getData<BUFFER_FORCES>();
-
 	// execute the kernel
-	cubounds::initIOmass_vertexCountDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(vertices, pHash, info, cellStart, neibsList, forces, particleRangeEnd);
+	execute_kernel(
+		cubounds::initIOmass_vertexCountDevice<kerneltype>(bufread, bufwrite, particleRangeEnd),
+		numBlocks, numThreads, dummy_shared);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
