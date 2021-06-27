@@ -2271,12 +2271,32 @@ template<typename Params,
 	bool initStep = (step <= 0), // handle both step 0 (initialization) and -1 (reinit after repacking)
 	bool lastStep = (step == 2)
 >
-__global__ void
-saVertexBoundaryConditionsDevice(Params params)
+struct saVertexBoundaryConditionsDevice : Params
 {
+	saVertexBoundaryConditionsDevice(
+		const	BufferList&	bufread,
+				BufferList&	bufwrite,
+				uint	* __restrict__ newNumParticles,
+		const	uint	numParticles,
+		const	uint	totParticles,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	uint	deviceId,
+		const	uint	numDevices,
+		const	float	dt)
+	:
+		Params(bufread, bufwrite, newNumParticles, numParticles, totParticles,
+			deltap, slength, influenceradius, deviceId, numDevices, dt)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	Params const& params(*this);
+
 	using namespace sa_bc;
 
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -2331,6 +2351,7 @@ saVertexBoundaryConditionsDevice(Params params)
 	// invokation
 	impose_vertex_io_bc(params, pdata, pout);
 }
+};
 
 /// Compute boundary conditions for vertex particles in the semi-analytical boundary case
 /*! This function determines the physical properties of vertex particles in the
@@ -2347,12 +2368,32 @@ template<typename Params,
 	bool initStep = (step <= 0), // handle both step 0 (initialization) and -1 (reinit after repacking)
 	bool lastStep = (step == 2)
 >
-__global__ void
-saVertexBoundaryConditionsRepackDevice(Params params)
+struct saVertexBoundaryConditionsRepackDevice : Params
 {
+	saVertexBoundaryConditionsRepackDevice(
+		const	BufferList&	bufread,
+				BufferList&	bufwrite,
+				uint	* __restrict__ newNumParticles,
+		const	uint	numParticles,
+		const	uint	totParticles,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	uint	deviceId,
+		const	uint	numDevices,
+		const	float	dt)
+	:
+		Params(bufread, bufwrite, newNumParticles, numParticles, totParticles,
+			deltap, slength, influenceradius, deviceId, numDevices, dt)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	Params const& params(*this);
+
 	using namespace sa_bc;
 
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -2389,8 +2430,9 @@ saVertexBoundaryConditionsRepackDevice(Params params)
 
 	// standard boundary condition
 	params.vel[index].w = RHO(pout.sumpWall/pout.shepard_div,fluid_num(info));
-
 }
+};
+
 //! Identify corner vertices on open boundaries
 /*!
  Corner vertices are vertices that have segments that are not part of an open boundary. These

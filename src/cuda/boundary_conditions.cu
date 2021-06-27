@@ -339,15 +339,19 @@ saVertexBoundaryConditionsImpl(
 	// execute the kernel
 #define SA_VERTEX_BC_STEP(step) case step: \
 	if (run_mode == REPACK) { \
-		sa_vertex_bc_repack_params<kerneltype, ViscSpec, simflags, step> params( \
+		using RepackParams = sa_vertex_bc_repack_params<kerneltype, ViscSpec, simflags, step>; \
+		execute_kernel( \
+			cubounds::saVertexBoundaryConditionsRepackDevice<RepackParams>( \
 				bufread, bufwrite, newNumParticles, numParticles, totParticles, \
-				deltap, slength, influenceradius, deviceId, numDevices, dt); \
-		cubounds::saVertexBoundaryConditionsRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+				deltap, slength, influenceradius, deviceId, numDevices, dt), \
+		numBlocks, numThreads, dummy_shared); \
 	} else { \
-		sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step> params( \
+		using RunParams = sa_vertex_bc_params<kerneltype, ViscSpec, simflags, step>; \
+		execute_kernel( \
+			cubounds::saVertexBoundaryConditionsDevice<RunParams>( \
 				bufread, bufwrite, newNumParticles, numParticles, totParticles, \
-				deltap, slength, influenceradius, deviceId, numDevices, dt); \
-		cubounds::saVertexBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+				deltap, slength, influenceradius, deviceId, numDevices, dt), \
+		numBlocks, numThreads, dummy_shared); \
 	} \
 	break;
 
