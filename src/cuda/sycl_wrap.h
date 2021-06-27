@@ -28,6 +28,9 @@
 #ifndef SYCL_WRAP
 #define SYCL_WRAP
 
+#include "cpp11_missing.h"
+#include "has_member.h"
+
 /*
  * SYCL-style wrappers
  *
@@ -51,6 +54,7 @@ struct simple_work_item
 //! a parameter structure that should have a
 //! __device__ void operator(simple_work_item item) const
 //! method that represents the actual contents of the method to be run.
+//! There are two version of these, one with launch bounds and one without
 template<typename KernelClass, unsigned BlockSize, unsigned MinBlocks>
 __global__ void
 __launch_bounds__(BlockSize, MinBlocks)
@@ -59,20 +63,38 @@ executor_kernel(KernelClass k)
 	k(simple_work_item());
 }
 
+template<typename KernelClass>
+__global__ void
+executor_kernel(KernelClass k)
+{
+	k(simple_work_item());
+}
+
 //! Wrapper kernel invocation function template
-//! We assume the KernelClass will define two static consexpr unsigned members:
-//! BLOCK_SIZE and MIN_BLOCKS. In the longer run these will take the
-//! place of the pile of defines BLOCK_SIZE_* and MIN_BLOCKS_*
+//! There are two instances of this, depending on whether the kernel functor defines
+//! BLOCK_SIZE (and therefore also MIN_BLOCKS) or not.
+//! When defined, these take the place of the BLOCK_SIZE_* and MIN_BLOCKS_*
+//! defines for the kernel launch bounds.
 //! TODO: we can probably avoid passing numBlocks and threadsPerBlock
 //! to execute_kernel if we can guarantee all kernels will use the given defines,
 //! and instead pass only the number of elements, so that the number of blocks and
 //! threads per block can be compute automatically here in execute_kernel
-template<typename KernelClass,
-unsigned BlockSize = KernelClass::BLOCK_SIZE,
-unsigned MinBlocks = KernelClass::MIN_BLOCKS>
-void execute_kernel(KernelClass const& k, size_t numBlocks, size_t threadsPerBlock, size_t shMemSize = 0)
+
+DECLARE_MEMBER_DETECTOR(BLOCK_SIZE, has_launch_bounds)
+
+template<typename KernelClass>
+enable_if_t<has_launch_bounds<KernelClass>()>
+execute_kernel(KernelClass const& k, size_t numBlocks, size_t threadsPerBlock, size_t shMemSize = 0)
 {
-	executor_kernel<KernelClass, BlockSize, MinBlocks><<<numBlocks, threadsPerBlock, shMemSize>>>(k);
+	executor_kernel<KernelClass, KernelClass::BLOCK_SIZE, KernelClass::MIN_BLOCKS>
+		<<<numBlocks, threadsPerBlock, shMemSize>>>(k);
+}
+
+template<typename KernelClass>
+enable_if_t<!has_launch_bounds<KernelClass>()>
+execute_kernel(KernelClass const& k, size_t numBlocks, size_t threadsPerBlock, size_t shMemSize = 0)
+{
+	executor_kernel<<<numBlocks, threadsPerBlock, shMemSize>>>(k);
 }
 
 #endif
