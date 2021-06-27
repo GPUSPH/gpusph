@@ -141,11 +141,11 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		dummy_shared = 2560;
 #endif
 
-		sps_params<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)> params(
-			bufread, bufwrite, numParticles, slength, influenceradius);
-
-		cuvisc::SPSstressMatrixDevice<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)>
-			<<<numBlocks, numThreads, dummy_shared>>>(params);
+		using sps_params = sps_params<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)>;
+		execute_kernel(
+			cuvisc::SPSstressMatrixDevice<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)>(
+				bufread, bufwrite, numParticles, slength, influenceradius),
+			numBlocks, numThreads, dummy_shared);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;

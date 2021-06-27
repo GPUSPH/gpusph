@@ -777,12 +777,29 @@ write_sps_tau(FP const& params, const uint index, symtensor3 const& tau)
 */
 template<KernelType kerneltype,
 	BoundaryType boundarytype,
-	uint sps_simflags>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, sps_simflags> params)
+	uint sps_simflags,
+	typename params_t = sps_params<kerneltype, boundarytype, sps_simflags>
+	>
+struct SPSstressMatrixDevice : params_t
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SPS;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SPS;
+
+	SPSstressMatrixDevice(
+		BufferList	const&	bufread,
+		BufferList	&		bufwrite,
+			const	uint		numParticles,
+			const	float		slength,
+			const	float		influenceradius)
+	:
+		params_t(bufread, bufwrite, numParticles, slength, influenceradius)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -828,6 +845,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, sps_simflags> params)
 		write_sps_tau(params, index, tau);
 	}
 }
+};
 
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
