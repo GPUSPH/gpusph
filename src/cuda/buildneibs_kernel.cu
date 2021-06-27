@@ -691,12 +691,7 @@ struct calcHashDevice
 		numParticles(numParticles_)
 	{}
 
-	__device__ void operator()(simple_work_item item) const;
-};
-
-template <Periodicity periodicbound>
-__device__
-void calcHashDevice<periodicbound>::operator()(simple_work_item item) const
+	__device__ void operator()(simple_work_item item) const
 {
 	const uint index = item.get_id();
 
@@ -803,6 +798,7 @@ void calcHashDevice<periodicbound>::operator()(simple_work_item item) const
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
 }
+};
 
 
 /// Updates high bits of cell hash with compact device map
@@ -835,11 +831,7 @@ struct fixHashDevice
 		numParticles(numParticles_)
 	{}
 
-	__device__ void operator()(simple_work_item item) const;
-};
-
-__device__
-void fixHashDevice::operator()(simple_work_item item) const
+	__device__ void operator()(simple_work_item item) const
 {
 	const uint index = item.get_id();
 
@@ -859,6 +851,7 @@ void fixHashDevice::operator()(simple_work_item item) const
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
 }
+};
 
 
 /// Reorders particles data after the sort and updates cells informations
@@ -922,11 +915,7 @@ struct reorderDataAndFindCellStartDevice :
 		newNumParticles(newNumParticles_)
 	{}
 
-	__device__ void operator()(simple_work_item item) const;
-};
-
-template<typename RP>
-__device__ void reorderDataAndFindCellStartDevice<RP>::operator()(simple_work_item item) const
+	__device__ void operator()(simple_work_item item) const
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -1007,6 +996,7 @@ __device__ void reorderDataAndFindCellStartDevice<RP>::operator()(simple_work_it
 		RP::reorder(index, sortedIndex, particleInfo[index]);
 	}
 }
+};
 
 /// Find the planes within the influence radius of the particle
 /*! If neither ENABLE_PLANES nor ENABLE_DEM are active, do nothing
