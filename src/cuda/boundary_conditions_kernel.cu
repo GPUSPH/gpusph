@@ -1422,13 +1422,26 @@ template<typename Params,
 	int step = Params::step,
 	bool initStep = (step <= 0) // handle both step 0 (initialization) and -1 (reinit after repacking)
 >
-__global__ void
-saSegmentBoundaryConditionsDevice(Params params)
+struct saSegmentBoundaryConditionsDevice : Params
 {
+	saSegmentBoundaryConditionsDevice(
+		BufferList const& bufread,
+		BufferList & bufwrite,
+		const	uint	numParticles,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius)
+	:
+		Params(bufread, bufwrite, numParticles, deltap, slength, influenceradius)
+	{}
 
+	__device__ void operator()(simple_work_item item) const
+{
 	using namespace sa_bc;
 
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	Params const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -1528,6 +1541,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 	// TODO FIXME splitneibs merge: master here had the code for FLUID particles moving through IO
 	// segments
 }
+};
 
 //! Computes the boundary condition on segments for SA boundaries during repacking
 /*!
@@ -1540,13 +1554,26 @@ template<typename Params,
 	int step = Params::step,
 	bool initStep = (step <= 0) // handle both step 0 (initialization) and -1 (reinit after repacking)
 >
-__global__ void
-saSegmentBoundaryConditionsRepackDevice(Params params)
+struct saSegmentBoundaryConditionsRepackDevice : Params
 {
+	saSegmentBoundaryConditionsRepackDevice(
+		BufferList const& bufread,
+		BufferList & bufwrite,
+		const	uint	numParticles,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius)
+	:
+		Params(bufread, bufwrite, numParticles, deltap, slength, influenceradius)
+	{}
 
+	__device__ void operator()(simple_work_item item) const
+{
 	using namespace sa_bc;
 
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	Params const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -1631,6 +1658,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 	params.vel[index] = vel_rho(pout);
 
 }
+};
 
 /// Mark fluid particles that have crossed an open boundary
 /** For each fluid particle, detect if it has crossed an open boundary and

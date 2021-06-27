@@ -205,13 +205,17 @@ saSegmentBoundaryConditionsImpl(
 	// execute the kernel
 #define SA_SEGMENT_BC_STEP(step) case step: \
 	if (run_mode == REPACK) { \
-		sa_segment_bc_repack_params<kerneltype, ViscSpec, simflags, step> params( \
-			bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius); \
-		cubounds::saSegmentBoundaryConditionsRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+		using RepackParams = sa_segment_bc_repack_params<kerneltype, ViscSpec, simflags, step>; \
+		execute_kernel( \
+			cubounds::saSegmentBoundaryConditionsRepackDevice<RepackParams>( \
+				bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius), \
+		numBlocks, numThreads, dummy_shared); \
 	} else { \
-		sa_segment_bc_params<kerneltype, ViscSpec, simflags, step> params( \
-			bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius); \
-		cubounds::saSegmentBoundaryConditionsDevice<<< numBlocks, numThreads, dummy_shared >>>(params); \
+		using RunParams = sa_segment_bc_params<kerneltype, ViscSpec, simflags, step>; \
+		execute_kernel( \
+			cubounds::saSegmentBoundaryConditionsRepackDevice<RunParams>( \
+				bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius), \
+		numBlocks, numThreads, dummy_shared); \
 	} \
 	break;
 
