@@ -2439,19 +2439,39 @@ struct saVertexBoundaryConditionsRepackDevice : Params
  vertices are treated slightly different when imposing the boundary conditions during the
  computation in saVertexBoundaryConditions.
 */
-__global__ void
-saIdentifyCornerVerticesDevice(
-				const	float4*			oldPos,
-						particleinfo*	pinfo,
-				const	hashKey*		particleHash,
-				const	vertexinfo*		vertices,
-				const	uint*			cellStart,
-				const	neibdata*		neibsList,
-				const	uint			numParticles,
-				const	float			deltap,
-				const	float			eps)
+struct saIdentifyCornerVerticesDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const	float4*			oldPos;
+			particleinfo*	pinfo;
+	const	hashKey*		particleHash;
+	const	vertexinfo*		vertices;
+	const	uint*			cellStart;
+	const	neibdata*		neibsList;
+	const	uint			numParticles;
+	const	float			deltap;
+	const	float			eps;
+
+	saIdentifyCornerVerticesDevice(
+		const	BufferList&	bufread,
+		BufferList&	bufwrite,
+		const	uint			numParticles_,
+		const	float			deltap_,
+		const	float			eps_)
+	:
+		oldPos(bufread.getData<BUFFER_POS>()),
+		pinfo(bufwrite.getData<BUFFER_INFO>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		vertices(bufread.getData<BUFFER_VERTICES>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		numParticles(numParticles_),
+		deltap(deltap_),
+		eps(eps_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if (index >= numParticles)
 		return;
@@ -2486,6 +2506,7 @@ saIdentifyCornerVerticesDevice(
 		}
 	}
 }
+};
 
 //! Disables particles that have exited through an open boundary
 /*!

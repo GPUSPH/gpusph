@@ -622,14 +622,6 @@ saIdentifyCornerVertices(
 	const	float			deltap,
 	const	float			eps) override
 {
-	const float4* oldPos = bufread.getData<BUFFER_POS>();
-	const hashKey* particleHash = bufread.getData<BUFFER_HASH>();
-	const vertexinfo* vertices = bufread.getData<BUFFER_VERTICES>();
-	const uint* cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata* neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-	particleinfo*	info = bufwrite.getData<BUFFER_INFO>();
-
 	int dummy_shared = 0;
 
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
@@ -639,17 +631,11 @@ saIdentifyCornerVertices(
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
+
 	// execute the kernel
-	cubounds::saIdentifyCornerVerticesDevice<<< numBlocks, numThreads, dummy_shared >>> (
-		oldPos,
-		info,
-		particleHash,
-		vertices,
-		cellStart,
-		neibsList,
-		numParticles,
-		deltap,
-		eps);
+	execute_kernel(
+		cubounds::saIdentifyCornerVerticesDevice(bufread, bufwrite, particleRangeEnd, deltap, eps),
+		numBlocks, numThreads, dummy_shared);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
