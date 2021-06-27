@@ -679,18 +679,15 @@ struct calcHashDevice
 	const uint			numParticles;		///< [in] total number of particles
 
 	calcHashDevice(
-		float4*				posArray_,
-		hashKey*			particleHash_,
-		uint*				particleIndex_,
-		const particleinfo*	particelInfo_,
-		const uint*			compactDeviceMap_,
-		const uint			numParticles_)
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const uint numParticles_)
 	:
-		posArray(posArray_),
-		particleHash(particleHash_),
-		particleIndex(particleIndex_),
-		particleInfo(particelInfo_),
-		compactDeviceMap(compactDeviceMap_),
+		posArray(bufwrite.getData<BUFFER_POS>()),
+		particleHash(bufwrite.getData<BUFFER_HASH>()),
+		particleIndex(bufwrite.getData<BUFFER_PARTINDEX>()),
+		particleInfo(bufread.getData<BUFFER_INFO>()),
+		compactDeviceMap(bufread.getData<BUFFER_COMPACT_DEV_MAP>()),
 		numParticles(numParticles_)
 	{}
 
