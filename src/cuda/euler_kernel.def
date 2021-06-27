@@ -446,10 +446,23 @@ template<typename EP, ///< euler_params template instantiation type
 	typename ViscSpec = typename EP::ViscSpec,
 	flag_t simflags = EP::simflags,
 	int step = EP::step>
-__global__ void
-eulerDevice(EP params)
+struct eulerDevice : EP
 {
-	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	eulerDevice(
+		BufferList const&	bufread,
+		BufferList&			bufwrite,
+		const	uint		numParticles,
+		const	float		dt,
+		const	float		t)
+	:
+		EP(bufread, bufwrite, numParticles, dt, t)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	EP const& params(*this);
+
+	const int index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -581,6 +594,7 @@ eulerDevice(EP params)
 		update_normals(params, pdata, index);
 	}
 }
+};
 
 //! Show particles that have NAN position or velocity
 template<typename EP, ///< euler_params template instantiation type

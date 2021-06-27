@@ -371,15 +371,15 @@ basicstep(
 	// execute the kernel
 #define EULER_STEP(step) case step: \
 	if (run_mode == REPACK) { \
-		euler_repack_params<kerneltype, boundarytype, simflags, step> \
-			params(bufread, bufwrite, numParticles, dt, t); \
-		cueuler::eulerDevice<<< numBlocks, numThreads >>>(params); \
-		if (nancheck) cueuler::nanCheckDevice<<< numBlocks, numThreads>>>(params); \
+		using euler_params = euler_repack_params<kerneltype, boundarytype, simflags, step>; \
+		cueuler::eulerDevice<euler_params> euler_functor(bufread, bufwrite, numParticles, dt, t); \
+		execute_kernel(euler_functor, numBlocks, numThreads); \
+		if (nancheck) cueuler::nanCheckDevice<<< numBlocks, numThreads>>>(euler_functor); \
 	} else { \
-		euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, step> \
-			params(bufread, bufwrite, numParticles, dt, t); \
-		cueuler::eulerDevice<<< numBlocks, numThreads >>>(params); \
-		if (nancheck) cueuler::nanCheckDevice<<< numBlocks, numThreads>>>(params); \
+		using euler_params = euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, step>; \
+		cueuler::eulerDevice<euler_params> euler_functor(bufread, bufwrite, numParticles, dt, t); \
+		execute_kernel(euler_functor, numBlocks, numThreads); \
+		if (nancheck) cueuler::nanCheckDevice<<< numBlocks, numThreads>>>(euler_functor); \
 	} \
 	break;
 	switch (step) {
