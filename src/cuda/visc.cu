@@ -268,11 +268,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 		numBlocks = round_up(numBlocks, 4U);
 
-		jacobi_wall_boundary_params<kerneltype, boundarytype> params(
-			bufread, bufwrite,
-			numParticles, slength, influenceradius,
-			deltap);
-
 		/* The backward error on vertex effective pressure is used as an additional
 		 * stopping criterion (the residual being the main criterion). This helps in particular
 		 * at the initialization step where A.x = B can be approximately verified when effective
@@ -280,7 +275,12 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 */
 
 		// Enforce boundary conditions from the previous time step
-		cuvisc::jacobiWallBoundaryConditionsDevice<<<numBlocks, numThreads>>>(params);
+		execute_kernel(
+			cuvisc::jacobiWallBoundaryConditionsDevice<kerneltype, boundarytype>(
+				bufread, bufwrite,
+				numParticles, slength, influenceradius,
+				deltap),
+			numBlocks, numThreads);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;

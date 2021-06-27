@@ -933,12 +933,30 @@ struct jacobi_wb_neib_data : relPos_mass, relVel_rho
 };
 
 template<KernelType kerneltype,
-	BoundaryType boundarytype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, boundarytype> params)
+	BoundaryType boundarytype,
+	typename params_t = jacobi_wall_boundary_params<kerneltype, boundarytype>
+>
+struct jacobiWallBoundaryConditionsDevice : params_t
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SPS;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SPS;
+
+	jacobiWallBoundaryConditionsDevice(
+		BufferList const&	bufread,
+		BufferList		bufwrite,
+			const	uint		numParticles,
+			const	float		slength,
+			const	float		influenceradius,
+			const	float		deltap)
+	:
+		params_t(bufread, bufwrite, numParticles, slength, influenceradius, deltap)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	// the vertex Neumann condition is enforced through the interpolation of
 	// free particles effpres values. Thus it has to be re-computed every
@@ -1023,6 +1041,7 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 	} while (0);
 	reduce_jacobi_error(params.cfl, backErr);
 }
+};
 
 // Jacobi vectors building
 template<
