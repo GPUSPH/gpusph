@@ -579,19 +579,9 @@ initIOmass(
 	dummy_shared = 2560;
 	#endif
 
-	const float4 *oldPos = bufread.getData<BUFFER_POS>();
-	const float4 *forces = bufread.getData<BUFFER_FORCES>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *pHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-	const vertexinfo *vertices = bufread.getData<BUFFER_VERTICES>();
-
-	float4 *newPos = bufwrite.getData<BUFFER_POS>();
-
 	// execute the kernel
-	cubounds::initIOmassDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, forces, vertices, pHash, info, cellStart, neibsList, newPos, particleRangeEnd, deltap);
+	execute_kernel(cubounds::initIOmassDevice<kerneltype>(bufread, bufwrite, particleRangeEnd, deltap),
+		numBlocks, numThreads, dummy_shared);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

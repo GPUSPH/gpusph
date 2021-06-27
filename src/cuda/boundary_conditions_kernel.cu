@@ -2128,21 +2128,43 @@ struct initIOmass_vertexCountDevice
 };
 
 template<KernelType kerneltype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SA_BOUND, MIN_BLOCKS_SA_BOUND)
-initIOmassDevice(
-				const	float4*			oldPos,
-				const	float4*			forces,
-				const	vertexinfo*		vertices,
-				const	hashKey*		particleHash,
-				const	particleinfo*	pinfo,
-				const	uint*			cellStart,
-				const	neibdata*		neibsList,
-						float4*			newPos,
-				const	uint			numParticles,
-				const	float			deltap)
+struct initIOmassDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SA_BOUND;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SA_BOUND;
+
+	const	float4*			oldPos;
+	const	float4*			forces;
+	const	vertexinfo*		vertices;
+	const	hashKey*		particleHash;
+	const	particleinfo*	pinfo;
+	const	uint*			cellStart;
+	const	neibdata*		neibsList;
+			float4*			newPos;
+	const	uint			numParticles;
+	const	float			deltap;
+
+	initIOmassDevice(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint			numParticles_,
+		const	float			deltap_)
+	:
+		oldPos(bufread.getData<BUFFER_POS>()),
+		forces(bufread.getData<BUFFER_FORCES>()),
+		vertices(bufread.getData<BUFFER_VERTICES>()),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		pinfo(bufread.getData<BUFFER_INFO>()),
+		cellStart(bufread.getData<BUFFER_CELLSTART>()),
+		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		newPos(bufwrite.getData<BUFFER_POS>()),
+		numParticles(numParticles_),
+		deltap(deltap_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if (index >= numParticles)
 		return;
@@ -2232,6 +2254,7 @@ initIOmassDevice(
 
 	newPos[index].w += massChange;
 }
+};
 
 /// Compute boundary conditions for vertex particles in the semi-analytical boundary case
 /*! This function determines the physical properties of vertex particles in the
