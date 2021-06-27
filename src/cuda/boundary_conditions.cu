@@ -481,17 +481,21 @@ saInitGammaImpl(
 	#endif
 
 	// execute the kernel for fluid particles
-	cubounds::initGammaDevice<kerneltype, PT_FLUID><<< numBlocks, numThreads, dummy_shared >>>
-		(sa_init_gamma_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius,
-			deltap, epsilon));
+	execute_kernel(
+		cubounds::initGammaDevice<kerneltype, PT_FLUID>(
+			bufread, bufwrite, particleRangeEnd, slength, influenceradius,
+			deltap, epsilon),
+		numBlocks, numThreads, dummy_shared);
 
 	// TODO verify if this split kernele execution works in the multi-device case,
 	// or if we need to update_external the fluid data first
 
 	// execute the kernel for vertex particles
-	cubounds::initGammaDevice<kerneltype, PT_VERTEX><<< numBlocks, numThreads, dummy_shared >>>
-		(sa_init_gamma_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius,
-			deltap, epsilon));
+	execute_kernel(
+		cubounds::initGammaDevice<kerneltype, PT_VERTEX>(
+			bufread, bufwrite, particleRangeEnd, slength, influenceradius,
+			deltap, epsilon),
+		numBlocks, numThreads, dummy_shared);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

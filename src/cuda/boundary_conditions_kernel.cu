@@ -1929,10 +1929,25 @@ struct InitGammaVars {
  *	\param[in] numParticles : number of particles
  */
 template<KernelType kerneltype, ParticleType cptype>
-__global__ void
-initGammaDevice(sa_init_gamma_params params)
+struct initGammaDevice : sa_init_gamma_params
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	initGammaDevice(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		const	uint	numParticles,
+		const	float	slength,
+		const	float	influenceradius,
+		const	float	deltap,
+		const	float	epsilon)
+	:
+		sa_init_gamma_params(bufread, bufwrite, numParticles, slength, influenceradius, deltap, epsilon)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	sa_init_gamma_params const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -1993,6 +2008,7 @@ initGammaDevice(sa_init_gamma_params params)
 //	else
 	params.newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 }
+};
 
 #define MAXNEIBVERTS 30
 
