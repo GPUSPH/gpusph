@@ -1670,10 +1670,23 @@ struct saSegmentBoundaryConditionsRepackDevice : Params
  * anyway).
  */
 template<KernelType kerneltype>
-__global__ void
-findOutgoingSegmentDevice(sa_outgoing_bc_params params)
+struct findOutgoingSegmentDevice : sa_outgoing_bc_params
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	findOutgoingSegmentDevice(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		uint				particleRangeEnd,
+		float				slength,
+		float				influenceradius)
+	:
+		sa_outgoing_bc_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	sa_outgoing_bc_params const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -1765,6 +1778,7 @@ findOutgoingSegmentDevice(sa_outgoing_bc_params params)
 	// this should not affect computation
 	params.gGam[index] = vertexWeights;
 }
+};
 
 /// Normal computation for vertices in the initialization phase
 /*! Computes a normal for vertices in the initialization phase. This normal is used in the forces

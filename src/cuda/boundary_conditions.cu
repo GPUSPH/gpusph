@@ -289,8 +289,10 @@ findOutgoingSegment(
 	uint numThreads = BLOCK_SIZE_SA_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	cubounds::findOutgoingSegmentDevice<kerneltype><<<numBlocks, numThreads>>>(
-		sa_outgoing_bc_params(bufread, bufwrite, particleRangeEnd, slength, influenceradius));
+	execute_kernel(
+		cubounds::findOutgoingSegmentDevice<kerneltype>(
+			bufread, bufwrite, particleRangeEnd, slength, influenceradius),
+		numBlocks, numThreads);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
