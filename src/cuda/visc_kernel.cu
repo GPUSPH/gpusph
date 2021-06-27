@@ -654,13 +654,29 @@ reduce_jacobi_error(float* cfl, float error)
  * Moreover, in the case of adaptive time-stepping, we want the kernel to return
  * the maximum computed kinematic viscosity, so we do a pre-reduction to the CFL array.
  */
-template<typename KP,
+template<typename KP, // effvisc_params instantiation
 	KernelType kerneltype = KP::kerneltype,
 	BoundaryType boundarytype = KP::boundarytype>
-__global__ void
-effectiveViscDevice(KP params)
+struct effectiveViscDevice : KP
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	effectiveViscDevice(
+		BufferList const&	bufread,
+		BufferList		bufwrite,
+			const	uint		numParticles,
+			const	float		slength,
+			const	float		influenceradius,
+			const	float		deltap)
+	:
+		KP(	bufread, bufwrite,
+			numParticles, slength, influenceradius,
+			deltap)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	KP const& params(*this);
+
+	const uint index = item.get_id();
 
 	float kinvisc = 0.0f;
 
@@ -708,6 +724,7 @@ effectiveViscDevice(KP params)
 	reduce_kinvisc(params, kinvisc);
 
 }
+};
 
 
 /************************************************************************************************************/

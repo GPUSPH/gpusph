@@ -95,12 +95,14 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		// number of blocks, rounded up to next multiple of 4 to improve reductions
 		uint numBlocks = round_up(div_up(particleRangeEnd, numThreads), 4U);
 
-		effvisc_params<kerneltype, boundarytype, ViscSpec, simflags> params(
-			bufread, bufwrite,
-			numParticles, slength, influenceradius,
-			deltap);
+		using effvisc_params = effvisc_params<kerneltype, boundarytype, ViscSpec, simflags>;
 
-		cuvisc::effectiveViscDevice<<<numBlocks, numThreads>>>(params);
+		execute_kernel(
+			cuvisc::effectiveViscDevice<effvisc_params>(
+				bufread, bufwrite,
+				numParticles, slength, influenceradius,
+				deltap),
+			numBlocks, numThreads);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
