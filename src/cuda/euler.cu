@@ -147,12 +147,14 @@ density_sum_impl(
 
 	if (HAS_MOVING_BODIES(simflags)) {
 		// VERTEX gamma is always integrated directly
-		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(
-			bufread, bufwrite,
-			particleRangeEnd,
-			dt, t, step,
-			epsilon, slength, influenceradius);
-		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
+		using integrate_gamma_params = integrate_gamma_params<PT_VERTEX, kerneltype, simflags>;
+		execute_kernel(
+			cudensity_sum::integrateGammaDevice<integrate_gamma_params>(
+				bufread, bufwrite,
+				particleRangeEnd,
+				dt, t, step,
+				epsilon, slength, influenceradius),
+			numBlocks, numThreads);
 	} else {
 		/* We got them from the buffer lists already, reuse the params structure members.
 		 */
@@ -226,42 +228,47 @@ integrate_gamma_impl(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	if (run_mode == REPACK) {
-		integrate_gamma_repack_params<PT_FLUID, kerneltype, simflags> fluid_params(
-				bufread, bufwrite,
-				particleRangeEnd,
-				dt, t, step,
-				epsilon, slength, influenceradius);
+		using integrate_gamma_params = integrate_gamma_repack_params<PT_FLUID, kerneltype, simflags>;
 		// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
 		// of the kernel
-		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(fluid_params);
+		// We explicitly instantiate the kernel functor,
+		// since we'll use some of its members also for the copyTypeData kernel calls after the gamma integration
+		cudensity_sum::integrateGammaDevice<integrate_gamma_params> fluid_gamma_kernel(
+			bufread, bufwrite,
+			particleRangeEnd,
+			dt, t, step,
+			epsilon, slength, influenceradius);
+		execute_kernel(fluid_gamma_kernel, numBlocks, numThreads);
 		/* We got them from the buffer lists already, reuse the params structure members.
 		 */
-		const particleinfo *info = fluid_params.info;
-		const float4 *oldgGam = fluid_params.oldgGam;
-			  float4 *newgGam = fluid_params.newgGam;
+		const particleinfo *info = fluid_gamma_kernel.info;
+		const float4 *oldgGam = fluid_gamma_kernel.oldgGam;
+			  float4 *newgGam = fluid_gamma_kernel.newgGam;
 		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);
 		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);
 	} else {
-		integrate_gamma_params<PT_FLUID, kerneltype, simflags> fluid_params(
-				bufread, bufwrite,
-				particleRangeEnd,
-				dt, t, step,
-				epsilon, slength, influenceradius);
-		// to see why integrateGammaDevice is in the cudensity_sum namespace, see the documentation
-		// of the kernel
-		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(fluid_params);
+		using integrate_fluid_gamma_params = integrate_gamma_params<PT_FLUID, kerneltype, simflags>;
+		// see if() branch
+		cudensity_sum::integrateGammaDevice<integrate_fluid_gamma_params> fluid_gamma_kernel(
+			bufread, bufwrite,
+			particleRangeEnd,
+			dt, t, step,
+			epsilon, slength, influenceradius);
+		execute_kernel(fluid_gamma_kernel, numBlocks, numThreads);
 
 		if (HAS_MOVING_BODIES(simflags)) {
-			integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
-			cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
+			// integrate gamma, using the same parameters used for the fluid integration
+			using integrate_vertex_gamma_params = integrate_gamma_params<PT_VERTEX, kerneltype, simflags>;
+			cudensity_sum::integrateGammaDevice<integrate_vertex_gamma_params> vertex_gamma_kernel(fluid_gamma_kernel);
+			execute_kernel(vertex_gamma_kernel, numBlocks, numThreads);
 		} else {
 			/* We got them from the buffer lists already, reuse the params structure members.
 			 */
-			const particleinfo *info = fluid_params.info;
-			const float4 *oldgGam = fluid_params.oldgGam;
-			float4 *newgGam = fluid_params.newgGam;
+			const particleinfo *info = fluid_gamma_kernel.info;
+			const float4 *oldgGam = fluid_gamma_kernel.oldgGam;
+			float4 *newgGam = fluid_gamma_kernel.newgGam;
 			cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
 					info, oldgGam, newgGam, particleRangeEnd);
 			cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(

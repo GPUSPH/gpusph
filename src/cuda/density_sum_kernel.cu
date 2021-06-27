@@ -798,16 +798,40 @@ integrateGammaDeviceFunc(Params params, const uint index)
 	params.newgGam[index] = pout.gGam;
 }
 
+// Params should be a specialization of the integrate_gamma_params structure template
 template<typename Params>
-__global__ void
-integrateGammaDevice(Params params)
+struct integrateGammaDevice : Params
 {
-	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	integrateGammaDevice(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		const	uint	particleRangeEnd, ///< max number of particles
+		const	float	dt, ///< time step (dt or dt/2)
+		const	float	t, ///< simulation time
+		const	uint	step, ///< integrator step
+		const	float	epsilon, ///< epsilon for gamma tolerance
+		const	float	slength,
+		const	float	influenceradius)
+	:
+		Params(bufread, bufwrite,
+			particleRangeEnd,
+			dt, t, step,
+			epsilon, slength, influenceradius)
+	{}
 
-	if (index >= params.particleRangeEnd)
+	template<typename OtherIntegrateGamma>
+	integrateGammaDevice(OtherIntegrateGamma const& other) :
+		Params(other)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const int index = item.get_id();
+
+	if (index >= this->particleRangeEnd)
 		return;
 
-	const particleinfo pinfo = params.info[index];
+	const particleinfo pinfo = this->info[index];
 
 	/* We only need to integrate gamma on fluid and vertex particles */
 	/* And actually vertex particles should only be considered in the case
@@ -815,8 +839,9 @@ integrateGammaDevice(Params params)
 	if (PART_TYPE(pinfo) != Params::cptype)
 		return;
 
-	integrateGammaDeviceFunc(params, index);
+	integrateGammaDeviceFunc(*this, index);
 }
+};
 
 } // end of namespace cudensity_sum
 #endif
