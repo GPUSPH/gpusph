@@ -112,16 +112,32 @@ applyrot2(float* rot, float3 & pos, const float3 & cg)
 #include "euler_kernel.def"
 
 // Trivial kernel to update the density of fluid particles
-__global__ void
-updateDensityDevice(
-	const	particleinfo * __restrict__ pinfo,
-	const	float4 * __restrict__ forces,
-			float4 * __restrict__ vel,
-			uint numParticles,
-			uint particleRangeEnd,
-			float dt)
+// TODO FIXME is this still correct as-is with the introduction of relative density?
+// vel.w is now rhotilde, is the increment computed correctly in this case?
+struct updateDensityDevice
 {
-	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const	particleinfo * __restrict__ pinfo;
+	const	float4 * __restrict__ forces;
+			float4 * __restrict__ vel;
+			uint particleRangeEnd;
+			float dt;
+
+	updateDensityDevice(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint	particleRangeEnd_,
+		const	float	dt_)
+	:
+		pinfo(bufread.getData<BUFFER_INFO>()),
+		forces(bufread.getData<BUFFER_FORCES>()),
+		vel(bufwrite.getData<BUFFER_VEL>()),
+		particleRangeEnd(particleRangeEnd_),
+		dt(dt_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const int index = item.get_id();
 	if (index >= particleRangeEnd)
 		return;
 
@@ -134,6 +150,7 @@ updateDensityDevice(
 
 	vel[index].w = rho + delta;
 }
+};
 
 // Trivial kernel to copy the value of a buffer for particles of a given type
 template<ParticleType cptype, typename DataType>
