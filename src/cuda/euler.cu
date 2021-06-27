@@ -128,16 +128,22 @@ density_sum_impl(
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	// the template is on PT_FLUID, but in reality it's for PT_FLUID and PT_VERTEX
-	density_sum_params<kerneltype, PT_FLUID, simflags> volumic_params(
+	// Kernel functor types
+	using densitySumVolumicDevice = cudensity_sum::densitySumVolumicDevice<sph_formulation, kerneltype, simflags>;
+	using densitySumBoundaryDevice = cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags>;
+
+	// We explicitly instantiate the volumic kernel functor,
+	// since we'll use some of its members also for the “no moving bodies”
+	// gamma correction case below
+	densitySumVolumicDevice volumic_kernel(
+		bufread, bufwrite, particleRangeEnd, dt, t, step, deltap, slength, influenceradius);
+	execute_kernel(volumic_kernel, numBlocks, numThreads);
+
+	// for symmetry
+	densitySumBoundaryDevice boundary_kernel(
 		bufread, bufwrite, particleRangeEnd, dt, t, step, deltap, slength, influenceradius);
 
-	cudensity_sum::densitySumVolumicDevice<sph_formulation, kerneltype, simflags><<< numBlocks, numThreads >>>(volumic_params);
-
-	density_sum_params<kerneltype, PT_BOUNDARY, simflags> boundary_params(
-		bufread, bufwrite, particleRangeEnd, dt, t, step, deltap, slength, influenceradius);
-
-	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
+	execute_kernel(boundary_kernel, numBlocks, numThreads);
 
 	if (HAS_MOVING_BODIES(simflags)) {
 		// VERTEX gamma is always integrated directly
@@ -150,9 +156,9 @@ density_sum_impl(
 	} else {
 		/* We got them from the buffer lists already, reuse the params structure members.
 		 */
-		const particleinfo *info = volumic_params.info;
-		const float4 *oldgGam = volumic_params.oldgGam;
-			  float4 *newgGam = volumic_params.newgGam;
+		const particleinfo *info = volumic_kernel.info;
+		const float4 *oldgGam = volumic_kernel.oldgGam;
+			  float4 *newgGam = volumic_kernel.newgGam;
 		cueuler::copyTypeDataDevice<PT_VERTEX><<< numBlocks, numThreads >>>(
 			info, oldgGam, newgGam, particleRangeEnd);
 		cueuler::copyTypeDataDevice<PT_BOUNDARY><<< numBlocks, numThreads >>>(

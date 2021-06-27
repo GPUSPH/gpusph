@@ -511,13 +511,31 @@ computeDensitySumBoundaryTerms(
 //TODO templatize vars like other kernels
 template<SPHFormulation sph_formulation,
 	KernelType kerneltype,
-	flag_t simflags>
-__global__ void
-densitySumVolumicDevice(
+	flag_t simflags,
 	// parameters are the same for fluid and vertex
-	density_sum_params<kerneltype, PT_FLUID, simflags> params)
+	typename Params = density_sum_params<kerneltype, PT_FLUID, simflags>
+>
+struct densitySumVolumicDevice : Params
 {
-	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	densitySumVolumicDevice(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		const	uint		numParticles,
+		const	float		dt,
+		const	float		t,
+		const	uint		step,
+		const	float		deltap,
+		const	float		slength,
+		const	float		influenceradius)
+	:
+		Params(bufread, bufwrite, numParticles, dt, t, step, deltap, slength, influenceradius)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	Params const& params(*this);
+
+	const int index = item.get_id();
 
 	// only perform density integration for fluid particles
 	if (index >= params.numParticles || !FLUID(params.info[index]))
@@ -544,6 +562,7 @@ densitySumVolumicDevice(
 
 	params.forces[index].w = sumPmwNp1 + sumPmwN + sumVmwDelta;
 }
+};
 
 struct integrate_gamma_particle_data
 {
@@ -594,12 +613,29 @@ struct integrate_gamma_particle_data
  */
 //TODO templatize vars like other kernels
 template<KernelType kerneltype,
-	flag_t simflags>
-__global__ void
-densitySumBoundaryDevice(
-	density_sum_params<kerneltype, PT_BOUNDARY, simflags> params)
+	flag_t simflags,
+	typename Params = density_sum_params<kerneltype, PT_BOUNDARY, simflags> >
+struct densitySumBoundaryDevice : Params
 {
-	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	densitySumBoundaryDevice(
+		BufferList const&	bufread,
+		BufferList &		bufwrite,
+		const	uint		numParticles,
+		const	float		dt,
+		const	float		t,
+		const	uint		step,
+		const	float		deltap,
+		const	float		slength,
+		const	float		influenceradius)
+	:
+		Params(bufread, bufwrite, numParticles, dt, t, step, deltap, slength, influenceradius)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	Params const& params(*this);
+
+	const int index = item.get_id();
 
 	// only perform density integration for fluid particles
 	if (index >= params.numParticles || !FLUID(params.info[index]))
@@ -644,6 +680,7 @@ densitySumBoundaryDevice(
 	// gamma
 	params.newgGam[index] = pout.gGamNp1;
 }
+};
 
 /// Integrate gamma
 /** We need two specializations of this kernel, one for gamma quadrature case,
