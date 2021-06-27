@@ -374,12 +374,12 @@ basicstep(
 		using euler_params = euler_repack_params<kerneltype, boundarytype, simflags, step>; \
 		cueuler::eulerDevice<euler_params> euler_functor(bufread, bufwrite, numParticles, dt, t); \
 		execute_kernel(euler_functor, numBlocks, numThreads); \
-		if (nancheck) cueuler::nanCheckDevice<<< numBlocks, numThreads>>>(euler_functor); \
+		if (nancheck) execute_kernel(cueuler::nanCheckDevice<euler_params>(euler_functor), numBlocks, numThreads); \
 	} else { \
 		using euler_params = euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, step>; \
 		cueuler::eulerDevice<euler_params> euler_functor(bufread, bufwrite, numParticles, dt, t); \
 		execute_kernel(euler_functor, numBlocks, numThreads); \
-		if (nancheck) cueuler::nanCheckDevice<<< numBlocks, numThreads>>>(euler_functor); \
+		if (nancheck) execute_kernel(cueuler::nanCheckDevice<euler_params>(euler_functor), numBlocks, numThreads); \
 	} \
 	break;
 	switch (step) {

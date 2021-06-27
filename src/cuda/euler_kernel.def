@@ -604,10 +604,15 @@ template<typename EP, ///< euler_params template instantiation type
 	typename ViscSpec = typename EP::ViscSpec,
 	flag_t simflags = EP::simflags,
 	int step = EP::step>
-__global__ void
-nanCheckDevice(EP params)
+struct nanCheckDevice : EP
 {
-	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	nanCheckDevice(EP const& params_) : EP(params_) {}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	EP const& params(*this);
+
+	const int index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -643,5 +648,6 @@ nanCheckDevice(EP params)
 		force.x, force.y, force.z, force.w);
 	atomicAdd(&d_nans_found, 1);
 }
+};
 
 /* vi:set ft=cuda: */
