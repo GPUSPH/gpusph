@@ -863,15 +863,30 @@ struct calcInterfaceparticleDevice<kerneltype, SA_BOUNDARY, simflags, savenormal
 
 
 // TODO documentation
-__global__ void
-fluxComputationDevice
-			(	const	particleinfo	*pinfo,
-				const	float4			*eulerVel,
-				const	float4			*boundElement,
-						float			*d_IOflux,
-				const	uint			numParticles)
+struct fluxComputationDevice
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const	particleinfo	*pinfo;
+	const	float4			*eulerVel;
+	const	float4			*boundElement;
+			float			*d_IOflux;
+	const	uint			numParticles;
+
+	fluxComputationDevice(
+		BufferList const& bufread,
+		BufferList&		bufwrite,
+		float *d_IOflux_,
+		uint					numParticles_)
+	:
+		pinfo(bufread.getData<BUFFER_INFO>()),
+		eulerVel(bufread.getData<BUFFER_EULERVEL>()),
+		boundElement(bufread.getData<BUFFER_BOUNDELEMENTS>()),
+		d_IOflux(d_IOflux_),
+		numParticles(numParticles_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 
 	if(index < numParticles) {
 		const particleinfo info = pinfo[index];
@@ -881,6 +896,7 @@ fluxComputationDevice
 		}
 	}
 }
+};
 
 /************************************************************************************************************/
 /*					   Parallel reduction kernels															*/

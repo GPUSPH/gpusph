@@ -283,10 +283,7 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, V
 		uint numThreads = BLOCK_SIZE_CALCTEST;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const float4 *eulerVel = bufread.getData<BUFFER_EULERVEL>();
-		const float4 *boundElement = bufread.getData<BUFFER_BOUNDELEMENTS>();
-
+		// TODO FIXME this should be managed through buffers!
 		float *d_IOflux;
 
 		const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
@@ -294,12 +291,9 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, V
 		CUDA_SAFE_CALL(cudaMalloc(&d_IOflux, numOpenBoundaries*sizeof(float)));
 
 		//execute kernel
-		cupostprocess::fluxComputationDevice<<<numBlocks, numThreads>>>
-			(	info,
-				eulerVel,
-				boundElement,
-				d_IOflux,
-				numParticles);
+		execute_kernel(
+			cupostprocess::fluxComputationDevice(bufread, bufwrite, d_IOflux, particleRangeEnd),
+			numBlocks, numThreads);
 
 		CUDA_SAFE_CALL(cudaMemcpy((void *) h_IOflux[deviceIndex], (void *) d_IOflux, numOpenBoundaries*sizeof(float), cudaMemcpyDeviceToHost));
 
