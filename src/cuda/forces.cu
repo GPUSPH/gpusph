@@ -665,7 +665,9 @@ vertex_forces(
 	FluidVertexParams const& params_fv,
 	VertexFluidParams const& params_vf)
 {
-	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+	execute_kernel(
+		cuforces::forcesDevice<FluidVertexParams>(params_fv),
+		numBlocks, numThreads, dummy_shared);
 
 	// Fluid contributions to vertices is only needed to compute water depth
 	// and for turbulent viscosity with the k-epsilon model
@@ -673,7 +675,9 @@ vertex_forces(
 		QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH);
 	static constexpr bool keps = (turbmodel == KEPSILON);
 	if (waterdepth || keps) {
-		cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
+		execute_kernel(
+			cuforces::forcesDevice<VertexFluidParams>(params_vf),
+			numBlocks, numThreads, dummy_shared);
 	}
 }
 template<
@@ -702,7 +706,8 @@ boundary_forces(
 	uint numBlocks, uint numThreads, int dummy_shared,
 	BoundaryFluidParams const& params_bf)
 {
-	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_bf);
+	execute_kernel(cuforces::forcesDevice<BoundaryFluidParams>(params_bf),
+		numBlocks, numThreads, dummy_shared);
 }
 
 // Returns numBlock for delayed dt reduction in case of striping
@@ -740,23 +745,30 @@ run_forces(
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
 
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_FLUID> params_ff(
+	using FluidFluidParams    = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_FLUID>;
+	using FluidVertexParams   = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_VERTEX>;
+	using VertexFluidParams   = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_VERTEX, PT_FLUID>;
+	using FluidBoundaryParams = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_BOUNDARY>;
+	using BoundaryFluidParams = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_BOUNDARY, PT_FLUID>;
+
+	FluidFluidParams params_ff(
 		bufread, bufwrite,
 		fromParticle, toParticle,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
 		IOwaterdepth);
 
-	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+	execute_kernel(cuforces::forcesDevice<FluidFluidParams>(params_ff), numBlocks, numThreads, dummy_shared);
+
 	{
-		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_VERTEX> params_fv(
+		FluidVertexParams params_fv(
 			bufread, bufwrite,
 			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
 			epsilon,
 			IOwaterdepth);
 
-		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_VERTEX, PT_FLUID> params_vf(
+		VertexFluidParams params_vf(
 			bufread, bufwrite,
 			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -766,17 +778,17 @@ run_forces(
 		vertex_forces(numBlocks, numThreads, dummy_shared, params_fv, params_vf);
 	}
 
-	forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+	FluidBoundaryParams params_fb(
 		bufread, bufwrite,
 		fromParticle, toParticle,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
 		IOwaterdepth);
 
-	cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+	execute_kernel(cuforces::forcesDevice<FluidBoundaryParams>(params_fb), numBlocks, numThreads, dummy_shared);
 
 	if (compute_object_forces || (boundarytype == DYN_BOUNDARY)) {
-		forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, PT_BOUNDARY, PT_FLUID> params_bf(
+		BoundaryFluidParams params_bf(
 			bufread, bufwrite,
 			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,

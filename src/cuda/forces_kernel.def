@@ -4237,12 +4237,16 @@ template<typename FP, /* forces_params<kerneltype, sph_formulation, etc> */
 	flag_t simflags = FP::simflags,
 	ParticleType cptype = FP::cptype,
 	ParticleType nptype = FP::nptype>
-__global__ void
-forcesDevice(FP params)
+struct forcesDevice : FP
 {
-	// Global particle index
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
+	forcesDevice(FP const& params_) : FP(params_) {}
 
+	__device__ void operator()(simple_work_item item) const
+{
+	FP const& params(*this);
+
+	// Global particle index
+	const uint index = item.get_id() + params.fromParticle;
 
 	// The body of this kernel easily gets a lot of indentation. to prevent that,
 	// we wrap the main part into a do { } while(0); so that rather than
@@ -4332,6 +4336,7 @@ forcesDevice(FP params)
 
 	} while (0);
 }
+};
 
 /* DEM and PLANES interaction wrappers */
 template<typename FP, typename P, typename PO>
