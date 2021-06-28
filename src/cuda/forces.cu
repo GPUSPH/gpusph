@@ -621,10 +621,11 @@ compute_density_diffusion(
 	auto params = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, PT_FLUID>
 		(bufread, bufwrite, particleRangeEnd, deltap, slength, influenceRadius, dt);
 
-	cuforces::computeDensityDiffusionDevice
-		<kerneltype, sph_formulation, densitydiffusiontype, boundarytype,
-		 ViscSpec, simflags, PT_FLUID>
-		<<<numBlocks, numThreads>>>(params);
+	execute_kernel(
+		cuforces::computeDensityDiffusionDevice<kerneltype, sph_formulation, densitydiffusiontype, boundarytype,
+			ViscSpec, simflags, PT_FLUID>
+			(bufread, bufwrite, particleRangeEnd, deltap, slength, influenceRadius, dt),
+		numBlocks, numThreads);
 
 	// check if last kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

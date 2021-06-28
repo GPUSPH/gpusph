@@ -4822,12 +4822,29 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype,
 	typename ViscSpec,
 	flag_t simflags,
-	ParticleType cptype>
-__global__ void
-computeDensityDiffusionDevice(density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> params)
+	ParticleType cptype,
+	typename params_t = density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype>
+>
+struct computeDensityDiffusionDevice : params_t
 {
+	computeDensityDiffusionDevice(
+			BufferList const&	bufread,
+			BufferList &		bufwrite,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceradius,
+		const	float	dt)
+	:
+		params_t(bufread, bufwrite, particleRangeEnd, deltap, slength, influenceradius, dt)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
 	// Global particle index
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint index = item.get_id();
 
 	if (index >= params.particleRangeEnd) return;
 
@@ -4865,6 +4882,7 @@ computeDensityDiffusionDevice(density_diffusion_params<kerneltype, sph_formulati
 	//the increment of rho_tilde requires division by rho0
 	params.forces[index].w = DrDt/d_rho0[fluid_num(pdata.info)];
 }
+};
 
 #endif
 
