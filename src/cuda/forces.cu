@@ -128,7 +128,8 @@ reducefmax(
 	if (input) {
 		const float4 *input4 = reinterpret_cast<const float4*>(input);
 
-		cuforces::fmaxDevice<BLOCK_SIZE_FMAX><<<numBlocks, BLOCK_SIZE_FMAX>>>(output, input4, numquarts);
+		execute_kernel(cuforces::fmaxDevice<BLOCK_SIZE_FMAX>(output, input4, numquarts),
+			numBlocks, BLOCK_SIZE_FMAX);
 	}
 
 	return numBlocks;

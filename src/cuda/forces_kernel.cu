@@ -1012,11 +1012,23 @@ struct MlsDevice : params_t
  * Each block reduces the per-thread reductions in shared memory, and then writes out a single float.
  */
 template <unsigned int blockSize>
-__global__ void
-fmaxDevice(
-	float * __restrict__ output, //< output array,
-	const float4 * __restrict__ input, //< input array
-	const uint numquarts)
+struct fmaxDevice
+{
+	float * __restrict__ output; //< output array,
+	const float4 * __restrict__ input; //< input array
+	const uint numquarts;
+
+	fmaxDevice(
+		float * __restrict__ output_, //< output array,
+		const float4 * __restrict__ input_, //< input array
+		const uint numquarts_)
+	:
+		output(output_),
+		input(input_),
+		numquarts(numquarts_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
 {
 	__shared__ float sdata[blockSize];
 
@@ -1025,7 +1037,7 @@ fmaxDevice(
 	// Size of the sliding window
 	const unsigned int stride = blockSize*gridDim.x;
 
-	unsigned int i = blockIdx.x*blockSize + threadIdx.x;
+	int i = item.get_id();
 
 	// Accumulator
 	float myMax = 0;
@@ -1071,6 +1083,7 @@ fmaxDevice(
 	if (tid == 0)
 		output[blockIdx.x] = myMax;
 }
+};
 /************************************************************************************************************/
 
 /** @} */
