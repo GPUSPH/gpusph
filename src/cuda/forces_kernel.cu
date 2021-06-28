@@ -556,14 +556,30 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> 
  equation as well as the Navier-Stokes equation
 */
 template<KernelType kerneltype, BoundaryType boundarytype>
-__global__ void
-densityGrenierDevice(
-	neibs_list_params params,
-	const	float4* __restrict__	volArray,
-			float4* __restrict__	velArray,
-			float* __restrict__		sigmaArray)
+struct densityGrenierDevice : neibs_list_params
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const	float4* __restrict__	volArray;
+			float4* __restrict__	velArray;
+			float* __restrict__		sigmaArray;
+
+	densityGrenierDevice(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const uint numParticles,
+		float slength,
+		float influenceradius)
+	:
+		neibs_list_params(bufread, numParticles, slength, influenceradius),
+		volArray(bufread.getData<BUFFER_VOLUME>()),
+		velArray(bufwrite.getData<BUFFER_VEL>()),
+		sigmaArray(bufwrite.getData<BUFFER_SIGMA>())
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	neibs_list_params const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -657,6 +673,7 @@ densityGrenierDevice(
 	velArray[index] = vel;
 	sigmaArray[index] = sigma;
 }
+};
 
 /************************************************************************************************************/
 

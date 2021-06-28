@@ -217,11 +217,10 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		uint numThreads = BLOCK_SIZE_FORCES;
 		uint numBlocks = div_up(numParticles, numThreads);
 
-		cuforces::densityGrenierDevice<kerneltype, boundarytype><<<numBlocks, numThreads>>>
-			(neibs_list_params(bufread, numParticles, slength, influenceradius),
-			 bufread.getData<BUFFER_VOLUME>(),
-			 bufwrite.getData<BUFFER_VEL>(),
-			 bufwrite.getData<BUFFER_SIGMA>());
+		execute_kernel(
+			cuforces::densityGrenierDevice<kerneltype, boundarytype>(
+				bufread, bufwrite, numParticles, slength, influenceradius),
+			numBlocks, numThreads);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
