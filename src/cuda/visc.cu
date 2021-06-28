@@ -340,11 +340,6 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		uint numThreads = BLOCK_SIZE_SPS;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		jacobi_build_vectors_params<kerneltype, boundarytype> params(
-			bufread,
-			numParticles, slength, influenceradius,
-			deltap);
-
 		/* Jacobi solver
 		 *---------------
 		 * The problem A.x = B is solved with A
@@ -356,10 +351,13 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 *	Rx = R.x
 		 */
 
-		// Build Jacobi vectors D, Rx and B.
-		cuvisc::jacobiBuildVectorsDevice<<<numBlocks, numThreads>>>
-			(params, bufwrite.getData<BUFFER_JACOBI>());
+		using KP = jacobi_build_vectors_params<kerneltype, boundarytype>;
 
+		// Build Jacobi vectors D, Rx and B.
+		execute_kernel(
+			cuvisc::jacobiBuildVectorsDevice<KP>(bufread, bufwrite,
+				numParticles, slength, influenceradius, deltap),
+			numBlocks, numThreads);
 
 		KERNEL_CHECK_ERROR;
 	}

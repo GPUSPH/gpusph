@@ -1045,17 +1045,34 @@ struct jacobiWallBoundaryConditionsDevice : params_t
 
 // Jacobi vectors building
 template<
-	typename KP,
+	typename KP, // an instance of jacobi_build_vectors_params
 	KernelType kerneltype = KP::kerneltype,
-	BoundaryType boundarytype = KP::boundarytype,
-	typename P_t = shear_rate_pdata<boundarytype>
+	BoundaryType boundarytype = KP::boundarytype
 >
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiBuildVectorsDevice(KP params,
-	float4 *jacobiBuffer)
+struct jacobiBuildVectorsDevice : KP
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SPS;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SPS;
+
+	float4 *jacobiBuffer;
+
+	jacobiBuildVectorsDevice(
+		BufferList const&	bufread,
+		BufferList		bufwrite,
+			const	uint		numParticles,
+			const	float		slength,
+			const	float		influenceradius,
+			const	float		deltap)
+	:
+		KP(bufread, numParticles, slength, influenceradius, deltap),
+		jacobiBuffer(bufwrite.getData<BUFFER_JACOBI>())
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	KP const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -1120,6 +1137,7 @@ jacobiBuildVectorsDevice(KP params,
 	}
 	jacobiBuffer[index] = make_float4(D, Rx, B, NAN);
 }
+};
 
 // Compute effective pressure for PT_FLUID particles from Jacobi vectors.
 // Store the residual in cfl.
