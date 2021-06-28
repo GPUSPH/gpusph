@@ -898,9 +898,12 @@ struct fluxComputationDevice
 }
 };
 
+#if 0
 /************************************************************************************************************/
-/*					   Parallel reduction kernels															*/
+/*					   Parallel reduction kernels for energy calculation									*/
 /************************************************************************************************************/
+
+/// TODO FIXME these are currently unused
 
 extern __shared__ float4 shmem4[];
 
@@ -1043,6 +1046,7 @@ void calcEnergies2Device(
 			buffer[i] = energy[i] + E_k[i];
 	}
 }
+#endif
 
 } //namespace cupostprocess
 
