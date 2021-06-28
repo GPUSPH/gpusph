@@ -427,8 +427,8 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		 */
 
 		// Update effpres and compute the residual per particle
-		cuvisc::jacobiUpdateEffPresDevice<<<numBlocks, numThreads>>>(
-			jacobi_update_params(bufread, bufwrite, numParticles));
+		execute_kernel(cuvisc::jacobiUpdateEffPresDevice(bufread, bufwrite, numParticles),
+			numBlocks, numThreads);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;

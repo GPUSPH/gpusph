@@ -1123,11 +1123,24 @@ jacobiBuildVectorsDevice(KP params,
 
 // Compute effective pressure for PT_FLUID particles from Jacobi vectors.
 // Store the residual in cfl.
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiUpdateEffPresDevice(jacobi_update_params params)
+struct jacobiUpdateEffPresDevice : jacobi_update_params
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SPS;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SPS;
+
+	jacobiUpdateEffPresDevice(
+		BufferList const& bufread,
+		BufferList	bufwrite,
+		uint		numParticles)
+	:
+		jacobi_update_params(bufread, bufwrite, numParticles)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	jacobi_update_params const& params(*this);
+
+	const uint index = item.get_id();
 	float residual = 0.f;
 
 	// do { } while (0) around the main body so that we can bail out
@@ -1164,6 +1177,7 @@ jacobiUpdateEffPresDevice(jacobi_update_params params)
 	reduce_jacobi_error(params.cfl, residual);
 
 }
+};
 
 }
 
