@@ -46,6 +46,8 @@
 
 #include "visc_kernel.cu"
 
+#include "cspm_params.h"
+
 
 #if __COMPUTE__ < 20
 #define printf(...) /* eliminate printf from 1.x */
@@ -303,37 +305,23 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 
 */
 
-
 template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
-cspmCoeffDevice(
-	float*	__restrict__		wcoeffArray,
-	float2*	__restrict__		fcoeff0,
-	float2*	__restrict__		fcoeff1,
-	float2*	__restrict__		fcoeff2,
-	const	float4* __restrict__	posArray,
-	const	float4* __restrict__	velArray,
-	const	particleinfo* __restrict__	infoArray,
-	const	hashKey* __restrict__	particleHash,
-	const	uint* __restrict__		cellStart,
-	const	neibdata* __restrict__	neibsList,
-	const	uint	numParticles,
-	const	float	slength,
-	const	float	influenceradius)
+cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = infoArray[index];
+	const particleinfo info = params.fetchInfo(index);
 
-	const float4 pos = posArray[index];
+	const float4 pos = params.fetchPos(index);
 
 	if (INACTIVE(pos))
 		return;
 
-	float4 vel = velArray[index];
+	const float4 vel = params.fetchVel(index);
 
 	// Kernel correction is just the Shepard normalization, that has a self-contribution
 	//float corr = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w, fluid_num(info));
@@ -352,25 +340,26 @@ cspmCoeffDevice(
 	if (BOUNDARY(info) || (vel.w > HYDROSTATIC_DENSITY)){
 #endif
 		set_identity(a_inverse);
-		wcoeffArray[index] = 1.0f;
-		storeTensor(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
+		params.wcoeff[index] = 1.0f;
+		params.storeFcoeff(a_inverse, index);
 		return;
 	}
 
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	//bool has_neibs = false;
 	uint num_neibs = 0;
 	bool close_to_boundary = false;
 
+	// TODO this should be done only if ENABLE_PLANES, and also for the DEM
 	for (int i = 0; i < d_numplanes; ++i)
 	{
 		const float pd = PlaneDistance(gridPos, make_float3(pos.x, pos.y, pos.z), d_plane[i]);
-		if (pd < influenceradius)
+		if (pd < params.influenceradius)
 			{
 				set_identity(a_inverse);
-				wcoeffArray[index] = 1.0f;
-				storeTensor(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
+				params.wcoeff[index] = 1.0f;
+				params.storeFcoeff(a_inverse, index);
 				return;
 			}
 	}
@@ -378,10 +367,10 @@ cspmCoeffDevice(
 	// Loop over all FLUID neighbors and BOUNDARY neighbors
 	// TODO check what to do for SA
 	// TODO scale relPos by slength to gain resolution independence
-	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
-		const particleinfo neib_info = infoArray[neib_index];
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		if (!FLUID(neib_info)) {
 			close_to_boundary = true;
@@ -390,24 +379,18 @@ cspmCoeffDevice(
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
-		const float4 neib_vel = velArray[neib_index];
-		const float r = length(as_float3(relPos));
+		const float4 neib_vel = params.fetchVel(neib_index);
+		const float r = length3(relPos);
 
-		if (INACTIVE(relPos) || r >= influenceradius)
+		if (INACTIVE(relPos) || r >= params.influenceradius)
 			continue;
 
 		const float volume = relPos.w/physical_density(neib_vel.w, fluid_num(neib_info));
 		//corr = kbn_add(corr, W<kerneltype>(r, slength)*volume, corr_kahan);
 
-		const float f = F<kerneltype>(r, slength);
+		const float f = F<kerneltype>(r, params.slength);
 		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
 
 		num_neibs ++;
@@ -440,7 +423,7 @@ cspmCoeffDevice(
 	}
 
 	//wcoeffArray[index] = 1.0f/corr;
-	storeTensor(a_inverse, index, fcoeff0, fcoeff1, fcoeff2);
+	params.storeFcoeff(a_inverse, index);
 }
 
 

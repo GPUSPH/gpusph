@@ -595,29 +595,8 @@ compute_cspm_coeff(
 		uint numThreads = BLOCK_SIZE_FORCES;
 		uint numBlocks = div_up(numParticles, numThreads);
 
-		const float4 *vel = bufread.getData<BUFFER_VEL>();
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *pHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-		float *wcoeff = bufwrite.getData<BUFFER_WCOEFF>();
-		float2** fcoeff = bufwrite.getRawPtr<BUFFER_FCOEFF>();
-
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread.getData<BUFFER_POS>(), numParticles*sizeof(float4)));
-#endif
-
-		cuforces::cspmCoeffDevice<kerneltype, boundarytype>
-			<<<numBlocks, numThreads>>>(
-				wcoeff, fcoeff[0], fcoeff[1], fcoeff[2],
-				pos, vel, info, pHash, cellStart, neibsList,
-				numParticles, slength, influenceRadius);
-
-#if !PREFER_L1
-		CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
+		cuforces::cspmCoeffDevice<kerneltype, boundarytype><<<numBlocks, numThreads>>>(
+				cspm_coeff_params<boundarytype>(bufread, bufwrite, particleRangeEnd, slength, influenceRadius));
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
