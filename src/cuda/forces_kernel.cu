@@ -694,14 +694,32 @@ struct densityGrenierDevice : neibs_list_params
 
 //! This kernel computes the Sheppard correction
 template<KernelType kerneltype,
-	BoundaryType boundarytype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
-shepardDevice(
-	neibs_interaction_params<boundarytype>	params,
-				float4 * __restrict__		newVel)
+	BoundaryType boundarytype,
+	typename params_t = neibs_interaction_params<boundarytype>
+>
+struct shepardDevice : params_t
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SHEPARD;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SHEPARD;
+
+	float4 * __restrict__ newVel;
+
+	shepardDevice(
+		const	BufferList& bufread,
+				BufferList& bufwrite,
+				uint	numParticles,
+				float	slength,
+				float	influenceradius)
+	:
+		params_t(bufread, numParticles, slength, influenceradius),
+		newVel(bufwrite.getData<BUFFER_VEL>())
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -765,6 +783,7 @@ shepardDevice(
 	vel.w = numerical_density(temp1/temp2,fluid_num(info));
 	newVel[index] = vel;
 }
+};
 
 //! This kernel computes the MLS correction
 template<KernelType kerneltype,

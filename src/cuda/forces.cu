@@ -1036,9 +1036,9 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 	if (boundarytype == SA_BOUNDARY)
 		throw std::runtime_error("Shepard filtering is not supported with SA_BOUNDARY");
 
-	cuforces::shepardDevice<kerneltype, boundarytype><<< numBlocks, numThreads, dummy_shared >>>
-		(neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
-		 bufwrite.getData<BUFFER_VEL>());
+	execute_kernel(cuforces::shepardDevice<kerneltype, boundarytype>(
+		bufread, bufwrite, numParticles, slength, influenceradius),
+		numBlocks, numThreads, dummy_shared);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
