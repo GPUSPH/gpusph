@@ -4380,11 +4380,16 @@ template<typename FP, /* finalize_forces_params<...> */
 	BoundaryType boundarytype = FP::boundarytype,
 	typename ViscSpec = typename FP::ViscSpec,
 	flag_t simflags = FP::simflags>
-__global__ void
-finalizeforcesDevice(FP params)
+struct finalizeforcesDevice : FP
 {
+	finalizeforcesDevice(FP const& params_) : FP(params_) {}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	FP const& params(*this);
+
 	// Global particle index
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
+	const uint index = item.get_id() + params.fromParticle;
 
 	// Allocating shared data in case of adaptive time step
 	__shared__ forces_shared_data<boundarytype, ViscSpec, simflags> shared;
@@ -4469,6 +4474,7 @@ finalizeforcesDevice(FP params)
 
 	shared.reduce(params);
 }
+};
 
 /************************************************************************************************************/
 /*		   Kernels for computing repacking forces with the different options											*/

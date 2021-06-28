@@ -798,13 +798,16 @@ run_forces(
 		boundary_forces(numBlocks, numThreads, dummy_shared, params_bf);
 	}
 
-	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
+	using FinalizeForcesParams = finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags>;
+
+	FinalizeForcesParams params_finalize(
 			bufread, bufwrite,
 			numParticles, fromParticle, toParticle, slength, deltap,
 			cflOffset,
 			IOwaterdepth);
 
-	cuforces::finalizeforcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
+	execute_kernel(cuforces::finalizeforcesDevice<FinalizeForcesParams>(params_finalize),
+		numBlocks, numThreads, dummy_shared);
 
 	return numBlocks;
 }
