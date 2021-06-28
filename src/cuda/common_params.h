@@ -374,4 +374,63 @@ struct dem_params
 	{}
 };
 
+template<bool writable = true>
+struct cspm_params
+{
+	using tensor_element_type = writable_type<writable, float2>;
+	using scalar_element_type = writable_type<writable, float>;
+	using tensor_src_ptr_type = typename std::conditional<writable,
+		float2 **, const float2 * const *>::type;
+	using tensor_src_buf_type = writable_type<writable, BufferList>;
+
+	tensor_element_type* __restrict__ fcoeff0;
+	tensor_element_type* __restrict__ fcoeff1;
+	tensor_element_type* __restrict__ fcoeff2;
+	scalar_element_type* __restrict__ wcoeff;
+
+	cspm_params(tensor_src_ptr_type fcoeff_ptr,
+		scalar_element_type* __restrict__ wcoeff_)
+	:
+		fcoeff0(fcoeff_ptr[0]),
+		fcoeff1(fcoeff_ptr[1]),
+		fcoeff2(fcoeff_ptr[2]),
+		wcoeff(wcoeff_)
+	{}
+
+	cspm_params(tensor_src_buf_type& bufread) :
+		cspm_params(
+			bufread.template getRawPtr<BUFFER_FCOEFF>(),
+			bufread.template getData<BUFFER_WCOEFF>())
+	{}
+
+	// Implementation note: this is a function template because the enable_if
+	// cannot work on the value of writable itself (since it's not in immediate context).
+	// The solution is to make the function a template whose argument defaults to
+	// the class template argument
+	template<bool can_write = writable>
+	__device__ __forceinline__
+	enable_if_t<can_write> storeFcoeff(symtensor3 const& fcoeff, const uint i) const
+	{
+		storeTensor(fcoeff, i, fcoeff0, fcoeff1, fcoeff2);
+	}
+
+	__device__ __forceinline__
+	symtensor3 fetchFcoeff(const uint i) const
+	{
+		symtensor3 fcoeff;
+		float2 temp = fcoeff0[i];
+		fcoeff.xx = temp.x;
+		fcoeff.xy = temp.y;
+		temp = fcoeff1[i];
+		fcoeff.xz = temp.x;
+		fcoeff.yy = temp.y;
+		temp = fcoeff2[i];
+		fcoeff.yz = temp.x;
+		fcoeff.zz = temp.y;
+		return fcoeff;
+	}
+
+	cspm_params(cspm_params const&) = default;
+};
+
 #endif

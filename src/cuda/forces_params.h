@@ -354,42 +354,6 @@ struct effective_visc_forces_params
 	{}
 };
 
-/// Buffers with coefficinets for CSPM normalization
-struct cspm_forces_params
-{
-	const float2 * __restrict__ fcoeff0;
-	const float2 * __restrict__ fcoeff1;
-	const float2 * __restrict__ fcoeff2;
-	const float * wcoeff;
-
-	cspm_forces_params(const float2 * const *fcoeff_ptr, const float *wcoefficient) :
-		fcoeff0(fcoeff_ptr[0]),
-		fcoeff1(fcoeff_ptr[1]),
-		fcoeff2(fcoeff_ptr[2]),
-		wcoeff(wcoefficient)
-	{}
-
-	cspm_forces_params(BufferList const& bufread) :
-		cspm_forces_params(bufread.getRawPtr<BUFFER_FCOEFF>(), bufread.getData<BUFFER_WCOEFF>())
-	{}
-
-	__device__ __forceinline__
-	symtensor3 fetchFcoeff(const uint i) const
-	{
-		symtensor3 fcoeff;
-		float2 temp = fcoeff0[i];
-		fcoeff.xx = temp.x;
-		fcoeff.xy = temp.y;
-		temp = fcoeff1[i];
-		fcoeff.xz = temp.x;
-		fcoeff.yy = temp.y;
-		temp = fcoeff2[i];
-		fcoeff.yz = temp.x;
-		fcoeff.zz = temp.y;
-		return fcoeff;
-	}
-};
-
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -432,7 +396,7 @@ template<KernelType _kerneltype,
 	typename visc_cond =
 		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params),
 	typename cspm_cond =
-		typename COND_STRUCT(_simflags & ENABLE_CSPM, cspm_forces_params)
+		typename COND_STRUCT(_simflags & ENABLE_CSPM, cspm_params<false>)
 	>
 struct forces_params : _ViscSpec,
 	common_forces_params,
