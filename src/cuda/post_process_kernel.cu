@@ -350,14 +350,31 @@ struct calcTestpointsDevice : params_t
 
 
 //! Identifies particles which form the free-surface
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals>
-__global__ void
-calcSurfaceparticleDevice(
-	neibs_interaction_params<boundarytype> params,
-	float4*	__restrict__ normals,
-	particleinfo* __restrict__ newInfo)
+template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals,
+	typename params_t = neibs_interaction_params<boundarytype>
+>
+struct calcSurfaceparticleDevice : params_t
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	particleinfo* __restrict__ newInfo;
+	float4*	__restrict__ normals;
+
+	calcSurfaceparticleDevice(
+		BufferList const& bufread, BufferList& bufwrite,
+		uint particleRangeEnd, float slength, float influenceRadius)
+	:
+		params_t(bufread, particleRangeEnd, slength, influenceRadius),
+		/* in-place update! */
+		newInfo(bufwrite.getData<BUFFER_INFO, BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		// only try to access it if requested, in order to support validate_buffers()
+		// from the caller
+		normals(savenormals ? bufwrite.getData<BUFFER_NORMALS>() : NULL)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -471,6 +488,7 @@ calcSurfaceparticleDevice(
 	}
 
 }
+};
 
 //! Identifies particles at the interface of two fluids and at the free-surface
 template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals>

@@ -193,21 +193,17 @@ struct CUDAPostProcessEngineHelper<SURFACE_DETECTION, kerneltype, boundarytype, 
 			gdata->problem->simparams()->slength,
 			gdata->problem->simparams()->influenceRadius);
 
-		/* in-place update! */
-		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO,
-			BufferList::AccessSafety::MULTISTATE_SAFE>();
-
-		// only try to access it if requested, in order to support validate_buffers()
-		// from the caller
-		float4 *normals = wants_normals ? bufwrite.getData<BUFFER_NORMALS>() : NULL;
-
 		// execute the kernel
 		if (wants_normals) {
-			cupostprocess::calcSurfaceparticleDevice<kerneltype, boundarytype, simflags, true><<< numBlocks, numThreads >>>
-				(params, normals, newInfo);
+			using kernel_functor = cupostprocess::calcSurfaceparticleDevice<kerneltype, boundarytype, simflags, true>;
+			execute_kernel(kernel_functor(bufread, bufwrite,
+					particleRangeEnd, gdata->problem->simparams()->slength, gdata->problem->simparams()->influenceRadius),
+				numBlocks, numThreads);
 		} else {
-			cupostprocess::calcSurfaceparticleDevice<kerneltype, boundarytype, simflags, false><<< numBlocks, numThreads >>>
-				(params, normals, newInfo);
+			using kernel_functor = cupostprocess::calcSurfaceparticleDevice<kerneltype, boundarytype, simflags, false>;
+			execute_kernel(kernel_functor(bufread, bufwrite,
+					particleRangeEnd, gdata->problem->simparams()->slength, gdata->problem->simparams()->influenceRadius),
+				numBlocks, numThreads);
 		}
 
 		// check if kernel invocation generated an error
