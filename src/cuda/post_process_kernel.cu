@@ -105,11 +105,29 @@ float3 calc_volc_contrib(float3 const& relVel, float3 const& relPos)
 }
 
 //! Computes the vorticity field
-template<KernelType kerneltype, BoundaryType boundarytype>
-__global__ void
-calcVortDevice(neibs_interaction_params<boundarytype> params, float3* __restrict__ vorticity)
+template<KernelType kerneltype, BoundaryType boundarytype,
+	typename params_t = neibs_interaction_params<boundarytype>
+>
+struct calcVortDevice : params_t
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	float3* __restrict__ vorticity;
+
+	calcVortDevice(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const	uint	numParticles,
+		const	float	slength,
+		const	float	influenceradius)
+	:
+		params_t(bufread, numParticles, slength, influenceradius),
+		vorticity(bufwrite.getData<BUFFER_VORTICITY>())
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -149,6 +167,7 @@ calcVortDevice(neibs_interaction_params<boundarytype> params, float3* __restrict
 
 	vorticity[index] = vort;
 }
+};
 
 template<BoundaryType boundarytype, typename ViscSpec
 	, bool has_keps = ViscSpec::turbmodel == KEPSILON

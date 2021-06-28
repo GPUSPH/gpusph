@@ -110,13 +110,12 @@ struct CUDAPostProcessEngineHelper<VORTICITY, kerneltype, boundarytype, ViscSpec
 		if (boundarytype == SA_BOUNDARY)
 			throw std::invalid_argument("VORTICITY post-processing not supported with SA_BOUNDARY");
 
-		const neibs_interaction_params<boundarytype> params(bufread,
+		execute_kernel(
+			cupostprocess::calcVortDevice<kerneltype, boundarytype>(bufread, bufwrite,
 				particleRangeEnd,
 				gdata->problem->simparams()->slength,
-				gdata->problem->simparams()->influenceRadius);
-
-		cupostprocess::calcVortDevice<kerneltype, boundarytype><<< numBlocks, numThreads >>>
-			(params, bufwrite.getData<BUFFER_VORTICITY>());
+				gdata->problem->simparams()->influenceRadius),
+			numBlocks, numThreads);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
