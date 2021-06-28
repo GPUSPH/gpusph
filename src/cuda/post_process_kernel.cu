@@ -275,11 +275,24 @@ struct testpoints_pdata : keps_pdata
 //! Compute the values of velocity, density, k and epsilon at test points
 template<KernelType kerneltype,
 	BoundaryType boundarytype,
-	typename ViscSpec>
-__global__ void
-calcTestpointsDevice(testpoints_params<boundarytype, ViscSpec> params)
+	typename ViscSpec,
+	typename params_t = testpoints_params<boundarytype, ViscSpec>
+>
+struct calcTestpointsDevice : params_t
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	calcTestpointsDevice(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		uint particleRangeEnd, float slength, float influenceRadius)
+	:
+		params_t(bufread, bufwrite, particleRangeEnd, slength, influenceRadius)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -333,6 +346,7 @@ calcTestpointsDevice(testpoints_params<boundarytype, ViscSpec> params)
 
 	pdata.store_keps(params, index);
 }
+};
 
 
 //! Identifies particles which form the free-surface

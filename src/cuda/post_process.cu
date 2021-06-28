@@ -148,14 +148,12 @@ struct CUDAPostProcessEngineHelper<TESTPOINTS, kerneltype, boundarytype, ViscSpe
 		// are actually the same buffer, so the “new” nomenclature
 		// is just for internal usage
 
-		cupostprocess::testpoints_params<boundarytype, ViscSpec> params(bufread, bufwrite,
-			particleRangeEnd,
-			gdata->problem->simparams()->slength,
-			gdata->problem->simparams()->influenceRadius);
-
-		// execute the kernel
-		cupostprocess::calcTestpointsDevice<kerneltype, boundarytype><<< numBlocks, numThreads >>>
-			(params);
+		execute_kernel(
+			cupostprocess::calcTestpointsDevice<kerneltype, boundarytype, ViscSpec>(bufread, bufwrite,
+				particleRangeEnd,
+				gdata->problem->simparams()->slength,
+				gdata->problem->simparams()->influenceRadius),
+			numBlocks, numThreads);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
