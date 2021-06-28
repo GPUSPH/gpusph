@@ -1070,9 +1070,9 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 	if (boundarytype == SA_BOUNDARY)
 		throw std::runtime_error("MLS filtering is not supported with SA_BOUNDARY");
 
-	cuforces::MlsDevice<kerneltype, boundarytype><<< numBlocks, numThreads, dummy_shared >>>
-		(neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
-		 bufwrite.getData<BUFFER_VEL>());
+	execute_kernel(cuforces::MlsDevice<kerneltype, boundarytype>
+		(bufread, bufwrite, numParticles, slength, influenceradius),
+		numBlocks, numThreads, dummy_shared);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
