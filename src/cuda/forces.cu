@@ -822,7 +822,7 @@ vertex_repack(
 	uint numBlocks, uint numThreads, int dummy_shared,
 	FluidVertexParams const& params_fv)
 {
-	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fv);
+	execute_kernel(cuforces::repackDevice<FluidVertexParams>(params_fv), numBlocks, numThreads, dummy_shared);
 }
 
 template<typename FluidVertexParams>
@@ -862,17 +862,21 @@ run_repack(
 	dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 #endif
 
-	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_FLUID> params_ff(
+	using FluidFluidParams    = repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_FLUID>;
+	using FluidVertexParams   = repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX>;
+	using FluidBoundaryParams = repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_BOUNDARY>;
+
+	FluidFluidParams params_ff(
 		bufread, bufwrite,
 		fromParticle, toParticle,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
 		IOwaterdepth);
 
-	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_ff);
+	execute_kernel(cuforces::repackDevice<FluidFluidParams>(params_ff), numBlocks, numThreads, dummy_shared);
 
 	{
-		repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_VERTEX> params_fv(
+		FluidVertexParams params_fv(
 			bufread, bufwrite,
 			fromParticle, toParticle,
 			deltap, slength, influenceradius, step, dt,
@@ -882,14 +886,14 @@ run_repack(
 		vertex_repack(numBlocks, numThreads, dummy_shared, params_fv);
 	}
 
-	repack_params<kerneltype, boundarytype, simflags, PT_FLUID, PT_BOUNDARY> params_fb(
+	FluidBoundaryParams params_fb(
 		bufread, bufwrite,
 		fromParticle, toParticle,
 		deltap, slength, influenceradius, step, dt,
 		epsilon,
 		IOwaterdepth);
 
-	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
+	execute_kernel(cuforces::repackDevice<FluidBoundaryParams>(params_fb), numBlocks, numThreads, dummy_shared);
 
 	finalize_repack_params<boundarytype, simflags> params_finalize(
 		bufread, bufwrite,
