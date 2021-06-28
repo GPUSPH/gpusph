@@ -240,26 +240,19 @@ struct CUDAPostProcessEngineHelper<INTERFACE_DETECTION, kerneltype, boundarytype
 		uint numThreads = BLOCK_SIZE_CALCTEST;
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-		neibs_interaction_params<boundarytype> params(bufread,
-			particleRangeEnd,
-			gdata->problem->simparams()->slength,
-			gdata->problem->simparams()->influenceRadius);
-
-		/* in-place update! */
-		particleinfo *newInfo = bufwrite.getData<BUFFER_INFO,
-			BufferList::AccessSafety::MULTISTATE_SAFE>();
-
-		// only try to access it if requested, in order to support validate_buffers()
-		// from the caller
-		float4 *normals = wants_normals ? bufwrite.getData<BUFFER_NORMALS>() : NULL;
-
 		// execute the kernel
 		if (wants_normals) {
-			cupostprocess::calcInterfaceparticleDevice<kerneltype, boundarytype, simflags, true><<< numBlocks, numThreads >>>
-				(params, normals, newInfo, gdata->problem->m_deltap);
+			using kernel_functor = cupostprocess::calcInterfaceparticleDevice<kerneltype, boundarytype, simflags, true>;
+			execute_kernel(kernel_functor(bufread, bufwrite, particleRangeEnd,
+					gdata->problem->simparams()->slength, gdata->problem->simparams()->influenceRadius,
+					gdata->problem->m_deltap),
+				numBlocks, numThreads);
 		} else {
-			cupostprocess::calcInterfaceparticleDevice<kerneltype, boundarytype, simflags, false><<< numBlocks, numThreads >>>
-				(params, normals, newInfo, gdata->problem->m_deltap);
+			using kernel_functor = cupostprocess::calcInterfaceparticleDevice<kerneltype, boundarytype, simflags, false>;
+			execute_kernel(kernel_functor(bufread, bufwrite, particleRangeEnd,
+					gdata->problem->simparams()->slength, gdata->problem->simparams()->influenceRadius,
+					gdata->problem->m_deltap),
+				numBlocks, numThreads);
 		}
 
 		// check if kernel invocation generated an error

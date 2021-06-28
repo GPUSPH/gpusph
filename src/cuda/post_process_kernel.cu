@@ -491,18 +491,35 @@ struct calcSurfaceparticleDevice : params_t
 };
 
 //! Identifies particles at the interface of two fluids and at the free-surface
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals>
-__global__
-enable_if_t<boundarytype != SA_BOUNDARY>
-calcInterfaceparticleDevice(
-	neibs_interaction_params<boundarytype> params,
-	float4*	__restrict__ normals,
-	particleinfo* __restrict__ newInfo,
-	// deltap is only actually used by the SA_BOUNDARY specialization below
-	// TODO FIXME reorganize this so this is not needed
-	const float deltap)
+//! Generic (non-SA) version
+//! TODO FIXME do the SA/non-SA split more cleanly
+template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals,
+	typename params_t = neibs_interaction_params<boundarytype>
+>
+struct calcInterfaceparticleDevice : params_t
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	particleinfo* __restrict__ newInfo;
+	float4*	__restrict__ normals;
+
+	calcInterfaceparticleDevice(
+		BufferList const& bufread, BufferList& bufwrite,
+		uint particleRangeEnd, float slength, float influenceRadius,
+		// deltap is only actually used by the SA_BOUNDARY specialization below
+		float deltap_)
+	:
+		params_t(bufread, particleRangeEnd, slength, influenceRadius),
+		/* in-place update! */
+		newInfo(bufwrite.getData<BUFFER_INFO, BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		// only try to access it if requested, in order to support validate_buffers()
+		// from the caller
+		normals(savenormals ? bufwrite.getData<BUFFER_NORMALS>() : NULL)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -642,19 +659,39 @@ calcInterfaceparticleDevice(
 		}
 	}
 }
+};
 
 //! Identifies particles at the interface of two fluids and at the free-surface
-// SA_BOUNDARY specialization
-template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals>
-__global__
-enable_if_t<boundarytype == SA_BOUNDARY>
-calcInterfaceparticleDevice(
-	neibs_interaction_params<boundarytype> params,
-	float4*	__restrict__ normals,
-	particleinfo* __restrict__ newInfo,
-	const float deltap)
+//! SA_BOUNDARY version
+template<KernelType kerneltype, flag_t simflags, bool savenormals>
+struct calcInterfaceparticleDevice<kerneltype, SA_BOUNDARY, simflags, savenormals> :
+	neibs_interaction_params<SA_BOUNDARY>
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	using params_t = neibs_interaction_params<SA_BOUNDARY>;
+
+	particleinfo* __restrict__ newInfo;
+	float4*	__restrict__ normals;
+	float deltap;
+
+	calcInterfaceparticleDevice(
+		BufferList const& bufread, BufferList& bufwrite,
+		uint particleRangeEnd, float slength, float influenceRadius,
+		float deltap_)
+	:
+		params_t(bufread, particleRangeEnd, slength, influenceRadius),
+		/* in-place update! */
+		newInfo(bufwrite.getData<BUFFER_INFO, BufferList::AccessSafety::MULTISTATE_SAFE>()),
+		// only try to access it if requested, in order to support validate_buffers()
+		// from the caller
+		normals(savenormals ? bufwrite.getData<BUFFER_NORMALS>() : NULL),
+		deltap(deltap_)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -692,7 +729,7 @@ calcInterfaceparticleDevice(
 	normal_if_w = W<kerneltype>(0.0f, params.slength)*p_volume;
 
 	// First loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
+	for_every_neib(SA_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
@@ -768,7 +805,7 @@ calcInterfaceparticleDevice(
 	int nc_if = 0;
 
 	// Second loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
+	for_every_neib(SA_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
@@ -821,6 +858,8 @@ calcInterfaceparticleDevice(
 		}
 	}
 }
+};
+
 
 
 // TODO documentation
