@@ -4581,11 +4581,16 @@ struct repackDevice : FP
 template<typename FP, /* finalize_forces_params<...> */
 	BoundaryType boundarytype = FP::boundarytype,
 	flag_t simflags = FP::simflags>
-__global__ void
-finalizeRepackDevice(FP params)
+struct finalizeRepackDevice : FP
 {
+	finalizeRepackDevice(FP const& params_) : FP(params_) {}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	FP const& params(*this);
+
 	// Global particle index
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
+	const uint index = item.get_id() + params.fromParticle;
 
 	// Allocating shared data in case of adaptive time step
 	__shared__ forces_shared_data<boundarytype, repackViscSpec<simflags>, simflags> shared;
@@ -4645,6 +4650,7 @@ finalizeRepackDevice(FP params)
 
 	shared.reduce(params);
 }
+};
 
 //***********************************************************************************************************
 // Structures and kernels for the computation of the density diffusion, used in the ENABLE_DENSITY_SUM case.

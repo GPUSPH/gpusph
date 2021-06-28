@@ -895,13 +895,15 @@ run_repack(
 
 	execute_kernel(cuforces::repackDevice<FluidBoundaryParams>(params_fb), numBlocks, numThreads, dummy_shared);
 
-	finalize_repack_params<boundarytype, simflags> params_finalize(
+	using FinalizeRepackParams = finalize_repack_params<boundarytype, simflags>;
+	FinalizeRepackParams params_finalize(
 		bufread, bufwrite,
 		numParticles, fromParticle, toParticle, slength, deltap,
 		cflOffset,
 		IOwaterdepth);
 
-	cuforces::finalizeRepackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_finalize);
+	execute_kernel(cuforces::finalizeRepackDevice<FinalizeRepackParams>(params_finalize),
+		numBlocks, numThreads, dummy_shared);
 
 	return numBlocks;
 }
