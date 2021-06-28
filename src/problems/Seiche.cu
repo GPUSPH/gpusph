@@ -85,9 +85,10 @@ Seiche::Seiche(GlobalData *_gdata) : Problem(_gdata)
 	// distance between fluid box and wall
 	float wd = m_deltap; //Used to be divided by 2
 
-	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), l, w, h);
-	disableCollisions(experiment_box);
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, Point(wd, wd, wd), l-2*wd, w-2*wd, H-2*wd);
+	// boundaries
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), l, w, h);
+	// fluid
+	addBox(GT_FLUID, FT_SOLID, Point(wd, wd, wd), l-2*wd, w-2*wd, H-2*wd);
 }
 
 float3 Seiche::g_callback(const double t)

@@ -34,7 +34,6 @@
 
 class WaveTank: public Problem {
 	private:
-		bool		use_cyl, use_bottom_plane;
 		double		paddle_length;
 		double		paddle_width;
 		double		h_length, height, slope_length, beta;

@@ -30,8 +30,6 @@
 #include <stdio.h>
 #include <stdexcept>
 
-#include "textures.cuh"
-
 #include "engine_boundary_conditions.h"
 #include "simflags.h"
 
@@ -166,7 +164,7 @@ compute_boundary_conditions(
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
-				float	influenceradius)
+				float	influenceradius) override
 {
 	CUDABoundaryHelper<kerneltype, boundarytype>::process
 		(bufread, bufwrite, numParticles, particleRangeEnd,
@@ -640,7 +638,6 @@ saIdentifyCornerVertices(
 	const	float			eps) override
 {
 	const float4* oldPos = bufread.getData<BUFFER_POS>();
-	const float4* boundelement = bufread.getData<BUFFER_BOUNDELEMENTS>();
 	const hashKey* particleHash = bufread.getData<BUFFER_HASH>();
 	const vertexinfo* vertices = bufread.getData<BUFFER_VERTICES>();
 	const uint* cellStart = bufread.getData<BUFFER_CELLSTART>();

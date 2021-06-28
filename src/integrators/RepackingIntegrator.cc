@@ -85,8 +85,6 @@ template<>
 void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	(Integrator::Phase *this_phase, StepInfo const& step)
 {
-	// repacking initialization step?
-	const bool init_step = (step.number == 0);
 	// end-of-repacking, prepare simulation step?
 	const bool reinit_step = (step.number == -1);
 	const SimParams *sp = gdata->problem->simparams();
@@ -209,7 +207,7 @@ void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	// TODO FIXME considering splitting new particle creation/particle property reset
 	// into its own kernel, in order to provide cleaner interfaces and finer-grained
 	// buffer handling
-	CommandStruct& vertex_bc_cmd = this_phase->add_command(SA_CALC_VERTEX_BOUNDARY_CONDITIONS)
+	this_phase->add_command(SA_CALC_VERTEX_BOUNDARY_CONDITIONS)
 		.set_step(step)
 		.set_dt(dt_op)
 		.reading(state,
@@ -304,8 +302,6 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 
 	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
 
-	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
-
 	const string current_state = getCurrentStateForStep(step.number);
 	const string next_state = getNextStateForStep(step.number);
 
@@ -368,7 +364,7 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 		.set_dst(next_state)
 		.set_flags(shared_buffers | SUPPORT_BUFFERS);
 
-	CommandStruct& euler_cmd = this_phase->add_command(EULER)
+	this_phase->add_command(EULER)
 		.set_step(step)
 		.set_dt(dt_op)
 		.reading(current_state,
@@ -499,8 +495,6 @@ RepackingIntegrator::RepackingIntegrator(GlobalData const* _gdata) :
 	m_entered_main_cycle(false),
 	m_finished_main_cycle(false)
 {
-	const SimParams *sp = gdata->problem->simparams();
-
 	// Preallocate room for all phases
 	m_phase.resize(NUM_PHASES);
 

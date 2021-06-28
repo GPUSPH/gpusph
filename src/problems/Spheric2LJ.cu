@@ -114,17 +114,17 @@ Spheric2LJ::Spheric2LJ(GlobalData *_gdata) : Problem(_gdata)
 
 	GeometryID obstacle = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		Point(m_origin + make_double3(2.3955, 0.295, r0)), 0.161, 0.403, 0.161-r0);
-	disableCollisions(obstacle);
 	GeometryID unfill_obstacle = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
 		Point(m_origin + make_double3(2.3955+r0, 0.295+r0, r0)), 0.161-2*r0, 0.403-2*r0, 0.161-r0);
-	disableCollisions(unfill_obstacle);
 	setEraseOperation(unfill_obstacle, ET_ERASE_BOUNDARY);
 
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, Point(m_origin + r0), 0.4, ly - 2*r0, H - r0);
+	addBox(GT_FLUID, FT_SOLID, Point(m_origin + r0), 0.4, ly - 2*r0, H - r0);
 
 	if (wet) {
-		GeometryID fluid1 = addBox(GT_FLUID, FT_SOLID, Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)),
+		addBox(GT_FLUID, FT_SOLID, Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)),
 			lx - H - m_deltap - 2*r0, 0.67 - 2*r0, 0.1);
+		// this is done here because in the dry case we don't need to do the unfill
+		// (there's no water around the obstacle anyway)
 		setEraseOperation(obstacle, ET_ERASE_FLUID);
 	}
 

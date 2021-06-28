@@ -40,8 +40,7 @@ class OilJet: public Problem {
 		double		pipe_length;	// pipe length
 
 		// Moving boundary data
-		double		piston_amplitude, piston_omega;
-		double3     piston_origin;
+		double3		piston_origin;
 		double		piston_tstart, piston_tend;
 		double		piston_vel;
 

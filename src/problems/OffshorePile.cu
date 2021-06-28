@@ -79,7 +79,6 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 
 	// Physical parameters
 	set_gravity(-9.81f);
-	float g = get_gravity_magnitude();
 	setMaxFall(H);
 
 	add_fluid(1000.0);
@@ -127,74 +126,69 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "OffshorePile";
 
-  // Create the geometry
+	// Create the geometry
 	setPositioning(PP_CORNER);
 
-  const int layersm1 = layers - 1;
+	const int layersm1 = layers - 1;
 
-  // Fluid
-	GeometryID fluid1 = addBox(GT_FLUID, FT_SOLID,
-        Point(m_deltap/2., periodic_offset_y, m_deltap/2.),
-        h_length, ly, H - m_deltap);
+	// Fluid
+	addBox(GT_FLUID, FT_SOLID,
+		Point(m_deltap/2., periodic_offset_y, m_deltap/2.),
+		h_length, ly, H - m_deltap);
 	GeometryID fluid2 = addBox(GT_FLUID, FT_SOLID,
-        make_double3(h_length + m_deltap, periodic_offset_y,  m_deltap/2.),
-			  lx - h_length - m_deltap, ly, H - m_deltap/2);
-  rotate(fluid2,EulerParameters(Vector(0, 1, 0), -beta));
+		make_double3(h_length + m_deltap, periodic_offset_y,  m_deltap/2.),
+		lx - h_length - m_deltap, ly, H - m_deltap/2);
+	rotate(fluid2,EulerParameters(Vector(0, 1, 0), -beta));
 
-  double hu = 1.2*(lx - h_length)*tan(beta);
+	double hu = 1.2*(lx - h_length)*tan(beta);
 	GeometryID unfill_top = addBox(GT_FLUID, FT_NOFILL,
-        make_double3(h_length + m_deltap, periodic_offset_y, H + m_deltap/2.),
-        lx - h_length, ly, H + hu);
-	setEraseOperation(unfill_top,ET_ERASE_FLUID);
+		make_double3(h_length + m_deltap, periodic_offset_y, H + m_deltap/2.),
+		lx - h_length, ly, H + hu);
+	setEraseOperation(unfill_top, ET_ERASE_FLUID);
 
 	// Rigid body: cylinder
 	setPositioning(PP_BOTTOM_CENTER);
-  GeometryID cyl = addCylinder(GT_MOVING_BODY, FT_BORDER,
-        make_double3(cyl_xpos, ly/2., 0),
-        (cyl_diam - m_deltap)/2., cyl_height);
-	disableCollisions(cyl);
-  enableFeedback(cyl);
+	GeometryID cyl = addCylinder(GT_MOVING_BODY, FT_BORDER,
+		make_double3(cyl_xpos, ly/2., 0),
+		(cyl_diam - m_deltap)/2., cyl_height);
+	enableFeedback(cyl);
 	setEraseOperation(cyl,ET_ERASE_FLUID);
 	setUnfillRadius(cyl,m_deltap*0.8);
 	setEraseOperation(cyl,ET_ERASE_BOUNDARY);
 
 	setPositioning(PP_CORNER);
 	// Rigid body: piston
-  GeometryID piston =
-    addBox(GT_MOVING_BODY, FT_BORDER, piston_origin,
-    layersm1*m_deltap, piston_width, piston_height);
-	disableCollisions(piston);
+	GeometryID piston =
+		addBox(GT_MOVING_BODY, FT_BORDER, piston_origin,
+			layersm1*m_deltap, piston_width, piston_height);
 	disableFeedback(piston);
 
-  // Walls
-	GeometryID bottom_flat = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-    make_double3(x0, periodic_offset_y, -(layersm1 + 0.5)*m_deltap),
-    h_length - x0 + 5*m_deltap , ly, layersm1*m_deltap);
-	disableCollisions(bottom_flat);
+	// Walls
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		make_double3(x0, periodic_offset_y, -(layersm1 + 0.5)*m_deltap),
+		h_length - x0 + 5*m_deltap , ly, layersm1*m_deltap);
 
-  GeometryID bottom_slope = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-    make_double3(h_length, periodic_offset_y, -(layersm1 + 0.5)*m_deltap),
+	GeometryID bottom_slope = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+		make_double3(h_length, periodic_offset_y, -(layersm1 + 0.5)*m_deltap),
 		lx - h_length, ly, layersm1*m_deltap);
-	disableCollisions(bottom_slope);
-  setOrientation(bottom_slope,EulerParameters(Vector(0, 1, 0), -beta));
+	setOrientation(bottom_slope,EulerParameters(Vector(0, 1, 0), -beta));
 	setUnfillRadius(bottom_slope,m_deltap*0.9);
 	setEraseOperation(bottom_slope,ET_ERASE_BOUNDARY);
 
-  double zfw = (lx - h_length)*tan(beta) - layersm1*m_deltap;
+	double zfw = (lx - h_length)*tan(beta) - layersm1*m_deltap;
 	GeometryID far_wall = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-        Point(lx - layersm1*m_deltap, periodic_offset_y, zfw),
-        layersm1*m_deltap, ly, H);
-	disableCollisions(far_wall);
+		Point(lx - layersm1*m_deltap, periodic_offset_y, zfw),
+		layersm1*m_deltap, ly, H);
 	setUnfillRadius(far_wall,m_deltap*0.9);
 	setEraseOperation(far_wall,ET_ERASE_BOUNDARY);
 
 }
 
 // Piston's motion
-  void
+void
 OffshorePile::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
-    const float3& force, const float3& torque, const KinematicData& initial_kdata,
-    KinematicData& kdata, double3& dx, EulerParameters& dr)
+	const float3& force, const float3& torque, const KinematicData& initial_kdata,
+	KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
 	if (index == 1) { // we only want to impose the piston's (index=1) motion
 		dx= make_double3(0.0);

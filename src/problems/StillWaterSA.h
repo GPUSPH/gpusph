@@ -35,8 +35,6 @@
 
 
 class StillWaterSA: public Problem {
-	private:
-		uint U;
 	public:
 		StillWaterSA(GlobalData *);
 		void fillDeviceMap();

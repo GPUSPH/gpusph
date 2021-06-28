@@ -1086,7 +1086,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		int ncols = gdata->problem->get_dem_ncols();
 		printf("Thread %d setting DEM texture\t cols = %d\trows =%d\n",
 				m_deviceIndex, ncols, nrows);
-		forcesEngine->setDEM(gdata->problem->get_dem(), ncols, nrows);
+		m_simframework->setDEM(gdata->problem->get_dem(), ncols, nrows);
 	}
 
 	m_deviceMemory += allocated;
@@ -1122,7 +1122,8 @@ void GPUWorker::deallocateDeviceBuffers() {
 	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
 		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
 
-	// here: dem device buffers?
+	if (m_simparams->simflags & ENABLE_DEM)
+		m_simframework->unsetDEM();
 }
 
 void GPUWorker::createEventsAndStreams()
@@ -1319,15 +1320,21 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 		shared_ptr<const AbstractBuffer> buf = buflist[buf_to_get];
 		shared_ptr<AbstractBuffer> hostbuf(onhost->second);
 		size_t _size = howManyParticles * buf->get_element_size();
-		if (buf_to_get == BUFFER_NEIBSLIST)
-			_size *= gdata->problem->simparams()->neiblistsize;
 
 		uint dst_index_offset = firstInnerParticle;
 
 		// the cell-specific buffers are always dumped as a whole,
 		// since this is only used to debug the neighbors list on host
 		// TODO FIXME this probably doesn't work on multi-GPU
-		if (buf_to_get & BUFFERS_CELL) {
+		// A similar argument holds for BUFFER_NEIBSLIST: due to the
+		// structure of the array, if we download based on howManyParticles
+		// rather than the actual allocated elements, the last element in the list
+		// of neighbors of the last particles will not be downloaded
+		// This again will most probably not work in multi-GPU, but since we're
+		// only doing this if debug.neibs, it shouldn't matter much
+		// (or at least we'll look for a way to FIXME this when we'll need
+		// to debug.neibs in multi-GPU context).
+		if (buf_to_get & (BUFFERS_CELL | BUFFER_NEIBSLIST)) {
 			_size = buf->get_allocated_elements() * buf->get_element_size();
 			dst_index_offset = 0;
 		}
@@ -2285,6 +2292,8 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
+	uint nans_found = 0;
+
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2297,7 +2306,8 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
 	// otherwise just mark the buffers
 	if (numPartsToElaborate > 0) {
-		integrationEngine->basicstep(
+		nans_found = integrationEngine->basicstep(
+			gdata->debug.nans,
 			bufread,
 			bufwrite,
 			m_numParticles,
@@ -2317,6 +2327,9 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 		m_dBuffers.rename_state(cmd.src, cmd.dst);
 	bufwrite.clear_pending_state();
 
+	if (nans_found)
+		throw std::runtime_error(to_string(nans_found) + " NaNs found at iteration " +
+			to_string(gdata->iterations) + " step " + to_string(step));
 }
 
 template<>

@@ -92,6 +92,9 @@ public:
 	SimFramework();
 	virtual ~SimFramework();
 
+	virtual void setDEM(const float *hDem, int width, int height) const = 0;
+	virtual void unsetDEM() const = 0;
+
 	AbstractNeibsEngine *getNeibsEngine()
 	{ return m_neibsEngine; }
 	AbstractIntegrationEngine *getIntegrationEngine()

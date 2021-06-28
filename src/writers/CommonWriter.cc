@@ -308,7 +308,7 @@ CommonWriter::need_write(double t) const
 	return Writer::need_write(t);
 }
 
-static const char* TF[] = { "false", "true" };
+//static const char* TF[] = { "false", "true" }; // unused at the moment
 static const char* ED[] = { "disabled", "enabled" };
 
 // TODO mark params overridden by options with a *

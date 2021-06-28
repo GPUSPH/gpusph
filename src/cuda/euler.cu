@@ -326,8 +326,9 @@ apply_density_diffusion(
 }
 
 
-void
+uint
 basicstep(
+		bool nancheck,
 		BufferList const& bufread,
 		BufferList& bufwrite,
 		const	uint	numParticles,
@@ -339,6 +340,11 @@ basicstep(
 		const	float	influenceradius,
 		const	RunMode	run_mode)
 {
+	uint nans_found = 0;
+
+	if (nancheck)
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_nans_found, &nans_found, sizeof(nans_found)));
+
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -346,13 +352,15 @@ basicstep(
 	// execute the kernel
 #define EULER_STEP(step) case step: \
 	if (run_mode == REPACK) { \
-		cueuler::eulerDevice<<< numBlocks, numThreads >>>( \
-			euler_repack_params<kerneltype, boundarytype, simflags, step>( \
-			bufread, bufwrite, numParticles, dt, t)); \
+		euler_repack_params<kerneltype, boundarytype, simflags, step> \
+			params(bufread, bufwrite, numParticles, dt, t); \
+		cueuler::eulerDevice<<< numBlocks, numThreads >>>(params); \
+		if (nancheck) cueuler::nanCheckDevice<<< numBlocks, numThreads>>>(params); \
 	} else { \
-		cueuler::eulerDevice<<< numBlocks, numThreads >>>( \
-			euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, step>( \
-			bufread, bufwrite, numParticles, dt, t)); \
+		euler_params<kerneltype, sph_formulation, boundarytype, ViscSpec, simflags, step> \
+			params(bufread, bufwrite, numParticles, dt, t); \
+		cueuler::eulerDevice<<< numBlocks, numThreads >>>(params); \
+		if (nancheck) cueuler::nanCheckDevice<<< numBlocks, numThreads>>>(params); \
 	} \
 	break;
 	switch (step) {
@@ -363,6 +371,12 @@ basicstep(
 	}
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
+
+	if (nancheck)
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&nans_found, cueuler::d_nans_found, sizeof(nans_found)));
+
+	return nans_found;
+
 }
 
 /// Disables free surface boundary particles during the repacking process

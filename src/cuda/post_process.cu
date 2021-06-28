@@ -28,8 +28,6 @@
 #include <stdio.h>
 #include <stdexcept>
 
-#include "textures.cuh"
-
 #include "engine_forces.h"
 #include "engine_visc.h"
 #include "engine_filter.h"

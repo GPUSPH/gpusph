@@ -44,7 +44,7 @@
 /*! Texture object(s) associated with a CUDABuffer.
  * We associate a texture object (bindless texture) with each array
  * of a CUDABuffer (if possible). This can then be used instead of
- * the lineary array in contexts where 1D texture access may be
+ * the linear array in contexts where 1D texture access may be
  * preferrable (e.g. on hardware where the texture and L1 cache
  * are separate) without incurring in the runtime cost of
  * binding/unbinding the textures.

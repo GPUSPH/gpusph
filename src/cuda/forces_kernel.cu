@@ -34,7 +34,6 @@
 #define _FORCES_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "vector_math.h"
 #include "multi_gpu_defines.h"
 #include "GlobalData.h"
@@ -204,7 +203,7 @@ PlaneForce(	const int3&		gridPos,
 //! near the particle position
 template<BoundaryType boundarytype>
 __device__ __forceinline__ float
-DemLJForce(	cudaTextureObject_t demTex,
+DemLJForce(	dem_params const& params,
 			const int3&	gridPos,
 			const float3&	pos,
 			const float		mass,
@@ -215,10 +214,10 @@ DemLJForce(	cudaTextureObject_t demTex,
 	const float2 demPos = DemPos(gridPos, pos);
 
 	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
-	const float globalZ0 = DemInterpol(demTex, demPos);
+	const float globalZ0 = DemInterpol(params, demPos);
 
 	if (globalZ - globalZ0 < d_demzmin) {
-		const plane_t demPlane(DemTangentPlane(demTex, gridPos, pos, demPos, globalZ0));
+		const plane_t demPlane(DemTangentPlane(params, gridPos, pos, demPos, globalZ0));
 
 		return PlaneForce<boundarytype>(gridPos, pos, mass, demPlane, vel, dynvisc, force);
 	}
@@ -825,7 +824,7 @@ MlsDevice(
 
 #ifdef DEBUG_PARTICLE
 	{
-		const float old = tex1Dfetch(velTex, index).w;
+		const float old = physical_density(params.fetchVel(index).w, fluid_num(info));
 		const float err = 1 - vel.w/old;
 		if (DEBUG_PARTICLE) {
 			printf("MLS %d %d %22.16g => %22.16g (%6.2e)\n",

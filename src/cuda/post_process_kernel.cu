@@ -33,7 +33,6 @@
 #define _POST_PROCESS_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "vector_math.h"
 #include "multi_gpu_defines.h"
 #include "GlobalData.h"
@@ -180,7 +179,7 @@ struct testpoints_nokeps_pdata
 	using dummy_params = empty<keps_params<true>>;
 
 	__device__ __forceinline__
-	void add_keps_contrib(dummy_params const&, ...) {}
+	void add_keps_contrib(dummy_params const& params, const uint index, const float w) {};
 
 	__device__ __forceinline__
 	void normalize(float alpha) {}
@@ -189,7 +188,7 @@ struct testpoints_nokeps_pdata
 	void reset() {}
 
 	__device__ __forceinline__
-	void store_keps(dummy_params const&, ...) {}
+	void store_keps(dummy_params const&, const uint index) {}
 };
 
 template<typename ViscSpec
@@ -468,7 +467,6 @@ calcInterfaceparticleDevice(
 			continue;
 
 		const particleinfo n_info = params.fetchInfo(neib_index);
-		const ParticleType nptype = PART_TYPE(n_info);
 		const float r = length3(relPos);
 
 		// neighbor physical density and volume

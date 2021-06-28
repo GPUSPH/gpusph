@@ -161,8 +161,6 @@ void VTKWriter::mark_written(double t)
 static int endian_int=1;
 static const char* endianness[2] = { "BigEndian", "LittleEndian" };
 
-static float zeroes[4];
-
 /* auxiliary functions to write data array entrypoints */
 inline void
 scalar_array_header(ofstream &out, const char *type, const char *name, size_t offset)
@@ -620,7 +618,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 				uint neib_cell_base_index = UINT_MAX;
 
-				for (uint index = start; ; index += stride) {
+				for (uint index = start; index < end; index += stride) {
 					neibdata neib = neibslist[index];
 					if (neib == NEIBS_END)
 						break;
@@ -664,8 +662,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		endianness[*(char*)&endian_int & 1] << "'>" << endl;
 	fid << " <PolyData>" << endl;
 	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfVerts='" << numParts << "'>" << endl;
-
-	size_t offset = 0;
 
 	// position
 	fid << "   <Points>" << endl;

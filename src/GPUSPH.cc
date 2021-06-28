@@ -853,10 +853,10 @@ template<>
 void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 // GPUSPH::move_bodies(flag_t integrator_step)
 {
-	// TODO this function should also be ported to the CommandSequence architecture
 	const int step = cmd.step.number;
 
-	const float dt = cmd.dt(gdata);
+	// TODO see below
+	//const float dt = cmd.dt(gdata);
 
 	// Let the problem compute the new moving bodies data
 	// TODO we pass step and gdata->dt, should be pass step and dt (which is already halved if necessary)?
@@ -961,7 +961,6 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	const uint numcells = gdata->nGridCells;
 	const size_t devcountCellSize = sizeof(devcount_t) * numcells;
-	const size_t uintCellSize = sizeof(uint) * numcells;
 
 	size_t totCPUbytes = 0;
 
@@ -1073,6 +1072,11 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += gdata->devices * sizeof(uint*) * 3;
 		totCPUbytes += gdata->devices * sizeof(uint) * 4;
 	}
+
+	// We're done allocating buffers, so it's time to see how many of these are not ephemeral
+	// and shuld be (re)stored via hotfiles
+	gdata->countResumeBuffers();
+
 	return totCPUbytes;
 }
 
@@ -1225,7 +1229,7 @@ void GPUSPH::checkBufferConsistency(CommandStruct const& cmd)
 				const float4 neib_vel = velArray[neib_d][neib_offset];
 
 				if (memcmp(&info, &neib_info, sizeof(info))) {
-					printf("%s INFO mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+					printf("%s INFO mismatch @ iteration %lu, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
 						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
 					printf("(%d %d %d %d) vs (%d %d %d %d)\n",
@@ -1235,7 +1239,7 @@ void GPUSPH::checkBufferConsistency(CommandStruct const& cmd)
 				}
 
 				if (memcmp(&pos, &neib_pos, sizeof(pos))) {
-					printf("%s POS mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+					printf("%s POS mismatch @ iteration %lu, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
 						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
 					printf("(%.9g %.9g %.9g %.9g) vs (%.9g %.9g %.9g %.9g)\n",
@@ -1245,7 +1249,7 @@ void GPUSPH::checkBufferConsistency(CommandStruct const& cmd)
 				}
 
 				if (memcmp(&vel, &neib_vel, sizeof(vel))) {
-					printf("%s VEL mismatch @ iteration %d, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
+					printf("%s VEL mismatch @ iteration %lu, command %d (%s): device %d external particle %d (offset %d, neib %d)\n",
 						state_name.c_str(), gdata->iterations, cmd.command, getCommandName(cmd),
 						d, p, offset, neib_offset);
 					printf("(%.9g %.9g %.9g %.9g) vs (%.9g %.9g %.9g %.9g)\n",
@@ -1598,7 +1602,6 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 	// TODO should it be an SPH smoothing instead?
 
 	GageList &gages = problem->simparams()->gage;
-	double slength = problem->simparams()->slength;
 
 	size_t numgages = gages.size();
 	vector<double> gages_W(numgages, 0.);
@@ -1614,7 +1617,10 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 
 	// energy in non-fluid particles + one for each fluid type
 	// double4 with .x kinetic, .y potential, .z internal, .w currently ignored
-	double4 energy[MAX_FLUID_TYPES+1] = {0.0f};
+	double4 energy[MAX_FLUID_TYPES+1];
+	for (auto& e : energy) {
+		e = make_double4(0.0);
+	}
 
 	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
 	double3 const& wo = problem->get_worldorigin();

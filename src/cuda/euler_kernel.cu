@@ -33,7 +33,6 @@
 #define _EULER_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "multi_gpu_defines.h"
 
 namespace cueuler {

@@ -29,6 +29,10 @@
  * Template implementation of the NeibsEngine in CUDA
  */
 
+#if CLANG_CUDA
+#define _CubLog(format, ...) /* nothing */
+#endif
+
 #include <stdexcept>
 
 #include <stdio.h>
@@ -41,8 +45,6 @@
 #include "define_buffers.h"
 #include "engine_neibs.h"
 #include "utils.h"
-
-#include "textures.cuh"
 
 #include "buildneibs_params.h"
 #include "reorder_params.h"
@@ -328,7 +330,7 @@ const	float		boundNlSqInflRad)
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	buildneibs_params<boundarytype, simflags> params(bufread, bufwrite,
-		particleRangeEnd, sqinfluenceradius, demTex, boundNlSqInflRad);
+		particleRangeEnd, sqinfluenceradius, boundNlSqInflRad);
 
 	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount><<<numBlocks, numThreads>>>(params);
 

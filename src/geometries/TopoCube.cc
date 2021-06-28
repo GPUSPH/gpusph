@@ -321,14 +321,16 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_VTK>(const char* fname, FormatOp
 	}
 	fdem.close();
 
-	TopoCube *ret = new TopoCube();
-
 	const double sizex = ewres*(ncols-1);
 	const double sizey = nsres*(nrows-1);
 
-	ret->SetCubeDem(dem, sizex, sizey, zmax - zmin,
-		ncols, nrows, -zmin);
-	ret->SetGeoLocation(south + sizey, south, west + sizex, west);
+	north = south + sizey;
+	east = west + sizex;
+
+	TopoCube *ret = new TopoCube();
+
+	ret->SetCubeDem(dem, sizex, sizey, zmax - zmin, ncols, nrows, -zmin);
+	ret->SetGeoLocation(north, south, east, west);
 
 	delete [] dem;
 
@@ -404,8 +406,8 @@ TopoCube *TopoCube::load_file<TopoCube::DEM_FMT_XYZ>(const char* fname, FormatOp
 	const double sizex = xres*(ncols-1);
 	const double sizey = yres*(nrows-1);
 
-	north = south + sizex;
-	east = west + sizey;
+	north = south + sizey;
+	east = west + sizex;
 
 	TopoCube *ret = new TopoCube();
 
@@ -718,9 +720,6 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 void
 TopoCube::FillIn(PointVect& points, const double dx, const int layers)
 {
-	const int abs_layers = layers < 0 ? -layers : layers;
-	const double layer_dx = layers < 0 ? -dx : dx;
-
 	FillBorder(points, dx, 0, true , layers, 1);
 	FillBorder(points, dx, 1, false, layers, 1);
 	FillBorder(points, dx, 2, true , layers, 1);

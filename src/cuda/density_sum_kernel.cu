@@ -33,7 +33,6 @@
 #define _DENSITY_SUM_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "multi_gpu_defines.h"
 
 namespace cudensity_sum {
@@ -209,40 +208,40 @@ const	float			dt,
 		float			&sumPmwNp1,
 		float			&sumVmwDelta)
 {
-// Compute grid position of current particle
-const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[ pdata.index] );
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[ pdata.index] );
 
-// (r_b^{N+1} - r_b^N)
-const float4 posDelta = pdata.posNp1 - pdata.posN;
+	// (r_b^{N+1} - r_b^N)
+	const float4 posDelta = pdata.posNp1 - pdata.posN;
 
-// Loop over fluid and vertex neighbors
-for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
-	const uint neib_index = neib_iter.neib_index();
-	const particleinfo neib_info = params.info[neib_index];
+	// Loop over fluid and vertex neighbors
+	for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
+		const uint neib_index = neib_iter.neib_index();
+		const particleinfo neib_info = params.info[neib_index];
 
-	const float4 posN_neib = params.oldPos[neib_index];
+		const float4 posN_neib = params.oldPos[neib_index];
 
-	if (INACTIVE(posN_neib)) continue;
+		if (INACTIVE(posN_neib)) continue;
 
-	/* TODO FIXME splitneibs merge: the MOVING object support here was dropped in the splitneibs branch */
+		/* TODO FIXME splitneibs merge: the MOVING object support here was dropped in the splitneibs branch */
 
-	const float4 posNp1_neib = params.newPos[neib_index];
+		const float4 posNp1_neib = params.newPos[neib_index];
 
-	// vector r_{ab} at time N
-	const float4 relPosN = neib_iter.relPos(posN_neib);
-	// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-	const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
+		// vector r_{ab} at time N
+		const float4 relPosN = neib_iter.relPos(posN_neib);
+		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
+		const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
 
-	// -sum_{P\V_{io}} m^n w^n
-	if (!IO_BOUNDARY(neib_info)) {
-		const float rN = length3(relPosN);
-		sumPmwN -= relPosN.w*W<kerneltype>(rN, params.slength);
-	}
+		// -sum_{P\V_{io}} m^n w^n
+		if (!IO_BOUNDARY(neib_info)) {
+			const float rN = length3(relPosN);
+			sumPmwN -= relPosN.w*W<kerneltype>(rN, params.slength);
+		}
 
-	// sum_{P} m^n w^{n+1}
-	const float rNp1 = length3(relPosNp1);
-	if (rNp1 < params.influenceradius)
-		sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
+		// sum_{P} m^n w^{n+1}
+		const float rNp1 = length3(relPosNp1);
+		if (rNp1 < params.influenceradius)
+			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
 
 		if (!params.repacking)
 			densitySumOpenBoundaryContribution<sph_formulation>(params, pdata, dt,

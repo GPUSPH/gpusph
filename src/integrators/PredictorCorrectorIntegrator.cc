@@ -117,7 +117,6 @@ template<>
 void PredictorCorrector::initializeBoundaryConditionsSequence<DUMMY_BOUNDARY>
 	(Integrator::Phase *this_phase, StepInfo const& step)
 {
-	const SimParams *sp = gdata->problem->simparams();
 	const bool init_step = (step.number == 0);
 
 	/* Boundary conditions are applied to step n during initialization step,
@@ -198,7 +197,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 		if (has_io) {
 
 			this_phase->add_command(IDENTIFY_CORNER_VERTICES)
-				.reading(state, BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
+				.reading(state, BUFFER_VERTICES |
 					BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
 				.updating(state, BUFFER_INFO);
 			if (MULTI_DEVICE)
@@ -939,8 +938,6 @@ PredictorCorrector::PredictorCorrector(GlobalData const* _gdata) :
 	m_enabled_filters(_gdata->simframework->getFilterFreqList()),
 	m_current_filter(m_enabled_filters.cend())
 {
-	const SimParams *sp = gdata->problem->simparams();
-
 	// Preallocate room for all phases
 	m_phase.resize(NUM_PHASES);
 

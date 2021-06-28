@@ -75,9 +75,9 @@ struct common_sa_bc_params :
 		neibs_list_params(bufread, _numParticles, _slength, _influenceradius),
 		boundelements_wrapper(bufread),
 		vertPos_params<false>(bufread),
+		vertices(bufread.getData<BUFFER_VERTICES>()),
 		vel(bufwrite.getData<BUFFER_VEL>()),
 		gGam(bufwrite.getData<BUFFER_GRADGAMMA>()),
-		vertices(bufread.getData<BUFFER_VERTICES>()),
 		deltap(_deltap)
 	{}
 };

@@ -273,17 +273,7 @@ struct sa_boundary_forces_params :
 /// Additional parameters passed only to kernels that require BUFFER_EULERVEL.
 /// This is currently only done if SA_BOUNDARY and either KEPSILON turbulence model
 /// or ENABLE_INLET_OUTLET, and only in SIMULATE mode
-struct eulerVel_forces_params
-{
-	cudaTextureObject_t eulerVelTexObj;
-	eulerVel_forces_params(BufferList const& bufread) :
-		eulerVelTexObj(getTextureObject<BUFFER_EULERVEL>(bufread))
-	{}
-
-	__device__ __forceinline__
-	float4 fetchEulerVel(const uint index) const
-	{ return tex1Dfetch<float4>(eulerVelTexObj, index); }
-};
+DEFINE_BUFFER_WRAPPER_ARRAY(eulerVel_forces_params, BUFFER_EULERVEL, eulerVel, EulerVel);
 
 /// Additional parameters passed only to kernels with DUMMY_BOUNDARY
 /// in case of fluid/boundary interaction
@@ -551,7 +541,6 @@ struct finalize_forces_params :
 	finalize_forces_params(
 		BufferList const&	bufread,
 		BufferList &		bufwrite,
-		cudaTextureObject_t	demTex,
 				uint	_numParticles,
 				uint	_fromParticle,
 				uint	_toParticle,
@@ -564,7 +553,7 @@ struct finalize_forces_params :
 		common_finalize_forces_params<run_mode>(bufread, bufwrite,
 			 _fromParticle, _toParticle, _slength, _deltap),
 		planes_cond(bufread),
-		dem_cond(demTex),
+		dem_cond(), // dem_params automatically initialize from the global DEM object
 		dyndt_cond(bufwrite, _numParticles, _cflOffset),
 		grenier_cond(bufread),
 		sa_cond(bufread),

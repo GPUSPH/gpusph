@@ -272,8 +272,8 @@ bool ProblemAPI<1>::initialize()
 
 	// compute the number of layers for dynamic boundaries, if not set
 	if (multilayer_boundary && m_numDynBoundLayers == 0) {
-		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
-		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+		// force autocomputation
+		m_numDynBoundLayers = getDynamicBoundariesLayers();
 	}
 
 	// Increase the world dimensions for multi-layer boundaries in directions without periodicity
@@ -1491,13 +1491,24 @@ void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 	if (!simparams()->boundary_is_multilayer())
 		printf("WARNING: setting number of layers for dynamic boundaries but not using neither DYN_BOUNDARY nor DUMMY_BOUNDARY!\n");
 
-	// TODO: use autocomputed instead of 3
+	if (m_numDynBoundLayers != 0 && numLayers != m_numDynBoundLayers)
+		printf("WARNING: resetting number of layers");
+
 	const uint suggestedNumLayers = suggestedDynamicBoundaryLayers();
 	if (numLayers > 0 && numLayers < suggestedNumLayers)
 		printf("WARNING: number of layers for dynamic boundaries is low (%u), suggested number is %u\n",
 			numLayers, suggestedNumLayers);
 
 	m_numDynBoundLayers = numLayers;
+}
+
+uint ProblemAPI<1>::getDynamicBoundariesLayers()
+{
+	if (m_numDynBoundLayers == 0) {
+		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
+		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+	}
+	return m_numDynBoundLayers;
 }
 
 int ProblemAPI<1>::fill_parts(bool fill)
@@ -1548,15 +1559,25 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		const double DEFAULT_DENSITY = atrest_density(0);
 		const double DEFAULT_PHYSICAL_DENSITY = physparams()->numFluids() > 1 ?
 			1 : physical_density(DEFAULT_DENSITY, 0);
+
 		// Setting particle mass by means of dx and default density only. This leads to same mass
-		// everywhere but possibly slightly different densities.
+		// everywhere but possibly slightly different densities. (set the define to 1 to test)
+#define SET_PARTICLE_MASS_DIRECTLY 0
+#if SET_PARTICLE_MASS_DIRECTLY
 		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * DEFAULT_PHYSICAL_DENSITY;
+#endif
+
 
 		// Set part mass, if not set already.
-		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set)
-			setParticleMassByDensity(g, DEFAULT_PHYSICAL_DENSITY);
+		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set) {
 			// TODO: should the following be an option?
-			//setParticleMass(g, DEFAULT_PARTICLE_MASS);
+			// (most likely not, especially with the multi-fluid support planned for APIv2
+#if SET_PARTICLE_MASS_DIRECTLY
+			setParticleMass(g, DEFAULT_PARTICLE_MASS);
+#else
+			setParticleMassByDensity(g, DEFAULT_PHYSICAL_DENSITY);
+#endif
+		}
 
 		// Set object mass for floating objects, if not set already
 		if (m_geometries[g]->type == GT_FLOATING_BODY && !m_geometries[g]->mass_was_set)
@@ -1877,8 +1898,6 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 	// Open boundaries are orthogonal to any kind of bodies, so their object_id will be simply
 	// equal to the incremental counter.
 	uint open_boundaries_counter = 0;
-	// the number of all the particles of rigid bodies will be used to set s_hRbLastIndex
-	uint bodies_particles_counter = 0;
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
 

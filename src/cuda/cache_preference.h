@@ -28,6 +28,8 @@
 #ifndef CUDA_CACHE_PREFERENCE_H
 #define CUDA_CACHE_PREFERENCE_H
 
+#include "clang_select.opt"
+
 // On devices with compute capability 2.x, we want to distribute cache load
 // between L1 cache and the texture cache. On older architectures (no L1 cache)
 // we prefer using textures for all read-only arrays. Define PREFER_L1 to 1 or
@@ -42,6 +44,14 @@
 #else
 #define PREFER_L1 0
 #endif
+#endif
+
+// We can run without any texture usage by defining DISABLE_ALL_TEXTURES
+#if DISABLE_ALL_TEXTURES
+// Disable texture usage as linear array cache
+#define DISABLE_TEXTURES 1
+// Disable texture usage for the DEM
+#define DISABLE_DEM_TEXTURE 1
 #endif
 
 #endif

@@ -36,8 +36,6 @@
 #include <thrust/scan.h>
 #include <thrust/functional.h>
 
-#include "textures.cuh"
-
 #include "engine_forces.h"
 #include "engine_filter.h"
 #include "simflags.h"
@@ -121,7 +119,7 @@ reducefmax(
 	//   so on the first run we must not produce more than BLOCK_SIZE_FMAX*4 elements;
 	if (numBlocks > 1) {
 		numBlocks = round_up(numBlocks, 4U);
-		numBlocks = min(numBlocks, BLOCK_SIZE_FMAX*4);
+		numBlocks = std::min(numBlocks, BLOCK_SIZE_FMAX*4U);
 	}
 
 	// Only run the actual reduction if there's anything to reduce
@@ -216,17 +214,6 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 	{
 		uint numThreads = BLOCK_SIZE_FORCES;
 		uint numBlocks = div_up(numParticles, numThreads);
-
-		const float4 *pos = bufread.getData<BUFFER_POS>();
-		const float4 *vol = bufread.getData<BUFFER_VOLUME>();
-		const particleinfo *info = bufread.getData<BUFFER_INFO>();
-		const hashKey *pHash = bufread.getData<BUFFER_HASH>();
-		const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-		const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
-
-		/* Update WRITE vel in place, caller should do a swap before and after */
-		float4 *vel = bufwrite.getData<BUFFER_VEL>();
-		float *sigma = bufwrite.getData<BUFFER_SIGMA>();
 
 		cuforces::densityGrenierDevice<kerneltype, boundarytype><<<numBlocks, numThreads>>>
 			(neibs_list_params(bufread, numParticles, slength, influenceradius),
@@ -737,7 +724,7 @@ run_forces(
 	}
 
 	finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags> params_finalize(
-			bufread, bufwrite, demTex,
+			bufread, bufwrite,
 			numParticles, fromParticle, toParticle, slength, deltap,
 			cflOffset,
 			IOwaterdepth);
@@ -827,7 +814,7 @@ run_repack(
 	cuforces::repackDevice<<< numBlocks, numThreads, dummy_shared >>>(params_fb);
 
 	finalize_repack_params<boundarytype, simflags> params_finalize(
-		bufread, bufwrite, demTex,
+		bufread, bufwrite,
 		numParticles, fromParticle, toParticle, slength, deltap,
 		cflOffset,
 		IOwaterdepth);
@@ -874,42 +861,6 @@ basicstep(
 			IOwaterdepth,
 			cflOffset,
 			step, dt, compute_object_forces);
-}
-
-// TODO FIXME DEM functions should be moved to somewhere in or before buildneibs since
-// the corresponding thread_local globals are there. (Even better, stick those globals
-// in a BUFFER_DEM and manage these things from there —even though the handling isn't
-// much in line with the rest of it ...)
-void
-setDEM(const float *hDem, int width, int height)
-{
-	// Allocating, reading and copying DEM
-	unsigned int size = width*height*sizeof(float);
-	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
-	CUDA_SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
-	CUDA_SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
-
-	cudaTextureDesc dem_tex_desc;
-	memset(&dem_tex_desc, 0, sizeof(dem_tex_desc));
-
-	dem_tex_desc.addressMode[0] = cudaAddressModeClamp;
-	dem_tex_desc.addressMode[1] = cudaAddressModeClamp;
-	dem_tex_desc.filterMode = cudaFilterModeLinear;
-	dem_tex_desc.normalizedCoords = false;
-	dem_tex_desc.readMode = cudaReadModeElementType;
-
-	cudaResourceDesc dem_res_desc;
-	dem_res_desc.resType = cudaResourceTypeArray;
-	dem_res_desc.res.array.array = dDem;
-
-	CUDA_SAFE_CALL(cudaCreateTextureObject(&demTex, &dem_res_desc, &dem_tex_desc, NULL));
-}
-
-void
-unsetDEM()
-{
-	CUDA_SAFE_CALL(cudaDestroyTextureObject(demTex));
-	CUDA_SAFE_CALL(cudaFreeArray(dDem));
 }
 
 uint

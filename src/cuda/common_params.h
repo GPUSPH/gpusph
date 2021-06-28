@@ -36,6 +36,8 @@
 
 #include "tensor.h"
 
+#include "cache_preference.h"
+
 /* \file
  *
  * With many kernels adopting the conditional structure template for parameters, we want
@@ -47,6 +49,7 @@
  */
 
 #include "cond_params.h"
+#include "buffer_wrapper.h"
 
 //! An auxiliary type to add const to a type if the array should not be writable
 template<bool B, typename T>
@@ -59,46 +62,18 @@ using writable_type = typename std::conditional<B, T, const T>::type;
  * This is somewhat cumbersome, so we provide a unified interface that hides the details about the access
  * behind a fetchPos() call that maps to the correct type
  */
-struct pos_wrapper
-{
-private:
 #if PREFER_L1
-	const	float4		* __restrict__ posArray;				///< particle's positions (in)
+DEFINE_BUFFER_WRAPPER_ARRAY(pos_wrapper, BUFFER_POS, pos, Pos);
 #else
-	cudaTextureObject_t posTexObj;
+DEFINE_BUFFER_WRAPPER(pos_wrapper, BUFFER_POS, pos, Pos);
 #endif
 
-public:
-	pos_wrapper(const BufferList& bufread) :
-#if PREFER_L1
-		posArray(bufread.getData<BUFFER_POS>())
-#else
-		posTexObj(getTextureObject<BUFFER_POS>(bufread))
-#endif
-	{}
 
-	__device__ __forceinline__ float4
-	fetchPos(const uint index) const
-	{
-#if PREFER_L1
-		return posArray[index];
-#else
-		return tex1Dfetch<float4>(posTexObj, index);
-#endif
-	}
-};
-
-struct info_wrapper
-{
-	cudaTextureObject_t infoTexObj;
-	info_wrapper(BufferList const& bufread) :
-		infoTexObj(getTextureObject<BUFFER_INFO>(bufread))
-	{}
-
-	__device__ __forceinline__
-	particleinfo fetchInfo(const uint index) const
-	{ return tex1Dfetch<particleinfo>(infoTexObj, index); }
-};
+/*! Wrapper for const acces to BUFFER_INFO
+ *  Access is provided by the fetchInfo(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(info_wrapper, BUFFER_INFO, info, Info);
 
 struct pos_info_wrapper : pos_wrapper, info_wrapper
 {
@@ -108,32 +83,17 @@ struct pos_info_wrapper : pos_wrapper, info_wrapper
 	{}
 };
 
-struct vel_wrapper
-{
-	cudaTextureObject_t velTexObj;
-	vel_wrapper(BufferList const& bufread) :
-		velTexObj(getTextureObject<BUFFER_VEL>(bufread))
-	{}
+/*! Wrapper for const acces to BUFFER_VEL
+ *  Access is provided by the fetchVel(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(vel_wrapper, BUFFER_VEL, vel, Vel);
 
-	__device__ __forceinline__
-	float4 fetchVel(const uint index) const
-	{ return tex1Dfetch<float4>(velTexObj, index); }
-};
-
-struct boundelements_wrapper
-{
-private:
-	cudaTextureObject_t		boundTexObj;
-
-public:
-	boundelements_wrapper(BufferList const& bufread) :
-		boundTexObj(getTextureObject<BUFFER_BOUNDELEMENTS>(bufread))
-	{}
-
-	__device__ __forceinline__
-	float4 fetchBound(const uint index) const
-	{ return tex1Dfetch<float4>(boundTexObj, index); }
-};
+/*! Wrapper for const acces to BUFFER_BOUNDELEMENTS
+ *  Access is provided by the fetchBound(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(boundelements_wrapper, BUFFER_BOUNDELEMENTS, bound, Bound);
 
 template<bool writable = true>
 struct vertPos_params
@@ -295,35 +255,8 @@ struct tau_params
 	tau_params(tau_params const&) = default;
 };
 
-struct tau_tex_params
-{
-	cudaTextureObject_t tau0TexObj;
-	cudaTextureObject_t tau1TexObj;
-	cudaTextureObject_t tau2TexObj;
-
-	tau_tex_params(BufferList const& bufread) :
-		tau0TexObj(getTextureObject<BUFFER_TAU>(bufread, 0)),
-		tau1TexObj(getTextureObject<BUFFER_TAU>(bufread, 1)),
-		tau2TexObj(getTextureObject<BUFFER_TAU>(bufread, 2))
-	{}
-
-	__device__ __forceinline__
-	symtensor3 fetchTau(const uint i) const
-	{
-		symtensor3 tau;
-		float2 temp = tex1Dfetch<float2>(tau0TexObj, i);
-		tau.xx = temp.x;
-		tau.xy = temp.y;
-		temp = tex1Dfetch<float2>(tau1TexObj, i);
-		tau.xz = temp.x;
-		tau.yy = temp.y;
-		temp = tex1Dfetch<float2>(tau2TexObj, i);
-		tau.yz = temp.x;
-		tau.zz = temp.y;
-		return tau;
-	}
-
-};
+//! Constant access to BUFFER_TAU as textures
+DEFINE_TENSOR_WRAPPER(tau_tex_params, BUFFER_TAU, tau, Tau);
 
 template<bool writable = true>
 struct keps_params
@@ -344,33 +277,14 @@ struct keps_params
 
 
 //! KEPSILON-related texture parameters
-struct keps_tex_params
-{
-	cudaTextureObject_t keps_kTexObj;
-	cudaTextureObject_t keps_eTexObj;
+DEFINE_BUFFER_WRAPPER(keps_k_wrapper, BUFFER_TKE, keps_k, Tke);
+DEFINE_BUFFER_WRAPPER(keps_e_wrapper, BUFFER_EPSILON, keps_e, Epsilon);
 
+struct keps_tex_params : keps_k_wrapper, keps_e_wrapper
+{
 	keps_tex_params(BufferList const& bufread) :
-		keps_kTexObj(getTextureObject<BUFFER_TKE>(bufread)),
-		keps_eTexObj(getTextureObject<BUFFER_EPSILON>(bufread))
-	{}
-
-	__device__ __forceinline__
-	float fetchTke(const uint index) const
-	{ return tex1Dfetch<float>(keps_kTexObj, index); }
-
-	__device__ __forceinline__
-	float fetchEpsilon(const uint index) const
-	{ return tex1Dfetch<float>(keps_eTexObj, index); }
-};
-
-//! ENABLE_DEM-related texture parameters
-// TODO FIXME ideally should use the buffer system
-struct dem_params
-{
-	cudaTextureObject_t demTex;
-
-	dem_params(cudaTextureObject_t demTex_) :
-		demTex(demTex_)
+		keps_k_wrapper(bufread),
+		keps_e_wrapper(bufread)
 	{}
 };
 
