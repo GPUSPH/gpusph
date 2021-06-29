@@ -461,7 +461,7 @@ ifeq ($(MPICXX),)
 	endif
 else
 	# autodetect the MPI version
-	MPI_VERSION = $(shell printf '\#include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
+	MPI_VERSION = $(shell printf '#include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
 
 	# if we have USE_MPI, but MPI_VERSION is empty, abort because it means we couldn't successfully get the
 	# MPI version from mpi.h (e.g. because the development headers were not installed)
