@@ -138,8 +138,7 @@ bool ProblemAPI<1>::initialize()
 	// the ENABLE_DEM flag, otherwise there will be no interaction with the topography
 	if (validGeometry(m_dem_geometry))
 	{
-		if ((m_geometries[m_dem_geometry]->fill_type == FT_NOFILL) &&
-			!(simparams()->simflags & ENABLE_DEM))
+		if ((m_geometries[m_dem_geometry]->fill_type == FT_NOFILL) && !HAS_DEM(simparams()->simflags))
 			throw invalid_argument("DEM with FT_NOFILL requires ENABLE_DEM flag");
 	}
 
@@ -339,8 +338,7 @@ bool ProblemAPI<1>::initialize()
 	const float g = length(physparams()->gravity);
 
 	// The LJ d coefficient is used by LJ_BOUNDARY, but also by the repulsive force of planes and DEM
-	const bool needs_dcoeff = (simparams()->boundarytype == LJ_BOUNDARY) ||
-		QUERY_ANY_FLAGS(simparams()->simflags, ENABLE_DEM | ENABLE_PLANES);
+	const bool needs_dcoeff = (simparams()->boundarytype == LJ_BOUNDARY) || HAS_DEM_OR_PLANES(simparams()->simflags);
 	if (needs_dcoeff && !isfinite(physparams()->dcoeff)) {
 		physparams()->dcoeff = 5.0f * g * m_maxFall;
 		printf("Lennard–Jones D coefficient not set, autocomputed: %g\n", physparams()->dcoeff);
@@ -433,9 +431,9 @@ bool ProblemAPI<1>::initialize()
 	// TODO ideally we should enable/disable them depending on whether
 	// they are present, but this isn't trivial to do with the static framework
 	// options
-	if (m_numOpenBoundaries > 0 && !(simparams()->simflags & ENABLE_INLET_OUTLET))
+	if (m_numOpenBoundaries > 0 && !HAS_INLET_OUTLET(simparams()->simflags))
 		throw invalid_argument("open boundaries present, but ENABLE_INLET_OUTLET not specified in framework flag");
-	if (m_numOpenBoundaries == 0 && (simparams()->simflags & ENABLE_INLET_OUTLET))
+	if (m_numOpenBoundaries == 0 && HAS_INLET_OUTLET(simparams()->simflags))
 		throw invalid_argument("no open boundaries present, but ENABLE_INLET_OUTLET specified in framework flag");
 
 	// TODO FIXME m_numMovingObjects does not exist yet
