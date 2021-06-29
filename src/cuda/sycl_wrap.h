@@ -100,4 +100,7 @@ execute_kernel(KernelClass const& k, size_t numBlocks, size_t threadsPerBlock, s
 #define COPY_TO_SYMBOL(dst, src, count) \
 	SAFE_CALL(cudaMemcpyToSymbol(dst, &(src), count*sizeof(src)))
 
+#define COPY_FROM_SYMBOL(dst, src, count) \
+	SAFE_CALL(cudaMemcpyFromSymbol(&(dst), src, count*sizeof(dst)))
+
 #endif
