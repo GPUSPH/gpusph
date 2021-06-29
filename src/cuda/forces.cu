@@ -987,11 +987,11 @@ reduceRbForces(	BufferList& bufwrite,
 	for (uint i = 0; i < numforcesbodies; i++) {
 		space_w_t temp;
 		void * ddata = (void *) (forces + lastindex[i]);
-		SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(temp), cudaMemcpyDeviceToHost));
+		COPY_FROM_DEVICE(&temp, ddata, 1);
 		totalforce[i] = temp.xyz;
 
 		ddata = (void *) (torques + lastindex[i]);
-		SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(temp), cudaMemcpyDeviceToHost));
+		COPY_FROM_DEVICE(&temp, ddata, 1);
 		totaltorque[i] = temp.xyz;
 	}
 }

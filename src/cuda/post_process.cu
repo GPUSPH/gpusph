@@ -295,7 +295,7 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, V
 			cupostprocess::fluxComputationDevice(bufread, bufwrite, d_IOflux, particleRangeEnd),
 			numBlocks, numThreads);
 
-		SAFE_CALL(cudaMemcpy((void *) h_IOflux[deviceIndex], (void *) d_IOflux, numOpenBoundaries*sizeof(float), cudaMemcpyDeviceToHost));
+		COPY_FROM_DEVICE(h_IOflux[deviceIndex], d_IOflux, numOpenBoundaries);
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
