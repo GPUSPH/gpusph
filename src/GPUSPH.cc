@@ -1686,7 +1686,7 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 		gpos[i] = dpos;
 
 		// track peak speed
-		local_max_part_speed = fmax(local_max_part_speed, length( as_float3(vel[i]) ));
+		local_max_part_speed = fmax(local_max_part_speed, length3(vel[i]) );
 	}
 
 	// max speed: read simulation global for multi-node

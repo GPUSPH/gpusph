@@ -182,7 +182,7 @@ PlaneForce(	const int3&		gridPos,
 		// coefficients are negative, so the smallest in absolute value is the biggest
 
 		/*
-		float fmag = length(as_float3(force));
+		float fmag = length3(force);
 		float coeff2 = -sqrt(fmag/slength)/(d_dtadaptfactor*d_dtadaptfactor);
 		if (coeff2 < -d_epsartvisc)
 			coeff = max(coeff, coeff2);

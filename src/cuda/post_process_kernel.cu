@@ -827,9 +827,9 @@ void calcEnergiesDevice(
 		particleinfo pinfo = pInfo[gid];
 		if (FLUID(pinfo)) {
 			uint fnum = fluid_num(pinfo);
-			float v2 = kahan_sqlength(as_float3(vel));
+			float v2 = kahan_sqlength3(vel);
 			// TODO improve precision by splitting the float part from the grid part
-			float gh = kahan_dot(d_gravity, as_float3(pos) + (make_float3(gridPos) + 0.5f)*d_cellSize);
+			float gh = kahan_dot3(d_gravity, pos) + kahan_dot3(d_gravity, (make_float3(gridPos) + 0.5f)*d_cellSize);
 			kahan_add(energy[fnum].x, pos.w*v2/2, E_k[fnum].x);
 			kahan_add(energy[fnum].y, -pos.w*gh, E_k[fnum].y);
 			// internal elastic energy
