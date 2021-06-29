@@ -58,6 +58,11 @@
 
 #include "common_types.h"
 
+/// General query that identifies whether the flags in field are set, true only if all of them are
+#define QUERY_ALL_FLAGS(field, flags)	(((field) & (flags)) == (flags))
+/// General query that identifies whether at least one flag in field is set
+#define QUERY_ANY_FLAGS(field, flags)	(((field) & (flags)) != 0)
+
 //! No options
 #define ENABLE_NONE				0UL
 
@@ -69,6 +74,7 @@
  * TLT_ENABLE_DTADAPT
  */
 #define ENABLE_DTADAPT			1UL
+#define HAS_DTADAPT(field)		QUERY_ANY_FLAGS(field, ENABLE_DTADAPT)
 
 //! XSPH
 /**@defpsubsection{xsph, ENABLE_XSPH}
@@ -78,19 +84,26 @@
  * TLT_ENABLE_XSPH
  */
 #define ENABLE_XSPH				(ENABLE_DTADAPT << 1)
+#define HAS_XSPH(field)			QUERY_ANY_FLAGS(field, ENABLE_XSPH)
 
 //! planes
 #define ENABLE_PLANES			(ENABLE_XSPH << 1)
+#define HAS_PLANES(field)		QUERY_ANY_FLAGS(field, ENABLE_PLANES)
 
 //! DEM
 #define ENABLE_DEM				(ENABLE_PLANES << 1)
+#define HAS_DEM(field)			QUERY_ANY_FLAGS(field, ENABLE_DEM)
+
+#define HAS_DEM_OR_PLANES(field)	QUERY_ANY_FLAGS(field, ENABLE_DEM | ENABLE_PLANES)
 
 //! moving boundaries and rigid bodies
 #define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
+#define HAS_MOVING_BODIES(field) QUERY_ANY_FLAGS(field, ENABLE_MOVING_BODIES)
 
 //! inlet/outlet
 //! open boundaries
 #define ENABLE_INLET_OUTLET		(ENABLE_MOVING_BODIES << 1)
+#define HAS_INLET_OUTLET(field)	QUERY_ANY_FLAGS(field, ENABLE_INLET_OUTLET)
 
 //! water depth computation
 /**@defpsubsection{compute_water_level, ENABLE_WATER_DEPTH}
@@ -100,6 +113,7 @@
  * TLT_ENABLE_WATER_DEPTH
  */
 #define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)
+#define HAS_WATER_DEPTH(field)	QUERY_ANY_FLAGS(field, ENABLE_WATER_DEPTH)
 
 //! Summation density
 /**@defpsubsection{density_sum, ENABLE_DENSITY_SUM}
@@ -109,6 +123,7 @@
  * TLT_ENABLE_DENSITY_SUM
  */
 #define ENABLE_DENSITY_SUM		(ENABLE_WATER_DEPTH << 1)
+#define HAS_DENSITY_SUM(field)	QUERY_ANY_FLAGS(field, ENABLE_DENSITY_SUM)
 
 //! Compute gamma through Gauss quadrature formula. This is
 //! alternative to the dynamic gamma computation
@@ -121,7 +136,8 @@
  * TLT_ENABLE_GAMMA_QUADRATURE
  */
 #define ENABLE_GAMMA_QUADRATURE		(ENABLE_DENSITY_SUM << 1)
-#define USING_DYNAMIC_GAMMA(flags)	(!((flags) & ENABLE_GAMMA_QUADRATURE))
+#define HAS_GAMMA_QUADRATURE(field)	QUERY_ANY_FLAGS(field, ENABLE_GAMMA_QUADRATURE)
+#define USING_DYNAMIC_GAMMA(field)	(!HAS_GAMMA_QUADRATURE(field))
 
 //! repacking
 /**@defpsubsection{repacking, ENABLE_REPACKING}
@@ -130,7 +146,8 @@
  * @values{disable,enable}
  * TLT_ENABLE_REPACKING
  */
-#define ENABLE_REPACKING		(ENABLE_GAMMA_QUADRATURE << 1)
+#define ENABLE_REPACKING			(ENABLE_GAMMA_QUADRATURE << 1)
+#define HAS_REPACKING(field)		QUERY_ANY_FLAGS(field, ENABLE_REPACKING)
 
 //! Compute internal energy
 /**@defpsubsection{internal_energy, ENABLE_INTERNAL_ENERGY}
@@ -139,15 +156,18 @@
  * @values{disable,enable}
  * TLT_ENABLE_INTERNAL_ENERGY
  */
-#define ENABLE_INTERNAL_ENERGY (ENABLE_REPACKING<< 1)
+#define ENABLE_INTERNAL_ENERGY		(ENABLE_REPACKING<< 1)
+#define HAS_INTERNAL_ENERGY(field)	QUERY_ANY_FLAGS(field, ENABLE_INTERNAL_ENERGY)
 
 //! Enable multi-fluid support
 /*! This disables optimizations in the viscous contributions that assume
  * a single constant viscosity for all particles
  */
-#define ENABLE_MULTIFLUID	(ENABLE_INTERNAL_ENERGY <<1)
-#define IS_MULTIFLUID(flags)	((flags) & ENABLE_MULTIFLUID)
-#define IS_SINGLEFLUID(flags)	(!IS_MULTIFLUID(flags))
+#define ENABLE_MULTIFLUID			(ENABLE_INTERNAL_ENERGY <<1)
+#define HAS_MULTIFLUID(field)		QUERY_ANY_FLAGS(field, ENABLE_MULTIFLUID)
+/* Legacy defines, grammatically more correct */
+#define IS_MULTIFLUID(field)		HAS_MULTIFLUID(field)
+#define IS_SINGLEFLUID(field)		(!IS_MULTIFLUID(field))
 
 //! Last simulation flag
 #define LAST_SIMFLAG		ENABLE_MULTIFLUID
@@ -158,11 +178,6 @@
 //! all flags. This is slightly safer than using ((LAST_SIMFLAG << 1) - 1)
 //! in case LAST_SIMFLAG is already the last bit
 #define ENABLE_ALL_SIMFLAGS		(LAST_SIMFLAG | (LAST_SIMFLAG-1))
-
-/// General query that identifies whether the flags in field are set, true only if all of them are
-#define QUERY_ALL_FLAGS(field, flags)	(((field) & (flags)) == (flags))
-/// General query that identifies whether at least one flag in field is set
-#define QUERY_ANY_FLAGS(field, flags)	(((field) & (flags)) != 0)
 
 /// Disable individual flags in a given field
 #define DISABLE_FLAGS(field, flags) ((field) & ~(flags))
