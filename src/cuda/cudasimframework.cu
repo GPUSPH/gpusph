@@ -175,18 +175,18 @@ template<
 			// formulation
 			_sph_formulation == SPH_GRENIER	||	// multi-fluid is currently not implemented
 			// flags
-			_simflags & ENABLE_XSPH			||	// untested
-			QUERY_ANY_FLAGS(_simflags, ENABLE_DEM | ENABLE_PLANES) ||	// not implemented (flat wall formulation is in an old branch)
-			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
+			HAS_XSPH(_simflags)				||	// untested
+			HAS_DEM_OR_PLANES(_simflags)	||	// not implemented (flat wall formulation is in an old branch)
+			(HAS_INLET_OUTLET(_simflags) && !HAS_DENSITY_SUM(_simflags)) ||
 												// inlet outlet works only with the summation density
-			(_simflags & ENABLE_DENSITY_SUM && _simflags & ENABLE_GAMMA_QUADRATURE)
+			(HAS_DENSITY_SUM(_simflags) && HAS_GAMMA_QUADRATURE(_simflags))
 												// enable density sum only works with the dynamic equation for gamma,
 												// so gamma quadrature must be disabled
 		)
 	) ||
-		(_boundarytype == DUMMY_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES)) ||
+		(_boundarytype == DUMMY_BOUNDARY && HAS_MOVING_BODIES(_simflags)) ||
 	(
-	!(_boundarytype == SA_BOUNDARY) && _simflags & ENABLE_DENSITY_SUM
+	!(_boundarytype == SA_BOUNDARY) && HAS_DENSITY_SUM(_simflags)
 												// density sum is untested with boundary conditions other than SA
 	) || (
 	// For Español & Revenga, currently only support Newtonian fluids with
@@ -245,7 +245,7 @@ public:
 
 	void setDEM(const float *hDem, int width, int height) const
 	{
-		if (!QUERY_ANY_FLAGS(simflags, ENABLE_DEM))
+		if (!HAS_DEM(simflags))
 			throw std::runtime_error("setDEM invoked, but ENABLE_DEM is not a framework simflag");
 		if (global_dem_params)
 			throw std::runtime_error("double setDEM");
