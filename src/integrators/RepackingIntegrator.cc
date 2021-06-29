@@ -88,7 +88,7 @@ void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	// end-of-repacking, prepare simulation step?
 	const bool reinit_step = (step.number == -1);
 	const SimParams *sp = gdata->problem->simparams();
-	const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
+	const bool has_io = HAS_INLET_OUTLET(sp->simflags);
 
 	const dt_operator_t dt_op = full_timestep;
 
@@ -169,7 +169,7 @@ void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE && sp->simflags & ENABLE_WATER_DEPTH) {
+		if (MULTI_DEVICE && HAS_WATER_DEPTH(sp->simflags)) {
 			// each device gets his waterdepth array from the gpu
 			this_phase->add_command(DOWNLOAD_IOWATERDEPTH);
 			// reduction across devices and if necessary across nodes

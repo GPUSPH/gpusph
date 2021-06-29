@@ -104,7 +104,7 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 	static const bool has_forces_bodies = (sp->numforcesbodies > 0);
 
 	// Determine if we're using planes, and thus need the BUFFER_NEIBPLANES buffer
-	static const bool has_planes = QUERY_ANY_FLAGS(sp->simflags, ENABLE_PLANES | ENABLE_DEM);
+	static const bool has_planes = HAS_DEM_OR_PLANES(sp->simflags);
 
 	static const flag_t sorting_shared_buffers =
 	// The compact device map (when present) carries over to the other state, unchanged
@@ -222,7 +222,7 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 		neibs_phase->add_command(APPEND_EXTERNAL)
 			.updating("sorted", import_buffers);
 		// update the newNumParticles device counter
-		if (sp->simflags & ENABLE_INLET_OUTLET)
+		if (HAS_INLET_OUTLET(sp->simflags))
 			neibs_phase->add_command(UPLOAD_NEWNUMPARTS);
 	}
 
