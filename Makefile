@@ -461,7 +461,7 @@ ifeq ($(MPICXX),)
 	endif
 else
 	# autodetect the MPI version
-	MPI_VERSION = $(shell printf '#include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
+	MPI_VERSION := $(shell printf '\043include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
 
 	# if we have USE_MPI, but MPI_VERSION is empty, abort because it means we couldn't successfully get the
 	# MPI version from mpi.h (e.g. because the development headers were not installed)
@@ -489,11 +489,11 @@ else ifeq ($(CLANG_CUDA),1)
 else
 	# Also try to detect implementation-specific version.
 	# OpenMPI exposes the version via individual numeric macros
-	OMPI_VERSION = $(shell printf '\#include <mpi.h>\nversion/OMPI_MAJOR_VERSION/OMPI_MINOR_VERSION/OMPI_RELEASE_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'OMPI_' | cut -d/ -f2- | tr '/' '.')
+	OMPI_VERSION := $(shell printf '\043include <mpi.h>\nversion/OMPI_MAJOR_VERSION/OMPI_MINOR_VERSION/OMPI_RELEASE_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'OMPI_' | cut -d/ -f2- | tr '/' '.')
 	# MPICH exposes a version string macro
-	MPICH_VERSION = $(shell printf '\#include <mpi.h>\nversion/MPICH_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MPICH_' | cut -d\" -f2 )
+	MPICH_VERSION := $(shell printf '\043include <mpi.h>\nversion/MPICH_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MPICH_' | cut -d\" -f2 )
 	# MVAPICH2 exposes its own version string (MVAPICH 1.x apparently does not)
-	MVAPICH_VERSION = $(shell printf '\#include <mpi.h>\nversion/MVAPICH2_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MVAPICH2_' | cut -d\" -f2 )
+	MVAPICH_VERSION := $(shell printf '\043include <mpi.h>\nversion/MVAPICH2_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MVAPICH2_' | cut -d\" -f2 )
 
 	MPI_VERSION :=$(MPI_VERSION)$(if $(OMPI_VERSION),$(space)(OpenMPI $(OMPI_VERSION)))
 	MPI_VERSION :=$(MPI_VERSION)$(if $(MPICH_VERSION),$(space)(MPICH $(MPICH_VERSION)))
@@ -565,9 +565,9 @@ else
 	# so the only portable way seems to echo each line separately,
 	# and grouping the echos in { } doesn't seem to work from a Makefile
 	# shell invocation
-	USE_HDF5 ?= $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
+	USE_HDF5 ?= $(shell for line in '\043include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
 	ifeq ($(USE_HDF5),-1)
-		USE_HDF5 := $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
+		USE_HDF5 := $(shell for line in '\043include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
 		ifeq ($(USE_HDF5),0)
 			TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
 		endif
