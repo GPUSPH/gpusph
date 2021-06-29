@@ -128,9 +128,9 @@ struct euler_particle_data :
 	common_euler_particle_data,
 	COND_STRUCT(_has_eulerVel, euler_vel_particle_data),
 	COND_STRUCT(_has_keps, keps_particle_data),
-	COND_STRUCT(_simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data),
+	COND_STRUCT(HAS_XSPH(_simflags) && !EP::repacking, xsph_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data),
-	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data),
+	COND_STRUCT(HAS_INTERNAL_ENERGY(_simflags), energy_particle_data),
 	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -150,9 +150,9 @@ struct euler_particle_data :
 		common_euler_particle_data(_index, params),
 		COND_STRUCT(has_eulerVel, euler_vel_particle_data)(_index, params),
 		COND_STRUCT(has_keps, keps_particle_data)(_index, params),
-		COND_STRUCT(simflags & ENABLE_XSPH && !EP::repacking, xsph_particle_data)(_index, params),
+		COND_STRUCT(HAS_XSPH(simflags) && !EP::repacking, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data)(_index, params),
-		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_particle_data)(_index, params),
+		COND_STRUCT(HAS_INTERNAL_ENERGY(simflags), energy_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_particle_data)(_index, params)
 	{}
 };
@@ -178,14 +178,14 @@ standard_corrected_velocity(EP const& params, P &pdata)
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not (EP::simflags & ENABLE_XSPH) || EP::repacking>
+enable_if_t<not HAS_XSPH(EP::simflags) || EP::repacking>
 compute_corrected_velocity(EP const& params, P &pdata)
 {
 	standard_corrected_velocity(params, pdata);
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<(EP::simflags & ENABLE_XSPH) && !EP::repacking>
+enable_if_t<HAS_XSPH(EP::simflags) && !EP::repacking>
 compute_corrected_velocity(EP const& params, P &pdata)
 {
 	standard_corrected_velocity(params, pdata);
@@ -219,14 +219,14 @@ compute_acceleration(EP const& params, P &pdata, float dt)
  */
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<!!(EP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<HAS_INTERNAL_ENERGY(EP::simflags)>
 integrate_energy(EP const& params, P &pdata, int index, float dt)
 {
 	pdata.energy += dt*params.DEDt[pdata.index];
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not (EP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<not HAS_INTERNAL_ENERGY(EP::simflags)>
 integrate_energy(EP const& params, P &pdata, int index, float dt)
 { /* do nothing */ }
 
@@ -274,7 +274,7 @@ template<typename EP, typename P>
 __device__ __forceinline__
 enable_if_t<(
 	(EP::boundarytype == SA_BOUNDARY) &&
-	(EP::simflags & ENABLE_MOVING_BODIES) &&
+	HAS_MOVING_BODIES(EP::simflags) &&
 	!(EP::repacking)
 )>
 update_normals(EP const& params, P &pdata, int index)
@@ -289,7 +289,7 @@ template<typename EP, typename P>
 __device__ __forceinline__
 enable_if_t<not (
 	(EP::boundarytype == SA_BOUNDARY) &&
-	(EP::simflags & ENABLE_MOVING_BODIES) &&
+	HAS_MOVING_BODIES(EP::simflags) &&
 	 !(EP::repacking)
 )>
 update_normals(EP const& params, P &pdata, int index)
@@ -330,14 +330,14 @@ write_volume(EP const& params, P &pdata, int index)
 /// Write internal energy, if enabled
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<!!(EP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<HAS_INTERNAL_ENERGY(EP::simflags)>
 write_energy(EP const& params, P &pdata, int index)
 {
 	params.newEnergy[index] = pdata.energy;
 }
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not (EP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<not HAS_INTERNAL_ENERGY(EP::simflags)>
 write_energy(EP const& params, P &pdata, int index)
 { /* do nothing*/ }
 
