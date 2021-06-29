@@ -292,7 +292,7 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
    - 3 : Threshold on neibs num, boundary excluded
  */
 
-#define HYDROSTATIC_DENSITY 99999999.0f// : No threshold, cspm is applied in the entire domain
+//#define CSPM_HYDROSTATIC_THRESHOLD 99999999.0f
 /*
  	 define threshold for application of CSPM dependent on the relative (hydrostatic) density. This is dependent
  	 on the equation of state for a certain problem. Therefore, this is only temporary for AiryWaves2D with H=1; c=20sqrt(2*g*H); xi=7.
@@ -303,6 +303,18 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
    - 0.00093487f : depth = 0.75
 
 */
+
+__device__ bool
+skip_cspm_early(particleinfo const& info, float4 const& vel)
+{
+	return BOUNDARY(info) // these always skip
+#if THRESHOLD == 1
+	    || SURFACE(info) // skip surface particles
+#elif defined(CSPM_HYDROSTATIC_THRESHOLD)
+		|| (vel.w > CSPM_HYDROSTATIC_THRESHOLD)
+#endif
+		;
+}
 
 template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
@@ -332,96 +344,90 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 	clear(fcoeff_kahan);
 
 	symtensor3 a_inverse;
+	set_identity(a_inverse); // default, unless particle computes its own
+	float wcoeff = 1.0f; // default, unless particle computes its own;
 
-#if THRESHOLD == 1
-	if (BOUNDARY(info) || SURFACE(info)){
-#else
-	if (BOUNDARY(info) || (vel.w > HYDROSTATIC_DENSITY)){
-#endif
-		set_identity(a_inverse);
-		params.wcoeff[index] = 1.0f;
-		params.storeFcoeff(a_inverse, index);
-		return;
-	}
-
-	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
-	//bool has_neibs = false;
-	uint num_neibs = 0;
-	bool close_to_boundary = false;
-
-	// TODO this should be done only if ENABLE_PLANES, and also for the DEM
-	for (int i = 0; i < d_numplanes; ++i)
-	{
-		const float pd = PlaneDistance(gridPos, make_float3(pos.x, pos.y, pos.z), d_plane[i]);
-		if (pd < params.influenceradius)
-			{
-				set_identity(a_inverse);
-				params.wcoeff[index] = 1.0f;
-				params.storeFcoeff(a_inverse, index);
-				return;
-			}
-	}
-
-	// Loop over all FLUID neighbors and BOUNDARY neighbors
-	// TODO check what to do for SA
-	// TODO scale relPos by slength to gain resolution independence
-	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
-
-		const uint neib_index = neib_iter.neib_index();
-		const particleinfo neib_info = params.fetchInfo(neib_index);
-
-		if (!FLUID(neib_info)) {
-			close_to_boundary = true;
+	do {
+		if (skip_cspm_early(info, vel))
 			break;
+
+		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+		//bool has_neibs = false;
+		uint num_neibs = 0;
+		bool close_to_boundary = false;
+
+		// TODO this should be done only if ENABLE_PLANES, and also for the DEM
+		for (int i = 0; i < d_numplanes; ++i)
+		{
+			const float pd = PlaneDistance(gridPos, make_float3(pos.x, pos.y, pos.z), d_plane[i]);
+			if (pd < params.influenceradius)
+			{
+				close_to_boundary = true;
+				break; // stop looping over planes
+			}
+		}
+		if (close_to_boundary)
+			break; // close to plane boundaries, no correction
+
+		// Loop over all FLUID neighbors and BOUNDARY neighbors
+		// TODO check what to do for SA
+		// TODO scale relPos by slength to gain resolution independence
+		for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+
+			const uint neib_index = neib_iter.neib_index();
+			const particleinfo neib_info = params.fetchInfo(neib_index);
+
+			if (!FLUID(neib_info)) {
+				close_to_boundary = true;
+				break;
+			}
+
+			// Compute relative position vector and distance
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+
+			const float4 neib_vel = params.fetchVel(neib_index);
+			const float r = length3(relPos);
+
+			if (INACTIVE(relPos) || r >= params.influenceradius)
+				continue;
+
+			const float volume = relPos.w/physical_density(neib_vel.w, fluid_num(neib_info));
+			//corr = kbn_add(corr, W<kerneltype>(r, slength)*volume, corr_kahan);
+
+			const float f = F<kerneltype>(r, params.slength);
+			fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
+
+			num_neibs ++;
+
 		}
 
-		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+		// KBN needs a final addition of the remainder
+		//corr += corr_kahan;
+		fcoeff += fcoeff_kahan;
 
-		const float4 neib_vel = params.fetchVel(neib_index);
-		const float r = length3(relPos);
+		// this is common to all thresholds
+		if (close_to_boundary)
+			break;
 
-		if (INACTIVE(relPos) || r >= params.influenceradius)
-			continue;
+#if THRESHOLD == 2
+		const float D = kbn_det(fcoeff);
 
-		const float volume = relPos.w/physical_density(neib_vel.w, fluid_num(neib_info));
-		//corr = kbn_add(corr, W<kerneltype>(r, slength)*volume, corr_kahan);
-
-		const float f = F<kerneltype>(r, params.slength);
-		fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
-
-		num_neibs ++;
-
-	}
-
-	// KBN needs a final addition of the remainder
-	//corr += corr_kahan;
-	fcoeff += fcoeff_kahan;
-
-	//symtensor3 a_inverse;
-
-	const float D = kbn_det(fcoeff);
-
-# if (THRESHOLD == 0 || THRESHOLD == 1)
-	if (!close_to_boundary){
-
-#elif THRESHOLD == 2
-	if (D > 0.6 && !close_to_boundary){
+		if (D < 0.6)
+			break;
 
 #elif THRESHOLD == 3
-	if (num_neibs > 42 && !close_to_boundary){
-
+		if (num_neibs <= 42)
+			break;
 #endif
+
 		//a_inverse = inverse(fcoeff, D); //Use this for asymmetric CSPM or symmetric v1
 		a_inverse = fcoeff; //Use this for symmetric v2 CSPM
-	} else {
-		set_identity(a_inverse);
-		//corr = 1.0f;
-	}
+		// wcoeff = 1.0f/corr;
+	} while (0);
 
-	//wcoeffArray[index] = 1.0f/corr;
+	//params.wcoeff[index] = wcoeff;
 	params.storeFcoeff(a_inverse, index);
 }
 
