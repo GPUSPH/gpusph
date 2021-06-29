@@ -1,4 +1,3 @@
-
 /*  Copyright (c) 2011-2019 INGV, EDF, UniCT, JHU
 
     Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
@@ -345,7 +344,7 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 
 	symtensor3 a_inverse;
 	set_identity(a_inverse); // default, unless particle computes its own
-	float wcoeff = 1.0f; // default, unless particle computes its own;
+	//float wcoeff = 1.0f; // default, unless particle computes its own;
 
 	do {
 		if (skip_cspm_early(info, vel))
