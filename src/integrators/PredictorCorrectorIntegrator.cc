@@ -156,7 +156,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 {
 	const bool init_step = (step.number == 0);
 	const SimParams *sp = gdata->problem->simparams();
-	const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
+	const bool has_io = HAS_INLET_OUTLET(sp->simflags);
 
 	const dt_operator_t dt_op = getDtOperatorForStep(step.number);
 
@@ -244,7 +244,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	if (has_io) {
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE && sp->simflags & ENABLE_WATER_DEPTH) {
+		if (MULTI_DEVICE && HAS_WATER_DEPTH(sp->simflags)) {
 			// each device gets his waterdepth array from the gpu
 			this_phase->add_command(DOWNLOAD_IOWATERDEPTH);
 			// reduction across devices and if necessary across nodes
@@ -341,7 +341,7 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 {
 	const bool init_step = (step.number == 0);
 	const SimParams *sp = gdata->problem->simparams();
-	const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
+	const bool has_io = HAS_INLET_OUTLET(sp->simflags);
 	const bool has_bodies = (sp->numbodies > 0);
 
 	const dt_operator_t dt_op = getDtOperatorForStep(step.number);
@@ -444,7 +444,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	 *   boundaries, otherwise is follows the behavior of the other buffers
 	 */
 
-	static const bool has_moving_bodies = (sp->simflags & ENABLE_MOVING_BODIES);
+	static const bool has_moving_bodies = HAS_MOVING_BODIES(sp->simflags);
 	static const flag_t shared_buffers =
 		BUFFER_INFO |
 		BUFFER_VERTICES |
@@ -457,8 +457,8 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
-	static const bool has_planes_or_dem = QUERY_ANY_FLAGS(sp->simflags, ENABLE_PLANES | ENABLE_DEM);
-	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
+	static const bool has_planes_or_dem = HAS_DEM_OR_PLANES(sp->simflags);
+	static const bool dtadapt = HAS_DTADAPT(sp->simflags);
 
 	// TODO get from integrator
 	// for both steps, the “starting point” for Euler and density summation is step n
@@ -477,7 +477,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS | BUFFER_JACOBI) );
 
 	// computing CSPM parameters 
-	if (sp->simflags & ENABLE_CSPM) {
+	if (HAS_CSPM(sp->simflags)) {
 		this_phase->add_command(CALC_CSPM_COEFF)
 			.set_step(step)
 			.reading(current_state,
@@ -668,7 +668,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_step(step)
 			.set_src(next_state);
 
-	if (sp->simflags & ENABLE_DENSITY_SUM) {
+	if (HAS_DENSITY_SUM(sp->simflags)) {
 		// the forces were computed in the base state for the predictor,
 		// on the next state for the corrector
 		// or as an alternative we could free BUFFER_FORCES from whatever state it's in

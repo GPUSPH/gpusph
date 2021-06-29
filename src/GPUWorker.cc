@@ -133,13 +133,13 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
-	if (QUERY_ANY_FLAGS(m_simparams->simflags, ENABLE_PLANES | ENABLE_DEM))
+	if (HAS_DEM_OR_PLANES(m_simparams->simflags))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBPLANES>(-1); // neib planes list is initialized to all bits set
 
-	if (m_simparams->simflags & ENABLE_XSPH)
+	if (HAS_XSPH(m_simparams->simflags))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
 
-	if (m_simparams->simflags & ENABLE_CSPM) {
+	if (HAS_CSPM(m_simparams->simflags)) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_WCOEFF>(0);
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FCOEFF>(0);
 	}
@@ -159,7 +159,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simframework->hasPostProcessEngine(VORTICITY))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VORTICITY>();
 
-	if (m_simparams->simflags & ENABLE_DTADAPT) {
+	if (HAS_DTADAPT(m_simparams->simflags)) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
 		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
@@ -199,10 +199,10 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY &&
-		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->turbmodel == KEPSILON))
+		(HAS_INLET_OUTLET(m_simparams->simflags) || m_simparams->turbmodel == KEPSILON))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
-	if (m_simparams->simflags & ENABLE_INLET_OUTLET)
+	if (HAS_INLET_OUTLET(m_simparams->simflags))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEXTID>();
 
 	if (m_simparams->sph_formulation == SPH_GRENIER) {
@@ -218,7 +218,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE4>();
 	}
 
-	if (m_simparams->simflags & ENABLE_INTERNAL_ENERGY) {
+	if (HAS_INTERNAL_ENERGY(m_simparams->simflags)) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>(0);
 	}
@@ -1051,7 +1051,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	}
 
 	// water depth at open boundaries
-	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
+	if (QUERY_ALL_FLAGS(m_simparams->simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numOpenBoundaries*sizeof(uint)));
 		allocated += m_simparams->numOpenBoundaries*sizeof(uint);
 	}
@@ -1081,7 +1081,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		delete[] rbnum;
 	}
 
-	if (m_simparams->simflags & ENABLE_DEM) {
+	if (HAS_DEM(m_simparams->simflags)) {
 		int nrows = gdata->problem->get_dem_nrows();
 		int ncols = gdata->problem->get_dem_ncols();
 		printf("Thread %d setting DEM texture\t cols = %d\trows =%d\n",
@@ -1119,10 +1119,10 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
-	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
+	if (QUERY_ALL_FLAGS(m_simparams->simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
 		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
 
-	if (m_simparams->simflags & ENABLE_DEM)
+	if (HAS_DEM(m_simparams->simflags))
 		m_simframework->unsetDEM();
 }
 
@@ -1980,7 +1980,7 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 	// clear out the buffers computed by forces
 	bufwrite.get<BUFFER_FORCES>()->clobber();
 
-	if (m_simparams->simflags & ENABLE_XSPH)
+	if (HAS_XSPH(m_simparams->simflags))
 		bufwrite.get<BUFFER_XSPH>()->clobber();
 
 	if (m_simparams->turbmodel == KEPSILON) {
@@ -1990,7 +1990,7 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 		bufwrite.get<BUFFER_TAU>()->clobber();
 	}
 
-	if (m_simparams->simflags & ENABLE_INTERNAL_ENERGY) {
+	if (HAS_INTERNAL_ENERGY(m_simparams->simflags)) {
 		bufwrite.get<BUFFER_INTERNAL_ENERGY_UPD>()->clobber();
 	}
 
@@ -2001,7 +2001,7 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 		bufwrite.get<BUFFER_RB_TORQUES>()->clobber();
 	}
 
-	if (m_simparams->simflags & ENABLE_DTADAPT) {
+	if (HAS_DTADAPT(m_simparams->simflags)) {
 		bufwrite.get<BUFFER_CFL>()->clobber();
 		bufwrite.get<BUFFER_CFL_TEMP>()->clobber();
 		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
@@ -2023,7 +2023,7 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 float GPUWorker::post_forces(CommandStruct const& cmd)
 {
 	// no reduction for fixed timestep
-	if (!(m_simparams->simflags & ENABLE_DTADAPT))
+	if (!HAS_DTADAPT(m_simparams->simflags))
 		return m_simparams->dt;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2515,7 +2515,7 @@ void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>(CommandStruct const& 
 	gdata->problem->imposeBoundaryConditionHost(
 		bufwrite,
 		bufread,
-		(m_simparams->simflags & ENABLE_WATER_DEPTH) ? m_dIOwaterdepth : NULL,
+		HAS_WATER_DEPTH(m_simparams->simflags) ? m_dIOwaterdepth : NULL,
 		gdata->t,
 		m_numParticles,
 		m_simparams->numOpenBoundaries,
@@ -3356,7 +3356,7 @@ void GPUWorker::simulationThread() {
 		if (gdata->keep_going)
 			uploadSubdomain();
 
-		if (gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET)
+		if (HAS_INLET_OUTLET(gdata->problem->simparams()->simflags))
 			uploadNumOpenVertices();
 
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***

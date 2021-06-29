@@ -108,7 +108,7 @@ struct common_density_sum_params :
 
 /// Additional parameters passed only to the kernel with BOUNDARY neighbors
 template<flag_t simflags,
-	bool enable_moving = !!(simflags & ENABLE_MOVING_BODIES)>
+	bool enable_moving = HAS_MOVING_BODIES(simflags)>
 struct boundary_density_sum_params :
 	BoundElement_params<false>,
 	vertPos_params<false>
@@ -135,7 +135,7 @@ template<KernelType _kerneltype,
 	// if we have open boundaries, we also want the old and new Eulerian velocity
 	// (read-only)
 	typename io_params = typename
-		COND_STRUCT(_simflags & ENABLE_INLET_OUTLET, EulerVel_params<false>),
+		COND_STRUCT(HAS_INLET_OUTLET(_simflags), EulerVel_params<false>),
 	typename boundary_params = typename
 		COND_STRUCT(_ntype == PT_BOUNDARY, boundary_density_sum_params<_simflags>)
 	>
@@ -224,7 +224,7 @@ struct common_dynamic_integrate_gamma_params :
 /// integrateGammaDevice parameters specific for !USING_DYNAMIC_GAMMA
 /* TODO merge common elements betwene common_dynamic_integrate_gamma_params
  * and quadrature_gamma_params */
-template<flag_t simflags, bool has_moving_bodies = !!(simflags & ENABLE_MOVING_BODIES)>
+template<flag_t simflags, bool has_moving_bodies = HAS_MOVING_BODIES(simflags)>
 struct quadrature_gamma_params :
 	gGam_params<true>, ///< old (in) and new (in/out) gamma and its gradient
 	vertPos_params<false>
@@ -273,7 +273,7 @@ template<ParticleType _cptype, KernelType _kerneltype, flag_t _simflags,
 	RunMode _run_mode = SIMULATE,
 	bool _repacking = (_run_mode == REPACK),
 	bool dynamic = USING_DYNAMIC_GAMMA(_simflags),
-	bool has_io = !!(_simflags & ENABLE_INLET_OUTLET),
+	bool has_io = HAS_INLET_OUTLET(_simflags),
 	typename dynamic_gamma_params = typename
 		COND_STRUCT(dynamic, common_dynamic_integrate_gamma_params<_simflags>),
 	// for open boundaries we also want the old and new Euler vel

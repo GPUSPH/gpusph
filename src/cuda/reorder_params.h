@@ -135,9 +135,7 @@ template<SPHFormulation sph_formulation_, typename ViscSpec, BoundaryType bounda
 	// SPH_GRENIER
 	, typename reorderVol = conditional_reorder<sph_formulation_ == SPH_GRENIER, BUFFER_VOLUME>
 	// ENABLE_INTERNAL_ENERGY
-	, typename reorderEnergy = conditional_reorder<
-		QUERY_ANY_FLAGS(simflags_, ENABLE_INTERNAL_ENERGY),
-		BUFFER_INTERNAL_ENERGY>
+	, typename reorderEnergy = conditional_reorder< HAS_INTERNAL_ENERGY(simflags_), BUFFER_INTERNAL_ENERGY>
 	// SA_BOUNDARY
 	, typename reorderBoundElements = conditional_reorder<boundarytype_ == SA_BOUNDARY, BUFFER_BOUNDELEMENTS>
 	, typename reorderGradGamma = conditional_reorder<boundarytype_ == SA_BOUNDARY, BUFFER_GRADGAMMA>
@@ -150,12 +148,9 @@ template<SPHFormulation sph_formulation_, typename ViscSpec, BoundaryType bounda
 	, typename reorderEffPres = conditional_reorder<ViscSpec::rheologytype == GRANULAR, BUFFER_EFFPRES>
 	// SA_BOUNDARY and ENABLE_INLET_OUTLET or KEPSILON
 	, typename reorderEulerVel = conditional_reorder<
-		boundarytype_ == SA_BOUNDARY && (QUERY_ANY_FLAGS(simflags_, ENABLE_INLET_OUTLET)
-			|| ViscSpec::turbmodel == KEPSILON),
+		boundarytype_ == SA_BOUNDARY && (HAS_INLET_OUTLET(simflags_) || ViscSpec::turbmodel == KEPSILON),
 		BUFFER_EULERVEL>
-	, typename reorderNextID = conditional_reorder<
-		QUERY_ANY_FLAGS(simflags_, ENABLE_INLET_OUTLET),
-		BUFFER_NEXTID>
+	, typename reorderNextID = conditional_reorder<HAS_INLET_OUTLET(simflags_), BUFFER_NEXTID>
 	, typename reorderDummyVel = conditional_reorder<boundarytype_ == DUMMY_BOUNDARY, BUFFER_DUMMY_VEL>
 >
 struct reorder_params

@@ -139,7 +139,7 @@ density_sum_impl(
 
 	cudensity_sum::densitySumBoundaryDevice<kerneltype, simflags><<< numBlocks, numThreads >>>(boundary_params);
 
-	if (simflags & ENABLE_MOVING_BODIES) {
+	if (HAS_MOVING_BODIES(simflags)) {
 		// VERTEX gamma is always integrated directly
 		integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(
 			bufread, bufwrite,
@@ -247,7 +247,7 @@ integrate_gamma_impl(
 		// of the kernel
 		cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(fluid_params);
 
-		if (simflags & ENABLE_MOVING_BODIES) {
+		if (HAS_MOVING_BODIES(simflags)) {
 			integrate_gamma_params<PT_VERTEX, kerneltype, simflags> vertex_params(fluid_params);
 			cudensity_sum::integrateGammaDevice<<< numBlocks, numThreads >>>(vertex_params);
 		} else {

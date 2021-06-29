@@ -366,7 +366,7 @@ void simulate(GlobalData *gdata, RunMode repack_or_run)
 		throw invalid_argument("no simulation framework defined in the problem!");
 	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
 
-	if (gdata->run_mode == REPACK && !(gdata->problem->simparams()->simflags & ENABLE_REPACKING))
+	if (gdata->run_mode == REPACK && !HAS_REPACKING(gdata->problem->simparams()->simflags))
 		throw invalid_argument("Repacking is not enabled in the " + gdata->clOptions->problem + " problem");
 
 

@@ -82,12 +82,12 @@ common_density_sum_particle_data(const uint _index, common_density_sum_params co
 
 struct open_boundary_particle_data
 {
-const	float4	eulerVel;
+	const	float4	eulerVel;
 
-__device__ __forceinline__
-open_boundary_particle_data(const uint index, EulerVel_params<false> const& params) :
-	eulerVel(params.oldEulerVel[index])
-{}
+	__device__ __forceinline__
+	open_boundary_particle_data(const uint index, EulerVel_params<false> const& params) :
+		eulerVel(params.oldEulerVel[index])
+	{}
 };
 
 /// The actual density_sum_particle_data struct, which concatenates all of the above, as appropriate.
@@ -95,46 +95,43 @@ template<KernelType _kerneltype,
 ParticleType _ntype,
 flag_t _simflags>
 struct density_sum_particle_data :
-common_density_sum_particle_data,
-COND_STRUCT((_simflags & ENABLE_INLET_OUTLET),
-			open_boundary_particle_data)
+	common_density_sum_particle_data,
+	COND_STRUCT(HAS_INLET_OUTLET(_simflags), open_boundary_particle_data)
 {
-static const KernelType kerneltype = _kerneltype;
-static const ParticleType ntype = _ntype;
-static const flag_t simflags = _simflags;
+	static const KernelType kerneltype = _kerneltype;
+	static const ParticleType ntype = _ntype;
+	static const flag_t simflags = _simflags;
 
-// shorthand for the type of the density_sum params
-typedef density_sum_params<kerneltype, ntype, simflags> params_t;
+	// shorthand for the type of the density_sum params
+	typedef density_sum_params<kerneltype, ntype, simflags> params_t;
 
-// determine specialization automatically based on info and params
-__device__ __forceinline__
-density_sum_particle_data(const uint _index, params_t const& params) :
-	common_density_sum_particle_data(_index, params),
-	COND_STRUCT((_simflags & ENABLE_INLET_OUTLET),
-				open_boundary_particle_data)(_index, params)
-{}
+	// determine specialization automatically based on info and params
+	__device__ __forceinline__
+	density_sum_particle_data(const uint _index, params_t const& params) :
+		common_density_sum_particle_data(_index, params),
+		COND_STRUCT(HAS_INLET_OUTLET(_simflags), open_boundary_particle_data)(_index, params)
+	{}
 };
 
 template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<	(Params::simflags & ENABLE_INLET_OUTLET) &&
-	sph_formulation != SPH_HA>
+enable_if_t<HAS_INLET_OUTLET(Params::simflags) && sph_formulation != SPH_HA>
 densitySumOpenBoundaryContribution(
-Params			const&	params,
-ParticleData	const&	pdata,
-const	float	dt,
-const	uint	neib_index,
-const	particleinfo neib_info,
-const	float4&	relPosN,
-float&	sumVmwDelta)
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+	float&	sumVmwDelta)
 {
-if (IO_BOUNDARY(neib_info)) {
-	// compute - sum_{V^{io}} m^n w(r + delta r)
-	const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
-	const float newDist = length3(relPosN + deltaR);
-	if (newDist < params.influenceradius)
-		sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, params.slength);
-}
+	if (IO_BOUNDARY(neib_info)) {
+		// compute - sum_{V^{io}} m^n w(r + delta r)
+		const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+		const float newDist = length3(relPosN + deltaR);
+		if (newDist < params.influenceradius)
+			sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, params.slength);
+	}
 }
 
 // Partial specialization for SPH_HA:
@@ -143,56 +140,53 @@ if (IO_BOUNDARY(neib_info)) {
 // rho_i = mi ∑ wij   instead of    rho_i = ∑ mj.wij
 template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<	(Params::simflags & ENABLE_INLET_OUTLET) &&
-	sph_formulation == SPH_HA>
+enable_if_t<HAS_INLET_OUTLET(Params::simflags) && sph_formulation == SPH_HA>
 densitySumOpenBoundaryContribution
 (
-Params			const&	params,
-ParticleData	const&	pdata,
-const	float	dt,
-const	uint	neib_index,
-const	particleinfo neib_info,
-const	float4&	relPosN,
-float&	sumVmwDelta,
-const	float	thetaRatio_times_pmass)
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+	float&	sumVmwDelta,
+	const	float	thetaRatio_times_pmass)
 {
-// TODO: IO were implemented but not tested with Hu & Adams formulation
-if (IO_BOUNDARY(neib_info)) {
-	// compute - sum_{V^{io}} m^n w(r + delta r)
-	const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
-	const float newDist = length3(relPosN + deltaR);
-	if (newDist < params.influenceradius)
-		sumVmwDelta -= thetaRatio_times_pmass*W<kerneltype>(newDist, params.slength);
-}
+	// TODO: IO were implemented but not tested with Hu & Adams formulation
+	if (IO_BOUNDARY(neib_info)) {
+		// compute - sum_{V^{io}} m^n w(r + delta r)
+		const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+		const float newDist = length3(relPosN + deltaR);
+		if (newDist < params.influenceradius)
+			sumVmwDelta -= thetaRatio_times_pmass*W<kerneltype>(newDist, params.slength);
+	}
 }
 
 template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<	!(Params::simflags & ENABLE_INLET_OUTLET) &&
-	sph_formulation != SPH_HA>
+enable_if_t<!HAS_INLET_OUTLET(Params::simflags) && sph_formulation != SPH_HA>
 densitySumOpenBoundaryContribution(
-Params			const&	params,
-ParticleData	const&	pdata,
-const	float	dt,
-const	uint	neib_index,
-const	particleinfo neib_info,
-const	float4&	relPosN,
-float&	sumVmwDelta)
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+	float&	sumVmwDelta)
 { /* do nothing */ }
 
 template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<	!(Params::simflags & ENABLE_INLET_OUTLET) &&
-	sph_formulation == SPH_HA>
+enable_if_t<!HAS_INLET_OUTLET(Params::simflags) && sph_formulation == SPH_HA>
 densitySumOpenBoundaryContribution(
-Params			const&	params,
-ParticleData	const&	pdata,
-const	float	dt,
-const	uint	neib_index,
-const	particleinfo neib_info,
-const	float4&	relPosN,
-float&	sumVmwDelta,
-float	thetaRatio_times_pmass)
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+	float&	sumVmwDelta,
+	float	thetaRatio_times_pmass)
 { /* do nothing */ }
 
 
@@ -350,7 +344,7 @@ struct io_gamma_sum_terms {
 
 template<KernelType _kerneltype,
 	flag_t simflags,
-	bool _has_io = !!(simflags & ENABLE_INLET_OUTLET)>
+	bool _has_io = HAS_INLET_OUTLET(simflags)>
 struct gamma_sum_terms :
 	common_gamma_sum_terms,
 	COND_STRUCT(_has_io, io_gamma_sum_terms)
@@ -463,7 +457,7 @@ computeDensitySumBoundaryTerms(
 		const float3 nsNp1 = make_float3(params.newBoundElement[neib_index]);
 		/* We only need to recompute calcVertexRelPos wrt to the new normal if there are moving bodies,
 		 * since otherwise the new normal is the same as the old normal */
-		if (simflags & ENABLE_MOVING_BODIES)
+		if (HAS_MOVING_BODIES(simflags))
 			calcVertexRelPos(vertexRelPos, nsNp1,
 				params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
 				params.slength);

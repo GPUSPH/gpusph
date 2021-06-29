@@ -359,7 +359,7 @@ template<KernelType _kerneltype,
 	bool _has_sps = _ViscSpec::turbmodel == SPS,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
 	typename xsph_cond =
-		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_XSPH) && _cptype == _nptype, xsph_forces_params),
+		typename COND_STRUCT(!_repacking && HAS_XSPH(_simflags) && _cptype == _nptype, xsph_forces_params),
 	typename vol_cond =
 		typename COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER &&
 			_densitydiffusiontype == COLAGROSSI, volume_forces_params),
@@ -370,7 +370,7 @@ template<KernelType _kerneltype,
 	typename dummy_cond =
 		typename COND_STRUCT(_boundarytype == DUMMY_BOUNDARY && _cptype == PT_FLUID && _nptype == PT_BOUNDARY, dummy_boundary_forces_params),
 	typename water_depth_cond =
-		typename COND_STRUCT(!_repacking && _simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
+		typename COND_STRUCT(!_repacking && HAS_WATER_DEPTH(_simflags), water_depth_forces_params),
 	typename keps_cond =
 		typename COND_STRUCT(!_repacking && _has_keps, keps_forces_params),
 	typename sps_cond =
@@ -378,15 +378,15 @@ template<KernelType _kerneltype,
 	// eulerian velocity only used in case of keps or with open boundaries
 	typename eulerVel_cond = typename
 		COND_STRUCT(!_repacking && _boundarytype == SA_BOUNDARY && _cptype != _nptype
-				&& (_has_keps || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
+				&& (_has_keps || HAS_INLET_OUTLET(_simflags)) , // TODO this only works for SA_BOUNDARY atm
 			eulerVel_forces_params),
 	typename energy_cond =
-		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_INTERNAL_ENERGY),
+		typename COND_STRUCT(!_repacking && HAS_INTERNAL_ENERGY(_simflags),
 			internal_energy_forces_params),
 	typename visc_cond =
 		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params),
 	typename cspm_cond =
-		typename COND_STRUCT(QUERY_ANY_FLAGS(_simflags, ENABLE_CSPM), cspm_params<false>)
+		typename COND_STRUCT(HAS_CSPM(_simflags), cspm_params<false>)
 	>
 struct forces_params : _ViscSpec,
 	common_forces_params,
@@ -484,24 +484,24 @@ template<SPHFormulation _sph_formulation,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _inviscid = _ViscSpec::rheologytype == INVISCID,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
-	bool _has_planes = QUERY_ANY_FLAGS(_simflags, ENABLE_PLANES),
-	bool _has_dem = QUERY_ANY_FLAGS(_simflags, ENABLE_DEM),
+	bool _has_planes = HAS_PLANES(_simflags),
+	bool _has_dem = HAS_DEM(_simflags),
 	typename planes_cond =
 		typename COND_STRUCT(_has_planes || _has_dem, planes_forces_params),
 	// DEM specifically also needs the demTex texture object
 	typename dem_cond =
 		typename COND_STRUCT(_has_dem, dem_params),
 	typename dyndt_cond =
-		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_finalize_forces_params),
+		typename COND_STRUCT(HAS_DTADAPT(_simflags), dyndt_finalize_forces_params),
 	typename grenier_cond =
 		typename COND_STRUCT(!_repacking && (_sph_formulation == SPH_GRENIER), grenier_forces_params),
 	typename sa_cond =
 		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_forces_params),
 	typename water_depth_cond =
-		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_WATER_DEPTH), water_depth_forces_params),
+		typename COND_STRUCT(!_repacking && HAS_WATER_DEPTH(_simflags), water_depth_forces_params),
 	typename keps_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_forces_params),
 	typename energy_cond =
-		typename COND_STRUCT(!_repacking && (_simflags & ENABLE_INTERNAL_ENERGY), internal_energy_forces_params),
+		typename COND_STRUCT(!_repacking && HAS_INTERNAL_ENERGY(_simflags), internal_energy_forces_params),
 	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params)
 	>
 struct finalize_forces_params :

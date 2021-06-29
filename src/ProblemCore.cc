@@ -830,7 +830,7 @@ void
 ProblemCore::check_dt(void)
 {
 	// warn if dt was set by the user but adaptive dt is enable
-	if (simparams()->dt && simparams()->simflags & ENABLE_DTADAPT)
+	if (simparams()->dt && HAS_DTADAPT(simparams()->simflags))
 	{
 		fprintf(stderr, "WARNING: dt %g will be used only for the first iteration because adaptive dt is enabled\n",
 			simparams()->dt);
@@ -1526,7 +1526,7 @@ void ProblemCore::fillDeviceMapByRegularGrid()
 uint
 ProblemCore::max_parts(uint numParts)
 {
-	if (!(simparams()->simflags & ENABLE_INLET_OUTLET))
+	if (!HAS_INLET_OUTLET(simparams()->simflags))
 		return numParts;
 
 	// we assume that we can't have more particles than by filling the whole domain:

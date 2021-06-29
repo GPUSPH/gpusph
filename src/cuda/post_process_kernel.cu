@@ -346,7 +346,7 @@ calcSurfaceparticleDevice(
 	}
 
 	// Checking the planes
-	if (simflags & ENABLE_PLANES)
+	if (HAS_PLANES(simflags))
 		for (uint i = 0; i < d_numplanes; ++i) {
 			const float r = PlaneDistance(gridPos, as_float3(pos), d_plane[i]);
 			if (r < params.influenceradius) {

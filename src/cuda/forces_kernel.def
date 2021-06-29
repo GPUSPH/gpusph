@@ -91,7 +91,7 @@ needs_gamma_cfl()
 		// only computed when fluid interacts with boundary
 		FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY &&
 		USING_DYNAMIC_GAMMA(FP::simflags) && // only needed when using dynamic gamma
-		(FP::simflags & ENABLE_DTADAPT); // with adaptive time-stepping
+		HAS_DTADAPT(FP::simflags); // with adaptive time-stepping
 }
 
 /// Selector to check if we need a CFL condition for gamma,
@@ -101,7 +101,7 @@ __device__ __forceinline__
 constexpr bool
 needs_io_gamma_cfl()
 {
-	return needs_gamma_cfl<FP>() && (FP::simflags & ENABLE_INLET_OUTLET) && !FP::repacking;
+	return needs_gamma_cfl<FP>() && HAS_INLET_OUTLET(FP::simflags) && !FP::repacking;
 }
 
 /// Selector to check if the simplified surface tension correction should be applied
@@ -176,7 +176,7 @@ template<typename FP>
 constexpr bool
 computes_xsph()
 {
-	return (FP::simflags & ENABLE_XSPH) &&
+	return HAS_XSPH(FP::simflags) &&
 		(FP::cptype == PT_FLUID) &&
 		(FP::nptype == PT_FLUID);
 }
@@ -736,7 +736,7 @@ template<KernelType _kerneltype,
 	// eulerian velocity only used in case of keps or with open boundaries
 	typename eulerVel_cond = typename
 		COND_STRUCT(!_repacking && _boundarytype == SA_BOUNDARY && _cptype != _nptype
-				&& (_has_keps || _simflags & ENABLE_INLET_OUTLET) , // TODO this only works for SA_BOUNDARY atm
+				&& (_has_keps || HAS_INLET_OUTLET(_simflags)) , // TODO this only works for SA_BOUNDARY atm
 			eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
@@ -748,7 +748,7 @@ template<KernelType _kerneltype,
 	typename sps_cond = typename COND_STRUCT(!_repacking && _has_sps, sps_particle_data),
 	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
 	typename keps_precalc_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_precalc_particle_data),
-	typename cspm_cond = typename COND_STRUCT( QUERY_ANY_FLAGS(_simflags, ENABLE_CSPM), cspm_particle_data)>
+	typename cspm_cond = typename COND_STRUCT(HAS_CSPM(_simflags), cspm_particle_data)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -983,12 +983,12 @@ template<BoundaryType _boundarytype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON>
 struct forces_particle_output :
 	common_particle_output,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT) &&
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && HAS_DTADAPT(_simflags) &&
 		cptype == PT_FLUID && nptype == PT_BOUNDARY,
 		gamma_cfl_particle_output),
 	COND_STRUCT(_has_keps, keps_particle_output),
-	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_output),
-	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)
+	COND_STRUCT(HAS_XSPH(_simflags), xsph_particle_output),
+	COND_STRUCT(HAS_INTERNAL_ENERGY(_simflags), internal_energy_particle_output)
 {
 	static const BoundaryType boundarytype = _boundarytype;
 	using ViscSpec = _ViscSpec;
@@ -999,19 +999,19 @@ struct forces_particle_output :
 	__device__ __forceinline__
 	forces_particle_output(FP const& params, const uint index) :
 		common_particle_output(params, index),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && (simflags & ENABLE_DTADAPT) &&
+		COND_STRUCT(boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && HAS_DTADAPT(simflags) &&
 			cptype == PT_FLUID && nptype == PT_BOUNDARY,
 			gamma_cfl_particle_output)(),
 		COND_STRUCT(has_keps, keps_particle_output)(),
-		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)(),
-		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, internal_energy_particle_output)(params, index)
+		COND_STRUCT(HAS_XSPH(simflags), xsph_particle_output)(),
+		COND_STRUCT(HAS_INTERNAL_ENERGY(simflags), internal_energy_particle_output)(params, index)
 	{}
 };
 
 template<BoundaryType _boundarytype, typename ViscSpec, flag_t _simflags>
 struct finalize_particle_output :
 	common_particle_output,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && HAS_DTADAPT(_simflags),
 		gamma_cfl_particle_output),
 	COND_STRUCT(ViscSpec::turbmodel == KEPSILON, keps_particle_output)
 {
@@ -1019,7 +1019,7 @@ struct finalize_particle_output :
 	__device__ __forceinline__
 	finalize_particle_output(FP const& params, const uint index) :
 		common_particle_output(params, index),
-		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
+		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && HAS_DTADAPT(_simflags),
 			gamma_cfl_particle_output)(params, index),
 		COND_STRUCT(ViscSpec::turbmodel == KEPSILON, keps_particle_output)(params, index)
 	{}
@@ -1031,7 +1031,7 @@ template<BoundaryType _boundarytype,
 	ParticleType nptype>
 struct repack_particle_output :
 	common_particle_output,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT) &&
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && HAS_DTADAPT(_simflags) &&
 		cptype == PT_FLUID && nptype == PT_BOUNDARY,
 		gamma_cfl_particle_output)
 {
@@ -1042,7 +1042,7 @@ struct repack_particle_output :
 	__device__ __forceinline__
 	repack_particle_output(FP const& params, const uint index) :
 		common_particle_output(params, index),
-		COND_STRUCT(boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && (simflags & ENABLE_DTADAPT) &&
+		COND_STRUCT(boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(simflags) && HAS_DTADAPT(simflags) &&
 			cptype == PT_FLUID && nptype == PT_BOUNDARY,
 			gamma_cfl_particle_output)()
 	{}
@@ -1051,14 +1051,14 @@ struct repack_particle_output :
 template<BoundaryType _boundarytype, flag_t _simflags>
 struct finalize_repack_particle_output :
 	common_particle_output,
-	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && HAS_DTADAPT(_simflags),
 		gamma_cfl_particle_output)
 {
 	template<typename FP>
 	__device__ __forceinline__
 	finalize_repack_particle_output(FP const& params, const uint index) :
 		common_particle_output(params, index),
-		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && (_simflags & ENABLE_DTADAPT),
+		COND_STRUCT(_boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(_simflags) && HAS_DTADAPT(_simflags),
 			gamma_cfl_particle_output)(params, index)
 	{}
 };
@@ -1202,10 +1202,10 @@ template<KernelType kerneltype,
 			_nptype == PT_BOUNDARY,
 		dummy_boundary_neib_data),
 	typename _cspm_neib_data = typename
-		COND_STRUCT(QUERY_ANY_FLAGS(_simflags, ENABLE_CSPM), cspm_neib_data),
+		COND_STRUCT(HAS_CSPM(_simflags), cspm_neib_data),
 	typename _eulerVel_neib_data =
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
-			(_has_keps || _simflags & ENABLE_INLET_OUTLET),
+			(_has_keps || HAS_INLET_OUTLET(_simflags)),
 		eulerVel_neib_data)
 >
 struct forces_neib_data :
@@ -1217,9 +1217,7 @@ struct forces_neib_data :
 	_dummy_boundary_neib_data,
 	_cspm_neib_data,
 	// relative eulerian velocity
-	COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
-			(_has_keps || _simflags & ENABLE_INLET_OUTLET),
-		eulerVel_neib_data),
+	_eulerVel_neib_data,
 	COND_STRUCT(_has_effective_visc, effective_visc_particle_data),
 	// these are the same as the particle data
 	COND_STRUCT(_has_keps, keps_particle_data),
@@ -1382,7 +1380,7 @@ __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype == SA_BOUNDARY && // when using semi-analytical boundary conditions
 	(not FP::has_keps) && // and we're not using the k-epsilon turbulence model
-	!(FP::simflags & ENABLE_INLET_OUTLET) && // and there are no open boundaries
+	!HAS_INLET_OUTLET(FP::simflags) && // and there are no open boundaries
 	FP::cptype == PT_VERTEX, // when this is a vertex particle
 	bool
 >
@@ -1411,7 +1409,7 @@ __device__ __forceinline__
 enable_if_t<
 	FP::boundarytype == SA_BOUNDARY && // when using semi-analytical boundary conditions
 	(not FP::has_keps) && // and we're not using the k-epsilon turbulence model
-	(FP::simflags & ENABLE_INLET_OUTLET) && // and there are open boundaries
+	HAS_INLET_OUTLET(FP::simflags) && // and there are open boundaries
 	FP::cptype == PT_VERTEX, // when this is a vertex particle
 	bool
 >
@@ -1598,7 +1596,7 @@ volume_fraction(const float volume, const float deltap)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float3 const&>
+enable_if_t<HAS_CSPM(N::simflags), float3 const&>
 corrected_relPos(N const& ndata)
 {
 	return ndata.cspm_relPos;
@@ -1606,7 +1604,7 @@ corrected_relPos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float3 const>
+enable_if_t<!HAS_CSPM(N::simflags), float3 const>
 corrected_relPos(N const& ndata)
 {
 	return make_float3(ndata.relPos);
@@ -1614,7 +1612,7 @@ corrected_relPos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float const&>
+enable_if_t<HAS_CSPM(N::simflags), float const&>
 corrected_vel_dot_pos(N const& ndata)
 {
 	return ndata.cspm_vel_dot_pos;
@@ -1622,7 +1620,7 @@ corrected_vel_dot_pos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float const&>
+enable_if_t<!HAS_CSPM(N::simflags), float const&>
 corrected_vel_dot_pos(N const& ndata)
 {
 	return ndata.vel_dot_pos;
@@ -1632,7 +1630,7 @@ corrected_vel_dot_pos(N const& ndata)
 // r.gradW/r^2
 template<typename N>
 __device__ __forceinline__
-enable_if_t<QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float const&>
+enable_if_t<HAS_CSPM(N::simflags), float const&>
 corrected_f_coefficient(N const& ndata)
 {
 	return ndata.cspm_rTr_r2;
@@ -1640,7 +1638,7 @@ corrected_f_coefficient(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float>
+enable_if_t<!HAS_CSPM(N::simflags), float>
 corrected_f_coefficient(N const& ndata)
 {
 	return 1;
@@ -1650,14 +1648,14 @@ corrected_f_coefficient(N const& ndata)
 // this simplifies to just F when CSPM is not active
 template<typename N>
 __device__ __forceinline__
-enable_if_t<QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float>
+enable_if_t<HAS_CSPM(N::simflags), float>
 corrected_f(N const& ndata)
 {
 	return ndata.cspm_rTr_r2*ndata.f;
 }
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float const&>
+enable_if_t<!HAS_CSPM(N::simflags), float const&>
 corrected_f(N const& ndata)
 {
 	return ndata.f;
@@ -2291,7 +2289,7 @@ mass_continuity_density_ratio
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<!(FP::simflags & ENABLE_DENSITY_SUM)>
+enable_if_t<!HAS_DENSITY_SUM(FP::simflags)>
 compute_density_derivative
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -2303,7 +2301,7 @@ compute_density_derivative
 }
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<!!(FP::simflags & ENABLE_DENSITY_SUM)>
+enable_if_t<HAS_DENSITY_SUM(FP::simflags)>
 compute_density_derivative
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
@@ -3354,7 +3352,7 @@ forces_fixup(FP const& params, P const& pdata, OP &pout)
 	pout.force.w /= d_rho0[fluid_num(pdata.info)]; // divide by 1/rho0 mass equation
 
 	// TODO FIXME GB: double-check, this doesn't look right to me
-	if (FP::sph_formulation == SPH_F2 && !(FP::simflags & ENABLE_DENSITY_SUM))
+	if (FP::sph_formulation == SPH_F2 && !HAS_DENSITY_SUM(FP::simflags))
 		pout.force.w *= physical_density(pdata);
 }
 
@@ -3507,14 +3505,14 @@ compute_water_depth_at_outflow(FP const& params, P const& pdata, N const& ndata,
 /// Neighbor contribution for the iternal energy evolution
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<!!(FP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<HAS_INTERNAL_ENERGY(FP::simflags)>
 add_internal_energy(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	pout.DEDt -= dot3(nout.DvDt, ndata.relVel)/2;
 }
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<not (FP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<not HAS_INTERNAL_ENERGY(FP::simflags)>
 add_internal_energy(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
 
@@ -3574,13 +3572,13 @@ write_xsph(FP const& params, P const& pdata, OP const& pout)
 /// Write out internal energy, if enabled
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<!!(FP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<HAS_INTERNAL_ENERGY(FP::simflags)>
 write_internal_energy(FP const& params, P const& pdata, OP const& pout)
 { params.DEDt[pdata.index] = pout.DEDt; }
 
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__
-enable_if_t<!(FP::simflags & ENABLE_INTERNAL_ENERGY)>
+enable_if_t<not HAS_INTERNAL_ENERGY(FP::simflags)>
 write_internal_energy(FP const& params, P const& pdata, OP const& pout)
 { /* do nothing */ }
 
@@ -3700,7 +3698,7 @@ struct dyndt_keps_shared_data
 
 template<BoundaryType boundarytype, typename ViscSpec, flag_t simflags,
 	bool has_keps = ViscSpec::turbmodel == KEPSILON,
-	bool dtadapt = simflags & ENABLE_DTADAPT>
+	bool dtadapt = HAS_DTADAPT(simflags)>
 struct forces_shared_data :
 	COND_SHARED(dtadapt, dyndt_forces_shared_data),
 	COND_SHARED(dtadapt && USING_DYNAMIC_GAMMA(simflags) && boundarytype == SA_BOUNDARY,
@@ -3856,7 +3854,7 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 	compute_density_derivative(params, pdata, ndata, pout, nout);
 
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback
-	if (COMPUTE_FORCE(pdata.info) || (FP::simflags & ENABLE_INTERNAL_ENERGY)) {
+	if (COMPUTE_FORCE(pdata.info) || HAS_INTERNAL_ENERGY(FP::simflags)) {
 		// Compute pressure part of acceleration
 		compute_pressure_contrib(params, pdata, ndata, pout, nout);
 
@@ -4650,7 +4648,7 @@ template<KernelType kerneltype,
 __device__ __forceinline__
 enable_if_t<
 (nptype != PT_VERTEX || boundarytype == SA_BOUNDARY) &&
-(nptype != PT_BOUNDARY || (simflags & ENABLE_INLET_OUTLET))
+(nptype != PT_BOUNDARY || HAS_INLET_OUTLET(simflags))
 >
 density_diffusion_interaction(KP const& params, P const& pdata, float& DrDt)
 {
@@ -4694,7 +4692,7 @@ template<KernelType kerneltype,
 __device__ __forceinline__
 enable_if_t<
 (nptype == PT_VERTEX && boundarytype != SA_BOUNDARY) ||
-(nptype == PT_BOUNDARY && !(simflags & ENABLE_INLET_OUTLET))
+(nptype == PT_BOUNDARY && !HAS_INLET_OUTLET(simflags))
 >
 density_diffusion_interaction(
 	density_diffusion_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, cptype> const& params,

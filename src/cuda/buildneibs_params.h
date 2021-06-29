@@ -124,9 +124,9 @@ struct sa_boundary_buildneibs_params :
  */
 template<BoundaryType boundarytype, flag_t simflags,
 	typename cond_sa_params = typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params),
-	typename cond_planes_params = typename COND_STRUCT(QUERY_ANY_FLAGS(simflags, ENABLE_PLANES | ENABLE_DEM),
+	typename cond_planes_params = typename COND_STRUCT(HAS_DEM_OR_PLANES(simflags),
 		planes_buildneibs_params),
-	typename cond_dem_params = typename COND_STRUCT(QUERY_ANY_FLAGS(simflags, ENABLE_DEM), dem_params)>
+	typename cond_dem_params = typename COND_STRUCT(HAS_DEM(simflags), dem_params)>
 struct buildneibs_params :
 	common_buildneibs_params,
 	cond_planes_params,
