@@ -585,9 +585,9 @@ vertex_forces(
 
 	// Fluid contributions to vertices is only needed to compute water depth
 	// and for turbulent viscosity with the k-epsilon model
-	const bool waterdepth =
+	static constexpr bool waterdepth =
 		QUERY_ALL_FLAGS(simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH);
-	const bool keps = (turbmodel == KEPSILON);
+	static constexpr bool keps = (turbmodel == KEPSILON);
 	if (waterdepth || keps) {
 		cuforces::forcesDevice<<< numBlocks, numThreads, dummy_shared >>>(params_vf);
 	}
@@ -649,7 +649,7 @@ run_forces(
 	// number of blocks, rounded up to next multiple of 4 to improve reductions
 	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
 	#if (__COMPUTE__ == 20)
-	int dtadapt = !!(simflags & ENABLE_DTADAPT);
+	static constexpr bool dtadapt = HAS_DTADAPT(simflags);
 	if (turbmodel == SPS)
 		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
 	else
@@ -759,7 +759,7 @@ run_repack(
 	// number of blocks, rounded up to next multiple of 4 to improve reductions
 	uint numBlocks = round_up(div_up(numParticlesInRange, numThreads), 4U);
 #if (__COMPUTE__ == 20)
-	int dtadapt = !!(simflags & ENABLE_DTADAPT);
+	static constexpr bool dtadapt = HAS_DTADAPT(simflags);
 	dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 #endif
 
