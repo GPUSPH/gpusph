@@ -33,7 +33,7 @@
 #include <cstring> // memset
 
 #include "dem_params.h"
-#include "cuda_call.h"
+#include "safe_call.h"
 
 using namespace std;
 
@@ -66,12 +66,12 @@ struct internal_dem_params
 	{
 #if DISABLE_DEM_TEXTURE
 		if (demArray)
-			CUDA_SAFE_CALL(cudaFree(demArray));
+			SAFE_CALL(cudaFree(demArray));
 #else
 		if (!dDem)
 			return; // nothing to do if DEM was not allocated
-		CUDA_SAFE_CALL(cudaDestroyTextureObject(demTex));
-		CUDA_SAFE_CALL(cudaFreeArray(dDem));
+		SAFE_CALL(cudaDestroyTextureObject(demTex));
+		SAFE_CALL(cudaFreeArray(dDem));
 #endif
 	}
 
@@ -80,15 +80,15 @@ struct internal_dem_params
 		const size_t size = width*height*sizeof(float);
 #if DISABLE_DEM_TEXTURE
 		// TODO pitched allocation
-		CUDA_SAFE_CALL( cudaMalloc(&demArray, size));
-		CUDA_SAFE_CALL( cudaMemcpy(demArray, hDem, size, cudaMemcpyHostToDevice));
+		SAFE_CALL( cudaMalloc(&demArray, size));
+		SAFE_CALL( cudaMemcpy(demArray, hDem, size, cudaMemcpyHostToDevice));
 		this->width = width;
 		this->height = height;
 #else
 		// Allocating, reading and copying DEM
 		cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
-		CUDA_SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
-		CUDA_SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
+		SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
+		SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
 
 		cudaTextureDesc dem_tex_desc;
 		memset(&dem_tex_desc, 0, sizeof(dem_tex_desc));
@@ -103,7 +103,7 @@ struct internal_dem_params
 		dem_res_desc.resType = cudaResourceTypeArray;
 		dem_res_desc.res.array.array = dDem;
 
-		CUDA_SAFE_CALL(cudaCreateTextureObject(&demTex, &dem_res_desc, &dem_tex_desc, NULL));
+		SAFE_CALL(cudaCreateTextureObject(&demTex, &dem_res_desc, &dem_tex_desc, NULL));
 #endif
 	}
 };

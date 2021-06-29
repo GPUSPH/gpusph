@@ -31,7 +31,7 @@
 
 #include "utils.h"
 #include "engine_visc.h"
-#include "cuda_call.h"
+#include "safe_call.h"
 #include "simflags.h"
 
 #include "define_buffers.h"

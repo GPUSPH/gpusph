@@ -28,6 +28,7 @@
 #include <iomanip>
 
 #include "cudautil.h"
+#include "safe_call.h"
 #include "compute_select.opt"
 
 // TODO: errors should be thrown properly, the functions should not brutally terminate everything.
@@ -39,9 +40,9 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 	int deviceCount;
 	cudaDeviceProp deviceProp;
 
-	CUDA_SAFE_CALL_NOSYNC(cudaSetDevice(cudaDevNum));
-	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
-	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceProperties(&deviceProp, cudaDevNum));
+	SAFE_CALL_NOSYNC(cudaSetDevice(cudaDevNum));
+	SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
+	SAFE_CALL_NOSYNC(cudaGetDeviceProperties(&deviceProp, cudaDevNum));
 
 	std::cout << "thread " << std::this_thread::get_id() << " device idx " << devidx
 		<< ": CUDA device " << cudaDevNum << "/" << deviceCount
@@ -79,7 +80,7 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 		cudaFuncCache cacheConfig = cudaFuncCachePreferL1;
 		if (deviceProp.major == 3)
 			cacheConfig = cudaFuncCachePreferShared;
-		CUDA_SAFE_CALL_NOSYNC(cudaDeviceSetCacheConfig(cacheConfig));
+		SAFE_CALL_NOSYNC(cudaDeviceSetCacheConfig(cacheConfig));
 	}
 
 	return deviceProp;

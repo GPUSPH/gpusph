@@ -34,7 +34,7 @@
 #include "simflags.h"
 
 #include "utils.h"
-#include "cuda_call.h"
+#include "safe_call.h"
 
 #include "buffer.h"
 #include "define_buffers.h"
@@ -118,7 +118,7 @@ public:
 virtual void
 uploadNumOpenVertices(const uint &numOpenVertices) override
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_numOpenVertices, &numOpenVertices, sizeof(uint)));
+	SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_numOpenVertices, &numOpenVertices, sizeof(uint)));
 }
 
 /// Disables particles that went through boundaries when open boundaries are used
@@ -582,7 +582,7 @@ downloadIOwaterdepth(
 	const	uint*	d_IOwaterdepth,
 	const	uint	numOpenBoundaries) override
 {
-	CUDA_SAFE_CALL(cudaMemcpy(h_IOwaterdepth, d_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyDeviceToHost));
+	SAFE_CALL(cudaMemcpy(h_IOwaterdepth, d_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyDeviceToHost));
 }
 
 
@@ -593,7 +593,7 @@ uploadIOwaterdepth(
 			uint*	d_IOwaterdepth,
 	const	uint	numOpenBoundaries) override
 {
-	CUDA_SAFE_CALL(cudaMemcpy(d_IOwaterdepth, h_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyHostToDevice));
+	SAFE_CALL(cudaMemcpy(d_IOwaterdepth, h_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyHostToDevice));
 }
 
 // Identifies vertices at the corners of open boundaries

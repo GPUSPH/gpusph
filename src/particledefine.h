@@ -57,7 +57,7 @@
 #define	_PARTICLEDEFINE_H
 
 #include "vector_math.h"
-#include "cuda_call.h"
+#include "safe_call.h"
 
 #include "common_types.h"
 

@@ -125,9 +125,9 @@ setconstants(	const SimParams *simparams,		// pointer to simulation parameters s
 				float3 const& cellSize,				// size of each cell (in)
 				idx_t const& allocatedParticles)	// number of allocated particles (in)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neibboundpos, &simparams->neibboundpos, sizeof(uint)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblistsize, &simparams->neiblistsize, sizeof(uint)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neibboundpos, &simparams->neibboundpos, sizeof(uint)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblistsize, &simparams->neiblistsize, sizeof(uint)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
 }
 
 /// Download maximum number of neighbors
@@ -140,7 +140,7 @@ void
 getconstants(	SimParams *simparams,	// pointer to simulation parameters structure (in)
 				PhysParams *physparams)	// pointer to physical parameters structure (in)
 {
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&simparams->neibboundpos, cuneibs::d_neibboundpos, sizeof(uint), 0));
+	SAFE_CALL(cudaMemcpyFromSymbol(&simparams->neibboundpos, cuneibs::d_neibboundpos, sizeof(uint), 0));
 }
 
 
@@ -153,14 +153,14 @@ resetinfo(void)
 {
 	int temp = 0;
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxFluidBoundaryNeibs, &temp, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxVertexNeibs, &temp, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasMaxNeibs, &temp, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasHowManyParticles, &temp, sizeof(int)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp, sizeof(int)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxFluidBoundaryNeibs, &temp, sizeof(int)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxVertexNeibs, &temp, sizeof(int)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasMaxNeibs, &temp, sizeof(int)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasHowManyParticles, &temp, sizeof(int)));
 	temp = -1;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyNeibs, &temp, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyParticles, &temp, sizeof(int)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyNeibs, &temp, sizeof(int)));
+	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyParticles, &temp, sizeof(int)));
 }
 
 
@@ -174,13 +174,13 @@ resetinfo(void)
 void
 getinfo(TimingInfo & timingInfo)	// timing info (in, out)
 {
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxFluidBoundaryNeibs, cuneibs::d_maxFluidBoundaryNeibs, sizeof(int), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxVertexNeibs, cuneibs::d_maxVertexNeibs, sizeof(int), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyNeibs, cuneibs::d_hasTooManyNeibs, sizeof(int), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(timingInfo.hasMaxNeibs, cuneibs::d_hasMaxNeibs, sizeof(int)*PT_TESTPOINT, 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyParticles, cuneibs::d_hasTooManyParticles, sizeof(int), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasHowManyParticles, cuneibs::d_hasHowManyParticles, sizeof(int), 0));
+	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
+	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxFluidBoundaryNeibs, cuneibs::d_maxFluidBoundaryNeibs, sizeof(int), 0));
+	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxVertexNeibs, cuneibs::d_maxVertexNeibs, sizeof(int), 0));
+	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyNeibs, cuneibs::d_hasTooManyNeibs, sizeof(int), 0));
+	SAFE_CALL(cudaMemcpyFromSymbol(timingInfo.hasMaxNeibs, cuneibs::d_hasMaxNeibs, sizeof(int)*PT_TESTPOINT, 0));
+	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyParticles, cuneibs::d_hasTooManyParticles, sizeof(int), 0));
+	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasHowManyParticles, cuneibs::d_hasHowManyParticles, sizeof(int), 0));
 }
 
 /** @} */

@@ -36,7 +36,7 @@
 #include "Writer.h"
 
 #include "utils.h"
-#include "cuda_call.h"
+#include "safe_call.h"
 
 #include "define_buffers.h"
 
@@ -288,14 +288,14 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, V
 
 		const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
 
-		CUDA_SAFE_CALL(cudaMalloc(&d_IOflux, numOpenBoundaries*sizeof(float)));
+		SAFE_CALL(cudaMalloc(&d_IOflux, numOpenBoundaries*sizeof(float)));
 
 		//execute kernel
 		execute_kernel(
 			cupostprocess::fluxComputationDevice(bufread, bufwrite, d_IOflux, particleRangeEnd),
 			numBlocks, numThreads);
 
-		CUDA_SAFE_CALL(cudaMemcpy((void *) h_IOflux[deviceIndex], (void *) d_IOflux, numOpenBoundaries*sizeof(float), cudaMemcpyDeviceToHost));
+		SAFE_CALL(cudaMemcpy((void *) h_IOflux[deviceIndex], (void *) d_IOflux, numOpenBoundaries*sizeof(float), cudaMemcpyDeviceToHost));
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;
@@ -451,7 +451,7 @@ void set_reduction_params(void* buffer, size_t blocks,
 
 void unset_reduction_params()
 {
-	CUDA_SAFE_CALL(cudaFree(reduce_buffer));
+	SAFE_CALL(cudaFree(reduce_buffer));
 	reduce_buffer = NULL;
 }
 
@@ -482,7 +482,7 @@ void calc_energy(
 	cupostprocess::calcEnergies2Device<<<1, reduce_bs2, reduce_bs2*shmem_thread>>>(
 			(float4*)reduce_buffer, reduce_blocks, numFluids);
 	KERNEL_CHECK_ERROR;
-	CUDA_SAFE_CALL(cudaMemcpy(output, reduce_buffer, numFluids*sizeof(float4), cudaMemcpyDeviceToHost));
+	SAFE_CALL(cudaMemcpy(output, reduce_buffer, numFluids*sizeof(float4), cudaMemcpyDeviceToHost));
 }
 #endif
 

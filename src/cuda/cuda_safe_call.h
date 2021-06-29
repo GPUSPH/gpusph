@@ -1,4 +1,4 @@
-/*  Copyright (c) 2011-2017 INGV, EDF, UniCT, JHU
+/*  Copyright (c) 2011-2018 INGV, EDF, UniCT, JHU
 
     Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
     Électricité de France, Paris, France
@@ -24,14 +24,48 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _CUDAUTIL_H_
-#define _CUDAUTIL_H_
 
-#include "GlobalData.h"
-#include "Options.h"
+#ifndef CUDA_SAFE_CALL_H
+#define CUDA_SAFE_CALL_H
 
-#include <cuda_runtime.h>
+#include "safe_call.h"
 
-cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devnum);
+#include <cuda_runtime_api.h>
+
+inline void cudaSafeCallNoSync(cudaError err,
+	const char *file, const int line, const char *func,
+	const char *method=NULL,
+	const char *message=NULL)
+{
+	if (!method)
+		method = __func__;
+	if (cudaSuccess != err) {
+		devAPICallFailed(err, cudaGetErrorString(err),
+			file, line, func, method, message);
+	}
+}
+
+
+inline void cudaSafeCall(cudaError err,
+	const char *file, const int line, const char *func)
+{
+	if (err == cudaSuccess) err = cudaDeviceSynchronize();
+	cudaSafeCallNoSync(err, file, line, func, __func__);
+}
+
+inline void cudaGetLastError(const char *errorMessage,
+	const char *file, const int line, const char *func)
+{
+	cudaError_t err = cudaGetLastError();
+	cudaSafeCallNoSync(err, file, line, func, __func__, errorMessage);
+}
+
+
+inline void cudaGetSyncError(const char *errorMessage,
+	const char *file, const int line, const char *func)
+{
+	cudaError_t err = cudaDeviceSynchronize();
+	cudaSafeCallNoSync(err, file, line, func, __func__, errorMessage);
+}
 
 #endif

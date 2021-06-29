@@ -38,8 +38,8 @@
 
 #include "buffer.h"
 
-// CUDA_SAFE_CALL etc
-#include "cuda_call.h"
+// SAFE_CALL etc
+#include "safe_call.h"
 
 /*! Texture object(s) associated with a CUDABuffer.
  * We associate a texture object (bindless texture) with each array
@@ -81,7 +81,7 @@ public:
 		for (int i = 0 ; i < N; ++i)
 		{
 			if (tex_obj[i]) try {
-				CUDA_SAFE_CALL(cudaDestroyTextureObject(tex_obj[i]));
+				SAFE_CALL(cudaDestroyTextureObject(tex_obj[i]));
 			} catch (std::exception const& e) {
 				// nothing we can do here anyway
 			}
@@ -96,7 +96,7 @@ public:
 		tex_resource_desc[i].res.linear.devPtr = buf;
 		tex_resource_desc[i].res.linear.sizeInBytes = bufmem;
 
-		CUDA_SAFE_CALL(cudaCreateTextureObject(tex_obj + i, tex_resource_desc + i, &tex_desc, NULL));
+		SAFE_CALL(cudaCreateTextureObject(tex_obj + i, tex_resource_desc + i, &tex_desc, NULL));
 	}
 
 	cudaTextureObject_t getTextureObject(int idx = 0) const
@@ -153,7 +153,7 @@ public:
 #endif
 			if (bufs[i]) {
 				try {
-					CUDA_SAFE_CALL(cudaFree(bufs[i]));
+					SAFE_CALL(cudaFree(bufs[i]));
 				} catch (std::exception const& e) {
 #if _DEBUG_
 					std::cerr << e.what() <<
@@ -172,7 +172,7 @@ public:
 		const int N = baseclass::array_count;
 		element_type **bufs = baseclass::get_raw_ptr();
 		for (int i = 0; i < N; ++i) {
-			CUDA_SAFE_CALL(cudaMemset(bufs[i], baseclass::get_init_value(), bufmem));
+			SAFE_CALL(cudaMemset(bufs[i], baseclass::get_init_value(), bufmem));
 		}
 	}
 
@@ -192,11 +192,11 @@ public:
 			// TODO explore the possibility to make this the default,
 			// assessing the performance impact and the hardware
 			// and software (esp. CUDA version) requirements.
-			CUDA_SAFE_CALL(cudaMallocManaged(bufs + i, bufmem));
+			SAFE_CALL(cudaMallocManaged(bufs + i, bufmem));
 #else
-			CUDA_SAFE_CALL(cudaMalloc(bufs + i, bufmem));
+			SAFE_CALL(cudaMalloc(bufs + i, bufmem));
 #endif
-			CUDA_SAFE_CALL(cudaMemset(bufs[i], baseclass::get_init_value(), bufmem));
+			SAFE_CALL(cudaMemset(bufs[i], baseclass::get_init_value(), bufmem));
 
 			buffer_texture::create(i, bufmem, bufs[i]);
 		}
@@ -206,13 +206,13 @@ public:
 	// swap elements at position idx1, idx2 of buffer _buf
 	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) {
 		element_type tmp;
-		CUDA_SAFE_CALL(cudaMemcpy(&tmp, this->get_offset_buffer(_buf, idx1), sizeof(element_type),
+		SAFE_CALL(cudaMemcpy(&tmp, this->get_offset_buffer(_buf, idx1), sizeof(element_type),
 				cudaMemcpyDeviceToHost));
-		CUDA_SAFE_CALL(cudaMemcpy(
+		SAFE_CALL(cudaMemcpy(
 				this->get_offset_buffer(_buf, idx1),
 				this->get_offset_buffer(_buf, idx2),
 				sizeof(element_type), cudaMemcpyDeviceToDevice));
-		CUDA_SAFE_CALL(cudaMemcpy(this->get_offset_buffer(_buf, idx2), &tmp , sizeof(element_type),
+		SAFE_CALL(cudaMemcpy(this->get_offset_buffer(_buf, idx2), &tmp , sizeof(element_type),
 				cudaMemcpyHostToDevice));
 	}
 

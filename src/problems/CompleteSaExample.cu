@@ -316,7 +316,7 @@ CompleteSaExample::imposeBoundaryConditionHost(
 
 	// reset waterdepth calculation
 	if (IOwaterdepth)
-		CUDA_SAFE_CALL(cudaMemset(IOwaterdepth, 0, numOpenBoundaries*sizeof(int)));
+		SAFE_CALL(cudaMemset(IOwaterdepth, 0, numOpenBoundaries*sizeof(int)));
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;

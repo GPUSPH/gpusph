@@ -78,10 +78,10 @@ void CUDAWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, in
 		if (count > m_hPeerTransferBufferSize)
 			resizePeerTransferBuffer(count);
 		// transfer Dsrc -> H -> Ddst
-		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hPeerTransferBuffer, src, count, cudaMemcpyDeviceToHost, m_asyncPeerCopiesStream) );
-		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(dst, m_hPeerTransferBuffer, count, cudaMemcpyHostToDevice, m_asyncPeerCopiesStream) );
+		SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hPeerTransferBuffer, src, count, cudaMemcpyDeviceToHost, m_asyncPeerCopiesStream) );
+		SAFE_CALL_NOSYNC( cudaMemcpyAsync(dst, m_hPeerTransferBuffer, count, cudaMemcpyHostToDevice, m_asyncPeerCopiesStream) );
 	} else
-		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
+		SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
 }
 
 // Uploads cellStart and cellEnd from the shared arrays to the device memory.
@@ -102,11 +102,11 @@ void CUDAWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 
 	dst = sorted.getData<BUFFER_CELLSTART>() + fromCell;
 	src = gdata->s_dCellStarts[m_deviceIndex] + fromCell;
-	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
+	SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 
 	dst = sorted.getData<BUFFER_CELLEND>() + fromCell;
 	src = gdata->s_dCellEnds[m_deviceIndex] + fromCell;
-	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
+	SAFE_CALL_NOSYNC(cudaMemcpyAsync(dst, src, transferSize, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 }
 
 // wrapper for NetworkManage send/receive methods
@@ -119,7 +119,7 @@ void CUDAWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, v
 	if (direction == SND) {
 		if (!gdata->clOptions->gpudirect) {
 			// device -> host buffer, possibly async with forces kernel
-			CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hNetworkTransferBuffer, _ptr, _size,
+			SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hNetworkTransferBuffer, _ptr, _size,
 				cudaMemcpyDeviceToHost, m_asyncD2HCopiesStream) );
 			// wait for the data transfer to complete
 			cudaStreamSynchronize(m_asyncD2HCopiesStream);
@@ -137,7 +137,7 @@ void CUDAWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, v
 			// network -> host buffer
 			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer);
 			// host buffer -> device, possibly async with forces kernel
-			CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(_ptr, m_hNetworkTransferBuffer, _size,
+			SAFE_CALL_NOSYNC( cudaMemcpyAsync(_ptr, m_hNetworkTransferBuffer, _size,
 				cudaMemcpyHostToDevice, m_asyncH2DCopiesStream) );
 			// wait for the data transfer to complete (actually next iteration could requre no sync, but safer to do)
 			cudaStreamSynchronize(m_asyncH2DCopiesStream);
@@ -163,19 +163,19 @@ void CUDAWorker::deviceReset()
 
 void CUDAWorker::allocPinnedBuffer(void **ptr, size_t size)
 {
-	CUDA_SAFE_CALL_NOSYNC(cudaMallocHost(ptr, size));
+	SAFE_CALL_NOSYNC(cudaMallocHost(ptr, size));
 }
 
 void CUDAWorker::freePinnedBuffer(void *ptr, bool sync)
 {
 	if (sync)
-		CUDA_SAFE_CALL(cudaStreamSynchronize(m_asyncPeerCopiesStream));
+		SAFE_CALL(cudaStreamSynchronize(m_asyncPeerCopiesStream));
 	cudaFreeHost(ptr);
 }
 
 void CUDAWorker::allocDeviceBuffer(void **ptr, size_t size)
 {
-	CUDA_SAFE_CALL_NOSYNC(cudaMalloc(ptr, size));
+	SAFE_CALL_NOSYNC(cudaMalloc(ptr, size));
 }
 
 void CUDAWorker::freeDeviceBuffer(void *ptr)
@@ -185,27 +185,27 @@ void CUDAWorker::freeDeviceBuffer(void *ptr)
 
 void CUDAWorker::clearDeviceBuffer(void *ptr, int val, size_t size)
 {
-	CUDA_SAFE_CALL_NOSYNC(cudaMemset(ptr, val, size));
+	SAFE_CALL_NOSYNC(cudaMemset(ptr, val, size));
 }
 
 void CUDAWorker::memcpyHostToDevice(void *dst, const void *src, size_t bytes)
 {
-	CUDA_SAFE_CALL(cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice));
+	SAFE_CALL(cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice));
 }
 
 void CUDAWorker::memcpyDeviceToHost(void *dst, const void *src, size_t bytes)
 {
-	CUDA_SAFE_CALL(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost));
+	SAFE_CALL(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost));
 }
 
 void CUDAWorker::recordHalfForceEvent()
 {
-	CUDA_SAFE_CALL_NOSYNC(cudaEventRecord(m_halfForcesEvent, 0));
+	SAFE_CALL_NOSYNC(cudaEventRecord(m_halfForcesEvent, 0));
 }
 
 void CUDAWorker::syncHalfForceEvent()
 {
-	CUDA_SAFE_CALL_NOSYNC(cudaEventSynchronize(m_halfForcesEvent));
+	SAFE_CALL_NOSYNC(cudaEventSynchronize(m_halfForcesEvent));
 }
 
 void CUDAWorker::createEventsAndStreams()
