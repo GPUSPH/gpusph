@@ -586,8 +586,7 @@ clamp_visc(KP const& params, float effvisc, int fluid)
  */
 template<typename KP>
 __device__ __forceinline__
-enable_if_t< (KP::ViscSpec::compvisc == KINEMATIC) ||
-	(KP::simflags & ENABLE_DTADAPT)>
+enable_if_t< (KP::ViscSpec::compvisc == KINEMATIC) || HAS_DTADAPT(KP::simflags)>
 compute_kinvisc(KP const& params, float effvisc, float rhotilde, int fluid,
 	float &kinvisc)
 {
@@ -595,8 +594,7 @@ compute_kinvisc(KP const& params, float effvisc, float rhotilde, int fluid,
 }
 template<typename KP>
 __device__ __forceinline__
-enable_if_t< (KP::ViscSpec::compvisc != KINEMATIC) &&
-	not (KP::simflags & ENABLE_DTADAPT)>
+enable_if_t< (KP::ViscSpec::compvisc != KINEMATIC) && not HAS_DTADAPT(KP::simflags)>
 compute_kinvisc(KP const& params, float effvisc, float rhotilde, int fluid,
 	float &kinvisc)
 { /* do nothing */ }
@@ -624,7 +622,7 @@ store_effective_visc(KP const& params, int index, float /* effvisc */, float kin
 //! Reduce the kinematic viscosity, if ENABLE_DTADAPT
 template<typename KP>
 __device__ __forceinline__
-enable_if_t< KP::simflags & ENABLE_DTADAPT >
+enable_if_t< HAS_DTADAPT(KP::simflags) >
 reduce_kinvisc(KP const& params, float kinvisc)
 {
 	__shared__ float sm_max[BLOCK_SIZE_SPS];
@@ -634,7 +632,7 @@ reduce_kinvisc(KP const& params, float kinvisc)
 //! Do nothing to reduce the kinematic viscosity, if not ENABLE_DTADAPT
 template<typename KP>
 __device__ __forceinline__
-enable_if_t< not (KP::simflags & ENABLE_DTADAPT) >
+enable_if_t< not HAS_DTADAPT(KP::simflags) >
 reduce_kinvisc(KP const& params, float kinvisc)
 { /* do nothing */ }
 

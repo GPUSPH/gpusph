@@ -112,7 +112,7 @@ template<KernelType _kerneltype,
 	flag_t _simflags,
 	typename neibs_params = neibs_interaction_params<_boundarytype>,
 	typename reduce_params =
-		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, visc_reduce_params),
+		typename COND_STRUCT(HAS_DTADAPT(_simflags), visc_reduce_params),
 	typename granular_params =
 		typename COND_STRUCT(_ViscSpec::rheologytype == GRANULAR, effpres_texture_params)
 	>

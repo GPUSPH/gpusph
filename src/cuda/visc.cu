@@ -108,7 +108,7 @@ class CUDAViscEngine : public AbstractViscEngine, public _ViscSpec
 		/* We recycle the CFL arrays to determine the maximum kinematic viscosity
 		 * in the adaptive timestepping case
 		 */
-		if (This::simflags & ENABLE_DTADAPT) {
+		if (HAS_DTADAPT(This::simflags)) {
 			return cflmax(numBlocks,
 				bufwrite.getData<BUFFER_CFL>(),
 				bufwrite.getData<BUFFER_CFL_TEMP>());
