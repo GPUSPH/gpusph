@@ -342,6 +342,9 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 	clear(fcoeff);
 	clear(fcoeff_kahan);
 
+	// despite the name, a_inverse stores the actual Fcoeff tensor rather than its inverse,
+	// since we do the inverse of the average of the particle's and neighbor's tensor.
+	// For sym v1 or asymmetric CSPM, this would be the actual inverse
 	symtensor3 a_inverse;
 	set_identity(a_inverse); // default, unless particle computes its own
 	//float wcoeff = 1.0f; // default, unless particle computes its own;
