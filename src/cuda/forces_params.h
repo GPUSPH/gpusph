@@ -386,7 +386,7 @@ template<KernelType _kerneltype,
 	typename visc_cond =
 		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params),
 	typename cspm_cond =
-		typename COND_STRUCT(_simflags & ENABLE_CSPM, cspm_params<false>)
+		typename COND_STRUCT(QUERY_ANY_FLAGS(_simflags, ENABLE_CSPM), cspm_params<false>)
 	>
 struct forces_params : _ViscSpec,
 	common_forces_params,

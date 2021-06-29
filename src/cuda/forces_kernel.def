@@ -748,7 +748,7 @@ template<KernelType _kerneltype,
 	typename sps_cond = typename COND_STRUCT(!_repacking && _has_sps, sps_particle_data),
 	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
 	typename keps_precalc_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_precalc_particle_data),
-	typename cspm_cond = typename COND_STRUCT( _simflags & ENABLE_CSPM, cspm_particle_data)>
+	typename cspm_cond = typename COND_STRUCT( QUERY_ANY_FLAGS(_simflags, ENABLE_CSPM), cspm_particle_data)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -1202,7 +1202,7 @@ template<KernelType kerneltype,
 			_nptype == PT_BOUNDARY,
 		dummy_boundary_neib_data),
 	typename _cspm_neib_data = typename
-		COND_STRUCT(_simflags & ENABLE_CSPM, cspm_neib_data),
+		COND_STRUCT(QUERY_ANY_FLAGS(_simflags, ENABLE_CSPM), cspm_neib_data),
 	typename _eulerVel_neib_data =
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || _simflags & ENABLE_INLET_OUTLET),
@@ -1598,7 +1598,7 @@ volume_fraction(const float volume, const float deltap)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<N::simflags & ENABLE_CSPM, float3 const&>
+enable_if_t<QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float3 const&>
 corrected_relPos(N const& ndata)
 {
 	return ndata.cspm_relPos;
@@ -1606,7 +1606,7 @@ corrected_relPos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!(N::simflags & ENABLE_CSPM), float3 const>
+enable_if_t<!QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float3 const>
 corrected_relPos(N const& ndata)
 {
 	return make_float3(ndata.relPos);
@@ -1614,7 +1614,7 @@ corrected_relPos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<N::simflags & ENABLE_CSPM, float const&>
+enable_if_t<QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float const&>
 corrected_vel_dot_pos(N const& ndata)
 {
 	return ndata.cspm_vel_dot_pos;
@@ -1622,7 +1622,7 @@ corrected_vel_dot_pos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!(N::simflags & ENABLE_CSPM), float const&>
+enable_if_t<!QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float const&>
 corrected_vel_dot_pos(N const& ndata)
 {
 	return ndata.vel_dot_pos;
@@ -1632,7 +1632,7 @@ corrected_vel_dot_pos(N const& ndata)
 // r.gradW/r^2
 template<typename N>
 __device__ __forceinline__
-enable_if_t<(N::simflags & ENABLE_CSPM), float const&>
+enable_if_t<QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float const&>
 corrected_f_coefficient(N const& ndata)
 {
 	return ndata.cspm_rTr_r2;
@@ -1640,7 +1640,7 @@ corrected_f_coefficient(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!(N::simflags & ENABLE_CSPM), float>
+enable_if_t<!QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float>
 corrected_f_coefficient(N const& ndata)
 {
 	return 1;
@@ -1650,14 +1650,14 @@ corrected_f_coefficient(N const& ndata)
 // this simplifies to just F when CSPM is not active
 template<typename N>
 __device__ __forceinline__
-enable_if_t<(N::simflags & ENABLE_CSPM), float>
+enable_if_t<QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float>
 corrected_f(N const& ndata)
 {
 	return ndata.cspm_rTr_r2*ndata.f;
 }
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!(N::simflags & ENABLE_CSPM), float const&>
+enable_if_t<!QUERY_ANY_FLAGS(N::simflags, ENABLE_CSPM), float const&>
 corrected_f(N const& ndata)
 {
 	return ndata.f;
