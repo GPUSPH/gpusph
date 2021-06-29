@@ -456,38 +456,38 @@ void
 getconstants(PhysParams *physparams)
 {
 	uint numFluids = UINT_MAX;
-	SAFE_CALL(cudaMemcpyFromSymbol(&numFluids, cuforces::d_numfluids, sizeof(uint)));
+	COPY_FROM_SYMBOL(numFluids, cuforces::d_numfluids, 1);
 	if (numFluids != physparams->numFluids())
 		throw std::runtime_error("wrong number of fluids");
 
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visccoeff[0], cuforces::d_visccoeff, numFluids*sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->yield_strength[0], cuforces::d_yield_strength, numFluids*sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visc_nonlinear_param[0], cuforces::d_visc_nonlinear_param, numFluids*sizeof(float), 0));
+	COPY_FROM_SYMBOL(physparams->visccoeff[0], cuforces::d_visccoeff, numFluids);
+	COPY_FROM_SYMBOL(physparams->yield_strength[0], cuforces::d_yield_strength, numFluids);
+	COPY_FROM_SYMBOL(physparams->visc_nonlinear_param[0], cuforces::d_visc_nonlinear_param, numFluids);
 
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->rho0[0], cuforces::d_rho0, numFluids*sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->bcoeff[0], cuforces::d_bcoeff, numFluids*sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->gammacoeff[0], cuforces::d_gammacoeff, numFluids*sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->sscoeff[0], cuforces::d_sscoeff, numFluids*sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->sspowercoeff[0], cuforces::d_sspowercoeff, numFluids*sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->gravity, cuforces::d_gravity, sizeof(float3), 0));
+	COPY_FROM_SYMBOL(physparams->rho0[0], cuforces::d_rho0, numFluids);
+	COPY_FROM_SYMBOL(physparams->bcoeff[0], cuforces::d_bcoeff, numFluids);
+	COPY_FROM_SYMBOL(physparams->gammacoeff[0], cuforces::d_gammacoeff, numFluids);
+	COPY_FROM_SYMBOL(physparams->sscoeff[0], cuforces::d_sscoeff, numFluids);
+	COPY_FROM_SYMBOL(physparams->sspowercoeff[0], cuforces::d_sspowercoeff, numFluids);
+	COPY_FROM_SYMBOL(physparams->gravity, cuforces::d_gravity, 1);
 
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->dcoeff, cuforces::d_dcoeff, sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->p1coeff, cuforces::d_p1coeff, sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->p2coeff, cuforces::d_p2coeff, sizeof(float), 0));
+	COPY_FROM_SYMBOL(physparams->dcoeff, cuforces::d_dcoeff, 1);
+	COPY_FROM_SYMBOL(physparams->p1coeff, cuforces::d_p1coeff, 1);
+	COPY_FROM_SYMBOL(physparams->p2coeff, cuforces::d_p2coeff, 1);
 
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->MK_K, cuforces::d_MK_K, sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->MK_d, cuforces::d_MK_d, sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->MK_beta, cuforces::d_MK_beta, sizeof(float), 0));
+	COPY_FROM_SYMBOL(physparams->MK_K, cuforces::d_MK_K, 1);
+	COPY_FROM_SYMBOL(physparams->MK_d, cuforces::d_MK_d, 1);
+	COPY_FROM_SYMBOL(physparams->MK_beta, cuforces::d_MK_beta, 1);
 
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->r0, cuforces::d_r0, sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsartvisc, cuforces::d_epsartvisc, sizeof(float), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->ewres, cuforces::d_ewres, sizeof(float)));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->nsres, cuforces::d_nsres, sizeof(float)));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->demdx, cuforces::d_demdx, sizeof(float)));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->demdy, cuforces::d_demdy, sizeof(float)));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->demzmin, cuforces::d_demzmin, sizeof(float)));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->smagfactor, cuforces::d_smagfactor, sizeof(float)));
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->kspsfactor, cuforces::d_kspsfactor, sizeof(float)));
+	COPY_FROM_SYMBOL(physparams->r0, cuforces::d_r0, 1);
+	COPY_FROM_SYMBOL(physparams->epsartvisc, cuforces::d_epsartvisc, 1);
+	COPY_FROM_SYMBOL(physparams->ewres, cuforces::d_ewres, 1);
+	COPY_FROM_SYMBOL(physparams->nsres, cuforces::d_nsres, 1);
+	COPY_FROM_SYMBOL(physparams->demdx, cuforces::d_demdx, 1);
+	COPY_FROM_SYMBOL(physparams->demdy, cuforces::d_demdy, 1);
+	COPY_FROM_SYMBOL(physparams->demzmin, cuforces::d_demzmin, 1);
+	COPY_FROM_SYMBOL(physparams->smagfactor, cuforces::d_smagfactor, 1);
+	COPY_FROM_SYMBOL(physparams->kspsfactor, cuforces::d_kspsfactor, 1);
 
 	COPY_TO_SYMBOL(cuforces::d_epsinterface, physparams->epsinterface, 1);
 }

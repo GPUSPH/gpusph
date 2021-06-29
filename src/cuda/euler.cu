@@ -71,7 +71,7 @@ setconstants(const PhysParams *physparams,
 void
 getconstants(PhysParams *physparams)
 {
-	SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
+	COPY_FROM_SYMBOL(physparams->epsxsph, cueuler::d_epsxsph, 1);
 }
 
 void
@@ -392,7 +392,7 @@ basicstep(
 	KERNEL_CHECK_ERROR;
 
 	if (nancheck)
-		SAFE_CALL(cudaMemcpyFromSymbol(&nans_found, cueuler::d_nans_found, sizeof(nans_found)));
+		COPY_FROM_SYMBOL(nans_found, cueuler::d_nans_found, 1);
 
 	return nans_found;
 

@@ -140,7 +140,7 @@ void
 getconstants(	SimParams *simparams,	// pointer to simulation parameters structure (in)
 				PhysParams *physparams)	// pointer to physical parameters structure (in)
 {
-	SAFE_CALL(cudaMemcpyFromSymbol(&simparams->neibboundpos, cuneibs::d_neibboundpos, sizeof(uint), 0));
+	COPY_FROM_SYMBOL(simparams->neibboundpos, cuneibs::d_neibboundpos, 1);
 }
 
 
@@ -174,13 +174,13 @@ resetinfo(void)
 void
 getinfo(TimingInfo & timingInfo)	// timing info (in, out)
 {
-	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxFluidBoundaryNeibs, cuneibs::d_maxFluidBoundaryNeibs, sizeof(int), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxVertexNeibs, cuneibs::d_maxVertexNeibs, sizeof(int), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyNeibs, cuneibs::d_hasTooManyNeibs, sizeof(int), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(timingInfo.hasMaxNeibs, cuneibs::d_hasMaxNeibs, sizeof(int)*PT_TESTPOINT, 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasTooManyParticles, cuneibs::d_hasTooManyParticles, sizeof(int), 0));
-	SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.hasHowManyParticles, cuneibs::d_hasHowManyParticles, sizeof(int), 0));
+	COPY_FROM_SYMBOL(timingInfo.numInteractions, cuneibs::d_numInteractions, 1);
+	COPY_FROM_SYMBOL(timingInfo.maxFluidBoundaryNeibs, cuneibs::d_maxFluidBoundaryNeibs, 1);
+	COPY_FROM_SYMBOL(timingInfo.maxVertexNeibs, cuneibs::d_maxVertexNeibs, 1);
+	COPY_FROM_SYMBOL(timingInfo.hasTooManyNeibs, cuneibs::d_hasTooManyNeibs, 1);
+	COPY_FROM_SYMBOL(timingInfo.hasMaxNeibs[0], cuneibs::d_hasMaxNeibs, PT_TESTPOINT);
+	COPY_FROM_SYMBOL(timingInfo.hasTooManyParticles, cuneibs::d_hasTooManyParticles, 1);
+	COPY_FROM_SYMBOL(timingInfo.hasHowManyParticles, cuneibs::d_hasHowManyParticles, 1);
 }
 
 /** @} */
