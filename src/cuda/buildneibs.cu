@@ -125,9 +125,9 @@ setconstants(	const SimParams *simparams,		// pointer to simulation parameters s
 				float3 const& cellSize,				// size of each cell (in)
 				idx_t const& allocatedParticles)	// number of allocated particles (in)
 {
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neibboundpos, &simparams->neibboundpos, sizeof(uint)));
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblistsize, &simparams->neiblistsize, sizeof(uint)));
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
+	COPY_TO_SYMBOL(cuneibs::d_neibboundpos, simparams->neibboundpos, 1);
+	COPY_TO_SYMBOL(cuneibs::d_neiblistsize, simparams->neiblistsize, 1);
+	COPY_TO_SYMBOL(cuneibs::d_neiblist_stride, allocatedParticles, 1);
 }
 
 /// Download maximum number of neighbors
@@ -153,14 +153,14 @@ resetinfo(void)
 {
 	int temp = 0;
 
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp, sizeof(int)));
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxFluidBoundaryNeibs, &temp, sizeof(int)));
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxVertexNeibs, &temp, sizeof(int)));
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasMaxNeibs, &temp, sizeof(int)));
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasHowManyParticles, &temp, sizeof(int)));
+	COPY_TO_SYMBOL(cuneibs::d_numInteractions, temp, 1);
+	COPY_TO_SYMBOL(cuneibs::d_maxFluidBoundaryNeibs, temp, 1);
+	COPY_TO_SYMBOL(cuneibs::d_maxVertexNeibs, temp, 1);
+	COPY_TO_SYMBOL(cuneibs::d_hasMaxNeibs, temp, 1);
+	COPY_TO_SYMBOL(cuneibs::d_hasHowManyParticles, temp, 1);
 	temp = -1;
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyNeibs, &temp, sizeof(int)));
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_hasTooManyParticles, &temp, sizeof(int)));
+	COPY_TO_SYMBOL(cuneibs::d_hasTooManyNeibs, temp, 1);
+	COPY_TO_SYMBOL(cuneibs::d_hasTooManyParticles, temp, 1);
 }
 
 

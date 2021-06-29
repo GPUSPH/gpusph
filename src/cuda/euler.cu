@@ -53,19 +53,19 @@ setconstants(const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
 	idx_t const& allocatedParticles, int const& neiblistsize, float const& slength)
 {
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
+	COPY_TO_SYMBOL(cueuler::d_epsxsph, physparams->epsxsph, 1);
 
 	idx_t neiblist_end = neiblistsize*allocatedParticles;
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
-	SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_end, &neiblist_end, sizeof(idx_t)));
+	COPY_TO_SYMBOL(cuneibs::d_neiblist_stride, allocatedParticles, 1);
+	COPY_TO_SYMBOL(cuneibs::d_neiblist_end, neiblist_end, 1);
 
 	const float h3 = slength*slength*slength;
 	float kernelcoeff = 1.0f/(M_PI*h3);
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_wcoeff_cubicspline, &kernelcoeff, sizeof(float)));
+	COPY_TO_SYMBOL(cueuler::d_wcoeff_cubicspline, kernelcoeff, 1);
 	kernelcoeff = 15.0f/(16.0f*M_PI*h3);
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_wcoeff_quadratic, &kernelcoeff, sizeof(float)));
+	COPY_TO_SYMBOL(cueuler::d_wcoeff_quadratic, kernelcoeff, 1);
 	kernelcoeff = 21.0f/(16.0f*M_PI*h3);
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_wcoeff_wendland, &kernelcoeff, sizeof(float)));
+	COPY_TO_SYMBOL(cueuler::d_wcoeff_wendland, kernelcoeff, 1);
 }
 
 void
@@ -77,32 +77,32 @@ getconstants(PhysParams *physparams)
 void
 setrbcg(const int3* cgGridPos, const float3* cgPos, int numbodies)
 {
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbcgGridPos, cgGridPos, numbodies*sizeof(int3)));
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbcgPos, cgPos, numbodies*sizeof(float3)));
+	COPY_TO_SYMBOL(cueuler::d_rbcgGridPos, cgGridPos[0], numbodies);
+	COPY_TO_SYMBOL(cueuler::d_rbcgPos, cgPos[0], numbodies);
 }
 
 void
 setrbtrans(const float3* trans, int numbodies)
 {
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbtrans, trans, numbodies*sizeof(float3)));
+	COPY_TO_SYMBOL(cueuler::d_rbtrans, trans[0], numbodies);
 }
 
 void
 setrblinearvel(const float3* linearvel, int numbodies)
 {
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rblinearvel, linearvel, numbodies*sizeof(float3)));
+	COPY_TO_SYMBOL(cueuler::d_rblinearvel, linearvel[0], numbodies);
 }
 
 void
 setrbangularvel(const float3* angularvel, int numbodies)
 {
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbangularvel, angularvel, numbodies*sizeof(float3)));
+	COPY_TO_SYMBOL(cueuler::d_rbangularvel, angularvel[0], numbodies);
 }
 
 void
 setrbsteprot(const float* rot, int numbodies)
 {
-	SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbsteprot, rot, 9*numbodies*sizeof(float)));
+	COPY_TO_SYMBOL(cueuler::d_rbsteprot, rot[0], 9*numbodies);
 }
 
 // TODO FIXME density summation is only currently supported for SA_BOUNDARY, and the code
@@ -362,7 +362,7 @@ basicstep(
 	uint nans_found = 0;
 
 	if (nancheck)
-		SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_nans_found, &nans_found, sizeof(nans_found)));
+		COPY_TO_SYMBOL(cueuler::d_nans_found, nans_found, 1);
 
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_INTEGRATE;

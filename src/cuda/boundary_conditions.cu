@@ -118,7 +118,7 @@ public:
 virtual void
 uploadNumOpenVertices(const uint &numOpenVertices) override
 {
-	SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_numOpenVertices, &numOpenVertices, sizeof(uint)));
+	COPY_TO_SYMBOL(cubounds::d_numOpenVertices, numOpenVertices, 1);
 }
 
 /// Disables particles that went through boundaries when open boundaries are used
