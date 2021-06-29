@@ -942,7 +942,7 @@ void reorderDataAndFindCellStartDevice(
  */
 template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-enable_if_t<!QUERY_ANY_FLAGS(simflags, ENABLE_PLANES | ENABLE_DEM)>
+enable_if_t<!HAS_DEM_OR_PLANES(simflags)>
 findNeighboringPlanes(
 	buildneibs_params<boundarytype, simflags> params,
 	const int3& gridPos,
@@ -954,7 +954,7 @@ findNeighboringPlanes(
 /*! Do nothing if not ENABLE_DEM */
 template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-enable_if_t<!QUERY_ANY_FLAGS(simflags, ENABLE_DEM), bool>
+enable_if_t<!HAS_DEM(simflags), bool>
 isDemInRange(
 	buildneibs_params<boundarytype, simflags> params,
 	const int3& gridPos,
@@ -966,7 +966,7 @@ isDemInRange(
 /*! Actual check in case DEM is enabled */
 template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-enable_if_t<QUERY_ANY_FLAGS(simflags, ENABLE_DEM), bool>
+enable_if_t<HAS_DEM(simflags), bool>
 isDemInRange(
 	buildneibs_params<boundarytype, simflags> params,
 	const int3& gridPos,
@@ -989,7 +989,7 @@ isDemInRange(
  */
 template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-enable_if_t<QUERY_ANY_FLAGS(simflags, ENABLE_PLANES | ENABLE_DEM)>
+enable_if_t<HAS_DEM_OR_PLANES(simflags)>
 findNeighboringPlanes(
 	buildneibs_params<boundarytype, simflags> params,
 	const int3& gridPos,
@@ -1003,7 +1003,7 @@ findNeighboringPlanes(
 	// will follow
 	int *store = &(params.neibPlanes[index].x);
 
-	if ((simflags & ENABLE_PLANES)) {
+	if ( HAS_PLANES(simflags) ) {
 		for (int p = 0; p < d_numplanes; ++p) {
 			float r = signedPlaneDistance(gridPos, pos, d_plane[p]);
 			if (r < 0)
@@ -1015,7 +1015,7 @@ findNeighboringPlanes(
 		}
 	}
 
-	if ((simflags & ENABLE_DEM) && neib_planes < 4) {
+	if ( HAS_DEM(simflags) && neib_planes < 4 ) {
 		if (isDemInRange(params, gridPos, pos, index)) {
 			store[neib_planes++] = MAX_PLANES;
 		}
