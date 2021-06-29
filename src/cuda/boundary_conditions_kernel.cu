@@ -416,7 +416,7 @@ struct common_segment_pout
 		vel(make_float4(0)),
 		// Gamma always needs to be recomputed when moving bodies are enabled.
 		// If not, we only need to compute if we are at initialisation stage
-		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || !isfinite(gGam.w)
+		calcGam(HAS_MOVING_BODIES(Params::simflags) || !isfinite(gGam.w)
 				|| Params::step == 0)
 	{
 		if (calcGam)
