@@ -231,7 +231,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// initial dt (or, just dt in case adaptive is disabled)
 	gdata->dt = _sp->dt;
-	gdata->dtadapt = _sp->simflags & ENABLE_DTADAPT;
+	gdata->dtadapt = HAS_DTADAPT(_sp->simflags);
 	if (isfinite(gdata->clOptions->dt)) {
 		float new_dt = gdata->clOptions->dt;
 		printf("Time step %g specified on the command-line overrides %g\n", new_dt, gdata->dt);
@@ -330,7 +330,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	{
 		size_t numPlanes = gdata->s_hPlanes.size();
 		if (numPlanes > 0) {
-			if (!(problem->simparams()->simflags & ENABLE_PLANES))
+			if (!HAS_PLANES(problem->simparams()->simflags))
 				throw invalid_argument("planes present but ENABLE_PLANES not specified in framework flags");
 			if (numPlanes > MAX_PLANES) {
 				stringstream err; err << "FATAL: too many planes (" <<
@@ -338,8 +338,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 				throw runtime_error(err.str().c_str());
 			}
 		}
-		if ((problem->simparams()->simflags & ENABLE_DEM) &&
-			(problem->get_dem() == NULL))
+		if (HAS_DEM(problem->simparams()->simflags) && (problem->get_dem() == NULL))
 		{
 			throw invalid_argument("DEM support enabled, but no DEM defined!");
 		}
@@ -496,7 +495,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
 
-	if (!resumed && (_sp->simflags & ENABLE_INTERNAL_ENERGY))
+	if (!resumed && HAS_INTERNAL_ENERGY(_sp->simflags))
 		problem->init_internal_energy(gdata->s_hBuffers, gdata->totParticles);
 
 	if (!resumed && _sp->turbmodel > ARTIFICIAL)
@@ -509,7 +508,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	 * initialize the array of the next ID for generated particles,
 	 * and count the total number of open boundary vertices.
 	 */
-	if (_sp->simflags & ENABLE_INLET_OUTLET)
+	if (HAS_INLET_OUTLET(_sp->simflags))
 		gdata->numOpenVertices = initializeNextIDs(resumed);
 
 	if (MULTI_DEVICE) {
@@ -915,11 +914,11 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 
 	if (problem->simparams()->boundarytype == SA_BOUNDARY &&
-		(problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
+		(HAS_INLET_OUTLET(problem->simparams()->simflags) ||
 		problem->simparams()->turbmodel == KEPSILON))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EULERVEL>();
 
-	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET)
+	if (HAS_INLET_OUTLET(problem->simparams()->simflags))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEXTID>();
 
 	if (problem->simparams()->turbmodel == SPS)
@@ -947,7 +946,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE4>();
 	}
 
-	if (problem->simparams()->simflags & ENABLE_INTERNAL_ENERGY) {
+	if (HAS_INTERNAL_ENERGY(problem->simparams()->simflags)) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();
 	}
 
@@ -1023,7 +1022,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	cout << "numOpenBoundaries : " << numOpenBoundaries << "\n";
 
 	// water depth computation array
-	if (problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
+	if (HAS_WATER_DEPTH(problem->simparams()->simflags)) {
 		gdata->h_IOwaterdepth = new uint* [MULTI_GPU ? MAX_DEVICES_PER_NODE : 1];
 		for (uint i=0; i<(MULTI_GPU ? MAX_DEVICES_PER_NODE : 1); i++)
 			gdata->h_IOwaterdepth[i] = new uint [numOpenBoundaries];
@@ -1080,7 +1079,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	gdata->s_hBuffers.clear();
 
 	// Deallocating waterdepth-related arrays
-	if (problem->simparams()->simflags & ENABLE_WATER_DEPTH) {
+	if (HAS_WATER_DEPTH(problem->simparams()->simflags)) {
 		delete[] gdata->h_maxIOwaterdepth;
 		delete[] gdata->h_IOwaterdepth;
 	}
@@ -1761,7 +1760,7 @@ void GPUSPH::saveParticles(
 	if (gdata->debug.forces)
 		which_buffers |= BUFFER_FORCES;
 
-	if (simparams->simflags & ENABLE_INTERNAL_ENERGY)
+	if (HAS_INTERNAL_ENERGY(simparams->simflags))
 		which_buffers |= BUFFER_INTERNAL_ENERGY;
 
 	// get GradGamma
@@ -1791,8 +1790,7 @@ void GPUSPH::saveParticles(
 		which_buffers |= BUFFER_EFFPRES;
 
 	// get Eulerian velocity
-	if (simparams->simflags & ENABLE_INLET_OUTLET ||
-		simparams->turbmodel == KEPSILON)
+	if (HAS_INLET_OUTLET(simparams->simflags) || simparams->turbmodel == KEPSILON)
 		which_buffers |= BUFFER_EULERVEL;
 
 	// get nextIDs
@@ -1801,7 +1799,7 @@ void GPUSPH::saveParticles(
 	// unnecessary under normal condition and needs to be fenced
 	// behind a debug.inspect_nextid, the check for it must be
 	// done in the writers themselves, not here
-	if (simparams->simflags & ENABLE_INLET_OUTLET)
+	if (HAS_INLET_OUTLET(simparams->simflags))
 		which_buffers |= BUFFER_NEXTID;
 
 	// run post-process filters and dump their arrays
@@ -2162,7 +2160,7 @@ void GPUSPH::runCommand<UPDATE_ARRAY_INDICES>(CommandStruct const& cmd)
 	 * the particles and only rank 0 checks for correctness. */
 	// WARNING: in case #parts changes with no open boundaries, devices with MPI rank different than 0 will keep a
 	// wrong newSimulationTotal. Is this wanted? Harmful?
-	if (gdata->mpi_rank == 0 || gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET) {
+	if (gdata->mpi_rank == 0 || HAS_INLET_OUTLET(gdata->problem->simparams()->simflags)) {
 		uint newSimulationTotal = 0;
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
 			newSimulationTotal += gdata->processParticles[n];
@@ -2171,8 +2169,8 @@ void GPUSPH::runCommand<UPDATE_ARRAY_INDICES>(CommandStruct const& cmd)
 		// TODO this should be simplified, but it would be better to check separately
 		// for < and >, based on the number of inlets and outlets, so we leave
 		// it this way as a reminder
-		if ( (newSimulationTotal < gdata->totParticles && gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET) ||
-			 (newSimulationTotal > gdata->totParticles && gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET) ) {
+		if ( (newSimulationTotal < gdata->totParticles && HAS_INLET_OUTLET(gdata->problem->simparams()->simflags)) ||
+			 (newSimulationTotal > gdata->totParticles && HAS_INLET_OUTLET(gdata->problem->simparams()->simflags)) ) {
 			// printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
 			gdata->totParticles = newSimulationTotal;
 		} else if (newSimulationTotal != gdata->totParticles && gdata->mpi_rank == 0) {
