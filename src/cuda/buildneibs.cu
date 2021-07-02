@@ -252,14 +252,13 @@ reorderDataAndFindCellStart(
 {
 	const uint numThreads = BLOCK_SIZE_REORDERDATA;
 	const uint numBlocks = div_up(numParticles, numThreads);
-	const uint smemSize = sizeof(uint)*(numThreads+1);
 
 	using RP = reorder_params<sph_formulation, ViscSpec, boundarytype, simflags>;
 
 	execute_kernel(
 		cuneibs::reorderDataAndFindCellStartDevice<RP>(segmentStart,
 			sorted_buffers, unsorted_buffers, numParticles, newNumParticles),
-		numBlocks, numThreads, smemSize);
+		numBlocks, numThreads);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
