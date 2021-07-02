@@ -1147,6 +1147,59 @@ findNeighboringPlanes(
 	}
 }
 
+//! Count the total number of neighbors (and hence the overall number of _interactions_)
+//! and the max number of neighbors of each type
+template< bool neibcount // should we actually count?
+	, int num_sm_neibs_max // number of neighbor type groups (2 if SA, 1 otherwise)
+	>
+__device__ __forceinline__
+enable_if_t<neibcount == true>
+count_neighbors(const uint *neibs_num) // computed number of neighbors per type
+{
+	__shared__ volatile uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
+	__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS*num_sm_neibs_max];
+
+	uint neibs_max[num_sm_neibs_max];
+	neibs_max[0] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY];
+	if (num_sm_neibs_max > 1) // SA_BOUNDARY
+		neibs_max[1] = neibs_num[PT_VERTEX];
+	uint total_neibs_num = neibs_max[0] + neibs_num[PT_VERTEX];
+
+	sm_total_neibs_num[threadIdx.x] = total_neibs_num;
+	sm_neibs_max[threadIdx.x] = neibs_max[0];
+	if (num_sm_neibs_max > 1)
+		sm_neibs_max[threadIdx.x + blockDim.x] = neibs_max[1];
+
+	for (unsigned int i = blockDim.x/2; i > 0; i /= 2) {
+		__syncthreads();
+		if (threadIdx.x < i) {
+			total_neibs_num += sm_total_neibs_num[threadIdx.x + i];
+			sm_total_neibs_num[threadIdx.x] = total_neibs_num;
+
+#pragma unroll
+			for (int o = 0; o < num_sm_neibs_max; ++o) {
+				const uint n2 = sm_neibs_max[threadIdx.x + i + o*blockDim.x];
+				if (n2 > neibs_max[o]) {
+					sm_neibs_max[threadIdx.x + o*blockDim.x] = neibs_max[o] = n2;
+				}
+			}
+		}
+	}
+
+	if (!threadIdx.x) {
+		atomicMax(&d_maxFluidBoundaryNeibs, neibs_max[0]);
+		if (num_sm_neibs_max > 1) {
+			atomicMax(&d_maxVertexNeibs, neibs_max[1]);
+		}
+		atomicAdd(&d_numInteractions, total_neibs_num);
+	}
+};
+
+template<bool neibcount, int num_sm_neibs_max>
+__device__ __forceinline__
+enable_if_t<neibcount == false>
+count_neighbors(const uint *neibs_num)
+{ /* no counting case */ };
 
 
 /// Builds particles neighbors list
@@ -1317,51 +1370,7 @@ struct buildNeibsListDevice : params_t
 		}
 	}
 
-	if (neibcount) {
-		// Shared memory reduction of per block maximum number of neighbors
-		// We count both the total number of neighbors (and hence the overall number of _interactions_)
-		// and the max number of neighbors of each type
-		__shared__ volatile uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
-		__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS*num_sm_neibs_max];
-
-		uint neibs_max[num_sm_neibs_max];
-		neibs_max[0] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY];
-		if (boundarytype == SA_BOUNDARY)
-			neibs_max[1] = neibs_num[PT_VERTEX];
-		uint total_neibs_num = neibs_max[0] + neibs_num[PT_VERTEX];
-
-		sm_total_neibs_num[threadIdx.x] = total_neibs_num;
-
-		sm_neibs_max[threadIdx.x] = neibs_max[0];
-		if (boundarytype == SA_BOUNDARY)
-			sm_neibs_max[threadIdx.x + blockDim.x] = neibs_max[1];
-
-		uint i = blockDim.x/2;
-		while (i != 0) {
-			__syncthreads();
-			if (threadIdx.x < i) {
-				total_neibs_num += sm_total_neibs_num[threadIdx.x + i];
-				sm_total_neibs_num[threadIdx.x] = total_neibs_num;
-
-#pragma unroll
-				for (int o = 0; o < num_sm_neibs_max; ++o) {
-					const uint n2 = sm_neibs_max[threadIdx.x + i + o*blockDim.x];
-					if (n2 > neibs_max[o]) {
-						sm_neibs_max[threadIdx.x + o*blockDim.x] = neibs_max[o] = n2;
-					}
-				}
-			}
-			i /= 2;
-		}
-
-		if (!threadIdx.x) {
-			atomicMax(&d_maxFluidBoundaryNeibs, neibs_max[0]);
-			if (boundarytype == SA_BOUNDARY)
-				atomicMax(&d_maxVertexNeibs, neibs_max[1]);
-			atomicAdd(&d_numInteractions, total_neibs_num);
-		}
-	}
-	return;
+	count_neighbors<neibcount, num_sm_neibs_max>(neibs_num);
 }
 };
 
