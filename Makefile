@@ -142,12 +142,16 @@ PROBLEM_LIST = $(filter-out GenericProblem, \
 PROBLEM_EXES = $(foreach p, $(PROBLEM_LIST),$(call dbgexe,$p) $(CURDIR)/$(call dbgexename,$p)) \
 	       $(foreach p, $(PROBLEM_LIST),$(call nodbgexe,$p) $(CURDIR)/$(call nodbgexename,$p))
 
-# use $(call problem_src,someproblem) to get the sources
+# use $(call problem_{cu,cc}_src,someproblem) to get the sources
 # needed for that problem
-problem_src = $(foreach adir, $(PROBLEM_DIRS), $(filter \
+problem_cu_src = $(foreach adir, $(PROBLEM_DIRS), $(filter \
 		$(adir)/$(1).cu, \
 		$(wildcard $(adir)/*)))
-problem_obj = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(call problem_src,$1))
+problem_cc_src = $(foreach adir, $(PROBLEM_DIRS), $(filter \
+		$(adir)/$(1).cc, \
+		$(wildcard $(adir)/*)))
+problem_obj = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.cu.o,$(call problem_cu_src,$1)) \
+	      $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.cc.o,$(call problem_cc_src,$1))
 problem_gen = $(OPTSDIR)/$(1).gen.cc
 problem_gen_obj = $(OBJDIR)/$(1).gen.o
 
@@ -155,25 +159,29 @@ problem_objs = $(call problem_obj,$1) $(call problem_gen_obj,$1)
 
 # list of .cc files, exclusing MPI and problem sources
 CCFILES = $(filter-out $(MPICXXFILES),\
-	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
+	  $(foreach adir, $(filter-out $(PROBLEM_DIRS), $(SRCDIR) $(SRCSUBS)),\
 	  $(wildcard $(adir)/*.cc)))
 
 # list of .cu files: we only compile problems directly, all other
 # CUDA files are included via the cudasimframework
-CUFILES = $(foreach p,$(PROBLEM_LIST),$(call problem_src,$p))
+CUFILES = $(foreach p,$(PROBLEM_LIST),$(call problem_cu_src,$p))
+
+# list of problem-related CC files
+PROBLEM_CCFILES = $(foreach p,$(PROBLEM_LIST),$(call problem_cc_src,$p))
 
 # dependency files via filename replacement
-CCDEPS = $(patsubst $(SRCDIR)/%.cc,$(DEPDIR)/%.d,$(CCFILES) $(MPICXXFILES))
-CUDEPS = $(patsubst $(SRCDIR)/%.cu,$(DEPDIR)/%.d,$(CUFILES))
+CCDEPS = $(patsubst $(SRCDIR)/%.cc,$(DEPDIR)/%.cc.d,$(CCFILES) $(MPICXXFILES) $(PROBLEM_CCFILES))
+CUDEPS = $(patsubst $(SRCDIR)/%.cu,$(DEPDIR)/%.cu.d,$(CUFILES))
 GENDEPS = $(foreach p,$(PROBLEM_LIST),$(DEPDIR)/$(p).gen.d)
 
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
 
 # object files via filename replacement
-MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
-CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES))
-CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(CUFILES))
+MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.cc.o,$(notdir $(MPICXXFILES)))
+CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.cc.o,$(CCFILES))
+PROBLEM_CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.cc.o,$(PROBLEM_CCFILES))
+CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.cu.o,$(CUFILES))
 GENOBJS = $(foreach p,$(PROBLEM_LIST),$(call problem_gen_obj,$p))
 
 OBJS = $(CCOBJS) $(MPICXXOBJS)
@@ -1133,7 +1141,7 @@ endif
 # The -MM flag is used to not include system includes.
 # The -MG flag is used to add missing includes (useful to depend on the .opt files).
 # The -MT flag is used to define the object file.
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
+$(CCOBJS) $(PROBLEM_CCOBJS): $(OBJDIR)/%.cc.o: $(SRCDIR)/%.cc $(DEPDIR)/%.cc.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
 	$(call redupdep,$(word 2,$^))
@@ -1143,7 +1151,7 @@ $(GENOBJS): $(OBJDIR)/%.gen.o: $(OPTSDIR)/%.gen.cc $(DEPDIR)/%.gen.d | $(OBJSUBS
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
 	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
-$(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
+$(MPICXXOBJS): $(OBJDIR)/%.cc.o: $(SRCDIR)/%.cc $(DEPDIR)/%.cc.d | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
 	$(CMDECHO)OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" \
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
@@ -1152,7 +1160,7 @@ $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d $(DEVCODE_OPTFILES) | $(OBJSUBS)
+$(CUOBJS): $(OBJDIR)/%.cu.o: $(SRCDIR)/%.cu $(DEPDIR)/%.cu.d $(DEVCODE_OPTFILES) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(CUFLAGS) -E $< $(CU_DEPGEN_FLAGS) > $(word 2,$^)
 	$(call redupdep,$(word 2,$^))
@@ -1232,11 +1240,15 @@ showobjs:
 	@echo " --- "
 	@echo "> CUFILES: $(CUFILES)"
 	@echo " --- "
+	@echo "> PROBLEM_CCFILES: $(PROBLEM_CCFILES)"
+	@echo " --- "
 	@echo "> CCOBJS: $(CCOBJS)"
 	@echo " --- "
 	@echo "> MPICXXOBJS: $(MPICXXOBJS)"
 	@echo " --- "
 	@echo "> CUOBJS: $(CUOBJS)"
+	@echo " --- "
+	@echo "> PROBLEM_CCOBJS: $(PROBLEM_CCOBJS)"
 	@echo " --- "
 	@echo "> OBJS: $(OBJS)"
 
