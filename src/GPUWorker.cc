@@ -49,6 +49,9 @@
 // UINT_MAX
 #include "limits.h"
 
+// Debug flags
+#include "debugflags.h"
+
 using namespace std;
 
 GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
@@ -938,7 +941,7 @@ void GPUWorker::transferBursts(CommandStruct const& cmd)
 // staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
 void GPUWorker::importExternalCells(CommandStruct const& cmd)
 {
-	if (gdata->debug.check_buffer_update) checkBufferUpdate(cmd);
+	if (g_debug.check_buffer_update) checkBufferUpdate(cmd);
 
 	if (cmd.command == APPEND_EXTERNAL)
 		transferBurstsSizes();
@@ -1915,7 +1918,7 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	// it is used to add segments into the neighbour list even if they are outside the kernel support
 	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
-	neibsEngine->buildNeibsList(	gdata->debug.check_cell_overflow,
+	neibsEngine->buildNeibsList(	g_debug.check_cell_overflow,
 					bufread,
 					bufwrite,
 					m_numParticles,
@@ -2271,7 +2274,7 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	// otherwise just mark the buffers
 	if (numPartsToElaborate > 0) {
 		nans_found = integrationEngine->basicstep(
-			gdata->debug.nans,
+			g_debug.nans,
 			bufread,
 			bufwrite,
 			m_numParticles,
@@ -3325,8 +3328,8 @@ void GPUWorker::simulationThread() {
 
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
-		const bool dbg_step_printf = gdata->debug.print_step;
-		const bool dbg_buffer_lists = gdata->debug.inspect_buffer_lists;
+		const bool dbg_step_printf = g_debug.print_step;
+		const bool dbg_buffer_lists = g_debug.inspect_buffer_lists;
 
 		// TODO automate the dbg_step_printf output
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas

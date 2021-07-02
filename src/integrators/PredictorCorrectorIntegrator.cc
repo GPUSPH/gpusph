@@ -515,7 +515,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 				.updating(current_state, BUFFER_TAU | BUFFER_EFFVISC);
 	}
 
-	if (gdata->debug.inspect_preforce)
+	if (g_debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
 			.set_step(step)
 			.set_src(current_state);
@@ -650,7 +650,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_dst(next_state);
 	}
 
-	if (gdata->debug.inspect_preforce)
+	if (g_debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
 			.set_step(step)
 			.set_src(next_state);
@@ -970,7 +970,7 @@ PredictorCorrector::next_phase()
 
 	// the phase is empty: let the user know in debug mode, and
 	// tail-call ourselves
-	if (gdata->debug.print_step) {
+	if (g_debug.print_step) {
 		cout << "\t(phase is empty)" << endl;
 	}
 	return next_phase();

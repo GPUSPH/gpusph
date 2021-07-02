@@ -655,7 +655,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// density
 	appender.append_data(vel, "Density", get_density);
 
-	if (gdata->debug.numerical_density) {
+	if (g_debug.numerical_density) {
 		appender.append_data(vel, "Relative Density", get_last_component);
 	}
 

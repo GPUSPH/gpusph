@@ -1744,7 +1744,7 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 			errmsg << "Particle " << pid << " position " << make_double4(pos)
 				<< " is outside of the domain " << m_origin << "--" << (m_origin+m_size) ;
 			warned_out_of_bounds = true;
-			if (gdata->debug.validate_init_positions)
+			if (g_debug.validate_init_positions)
 				throw std::out_of_range(errmsg.str());
 			else
 				cerr << errmsg.str() << endl;
@@ -1768,7 +1768,7 @@ ProblemCore::show_out_of_bounds() const
 	if (m_out_of_bounds_count > 0) {
 		cerr << m_out_of_bounds_count << " particles were placed out of bounds during init" << endl;
 		if (m_out_of_bounds_count > NEIBINDEX_MASK/2) {
-			gdata->debug.check_cell_overflow = 1;
+			g_debug.check_cell_overflow = 1;
 			cerr << "will check for cell overflow" << endl;
 		}
 	}

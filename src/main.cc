@@ -40,6 +40,8 @@
 #include "GlobalData.h"
 #include "NetworkManager.h"
 
+#include "debugflags.h"
+
 #include "problem_spec.h"
 
 /* Include all other opt file for show_version */
@@ -243,7 +245,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--debug")) {
-			gdata->debug = parse_debug_flags(*argv);
+			parse_debug_flags(*argv);
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--repack")) {
