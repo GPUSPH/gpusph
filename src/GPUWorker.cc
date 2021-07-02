@@ -1816,18 +1816,17 @@ void GPUWorker::runCommand<UPDATE_ACTIVE_RANGES>(CommandStruct const& cmd)
 		m_activeRange[p].begin &= UINT_MAX - 31U;
 	}
 
-#if 0
-	for (int p = PT_FLUID; p < PT_NONE; ++p) {
-		if (m_activeRange[p].empty()) continue;
+	if (g_debug.clip_ranges) {
+		for (int p = PT_FLUID; p < PT_NONE; ++p) {
+			if (m_activeRange[p].empty()) continue;
 
-		printf("T%d: PT%d range [%12d, %12d[ (%d/%d = %g%%)\n", m_deviceIndex, p,
-		m_activeRange[p].begin, m_activeRange[p].end,
-		m_activeRange[p].end - m_activeRange[p].begin, numPartsToElaborate,
-		(m_activeRange[p].end - m_activeRange[p].begin)*100.0/numPartsToElaborate
-		);
-    }
-#endif
-
+			printf("T%d: PT%d range [%12d, %12d[ (%d/%d = %.3g%%)\n", m_deviceIndex, p,
+				m_activeRange[p].begin, m_activeRange[p].end,
+				m_activeRange[p].end - m_activeRange[p].begin, numPartsToElaborate,
+				(m_activeRange[p].end - m_activeRange[p].begin)*100.0/numPartsToElaborate
+			      );
+		}
+	}
 }
 
 // returns numBlocks as computed by forces()

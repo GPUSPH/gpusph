@@ -135,4 +135,7 @@ unsigned nans : 1;
 /*! See the description of KERNEL_CHECK_ERROR for further detail */
 unsigned sync_kernels : 1;
 
+/// Show active clipping ranges per particle type after each neighbors list construction
+unsigned clip_ranges : 1;
+
 /* vim: set ft=cpp: */
