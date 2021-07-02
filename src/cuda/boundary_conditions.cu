@@ -54,6 +54,7 @@ struct CUDABoundaryHelper {
 	process(
 		BufferList const& bufread,
 		BufferList &bufwrite,
+		const	IndexRange *activeRange,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
@@ -74,17 +75,21 @@ struct CUDABoundaryHelper<kerneltype, DUMMY_BOUNDARY> {
 	static void process(
 		BufferList const& bufread,
 		BufferList &bufwrite,
+		const	IndexRange *activeRange,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
 				float	influenceradius)
 {
+	// We only run on boundary particles
+	IndexRange effective = IndexRange(0, particleRangeEnd).intersect(activeRange[PT_BOUNDARY]);
+
 	uint numThreads = BLOCK_SIZE_DUMMY_BOUND;
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
+	uint numBlocks = effective.numBlocks(numThreads);
 
 	execute_kernel(
 		cubounds::ComputeDummyParticlesDevice<kerneltype>
-			(bufread, bufwrite, particleRangeEnd, slength, influenceradius),
+			(bufread, bufwrite, effective, slength, influenceradius),
 		numBlocks, numThreads);
 
 	// check if kernel invocation generated an error
@@ -138,13 +143,14 @@ void
 compute_boundary_conditions(
 		BufferList const& bufread,
 		BufferList &bufwrite,
+		const	IndexRange *activeRange,
 				uint	numParticles,
 				uint	particleRangeEnd,
 				float	slength,
 				float	influenceradius) override
 {
 	CUDABoundaryHelper<kerneltype, boundarytype>::process
-		(bufread, bufwrite, numParticles, particleRangeEnd,
+		(bufread, bufwrite, activeRange, numParticles, particleRangeEnd,
 		 slength, influenceradius);
 	return;
 }

@@ -2673,6 +2673,7 @@ void GPUWorker::runCommand<COMPUTE_BOUNDARY_CONDITIONS>(CommandStruct const& cmd
 	bcEngine->compute_boundary_conditions(
 		bufread,
 		bufwrite,
+		m_activeRange,
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,

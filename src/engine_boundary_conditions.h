@@ -41,6 +41,7 @@
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
+#include "indexrange.h"
 #include "buffer.h"
 #include "device/atomic_type.h"
 
@@ -58,6 +59,7 @@ virtual void
 compute_boundary_conditions(
 	BufferList const& bufread,
 	BufferList &bufwrite,
+	const	IndexRange *activeRange,
 	uint	numParticles,
 	uint	particleRangeEnd,
 	float	slength,

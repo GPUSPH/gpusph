@@ -2603,14 +2603,14 @@ struct ComputeDummyParticlesDevice
 	const	hashKey* __restrict__ particleHash;
 	const	neibdata* __restrict__ neibsList;
 	const	uint* __restrict__ cellStart;
-	const	uint		numParticles;
+	const	IndexRange	particleRange;
 	const	float		slength;
 	const	float		influenceradius;
 
 	ComputeDummyParticlesDevice(
 		BufferList const& bufread,
 		BufferList &bufwrite,
-				uint	numParticles_,
+		IndexRange const& particleRange_,
 				float	slength_,
 				float	influenceradius_)
 	:
@@ -2622,16 +2622,16 @@ struct ComputeDummyParticlesDevice
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
 		cellStart(bufread.getData<BUFFER_CELLSTART>()),
-		numParticles(numParticles_),
+		particleRange(particleRange_),
 		slength(slength_),
 		influenceradius(influenceradius_)
 	{}
 
 	__device__ void operator()(simple_work_item item) const
 {
-	const uint index = item.get_id();
+	const uint index = item.get_id() + particleRange.begin;
 
-	if (index >= numParticles)
+	if (index >= particleRange.end)
 		return;
 
 	const particleinfo info = infoArray[index];
