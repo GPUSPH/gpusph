@@ -118,4 +118,8 @@ unsigned benchmark_command_runtimes : 1;
 /// Check for NaNs after integration, and abort if found
 unsigned nans : 1;
 
+/// Make kernel launches synchronous
+/*! See the description of KERNEL_CHECK_ERROR for further detail */
+unsigned sync_kernels : 1;
+
 /* vim: set ft=cpp: */

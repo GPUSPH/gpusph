@@ -61,6 +61,12 @@
 
 using namespace std;
 
+// this global bool is used by the simulation framework (which cannot access gdata)
+// to know if the simulation is single- or multi-device
+// (the information currently is only used to determine if the kernel launches should be
+// synchronous or not)
+bool is_multi_device;
+
 void show_version()
 {
 	static const char dbg_or_rel[] =
