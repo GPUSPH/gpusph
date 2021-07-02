@@ -36,9 +36,11 @@
 #include <cstring>
 // for NAN
 #include <cmath>
+// for USHRT_MAX
+#include <climits>
 
 // we use CUDA types and host/device specifications here
-#include <cuda_runtime.h>
+#include "device_runtime.h"
 
 #include "common_types.h" // ushort
 

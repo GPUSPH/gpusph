@@ -33,10 +33,14 @@
 #ifndef POSVEL_STRUCT_H
 #define POSVEL_STRUCT_H
 
+#include "vector_math.h"
+
+using std::isfinite;
+
 /*
  * Generic split
  */
-struct __builtin_align__(16) space_w_t
+struct __align__(16) space_w_t
 {
 	float3 xyz;
 	float w;
@@ -93,7 +97,7 @@ space_w_t operator*(float x, space_w_t const& v)
 
 //! Position is stored as a float4 with pos in the first three components and mass in the last
 //! TODO this should be dimensionality-aware, at least for '.5' dimensions
-struct __builtin_align__(16) pos_mass
+struct __align__(16) pos_mass
 {
 	float3 pos;
 	float mass;
@@ -126,7 +130,7 @@ disable_particle(pos_mass& pdata)
 //! Just like pos_mass, but the spatial member is called relPos
 //! We don't provide a constructor for this, since this is assumed to be constructed
 //! by difference
-struct __builtin_align__(16) relPos_mass
+struct __align__(16) relPos_mass
 {
 	float3 relPos;
 	float mass;
@@ -161,7 +165,7 @@ relPos_mass operator-(pos_mass const& pm, pos_mass const& neib_pm)
 template<typename PosMass>
 inline __host__ __device__
 bool constexpr is_active(PosMass const& pdata)
-{ return ::isfinite(pdata.mass); }
+{ return isfinite(pdata.mass); }
 
 template<typename PosMass>
 inline __host__ __device__
@@ -174,7 +178,7 @@ bool constexpr is_inactive(PosMass const& pdata)
 
 //! Velocity is stored as a float4 with vel in the first three components and rhotilde in the last
 //! TODO this should be dimensionality-aware, at least for '.5' dimensions
-struct __builtin_align__(16) vel_rho
+struct __align__(16) vel_rho
 {
 	float3 vel;
 	float rhotilde; // be clear that this is the relative density difference
@@ -219,7 +223,7 @@ struct __builtin_align__(16) vel_rho
 //! Just like vel_rho, but the spatial member is called relVel
 //! We don't provide a constructor for this, since this is assumed to be constructed
 //! by difference
-struct __builtin_align__(16) relVel_rho
+struct __align__(16) relVel_rho
 {
 	float3 relVel;
 	float rhotilde;
@@ -245,7 +249,7 @@ relVel_rho operator-(vel_rho const& pm, vel_rho const& neib_pm)
  * Boundary elements
  */
 
-struct __builtin_align__(16) belem_t
+struct __align__(16) belem_t
 {
 	float3 normal;
 	float  area;

@@ -36,7 +36,7 @@
 #include <cfloat>
 #include <stdexcept>
 
-#include <cuda_runtime.h> // for double4
+#include "device_runtime_api.h"
 
 //! The base wavegage class
 /*! WaveGages work by looking at neighboring SURFACE particles and interpolating their z coordinates.

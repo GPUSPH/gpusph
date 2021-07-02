@@ -3711,19 +3711,26 @@ struct dyndt_shared_none
 #define COND_SHARED(some_cond, some_struct) \
 	conditional<some_cond, some_struct, dyndt_shared_none<some_struct> >::type
 
+#if CPU_BACKEND_ENABLED
+#define SHMEM_FORCES_ELEMENTS 1
+#define SHMEM_IDX 0
+#else // CUDA_BACKEND_ENABLED
+#define SHMEM_FORCES_ELEMENTS BLOCK_SIZE_FORCES
+#define SHMEM_IDX threadIdx.x
+#endif
 struct dyndt_forces_shared_data
 {
-	float sm_forces_max[BLOCK_SIZE_FORCES];
+	float sm_forces_max[SHMEM_FORCES_ELEMENTS];
 
 	__device__ __forceinline__ void
-	init() { sm_forces_max[threadIdx.x] = 0; }
+	init() { sm_forces_max[SHMEM_IDX] = 0; }
 
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
 		float sspeed = soundSpeed(pdata.rhotilde, fluid_num(pdata.info));
-		sm_forces_max[threadIdx.x] = fmaxf(length(pout.force.xyz), sspeed*sspeed/params.slength);
+		sm_forces_max[SHMEM_IDX] = fmaxf(length(pout.force.xyz), sspeed*sspeed/params.slength);
 	}
 
 	template<typename FP>
@@ -3736,16 +3743,16 @@ struct dyndt_forces_shared_data
 
 struct dyndt_gamma_shared_data
 {
-	float sm_gamma_max[BLOCK_SIZE_FORCES];
+	float sm_gamma_max[SHMEM_FORCES_ELEMENTS];
 
 	__device__ __forceinline__ void
-	init() { sm_gamma_max[threadIdx.x] = 0; }
+	init() { sm_gamma_max[SHMEM_IDX] = 0; }
 
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
-		sm_gamma_max[threadIdx.x] = pout.gammaCfl;
+		sm_gamma_max[SHMEM_IDX] = pout.gammaCfl;
 	}
 
 	template<typename FP>
@@ -3758,16 +3765,16 @@ struct dyndt_gamma_shared_data
 
 struct dyndt_keps_shared_data
 {
-	float sm_keps_max[BLOCK_SIZE_FORCES];
+	float sm_keps_max[SHMEM_FORCES_ELEMENTS];
 
 	__device__ __forceinline__ void
-	init() { sm_keps_max[threadIdx.x] = 0; }
+	init() { sm_keps_max[SHMEM_IDX] = 0; }
 
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
-		sm_keps_max[threadIdx.x] = pdata.turbVisc;
+		sm_keps_max[SHMEM_IDX] = pdata.turbVisc;
 	}
 
 	template<typename FP>
@@ -4392,7 +4399,10 @@ struct finalizeforcesDevice : FP
 	const uint index = item.get_id() + params.fromParticle;
 
 	// Allocating shared data in case of adaptive time step
-	__shared__ forces_shared_data<boundarytype, ViscSpec, simflags> shared;
+#if CUDA_BACKEND_ENABLED
+	__shared__
+#endif
+		forces_shared_data<boundarytype, ViscSpec, simflags> shared;
 	shared.init();
 
 #pragma unroll
@@ -4593,7 +4603,10 @@ struct finalizeRepackDevice : FP
 	const uint index = item.get_id() + params.fromParticle;
 
 	// Allocating shared data in case of adaptive time step
-	__shared__ forces_shared_data<boundarytype, repackViscSpec<simflags>, simflags> shared;
+#if CUDA_BACKEND_ENABLED
+	__shared__
+#endif
+		forces_shared_data<boundarytype, repackViscSpec<simflags>, simflags> shared;
 	shared.init();
 
 #pragma unroll

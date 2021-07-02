@@ -25,8 +25,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SYCL_WRAP
-#define SYCL_WRAP
+#ifndef SYCL_WRAP_CUDA
+#define SYCL_WRAP_CUDA
 
 #include "cpp11_missing.h"
 #include "has_member.h"

@@ -504,6 +504,22 @@ struct disable_flags : virtual public ParentArgs
 		virtual public add_flags<simflags, NewParent> {};
 };
 
+/* TODO FIXME CPUSPH
+ * this is a hack to speed up development:
+ * we should define the common part under src/device/anysimframework or something,
+ * but for the time being we avoid moving files around and just rename the main class
+ * and include this from the cpu framework definer
+ */
+#include "backend_select.opt"
+#if CUDA_BACKEND_ENABLED
+#define DEFINED_SIMFRAMEWORK CUDASimFramework
+#elif CPU_BACKEND_ENABLED
+#define DEFINED_SIMFRAMEWORK CPUSimFramework
+#else
+#error "Unimplemented backend"
+#endif
+
+
 /// Our CUDASimFramework is actualy a factory for CUDASimFrameworkImpl*,
 /// generating one when assigned to a SimFramework*. This is to allow us
 /// to change the set of options at runtime without setting up/tearing down
@@ -524,7 +540,7 @@ template<
 	typename Arg11 = DefaultArg,
 	typename Arg12 = DefaultArg,
 	typename Arg13 = DefaultArg>
-class CUDASimFramework {
+class DEFINED_SIMFRAMEWORK {
 	/// The collection of arguments for our current setup
 	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6,
 		Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13> Args;
@@ -570,8 +586,8 @@ class CUDASimFramework {
 
 	/// A method to produce a new factory with an overridden parameter
 	template<typename Extra>
-	CUDASimFramework< Override<Extra> > extend() {
-		return CUDASimFramework< Override<Extra> >();
+	DEFINED_SIMFRAMEWORK< Override<Extra> > extend() {
+		return DEFINED_SIMFRAMEWORK< Override<Extra> >();
 	}
 
 public:

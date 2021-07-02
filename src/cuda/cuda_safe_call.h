@@ -68,4 +68,9 @@ inline void cudaGetSyncError(const char *errorMessage,
 	cudaSafeCallNoSync(err, file, line, func, __func__, errorMessage);
 }
 
+#define devAPISafeCall       cudaSafeCall
+#define devAPISafeCallNoSync cudaSafeCallNoSync
+#define devAPIGetLastError   cudaGetLastError
+#define devAPIGetSyncError   cudaGetSyncError
+
 #endif

@@ -646,7 +646,7 @@ struct nanCheckDevice : EP
 		vel0.x, vel0.y, vel0.z, vel0.w,
 		vel.x, vel.y, vel.z, vel.w,
 		force.x, force.y, force.z, force.w);
-	atomicAdd(&d_nans_found, 1);
+	atomicAdd(&d_nans_found, 1U);
 }
 };
 

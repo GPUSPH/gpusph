@@ -1029,6 +1029,7 @@ struct MlsDevice : params_t
  * The launch grid “slides” over the entire input array, which is compused by numquarts float4s.
  * Each block reduces the per-thread reductions in shared memory, and then writes out a single float.
  */
+#if CUDA_BACKEND_ENABLED
 template <unsigned int blockSize>
 struct fmaxDevice
 {
@@ -1102,6 +1103,7 @@ struct fmaxDevice
 		output[blockIdx.x] = myMax;
 }
 };
+#endif
 /************************************************************************************************************/
 
 /** @} */

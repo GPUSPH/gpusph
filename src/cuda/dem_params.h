@@ -28,8 +28,9 @@
 #ifndef DEM_PARAMS_H
 #define DEM_PARAMS_H
 
-#include <cuda_runtime_api.h>
 #include "cache_preference.h"
+
+#include "device_runtime_api.h"
 
 //! ENABLE_DEM-related texture parameters
 struct dem_params

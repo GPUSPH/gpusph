@@ -66,12 +66,10 @@ inline void devAPICallFailed(int err, const char *errorString,
 	throw std::runtime_error(errmsg.str());
 }
 
-// TODO when supporting different device backends, this should be the appropriate header
-// based on the specific backend
+#if CUDA_BACKEND_ENABLED
 #include "cuda_safe_call.h"
-#define devAPISafeCall       cudaSafeCall
-#define devAPISafeCallNoSync cudaSafeCallNoSync
-#define devAPIGetLastError   cudaGetLastError
-#define devAPIGetSyncError   cudaGetSyncError
+#else
+#include "cpu_safe_call.h"
+#endif
 
 #endif

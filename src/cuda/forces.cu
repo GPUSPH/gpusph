@@ -99,6 +99,7 @@ thread_local void*	reduce_buffer = NULL;
  * If the function is invoked with NULL input, no reduction is used. This can be used
  * to compute the number of blocks without doing an actual reduction
  */
+#if CUDA_BACKEND_ENABLED
 static inline int
 reducefmax(
 			float	*output,
@@ -134,7 +135,7 @@ reducefmax(
 
 	return numBlocks;
 }
-
+#endif
 
 static inline uint nextPow2(uint x )
 {
@@ -152,6 +153,9 @@ cflmax( const uint	n,
 const	float*		cfl,
 		float*		tempCfl)
 {
+#if CPU_BACKEND_ENABLED
+	float max = cfl[0];
+#else // CUDA_BACKEND_ENABLED
 	const int numBlocks = reducefmax(tempCfl, cfl, n);
 	float max = NAN;
 
@@ -169,6 +173,7 @@ const	float*		cfl,
 	}
 
 	SAFE_CALL(cudaMemcpy(&max, tempCfl, sizeof(float), cudaMemcpyDeviceToHost));
+#endif
 
 	return max;
 }
@@ -536,7 +541,11 @@ getFmaxElements(const uint n)
 uint
 getFmaxTempElements(const uint n)
 {
+#if CPU_BACKEND_ENABLED
+	return 1;
+#else // CUDA_BACKEND_ENABLED
 	return reducefmax(NULL, NULL, n);
+#endif
 }
 
 

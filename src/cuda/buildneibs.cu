@@ -37,16 +37,27 @@
 
 #include <stdio.h>
 
+#if CPU_BACKEND_ENABLED
+#ifdef _OPENMP
+#define THRUST_DEVICE_SYSTEM THRUST_DEVICE_SYSTEM_OMP
+#else
+#define THRUST_DEVICE_SYSTEM THRUST_DEVICE_SYSTEM_CPP
+#endif
+#endif
 #include <thrust/sort.h>
-#include <thrust/device_vector.h>
 #include <thrust/tuple.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/device_vector.h>
 
 #include "define_buffers.h"
 #include "engine_neibs.h"
 #include "utils.h"
 
-#include "sycl_wrap.h"
+#if CUDA_BACKEND_ENABLED
+#include "sycl_wrap_cuda.h"
+#else
+#include "sycl_wrap_cpu.h"
+#endif
 
 #include "buildneibs_params.h"
 #include "reorder_params.h"

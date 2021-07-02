@@ -44,6 +44,11 @@ maxBlockReduce(
 	uint	cflOffset ///< offset to index the cfl array
 )
 {
+#if CPU_BACKEND_ENABLED
+#pragma omp parallel reduce(max: cfl[cflOffset])
+	cfl[cflOffset] = max(cfl[cflOffset], sm_max[0]);
+#else
+	// CUDA_BACKEND_ENABLED
 	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1)
 	{
 		__syncthreads();
@@ -56,6 +61,7 @@ maxBlockReduce(
 	// write result for this block to global mem
 	if (!threadIdx.x)
 		cfl[cflOffset + blockIdx.x] = sm_max[0];
+#endif
 }
 
 #endif

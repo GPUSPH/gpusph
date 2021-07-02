@@ -1,4 +1,4 @@
-/*  Copyright (c) 2020 INGV, EDF, UniCT, JHU
+/*  Copyright (c) 2021 INGV, EDF, UniCT, JHU
 
     Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
     Électricité de France, Paris, France
@@ -25,38 +25,14 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CUDA_CACHE_PREFERENCE_H
-#define CUDA_CACHE_PREFERENCE_H
+#ifndef CPU_SAFE_CALL_H
+#define CPU_SAFE_CALL_H
 
-#include "backend_select.opt"
-#include "clang_select.opt"
+#include "safe_call.h"
 
-#if CPU_BACKEND_ENABLED
-#define DISABLE_ALL_TEXTURES 1
-#endif
-
-// On devices with compute capability 2.x, we want to distribute cache load
-// between L1 cache and the texture cache. On older architectures (no L1 cache)
-// we prefer using textures for all read-only arrays. Define PREFER_L1 to 1 or
-// 0 accordingly. On 3.x, the L1 cache is only used for register spills, so
-// exclude it from PREFER_L1. We keep PREFER_L1 on Maxwell because tests indicate
-// that using textures leads to no improvement at best (and possibly some minor
-// performance loss)
-
-#if defined(__COMPUTE__)
-#if __COMPUTE__ >= 20 && __COMPUTE__/10 != 3
-#define PREFER_L1 1
-#else
-#define PREFER_L1 0
-#endif
-#endif
-
-// We can run without any texture usage by defining DISABLE_ALL_TEXTURES
-#if DISABLE_ALL_TEXTURES
-// Disable texture usage as linear array cache
-#define DISABLE_TEXTURES 1
-// Disable texture usage for the DEM
-#define DISABLE_DEM_TEXTURE 1
-#endif
+#define devAPISafeCall(err, ...) err
+#define devAPISafeCallNoSync(err, ...) err
+#define devAPIGetLastError(...) do { } while(0)
+#define devAPIGetSyncError(...) do { } while(0)
 
 #endif

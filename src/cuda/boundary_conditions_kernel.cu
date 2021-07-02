@@ -87,7 +87,7 @@ createNewFluidParticle(
 			uint			*nextID,
 	const	uint			totParticles)
 {
-	const uint new_index = atomicAdd(newNumParticles, 1);
+	const uint new_index = atomicAdd(newNumParticles, 1U);
 
 	const uint new_id = *nextID;
 	if (new_id > UINT_MAX - d_numOpenVertices)

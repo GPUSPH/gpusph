@@ -64,7 +64,9 @@ struct internal_dem_params
 
 	~internal_dem_params()
 	{
-#if DISABLE_DEM_TEXTURE
+#if CPU_BACKEND_ENABLED
+		delete[] demArray;
+#elif DISABLE_DEM_TEXTURE
 		if (demArray)
 			SAFE_CALL(cudaFree(demArray));
 #else
@@ -79,9 +81,14 @@ struct internal_dem_params
 	{
 		const size_t size = width*height*sizeof(float);
 #if DISABLE_DEM_TEXTURE
+#if CPU_BACKEND_ENABLED
+		demArray = new float[size];
+		memcpy(demArray, hDem, size);
+#else // CUDA_BACKEND_ENABLED
 		// TODO pitched allocation
 		SAFE_CALL( cudaMalloc(&demArray, size));
 		SAFE_CALL( cudaMemcpy(demArray, hDem, size, cudaMemcpyHostToDevice));
+#endif
 		this->width = width;
 		this->height = height;
 #else

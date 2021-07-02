@@ -45,7 +45,8 @@
 #include <cmath>
 #endif
 
-#include "cuda_runtime.h"
+// we use CUDA types and host/device specifications here
+#include "device_runtime.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 typedef unsigned int uint;

@@ -40,8 +40,6 @@
 
 // MAX_DEVICES et al.
 #include "multi_gpu_defines.h"
-// float4 et al
-#include "vector_types.h"
 // common host types
 #include "common_types.h"
 // planes

@@ -114,7 +114,7 @@ class ProblemCore
 			);
 		*/
 
-#define	SETUP_FRAMEWORK(...) this->simframework() =  CUDASimFramework< __VA_ARGS__ >()
+#define	SETUP_FRAMEWORK(...) this->simframework() =  DEFINED_SIMFRAMEWORK< __VA_ARGS__ >()
 
 	public:
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize

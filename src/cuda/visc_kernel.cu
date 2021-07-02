@@ -628,9 +628,15 @@ __device__ __forceinline__
 enable_if_t< HAS_DTADAPT(KP::simflags) >
 reduce_kinvisc(KP const& params, float kinvisc)
 {
+#if CPU_BACKEND_ENABLED
+#pragma omp parallel reduce(max: *params.cfl)
+	*params.cfl = max(*params.cfl, kinvisc);
+#else
+	// CUDA_BACKEND_ENABLED
 	__shared__ float sm_max[BLOCK_SIZE_SPS];
 	sm_max[threadIdx.x] = kinvisc;
 	maxBlockReduce(sm_max, params.cfl, 0);
+#endif
 }
 //! Do nothing to reduce the kinematic viscosity, if not ENABLE_DTADAPT
 template<typename KP>
@@ -643,9 +649,15 @@ reduce_kinvisc(KP const& params, float kinvisc)
 __device__ __forceinline__ void
 reduce_jacobi_error(float* cfl, float error)
 {
+#if CPU_BACKEND_ENABLED
+#pragma omp parallel reduce(max: *cfl)
+	*cfl = max(*cfl, error);
+#else
+	// CUDA_BACKEND_ENABLED
 	__shared__ float sm_max[BLOCK_SIZE_SPS];
 	sm_max[threadIdx.x] = error;
 	maxBlockReduce(sm_max, cfl, 0);
+#endif
 }
 
 //! Per-particle effective viscosity computation

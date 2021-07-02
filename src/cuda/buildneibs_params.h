@@ -33,7 +33,6 @@
 
 #include "buffer.h"
 #include "define_buffers.h"
-#include "cudabuffer.h"
 
 /** \addtogroup neibs_buildnibskernel_params Neighbor list kernel parameters
  * 	\ingroup neibs

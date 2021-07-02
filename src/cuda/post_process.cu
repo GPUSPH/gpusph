@@ -284,11 +284,16 @@ struct CUDAPostProcessEngineHelper<FLUX_COMPUTATION, kerneltype, boundarytype, V
 		uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 		// TODO FIXME this should be managed through buffers!
+		// TODO FIXME where does this get destroyed? Are we leaking a pointer?
 		float *d_IOflux;
 
 		const uint numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
 
+#if CPU_BACKEND_ENABLED
+		d_IOflux = new float[numOpenBoundaries];
+#else
 		SAFE_CALL(cudaMalloc(&d_IOflux, numOpenBoundaries*sizeof(float)));
+#endif
 
 		//execute kernel
 		execute_kernel(

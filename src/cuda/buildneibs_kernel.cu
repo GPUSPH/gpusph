@@ -860,6 +860,7 @@ struct fixHashDevice
  */
 
 /*! In this version of the algorithm, we use shared memory as a cache */
+#if CUDA_BACKEND_ENABLED
 struct HashCacheShared
 {
 	uint sharedHash[BLOCK_SIZE_REORDERDATA+1];
@@ -896,6 +897,7 @@ struct HashCacheShared
 	{ return sharedHash[threadIdx.x]; }
 
 };
+#endif
 
 /*! In this version, we rely on the hardware cache */
 struct HashCacheL1
@@ -991,7 +993,7 @@ struct reorderDataAndFindCellStartDevice :
 	__device__ void operator()(simple_work_item item) const
 {
 	// Wrapper for the cell start/end finder
-#if USE_SHARED_CELL_START_FINDER
+#if CUDA_BACKEND_ENABLED && USE_SHARED_CELL_START_FINDER
 	__shared__ HashCacheShared hashCache;
 #else
 	HashCacheL1 hashCache;
@@ -1156,8 +1158,10 @@ __device__ __forceinline__
 enable_if_t<neibcount == true>
 count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 {
+#if CUDA_BACKEND_ENABLED
 	__shared__ volatile uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
 	__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS*num_sm_neibs_max];
+#endif
 
 	uint neibs_max[num_sm_neibs_max];
 	neibs_max[0] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY];
@@ -1165,6 +1169,14 @@ count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 		neibs_max[1] = neibs_num[PT_VERTEX];
 	uint total_neibs_num = neibs_max[0] + neibs_num[PT_VERTEX];
 
+#if CPU_BACKEND_ENABLED
+#pragma omp parallel reduction(max: neibs_max[0], neibs_max[1]) reduction(+: d_numInteractions)
+	d_maxFluidBoundaryNeibs = max(d_maxFluidBoundaryNeibs, neibs_max[0]);
+	if (num_sm_neibs_max > 1)
+		d_maxVertexNeibs = max(d_maxVertexNeibs, neibs_max[1]);
+	d_numInteractions += total_neibs_num;
+#else
+	// CUDA_BACKEND_ENABLED
 	sm_total_neibs_num[threadIdx.x] = total_neibs_num;
 	sm_neibs_max[threadIdx.x] = neibs_max[0];
 	if (num_sm_neibs_max > 1)
@@ -1193,6 +1205,7 @@ count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 		}
 		atomicAdd(&d_numInteractions, total_neibs_num);
 	}
+#endif
 };
 
 template<bool neibcount, int num_sm_neibs_max>
@@ -1400,7 +1413,7 @@ struct checkCellSizeDevice : cell_params
 	const uint delta = end - start;
 
 	if (delta > NEIBINDEX_MASK) {
-		int old = atomicCAS(&d_hasTooManyParticles, -1, index);
+		int old = atomicCAS(&d_hasTooManyParticles, -1, (int)index);
 		if (old == -1)
 			d_hasHowManyParticles = delta;
 	}
