@@ -2538,6 +2538,7 @@ void GPUWorker::runCommand<POSTPROCESS>(CommandStruct const& cmd)
 	if (numPartsToElaborate > 0) {
 		processor->process(
 			bufread, bufwrite,
+			m_activeRange,
 			m_numParticles,
 			numPartsToElaborate,
 			m_deviceIndex,

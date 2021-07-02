@@ -81,6 +81,7 @@ public:
 	process(
 		const BufferList&	bufread,
 		BufferList&		bufwrite,
+		const	IndexRange				*activeRange,
 				uint					numParticles,
 				uint					particleRangeEnd,
 				uint					deviceIndex,
