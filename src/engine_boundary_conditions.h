@@ -164,20 +164,6 @@ disableOutgoingParts(const	BufferList& bufread,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd) = 0;
 
-//! Downloads the per device waterdepth from the GPU
-virtual void
-downloadIOwaterdepth(
-			uint*	h_IOwaterdepth,
-	const	uint*	d_IOwaterdepth,
-	const	uint	numObjects) = 0;
-
-//! Upload the global waterdepth to the GPU
-virtual void
-uploadIOwaterdepth(
-	const	uint*	h_IOwaterdepth,
-			uint*	d_IOwaterdepth,
-	const	uint	numObjects) = 0;
-
 //! Identifies vertices at the corners of open boundaries
 virtual void
 saIdentifyCornerVertices(

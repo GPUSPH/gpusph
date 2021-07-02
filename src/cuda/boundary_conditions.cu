@@ -575,27 +575,6 @@ initIOmass(
 	KERNEL_CHECK_ERROR;
 }
 
-// Downloads the per device waterdepth from the GPU
-void
-downloadIOwaterdepth(
-			uint*	h_IOwaterdepth,
-	const	uint*	d_IOwaterdepth,
-	const	uint	numOpenBoundaries) override
-{
-	SAFE_CALL(cudaMemcpy(h_IOwaterdepth, d_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyDeviceToHost));
-}
-
-
-// Upload the global waterdepth to the GPU
-void
-uploadIOwaterdepth(
-	const	uint*	h_IOwaterdepth,
-			uint*	d_IOwaterdepth,
-	const	uint	numOpenBoundaries) override
-{
-	SAFE_CALL(cudaMemcpy(d_IOwaterdepth, h_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyHostToDevice));
-}
-
 // Identifies vertices at the corners of open boundaries
 void
 saIdentifyCornerVertices(

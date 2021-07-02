@@ -2194,10 +2194,10 @@ void GPUWorker::runCommand<DOWNLOAD_IOWATERDEPTH>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	bcEngine->downloadIOwaterdepth(
+	memcpyDeviceToHost(
 			gdata->h_IOwaterdepth[m_deviceIndex],
 			m_dIOwaterdepth,
-			m_simparams->numOpenBoundaries);
+			m_simparams->numOpenBoundaries * sizeof(uint));
 
 }
 
@@ -2210,10 +2210,10 @@ void GPUWorker::runCommand<UPLOAD_IOWATERDEPTH>(CommandStruct const& cmd)
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	bcEngine->uploadIOwaterdepth(
-			gdata->h_IOwaterdepth[0],
+	memcpyHostToDevice(
 			m_dIOwaterdepth,
-			m_simparams->numOpenBoundaries);
+			gdata->h_IOwaterdepth[0],
+			m_simparams->numOpenBoundaries * sizeof(uint));
 
 }
 
