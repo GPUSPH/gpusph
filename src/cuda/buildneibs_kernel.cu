@@ -860,24 +860,20 @@ struct fixHashDevice
  */
 
 /*! In this version of the algorithm, we use shared memory as a cache */
-template<typename KP>
-struct CellStartFinderCached
+struct HashCacheShared
 {
 	uint sharedHash[BLOCK_SIZE_REORDERDATA+1];
 
 	__device__ __forceinline__
-	uint init(KP const& params, uint index)
+	uint init(uint index, uint numParticles, const hashKey *particleHash)
 	{
 		uint cellHash;
 
-		// Initialize segmentStarts
-		if (params.segmentStart && index < 4) params.segmentStart[index] = EMPTY_SEGMENT;
-
-		if (index < params.numParticles) {
+		if (index < numParticles) {
 			// To find where cells start/end we only need the cell part of the hash.
 			// Note: we do not reset the high bits since we need them to find the segments
 			// (aka where the outer particles begin)
-			cellHash = cellHashFromParticleHash(params.particleHash[index], true);
+			cellHash = cellHashFromParticleHash(particleHash[index], true);
 
 			// Load hash data into shared memory so that we can look
 			// at neighboring particle's hash value without loading
@@ -886,7 +882,7 @@ struct CellStartFinderCached
 
 			if (index > 0 && threadIdx.x == 0) {
 				// first thread in block must load neighbor particle hash
-				sharedHash[0] = cellHashFromParticleHash(params.particleHash[index - 1], true);
+				sharedHash[0] = cellHashFromParticleHash(particleHash[index - 1], true);
 			}
 		}
 
@@ -896,78 +892,29 @@ struct CellStartFinderCached
 	}
 
 	__device__ __forceinline__
-	bool markCellStartAndEnd(KP const& params, uint index, uint cellHash)
-	{
-		bool process = (index < params.numParticles);
-		if (process) {
-			// If this particle has a different cell index to the previous
-			// particle then it must be the first particle in the cell
-			// or the first inactive particle.
-			// Store the index of this particle as the new cell start and as
-			// the previous cell end
+	uint prevHash() const
+	{ return sharedHash[threadIdx.x]; }
 
-			// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
-			// every time we use a cell hash to access an element of CellStart or CellEnd
-
-			if (index == 0 || cellHash != sharedHash[threadIdx.x]) {
-
-				// New cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
-				if (cellHash != CELL_HASH_MAX)
-					// If it isn't an inactive particle, it is also the start of the cell
-					params.cellStart[cellHash & CELLTYPE_BITMASK] = index;
-				else
-					*params.newNumParticles = index;
-
-				// If it isn't the first particle, it must also be the end of the previous cell
-				if (index > 0)
-					params.cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
-			}
-
-			// If we are an inactive particle, we're done (short hash: compare with 32 bits max)
-			if (cellHash == CELL_HASH_MAX) {
-				return false;
-			}
-
-			if (index == params.numParticles - 1) {
-				// Ditto
-				params.cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
-				*params.newNumParticles = params.numParticles;
-			}
-
-			if (params.segmentStart) {
-				// If segment start is given, hash key size is 64 and we detect the segments
-				uchar curr_type = cellHash >> 30;
-				uchar prev_type = sharedHash[threadIdx.x] >> 30;
-				if (index == 0 || curr_type != prev_type)
-					params.segmentStart[curr_type] = index;
-			}
-		}
-		return process;
-	}
 };
 
 /*! In this version, we rely on the hardware cache */
-template<typename KP>
-struct CellStartFinderL1
+struct HashCacheL1
 {
-	uint prevHash;
+	uint _prevHash;
 
 	__device__ __forceinline__
-	uint init(KP const& params, uint index)
+	uint init(uint index, uint numParticles, const hashKey *particleHash)
 	{
 		uint cellHash;
 
-		// Initialize segmentStarts
-		if (params.segmentStart && index < 4) params.segmentStart[index] = EMPTY_SEGMENT;
-
-		if (index < params.numParticles) {
+		if (index < numParticles) {
 			// To find where cells start/end we only need the cell part of the hash.
 			// Note: we do not reset the high bits since we need them to find the segments
 			// (aka where the outer particles begin)
-			cellHash = cellHashFromParticleHash(params.particleHash[index], true);
+			cellHash = cellHashFromParticleHash(particleHash[index], true);
 
 			if (index > 0)
-				prevHash = cellHashFromParticleHash(params.particleHash[index - 1], true);
+				_prevHash = cellHashFromParticleHash(particleHash[index - 1], true);
 
 		}
 
@@ -975,54 +922,8 @@ struct CellStartFinderL1
 	}
 
 	__device__ __forceinline__
-	bool markCellStartAndEnd(KP const& params, uint index, uint cellHash)
-	{
-		bool process = (index < params.numParticles);
-		if (process) {
-			// If this particle has a different cell index to the previous
-			// particle then it must be the first particle in the cell
-			// or the first inactive particle.
-			// Store the index of this particle as the new cell start and as
-			// the previous cell end
-
-			// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
-			// every time we use a cell hash to access an element of CellStart or CellEnd
-
-			if (index == 0 || cellHash != prevHash) {
-
-				// New cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
-				if (cellHash != CELL_HASH_MAX)
-					// If it isn't an inactive particle, it is also the start of the cell
-					params.cellStart[cellHash & CELLTYPE_BITMASK] = index;
-				else
-					*params.newNumParticles = index;
-
-				// If it isn't the first particle, it must also be the end of the previous cell
-				if (index > 0)
-					params.cellEnd[prevHash & CELLTYPE_BITMASK] = index;
-			}
-
-			// If we are an inactive particle, we're done (short hash: compare with 32 bits max)
-			if (cellHash == CELL_HASH_MAX) {
-				return false;
-			}
-
-			if (index == params.numParticles - 1) {
-				// Ditto
-				params.cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
-				*params.newNumParticles = params.numParticles;
-			}
-
-			if (params.segmentStart) {
-				// If segment start is given, hash key size is 64 and we detect the segments
-				uchar curr_type = cellHash >> 30;
-				uchar prev_type = prevHash >> 30;
-				if (index == 0 || curr_type != prev_type)
-					params.segmentStart[curr_type] = index;
-			}
-		}
-		return process;
-	}
+	uint prevHash() const
+	{ return _prevHash; }
 };
 
 
@@ -1091,18 +992,62 @@ struct reorderDataAndFindCellStartDevice :
 {
 	// Wrapper for the cell start/end finder
 #if USE_SHARED_CELL_START_FINDER
-	__shared__ CellStartFinderCached< reorderDataAndFindCellStartDevice<RP> > cellStartFinder;
+	__shared__ HashCacheShared hashCache;
 #else
-	CellStartFinderL1< reorderDataAndFindCellStartDevice<RP> > cellStartFinder;
+	HashCacheL1 hashCache;
 #endif
 
 	const uint index = item.get_id();
 
-	const uint cellHash = cellStartFinder.init(*this, index);
+	// Initialize segmentStarts
+	if (segmentStart && index < 4) segmentStart[index] = EMPTY_SEGMENT;
 
-	const bool process = cellStartFinder.markCellStartAndEnd(*this, index, cellHash);
+	const uint cellHash = hashCache.init(index, numParticles, particleHash);
 
-	if (process) {
+	if (index < numParticles) {
+		// If this particle has a different cell index to the previous
+		// particle then it must be the first particle in the cell
+		// or the first inactive particle.
+		// Store the index of this particle as the new cell start and as
+		// the previous cell end
+
+		const uint prevHash = hashCache.prevHash();
+
+		// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
+		// every time we use a cell hash to access an element of CellStart or CellEnd
+
+		if (index == 0 || cellHash != prevHash) {
+
+			// New cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
+			if (cellHash != CELL_HASH_MAX)
+				// If it isn't an inactive particle, it is also the start of the cell
+				cellStart[cellHash & CELLTYPE_BITMASK] = index;
+			else
+				*newNumParticles = index;
+
+			// If it isn't the first particle, it must also be the end of the previous cell
+			if (index > 0)
+				cellEnd[prevHash & CELLTYPE_BITMASK] = index;
+		}
+
+		// If we are an inactive particle, we're done (short hash: compare with 32 bits max)
+		if (cellHash == CELL_HASH_MAX)
+			return;
+
+		if (index == numParticles - 1) {
+			// Ditto
+			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
+			*newNumParticles = numParticles;
+		}
+
+		if (segmentStart) {
+			// If segment start is given, hash key size is 64 and we detect the segments
+			uchar curr_type = cellHash >> 30;
+			uchar prev_type = prevHash >> 30;
+			if (index == 0 || curr_type != prev_type)
+				segmentStart[curr_type] = index;
+		}
+
 		// Now use the sorted index to reorder particle's data
 		const uint sortedIndex = particleIndex[index];
 
