@@ -1918,8 +1918,7 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	// it is used to add segments into the neighbour list even if they are outside the kernel support
 	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
-	neibsEngine->buildNeibsList(	g_debug.check_cell_overflow,
-					bufread,
+	neibsEngine->buildNeibsList(	bufread,
 					bufwrite,
 					m_numParticles,
 					numPartsToElaborate,
@@ -2274,7 +2273,6 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	// otherwise just mark the buffers
 	if (numPartsToElaborate > 0) {
 		nans_found = integrationEngine->basicstep(
-			g_debug.nans,
 			bufread,
 			bufwrite,
 			m_numParticles,

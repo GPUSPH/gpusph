@@ -328,7 +328,6 @@ apply_density_diffusion(
 
 uint
 basicstep(
-		bool nancheck,
 		BufferList const& bufread,
 		BufferList& bufwrite,
 		const	uint	numParticles,
@@ -340,6 +339,8 @@ basicstep(
 		const	float	influenceradius,
 		const	RunMode	run_mode)
 {
+	const bool nancheck = g_debug.nans;
+
 	uint nans_found = 0;
 
 	if (nancheck)
