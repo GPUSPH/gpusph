@@ -280,6 +280,14 @@ sort(	BufferList const& bufread,
 		BufferList& bufwrite,
 		uint	numParticles)
 {
+#if CPU_BACKEND_ENABLED
+	static bool announced = false;
+	if (!announced) {
+		printf("Thrust device system: %d (%s)\n", THRUST_DEVICE_SYSTEM,
+			(THRUST_DEVICE_SYSTEM == THRUST_DEVICE_SYSTEM_OMP ? "OpenMP" : "CPU"));
+		announced = true;
+	}
+#endif
 	thrust::device_ptr<particleinfo> particleInfo =
 		thrust::device_pointer_cast(bufwrite.getData<BUFFER_INFO>());
 	thrust::device_ptr<hashKey> particleHash =
