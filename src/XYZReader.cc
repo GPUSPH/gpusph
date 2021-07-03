@@ -29,6 +29,7 @@
 #include <fstream> // ifstream
 #include <sstream> // stringstream
 #include <limits> // UINT_MAX, numeric_limits
+#include <climits>
 
 #include <stdexcept>
 
