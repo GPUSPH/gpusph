@@ -629,8 +629,9 @@ enable_if_t< HAS_DTADAPT(KP::simflags) >
 reduce_kinvisc(KP const& params, float kinvisc)
 {
 #if CPU_BACKEND_ENABLED
-#pragma omp parallel reduce(max: *params.cfl)
-	*params.cfl = max(*params.cfl, kinvisc);
+	float *cfl = params.cfl;
+#pragma omp parallel reduction(max: cfl[0])
+	cfl[0] = max(cfl[0], kinvisc);
 #else
 	// CUDA_BACKEND_ENABLED
 	__shared__ float sm_max[BLOCK_SIZE_SPS];
@@ -650,8 +651,8 @@ __device__ __forceinline__ void
 reduce_jacobi_error(float* cfl, float error)
 {
 #if CPU_BACKEND_ENABLED
-#pragma omp parallel reduce(max: *cfl)
-	*cfl = max(*cfl, error);
+#pragma omp parallel reduction(max: cfl[0])
+	cfl[0] = max(cfl[0], error);
 #else
 	// CUDA_BACKEND_ENABLED
 	__shared__ float sm_max[BLOCK_SIZE_SPS];
