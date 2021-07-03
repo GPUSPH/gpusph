@@ -193,6 +193,32 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 
 # --------------- Locate and set up compilers and flags
 
+# TODO we should support building both backends when possible
+# option: backend - determines which backend to use to compile problems
+#                   cuda (default): device code is compiled for CUDA
+#                   cpu: device code is compiled for CPU
+SUPPORTED_BACKENDS = cuda cpu
+COMPUTE_BACKEND ?= cuda
+BACKEND_SELECT_OPTFILE=$(OPTSDIR)/backend_select.opt
+ifdef backend
+ # downcase
+ backend := $(shell printf '%s' '$(backend)' | tr '[:upper:]' '[:lower:]')
+ ifneq ($(filter $(backend),$(SUPPORTED_BACKENDS)),$(backend))
+  $(error Backend $(backend) not supported ($(SUPPORTED_BACKENDS)))
+ endif
+ ifneq ($(backend),$(COMPUTE_BACKEND))
+  COMPUTE_BACKEND=$(backend)
+  # force regeneration of BACKEND_SELECT_OPTFILE
+  $(shell rm -f $(BACKEND_SELECT_OPTFILE))
+ endif
+endif
+# for the BACKEND_SELECT_OPTFILE
+COMPUTE_BACKEND_UPPERCASE := $(shell printf '%s' '$(COMPUTE_BACKEND)' | tr '[:lower:]' '[:upper:]')
+# enable only the enabled backend
+cuda.backend.enabled:=0
+cpu.backend.enabled:=0
+$(COMPUTE_BACKEND).backend.enabled:=1
+
 # option: clang — controls usage of clang instead of nvcc to compile the device code. Supported values:
 #                 0 (default): device code is compiled with nvcc
 #                 1:           device code is compiled with the default clang version
@@ -221,81 +247,98 @@ ifdef clang
 	endif
 endif
 
-# override: CUDA_INSTALL_PATH - where CUDA is installed
+# override: CUDA_INSTALL_PATH - where CUDA is installed (if backend=cuda)
 # override:                     defaults /usr/local/cuda,
 # override:                     validity is checked by looking for bin/nvcc under it,
 # override:                     /usr is always tried as a last resort
 CUDA_INSTALL_PATH ?= /usr/local/cuda
 
-# We check the validity of the path by looking for bin/nvcc under it.
-# if not found, we look into /usr, and finally abort
-ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
-	CUDA_INSTALL_PATH = /usr
-	# check again
-	ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
-$(error Could not find CUDA, please set CUDA_INSTALL_PATH)
-	endif
+ifeq ($(cuda.backend.enabled),1)
+ # We check the validity of the path by looking for bin/nvcc under it.
+ # if not found, we look into /usr, and finally abort
+ ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+  CUDA_INSTALL_PATH = /usr
+  # check again
+  ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+   $(error Could not find CUDA, please set CUDA_INSTALL_PATH)
+  endif
 
-# At least on Debian, when CUDA is installed via distro packages, Clang
-# needs to be directed at /usr/lib/cuda instead
-	ifeq ($(CLANG_CUDA),1)
-		CLANG_CUDA_PATH = /usr/lib/cuda
-	endif
-endif
+  # At least on Debian, when CUDA is installed via distro packages, Clang
+  # needs to be directed at /usr/lib/cuda instead
+  ifeq ($(CLANG_CUDA),1)
+   CLANG_CUDA_PATH = /usr/lib/cuda
+  endif
+ endif
 
-CLANG_CUDA_PATH ?= $(CUDA_INSTALL_PATH)
+ CLANG_CUDA_PATH ?= $(CUDA_INSTALL_PATH)
 
-# Here follow experimental CUDA installation detection. These work if CUDA binaries are in
-# the current PATH (i.e. when using Netbeans without system PATH set, don't work).
-# CUDA_INSTALL_PATH=$(shell which nvcc | sed "s/\/bin\/nvcc//")
-# CUDA_INSTALL_PATH=$(shell which nvcc | head -c -10)
-# CUDA_INSTALL_PATH=$(shell echo $PATH | sed "s/:/\n/g" | grep "cuda/bin" | sed "s/\/bin//g" |  head -n 1)
-# ld-based CUDA location: more robust but problematic for Mac OS
-#CUDA_INSTALL_PATH=$(shell \
-#	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
+ # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
+ # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
+ # CUDA_INSTALL_PATH=$(shell which nvcc | sed "s/\/bin\/nvcc//")
+ # CUDA_INSTALL_PATH=$(shell which nvcc | head -c -10)
+ # CUDA_INSTALL_PATH=$(shell echo $PATH | sed "s/:/\n/g" | grep "cuda/bin" | sed "s/\/bin//g" |  head -n 1)
+ # ld-based CUDA location: more robust but problematic for Mac OS
+ #CUDA_INSTALL_PATH=$(shell \
+ #	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
 
-# We keep track of the nvcc major version, which is stored in clang_select
-OLD_CUDA_MAJOR:=$(CUDA_MAJOR)
+ # We keep track of the nvcc major version, which is stored in clang_select
+ OLD_CUDA_MAJOR:=$(CUDA_MAJOR)
 
-# nvcc info
-NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
-NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
-versions_tmp  := $(subst ., ,$(NVCC_VER))
-CUDA_MAJOR := $(firstword  $(versions_tmp))
-CUDA_MINOR := $(lastword  $(versions_tmp))
+ # nvcc info
+ NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
+ NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
+ versions_tmp  := $(subst ., ,$(NVCC_VER))
+ CUDA_MAJOR := $(firstword  $(versions_tmp))
+ CUDA_MINOR := $(lastword   $(versions_tmp))
 
-ifneq ($(CUDA_MAJOR),$(OLD_CUDA_MAJOR))
-	# force regeneration of CLANG_SELECT_OPTFILE
-	TMP:=$(shell rm -f $(CLANG_SELECT_OPTFILE))
+ ifneq ($(CUDA_MAJOR),$(OLD_CUDA_MAJOR))
+  # force regeneration of CLANG_SELECT_OPTFILE
+  $(shell rm -f $(CLANG_SELECT_OPTFILE))
+ endif
 endif
 
 # CUXX will be our compiler for .cu files
 ifeq ($(CLANG_CUDA),1)
-	CXX=clang++-$(CLANG_CUDA_VERSION)
-	CUXX=$(CXX) --cuda-path=$(CLANG_CUDA_PATH)
+ CXX=clang++-$(CLANG_CUDA_VERSION)
+ CUXX=$(CXX)
+ ifeq ($(cuda.backend.enabled),1)
+  CUXX += --cuda-path=$(CLANG_CUDA_PATH)
+  NO_CUDA_ARCH_VERSION_CHECK=--no-cuda-version-check
+ endif
+else ifeq ($(cpu.backend.enabled),1)
+ CUXX=$(CXX) -x c++
+else ifeq ($(cuda.backend.enabled),1)
+ # We only support CUDA 7 onwards, error out if this is an earlier version
+ # NOTE: the test is reversed because test returns 0 for true (shell-like)
+ OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
 
-	NO_CUDA_ARCH_VERSION_CHECK=--no-cuda-version-check
+ # Some libraries shipped CUDA 11 require C++14, so we want to know if
+ # the CUDA version is at least 11
+ # NOTE: the test is reversed because test returns 0 for true (shell-like)
+ CUDA_11=$(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
+
+ ifeq ($(OLD_CUDA),1)
+  $(error CUDA version too old)
+ endif
+
+ # Make sure nvcc uses the same host compile that we use for the host
+ # code.
+ # Note that this requires the compiler to be supported by nvcc.
+ CUXX=$(NVCC) -ccbin=$(CXX)
+
+ NO_CUDA_ARCH_VERSION_CHECK=-Wno-deprecated-gpu-targets
 else
-	# We only support CUDA 7 onwards, error out if this is an earlier version
-	# NOTE: the test is reversed because test returns 0 for true (shell-like)
-	OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
-
-	# Some libraries shipped CUDA 11 require C++14, so we want to know if
-	# the CUDA version is at least 11
-	# NOTE: the test is reversed because test returns 0 for true (shell-like)
-	CUDA_11=$(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
-
-	ifeq ($(OLD_CUDA),1)
-	$(error CUDA version too old)
-	endif
-
-	# Make sure nvcc uses the same host compile that we use for the host
-	# code.
-	# Note that this requires the compiler to be supported by nvcc.
-	CUXX=$(NVCC) -ccbin=$(CXX)
-
-	NO_CUDA_ARCH_VERSION_CHECK=-Wno-deprecated-gpu-targets
+ $(error Unimplemented backend?)
 endif
+
+# if we have the cuda backend and we're not using Clang, we're using nvcc for device code
+# this is useful in several checks further down
+ifeq ($(cuda.backend.enabled)/$(CLANG_CUDA),1/0)
+ cuxx.is.nvcc=1
+else
+ cuxx.is.nvcc=0
+endif
+
 
 # --- Compiler END
 
@@ -305,7 +348,7 @@ endif
 CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 | grep '^ ' | grep -v ' (framework directory)'))
 
 # files to store last compile options: dbg, compute, fastmath, MPI usage, Chrono, linearization preference, Catalyst
-# (note: CLANG_SELECT_OPTFILE was defined ahead-of-time because it's needed early at compiler-definition time
+# (note: CLANG_SELECT_OPTFILE and BACKEND_SELECT_OPTFILE were defined ahead-of-time because it's needed early at compiler-definition time)
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
@@ -328,6 +371,7 @@ GIT_INFO_OPTFILE=$(OPTSDIR)/git_info.opt
 
 # Optfile that influence the device code
 DEVCODE_OPTFILES = \
+	  $(BACKEND_SELECT_OPTFILE) \
 	  $(CLANG_SELECT_OPTFILE) \
 	  $(DBG_SELECT_OPTFILE) \
 	  $(COMPUTE_SELECT_OPTFILE) \
@@ -485,15 +529,16 @@ else
 endif
 
 ifeq ($(USE_MPI),0)
-
 	# MPICXXOBJS will be compiled with the standard compiler
 	MPICXX=$(CXX)
+endif
 
+ifeq ($(cuxx.is.nvcc),0)
+	# backend=cpu or CLANG_CUDA
+	LINKER ?= OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" $(MPICXX)
+else ifeq ($(USE_MPI),0)
 	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
 	LINKER ?= $(CUXX)
-
-else ifeq ($(CLANG_CUDA),1)
-	LINKER ?= OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" $(MPICXX)
 else
 	# Also try to detect implementation-specific version.
 	# OpenMPI exposes the version via individual numeric macros
@@ -700,10 +745,10 @@ endif
 # CUDA libaries
 CUDA_LIBRARY_PATH=$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 LIBPATH += -L$(CUDA_LIBRARY_PATH)
-ifeq ($(CLANG_CUDA),1)
-LDFLAGS += -rpath $(CUDA_LIBRARY_PATH)
-else
+ifeq ($(cuxx.is.nvcc),1)
 LDFLAGS += --linker-options -rpath,$(CUDA_LIBRARY_PATH)
+else
+LDFLAGS += -Wl,-rpath -Wl,$(CUDA_LIBRARY_PATH)
 endif
 
 # link to the CUDA runtime library
@@ -798,10 +843,10 @@ ifneq ($(USE_CHRONO),0)
 
 	LIBPATH += -L$(CHRONO_LIB_PATH)
 	LIBS += -lChronoEngine
-	ifeq ($(CLANG_CUDA),1)
-		LDFLAGS += -rpath $(CHRONO_LIB_PATH)
-	else
+	ifeq ($(cuxx.is.nvcc),1)
 		LDFLAGS += --linker-options -rpath,$(CHRONO_LIB_PATH)
+	else
+		LDFLAGS += -Wl,-rpath -Wl,$(CHRONO_LIB_PATH)
 	endif
 endif
 LDFLAGS += $(LIBPATH)
@@ -896,43 +941,52 @@ ifneq ($(COMPUTE),)
 	endif
 endif
 
-CUFLAGS += $(CU_ARCH_SPEC)
-LDFLAGS += $(CU_ARCH_SPEC)
+ifeq ($(cuda.backend.enabled),1)
+ CUFLAGS += $(CU_ARCH_SPEC)
+ LDFLAGS += $(CU_ARCH_SPEC)
 
-# Clang does not support --generate-line-info
-ifneq ($(CLANG_CUDA),1)
-	# generate line info
-	# TODO this should only be done in debug mode
-	CUFLAGS += --generate-line-info
-endif
+ # Clang does not support --generate-line-info
+ ifneq ($(CLANG_CUDA),1)
+  # generate line info
+  # TODO this should only be done in debug mode
+  CUFLAGS += --generate-line-info
+ endif
 
-ifeq ($(FASTMATH),1)
-	ifeq ($(CLANG_CUDA),1)
-		CUFLAGS += -ffast-math
-	else
-		CUFLAGS += --use_fast_math
-	endif
+ ifeq ($(FASTMATH),1)
+  ifeq ($(CLANG_CUDA),1)
+   CUFLAGS += -ffast-math
+  else
+   CUFLAGS += --use_fast_math
+  endif
+ endif
 endif
 
 
 # Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
 # include to every source, the _DEBUG_ macro is actually passed on the compiler command line
 ifeq ($(dbg), 1)
-	CPPFLAGS += -D_DEBUG_
-	CXXFLAGS += -g
-	CUFLAGS  += -G
+ CPPFLAGS += -D_DEBUG_
+ CXXFLAGS += -g
+ ifeq ($(cuda.backend.enabled),1)
+  CUFLAGS  += -G
+ endif
 else
-	CXXFLAGS += -O3
+ CXXFLAGS += -O3
 endif
 
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
-ifneq ($(CLANG_CUDA),1)
-	ifeq ($(verbose), 1)
-		CUFLAGS += --ptxas-options=-v
-	else ifeq ($(verbose), 2)
-		CUFLAGS += --ptxas-options=-v
-		CXXFLAGS += -Wall
-	endif
+
+# if verbose is 1 or 2, add --ptx-as-options=-v to CUFLAGS,
+# but only if using nvcc.
+# verbose is 1 or 2 if filtering 1 2 with verbose returns verbose,
+verbose ?= 0
+ifeq ($(filter $(verbose),1 2)/$(cuxx.is.nvcc),$(verbose)/1)
+ CUFLAGS += --ptxas-options=-v
+endif
+
+# this is compiler-independent:
+ifeq ($(verbose), 2)
+ CXXFLAGS += -Wall
 endif
 
 # Enable host profile with gprof. Pipeline to profile:
@@ -942,11 +996,12 @@ endif
 # LDFLAGS += -pg
 
 # Finally, add CXXFLAGS to CUFLAGS, except for -std, which gets moved outside
-ifeq ($(CLANG_CUDA),1)
-	CUFLAGS += $(CXXFLAGS)
+ifeq ($(cuxx.is.nvcc),1)
+ CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
+            $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
 else
-	CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
-		   $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
+ # CLANG_CUDA or non-CUDA backend
+ CUFLAGS += $(CXXFLAGS)
 endif
 
 # CFLAGS notes
@@ -1023,7 +1078,7 @@ $(call exe,$1): $(call problem_objs,$1) $(OBJS) | $(DISTDIR)
 	$(CMDECHO)$(LINKER) -o $$@ $$^ $(LDFLAGS) $(LDLIBS)
 $1: $(call exe,$1)
 	@echo
-	@echo "Compiled with problem $$@"
+	@echo "Compiled with problem $$@, $(COMPUTE_BACKEND_UPPERCASE) backend"
 	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
 	$(call show_stage_nl,SYM,$$@)
 	$(CMDECHO)ln -sf $$< $(CURDIR)/$(call exename,$$@) && echo "Success"
@@ -1036,6 +1091,12 @@ $(foreach p,$(PROBLEM_LIST),$(eval $(call problem_deps,$p)))
 
 # internal targets to (re)create the "selected option headers" if they're missing
 
+# Backend select
+$(BACKEND_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Selected backend */" > $@
+	@echo '#define COMPUTE_BACKEND "$(COMPUTE_BACKEND_UPPERCASE)"' >> $@
+	@echo '#define CUDA_BACKEND_ENABLED $(cuda.backend.enabled)' >> $@
+	@echo '#define CPU_BACKEND_ENABLED $(cpu.backend.enabled)' >> $@
 # Clang select. We also include the detected CUDA_MAJOR version since it will be displayed
 # as --version output
 $(CLANG_SELECT_OPTFILE): | $(OPTSDIR)
@@ -1131,10 +1192,10 @@ define redupdep
 endef
 
 CXX_DEPGEN_FLAGS=-MG -MM -MT $@
-ifeq ($(CLANG_CUDA),1)
-	CU_DEPGEN_FLAGS=$(CXX_DEPGEN_FLAGS)
+ifeq ($(cuxx.is.nvcc),1)
+ CU_DEPGEN_FLAGS=--compiler-options $(subst $(space),$(comma),$(CXX_DEPGEN_FLAGS))
 else
-	CU_DEPGEN_FLAGS=--compiler-options $(subst $(space),$(comma),$(CXX_DEPGEN_FLAGS))
+ CU_DEPGEN_FLAGS=$(CXX_DEPGEN_FLAGS)
 endif
 
 # The -MM flag is used to not include system includes.
@@ -1260,6 +1321,9 @@ show: $(MAKE_SHOW_TXT)
 $(MAKE_SHOW_TXT): $(MAKE_SHOW_TMP)
 	@cmp -s $< $@ 2> /dev/null || cp $< $@ ; $(RM) $<
 
+# For optional fields, use the convention [ false condition ] || echo ...
+# since it's more compact than [ true condition ] && echo ... >> $@ || true
+
 $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST)) FORCE | $(INFODIR)
 	$(call show_stage,CONF,make show)
 	@echo "GPUSPH version:  $(GPUSPH_VERSION)"							 > $@
@@ -1281,18 +1345,23 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	@echo "Doxygen conf:    $(DOXYCONF)"								>> $@
 	@echo "Verbose:         $(verbose)"									>> $@
 	@echo "Debug:           $(DBG)"										>> $@
+	@echo "Backend:         $(COMPUTE_BACKEND)"							>> $@
 	@echo "CXX:             $(CXX)"										>> $@
 	@echo "CXX version:     $(shell $(CXX) --version | head -1)"		>> $@
 	@echo "MPICXX:          $(MPICXX)"									>> $@
-	@echo "nvcc:            $(NVCC)"									>> $@
-	@echo "nvcc version:    $(NVCC_VER)"								>> $@
-	@echo "CUXX:            $(CUXX)"								>> $@
+	@[ 0 = $(cuda.backend.enabled) ] || \
+	 echo "nvcc:            $(NVCC)"									>> $@
+	@[ 0 = $(cuda.backend.enabled) ] || \
+	 echo "nvcc version:    $(NVCC_VER)"								>> $@
+	@echo "CUXX:            $(CUXX)"									>> $@
 	@echo "LINKER:          $(LINKER)"									>> $@
-	@echo "Compute cap.:    $(COMPUTE)"									>> $@
+	@[ 0 = $(cuda.backend.enabled) ] || \
+	 echo "Compute cap.:    $(COMPUTE)"									>> $@
 	@echo "Fastmath:        $(FASTMATH)"								>> $@
-	@echo "Fast DEM:        $(FASTDEM)"								>> $@
+	@echo "Fast DEM:        $(FASTDEM)"									>> $@
 	@echo "USE_MPI:         $(USE_MPI)"									>> $@
-	@[ 1 = $(USE_MPI) ] && echo "    MPI version: $(MPI_VERSION)"					>> $@ || true
+	@[ 0 = $(USE_MPI) ] || \
+	 echo "    MPI version: $(MPI_VERSION)"								>> $@
 	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
 	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $@
 	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $@
@@ -1345,6 +1414,8 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)echo '# Run make with the appropriate option to change a configured value' >> $@
 	$(CMDECHO)echo '# Use `make help-options` to see a list of available options' >> $@
 	$(CMDECHO)echo '# Use `make confclean` to reset your configuration' >> $@
+	$(CMDECHO)# recover value of COMPUTE_BACKEND
+	$(CMDECHO)echo 'COMPUTE_BACKEND=$(COMPUTE_BACKEND)' >> $@
 	$(CMDECHO)# recover value of CLANG_CUDA and CLANG_CUDA_VERSION
 	$(CMDECHO)echo 'CLANG_CUDA=$(CLANG_CUDA)' >> $@
 	$(CMDECHO)echo 'CLANG_CUDA_VERSION=$(CLANG_CUDA_VERSION)' >> $@
