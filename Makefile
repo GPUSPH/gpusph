@@ -219,6 +219,29 @@ cuda.backend.enabled:=0
 cpu.backend.enabled:=0
 $(COMPUTE_BACKEND).backend.enabled:=1
 
+# opton: openmp - controls usage of OpenMP (currently only with CPU backend)
+#                 0 (default): device code is compiled without OpenMP support
+#                 1:           device code is compiled with OpenMP support
+USE_OPENMP ?= 0
+ifdef openmp
+ ifneq ($(openmp),$(USE_OPENMP))
+  USE_OPENMP=$(openmp)
+  $(shell rm $(BACKEND_SELECT_OPTFILE))
+ endif
+endif
+
+ifeq ($(USE_OPENMP),1)
+ OPENMP_VERSION := $(shell printf ':_OPENMP' | $(CXX) -fopenmp -E -x c - 2> /dev/null | grep ^: | cut -f2- -d:)
+
+ ifeq ($(OPENMP_VERSION),)
+  $(warning unable to detect OpenMP version, OpenMP disabled)
+  USE_OPENMP=0
+  $(shell rm $(BACKEND_SELECT_OPTFILE))
+ else
+  CXXFLAGS_OPENMP= -fopenmp
+ endif
+endif
+
 # option: clang — controls usage of clang instead of nvcc to compile the device code. Supported values:
 #                 0 (default): device code is compiled with nvcc
 #                 1:           device code is compiled with the default clang version
@@ -851,7 +874,7 @@ ifneq ($(USE_CHRONO),0)
 endif
 LDFLAGS += $(LIBPATH)
 
-LDLIBS += $(LIBS)
+LDLIBS += $(CXXFLAGS_OPENMP) $(LIBS)
 
 # -- Includes and library section end ---
 
@@ -1001,7 +1024,7 @@ ifeq ($(cuxx.is.nvcc),1)
             $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
 else
  # CLANG_CUDA or non-CUDA backend
- CUFLAGS += $(CXXFLAGS)
+ CUFLAGS += $(CXXFLAGS_OPENMP) $(CXXFLAGS)
 endif
 
 # CFLAGS notes
@@ -1097,6 +1120,7 @@ $(BACKEND_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo '#define COMPUTE_BACKEND "$(COMPUTE_BACKEND_UPPERCASE)"' >> $@
 	@echo '#define CUDA_BACKEND_ENABLED $(cuda.backend.enabled)' >> $@
 	@echo '#define CPU_BACKEND_ENABLED $(cpu.backend.enabled)' >> $@
+	@echo '#define USE_OPENMP $(USE_OPENMP)' >> $@
 # Clang select. We also include the detected CUDA_MAJOR version since it will be displayed
 # as --version output
 $(CLANG_SELECT_OPTFILE): | $(OPTSDIR)
@@ -1359,6 +1383,9 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	 echo "Compute cap.:    $(COMPUTE)"									>> $@
 	@echo "Fastmath:        $(FASTMATH)"								>> $@
 	@echo "Fast DEM:        $(FASTDEM)"									>> $@
+	@echo "USE_OPENMP:      $(USE_OPENMP)"								>> $@
+	@[ 0 = $(USE_OPENMP) ] || \
+	 echo "    OPENMP version: $(OPENMP_VERSION)"						>> $@
 	@echo "USE_MPI:         $(USE_MPI)"									>> $@
 	@[ 0 = $(USE_MPI) ] || \
 	 echo "    MPI version: $(MPI_VERSION)"								>> $@
@@ -1416,6 +1443,8 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)echo '# Use `make confclean` to reset your configuration' >> $@
 	$(CMDECHO)# recover value of COMPUTE_BACKEND
 	$(CMDECHO)echo 'COMPUTE_BACKEND=$(COMPUTE_BACKEND)' >> $@
+	$(CMDECHO)# recover value of USE_OPENMP
+	$(CMDECHO)echo 'USE_OPENMP=$(USE_OPENMP)' >> $@
 	$(CMDECHO)# recover value of CLANG_CUDA and CLANG_CUDA_VERSION
 	$(CMDECHO)echo 'CLANG_CUDA=$(CLANG_CUDA)' >> $@
 	$(CMDECHO)echo 'CLANG_CUDA_VERSION=$(CLANG_CUDA_VERSION)' >> $@
