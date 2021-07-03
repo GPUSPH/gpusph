@@ -362,6 +362,12 @@ else
  cuxx.is.nvcc=0
 endif
 
+# disable OPENMP if using NVCC
+ifeq ($(cuxx.is.nvcc)/$(USE_OPENMP),1/1)
+ $(warning OpenMP disabled due to NVCC usage)
+ USE_OPENMP=0
+ CXXFLAGS_OPENMP=
+endif
 
 # --- Compiler END
 
