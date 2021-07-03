@@ -58,7 +58,7 @@ void execute_kernel(KernelClass const& k, size_t numBlocks, size_t threadsPerBlo
 	// TODO UINT_MAX overflow check
 	// (should never happen anyway since is an unsigned int at the moment anyway
 	const size_t gws = numBlocks*threadsPerBlock;
-#pragma omp parallel for
+#pragma omp parallel for schedule(static, threadsPerBlock)
 	for (unsigned i = 0; i < gws; ++i) {
 		k(simple_work_item(i));
 	}
