@@ -29,6 +29,10 @@
  * Implementation of the CUDA-based GPU worker
  */
 
+#include "backend_select.opt"
+
+#if CUDA_BACKEND_ENABLED
+
 // ostringstream
 #include <sstream>
 // FLT_MAX
@@ -277,3 +281,4 @@ void CUDAWorker::enablePeerAccess()
 			m_deviceIndex, m_cudaDeviceNumber);
 }
 
+#endif

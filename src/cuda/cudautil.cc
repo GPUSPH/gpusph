@@ -24,6 +24,10 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "backend_select.opt"
+#if CUDA_BACKEND_ENABLED
+
 #include <iostream>
 #include <iomanip>
 
@@ -85,3 +89,5 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 
 	return deviceProp;
 }
+
+#endif

@@ -46,8 +46,12 @@
 // HostBuffer
 #include "hostbuffer.h"
 
+#include "backend_select.opt"
+
 // Workers
+#if CUDA_BACKEND_ENABLED
 #include "CUDAWorker.h"
+#endif
 #include "CPUWorker.h"
 
 // div_up
@@ -546,10 +550,15 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->GPUWORKERS.reserve(gdata->devices);
 	for (uint d=0; d < gdata->devices; d++) {
 		shared_ptr<GPUWorker> worker;
-		if (gdata->deviceType == CUDA_DEVICE)
+		if (gdata->deviceType == CUDA_DEVICE) {
+#if CUDA_BACKEND_ENABLED
 			worker = make_shared<CUDAWorker>(gdata, d);
-		else
+#else
+			throw std::invalid_argument("CUDA backend not enabled");
+#endif
+		} else {
 			worker = make_shared<CPUWorker>(gdata, d);
+		}
 		gdata->GPUWORKERS.push_back(worker);
 	}
 

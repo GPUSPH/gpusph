@@ -294,7 +294,7 @@ struct GlobalData {
 	GlobalData(void):
 		ret(0),
 		resume(false),
-		deviceType(CUDA_DEVICE),
+		deviceType(CUDA_BACKEND_ENABLED ? CUDA_DEVICE : CPU_DEVICE),
 		devices(0),
 		mpi_nodes(0),
 		mpi_rank(-1),
