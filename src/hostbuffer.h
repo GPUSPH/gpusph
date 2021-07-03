@@ -32,10 +32,12 @@
  * Specializations of the Buffer class for host buffers
  */
 
-// malloc
+// malloc, posix_memalign
 #include <cstdlib>
 // memset
 #include <cstring>
+
+#include <stdexcept>
 
 // swap
 #include <algorithm>
@@ -86,9 +88,11 @@ public:
 		const int N = baseclass::array_count; // see NOTE for this class
 		element_type **bufs = baseclass::get_raw_ptr();
 		for (int i = 0; i < N; ++i) {
-			// malloc instead of calloc since the init
-			// value might be nonzero
-			bufs[i] = (element_type*)malloc(bufmem);
+			// posix_memalign: aligned allocation to a multiple of 32
+			// (4*sizeof double4)
+			int err = posix_memalign((void**)(bufs + i), 32, bufmem);
+			if (err < 0)
+				throw std::bad_alloc();
 			memset(bufs[i], baseclass::get_init_value(), bufmem);
 		}
 		return bufmem*N;
