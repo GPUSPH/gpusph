@@ -76,6 +76,8 @@
 #include "particledefine.h"
 #include "vector_math.h"
 
+#include "atomic_type.h"
+
 // TODO : what was CELLTYPE_MASK_* supposed to be ? Can we delete ?
 // CELLTYPE_MASK_*
 #include "multi_gpu_defines.h"
@@ -110,9 +112,9 @@ namespace cuneibs {
 __device__ int d_numInteractions;			///< Total number of interactions
 __device__ int d_maxFluidBoundaryNeibs;		///< Computed maximum number of fluid + boundary neighbors across particles
 __device__ int d_maxVertexNeibs;			///< Computed maximum number of vertex neighbors across particles
-__device__ int d_hasTooManyNeibs;			///< id of a particle with too many neighbors
+__device__ ATOMIC_TYPE(int) d_hasTooManyNeibs;			///< id of a particle with too many neighbors
 __device__ int d_hasMaxNeibs[PT_TESTPOINT];	///< Number of neighbors of that particle
-__device__ int d_hasTooManyParticles; ///< Index of a cell with too many particles
+__device__ ATOMIC_TYPE(int) d_hasTooManyParticles; ///< Index of a cell with too many particles
 __device__ int d_hasHowManyParticles; ///< How many particles are in the  cell with too many particles
 /** @} */
 

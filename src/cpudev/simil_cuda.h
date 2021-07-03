@@ -36,6 +36,8 @@
 #include <cstdint>
 #include <cstddef>
 
+#include "atomic_type.h"
+
 // No memory space specification
 #define __device__
 #define __constant__
@@ -81,21 +83,29 @@ DEF_STRUCTS(double, double)
 // CUDA device functionss
 
 template<typename T>
-T atomicCAS(T* address, T compare, T val)
+T atomicCAS(ATOMIC_TYPE(T)* address, T compare, T val)
 {
-#pragma omp critical
+#ifdef _OPENMP
+	return std::atomic_compare_exchange_strong(address, &compare, val);
+#else
+	// no need to actually be atomic
 	const T old = *address;
 	*address = old == compare ? val : old;
 	return old;
+#endif
 }
 
 template<typename T>
-T atomicAdd(T* address, T val)
+T atomicAdd(ATOMIC_TYPE(T)* address, T val)
 {
-#pragma omp critical
+#ifdef _OPENMP
+	return address->fetch_add(val);
+#else
+	// no need to actually be atomic
 	const T old = *address;
 	*address = old + val;
 	return old;
+#endif
 }
 
 #define __powf powf

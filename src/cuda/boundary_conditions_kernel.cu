@@ -82,7 +82,7 @@ createNewFluidParticle(
 	/// [in] number of particles at the start of the current timestep
 	const	uint			numParticles,
 	/// [in,out] number of particles including all the ones already created in this timestep
-			uint			*newNumParticles,
+	ATOMIC_TYPE(uint)			*newNumParticles,
 	/// [in,out] next ID for generated particles
 			uint			*nextID,
 	const	uint			totParticles)

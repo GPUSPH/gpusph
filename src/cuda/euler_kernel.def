@@ -25,7 +25,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-__device__ uint d_nans_found;
+__device__ ATOMIC_TYPE(uint) d_nans_found;
 
 struct common_euler_particle_data : pos_mass, vel_rho
 {

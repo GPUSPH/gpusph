@@ -868,7 +868,7 @@ struct fluxComputationDevice
 	const	particleinfo	*pinfo;
 	const	float4			*eulerVel;
 	const	float4			*boundElement;
-			float			*d_IOflux;
+	ATOMIC_TYPE(float)			*d_IOflux;
 	const	uint			numParticles;
 
 	fluxComputationDevice(
@@ -880,7 +880,7 @@ struct fluxComputationDevice
 		pinfo(bufread.getData<BUFFER_INFO>()),
 		eulerVel(bufread.getData<BUFFER_EULERVEL>()),
 		boundElement(bufread.getData<BUFFER_BOUNDELEMENTS>()),
-		d_IOflux(d_IOflux_),
+		d_IOflux(reinterpret_cast<ATOMIC_TYPE(float)*>(d_IOflux_)),
 		numParticles(numParticles_)
 	{}
 
@@ -892,7 +892,11 @@ struct fluxComputationDevice
 		const particleinfo info = pinfo[index];
 		if (IO_BOUNDARY(info) && BOUNDARY(info)) {
 			const float4 normal = boundElement[index];
+#if CPU_BACKEND_ENABLED && _OPENMP
+			throw std::runtime_error("atomicAdd on floats not supported in OpenMP CPU backend");
+#else
 			atomicAdd(&d_IOflux[object(info)], normal.w*dot3(eulerVel[index],normal));
+#endif
 		}
 	}
 }
