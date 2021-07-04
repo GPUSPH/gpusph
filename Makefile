@@ -354,6 +354,10 @@ else
  $(error Unimplemented backend?)
 endif
 
+ifeq ($(cuda.backend.enabled),1)
+ LIST_CUDA_CC_FLAGS=$(NO_CUDA_ARCH_VERSION_CHECK) -lcudart
+endif
+
 # if we have the cuda backend and we're not using Clang, we're using nvcc for device code
 # this is useful in several checks further down
 ifeq ($(cuda.backend.enabled)/$(CLANG_CUDA),1/0)
@@ -1266,9 +1270,9 @@ $(CUDEPS): | $(DEPSUBS) $(OPTFILES) ;
 # can cause the compiler to error out when the architecture is not supported
 # (for example too recent architectures on older compilers, or obsolete architectures
 # not supported in the most recent version of the SDK)
-$(LIST_CUDA_CC): $(LIST_CUDA_CC).cc
+$(LIST_CUDA_CC): $(LIST_CUDA_CC).cc $(BACKEND_SELECT_OPTFILE)
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(NO_CUDA_ARCH_VERSION_CHECK) -lcudart $(filter-out $(CU_ARCH_SPEC),$(CUFLAGS)) -o $@ $< $(filter-out $(CU_ARCH_SPEC),$(LDFLAGS))
+	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(LIST_CUDA_CC_FLAGS) $(filter-out $(CU_ARCH_SPEC),$(CUFLAGS)) -o $@ $< $(filter-out $(CU_ARCH_SPEC),$(LDFLAGS))
 
 # create distdir
 $(DISTDIR):
