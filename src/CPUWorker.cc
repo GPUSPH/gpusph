@@ -108,7 +108,17 @@ void CPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 // wrapper for NetworkManage send/receive methods
 void CPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid)
 {
-	throw logic_error("networkTransfer not available for the CPUWorker");
+	if (direction == SND) {
+		if (gdata->clOptions->asyncNetworkTransfers)
+			gdata->networkManager->sendBufferAsync(m_globalDeviceIdx, peer_gdix, _size, _ptr, bid);
+		else
+			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
+	} else {
+		if (gdata->clOptions->asyncNetworkTransfers)
+			gdata->networkManager->receiveBufferAsync(peer_gdix, m_globalDeviceIdx, _size, _ptr, bid);
+		else
+			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, _ptr);
+	}
 }
 
 void CPUWorker::deviceSynchronize()
