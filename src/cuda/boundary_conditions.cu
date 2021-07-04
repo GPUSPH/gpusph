@@ -44,8 +44,8 @@
 // TODO Rename and optimize
 #define BLOCK_SIZE_SA_BOUND		128
 #define MIN_BLOCKS_SA_BOUND		6
-#define BLOCK_SIZE_SHEPARD		128
-#define MIN_BLOCKS_SHEPARD		6
+#define BLOCK_SIZE_DUMMY_BOUND		128
+#define MIN_BLOCKS_DUMMY_BOUND		6
 
 #include "boundary_conditions_kernel.cu"
 
@@ -86,7 +86,7 @@ struct CUDABoundaryHelper<kerneltype, DUMMY_BOUNDARY> {
 				float	slength,
 				float	influenceradius)
 {
-	uint numThreads = BLOCK_SIZE_SHEPARD;
+	uint numThreads = BLOCK_SIZE_DUMMY_BOUND;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	execute_kernel(

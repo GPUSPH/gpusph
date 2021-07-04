@@ -2568,8 +2568,8 @@ struct disableOutgoingPartsDevice
 template<KernelType kerneltype>
 struct ComputeDummyParticlesDevice
 {
-	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_SHEPARD;
-	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_SHEPARD;
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_DUMMY_BOUND;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_DUMMY_BOUND;
 
 	const	float4*	__restrict__ posArray;
 			float4*	__restrict__ velArray;
