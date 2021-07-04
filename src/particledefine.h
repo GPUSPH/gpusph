@@ -408,10 +408,10 @@ enum SPSKernelSimFlags {
 
 //! 24-bit integer multiplication on 1.x was faster than simple integer multiplication,
 //! so wrap the multiplication in a macro.
-#if (__COMPUTE__ >= 20)
-	#define INTMUL(x,y) (x)*(y)
-#else
+#if CUDA_BACKEND_ENABLED && (__COMPUTE__ < 20)
 	#define INTMUL(x,y) __mul24(x,y)
+#else
+	#define INTMUL(x,y) (x)*(y)
 #endif
 
 #endif

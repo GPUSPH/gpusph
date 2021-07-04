@@ -276,6 +276,10 @@ endif
 # override:                     /usr is always tried as a last resort
 CUDA_INSTALL_PATH ?= /usr/local/cuda
 
+# We keep track of the nvcc major version, which is stored in clang_select
+CUDA_MAJOR ?= 0
+OLD_CUDA_MAJOR:=$(CUDA_MAJOR)
+
 ifeq ($(cuda.backend.enabled),1)
  # We check the validity of the path by looking for bin/nvcc under it.
  # if not found, we look into /usr, and finally abort
@@ -303,9 +307,6 @@ ifeq ($(cuda.backend.enabled),1)
  # ld-based CUDA location: more robust but problematic for Mac OS
  #CUDA_INSTALL_PATH=$(shell \
  #	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
-
- # We keep track of the nvcc major version, which is stored in clang_select
- OLD_CUDA_MAJOR:=$(CUDA_MAJOR)
 
  # nvcc info
  NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
@@ -785,7 +786,10 @@ LDFLAGS += -Wl,-rpath -Wl,$(CUDA_LIBRARY_PATH)
 endif
 
 # link to the CUDA runtime library
-LIBS += -lcudart
+ifeq ($(cuda.backend.enabled),1)
+ LIBS += -lcudart
+endif
+
 
 ifneq ($(USE_HDF5),0)
 	# link to HDF5 for input reading
