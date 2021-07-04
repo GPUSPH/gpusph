@@ -41,11 +41,18 @@
 
 #include "sa_bc_params.h"
 
-// TODO Rename and optimize
+#if CPU_BACKEND_ENABLED
+#define BLOCK_SIZE_SA_BOUND		CPU_BLOCK_SIZE
+#define MIN_BLOCKS_SA_BOUND		CPU_MIN_BLOCKS
+#define BLOCK_SIZE_DUMMY_BOUND		CPU_BLOCK_SIZE
+#define MIN_BLOCKS_DUMMY_BOUND		CPU_MIN_BLOCKS
+#else
+// Optimize
 #define BLOCK_SIZE_SA_BOUND		128
 #define MIN_BLOCKS_SA_BOUND		6
 #define BLOCK_SIZE_DUMMY_BOUND		128
 #define MIN_BLOCKS_DUMMY_BOUND		6
+#endif
 
 #include "boundary_conditions_kernel.cu"
 

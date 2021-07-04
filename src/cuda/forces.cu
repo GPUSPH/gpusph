@@ -54,7 +54,19 @@
 	- a parallel reduction for adaptive dt is done inside forces, block
 	size for forces MUST BE A POWER OF 2
  */
-#if (__COMPUTE__ >= 20)
+#if CPU_BACKEND_ENABLED
+	#define BLOCK_SIZE_FORCES		CPU_BLOCK_SIZE
+	#define BLOCK_SIZE_CALCVORT		CPU_BLOCK_SIZE
+	#define MIN_BLOCKS_CALCVORT		CPU_MIN_BLOCKS
+	#define BLOCK_SIZE_CALCTEST		CPU_BLOCK_SIZE
+	#define MIN_BLOCKS_CALCTEST		CPU_MIN_BLOCKS
+	#define BLOCK_SIZE_SHEPARD		CPU_BLOCK_SIZE
+	#define MIN_BLOCKS_SHEPARD		CPU_MIN_BLOCKS
+	#define BLOCK_SIZE_MLS			CPU_BLOCK_SIZE
+	#define MIN_BLOCKS_MLS			CPU_MIN_BLOCKS
+	#define BLOCK_SIZE_FMAX			CPU_BLOCK_SIZE
+	#define MAX_BLOCKS_FMAX			1
+#elif (__COMPUTE__ >= 20)
 	#define BLOCK_SIZE_FORCES		128
 	#define BLOCK_SIZE_CALCVORT		128
 	#define MIN_BLOCKS_CALCVORT		6
@@ -81,7 +93,7 @@
 #endif
 
 // We want to always have at least two warps per block in the reductions
-#if BLOCK_SIZE_FMAX <= 32
+#if CUDA_BACKEND_ENABLED && BLOCK_SIZE_FMAX <= 32
 #error "BLOCK_SIZE_FMAX must be larger than 32"
 #endif
 

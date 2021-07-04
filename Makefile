@@ -231,7 +231,7 @@ ifdef backend
  ifneq ($(backend),$(COMPUTE_BACKEND))
   COMPUTE_BACKEND=$(backend)
   # force regeneration of BACKEND_SELECT_OPTFILE
-  $(shell rm -f $(BACKEND_SELECT_OPTFILE))
+  FORCE_MAKE_BACKEND=FORCE
  endif
 endif
 # for the BACKEND_SELECT_OPTFILE
@@ -248,7 +248,7 @@ USE_OPENMP ?= 0
 ifdef openmp
  ifneq ($(openmp),$(USE_OPENMP))
   USE_OPENMP=$(openmp)
-  $(shell rm -f $(BACKEND_SELECT_OPTFILE))
+  FORCE_MAKE_BACKEND=FORCE
  endif
 endif
 
@@ -258,7 +258,7 @@ ifeq ($(USE_OPENMP),1)
  ifeq ($(OPENMP_VERSION),)
   $(warning unable to detect OpenMP version, OpenMP disabled)
   USE_OPENMP=0
-  $(shell rm -f $(BACKEND_SELECT_OPTFILE))
+  FORCE_MAKE_BACKEND=FORCE
  else
   CXXFLAGS_OPENMP= -fopenmp
  endif
@@ -689,6 +689,19 @@ else
 endif
 # split the linearization string into individual characters, space-separated
 LINEARIZATION_WORDS=$(shell echo $(LINEARIZATION) | sed 's/./\0 /g')
+
+# option: cpu_block_size - block size (used as OpenMP chunk size) for the CPU backend
+ifdef cpu_block_size
+ ifneq ($(CPU_BLOCK_SIZE),$(cpu_block_size))
+  CPU_BLOCK_SIZE=$(cpu_block_size)
+  FORCE_MAKE_BACKEND=FORCE
+ endif
+else
+ ifndef CPU_BLOCK_SIZE
+  CPU_BLOCK_SIZE=16
+  FORCE_MAKE_BACKEND=FORCE
+ endif
+endif
 
 # option: catalyst - 0 do not use Catalyst (disable co-processing visualization support), 1 use Catalyst (enable co-processing visualization support). Default: 0
 ifdef catalyst
@@ -1132,12 +1145,13 @@ $(foreach p,$(PROBLEM_LIST),$(eval $(call problem_deps,$p)))
 # internal targets to (re)create the "selected option headers" if they're missing
 
 # Backend select
-$(BACKEND_SELECT_OPTFILE): | $(OPTSDIR)
+$(BACKEND_SELECT_OPTFILE): $(FORCE_MAKE_BACKEND) | $(OPTSDIR)
 	@echo "/* Selected backend */" > $@
 	@echo '#define COMPUTE_BACKEND "$(COMPUTE_BACKEND_UPPERCASE)"' >> $@
 	@echo '#define CUDA_BACKEND_ENABLED $(cuda.backend.enabled)' >> $@
 	@echo '#define CPU_BACKEND_ENABLED $(cpu.backend.enabled)' >> $@
 	@echo '#define USE_OPENMP $(USE_OPENMP)' >> $@
+	@echo '#define CPU_BLOCK_SIZE $(CPU_BLOCK_SIZE)' >> $@
 # Clang select. We also include the detected CUDA_MAJOR version since it will be displayed
 # as --version output
 $(CLANG_SELECT_OPTFILE): | $(OPTSDIR)
@@ -1462,6 +1476,8 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)echo 'COMPUTE_BACKEND=$(COMPUTE_BACKEND)' >> $@
 	$(CMDECHO)# recover value of USE_OPENMP
 	$(CMDECHO)echo 'USE_OPENMP=$(USE_OPENMP)' >> $@
+	$(CMDECHO)# recover value of USE_OPENMP
+	$(CMDECHO)echo 'CPU_BLOCK_SIZE=$(CPU_BLOCK_SIZE)' >> $@
 	$(CMDECHO)# recover value of CLANG_CUDA and CLANG_CUDA_VERSION
 	$(CMDECHO)echo 'CLANG_CUDA=$(CLANG_CUDA)' >> $@
 	$(CMDECHO)echo 'CLANG_CUDA_VERSION=$(CLANG_CUDA_VERSION)' >> $@

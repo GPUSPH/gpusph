@@ -64,6 +64,9 @@ void execute_kernel(KernelClass const& k, size_t numBlocks, size_t threadsPerBlo
 	}
 }
 
+//define CPU_BLOCK_SIZE defined by backend_select.opt
+#define CPU_MIN_BLOCKS 1
+
 #define COPY_TO_SYMBOL(dst, src, count) memcpy(&(dst), &(src), count*sizeof(src))
 
 #define COPY_FROM_SYMBOL(dst, src, count) memcpy(&(dst), &(src), count*sizeof(dst))

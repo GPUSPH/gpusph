@@ -37,7 +37,11 @@
 #include "euler_kernel.cu"
 #include "density_sum_kernel.cu"
 
+#if CPU_BACKEND_ENABLED
+#define BLOCK_SIZE_INTEGRATE	CPU_BLOCK_SIZE
+#else
 #define BLOCK_SIZE_INTEGRATE	256
+#endif
 
 template<
 	SPHFormulation sph_formulation,
