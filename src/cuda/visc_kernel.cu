@@ -630,7 +630,7 @@ reduce_kinvisc(KP const& params, float kinvisc)
 {
 #if CPU_BACKEND_ENABLED
 	float *cfl = params.cfl;
-#pragma omp parallel reduction(max: cfl[0])
+#pragma omp reduction(max: cfl[0])
 	cfl[0] = max(cfl[0], kinvisc);
 #else
 	// CUDA_BACKEND_ENABLED
@@ -651,7 +651,7 @@ __device__ __forceinline__ void
 reduce_jacobi_error(float* cfl, float error)
 {
 #if CPU_BACKEND_ENABLED
-#pragma omp parallel reduction(max: cfl[0])
+#pragma omp reduction(max: cfl[0])
 	cfl[0] = max(cfl[0], error);
 #else
 	// CUDA_BACKEND_ENABLED
