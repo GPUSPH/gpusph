@@ -193,12 +193,34 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 
 # --------------- Locate and set up compilers and flags
 
+# Find CUDA: this is the first thing we do, so that we can disable the cuda backend
+# if CUDA is not found
+
+# override: CUDA_INSTALL_PATH - where CUDA is installed (if backend=cuda)
+# override:                     validity is checked by looking for bin/nvcc under it.
+# override:                     nvcc is search for also in /usr/local/cuda and /usr
+# override:                     as fallback
+CUDA_INSTALL_PATH ?=
+
+CUDA_SEARCH_PATH = $(CUDA_INSTALL_PATH) $(dir $(shell which nvcc)) /usr/local/cuda /usr
+
+NVCC := $(firstword $(foreach p, $(CUDA_SEARCH_PATH),$(wildcard $(addsuffix /bin/nvcc,$p))))
+
+
 # TODO we should support building both backends when possible
 # option: backend - determines which backend to use to compile problems
-#                   cuda (default): device code is compiled for CUDA
-#                   cpu: device code is compiled for CPU
-SUPPORTED_BACKENDS = cuda cpu
-COMPUTE_BACKEND ?= cuda
+#                   cuda (default, if available): device code is compiled for CUDA
+#                   cpu (fallback if cuda not found): device code is compiled for CPU
+SUPPORTED_BACKENDS := cuda cpu
+
+ifeq ($(NVCC),$(empty))
+ $(info NOTE: nvcc not found in $(CUDA_SEARCH_PATH) —CUDA backend disabled)
+ SUPPORTED_BACKENDS := $(filter-out cuda,$(SUPPORTED_BACKENDS))
+else
+ CUDA_INSTALL_PATH := $(abspath $(dir $(NVCC))../)
+endif
+
+COMPUTE_BACKEND ?= $(firstword $(SUPPORTED_BACKENDS))
 BACKEND_SELECT_OPTFILE=$(OPTSDIR)/backend_select.opt
 ifdef backend
  # downcase
@@ -270,12 +292,6 @@ ifdef clang
 	endif
 endif
 
-# override: CUDA_INSTALL_PATH - where CUDA is installed (if backend=cuda)
-# override:                     defaults /usr/local/cuda,
-# override:                     validity is checked by looking for bin/nvcc under it,
-# override:                     /usr is always tried as a last resort
-CUDA_INSTALL_PATH ?= /usr/local/cuda
-
 # We keep track of the nvcc major version, which is stored in clang_select
 CUDA_MAJOR ?= 0
 OLD_CUDA_MAJOR:=$(CUDA_MAJOR)
@@ -283,33 +299,16 @@ OLD_CUDA_MAJOR:=$(CUDA_MAJOR)
 ifeq ($(cuda.backend.enabled),1)
  # We check the validity of the path by looking for bin/nvcc under it.
  # if not found, we look into /usr, and finally abort
- ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
-  CUDA_INSTALL_PATH = /usr
-  # check again
-  ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
-   $(error Could not find CUDA, please set CUDA_INSTALL_PATH)
-  endif
 
-  # At least on Debian, when CUDA is installed via distro packages, Clang
-  # needs to be directed at /usr/lib/cuda instead
-  ifeq ($(CLANG_CUDA),1)
-   CLANG_CUDA_PATH = /usr/lib/cuda
-  endif
+ # At least on Debian, when CUDA is installed via distro packages, Clang
+ # needs to be directed at /usr/lib/cuda instead
+ ifeq ($(CUDA_INSTALL_PATH),/usr)
+  CLANG_CUDA_PATH = /usr/lib/cuda
  endif
 
  CLANG_CUDA_PATH ?= $(CUDA_INSTALL_PATH)
 
- # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
- # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
- # CUDA_INSTALL_PATH=$(shell which nvcc | sed "s/\/bin\/nvcc//")
- # CUDA_INSTALL_PATH=$(shell which nvcc | head -c -10)
- # CUDA_INSTALL_PATH=$(shell echo $PATH | sed "s/:/\n/g" | grep "cuda/bin" | sed "s/\/bin//g" |  head -n 1)
- # ld-based CUDA location: more robust but problematic for Mac OS
- #CUDA_INSTALL_PATH=$(shell \
- #	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
-
  # nvcc info
- NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
  NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
  versions_tmp  := $(subst ., ,$(NVCC_VER))
  CUDA_MAJOR := $(firstword  $(versions_tmp))
