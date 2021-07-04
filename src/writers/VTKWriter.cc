@@ -37,6 +37,8 @@
 
 #include "vector_print.h"
 
+#include "neibs_list_layout.h"
+
 // for FLT_EPSILON
 #include <cfloat>
 
@@ -590,7 +592,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			neibs	<< i << "\t" << id(info[i])
 				<< " (" << ParticleTypeSym[PART_TYPE(info[i])] << ")";
 			// raw output first
+#if NL_INTERLEAVED
 			for (uint index = i; index < m_neiblist_end; index += m_neiblist_stride) {
+#else
+			for (uint index = i*m_neiblist_size; index < (i+1)*m_neiblist_size; index += 1) {
+#endif
 				neibdata neib = neibslist[index];
 				if (neib == NEIBS_END)
 					neibs << "\t*";
@@ -610,13 +616,18 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			for (ParticleType pt = PT_FLUID; pt <= last_pt; pt = (ParticleType)(pt+1)) {
 				neibs << "\n\t";
 				uint num_neibs = 0;
-				const uint start = i + (
+				const uint nl_stride = NL_INTERLEAVED ? m_neiblist_stride : 1;
+				const uint start = i*(NL_INTERLEAVED ? 1 : m_neiblist_size) + (
 					(pt == PT_FLUID)	? 0 :
 					(pt == PT_BOUNDARY)	? m_neib_bound_pos :
 					/*pt == PT_VERTEX */	  m_neib_bound_pos+1)
-					*m_neiblist_stride;
-				const uint stride = (pt == PT_BOUNDARY ? -1 : 1)*m_neiblist_stride;
+					*nl_stride;
+				const uint stride = (pt == PT_BOUNDARY ? -1 : 1)*nl_stride;
+#if NL_INTERLEAVED
 				const uint end = (pt == PT_BOUNDARY ? i : m_neiblist_end);
+#else
+				const uint end = (pt == PT_BOUNDARY ? i*m_neiblist_size : (i+1)*m_neiblist_size);
+#endif
 
 				uint neib_cell_base_index = UINT_MAX;
 

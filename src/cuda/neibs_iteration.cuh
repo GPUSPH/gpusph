@@ -32,6 +32,8 @@
 #include "cellgrid.cuh"
 #include "posvel_struct.h" // pos_mass
 
+#include "neibs_list_layout.h"
+
 namespace cuneibs
 {
 /** \addtogroup neibs_device_constants Device constants
@@ -40,7 +42,7 @@ namespace cuneibs
  *  @{ */
 __constant__ uint d_neibboundpos;		///< Starting pos of boundary particle in neib list
 __constant__ uint d_neiblistsize;		///< Total neib list size
-__constant__ idx_t d_neiblist_stride;	///< Stride dimension
+__constant__ idx_t d_neiblist_stride;	///< Stride dimension for NL_INTERLEAVE (= number of allocated particles)
 __constant__ idx_t d_neiblist_end;		///< maximum number of neighbors * number of allocated particles
 /** @} */
 
@@ -67,14 +69,22 @@ uint first_neib_loc() {
 template<ParticleType ptype>
 __device__ __forceinline__
 idx_t neib_list_start() {
+#if NL_INTERLEAVED
 	return	idx_t(first_neib_loc<ptype>())*d_neiblist_stride;
+#else
+	return	idx_t(first_neib_loc<ptype>());
+#endif
 }
 
 /// Increment for the neighbor list of the given type
 template<ParticleType ptype>
 __device__ __forceinline__
 constexpr idx_t neib_list_step() {
+#if NL_INTERLEAVED
 	return ptype == PT_BOUNDARY ? -d_neiblist_stride : d_neiblist_stride;
+#else
+	return ptype == PT_BOUNDARY ? -1 : 1;
+#endif
 }
 
 /// Base neighbor list traversal class
@@ -179,7 +189,7 @@ public:
 	bool next()
 	{
 		i += neib_list_step<ptype>();
-		neibdata neib_data = neibsList[i + index];
+		neibdata neib_data = neibsList[ITH_STEP_NEIGHBOR(index, i, d_neiblistsize)];
 		if (neib_data == NEIBS_END) return false;
 
 		update_neib_index(neib_data);

@@ -640,7 +640,7 @@ neibsInCell(
 			if (!too_many_neibs(neibs_num, neib_type)) {
 				int neib_bucket_offset = neib_index - var.bucketStart;
 				int encode_offset = encode_cell ? ENCODE_CELL(cell) : 0;
-				params.neibsList[offset*d_neiblist_stride + index] =
+				params.neibsList[ITH_NEIGHBOR_DEVICE(index, offset)] =
 					neib_bucket_offset + encode_offset;
 				encode_cell = false;
 			}
@@ -1363,18 +1363,20 @@ struct buildNeibsListDevice : params_t
 		 * means no PT_BOUNDARY neighbors will be registered
 		 */
 		int marker_pos = overflow ? d_neibboundpos : neibs_num[PT_FLUID];
-		params.neibsList[marker_pos*d_neiblist_stride + index] = NEIBS_END;
+		params.neibsList[ITH_NEIGHBOR_DEVICE(index, marker_pos)] = NEIBS_END;
 
 		overflow |= too_many_neibs(neibs_num, PT_BOUNDARY);
 		/* A marker here is needed only if we didn't overflow, since otherwise the PT_FLUID marker will work
 		 * for PT_BOUNDARY too */
-		if (!overflow)
-			params.neibsList[neibListOffset(neibs_num, PT_BOUNDARY)*d_neiblist_stride + index] = NEIBS_END;
+		if (!overflow) {
+			marker_pos = neibListOffset(neibs_num, PT_BOUNDARY);
+			params.neibsList[ITH_NEIGHBOR_DEVICE(index, marker_pos)] = NEIBS_END;
+		}
 
 		if (boundarytype == SA_BOUNDARY) {
 			overflow |= too_many_neibs(neibs_num, PT_VERTEX);
 			marker_pos = overflow ? d_neiblistsize - 1 : d_neibboundpos + 1 + neibs_num[PT_VERTEX];
-			params.neibsList[marker_pos*d_neiblist_stride + index] = NEIBS_END;
+			params.neibsList[ITH_NEIGHBOR_DEVICE(index, marker_pos)] = NEIBS_END;
 		}
 
 		if (overflow) {
