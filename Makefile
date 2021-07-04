@@ -248,7 +248,7 @@ USE_OPENMP ?= 0
 ifdef openmp
  ifneq ($(openmp),$(USE_OPENMP))
   USE_OPENMP=$(openmp)
-  $(shell rm $(BACKEND_SELECT_OPTFILE))
+  $(shell rm -f $(BACKEND_SELECT_OPTFILE))
  endif
 endif
 
@@ -258,7 +258,7 @@ ifeq ($(USE_OPENMP),1)
  ifeq ($(OPENMP_VERSION),)
   $(warning unable to detect OpenMP version, OpenMP disabled)
   USE_OPENMP=0
-  $(shell rm $(BACKEND_SELECT_OPTFILE))
+  $(shell rm -f $(BACKEND_SELECT_OPTFILE))
  else
   CXXFLAGS_OPENMP= -fopenmp
  endif
