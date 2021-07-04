@@ -946,6 +946,10 @@ endif
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
 
+ifeq ($(cpu.backend.enabled),1)
+ CXXFLAGS += -march=native
+endif
+
 # We also force C++11 (or higher) mode, since we are now relying on C++11 features
 # If we are using CUDA 11 or higher, the standard will be C++14, as required by
 # Thrust and CUB
