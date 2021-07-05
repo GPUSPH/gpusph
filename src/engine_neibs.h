@@ -97,8 +97,7 @@ public:
 
 	/// Build the neighbors list
 	virtual void
-	buildNeibsList(	bool check_cell_overflow,
-					const BufferList&	bufread,
+	buildNeibsList( const BufferList&	bufread,
 						  BufferList&	bufwrite,
 					const uint			numParticles,
 					const uint			particleRangeEnd,

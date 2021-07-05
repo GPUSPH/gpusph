@@ -40,6 +40,8 @@
 #include "GlobalData.h"
 #include "NetworkManager.h"
 
+#include "debugflags.h"
+
 #include "problem_spec.h"
 
 /* Include all other opt file for show_version */
@@ -58,6 +60,12 @@
 #include "cuda/cache_preference.h"
 
 using namespace std;
+
+// this global bool is used by the simulation framework (which cannot access gdata)
+// to know if the simulation is single- or multi-device
+// (the information currently is only used to determine if the kernel launches should be
+// synchronous or not)
+bool is_multi_device;
 
 void show_version()
 {
@@ -243,7 +251,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--debug")) {
-			gdata->debug = parse_debug_flags(*argv);
+			parse_debug_flags(*argv);
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--repack")) {
@@ -461,6 +469,8 @@ int main(int argc, char** argv) {
 	printf(" tot devs = %u (%u * %u)\n",gdata.totDevices, gdata.mpi_nodes, gdata.devices );
 	if (gdata.clOptions->num_hosts > 0)
 		printf(" num-hosts was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
+
+	is_multi_device = (gdata.totDevices > 1);
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	try {

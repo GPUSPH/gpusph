@@ -189,6 +189,15 @@ kahan_dot(const float4 &f1, const float4 &f2)
 {
 	return kahan_sum(f1.x*f2.x, f1.y*f2.y, f1.z*f2.z, f1.w*f2.w);
 }
+
+// T1, T2 should be either float3 or float4
+template<typename T1, typename T2>
+inline float
+__spec
+kahan_dot3(const T1 &f1, const T2 &f2)
+{
+	return kahan_sum(f1.x*f2.x, f1.y*f2.y, f1.z*f2.z);
+}
 //! @}
 
 //! Squared vector length using Kahan summation
@@ -212,6 +221,13 @@ __spec
 kahan_sqlength(const float4 &f1)
 {
 	return kahan_dot(f1, f1);
+}
+
+inline float
+__spec
+kahan_sqlength3(const float4 &f1)
+{
+	return kahan_dot3(f1, f1);
 }
 //! @}
 

@@ -123,7 +123,6 @@ public:
 	/// and 0 otherwise
 	virtual uint
 	basicstep(
-		bool nancheck,
 		const BufferList& bufread,	// this is the read only arrays
 		BufferList& bufwrite,
 		const	uint	numParticles,

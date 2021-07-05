@@ -87,8 +87,6 @@ class Writer;
 
 #include "ProblemCore.h"
 
-#include "debugflags.h"
-
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
@@ -99,9 +97,6 @@ struct GlobalData {
 	// Are we resuming? This can be used as a shortcut instead of checking for emptiness
 	// of the resume name in clOptions
 	bool resume;
-
-	// Debug flags for this run
-	DebugFlags debug;
 
 	// # of GPUs running
 
@@ -292,7 +287,6 @@ struct GlobalData {
 	GlobalData(void):
 		ret(0),
 		resume(false),
-		debug(),
 		devices(0),
 		mpi_nodes(0),
 		mpi_rank(-1),

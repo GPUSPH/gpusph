@@ -465,7 +465,7 @@ computeDensitySumBoundaryTerms(
 		const float3 gGamNp1 = gradGamma<kerneltype>(params.slength, as_float3(qNp1), vertexRelPos, nsNp1)*nsNp1;
 
 		// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
-		sumGam.gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(qNp1 - qN));
+		sumGam.gGamDotR += 0.5f*dot3(gGamN + gGamNp1, qNp1 - qN);
 		sumGam.gGam += gGamNp1;
 
 		/* TODO check if we need the old or the new normal here, in case of

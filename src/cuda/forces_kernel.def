@@ -3662,7 +3662,7 @@ struct dyndt_forces_shared_data
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
 		float sspeed = soundSpeed(pdata.vel.w, fluid_num(pdata.info));
-		sm_forces_max[threadIdx.x] = fmaxf(length(as_float3(pout.force)), sspeed*sspeed/params.slength);
+		sm_forces_max[threadIdx.x] = fmaxf(length3(pout.force), sspeed*sspeed/params.slength);
 	}
 
 	template<typename FP>

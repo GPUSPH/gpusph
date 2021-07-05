@@ -36,6 +36,9 @@
 #include "RepackingIntegrator.h"
 #include "PredictorCorrectorIntegrator.h"
 
+// Debug flags
+#include "debugflags.h"
+
 /*! \file
  * Integrator implementation. For the time being this implements the predictor/corrector integration scheme only,
  * it will be refactored later to include other as well.
@@ -71,7 +74,7 @@ Integrator::enter_phase(size_t phase_idx)
 		throw runtime_error("trying to enter non-existing phase #" + to_string(phase_idx));
 
 	m_phase_idx = phase_idx;
-	if (gdata->debug.print_step)
+	if (g_debug.print_step)
 		cout << "Entering phase " << current_phase()->name() << endl;
 	Phase *phase = current_phase();
 	phase->reset();

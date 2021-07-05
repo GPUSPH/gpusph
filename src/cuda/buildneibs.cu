@@ -317,7 +317,6 @@ sort(	BufferList const& bufread,
 /// Build neibs list
 void
 buildNeibsList(
-	bool check_cell_overflow,
 const	BufferList&	bufread,
 		BufferList&	bufwrite,
 const	uint		numParticles,
@@ -334,7 +333,7 @@ const	float		boundNlSqInflRad)
 
 	cuneibs::buildNeibsListDevice<sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount><<<numBlocks, numThreads>>>(params);
 
-	if (check_cell_overflow) {
+	if (g_debug.check_cell_overflow) {
 		const uint nCells = bufread.get<BUFFER_CELLSTART>()->get_allocated_elements();
 		const uint numBlocksCheck = div_up(nCells, numThreads);
 		cuneibs::checkCellSizeDevice<<< numBlocksCheck, numThreads >>>( cell_params(bufread), nCells);

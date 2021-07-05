@@ -55,6 +55,9 @@
 // HotFile
 #include "HotFile.h"
 
+// Debug flags
+#include "debugflags.h"
+
 using namespace std;
 
 // an empty set of PostProcessEngines, to be used when we want to save
@@ -96,7 +99,7 @@ GPUSPH::GPUSPH() :
 }
 
 GPUSPH::~GPUSPH() {
-	if (gdata->debug.benchmark_command_runtimes)
+	if (g_debug.benchmark_command_runtimes)
 		showCommandTimes();
 
 	closeInfoStream();
@@ -880,15 +883,15 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VEL>();
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INFO>();
 
-	if (gdata->debug.neibs) {
+	if (g_debug.neibs) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEIBSLIST>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_CELLSTART>();
 	}
 
-	if (gdata->debug.forces)
+	if (g_debug.forces)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
 
-	if (gdata->debug.cspm) {
+	if (g_debug.cspm) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_WCOEFF>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FCOEFF>();
 	}
@@ -1693,7 +1696,7 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 		gpos[i] = dpos;
 
 		// track peak speed
-		local_max_part_speed = fmax(local_max_part_speed, length( as_float3(vel[i]) ));
+		local_max_part_speed = fmax(local_max_part_speed, length3(vel[i]) );
 	}
 
 	// max speed: read simulation global for multi-node
@@ -1762,11 +1765,11 @@ void GPUSPH::saveParticles(
 	// set the buffers to be dumped
 	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
-	if (gdata->debug.neibs)
+	if (g_debug.neibs)
 		which_buffers |= BUFFER_NEIBSLIST | BUFFER_CELLSTART;
-	if (gdata->debug.forces)
+	if (g_debug.forces)
 		which_buffers |= BUFFER_FORCES;
-	if (gdata->debug.cspm)
+	if (g_debug.cspm)
 		which_buffers |= BUFFER_WCOEFF | BUFFER_FCOEFF;
 
 	if (HAS_INTERNAL_ENERGY(simparams->simflags))
@@ -2127,7 +2130,7 @@ void GPUSPH::rollCallParticles()
 			// uint first_idx = gdata->s_hStartPerDevice[d];
 			// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[first_idx]), id(gdata->s_hInfo[last_idx])); */
 		}
-		if (gdata->debug.validate_roll_call)
+		if (g_debug.validate_roll_call)
 			throw std::runtime_error("roll call failed");
 	}
 }
@@ -2401,7 +2404,7 @@ struct TimerObject
 void GPUSPH::dispatchCommand(CommandStruct const& cmd)
 {
 	shared_ptr<TimerObject> timer;
-	if (gdata->debug.benchmark_command_runtimes) {
+	if (g_debug.benchmark_command_runtimes) {
 		++cmd_calls[cmd.command];
 		timer = make_shared<TimerObject>(
 			max_cmd_time[cmd.command],
@@ -2451,7 +2454,7 @@ void GPUSPH::dispatchCommand(CommandStruct const& cmd)
 	// Integrator and ParticleSystem classes, this will be easier, so let's not
 	// waste too much time on it at the moment.
 #ifdef INSPECT_DEVICE_MEMORY
-	if (MULTI_DEVICE && gdata->debug.check_buffer_consistency)
+	if (MULTI_DEVICE && g_debug.check_buffer_consistency)
 		checkBufferConsistency(cmd);
 #endif
 }

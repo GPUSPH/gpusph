@@ -44,12 +44,11 @@
 
 #define DEBUG_BUFFER_ACCESS 1
 
+#include "debugflags.h"
 #if DEBUG_BUFFER_ACCESS
 #include <iostream>
-extern bool debug_inspect_buffer;
-extern bool debug_clobber_invalid_buffers;
-#define DEBUG_INSPECT_BUFFER(...) if (debug_inspect_buffer) std::cout << __VA_ARGS__
-#define CLOBBER_INVALID if (debug_clobber_invalid_buffers) clobber()
+#define DEBUG_INSPECT_BUFFER(...) if (g_debug.inspect_buffer_access) std::cout << __VA_ARGS__
+#define CLOBBER_INVALID if (g_debug.clobber_invalid_buffers) clobber()
 #else
 #define DEBUG_INSPECT_BUFFER(...) do {} while (0)
 #define CLOBBER_INVALID do {} while (0)

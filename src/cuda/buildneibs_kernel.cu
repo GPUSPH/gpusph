@@ -460,8 +460,8 @@ process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
 		// 1. set one coordinate to 0 and rotate the remaining 2-D vector
 		// 2. cross product between coord1 and the normal of the boundary element
 		float2 relPosProj = make_float2(0.0);
-		relPosProj.x = dot(relPos, as_float3(var.coord1));
-		relPosProj.y = dot(relPos, as_float3(var.coord2));
+		relPosProj.x = dot3(relPos, var.coord1);
+		relPosProj.y = dot3(relPos, var.coord2);
 		// save relPosProj in vertPos buffer
 		if (i==0)
 			params.vertPos0[index] = relPosProj;
