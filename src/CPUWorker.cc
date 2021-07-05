@@ -76,7 +76,8 @@ void CPUWorker::getMemoryInfo(size_t *freeMem, size_t *totMem)
 // (actually, since it is currently used only to import data from other devices, the dstDevice could be omitted or implicit)
 void CPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int srcDevice, size_t count)
 {
-	throw logic_error("peerAsyncTransfer not available for the CPUWorker");
+	// TODO FIXME not really async
+	memcpy(dst, src, count);
 }
 
 // Uploads cellStart and cellEnd from the shared arrays to the device memory.
@@ -212,10 +213,13 @@ void CPUWorker::setDeviceProperties()
 	// TODO FIXME
 }
 
-// enable direct p2p memory transfers by allowing the other devices to access the current device memory
+//! When using the CPU backend, “peers” are just other threads running on the same device,
+//! so peering is implicitly enabled. Just inform the manager of that.
+//! TODO this won't be true when we support multiple backends.
 void CPUWorker::enablePeerAccess()
 {
-	// TODO FIXME no peer acces ATM
-	return;
+	for (uint d=0; d < gdata->devices; d++) {
+		gdata->s_hDeviceCanAccessPeer[m_deviceIndex][d] = true;
+	}
 }
 

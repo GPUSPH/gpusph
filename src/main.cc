@@ -329,7 +329,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		++gdata->totDevices;
 	}
 	if (gdata->deviceType == CPU_DEVICE && gdata->devices > 1) {
-		throw std::invalid_argument("Multi-device is not supported when running on CPU");
+		// TODO FIXME core or NUMA-node affinity
 	}
 
 	// Check if pipeline script path is defined and the file exists
