@@ -470,6 +470,8 @@ int main(int argc, char** argv) {
 	if (gdata.clOptions->num_hosts > 0)
 		printf(" num-hosts was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
 
+	is_multi_device = (gdata.totDevices > 1);
+
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	try {
 		if (gdata.clOptions->asyncNetworkTransfers) {
