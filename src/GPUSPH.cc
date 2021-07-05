@@ -1103,7 +1103,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		delete [] gdata->s_hRbAppliedForce;
 		delete [] gdata->s_hRbTotalTorque;
 		delete [] gdata->s_hRbAppliedTorque;
-		if (MULTI_DEVICE) {
+		if (MULTI_GPU) {
 			delete [] gdata->s_hRbDeviceTotalForce;
 			delete [] gdata->s_hRbDeviceTotalTorque;
 		}
