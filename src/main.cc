@@ -90,8 +90,10 @@ void show_version()
 			(CLANG_CUDA ? "clang" : "nvcc"),
 			(CLANG_CUDA ? CLANG_CUDA_VERSION : CUDA_MAJOR));
 	} else {
-		printf(" %s OpenMP",
-			USE_OPENMP ? "with" : "without");
+		printf(" %s OpenMP", USE_OPENMP ? "with" : "without");
+		if (USE_OPENMP) {
+			printf(", block size %d", CPU_BLOCK_SIZE);
+		}
 		printf(" (experimental)\n");
 	}
 	printf("DEM    : %s\n", FASTDEM ? "fast" : "symmetrized");
