@@ -19,6 +19,18 @@ comma:=,
 empty:=
 space:=$(empty) $(empty)
 
+# option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
+#                   if verbose > 0, the configuration process will also produce additional messages
+verbose ?= 0
+verbose := $(verbose)
+
+# traceconfig macro
+ifneq ($(verbose),0)
+ traceconfig = $(info (config) $1 $2 $3 $4 $5 $6 $7 $8 $9)
+else
+ traceconfig =
+endif
+
 # When running a `make clean`, we do not want to generate the files that we are going to remove
 # anyway. Let us do an early check on this case, by checking if MAKECMDGOALS is one of the clean targets.
 # We only do this if a single target was specified
@@ -193,6 +205,8 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 
 # --------------- Locate and set up compilers and flags
 
+SUPPORTED_BACKENDS := cuda cpu
+
 # Find CUDA: this is the first thing we do, so that we can disable the cuda backend
 # if CUDA is not found
 
@@ -202,24 +216,22 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 # override:                     as fallback
 CUDA_INSTALL_PATH ?=
 
-CUDA_SEARCH_PATH = $(CUDA_INSTALL_PATH) $(dir $(shell which nvcc)) /usr/local/cuda /usr
+CUDA_SEARCH_PATH = $(CUDA_INSTALL_PATH) $(dir $(dir $(shell which nvcc))) /usr/local/cuda /usr
 
 NVCC := $(firstword $(foreach p, $(CUDA_SEARCH_PATH),$(wildcard $(addsuffix /bin/nvcc,$p))))
 
+ifeq ($(NVCC),$(empty))
+ SUPPORTED_BACKENDS := $(filter-out cuda,$(SUPPORTED_BACKENDS))
+ $(call traceconfig,nvcc not found in $(CUDA_SEARCH_PATH) — CUDA backend DISABLED)
+else
+ CUDA_INSTALL_PATH := $(abspath $(dir $(NVCC))../)
+ $(call traceconfig,nvcc found — using CUDA from $(CUDA_INSTALL_PATH))
+endif
 
 # TODO we should support building both backends when possible
 # option: backend - determines which backend to use to compile problems
 #                   cuda (default, if available): device code is compiled for CUDA
 #                   cpu (fallback if cuda not found): device code is compiled for CPU
-SUPPORTED_BACKENDS := cuda cpu
-
-ifeq ($(NVCC),$(empty))
- $(info NOTE: nvcc not found in $(CUDA_SEARCH_PATH) —CUDA backend disabled)
- SUPPORTED_BACKENDS := $(filter-out cuda,$(SUPPORTED_BACKENDS))
-else
- CUDA_INSTALL_PATH := $(abspath $(dir $(NVCC))../)
-endif
-
 COMPUTE_BACKEND ?= $(firstword $(SUPPORTED_BACKENDS))
 BACKEND_SELECT_OPTFILE=$(OPTSDIR)/backend_select.opt
 ifdef backend
@@ -1027,12 +1039,9 @@ else
  CXXFLAGS += -O3
 endif
 
-# option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
-
 # if verbose is 1 or 2, add --ptx-as-options=-v to CUFLAGS,
 # but only if using nvcc.
 # verbose is 1 or 2 if filtering 1 2 with verbose returns verbose,
-verbose ?= 0
 ifeq ($(filter $(verbose),1 2)/$(cuxx.is.nvcc),$(verbose)/1)
  CUFLAGS += --ptxas-options=-v
 endif
