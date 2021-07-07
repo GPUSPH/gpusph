@@ -165,10 +165,9 @@ calcPrivateDevice(
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(posArray[neib_index]);
+		const float3 relPos = neib_iter.relPos(posArray[neib_index]).relPos;
 
-		float r = length3(relPos);
+		float r = length(relPos);
 		if (r < inflRadius)
 			neibs += 1;
 	}

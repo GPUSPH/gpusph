@@ -105,22 +105,21 @@ enum ShearRateReturnType {
 	MIXED_TENSOR
 };
 
-struct common_shear_rate_pdata
+struct common_shear_rate_pdata : pos_mass, vel_rho
 {
 	const int index;
 	const int3 gridPos;
-	const float4 pos;
-	const float4 vel;
 	const particleinfo info;
 	const uint fluid;
 
 	template<typename KP>// kernel params
 	__device__ __forceinline__
-	common_shear_rate_pdata(int _index, KP const& params) :
+	common_shear_rate_pdata(int _index, KP const& params)
+	:
+		pos_mass(params.fetchPos(_index)),
+		vel_rho(params.fetchVel(_index)),
 		index(_index),
 		gridPos( calcGridPosFromParticleHash(params.particleHash[index]) ),
-		pos(params.fetchPos(index)),
-		vel(params.fetchVel(index)),
 		info( params.fetchInfo(index) ),
 		fluid( fluid_num(info) )
 	{}
@@ -154,11 +153,9 @@ struct shear_rate_pdata :
 	{}
 };
 
-struct common_shear_rate_ndata
+struct common_shear_rate_ndata : relPos_mass, relVel_rho
 {
 	const uint index;
-	const float4 relPos;
-	const float4 relVel;
 	const particleinfo info;
 	const float r;
 	const uint fluid;
@@ -166,14 +163,22 @@ struct common_shear_rate_ndata
 
 	template<typename NeibIter, typename P_t, typename KP>
 	__device__ __forceinline__
-	common_shear_rate_ndata(NeibIter const& neib_iter, P_t const& pdata, KP const& params) :
-		index(neib_iter.neib_index()),
-		relPos(neib_iter.relPos(params.fetchPos(index))),
-		relVel( make_float3(pdata.vel) - params.fetchVel(index) ),
+	common_shear_rate_ndata(uint _index, NeibIter const& neib_iter, P_t const& pdata, KP const& params)
+	:
+		relPos_mass(neib_iter.relPos(params.fetchPos(_index))),
+		relVel_rho( pdata.vel - vel_rho(params.fetchVel(_index)) ),
+		index(_index),
 		info(params.fetchInfo(index)),
-		r(length3(relPos)),
+		r(length(relPos)),
 		fluid(fluid_num(info)),
-		rho(physical_density(relVel.w, fluid))
+		rho(physical_density(rhotilde, fluid))
+	{}
+
+	template<typename NeibIter, typename P_t, typename KP>
+	__device__ __forceinline__
+	common_shear_rate_ndata(NeibIter const& neib_iter, P_t const& pdata, KP const& params)
+	:
+		common_shear_rate_ndata(neib_iter.neib_index(), neib_iter, pdata, params)
 	{}
 };
 
@@ -203,8 +208,8 @@ shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
 	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
 	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
 	const float f = F<KP::kerneltype>(ndata.r, params.slength);	// 1/r ∂Wij/∂r
-	const float weight = f*ndata.relPos.w/ndata.rho; // F_ij * V_j
-	return make_float3(ndata.relPos)*weight;
+	const float weight = f*ndata.mass/ndata.rho; // F_ij * V_j
+	return ndata.relPos*weight;
 }
 
 //! Shear rate contribution (multiplier for -relVel)
@@ -222,12 +227,12 @@ shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
 
 	if (nptype != PT_BOUNDARY) {
 		const float f = F<KP::kerneltype>(ndata.r, params.slength);	// 1/r ∂Wij/∂r
-		const float weight = f*ndata.relPos.w/ndata.rho; // F_ij * V_j
+		const float weight = f*ndata.mass/ndata.rho; // F_ij * V_j
 		return make_float3(ndata.relPos)*weight;
 	} else {
 		const float4 belem = params.fetchBound(ndata.index);
-		const float3 normal_s = as_float3(belem);
-		const float3 q = as_float3(ndata.relPos)/params.slength;
+		const float3 normal_s = make_float3(belem);
+		const float3 q = ndata.relPos/params.slength;
 		float3 q_vb[3];
 		calcVertexRelPos(q_vb, belem,
 			params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
@@ -256,8 +261,8 @@ sa_boundary_jacobi_build_vector(float &B, N_t const& ndata, KP const& params)
 	const float delta_rho = cuphys::d_numfluids > 1 ? abs(d_rho0[0]-d_rho0[1]) : d_rho0[0];
 
 	const float4 belem = params.fetchBound(ndata.index);
-	const float3 normal_s = as_float3(belem);
-	const float3 q = as_float3(ndata.relPos)/params.slength;
+	const float3 normal_s = make_float3(belem);
+	const float3 q = ndata.relPos/params.slength;
 	float3 q_vb[3];
 	calcVertexRelPos(q_vb, belem,
 		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
@@ -301,12 +306,12 @@ __device__ __forceinline__
 void velocity_gradient(P_t const& pdata, KP const& params, float3& dvx, float3& dvy, float3& dvz)
 {
 	// Loop over all neighbors to compute their contribution to the velocity gradient
-	for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+	for_every_neib(boundarytype, pdata.index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 
 		shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
 
 		// skip inactive particles and particles outside of the kernel support
-		if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
+		if (is_inactive(ndata) || ndata.r >= params.influenceradius)
 			continue;
 
 		const float3 relVel_multiplier = shear_rate_contrib(pdata, ndata, params);
@@ -673,7 +678,7 @@ effectiveViscDevice(KP params)
 			break;
 
 		// skip inactive particles
-		if (INACTIVE(pdata.pos))
+		if (is_inactive(pdata))
 			break;
 
 		// shear rate tensor
@@ -698,7 +703,7 @@ effectiveViscDevice(KP params)
 		// Clamp to the user-set limiting viscosity
 		effvisc = clamp_visc(params, effvisc, pdata.fluid);
 
-		compute_kinvisc(params, effvisc, pdata.vel.w, pdata.fluid, kinvisc);
+		compute_kinvisc(params, effvisc, pdata.rhotilde, pdata.fluid, kinvisc);
 		store_effective_visc(params, pdata.index, effvisc, kinvisc);
 	} while (0);
 
@@ -770,7 +775,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, sps_simflags> params)
 	shear_rate_pdata<boundarytype> pdata(index, params);
 
 	// skip inactive particles
-	if (INACTIVE(pdata.pos))
+	if (is_inactive(pdata))
 		return;
 
 	symtensor3 tau = shearRate<MIXED_TENSOR>(pdata, params);
@@ -790,7 +795,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, sps_simflags> params)
 	// Dalrymple & Rogers (2006): eq. (10)
 	if (sps_simflags & SPSK_STORE_TAU) {
 
-		const float rho = physical_density(pdata.vel.w, pdata.fluid);
+		const float rho = physical_density(pdata.rhotilde, pdata.fluid);
 
 		/* Since tau stores the diagonal components non-doubled, but we need the doubled
 		 * ones, we double them here */
@@ -880,6 +885,7 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 		float newEffPres = 0.f;
 
 		// read particle data from sorted arrays
+		// TODO FIXME use pos_mass
 		const float4 pos = params.fetchPos(index);
 
 		const particleinfo info = params.fetchInfo(index);
@@ -912,22 +918,20 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 				const uint neib_index = neib_iter.neib_index();
 
 				// Compute relative position vector and distance
-				// Now relPos is a float4 and neib mass is stored in relPos.w
-				const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+				const relPos_mass neib_pm = neib_iter.relPos( params.fetchPos(neib_index) );
 
 				const float neib_oldEffPres = params.effpres[neib_index];
 				const particleinfo neib_info = params.fetchInfo(neib_index);
 
 				// skip inactive particles
-				if (INACTIVE(relPos))
+				if (is_inactive(neib_pm))
 					continue;
 
 				if (SEDIMENT(neib_info)) {
-					const float r = length3(relPos);
+					const float r = length(neib_pm.relPos);
 
 					// Compute relative velocity
-					// Now relVel is a float4 and neib density is stored in relVel.w
-					const float4 relVel = as_float3(vel) - params.fetchVel(neib_index);
+					const relVel_rho neib_vr = as_float3(vel) - vel_rho(params.fetchVel(neib_index));
 					//const ParticleType nptype = PART_TYPE(neib_info);
 
 					// Fluid numbers
@@ -935,8 +939,8 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 
 					// contribution of free particles
 					const float w = W<kerneltype>(r, params.slength);	// Wij	
-					const float neib_volume = relPos.w/physical_density(relVel.w, neib_fluid_num);
-					newEffPres += fmax(neib_volume*(neib_oldEffPres + delta_rho*dot3(d_gravity, relPos))*w, 0.f);
+					const float neib_volume = neib_pm.mass/physical_density(neib_vr.rhotilde, neib_fluid_num);
+					newEffPres += fmax(neib_volume*(neib_oldEffPres + delta_rho*dot3(d_gravity, neib_pm.relPos))*w, 0.f);
 					alpha += neib_volume*w;
 				}
 			} // end of loop through neighbors
@@ -992,14 +996,14 @@ jacobiBuildVectorsDevice(KP params,
 	if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info))
 	{
 		/* Loop over neighbours */
-		for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		for_every_neib(boundarytype, pdata.index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 
 			const shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
 
 			const float neib_oldEffPres = params.fetchEffPres(ndata.index);
 
 			// skip inactive particles
-			if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
+			if (is_inactive(ndata) || ndata.r >= params.influenceradius)
 				continue;
 
 			const ParticleType nptype = PART_TYPE(ndata.info);
@@ -1010,7 +1014,7 @@ jacobiBuildVectorsDevice(KP params,
 					(boundarytype == SA_BOUNDARY && nptype == PT_VERTEX))
 			{
 				const float f = F<kerneltype>(ndata.r, params.slength);	// 1/r ∂Wij/∂r
-				const float neib_volume = ndata.relPos.w/ndata.rho;
+				const float neib_volume = ndata.mass/ndata.rho;
 
 				D += neib_volume*f;
 

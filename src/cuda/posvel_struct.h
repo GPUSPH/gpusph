@@ -26,13 +26,47 @@
  */
 
 //! \file Introduce the split representation of the float4 for position and velocity
+//! NOTE: all types here should have an imposed aligned of 16 bytes or nvcc may produce
+//! incorrect load/store operations when restoring to register spliis.
 
 #ifndef POSVEL_STRUCT_H
 #define POSVEL_STRUCT_H
 
+/*
+ * Generic split
+ */
+struct __builtin_align__(16) space_w_t
+{
+	float3 xyz;
+	float w;
+
+	__host__ __device__
+	space_w_t() = default;
+
+	__host__ __device__
+	space_w_t(float4 const& v) :
+		xyz{v.x, v.y, v.z},
+		w(v.w)
+	{}
+};
+
+inline __host__ __device__
+space_w_t operator-(float3 const& xyz, space_w_t const& other)
+{
+	space_w_t ret;
+	ret.xyz = xyz - other.xyz;
+	ret.w = other.w;
+	return ret;
+}
+
+
+/*
+ * Position and mass
+ */
+
 //! Position is stored as a float4 with pos in the first three components and mass in the last
 //! TODO this should be dimensionality-aware, at least for '.5' dimensions
-struct pos_mass
+struct __builtin_align__(16) pos_mass
 {
 	float3 pos;
 	float mass;
@@ -56,13 +90,102 @@ inline __host__ __device__ void
 disable_particle(pos_mass& pdata)
 { pdata.mass = NAN; }
 
+//! Just like pos_mass, but the spatial member is called relPos
+//! We don't provide a constructor for this, since this is assumed to be constructed
+//! by difference
+struct __builtin_align__(16) relPos_mass
+{
+	float3 relPos;
+	float mass;
+};
+
+//! Add something to the space component
 inline __host__ __device__
-bool constexpr is_active(pos_mass const& pdata)
-{ return ::isfinite(pdata.mass); }
+relPos_mass operator+(relPos_mass const& pm, float3 const& delta)
+{
+	relPos_mass ret(pm);
+	ret.relPos += delta;
+	return ret;
+}
 
 inline __host__ __device__
-bool constexpr is_inactive(pos_mass const& pdata)
+relPos_mass operator-(float3 const& pos, pos_mass const& neib_pm)
+{
+	relPos_mass ret;
+	ret.relPos = pos - neib_pm.pos;
+	ret.mass = neib_pm.mass;
+	return ret;
+}
+
+inline __host__ __device__
+//! central - neib => relPos + mass of the neib
+relPos_mass operator-(pos_mass const& pm, pos_mass const& neib_pm)
+{
+	return pm.pos - neib_pm;
+}
+
+
+template<typename PosMass>
+inline __host__ __device__
+bool constexpr is_active(PosMass const& pdata)
+{ return ::isfinite(pdata.mass); }
+
+template<typename PosMass>
+inline __host__ __device__
+bool constexpr is_inactive(PosMass const& pdata)
 { return !is_active(pdata); }
+
+/*
+ * Velocity and density
+ */
+
+//! Velocity is stored as a float4 with vel in the first three components and rhotilde in the last
+//! TODO this should be dimensionality-aware, at least for '.5' dimensions
+struct __builtin_align__(16) vel_rho
+{
+	float3 vel;
+	float rhotilde; // be clear that this is the relative density difference
+
+	__host__ __device__
+	vel_rho(float4 const& pm4) :
+		vel{pm4.x, pm4.y, pm4.z},
+		rhotilde(pm4.w)
+	{}
+
+	//! convert back to float4
+	//! this is implicit because the pos_mass <> float4 conversion
+	//! is roundtrip-safe (
+	__host__ __device__
+	operator float4() {
+		return make_float4(vel, rhotilde);
+	}
+};
+
+//! Just like vel_rho, but the spatial member is called relVel
+//! We don't provide a constructor for this, since this is assumed to be constructed
+//! by difference
+struct __builtin_align__(16) relVel_rho
+{
+	float3 relVel;
+	float rhotilde;
+};
+
+inline __host__ __device__
+relVel_rho operator-(float3 const& vel, vel_rho const& neib_pm)
+{
+	relVel_rho ret;
+	ret.relVel = vel - neib_pm.vel;
+	ret.rhotilde = neib_pm.rhotilde;
+	return ret;
+}
+
+//! central - neib => relVel + rhotilde of the neib
+inline __host__ __device__
+relVel_rho operator-(vel_rho const& pm, vel_rho const& neib_pm)
+{
+	return pm.vel - neib_pm;
+}
+
 
 #endif // _BUILDNEIBS_PARAMS_H
 

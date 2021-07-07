@@ -637,27 +637,25 @@ struct vertex_pout :
 
 
 //! Common fluid neighbor data
-struct common_ndata
+struct common_ndata : relPos_mass, vel_rho
 {
 	uint index;
 	particleinfo info;
-	float4 relPos;
-	float4 vel;
 	float r;
 	float w; // kernel value times volume
 	float press;
 
 	template<typename Params>
 	__device__ __forceinline__
-	common_ndata(Params const& params, uint _index, float4 const& _relPos)
+	common_ndata(Params const& params, uint _index, relPos_mass const& _relPos)
 	:
+		relPos_mass(_relPos),
+		vel_rho(params.vel[_index]),
 		index(_index),
 		info(params.fetchInfo(index)),
-		relPos(_relPos),
-		vel(params.vel[index]),
-		r(length3(relPos)),
-		w(W<Params::kerneltype>(r, params.slength)*relPos.w/physical_density(vel.w,fluid_num(info))),
-		press(P(vel.w, fluid_num(info)))
+		r(length(relPos)),
+		w(W<Params::kerneltype>(r, params.slength)*mass/physical_density(rhotilde, fluid_num(info))),
+		press(P(rhotilde, fluid_num(info)))
 	{}
 };
 
@@ -685,10 +683,10 @@ struct segment_keps_ndata :
 	template<typename Params, typename PData>
 	__device__ __forceinline__
 	segment_keps_ndata(Params const& params, PData const& pdata,
-		uint neib_index, float4 const& relPos)
+		uint neib_index, relPos_mass const& neib)
 	:
 		common_keps_ndata(params, neib_index),
-		norm_dist(fmax(fabs(dot3(pdata.normal, relPos)), params.deltap))
+		norm_dist(fmax(fabs(dot3(pdata.normal, neib.relPos)), params.deltap))
 	{}
 };
 
@@ -704,7 +702,7 @@ struct segment_ndata :
 	template<typename PData>
 	__device__ __forceinline__
 	segment_ndata(Params const& params, PData const& pdata,
-		uint neib_index, float4 const& relPos) :
+		uint neib_index, relPos_mass const& relPos) :
 		common_ndata(params, neib_index, relPos),
 		keps_struct(params, pdata, neib_index, relPos)
 	{}
@@ -715,7 +713,7 @@ struct vertex_fluid_ndata :
 {
 	template<typename Params>
 	__device__ __forceinline__
-	vertex_fluid_ndata(Params const& params, uint neib_index, float4 const& relPos) :
+	vertex_fluid_ndata(Params const& params, uint neib_index, relPos_mass const& relPos) :
 		common_ndata(params, neib_index, relPos)
 	{}
 };
@@ -858,10 +856,10 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 	NData const& ndata, POut &pout)
 {
 	if (IO_BOUNDARY(pdata.info)) {
-		pout.sumvel += ndata.w*as_float3(ndata.vel + params.eulerVel[ndata.index]);
+		pout.sumvel += ndata.mass*(ndata.vel + as_float3(params.eulerVel[ndata.index]));
 		// for open boundaries compute pressure interior state
 		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-		pout.sump += ndata.w*fmaxf(0.0f, ndata.press);
+		pout.sump += ndata.mass*fmaxf(0.0f, ndata.press);
 	}
 }
 
@@ -882,10 +880,10 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 	// contributions to the velocity and pressure sums are the same
 	// as for segments (see other specialization)
 	if (!pdata.corner) {
-		pout.sumvel += ndata.w*as_float3(ndata.vel + params.eulerVel[ndata.index]);
+		pout.sumvel += ndata.mass*(ndata.vel + as_float3(params.eulerVel[ndata.index]));
 		// for open boundaries compute pressure interior state
 		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
-		pout.sump += ndata.w*fmaxf(0.0f, ndata.press);
+		pout.sump += ndata.mass*fmaxf(0.0f, ndata.press);
 	}
 
 	if (step == 2) {
@@ -1456,10 +1454,10 @@ saSegmentBoundaryConditionsDevice(Params params)
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-			const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+			const relPos_mass neib = neib_iter.relPos(params.fetchPos(neib_index));
 
 			// skip inactive particles
-			if (INACTIVE(relPos))
+			if (is_inactive(neib))
 				continue;
 
 			const particleinfo neib_info = params.fetchInfo(neib_index);
@@ -1499,25 +1497,26 @@ saSegmentBoundaryConditionsDevice(Params params)
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const relPos_mass neib = neib_iter.relPos(params.fetchPos(neib_index));
 
 		// skip inactive particles
-		if (INACTIVE(relPos))
+		if (is_inactive(neib))
 			continue;
 
-		const segment_ndata<Params> ndata(params, pdata, neib_index, relPos);
+		const segment_ndata<Params> ndata(params, pdata, neib_index, neib);
 
-		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, relPos) < 0.0f) )
+		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, neib.relPos) < 0.0f) )
 			continue;
 
-		pout.sumpWall += fmax(ndata.press + physical_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
+		pout.sumpWall += fmaxf(
+			ndata.press + physical_density(ndata.rhotilde, fluid_num(pdata.info))*dot3(d_gravity, neib.relPos),
+			0.0f)*ndata.mass;
 
 		keps_fluid_contrib(params, pdata, ndata, pout);
 
 		io_fluid_contrib<step>(params, pdata, ndata, pout);
 
-		pout.shepard_div += ndata.w;
+		pout.shepard_div += ndata.mass;
 	}
 
 	impose_io_bc(params, pdata, pout);
@@ -1575,10 +1574,10 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-			const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+			const relPos_mass neib = neib_iter.relPos(params.fetchPos(neib_index));
 
 			// skip inactive particles
-			if (INACTIVE(relPos))
+			if (is_inactive(neib))
 				continue;
 
 			const particleinfo neib_info = params.fetchInfo(neib_index);
@@ -1609,21 +1608,22 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const relPos_mass neib = neib_iter.relPos(params.fetchPos(neib_index));
 
 		// skip inactive particles
-		if (INACTIVE(relPos))
+		if (is_inactive(neib))
 			continue;
 
-		const segment_ndata<Params> ndata(params, pdata, neib_index, relPos);
+		const segment_ndata<Params> ndata(params, pdata, neib_index, neib);
 
-		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, relPos) < 0.0f) )
+		if ( !(ndata.r < params.influenceradius && dot3(pdata.normal, neib.relPos) < 0.0f) )
 			continue;
 
-		pout.sumpWall += fmax(ndata.press + physical_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
+		pout.sumpWall += fmaxf(
+			ndata.press + physical_density(ndata.rhotilde,fluid_num(pdata.info))*dot3(d_gravity, neib.relPos),
+			0.0f)*ndata.mass;
 
-		pout.shepard_div += ndata.w;
+		pout.shepard_div += ndata.mass;
 	}
 
 	// impose solid-wall boundary conditions if open boundaries are not enabled
@@ -1677,7 +1677,7 @@ findOutgoingSegmentDevice(sa_outgoing_bc_params params)
 #endif
 
 	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-	const float4 vel = params.fetchVel(index);
+	const float3 vel = vel_rho(params.fetchVel(index)).vel;
 
 	// Data about closest “past” boundary element so far:
 	// squared distance to closest boundary so far
@@ -1695,10 +1695,10 @@ findOutgoingSegmentDevice(sa_outgoing_bc_params params)
 		if (!IO_BOUNDARY(neib_info))
 			continue; // we only care about IO boundary elements
 
-		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const float3 relPos = neib_iter.relPos(params.fetchPos(neib_index)).relPos;
 		const float4 normal = params.fetchBound(neib_index);
-		const float3 relVel = as_float3(vel - params.fetchVel(neib_index));
-		const float r2 = sqlength3(relPos);
+		const float3 relVel = (vel - vel_rho(params.fetchVel(neib_index))).relVel;
+		const float r2 = sqlength(relPos);
 
 		if (	r2 < r2_min && // we are closer to this element than other elements
 			dot3(normal, relPos) <= 0.0f && // we are behind the boundary element
@@ -1707,7 +1707,7 @@ findOutgoingSegmentDevice(sa_outgoing_bc_params params)
 			r2_min = r2; // new minimum distance
 			index_min = neib_index;
 			normal_min = make_float3(normal);
-			relPos_min = make_float3(relPos);
+			relPos_min = relPos;
 		}
 
 	}
@@ -1836,14 +1836,14 @@ struct InitGammaVars {
 	{
 		const uint neib_index = neib_iter.neib_index();
 
-		const float3 relPos = as_float3(neib_iter.relPos(params.fetchPos(neib_index)));
+		const float3 relPos = neib_iter.relPos(params.fetchPos(neib_index)).relPos;
 
 		if (length(relPos) > params.influenceradius + params.deltap*0.5f) {
 			skip = true;
 			return;
 		}
 
-		normal = as_float3(params.fetchBound(neib_index));
+		normal = make_float3(params.fetchBound(neib_index));
 		q = relPos/params.slength;
 
 		calcVertexRelPos(q_vb, normal,
@@ -2180,16 +2180,18 @@ saVertexBoundaryConditionsDevice(Params params)
 	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const relPos_mass neib_pm = neib_iter.relPos(params.fetchPos(neib_index));
 
-		if (INACTIVE(relPos))
+		if (is_inactive(neib_pm))
 			continue;
 
-		const sa_bc::vertex_fluid_ndata ndata(params, neib_index, relPos);
+		const sa_bc::vertex_fluid_ndata ndata(params, neib_index, neib_pm);
 
 		if (ndata.r < params.influenceradius) {
-			pout.sumpWall += fmax(ndata.press + physical_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
-			pout.shepard_div += ndata.w;
+			pout.sumpWall += fmaxf(
+				ndata.press + physical_density(ndata.rhotilde, fluid_num(pdata.info))*dot3(d_gravity, ndata.relPos),
+				0.0f)*ndata.mass;
+			pout.shepard_div += ndata.mass;
 
 			io_fluid_contrib<step>(params, pdata, ndata, pout);
 		}
@@ -2254,16 +2256,18 @@ saVertexBoundaryConditionsRepackDevice(Params params)
 	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const relPos_mass neib_pm = neib_iter.relPos(params.fetchPos(neib_index));
 
-		if (INACTIVE(relPos))
+		if (is_inactive(neib_pm))
 			continue;
 
-		const sa_bc::vertex_fluid_ndata ndata(params, neib_index, relPos);
+		const sa_bc::vertex_fluid_ndata ndata(params, neib_index, neib_pm);
 
 		if (ndata.r < params.influenceradius) {
-			pout.sumpWall += fmax(ndata.press + physical_density(ndata.vel.w,fluid_num(pdata.info))*dot3(d_gravity, relPos), 0.0f)*ndata.w;
-			pout.shepard_div += ndata.w;
+			pout.sumpWall += fmaxf(
+				ndata.press + physical_density(ndata.rhotilde, fluid_num(pdata.info))*dot3(d_gravity, ndata.relPos),
+				0.0f)*ndata.mass;
+			pout.shepard_div += ndata.mass;
 		}
 	}
 
@@ -2419,14 +2423,14 @@ ComputeDummyParticlesDevice(
 
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = neib_iter.relPos(posArray[neib_index]);
+		const relPos_mass neib = neib_iter.relPos(posArray[neib_index]);
 		const particleinfo neib_info = infoArray[neib_index];
 
 		// Skip inactive neighbors and neighbors which are not FLUID
-		if (INACTIVE(relPos) || NOT_FLUID(neib_info) || IO_BOUNDARY(neib_info))
+		if (is_inactive(neib) || NOT_FLUID(neib_info) || IO_BOUNDARY(neib_info))
 			continue;
 
-		const float r = length3(relPos);
+		const float r = length(neib.relPos);
 
 		// skip particles not in influence radius
 		if (r >= influenceradius)
@@ -2446,7 +2450,7 @@ ComputeDummyParticlesDevice(
 			neib_pressure);
 
 		// the depth correction for the pressure is only added if it's positive
-		float rho_g_h = physical_density(neib_vel.w, fluid_num(neib_info))*dot3(accel_delta, relPos);
+		float rho_g_h = physical_density(neib_vel.w, fluid_num(neib_info))*dot3(accel_delta, neib.relPos);
 		neib_contrib.w += fmaxf(rho_g_h, 0.0f);
 
 		// weight

@@ -187,7 +187,7 @@ calcGridHashPeriodic(
  * getNeibIndex calls.
  */
 __device__ __forceinline__ uint
-getNeibIndex(	float4 const&	pos,					///< [in] current particle cell relative position
+getNeibIndex(	float3 const&	pos,					///< [in] current particle cell relative position
 				float3&			pos_corr,				///< [out] offset between particle cell and current neighbor cell
 				const uint*		cellStart,				///< [in] cells first particle index
 				neibdata		neib_data,				///< [in] neighbor data
@@ -204,7 +204,7 @@ getNeibIndex(	float4 const&	pos,					///< [in] current particle cell relative po
 		neib_data &= NEIBINDEX_MASK;
 
 		// Substract current cell offset vector to pos
-		pos_corr = as_float3(pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
+		pos_corr = pos - d_cell_to_offset[neib_cellnum]*d_cellSize;
 
 		// Compute index of the first particle in the current cell
 		// use calcGridHashPeriodic because we can only have an out-of-grid cell with neighbors

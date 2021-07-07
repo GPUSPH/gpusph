@@ -61,8 +61,8 @@ const	particleinfo	info;
 const	ParticleType	ptype;
 const	float4	force;
 const	int3	gridPos;
-const	float4	posN;
-const	float4	posNp1;
+const	pos_mass	atN;
+const	pos_mass	atNp1;
 const	float4	vel;
 const	float4	gGamN;
 
@@ -73,8 +73,8 @@ common_density_sum_particle_data(const uint _index, common_density_sum_params co
 	ptype(static_cast<ParticleType>(PART_TYPE(info))),
 	force(params.forces[index]),
 	gridPos(calcGridPosFromParticleHash(params.particleHash[index])),
-	posN(params.oldPos[index]),
-	posNp1(params.newPos[index]),
+	atN(params.oldPos[index]),
+	atNp1(params.newPos[index]),
 	vel(params.oldVel[index]),
 	gGamN(params.oldgGam[index])
 {}
@@ -122,15 +122,15 @@ densitySumOpenBoundaryContribution(
 	const	float	dt,
 	const	uint	neib_index,
 	const	particleinfo neib_info,
-	const	float4&	relPosN,
+	const	relPos_mass&	neib_atN,
 	float&	sumVmwDelta)
 {
 	if (IO_BOUNDARY(neib_info)) {
 		// compute - sum_{V^{io}} m^n w(r + delta r)
-		const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
-		const float newDist = length3(relPosN + deltaR);
+		const float3 deltaR = dt*make_float3(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+		const float newDist = length(neib_atN.relPos + deltaR);
 		if (newDist < params.influenceradius)
-			sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, params.slength);
+			sumVmwDelta -= neib_atN.mass*W<kerneltype>(newDist, params.slength);
 	}
 }
 
@@ -148,15 +148,15 @@ densitySumOpenBoundaryContribution
 	const	float	dt,
 	const	uint	neib_index,
 	const	particleinfo neib_info,
-	const	float4&	relPosN,
+	const	relPos_mass&	neib_atN,
 	float&	sumVmwDelta,
 	const	float	thetaRatio_times_pmass)
 {
 	// TODO: IO were implemented but not tested with Hu & Adams formulation
 	if (IO_BOUNDARY(neib_info)) {
 		// compute - sum_{V^{io}} m^n w(r + delta r)
-		const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
-		const float newDist = length3(relPosN + deltaR);
+		const float3 deltaR = dt*make_float3(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+		const float newDist = length(neib_atN.relPos + deltaR);
 		if (newDist < params.influenceradius)
 			sumVmwDelta -= thetaRatio_times_pmass*W<kerneltype>(newDist, params.slength);
 	}
@@ -171,7 +171,7 @@ densitySumOpenBoundaryContribution(
 	const	float	dt,
 	const	uint	neib_index,
 	const	particleinfo neib_info,
-	const	float4&	relPosN,
+	const	relPos_mass&	neib_atN,
 	float&	sumVmwDelta)
 { /* do nothing */ }
 
@@ -184,7 +184,7 @@ densitySumOpenBoundaryContribution(
 	const	float	dt,
 	const	uint	neib_index,
 	const	particleinfo neib_info,
-	const	float4&	relPosN,
+	const	relPos_mass&	neib_atN,
 	float&	sumVmwDelta,
 	float	thetaRatio_times_pmass)
 { /* do nothing */ }
@@ -206,10 +206,10 @@ const	float			dt,
 	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[ pdata.index] );
 
 	// (r_b^{N+1} - r_b^N)
-	const float4 posDelta = pdata.posNp1 - pdata.posN;
+	const float3 posDelta = pdata.atNp1.pos - pdata.atN.pos;
 
 	// Loop over fluid and vertex neighbors
-	for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
+	for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.atN, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 		const particleinfo neib_info = params.info[neib_index];
 
@@ -222,24 +222,24 @@ const	float			dt,
 		const float4 posNp1_neib = params.newPos[neib_index];
 
 		// vector r_{ab} at time N
-		const float4 relPosN = neib_iter.relPos(posN_neib);
+		const relPos_mass neib_atN = neib_iter.relPos(posN_neib);
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-		const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
+		const relPos_mass neib_atNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
 
 		// -sum_{P\V_{io}} m^n w^n
 		if (!IO_BOUNDARY(neib_info)) {
-			const float rN = length3(relPosN);
-			sumPmwN -= relPosN.w*W<kerneltype>(rN, params.slength);
+			const float rN = length(neib_atN.relPos);
+			sumPmwN -= neib_atN.mass*W<kerneltype>(rN, params.slength);
 		}
 
 		// sum_{P} m^n w^{n+1}
-		const float rNp1 = length3(relPosNp1);
+		const float rNp1 = length(neib_atNp1.relPos);
 		if (rNp1 < params.influenceradius)
-			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
+			sumPmwNp1 += neib_atN.mass*W<kerneltype>(rNp1, params.slength);
 
 		if (!params.repacking)
 			densitySumOpenBoundaryContribution<sph_formulation>(params, pdata, dt,
-				neib_index, neib_info, relPosN, sumVmwDelta);
+				neib_index, neib_info, neib_atN, sumVmwDelta);
 	}
 }
 
@@ -263,7 +263,7 @@ computeDensitySumVolumicTerms(
 	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[ pdata.index] );
 
 	// (r_b^{N+1} - r_b^N)
-	const float4 posDelta = pdata.posNp1 - pdata.posN;
+	const float3 posDelta = pdata.atNp1.pos - pdata.atN.pos;
 
 	// Get particleinfo of the current particle
 	const particleinfo p_info = params.info[ pdata.index ];
@@ -271,7 +271,7 @@ computeDensitySumVolumicTerms(
 	const uint p_fluid_num = fluid_num(p_info);
 
 	// Loop over fluid and vertex neighbors
-	for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
+	for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.atN, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 		const particleinfo neib_info = params.info[neib_index];
 
@@ -288,29 +288,29 @@ computeDensitySumVolumicTerms(
 		const float4 posNp1_neib = params.newPos[neib_index];
 
 		// vector r_{ab} at time N
-		const float4 relPosN = neib_iter.relPos(posN_neib);
+		const relPos_mass neib_atN = neib_iter.relPos(posN_neib);
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-		const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
+		const relPos_mass neib_atNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
 
-		const float p_volume0 = pdata.posN.w/d_rho0[p_fluid_num];
-		const float n_volume0 = relPosN.w/d_rho0[neib_fluid_num];
+		const float p_volume0 = pdata.atN.mass/d_rho0[p_fluid_num];
+		const float n_volume0 = neib_atN.mass/d_rho0[neib_fluid_num];
 		const float p_theta = p_volume0/(params.deltap*params.deltap*params.deltap);
 		const float n_theta = n_volume0/(params.deltap*params.deltap*params.deltap);
-		const float thetaRatio_times_pmass = pdata.posN.w/p_theta*n_theta;
+		const float thetaRatio_times_pmass = pdata.atN.mass/p_theta*n_theta;
 
 		// -sum_{P\V_{io}} m^n w^n
 		if (!IO_BOUNDARY(neib_info)) {
-			const float rN = length3(relPosN);
+			const float rN = length(neib_atN.relPos);
 			sumPmwN -= thetaRatio_times_pmass*W<kerneltype>(rN, params.slength);
 		}
 
 		// sum_{P} m^n w^{n+1}
-		const float rNp1 = length3(relPosNp1);
+		const float rNp1 = length(neib_atNp1.relPos);
 		if (rNp1 < params.influenceradius) {
 			sumPmwNp1 += thetaRatio_times_pmass*W<kerneltype>(rNp1, params.slength);
 		}
 		densitySumOpenBoundaryContribution<SPH_HA>(params, pdata, dt,
-			neib_index, neib_info, relPosN, sumVmwDelta, thetaRatio_times_pmass);
+			neib_index, neib_info, neib_atN, sumVmwDelta, thetaRatio_times_pmass);
 	}
 }
 
@@ -381,7 +381,7 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 {
 		if (IO_BOUNDARY(neib_info)) {
 			// sum_{S^{io}} (gradGam(r + delta r)).delta r
-			const float3 deltaR = dt*as_float3(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+			const float3 deltaR = dt*make_float3(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
 			const float3 qDelta = qN + deltaR/params.slength;
 			const float3 gGamDelta = gradGamma<GammaTermT::kerneltype>(params.slength, qDelta, vertexRelPos, ns)*ns;
 			sumGam.sumSgamDelta += dot(deltaR, gGamDelta);
@@ -427,10 +427,10 @@ computeDensitySumBoundaryTerms(
 	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[pdata.index] );
 
 	// (r_b^{N+1} - r_b^N)
-	const float4 posDelta = pdata.posNp1 - pdata.posN;
+	const float3 posDelta = pdata.atNp1.pos - pdata.atN.pos;
 
 	// Loop over BOUNDARY neighbors
-	for_each_neib(PT_BOUNDARY, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
+	for_each_neib(PT_BOUNDARY, pdata.index, pdata.atN, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 		const particleinfo neib_info = params.info[neib_index];
 
@@ -441,9 +441,9 @@ computeDensitySumBoundaryTerms(
 		const float4 posNp1_neib = params.newPos[neib_index];
 
 		// vector r_{ab} at time N
-		const float4 qN = neib_iter.relPos(posN_neib)/params.slength;
+		const float3 qN = neib_iter.relPos(posN_neib).relPos/params.slength;
 		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-		const float4 qNp1 = (neib_iter.relPos(posNp1_neib) + posDelta)/params.slength;
+		const float3 qNp1 = (neib_iter.relPos(posNp1_neib).relPos + posDelta)/params.slength;
 
 		float3 vertexRelPos[3];
 
@@ -452,7 +452,7 @@ computeDensitySumBoundaryTerms(
 		calcVertexRelPos(vertexRelPos, nsN,
 			params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
 			params.slength);
-		const float3 gGamN   = gradGamma<kerneltype>(params.slength, as_float3(qN),   vertexRelPos, nsN)*nsN;
+		const float3 gGamN   = gradGamma<kerneltype>(params.slength, qN, vertexRelPos, nsN)*nsN;
 
 		const float3 nsNp1 = make_float3(params.newBoundElement[neib_index]);
 		/* We only need to recompute calcVertexRelPos wrt to the new normal if there are moving bodies,
@@ -461,8 +461,8 @@ computeDensitySumBoundaryTerms(
 			calcVertexRelPos(vertexRelPos, nsNp1,
 				params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
 				params.slength);
-		/* But we still need to reocmpute grad gamma, because q changed anyway */
-		const float3 gGamNp1 = gradGamma<kerneltype>(params.slength, as_float3(qNp1), vertexRelPos, nsNp1)*nsNp1;
+		/* But we still need to recompute grad gamma, because q changed anyway */
+		const float3 gGamNp1 = gradGamma<kerneltype>(params.slength, qNp1, vertexRelPos, nsNp1)*nsNp1;
 
 		// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
 		sumGam.gGamDotR += 0.5f*dot3(gGamN + gGamNp1, qNp1 - qN);
@@ -548,15 +548,15 @@ densitySumVolumicDevice(
 struct integrate_gamma_particle_data
 {
 	const	uint	index;
-	const	float4	posN;
-	const	float4	posNp1;
+	const	pos_mass	atN;
+	const	pos_mass	atNp1;
 
 	template<typename Params>
 	__device__ __forceinline__
 	integrate_gamma_particle_data(const uint _index, Params const& params) :
 		index(_index),
-		posN(params.oldPos[index]),
-		posNp1(params.newPos[index])
+		atN(params.oldPos[index]),
+		atNp1(params.newPos[index])
 	{}
 };
 
@@ -701,18 +701,25 @@ struct quadrature_gamma_particle_output
 	{}
 };
 
-struct quadrature_gamma_neib_data
+struct quadrature_gamma_neib_data : relPos_mass
 {
 	const uint index;
-	const float4 relPos;
 	const float4 belem;
 
 	template<typename FP, typename Iterator>
 	__device__ __forceinline__
-	quadrature_gamma_neib_data(FP const& params, Iterator const& iter) :
-		index(iter.neib_index()),
-		relPos(iter.relPos(params.newPos[index])),
+	quadrature_gamma_neib_data(FP const& params, Iterator const& iter, uint index_)
+	:
+		relPos_mass(iter.relPos(params.newPos[index_])),
+		index(index_),
 		belem(params.newBoundElement[index])
+	{}
+
+	template<typename FP, typename Iterator>
+	__device__ __forceinline__
+	quadrature_gamma_neib_data(FP const& params, Iterator const& iter)
+	:
+		quadrature_gamma_neib_data(params, iter, iter.neib_index())
 	{}
 
 };
@@ -723,7 +730,7 @@ __device__ __forceinline__
 void
 gamma_quadrature_contrib(FP const& params, P const& pdata, N const& ndata, OP &pout)
 {
-	const float3 q = as_float3(ndata.relPos)/params.slength;
+	const float3 q = ndata.relPos/params.slength;
 	float3 q_vb[3];
 	calcVertexRelPos(q_vb, ndata.belem,
 		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],

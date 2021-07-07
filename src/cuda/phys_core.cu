@@ -163,26 +163,13 @@ numerical_density(const float rho, const ushort i)
  */
 
 /// Fetch the particle (numerical) density
-/*! This is either pdata.vel.w or ndata.relVel.w, depending on whether we're
- * doing it for the central particle or the neighbor. The difference is handled
- * by the specializations, whose SFINAE condition is the presence of a relVel member.
- */
-template<typename N>
-__device__ __forceinline__
-enable_if_t<has_relVel<N>(), float>
-particle_density(N const& ndata)
-{
-	/* has relVel, so it's neighbor data */
-	return ndata.relVel.w;
-}
-
 template<typename P>
 __device__ __forceinline__
-enable_if_t<not has_relVel<P>(), float>
+float
 particle_density(P const& pdata)
 {
 	/* no relVel, assume it's central particle data */
-	return pdata.vel.w;
+	return pdata.rhotilde;
 }
 
 /// Fetch the physical particle density

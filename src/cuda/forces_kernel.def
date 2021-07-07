@@ -463,38 +463,37 @@ float compute_rTr_r2(symtensor3 T, V const& relPos)
 // assembly mechanism similar to the one seen in src/forces_params.h
 
 // data used for all particles
-struct common_particle_data
+struct common_particle_data : pos_mass
 {
 	const	uint	index;
 	particleinfo	const& info;
-	float4	const&	pos;
 	const	int3	gridPos;
 
 	__device__ __forceinline__
-	common_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info, hashKey const* __restrict__ hash) :
+	common_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info, hashKey const* __restrict__ hash)
+	:
+		pos_mass(_pos),
 		index(_index),
 		info(_info),
-		pos(_pos),
 		gridPos(calcGridPosFromParticleHash(hash[index]))
 	{}
 };
 
 // data used for all particles in finalize
-struct common_finalize_particle_data
+struct common_finalize_particle_data : pos_mass, vel_rho
 {
 	const	uint	index;
 	particleinfo	const& info;
-	float4	const&	pos;
-	float4	const&	vel;
 	const	int3	gridPos;
 
 	__device__ __forceinline__
 	common_finalize_particle_data(const uint _index, float4 const& _pos, float4 const& _vel,
-			particleinfo const& _info, hashKey const* hash) :
+			particleinfo const& _info, hashKey const* hash)
+	:
+		pos_mass(_pos),
+		vel_rho(_vel),
 		index(_index),
 		info(_info),
-		pos(_pos),
-		vel(_vel),
 		gridPos(calcGridPosFromParticleHash(hash[index]))
 	{}
 };
@@ -514,16 +513,16 @@ struct rb_particle_data
 // * fluid particles
 // * vertex particles if KEPSILON
 // also includes local speed of sound
-struct vel_particle_data
+struct vel_particle_data : vel_rho
 {
-	const	float4	vel;
 	const	float	sspeed;
 
 	template<typename FP> /* templatized over the kernel input params */
 	__device__ __forceinline__
-	vel_particle_data(FP const& params, const uint _index, particleinfo const& _info) :
-		vel(params.fetchVel(_index)),
-		sspeed(soundSpeed(vel.w, fluid_num(_info)))
+	vel_particle_data(FP const& params, const uint _index, particleinfo const& _info)
+	:
+		vel_rho(params.fetchVel(_index)),
+		sspeed(soundSpeed(rhotilde, fluid_num(_info)))
 	{}
 };
 
@@ -815,7 +814,7 @@ struct forces_particle_data :
 		sps_cond(_index, params),
 		p_precalc_particle_data(*this),
 		visc_cond(_index, params),
-		keps_precalc_cond(physical_density(vel.w, fluid_num(_info)), *this, *this),
+		keps_precalc_cond(physical_density(rhotilde, fluid_num(_info)), *this, *this),
 		cspm_cond(_index, params),
 		delta_sph_cond(_index, params)
 	{}
@@ -935,7 +934,7 @@ struct keps_particle_output
 	// (not exactly though: since we'll need to multiply by two later,
 	// the off-diagonal elements will be stored premultiplied)
 	__device__ __forceinline__
-	void add_strain_rate(float4 const& relVel, float3 const& mul)
+	void add_strain_rate(float3 const& relVel, float3 const& mul)
 	{
 		float3 dvx = relVel.x*mul;
 		float3 dvy = relVel.y*mul;
@@ -1083,15 +1082,11 @@ struct finalize_repack_particle_output :
  */
 
 // data used fo all neibs
-struct common_neib_data
+struct common_neib_data : relPos_mass, relVel_rho
 {
 	particleinfo	const& info;
-	// relPos holds the distance vector in .xyz and the neib mass in .w
-	float4	const&	relPos;
 	const	float	r;
 
-	// relVel holds the relative velocity in .xyz and the neib density in .w
-	const	float4	relVel;
 	const	float	vel_dot_pos;
 	// norm of the gradient of the kernel
 	const	float	f;
@@ -1106,13 +1101,15 @@ struct common_neib_data
 	__device__ __forceinline__
 	common_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, particleinfo const& _info,
-		float4 const& _relPos, const float _r) :
-		info(_info), relPos(_relPos), r(_r),
-		relVel(as_float3(pdata.vel) - params.fetchVel(_index)),
+		relPos_mass const& neib, const float _r)
+	:
+		relPos_mass(neib),
+		relVel_rho(pdata.vel - vel_rho(params.fetchVel(_index))),
+		info(_info), r(_r),
 		vel_dot_pos(dot3(relVel, relPos)),
 		f(F<FP::kerneltype>(r, params.slength)),
 		w(W<FP::kerneltype>(r, params.slength)),
-		sspeed(soundSpeed(relVel.w, fluid_num(_info)))
+		sspeed(soundSpeed(rhotilde, fluid_num(_info)))
 	{}
 };
 
@@ -1128,25 +1125,35 @@ struct sa_boundary_neib_data
 	template<typename Pt, typename FP>
 	__device__ __forceinline__
 	sa_boundary_neib_data(Pt const& pdata, FP const& params,
-		const uint _index, float4 const& _relPos) :
+		const uint _index, relPos_mass const& neib) :
 		index(_index),
 		belem(params.fetchBound(index)),
 		normal_s(as_float3(belem)),
-		r_as(fmax(fabs(dot3(_relPos, normal_s)), params.deltap))
+		r_as(fmax(fabs(dot3(neib.relPos, normal_s)), params.deltap))
 	{}
 };
 
 struct dummy_boundary_neib_data
 {
-	const	float4	dummyRelVel;
+	const	float3	dummyRelVel;
+	const	float	pressure; // dummy particles compute pressure during interpolation
 
-	/* The constructor is templatized on the particle data type and on the
+	/* Behind the scenes, we simply care about splitting the float4 */
+	__device__ __forceinline__
+	dummy_boundary_neib_data(space_w_t const& load)
+	:
+		dummyRelVel(load.xyz),
+		pressure(load.w)
+	{}
+
+	/* The public constructor is templatized on the particle data type and on the
 	   kernel params type */
 	template<typename Pt, typename FP>
 	__device__ __forceinline__
 	dummy_boundary_neib_data(Pt const& pdata, FP const& params,
-		const uint _index, float4 const& _relPos) :
-		dummyRelVel(as_float3(pdata.vel) - params.dummyVel[_index])
+		const uint _index, relPos_mass const& _relPos)
+	:
+		dummy_boundary_neib_data(pdata.vel - space_w_t(params.dummyVel[_index]))
 	{}
 };
 
@@ -1293,7 +1300,7 @@ struct forces_neib_data :
 	__device__ __forceinline__
 	forces_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, particleinfo const& _info,
-		float4 const& _relPos, const float _r) :
+		relPos_mass const& _relPos, const float _r) :
 		common_neib_data(pdata, params, _index, _info, _relPos, _r),
 		COND_STRUCT(sph_formulation == SPH_GRENIER &&
 			(densitydiffusiontype == COLAGROSSI), volume_particle_data)
@@ -1338,9 +1345,9 @@ struct repack_neib_data :
 	__device__ __forceinline__
 	repack_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, particleinfo const& _info,
-		float4 const& _relPos, const float _r) :
-		common_neib_data(pdata, params, _index, _info, _relPos, _r),
-		_sa_boundary_neib_data(pdata, params, _index, _relPos)
+		relPos_mass const& neib, const float _r) :
+		common_neib_data(pdata, params, _index, _info, neib, _r),
+		_sa_boundary_neib_data(pdata, params, _index, neib)
 	{}
 };
 
@@ -1498,7 +1505,7 @@ enable_if_t<
 >
 compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata)
 {
-	const float3 q = as_float3(ndata.relPos)/params.slength;
+	const float3 q = ndata.relPos/params.slength;
 	// relative positions of vertices with respect to the segment
 	float3 q_vb[3];
 	calcVertexRelPos(q_vb, ndata.belem,
@@ -1575,9 +1582,9 @@ compute_gamma_cfl_open_boundary
 	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
 	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
 		// n . (v_a - u_s)
-		fabs(dot3(ndata.belem, pdata.vel+ndata.relEulerVel)),
+		fabs(dot3(ndata.belem, pdata.vel+ make_float3(ndata.relEulerVel))),
 		// n . (v_s + u_s)
-		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
+		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-make_float3(ndata.relEulerVel))) ));
 }
 
 template<typename FP, typename OP, typename P, typename N, typename ON>
@@ -1658,7 +1665,7 @@ __device__ __forceinline__
 enable_if_t<!HAS_CCSPH(N::simflags), float3 const>
 corrected_relPos(N const& ndata)
 {
-	return make_float3(ndata.relPos);
+	return ndata.relPos;
 }
 
 template<typename N>
@@ -1746,7 +1753,7 @@ enable_if_t<not has_volume<P>(), float>
 volume_ratio(P const& pdata, N const& ndata)
 { return physical_density(ndata)/physical_density(pdata); }
 // TODO : check accuracy
-//{ return (ndata.relVel.w + 1.0f)/(pdata.vel.w + 1.0f)*(d_rho0[fluid_num(ndata.info)]/d_rho0[fluid_num(pdata.info)]); }
+//{ return (ndata.rhotilde + 1.0f)/(pdata.rhotilde + 1.0f)*(d_rho0[fluid_num(ndata.info)]/d_rho0[fluid_num(pdata.info)]); }
 
 /// Cases when there is no density contribution
 template<typename FP, typename P, typename N, typename ON,
@@ -1788,10 +1795,10 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	// actual diffusion term
 	const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
-		(rho - neib_rho + grav_corr)/rho/ndata.r*as_float3(ndata.relPos) :
+		(rho - neib_rho + grav_corr)/rho/ndata.r*ndata.relPos :
 		make_float3(0.0f);
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, corrected_relPos(ndata))*ndata.f;
+	nout.DrDt += d_densityDiffCoeff*ndata.mass*dot(ferraricor, corrected_relPos(ndata))*ndata.f;
 }
 
 /// Contribution from fluid (and vertex if SA_BOUNDARY is used) neighbors 
@@ -1813,11 +1820,11 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	if (p_fluid_num != n_fluid_num) return;
 
 	// Initial volumes
-	const float p_volume0 = pdata.pos.w/d_rho0[p_fluid_num];
-	const float n_volume0 = ndata.relPos.w/d_rho0[n_fluid_num];
+	const float p_volume0 = pdata.mass/d_rho0[p_fluid_num];
+	const float n_volume0 = ndata.mass/d_rho0[n_fluid_num];
 	// Actual volumes
-	const float p_volume = pdata.pos.w/physical_density(pdata);
-	const float n_volume = ndata.relPos.w/physical_density(ndata);
+	const float p_volume = pdata.mass/physical_density(pdata);
+	const float n_volume = ndata.mass/physical_density(ndata);
 	// Volume fractions (must be computed from initial volumes)
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	const float n_theta = volume_fraction<FP, nptype>(n_volume0, params.deltap);
@@ -1830,10 +1837,10 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	// actual diffusion term
 	const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
-		(pdata.pos.w*(1./p_volume - n_theta/(p_theta*n_volume)) + grav_corr)/physical_density(pdata)/ndata.r*as_float3(ndata.relPos) :
+		(pdata.mass*(1./p_volume - n_theta/(p_theta*n_volume)) + grav_corr)/physical_density(pdata)/ndata.r*ndata.relPos :
 		make_float3(0.0f);
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-	nout.DrDt += d_densityDiffCoeff*ndata.relPos.w*dot(ferraricor, corrected_relPos(ndata))*ndata.f;
+	nout.DrDt += d_densityDiffCoeff*ndata.mass*dot(ferraricor, corrected_relPos(ndata))*ndata.f;
 }
 
 /// Contribution from boundary neighbors for Ferrari density diffusion,
@@ -1881,13 +1888,13 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const uint n_fluid_num = fluid_num(ndata.info);
 
 	// Initial volumes
-	const float p_volume0 = pdata.pos.w/d_rho0[p_fluid_num];
+	const float p_volume0 = pdata.mass/d_rho0[p_fluid_num];
 	// Volume fractions (must be computed from initial volumes)
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	const float n_theta = 0.5f; // for boundary elements, always 0.5
 
 	// Actual volumes
-	const float p_volume = pdata.pos.w/physical_density(pdata);
+	const float p_volume = pdata.mass/physical_density(pdata);
 
 	/* Actual volume should be calculated from the actual (interpolated) density
 	* and the mass. But boundary elements do not have mass. To get their actual 
@@ -1911,7 +1918,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 
 	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
-		(pdata.pos.w*(1./p_volume - n_theta/(p_theta*n_volume)) + grav_corr)/ndata.r :
+		(pdata.mass*(1./p_volume - n_theta/(p_theta*n_volume)) + grav_corr)/ndata.r :
 		0.0f;
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
 	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
@@ -1937,9 +1944,9 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	const float neib_rho = physical_density(ndata);
 	// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
 	nout.DrDt += d_densityDiffCoeff*((2.0f/(rho + neib_rho))*
-		(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+		(P(pdata.rhotilde, fluid_num(pdata.info)) - P(ndata.rhotilde, fluid_num(ndata.info)))
 		- dot3(d_gravity, ndata.relPos)
-		)*ndata.relPos.w/neib_rho*corrected_f(ndata)*params.dt*2.0f*rho;
+		)*ndata.mass/neib_rho*corrected_f(ndata)*params.dt*2.0f*rho;
 }
 
 /// Brezzi density diffusion term from fluid neighbors for
@@ -1961,14 +1968,14 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	// only.
 
 	// Initial volumes (to compute the thetas)
-	const float p_volume0 = pdata.pos.w/	d_rho0[fluid_num(pdata.info)];
-	const float n_volume0 = ndata.relPos.w/	d_rho0[fluid_num(ndata.info)];
+	const float p_volume0 = pdata.mass/	d_rho0[fluid_num(pdata.info)];
+	const float n_volume0 = ndata.mass/	d_rho0[fluid_num(ndata.info)];
 	// Thetas
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	const float n_theta = volume_fraction<FP, nptype>(n_volume0, params.deltap);
 	// Actual volumes
-	const float p_volume = pdata.pos.w/	physical_density(pdata);
-	const float n_volume = ndata.relPos.w/	physical_density(ndata);
+	const float p_volume = pdata.mass/	physical_density(pdata);
+	const float n_volume = ndata.mass/	physical_density(ndata);
 	//Physical density
 	const float p_rho = physical_density(pdata);
 	const float n_rho = physical_density(ndata);
@@ -1976,10 +1983,10 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	// The term 2/(rho + neib_rho) of the standard formula is replaced by:
 	// 2/(mass* ( 1/volume + neib_theta/(theta*neib_volume) ) )
 	nout.DrDt += d_densityDiffCoeff*(
-			2.0f/(pdata.pos.w*(1./p_volume + n_theta/(p_theta*n_volume )))*
-			(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+			2.0f/(pdata.mass*(1./p_volume + n_theta/(p_theta*n_volume )))*
+			(P(pdata.rhotilde, fluid_num(pdata.info)) - P(ndata.rhotilde, fluid_num(ndata.info)))
 			- dot3(d_gravity, ndata.relPos)
-			)*ndata.relPos.w/n_rho*corrected_f(ndata)*params.dt*2.0f*p_rho;
+			)*ndata.mass/n_rho*corrected_f(ndata)*params.dt*2.0f*p_rho;
 }
 
 
@@ -2005,7 +2012,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 		const float rho = physical_density(pdata);
 		const float neib_rho = physical_density(ndata);
 		nout.DrDt -= ((2.0f/(rho + neib_rho))*
-			(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+			(P(pdata.rhotilde, fluid_num(pdata.info)) - P(ndata.rhotilde, fluid_num(ndata.info)))
 			- dot3(d_gravity, ndata.relPos)
 			)*nout.ggamAS/ndata.r_as*params.dt*2.0f*rho;
 	}
@@ -2032,7 +2039,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 
 	if (IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info)) {
 		// Initial volume
-		const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
+		const float p_volume0 = pdata.mass/d_rho0[fluid_num(pdata.info)];
 
 		/* Actual volume should be calculated from the actual (interpolated) density
 		 * and the mass. But boundary elements do not have mass. To get their actual 
@@ -2055,11 +2062,11 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 		const float p_rho = physical_density(pdata);
 		const float n_rho = physical_density(ndata);
 		// Actual volumes
-		const float p_volume = pdata.pos.w/p_rho;
+		const float p_volume = pdata.mass/p_rho;
 		const float n_volume = n_theta*n_ref_volume0*d_rho0[fluid_num(ndata.info)]/n_rho;
 
-		nout.DrDt -= (2.0f/(pdata.pos.w*(1./p_volume + n_theta/(p_theta*n_volume)))*
-				(P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
+		nout.DrDt -= (2.0f/(pdata.mass*(1./p_volume + n_theta/(p_theta*n_volume)))*
+				(P(pdata.rhotilde, fluid_num(pdata.info)) - P(ndata.rhotilde, fluid_num(ndata.info)))
 				- dot3(d_gravity, ndata.relPos)
 			     )*nout.ggamAS/ndata.r_as*params.dt*2.0f*p_rho;
 	}
@@ -2080,10 +2087,17 @@ enable_if_t<
 >
 colagrossi_density_diffusion_term(FP const& params, Pt const& pdata, N const& ndata, int fType)
 {
+	// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
+	// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
+	// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
+	// 2(vol_i/vol_j - 1) F_ij
+	// For us rhodiffcoeff = \xi*h*2
+	// Additionally, when the density evolution formulation is NOT based on
+	// volumes, we need to multiply by the neighbor mass
 	return d_densityDiffCoeff*d_sscoeff[fType]*
 		(volume_ratio(pdata, ndata) - 1)*
-		//corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.relPos.w);
-		ndata.f*(has_volume(pdata) ? -1 : ndata.relPos.w);
+		//corrected_f(ndata)*(has_volume(pdata) ? -1 : ndata.mass);
+		ndata.f*(has_volume(pdata) ? -1 : ndata.mass);
 }
 
 template<typename FP, typename Pt, typename N, ParticleType nptype = N::nptype>
@@ -2095,10 +2109,10 @@ enable_if_t<
 >
 colagrossi_density_diffusion_term(FP const& params, Pt const& pdata, N const& ndata, int fType)
 {
-	const float p_volume = pdata.pos.w/physical_density(pdata);
-	const float n_volume = ndata.relPos.w/physical_density(ndata);
+	const float p_volume = pdata.mass/physical_density(pdata);
+	const float n_volume = ndata.mass/physical_density(ndata);
 	return d_densityDiffCoeff*d_sscoeff[fType]*
-		( p_volume/n_volume - 1)*corrected_f(ndata)*pdata.pos.w;
+		( p_volume/n_volume - 1)*corrected_f(ndata)*pdata.mass;
 }
 
 /// Molteni & Colagrossi density diffusion term for all formulations
@@ -2118,17 +2132,10 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 
 	// only apply diffusion for large density ratios, specifically
 	// when DeltaP > rhogh
-	if (fabs(P(pdata.vel.w, fType) - P(ndata.relVel.w, fType)) <
+	if (fabs(P(pdata.rhotilde, fType) - P(ndata.rhotilde, fType)) <
 		fabs(dot3(d_gravity, ndata.relPos)*physical_density(pdata)))
 		return;
 
-	// The contribution is \xi h c_0 \psi_ij \dot \grad W_ij dV_j where
-	// \psi_ij = 2(vol_i/vol_j - 1) (x_i-x_j)/|x_i - x_j|.
-	// given \grad W_ij = (x_i - x_j) F_ij, \psi_ij \grad W_i simplifies to
-	// 2(vol_i/vol_j - 1) F_ij
-	// For us rhodiffcoeff = \xi*h*2
-	// Additionally, when the density evolution formulation is NOT based on
-	// volumes, we need to multiply by the neighbor mass
 	const float diff_term = colagrossi_density_diffusion_term(params, pdata, ndata, fType);
 
 	// TODO consider diff_term * W_ij/W(d/2) for dynamic problems
@@ -2157,9 +2164,9 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	// TODO FIXME assuming single fluid, and exploiting the fact that
 	// renorm_dens_grad is <∇ρ>/rho0, so we just divide by 1 + rhotilde
 	// instead of the physical density of the neighbor
-	float delta_term = dot3((pdata.renorm_dens_grad - ndata.renorm_dens_grad), ndata.relPos)
+	float delta_term = dot((pdata.renorm_dens_grad - ndata.renorm_dens_grad), ndata.relPos)
 		*0.5f*d_densityDiffCoeff*d_sscoeff[fType]*ndata.f*
-		ndata.relPos.w/(1.0f + ndata.relVel.w);// FIXME check sign
+		ndata.mass/(1.0f + ndata.rhotilde);// FIXME check sign
 
 	diff_term -= delta_term;
 
@@ -2214,7 +2221,7 @@ mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
 	// for Hu and Adams' formulation, DrDt = mass Ʃ relVel.∇w 
-	nout.DrDt += pdata.pos.w*corrected_vel_dot_pos(ndata)*ndata.f;
+	nout.DrDt += pdata.mass*corrected_vel_dot_pos(ndata)*ndata.f;
 }
 
 /// Mass continuity: divergence of velocity term
@@ -2233,14 +2240,14 @@ mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
 	// Initial volumes
-	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
-	const float n_volume0 = ndata.relPos.w/d_rho0[fluid_num(ndata.info)];
+	const float p_volume0 = pdata.mass/d_rho0[fluid_num(pdata.info)];
+	const float n_volume0 = ndata.mass/d_rho0[fluid_num(ndata.info)];
 	// Thetas
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	const float n_theta = volume_fraction<FP, FP::nptype>(n_volume0, params.deltap);
 
 	// DrDt = mass/p_theta Ʃ n_theta*relVel.∇w 
-	nout.DrDt = pdata.pos.w/p_theta*n_theta*corrected_vel_dot_pos(ndata)*ndata.f;
+	nout.DrDt = pdata.mass/p_theta*n_theta*corrected_vel_dot_pos(ndata)*ndata.f;
 }
 
 /// Mass continuity: divergence of velocity term
@@ -2278,7 +2285,7 @@ mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
 	// Particle initial volume
-	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
+	const float p_volume0 = pdata.mass/d_rho0[fluid_num(pdata.info)];
 	// Thetas
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	/* Actual volume should be calculated from the actual (interpolated) density
@@ -2296,7 +2303,7 @@ mass_continuity_div_vel_term
 	const float n_ref_volume0 = params.deltap*params.deltap*params.deltap;
 	const float n_ref_volume = n_ref_volume0*d_rho0[fluid_num(ndata.info)]/physical_density(ndata);
 	// DrDt -= p_mass/p_theta Ʃ 1./n_ref_volume*relVel.∇ɤ
-	nout.DrDt -= pdata.pos.w/p_theta/n_ref_volume*
+	nout.DrDt -= pdata.mass/p_theta/n_ref_volume*
 			dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
 }
 
@@ -2319,8 +2326,8 @@ enable_if_t<
 mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	//nout.DrDt = ndata.relPos.w*corrected_vel_dot_pos(ndata)*ndata.f;
-	nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
+	//nout.DrDt = ndata.mass*corrected_vel_dot_pos(ndata)*ndata.f;
+	nout.DrDt = ndata.mass*ndata.vel_dot_pos*ndata.f;
 }
 
 /// Density ratio contribution
@@ -2451,8 +2458,8 @@ enable_if_t<
 pressure_gradient_term
 (FP const& params, Pt const& pdata, N const& ndata)
 {
-	const float p_volume = pdata.pos.w/physical_density(pdata);
-	const float n_volume = ndata.relPos.w/physical_density(ndata);
+	const float p_volume = pdata.mass/physical_density(pdata);
+	const float n_volume = ndata.mass/physical_density(ndata);
 
 	return pdata.p_precalc*p_volume*p_volume
 			+ ndata.p_precalc*n_volume*n_volume;
@@ -2473,11 +2480,11 @@ pressure_gradient_term
 (FP const& params, Pt const& pdata, N const& ndata)
 {
 	// Particle initial volume
-	const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
+	const float p_volume0 = pdata.mass/d_rho0[fluid_num(pdata.info)];
 	// Thetas
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume0, params.deltap);
 	// Actual particle reference volume
-	const float p_ref_volume = pdata.pos.w/physical_density(pdata)/p_theta;
+	const float p_ref_volume = pdata.mass/physical_density(pdata)/p_theta;
 
 	/* Actual volume should be calculated from the actual (interpolated) density
 	* and the mass. But boundary elements do not have mass. To get their actual 
@@ -2514,12 +2521,12 @@ pressure_gradient_term
 {
 	// TODO FIXME GB: they don't seem to be used, actually?
 	// // Initial volumes (used to compute the thetas)
-	// const float p_volume0 = pdata.pos.w/d_rho0[fluid_num(pdata.info)];
-	// const float n_volume0 = ndata.relPos.w/d_rho0[fluid_num(ndata.info)];
+	// const float p_volume0 = pdata.mass/d_rho0[fluid_num(pdata.info)];
+	// const float n_volume0 = ndata.mass/d_rho0[fluid_num(ndata.info)];
 
 	// Actual volumes (used in the pressure gradient term)
-	const float p_volume = pdata.pos.w/physical_density(pdata);
-	const float n_volume = ndata.relPos.w/physical_density(ndata);
+	const float p_volume = pdata.mass/physical_density(pdata);
+	const float n_volume = ndata.mass/physical_density(ndata);
 	// Thetas
 	const float p_theta = volume_fraction<FP, FP::cptype>(p_volume, params.deltap);
 	const float n_theta = volume_fraction<FP, FP::nptype>(n_volume, params.deltap);
@@ -2580,9 +2587,9 @@ compute_pressure_contrib
 {
 	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
 	// DvDt = -∇p/rho += 1/rho*(1/ref_V Σ 1/neib_ref_V(p*ref_V^2 + neib_p*neib_ref_V^2) ∇ɤ)
-	nout.DvDt += pGradTerm/pdata.pos.w*nout.ggamAS*ndata.normal_s;
+	nout.DvDt += pGradTerm/pdata.mass*nout.ggamAS*ndata.normal_s;
 	// DEBUG
-	//nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
+	//nout.DvDt += pGradTerm*ndata.rhotilde*nout.ggamAS*ndata.normal_s;
 }
 
 /// Pressure contribution from boundary particles in SA_BOUNDARY case
@@ -2617,7 +2624,7 @@ compute_pressure_contrib
 {
 	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
 	// DvDt = -∇p/rho = -1/rho*(1/V Σ (p*V^2 + neibP*neibV^2) ∇w)
-	nout.DvDt -= pGradTerm/pdata.pos.w*ndata.f*corrected_relPos(ndata);
+	nout.DvDt -= pGradTerm/pdata.mass*ndata.f*corrected_relPos(ndata);
 }
 
 
@@ -2636,7 +2643,7 @@ compute_pressure_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
-	nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*corrected_relPos(ndata);
+	nout.DvDt -= pGradTerm*ndata.mass*ndata.f*corrected_relPos(ndata);
 }
 
 /*
@@ -2674,7 +2681,7 @@ compute_pressure_contrib
 
 template<typename P, typename N>
 __device__ __forceinline__
-enable_if_t<not needs_dummy_vel<P, N>(), float4>
+enable_if_t<not needs_dummy_vel<P, N>(), float3>
 get_dummy_relVel(P const& pdata, N const& ndata)
 {
 	return ndata.relVel;
@@ -2682,7 +2689,7 @@ get_dummy_relVel(P const& pdata, N const& ndata)
 
 template<typename P, typename N>
 __device__ __forceinline__
-enable_if_t<needs_dummy_vel<P, N>(), float4>
+enable_if_t<needs_dummy_vel<P, N>(), float3>
 get_dummy_relVel(P const& pdata, N const& ndata)
 {
 	return ndata.dummyRelVel;
@@ -2690,15 +2697,15 @@ get_dummy_relVel(P const& pdata, N const& ndata)
 
 template<typename P, typename N>
 __device__ __forceinline__
-enable_if_t<has_relEulerVel<N>(), float4>
+enable_if_t<has_relEulerVel<N>(), float3>
 get_viscous_relVel(P const& pdata, N const& ndata)
 {
-	return get_dummy_relVel(pdata, ndata) + ndata.relEulerVel;
+	return get_dummy_relVel(pdata, ndata) + make_float3(ndata.relEulerVel);
 } /* eulerVel case */
 
 template<typename P, typename N>
 __device__ __forceinline__
-enable_if_t<not has_relEulerVel<N>(), float4>
+enable_if_t<not has_relEulerVel<N>(), float3>
 get_viscous_relVel(P const& pdata, N const& ndata)
 {
 	return get_dummy_relVel(pdata, ndata);
@@ -2724,7 +2731,7 @@ enable_if_t<viscmodel == MORRIS, float3>
 viscous_vector_component(FP const& params, P const& pdata, N const& ndata)
 {
 	// the multiplication by ndata.f will be done by the caller
-	return make_float3(get_viscous_relVel(pdata, ndata))*corrected_f_coefficient(ndata);
+	return get_viscous_relVel(pdata, ndata)*corrected_f_coefficient(ndata);
 }
 
 template<typename FP, typename P, typename N, ViscousModel viscmodel = FP::viscmodel>
@@ -2777,7 +2784,7 @@ __device__ __forceinline__
 enable_if_t<FP::sph_formulation != SPH_GRENIER, float>
 viscous_volume_coefficient(FP const& params, P const& pdata, N const& ndata)
 {
-	return ndata.relPos.w/(physical_density(pdata)*physical_density(ndata));
+	return ndata.mass/(physical_density(pdata)*physical_density(ndata));
 }
 template<typename FP, typename P, typename N>
 __device__ __forceinline__
@@ -2822,8 +2829,7 @@ compute_laminar_visc_contrib
 {
 	const float visc = visc_avg<typename FP::ViscSpec>(
 			get_visc_coeff(pdata), get_visc_coeff(ndata),
-			physical_density(pdata), physical_density(ndata), ndata.relPos.w);
-
+			physical_density(pdata), physical_density(ndata), ndata.mass);
 
 	nout.DvDt += visc*ndata.f*viscous_vector_component(params, pdata, ndata);
 }
@@ -2875,7 +2881,7 @@ compute_laminar_visc_contrib
 	const float pos_den = dot3(ndata.relPos, ndata.relPos) + d_epsartvisc;
 
 	nout.DvDt += coeff*(
-		(5*visc_thirds-bulk)*as_float3(ndata.relVel)*corrected_f_coefficient(ndata) +
+		(5*visc_thirds-bulk)*ndata.relVel*corrected_f_coefficient(ndata) +
 		5*(visc_thirds+bulk)*ndata.vel_dot_pos/pos_den*corrected_relPos(ndata)
 		);
 }
@@ -2906,10 +2912,11 @@ compute_laminar_visc_contrib
 		return;
 
 	// velocity of fluid particle along the wall
-	const float3 vel_tau = as_float3(get_viscous_relVel(pdata, ndata)) -
+	const float3 visc_relVel = get_viscous_relVel(pdata, ndata);
+	const float3 vel_tau = visc_relVel -
 		(IO_BOUNDARY(ndata.info) ?
 		 make_float3(0.0f) :
-		 dot3(get_viscous_relVel(pdata, ndata), ndata.normal_s)*ndata.normal_s
+		 dot3(visc_relVel, ndata.normal_s)*ndata.normal_s
 		);
 
 	// TODO check if this should be get_visc_coeff instead of get_laminar_visc_coeff
@@ -2967,7 +2974,7 @@ compute_turb_visc_contrib
 			physical_density(pdata), physical_density(ndata),
 			pdata.sspeed, ndata.sspeed, ndata.r, params.slength);
 		// note that here we use the position difference and not the velocity difference
-		nout.DvDt += visc*corrected_relPos(ndata)*ndata.relPos.w*ndata.f;
+		nout.DvDt += visc*corrected_relPos(ndata)*ndata.mass*ndata.f;
 	}
 }
 
@@ -2992,15 +2999,15 @@ compute_turb_visc_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float3 relPos = corrected_relPos(ndata);
-	nout.DvDt.x += ndata.relPos.w*ndata.f*(
+	nout.DvDt.x += ndata.mass*ndata.f*(
 		(pdata.tau.xx + ndata.tau.xx)*relPos.x +
 		(pdata.tau.xy + ndata.tau.xy)*relPos.y +
 		(pdata.tau.xz + ndata.tau.xz)*relPos.z);
-	nout.DvDt.y += ndata.relPos.w*ndata.f*(
+	nout.DvDt.y += ndata.mass*ndata.f*(
 		(pdata.tau.xy + ndata.tau.xy)*relPos.x +
 		(pdata.tau.yy + ndata.tau.yy)*relPos.y +
 		(pdata.tau.yz + ndata.tau.yz)*relPos.z);
-	nout.DvDt.z += ndata.relPos.w*ndata.f*(
+	nout.DvDt.z += ndata.mass*ndata.f*(
 		(pdata.tau.xz + ndata.tau.xz)*relPos.x +
 		(pdata.tau.yz + ndata.tau.yz)*relPos.y +
 		(pdata.tau.zz + ndata.tau.zz)*relPos.z);
@@ -3055,7 +3062,8 @@ compute_turb_visc_contrib
 		return;
 
 	// a component of fluid particle velocity tangential to the wall
-	const float3 u_t = as_float3(ndata.relVel+pdata.eulerVel) - dot3(ndata.relVel+pdata.eulerVel, ndata.normal_s)*ndata.normal_s;
+	const float3 visc_relVel = ndata.relVel + make_float3(pdata.eulerVel);
+	const float3 u_t = visc_relVel - dot3(visc_relVel, ndata.normal_s)*ndata.normal_s;
 	const float abs_u_t = length(u_t);
 
 	// we solve iteratively the wall law equation to obtain y+ value
@@ -3135,15 +3143,15 @@ compute_keps_term
 	const float neib_rho = physical_density(ndata);
 
 	// volume contribution for k and epsilon diffusion terms
-	pout.diff_term_k += ndata.relPos.w*(
+	pout.diff_term_k += ndata.mass*(
 		pdata.dkdt_precalc + neib_rho*(get_laminar_kin_visc(ndata) + ndata.turbVisc)
 		)*(pdata.keps_k - ndata.keps_k)*ndata.f/neib_rho;
-	pout.diff_term_e += ndata.relPos.w*(
+	pout.diff_term_e += ndata.mass*(
 		pdata.dedt_precalc + neib_rho*(get_laminar_kin_visc(ndata) + ndata.turbVisc/1.3f)
 		)*(pdata.keps_e - ndata.keps_e)*ndata.f/neib_rho;
 
 	// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
-	const float3 dvmul = -ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ;
+	const float3 dvmul = -ndata.mass*ndata.relPos*ndata.f ;
 
 	// velocity gradient
 	// From fluid/vertex:
@@ -3198,7 +3206,7 @@ __device__ __forceinline__
 enable_if_t<computes_xsph<FP>()>
 compute_mean_vel(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	pout.mean_vel -= ndata.relPos.w*W<FP::kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(physical_density(pdata) + physical_density(ndata));
+	pout.mean_vel -= ndata.mass*W<FP::kerneltype>(ndata.r, params.slength)*ndata.relVel/(physical_density(pdata) + physical_density(ndata));
 }
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
@@ -3215,10 +3223,10 @@ void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
 {
 	switch (FP::boundarytype) {
 	case LJ_BOUNDARY:
-		nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
+		nout.DvDt = LJForce(ndata.r)*ndata.relPos;
 		break;
 	case MK_BOUNDARY:
-		nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w)*as_float3(ndata.relPos);
+		nout.DvDt = MKForce(ndata.r, params.slength, pdata.mass, pdata.mass)*ndata.relPos;
 		break;
 	default:
 		/* do nothing */
@@ -3241,7 +3249,7 @@ compute_repacking_contrib
 	*/
 	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
 		*d_sscoeff[fluid_num(pdata.info)]
-		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.mass/physical_density(ndata.rhotilde,fluid_num(ndata.info))
 		*ndata.f*corrected_relPos(ndata);
 
 }
@@ -3260,7 +3268,7 @@ compute_repacking_contrib
 	*/
 	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
 		*d_sscoeff[fluid_num(pdata.info)]
-		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.mass/physical_density(ndata.rhotilde,fluid_num(ndata.info))
 		*ndata.f*corrected_relPos(ndata);
 }
 
@@ -3277,7 +3285,7 @@ compute_repacking_contrib
 		with \f$ \nabla\Gamma = \sum_b V_b \nabla w_{ab} \f$
 	*/
 	nout.DvDt -= d_repack_a*d_sscoeff[fluid_num(pdata.info)]
-		*ndata.relPos.w/physical_density(ndata.relVel.w,fluid_num(ndata.info))
+		*ndata.mass/physical_density(ndata.rhotilde,fluid_num(ndata.info))
 		*ndata.f*corrected_relPos(ndata);
 }
 
@@ -3520,7 +3528,7 @@ compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 {
 	const float4 belem = params.fetchBound(pdata.index);
 	// Force = -Pressure*SurfaceArea*NormalOutsideVector
-	pout.force = -P(pdata.vel.w, fluid_num(pdata.info))*belem.w*belem;
+	pout.force = -P(pdata.rhotilde, fluid_num(pdata.info))*belem.w*belem;
 	pout.force.w = 0.0f;
 }
 template<typename FP, typename PD, typename OP>
@@ -3702,7 +3710,7 @@ struct dyndt_forces_shared_data
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
 	{
-		float sspeed = soundSpeed(pdata.vel.w, fluid_num(pdata.info));
+		float sspeed = soundSpeed(pdata.rhotilde, fluid_num(pdata.info));
 		sm_forces_max[threadIdx.x] = fmaxf(length3(pout.force), sspeed*sspeed/params.slength);
 	}
 
@@ -4268,18 +4276,17 @@ forcesDevice(FP params)
 		const bool skip = skip_neiblist(params, pdata);
 
 		// Loop over all neighbors of type nptype
-		if (!skip) for_each_neib(nptype, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		if (!skip) for_each_neib(nptype, index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+			const relPos_mass neib_pm = neib_iter.relPos( params.fetchPos(neib_index) );
 
 			// Skip inactive particles
-			if (INACTIVE(relPos))
+			if (is_inactive(neib_pm))
 				continue;
 
-			const float r = length3(relPos);
+			const float r = length(neib_pm.relPos);
 
 			const particleinfo neib_info = params.fetchInfo(neib_index);
 
@@ -4293,7 +4300,7 @@ forcesDevice(FP params)
 
 			// Load rest of neib data
 			forces_neib_data<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, cptype, nptype> const
-				ndata(pdata, params, neib_index, neib_info, relPos, r);
+				ndata(pdata, params, neib_index, neib_info, neib_pm, r);
 
 			// Contributions from this neighbor
 			forces_neib_output<boundarytype> nout;
@@ -4320,7 +4327,7 @@ __device__ __forceinline__
 enable_if_t<FP::has_dem, float>
 compute_dem_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3, float dynvisc)
 {
-	return DemLJForce<FP::boundarytype>(params, pdata.gridPos, pos3, pdata.pos.w, vel3, dynvisc, pout.force);
+	return DemLJForce<FP::boundarytype>(params, pdata.gridPos, pos3, pdata.mass, vel3, dynvisc, pout.force);
 }
 
 template<typename FP, typename P, typename PO>
@@ -4337,7 +4344,7 @@ enable_if_t<FP::has_planes, float>
 compute_plane_force(FP const& params, P const& pdata, PO & pout, float3 const& pos3, float3 const& vel3,
 	plane_t const& plane, float dynvisc)
 {
-	return PlaneForce<FP::boundarytype>(pdata.gridPos, pos3, pdata.pos.w, plane, vel3, dynvisc, pout.force);
+	return PlaneForce<FP::boundarytype>(pdata.gridPos, pos3, pdata.mass, plane, vel3, dynvisc, pout.force);
 }
 
 template<typename FP, typename P, typename PO>
@@ -4428,7 +4435,7 @@ finalizeforcesDevice(FP params)
 			// 3. params and the kernel should be templatized also on floating bodies presence
 			// AM - GB FIXME
 			if (boundarytype != SA_BOUNDARY)
-				as_float3(pout.force) *= pdata.pos.w;
+				as_float3(pout.force) *= pdata.mass;
 			params.rbforces[pdata.rbindex] = pout.force;
 
 			const float3 arm = globalDistance(pdata.gridPos, pdata.pos,
@@ -4500,18 +4507,17 @@ repackDevice(FP params)
 		/* And finally the neighbors list traversal support */
 
 		// Loop over all neighbors of type nptype
-		for_each_neib(nptype, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		for_each_neib(nptype, index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+			const relPos_mass neib_pm = neib_iter.relPos( params.fetchPos(neib_index) );
 
 			// Skip inactive particles
-			if (INACTIVE(relPos))
+			if (is_inactive(neib_pm))
 				continue;
 
-			const float r = length3(relPos);
+			const float r = length(neib_pm.relPos);
 
 			const particleinfo neib_info = params.fetchInfo(neib_index);
 
@@ -4525,7 +4531,7 @@ repackDevice(FP params)
 
 			// Load rest of neib data
 			repack_neib_data<kerneltype, boundarytype, simflags, cptype, nptype> const
-				ndata(pdata, params, neib_index, neib_info, relPos, r);
+				ndata(pdata, params, neib_index, neib_info, neib_pm, r);
 
 			// Contributions from this neighbor
 			repack_neib_output<boundarytype> nout;
@@ -4586,11 +4592,11 @@ finalizeRepackDevice(FP params)
 
 			// Adding the repacking damping term T(zeta) from Colagrossi et al.
 			const uint fType =  fluid_num(pdata.info);
-			as_float3(pout.force) += d_repack_alpha*d_sscoeff[fType]/params.deltap*as_float3(pdata.vel);
+			as_float3(pout.force) += d_repack_alpha*d_sscoeff[fType]/params.deltap*pdata.vel;
 
 			// Post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
-			const float dynvisc = d_visccoeff[fluid_num(pdata.info)]*physical_density(pdata.vel.w,fluid_num(pdata.info));
+			const float dynvisc = d_visccoeff[fluid_num(pdata.info)]*physical_density(pdata.rhotilde, fluid_num(pdata.info));
 
 			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
@@ -4659,9 +4665,9 @@ struct density_diffusion_neib_data :
 	__device__ __forceinline__
 	density_diffusion_neib_data(Pt const& pdata, FP const& params,
 		const uint _index, particleinfo const& _info,
-		float4 const& _relPos, const float _r) :
-		common_neib_data(pdata, params, _index, _info, _relPos, _r),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data)(pdata, params, _index, _relPos)
+		relPos_mass const& neib, const float _r) :
+		common_neib_data(pdata, params, _index, _info, neib, _r),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data)(pdata, params, _index, neib)
 	{}
 };
 
@@ -4734,13 +4740,13 @@ enable_if_t<
 >
 density_diffusion_interaction(KP const& params, P const& pdata, float& DrDt)
 {
-	for_each_neib(nptype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+	for_each_neib(nptype, pdata.index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
-		const float4 relPos = neib_iter.relPos(params.posArray[neib_index]);
-		const float r = length3(relPos);
+		const relPos_mass neib_pm = neib_iter.relPos(params.posArray[neib_index]);
+		const float r = length(neib_pm.relPos);
 		const particleinfo neib_info = params.infoArray[neib_index];
 
-		if (INACTIVE(relPos)) continue;
+		if (is_inactive(neib_pm)) continue;
 		if (boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY) {
 			if (r >= params.influenceradius + params.deltap)
 				continue;
@@ -4749,7 +4755,7 @@ density_diffusion_interaction(KP const& params, P const& pdata, float& DrDt)
 				continue;
 		}
 
-		const density_diffusion_neib_data<boundarytype, simflags, nptype> ndata(pdata, params, neib_index, neib_info, relPos, r);
+		const density_diffusion_neib_data<boundarytype, simflags, nptype> ndata(pdata, params, neib_index, neib_info, neib_pm, r);
 
 		density_diffusion_neib_output<boundarytype, nptype> nout(params, pdata, ndata);
 

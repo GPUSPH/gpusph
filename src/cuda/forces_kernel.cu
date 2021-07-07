@@ -233,7 +233,7 @@ DemLJForce(	dem_params const& params,
 
 //! contribution of neighbor at relative position relPos with weight w to the MLS matrix mls
 __device__ __forceinline__ void
-MlsMatrixContrib(symtensor4 &mls, float4 const& relPos, float w)
+MlsMatrixContrib(symtensor4 &mls, float3 const& relPos, float w)
 {
 	mls.xx += w;						// xx = ∑Wij*Vj
 	mls.xy += relPos.x*w;				// xy = ∑(xi - xj)*Wij*Vj
@@ -254,7 +254,7 @@ MlsMatrixContrib(symtensor4 &mls, float4 const& relPos, float w)
  MLS correction when B is the first row of the inverse MLS matrix
 */
 __device__ __forceinline__ float
-MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
+MlsCorrContrib(float4 const& B, float3 const& relPos, float w)
 {
 	return (B.x + B.y*relPos.x + B.z*relPos.y + B.w*relPos.z)*w;
 	// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
@@ -266,7 +266,7 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
  *  @{ */
 
 __device__ __forceinline__ void
-fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
+fcoeff_add_neib_contrib(const float F, float3 const& rp, const float vol,
 	symtensor3& fcoeff, symtensor3& fcoeff_kahan)
 {
 	float f_times_vol = F*vol;
@@ -325,7 +325,7 @@ template<KernelType kerneltype, typename Params>
 __device__ __forceinline__
 enable_if_t<Params::densitydiffusiontype == ANTUONO>
 compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
-	particleinfo const& info, float4 const& pos, float4 const& vel, int3 const& gridPos)
+	particleinfo const& info, float4 const& pos, const float rhotilde, int3 const& gridPos)
 {
 	float3 renorm_dens_grad = make_float3(0.0f);
 
@@ -348,26 +348,26 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const relPos_mass neib = neib_iter.relPos( params.fetchPos(neib_index) );
 
-		const float4 neib_vel = params.fetchVel(neib_index);
-		const float r = length3(relPos);
+		const float r = length(neib.relPos);
+
+		if (is_inactive(neib) || r >= params.influenceradius)
+			continue;
 
 #if 0
 		// if we assume different rho0:
 		const float rho_ratio = rho0[n_fluid]/rho0[p_fluid];
-		const float rhotilde_delta = (rho_ratio*neib_vel.w - vel.w + (rho_ratio - 1.0f));
+		const float rhotilde_delta = (rho_ratio*neib_rhotilde - rhotilde + (rho_ratio - 1.0f));
 #else
-		const float rhotilde_delta = (neib_vel.w - vel.w);
+		const float neib_rhotilde = params.fetchVel(neib_index).w;
+		const float rhotilde_delta = (neib_rhotilde - rhotilde);
 #endif
 
-		if (INACTIVE(relPos) || r >= params.influenceradius)
-			continue;
-
 		const float f = F<kerneltype>(r, params.slength);
-		const float volume = relPos.w/physical_density(neib_vel.w, n_fluid);
+		const float volume = neib.mass/physical_density(neib_rhotilde, n_fluid);
 
-		const float3 neib_contrib = rhotilde_delta*as_float3(relPos)*f*volume;
+		const float3 neib_contrib = rhotilde_delta*neib.relPos*f*volume;
 		// TODO kbn
 		renorm_dens_grad += neib_contrib;
 	}
@@ -386,7 +386,7 @@ template<KernelType kerneltype, typename Params>
 __device__ __forceinline__
 enable_if_t<Params::densitydiffusiontype != ANTUONO>
 compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
-	particleinfo const& info, float4 const& pos, float4 const& vel, int3 const& gridPos)
+	particleinfo const& info, float4 const& pos, const float rhotilde, int3 const& gridPos)
 { /* do nothing */ }
 
 
@@ -504,20 +504,19 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> 
 			}
 
 			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
-			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+			const relPos_mass neib = neib_iter.relPos( params.fetchPos(neib_index) );
 
-			const float4 neib_vel = params.fetchVel(neib_index);
-			const float r = length3(relPos);
+			const float r = length(neib.relPos);
 
-			if (INACTIVE(relPos) || r >= params.influenceradius)
+			if (is_inactive(neib) || r >= params.influenceradius)
 				continue;
 
-			const float volume = relPos.w/physical_density(neib_vel.w, fluid_num(neib_info));
+			const float neib_rho = physical_density(params.fetchVel(neib_index).w, fluid_num(neib_info));
+			const float volume = neib.mass/neib_rho;
 			//corr = kbn_add(corr, W<kerneltype>(r, slength)*volume, corr_kahan);
 
 			const float f = F<kerneltype>(r, params.slength);
-			fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
+			fcoeff_add_neib_contrib(f, neib.relPos, volume, fcoeff, fcoeff_kahan);
 
 			num_neibs ++;
 
@@ -529,7 +528,7 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> 
 
 	} while (0);
 
-	compute_renormalized_density<kerneltype>(params, fcoeff, index, info, pos, vel, gridPos);
+	compute_renormalized_density<kerneltype>(params, fcoeff, index, info, pos, vel.w, gridPos);
 
 	store_ccsph_fcoeff(params, fcoeff, index, num_neibs, close_to_boundary);
 }
@@ -609,10 +608,10 @@ densityGrenierDevice(
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const relPos_mass neib = neib_iter.relPos(params.fetchPos(neib_index));
 
 		const particleinfo neib_info = params.fetchInfo(neib_index);
-		float r = length3(relPos);
+		float r = length(neib.relPos);
 
 		/* Contributions only come from active particles within the influence radius
 		   that are fluid particles (or also non-fluid in DYN_BOUNDARY case).
@@ -625,7 +624,7 @@ densityGrenierDevice(
 		   the sigma from the closest fluid particle, but that would require
 		   two runs, one for fluid and one for neighbor particles.
 		 */
-		if (INACTIVE(relPos) || r >= params.influenceradius)
+		if (is_inactive(neib) || r >= params.influenceradius)
 			continue;
 
 		const float w = W<kerneltype>(r, params.slength);
@@ -638,7 +637,7 @@ densityGrenierDevice(
 		   */
 		if ((boundarytype != DYN_BOUNDARY || (PART_TYPE(neib_info) == PART_TYPE(info)))
 			&& fluid_num(neib_info) == fnum) {
-			mass_corr += relPos.w*w;
+			mass_corr += neib.mass*w;
 			corr += w;
 		}
 	}
@@ -726,21 +725,20 @@ shepardDevice(
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+		const relPos_mass neib = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Skip inactive neighbors
-		if (INACTIVE(relPos))
+		if (is_inactive(neib))
 			continue;
 
-		const float r = length3(relPos);
+		const float r = length(neib.relPos);
 
 		const float neib_rho = physical_density(params.fetchVel(neib_index).w,fluid_num(neib_info));
 
 		if (r < params.influenceradius ) {
-			const float w = W<kerneltype>(r, params.slength)*relPos.w;
+			const float w = W<kerneltype>(r, params.slength)*neib.mass;
 			temp1 += w;
 			temp2 += w/neib_rho;
 		}
@@ -810,13 +808,13 @@ MlsDevice(
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+		const relPos_mass neib = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// Skip inactive particles
-		if (INACTIVE(relPos))
+		if (is_inactive(neib))
 			continue;
 
-		const float r = length3(relPos);
+		const float r = length(neib.relPos);
 		const particleinfo neib_info = params.fetchInfo(neib_index);
 		const float neib_rho = physical_density(params.fetchVel(neib_index).w,fluid_num(neib_info));
 
@@ -824,10 +822,10 @@ MlsDevice(
 		// Add neib contribution only if it's a fluid one
 		if (r < params.influenceradius) {
 			neibs_num ++;
-			const float w = W<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// Wij*Vj
+			const float w = W<kerneltype>(r, params.slength)*neib.mass/neib_rho;	// Wij*Vj
 
 			/* Scale relPos by slength for stability and resolution independence */
-			MlsMatrixContrib(mls, relPos/params.slength, w);
+			MlsMatrixContrib(mls, neib.relPos/params.slength, w);
 		}
 	} // end of first loop trough neighbors
 
@@ -904,20 +902,20 @@ MlsDevice(
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+		const relPos_mass neib = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// Skip inactive particles
-		if (INACTIVE(relPos))
+		if (is_inactive(neib))
 			continue;
 
-		const float r = length3(relPos);
+		const float r = length(neib.relPos);
 
 		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Interaction between two particles
 		if (r < params.influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
-			const float w = W<kerneltype>(r, params.slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
-			vel.w += MlsCorrContrib(B, relPos, w);
+			const float w = W<kerneltype>(r, params.slength)*neib.mass;	 // ρj*Wij*Vj = mj*Wij
+			vel.w += MlsCorrContrib(B, neib.relPos, w);
 		}
 
 

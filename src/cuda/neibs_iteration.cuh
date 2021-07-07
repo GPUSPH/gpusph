@@ -25,11 +25,12 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cellgrid.cuh"
-#include <tuple>
-
 #ifndef NEIBS_ITERATION_CUH
 #define NEIBS_ITERATION_CUH
+
+#include <tuple>
+#include "cellgrid.cuh"
+#include "posvel_struct.h" // pos_mass
 
 namespace cuneibs
 {
@@ -80,14 +81,13 @@ constexpr idx_t neib_list_step() {
 /*! This class holds the variables and methods common to all
  *  neighbor list traversal iterator classes
  */
-class neiblist_iterator_core
+class neiblist_iterator_core : protected pos_mass
 {
 protected:
 
 	const	uint*	cellStart;	///< cells first particle index
 	const	neibdata* neibsList; ///< neighbors list
-	float4	const	pos;		///< current particle cell-relative position
-	int3	const	gridPos;	///< current particle cell index
+	const	int3	gridPos;	///< current particle cell index
 	const	uint	index;		///< current particle index
 
 	// Persistent variables across getNeibData calls
@@ -126,18 +126,27 @@ public:
 	 *  traversed.
 	 */
 	__device__ __forceinline__
-	float4 relPos(float4 const& neibPos) const {
-		return pos_corr - neibPos;
+	relPos_mass relPos(float4 const& neibPos) const {
+		return pos_corr - pos_mass(neibPos);
 	}
 
 	__device__ __forceinline__
-	neiblist_iterator_core(uint _index, float4 const& _pos, int3 const& _gridPos,
-		const uint *_cellStart, const neibdata *_neibsList) :
+	neiblist_iterator_core(uint _index, pos_mass const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList)
+	:
+		pos_mass(_pos),
 		cellStart(_cellStart), neibsList(_neibsList),
-		pos(_pos), gridPos(_gridPos), index(_index),
+		gridPos(_gridPos), index(_index),
 		pos_corr(make_float3(0.0f)),
 		neib_cell_base_index(0),
 		neib_cellnum(0)
+	{}
+
+	__device__ __forceinline__
+	neiblist_iterator_core(uint index, float4 const& pos, int3 const& gridPos,
+		const uint *cellStart, const neibdata *neibsList)
+	:
+		neiblist_iterator_core(index, pos_mass(pos), gridPos, cellStart, neibsList)
 	{}
 };
 
@@ -177,9 +186,11 @@ public:
 		return true;
 	}
 
+	template<typename PosMass> // float4 or pos_mass
 	__device__ __forceinline__
-	neiblist_iterator_simple(uint _index, float4 const& _pos, int3 const& _gridPos,
-		const uint *_cellStart, const neibdata *_neibsList) :
+	neiblist_iterator_simple(uint _index, PosMass const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList)
+	:
 		core(_index, _pos, _gridPos, _cellStart, _neibsList)
 	{ reset(); }
 };
@@ -203,9 +214,11 @@ public:
 	bool next()
 	{ return false; }
 
+	template<typename PosMass> // float4 or pos_mass
 	__device__ __forceinline__
-	neiblist_iterator_simple(uint _index, float4 const& _pos, int3 const& _gridPos,
-		const uint *_cellStart, const neibdata *_neibsList) :
+	neiblist_iterator_simple(uint _index, PosMass const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList)
+	:
 		core(_index, _pos, _gridPos, _cellStart, _neibsList) {}
 };
 
@@ -276,9 +289,11 @@ public:
 		return try_next<ptypes...>();
 	}
 
+	template<typename PosMass> // float4 or pos_mass
 	__device__ __forceinline__
-	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
-		const uint *_cellStart, const neibdata *_neibsList) :
+	neiblist_iterator(uint _index, PosMass const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList)
+	:
 		core(_index, _pos, _gridPos, _cellStart, _neibsList),
 		neiblist_iterator_simple<ptypes>(_index, _pos, _gridPos, _cellStart, _neibsList)...,
 		current_type(iterator<0>::ptype)
@@ -298,11 +313,14 @@ public:
 	using base = neiblist_iterator_simple<ptype>;
 	using core = typename base::core;
 
+	template<typename PosMass> // float4 or pos_mass
 	__device__ __forceinline__
-	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
-		const uint *_cellStart, const neibdata *_neibsList) :
+	neiblist_iterator(uint _index, PosMass const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList)
+	:
 		core(_index, _pos, _gridPos, _cellStart, _neibsList),
-		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+		base(_index, _pos, _gridPos, _cellStart, _neibsList)
+	{}
 };
 
 /// Specialization of neiblist_iterator for a single type followed by PT_NONE
@@ -316,11 +334,14 @@ public:
 	using base = neiblist_iterator_simple<ptype>;
 	using core = typename base::core;
 
+	template<typename PosMass> // float4 or pos_mass
 	__device__ __forceinline__
-	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
-		const uint *_cellStart, const neibdata *_neibsList) :
+	neiblist_iterator(uint _index, PosMass const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList)
+	:
 		core(_index, _pos, _gridPos, _cellStart, _neibsList),
-		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+		base(_index, _pos, _gridPos, _cellStart, _neibsList)
+	{}
 };
 
 /// Specialization of neiblist_iterator to discard a final PT_NONE
@@ -331,11 +352,14 @@ public:
 	using base = neiblist_iterator<ptype1, ptype2>;
 	using core = typename base::core;
 
+	template<typename PosMass> // float4 or pos_mass
 	__device__ __forceinline__
-	neiblist_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
-		const uint *_cellStart, const neibdata *_neibsList) :
+	neiblist_iterator(uint _index, PosMass const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList)
+	:
 		core(_index, _pos, _gridPos, _cellStart, _neibsList),
-		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+		base(_index, _pos, _gridPos, _cellStart, _neibsList)
+	{}
 };
 
 /// Iterator over all types allowed by the given formulation
@@ -352,11 +376,14 @@ public:
 	using base = _base;
 	using core = typename base::core;
 
+	template<typename PosMass> // float4 or pos_mass
 	__device__ __forceinline__
-	allneibs_iterator(uint _index, float4 const& _pos, int3 const& _gridPos,
-		const uint *_cellStart, const neibdata *_neibsList) :
+	allneibs_iterator(uint _index, PosMass const& _pos, int3 const& _gridPos,
+		const uint *_cellStart, const neibdata *_neibsList)
+	:
 		core(_index, _pos, _gridPos, _cellStart, _neibsList),
-		base(_index, _pos, _gridPos, _cellStart, _neibsList) {}
+		base(_index, _pos, _gridPos, _cellStart, _neibsList)
+	{}
 };
 
 /// A practical macro to iterate over all neighbours of a given type
