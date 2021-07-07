@@ -590,7 +590,7 @@ struct sa_boundary_particle_data
 	const	float4	oldGGam;
 
 	// boundary element, used to compute the force on a boundary element for floating objects
-	const	float4 belem;
+	const	belem_t belem;
 
 	// For fluid particles, we always want to recompute gamma, while for vertex
 	// particles we only want to recompute if we have moving boundaries or if
@@ -1127,8 +1127,7 @@ struct sa_boundary_neib_data
 {
 	const uint index;
 
-	const	float4	belem;
-	const	float3&	normal_s;
+	const	belem_t	belem;
 	// distance of particle to boundary element along the normal
 	const	float	r_as; // r_as as used by ptype == PT_FLUID, r_es as used by ptype == PT_VERTEX
 
@@ -1138,8 +1137,7 @@ struct sa_boundary_neib_data
 		const uint _index, relPos_mass const& neib) :
 		index(_index),
 		belem(params.fetchBound(index)),
-		normal_s(as_float3(belem)),
-		r_as(fmax(fabs(dot3(neib.relPos, normal_s)), params.deltap))
+		r_as(fmax(fabs(dot3(neib.relPos, belem.normal)), params.deltap))
 	{}
 };
 
@@ -1527,11 +1525,11 @@ compute_gamma_gradient(FP const& params, P const& pdata, N const& ndata)
 	const float3 q = ndata.relPos/params.slength;
 	// relative positions of vertices with respect to the segment
 	float3 q_vb[3];
-	calcVertexRelPos(q_vb, ndata.belem,
+	calcVertexRelPos(q_vb, ndata.belem.normal,
 		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
 		params.slength);
 
-	return gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
+	return gradGamma<FP::kerneltype>(params.slength, q, q_vb, ndata.belem.normal);
 };
 
 template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -1572,11 +1570,11 @@ compute_gamma_cfl_solid_wall
 	// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
 	pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fmax(
 			// n . (v_a - v_s)
-			fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+			fabs(dot(ndata.belem.normal, ndata.relVel)), fmax(
 			// n . (v_a - u_s)
-			fabs(dot3(ndata.belem, pdata.vel)),
+			fabs(dot(ndata.belem.normal, pdata.vel)),
 			// n . (v_s + u_s)
-			fabs(dot3(ndata.belem, pdata.vel - ndata.relVel))
+			fabs(dot(ndata.belem.normal, pdata.vel - ndata.relVel))
 			))
 		);
 }
@@ -1601,9 +1599,9 @@ compute_gamma_cfl_open_boundary
 	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
 	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
 		// n . (v_a - u_s)
-		fabs(dot3(ndata.belem, pdata.vel + ndata.relEulerVel)),
+		fabs(dot(ndata.belem.normal, pdata.vel + ndata.relEulerVel)),
 		// n . (v_s + u_s)
-		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
+		fabs(dot(ndata.belem.normal, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
 }
 
 template<typename FP, typename OP, typename P, typename N, typename ON>
@@ -1886,7 +1884,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 		(rho - neib_rho + grav_corr)/ndata.r :
 		0.0f;
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
+	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot(ndata.relPos,ndata.belem.normal)*nout.ggamAS;
 }
 
 /// Contribution from boundary neighbors for Ferrari density diffusion,
@@ -1940,7 +1938,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 		(pdata.mass*(1./p_volume - n_theta/(p_theta*n_volume)) + grav_corr)/ndata.r :
 		0.0f;
 	// adding term to D\rho/Dt, weighted with d_densityDiffCoeff (choose according to Mayrhofer et al. 2013, CPC)
-	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
+	nout.DrDt -= d_densityDiffCoeff*ferraricor*dot(ndata.relPos,ndata.belem.normal)*nout.ggamAS;
 }
 
 /* Brezzi density diffusion
@@ -2284,7 +2282,7 @@ enable_if_t<
 mass_continuity_div_vel_term
 (FP const& params, P const& pdata, N const& ndata, ON &nout)
 {
-	nout.DrDt -= physical_density(pdata)*dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+	nout.DrDt -= physical_density(pdata)*dot(ndata.relVel, ndata.belem.normal)*nout.ggamAS;
 }
 
 
@@ -2323,7 +2321,7 @@ mass_continuity_div_vel_term
 	const float n_ref_volume = n_ref_volume0*d_rho0[fluid_num(ndata.info)]/physical_density(ndata);
 	// DrDt -= p_mass/p_theta Ʃ 1./n_ref_volume*relVel.∇ɤ
 	nout.DrDt -= pdata.mass/p_theta/n_ref_volume*
-			dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+			dot(ndata.relVel, ndata.belem.normal)*nout.ggamAS;
 }
 
 /// Mass continuity: divergence of velocity term
@@ -2606,9 +2604,9 @@ compute_pressure_contrib
 {
 	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
 	// DvDt = -∇p/rho += 1/rho*(1/ref_V Σ 1/neib_ref_V(p*ref_V^2 + neib_p*neib_ref_V^2) ∇ɤ)
-	nout.DvDt += pGradTerm/pdata.mass*nout.ggamAS*ndata.normal_s;
+	nout.DvDt += pGradTerm/pdata.mass*nout.ggamAS*ndata.belem.normal;
 	// DEBUG
-	//nout.DvDt += pGradTerm*ndata.rhotilde*nout.ggamAS*ndata.normal_s;
+	//nout.DvDt += pGradTerm*ndata.rhotilde*nout.ggamAS*ndata.belem.normal;
 }
 
 /// Pressure contribution from boundary particles in SA_BOUNDARY case
@@ -2624,7 +2622,7 @@ compute_pressure_contrib
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float pGradTerm = full_pressure_gradient_term(params, pdata, ndata);
-	nout.DvDt += pGradTerm*physical_density(ndata)*nout.ggamAS*ndata.normal_s;
+	nout.DvDt += pGradTerm*physical_density(ndata)*nout.ggamAS*ndata.belem.normal;
 }
 
 
@@ -2935,7 +2933,7 @@ compute_laminar_visc_contrib
 	const float3 vel_tau = visc_relVel -
 		(IO_BOUNDARY(ndata.info) ?
 		 make_float3(0.0f) :
-		 dot3(visc_relVel, ndata.normal_s)*ndata.normal_s
+		 dot(visc_relVel, ndata.belem.normal)*ndata.belem.normal
 		);
 
 	// TODO check if this should be get_visc_coeff instead of get_laminar_visc_coeff
@@ -3082,7 +3080,7 @@ compute_turb_visc_contrib
 
 	// a component of fluid particle velocity tangential to the wall
 	const float3 visc_relVel = ndata.relVel + pdata.eulerVel;
-	const float3 u_t = visc_relVel - dot3(visc_relVel, ndata.normal_s)*ndata.normal_s;
+	const float3 u_t = visc_relVel - dot(visc_relVel, ndata.belem.normal)*ndata.belem.normal;
 	const float abs_u_t = length(u_t);
 
 	// we solve iteratively the wall law equation to obtain y+ value
@@ -3204,7 +3202,7 @@ compute_keps_term
 	pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.ggamAS;
 
 	// multiplication for velocity gradient terms (gradGam_as*rho_s)
-	const float3 dvmul = nout.ggamAS*ndata.normal_s*physical_density(ndata);
+	const float3 dvmul = nout.ggamAS*ndata.belem.normal*physical_density(ndata);
 
 	// velocity gradient
 	// From boundary:
@@ -3319,7 +3317,7 @@ compute_repacking_contrib
 {
 	/* Boundary term for repacking: \f$ F_s = -ac^2\sum_s \nabla\gamma_{as} \f$*/
 	nout.DvDt += d_repack_a*d_sscoeff[fluid_num(pdata.info)]
-		*d_sscoeff[fluid_num(pdata.info)]*nout.ggamAS*ndata.normal_s;
+		*d_sscoeff[fluid_num(pdata.info)]*nout.ggamAS*ndata.belem.normal;
 }
 
 
@@ -3545,10 +3543,11 @@ __device__ __forceinline__
 enable_if_t<FP::boundarytype == SA_BOUNDARY>
 compute_boundary_pressure_force(FP const& params, PD const& pdata, OP &pout)
 {
-	const float4 belem = params.fetchBound(pdata.index);
-	// Force = -Pressure*SurfaceArea*NormalOutsideVector
-	pout.force = -P(pdata.rhotilde, fluid_num(pdata.info))*belem.w*belem;
-	pout.force.w = 0.0f;
+	const belem_t belem = params.fetchBound(pdata.index);
+	pout.force = make_float4(
+		// Force = -Pressure*SurfaceArea*NormalOutsideVector
+		-P(pdata.rhotilde, fluid_num(pdata.info))*belem.area*belem.normal,
+		0.0f);
 }
 template<typename FP, typename PD, typename OP>
 __device__ __forceinline__
