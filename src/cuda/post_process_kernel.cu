@@ -334,7 +334,8 @@ calcSurfaceparticleDevice(
 
 	const float4 pos = params.fetchPos(index);
 
-	float4 normal = make_float4(0.0f);
+	float3 normal = make_float3(0.0f);
+	float normal_w;
 
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
 		if (savenormals)
@@ -348,7 +349,7 @@ calcSurfaceparticleDevice(
 	CLEAR_FLAG(info, FG_SURFACE);
 
 	// self contribution to normalization: W(0)*vol
-	normal.w = W<kerneltype>(0.0f, params.slength)*pos.w/physical_density(params.fetchVel(index).w,fluid_num(info));
+	normal_w = W<kerneltype>(0.0f, params.slength)*pos.w/physical_density(params.fetchVel(index).w,fluid_num(info));
 
 	// First loop over all neighbors
 	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
@@ -372,13 +373,13 @@ calcSurfaceparticleDevice(
 
 		if (r < params.influenceradius) {
 			const float f = F<kerneltype>(r, params.slength)*neib_vol; // 1/r ∂Wij/∂r Vj
-			normal.x -= f * neib.relPos.x;
-			normal.y -= f * neib.relPos.y;
-			normal.z -= f * neib.relPos.z;
-			normal.w += W<kerneltype>(r, params.slength)*neib_vol;	// Wij*Vj ;
+			normal -= f * neib.relPos;
+			normal_w += W<kerneltype>(r, params.slength)*neib_vol;	// Wij*Vj ;
 
 		}
 	}
+
+	const float normal_length = length(normal);
 
 	// Checking the planes
 	if (HAS_PLANES(simflags))
@@ -387,11 +388,9 @@ calcSurfaceparticleDevice(
 			if (r < params.influenceradius) {
 				// since our current normal is still unnormalized, the plane normal
 				// contribution must be scaled up to match the length of the current normal
-				as_float3(normal) += d_plane[i].normal*length3(normal);
+				normal += d_plane[i].normal*normal_length;
 			}
 		}
-
-	const float normal_length = length3(normal);
 
 	int nc = 0;
 
@@ -432,11 +431,11 @@ calcSurfaceparticleDevice(
 	newInfo[index] = info;
 
 	if (savenormals) {
-		normal.x /= normal_length;
-		normal.y /= normal_length;
-		normal.z /= normal_length;
-		normals[index] = normal;
-		}
+		normal /= normal_length;
+		normal /= normal_length;
+		normal /= normal_length;
+		normals[index] = make_float4(normal, normal_w);
+	}
 
 }
 
@@ -462,8 +461,9 @@ calcInterfaceparticleDevice(
 
 	const float4 pos = params.fetchPos(index);
 
-	float4 normal_fs = make_float4(0.0f); // free-surface
-	float4 normal_if = make_float4(0.0f); // interface
+	float3 normal_fs = make_float3(0.0f); // free-surface
+	float3 normal_if = make_float3(0.0f); // interface
+	float normal_fs_w, normal_if_w;
 
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
 		// NOTE: inactive particles will keep their last surface flag status
@@ -484,8 +484,8 @@ calcInterfaceparticleDevice(
 	const float p_volume = pos.w/p_rho;
 
 	// self contribution to normalization: W(0)*vol
-	normal_fs.w = W<kerneltype>(0.0f, params.slength)*p_volume;
-	normal_if.w = W<kerneltype>(0.0f, params.slength)*p_volume;
+	normal_fs_w = W<kerneltype>(0.0f, params.slength)*p_volume;
+	normal_if_w = W<kerneltype>(0.0f, params.slength)*p_volume;
 
 	// First loop over all neighbors
 	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
@@ -508,29 +508,21 @@ calcInterfaceparticleDevice(
 
 		if (r < params.influenceradius) {
 			const float f = F<kerneltype>(r, params.slength); // 1/r ∂Wij/∂r
-			normal_fs.x -= f * neib.relPos.x;
-			normal_fs.y -= f * neib.relPos.y;
-			normal_fs.z -= f * neib.relPos.z;
-			normal_fs.w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
+			normal_fs   -= f * neib.relPos;
+			normal_fs_w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
 			if ((fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
-				normal_if.x -= f * neib.relPos.x;
-				normal_if.y -= f * neib.relPos.y;
-				normal_if.z -= f * neib.relPos.z;
-				normal_if.w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
+				normal_if -= f * neib.relPos;
+				normal_if_w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
 			}
 		}
 	}
 
-	normal_fs.x *= p_volume;
-	normal_fs.y *= p_volume;
-	normal_fs.z *= p_volume;
+	normal_fs *= p_volume;
 
-	normal_if.x *= p_volume;
-	normal_if.y *= p_volume;
-	normal_if.z *= p_volume;
+	normal_if *= p_volume;
 
-	const float normal_fs_length = length3(normal_fs);
-	const float normal_if_length = length3(normal_if);
+	const float normal_fs_length = length(normal_fs);
+	const float normal_if_length = length(normal_if);
 
 	int nc_fs = 0;
 	int nc_if = 0;
@@ -588,18 +580,14 @@ calcInterfaceparticleDevice(
 	newInfo[index] = info;
 
 	if (savenormals) {
-		normal_fs.x /= normal_fs_length;
-		normal_fs.y /= normal_fs_length;
-		normal_fs.z /= normal_fs_length;
+		normal_fs /= normal_fs_length;
 
-		normal_if.x /= normal_if_length;
-		normal_if.y /= normal_if_length;
-		normal_if.z /= normal_if_length;
+		normal_if /= normal_if_length;
 
 		if (!nc_if && nc_fs) {
-			normals[index] = normal_if;
+			normals[index] = make_float4(normal_if, normal_if_w);
 		} else {
-			normals[index] = normal_fs;
+			normals[index] = make_float4(normal_fs, normal_fs_w);
 		}
 	}
 }
@@ -625,8 +613,10 @@ calcInterfaceparticleDevice(
 
 	const float4 pos = params.fetchPos(index);
 
-	float4 normal_fs = make_float4(0.0f); // free-surface
-	float4 normal_if = make_float4(0.0f); // interface
+	float3 normal_fs = make_float3(0.0f); // free-surface
+	float3 normal_if = make_float3(0.0f); // interface
+	float normal_fs_w, normal_if_w;
+
 
 	if (NOT_FLUID(info) || INACTIVE(pos)) {
 		// NOTE: inactive particles will keep their last surface flag status
@@ -647,8 +637,8 @@ calcInterfaceparticleDevice(
 	const float p_volume = pos.w/p_rho;
 
 	// self contribution to normalization: W(0)*vol
-	normal_fs.w = W<kerneltype>(0.0f, params.slength)*p_volume;
-	normal_if.w = W<kerneltype>(0.0f, params.slength)*p_volume;
+	normal_fs_w = W<kerneltype>(0.0f, params.slength)*p_volume;
+	normal_if_w = W<kerneltype>(0.0f, params.slength)*p_volume;
 
 	// First loop over all neighbors
 	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
@@ -676,15 +666,11 @@ calcInterfaceparticleDevice(
 
 			if (r < params.influenceradius) {
 				const float f = F<kerneltype>(r, params.slength); // 1/r ∂Wij/∂r
-				normal_fs.x -= f * n_theta * neib.relPos.x;
-				normal_fs.y -= f * n_theta * neib.relPos.y;
-				normal_fs.z -= f * n_theta * neib.relPos.z;
-				normal_fs.w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
+				normal_fs -= f * n_theta * neib.relPos;
+				normal_fs_w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
 				if ((fluid_num(info) == fluid_num(n_info) || NOT_FLUID(n_info))) {
-					normal_if.x -= f * n_theta * neib.relPos.x;
-					normal_if.y -= f * n_theta * neib.relPos.y;
-					normal_if.z -= f * n_theta * neib.relPos.z;
-					normal_if.w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
+					normal_if -= f * n_theta * neib.relPos;
+					normal_if_w += W<kerneltype>(r, params.slength)*n_volume;	// Wij*Vj ;
 				}
 			}
 		} else if (nptype == PT_BOUNDARY && r < params.influenceradius) {
@@ -723,18 +709,14 @@ calcInterfaceparticleDevice(
 	}
 
 	const float gamma = params.fetchGradGamma(index).w;
-	normal_fs.x *= p_volume/gamma;
-	normal_fs.y *= p_volume/gamma;
-	normal_fs.z *= p_volume/gamma;
-	normal_fs.w /= gamma;
+	normal_fs *= p_volume/gamma;
+	normal_fs_w /= gamma;
 
-	normal_if.x *= p_volume/gamma;
-	normal_if.y *= p_volume/gamma;
-	normal_if.z *= p_volume/gamma;
-	normal_if.w /= gamma;
+	normal_if *= p_volume/gamma;
+	normal_if_w /= gamma;
 
-	const float normal_fs_length = length3(normal_fs);
-	const float normal_if_length = length3(normal_if);
+	const float normal_fs_length = length(normal_fs);
+	const float normal_if_length = length(normal_if);
 
 	int nc_fs = 0;
 	int nc_if = 0;
@@ -783,18 +765,13 @@ calcInterfaceparticleDevice(
 	newInfo[index] = info;
 
 	if (savenormals) {
-		normal_fs.x /= normal_fs_length;
-		normal_fs.y /= normal_fs_length;
-		normal_fs.z /= normal_fs_length;
-
-		normal_if.x /= normal_if_length;
-		normal_if.y /= normal_if_length;
-		normal_if.z /= normal_if_length;
+		normal_fs /= normal_fs_length;
+		normal_if /= normal_if_length;
 
 		if (!nc_if && nc_fs) {
-			normals[index] = normal_if;
+			normals[index] = make_float4(normal_if, normal_if_w);
 		} else {
-			normals[index] = normal_fs;
+			normals[index] = make_float4(normal_fs, normal_fs_w);
 		}
 	}
 }
