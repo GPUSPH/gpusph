@@ -92,6 +92,8 @@
 
 #include "geom_core.cu"
 
+#include "posvel_struct.h"
+
 /** \namespace cuneibs
  *  \brief Contains all device functions/kernels/variables used for neighbor list construction
  *
@@ -613,14 +615,13 @@ neibsInCell(
 		}
 
 		// Compute relative position between particle and potential neighbor
-		const float4 neib_pos = params.fetchPos(neib_index);
+		const pos_mass neib = params.fetchPos(neib_index);
 
 		// Skip inactive particles
-		if (INACTIVE(neib_pos))
+		if (is_inactive(neib))
 			continue;
 
-		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
-		const float3 relPos = pos - make_float3(neib_pos);
+		const float3 relPos = pos - neib.pos;
 
 		// Check if the squared distance is smaller than the squared influence radius
 		// used for neighbor list construction
@@ -691,7 +692,7 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
 	// and surface boundaries in case of repacking
 	if (FLUID(info) || MOVING(info) || (SURFACE(info) && !FLUID(info))) {
 		// Getting new pos relative to old cell
-		float4 pos = posArray[index];
+		pos_mass pdata = posArray[index];
 
 		// Getting grid address of old cell (computed from old hash)
 		const int3 gridPos = calcGridPosFromCellHash(gridHash);
@@ -727,10 +728,10 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
 		// argument to the floor() function will then be -2.98023224e-08).
 		// Our solution is to use different constants for positive and negative pos
 		const float3 half_check = make_float3( // urgh I want select() with vector ops like in OpenCL 8-P
-			pos.x < 0 ? 0.5f : 0.49999997f,
-			pos.y < 0 ? 0.5f : 0.49999997f,
-			pos.z < 0 ? 0.5f : 0.49999997f);
-		int3 gridOffset = make_int3(floor(as_float3(pos)/d_cellSize + half_check));
+			pdata.pos.x < 0 ? 0.5f : 0.49999997f,
+			pdata.pos.y < 0 ? 0.5f : 0.49999997f,
+			pdata.pos.z < 0 ? 0.5f : 0.49999997f);
+		int3 gridOffset = make_int3(floor(pdata.pos/d_cellSize + half_check));
 
 		// #if 1 and change the check if there's a need to further debug gridOffset computation
 #if 0
@@ -756,18 +757,18 @@ calcHashDevice(	float4*				posArray,			///< [in,out] particle's positions
 		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
 
 		// Adjust position
-		as_float3(pos) -= gridOffset*d_cellSize;
+		pdata.pos -= gridOffset*d_cellSize;
 
 		// If the particle would have flown out of the domain by more than a cell, disable it
 		if (toofar)
-			disable_particle(pos);
+			disable_particle(pdata);
 
 		// Mark with special hash if inactive.
 		// NOTE: it could have been marked as inactive outside this kernel.
-		if (INACTIVE(pos))
+		if (is_inactive(pdata))
 			gridHash = CELL_HASH_MAX;
 
-		posArray[index] = pos;
+		posArray[index] = pdata;
 	}
 
 	// Mark the cell as inner/outer and/or edge by setting the high bits
@@ -1104,13 +1105,11 @@ buildNeibsListDevice(buildneibs_params<boundarytype, simflags> params)
 			break;
 
 		// Get particle position
-		const float4 pos = params.fetchPos(index);
+		const pos_mass pdata = params.fetchPos(index);
 
 		// If the particle is inactive we have nothing to do
-		if (INACTIVE(pos))
+		if (is_inactive(pdata))
 			break;
-
-		const float3 pos3 = make_float3(pos);
 
 		// Get particle grid position computed from particle hash
 		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
@@ -1123,7 +1122,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype, simflags> params)
 						make_int3(x, y, z),
 						(x + 1) + (y + 1)*3 + (z + 1)*9,
 						index,
-						pos3,
+						pdata.pos,
 						neibs_num,
 						BOUNDARY(info),
 						BOUNDARY(info));
@@ -1131,7 +1130,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype, simflags> params)
 			}
 		}
 
-		findNeighboringPlanes(params, gridPos, pos3, index);
+		findNeighboringPlanes(params, gridPos, pdata.pos, index);
 	} while (0);
 
 	// Each of the sections of the neighbor list is terminated by a NEIBS_END. This allow
