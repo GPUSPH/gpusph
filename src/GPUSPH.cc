@@ -1630,7 +1630,7 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(hash[i]) );
 		// double-precision absolute position, without using world offset (useful for computing the potential energy)
 		double4 dpos = make_double4(
-			gdata->calcGlobalPosOffset(gridPos, as_float3(pos)) + wo,
+			gdata->calcGlobalPosOffset(gridPos, pos) + wo,
 			pos.w);
 		const particleinfo pinfo = info[i];
 

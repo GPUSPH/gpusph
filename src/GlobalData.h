@@ -378,8 +378,10 @@ struct GlobalData {
 
 	// compute the global position from grid and local pos. note that the
 	// world origin needs to be added to this
-	template<typename T> // T should be uint3 or int3
-	double3 calcGlobalPosOffset(T const& gridPos, float3 const& pos) const {
+	template<
+		typename GridT, // GridT should be uint3 or int3
+		typename PosT> // PosT should be float3 or float4
+	double3 calcGlobalPosOffset(GridT const& gridPos, PosT const& pos) const {
 		double3 dpos;
 		dpos.x = ((double) this->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x;
 		dpos.y = ((double) this->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y;
