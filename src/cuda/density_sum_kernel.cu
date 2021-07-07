@@ -704,7 +704,7 @@ struct quadrature_gamma_particle_output
 struct quadrature_gamma_neib_data : relPos_mass
 {
 	const uint index;
-	const float4 belem;
+	const belem_t belem;
 
 	template<typename FP, typename Iterator>
 	__device__ __forceinline__
@@ -732,16 +732,16 @@ gamma_quadrature_contrib(FP const& params, P const& pdata, N const& ndata, OP &p
 {
 	const float3 q = ndata.relPos/params.slength;
 	float3 q_vb[3];
-	calcVertexRelPos(q_vb, ndata.belem,
+	calcVertexRelPos(q_vb, ndata.belem.normal,
 		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
 		params.slength);
 
-	float ggamAS = gradGamma<FP::kerneltype>(params.slength, q, q_vb, as_float3(ndata.belem));
-	pout.gGam.x += ggamAS*ndata.belem.x;
-	pout.gGam.y += ggamAS*ndata.belem.y;
-	pout.gGam.z += ggamAS*ndata.belem.z;
+	float ggamAS = gradGamma<FP::kerneltype>(params.slength, q, q_vb, ndata.belem.normal);
+	pout.gGam.x += ggamAS*ndata.belem.normal.x;
+	pout.gGam.y += ggamAS*ndata.belem.normal.y;
+	pout.gGam.z += ggamAS*ndata.belem.normal.z;
 
-	const float gamma_as = Gamma<FP::kerneltype, FP::cptype>(params.slength, q, q_vb, as_float3(ndata.belem),
+	const float gamma_as = Gamma<FP::kerneltype, FP::cptype>(params.slength, q, q_vb, ndata.belem.normal,
 		as_float3(pdata.oldGGam), params.epsilon);
 	pout.gGam.w -= gamma_as;
 }
