@@ -111,7 +111,7 @@ createNewFluidParticle(
 */
 __device__ __forceinline__ void
 calculateIOboundaryCondition(
-			float4			&eulerVel,
+			vel_rho			&euler,
 	const	particleinfo	info,
 	const	float			rhoInt,
 	const	float			rhoExt,
@@ -140,7 +140,7 @@ calculateIOboundaryCondition(
 			if (lambda <= lambdaInt) // must be a contact discontinuity then (which would actually mean lambda == lambdaInt
 				riemannR = rInt;
 		}
-		eulerVel.w = RHOR(riemannR, a);
+		euler.rhotilde = RHOR(riemannR, a);
 	}
 	// impose pressure => compute velocity (normal & tangential; k and eps are already interpolated)
 	else {
@@ -181,8 +181,8 @@ calculateIOboundaryCondition(
 		// currently for inflow we assume that the tangential velocity is zero
 		// GB-TODO FIXME splitneibs merge
         // remove normal component of imposed Eulerian velocity
-		//as_float3(eulerVel) = as_float3(eulerVel) - dot(as_float3(eulerVel), normal)*normal;
-		as_float3(eulerVel) = make_float3(0.0f);
+		//euler.vel -= dot(euler.vel, normal)*normal;
+		euler.vel = make_float3(0.0f);
 		// if the imposed pressure on the boundary is negative make sure that the flux is negative
 		// as well (outflow)
 		if (rhoExt < 0.0f)
@@ -191,11 +191,11 @@ calculateIOboundaryCondition(
 		if (flux < 0.0f)
 			// impose eulerVel according to dv/dn = 0
 			// and remove normal component of velocity
-			as_float3(eulerVel) = uInt - dot(uInt, normal)*normal;
+			euler.vel = uInt - dot(uInt, normal)*normal;
 		// add calculated normal velocity
-		as_float3(eulerVel) += normal*flux;
+		euler.vel += normal*flux;
 		// set density to the imposed one
-		eulerVel.w = rhoExt;
+		euler.rhotilde = rhoExt;
 	}
 }
 
@@ -303,11 +303,10 @@ namespace sa_bc
 
 //! Particle data used by both
 //! \ref saSegmentBoundaryConditionsDevice and \ref saVertexBoundaryConditionsDevice
-struct common_pdata
+struct common_pdata : pos_mass
 {
 	uint index;
 	particleinfo info;
-	float4 pos;
 	int3 gridPos;
 
 	// Square of sound speed. Would need modification for multifluid
@@ -316,9 +315,9 @@ struct common_pdata
 	template<typename Params>
 	__device__ __forceinline__
 	common_pdata(Params const& params, uint _index, particleinfo const& _info) :
+		pos_mass(params.fetchPos(_index)),
 		index(_index),
 		info(_info),
-		pos(params.fetchPos(index)),
 		gridPos(calcGridPosFromParticleHash( params.particleHash[index] )),
 		sqC0(d_sqC0[fluid_num(info)])
 	{}
@@ -402,18 +401,17 @@ struct common_pout
 };
 
 //! \ref pout components needed by all segment (but not vertex) pout specializations
-struct common_segment_pout
+struct common_segment_pout : vel_rho
 {
 	float4 gGam; // new gamma and its gradient
-	float4 vel; // velocity to impose Neumann conditions
 
 	const bool calcGam;
 
 	template<typename Params>
 	__device__ __forceinline__
 	common_segment_pout(Params const& params, uint index, particleinfo const& info) :
+		vel_rho(make_float4(0)),
 		gGam(make_float4(0, 0, 0, params.gGam[index].w)),
-		vel(make_float4(0)),
 		// Gamma always needs to be recomputed when moving bodies are enabled.
 		// If not, we only need to compute if we are at initialisation stage
 		calcGam(HAS_MOVING_BODIES(Params::simflags) || !isfinite(gGam.w)
@@ -471,28 +469,28 @@ struct vertex_io_pout :
  */
 struct eulervel_pout
 {
-	float4 eulerVel;
+	vel_rho euler;
 
 	//! Constructor for the non-IO case
-	/** Start with null eulerVel */
+	/** Start with null euler vel */
 	template<typename Params>
 	__device__ __forceinline__
 	eulervel_pout(Params const& params, uint index, particleinfo const& info,
 		// dummy argument to only select this in the non-IO case
 		enable_if_t<!Params::has_io, int> _sfinae = 0)
 	:
-		eulerVel(make_float4(0))
+		euler(make_float4(0))
 	{}
 
 	//! Constructor in the IO case
-	/** In this case we fetch eulerVel for open boundary segments */
+	/** In this case we fetch euler vel for open boundary segments */
 	template<typename Params, typename = enable_if_t<Params::has_io> >
 	__device__ __forceinline__
 	eulervel_pout(Params const& params, uint index, particleinfo const& info,
 		// dummy argument to only select this in the IO case
 		enable_if_t<Params::has_io, int> _sfinae = 0)
 	:
-		eulerVel(make_float4(0))
+		euler(make_float4(0))
 	{
 		// For IO boundary, fetch the data that was set in the problem-specific routine
 		if (!IO_BOUNDARY(info))
@@ -500,9 +498,9 @@ struct eulervel_pout
 
 		// If pressure is imposed, we only care about .w, otherwise we only care
 		// about .xyz, and .w should be 0
-		eulerVel = params.eulerVel[index];
+		euler = params.eulerVel[index];
 		if (VEL_IO(info))
-			eulerVel.w = 0;
+			euler.rhotilde = 0;
 	}
 };
 
@@ -753,7 +751,7 @@ __device__ __forceinline__
 enable_if_t<contrib>
 keps_vertex_contrib(Params const& params, PData const& pdata, POut &pout, uint neib_index)
 {
-	pout.eulerVel += params.eulerVel[neib_index];
+	pout.euler += params.eulerVel[neib_index];
 }
 
 // KEPS && IO case
@@ -856,9 +854,9 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 	NData const& ndata, POut &pout)
 {
 	if (IO_BOUNDARY(pdata.info)) {
-		pout.sumvel += ndata.mass*(ndata.vel + as_float3(params.eulerVel[ndata.index]));
+		pout.sumvel += ndata.mass*(ndata.vel + make_float3(params.eulerVel[ndata.index]));
 		// for open boundaries compute pressure interior state
-		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, ndata.relPos*d_rho0[fluid_num(neib_info)]));
 		pout.sump += ndata.mass*fmaxf(0.0f, ndata.press);
 	}
 }
@@ -880,9 +878,9 @@ io_fluid_contrib(Params const& params, PData const& pdata,
 	// contributions to the velocity and pressure sums are the same
 	// as for segments (see other specialization)
 	if (!pdata.corner) {
-		pout.sumvel += ndata.mass*(ndata.vel + as_float3(params.eulerVel[ndata.index]));
+		pout.sumvel += ndata.mass*(ndata.vel + make_float3(params.eulerVel[ndata.index]));
 		// for open boundaries compute pressure interior state
-		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, as_float3(relPos)*d_rho0[fluid_num(neib_info)]));
+		//sump += w*fmaxf(0.0f, neib_pres+dot(d_gravity, ndata.relPos*d_rho0[fluid_num(neib_info)]));
 		pout.sump += ndata.mass*fmaxf(0.0f, ndata.press);
 	}
 
@@ -1003,7 +1001,7 @@ __device__ __forceinline__
 enable_if_t<Params::has_keps || Params::has_io>
 vertex_boundary_loop(Params const& params, PData const& pdata, POut &pout)
 {
-	for_each_neib(PT_BOUNDARY, pdata.index, pdata.pos, pdata.gridPos,
+	for_each_neib(PT_BOUNDARY, pdata.index, pdata, pdata.gridPos,
 		params.cellStart, params.neibsList)
 	{
 		const uint neib_index = neib_iter.neib_index();
@@ -1063,11 +1061,9 @@ impose_vertex_keps_bc(Params const& params, PData const& pdata, POut &pout)
 	if (VEL_IO(pdata.info))
 		return;
 	const float3 normal = wall_normal(params, pdata, pout);
-	float4 eulerVel = params.eulerVel[pdata.index];
-	eulerVel -= make_float4(
-		dot3(eulerVel, normal)*normal,
-		0.0f);
-	params.eulerVel[pdata.index] = eulerVel;
+	vel_rho euler = params.eulerVel[pdata.index];
+	euler.vel -= dot3(euler.vel, normal)*normal;
+	params.eulerVel[pdata.index] = euler;
 }
 
 //! Copy keps data from a vertex to the fluid particle it generated
@@ -1094,25 +1090,25 @@ clone_vertex_keps(Params const& params, PData const& pdata, int clone_idx)
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
 enable_if_t<not (Params::has_io && Params::step == 2)>
-generate_new_particles(Params const& params, PData const& pdata, float4 const& pos, POut &pout)
+generate_new_particles(Params const& params, PData const& pdata, pos_mass const& new_pm, POut &pout)
 { /* do nothing */ }
 
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
 enable_if_t<Params::has_io && Params::step == 2>
-generate_new_particles(Params const& params, PData const& pdata, float4 const& pos, POut &pout)
+generate_new_particles(Params const& params, PData const& pdata, pos_mass const& new_pm, POut &pout)
 {
 	// during the second step, check whether new particles need to be created
 
 	if (
 		// create new particle if the mass of the vertex is large enough
-		pos.w > pdata.refMass*0.5f &&
+		new_pm.mass > pdata.refMass*0.5f &&
 		// if mass flux > 0
 		pout.sumMdot > 0 &&
 		// if imposed velocity is greater than 0
-		dot3(pdata.normal, pout.eulerVel) > 1e-5f &&
+		dot3(pdata.normal, pout.euler.vel) > 1e-5f &&
 		// pressure inlets need p > 0 to create particles
-		(VEL_IO(pdata.info) || pout.eulerVel.w > 1e-5f)
+		(VEL_IO(pdata.info) || pout.euler.rhotilde > 1e-5f)
 	   ) {
 		// Create new particle
 		particleinfo clone_info;
@@ -1123,17 +1119,17 @@ generate_new_particles(Params const& params, PData const& pdata, float4 const& p
 			params.totParticles);
 
 		// Problem has already checked that there is enough memory for new particles
-		float4 clone_pos = pos; // new position is position of vertex particle
-		clone_pos.w = pdata.refMass; // new fluid particle has reference mass
+		pos_mass clone_pm = new_pm; // new position is position of vertex particle
+		clone_pm.mass = pdata.refMass; // new fluid particle has reference mass
 		int3 clone_gridPos = pdata.gridPos; // as the position is the same so is the grid position
-		pout.massFluid -= clone_pos.w;
+		pout.massFluid -= clone_pm.mass;
 
 		// assign new values to array
-		params.clonePos[clone_idx] = clone_pos;
+		params.clonePos[clone_idx] = clone_pm;
 		params.cloneInfo[clone_idx] = clone_info;
 		params.cloneParticleHash[clone_idx] = calcGridHash(clone_gridPos);
 		// the new velocity of the fluid particle is the eulerian velocity of the vertex
-		params.vel[clone_idx] = pout.eulerVel;
+		params.vel[clone_idx] = pout.euler;
 		params.gGam[clone_idx] = params.gGam[pdata.index];
 		// copy k-eps information,if present
 		clone_vertex_keps(params, pdata, clone_idx);
@@ -1177,50 +1173,50 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 	// during impose_vertex_keps_bc, see if it's possible to avoid this
 	// (or if the compiler/hardware are smart enough to keep everything
 	// cached as appropriate)
-	float4 eulerVel = params.eulerVel[pdata.index];
+	vel_rho euler = params.eulerVel[pdata.index];
 
 	// note: defaults are set in the place where bcs are imposed
 	if (pout.shepard_div > 0.1f*pdata.gam) {
 		pout.sumvel /= pout.shepard_div;
 		pout.sump /= pout.shepard_div;
 		const float unInt = dot3(pout.sumvel, pdata.normal);
-		const float unExt = dot3(eulerVel, pdata.normal);
+		const float unExt = dot3(euler, pdata.normal);
 		const float rhoInt = RHO(pout.sump, fluid_num(pdata.info));
-		const float rhoExt = eulerVel.w;
+		const float rhoExt = euler.rhotilde;
 
-		calculateIOboundaryCondition(eulerVel, pdata.info,
+		calculateIOboundaryCondition(euler, pdata.info,
 			rhoInt, rhoExt, pout.sumvel,
 			unInt, unExt, make_float3(pdata.normal));
 	} else {
 		if (VEL_IO(pdata.info))
-			eulerVel.w = 0.0f;
+			euler.rhotilde = 0.0f;
 		else
-			eulerVel = make_float4(0.0f, 0.0f, 0.0f, eulerVel.w);
+			euler.vel = make_float3(0.0f);
 	}
-	params.eulerVel[pdata.index] = eulerVel;
+	params.eulerVel[pdata.index] = euler;
 	// the density of the particle is equal to the "eulerian density"
-	params.vel[pdata.index].w = eulerVel.w;
+	params.vel[pdata.index].w = euler.rhotilde;
 
-	float4 pos = pdata.pos;
+	pos_mass pos = pdata;
 
 	if (step != 0) {
 		// time stepping
-		pos.w += params.dt*pout.sumMdot;
+		pos.mass += params.dt*pout.sumMdot;
 		// if a vertex has no fluid particles around and its mass flux is negative then set its mass to 0
 		if (pout.shepard_div < 0.1f*pdata.gam && pout.sumMdot < 0.0f) // sphynx version
 			//if (!pout.foundFluid && pout.sumMdot < 0.0f)
-			pos.w = 0.0f;
+			pos.mass = 0.0f;
 
 		// clip to +/- 2 refMass all the time
-		pos.w = fmaxf(-2.0f*pdata.refMass, fminf(2.0f*pdata.refMass, pos.w));
+		pos.mass = fmaxf(-2.0f*pdata.refMass, fminf(2.0f*pdata.refMass, pos.mass));
 
 		// clip to +/- originalVertexMass if we have outflow
 		// or if the normal eulerian velocity is less or equal to 0
 		if (pout.sumMdot < 0.0f ||
-			dot3(pdata.normal, eulerVel) < 1e-5f*d_sscoeff[fluid_num(pdata.info)])
+			dot3(pdata.normal, euler.vel) < 1e-5f*d_sscoeff[fluid_num(pdata.info)])
 		{
 			const float weightedMass = pdata.refMass*pdata.normal.w;
-			pos.w = fmaxf(-weightedMass, fminf(weightedMass, pos.w));
+			pos.mass = fmaxf(-weightedMass, fminf(weightedMass, pos.mass));
 		}
 	}
 	// TODO FIXME splitneibs-merge: in master the following was here
@@ -1236,10 +1232,10 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 		pos.w = 0.0f;
 #endif
 
-	pout.eulerVel = eulerVel;
+	pout.euler = euler;
 	generate_new_particles(params, pdata, pos, pout);
 
-	pos.w += pout.massFluid;
+	pos.mass += pout.massFluid;
 	params.clonePos[pdata.index] = pos;
 }
 
@@ -1269,10 +1265,12 @@ impose_solid_keps_bc(Params const& params, PData const& pdata, POut &pout)
 		fmaxf(pout.sumeps/pout.shepard_div,1e-5f); // eps should never be 0
 
 	// average eulerian velocity on the wall (from associated vertices)
-	pout.eulerVel /= 3;
+	pout.euler /= 3;
 	// ensure that velocity is normal to segment normal
-	pout.eulerVel -= dot3(pout.eulerVel,pdata.normal)*pdata.normal;
-	params.eulerVel[pdata.index] = pout.eulerVel;
+	// TODO FIXME why would this operate on both xyz and w?
+	// (it was like that even before the transformation to vel_rho)
+	pout.euler -= dot3(pout.euler.vel,pdata.normal)*pdata.normal;
+	params.eulerVel[pdata.index] = pout.euler;
 }
 
 //! impose_solid_eulerVel: set eulerVel to zero for solid walls
@@ -1310,7 +1308,7 @@ impose_solid_bc(Params const& params, PData const& pdata, POut &pout)
 {
 	pout.shepard_div = fmaxf(pout.shepard_div, 0.1f*pout.gGam.w); // avoid division by 0
 	// density condition
-	pout.vel.w = RHO(pout.sumpWall/pout.shepard_div,fluid_num(pdata.info));
+	pout.rhotilde = RHO(pout.sumpWall/pout.shepard_div,fluid_num(pdata.info));
 	impose_solid_keps_bc(params, pdata, pout);
 	impose_solid_eulerVel(params, pdata, pout);
 }
@@ -1370,7 +1368,7 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
 		if (pout.shepard_div > 0.1f*pout.gGam.w) { // note: defaults are set in the place where bcs are imposed
 			pout.sumvel /= pout.shepard_div;
 			pout.sump /= pout.shepard_div;
-			pout.vel.w = RHO(pout.sump, fluid_num(pdata.info));
+			pout.rhotilde = RHO(pout.sump, fluid_num(pdata.info));
 			// TODO simplify branching
 			if (!VEL_IO(pdata.info)) {
 				params.eulerVel[pdata.index] = make_float4(0.0f);
@@ -1378,29 +1376,29 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
 		} else {
 			pout.sump = 0.0f;
 			if (VEL_IO(pdata.info)) {
-				pout.sumvel = as_float3(pout.eulerVel);
-				pout.vel.w = 0.0f;
+				pout.sumvel = pout.euler.vel;
+				pout.rhotilde = 0.0f;
 			} else {
 				pout.sumvel = make_float3(0.0f);
 				// TODO FIXME this is the logic in master, but there's something odd about this,
 				// cfr assignments below [*]
-				pout.vel.w = params.eulerVel[pdata.index].w;
-				params.eulerVel[pdata.index] = make_float4(0.0f, 0.0f, 0.0f, pout.vel.w);
+				pout.rhotilde = params.eulerVel[pdata.index].w;
+				params.eulerVel[pdata.index] = make_float4(0.0f, 0.0f, 0.0f, pout.rhotilde);
 			}
 		}
 
 		// compute Riemann invariants for open boundaries
 		const float unInt = dot3(pout.sumvel, pdata.normal);
-		const float unExt = dot3(pout.eulerVel, pdata.normal);
-		const float rhoInt = pout.vel.w;
-		const float rhoExt = pout.eulerVel.w;
+		const float unExt = dot3(pout.euler.vel, pdata.normal);
+		const float rhoInt = pout.rhotilde;
+		const float rhoExt = pout.euler.rhotilde;
 
-		calculateIOboundaryCondition(pout.eulerVel, pdata.info, rhoInt, rhoExt, pout.sumvel, unInt, unExt, as_float3(pdata.normal));
+		calculateIOboundaryCondition(pout.euler, pdata.info, rhoInt, rhoExt, pout.sumvel, unInt, unExt, as_float3(pdata.normal));
 
 		// TODO FIXME cfr assignes above [*]
-		params.eulerVel[pdata.index] = pout.eulerVel;
+		params.eulerVel[pdata.index] = pout.euler;
 		// the density of the particle is equal to the "eulerian density"
-		pout.vel.w = pout.eulerVel.w;
+		pout.rhotilde = pout.euler.rhotilde;
 	} else {
 		impose_solid_bc<true>(params, pdata, pout);
 		return;
@@ -1450,7 +1448,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 	// TODO skip this whole block (loop + calcGam update) when not needed, if possible
 	// at compile time
 	{
-		for_each_neib(PT_VERTEX, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		for_each_neib(PT_VERTEX, index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
@@ -1481,10 +1479,8 @@ saSegmentBoundaryConditionsDevice(Params params)
 	}
 
 	// finalize velocity computation. we only store it later though, because the rest of this
-	// kernel may compute vel.w
-	pout.vel.x /= 3;
-	pout.vel.y /= 3;
-	pout.vel.z /= 3;
+	// kernel may compute rhotilde
+	pout.vel /= 3;
 
 	// Loop over FLUID neighbors
 	// This is needed:
@@ -1492,7 +1488,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 	// (1) k-epsilon in TKE case
 	// (2) in IO case, to compute velocity and pressure against wall
 	// The contributions are factored out and enabled only when needed
-	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos,
+	for_each_neib(PT_FLUID, index, pdata, pdata.gridPos,
 		params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
@@ -1525,7 +1521,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 	impose_solid_bc<!Params::has_io>(params, pdata, pout);
 
 	// store recomputed velocity + pressure
-	params.vel[index] = pout.vel;
+	params.vel[index] = vel_rho(pout);
 
 	// TODO FIXME splitneibs merge: master here had the code for FLUID particles moving through IO
 	// segments
@@ -1570,7 +1566,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 	// TODO skip this whole block (loop + calcGam update) when not needed, if possible
 	// at compile time
 	{
-		for_each_neib(PT_VERTEX, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+		for_each_neib(PT_VERTEX, index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
@@ -1603,8 +1599,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 	// (1) k-epsilon in TKE case
 	// (2) in IO case, to compute velocity and pressure against wall
 	// The contributions are factored out and enabled only when needed
-	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos,
-		params.cellStart, params.neibsList) {
+	for_each_neib(PT_FLUID, index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
@@ -1631,7 +1626,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 	impose_solid_bc<!Params::has_io || Params::repacking>(params, pdata, pout);
 
 	// store recomputed velocity + pressure
-	params.vel[index] = pout.vel;
+	params.vel[index] = vel_rho(pout);
 
 }
 
@@ -1811,7 +1806,7 @@ computeVertexNormalDevice(
 			// for open boundaries to decide whether or not particles are created at a
 			// vertex or not, finally for k-epsilon we need the normal to ensure that the
 			// velocity in the wall obeys v.n = 0
-			avgNorm += as_float3(boundElement)*boundElement.w;
+			avgNorm += make_float3(boundElement)*boundElement.w;
 		}
 	}
 
@@ -2177,7 +2172,7 @@ saVertexBoundaryConditionsDevice(Params params)
 	sa_bc::vertex_pout<Params>	pout(params, index, info);
 
 	// Loop over all FLUID neighbors
-	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+	for_each_neib(PT_FLUID, index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
 		const relPos_mass neib_pm = neib_iter.relPos(params.fetchPos(neib_index));
@@ -2253,7 +2248,7 @@ saVertexBoundaryConditionsRepackDevice(Params params)
 	sa_bc::vertex_pout<Params>	pout(params, index, info);
 
 	// Loop over all FLUID neighbors
-	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+	for_each_neib(PT_FLUID, index, pdata, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
 		const relPos_mass neib_pm = neib_iter.relPos(params.fetchPos(neib_index));

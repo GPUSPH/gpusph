@@ -159,6 +159,30 @@ struct __builtin_align__(16) vel_rho
 	operator float4() {
 		return make_float4(vel, rhotilde);
 	}
+
+	__host__ __device__ __forceinline__
+	vel_rho& operator+=(vel_rho const& other)
+	{
+		vel += other.vel;
+		rhotilde += other.rhotilde;
+		return *this;
+	}
+
+	__host__ __device__ __forceinline__
+	vel_rho& operator-=(vel_rho const& other)
+	{
+		vel -= other.vel;
+		rhotilde -= other.rhotilde;
+		return *this;
+	}
+
+	__host__ __device__ __forceinline__
+	vel_rho& operator/=(float div)
+	{
+		vel /= div;
+		rhotilde /= div;
+		return *this;
+	}
 };
 
 //! Just like vel_rho, but the spatial member is called relVel
