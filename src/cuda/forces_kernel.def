@@ -528,11 +528,20 @@ struct vel_particle_data : vel_rho
 
 struct eulerVel_particle_data
 {
-	const	float4	eulerVel;
+	const	float3	eulerVel;
+	const	float	eulerRhoTilde;
+
+	/* Behind the scenes, we simply care about splitting the float4 */
+	__device__ __forceinline__
+	eulerVel_particle_data(float4 const& load) :
+		eulerVel{load.x, load.y, load.z},
+		eulerRhoTilde(load.w)
+	{}
+
 
 	__device__ __forceinline__
 	eulerVel_particle_data(const uint _index, eulerVel_forces_params const& params) :
-		eulerVel(params.fetchEulerVel(_index))
+		eulerVel_particle_data(params.fetchEulerVel(_index))
 	{}
 };
 
@@ -1225,14 +1234,23 @@ struct cspm_neib_data
 
 struct eulerVel_neib_data
 {
-	const float4 relEulerVel;
+	const float3 relEulerVel;
+	const float  eulerRhoTilde;
+
+	/* Behind the scenes, we simply care about splitting the float4 */
+	__device__ __forceinline__
+	eulerVel_neib_data(space_w_t const& load)
+	:
+		relEulerVel(load.xyz),
+		eulerRhoTilde(load.w)
+	{}
 
 	template<typename Pt>
 	__device__ __forceinline__
 	eulerVel_neib_data(Pt const& pdata, const uint _index, const particleinfo _info,
 		eulerVel_forces_params const& params)
 	:
-		relEulerVel(as_float3(pdata.eulerVel) - params.fetchEulerVel(_index))
+		eulerVel_neib_data(pdata.eulerVel - space_w_t(params.fetchEulerVel(_index)))
 	{}
 };
 
@@ -1582,9 +1600,9 @@ compute_gamma_cfl_open_boundary
 	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
 	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
 		// n . (v_a - u_s)
-		fabs(dot3(ndata.belem, pdata.vel+ make_float3(ndata.relEulerVel))),
+		fabs(dot3(ndata.belem, pdata.vel + ndata.relEulerVel)),
 		// n . (v_s + u_s)
-		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-make_float3(ndata.relEulerVel))) ));
+		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) ));
 }
 
 template<typename FP, typename OP, typename P, typename N, typename ON>
@@ -2700,7 +2718,7 @@ __device__ __forceinline__
 enable_if_t<has_relEulerVel<N>(), float3>
 get_viscous_relVel(P const& pdata, N const& ndata)
 {
-	return get_dummy_relVel(pdata, ndata) + make_float3(ndata.relEulerVel);
+	return get_dummy_relVel(pdata, ndata) + ndata.relEulerVel;
 } /* eulerVel case */
 
 template<typename P, typename N>
@@ -3062,7 +3080,7 @@ compute_turb_visc_contrib
 		return;
 
 	// a component of fluid particle velocity tangential to the wall
-	const float3 visc_relVel = ndata.relVel + make_float3(pdata.eulerVel);
+	const float3 visc_relVel = ndata.relVel + pdata.eulerVel;
 	const float3 u_t = visc_relVel - dot3(visc_relVel, ndata.normal_s)*ndata.normal_s;
 	const float abs_u_t = length(u_t);
 
