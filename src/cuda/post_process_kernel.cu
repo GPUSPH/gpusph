@@ -348,7 +348,7 @@ calcSurfaceparticleDevice(
 	// Checking the planes
 	if (HAS_PLANES(simflags))
 		for (uint i = 0; i < d_numplanes; ++i) {
-			const float r = PlaneDistance(gridPos, as_float3(pos), d_plane[i]);
+			const float r = PlaneDistance(gridPos, pos, d_plane[i]);
 			if (r < params.influenceradius) {
 				// since our current normal is still unnormalized, the plane normal
 				// contribution must be scaled up to match the length of the current normal

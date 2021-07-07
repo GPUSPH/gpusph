@@ -91,10 +91,11 @@ __constant__ plane_t d_plane[MAX_PLANES];
 //! returns the (signed) distance of the point to the plane.
 //! NOTE: 2*signedDistance*plane.normal gives the distance vector
 //! to the reflection of the point across the plane
+template<typename PosT>
 __device__ __forceinline__ float
 signedPlaneDistance(
 	const int3&		gridPos,
-	const float3&	pos,
+	const PosT&	pos,
 	const plane_t&	plane)
 {
 	// Relative position of the point to the reference point of the plane
@@ -105,28 +106,36 @@ signedPlaneDistance(
 }
 
 //! \see signedPlaneDistance, but returns the (unsigned) distance
+template<typename PosT>
 __device__ __forceinline__ float
 PlaneDistance(	const int3&		gridPos,
-				const float3&	pos,
+				const PosT&	pos,
 				const plane_t&	plane)
 {
 	return abs(signedPlaneDistance(gridPos, pos, plane));
 }
 
-//! reflect a vector through a plane.
+//! reflect the spatial components of a vector through a plane.
+template<typename VecT> // float3 or float4
+__device__ __forceinline__ float3
+reflectVector3(const VecT& vec, const plane_t& plane)
+{
+	float3 ret = make_float3(vec);
+	ret -= 2*dot3(vec, plane.normal)*plane.normal;
+	return ret;
+}
+
 __device__ __forceinline__ float3
 reflectVector(const float3& vec, const plane_t& plane)
 {
-	return vec - 2*dot(vec, plane.normal)*plane.normal;
+	return reflectVector3(vec, plane);
 }
 
 //! reflect the spatial components of a vector through a plane.
 __device__ __forceinline__ float4
 reflectVector(const float4& vec, const plane_t& plane)
 {
-	return make_float4(
-		reflectVector(as_float3(vec), plane),
-		vec.w);
+	return make_float4( reflectVector3(vec, plane), vec.w);
 }
 
 /**! Convert an xy grid + local position into a DEM cell position

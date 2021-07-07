@@ -539,8 +539,7 @@ eulerDevice(EP params)
 				// the same as pos and we always have pos = pos(n).
 				// relPos = x - x_cg
 				const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
-				const float3 relPos = globalDistance(gridPos, as_float3(pdata.pos),
-						d_rbcgGridPos[obj], d_rbcgPos[obj]);
+				const float3 relPos = globalDistance(gridPos, pdata.pos, d_rbcgGridPos[obj], d_rbcgPos[obj]);
 				applyrot(&d_rbsteprot[9*obj], relPos, pdata.pos);
 
 				// Applying center of gravity translation

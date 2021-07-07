@@ -4431,10 +4431,10 @@ finalizeforcesDevice(FP params)
 				as_float3(pout.force) *= pdata.pos.w;
 			params.rbforces[pdata.rbindex] = pout.force;
 
-			const float3 arm = globalDistance(pdata.gridPos, as_float3(pdata.pos),
+			const float3 arm = globalDistance(pdata.gridPos, pdata.pos,
 					d_rbcgGridPos[object(info)], d_rbcgPos[object(info)]);
 
-			params.rbtorques[pdata.rbindex] = make_float4(cross(arm, as_float3(pout.force)));
+			params.rbtorques[pdata.rbindex] = make_float4(cross3(arm, pout.force));
 
 		}
 

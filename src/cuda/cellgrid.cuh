@@ -137,14 +137,16 @@ calcGridPosFromParticleHash(	const hashKey particleHash	///< [in] particle hash 
  *
  * \return relative distance
  */
+template<typename PosT1, typename PosT2> // both should be either float3 or float4
 __device__ __forceinline__ float3
 globalDistance(	int3 const& gridPos1,	///< [in] grid cell of point 1
-				float3 const& pos1,		///< [in] cell relative position of point 1
-				int3 const& gridPos2, 	///< [in] grid cell of point 2
-				float3 const& pos2		///< [in] cell relative position of point 2
+				PosT1 const& pos1,		///< [in] cell relative position of point 1
+				int3 const& gridPos2,	///< [in] grid cell of point 2
+				PosT2 const& pos2		///< [in] cell relative position of point 2
 				)
 {
-	return (gridPos1 - gridPos2)*d_cellSize + (pos1 - pos2);
+	return (gridPos1 - gridPos2)*d_cellSize + make_float3(
+		pos1.x - pos2.x, pos1.y - pos2.y, pos1.z - pos2.z);
 }
 
 /// Compute hash value from grid position

@@ -401,6 +401,11 @@ static __forceinline__ __host__ __device__ float3 make_float3(const float2 &a, c
 	return make_float3(a.x, a.y, s);
 }
 
+static __forceinline__ __host__ __device__ float3 make_float3(const float3 &a)
+{
+	return make_float3(a.x, a.y, a.z);
+}
+
 static __forceinline__ __host__ __device__ float3 make_float3(const float4 &a)
 {
 	return make_float3(a.x, a.y, a.z);  // discards w
@@ -1147,7 +1152,12 @@ static __forceinline__ __host__ __device__ float dot3(const float4 &a, const flo
 	return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-
+// dot product of float3s, same as dot(float3, float3), but using dot3 name
+// so that dot3() can be used when the type of the arguments isn't known
+static __forceinline__ __host__ __device__ float dot3(const float3 &a, const float3 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
 
 // squared length
 static __forceinline__ __host__ __device__ float sqlength(const float4 &v)
@@ -1192,13 +1202,11 @@ static __forceinline__ __host__ __device__ float3 cross3(const float4 &a, const 
 }
 
 // cross product of float3s. same as cross(float3, float3), but using the cross3 name
-// so that cross3() can be when the type of the arguments isn't known
+// so that cross3() can be used when the type of the arguments isn't known
 static __forceinline__ __host__ __device__ float3 cross3(const float3 &a, const float3 &b)
 {
 	return cross(a, b);
 }
-
-
 
 // normalize
 static __forceinline__ __host__ __device__ float4 normalize(const float4 &v)

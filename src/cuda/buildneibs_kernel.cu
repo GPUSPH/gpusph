@@ -613,13 +613,13 @@ neibsInCell(
 		}
 
 		// Compute relative position between particle and potential neighbor
-		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
 		const float4 neib_pos = params.fetchPos(neib_index);
 
 		// Skip inactive particles
 		if (INACTIVE(neib_pos))
 			continue;
 
+		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
 		const float3 relPos = pos - make_float3(neib_pos);
 
 		// Check if the squared distance is smaller than the squared influence radius
