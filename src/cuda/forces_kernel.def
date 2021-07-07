@@ -529,13 +529,14 @@ struct vel_particle_data : vel_rho
 struct eulerVel_particle_data
 {
 	const	float3	eulerVel;
-	const	float	eulerRhoTilde;
+	//const	float	eulerRhoTilde;
 
 	/* Behind the scenes, we simply care about splitting the float4 */
 	__device__ __forceinline__
-	eulerVel_particle_data(float4 const& load) :
-		eulerVel{load.x, load.y, load.z},
-		eulerRhoTilde(load.w)
+	eulerVel_particle_data(float4 const& load)
+	:
+		eulerVel{load.x, load.y, load.z}
+		//, eulerRhoTilde(load.w)
 	{}
 
 
@@ -1235,14 +1236,14 @@ struct cspm_neib_data
 struct eulerVel_neib_data
 {
 	const float3 relEulerVel;
-	const float  eulerRhoTilde;
+	//const float  eulerRhoTilde;
 
 	/* Behind the scenes, we simply care about splitting the float4 */
 	__device__ __forceinline__
 	eulerVel_neib_data(space_w_t const& load)
 	:
-		relEulerVel(load.xyz),
-		eulerRhoTilde(load.w)
+		relEulerVel(load.xyz)
+		//, eulerRhoTilde(load.w)
 	{}
 
 	template<typename Pt>
