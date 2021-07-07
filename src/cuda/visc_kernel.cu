@@ -230,15 +230,14 @@ shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
 		const float weight = f*ndata.mass/ndata.rho; // F_ij * V_j
 		return make_float3(ndata.relPos)*weight;
 	} else {
-		const float4 belem = params.fetchBound(ndata.index);
-		const float3 normal_s = make_float3(belem);
+		const belem_t belem = params.fetchBound(ndata.index);
 		const float3 q = ndata.relPos/params.slength;
 		float3 q_vb[3];
-		calcVertexRelPos(q_vb, belem,
+		calcVertexRelPos(q_vb, belem.normal,
 			params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
-		const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, normal_s);
+		const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, belem.normal);
 
-		return -ggamAS*normal_s;
+		return -ggamAS*belem.normal;
 	}
 }
 
@@ -260,17 +259,16 @@ sa_boundary_jacobi_build_vector(float &B, N_t const& ndata, KP const& params)
 	// Definition of delta_rho
 	const float delta_rho = cuphys::d_numfluids > 1 ? abs(d_rho0[0]-d_rho0[1]) : d_rho0[0];
 
-	const float4 belem = params.fetchBound(ndata.index);
-	const float3 normal_s = make_float3(belem);
+	const belem_t belem = params.fetchBound(ndata.index);
 	const float3 q = ndata.relPos/params.slength;
 	float3 q_vb[3];
-	calcVertexRelPos(q_vb, belem,
+	calcVertexRelPos(q_vb, belem.normal,
 		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
-	const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, normal_s);
-	//float r_as(fmax(fabs(dot3(ndata.relPos, normal_s)), params.deltap));
+	const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, belem.normal);
+	//float r_as(fmax(fabs(dot(ndata.relPos, belem.normal)), params.deltap));
 
 	// Contribution to the boundary elements to the right hand-side term
-	B += delta_rho*dot(d_gravity, normal_s)*ggamAS;
+	B += delta_rho*dot(d_gravity, belem.normal)*ggamAS;
 }
 
 
