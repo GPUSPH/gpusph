@@ -25,7 +25,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//! \file Introduce the split representation of the float4 for position and velocity
+//! \file Introduce the split representation of the float4 for position, velocity
+//! and boundary elements
 //! NOTE: all types here should have an imposed aligned of 16 bytes or nvcc may produce
 //! incorrect load/store operations when restoring to register spliis.
 
@@ -210,6 +211,21 @@ relVel_rho operator-(vel_rho const& pm, vel_rho const& neib_pm)
 	return pm.vel - neib_pm;
 }
 
+/*
+ * Boundary elements
+ */
+
+struct __builtin_align__(16) belem_t
+{
+	float3 normal;
+	float  area;
+
+	__host__ __device__
+	belem_t(float4 const& b) :
+		normal{b.x, b.y, b.z},
+		area(b.w)
+	{}
+};
 
 #endif // _BUILDNEIBS_PARAMS_H
 

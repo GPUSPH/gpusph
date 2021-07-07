@@ -674,13 +674,12 @@ calcInterfaceparticleDevice(
 				}
 			}
 		} else if (nptype == PT_BOUNDARY && r < params.influenceradius) {
-			const float4 belem = params.fetchBound(neib_index);
-			const float3 normal_s = make_float3(belem);
+			const belem_t belem = params.fetchBound(neib_index);
 			const float3 q = neib.relPos/params.slength;
 			float3 q_vb[3];
-			calcVertexRelPos(q_vb, belem,
+			calcVertexRelPos(q_vb, belem.normal,
 					params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index], params.slength);
-			const float ggamAS = gradGamma<kerneltype>(params.slength, q, q_vb, normal_s);
+			const float ggamAS = gradGamma<kerneltype>(params.slength, q, q_vb, belem.normal);
 			/* Actual volume should be calculated from the actual (interpolated) density
 			 * and the mass. But boundary elements do not have mass. To get their actual 
 			 * interpolated volume, we use the fact that:
@@ -698,13 +697,9 @@ calcInterfaceparticleDevice(
 
 
 			// Free-surface
-			normal_fs.x += ggamAS / n_ref_volume * neib.relPos.x * normal_s.x;
-			normal_fs.y += ggamAS / n_ref_volume * neib.relPos.y * normal_s.y;
-			normal_fs.z += ggamAS / n_ref_volume * neib.relPos.z * normal_s.z;
+			normal_fs += ggamAS / n_ref_volume * neib.relPos * belem.normal;
 			// Interface
-			normal_if.x += ggamAS / n_ref_volume * neib.relPos.x * normal_s.x;
-			normal_if.y += ggamAS / n_ref_volume * neib.relPos.y * normal_s.y;
-			normal_if.z += ggamAS / n_ref_volume * neib.relPos.z * normal_s.z;
+			normal_if += ggamAS / n_ref_volume * neib.relPos * belem.normal;
 		}
 	}
 
