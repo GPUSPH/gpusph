@@ -1799,7 +1799,7 @@ computeVertexNormalDevice(
 			continue;
 
 		const vertexinfo neib_verts = vertices[neib_index];
-		const float4 boundElement = boundelement[neib_index];
+		const belem_t belem = boundelement[neib_index];
 
 		// check if vertex is associated with this segment
 		if (has_vertex(neib_verts, our_id)) {
@@ -1808,7 +1808,7 @@ computeVertexNormalDevice(
 			// for open boundaries to decide whether or not particles are created at a
 			// vertex or not, finally for k-epsilon we need the normal to ensure that the
 			// velocity in the wall obeys v.n = 0
-			avgNorm += make_float3(boundElement)*boundElement.w;
+			avgNorm += belem.normal*belem.area;
 		}
 	}
 
