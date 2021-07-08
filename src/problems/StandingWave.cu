@@ -52,16 +52,17 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	const bool USE_CSPM = get_option("use_cspm", true);
 
 	// density diffusion terms, see DensityDiffusionType
-	const DensityDiffusionType rhodiff = get_option("density-diffusion", COLAGROSSI);
+	const DensityDiffusionType rhodiff = get_option("density-diffusion", DELTA);
 
 	SETUP_FRAMEWORK(
 		periodicity<PERIODIC_XY>,
-		kernel<GAUSSIAN>,
+		//kernel<GAUSSIAN>,
 		boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_INTERNAL_ENERGY/* | ENABLE_XSPH*/>
 	).select_options(
-		rhodiff,
-		USE_CSPM, add_flags<ENABLE_CSPM>()
+		rhodiff
+		//USE_CSPM, add_flags<ENABLE_CSPM>()
+		//m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
 	if (mlsIters > 0)
@@ -119,7 +120,7 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	// integer
 	const float c0 = ceil(20*maxvel);
 	add_fluid(1000.0);
-	set_equation_of_state(0, 1.0f, c0);
+	set_equation_of_state(0, 7.0f, c0);
 
 	set_kinematic_visc(0, 1.0e-6f);
 	physparams()->artvisccoeff = 1e-6*10.0/(physparams()->sscoeff[0]*simparams()->slength);
