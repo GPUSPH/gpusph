@@ -32,7 +32,7 @@ struct common_euler_particle_data : pos_mass, vel_rho
 	const	uint	index;
 	const	particleinfo	info;
 	const	ParticleType	ptype;
-	const	float4	force;
+	const	space_w_t	force;
 	const	int3	gridPos; // this is only needed for moving objects, actually
 	vel_rho	corrected;
 
@@ -173,7 +173,7 @@ standard_corrected_velocity(EP const& params, P &pdata)
 	 * TODO also verify if precomputing half_dt again on host is worth it.
 	 */
 	if (EP::step == 2)
-		pdata.corrected += pdata.force*(params.dt/2);
+		pdata.corrected += vel_rho(pdata.force*(params.dt/2));
 }
 template<typename EP, typename P>
 __device__ __forceinline__
@@ -300,7 +300,7 @@ integrate_eulerian_velocity(EP const& params, P &pdata, float dt)
 {
 	if (!IO_BOUNDARY(pdata.info) || (VERTEX(pdata.info) && CORNER(pdata.info))) {
 		// this is for k-eps only. Normally forces are going to be zero
-		pdata.eulerVel += dt*pdata.force;
+		pdata.eulerVel += vel_rho(dt*pdata.force);
 	}
 }
 template<typename EP, typename P>
@@ -494,7 +494,7 @@ eulerDevice(EP params)
 				if (!params.repacking)
 					continuity_integration(params, pdata, index, dt);
 
-				pdata.vel += dt*as_float3(pdata.force);
+				pdata.vel += dt*pdata.force.xyz;
 
 				// updating internal energy
 				integrate_energy(params, pdata, index, dt);

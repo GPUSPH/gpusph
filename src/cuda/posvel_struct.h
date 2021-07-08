@@ -61,6 +61,24 @@ space_w_t operator-(float3 const& xyz, space_w_t const& other)
 }
 
 
+inline __host__ __device__
+space_w_t operator*(space_w_t const& v, float x)
+{
+	space_w_t ret;
+	ret.xyz = v.xyz*x;
+	ret.w = v.w*x;
+	return ret;
+}
+
+inline __host__ __device__
+space_w_t operator*(float x, space_w_t const& v)
+{
+	space_w_t ret;
+	ret.xyz = v.xyz*x;
+	ret.w = v.w*x;
+	return ret;
+}
+
 /*
  * Position and mass
  */
@@ -75,6 +93,12 @@ struct __builtin_align__(16) pos_mass
 	__host__ __device__
 	pos_mass(float4 const& pm4) :
 		pos{pm4.x, pm4.y, pm4.z},
+		mass(pm4.w)
+	{}
+
+	__host__ __device__
+	pos_mass(space_w_t const& pm4) :
+		pos(pm4.xyz),
 		mass(pm4.w)
 	{}
 
@@ -150,6 +174,12 @@ struct __builtin_align__(16) vel_rho
 	__host__ __device__
 	vel_rho(float4 const& pm4) :
 		vel{pm4.x, pm4.y, pm4.z},
+		rhotilde(pm4.w)
+	{}
+
+	__host__ __device__
+	vel_rho(space_w_t const& pm4) :
+		vel(pm4.xyz),
 		rhotilde(pm4.w)
 	{}
 
