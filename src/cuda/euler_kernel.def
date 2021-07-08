@@ -105,14 +105,14 @@ struct energy_particle_data
 
 struct dummy_particle_data
 {
-	float4 acceleration;
+	float3 acceleration;
 
 	// on initialization we store in acceleration the old particle velocity,
 	// so that it is available when computing the actual acceleration (since
 	// the vel member of the particle_data will only keep the new one)
 	__device__ __forceinline__
-	dummy_particle_data(const uint index, common_euler_params const& params) :
-		acceleration(params.oldVel[index])
+	dummy_particle_data(float3 const& oldVel) :
+		acceleration(oldVel)
 	{}
 };
 
@@ -154,7 +154,7 @@ struct euler_particle_data :
 		COND_STRUCT(HAS_XSPH(simflags) && !EP::repacking, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data)(_index, params),
 		COND_STRUCT(HAS_INTERNAL_ENERGY(simflags), energy_particle_data)(_index, params),
-		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_particle_data)(_index, params)
+		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_particle_data)(this->vel)
 	{}
 };
 
@@ -201,7 +201,7 @@ compute_acceleration(EP const& params, P &pdata, float dt)
 {
 	pdata.acceleration = pdata.ptype == PT_BOUNDARY ?
 		(pdata.vel - pdata.acceleration)/dt :
-		make_float4(NAN);
+		make_float3(NAN);
 }
 template<typename EP, typename P>
 __device__ __forceinline__
@@ -358,7 +358,7 @@ __device__ __forceinline__
 enable_if_t<EP::boundarytype == DUMMY_BOUNDARY>
 write_dummyVel(EP const& params, P &pdata, int index)
 {
-	params.dummyVel[index] = pdata.acceleration;
+	params.dummyVel[index] = make_float4(pdata.acceleration, 0);
 }
 template<typename EP, typename P>
 __device__ __forceinline__
