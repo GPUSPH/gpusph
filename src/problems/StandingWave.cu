@@ -153,13 +153,12 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	setPositioning(PP_CORNER);
 
 	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(m_origin) - Point(0.0, 0.0, dyn_thickness), m_size.x - m_deltap, m_size.y - m_deltap, dyn_thickness);
+		Point(0.0, 0.0, - dyn_thickness), m_size.x - m_deltap, m_size.y - m_deltap, dyn_thickness);
 	disableCollisions(experiment_box);
 
-	m_fluidOrigin = m_origin;
 	// shift by the extra offset of the experiment box
 	//m_fluidOrigin += make_double3(0.5*m_deltap, 0.5*m_deltap, 0.69*m_deltap); // tuned for LJ to avoid initial collapse
-	m_fluidOrigin += make_double3(0.5*m_deltap, 0.5*m_deltap, m_deltap); // tuned for LJ to avoid initial collapse
+	m_fluidOrigin = make_double3(0.5*m_deltap, 0.5*m_deltap, m_deltap); // tuned for LJ to avoid initial collapse
 
 	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
 		m_fluidOrigin, l - m_deltap, w - m_deltap, H);
