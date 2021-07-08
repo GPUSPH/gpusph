@@ -49,6 +49,14 @@ struct __builtin_align__(16) space_w_t
 		xyz{v.x, v.y, v.z},
 		w(v.w)
 	{}
+
+	//! convert back to float4
+	//! this is implicit because the space_w_t <> float4 conversion
+	//! is roundtrip-safe (
+	__host__ __device__
+	operator float4() {
+		return make_float4(xyz, w);
+	}
 };
 
 inline __host__ __device__

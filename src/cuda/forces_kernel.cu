@@ -161,7 +161,7 @@ PlaneForce(	const int3&		gridPos,
 			const plane_t&	plane,
 			const float3&	vel,
 			const float		dynvisc,
-			float4&			force)
+			float3&			force)
 {
 	// relative position of our particle from the reference point of the plane
 	const float r = PlaneDistance(gridPos, pos, plane);
@@ -170,7 +170,7 @@ PlaneForce(	const int3&		gridPos,
 		// Unitary normal vector of the surface
 		const float3 relPos = plane.normal*r;
 
-		as_float3(force) += DvDt*relPos;
+		force += DvDt*relPos;
 
 		// tangential velocity component
 		const float3 v_t = vel - dot(vel,plane.normal)*plane.normal; //TODO: check
@@ -192,7 +192,7 @@ PlaneForce(	const int3&		gridPos,
 			coeff = max(coeff, coeff2);
 			*/
 
-		as_float3(force) += coeff*v_t;
+		force += coeff*v_t;
 
 		return -coeff;
 	}
@@ -210,7 +210,7 @@ DemLJForce(	dem_params const& params,
 			const float		mass,
 			const float3&	vel,
 			const float		dynvisc,
-			float4&			force)
+			float3&			force)
 {
 	const float2 demPos = DemPos(gridPos, pos);
 
