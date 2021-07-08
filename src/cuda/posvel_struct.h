@@ -219,5 +219,10 @@ struct __builtin_align__(16) belem_t
 	{}
 };
 
+static_assert(sizeof(space_w_t) == sizeof(float4), "incosistent xyz/w split");
+static_assert(sizeof(pos_mass) == sizeof(float4), "incosistent pos/mass split");
+static_assert(sizeof(vel_rho) == sizeof(float4), "incosistent vel/rho split");
+static_assert(sizeof(belem_t) == sizeof(float4), "incosistent normal/area split");
+
 #endif // _BUILDNEIBS_PARAMS_H
 

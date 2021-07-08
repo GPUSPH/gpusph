@@ -48,6 +48,8 @@
 #include "forces_params.h"
 #include "density_diffusion_params.h"
 
+#include "posvel_struct.h"
+
 /* Important notes on block sizes:
 	- a parallel reduction for adaptive dt is done inside forces, block
 	size for forces MUST BE A POWER OF 2
@@ -959,14 +961,14 @@ reduceRbForces(	BufferList& bufwrite,
 				torques_devptr, torques_devptr, binary_pred, binary_op);
 
 	for (uint i = 0; i < numforcesbodies; i++) {
-		float4 temp;
+		space_w_t temp;
 		void * ddata = (void *) (forces + lastindex[i]);
-		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
-		totalforce[i] = as_float3(temp);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(temp), cudaMemcpyDeviceToHost));
+		totalforce[i] = temp.xyz;
 
 		ddata = (void *) (torques + lastindex[i]);
-		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
-		totaltorque[i] = as_float3(temp);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(temp), cudaMemcpyDeviceToHost));
+		totaltorque[i] = temp.xyz;
 		}
 }
 
