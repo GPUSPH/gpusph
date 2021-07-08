@@ -118,7 +118,7 @@ calculateIOboundaryCondition(
 	const	float3			uInt,
 	const	float			unInt,
 	const	float			unExt,
-	const	float3			normal)
+	const	float3			&normal)
 {
 	const int a = fluid_num(info);
 	const float rInt = R(rhoInt, a);
@@ -215,7 +215,7 @@ template<typename WeightsType> // float3 or float4
 __device__ __forceinline__ void
 getMassRepartitionFactor(
 	const	float3	*vertexRelPos,
-	const	float3	normal,
+	const	float3	&normal,
 	WeightsType	&beta)
 {
 	float3 v01 = vertexRelPos[0]-vertexRelPos[1];
@@ -325,33 +325,32 @@ struct common_pdata : pos_mass
 
 //! Particle data used by \ref saSegmentBoundaryConditionsDevice
 struct segment_pdata :
-	common_pdata
+	common_pdata,
+	belem_t
 {
 	vertexinfo verts;
-	float4 normal;
 
 	template<typename Params>
 	__device__ __forceinline__
 	segment_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		common_pdata(params, _index, _info),
-		verts(params.vertices[index]),
-		normal(params.fetchBound(index))
+		belem_t(params.fetchBound(_index)),
+		verts(params.vertices[_index])
 	{}
 };
 
 
 //! Particle data used for vertices with open boundaries
-struct vertex_io_pdata
+struct vertex_io_pdata : belem_t
 {
 	bool corner; // is this a corner vertex?
-	const float4 normal;
 	const float  refMass; // reference mass ∆p³*ρ_0
 
 	template<typename Params>
 	__device__ __forceinline__
 	vertex_io_pdata(Params const& params, uint _index, particleinfo const& _info) :
+		belem_t(params.fetchBound(_index)),
 		corner(CORNER(_info)),
-		normal(params.fetchBound(_index)),
 		refMass(params.deltap*params.deltap*params.deltap*d_rho0[fluid_num(_info)])
 	{}
 };
@@ -722,23 +721,23 @@ template<typename Params, //!< \ref sa_segment_bc_params specialization
 		typename COND_STRUCT(has_keps, common_keps_ndata)
 	>
 struct vertex_boundary_ndata :
-	keps_struct
+	keps_struct,
+	belem_t
 {
 	// TODO further split common_ndata and use index and info from there
 	uint index;
 	particleinfo info;
 
 	const vertexinfo vertices;
-	const float4 normal;
 
 	__device__ __forceinline__
 	vertex_boundary_ndata(Params const& params, int neib_index)
 	:
 		keps_struct(params, neib_index),
+		belem_t(params.fetchBound(neib_index)),
 		index(neib_index),
 		info(params.fetchInfo(neib_index)),
-		vertices(params.vertices[neib_index]),
-		normal(params.fetchBound(neib_index))
+		vertices(params.vertices[neib_index])
 	{}
 };
 
@@ -941,7 +940,7 @@ io_boundary_contrib(Params const& params, PData const& pdata,
 		// corner vertices only interact with solid wall segments,
 		// to compute the wallNormal
 		if (!IO_BOUNDARY(ndata.info))
-			pout.wallNormal += make_float3(ndata.normal)*ndata.normal.w;
+			pout.wallNormal += ndata.normal*ndata.area;
 		// nothing else to do
 		return;
 	}
@@ -972,14 +971,14 @@ io_boundary_contrib(Params const& params, PData const& pdata,
 		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], -1);
 
 	float3 vertexWeights;
-	getMassRepartitionFactor(vx, make_float3(ndata.normal), vertexWeights);
+	getMassRepartitionFactor(vx, ndata.normal, vertexWeights);
 	const int my_id = id(pdata.info);
 	const float weight =
 		ndata.vertices.x == my_id ? vertexWeights.x :
 		ndata.vertices.y == my_id ? vertexWeights.y :
 		ndata.vertices.z == my_id ? vertexWeights.z :
 		0.0f;
-	pout.sumMdot += physical_density(params.vel[ndata.index].w,fluid_num(ndata.info))*ndata.normal.w*weight*
+	pout.sumMdot += physical_density(params.vel[ndata.index].w,fluid_num(ndata.info))*ndata.area*weight*
 		dot3(params.eulerVel[ndata.index], ndata.normal); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 }
 
@@ -1186,7 +1185,7 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 
 		calculateIOboundaryCondition(euler, pdata.info,
 			rhoInt, rhoExt, pout.sumvel,
-			unInt, unExt, make_float3(pdata.normal));
+			unInt, unExt, pdata.normal);
 	} else {
 		if (VEL_IO(pdata.info))
 			euler.rhotilde = 0.0f;
@@ -1215,7 +1214,7 @@ impose_vertex_io_bc(Params const& params, PData const& pdata, POut &pout)
 		if (pout.sumMdot < 0.0f ||
 			dot3(pdata.normal, euler.vel) < 1e-5f*d_sscoeff[fluid_num(pdata.info)])
 		{
-			const float weightedMass = pdata.refMass*pdata.normal.w;
+			const float weightedMass = pdata.refMass*pdata.area;
 			pos.mass = fmaxf(-weightedMass, fminf(weightedMass, pos.mass));
 		}
 	}
@@ -1267,9 +1266,12 @@ impose_solid_keps_bc(Params const& params, PData const& pdata, POut &pout)
 	// average eulerian velocity on the wall (from associated vertices)
 	pout.euler /= 3;
 	// ensure that velocity is normal to segment normal
-	// TODO FIXME why would this operate on both xyz and w?
-	// (it was like that even before the transformation to vel_rho)
-	pout.euler -= dot3(pout.euler.vel,pdata.normal)*pdata.normal;
+	// TODO FIXME CHECK
+	// this used to operate on both the xyz and w components, which I (GB)
+	// believe was a mistake (it wouldn't make sense to subtract
+	// an area from a pressure). Changed during the vel_rho and belem_t splits,
+	// but should be checked
+	pout.euler.vel -= dot3(pout.euler.vel,pdata.normal)*pdata.normal;
 	params.eulerVel[pdata.index] = pout.euler;
 }
 
@@ -1393,7 +1395,7 @@ impose_io_bc(Params const& params, PData const& pdata, POut &pout)
 		const float rhoInt = pout.rhotilde;
 		const float rhoExt = pout.euler.rhotilde;
 
-		calculateIOboundaryCondition(pout.euler, pdata.info, rhoInt, rhoExt, pout.sumvel, unInt, unExt, as_float3(pdata.normal));
+		calculateIOboundaryCondition(pout.euler, pdata.info, rhoInt, rhoExt, pout.sumvel, unInt, unExt, pdata.normal);
 
 		// TODO FIXME cfr assignes above [*]
 		params.eulerVel[pdata.index] = pout.euler;
@@ -1691,7 +1693,7 @@ findOutgoingSegmentDevice(sa_outgoing_bc_params params)
 			continue; // we only care about IO boundary elements
 
 		const float3 relPos = neib_iter.relPos(params.fetchPos(neib_index)).relPos;
-		const float4 normal = params.fetchBound(neib_index);
+		const float3 normal = belem_t(params.fetchBound(neib_index)).normal;
 		const float3 relVel = (vel - vel_rho(params.fetchVel(neib_index))).relVel;
 		const float r2 = sqlength(relPos);
 
@@ -1701,7 +1703,7 @@ findOutgoingSegmentDevice(sa_outgoing_bc_params params)
 		{
 			r2_min = r2; // new minimum distance
 			index_min = neib_index;
-			normal_min = make_float3(normal);
+			normal_min = normal;
 			relPos_min = relPos;
 		}
 
@@ -1838,7 +1840,7 @@ struct InitGammaVars {
 			return;
 		}
 
-		normal = make_float3(params.fetchBound(neib_index));
+		normal = belem_t(params.fetchBound(neib_index)).normal;
 		q = relPos/params.slength;
 
 		calcVertexRelPos(q_vb, normal,

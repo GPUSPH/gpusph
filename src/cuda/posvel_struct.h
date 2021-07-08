@@ -170,14 +170,6 @@ struct __builtin_align__(16) vel_rho
 	}
 
 	__host__ __device__ __forceinline__
-	vel_rho& operator-=(vel_rho const& other)
-	{
-		vel -= other.vel;
-		rhotilde -= other.rhotilde;
-		return *this;
-	}
-
-	__host__ __device__ __forceinline__
 	vel_rho& operator/=(float div)
 	{
 		vel /= div;
