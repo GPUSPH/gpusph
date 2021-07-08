@@ -2441,7 +2441,7 @@ ComputeDummyParticlesDevice(
 
 		// the .xyz components are just the sum of the weighted velocities,
 		// the .w component is the smoothed pressure, which is computed as:
-		// (neib_pressure + neib_rho*dot(gravity, as_float3(relPos)))*w
+		// (neib_pressure + neib_rho*dot(gravity, neib.relPos))*w
 		float4 neib_contrib = make_float4(
 			neib_vel.x, neib_vel.y, neib_vel.z,
 			neib_pressure);
