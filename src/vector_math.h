@@ -1037,12 +1037,6 @@ static __forceinline__ __host__ __device__ float4 operator-(const float4 &a, con
 	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z,  a.w - b.w);
 }
 
-// subtract
-static __forceinline__ __host__ __device__ float4 operator-(const float3 &a, const float4 &b)
-{
-	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z,  b.w);
-}
-
 static __forceinline__ __host__ __device__ void operator-=(float4 &a, const float4 &b)
 {
 	a.x -= b.x; a.y -= b.y; a.z -= b.z; a.w -= b.w;
