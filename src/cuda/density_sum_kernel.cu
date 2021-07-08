@@ -44,7 +44,7 @@ using namespace cueuler;
 
 struct density_sum_particle_output
 {
-float4	gGamNp1;
+space_w_t	gGamNp1;
 float	rho;
 
 __device__ __forceinline__
@@ -64,7 +64,7 @@ const	int3	gridPos;
 const	pos_mass	atN;
 const	pos_mass	atNp1;
 const	float4	vel;
-const	float4	gGamN;
+const	space_w_t	gGamN;
 
 __device__ __forceinline__
 common_density_sum_particle_data(const uint _index, common_density_sum_params const& params) :
@@ -365,7 +365,7 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 	const float3 ns,
 	const float3 * vertexRelPos,
 	float dt,
-	const float3	gGamN)
+	const float3	&gGamN)
 { /* default case (no I/O), nothing to do */ };
 
 template<typename Params, typename GammaTermT>
@@ -377,7 +377,7 @@ io_gamma_contrib(GammaTermT &sumGam, int neib_index, particleinfo const& neib_in
 	const float3 ns,
 	const float3 * vertexRelPos,
 	float dt,
-	const float3	gGamN)
+	const float3	&gGamN)
 {
 		if (IO_BOUNDARY(neib_info)) {
 			// sum_{S^{io}} (gradGam(r + delta r)).delta r
@@ -618,9 +618,7 @@ densitySumBoundaryDevice(
 
 	computeDensitySumBoundaryTerms(params, pdata, dt, sumGam);
 
-	pout.gGamNp1.x = sumGam.gGam.x;
-	pout.gGamNp1.y = sumGam.gGam.y;
-	pout.gGamNp1.z = sumGam.gGam.z;
+	pout.gGamNp1.xyz = sumGam.gGam;
 
 	// gamma terms
 	// AM-TODO what about this term to remove 1/2 dgamdt?
@@ -676,24 +674,23 @@ integrateGammaDeviceFunc(Params params, uint index)
 	params.newgGam[index] = make_float4(sumGam.gGam, params.oldgGam[index].w + sumGam.gGamDotR);
 }
 
-struct quadrature_gamma_particle_data
+struct quadrature_gamma_particle_data : pos_mass
 {
-	const float4	oldGGam;
-	const float4	pos;
+	const space_w_t	oldGGam;
 	const int3	gridPos;
 
 	template<typename FP>
 	__device__ __forceinline__
 	quadrature_gamma_particle_data(FP const& params, uint index) :
+		pos_mass(params.newPos[index]),
 		oldGGam(params.oldgGam[index]),
-		pos(params.newPos[index]),
 		gridPos(calcGridPosFromParticleHash(params.particleHash[index]))
 	{}
 };
 
 struct quadrature_gamma_particle_output
 {
-	float4 gGam;
+	space_w_t gGam;
 
 	__device__ __forceinline__
 	quadrature_gamma_particle_output() :
@@ -737,12 +734,10 @@ gamma_quadrature_contrib(FP const& params, P const& pdata, N const& ndata, OP &p
 		params.slength);
 
 	float ggamAS = gradGamma<FP::kerneltype>(params.slength, q, q_vb, ndata.belem.normal);
-	pout.gGam.x += ggamAS*ndata.belem.normal.x;
-	pout.gGam.y += ggamAS*ndata.belem.normal.y;
-	pout.gGam.z += ggamAS*ndata.belem.normal.z;
+	pout.gGam.xyz += ggamAS*ndata.belem.normal;
 
 	const float gamma_as = Gamma<FP::kerneltype, FP::cptype>(params.slength, q, q_vb, ndata.belem.normal,
-		as_float3(pdata.oldGGam), params.epsilon);
+		pdata.oldGGam.xyz, params.epsilon);
 	pout.gGam.w -= gamma_as;
 }
 
@@ -755,7 +750,7 @@ integrateGammaDeviceFunc(Params params, const uint index)
 	const quadrature_gamma_particle_data pdata(params, index);
 	quadrature_gamma_particle_output pout;
 
-	for_each_neib(PT_BOUNDARY, index, pdata.pos, pdata.gridPos,
+	for_each_neib(PT_BOUNDARY, index, pdata, pdata.gridPos,
 		params.cellStart, params.neibsList)
 	{
 		const quadrature_gamma_neib_data ndata(params, neib_iter);
