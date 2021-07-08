@@ -853,6 +853,32 @@ jacobiFSBoundaryConditionsDevice(
 	}
 }
 
+struct jacobi_wb_neib_data : relPos_mass, relVel_rho
+{
+	particleinfo info;
+	uint	index;
+	float	oldEffPres;
+
+	template<typename Params, typename NeibIter>
+	__host__ __device__
+	jacobi_wb_neib_data(Params const& params, NeibIter const& neib_iter, uint neib_index,
+		float3 const& vel)
+	:
+		relPos_mass	(neib_iter.relPos(params.fetchPos(neib_index))),
+		relVel_rho	(vel - vel_rho(params.fetchVel(neib_index))),
+		info		(params.fetchInfo(neib_index)),
+		index		(neib_index),
+		oldEffPres	(params.effpres[neib_index])
+	{}
+
+	template<typename Params, typename NeibIter>
+	__host__ __device__
+	jacobi_wb_neib_data(Params const& params, NeibIter const& neib_iter, float3 const& vel)
+	:
+		jacobi_wb_neib_data(params, neib_iter, neib_iter.neib_index(), vel)
+	{}
+};
+
 template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
@@ -893,7 +919,7 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 		if (INACTIVE(pos))
 			break;
 
-		const float4 vel = params.fetchVel(index);
+		const float3 vel = vel_rho(params.fetchVel(index)).vel;
 
 		// Compute grid position of current particle
 		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
@@ -913,32 +939,21 @@ jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, bound
 			float alpha = 0.f; // shepard filter
 			// loop over fluid neibs
 			for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
-				const uint neib_index = neib_iter.neib_index();
 
-				// Compute relative position vector and distance
-				const relPos_mass neib_pm = neib_iter.relPos( params.fetchPos(neib_index) );
-
-				const float neib_oldEffPres = params.effpres[neib_index];
-				const particleinfo neib_info = params.fetchInfo(neib_index);
+				const jacobi_wb_neib_data neib(params, neib_iter, vel);
 
 				// skip inactive particles
-				if (is_inactive(neib_pm))
+				if (is_inactive(neib))
 					continue;
 
-				if (SEDIMENT(neib_info)) {
-					const float r = length(neib_pm.relPos);
-
-					// Compute relative velocity
-					const relVel_rho neib_vr = as_float3(vel) - vel_rho(params.fetchVel(neib_index));
-					//const ParticleType nptype = PART_TYPE(neib_info);
-
-					// Fluid numbers
-					const uint neib_fluid_num = fluid_num(neib_info);
+				if (SEDIMENT(neib.info)) {
+					const float r = length(neib.relPos);
 
 					// contribution of free particles
 					const float w = W<kerneltype>(r, params.slength);	// Wij	
-					const float neib_volume = neib_pm.mass/physical_density(neib_vr.rhotilde, neib_fluid_num);
-					newEffPres += fmax(neib_volume*(neib_oldEffPres + delta_rho*dot3(d_gravity, neib_pm.relPos))*w, 0.f);
+					const uint neib_fluid_num = fluid_num(neib.info);
+					const float neib_volume = neib.mass/physical_density(neib.rhotilde, neib_fluid_num);
+					newEffPres += fmax(neib_volume*(neib.oldEffPres + delta_rho*dot3(d_gravity, neib.relPos))*w, 0.f);
 					alpha += neib_volume*w;
 				}
 			} // end of loop through neighbors
