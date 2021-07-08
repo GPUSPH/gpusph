@@ -63,8 +63,9 @@ using namespace cuneibs;
  *
  *	\return local postion rotated according to rot
  */
+template<typename PosT> // float3 or float4
 __device__ __forceinline__ void
-applyrot(const float* rot, const float3 & relPos, float4 & pos)
+applyrot(const float* rot, const float3 & relPos, PosT & pos)
 {
 	// Applying rotation
 	pos.x += (rot[0] - 1.0f)*relPos.x + rot[1]*relPos.y + rot[2]*relPos.z;
