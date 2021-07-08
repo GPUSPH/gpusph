@@ -715,7 +715,7 @@ struct delta_sph_particle_data
 	template<typename FP>
 	__device__ __forceinline__
 	delta_sph_particle_data(const uint index, FP const& params):
-		renorm_dens_grad(as_float3(params.deltaDensGrad[index]))
+		renorm_dens_grad(make_float3(params.deltaDensGrad[index]))
 	{}
 };
 
@@ -1172,7 +1172,7 @@ struct delta_sph_neib_data
 	template<typename FP>
 	__device__ __forceinline__
 	delta_sph_neib_data(const uint index, FP const& params) :
-		renorm_dens_grad(as_float3(params.deltaDensGrad[index]))
+		renorm_dens_grad(make_float3(params.deltaDensGrad[index]))
 	{}
 };
 

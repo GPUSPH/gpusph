@@ -214,8 +214,8 @@ CommonWriter::write(uint numParts, BufferList const& buffers, uint node_offset, 
 			<< vel[i].w << ","
 			<< object(info[i]) << ","
 			<< cellHashFromParticleHash( particleHash[i] ) << ","
-			<< as_double3(pos[i]) << ","
-			<< as_float3(vel[i]) << ","
+			<< make_double3(pos[i]) << ","
+			<< make_float3(vel[i]) << ","
 			<< tkeVal << ","
 			<< epsVal << endl;
 	}
@@ -230,10 +230,10 @@ CommonWriter::write_energy(double t, double4 *energy)
 		m_energyfile << t;
 		uint fluid = 0;
 		for (; fluid < m_problem->physparams()->numFluids(); ++fluid) {
-			m_energyfile	<< "\t" << as_double3(energy[fluid]);
+			m_energyfile	<< "\t" << make_double3(energy[fluid]);
 			total += energy[fluid].x + energy[fluid].y + energy[fluid].z;
 		}
-		m_energyfile	<< "\t" << as_double3(energy[MAX_FLUID_TYPES]);
+		m_energyfile	<< "\t" << make_double3(energy[MAX_FLUID_TYPES]);
 		total += energy[MAX_FLUID_TYPES].x + energy[MAX_FLUID_TYPES].y + energy[MAX_FLUID_TYPES].z;
 		m_energyfile << "\t" << total;
 		m_energyfile << endl;

@@ -174,7 +174,7 @@ ChannelIO_imposeBoundaryConditionDevice(
 			// For corners we need to get eulerVel in case of k-eps and pressure outlet
 			if (CORNER(info) && newTke && !VEL_IO(info))
 				eulerVel = newEulerVel[index];
-			const float3 absPos = d_worldOrigin + as_float3(params.fetchPos(index))
+			const float3 absPos = d_worldOrigin + pos_mass(params.fetchPos(index)).pos
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
 

@@ -1107,14 +1107,14 @@ ProblemCore::implicit_plane(double4 const& p)
 
 	plane_t plane;
 	const double norm = length3(p);
-	const double3 normal = as_double3(p)/norm;
+	const double3 normal = make_double3(p)/norm;
 	plane.normal = make_float3(normal);
 
 	/* For the plane point, we pick the one closest to the center of the domain
 	 * TODO find a better logic ? */
 
 	const double midDist = dot(midPoint, p)/norm;
-	double3 planePoint = as_double3(midPoint) - midDist*normal;
+	double3 planePoint = make_double3(midPoint) - midDist*normal;
 
 	calc_grid_and_local_pos(planePoint, &plane.gridPos, &plane.pos);
 
