@@ -131,50 +131,58 @@ using namespace cuneibs; // to access iterators over neighbors
  In this example we simply compute the number of neighbors.
  */
 template<BoundaryType boundarytype>
-__global__ void
-calcPrivateDevice(
-			float*		priv,
-	const	float4*		__restrict__	posArray,
-	const	float4*		__restrict__		velArray,
-	const	particleinfo* __restrict__	infoArray,
-	const	hashKey*	__restrict__	particleHash,
-	const	uint*		__restrict__	cellStart,
-	const	neibdata*	__restrict__	neibsList,
-	const	float		slength,
-	const	float		inflRadius,
-			uint		numParticles)
+struct calcPrivateDevice : neibs_interaction_params<boundarytype>
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+			float*		priv;
 
-	if (index >= numParticles)
+	calcPrivateDevice(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+		const uint numParticles,
+		const float slength,
+		const float influenceradius)
+	:
+		neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
+		priv(bufwrite.getData<BUFFER_PRIVATE>())
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	neibs_interaction_params<boundarytype> const& params(*this);
+
+	const uint index = item.get_id();
+
+	if (index >= params.numParticles)
 		return;
 
-	const float4 pos = posArray[index];
-	// To access the particle info and e.g. filter action based on particle type:
-	//const particleinfo info = infoArray[index];
-	// To access the particle velocity and density, e.g. to apply the standard SPH smoothing
-	//const float4 vel = velArray[index];
+	const float4 pos = params.fetchPos(index);
 
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	// To access the particle info and e.g. filter action based on particle type:
+	//const particleinfo info = params.fetchInfo(index);
+	// To access the particle velocity and density, e.g. to apply the standard SPH smoothing
+	//const float4 vel = params.fetchVel(index);
+
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	uint neibs = 0;
 
 	// Loop over all the neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, cellStart, neibsList) {
+	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
-		const float3 relPos = neib_iter.relPos(posArray[neib_index]).relPos;
+		const float3 relPos = neib_iter.relPos( params.fetchPos(neib_index)).relPos;
 
 		float r = length(relPos);
-		if (r < inflRadius)
+		if (r < params.influenceradius)
 			neibs += 1;
 	}
 
 	// Will convert to float on storage, because BUFFER_PRIVATE is a float buffer
 	priv[index] = neibs;
 }
+};
 
 void ProblemExample::calcPrivate(flag_t options,
 	BufferList const& bufread,
@@ -190,25 +198,10 @@ void ProblemExample::calcPrivate(flag_t options,
 	uint numThreads = BLOCK_SIZE_CALCTEST;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	const float4 *pos = bufread.getData<BUFFER_POS>();
-	const float4 *vel = bufread.getData<BUFFER_VEL>();
-	const particleinfo *info = bufread.getData<BUFFER_INFO>();
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-	const uint *cellStart = bufread.getData<BUFFER_CELLSTART>();
-	const neibdata *neibsList = bufread.getData<BUFFER_NEIBSLIST>();
+	calcPrivateDevice<LJ_BOUNDARY> params(bufread, bufwrite, particleRangeEnd,
+		simparams()->slength, simparams()->influenceRadius);
 
-	float *priv = bufwrite.getData<BUFFER_PRIVATE>();
-
-	//execute kernel
-	calcPrivateDevice<LJ_BOUNDARY><<<numBlocks, numThreads>>>(
-			priv,
-			pos, vel, info,
-			particleHash,
-			cellStart,
-			neibsList,
-			simparams()->slength,
-			simparams()->influenceRadius,
-			numParticles);
+	execute_kernel(params, numBlocks, numThreads);
 
 	KERNEL_CHECK_ERROR;
 }
