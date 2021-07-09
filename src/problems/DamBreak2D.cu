@@ -39,7 +39,7 @@ DamBreak2D::DamBreak2D(GlobalData *_gdata) : Problem(_gdata)
 {
 	// *** user parameters from command line
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
-	const DensityDiffusionType RHODIFF = get_option("density-diffusion", DENSITY_DIFFUSION_NONE);
+	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
 	// artificial viscosity: if set to a positive value, the problem witll use artificial viscosity
 	// instead of kinematic viscosity (with the specified viscosity value)
 	const float artvisc = get_option("artvisc", 0.0f);
