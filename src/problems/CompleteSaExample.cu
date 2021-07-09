@@ -326,8 +326,14 @@ CompleteSaExample::imposeBoundaryConditionHost(
 	execute_kernel(params, numBlocks, numThreads);
 
 	// reset waterdepth calculation
-	if (IOwaterdepth)
+	if (IOwaterdepth) {
+		// TODO FIXME CPUSPH define a wrapper method or port IOwaterdepth to the BUFFER system
+#if CUDA_BACKEND_ENABLED
 		SAFE_CALL(cudaMemset(IOwaterdepth, 0, numOpenBoundaries*sizeof(int)));
+#else
+		SAFE_CALL(memset(IOwaterdepth, 0, numOpenBoundaries*sizeof(int)));
+#endif
+	}
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
