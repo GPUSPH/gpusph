@@ -339,6 +339,8 @@ ifeq ($(CLANG_CUDA),1)
  ifeq ($(cuda.backend.enabled),1)
   CUXX += --cuda-path=$(CLANG_CUDA_PATH)
   NO_CUDA_ARCH_VERSION_CHECK=--no-cuda-version-check
+ else ifeq ($(cpu.backend.enabled),1)
+  CUXX += -x c++
  endif
 else ifeq ($(cpu.backend.enabled),1)
  CUXX=$(CXX) -x c++
