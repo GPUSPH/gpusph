@@ -112,7 +112,7 @@ PlaneDistance(	const int3&		gridPos,
 				const PosT&	pos,
 				const plane_t&	plane)
 {
-	return abs(signedPlaneDistance(gridPos, pos, plane));
+	return fabsf(signedPlaneDistance(gridPos, pos, plane));
 }
 
 //! reflect the spatial components of a vector through a plane.
