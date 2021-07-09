@@ -84,7 +84,8 @@ DamBreak2D::DamBreak2D(GlobalData *_gdata) : Problem(_gdata)
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(water_height/ppH);
-	set_gravity(-9.81);
+	const double g = 9.81;
+	set_gravity(-g);
 
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, NAN); // sound speed NAN = autocompute
@@ -97,6 +98,9 @@ DamBreak2D::DamBreak2D(GlobalData *_gdata) : Problem(_gdata)
 	// The maximum fall height is normally taken as the initial max filling height.
 	// However, we know that the splash in this case can cover the whole domain height, so:
 	setMaxFall(domain_height);
+
+	// Surge speed
+	setMaxParticleSpeed(2*sqrt(g*water_height));
 
 	// Save every 100th of simulated second
 	add_writer(VTKWRITER, 0.01f);
