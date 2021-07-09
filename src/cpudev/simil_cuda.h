@@ -35,6 +35,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <algorithm> // max
 
 #include "atomic_type.h"
 
@@ -107,6 +108,26 @@ T atomicAdd(ATOMIC_TYPE(T)* address, T val)
 	return old;
 #endif
 }
+
+template<typename T>
+T atomicMax(ATOMIC_TYPE(T)* address, T val)
+{
+#ifdef _OPENMP
+	// C++11 doesn't have atomic max, so we simulate it
+	// TODO FIXME verify
+	T old = address->load();
+	while (old < val && !address->compare_exchange_weak(old, val))
+	{}
+
+	return old;
+#else
+	// no need to actually be atomic
+	const T old = *address;
+	*address = std::max(old, val);
+	return old;
+#endif
+}
+
 
 #define __powf powf
 
