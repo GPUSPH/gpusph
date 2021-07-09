@@ -124,6 +124,7 @@ struct GeometryInfo {
 	bool measure_forces;
 	bool fea; //object for finite element analysis
 	bool enabled;
+	bool is_dynamometer; // has a chrono constraint with force-torque measurement
 
 	bool has_hdf5_file; // little redundant but clearer
 	std::string hdf5_filename;
@@ -170,6 +171,8 @@ struct GeometryInfo {
 		fea = false;
 
 		enabled = true;
+
+		is_dynamometer = false;
 
 		has_hdf5_file = false;
 		hdf5_filename = "";
@@ -381,6 +384,9 @@ class ProblemAPI<1> : public ProblemCore
 
 		// set Young's modulus (only meaningful for deformable objects)
 		void setYoungModulus(const GeometryID gid, const double youngModulus);
+
+		// set Dynamometer (only for GT_FEA_RIGID_JOINT) 
+		void setDynamometer(const GeometryID gid, const bool isDynamometer = true);
 
 		// set Poisson ratio (only meaningful for deformable objects)
 		void setPoissonRatio(const GeometryID gid, const double poissonRatio);

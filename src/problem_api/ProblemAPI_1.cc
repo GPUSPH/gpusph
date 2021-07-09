@@ -1372,6 +1372,14 @@ void ProblemAPI<1>::setYoungModulus(const GeometryID gid, const double youngModu
 	m_geometries[gid]->ptr->SetYoungModulus(youngModulus);
 }
 
+void ProblemAPI<1>::setDynamometer(const GeometryID gid, const bool isDynamometer)
+{
+	if (!validGeometry(gid)) return;
+	if (m_geometries[gid]->type != GT_FEA_RIGID_JOINT)
+		printf("WARNING: Only GT_FEA_RIGID_JOINT bodies can be set Dynamometer\n");
+	m_geometries[gid]->is_dynamometer = isDynamometer;
+}
+
 void ProblemAPI<1>::setAlphaDamping(const GeometryID gid, const double alphaDamping)
 {
 	if (!validGeometry(gid)) return;
@@ -1950,11 +1958,12 @@ int ProblemAPI<1>::fill_parts(bool fill)
 
 			if (!nodes_in_truss) throw std::runtime_error("Error: Adding a FEA Joint with no intersecting nodes");
 
-			// TODO: make optional
-			 m_geometries[g]->ptr->makeDynamometer(m_fea_system,
-				gdata->s_hWriteFeaPointConstrPointers,
-				gdata->s_hWriteFeaDirConstrPointers);
-			simparams()->numConstraintsToWrite += 1;
+			if (m_geometries[g]->is_dynamometer == true) {
+				m_geometries[g]->ptr->makeDynamometer(m_fea_system,
+					gdata->s_hWriteFeaPointConstrPointers,
+					gdata->s_hWriteFeaDirConstrPointers);
+				simparams()->numConstraintsToWrite += 1;
+			}
 		}
 
 		/* Join elements by means of ChLink
