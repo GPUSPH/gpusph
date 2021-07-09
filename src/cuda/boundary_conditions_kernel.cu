@@ -2276,7 +2276,7 @@ struct saVertexBoundaryConditionsDevice : Params
 	saVertexBoundaryConditionsDevice(
 		const	BufferList&	bufread,
 				BufferList&	bufwrite,
-				uint	* __restrict__ newNumParticles,
+		ATOMIC_TYPE(uint)		* __restrict__ newNumParticles,
 		const	uint	numParticles,
 		const	uint	totParticles,
 		const	float	deltap,
@@ -2373,7 +2373,7 @@ struct saVertexBoundaryConditionsRepackDevice : Params
 	saVertexBoundaryConditionsRepackDevice(
 		const	BufferList&	bufread,
 				BufferList&	bufwrite,
-				uint	* __restrict__ newNumParticles,
+	ATOMIC_TYPE(uint)	* __restrict__ newNumParticles,
 		const	uint	numParticles,
 		const	uint	totParticles,
 		const	float	deltap,

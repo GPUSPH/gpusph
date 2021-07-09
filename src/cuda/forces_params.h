@@ -305,9 +305,9 @@ struct sa_finalize_forces_params :
 /// Additional parameters passed only to kernels with ENABLE_WATER_DEPTH
 struct water_depth_forces_params
 {
-	uint	* __restrict__ IOwaterdepth;
+	ATOMIC_TYPE(uint)	* __restrict__ IOwaterdepth;
 
-	water_depth_forces_params(uint * __restrict__ _IOwaterdepth) :
+	water_depth_forces_params(ATOMIC_TYPE(uint) * __restrict__ _IOwaterdepth) :
 		IOwaterdepth(_IOwaterdepth)
 	{}
 };
@@ -456,8 +456,9 @@ struct forces_params : _ViscSpec,
 		const	float	_epsilon,
 
 		// ENABLE_WATER_DEPTH
-				uint	* __restrict__ _IOwaterdepth
-		) :
+		ATOMIC_TYPE(uint)	* __restrict__ _IOwaterdepth
+		)
+	:
 		common_forces_params(bufread, bufwrite,
 			_fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius, _step, _dt),
@@ -562,7 +563,7 @@ struct finalize_forces_params :
 		const	float	_slength,
 		const	float	_deltap,
 		const	uint	_cflOffset,
-				uint	* __restrict__ _IOwaterdepth)
+		ATOMIC_TYPE(uint)	*_IOwaterdepth)
 	:
 		common_finalize_forces_params<run_mode>(bufread, bufwrite,
 			 _fromParticle, _toParticle, _slength, _deltap),

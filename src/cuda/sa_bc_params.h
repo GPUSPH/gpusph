@@ -174,14 +174,14 @@ struct sa_cloning_params
 	vertexinfo * __restrict__ cloneVertices; //! Writable vertices array
 	float4 * __restrict__ cloneBoundElems; //! Writeable boundary elements array
 	uint * __restrict__ nextIDs; //! Next ID for generated particles
-	uint * __restrict__ newNumParticles; //! New number of particles
+	ATOMIC_TYPE(uint) * __restrict__ newNumParticles; //! New number of particles
 	const uint totParticles; //! Maximum number of particles allowed in the simulation
 	const uint deviceId; //! ID of the device the kernel is running on
 	const uint numDevices; //! number of devices used for the simulation
 
 	sa_cloning_params(
 				BufferList& bufwrite,
-				uint	* __restrict__ _newNumParticles,
+		ATOMIC_TYPE(uint) *	__restrict__ _newNumParticles,
 		const	 uint _totParticles,
 		const	 uint _deviceId,
 		const	 uint _numDevices)
@@ -249,7 +249,7 @@ struct sa_vertex_bc_params :
 	sa_vertex_bc_params(
 		const	BufferList&	bufread,
 				BufferList&	bufwrite,
-				uint	* __restrict__ _newNumParticles,
+		ATOMIC_TYPE(uint) *	__restrict__ _newNumParticles,
 		const	uint	_numParticles,
 		const	uint	_totParticles,
 		const	float	_deltap,

@@ -135,7 +135,7 @@ public:
 				float	dtadaptfactor,
 				float	influenceradius,
 		const	float	epsilon,
-				uint	*IOwaterdepth,
+		ATOMIC_TYPE(uint)	*IOwaterdepth,
 				uint	cflOffset,
 		const	RunMode	run_mode,
 		const	int		step,

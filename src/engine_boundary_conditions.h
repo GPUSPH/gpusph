@@ -112,7 +112,7 @@ saVertexBoundaryConditions(
 	const	bool			resume, // TODO FIXME splitneibs-merge check if still needed
 	const	float			dt, // for open boundaries
 	// These are the cloning-related members
-			uint*			newNumParticles,
+	ATOMIC_TYPE(uint)*		newNumParticles,
 	const	uint			deviceId,
 	const	uint			numDevices,
 	const	uint			totParticles,
