@@ -598,15 +598,20 @@ nanCheckDevice(EP params)
 	if (index >= params.numParticles)
 		return;
 
+	const particleinfo info = params.info[index];
+
+	// testpoints can have NaNs
+	if (TESTPOINT(info))
+		return;
+
 	const float4 pos = params.newPos[index];
 	const float4 vel = params.newVel[index];
 
 	// is any of pos.{xyz} and vel.{xyzw} not finite?
 	// (we exclude pos.w because that can be NAN for disabled particles)
-	if (isfinite(pos.x+pos.y+pos.z*vel.x+vel.y+vel.z+vel.w)) 
+	if (isfinite(pos.x+pos.y+pos.z*vel.x+vel.y+vel.z+vel.w))
 		return;
 
-	const particleinfo info = params.info[index];
 	const float4 force = params.forces[index];
 	const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
 
