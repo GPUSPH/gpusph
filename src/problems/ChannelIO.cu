@@ -139,20 +139,40 @@ ChannelIO_imposeBoundaryCondition(
 	}
 }
 
-__global__ void
-ChannelIO_imposeBoundaryConditionDevice(
-	pos_info_wrapper	params,
-			float4*		__restrict__ newVel,
-			float4*		__restrict__ newEulerVel,
-			float*		__restrict__ newTke,
-			float*		__restrict__ newEpsilon,
-	const	uint*		IOwaterdepth,
-	const	float		t,
-	const	uint		numParticles,
-	const	hashKey*	particleHash)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
+struct ChannelIO_imposeBoundaryConditionDevice
+{
+	pos_info_wrapper	params;
+			float4*		__restrict__ newVel;
+			float4*		__restrict__ newEulerVel;
+			float*		__restrict__ newTke;
+			float*		__restrict__ newEpsilon;
+	const	uint*		IOwaterdepth;
+	const	float		t;
+	const	uint		numParticles;
+	const	hashKey*	particleHash;
+
+	ChannelIO_imposeBoundaryConditionDevice(
+		BufferList const& bufread,
+		BufferList& bufwrite,
+			uint* IOwaterdepth_,
+		const float t_,
+		const uint numParticles_)
+	:
+		params(bufread),
+		newVel(bufwrite.getData<BUFFER_VEL>()),
+		newEulerVel(bufwrite.getData<BUFFER_EULERVEL>()),
+		newTke(bufwrite.getData<BUFFER_TKE>()),
+		newEpsilon(bufwrite.getData<BUFFER_EPSILON>()),
+		IOwaterdepth(IOwaterdepth_),
+		t(t_),
+		numParticles(numParticles_),
+		particleHash(bufread.getData<BUFFER_HASH>())
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
 	if (index >= numParticles)
 		return;
 
@@ -199,6 +219,7 @@ ChannelIO_imposeBoundaryConditionDevice(
 		}
 	}
 }
+};
 
 } // end of cuChannelIO namespace
 
@@ -212,24 +233,13 @@ ChannelIO::imposeBoundaryConditionHost(
 			const	uint			numOpenBoundaries,
 			const	uint			particleRangeEnd)
 {
-	float4	*newVel = bufwrite.getData<BUFFER_VEL>();
-	float4	*newEulerVel = bufwrite.getData<BUFFER_EULERVEL>();
-	float	*newTke = bufwrite.getData<BUFFER_TKE>();
-	float	*newEpsilon = bufwrite.getData<BUFFER_EPSILON>();
-
-	const hashKey *particleHash = bufread.getData<BUFFER_HASH>();
-
 	const uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	int dummy_shared = 0;
-	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
-	#if (__COMPUTE__ == 20)
-	dummy_shared = 2560;
-	#endif
+	cuChannelIO::ChannelIO_imposeBoundaryConditionDevice params(
+		bufread, bufwrite, IOwaterdepth, t, particleRangeEnd);
 
-	cuChannelIO::ChannelIO_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
-		(pos_info_wrapper(bufread), newVel, newEulerVel, newTke, newEpsilon, IOwaterdepth, t, numParticles, particleHash);
+	execute_kernel(params, numBlocks, numThreads);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
