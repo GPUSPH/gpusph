@@ -42,6 +42,7 @@
 #include "physparams.h"
 #include "simparams.h"
 #include "buffer.h"
+#include "device/atomic_type.h"
 
 /*! Abstract class that defines the interface for BoundaryConditionsEngine.
  * Currently most of its methods are specific to SA_BOUNDARY, so it's a bit
