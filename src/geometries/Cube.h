@@ -78,7 +78,7 @@ class Cube: public Object {
 		//@{
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters& = EulerParameters());
-		Cube(const Point&, const Vector&, const Vector&, const Vector&) DEPRECATED_MSG("rotate a Cube(double, double, double) instead");
+		Cube(const Point&, const Vector&, const Vector&, const Vector&) GPUSPH_DEPRECATED_MSG("rotate a Cube(double, double, double) instead");
 		virtual ~Cube(void) {};
 		//@}
 

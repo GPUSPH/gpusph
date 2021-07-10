@@ -534,7 +534,7 @@ protected:
 			float c0		///< [in] \f$ c_0 \f$
 			)
 	/*! \cond */
-	DEPRECATED_MSG("set_density() is deprecated, use add_fluid() + set_equation_of_state() instead")
+	GPUSPH_DEPRECATED_MSG("set_density() is deprecated, use add_fluid() + set_equation_of_state() instead")
 	/*! \endcond */
 	{
 		if (i == rho0.size()) {

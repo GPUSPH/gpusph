@@ -47,12 +47,12 @@
 // is reminded to upgrade to the new API.
 
 /* Mark a function deprecated */
-#define DEPRECATED __attribute__((deprecated))
+#define GPUSPH_DEPRECATED __attribute__((deprecated))
 
 /* Mark a function deprecated, explaining what to do instead,
  */
 
-#define DEPRECATED_MSG(str) __attribute__((deprecated(str)))
+#define GPUSPH_DEPRECATED_MSG(str) __attribute__((deprecated(str)))
 
 /* For the functions that provide compatibility between the deprecated
  * and new APIs, we want to avoid getting deprecation warnings,
