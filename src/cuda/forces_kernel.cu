@@ -84,6 +84,8 @@ __constant__ float3	d_rbcgPos[MAX_BODIES]; //< in-cell coordinate of the center 
 __constant__ int	d_rbstartindex[MAX_BODIES];
 /*  @} */
 
+__constant__ float	d_ccsph_min_det; ///< Minimum determinant for CCSPH corection
+
 /** \name Device functions
  *  @{ */
 
@@ -369,7 +371,7 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 	}
 
 	const float determinant = det(fcoeff);
-	if (determinant >= 0.1) {
+	if (determinant >= 0.1f) {
 		const symtensor3 invtens = inverse(fcoeff, determinant);
 		renorm_dens_grad = dot(invtens, renorm_dens_grad);
 	}
@@ -400,7 +402,7 @@ store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint nu
 #if CCSPH_THRESHOLD == 2
 		const float D = kbn_det(fcoeff);
 
-		reset_fcoeff = (D < 0.6);
+		reset_fcoeff = (D < d_ccsph_min_det);
 
 #elif CCSPH_THRESHOLD == 3
 		reset_fcoeff = (num_neibs <= 42);

@@ -98,7 +98,7 @@ void show_version()
 void print_usage() {
 	show_version();
 	cout << "Syntax: " << endl;
-	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL] [--dt VAL]\n";
+	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL] [--dt VAL] [--ccsph-min-det VAL]\n";
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
@@ -114,6 +114,7 @@ void print_usage() {
 	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
 	cout << " --tend : Break at given time (VAL is cast to float)\n";
 	cout << " --dt : Use the provided fixed time-step (VAL is cast to float)\n";
+	cout << " --csph-min-det : Use given minimum determnant for CCSPH (VAL is cast to float)\n";
 	cout << " --maxiter : Break after this many iterations (integer VAL)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
@@ -195,6 +196,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		} else if (!strcmp(arg, "--dt")) {
 			/* read the next arg as a float */
 			sscanf(*argv, "%f", &(_clOptions->dt));
+			argv++;
+			argc--;
+		} else if (!strcmp(arg, "--ccsph-min-det")) {
+			/* read the next arg as a float */
+			sscanf(*argv, "%f", &(_clOptions->ccsph_min_det));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--maxiter")) {

@@ -386,6 +386,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_alpha, &simparams->repack_alpha, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_repack_a, &simparams->repack_a, sizeof(float)));
 
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ccsph_min_det, &simparams->ccsph_min_det, sizeof(float)));
 }
 
 

@@ -370,7 +370,10 @@ CommonWriter::write_simparams(ostream &out)
 
 	out << " XSPH correction " << ED[HAS_XSPH(SP->simflags)] << endl;
 
-	out << " Conservative Corrective Smoothed Particle Hydrodynamics (CCSPH) " << ED[HAS_CCSPH(SP->simflags)] << endl;
+	const bool has_ccsph = HAS_CCSPH(SP->simflags);
+	out << " Conservative Corrective Smoothed Particle Hydrodynamics (CCSPH) " << ED[has_ccsph] << endl;
+	if (has_ccsph)
+		out << "    determinant threshold: " << SP->ccsph_min_det << endl;
 	switch (SP->densitydiffusiontype) {
 	case FERRARI:
 		out << " Ferrari density diffusion enabled" << endl;

@@ -208,6 +208,7 @@ typedef struct SimParams {
 	/** \name Other parameters
 	 * @{ */
 	float			epsilon;				///< If \f$ |r_a - r_b| < \epsilon \f$ two positions are considered identical. TODO: check that the test is done on a relative quantity
+	float			ccsph_min_det;			///< Minimum value of the determinant to apply the CCSPH correction (0.6 by default)
 	/** @} */
 	/** \name Repacking parameters
 	 * @{ */
@@ -305,6 +306,7 @@ typedef struct SimParams {
 		numbodies(0),
 		numOpenBoundaries(0),
 		epsilon(5e-5f),
+		ccsph_min_det(0.6),
 		repack_maxiter(2000),
 		repack_a(0.1f),
 		repack_alpha(0.01f),

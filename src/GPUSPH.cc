@@ -195,6 +195,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// copy the options passed by command line to GlobalData
 	if (isfinite(clOptions->tend))
 		_sp->tend = clOptions->tend;
+	if (isfinite(clOptions->ccsph_min_det))
+		_sp->ccsph_min_det = clOptions->ccsph_min_det;
 
 	if (clOptions->repack_maxiter)
 		_sp->repack_maxiter = clOptions->repack_maxiter;
