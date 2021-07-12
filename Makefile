@@ -24,11 +24,13 @@ space:=$(empty) $(empty)
 verbose ?= 0
 verbose := $(verbose)
 
-# traceconfig macro
+# traceconfig and showvardef macros
 ifneq ($(verbose),0)
  traceconfig = $(info (config) $1 $2 $3 $4 $5 $6 $7 $8 $9)
+ showvardef  = $1=$($1)
 else
  traceconfig =
+ showvardef  = $($1)
 endif
 
 # When running a `make clean`, we do not want to generate the files that we are going to remove
@@ -1091,13 +1093,18 @@ snap_date := $(shell git log -1 --format='%cd' --date=iso 2> /dev/null | cut -f1
 # snapshot tarball filename
 SNAPSHOT_FILE = ./GPUSPH-$(GPUSPH_VERSION)-$(snap_date).tgz
 
+# show_stage is the macro to show the current stage being issued. We disable this altogether when
+# there is a VARNAME-definition among the targets
+ifeq ($(findstring -definition,$(MAKECMDGOALS)),-definition)
+ show_stage=$(empty)
+ show_stage_nl=$(empty)
 # option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
-ifeq ($(plain), 1)
-	show_stage=@printf "[$(1)] $(2)\n"
-	show_stage_nl=$(show_stage)
+else ifeq ($(plain), 1)
+ show_stage   =@printf "[$(1)] $(2)\n"
+ show_stage_nl=$(show_stage)
 else
-	show_stage   =@printf "\r                                                                  \r[$(1)] $(2)"
-	show_stage_nl=@printf "\r                                                                  \r[$(1)] $(2)\n"
+ show_stage   =@printf "\r                                                                  \r[$(1)] $(2)"
+ show_stage_nl=@printf "\r                                                                  \r[$(1)] $(2)\n"
 endif
 
 # when listing problems, we don't want debug info to show anywhere
@@ -1586,6 +1593,12 @@ help-overrides:
 	@echo "Default settings for these can be overridden/extended"
 	@echo "by creating a Makefile.local that sets them:"
 	@grep -e "^# override:" $(MAKEFILE) | sed 's/^# override: /    /' # | sed 's/ - /\t/'
+
+# target: VARNAME-definition - show the definition of the given variable
+#                              if verbose > 0, the output is VARNAME=$(VARNAME),
+#                              otherwise it will just be $(VARNAME)
+%-definition:
+	@echo "$(call showvardef,${@:-definition=})"
 
 # FORCE target: add it to the dependecy f another target to force-rebuild it
 # Used e.g. by the LINEARIZATION_SELECT_OPTFILE to remake it when the linearization
