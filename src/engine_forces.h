@@ -109,7 +109,7 @@ public:
 		const	float	influenceRadius,
 		const	float	dt) = 0;
 
-	/// Compute CSPM coefficients 
+	/// Compute CSPM coefficients for CCSPH and DELTA_SPH
 	virtual void
 	compute_cspm_coeff(
 		const BufferList& bufread,

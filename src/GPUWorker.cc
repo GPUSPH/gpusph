@@ -143,7 +143,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
 
 	// TODO we may want to allocate them for delta-SPH in the debugging case
-	if (HAS_CSPM(m_simparams->simflags)) {
+	if (HAS_CCSPH(m_simparams->simflags)) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_WCOEFF>(0);
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FCOEFF>(0);
 	}

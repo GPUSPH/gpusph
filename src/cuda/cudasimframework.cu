@@ -176,7 +176,7 @@ template<
 			// formulation
 			_sph_formulation == SPH_GRENIER	||	// multi-fluid is currently not implemented
 			// flags
-			HAS_CSPM(_simflags)				||	// TODO corrected ggamAS
+			HAS_CCSPH(_simflags)			||	// TODO corrected ggamAS
 			HAS_XSPH(_simflags)				||	// untested
 			HAS_DEM_OR_PLANES(_simflags)	||	// not implemented (flat wall formulation is in an old branch)
 			(HAS_INLET_OUTLET(_simflags) && !HAS_DENSITY_SUM(_simflags)) ||

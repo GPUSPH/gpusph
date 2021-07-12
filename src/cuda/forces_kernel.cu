@@ -283,7 +283,7 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 /*	CSPM coefficients for CCSPH and delta-SPH      */
 /************************************************************************************************************/
 
-#define CSPM_THRESHOLD 0
+#define CCSPH_THRESHOLD 0
 /* 
    - 0 : No threshold, boundary excluded
    - 1 : Surface detection, boundary excluded
@@ -291,9 +291,9 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
    - 3 : Threshold on neibs num, boundary excluded
  */
 
-//#define CSPM_HYDROSTATIC_THRESHOLD 99999999.0f
+//#define CCSPH_HYDROSTATIC_THRESHOLD 99999999.0f
 /*
- 	 define threshold for application of CSPM dependent on the relative (hydrostatic) density. This is dependent
+ 	 define threshold for application of CCSPH dependent on the relative (hydrostatic) density. This is dependent
  	 on the equation of state for a certain problem. Therefore, this is only temporary for AiryWaves2D with H=1; c=20sqrt(2*g*H); xi=7.
    - 99999999.0f : No threshold, cspm is applied in the entire domain
    - 0.00018739f : depth = 0.15
@@ -308,10 +308,10 @@ skip_cspm_early(particleinfo const& info, float4 const& vel)
 {
 	return BOUNDARY(info) // these always skip
 	// TODO FIXME these affect delta-SPH even though they probably shouldn't
-#if CSPM_THRESHOLD == 1
+#if CCSPH_THRESHOLD == 1
 	    || SURFACE(info) // skip surface particles
-#elif defined(CSPM_HYDROSTATIC_THRESHOLD)
-		|| (vel.w > CSPM_HYDROSTATIC_THRESHOLD)
+#elif defined(CCSPH_HYDROSTATIC_THRESHOLD)
+		|| (vel.w > CCSPH_HYDROSTATIC_THRESHOLD)
 #endif
 		;
 }
@@ -390,19 +390,19 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 //! The tensor is reset to the identity matrix if any of the threshold conditions are satisfied.
 template<typename Params>
 __device__ __forceinline__
-enable_if_t<HAS_CSPM(Params::simflags)>
-store_cspm_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
+enable_if_t<HAS_CCSPH(Params::simflags)>
+store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
 {
 	bool reset_fcoeff = close_to_boundary;
 
 	if (!reset_fcoeff) {
 
-#if CSPM_THRESHOLD == 2
+#if CCSPH_THRESHOLD == 2
 		const float D = kbn_det(fcoeff);
 
 		reset_fcoeff = (D < 0.6);
 
-#elif CSPM_THRESHOLD == 3
+#elif CCSPH_THRESHOLD == 3
 		reset_fcoeff = (num_neibs <= 42);
 #endif
 	}
@@ -417,8 +417,8 @@ store_cspm_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num
 //! If CSPM / CCSPH is disabled, nothing to do when storing the CSPM tensor
 template<typename Params>
 __device__ __forceinline__
-enable_if_t<not HAS_CSPM(Params::simflags)>
-store_cspm_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
+enable_if_t<not HAS_CCSPH(Params::simflags)>
+store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
 { /* do nothing */ }
 
 /* This kernel computes the CSPM tensor (see Chen & Beraun)
@@ -527,7 +527,7 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> 
 
 	compute_renormalized_density<kerneltype>(params, fcoeff, index, info, pos, vel, gridPos);
 
-	store_cspm_fcoeff(params, fcoeff, index, num_neibs, close_to_boundary);
+	store_ccsph_fcoeff(params, fcoeff, index, num_neibs, close_to_boundary);
 }
 
 

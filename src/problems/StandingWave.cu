@@ -49,7 +49,7 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	m_usePlanes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
 	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations
 	const int ppH = get_option("ppH", 128); // --ppH N to change deltap to H/N
-	const bool USE_CSPM = get_option("use_cspm", true);
+	const bool USE_CCSPH = get_option("use_ccsph", true);
 
 	// density diffusion terms, see DensityDiffusionType
 	const DensityDiffusionType rhodiff = get_option("density-diffusion", DELTA_SPH);
@@ -61,7 +61,7 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 		add_flags<ENABLE_INTERNAL_ENERGY/* | ENABLE_XSPH*/>
 	).select_options(
 		rhodiff,
-		USE_CSPM, add_flags<ENABLE_CSPM>()
+		USE_CCSPH, add_flags<ENABLE_CCSPH>()
 		//m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 

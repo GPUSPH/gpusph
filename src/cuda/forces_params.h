@@ -396,7 +396,7 @@ template<KernelType _kerneltype,
 	typename visc_cond =
 		typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_forces_params),
 	typename cspm_cond =
-		typename COND_STRUCT(HAS_CSPM(_simflags), cspm_params<false>),
+		typename COND_STRUCT(HAS_CCSPH(_simflags), cspm_params<false>),
 	typename delta_sph_cond =
 		typename COND_STRUCT(_densitydiffusiontype == DELTA_SPH, delta_sph_forces_params)
 	>

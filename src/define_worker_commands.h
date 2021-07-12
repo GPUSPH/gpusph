@@ -237,7 +237,7 @@ DEFINE_COMMAND_BUF(COMPUTE_DENSITY, true)
 	/// Compute per-particle viscosity and SPS stress matrix
 DEFINE_COMMAND_BUF(CALC_VISC, true)
 
-	/// Compute the normalization coefficients for CSPM and the renormalized density gradients for Delta-SPH
+	/// Compute the CSPM normalization coefficients for CCSPH and the renormalized density gradients for Delta-SPH
 DEFINE_COMMAND_BUF(CALC_CSPM_COEFF, true)
 
 	/** @} */

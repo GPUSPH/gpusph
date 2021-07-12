@@ -86,12 +86,12 @@
 #define ENABLE_XSPH				(ENABLE_DTADAPT << 1)
 #define HAS_XSPH(field)			QUERY_ANY_FLAGS(field, ENABLE_XSPH)
 
-//! CSPM
-#define ENABLE_CSPM				(ENABLE_XSPH << 1)
-#define HAS_CSPM(field)			QUERY_ANY_FLAGS(field, ENABLE_CSPM)
+//! CCSPH (conservative corrected SPH): an extension to the Chen & Beraun CSPM
+#define ENABLE_CCSPH			(ENABLE_XSPH << 1)
+#define HAS_CCSPH(field)		QUERY_ANY_FLAGS(field, ENABLE_CCSPH)
 
 //! planes
-#define ENABLE_PLANES			(ENABLE_CSPM << 1)
+#define ENABLE_PLANES			(ENABLE_CCSPH << 1)
 #define HAS_PLANES(field)		QUERY_ANY_FLAGS(field, ENABLE_PLANES)
 
 //! DEM

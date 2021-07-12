@@ -83,6 +83,7 @@ SET_BUFFER_TRAITS(BUFFER_NEIBPLANES, int4, 1, "Neighbor Planes");
 /* Corrective Smoothed Particle Method (CSPM) kernel and gradient
  * coefficients. For W we have a scalar correction, for the gradient
  * we have a symmetric tensor (stored as 3 float2).
+ * Computed by DELTA_SPH without storage, stored for CCSPH.
  */
 #define BUFFER_WCOEFF		(BUFFER_NEIBPLANES << 1)
 SET_BUFFER_TRAITS(BUFFER_WCOEFF, float, 1, "CSPM coefficient for W");

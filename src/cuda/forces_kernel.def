@@ -760,7 +760,7 @@ template<KernelType _kerneltype,
 	typename sps_cond = typename COND_STRUCT(!_repacking && _has_sps, sps_particle_data),
 	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
 	typename keps_precalc_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_precalc_particle_data),
-	typename cspm_cond = typename COND_STRUCT(HAS_CSPM(_simflags), cspm_particle_data),
+	typename cspm_cond = typename COND_STRUCT(HAS_CCSPH(_simflags), cspm_particle_data),
 	typename delta_sph_cond = typename COND_STRUCT(_densitydiffusiontype == DELTA_SPH, delta_sph_particle_data)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
@@ -1174,7 +1174,7 @@ struct cspm_neib_data
 	// division by 0
 	const float cspm_rTr_r2;
 
-	// CSPM only needs the average tensor
+	// CCSPH only needs the average tensor
 	__device__ __forceinline__
 	cspm_neib_data(common_neib_data const& ndata,
 		symtensor3 const& avg_fcoeffTens)
@@ -1249,7 +1249,7 @@ template<KernelType kerneltype,
 			_nptype == PT_BOUNDARY,
 		dummy_boundary_neib_data),
 	typename _cspm_neib_data = typename
-		COND_STRUCT(HAS_CSPM(_simflags), cspm_neib_data),
+		COND_STRUCT(HAS_CCSPH(_simflags), cspm_neib_data),
 	typename _delta_sph_neib_data = typename
 		COND_STRUCT(densitydiffusiontype == DELTA_SPH, delta_sph_neib_data),
 	typename _eulerVel_neib_data =
@@ -1322,9 +1322,9 @@ struct repack_neib_data :
 		sa_boundary_neib_data)
 {
 	static constexpr ParticleType	nptype = _nptype;
-	// TODO CSPM is ignored here
+	// TODO CCSPH is ignored here
 	// FIXME support it
-	static constexpr flag_t simflags = _simflags & ~ENABLE_CSPM;
+	static constexpr flag_t simflags = _simflags & ~ENABLE_CCSPH;
 
 	// shortcut typedefs
 	typedef
@@ -1638,8 +1638,8 @@ enable_if_t<FP::boundarytype != SA_BOUNDARY, float>
 volume_fraction(const float volume, const float deltap)
 { return 1.f; }
 
-/* Function to apply CSPM to the gradient:
- * If CSPM is not active, this simply returns relPos,
+/* Function to apply CCSPH to the gradient:
+ * If CCSPH is not active, this simply returns relPos,
  * otherwise it will return dot(fcoeffTens, relPos),
  * that still has to be multiplied by ndata.f to get the corrected
  * gradient
@@ -1647,7 +1647,7 @@ volume_fraction(const float volume, const float deltap)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<HAS_CSPM(N::simflags), float3 const&>
+enable_if_t<HAS_CCSPH(N::simflags), float3 const&>
 corrected_relPos(N const& ndata)
 {
 	return ndata.cspm_relPos;
@@ -1655,7 +1655,7 @@ corrected_relPos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!HAS_CSPM(N::simflags), float3 const>
+enable_if_t<!HAS_CCSPH(N::simflags), float3 const>
 corrected_relPos(N const& ndata)
 {
 	return make_float3(ndata.relPos);
@@ -1663,7 +1663,7 @@ corrected_relPos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<HAS_CSPM(N::simflags), float const&>
+enable_if_t<HAS_CCSPH(N::simflags), float const&>
 corrected_vel_dot_pos(N const& ndata)
 {
 	return ndata.cspm_vel_dot_pos;
@@ -1671,7 +1671,7 @@ corrected_vel_dot_pos(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!HAS_CSPM(N::simflags), float const&>
+enable_if_t<!HAS_CCSPH(N::simflags), float const&>
 corrected_vel_dot_pos(N const& ndata)
 {
 	return ndata.vel_dot_pos;
@@ -1681,7 +1681,7 @@ corrected_vel_dot_pos(N const& ndata)
 // r.gradW/r^2
 template<typename N>
 __device__ __forceinline__
-enable_if_t<HAS_CSPM(N::simflags), float const&>
+enable_if_t<HAS_CCSPH(N::simflags), float const&>
 corrected_f_coefficient(N const& ndata)
 {
 	return ndata.cspm_rTr_r2;
@@ -1689,24 +1689,24 @@ corrected_f_coefficient(N const& ndata)
 
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!HAS_CSPM(N::simflags), float>
+enable_if_t<!HAS_CCSPH(N::simflags), float>
 corrected_f_coefficient(N const& ndata)
 {
 	return 1;
 }
 
 // (r.T.r)/r^2 F, computed directly and without division by 0
-// this simplifies to just F when CSPM is not active
+// this simplifies to just F when CCSPH is not active
 template<typename N>
 __device__ __forceinline__
-enable_if_t<HAS_CSPM(N::simflags), float>
+enable_if_t<HAS_CCSPH(N::simflags), float>
 corrected_f(N const& ndata)
 {
 	return ndata.cspm_rTr_r2*ndata.f;
 }
 template<typename N>
 __device__ __forceinline__
-enable_if_t<!HAS_CSPM(N::simflags), float const&>
+enable_if_t<!HAS_CCSPH(N::simflags), float const&>
 corrected_f(N const& ndata)
 {
 	return ndata.f;
@@ -4630,9 +4630,9 @@ struct density_diffusion_neib_data :
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data)
 {
 	static constexpr ParticleType nptype = _nptype;
-	// TODO CSPM is ignored here
+	// TODO CCSPH is ignored here
 	// FIXME support it
-	static constexpr flag_t simflags = _simflags & ~ENABLE_CSPM;
+	static constexpr flag_t simflags = _simflags & ~ENABLE_CCSPH;
 
 	/* TODO */
 	template<typename Pt, typename FP>

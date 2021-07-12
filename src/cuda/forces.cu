@@ -568,7 +568,7 @@ compute_density_diffusion(
 	KERNEL_CHECK_ERROR;
 }
 
-// computing the coefficients for CSPM
+// computing the CSPM coefficients for CCSPH and DELTA_SPH
 void
 compute_cspm_coeff(
 	BufferList const& bufread,

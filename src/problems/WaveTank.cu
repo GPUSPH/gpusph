@@ -46,8 +46,8 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	const bool use_cyl = get_option("cylinder", false);
 	// Density diffusion type
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
-	// Enable CSPM?
-	const bool USE_CSPM = get_option("use_cspm", true);
+	// Enable CCSPH?
+	const bool USE_CCSPH = get_option("use_ccsph", true);
 
 	if (use_bottom_plane && !use_planes)
 		throw std::invalid_argument("cannot use bottom plane if not using planes");
@@ -68,7 +68,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		boundary<DUMMY_BOUNDARY>
 	).select_options(
 		RHODIFF,
-		USE_CSPM, add_flags<ENABLE_CSPM>(),
+		USE_CCSPH, add_flags<ENABLE_CCSPH>(),
 		use_planes, add_flags<ENABLE_PLANES>()
 	);
 
