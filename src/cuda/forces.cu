@@ -568,34 +568,6 @@ compute_density_diffusion(
 	KERNEL_CHECK_ERROR;
 }
 
-
-// computing renormalized density for delta sph
-void
-compute_deltaSPH_density_gradient(
-	BufferList const& bufread,
-	BufferList& bufwrite,
-	const	uint	numParticles,
-	const	uint	particleRangeEnd,
-	const	float	slength,
-	const	float	influenceRadius)
-{
-	uint numThreads = BLOCK_SIZE_FORCES;
-	uint numBlocks = div_up(numParticles, numThreads);
-
-	delta_sph_density_grad_params<boundarytype> params(
-		bufread,
-		bufwrite,
-		particleRangeEnd,
-		slength,
-		influenceRadius);
-
-	cuforces::deltaSphDensityGrad<kerneltype, boundarytype>
-		<<<numBlocks, numThreads>>>(params);
-
-	// check if kernel invocation generated an error
-	KERNEL_CHECK_ERROR;
-}
-
 // computing the coefficients for CSPM
 void
 compute_cspm_coeff(
@@ -610,8 +582,8 @@ compute_cspm_coeff(
 		uint numThreads = BLOCK_SIZE_FORCES;
 		uint numBlocks = div_up(numParticles, numThreads);
 
-		cuforces::cspmCoeffDevice<kerneltype, boundarytype><<<numBlocks, numThreads>>>(
-				cspm_coeff_params<boundarytype>(bufread, bufwrite, particleRangeEnd, slength, influenceRadius));
+		cuforces::cspmCoeffDevice<kerneltype, boundarytype, densitydiffusiontype, simflags><<<numBlocks, numThreads>>>(
+				cspm_coeff_params<boundarytype, densitydiffusiontype, simflags>(bufread, bufwrite, particleRangeEnd, slength, influenceRadius));
 
 		// check if kernel invocation generated an error
 		KERNEL_CHECK_ERROR;

@@ -142,7 +142,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (HAS_XSPH(m_simparams->simflags))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
 
-	if (HAS_CSPM(m_simparams->simflags) || m_simparams->densitydiffusiontype == DELTA) {
+	// TODO we may want to allocate them for delta-SPH in the debugging case
+	if (HAS_CSPM(m_simparams->simflags)) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_WCOEFF>(0);
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FCOEFF>(0);
 	}
@@ -2215,36 +2216,6 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
 	else
 		gdata->dts[m_deviceIndex] = returned_dt;
-}
-
-template<>
-void GPUWorker::runCommand<CALC_DELTASPH_DENSITY_GRAD>(CommandStruct const& cmd)
-{
-
-	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	const int step = cmd.step.number;
-
-	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
-	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
-		extractGeneralBufferList(m_dBuffers, cmd.writes);
-
-	bufwrite.add_manipulator_on_write("computeCspmCoeff" + to_string(step));
-
-	const float dt = cmd.dt(gdata);
-
-	forcesEngine->compute_deltaSPH_density_gradient(
-		bufread,
-		bufwrite,
-		m_numParticles,
-		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
-
-	bufwrite.clear_pending_state();
 }
 
 template<>

@@ -33,11 +33,27 @@
 #define CSPM_PARAMS_H
 
 #include "common_params.h"
+#include "cond_params.h"
 #include "neibs_list_params.h"
 
-template<BoundaryType boundarytype>
-struct cspm_coeff_params : neibs_interaction_params<boundarytype>, cspm_params<true>
+struct delta_cspm_params
 {
+	float4 * __restrict__ renorm_dens_grad;
+
+	delta_cspm_params(BufferList& bufwrite) :
+		renorm_dens_grad(bufwrite.getData<BUFFER_RENORMDENS>())
+	{}
+};
+
+template<BoundaryType boundarytype, DensityDiffusionType densitydiffusiontype_, flag_t simflags_,
+	typename cond_delta = typename COND_STRUCT(densitydiffusiontype_ == DELTA, delta_cspm_params),
+	typename cond_cspm =  typename COND_STRUCT(HAS_CSPM(simflags_), cspm_params<true>)
+	>
+struct cspm_coeff_params : neibs_interaction_params<boundarytype>, cond_delta, cond_cspm
+{
+	static constexpr DensityDiffusionType densitydiffusiontype = densitydiffusiontype_;
+	static constexpr flag_t simflags = simflags_;
+
 	cspm_coeff_params(
 		BufferList const& bufread,
 		BufferList bufwrite,
@@ -46,7 +62,8 @@ struct cspm_coeff_params : neibs_interaction_params<boundarytype>, cspm_params<t
 		const	float	influenceradius)
 	:
 		neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
-		cspm_params<true>(bufwrite)
+		cond_delta(bufwrite),
+		cond_cspm(bufwrite)
 	{}
 };
 

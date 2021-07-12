@@ -476,28 +476,16 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_dst("step n*")
 			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS | BUFFER_JACOBI) );
 
-	// computing CSPM parameters 
+	// compute the CSPM tensors and the CCSPH / delta-SPH parameters
 	if (HAS_CSPM(sp->simflags) || sp->densitydiffusiontype == DELTA) {
 		this_phase->add_command(CALC_CSPM_COEFF)
 			.set_step(step)
 			.reading(current_state,
 				BUFFER_VEL | BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
-			.writing(current_state, BUFFER_WCOEFF | BUFFER_FCOEFF);
+			.writing(current_state, BUFFER_WCOEFF | BUFFER_FCOEFF | BUFFER_RENORMDENS);
 		if (MULTI_DEVICE)
 			this_phase->add_command(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_WCOEFF| BUFFER_FCOEFF);
-	}
-
-	// computing Delta-SPH renormalized density gradients
-	if (sp->densitydiffusiontype == DELTA) {
-		this_phase->add_command(CALC_DELTASPH_DENSITY_GRAD)
-			.set_step(step)
-			.reading(current_state,
-				BUFFER_VEL | BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_FCOEFF)
-			.writing(current_state, BUFFER_RENORMDENS);
-		if (MULTI_DEVICE)
-			this_phase->add_command(UPDATE_EXTERNAL)
-				.updating(current_state, BUFFER_RENORMDENS);
+				.updating(current_state, BUFFER_WCOEFF| BUFFER_FCOEFF | BUFFER_RENORMDENS);
 	}
 
 	// for Grenier formulation, compute sigma and smoothed density

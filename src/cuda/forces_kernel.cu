@@ -280,26 +280,49 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 /************************************************************************************************************/
 
 /************************************************************************************************************/
-/*	Delta SPH renormalized density gradient		*/
+/*	CSPM coefficients for CCSPH and delta-SPH      */
 /************************************************************************************************************/
-template<KernelType kerneltype, BoundaryType boundarytype>
-__global__ void
-deltaSphDensityGrad(delta_sph_density_grad_params<boundarytype> params)
+
+#define CSPM_THRESHOLD 0
+/* 
+   - 0 : No threshold, boundary excluded
+   - 1 : Surface detection, boundary excluded
+   - 2 : Threshold on determinant, boundary excluded
+   - 3 : Threshold on neibs num, boundary excluded
+ */
+
+//#define CSPM_HYDROSTATIC_THRESHOLD 99999999.0f
+/*
+ 	 define threshold for application of CSPM dependent on the relative (hydrostatic) density. This is dependent
+ 	 on the equation of state for a certain problem. Therefore, this is only temporary for AiryWaves2D with H=1; c=20sqrt(2*g*H); xi=7.
+   - 99999999.0f : No threshold, cspm is applied in the entire domain
+   - 0.00018739f : depth = 0.15
+   - 0.00031221f : depth = 0.25
+   - 0.00062383f : depth = 0.5
+   - 0.00093487f : depth = 0.75
+
+*/
+
+__device__ __forceinline__ bool
+skip_cspm_early(particleinfo const& info, float4 const& vel)
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	return BOUNDARY(info) // these always skip
+	// TODO FIXME these affect delta-SPH even though they probably shouldn't
+#if CSPM_THRESHOLD == 1
+	    || SURFACE(info) // skip surface particles
+#elif defined(CSPM_HYDROSTATIC_THRESHOLD)
+		|| (vel.w > CSPM_HYDROSTATIC_THRESHOLD)
+#endif
+		;
+}
 
-	if (index >= params.numParticles)
-		return;
-
-	const particleinfo info = params.fetchInfo(index);
-	const float4 pos = params.fetchPos(index);
-	const float4 vel = params.fetchVel(index);
-	const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
-
-	if (INACTIVE(pos))
-		return;
-
-	// TODO kbn
+//! Compute the renormalized density gradient for delta-SPH
+template<KernelType kerneltype, typename Params>
+__device__ __forceinline__
+enable_if_t<Params::densitydiffusiontype == DELTA>
+compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
+	particleinfo const& info, float4 const& pos, float4 const& vel, int3 const& gridPos)
+{
 	float3 renorm_dens_grad = make_float3(0.0f);
 
 	const int p_fluid = fluid_num(info);
@@ -335,64 +358,79 @@ deltaSphDensityGrad(delta_sph_density_grad_params<boundarytype> params)
 		const float f = F<kerneltype>(r, params.slength);
 		const float volume = relPos.w/physical_density(neib_vel.w, n_fluid);
 
-		symtensor3 fcoeffTens = params.fetchFcoeff(index);
-
-		float determinant = det(fcoeffTens);
-		if (determinant < 0.1)
-			set_identity(fcoeffTens);
-		else
-			fcoeffTens = inverse(fcoeffTens, determinant);
-
-
-		const float3 neib_contrib = rhotilde_delta*dot(fcoeffTens, relPos)*f*volume;
+		const float3 neib_contrib = rhotilde_delta*as_float3(relPos)*f*volume;
 		// TODO kbn
 		renorm_dens_grad += neib_contrib;
 	}
 
+	const float determinant = det(fcoeff);
+	if (determinant >= 0.1) {
+		const symtensor3 invtens = inverse(fcoeff, determinant);
+		renorm_dens_grad = dot(invtens, renorm_dens_grad);
+	}
+
 	// Store into array: note that we are storing the <∇ρ>/rho0
-	params.renormDensGradArray[index] = make_float4(renorm_dens_grad, NAN);
+	params.renorm_dens_grad[index] = make_float4(renorm_dens_grad, NAN);
 }
 
-/************************************************************************************************************/
+template<KernelType kerneltype, typename Params>
+__device__ __forceinline__
+enable_if_t<Params::densitydiffusiontype != DELTA>
+compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
+	particleinfo const& info, float4 const& pos, float4 const& vel, int3 const& gridPos)
+{ /* do nothing */ }
 
-/************************************************************************************************************/
-/*	CSPM coefficients       */
-/************************************************************************************************************/
 
-#define THRESHOLD 0
-/* 
-   - 0 : No threshold, boundary excluded
-   - 1 : Surface detection, boundary excluded
- */
-
-//#define CSPM_HYDROSTATIC_THRESHOLD 99999999.0f
-/*
- 	 define threshold for application of CSPM dependent on the relative (hydrostatic) density. This is dependent
- 	 on the equation of state for a certain problem. Therefore, this is only temporary for AiryWaves2D with H=1; c=20sqrt(2*g*H); xi=7.
-   - 99999999.0f : No threshold, cspm is applied in the entire domain
-   - 0.00018739f : depth = 0.15
-   - 0.00031221f : depth = 0.25
-   - 0.00062383f : depth = 0.5
-   - 0.00093487f : depth = 0.75
-
-*/
-
-__device__ bool
-skip_cspm_early(particleinfo const& info, float4 const& vel)
+//! Store the CSPM / CCSPH F-correction tensor coefficient.
+//! The tensor is reset to the identity matrix if any of the threshold conditions are satisfied.
+template<typename Params>
+__device__ __forceinline__
+enable_if_t<HAS_CSPM(Params::simflags)>
+store_cspm_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
 {
-	return BOUNDARY(info) // these always skip
-#if THRESHOLD == 1
-	    || SURFACE(info) // skip surface particles
-#elif defined(CSPM_HYDROSTATIC_THRESHOLD)
-		|| (vel.w > CSPM_HYDROSTATIC_THRESHOLD)
+	bool reset_fcoeff = close_to_boundary;
+
+	if (!reset_fcoeff) {
+
+#if CSPM_THRESHOLD == 2
+		const float D = kbn_det(fcoeff);
+
+		reset_fcoeff = (D < 0.6);
+
+#elif CSPM_THRESHOLD == 3
+		reset_fcoeff = (num_neibs <= 42);
 #endif
-		;
+	}
+
+	if (reset_fcoeff)
+		set_identity(fcoeff);
+
+	//params.wcoeff[index] = wcoeff;
+	params.storeFcoeff(fcoeff, index);
 }
 
-template<KernelType kerneltype, BoundaryType boundarytype>
+//! If CSPM / CCSPH is disabled, nothing to do when storing the CSPM tensor
+template<typename Params>
+__device__ __forceinline__
+enable_if_t<not HAS_CSPM(Params::simflags)>
+store_cspm_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
+{ /* do nothing */ }
+
+/* This kernel computes the CSPM tensor (see Chen & Beraun)
+ * that is used in several corretive schemes for SPH to improve the Taylor expansion consistency
+ * of the formulation.
+ * In the delta-SPH case, this is used immediately to compute the renormalized densities.
+ * In the CSPM / CCSPH case we store the per-particle tensor in FCOEFF, to be used
+ * in forces for the correction of the kernel gradient.
+ */
+template<KernelType kerneltype, BoundaryType boundarytype, DensityDiffusionType densitydiffusiontype, flag_t simflags>
 __global__ void
-cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
+cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> params)
 {
+	// If we are using delta-SPH, then we must compute the correction tensor also for particles
+	// near the boundary. Otherwise, those will be skipped
+	constexpr bool has_delta = densitydiffusiontype == DELTA;
+
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= params.numParticles)
@@ -407,6 +445,9 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 
 	const float4 vel = params.fetchVel(index);
 
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+
 	// Kernel correction is just the Shepard normalization, that has a self-contribution
 	//float corr = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w, fluid_num(info));
 	//float corr_kahan = 0;
@@ -416,17 +457,13 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 	clear(fcoeff);
 	clear(fcoeff_kahan);
 
-	//float wcoeff = 1.0f; // default, unless particle computes its own;
+	//bool has_neibs = false;
+	uint num_neibs = 0;
+	bool close_to_boundary = false;
 
 	do {
 		if (skip_cspm_early(info, vel))
 			break;
-
-		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
-
-		//bool has_neibs = false;
-		uint num_neibs = 0;
-		bool close_to_boundary = false;
 
 		// TODO this should be done only if ENABLE_PLANES, and also for the DEM
 		for (int i = 0; i < d_numplanes; ++i)
@@ -438,8 +475,10 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 				break; // stop looping over planes
 			}
 		}
-		if (close_to_boundary)
-			break; // close to plane boundaries, no correction
+
+		// close to plane boundaries: no correction unless using delta
+		if (!has_delta && close_to_boundary)
+			break;
 
 		// Loop over all FLUID neighbors and BOUNDARY neighbors
 		// TODO check what to do for SA
@@ -451,7 +490,8 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 
 			if (!FLUID(neib_info)) {
 				close_to_boundary = true;
-				break;
+				if (!has_delta)
+					break;
 			}
 
 			// Compute relative position vector and distance
@@ -478,15 +518,11 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 		//corr += corr_kahan;
 		fcoeff += fcoeff_kahan;
 
-		/*
-		// this is common to all thresholds
-		if (close_to_boundary)
-			set_identity(fcoeff);
-			*/
 	} while (0);
 
-	//params.wcoeff[index] = wcoeff;
-	params.storeFcoeff(fcoeff, index);
+	compute_renormalized_density<kerneltype>(params, fcoeff, index, info, pos, vel, gridPos);
+
+	store_cspm_fcoeff(params, fcoeff, index, num_neibs, close_to_boundary);
 }
 
 

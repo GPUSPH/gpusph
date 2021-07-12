@@ -120,17 +120,6 @@ public:
 		const	float	slength,
 		const	float	influenceRadius) = 0;
 
-	/// Compute renormalized density gradients for Delta-SPH
-	virtual void
-	compute_deltaSPH_density_gradient(
-		const BufferList& bufread,
-		BufferList& bufwrite,
-		const	uint	numParticles,
-		const	uint	particleRangeEnd,
-		const	float	slength,
-		const	float	influenceRadius) = 0;
-
-
 	/// Basic forces step.
 	/// \return the number of blocks launched (which is the number of blocks to
 	/// launch dtreduce on)
