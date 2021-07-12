@@ -120,7 +120,7 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	// integer
 	const float c0 = ceil(20*maxvel);
 	add_fluid(1000.0);
-	set_equation_of_state(0, 7.0f, c0);
+	set_equation_of_state(0, 1.0f, c0);
 
 	set_kinematic_visc(0, 1.0e-6f);
 	physparams()->artvisccoeff = 1e-6*10.0/(physparams()->sscoeff[0]*simparams()->slength);

@@ -335,7 +335,14 @@ deltaSphDensityGrad(delta_sph_density_grad_params<boundarytype> params)
 		const float f = F<kerneltype>(r, params.slength);
 		const float volume = relPos.w/physical_density(neib_vel.w, n_fluid);
 
-		const symtensor3 fcoeffTens = params.fetchFcoeff(index);
+		symtensor3 fcoeffTens = params.fetchFcoeff(index);
+
+		float determinant = det(fcoeffTens);
+		if (determinant < 0.1)
+			set_identity(fcoeffTens);
+		else
+			fcoeffTens = inverse(fcoeffTens, determinant);
+
 
 		const float3 neib_contrib = rhotilde_delta*dot(fcoeffTens, relPos)*f*volume;
 		// TODO kbn
@@ -352,12 +359,10 @@ deltaSphDensityGrad(delta_sph_density_grad_params<boundarytype> params)
 /*	CSPM coefficients       */
 /************************************************************************************************************/
 
-#define THRESHOLD 2
+#define THRESHOLD 0
 /* 
    - 0 : No threshold, boundary excluded
    - 1 : Surface detection, boundary excluded
-   - 2 : Threshold on determinant, boundary excluded
-   - 3 : Threshold on neibs num, boundary excluded
  */
 
 //#define CSPM_HYDROSTATIC_THRESHOLD 99999999.0f
@@ -411,11 +416,6 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 	clear(fcoeff);
 	clear(fcoeff_kahan);
 
-	// despite the name, a_inverse stores the actual Fcoeff tensor rather than its inverse,
-	// since we do the inverse of the average of the particle's and neighbor's tensor.
-	// For sym v1 or asymmetric CSPM, this would be the actual inverse
-	symtensor3 a_inverse;
-	set_identity(a_inverse); // default, unless particle computes its own
 	//float wcoeff = 1.0f; // default, unless particle computes its own;
 
 	do {
@@ -478,28 +478,15 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype> params)
 		//corr += corr_kahan;
 		fcoeff += fcoeff_kahan;
 
+		/*
 		// this is common to all thresholds
 		if (close_to_boundary)
-			break;
-
-#if THRESHOLD == 2
-		const float D = kbn_det(fcoeff);
-
-		if (D < 0.6)
-			break;
-
-#elif THRESHOLD == 3
-		if (num_neibs <= 42)
-			break;
-#endif
-
-		//a_inverse = inverse(fcoeff, D); //Use this for asymmetric CSPM or symmetric v1
-		a_inverse = fcoeff; //Use this for symmetric v2 CSPM
-		// wcoeff = 1.0f/corr;
+			set_identity(fcoeff);
+			*/
 	} while (0);
 
 	//params.wcoeff[index] = wcoeff;
-	params.storeFcoeff(a_inverse, index);
+	params.storeFcoeff(fcoeff, index);
 }
 
 
