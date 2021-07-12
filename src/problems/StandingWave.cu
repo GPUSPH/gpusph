@@ -60,8 +60,8 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 		boundary<DYN_BOUNDARY>,
 		add_flags<ENABLE_INTERNAL_ENERGY/* | ENABLE_XSPH*/>
 	).select_options(
-		rhodiff
-		//USE_CSPM, add_flags<ENABLE_CSPM>()
+		rhodiff,
+		USE_CSPM, add_flags<ENABLE_CSPM>()
 		//m_usePlanes, add_flags<ENABLE_PLANES>()
 	);
 
