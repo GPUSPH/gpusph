@@ -329,13 +329,18 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 
 	// To leverage the relative density storage optimization, we compute
 	// the delta contribution divided by rho0[p_fluid]
-	// TODO FIXME we are assuming single fluid, i.e. rho0[n_fluid] == rho0[p_fluid]
-	for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+	// TODO FIXME we only operate on fluid neighbors with the same fluid
+	// as the central particle. Verify if this is the correct behavior in multi-fluid phases.
+	for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		const int n_fluid = fluid_num(neib_info);
+
+		// skip different-fluid neighbors
+		if (n_fluid != p_fluid)
+			continue;
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
@@ -344,8 +349,8 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 		const float4 neib_vel = params.fetchVel(neib_index);
 		const float r = length3(relPos);
 
-		// TODO FIXME assuming single fluid
 #if 0
+		// if we assume different rho0:
 		const float rho_ratio = rho0[n_fluid]/rho0[p_fluid];
 		const float rhotilde_delta = (rho_ratio*neib_vel.w - vel.w + (rho_ratio - 1.0f));
 #else
