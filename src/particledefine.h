@@ -141,7 +141,7 @@ DEFINE_OPTION_RANGE(SPHFormulation, SPHFormulationName, SPH_F1, SPH_GRENIER);
 //! Density diffusion models
 /*! \defpsubsection{density_diff_type,DENSITY_DIFF_TYPE}
  *  \inpsection{density_calculation}
- *  \values{none,Colagrossi,Brezzi,Ferrari}
+ *  \values{none,Colagrossi,delta-SPH,Brezzi,Ferrari}
  *  \default{Brezzi}
  * TLT_DENSITY_DIFFUSION_TYPE
  */
@@ -149,7 +149,7 @@ enum DensityDiffusionType {
 	DENSITY_DIFFUSION_NONE,
 	FERRARI,
 	COLAGROSSI,
-	DELTA,
+	DELTA_SPH,
 	BREZZI,
 	INVALID_DENSITY_DIFFUSION
 } ;
@@ -164,7 +164,7 @@ const char* DensityDiffusionName[INVALID_DENSITY_DIFFUSION+1]
 	"none",
 	"Ferrari",
 	"Colagrossi",
-	"Delta",
+	"delta-SPH",
 	"Brezzi",
 	"(invalid)"
 }

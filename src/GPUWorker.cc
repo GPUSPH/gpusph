@@ -148,7 +148,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FCOEFF>(0);
 	}
 
-	if (m_simparams->densitydiffusiontype == DELTA) {
+	if (m_simparams->densitydiffusiontype == DELTA_SPH) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RENORMDENS>(0);
 	}
 

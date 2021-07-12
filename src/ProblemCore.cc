@@ -1581,7 +1581,7 @@ ProblemCore::calculateDensityDiffusionCoefficient()
 		printf("Brezzi diffusion coefficient = %e\n", simparams()->densityDiffCoeff);
 		break;
 	case COLAGROSSI:
-	case DELTA:
+	case DELTA_SPH:
 		if (isnan(simparams()->densityDiffCoeff)) {
 			simparams()->densityDiffCoeff = 0.1f;
 			printf("Colagrossi diffusion coefficient: %e (default value)\n", simparams()->densityDiffCoeff);

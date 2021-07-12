@@ -46,7 +46,7 @@ struct delta_cspm_params
 };
 
 template<BoundaryType boundarytype, DensityDiffusionType densitydiffusiontype_, flag_t simflags_,
-	typename cond_delta = typename COND_STRUCT(densitydiffusiontype_ == DELTA, delta_cspm_params),
+	typename cond_delta = typename COND_STRUCT(densitydiffusiontype_ == DELTA_SPH, delta_cspm_params),
 	typename cond_cspm =  typename COND_STRUCT(HAS_CSPM(simflags_), cspm_params<true>)
 	>
 struct cspm_coeff_params : neibs_interaction_params<boundarytype>, cond_delta, cond_cspm

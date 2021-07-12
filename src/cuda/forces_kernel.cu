@@ -319,7 +319,7 @@ skip_cspm_early(particleinfo const& info, float4 const& vel)
 //! Compute the renormalized density gradient for delta-SPH
 template<KernelType kerneltype, typename Params>
 __device__ __forceinline__
-enable_if_t<Params::densitydiffusiontype == DELTA>
+enable_if_t<Params::densitydiffusiontype == DELTA_SPH>
 compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
 	particleinfo const& info, float4 const& pos, float4 const& vel, int3 const& gridPos)
 {
@@ -375,7 +375,7 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 
 template<KernelType kerneltype, typename Params>
 __device__ __forceinline__
-enable_if_t<Params::densitydiffusiontype != DELTA>
+enable_if_t<Params::densitydiffusiontype != DELTA_SPH>
 compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
 	particleinfo const& info, float4 const& pos, float4 const& vel, int3 const& gridPos)
 { /* do nothing */ }
@@ -429,7 +429,7 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> 
 {
 	// If we are using delta-SPH, then we must compute the correction tensor also for particles
 	// near the boundary. Otherwise, those will be skipped
-	constexpr bool has_delta = densitydiffusiontype == DELTA;
+	constexpr bool has_delta = densitydiffusiontype == DELTA_SPH;
 
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
