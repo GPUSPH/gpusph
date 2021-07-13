@@ -398,7 +398,7 @@ template<KernelType _kerneltype,
 	typename cspm_cond =
 		typename COND_STRUCT(HAS_CCSPH(_simflags), cspm_params<false>),
 	typename delta_sph_cond =
-		typename COND_STRUCT(_densitydiffusiontype == DELTA_SPH, delta_sph_forces_params)
+		typename COND_STRUCT(_densitydiffusiontype == ANTUONO, delta_sph_forces_params)
 	>
 struct forces_params : _ViscSpec,
 	common_forces_params,

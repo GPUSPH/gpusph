@@ -476,8 +476,9 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_dst("step n*")
 			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS | BUFFER_JACOBI) );
 
-	// compute the CSPM tensors and the CCSPH / delta-SPH parameters
-	if (HAS_CCSPH(sp->simflags) || sp->densitydiffusiontype == DELTA_SPH) {
+	// compute the CSPM tensors for the CCSPH and the renormalized density gradient for
+	// ANTUONO's density diffusion term in delta-SPH
+	if (HAS_CCSPH(sp->simflags) || sp->densitydiffusiontype == ANTUONO) {
 		this_phase->add_command(CALC_CSPM_COEFF)
 			.set_step(step)
 			.reading(current_state,

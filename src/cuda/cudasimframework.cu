@@ -161,7 +161,7 @@ template<
 		// TODO extend to include all unsupported/untested combinations for other boundary conditions
 
 		(_legacyvisctype == KINEMATICVISC && IS_MULTIFLUID(_simflags)) || // kinematicvisc model only made sense for single-fluid
-		//(_densitydiffusiontype == DELTA_SPH && IS_MULTIFLUID(_simflags)) || // ð-SPH multi-fluid support is experimental
+		//(_densitydiffusiontype == ANTUONO && IS_MULTIFLUID(_simflags)) || // multi-fluid support for Antuono's density diffusion term in ð-SPH is experimental
 		(_turbmodel == KEPSILON && _boundarytype != SA_BOUNDARY) || // k-epsilon only supported in SA currently
 		(_boundarytype == SA_BOUNDARY && (
 			// viscosity

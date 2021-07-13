@@ -761,7 +761,7 @@ template<KernelType _kerneltype,
 	typename visc_cond = typename COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
 	typename keps_precalc_cond = typename COND_STRUCT(!_repacking && _has_keps, keps_precalc_particle_data),
 	typename cspm_cond = typename COND_STRUCT(HAS_CCSPH(_simflags), cspm_particle_data),
-	typename delta_sph_cond = typename COND_STRUCT(_densitydiffusiontype == DELTA_SPH, delta_sph_particle_data)>
+	typename delta_sph_cond = typename COND_STRUCT(_densitydiffusiontype == ANTUONO, delta_sph_particle_data)>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -1251,7 +1251,7 @@ template<KernelType kerneltype,
 	typename _cspm_neib_data = typename
 		COND_STRUCT(HAS_CCSPH(_simflags), cspm_neib_data),
 	typename _delta_sph_neib_data = typename
-		COND_STRUCT(densitydiffusiontype == DELTA_SPH, delta_sph_neib_data),
+		COND_STRUCT(densitydiffusiontype == ANTUONO, delta_sph_neib_data),
 	typename _eulerVel_neib_data =
 		typename COND_STRUCT(boundarytype == SA_BOUNDARY && cptype != _nptype &&
 			(_has_keps || HAS_INLET_OUTLET(_simflags)),
@@ -2141,7 +2141,7 @@ template<typename FP, typename Pt, typename N, typename ON,
 	ParticleType nptype = N::nptype>
 __device__ __forceinline__
 enable_if_t<
-	(FP::densitydiffusiontype == DELTA_SPH) &&
+	(FP::densitydiffusiontype == ANTUONO) &&
 	nptype == PT_FLUID
 >
 compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON &nout)

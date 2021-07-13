@@ -139,6 +139,22 @@ const char* SPHFormulationName[SPH_INVALID+1]
 DEFINE_OPTION_RANGE(SPHFormulation, SPHFormulationName, SPH_F1, SPH_GRENIER);
 
 //! Density diffusion models
+/*!
+ * FERRARI: Ferrari et al. 2009 (Computer & Fluids)
+ * COLAGROSSI: Molteni and Colagrossi 2009 CPC
+ * ANTUONO: Antuono et al 2010 CPC and subsequent literature
+ * BREZZI: TODO ref
+ *
+ * DELTA_SPH is an alias for ANTUONO. This choice is based on the fact that
+ * the density diffusion term in δ-SPH is the one devised by Antuono et al,
+ * and while δ-SPH is a whole scheme including artificial
+ * viscosity as well as specific choices for the integration scheme and the
+ * fluid polytropic constants, the term is also (ab)uses more informally
+ * to refer specifically to the density diffusion term.
+ * We may revise this aliasing in the future if the need arises, but
+ * I doubt we may need to forgo the alias, since at least as far
+ * as the density diffusion term is involved the two are the same.
+ */
 /*! \defpsubsection{density_diff_type,DENSITY_DIFF_TYPE}
  *  \inpsection{density_calculation}
  *  \values{none,Colagrossi,delta-SPH,Brezzi,Ferrari}
@@ -149,7 +165,8 @@ enum DensityDiffusionType {
 	DENSITY_DIFFUSION_NONE,
 	FERRARI,
 	COLAGROSSI,
-	DELTA_SPH,
+	ANTUONO,
+	DELTA_SPH=ANTUONO,
 	BREZZI,
 	INVALID_DENSITY_DIFFUSION
 } ;
