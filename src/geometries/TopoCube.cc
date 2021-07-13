@@ -26,6 +26,7 @@
  */
 
 #include <cstring> // memcpy
+#include <climits>
 
 #include <iostream>
 #include <fstream>

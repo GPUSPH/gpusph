@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <climits>
 
 // for smart pointers
 #include <memory>
