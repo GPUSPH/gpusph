@@ -371,7 +371,7 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 	}
 
 	const float determinant = det(fcoeff);
-	if (determinant >= 0.1f) {
+	if (determinant >= 0.01f) {
 		const symtensor3 invtens = inverse(fcoeff, determinant);
 		renorm_dens_grad = dot(invtens, renorm_dens_grad);
 	}
