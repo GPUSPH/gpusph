@@ -226,8 +226,13 @@ ProblemCore::InitializeChrono()
 	m_bodies_physical_system = new ::chrono::ChSystemNSC();
 	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(physparams()->gravity.x, physparams()->gravity.y,
 		physparams()->gravity.z));
-	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
+#if CH_VERSION < 0x00050000
 	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::SOR);
+	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
+#else
+	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::PSOR);
+	m_bodies_physical_system->SetSolverMaxIterations(100);
+#endif
 	// For debug purposes
 	/*
 	const double chronoSuggEnv = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedEnvelope();
