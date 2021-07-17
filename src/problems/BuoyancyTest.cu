@@ -51,7 +51,7 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<ARTVISC>,
 		//viscosity<SPSVISC>,
 		//viscosity<KINEMATICVISC>,
-		boundary<DYN_BOUNDARY>
+		boundary<DUMMY_BOUNDARY>
 	);
 
 	// reduce autocomputed number of layers
