@@ -195,31 +195,31 @@ ProblemCore::InitializeChronoFEA()
 	cout << "Initializing Chrono FEA... " << endl;
 
 	// initialize FEA system
-	m_fea_system = new ::chrono::ChSystemNSC(); // FIXME NOT necessary the NSC
+	m_chrono_system = new ::chrono::ChSystemNSC(); // FIXME NOT necessary the NSC
 
 	// setting the gravity for the Chrono system
 
 	printf("Setting gravity for FEA: g = (%g, %g, %g)\n", m_physparams->gravity.x, m_physparams->gravity.y,
 		m_physparams->gravity.z);
-/*	m_fea_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+/*	m_chrono_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
 		m_physparams->gravity.z)); //TODO choose if initialize here or add the gravity to the forces
 		*/
-	m_fea_system->Set_G_acc(::chrono::ChVector<>(0.0, 0.0, -9.81)); //TODO choose if initialize here or add the gravity to the forces
+	m_chrono_system->Set_G_acc(::chrono::ChVector<>(0.0, 0.0, -9.81)); //TODO choose if initialize here or add the gravity to the forces
 
 #define SOLVER_TYPE 7
 
 	// Set FEA solver (the way of computing FEM forces, time bottleneck for FEA)
 #if SOLVER_TYPE == 0	//  choose between MINRES or MKL
 	auto minres_solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
-	m_fea_system->SetSolver(minres_solver);
+	m_chrono_system->SetSolver(minres_solver);
 
 	minres_solver->EnableDiagonalPreconditioner(true);
 	minres_solver->SetMaxIterations(100);
 	minres_solver->SetTolerance(1e-10);
 	minres_solver->SetVerbose(false);
 
-	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
-	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper());
+	m_chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
+	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_chrono_system->GetTimestepper());
 	mystepper->SetMaxiters(100);
 	mystepper->SetAbsTolerances(1e-5);
 	mystepper->SetMode(::chrono::ChTimestepperHHT::POSITION);
@@ -231,23 +231,23 @@ ProblemCore::InitializeChronoFEA()
 	mkl_solver->UseSparsityPatternLearner(false);
 	mkl_solver->LockSparsityPattern(false);
 	mkl_solver->SetVerbose(false);
-	m_fea_system->SetSolver(mkl_solver);
+	m_chrono_system->SetSolver(mkl_solver);
 
-	m_fea_system->Update();
+	m_chrono_system->Update();
 
-	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED);
+	m_chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED);
 #endif
 
 #if SOLVER_TYPE == 2
 	auto solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
-	m_fea_system->SetSolver(solver);
+	m_chrono_system->SetSolver(solver);
 	solver->SetMaxIterations(100);
 	solver->SetTolerance(1e-8);
 	solver->EnableDiagonalPreconditioner(true);
 
-	m_fea_system->SetSolverForceTolerance(1e-10);
+	m_chrono_system->SetSolverForceTolerance(1e-10);
 
-	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT);
+	m_chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT);
 #endif
 
 #if SOLVER_TYPE == 3
@@ -263,16 +263,16 @@ ProblemCore::InitializeChronoFEA()
 
 #if SOLVER_TYPE == 4
 	auto solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
-	m_fea_system->SetSolver(solver);
+	m_chrono_system->SetSolver(solver);
 	solver->SetMaxIterations(10000);
 	solver->SetTolerance(1e-3);
 	solver->EnableDiagonalPreconditioner(true);
 
-	m_fea_system->SetSolverForceTolerance(1e-3);
+	m_chrono_system->SetSolverForceTolerance(1e-3);
 
-	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::NEWMARK);
+	m_chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::NEWMARK);
 
-	if (auto timestepper = std::dynamic_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper())) {
+	if (auto timestepper = std::dynamic_pointer_cast<::chrono::ChTimestepperHHT>(m_chrono_system->GetTimestepper())) {
 		cout << " Setting damping to Project Chrono timestepper" << endl;
 		timestepper->SetAlpha(-0.2);
 	}
@@ -283,16 +283,16 @@ ProblemCore::InitializeChronoFEA()
 	mkl_solver->UseSparsityPatternLearner(false);
 	mkl_solver->LockSparsityPattern(false);
 	mkl_solver->SetVerbose(false);
-	m_fea_system->SetSolver(mkl_solver);
+	m_chrono_system->SetSolver(mkl_solver);
 
-	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
-	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper());
+	m_chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
+	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_chrono_system->GetTimestepper());
 	mystepper->SetMaxiters(100);
 	mystepper->SetAbsTolerances(1e-5);
 	mystepper->SetMode(::chrono::ChTimestepperHHT::ACCELERATION);
 	mystepper->SetScaling(true);
 
-	m_fea_system->Update();
+	m_chrono_system->Update();
 #endif
 
 #if SOLVER_TYPE == 6	// Recommended by Mike Taylor from Project Chrono 
@@ -300,22 +300,22 @@ ProblemCore::InitializeChronoFEA()
 	mkl_solver->UseSparsityPatternLearner(false);
 	mkl_solver->LockSparsityPattern(false);
 	mkl_solver->SetVerbose(false);
-	m_fea_system->SetSolver(mkl_solver);
+	m_chrono_system->SetSolver(mkl_solver);
 
-	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
-	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper());
+	m_chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::HHT); // HHT is an implicit integration scheme.
+	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_chrono_system->GetTimestepper());
 	mystepper->SetMaxiters(100);
 	mystepper->SetAbsTolerances(1e-5);
 	mystepper->SetMode(::chrono::ChTimestepperHHT::ACCELERATION);
 	mystepper->SetScaling(true);
 
-	m_fea_system->Update();
+	m_chrono_system->Update();
 #endif
 
 #if SOLVER_TYPE == 7
 	/*
 	auto minres_solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
-	m_fea_system->SetSolver(minres_solver);
+	m_chrono_system->SetSolver(minres_solver);
 
 	minres_solver->EnableDiagonalPreconditioner(true);
 	minres_solver->SetMaxIterations(100);
@@ -327,9 +327,9 @@ ProblemCore::InitializeChronoFEA()
 	mkl_solver->UseSparsityPatternLearner(true);
 	mkl_solver->LockSparsityPattern(true);
 	mkl_solver->SetVerbose(false);
-	m_fea_system->SetSolver(mkl_solver);
-	m_fea_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT); // HHT is an implicit integration scheme.
-/*	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_fea_system->GetTimestepper());
+	m_chrono_system->SetSolver(mkl_solver);
+	m_chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT); // HHT is an implicit integration scheme.
+/*	auto mystepper = std::static_pointer_cast<::chrono::ChTimestepperHHT>(m_chrono_system->GetTimestepper());
 	mystepper->SetMaxiters(100);
 	mystepper->SetAbsTolerances(1e-5);
 	//mystepper->SetMode(::chrono::ChTimestepperHHT::POSITION);
@@ -346,11 +346,11 @@ void
 ProblemCore::SetFeaReady()
 {
 #if USE_CHRONO == 1
-	//m_fea_system->SetupInitial();
+	//m_chrono_system->SetupInitial();
 
 	// If there are nodes to write create the output file
 
-	//m_fea_system->Update();
+	//m_chrono_system->Update();
 
 	if (simparams()->numNodesToWrite)
 		create_fea_nodes_file();
@@ -363,8 +363,8 @@ ProblemCore::SetFeaReady()
 void ProblemCore::FinalizeChronoFEA(void)
 {
 #if USE_CHRONO == 1
-	if (m_fea_system)
-		delete m_fea_system;
+	if (m_chrono_system)
+		delete m_chrono_system;
 	if (m_fea_nodes_file)
 		m_fea_nodes_file.close();
 #else
@@ -869,7 +869,7 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 		//   time-step, then we use 2*dt
 		// - we perform FEA every fea_every SPH steps, then (assuming dt constant
 		//   over this time) we perform FEA using a factor fea_every on the time-step
-		m_fea_system->DoStepDynamics(2*dt*fea_every);
+		m_chrono_system->DoStepDynamics(2*dt*fea_every);
 
 
 		shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
