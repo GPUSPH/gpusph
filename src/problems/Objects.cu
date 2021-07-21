@@ -204,7 +204,7 @@ void Objects::initializeObjectJoints() {
 	// distance link params: body1, body1, bool (true if pos are relative), endpoint1, endpoint2, bool (true if distance is auto)
 	joint1->Initialize(	a1, a2, false, a1->GetPos(), a2->GetPos(), true);
 	// Add the link to the physical system
-	m_bodies_physical_system->AddLink( joint1 );
+	m_chrono_system->AddLink( joint1 );
 #else
 	throw runtime_error("Chrono disabled, no object joints available");
 #endif

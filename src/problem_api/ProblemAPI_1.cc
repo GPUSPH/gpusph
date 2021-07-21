@@ -125,10 +125,8 @@ double ProblemAPI<1>::preferredDeltaP(GeometryType type)
 ProblemAPI<1>::~ProblemAPI<1>()
 {
 	release_memory();
-	if (m_numFloatingBodies > 0)
+	if (m_numFloatingBodies || m_numFEAObjects)
 		cleanupChrono();
-	if (m_numFEAObjects > 0)
-		cleanupChronoFEA();
 }
 
 bool ProblemAPI<1>::initialize()
@@ -412,11 +410,8 @@ bool ProblemAPI<1>::initialize()
 	}
 
 	// only init Chrono if there are floating bodies
-	if (m_numFloatingBodies)
+	if (m_numFloatingBodies || m_numFEAObjects)
 		initializeChrono();
-
-	if (m_numFEAObjects)
-		initializeChronoFEA();
 
 	// check open boundaries consistency
 	// TODO ideally we should enable/disable them depending on whether
@@ -435,21 +430,6 @@ bool ProblemAPI<1>::initialize()
 	// initialization functions (checking dt, preparing the grid,
 	// creating the problem dir, etc)
 	return ProblemCore::initialize();
-}
-
-// TODO FIXME rigid bodies and FEA may be included in the same ChSystem and then initialized and finalized together
-void ProblemAPI<1>::initializeChronoFEA()
-{
-#if USE_CHRONO == 1
-	InitializeChronoFEA();
-#endif
-}
-
-void ProblemAPI<1>::cleanupChronoFEA()
-{
-#if USE_CHRONO == 1
-	FinalizeChronoFEA();
-#endif
 }
 
 void ProblemAPI<1>::initializeChrono()
@@ -1859,7 +1839,7 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			if (m_geometries[g]->type == GT_FIXED_BOUNDARY)
 				m_geometries[g]->ptr->SetFixed();
 			// NOTE: could use SetNoSpeedNoAcceleration() for MOVING chrono bodies?
-			m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
+			m_geometries[g]->ptr->BodyCreate(m_chrono_system, m_deltap, m_geometries[g]->handle_collisions);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
 			// NOTE: BodyPrintInformation() would be meaningless on planes (excluded above) but harmless anyway
@@ -1867,9 +1847,9 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		} // if m_numFloatingBodies > 0
 
 		if ( (m_numFEAObjects) && m_geometries[g]->fea) {
-			m_geometries[g]->ptr->CreateFemMesh(m_fea_system);
+			m_geometries[g]->ptr->CreateFemMesh(m_chrono_system);
 			groundFeaNodes(m_geometries[g]->ptr->GetFeaMesh());
-			m_fea_system->Add(m_geometries[g]->ptr->GetFeaMesh()); //TODO FIXME this should be done inside the CreateFemMesh and inside the load_tet for STLMesh
+			m_chrono_system->Add(m_geometries[g]->ptr->GetFeaMesh()); //TODO FIXME this should be done inside the CreateFemMesh and inside the load_tet for STLMesh
 		}
 
 		// geometry to confine a region where to apply force to FEA nodes
@@ -1945,21 +1925,21 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		As a rigid body, this kind of joint can have pjysical properties associated,
 		for example mass and inertia tensor*/
 		if ( m_geometries[g]->type == GT_FEA_RIGID_JOINT) {
-			m_geometries[g]->ptr->BodyCreate(m_fea_system, m_deltap, false);
+			m_geometries[g]->ptr->BodyCreate(m_chrono_system, m_deltap, false);
 
 			uint nodes_in_truss = 0;
 
 			for (size_t k = 0, num_geoms = m_geometries.size(); k < num_geoms; k++) {
 				if (m_geometries[k]->ptr->HasFeaMesh()){
 
-					nodes_in_truss += m_geometries[g]->ptr->JoinFeaNodes( m_fea_system, m_geometries[k]->ptr->GetFeaMesh(), m_deltap);
+					nodes_in_truss += m_geometries[g]->ptr->JoinFeaNodes( m_chrono_system, m_geometries[k]->ptr->GetFeaMesh(), m_deltap);
 				}
 			}
 
 			if (!nodes_in_truss) throw std::runtime_error("Error: Adding a FEA Joint with no intersecting nodes");
 
 			if (m_geometries[g]->is_dynamometer == true) {
-				m_geometries[g]->ptr->makeDynamometer(m_fea_system,
+				m_geometries[g]->ptr->makeDynamometer(m_chrono_system,
 					gdata->s_hWriteFeaPointConstrPointers,
 					gdata->s_hWriteFeaDirConstrPointers);
 				simparams()->numConstraintsToWrite += 1;
@@ -2059,7 +2039,7 @@ int ProblemAPI<1>::fill_parts(bool fill)
 					first_node.node, //first node
 					ref_nodes[0].node, // second node
 					ref_nodes[j].node);
-				m_fea_system->Add(constraint);
+				m_chrono_system->Add(constraint);
 				std::cout << "linked " << included_nodes[i].node->GetIndex() << " to " << first_node.node->GetIndex()<< " " << ref_nodes[0].node->GetIndex() << " " << ref_nodes[j].node->GetIndex() << std::endl ;
 			}
 
@@ -2140,7 +2120,7 @@ int ProblemAPI<1>::fill_parts(bool fill)
 
 									auto constraint = std::make_shared<::chrono::fea::ChLinkPointPoint>();
 									constraint->Initialize(node, node2);
-									m_fea_system->Add(constraint);
+									m_chrono_system->Add(constraint);
 									cout << "linked nodes " << node << " and " << node2 << endl;
 								}
 
