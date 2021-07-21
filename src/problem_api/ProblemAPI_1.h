@@ -232,11 +232,6 @@ class ProblemAPI<1> : public ProblemCore
 		double m_dem_dx_scale; // used to compute demdx from DEM resolution
 		double m_dem_dy_scale; // used to compute demdy from DEM resolution
 
-		// initialize Chrono FEA
-		void initializeChronoFEA();
-		// guess what
-		void cleanupChronoFEA();
-
 		// initialize Chrono
 		void initializeChrono();
 		// guess what

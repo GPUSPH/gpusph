@@ -130,12 +130,10 @@ class ProblemCore
 		};
 
 #if USE_CHRONO == 1
-		::chrono::ChSystem	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
-		::chrono::ChSystem	*m_chrono_system;	// FIXME see if we can use a unique chrono system// Chrono physical system containing FEA system...
+		::chrono::ChSystem	*m_chrono_system;	// Chrono physical system containing all solid bodies, contacts, FEM...
 
 		std::vector<float4> m_old_fea_vel; // FIXME temporary way of storing old velocities 
 #else
-		void *m_bodies_physical_system;
 		void *m_chrono_system;
 #endif
 
@@ -586,10 +584,8 @@ class ProblemCore
 		void set_body_angularvel(const Object*, const double3&);
 
 		void InitializeChrono(void);
-		void InitializeChronoFEA(void);
 		void SetFeaReady(void);
 		void FinalizeChrono(void);
-		void FinalizeChronoFEA(void);
 
 		// callback for initializing joints between Chrono bodies
 		virtual void initializeObjectJoints();

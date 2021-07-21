@@ -125,10 +125,8 @@ double ProblemAPI<1>::preferredDeltaP(GeometryType type)
 ProblemAPI<1>::~ProblemAPI<1>()
 {
 	release_memory();
-	if (m_numFloatingBodies > 0)
+	if (m_numFloatingBodies || m_numFEAObjects)
 		cleanupChrono();
-	if (m_numFEAObjects > 0)
-		cleanupChronoFEA();
 }
 
 bool ProblemAPI<1>::initialize()
@@ -412,11 +410,8 @@ bool ProblemAPI<1>::initialize()
 	}
 
 	// only init Chrono if there are floating bodies
-	if (m_numFloatingBodies)
+	if (m_numFloatingBodies || m_numFEAObjects)
 		initializeChrono();
-
-	if (m_numFEAObjects)
-		initializeChronoFEA();
 
 	// check open boundaries consistency
 	// TODO ideally we should enable/disable them depending on whether
@@ -435,21 +430,6 @@ bool ProblemAPI<1>::initialize()
 	// initialization functions (checking dt, preparing the grid,
 	// creating the problem dir, etc)
 	return ProblemCore::initialize();
-}
-
-// TODO FIXME rigid bodies and FEA may be included in the same ChSystem and then initialized and finalized together
-void ProblemAPI<1>::initializeChronoFEA()
-{
-#if USE_CHRONO == 1
-	InitializeChronoFEA();
-#endif
-}
-
-void ProblemAPI<1>::cleanupChronoFEA()
-{
-#if USE_CHRONO == 1
-	FinalizeChronoFEA();
-#endif
 }
 
 void ProblemAPI<1>::initializeChrono()
@@ -1851,7 +1831,7 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			if (m_geometries[g]->type == GT_FIXED_BOUNDARY)
 				m_geometries[g]->ptr->SetFixed();
 			// NOTE: could use SetNoSpeedNoAcceleration() for MOVING chrono bodies?
-			m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
+			m_geometries[g]->ptr->BodyCreate(m_chrono_system, m_deltap, m_geometries[g]->handle_collisions);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
 			// NOTE: BodyPrintInformation() would be meaningless on planes (excluded above) but harmless anyway

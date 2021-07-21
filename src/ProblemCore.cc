@@ -89,7 +89,7 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_bodies_storage(NULL)
 {
 #if USE_CHRONO == 1
-	m_bodies_physical_system = NULL;
+	m_chrono_system = NULL;
 #endif
 }
 
@@ -188,7 +188,7 @@ ProblemCore::~ProblemCore(void)
 }
 
 void
-ProblemCore::InitializeChronoFEA()
+ProblemCore::InitializeChrono()
 {
 #if USE_CHRONO == 1
 
@@ -197,14 +197,9 @@ ProblemCore::InitializeChronoFEA()
 	// initialize FEA system
 	m_chrono_system = new ::chrono::ChSystemNSC(); // FIXME NOT necessary the NSC
 
-	// setting the gravity for the Chrono system
+	m_chrono_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+		m_physparams->gravity.z));
 
-	printf("Setting gravity for FEA: g = (%g, %g, %g)\n", m_physparams->gravity.x, m_physparams->gravity.y,
-		m_physparams->gravity.z);
-/*	m_chrono_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
-		m_physparams->gravity.z)); //TODO choose if initialize here or add the gravity to the forces
-		*/
-	m_chrono_system->Set_G_acc(::chrono::ChVector<>(0.0, 0.0, -9.81)); //TODO choose if initialize here or add the gravity to the forces
 
 #define SOLVER_TYPE 7
 
@@ -338,7 +333,7 @@ ProblemCore::InitializeChronoFEA()
 #endif
 
 #else
-	throw runtime_error ("ProblemCore::InitializeChronoFEA Trying to use Chrono without USE_CHRONO defined !\n");
+	throw runtime_error ("ProblemCore::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
 }
 
@@ -360,48 +355,13 @@ ProblemCore::SetFeaReady()
 #endif
 }
 
-void ProblemCore::FinalizeChronoFEA(void)
+void ProblemCore::FinalizeChrono(void)
 {
 #if USE_CHRONO == 1
 	if (m_chrono_system)
 		delete m_chrono_system;
 	if (m_fea_nodes_file)
 		m_fea_nodes_file.close();
-#else
-	throw runtime_error ("ProblemCore::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
-#endif
-}
-
-void
-ProblemCore::InitializeChrono()
-{
-#if USE_CHRONO == 1
-	cout << "Initializing Chrono ... " << endl;
-	m_bodies_physical_system = new ::chrono::ChSystemNSC();
-	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(physparams()->gravity.x, physparams()->gravity.y,
-		physparams()->gravity.z));
-	/*
-	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
-	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::SOR);
-	*/
-	// For debug purposes
-	/*
-	const double chronoSuggEnv = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedEnvelope();
-	const double chronoSuggMarg = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedMargin();
-	printf("Default envelop: %g, default margin: %g\n", chronoSuggEnv, chronoSuggMarg);
-	::chrono::collision::ChCollisionModel::SetDefaultSuggestedEnvelope(chronoSuggEnv / 10.0);
-	::chrono::collision::ChCollisionModel::SetDefaultSuggestedMargin(chronoSuggMarg / 10.0);
-	*/
-#else
-	throw runtime_error ("ProblemCore::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
-#endif
-}
-
-void ProblemCore::FinalizeChrono(void)
-{
-#if USE_CHRONO == 1
-	if (m_bodies_physical_system)
-		delete m_bodies_physical_system;
 #else
 	throw runtime_error ("ProblemCore::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
@@ -1026,6 +986,7 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 
 	//#define _DEBUG_OBJ_FORCES_
 	bool there_is_at_least_one_chrono_body = false;
+	bool fea_is_enabled = simparams()->simflags & ENABLE_FEA;
 	// For Chrono bodies apply forces and torques
 	for (size_t i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
@@ -1044,7 +1005,7 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
-			if (step == 2) {
+			if (step == 2 && !fea_is_enabled) {
 				body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
 				body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
 				body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
@@ -1068,8 +1029,8 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 
 #if USE_CHRONO == 1
 	// Call Chrono solver. Should it be called only if there are floating ones?
-	if (there_is_at_least_one_chrono_body) {
-		m_bodies_physical_system->DoStepDynamics(dt1);
+	if (there_is_at_least_one_chrono_body && !fea_is_enabled) {
+		m_chrono_system->DoStepDynamics(dt1);
 	}
 #endif
 
