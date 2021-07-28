@@ -448,6 +448,7 @@ Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
 
 	msection_cable->SetYoungModulus(m_youngModulus);
 	msection_cable->SetDensity(m_density);
+	msection_cable->SetBeamRaleyghDamping(10.0);
 
 	// Now we walk through the grid of nodes previously created and we apply elements
 	uint n = -1;// nodes indices explorer

@@ -759,11 +759,11 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 		// Divide the new force by the number of samples in the
 		// averaging time window
-		float3 new_f  = as_float3(forces[i])/200.0f;
+		float3 new_f  = as_float3(forces[i])/600.0f;
 
 		// Retrieve the averaged force at previous instant
 		// (stored at the end of the row)
-		float3 node_f = gdata->forces_averager[i][200];
+		float3 node_f = gdata->forces_averager[i][600];
 
 		// Add new force and subtract oldest force to update the
 		// average
@@ -773,7 +773,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		gdata->forces_averager[i][av_idx] = new_f;
 
 		// Store the new averaged value
-		gdata->forces_averager[i][200] = node_f;
+		gdata->forces_averager[i][600] = node_f;
 
 		/* -- End of averaging -- */
 
@@ -807,7 +807,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	// Manage averaging index
 	av_idx ++;
-	if (av_idx == 200) av_idx = 0;
+	if (av_idx == 600) av_idx = 0;
 	gdata->averager_index = av_idx;
 
 #endif
