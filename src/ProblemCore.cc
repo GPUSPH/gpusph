@@ -1499,13 +1499,13 @@ ProblemCore::create_fea_nodes_file(void)
 	m_fea_nodes_file.open(filename);
 
 	// add columns description
-	m_fea_nodes_file << "time[s]";
+	m_fea_nodes_file << "time";
 
 	for (int n = 0; n < simparams()->numNodesToWrite; ++n) {
 		int node_id = gdata->s_hWriteFeaNodesIndices[n];
 		m_fea_nodes_file <<
 			"\tNode_" << node_id << "_x[m]"
-#if 0 //write only x component
+#if 1 //write only x component
 			<<
 			"\tNode_" << node_id << "_y [m]"
 			<<
