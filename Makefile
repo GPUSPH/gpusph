@@ -690,11 +690,12 @@ endif
 
 
 # CUDA libaries
-LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+CUDA_LIBRARY_PATH=$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+LIBPATH += -L$(CUDA_LIBRARY_PATH)
 ifeq ($(CLANG_CUDA),1)
-LDFLAGS += -rpath $(CUDA_INSTALL_PATH)
+LDFLAGS += -rpath $(CUDA_LIBRARY_PATH)
 else
-LDFLAGS += --linker-options -rpath,$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+LDFLAGS += --linker-options -rpath,$(CUDA_LIBRARY_PATH)
 endif
 
 # link to the CUDA runtime library
