@@ -175,8 +175,9 @@ Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 	int nparts = 0;
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
+	printf(" ********************************************* %g  %g\n", m_r, 0.5*dx);
 	for (int i = 0; i <= nz; i++)
-		nparts += FillDisk(points, m_ep, m_origin, m_r, i*dz, dx, fill);
+		nparts += FillDisk(points, m_ep, m_origin, m_r - (0.5*dx), i*dz, dx, fill);
 
 	return nparts;
 }
@@ -200,8 +201,9 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 
 	m_origin(3) = m_center(3);
 
-	if (layers*dx > m_r) {
-		std::cerr << "WARNING: Cylinder FillIn with " << layers << " layers and " << dx << " stepping > radius " << m_r << " replaced by Fill" << std::endl;
+	double rdummy  = m_r - dx;
+	if (layers*dx > rdummy) {
+		std::cerr << "WARNING: Cylinder FillIn with " << layers << " layers and " << dx << " stepping > radius " << rdummy << " replaced by Fill" << std::endl;
 		Fill(points, dx, true);
 		return;
 	}
@@ -215,7 +217,7 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 
 	for (uint l = 0; l < layers; l++) {
 
-		const double smaller_r = m_r - l * dx; //subtract 0.5 dt for DUMMY_BOUNDARY FIXME make it automatic
+		const double smaller_r = rdummy - l * dx; //subtract 0.5 dt for DUMMY_BOUNDARY FIXME make it automatic
 		const double smaller_h = m_h - l * 2 * dx;
 
 		const int nz = (int) ceil(smaller_h/dx);
