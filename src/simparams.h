@@ -290,7 +290,7 @@ typedef struct SimParams {
 		periodicbound(Framework::periodicbound),
 		simflags(Framework::simflags),
 
-		sfactor(1.8f),
+		sfactor(2.0f),
 		slength(0),
 		/* The default kernel radius depends on the kernel choice:
 		 * most kernels have radius 2 (and in fact do not support a different
