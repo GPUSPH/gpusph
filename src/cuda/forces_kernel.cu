@@ -285,12 +285,14 @@ fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
 /*	CSPM coefficients for CCSPH and delta-SPH      */
 /************************************************************************************************************/
 
-#define CCSPH_THRESHOLD 0
+#define CCSPH_THRESHOLD 2
 /* 
    - 0 : No threshold, boundary excluded
    - 1 : Surface detection, boundary excluded
    - 2 : Threshold on determinant, boundary excluded
    - 3 : Threshold on neibs num, boundary excluded
+
+   NOTE: CCSPH should use THRESHOLD 2. The others are there only for experimental reasons.
  */
 
 //#define CCSPH_HYDROSTATIC_THRESHOLD 99999999.0f
