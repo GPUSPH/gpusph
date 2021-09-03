@@ -387,17 +387,19 @@ public:
 	enable_if_t<vector_traits<T>::components == 4>
 	append_local_data(T const* data, const char *name_xyz, const char *name_w)
 	{
+		using S = typename vector_traits<T>::component_type ;
+
 		array_header(data, name_xyz, name_w);
 
 		data_filler.push_back( [this, data, name_xyz, name_w]() {
 			if (name_xyz) {
-				uint numbytes = 3*sizeof(T)*numParts;
+				uint numbytes = 3*sizeof(S)*numParts;
 				write_var(numbytes);
 				for (size_t i = 0; i < numParts; ++i)
 					write_var(data[i], 3);
 			}
 			if (name_w) {
-				uint numbytes = sizeof(T)*numParts;
+				uint numbytes = sizeof(S)*numParts;
 				write_var(numbytes);
 				for (size_t i = 0; i < numParts; ++i)
 					write_var(data[i].w);

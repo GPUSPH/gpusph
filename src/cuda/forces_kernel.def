@@ -3943,7 +3943,27 @@ enable_if_t<
 	FP::cptype == PT_BOUNDARY && FP::nptype == PT_FLUID
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-{ /*do nothing */}
+{
+	// We need to compute force on boundary particles only when we have floating bodies or force feedback
+	if (COMPUTE_FORCE(pdata.info) || HAS_INTERNAL_ENERGY(FP::simflags)) {
+		// Compute pressure part of acceleration
+		compute_pressure_contrib(params, pdata, ndata, pout, nout);
+
+		// Compute viscous forces
+		compute_viscous_contrib(params, pdata, ndata, pout, nout);
+
+		// Compute diffusion terms for k-epsilon and the strain rate tensor
+		compute_keps_term(params, pdata, ndata, pout, nout);
+		// TODO : implement keps for dummy boundaries
+
+		// Sum all contributions from the neighbors in the force array
+		if (COMPUTE_FORCE(pdata.info))
+			as_float3(pout.force) += nout.DvDt;
+
+		// Summ all internal energy contributions from the neighbors
+		add_internal_energy(params, pdata, ndata, pout, nout);
+	}
+}
 
 
 /*
