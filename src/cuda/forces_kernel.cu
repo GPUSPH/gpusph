@@ -432,15 +432,32 @@ store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint nu
  * In the CSPM / CCSPH case we store the per-particle tensor in FCOEFF, to be used
  * in forces for the correction of the kernel gradient.
  */
-template<KernelType kerneltype, BoundaryType boundarytype, DensityDiffusionType densitydiffusiontype, flag_t simflags>
-__global__ void
-cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> params)
+template<KernelType kerneltype,
+	BoundaryType boundarytype,
+	DensityDiffusionType densitydiffusiontype,
+	flag_t simflags,
+	typename params_t = cspm_coeff_params<boundarytype, densitydiffusiontype, simflags>
+>
+struct cspmCoeffDevice : params_t
+{
+	cspmCoeffDevice(
+		const BufferList& bufread,
+			BufferList& bufwrite,
+			uint numParticles,
+			float slength,
+			float influenceRadius)
+	: params_t(bufread, bufwrite, numParticles, slength, influenceRadius)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
 {
 	// If we are using delta-SPH, then we must compute the correction tensor also for particles
 	// near the boundary. Otherwise, those will be skipped
 	constexpr bool has_delta = densitydiffusiontype == ANTUONO;
 
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	params_t const& params(*this);
+
+	const uint index = item.get_id();
 
 	if (index >= params.numParticles)
 		return;
@@ -532,6 +549,7 @@ cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> 
 
 	store_ccsph_fcoeff(params, fcoeff, index, num_neibs, close_to_boundary);
 }
+};
 
 
 /*  @} */

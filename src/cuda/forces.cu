@@ -643,14 +643,16 @@ compute_cspm_coeff(
 	const	float	slength,
 	const	float	influenceRadius)
 {
-		uint numThreads = BLOCK_SIZE_FORCES;
-		uint numBlocks = div_up(numParticles, numThreads);
+	uint numThreads = BLOCK_SIZE_FORCES;
+	uint numBlocks = div_up(numParticles, numThreads);
 
-		cuforces::cspmCoeffDevice<kerneltype, boundarytype, densitydiffusiontype, simflags><<<numBlocks, numThreads>>>(
-				cspm_coeff_params<boundarytype, densitydiffusiontype, simflags>(bufread, bufwrite, particleRangeEnd, slength, influenceRadius));
+	execute_kernel(
+		cuforces::cspmCoeffDevice<kerneltype, boundarytype, densitydiffusiontype, simflags>
+			(bufread, bufwrite, particleRangeEnd, slength, influenceRadius),
+		numBlocks, numThreads);
 
-		// check if kernel invocation generated an error
-		KERNEL_CHECK_ERROR;
+	// check if kernel invocation generated an error
+	KERNEL_CHECK_ERROR;
 }
 
 /* forcesDevice kernel calls that involve vertex particles
