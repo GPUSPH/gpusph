@@ -218,7 +218,7 @@ SUPPORTED_BACKENDS := cuda cpu
 # override:                     as fallback
 CUDA_INSTALL_PATH ?=
 
-CUDA_SEARCH_PATH = $(CUDA_INSTALL_PATH) $(dir $(dir $(shell which nvcc))) /usr/local/cuda /usr
+CUDA_SEARCH_PATH = $(CUDA_INSTALL_PATH) $(dir $(dir $(shell command -v nvcc))) /usr/local/cuda /usr
 
 NVCC := $(firstword $(foreach p, $(CUDA_SEARCH_PATH),$(wildcard $(addsuffix /bin/nvcc,$p))))
 
@@ -549,7 +549,7 @@ ifdef mpi
 endif
 
 # override: MPICXX - the MPI compiler
-MPICXX ?= $(shell which mpicxx 2> /dev/null)
+MPICXX ?= $(shell command -v mpicxx)
 
 ifeq ($(MPICXX),)
 	ifeq ($(USE_MPI),1)
