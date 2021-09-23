@@ -1173,10 +1173,12 @@ count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 #endif
 
 	uint neibs_max[num_sm_neibs_max];
-	neibs_max[0] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY];
-	if (num_sm_neibs_max > 1) // SA_BOUNDARY
+	uint total_neibs_num = neibs_max[0] = neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY];
+	// SA_BOUNDARY
+	if (num_sm_neibs_max > 1) {
 		neibs_max[1] = neibs_num[PT_VERTEX];
-	uint total_neibs_num = neibs_max[0] + neibs_num[PT_VERTEX];
+		total_neibs_num += neibs_num[PT_VERTEX];
+	}
 
 #if CPU_BACKEND_ENABLED
 #pragma omp scope reduction(max: d_maxFluidBoundaryNeibs)
