@@ -30,6 +30,9 @@
 
 #include <type_traits> // for std::is_base_of
 
+#include "forces_params.h"
+#include "density_diffusion_params.h"
+
 /// This file defines the heavy-duty forcesDevice kernel (at the end). The
 /// kernel itself is now quite streamlined, and it only contains sequences of
 /// calls to function templates and functors template that do the actual job
@@ -79,6 +82,8 @@
 DECLARE_MEMBER_DETECTOR(volume, has_volume)
 DECLARE_MEMBER_DETECTOR(gammaCfl, has_gammaCfl)
 DECLARE_MEMBER_DETECTOR(relEulerVel, has_relEulerVel)
+
+namespace cuforces {
 
 /// Selector to check if we need a CFL condition for gamma
 template<typename FP>
@@ -4918,6 +4923,8 @@ struct computeDensityDiffusionDevice : params_t
 	params.forces[index].w = DrDt/d_rho0[fluid_num(pdata.info)];
 }
 };
+
+}
 
 #endif
 

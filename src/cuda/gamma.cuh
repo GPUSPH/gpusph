@@ -28,6 +28,12 @@
 /*		Gamma calculations																					*/
 /************************************************************************************************************/
 
+#include "vector_math.h"
+
+#include "particledefine.h" // KernelType
+
+namespace cusph {
+
 // Single-precision M_PI
 // FIXME : ah, ah ! Single precision with 976896587958795795 decimals ....
 #define M_PIf 3.141592653589793238462643383279502884197169399375105820974944f
@@ -520,6 +526,8 @@ Gamma<WENDLAND, PT_VERTEX>(
 	}
 	gamma_as = gamma_vs + gamma_as;
 	return gamma_as;
+}
+
 }
 
 /* vim: set ft=cuda: */

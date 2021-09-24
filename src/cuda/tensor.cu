@@ -29,6 +29,8 @@
 
 #include "tensor.h"
 #include "vector_math.h"
+#include "kahan.h"
+
 #define __spec __device__ __forceinline__
 
 __spec

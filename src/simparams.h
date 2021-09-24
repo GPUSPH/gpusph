@@ -34,9 +34,12 @@
 
 #include <vector>
 #include <stdexcept>
+#include <memory>
+
 #include "WaveGage.h"
 #include "particledefine.h"
 #include "simflags.h"
+#include "visc_spec.h"
 // #include "deprecation.h"
 
 typedef std::vector<std::shared_ptr<WaveGage>> GageList;

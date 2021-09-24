@@ -29,6 +29,13 @@
  * Template implementation of ForceEngine in CUDA
  */
 
+// TODO FIXME includes: include guard because this is currently included by visc.cu
+// to export cflmax. The proper solution would be to move clfmax cum suis to their own
+// set of source files and include that (probably device_core.cu ?)
+
+#ifndef FORCES_CU
+#define FORCES_CU
+
 #include <cstdio>
 #include <stdexcept>
 
@@ -49,53 +56,6 @@
 #include "density_diffusion_params.h"
 
 #include "posvel_struct.h"
-
-/* Important notes on block sizes:
-	- a parallel reduction for adaptive dt is done inside forces, block
-	size for forces MUST BE A POWER OF 2
- */
-#if CPU_BACKEND_ENABLED
-	#define BLOCK_SIZE_FORCES		CPU_BLOCK_SIZE
-	#define BLOCK_SIZE_CALCVORT		CPU_BLOCK_SIZE
-	#define MIN_BLOCKS_CALCVORT		CPU_MIN_BLOCKS
-	#define BLOCK_SIZE_CALCTEST		CPU_BLOCK_SIZE
-	#define MIN_BLOCKS_CALCTEST		CPU_MIN_BLOCKS
-	#define BLOCK_SIZE_SHEPARD		CPU_BLOCK_SIZE
-	#define MIN_BLOCKS_SHEPARD		CPU_MIN_BLOCKS
-	#define BLOCK_SIZE_MLS			CPU_BLOCK_SIZE
-	#define MIN_BLOCKS_MLS			CPU_MIN_BLOCKS
-	#define BLOCK_SIZE_FMAX			CPU_BLOCK_SIZE
-	#define MAX_BLOCKS_FMAX			1
-#elif (__COMPUTE__ >= 20)
-	#define BLOCK_SIZE_FORCES		128
-	#define BLOCK_SIZE_CALCVORT		128
-	#define MIN_BLOCKS_CALCVORT		6
-	#define BLOCK_SIZE_CALCTEST		128
-	#define MIN_BLOCKS_CALCTEST		6
-	#define BLOCK_SIZE_SHEPARD		128
-	#define MIN_BLOCKS_SHEPARD		6
-	#define BLOCK_SIZE_MLS			128
-	#define MIN_BLOCKS_MLS			6
-	#define BLOCK_SIZE_FMAX			256
-	#define MAX_BLOCKS_FMAX			64
-#else
-	#define BLOCK_SIZE_FORCES		64
-	#define BLOCK_SIZE_CALCVORT		128
-	#define MIN_BLOCKS_CALCVORT		1
-	#define BLOCK_SIZE_CALCTEST		128
-	#define MIN_BLOCKS_CALCTEST		1
-	#define BLOCK_SIZE_SHEPARD		224
-	#define MIN_BLOCKS_SHEPARD		1
-	#define BLOCK_SIZE_MLS			128
-	#define MIN_BLOCKS_MLS			1
-	#define BLOCK_SIZE_FMAX			256
-	#define MAX_BLOCKS_FMAX			64
-#endif
-
-// We want to always have at least two warps per block in the reductions
-#if CUDA_BACKEND_ENABLED && BLOCK_SIZE_FMAX <= 32
-#error "BLOCK_SIZE_FMAX must be larger than 32"
-#endif
 
 /* Auxiliary data for parallel reductions */
 thread_local size_t	reduce_blocks = 0;
@@ -1129,3 +1089,4 @@ public:
 };
 
 
+#endif

@@ -35,6 +35,14 @@
 #include "particledefine.h"
 #include "multi_gpu_defines.h"
 
+#include "forces_params.h"
+#include "density_sum_params.h"
+
+#include "sph_core.cu"
+#include "phys_core.cu"
+#include "neibs_iteration.cuh"
+#include "euler_kernel.cu" // for the cueuler namespace
+
 namespace cudensity_sum {
 
 using namespace cusph;

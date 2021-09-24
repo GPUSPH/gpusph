@@ -29,6 +29,7 @@
 #define _BUILDNEIBS_PARAMS_H
 
 #include "common_params.h"
+#include "dem_params.h"
 #include "particledefine.h"
 
 #include "buffer.h"

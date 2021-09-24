@@ -39,6 +39,8 @@
 
 #include "neibs_iteration.cuh" // for d_cellSize
 
+#include "particledefine.h" // for MAX_PLANES
+
 namespace cugeom {
 
 using namespace cuneibs;

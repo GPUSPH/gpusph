@@ -25,6 +25,14 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "atomic_type.h"
+#include "posvel_struct.h"
+#include "euler_params.h"
+
+#include "sycl_wrap.h"
+
+namespace cueuler {
+
 __device__ ATOMIC_TYPE(uint) d_nans_found;
 
 struct common_euler_particle_data : pos_mass, vel_rho
@@ -650,4 +658,5 @@ struct nanCheckDevice : EP
 }
 };
 
+}
 /* vi:set ft=cuda: */

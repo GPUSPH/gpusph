@@ -29,10 +29,44 @@
  * NeibsEngine CUDA kernels
  */
 
+#include "sycl_wrap.h"
 
 /*
  * Device code.
  */
+
+// TODO :
+// We can also plan to have separate arrays for boundary parts
+// one for the fixed boundary that is sorted only one time in the simulation
+// an other one for moving boundary that will be sort with fluid particle
+// and a last one for fluid particles. In this way we will compute interactions
+// only on fluid particles.
+
+#ifndef _BUILDNEIBS_KERNEL_
+#define _BUILDNEIBS_KERNEL_
+
+#include "particledefine.h"
+#include "vector_math.h"
+
+#include "atomic_type.h"
+
+// TODO : what was CELLTYPE_MASK_* supposed to be ? Can we delete ?
+// CELLTYPE_MASK_*
+#include "multi_gpu_defines.h"
+
+#include "buildneibs_params.h"
+
+/*! \cond */
+#include "cellgrid.cuh"
+/*! \endcond */
+
+/*! \cond */
+#include "neibs_iteration.cuh"
+/*! \endcond */
+
+#include "geom_core.cu"
+
+#include "posvel_struct.h"
 
 /* Important notes on block sizes:
 	- a parallel reduction for max neibs number is done inside neiblist, block
@@ -67,41 +101,6 @@
 	#define BLOCK_SIZE_BUILDNEIBS	256
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
-
-
-
-// TODO :
-// We can also plan to have separate arrays for boundary parts
-// one for the fixed boundary that is sorted only one time in the simulation
-// an other one for moving boundary that will be sort with fluid particle
-// and a last one for fluid particles. In this way we will compute interactions
-// only on fluid particles.
-
-#ifndef _BUILDNEIBS_KERNEL_
-#define _BUILDNEIBS_KERNEL_
-
-#include "particledefine.h"
-#include "vector_math.h"
-
-#include "atomic_type.h"
-
-// TODO : what was CELLTYPE_MASK_* supposed to be ? Can we delete ?
-// CELLTYPE_MASK_*
-#include "multi_gpu_defines.h"
-
-#include "buildneibs_params.h"
-
-/*! \cond */
-#include "cellgrid.cuh"
-/*! \endcond */
-
-/*! \cond */
-#include "neibs_iteration.cuh"
-/*! \endcond */
-
-#include "geom_core.cu"
-
-#include "posvel_struct.h"
 
 /** \namespace cuneibs
  *  \brief Contains all device functions/kernels/variables used for neighbor list construction

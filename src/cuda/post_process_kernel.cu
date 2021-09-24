@@ -38,9 +38,35 @@
 #include "GlobalData.h"
 
 #include "neibs_list_params.h"
+#include "posvel_struct.h"
+
+#include "sycl_wrap.h"
 
 #if __COMPUTE__ < 20
 #define printf(...) /* eliminate printf from 1.x */
+#endif
+
+#include "geom_core.cu"
+#include "sph_core.cu"
+#include "phys_core.cu"
+#include "cellgrid.cuh"
+#include "boundary_conditions_kernel.cu"
+
+#if CPU_BACKEND_ENABLED
+	#define BLOCK_SIZE_CALCVORT		CPU_BLOCK_SIZE
+	#define MIN_BLOCKS_CALCVORT		CPU_MIN_BLOCKS
+	#define BLOCK_SIZE_CALCTEST		CPU_BLOCK_SIZE
+	#define MIN_BLOCKS_CALCTEST		CPU_MIN_BLOCKS
+#elif (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_CALCVORT		128
+	#define MIN_BLOCKS_CALCVORT		6
+	#define BLOCK_SIZE_CALCTEST		128
+	#define MIN_BLOCKS_CALCTEST		6
+#else
+	#define BLOCK_SIZE_CALCVORT		128
+	#define MIN_BLOCKS_CALCVORT		1
+	#define BLOCK_SIZE_CALCTEST		128
+	#define MIN_BLOCKS_CALCTEST		1
 #endif
 
 namespace cupostprocess {

@@ -40,6 +40,11 @@
 
 #include "visc_kernel.cu"
 
+// TODO FIXME include order: this is needed to define cflmax,
+// it might be better to move that into its own header included by both
+// visc.cu and forces.cu
+#include "forces.cu" // for cflmax
+
 /// CUDAViscEngine class.
 ///
 /// Generally, the kernel and boundary type will be passed through to the

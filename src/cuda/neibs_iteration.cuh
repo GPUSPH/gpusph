@@ -29,6 +29,11 @@
 #define NEIBS_ITERATION_CUH
 
 #include <tuple>
+
+#include "cpp11_missing.h"
+
+#include "particledefine.h" // BoundaryType
+
 #include "cellgrid.cuh"
 #include "posvel_struct.h" // pos_mass
 

@@ -30,6 +30,8 @@
 
 #include "particledefine.h"
 #include "simflags.h"
+#include "common_types.h"
+#include "atomic_type.h"
 
 /* Templatized parameters structure for the SA_BOUNDARY boundary conditions kernels
  * (saSegmentBoundaryConditionsDevice, saVertexBoundaryConditionsDevice

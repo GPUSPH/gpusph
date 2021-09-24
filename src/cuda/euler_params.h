@@ -49,6 +49,8 @@
 
 #include "common_params.h"
 
+#include "sa_bc_params.h" // repackViscSpec
+
 // We now have the tools to assemble the structure that will be used to pass parameters to the euler kernel
 
 /* Now we define structures that hold the parameters to be passed

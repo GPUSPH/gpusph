@@ -31,6 +31,7 @@
 #include "particledefine.h"
 #include "simflags.h"
 #include "common_params.h"
+#include "neibs_list_params.h"
 
 // TODO FIXME redesign in terms of neibs_interaction_params
 

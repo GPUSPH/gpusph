@@ -35,6 +35,9 @@
 #include "hashkey.h"
 #include "linearization.h"
 
+// TODO FIXME include: this is needed for INTMUL, which should really be moved elsewhere
+#include "particledefine.h"
+
 #ifndef CELLGRID_CUH
 #define CELLGRID_CUH
 

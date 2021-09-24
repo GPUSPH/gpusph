@@ -35,6 +35,11 @@
 #include "particledefine.h"
 #include "multi_gpu_defines.h"
 
+// TODO FIXME include order: these are needed to define the namespaces
+#include "sph_core.cu"
+#include "phys_core.cu"
+#include "cellgrid.cuh"
+
 namespace cueuler {
 
 __constant__ float	d_epsxsph;
@@ -109,7 +114,11 @@ applyrot2(float* rot, float3 & pos, const float3 & cg)
 	pos.z = new_relpos.z + cg.z;
 }
 
+} // close the cueuler namespace
+
 #include "euler_kernel.def"
+
+namespace cueuler {
 
 // Trivial kernel to update the density of fluid particles
 // TODO FIXME is this still correct as-is with the introduction of relative density?

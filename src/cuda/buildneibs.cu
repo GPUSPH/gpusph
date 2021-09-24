@@ -53,12 +53,6 @@
 #include "engine_neibs.h"
 #include "utils.h"
 
-#if CUDA_BACKEND_ENABLED
-#include "sycl_wrap_cuda.h"
-#else
-#include "sycl_wrap_cpu.h"
-#endif
-
 #include "buildneibs_params.h"
 #include "reorder_params.h"
 #include "buildneibs_kernel.cu"

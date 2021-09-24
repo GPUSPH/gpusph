@@ -55,7 +55,40 @@
 // FIXME : ah, ah ! Single precision with 976896587958795795 decimals ....
 #define M_PIf 3.141592653589793238462643383279502884197169399375105820974944f
 
-#define MAXKASINDEX 10
+/* Important notes on block sizes:
+	- a parallel reduction for adaptive dt is done inside forces, block
+	size for forces MUST BE A POWER OF 2
+ */
+#if CPU_BACKEND_ENABLED
+	#define BLOCK_SIZE_FORCES		CPU_BLOCK_SIZE
+	#define BLOCK_SIZE_SHEPARD		CPU_BLOCK_SIZE
+	#define MIN_BLOCKS_SHEPARD		CPU_MIN_BLOCKS
+	#define BLOCK_SIZE_MLS			CPU_BLOCK_SIZE
+	#define MIN_BLOCKS_MLS			CPU_MIN_BLOCKS
+	#define BLOCK_SIZE_FMAX			CPU_BLOCK_SIZE
+	#define MAX_BLOCKS_FMAX			1
+#elif (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_FORCES		128
+	#define BLOCK_SIZE_SHEPARD		128
+	#define MIN_BLOCKS_SHEPARD		6
+	#define BLOCK_SIZE_MLS			128
+	#define MIN_BLOCKS_MLS			6
+	#define BLOCK_SIZE_FMAX			256
+	#define MAX_BLOCKS_FMAX			64
+#else
+	#define BLOCK_SIZE_FORCES		64
+	#define BLOCK_SIZE_SHEPARD		224
+	#define MIN_BLOCKS_SHEPARD		1
+	#define BLOCK_SIZE_MLS			128
+	#define MIN_BLOCKS_MLS			1
+	#define BLOCK_SIZE_FMAX			256
+	#define MAX_BLOCKS_FMAX			64
+#endif
+
+// We want to always have at least two warps per block in the reductions
+#if CUDA_BACKEND_ENABLED && BLOCK_SIZE_FMAX <= 32
+#error "BLOCK_SIZE_FMAX must be larger than 32"
+#endif
 
 /** \namespace cuforces
  *  \brief Contains all device functions/kernels/variables used force computations, filters and boundary conditions
@@ -695,13 +728,16 @@ struct densityGrenierDevice : neibs_list_params
 
 /************************************************************************************************************/
 
-
 /************************************************************************************************************/
 /*					   Kernels for computing acceleration without gradient correction					 */
 /************************************************************************************************************/
 
+} // close cuforces namespace
+
 /* forcesDevice kernel and auxiliary types and functions */
 #include "forces_kernel.def"
+
+namespace cuforces {
 
 /************************************************************************************************************/
 

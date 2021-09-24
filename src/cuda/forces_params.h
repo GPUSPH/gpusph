@@ -35,6 +35,8 @@
 #include "particledefine.h"
 #include "simflags.h"
 
+#include "utils.h" // round_up
+
 /* The forces computation kernel is probably the most complex beast in GPUSPH.
    To achieve good performance, each combination of kernel, boundary, formulation
    etc is a different specialization, something which in itself makes for a huge
@@ -51,6 +53,8 @@
 */
 
 #include "common_params.h"
+#include "dem_params.h"
+#include "atomic_type.h"
 
 // We now have the tools to assemble the structure that will be used to pass parameters to the forces kernel
 

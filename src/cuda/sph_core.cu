@@ -27,6 +27,8 @@
 #ifndef _SPH_CORE_
 #define _SPH_CORE_
 
+#include "particledefine.h" // KernelType
+
 /* This header file contains core functions of SPH such as the weighting functions,
  * its derivative, as well as the EOS (including inverse) and the methods to compute
  * Riemann invariants
@@ -54,8 +56,11 @@ __constant__ float	d_fcoeff_cubicspline;			//< coeff = 3/(4Pi h^4)
 __constant__ float	d_fcoeff_quadratic;				//< coeff = 15/(32Pi h^4)
 __constant__ float	d_fcoeff_wendland;				//< coeff = 105/(128Pi h^5)
 __constant__ float	d_fcoeff_gaussian;				//< coeff = wcoeff * 2/h^2
+}
 
 #include "gamma.cuh"
+
+namespace cusph {
 
 ////////////////////
 // F U N C T I O N S
