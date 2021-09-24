@@ -981,9 +981,9 @@ endif
 # We also force C++11 (or higher) mode, since we are now relying on C++11 features
 # If we are using CUDA 11 or higher, the standard will be C++14, as required by
 # Thrust and CUB
-# TODO Check if any -std is present in CXXFLAGS (added by the user) and if
-# the specified value is not 11, warn before removing it
-ifeq ($(CUDA_11),1)
+ifeq ($(findstring -std=c++,$(CXXFLAGS)),-std=c++)
+ $(info Using user-selected C++ standard $(filter -std=c++%,$(CXXFLAGS)))
+else ifeq ($(CUDA_11),1)
 CXXFLAGS += -std=c++14
 else
 CXXFLAGS += -std=c++11
