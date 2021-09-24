@@ -406,12 +406,4 @@ enum SPSKernelSimFlags {
  */
 #define MAX_CUDA_LINEAR_TEXTURE_ELEMENTS (1U << 27)
 
-//! 24-bit integer multiplication on 1.x was faster than simple integer multiplication,
-//! so wrap the multiplication in a macro.
-#if CUDA_BACKEND_ENABLED && (__COMPUTE__ < 20)
-	#define INTMUL(x,y) __mul24(x,y)
-#else
-	#define INTMUL(x,y) (x)*(y)
-#endif
-
 #endif

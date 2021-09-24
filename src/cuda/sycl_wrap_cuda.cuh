@@ -31,9 +31,7 @@
 #include "cpp11_missing.h"
 #include "has_member.h"
 
-// TODO FIXME include: this is only needed for INTMUL, we really need to split
-// that file
-#include "particledefine.h"
+#include "intmul.cuh"
 
 /*
  * SYCL-style wrappers
