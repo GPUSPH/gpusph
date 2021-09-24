@@ -31,7 +31,7 @@
 #include "backend_select.opt"
 
 #if CUDA_BACKEND_ENABLED
-#include "sycl_wrap_cuda.h"
+#include "sycl_wrap_cuda.cuh"
 #else
 #include "sycl_wrap_cpu.h"
 #endif
