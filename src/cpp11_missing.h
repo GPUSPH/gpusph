@@ -103,7 +103,8 @@ using bool_constant = std::integral_constant<bool, B>;
 #endif
 
 #if __cplusplus >= 201703L
-using std::as_const();
+#include <utility>
+using std::as_const;
 #else
 template <class T>
 constexpr typename std::add_const<T>::type& as_const(T& t) noexcept
