@@ -38,6 +38,10 @@
 
 #include "buffer.h"
 
+#include "define_buffers.h" // BUFFER_NEIBSLIT
+
+#include "cache_preference.h" // DISABLE_TEXTURES
+
 // SAFE_CALL etc
 #include "safe_call.h"
 
@@ -131,7 +135,7 @@ template<flag_t Key,
 	// maximum linear texture object size on some GPUs (and we never access it via textures anyway).
 	size_t element_size_ = sizeof(typename Buffer<Key>::element_type),
 	bool has_texture = (Key != BUFFER_NEIBSLIST) && !(element_size_ & (element_size_ - 1)), // quick check for pow2
-	typename buffer_texture = typename std::conditional<has_texture,
+	typename buffer_texture = typename std::conditional<has_texture && !DISABLE_TEXTURES,
 		CUDABufferTexture<Key>, CUDABufferNoTexture<Key>>::type
 >
 class CUDABufferImplementation : public Buffer<Key>, public buffer_texture
