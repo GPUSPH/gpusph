@@ -43,6 +43,7 @@
 #define __device__
 #define __constant__
 #define __host__
+#define __shared__
 // forceinline
 #define __forceinline__ inline __attribute__((always_inline))
 

@@ -125,11 +125,17 @@ cflmax( const uint	n,
 const	float*		cfl,
 		float*		tempCfl)
 {
+	float max;
 #if CPU_BACKEND_ENABLED
-	float max = cfl[0];
+	max = cfl[0];
+#if USE_OPENMP
+	for (int i = 1; i < omp_get_max_threads(); ++i)
+		max = fmaxf(max, cfl[i]);
+#endif
+
 #else // CUDA_BACKEND_ENABLED
 	const int numBlocks = reducefmax(tempCfl, cfl, n);
-	float max = NAN;
+	max = NAN;
 
 	// check if kernel execution generated an error
 	KERNEL_CHECK_ERROR;
@@ -504,7 +510,13 @@ setrbstart(const int* rbfirstindex, int numbodies)
 uint
 getFmaxElements(const uint n)
 {
+#if CPU_BACKEND_ENABLED && USE_OPENMP
+	return omp_get_max_threads();
+#elif CPU_BACKEND_ENABLED
+	return 1;
+#else
 	return round_up(div_up<uint>(n, BLOCK_SIZE_FORCES), 4U);
+#endif
 }
 
 

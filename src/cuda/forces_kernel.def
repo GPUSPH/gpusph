@@ -3716,16 +3716,9 @@ struct dyndt_shared_none
 #define COND_SHARED(some_cond, some_struct) \
 	conditional<some_cond, some_struct, dyndt_shared_none<some_struct> >::type
 
-#if CPU_BACKEND_ENABLED
-#define SHMEM_FORCES_ELEMENTS 1
-#define SHMEM_IDX 0
-#else // CUDA_BACKEND_ENABLED
-#define SHMEM_FORCES_ELEMENTS BLOCK_SIZE_FORCES
-#define SHMEM_IDX threadIdx.x
-#endif
 struct dyndt_forces_shared_data
 {
-	float sm_forces_max[SHMEM_FORCES_ELEMENTS];
+	float sm_forces_max[SHMEM_SIZE(BLOCK_SIZE_FORCES)];
 
 	__device__ __forceinline__ void
 	init() { sm_forces_max[SHMEM_IDX] = 0; }
@@ -3748,7 +3741,7 @@ struct dyndt_forces_shared_data
 
 struct dyndt_gamma_shared_data
 {
-	float sm_gamma_max[SHMEM_FORCES_ELEMENTS];
+	float sm_gamma_max[SHMEM_SIZE(BLOCK_SIZE_FORCES)];
 
 	__device__ __forceinline__ void
 	init() { sm_gamma_max[SHMEM_IDX] = 0; }
@@ -3770,7 +3763,7 @@ struct dyndt_gamma_shared_data
 
 struct dyndt_keps_shared_data
 {
-	float sm_keps_max[SHMEM_FORCES_ELEMENTS];
+	float sm_keps_max[SHMEM_SIZE(BLOCK_SIZE_FORCES)];
 
 	__device__ __forceinline__ void
 	init() { sm_keps_max[SHMEM_IDX] = 0; }

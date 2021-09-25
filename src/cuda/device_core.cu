@@ -32,6 +32,34 @@
 #ifndef DEVICE_CORE_CU
 #define DEVICE_CORE_CU
 
+//! Reductions are achieved by doing an in-block reduction first,
+//! followed by a global reduction after the kernel.
+//! On GPU, the in-block reduction is achieved by storing per-thread data
+//! in sm_max, and the calling maxBlockReduce.
+//! On CPU, threads don't communicate with each other, so sm_max can have size 1.
+//! With OpenMP enabled, we let each thread store data to global memory separately,
+//! and still do the final reduction after the kernel
+#if CPU_BACKEND_ENABLED
+#define SHMEM_SIZE(block_size) 1
+#define SHMEM_IDX 0
+#else // CUDA_BACKEND_ENABLED
+#define SHMEM_SIZE(block_size) block_size
+#define SHMEM_IDX threadIdx.x
+#endif
+
+//! Index of the block (for GPU) or the OpenMP thread (CPU + OpenMP)
+//! Returns 0 for single-threaded CPU.
+__device__ __forceinline__
+uint block_idx() {
+#if CPU_BACKEND_ENABLED && USE_OPENMP
+	return omp_get_thread_num();
+#elif CPU_BACKEND_ENABLED
+	return 0;
+#else // CUDA_BACKEND_ENABLED
+	return blockIdx.x;
+#endif
+}
+
 //! Find the maximum of an array in shared memory, and store it to global memory
 /*! This function takes as input an array in shared memory, initialized
  * with one value per thread, and finds the maximum for the block,
@@ -44,13 +72,9 @@ maxBlockReduce(
 	uint	cflOffset ///< offset to index the cfl array
 )
 {
+	const uint block_offset = cflOffset + block_idx();
 #if CPU_BACKEND_ENABLED
-#if OPENMP_SCOPED_REDUCTIONS
-#pragma omp scope reduction(max: cfl[cflOffset])
-#else
-#pragma omp critical
-#endif
-	cfl[cflOffset] = max(cfl[cflOffset], sm_max[0]);
+	cfl[block_offset] = max(cfl[block_offset], sm_max[0]);
 #else
 	// CUDA_BACKEND_ENABLED
 	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1)
@@ -64,7 +88,7 @@ maxBlockReduce(
 
 	// write result for this block to global mem
 	if (!threadIdx.x)
-		cfl[cflOffset + blockIdx.x] = sm_max[0];
+		cfl[block_offset] = sm_max[0];
 #endif
 }
 

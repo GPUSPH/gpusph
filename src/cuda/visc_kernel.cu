@@ -628,20 +628,9 @@ __device__ __forceinline__
 enable_if_t< HAS_DTADAPT(KP::simflags) >
 reduce_kinvisc(KP const& params, float kinvisc)
 {
-#if CPU_BACKEND_ENABLED
-	float *cfl = params.cfl;
-#if OPENMP_SCOPED_REDUCTIONS
-#pragma omp scope reduction(max: cfl[0])
-#else
-#pragma omp critical
-#endif
-	cfl[0] = max(cfl[0], kinvisc);
-#else
-	// CUDA_BACKEND_ENABLED
-	__shared__ float sm_max[BLOCK_SIZE_SPS];
-	sm_max[threadIdx.x] = kinvisc;
+	__shared__ float sm_max[SHMEM_SIZE(BLOCK_SIZE_SPS)];
+	sm_max[SHMEM_IDX] = kinvisc;
 	maxBlockReduce(sm_max, params.cfl, 0);
-#endif
 }
 //! Do nothing to reduce the kinematic viscosity, if not ENABLE_DTADAPT
 template<typename KP>
@@ -654,19 +643,9 @@ reduce_kinvisc(KP const& params, float kinvisc)
 __device__ __forceinline__ void
 reduce_jacobi_error(float* cfl, float error)
 {
-#if CPU_BACKEND_ENABLED
-#if OPENMP_SCOPED_REDUCTIONS
-#pragma omp scope reduction(max: cfl[0])
-#else
-#pragma omp critical
-#endif
-	cfl[0] = max(cfl[0], error);
-#else
-	// CUDA_BACKEND_ENABLED
-	__shared__ float sm_max[BLOCK_SIZE_SPS];
-	sm_max[threadIdx.x] = error;
+	__shared__ float sm_max[SHMEM_SIZE(BLOCK_SIZE_SPS)];
+	sm_max[SHMEM_IDX] = error;
 	maxBlockReduce(sm_max, cfl, 0);
-#endif
 }
 
 //! Per-particle effective viscosity computation
