@@ -1167,8 +1167,8 @@ enable_if_t<neibcount == true>
 count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 {
 #if CUDA_BACKEND_ENABLED
-	__shared__ volatile uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
-	__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS*num_sm_neibs_max];
+	__shared__ uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
+	__shared__ uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS*num_sm_neibs_max];
 #endif
 
 	uint neibs_max[num_sm_neibs_max];
