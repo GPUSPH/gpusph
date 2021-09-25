@@ -630,7 +630,11 @@ reduce_kinvisc(KP const& params, float kinvisc)
 {
 #if CPU_BACKEND_ENABLED
 	float *cfl = params.cfl;
+#if OPENMP_SCOPED_REDUCTIONS
 #pragma omp scope reduction(max: cfl[0])
+#else
+#pragma omp critical
+#endif
 	cfl[0] = max(cfl[0], kinvisc);
 #else
 	// CUDA_BACKEND_ENABLED
@@ -651,7 +655,11 @@ __device__ __forceinline__ void
 reduce_jacobi_error(float* cfl, float error)
 {
 #if CPU_BACKEND_ENABLED
+#if OPENMP_SCOPED_REDUCTIONS
 #pragma omp scope reduction(max: cfl[0])
+#else
+#pragma omp critical
+#endif
 	cfl[0] = max(cfl[0], error);
 #else
 	// CUDA_BACKEND_ENABLED

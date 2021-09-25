@@ -45,7 +45,11 @@ maxBlockReduce(
 )
 {
 #if CPU_BACKEND_ENABLED
+#if OPENMP_SCOPED_REDUCTIONS
 #pragma omp scope reduction(max: cfl[cflOffset])
+#else
+#pragma omp critical
+#endif
 	cfl[cflOffset] = max(cfl[cflOffset], sm_max[0]);
 #else
 	// CUDA_BACKEND_ENABLED

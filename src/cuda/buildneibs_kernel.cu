@@ -1180,14 +1180,18 @@ count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 	}
 
 #if CPU_BACKEND_ENABLED
-#pragma omp scope reduction(max: d_maxFluidBoundaryNeibs)
-	d_maxFluidBoundaryNeibs = max(d_maxFluidBoundaryNeibs, neibs_max[0]);
-	if (num_sm_neibs_max > 1) {
-#pragma omp scope reduction(max: d_maxVertexNeibs)
-		d_maxVertexNeibs = max(d_maxVertexNeibs, neibs_max[1]);
+#if OPENMP_SCOPED_REDUCTIONS
+#pragma omp scope reduction(max: d_maxFluidBoundaryNeibs) reduction(max: d_maxVertexNeibs) reduction(+: d_numInteractions)
+#else
+#pragma omp critical
+	{
+		d_maxFluidBoundaryNeibs = max(d_maxFluidBoundaryNeibs, neibs_max[0]);
+		if (num_sm_neibs_max > 1) {
+			d_maxVertexNeibs = max(d_maxVertexNeibs, neibs_max[1]);
+		}
+		d_numInteractions += total_neibs_num;
 	}
-#pragma omp scope reduction(+: d_numInteractions)
-	d_numInteractions += total_neibs_num;
+#endif
 #else
 	// CUDA_BACKEND_ENABLED
 	sm_total_neibs_num[threadIdx.x] = total_neibs_num;
