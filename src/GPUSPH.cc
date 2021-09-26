@@ -139,10 +139,11 @@ void GPUSPH::showCommandTimes()
 }
 
 void GPUSPH::openInfoStream() {
+#if SHM_INFO_STREAM
 	stringstream ss;
+	m_info_stream = NULL;
 	ss << "GPUSPH-" << getpid();
 	m_info_stream_name = ss.str();
-	m_info_stream = NULL;
 	int ret = shm_open(m_info_stream_name.c_str(), O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IROTH);
 	if (ret < 0) {
 		cerr << "WARNING: unable to open info stream " << m_info_stream_name << endl;
@@ -159,14 +160,17 @@ void GPUSPH::openInfoStream() {
 	fputs("Initializing ...\n", m_info_stream);
 	fflush(m_info_stream);
 	fseek(m_info_stream, 0, SEEK_SET);
+#endif
 }
 
 void GPUSPH::closeInfoStream() {
+#if SHM_INFO_STREAM
 	if (m_info_stream) {
 		shm_unlink(m_info_stream_name.c_str());
 		fclose(m_info_stream);
 		m_info_stream = NULL;
 	}
+#endif
 }
 
 bool GPUSPH::initialize(GlobalData *_gdata) {
@@ -643,7 +647,8 @@ void GPUSPH::runCommand<END_OF_REPACKING>(CommandStruct const& cmd)
 template<>
 void GPUSPH::runCommand<TIME_STEP_PRELUDE>(CommandStruct const& cmd)
 {
-	printStatus(m_info_stream);
+	if (m_info_stream)
+		printStatus(m_info_stream);
 }
 
 template<>

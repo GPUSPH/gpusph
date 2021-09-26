@@ -981,6 +981,13 @@ else
  CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
 endif
 
+# Disable the shared-memory info stream on Android, since the OS
+# doesn't support POSIX shared memory
+ifeq ($(platform),Android)
+ CPPFLAGS += -DSHM_INFO_STREAM=0
+else
+ CPPFLAGS += -DSHM_INFO_STREAM=1
+endif
 
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
