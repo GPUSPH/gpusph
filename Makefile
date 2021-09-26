@@ -993,13 +993,15 @@ endif
 
 # We also force C++11 (or higher) mode, since we are now relying on C++11 features
 # If we are using CUDA 11 or higher, the standard will be C++14, as required by
-# Thrust and CUB
+# Thrust and CUB. We also use C++14 for the CPU backend.
+# The user can always override the C++ version required by adding it to the
+# CXXFLAGS in Makefile.local
 ifeq ($(findstring -std=c++,$(CXXFLAGS)),-std=c++)
  $(info Using user-selected C++ standard $(filter -std=c++%,$(CXXFLAGS)))
-else ifeq ($(CUDA_11),1)
-CXXFLAGS += -std=c++14
+else ifeq ($(CUDA_11)$(cpu.backend.enabled),00)
+ CXXFLAGS += -std=c++11 # not CUDA 11, not CPU backend
 else
-CXXFLAGS += -std=c++11
+ CXXFLAGS += -std=c++14
 endif
 
 # HDF5 might require specific flags
