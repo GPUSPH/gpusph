@@ -26,11 +26,11 @@ verbose := $(verbose)
 
 # traceconfig and showvardef macros
 ifneq ($(verbose),0)
- traceconfig = $(info (config) $1 $2 $3 $4 $5 $6 $7 $8 $9)
- showvardef  = $1=$($1)
+ traceconfig := $(info (config) $1 $2 $3 $4 $5 $6 $7 $8 $9)
+ showvardef  := $1=$($1)
 else
- traceconfig =
- showvardef  = $($1)
+ traceconfig :=
+ showvardef  := $($1)
 endif
 
 # When running a `make clean`, we do not want to generate the files that we are going to remove
@@ -38,9 +38,9 @@ endif
 # We only do this if a single target was specified
 cleaning:=0
 ifeq ($(words $(MAKECMDGOALS)),1)
-ifeq ($(findstring clean,$(MAKECMDGOALS)),clean)
-	cleaning:=1
-endif
+ ifeq ($(findstring clean,$(MAKECMDGOALS)),clean)
+  cleaning:=1
+ endif
 endif
 
 # Cached configuration. All settings that should be persistent across compilation
@@ -61,44 +61,44 @@ endif
 sinclude Makefile.local
 
 # GPUSPH version
-GPUSPH_VERSION=$(shell git describe --tags --dirty=+custom 2> /dev/null | sed -e 's/-\([0-9]\+\)/+\1/' -e 's/-g/-/' 2> /dev/null)
+GPUSPH_VERSION := $(shell git describe --tags --dirty=+custom 2> /dev/null | sed -e 's/-\([0-9]\+\)/+\1/' -e 's/-g/-/' 2> /dev/null)
 
 ifeq ($(GPUSPH_VERSION), $(empty))
-$(warning Unable to determine GPUSPH version)
-GPUSPH_VERSION=unknown-version
+ $(warning Unable to determine GPUSPH version)
+ GPUSPH_VERSION=unknown-version
 endif
 export GPUSPH_VERSION
 
 # Git info output
-GIT_INFO_OUTPUT=$(shell git branch -vv)
+GIT_INFO_OUTPUT := $(shell git branch -vv)
 
 # system information
-platform=$(shell uname -s 2>/dev/null)
-platform_lcase=$(shell uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')
-arch=$(shell uname -m)
+platform := $(shell uname -s 2>/dev/null)
+platform_lcase := $(shell uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')
+arch := $(shell uname -m)
 
 # sed syntax differs a bit
 ifeq ($(platform), Darwin)
-	SED_COMMAND=sed -i "" -e
+ SED_COMMAND := sed -i "" -e
 else # Linux
-	SED_COMMAND=sed -i -e
+ SED_COMMAND := sed -i -e
 endif
 
 
 # option: target_arch - if set to 32, force compilation for 32 bit architecture
 ifeq ($(target_arch), 32)
-	arch=i686
+ arch :=i686
 endif
 
 # name of the top-level Makefile (this file)
-MFILE_NAME = $(firstword $(MAKEFILE_LIST))
-MAKEFILE = $(CURDIR)/$(MFILE_NAME)
+MFILE_NAME := $(firstword $(MAKEFILE_LIST))
+MAKEFILE := $(CURDIR)/$(MFILE_NAME)
 
 DBG_SFX=_dbg
 ifeq ($(DBG), 1)
-	TARGET_SFX=$(DBG_SFX)
+ TARGET_SFX=$(DBG_SFX)
 else
-	TARGET_SFX=
+ TARGET_SFX=
 endif
 
 # directories: binary, objects, sources, expanded sources
@@ -128,32 +128,32 @@ LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc
 # --------------- File lists
 
 # all files under $(SRCDIR), needed by tags files
-ALLSRCFILES = $(shell find $(SRCDIR) -type f)
+ALLSRCFILES := $(shell find $(SRCDIR) -type f)
 
 # .cc source files (CPU)
 MPICXXFILES = $(SRCDIR)/NetworkManager.cc
 ifeq ($(USE_HDF5),2)
-	MPICXXFILES += $(SRCDIR)/HDF5SphReader.cc
-	MPICXXFILES += $(SRCDIR)/HDF5SphWriter.cc
+ MPICXXFILES += $(SRCDIR)/HDF5SphReader.cc
+ MPICXXFILES += $(SRCDIR)/HDF5SphWriter.cc
 endif
 
 OUR_PROBLEM_DIRS=$(SRCDIR)/problems
 USER_PROBLEM_DIRS=$(SRCDIR)/problems/user
 PROBLEM_DIRS=$(OUR_PROBLEM_DIRS) $(USER_PROBLEM_DIRS)
 
-SRCSUBS=$(sort $(filter-out $(PROBLEM_DIRS),\
+SRCSUBS:=$(sort $(filter-out $(PROBLEM_DIRS),\
 	$(filter %/,$(wildcard $(SRCDIR)/*/))))
 SRCSUBS:=$(SRCSUBS:/=)
-OBJSUBS=$(sort $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
-DEPSUBS=$(sort $(patsubst $(SRCDIR)/%,$(DEPDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
+OBJSUBS:=$(sort $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
+DEPSUBS:=$(sort $(patsubst $(SRCDIR)/%,$(DEPDIR)/%,$(SRCSUBS) $(PROBLEM_DIRS)))
 
 # list of problems
-PROBLEM_LIST = $(filter-out GenericProblem, \
+PROBLEM_LIST := $(filter-out GenericProblem, \
 	$(foreach adir, $(PROBLEM_DIRS), \
 	$(notdir $(basename $(wildcard $(adir)/*.h)))))
 
 # list of problem executables, both debug and non-debug versions, for the clean target
-PROBLEM_EXES = $(foreach p, $(PROBLEM_LIST),$(call dbgexe,$p) $(CURDIR)/$(call dbgexename,$p)) \
+PROBLEM_EXES := $(foreach p, $(PROBLEM_LIST),$(call dbgexe,$p) $(CURDIR)/$(call dbgexename,$p)) \
 	       $(foreach p, $(PROBLEM_LIST),$(call nodbgexe,$p) $(CURDIR)/$(call nodbgexename,$p))
 
 # use $(call problem_{cu,cc}_src,someproblem) to get the sources
@@ -218,7 +218,7 @@ SUPPORTED_BACKENDS := cuda cpu
 # override:                     as fallback
 CUDA_INSTALL_PATH ?=
 
-CUDA_SEARCH_PATH = $(CUDA_INSTALL_PATH) $(dir $(dir $(shell command -v nvcc))) /usr/local/cuda /usr
+CUDA_SEARCH_PATH := $(CUDA_INSTALL_PATH) $(dir $(dir $(shell command -v nvcc))) /usr/local/cuda /usr
 
 NVCC := $(firstword $(foreach p, $(CUDA_SEARCH_PATH),$(wildcard $(addsuffix /bin/nvcc,$p))))
 
@@ -287,23 +287,23 @@ CLANG_CUDA ?= 0
 CLANG_CUDA_VERSION ?=
 CLANG_SELECT_OPTFILE=$(OPTSDIR)/clang_select.opt
 ifdef clang
-	OLD_CLANG_CUDA:=$(CLANG_CUDA)
-	OLD_CLANG_CUDA_VERSION:=$(CLANG_CUDA_VERSION)
-	ifeq ($(clang),0)
-		CLANG_CUDA=0
-		CLANG_CUDA_VERSION=
-	else ifeq ($(clang),1)
-		CLANG_CUDA=1
-		CLANG_CUDA_VERSION=$(shell echo __clang_major__ | clang++ -E - | grep -v \#)
-		TMP:=$(info Autodetected Clang version '$(CLANG_CUDA_VERSION)')
-	else
-		CLANG_CUDA=1
-		CLANG_CUDA_VERSION=$(clang)
-	endif
-	ifneq ($(CLANG_CUDA)/$(CLANG_CUDA_VERSION),$(OLD_CLANG_CUDA)/$(OLD_CLANG_CUDA_VERSION))
-		# force regeneration of CLANG_SELECT_OPTFILE
-		TMP:=$(shell rm -f $(CLANG_SELECT_OPTFILE))
-	endif
+ OLD_CLANG_CUDA:=$(CLANG_CUDA)
+ OLD_CLANG_CUDA_VERSION:=$(CLANG_CUDA_VERSION)
+ ifeq ($(clang),0)
+  CLANG_CUDA=0
+  CLANG_CUDA_VERSION=
+ else ifeq ($(clang),1)
+  CLANG_CUDA=1
+  CLANG_CUDA_VERSION:=$(shell echo __clang_major__ | clang++ -E - | grep -v \#)
+  $(info Autodetected Clang version '$(CLANG_CUDA_VERSION)')
+ else
+  CLANG_CUDA=1
+  CLANG_CUDA_VERSION=$(clang)
+ endif
+ ifneq ($(CLANG_CUDA)/$(CLANG_CUDA_VERSION),$(OLD_CLANG_CUDA)/$(OLD_CLANG_CUDA_VERSION))
+  # force regeneration of CLANG_SELECT_OPTFILE
+  $(shell rm -f $(CLANG_SELECT_OPTFILE))
+ endif
 endif
 
 # We keep track of the nvcc major version, which is stored in clang_select
@@ -323,8 +323,8 @@ ifeq ($(cuda.backend.enabled),1)
  CLANG_CUDA_PATH ?= $(CUDA_INSTALL_PATH)
 
  # nvcc info
- NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
- versions_tmp  := $(subst ., ,$(NVCC_VER))
+ NVCC_VER := $(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
+ versions_tmp := $(subst ., ,$(NVCC_VER))
  CUDA_MAJOR := $(firstword  $(versions_tmp))
  CUDA_MINOR := $(lastword   $(versions_tmp))
 
@@ -349,12 +349,12 @@ else ifeq ($(cpu.backend.enabled),1)
 else ifeq ($(cuda.backend.enabled),1)
  # We only support CUDA 7 onwards, error out if this is an earlier version
  # NOTE: the test is reversed because test returns 0 for true (shell-like)
- OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
+ OLD_CUDA := $(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
 
  # Some libraries shipped CUDA 11 require C++14, so we want to know if
  # the CUDA version is at least 11
  # NOTE: the test is reversed because test returns 0 for true (shell-like)
- CUDA_11=$(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
+ CUDA_11 := $(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
 
  ifeq ($(OLD_CUDA),1)
   $(error CUDA version too old)
@@ -394,7 +394,7 @@ endif
 # --- Option management
 
 # Get the include path(s) used by default by our compiler
-CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 | grep '^ ' | grep -v ' (framework directory)'))
+CXX_SYSTEM_INCLUDE_PATH := $(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 | grep '^ ' | grep -v ' (framework directory)'))
 
 # files to store last compile options: dbg, compute, fastmath, MPI usage, Chrono, linearization preference, Catalyst
 # (note: CLANG_SELECT_OPTFILE and BACKEND_SELECT_OPTFILE were defined ahead-of-time because it's needed early at compiler-definition time)
@@ -453,19 +453,19 @@ LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
 	grep "\#define GPUSPH_VERSION" $(GPUSPH_VERSION_OPTFILE) | cut -f2 -d\")
 
 ifneq ($(LAST_GPUSPH_VERSION),$(GPUSPH_VERSION))
-	TMP:=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
-		$(SED_COMMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
+ $(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+   $(SED_COMMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
 endif
 
 # Selection of last built problem (rebuilt by `make` without
 # further specification
 LAST_BUILT_PROBLEM ?= DamBreak3D
-REQUESTED_PROBLEMS = $(filter $(PROBLEM_LIST),$(MAKECMDGOALS))
-CURRENT_LAST = $(lastword DamBreak3D $(LAST_BUILT_PROBLEM) $(REQUESTED_PROBLEMS))
+REQUESTED_PROBLEMS := $(filter $(PROBLEM_LIST),$(MAKECMDGOALS))
+CURRENT_LAST := $(lastword DamBreak3D $(LAST_BUILT_PROBLEM) $(REQUESTED_PROBLEMS))
 ifneq ($(CURRENT_LAST),$(LAST_BUILT_PROBLEM))
-	LAST_BUILT_PROBLEM:=$(CURRENT_LAST)
-	TMP:=$(shell test -e Makefile.conf && \
-		$(SED_COMMAND) '/LAST_BUILT_PROBLEM/c\LAST_BUILT_PROBLEM=$(LAST_BUILT_PROBLEM)' Makefile.conf)
+ LAST_BUILT_PROBLEM:=$(CURRENT_LAST)
+ $(shell test -e Makefile.conf && \
+  $(SED_COMMAND) '/LAST_BUILT_PROBLEM/c\LAST_BUILT_PROBLEM=$(LAST_BUILT_PROBLEM)' Makefile.conf)
 endif
 
 # A tricky dependency chain: if the user specified a problem to be built,
@@ -473,167 +473,168 @@ endif
 # must depend on GPUSPH. However, if the user did _not_ specify a problem,
 # then we want GPUSPH to depend on $(LAST_BUILT_PROBLEM)
 ifneq ($(REQUESTED_PROBLEMS),$(empty))
-	# problem was specified, it should depend on GPUSPH
-	PROBLEM_GPUSPH_DEP=GPUSPH
-	GPUSPH_PROBLEM_DEP=
+ # problem was specified, it should depend on GPUSPH
+ PROBLEM_GPUSPH_DEP=GPUSPH
+ GPUSPH_PROBLEM_DEP=
 else
-	PROBLEM_GPUSPH_DEP=
-	GPUSPH_PROBLEM_DEP=$(LAST_BUILT_PROBLEM)
+ PROBLEM_GPUSPH_DEP=
+ GPUSPH_PROBLEM_DEP=$(LAST_BUILT_PROBLEM)
 endif
 #$(info => $(PROBLEM_GPUSPH_DEP) <= $(GPUSPH_PROBLEM_DEP))
 
 # option: dbg - 0 no debugging, 1 enable debugging
 # does dbg differ from last?
 ifdef dbg
-	ifneq ($(DBG), $(dbg))
-		ifeq ($(dbg),1)
-			_SRC=undef
-			_REP=define
-		else
-			_SRC=define
-			_REP=undef
-		endif
-		TMP:=$(shell test -e $(DBG_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
-		DBG=$(dbg)
-	endif
+ ifneq ($(DBG), $(dbg))
+  ifeq ($(dbg),1)
+   _SRC=undef
+   _REP=define
+  else
+   _SRC=define
+   _REP=undef
+  endif
+  $(shell test -e $(DBG_SELECT_OPTFILE) && \
+   $(SED_COMMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
+  DBG=$(dbg)
+ endif
 endif
 
 # option: compute - 11, 12, 13, 20, 21, 30, 35, etc: compute capability to compile for (default: autodetect)
 # does dbg differ from last?
 ifdef compute
-	# does it differ from last?
-	ifneq ($(COMPUTE),$(compute))
-		TMP:=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(COMPUTE)/$(compute)/' $(COMPUTE_SELECT_OPTFILE) )
-		# user choice
-		COMPUTE=$(compute)
-	endif
+ # does it differ from last?
+ ifneq ($(COMPUTE),$(compute))
+  $(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
+   $(SED_COMMAND) 's/$(COMPUTE)/$(compute)/' $(COMPUTE_SELECT_OPTFILE) )
+  # user choice
+  COMPUTE=$(compute)
+ endif
 endif
 
 # option: fastmath - Enable or disable fastmath. Default: 0 (disabled)
 ifdef fastmath
-	# does it differ from last?
-	ifneq ($(FASTMATH),$(fastmath))
-		TMP:=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/FASTMATH $(FASTMATH)/FASTMATH $(fastmath)/' $(FASTMATH_SELECT_OPTFILE) )
-		# user choice
-		FASTMATH=$(fastmath)
-	endif
+ # does it differ from last?
+ ifneq ($(FASTMATH),$(fastmath))
+  $(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
+   $(SED_COMMAND) 's/FASTMATH $(FASTMATH)/FASTMATH $(fastmath)/' $(FASTMATH_SELECT_OPTFILE) )
+  # user choice
+  FASTMATH=$(fastmath)
+ endif
 else
-	FASTMATH ?= 0
+ FASTMATH ?= 0
 endif
 
 # option: fastdem - Enable or disable fastdem. Default: 0 (disabled)
 ifdef fastdem
-	# does it differ from last?
-	ifneq ($(FASTDEM),$(fastdem))
-		TMP:=$(shell test -e $(FASTDEM_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/FASTDEM $(FASTDEM)/FASTDEM $(fastdem)/' $(FASTDEM_SELECT_OPTFILE) )
-		# user choice
-		FASTDEM=$(fastdem)
-	endif
+ # does it differ from last?
+ ifneq ($(FASTDEM),$(fastdem))
+  $(shell test -e $(FASTDEM_SELECT_OPTFILE) && \
+   $(SED_COMMAND) 's/FASTDEM $(FASTDEM)/FASTDEM $(fastdem)/' $(FASTDEM_SELECT_OPTFILE) )
+  # user choice
+  FASTDEM=$(fastdem)
+ endif
 else
-	FASTDEM ?= 0
+ FASTDEM ?= 0
 endif
 
 # option: mpi - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
 ifdef mpi
-	# does it differ from last?
-	ifneq ($(USE_MPI),$(mpi))
-		TMP := $(shell test -e $(MPI_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(USE_MPI)/$(mpi)/' $(MPI_SELECT_OPTFILE) )
-		# user choice
-		USE_MPI=$(mpi)
-	endif
+ # does it differ from last?
+ ifneq ($(USE_MPI),$(mpi))
+  $(shell test -e $(MPI_SELECT_OPTFILE) && \
+   $(SED_COMMAND) 's/$(USE_MPI)/$(mpi)/' $(MPI_SELECT_OPTFILE) )
+  # user choice
+  USE_MPI=$(mpi)
+ endif
 endif
 
 # override: MPICXX - the MPI compiler
 MPICXX ?= $(shell command -v mpicxx)
+MPICXX := $(MPICXX)
 
 ifeq ($(MPICXX),)
-	ifeq ($(USE_MPI),1)
-		TMP := $(error MPI use requested, but no MPI compiler was found, aborting)
-	else
-		ifeq ($(USE_MPI),)
-			TMP := $(info MPI compiler not found, multi-node will NOT be supported)
-			USE_MPI = 0
-		endif
-	endif
+ ifeq ($(USE_MPI),1)
+  $(error MPI use requested, but no MPI compiler was found, aborting)
+ else
+  ifeq ($(USE_MPI),)
+   $(info MPI compiler not found, multi-node will NOT be supported)
+   USE_MPI = 0
+  endif
+ endif
 else
-	# autodetect the MPI version
-	MPI_VERSION := $(shell printf '\043include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
+ # autodetect the MPI version
+ MPI_VERSION := $(shell printf '\043include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
 
-	# if we have USE_MPI, but MPI_VERSION is empty, abort because it means we couldn't successfully get the
-	# MPI version from mpi.h (e.g. because the development headers were not installed)
-	# Note that if MPI version is defined, it will have a dot inside, so $(USE_MPI)$(MPI_VERSION) cannot be
-	# equal to the string 1 in that case, so the following condition is only for USE_MPI=1 and MPI_VERSION empty
-	ifeq ($(USE_MPI)$(MPI_VERSION),1)
-		TMP := $(error MPI use requested, but the MPI version could not be determined, aborting)
-	endif
+ # if we have USE_MPI, but MPI_VERSION is empty, abort because it means we couldn't successfully get the
+ # MPI version from mpi.h (e.g. because the development headers were not installed)
+ # Note that if MPI version is defined, it will have a dot inside, so $(USE_MPI)$(MPI_VERSION) cannot be
+ # equal to the string 1 in that case, so the following condition is only for USE_MPI=1 and MPI_VERSION empty
+ ifeq ($(USE_MPI)$(MPI_VERSION),1)
+  $(error MPI use requested, but the MPI version could not be determined, aborting)
+ endif
 
-	ifeq ($(USE_MPI),)
-		USE_MPI = 1
-	endif
+ ifeq ($(USE_MPI),)
+  USE_MPI = 1
+ endif
 endif
 
 ifeq ($(USE_MPI),0)
-	# MPICXXOBJS will be compiled with the standard compiler
-	MPICXX=$(CXX)
+ # MPICXXOBJS will be compiled with the standard compiler
+ MPICXX=$(CXX)
 endif
 
 ifeq ($(cuxx.is.nvcc),0)
-	# backend=cpu or CLANG_CUDA
-	LINKER ?= OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" $(MPICXX)
+ # backend=cpu or CLANG_CUDA
+ LINKER ?= OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" $(MPICXX)
 else ifeq ($(USE_MPI),0)
-	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
-	LINKER ?= $(CUXX)
+ # We have to link with NVCC because otherwise thrust has issues on Mac OSX.
+ LINKER ?= $(CUXX)
 else
-	# Also try to detect implementation-specific version.
-	# OpenMPI exposes the version via individual numeric macros
-	OMPI_VERSION := $(shell printf '\043include <mpi.h>\nversion/OMPI_MAJOR_VERSION/OMPI_MINOR_VERSION/OMPI_RELEASE_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'OMPI_' | cut -d/ -f2- | tr '/' '.')
-	# MPICH exposes a version string macro
-	MPICH_VERSION := $(shell printf '\043include <mpi.h>\nversion/MPICH_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MPICH_' | cut -d\" -f2 )
-	# MVAPICH2 exposes its own version string (MVAPICH 1.x apparently does not)
-	MVAPICH_VERSION := $(shell printf '\043include <mpi.h>\nversion/MVAPICH2_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MVAPICH2_' | cut -d\" -f2 )
+ # Also try to detect implementation-specific version.
+ # OpenMPI exposes the version via individual numeric macros
+ OMPI_VERSION := $(shell printf '\043include <mpi.h>\nversion/OMPI_MAJOR_VERSION/OMPI_MINOR_VERSION/OMPI_RELEASE_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'OMPI_' | cut -d/ -f2- | tr '/' '.')
+ # MPICH exposes a version string macro
+ MPICH_VERSION := $(shell printf '\043include <mpi.h>\nversion/MPICH_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MPICH_' | cut -d\" -f2 )
+ # MVAPICH2 exposes its own version string (MVAPICH 1.x apparently does not)
+ MVAPICH_VERSION := $(shell printf '\043include <mpi.h>\nversion/MVAPICH2_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MVAPICH2_' | cut -d\" -f2 )
 
-	MPI_VERSION :=$(MPI_VERSION)$(if $(OMPI_VERSION),$(space)(OpenMPI $(OMPI_VERSION)))
-	MPI_VERSION :=$(MPI_VERSION)$(if $(MPICH_VERSION),$(space)(MPICH $(MPICH_VERSION)))
-	MPI_VERSION :=$(MPI_VERSION)$(if $(MVAPICH_VERSION),$(space)(MVAPICH $(MVAPICH_VERSION)))
+ MPI_VERSION :=$(MPI_VERSION)$(if $(OMPI_VERSION),$(space)(OpenMPI $(OMPI_VERSION)))
+ MPI_VERSION :=$(MPI_VERSION)$(if $(MPICH_VERSION),$(space)(MPICH $(MPICH_VERSION)))
+ MPI_VERSION :=$(MPI_VERSION)$(if $(MVAPICH_VERSION),$(space)(MVAPICH $(MVAPICH_VERSION)))
 
-	# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
-	# but we also need to link with MPICXX, so we would like to use:
-	#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
-	# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
-	# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
-	# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
-	# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
-	# options required by MPICXX at link time:
+ # We have to link with NVCC because otherwise thrust has issues on Mac OSX,
+ # but we also need to link with MPICXX, so we would like to use:
+ #LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
+ # which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
+ # compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
+ # is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
+ # The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
+ # options required by MPICXX at link time:
 
-	## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
-	# We use -show because it's supported by all implementations (otherwise we'd have to detect
-	# if our compiler uses --showme:link or -link_info):
-	MPISHOWFLAGS := $(shell $(MPICXX) -show)
-	# But then we have to remove the compiler name from the proposed command line:
-	MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
+ ## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
+ # We use -show because it's supported by all implementations (otherwise we'd have to detect
+ # if our compiler uses --showme:link or -link_info):
+ MPISHOWFLAGS := $(shell $(MPICXX) -show)
+ # But then we have to remove the compiler name from the proposed command line:
+ MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
 
-	# mpicxx might pass to the compiler options which nvcc might not understand
-	# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
-	# but that means that we cannot pass options which contains commas in them,
-	# since commas are already used to separate the parameters in --compiler-options.
-	# We can't do sophisticated pattern-matching (e.g. filtering on strings _containing_
-	# a comma), so for the time being we just filter out the flags that we _know_
-	# will contain commas (i.e. -Wl,stuff,stuff,stuff).
-	# To make things even more complicated, nvcc does not accept -Wl, so we need
-	# to replace -Wl with --linker-options.
-	# The other options will be gathered into the --compiler-options passed at nvcc
-	# at link time.
-	MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
-	MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
+ # mpicxx might pass to the compiler options which nvcc might not understand
+ # (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
+ # but that means that we cannot pass options which contains commas in them,
+ # since commas are already used to separate the parameters in --compiler-options.
+ # We can't do sophisticated pattern-matching (e.g. filtering on strings _containing_
+ # a comma), so for the time being we just filter out the flags that we _know_
+ # will contain commas (i.e. -Wl,stuff,stuff,stuff).
+ # To make things even more complicated, nvcc does not accept -Wl, so we need
+ # to replace -Wl with --linker-options.
+ # The other options will be gathered into the --compiler-options passed at nvcc
+ # at link time.
+ MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
+ MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
 
-	LINKER ?= $(CUXX) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+ LINKER ?= $(CUXX) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
 
-	# (the solution is not perfect as it still generates some warnings, but at least it rolls)
+ # (the solution is not perfect as it still generates some warnings, but at least it rolls)
 
 endif
 
@@ -646,65 +647,69 @@ HDF5_CXX ?= $(shell pkg-config --cflags-only-other hdf5 2> /dev/null)
 # override: HDF5_LD - LD flags to use HDF5
 HDF5_LD ?= $(shell pkg-config --libs hdf5 2> /dev/null || echo -lhdf5)
 
+HDF5_CPP := $(HDF5_CPP)
+HDF5_CXX := $(HDF5_CXX)
+HDF5_LD  := $(HDF5_LD)
+
 # option: hdf5 - 0 do not use HDF5, 1 use HDF5, 2 use HDF5 and HDF5 requires MPI. Default: autodetect
 ifdef hdf5
-	# does it differ from last?
-	ifneq ($(USE_HDF5),$(hdf5))
-		TMP := $(shell test -e $(HDF5_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(USE_HDF5)/$(hdf5)/' $(HDF5_SELECT_OPTFILE) )
-		# user choice
-		USE_HDF5=$(hdf5)
-	endif
+ # does it differ from last?
+ ifneq ($(USE_HDF5),$(hdf5))
+  $(shell test -e $(HDF5_SELECT_OPTFILE) && \
+   $(SED_COMMAND) 's/$(USE_HDF5)/$(hdf5)/' $(HDF5_SELECT_OPTFILE) )
+  # user choice
+  USE_HDF5=$(hdf5)
+ endif
 else
-	# Check if we can link to the HDF5 library, and disable HDF5 otherwise.
-	# On some configurations, HDF5 requires MPI, so we check HDF5 twice,
-	# once with CXX and once with MPICXX.
-	# During the CXX test we return -1 in case of failure to differentiate from
-	# a case such as 'make hdf5=0 ; make', in which case we want to skip also
-	# the MPICXX test.
-	# We use a for loop in the shell to echo each line because users might have
-	# different interactive shells that do (or do not) interpret a \n escape,
-	# so the only portable way seems to echo each line separately,
-	# and grouping the echos in { } doesn't seem to work from a Makefile
-	# shell invocation
-	USE_HDF5 ?= $(shell for line in '\043include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
-	ifeq ($(USE_HDF5),-1)
-		USE_HDF5 := $(shell for line in '\043include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
-		ifeq ($(USE_HDF5),0)
-			TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
-		endif
-	endif
+ # Check if we can link to the HDF5 library, and disable HDF5 otherwise.
+ # On some configurations, HDF5 requires MPI, so we check HDF5 twice,
+ # once with CXX and once with MPICXX.
+ # During the CXX test we return -1 in case of failure to differentiate from
+ # a case such as 'make hdf5=0 ; make', in which case we want to skip also
+ # the MPICXX test.
+ # We use a for loop in the shell to echo each line because users might have
+ # different interactive shells that do (or do not) interpret a \n escape,
+ # so the only portable way seems to echo each line separately,
+ # and grouping the echos in { } doesn't seem to work from a Makefile
+ # shell invocation
+ USE_HDF5 ?= $(shell for line in '\043include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
+ ifeq ($(USE_HDF5),-1)
+  USE_HDF5 := $(shell for line in '\043include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
+  ifeq ($(USE_HDF5),0)
+   $(info HDF5 library not found, HDF5 input will NOT be supported)
+  endif
+ endif
 endif
 
 # option: chrono - 0 do not use Chrono (no floating objects support), 1 use Chrono (enable floating object support). Default: 0
 ifdef chrono
-	# does it differ from last?
-	ifneq ($(USE_CHRONO),$(chrono))
-		TMP := $(shell test -e $(CHRONO_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(USE_CHRONO)/$(chrono)/' $(CHRONO_SELECT_OPTFILE) )
-		# user choice
-		USE_CHRONO=$(chrono)
-	endif
+ # does it differ from last?
+ ifneq ($(USE_CHRONO),$(chrono))
+  $(shell test -e $(CHRONO_SELECT_OPTFILE) && \
+   $(SED_COMMAND) 's/$(USE_CHRONO)/$(chrono)/' $(CHRONO_SELECT_OPTFILE) )
+  # user choice
+  USE_CHRONO=$(chrono)
+ endif
 else
-	USE_CHRONO ?= 0
+ USE_CHRONO ?= 0
 endif
 
 # option: linearization - something like xyz or yzx to indicate the order
 # option:                 of coordinates when linearizing cell indices,
 # option:                 from fastest to slowest growing coordinate
 ifdef linearization
-	ifneq ($(LINEARIZATION),$(linearization))
-		LINEARIZATION=$(linearization)
-		FORCE_MAKE_LINEARIZATION=FORCE
-	endif
+ ifneq ($(LINEARIZATION),$(linearization))
+  LINEARIZATION=$(linearization)
+  FORCE_MAKE_LINEARIZATION=FORCE
+ endif
 else
-	ifndef LINEARIZATION
-		FORCE_MAKE_LINEARIZATION=FORCE
-		LINEARIZATION=yzx
-	endif
+ ifndef LINEARIZATION
+  FORCE_MAKE_LINEARIZATION=FORCE
+  LINEARIZATION=yzx
+ endif
 endif
 # split the linearization string into individual characters, space-separated
-LINEARIZATION_WORDS=$(shell echo $(LINEARIZATION) | sed 's/./\0 /g')
+LINEARIZATION_WORDS:=$(shell echo $(LINEARIZATION) | sed 's/./\0 /g')
 
 # option: cpu_block_size - block size (used as OpenMP chunk size) for the CPU backend
 ifdef cpu_block_size
@@ -721,22 +726,22 @@ endif
 
 # option: catalyst - 0 do not use Catalyst (disable co-processing visualization support), 1 use Catalyst (enable co-processing visualization support). Default: 0
 ifdef catalyst
-	# does it differ from last?
-	ifneq ($(USE_CATALYST),$(catalyst))
-		TMP := $(shell test -e $(CATALYST_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(USE_CATALYST)/$(catalyst)/' $(CATALYST_SELECT_OPTFILE) )
-		# user choice
-		USE_CATALYST=$(catalyst)
-	endif
+ # does it differ from last?
+ ifneq ($(USE_CATALYST),$(catalyst))
+  $(shell test -e $(CATALYST_SELECT_OPTFILE) && \
+   $(SED_COMMAND) 's/$(USE_CATALYST)/$(catalyst)/' $(CATALYST_SELECT_OPTFILE) )
+  # user choice
+  USE_CATALYST=$(catalyst)
+ endif
 else
-	USE_CATALYST ?= 0
+ USE_CATALYST ?= 0
 endif
 
 # If Catalyst is disabled - exclude adaptors and display writer from the list of .cc files
 ifeq ($(USE_CATALYST),0)
-	CCFILES := $(filter-out $(wildcard $(SRCDIR)/adaptors/*.cc),\
-		$(filter-out $(SRCDIR)/writers/DisplayWriter.cc,\
-		$(CCFILES)))
+ CCFILES := $(filter-out $(wildcard $(SRCDIR)/adaptors/*.cc),\
+  $(filter-out $(SRCDIR)/writers/DisplayWriter.cc,\
+  $(CCFILES)))
 endif
 
 # --- Includes and library section start ---
@@ -747,13 +752,13 @@ LIB_PATH_SFX =
 # override:               defaults to -m64 for 64-bit machines
 # override:                           -m32 for 32-bit machines
 ifeq ($(arch), x86_64)
-	TARGET_ARCH ?= -m64
-	# on Linux, toolkit libraries are under /lib64 for 64-bit
-	ifeq ($(platform), Linux)
-		LIB_PATH_SFX = 64
-	endif
+ TARGET_ARCH ?= -m64
+ # on Linux, toolkit libraries are under /lib64 for 64-bit
+ ifeq ($(platform), Linux)
+  LIB_PATH_SFX = 64
+ endif
 else # i386 or i686
-	TARGET_ARCH ?= -m32
+ TARGET_ARCH ?= -m32
 endif
 
 # override: INCPATH - paths for include files
@@ -789,9 +794,9 @@ INCPATH += -I$(SRCDIR) \
 # include path. This is particularly important in the case where CUDA_INCLUDE_PATH
 # is /usr/include, since otherwise GCC 6 (and later) will fail to find standard
 # includes such as stdint.h
-CUDA_INCLUDE_PATH = $(abspath $(CUDA_INSTALL_PATH)/include)
+CUDA_INCLUDE_PATH := $(abspath $(CUDA_INSTALL_PATH)/include)
 ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
-	CC_INCPATH += -I $(CUDA_INCLUDE_PATH)
+ CC_INCPATH += -I $(CUDA_INCLUDE_PATH)
 endif
 
 # LIBPATH
@@ -800,7 +805,7 @@ LIBPATH += -L/usr/local/lib
 # On Darwin, make sure we link with the GNU C++ standard library
 # TODO make sure this is still needed
 ifeq ($(platform), Darwin)
-       LIBS += -lstdc++
+ LIBS += -lstdc++
 endif
 
 
@@ -808,9 +813,9 @@ endif
 CUDA_LIBRARY_PATH=$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 LIBPATH += -L$(CUDA_LIBRARY_PATH)
 ifeq ($(cuxx.is.nvcc),1)
-LDFLAGS += --linker-options -rpath,$(CUDA_LIBRARY_PATH)
+ LDFLAGS += --linker-options -rpath,$(CUDA_LIBRARY_PATH)
 else
-LDFLAGS += -Wl,-rpath -Wl,$(CUDA_LIBRARY_PATH)
+ LDFLAGS += -Wl,-rpath -Wl,$(CUDA_LIBRARY_PATH)
 endif
 
 # link to the CUDA runtime library
@@ -820,13 +825,13 @@ endif
 
 
 ifneq ($(USE_HDF5),0)
-	# link to HDF5 for input reading
-	LIBS += $(HDF5_LD)
+ # link to HDF5 for input reading
+ LIBS += $(HDF5_LD)
 endif
 
 ifeq ($(USE_CATALYST),1)
-	# link to Catalyst
-	LIBS += $(CATALYST_LD)
+ # link to Catalyst
+ LIBS += $(CATALYST_LD)
 endif
 
 # pthread needed for the UDP writer
@@ -834,7 +839,7 @@ LIBS += -lpthread
 
 # Realtime Extensions library (for clock_gettime) (not on Mac)
 ifneq ($(platform), Darwin)
-	LIBS += -lrt
+ LIBS += -lrt
 endif
 
 # override: CHRONO_PATH         - where Chrono is installed
@@ -852,67 +857,67 @@ CHRONO_INCLUDE_PATH ?=
 CHRONO_LIB_PATH ?=
 
 ifneq ($(USE_CHRONO),0)
-	ifeq ($(CHRONO_INCLUDE_PATH),$(empty))
-		# If CHRONO_INCLUDE_PATH is not set, look for chrono/core/ChChrono.h
-		# under $(CHRONO_PATH)/include and $(CHRONO_PATH)/src in sequence,
-		# and then build the include path by getting the up-up-up-dir
-		CHRONO_INCLUDE_PATH := $(realpath $(dir $(or \
-			$(wildcard $(CHRONO_PATH)/include/chrono/core/ChChrono.h), \
-			$(wildcard $(CHRONO_PATH)/src/chrono/core/ChChrono.h), \
-			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_INCLUDE_PATH) \
-		))/../../)
-	else
-		# otherwise, check that the user-specified path is correct
-		ifeq ($(wildcard $(CHRONO_INCLUDE_PATH)/chrono/core/ChChrono.h),$(empty))
-			TMP := $(error CHRONO_INCLUDE_PATH is set incorrectly, chrono/core/ChChrono.h not found)
-		endif
-	endif
+ ifeq ($(CHRONO_INCLUDE_PATH),$(empty))
+  # If CHRONO_INCLUDE_PATH is not set, look for chrono/core/ChChrono.h
+  # under $(CHRONO_PATH)/include and $(CHRONO_PATH)/src in sequence,
+  # and then build the include path by getting the up-up-up-dir
+  CHRONO_INCLUDE_PATH := $(realpath $(dir $(or \
+   $(wildcard $(CHRONO_PATH)/include/chrono/core/ChChrono.h), \
+   $(wildcard $(CHRONO_PATH)/src/chrono/core/ChChrono.h), \
+   $(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_INCLUDE_PATH) \
+  ))/../../)
+ else
+  # otherwise, check that the user-specified path is correct
+  ifeq ($(wildcard $(CHRONO_INCLUDE_PATH)/chrono/core/ChChrono.h),$(empty))
+   $(error CHRONO_INCLUDE_PATH is set incorrectly, chrono/core/ChChrono.h not found)
+  endif
+ endif
 
-	ifeq ($(CHRONO_LIB_PATH),$(empty))
-		# If CHRONO_LIB_PATH is not set, look for libChronoEngine.*
-		# under $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
-		CHRONO_LIB_PATH := $(dir $(or \
-			$(wildcard $(CHRONO_PATH)/lib64/libChronoEngine.so) \
-			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so) \
-			$(wildcard $(CHRONO_PATH)/lib/libChronoEngine.so) \
-			$(wildcard $(CHRONO_PATH)/build/lib/libChronoEngine.so), \
-			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_LIB_PATH) \
-			))
-	else
-		# otherwise, check that the user-specified path is correct
-		ifeq ($(wildcard $(CHRONO_LIB_PATH)/libChronoEngine.*),$(empty))
-			TMP := $(error CHRONO_LIB_PATH is set incorrectly, libChronoEngine not found)
-		endif
-	endif
+ ifeq ($(CHRONO_LIB_PATH),$(empty))
+  # If CHRONO_LIB_PATH is not set, look for libChronoEngine.*
+  # under $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
+  CHRONO_LIB_PATH := $(dir $(or \
+   $(wildcard $(CHRONO_PATH)/lib64/libChronoEngine.so) \
+   $(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so) \
+   $(wildcard $(CHRONO_PATH)/lib/libChronoEngine.so) \
+   $(wildcard $(CHRONO_PATH)/build/lib/libChronoEngine.so), \
+   $(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_LIB_PATH) \
+   ))
+ else
+  # otherwise, check that the user-specified path is correct
+  ifeq ($(wildcard $(CHRONO_LIB_PATH)/libChronoEngine.*),$(empty))
+   $(error CHRONO_LIB_PATH is set incorrectly, libChronoEngine not found)
+  endif
+ endif
 
-	# When using Chrono from the build directory, chrono/ChConfig.h is under the build dir,
-	# otherwise it's under the include directory
-	CHRONO_CONFIG_PATH=$(realpath $(dir $(or \
-	   $(wildcard $(CHRONO_INCLUDE_PATH)/chrono/ChConfig.h), \
-	   $(wildcard $(CHRONO_PATH)/build/chrono/ChConfig.h), \
-	   $(error Could not find Chrono configuration header. Include path: $(CHRONO_INCLUDE_PATH), Chrono path: $(CHRONO_PATH)) \
-	))/../)
+ # When using Chrono from the build directory, chrono/ChConfig.h is under the build dir,
+ # otherwise it's under the include directory
+ CHRONO_CONFIG_PATH := $(realpath $(dir $(or \
+    $(wildcard $(CHRONO_INCLUDE_PATH)/chrono/ChConfig.h), \
+    $(wildcard $(CHRONO_PATH)/build/chrono/ChConfig.h), \
+    $(error Could not find Chrono configuration header. Include path: $(CHRONO_INCLUDE_PATH), Chrono path: $(CHRONO_PATH)) \
+ ))/../)
 
-	ifneq ($(CHRONO_CONFIG_PATH),/usr/include)
-		INCPATH += -isystem $(CHRONO_CONFIG_PATH)
-	endif
+ ifneq ($(CHRONO_CONFIG_PATH),/usr/include)
+  INCPATH += -isystem $(CHRONO_CONFIG_PATH)
+ endif
 
-	ifneq ($(CHRONO_INCLUDE_PATH),/usr/include)
-		INCPATH += -isystem $(CHRONO_INCLUDE_PATH)
-	endif
+ ifneq ($(CHRONO_INCLUDE_PATH),/usr/include)
+  INCPATH += -isystem $(CHRONO_INCLUDE_PATH)
+ endif
 
-	# This is needed because on some versions of Chrono, headers include each other without the chrono/ prefix 8-/
-	INCPATH += -isystem $(CHRONO_INCLUDE_PATH)/chrono
+ # This is needed because on some versions of Chrono, headers include each other without the chrono/ prefix 8-/
+ INCPATH += -isystem $(CHRONO_INCLUDE_PATH)/chrono
 
-	INCPATH += -isystem $(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
+ INCPATH += -isystem $(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
 
-	LIBPATH += -L$(CHRONO_LIB_PATH)
-	LIBS += -lChronoEngine
-	ifeq ($(cuxx.is.nvcc),1)
-		LDFLAGS += --linker-options -rpath,$(CHRONO_LIB_PATH)
-	else
-		LDFLAGS += -Wl,-rpath -Wl,$(CHRONO_LIB_PATH)
-	endif
+ LIBPATH += -L$(CHRONO_LIB_PATH)
+ LIBS += -lChronoEngine
+ ifeq ($(cuxx.is.nvcc),1)
+  LDFLAGS += --linker-options -rpath,$(CHRONO_LIB_PATH)
+ else
+  LDFLAGS += -Wl,-rpath -Wl,$(CHRONO_LIB_PATH)
+ endif
 endif
 LDFLAGS += $(LIBPATH)
 
@@ -937,7 +942,7 @@ CUFLAGS  ?=
 # Let the code know if we're using Clang to compile the CUDA device code too
 CPPFLAGS += -DCLANG_CUDA=$(CLANG_CUDA)
 ifeq ($(CLANG_CUDA),1)
-	CPPFLAGS += -DDISABLE_ALL_TEXTURES=1
+ CPPFLAGS += -DDISABLE_ALL_TEXTURES=1
 endif
 
 # First of all, put the include paths into the CPPFLAGS
@@ -958,16 +963,16 @@ CPPFLAGS += -D_GLIBCXX_USE_C99_MATH
 # Define USE_HDF5 according to the availability of the HDF5 library
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
 ifneq ($(USE_HDF5),0)
-	CPPFLAGS += $(HDF5_CPP)
+ CPPFLAGS += $(HDF5_CPP)
 endif
 
 # We set __COMPUTE__ on the host to match that automatically defined
 # by the compiler on the device. Since this might be done before COMPUTE
 # is actually defined, substitute 0 in that case
 ifeq ($(COMPUTE),)
-	CPPFLAGS += -D__COMPUTE__=0
+ CPPFLAGS += -D__COMPUTE__=0
 else
-	CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
+ CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
 endif
 
 
@@ -991,23 +996,23 @@ endif
 
 # HDF5 might require specific flags
 ifneq ($(USE_HDF5),0)
-	CXXFLAGS += $(HDF5_CXX)
+ CXXFLAGS += $(HDF5_CXX)
 endif
 
 # Catalyst might require specific flags
 ifeq ($(USE_CATALYST),1)
-	CXXFLAGS += $(CATALYST_CXX)
+ CXXFLAGS += $(CATALYST_CXX)
 endif
 
 # nvcc-specific flags
 
 # compute capability specification, if defined
 ifneq ($(COMPUTE),)
-	ifeq ($(CLANG_CUDA),1)
-		CU_ARCH_SPEC += --cuda-gpu-arch=sm_$(COMPUTE)
-	else
-		CU_ARCH_SPEC += -arch=sm_$(COMPUTE)
-	endif
+ ifeq ($(CLANG_CUDA),1)
+  CU_ARCH_SPEC += --cuda-gpu-arch=sm_$(COMPUTE)
+ else
+  CU_ARCH_SPEC += -arch=sm_$(COMPUTE)
+ endif
 endif
 
 ifeq ($(cuda.backend.enabled),1)
@@ -1109,15 +1114,15 @@ endif
 
 # when listing problems, we don't want debug info to show anywhere
 ifeq ($(MAKECMDGOALS), list-problems)
-	show_stage=@
-	show_stage_nl=@
+ show_stage=@
+ show_stage_nl=@
 endif
 
 # option: echo - 0 silent, 1 show commands
 ifeq ($(echo), 1)
-	CMDECHO :=
+ CMDECHO :=
 else
-	CMDECHO := @
+ CMDECHO := @
 endif
 export CMDECHO
 
