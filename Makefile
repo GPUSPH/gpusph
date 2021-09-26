@@ -1462,6 +1462,7 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	 echo "    MPI version: $(MPI_VERSION)"								>> $@
 	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
 	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $@
+	@echo "USE_CATALYST:    $(USE_CATALYST)"							>> $@
 	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $@
 	@echo "INCPATH:         $(INCPATH)"									>> $@
 	@echo "LIBPATH:         $(LIBPATH)"									>> $@
