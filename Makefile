@@ -171,7 +171,7 @@ problem_gen_obj = $(OBJDIR)/$(1).gen.o
 
 problem_objs = $(call problem_obj,$1) $(call problem_gen_obj,$1)
 
-# list of .cc files, exclusing MPI and problem sources
+# list of .cc files, excluding MPI and problem sources
 CCFILES = $(filter-out $(MPICXXFILES),\
 	  $(foreach adir, $(filter-out $(PROBLEM_DIRS), $(SRCDIR) $(SRCSUBS)),\
 	  $(wildcard $(adir)/*.cc)))
@@ -255,7 +255,7 @@ cuda.backend.enabled:=0
 cpu.backend.enabled:=0
 $(COMPUTE_BACKEND).backend.enabled:=1
 
-# opton: openmp - controls usage of OpenMP (currently only with CPU backend)
+# option: openmp - controls usage of OpenMP (currently only with CPU backend)
 #                 0 (default): device code is compiled without OpenMP support
 #                 1:           device code is compiled with OpenMP support
 USE_OPENMP ?= 0
@@ -436,7 +436,7 @@ ACTUAL_OPTFILES= \
 	  $(CHRONO_SELECT_OPTFILE) \
 	  $(CATALYST_SELECT_OPTFILE)
 
-# Pseudo-optfiles, documentig GPUSPH version and build environment
+# Pseudo-optfiles, documenting GPUSPH version and build environment
 PSEUDO_OPTFILES= \
 	  $(GPUSPH_VERSION_OPTFILE) \
 	  $(MAKE_SHOW_OPTFILE) \
@@ -621,7 +621,7 @@ else
 	# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
 	# but that means that we cannot pass options which contains commas in them,
 	# since commas are already used to separate the parameters in --compiler-options.
-	# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
+	# We can't do sophisticated pattern-matching (e.g. filtering on strings _containing_
 	# a comma), so for the time being we just filter out the flags that we _know_
 	# will contain commas (i.e. -Wl,stuff,stuff,stuff).
 	# To make things even more complicated, nvcc does not accept -Wl, so we need
@@ -1462,7 +1462,7 @@ $(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/
 	$(CMDECHO)tar czf $@ $^
 
 # target: expand - Expand euler* and forces* GPU code in $(EXPDIR)
-# it is safe to say we don't actualy need this
+# it is safe to say we don't actually need this
 expand:
 	$(CMDECHO)mkdir -p $(EXPDIR)
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
@@ -1600,7 +1600,7 @@ help-overrides:
 %-definition:
 	@echo "$(call showvardef,${@:-definition=})"
 
-# FORCE target: add it to the dependecy f another target to force-rebuild it
+# FORCE target: add it to the dependency f another target to force-rebuild it
 # Used e.g. by the LINEARIZATION_SELECT_OPTFILE to remake it when the linearization
 # changes (note that we use this mechanism instead of the sed commands used in
 # other circumstances because it's more complex to rebuild
