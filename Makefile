@@ -74,6 +74,11 @@ GIT_INFO_OUTPUT := $(shell git branch -vv)
 
 # system information
 platform := $(shell uname -s 2>/dev/null)
+ifeq ($(platform),Linux)
+ ifeq ($(shell uname -o 2>/dev/null),Android)
+  platform:=Android
+ endif
+endif
 platform_lcase := $(shell uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')
 arch := $(shell uname -m)
 
@@ -981,7 +986,9 @@ endif
 CXXFLAGS += $(TARGET_ARCH)
 
 ifeq ($(cpu.backend.enabled),1)
- CXXFLAGS += -march=native
+ ifneq ($(platform),Android) # Clang in Termux does not support march=native
+  CXXFLAGS += -march=native
+ endif
 endif
 
 # We also force C++11 (or higher) mode, since we are now relying on C++11 features
