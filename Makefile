@@ -85,9 +85,10 @@ else # Linux
 endif
 
 
-# option: target_arch - if set to 32, force compilation for 32 bit architecture
+# TODO ideally, this could be used for cross-compilation too
+# option: target_arch - if set, force compilation for the specific architecture
 ifeq ($(target_arch), 32)
- arch :=i686
+ arch := $(target_arch)
 endif
 
 # name of the top-level Makefile (this file)
@@ -751,7 +752,7 @@ LIB_PATH_SFX =
 # override: TARGET_ARCH - set the target architecture
 # override:               defaults to -m64 for 64-bit machines
 # override:                           -m32 for 32-bit machines
-ifeq ($(arch), x86_64)
+ifeq ($(findstring 64,$(arch)), 64)
  TARGET_ARCH ?= -m64
  # on Linux, toolkit libraries are under /lib64 for 64-bit
  ifeq ($(platform), Linux)
