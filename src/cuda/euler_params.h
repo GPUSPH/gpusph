@@ -153,12 +153,10 @@ struct dummy_euler_params
 struct fea_euler_params
 {
 	const	float4	* __restrict__ fea_velocities; // velocity to be applied to fem particles 
-	const	particleinfo	* __restrict__ info;		///< particle's information
 
 	// Constructor / initializer
 	fea_euler_params(BufferList const&	bufread):
-		fea_velocities(bufread.getData<BUFFER_FEA_EXCH>()),
-		info(bufread.getData<BUFFER_INFO>())
+		fea_velocities(bufread.getData<BUFFER_FEA_EXCH>())
 	{}
 };
 

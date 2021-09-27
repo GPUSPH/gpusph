@@ -156,12 +156,6 @@ struct fea_particle_data
 	__device__ __forceinline__
 	fea_particle_data(particleinfo const& info, fea_euler_params const& params)  :
 		fea_particle_data(id(info), object(info), params, info)
-	{
-	}
-
-	__device__ __forceinline__
-	fea_particle_data(const uint index, fea_euler_params const& params)  :
-		fea_particle_data(params.info[index], params)
 	{}
 };
 
@@ -204,7 +198,7 @@ struct euler_particle_data :
 		COND_STRUCT(HAS_XSPH(simflags) && !EP::repacking, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data)(_index, params),
 		COND_STRUCT(HAS_INTERNAL_ENERGY(simflags), energy_particle_data)(_index, params),
-		COND_STRUCT(HAS_FEA(simflags), fea_particle_data)(_index, params),
+		COND_STRUCT(HAS_FEA(simflags), fea_particle_data)(this->info, params),
 		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_particle_data)(_index, params)
 	{}
 };
