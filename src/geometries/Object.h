@@ -44,6 +44,15 @@
 #include "chrono/fea/ChNodeFEAxyzD.h"
 #include "chrono/fea/ChLinkPointFrame.h"
 #include "chrono/fea/ChLinkDirFrame.h"
+
+// After version 5, Chrono introduces chrono_types::make_shared
+// that is just like std::make_shared but with proper alignment for Eigen.
+// To be source-compatible, we import make_shared from std in v4.
+#if CH_VERSION < 0x00050000
+namespace chrono_types {
+	using std::make_shared;
+}
+#endif
 #endif
 
 //! Auxiliary type for joints between FEA nodes

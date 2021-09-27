@@ -63,8 +63,11 @@
 #if USE_CHRONO
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/solver/ChSolver.h"
+#include "chrono/solver/ChSolverMINRES.h"
+#if CH_VERSION >= 0x00050000
 #include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono/solver/ChDirectSolverLS.h"
+#endif
 #include "chrono/fea/ChNodeFEAxyzD.h"
 #include "chrono/fea/ChLinkPointFrame.h"
 #include "chrono/fea/ChLinkDirFrame.h"
@@ -238,14 +241,23 @@ ProblemCore::InitializeChrono()
 		m_physparams->gravity.z));
 
 
+	// TODO FIXME this solver choice management needs to be redone
+#if CH_VERSION < 0x00050000
+#define SOLVER_TYPE 0
+#else
 #define SOLVER_TYPE 7
+#endif
 
 	// Set FEA solver (the way of computing FEM forces, time bottleneck for FEA)
 #if SOLVER_TYPE == 0	//  choose between MINRES or MKL
 	auto minres_solver = chrono_types::make_shared<::chrono::ChSolverMINRES>();
 	m_chrono_system->SetSolver(minres_solver);
 
+#if CH_VERSION < 0x00050000
+	minres_solver->SetDiagonalPreconditioning(true);
+#else
 	minres_solver->EnableDiagonalPreconditioner(true);
+#endif
 	minres_solver->SetMaxIterations(100);
 	minres_solver->SetTolerance(1e-10);
 	minres_solver->SetVerbose(false);
